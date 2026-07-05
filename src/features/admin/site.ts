@@ -26,7 +26,7 @@ import {
   adminSiteHomePage,
   adminSiteOrderPage,
 } from "#templates/admin/site.tsx";
-import { FORMATTING_HINT } from "#templates/fields.ts";
+import { formattingHint } from "#templates/fields.ts";
 
 export const siteHomeForm = defineForm({
   fields: [
@@ -40,7 +40,7 @@ export const siteHomeForm = defineForm({
       type: "text" as const,
     },
     {
-      hintHtml: `Text displayed on the public homepage (max ${MAX_TEXTAREA_LENGTH} characters). ${FORMATTING_HINT}`,
+      hintHtml: `Text displayed on the public homepage (max ${MAX_TEXTAREA_LENGTH} characters). ${formattingHint()}`,
       id: "homepage_text",
       label: "Homepage Text",
       markdown: true,
@@ -56,7 +56,7 @@ export const siteHomeForm = defineForm({
 export const siteContactForm = defineForm({
   fields: [
     {
-      hintHtml: `Text displayed on the public contact page (max ${MAX_TEXTAREA_LENGTH} characters). ${FORMATTING_HINT}`,
+      hintHtml: `Text displayed on the public contact page (max ${MAX_TEXTAREA_LENGTH} characters). ${formattingHint()}`,
       id: "contact_page_text",
       label: "Contact Page Text",
       markdown: true,
@@ -72,7 +72,7 @@ export const siteContactForm = defineForm({
 export const siteOrderForm = defineForm({
   fields: [
     {
-      hintHtml: `Shown at the top of the public order page (max ${MAX_TEXTAREA_LENGTH} characters). ${FORMATTING_HINT}`,
+      hintHtml: `Shown at the top of the public order page (max ${MAX_TEXTAREA_LENGTH} characters). ${formattingHint()}`,
       id: "order_intro_text",
       label: "Order Page Intro",
       markdown: true,

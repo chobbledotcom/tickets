@@ -55,6 +55,17 @@ import {
   isOrphanRetentionValue,
 } from "#shared/orphan-retention.ts";
 import { requestCache } from "#shared/request-cache.ts";
+import {
+  type AccessorSpec,
+  CONFIG_KEYS,
+  EMAIL_BODY_KEYS,
+  ENCRYPTED_KEYS,
+  PLAINTEXT_KEYS,
+  PRUNE_KEYS,
+  STRING_ACCESSORS,
+  type StringAccessors,
+  type StringSettingKey,
+} from "#shared/settings/registry.ts";
 import { DEFAULT_TIMEZONE } from "#shared/timezone.ts";
 import type {
   EmailTemplateFormat,
@@ -81,94 +92,8 @@ import {
 import type { EncryptedUpdateFn } from "#shared/wallets/wallet-settings-types.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
 
-// ---------------------------------------------------------------------------
-// Setting keys
-// ---------------------------------------------------------------------------
-
-export const CONFIG_KEYS = {
-  ACTIVITY_LOG_BACKFILL_DONE: "activity_log_backfill_done",
-  APPLE_WALLET_PASS_TYPE_ID: "apple_wallet_pass_type_id",
-  APPLE_WALLET_SIGNING_CERT: "apple_wallet_signing_cert",
-  APPLE_WALLET_SIGNING_KEY: "apple_wallet_signing_key",
-  APPLE_WALLET_TEAM_ID: "apple_wallet_team_id",
-  APPLE_WALLET_WWDR_CERT: "apple_wallet_wwdr_cert",
-  ATTENDEE_COLUMN_ORDER: "attendee_column_order",
-  AUTO_PURGE_ORPHANS: "auto_purge_orphans",
-  BOOKING_FEE: "booking_fee",
-  BULK_EMAIL_DRAFT: "bulk_email_draft",
-  BUNNY_SUBDOMAIN: "bunny_subdomain",
-  BUSINESS_EMAIL: "business_email",
-  CALENDAR_FEEDS_ENABLED: "calendar_feeds_enabled",
-  CALENDAR_FEEDS_GROUP_BY: "calendar_feeds_group_by",
-  CONTACT_FORM_ENABLED: "contact_form_enabled",
-  CONTACT_PAGE_TEXT: "contact_page_text",
-  COUNTRY: "country",
-  CURRENT_TASK: "current_task",
-  CUSTOM_CSS: "custom_css",
-  CUSTOM_DOMAIN: "custom_domain",
-  CUSTOM_DOMAIN_LAST_VALIDATED: "custom_domain_last_validated",
-  EMAIL_API_KEY: "email_api_key",
-  EMAIL_FROM_ADDRESS: "email_from_address",
-  EMAIL_PROVIDER: "email_provider",
-  EMAIL_TPL_ADMIN_HTML: "email_tpl_admin_html",
-  EMAIL_TPL_ADMIN_SUBJECT: "email_tpl_admin_subject",
-  EMAIL_TPL_ADMIN_TEXT: "email_tpl_admin_text",
-  EMAIL_TPL_CONFIRMATION_HTML: "email_tpl_confirmation_html",
-  EMAIL_TPL_CONFIRMATION_SUBJECT: "email_tpl_confirmation_subject",
-  EMAIL_TPL_CONFIRMATION_TEXT: "email_tpl_confirmation_text",
-  EMBED_HOSTS: "embed_hosts",
-  EXTERNAL_ORDER_ENABLED: "external_order_enabled",
-  GOOGLE_WALLET_ISSUER_ID: "google_wallet_issuer_id",
-  GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: "google_wallet_service_account_email",
-  GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: "google_wallet_service_account_key",
-  HAS_LOGISTICS: "has_logistics",
-  HEADER_IMAGE_URL: "header_image_url",
-  HOMEPAGE_TEXT: "homepage_text",
-  LAST_ACTIVITY_LOG_BACKFILL: "last_activity_log_backfill",
-  LAST_PRUNED_CONTACTS: "last_pruned_contacts",
-  LAST_PRUNED_INVITES: "last_pruned_invites",
-  LAST_PRUNED_LOGINS: "last_pruned_logins",
-  LAST_PRUNED_ORPHANS: "last_pruned_orphans",
-  LAST_PRUNED_PAYMENTS: "last_pruned_payments",
-  LAST_PRUNED_SESSIONS: "last_pruned_sessions",
-  LAST_PRUNED_STRINGS: "last_pruned_strings",
-  LAST_PRUNED_SUMUP: "last_pruned_sumup",
-  LAST_PRUNED_TOKENS: "last_pruned_tokens",
-  LATEST_SCRIPT_VERSION: "latest_script_version",
-  LATEST_SCRIPT_VERSION_NAME: "latest_script_version_name",
-  LISTING_COLUMN_ORDER: "listing_column_order",
-  LISTING_DEFAULTS: "listing_defaults",
-  ORDER_ENABLED: "order_enabled",
-  ORDER_INTRO_TEXT: "order_intro_text",
-  ORPHAN_PURGE_RETENTION: "orphan_purge_retention",
-  PAYMENT_PROVIDER: "payment_provider",
-  PUBLIC_KEY: "public_key",
-  SETTINGS_VERSION: "settings_version",
-  SETUP_COMPLETE: "setup_complete",
-  SHOW_PUBLIC_API: "show_public_api",
-  SHOW_PUBLIC_SITE: "show_public_site",
-  SMS_GATEWAY_BASE_URL: "sms_gateway_base_url",
-  SMS_GATEWAY_PASSPHRASE: "sms_gateway_passphrase",
-  SMS_GATEWAY_PASSWORD: "sms_gateway_password",
-  SMS_GATEWAY_USERNAME: "sms_gateway_username",
-  SMS_GATEWAY_WEBHOOK_SECRET: "sms_gateway_webhook_secret",
-  SQUARE_ACCESS_TOKEN: "square_access_token",
-  SQUARE_LOCATION_ID: "square_location_id",
-  SQUARE_SANDBOX: "square_sandbox",
-  SQUARE_WEBHOOK_SIGNATURE_KEY: "square_webhook_signature_key",
-  STRIPE_SECRET_KEY: "stripe_secret_key",
-  STRIPE_WEBHOOK_ENDPOINT_ID: "stripe_webhook_endpoint_id",
-  STRIPE_WEBHOOK_SECRET: "stripe_webhook_secret",
-  SUMUP_API_KEY: "sumup_api_key",
-  SUMUP_MERCHANT_CODE: "sumup_merchant_code",
-  SUPERUSER_CHOICE: "superuser_choice",
-  SUPPORT_FORM_LAST_SUBMITTED: "support_form_last_submitted",
-  TERMS_AND_CONDITIONS: "terms_and_conditions",
-  THEME: "theme",
-  UNDERLINE_LINKS: "underline_links",
-  WEBSITE_TITLE: "website_title",
-  WRAPPED_PRIVATE_KEY: "wrapped_private_key",
-} as const;
+export type { StringSettingKey };
+export { CONFIG_KEYS, EMAIL_BODY_KEYS, PRUNE_KEYS };
 
 export const MASK_SENTINEL = "••••••••••••";
 export const isMaskSentinel = (value: string): boolean =>
@@ -286,100 +211,6 @@ const TEMPLATE_KEYS: Record<TemplateKeyMap, StringSettingKey> = {
   "confirmation:subject": "email_tpl_confirmation_subject",
   "confirmation:text": "email_tpl_confirmation_text",
 };
-
-// ---------------------------------------------------------------------------
-// String setting keys — plaintext and encrypted
-// ---------------------------------------------------------------------------
-
-export const PRUNE_KEYS = [
-  CONFIG_KEYS.LAST_PRUNED_STRINGS,
-  CONFIG_KEYS.LAST_PRUNED_LOGINS,
-  CONFIG_KEYS.LAST_PRUNED_TOKENS,
-  CONFIG_KEYS.LAST_PRUNED_CONTACTS,
-  CONFIG_KEYS.LAST_PRUNED_INVITES,
-  CONFIG_KEYS.LAST_PRUNED_ORPHANS,
-] as const;
-
-export const EMAIL_BODY_KEYS = [
-  CONFIG_KEYS.EMAIL_API_KEY,
-  CONFIG_KEYS.EMAIL_FROM_ADDRESS,
-  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT,
-  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML,
-  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_TEXT,
-  CONFIG_KEYS.EMAIL_TPL_ADMIN_SUBJECT,
-  CONFIG_KEYS.EMAIL_TPL_ADMIN_HTML,
-  CONFIG_KEYS.EMAIL_TPL_ADMIN_TEXT,
-] as const;
-
-/** Plaintext string config keys (stored unencrypted, default ""). */
-const PLAINTEXT_KEYS = [
-  CONFIG_KEYS.TERMS_AND_CONDITIONS,
-  CONFIG_KEYS.BULK_EMAIL_DRAFT,
-  CONFIG_KEYS.EMAIL_PROVIDER,
-  // Custom CSS is served verbatim as a public stylesheet at /custom.css, so it
-  // is stored unencrypted — there is nothing secret about it.
-  CONFIG_KEYS.CUSTOM_CSS,
-  CONFIG_KEYS.CUSTOM_DOMAIN,
-  CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
-  CONFIG_KEYS.BUNNY_SUBDOMAIN,
-  CONFIG_KEYS.CURRENT_TASK,
-  CONFIG_KEYS.PUBLIC_KEY,
-  CONFIG_KEYS.WRAPPED_PRIVATE_KEY,
-  CONFIG_KEYS.SQUARE_LOCATION_ID,
-  CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID,
-  CONFIG_KEYS.SUMUP_MERCHANT_CODE,
-  CONFIG_KEYS.LATEST_SCRIPT_VERSION,
-  CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
-  CONFIG_KEYS.SUPERUSER_CHOICE,
-  CONFIG_KEYS.SUPPORT_FORM_LAST_SUBMITTED,
-  CONFIG_KEYS.LISTING_COLUMN_ORDER,
-  CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
-  CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
-  CONFIG_KEYS.LAST_PRUNED_SESSIONS,
-  CONFIG_KEYS.LAST_PRUNED_SUMUP,
-  ...PRUNE_KEYS,
-  CONFIG_KEYS.SMS_GATEWAY_BASE_URL,
-  CONFIG_KEYS.ACTIVITY_LOG_BACKFILL_DONE,
-  CONFIG_KEYS.LAST_ACTIVITY_LOG_BACKFILL,
-] as const;
-
-/** Encrypted string config keys (decrypted during loadKeys, default ""). */
-const ENCRYPTED_KEYS = [
-  CONFIG_KEYS.BUSINESS_EMAIL,
-  CONFIG_KEYS.HEADER_IMAGE_URL,
-  CONFIG_KEYS.WEBSITE_TITLE,
-  CONFIG_KEYS.HOMEPAGE_TEXT,
-  CONFIG_KEYS.CONTACT_PAGE_TEXT,
-  CONFIG_KEYS.ORDER_INTRO_TEXT,
-  CONFIG_KEYS.STRIPE_SECRET_KEY,
-  CONFIG_KEYS.STRIPE_WEBHOOK_SECRET,
-  CONFIG_KEYS.SQUARE_ACCESS_TOKEN,
-  CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY,
-  CONFIG_KEYS.SUMUP_API_KEY,
-  CONFIG_KEYS.EMBED_HOSTS,
-  ...EMAIL_BODY_KEYS,
-  CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID,
-  CONFIG_KEYS.APPLE_WALLET_TEAM_ID,
-  CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT,
-  CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY,
-  CONFIG_KEYS.APPLE_WALLET_WWDR_CERT,
-  CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID,
-  CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL,
-  CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY,
-  CONFIG_KEYS.SMS_GATEWAY_PASSPHRASE,
-  CONFIG_KEYS.SMS_GATEWAY_USERNAME,
-  CONFIG_KEYS.SMS_GATEWAY_PASSWORD,
-  CONFIG_KEYS.SMS_GATEWAY_WEBHOOK_SECRET,
-  // The defaults blob can carry a webhook / thank-you URL (which commonly hold
-  // bearer tokens or private endpoints) — the same fields are encrypted on
-  // listings, so the shared default is encrypted at rest too.
-  CONFIG_KEYS.LISTING_DEFAULTS,
-] as const;
-
-/** Union of all string-setting snapshot keys. */
-export type StringSettingKey =
-  | (typeof PLAINTEXT_KEYS)[number]
-  | (typeof ENCRYPTED_KEYS)[number];
 
 /** All string setting fields: empty string means "no value". */
 type StringSettingFields = Record<StringSettingKey, string>;
@@ -579,65 +410,10 @@ const plaintextUpdate: EncryptedUpdateFn = stringUpdate(writeOrDelete);
 // ---------------------------------------------------------------------------
 // Generated string accessors
 //
-// One entry here creates both the sync getter (settings.<name>) and, unless
-// readOnly, the matching writer (settings.update.<name>). Whether the writer
-// encrypts is derived from ENCRYPTED_KEYS membership, so adding a simple
-// string setting means: a CONFIG_KEYS entry, a PLAINTEXT_KEYS/ENCRYPTED_KEYS
-// entry, and one line below.
+// One registry entry creates both the sync getter (settings.<name>) and,
+// unless readOnly, the matching writer (settings.update.<name>). Whether the
+// writer encrypts is derived from the same registry entry's storage mode.
 // ---------------------------------------------------------------------------
-
-type AccessorSpec = { key: StringSettingKey; readOnly?: true };
-
-const STRING_ACCESSORS = {
-  activityLogBackfillDone: { key: CONFIG_KEYS.ACTIVITY_LOG_BACKFILL_DONE },
-  attendeeColumnOrder: { key: CONFIG_KEYS.ATTENDEE_COLUMN_ORDER },
-  bulkEmailDraft: { key: CONFIG_KEYS.BULK_EMAIL_DRAFT },
-  bunnySubdomain: { key: CONFIG_KEYS.BUNNY_SUBDOMAIN },
-  businessEmail: { key: CONFIG_KEYS.BUSINESS_EMAIL },
-  contactPageText: { key: CONFIG_KEYS.CONTACT_PAGE_TEXT },
-  currentTask: { key: CONFIG_KEYS.CURRENT_TASK },
-  customCss: { key: CONFIG_KEYS.CUSTOM_CSS },
-  customDomain: { key: CONFIG_KEYS.CUSTOM_DOMAIN },
-  // readOnly: settings.update.customDomainLastValidated writes a timestamp
-  customDomainLastValidated: {
-    key: CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
-    readOnly: true,
-  },
-  embedHosts: { key: CONFIG_KEYS.EMBED_HOSTS },
-  headerImageUrl: { key: CONFIG_KEYS.HEADER_IMAGE_URL },
-  homepageText: { key: CONFIG_KEYS.HOMEPAGE_TEXT },
-  lastActivityLogBackfill: { key: CONFIG_KEYS.LAST_ACTIVITY_LOG_BACKFILL },
-  lastPrunedContacts: { key: CONFIG_KEYS.LAST_PRUNED_CONTACTS },
-  lastPrunedInvites: { key: CONFIG_KEYS.LAST_PRUNED_INVITES },
-  lastPrunedLogins: { key: CONFIG_KEYS.LAST_PRUNED_LOGINS },
-  lastPrunedOrphans: { key: CONFIG_KEYS.LAST_PRUNED_ORPHANS },
-  lastPrunedPayments: { key: CONFIG_KEYS.LAST_PRUNED_PAYMENTS },
-  lastPrunedSessions: { key: CONFIG_KEYS.LAST_PRUNED_SESSIONS },
-  lastPrunedStrings: { key: CONFIG_KEYS.LAST_PRUNED_STRINGS },
-  lastPrunedSumup: { key: CONFIG_KEYS.LAST_PRUNED_SUMUP },
-  lastPrunedTokens: { key: CONFIG_KEYS.LAST_PRUNED_TOKENS },
-  latestScriptVersion: { key: CONFIG_KEYS.LATEST_SCRIPT_VERSION },
-  latestScriptVersionName: { key: CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME },
-  listingColumnOrder: { key: CONFIG_KEYS.LISTING_COLUMN_ORDER },
-  orderIntroText: { key: CONFIG_KEYS.ORDER_INTRO_TEXT },
-  // readOnly: key material is only written by setup/password flows
-  publicKey: { key: CONFIG_KEYS.PUBLIC_KEY, readOnly: true },
-  smsGatewayBaseUrl: { key: CONFIG_KEYS.SMS_GATEWAY_BASE_URL },
-  smsGatewayPassphrase: { key: CONFIG_KEYS.SMS_GATEWAY_PASSPHRASE },
-  smsGatewayPassword: { key: CONFIG_KEYS.SMS_GATEWAY_PASSWORD },
-  smsGatewayUsername: { key: CONFIG_KEYS.SMS_GATEWAY_USERNAME },
-  smsGatewayWebhookSecret: { key: CONFIG_KEYS.SMS_GATEWAY_WEBHOOK_SECRET },
-  // readOnly: settings.update.supportFormLastSubmitted writes a timestamp
-  supportFormLastSubmitted: {
-    key: CONFIG_KEYS.SUPPORT_FORM_LAST_SUBMITTED,
-    readOnly: true,
-  },
-  terms: { key: CONFIG_KEYS.TERMS_AND_CONDITIONS },
-  websiteTitle: { key: CONFIG_KEYS.WEBSITE_TITLE },
-  wrappedPrivateKey: { key: CONFIG_KEYS.WRAPPED_PRIVATE_KEY, readOnly: true },
-} as const satisfies Record<string, AccessorSpec>;
-
-type StringAccessors = typeof STRING_ACCESSORS;
 
 /** Sync getter per accessor entry. */
 type GeneratedGetters = { readonly [K in keyof StringAccessors]: string };
@@ -668,7 +444,7 @@ const buildStringAccessors = (): {
       enumerable: true,
       get: () => snap(spec.key),
     });
-    if (spec.readOnly) continue;
+    if ("readOnly" in spec && spec.readOnly) continue;
     const update = ENCRYPTED_KEY_SET.has(spec.key)
       ? encryptedUpdate
       : plaintextUpdate;
