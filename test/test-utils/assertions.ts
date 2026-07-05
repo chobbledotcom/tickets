@@ -208,6 +208,12 @@ export const expectRedirect = (
 export const expectAdminRedirect = (response: Response): string =>
   expectRedirect(response, "/admin");
 
+/** A successful public booking redirects to the reserved/thank-you page
+ *  carrying one or more attendee tokens in the query string. */
+export const expectReservedRedirectWithTokens = (response: Response): void => {
+  expectRedirect(response, /^\/ticket\/reserved\?tokens=.+$/);
+};
+
 /** The exact `form` search param of a redirect's Location (the flash anchor
  * targeting a specific CsrfForm), or null when absent. Parsed rather than
  * substring-matched so a wrong-but-prefixed form id (settings-square vs

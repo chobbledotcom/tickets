@@ -1,0 +1,102 @@
+// jscpd:ignore-start
+import { it as test } from "@std/testing/bdd";
+import { handleRequest } from "#routes";
+import { settings } from "#shared/db/settings.ts";
+import { ICS_DISCOVERY_TAG, RSS_DISCOVERY_TAG } from "#templates/public.tsx";
+import {
+  assertPublicHtml,
+  describeWithEnv,
+  expect,
+  expectRedirect,
+  mockRequest,
+} from "#test-utils";
+
+// jscpd:ignore-end
+
+describeWithEnv("server public > home", { db: true, triggers: true }, () => {
+  describe("GET /", () => {
+    test("redirects to admin when public site is disabled", async () => {
+      const response = await handleRequest(mockRequest("/"));
+      expectRedirect(response, /^\/admin\/login$/);
+    });
+
+    test("shows public homepage when enabled", async () => {
+      await settings.update.showPublicSite(true);
+      await assertPublicHtml("/", "Home", "/admin/login");
+    });
+
+    test("shows website title on homepage", async () => {
+      await settings.update.showPublicSite(true);
+      await settings.update.websiteTitle("My Cool Site");
+      await assertPublicHtml("/", "My Cool Site");
+    });
+
+    test("shows homepage text when configured", async () => {
+      await settings.update.showPublicSite(true);
+      await settings.update.homepageText("Welcome to our listings!");
+      await assertPublicHtml("/", "Welcome to our listings!");
+    });
+
+    test("shows no content message when homepage text not set", async () => {
+      await settings.update.showPublicSite(true);
+      await assertPublicHtml("/", "No content.");
+    });
+
+    test("shows public nav links", async () => {
+      await settings.update.showPublicSite(true);
+      await settings.update.terms("Some terms");
+      await settings.update.contactPageText("Contact us");
+      await assertPublicHtml(
+        "/",
+        'href="/"',
+        'href="/listings"',
+        'href="/terms"',
+        'href="/contact"',
+      );
+    });
+
+    test("hides terms and contact nav links when pages are empty", async () => {
+      await settings.update.showPublicSite(true);
+      const html = await assertPublicHtml("/", 'href="/"', 'href="/listings"');
+      expect(html).not.toContain('href="/terms"');
+      expect(html).not.toContain('href="/contact"');
+    });
+
+    test("shows login link styled as footer", async () => {
+      await settings.update.showPublicSite(true);
+      await assertPublicHtml(
+        "/",
+        'class="homepage-footer"',
+        'href="/admin/login"',
+        "Login",
+      );
+    });
+
+    test("returns 404 for non-GET requests to /", async () => {
+      const response = await handleRequest(mockRequest("/", { method: "PUT" }));
+      expect(response.status).toBe(404);
+    });
+
+    test("redirects legacy /events to listings when public site is enabled", async () => {
+      await settings.update.showPublicSite(true);
+      const response = await handleRequest(mockRequest("/events"));
+      expectRedirect(response, /^\/listings$/);
+    });
+
+    test("does not redirect legacy /events when public site is disabled", async () => {
+      const response = await handleRequest(mockRequest("/events"));
+      expect(response.status).toBe(404);
+    });
+
+    test("renders markdown paragraphs in homepage text", async () => {
+      await settings.update.showPublicSite(true);
+      await settings.update.homepageText("Line one\n\nLine two");
+      await assertPublicHtml("/", "<p>Line one</p>", "<p>Line two</p>");
+    });
+
+    test("includes RSS and ICS feed discovery tags", async () => {
+      await settings.update.showPublicSite(true);
+      await assertPublicHtml("/", RSS_DISCOVERY_TAG, ICS_DISCOVERY_TAG);
+    });
+  });
+});
