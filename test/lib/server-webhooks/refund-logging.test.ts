@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -15,6 +16,8 @@ import {
   stubRefundPayment,
   stubWebhookVerify,
 } from "#test-utils";
+
+// jscpd:ignore-end
 
 /** Find the "Automatic refund" activity log entry for `listingId` and assert
  *  it's tagged to that listing — the shared lookup both refund-logging tests

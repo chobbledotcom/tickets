@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { resetStripeClient } from "#shared/stripe.ts";
@@ -16,6 +17,8 @@ import {
   singleItem,
   stubWebhookVerify,
 } from "#test-utils";
+
+// jscpd:ignore-end
 
 describeWithEnv(
   "server webhooks > already-processed rollback",

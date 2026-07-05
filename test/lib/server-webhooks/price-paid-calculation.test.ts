@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -13,6 +14,8 @@ import {
   singleItem,
   webhookMeta,
 } from "#test-utils";
+
+// jscpd:ignore-end
 
 /**
  * Stub `retrieveCheckoutSession` with the given session, follow the

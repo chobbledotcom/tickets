@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -22,6 +23,8 @@ import {
   stubWebhookVerify,
 } from "#test-utils";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
+
+// jscpd:ignore-end
 
 /** Submit a multi-ticket form against a stubbed `createCheckoutSession` (so
  *  the test drives the real checkout without a flaky Stripe HTTP round trip),

@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -16,6 +17,8 @@ import {
   stubWebhookVerify,
   webhookMeta,
 } from "#test-utils";
+
+// jscpd:ignore-end
 
 describeWithEnv(
   "server webhooks > refund skip conditions",

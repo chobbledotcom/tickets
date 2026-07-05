@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import {
@@ -18,6 +19,8 @@ import {
   singleItem,
 } from "#test-utils";
 import { createServiceChargeScenario } from "./service-charge-scenario.ts";
+
+// jscpd:ignore-end
 
 /** Two listings (£10 / £25) for the in-scope-vs-out-of-scope modifier tests
  *  below — identical for both the listing-scoped and group-scoped variants,

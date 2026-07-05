@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -10,6 +11,8 @@ import {
   singleItem,
   webhookMeta,
 } from "#test-utils";
+
+// jscpd:ignore-end
 
 describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
   afterEach(() => {

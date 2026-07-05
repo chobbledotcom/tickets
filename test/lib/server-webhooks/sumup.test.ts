@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -20,6 +21,8 @@ import {
   mockRequest,
   mockWebhookRequest,
 } from "#test-utils";
+
+// jscpd:ignore-end
 
 describeWithEnv("server webhooks > SumUp", { db: true }, () => {
   afterEach(() => {

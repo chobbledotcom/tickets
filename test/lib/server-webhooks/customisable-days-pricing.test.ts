@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { resetStripeClient } from "#shared/stripe.ts";
@@ -5,14 +6,27 @@ import {
   checkoutSessionEvent,
   createTestListing,
   describeWithEnv,
-  expectRefundedWithNote,
-  expectSessionFailed,
+  expectKeptAsQuantityZeroAndRefunded,
   expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
   setupStripe,
   signedMeta,
   singleItem,
 } from "#test-utils";
+
+// jscpd:ignore-end
+
+/** A daily listing offering a 1-day (£10) or 3-day (£25) price — every
+ *  customisable-days test below books against one of these. */
+const createCustomisableDaysListing = (extra: Record<string, unknown> = {}) =>
+  createTestListing({
+    customisableDays: true,
+    dayPrices: { 1: 1000, 3: 2500 },
+    durationDays: 3,
+    listingType: "daily",
+    maxAttendees: 50,
+    ...extra,
+  });
 
 describeWithEnv(
   "server webhooks > customisable-days pricing",
@@ -25,12 +39,7 @@ describeWithEnv(
     test("prices a customisable-days webhook booking by the chosen day count", async () => {
       await setupStripe();
 
-      const listing = await createTestListing({
-        customisableDays: true,
-        dayPrices: { 1: 1000, 3: 2500 },
-        durationDays: 3,
-        listingType: "daily",
-        maxAttendees: 50,
+      const listing = await createCustomisableDaysListing({
         maximumDaysAfter: 90,
         minimumDaysBefore: 0,
       });
@@ -68,13 +77,7 @@ describeWithEnv(
     test("defaults a customisable-days webhook with no day_count to a single day", async () => {
       await setupStripe();
 
-      const listing = await createTestListing({
-        customisableDays: true,
-        dayPrices: { 1: 1000, 3: 2500 },
-        durationDays: 3,
-        listingType: "daily",
-        maxAttendees: 50,
-      });
+      const listing = await createCustomisableDaysListing();
 
       await expectWebhookProcessed(
         checkoutSessionEvent({
@@ -102,13 +105,7 @@ describeWithEnv(
     test("keeps and refunds a customisable-days webhook whose day count has no price", async () => {
       await setupStripe();
 
-      const listing = await createTestListing({
-        customisableDays: true,
-        dayPrices: { 1: 1000, 3: 2500 },
-        durationDays: 3,
-        listingType: "daily",
-        maxAttendees: 50,
-      });
+      const listing = await createCustomisableDaysListing();
 
       const { mockRefund } = await expectWebhookKeptAndRefunded(
         checkoutSessionEvent({
@@ -132,11 +129,11 @@ describeWithEnv(
       );
       // Signed by us → the booking is kept as a quantity-0 placeholder (not
       // dropped) and refunded once, with a system note recording the reason.
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
-      await expectRefundedWithNote(attendees[0]!.id, mockRefund);
-      await expectSessionFailed("cs_bad_daycount");
+      await expectKeptAsQuantityZeroAndRefunded(
+        listing.id,
+        "cs_bad_daycount",
+        mockRefund,
+      );
     });
   },
 );

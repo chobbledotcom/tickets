@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { modifiersTable } from "#shared/db/modifiers.ts";
@@ -13,6 +14,8 @@ import {
   singleItem,
 } from "#test-utils";
 import { createServiceChargeScenario } from "./service-charge-scenario.ts";
+
+// jscpd:ignore-end
 
 describeWithEnv(
   "server webhooks > modifier price-mismatch refunds",

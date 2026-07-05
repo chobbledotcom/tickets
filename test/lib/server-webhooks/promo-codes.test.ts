@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { modifiersTable } from "#shared/db/modifiers.ts";
@@ -13,6 +14,8 @@ import {
   signedMeta,
   singleItem,
 } from "#test-utils";
+
+// jscpd:ignore-end
 
 /** A £1 fixed code-triggered modifier — every promo-code test below books the
  *  same £10 listing against one of these, varying only the direction/name. */

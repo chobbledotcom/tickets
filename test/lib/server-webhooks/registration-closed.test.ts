@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -16,6 +17,8 @@ import {
   stubRefundPayment,
   stubRetrieveCheckoutSession,
 } from "#test-utils";
+
+// jscpd:ignore-end
 
 /** A listing whose registration closed a minute ago — every closes_at test
  *  below books against one of these, varying only the price. */

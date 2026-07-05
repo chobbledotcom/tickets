@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -19,6 +20,8 @@ import {
   stubRefundPayment,
   webhookMeta,
 } from "#test-utils";
+
+// jscpd:ignore-end
 
 describeWithEnv(
   "server webhooks > single-ticket price-mismatch refunds",
