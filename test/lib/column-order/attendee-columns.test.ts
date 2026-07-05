@@ -139,6 +139,17 @@ describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {
       opts,
     );
 
+  test("status cell delegates to opts.renderStatus, forwarding the row", () => {
+    const row = makeRow({ attendee: testAttendee({ id: 7 }) });
+    expect(ATTENDEE_TABLE_COLUMNS.status!.cell(row, opts)).toBe("");
+    expect(
+      ATTENDEE_TABLE_COLUMNS.status!.cell(row, {
+        ...opts,
+        renderStatus: (r) => `status for ${r.attendee.id}`,
+      }),
+    ).toBe("status for 7");
+  });
+
   test("listings cell links every listing and carries the full list in its title", () => {
     expect(twoListingCell()).toBe(
       '<span class="listings-cell" title="Gala, Quiz Night">' +
