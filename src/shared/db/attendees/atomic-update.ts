@@ -27,6 +27,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { unique } from "#fp";
 import type {
   DesiredListingLine,
   ListingAttendeeRow,
@@ -97,11 +98,19 @@ const lineBooking = (line: AtomicDesiredLine) => ({
   quantity: line.quantity,
 });
 
-/** Result of an atomic attendee update. */
+/** Result of an atomic attendee update. Every failure carries `listingIds` —
+ *  the SPECIFIC listings that failed the capacity preflight — so a caller can
+ *  tell the operator what was actually sold out instead of a bare reason
+ *  string. Empty when no particular listing is to blame: a duplicate booking
+ *  slot (see {@link applyAttendeeAtomicEdit}'s duplicate-slot guard) or a
+ *  `no_lines` rejection. */
 export type UpdateAttendeeAtomicResult =
   | { success: true }
-  | { success: false; reason: "capacity_exceeded" }
-  | { success: false; reason: "no_lines" };
+  | {
+      success: false;
+      reason: "capacity_exceeded" | "no_lines";
+      listingIds: number[];
+    };
 
 /** A pre-fetched existing booking row plus its line key. */
 export type ExistingLine = {
@@ -133,19 +142,44 @@ export const lineKeyFromBooking = (booking: ListingAttendeeRow): string =>
   `${booking.listing_id}|${booking.start_at ?? ""}|${booking.parent_listing_id}`;
 
 /**
- * Read-only preflight: returns true when every desired line fits, using the
- * same self-excluding capacity expression the write guards use. Each line's
- * check is independent (lines target distinct listing/date slots and exclude
- * the attendee's own rows), so a true result means the whole edit can be
- * applied. The per-line `CAPACITY_GUARD` in the write batch still closes the
- * narrow window between this check and the commit.
+ * Read-only preflight: the listing ids among `desired` that do NOT fit, using
+ * the same self-excluding capacity expression the write guards use. Each
+ * line's check is independent (lines target distinct listing/date slots and
+ * exclude the attendee's own rows), so an empty result means the whole edit
+ * can be applied. The per-line `CAPACITY_GUARD` in the write batch still
+ * closes the narrow window between this check and the commit.
  */
-const allLinesFit = async (
+const unfitLineListingIds = async (
   attendeeId: number,
   desired: AtomicDesiredLine[],
-): Promise<boolean> => {
+): Promise<number[]> => {
   const fits = await checkLinesCapacity(desired.map(lineBooking), attendeeId);
-  return fits.every((ok) => ok);
+  return unique(
+    desired.filter((_, i) => !fits[i]!).map((line) => line.listingId),
+  );
+};
+
+/** The preflight capacity rejection, or null when every *changed* line fits
+ *  (unchanged no-op preserves are excluded — see {@link isUnchangedLine}) or
+ *  overbooking skips the preflight entirely. Split out of {@link
+ *  applyAttendeeAtomicEdit} to keep that function's branching flat. */
+const preflightCapacityFailure = async (
+  attendeeId: number,
+  desired: AtomicDesiredLine[],
+  existingByKey: Map<string, ListingAttendeeRow>,
+  allowOverbook: boolean,
+): Promise<{
+  success: false;
+  reason: "capacity_exceeded";
+  listingIds: number[];
+} | null> => {
+  if (allowOverbook) return null;
+  const changed = changedLinesForPreflight(desired, existingByKey);
+  if (changed.length === 0) return null;
+  const listingIds = await unfitLineListingIds(attendeeId, changed);
+  return listingIds.length > 0
+    ? { listingIds, reason: "capacity_exceeded", success: false }
+    : null;
 };
 
 /** True when a desired line preserves an existing booking unchanged (same slot,
@@ -225,27 +259,28 @@ export const applyAttendeeAtomicEdit = async (
   allowOverbook = false,
 ): Promise<UpdateAttendeeAtomicResult> => {
   if (desired.length === 0) {
-    return { reason: "no_lines", success: false };
+    return { listingIds: [], reason: "no_lines", success: false };
   }
 
   // Reject duplicate (listingId, date, parentListingId) pairs up front — two
-  // desired lines on the same slot would collide on the unique index.
+  // desired lines on the same slot would collide on the unique index. Not a
+  // capacity shortfall, so no specific listing is named.
   if (hasDuplicateBookingSlot(desired)) {
-    return { reason: "capacity_exceeded", success: false };
+    return { listingIds: [], reason: "capacity_exceeded", success: false };
   }
 
   const existing = await loadExistingLines(attendeeId);
   const existingByKey = new Map(existing.map((e) => [e.key, e.booking]));
 
-  // Preflight: reject (without writing anything) when any *changed* line can't
-  // fit. Unchanged lines (no-op preserves) are excluded — see
-  // {@link isUnchangedLine}. Skipped entirely when overbooking.
-  if (!allowOverbook) {
-    const changed = changedLinesForPreflight(desired, existingByKey);
-    if (changed.length > 0 && !(await allLinesFit(attendeeId, changed))) {
-      return { reason: "capacity_exceeded", success: false };
-    }
-  }
+  // Preflight: reject (without writing anything) when any changed line can't
+  // fit, before any write happens.
+  const preflightFailure = await preflightCapacityFailure(
+    attendeeId,
+    desired,
+    existingByKey,
+    allowOverbook,
+  );
+  if (preflightFailure) return preflightFailure;
 
   // Diff: removed / updated / new
   const desiredKeys = new Set(desired.map((line) => line.key));

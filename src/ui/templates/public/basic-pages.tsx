@@ -35,6 +35,7 @@ export const publicSitePage = (
     pageTitle,
     websiteTitle,
     nav,
+    pageType === "home",
   )(
     <div class="prose">
       {content ? (
@@ -97,6 +98,7 @@ export const contactPage = (options: {
     pageTitle,
     websiteTitle,
     options.nav,
+    false,
     headExtra,
   )(
     <>

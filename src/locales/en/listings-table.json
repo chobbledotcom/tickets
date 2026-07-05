@@ -154,6 +154,7 @@
   "listings_table.listing_type_picker_subheading": "Pick a type to get a focused form. You can still customise every field after choosing.",
   "listings_table.listing_type_picker_custom": "Custom / advanced",
   "listings_table.listing_type_picker_custom_description": "Show the full form with all options",
+  "listings_table.listing_type_picker_import_description": "Upload a JSON file exported from this or another site",
   "listings_table.customise": "Customise",
   "listings_table.customise_hint": "Show all options including the listing type and purchase/logistics toggles",
   "listings_table.template_one_off_event": "One-off event",

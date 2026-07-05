@@ -26,7 +26,7 @@ import { type AuthSession, requireContentOr } from "#routes/auth.ts";
 /* jscpd:ignore-end */
 import { isReadOnly } from "#shared/env.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
-import { type Group, isStaffRole } from "#shared/types.ts";
+import { type Group, isContentRole, isStaffRole } from "#shared/types.ts";
 import {
   loadGroupAttendeesPanel,
   loadGroupEditPanel,
@@ -56,7 +56,9 @@ const panelTab = (
 });
 
 /** The Actions tab entries. Each `visible` mirrors the gate its old detail-nav
- * link used, so no dead or forbidden link renders. */
+ * link used, so no dead or forbidden link renders. The tab itself is open to
+ * content roles (staff + editor), so Bulk actions and Delete now carry an
+ * explicit `staffOnly` check — Export is the only button an editor may use. */
 const GROUP_ACTIONS: readonly ActionDef<Group>[] = [
   {
     // A JSON export download (see catalog-transfer). A read, so — unlike bulk
@@ -70,14 +72,16 @@ const GROUP_ACTIONS: readonly ActionDef<Group>[] = [
     icon: "hammer",
     labelKey: "groups.detail.bulk_actions",
     // Bulk actions mutate the group's listings, so hide the link in read-only
-    // mode (matching the old detail nav, which only showed it when writable).
-    visible: () => !isReadOnly(),
+    // mode (matching the old detail nav, which only showed it when writable)
+    // and restrict it to staff now that editors reach this tab too.
+    visible: (group, session) => staffOnly(group, session) && !isReadOnly(),
   },
   {
     danger: true,
     href: (group) => `/admin/groups/${group.id}/delete`,
     icon: "trash-2",
     labelKey: "groups.detail.delete_group",
+    visible: staffOnly,
   },
 ];
 
@@ -88,14 +92,16 @@ const GROUP_ACTIONS: readonly ActionDef<Group>[] = [
 const editVisible = (): boolean => !isReadOnly();
 const imagesVisible = (): boolean => editVisible() && isStorageEnabled();
 
-/** The Actions tab: the plain export/bulk links plus the delete danger zone. */
+/** The Actions tab: the plain export/bulk links plus the delete danger zone.
+ * Open to editors too — they may only use Export, since Bulk actions and
+ * Delete each carry their own `staffOnly` check. */
 const actionsTab = (): TabDef<Group> => ({
   labelKey: "entity.tab.actions",
   sections: [
     { actions: GROUP_ACTIONS, kind: "actions", titleKey: "entity.tab.actions" },
   ],
   slug: "actions",
-  visible: staffOnly,
+  visible: (_group, session) => isContentRole(session.adminLevel),
 });
 
 /** The tabbed group page. */

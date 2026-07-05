@@ -116,6 +116,9 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
       listing: { maxAttendees: 1, name: "Cap1" },
       name: "First Hold",
     });
+    // Only "Cap1" (a) is actually full for that date — "Cap1-b" (b) would have
+    // fit alone — so the rejection must name specifically the listing that
+    // didn't fit, not the other booking in the same (rolled-back) request.
     await expectRejects(
       createTestServicingEvent({
         bookings: [
@@ -124,6 +127,7 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
         ],
         name: "Should Roll Back",
       }),
+      /Cap1(?!-b)/,
     );
     expect((await servicingRowsForListing(b.id)).length).toBe(0);
   });
@@ -139,13 +143,40 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
     );
   });
 
+  test("a create that fails for a non-capacity reason gets the plain save error", async () => {
+    const { CONFIG_KEYS, settings } = await import("#shared/db/settings.ts");
+    const listing = await createTestListing({ maxAttendees: 10 });
+    // Break encryption by removing the public key: the create now fails with
+    // "encryption_error", which must surface as the generic save message —
+    // there is no sold-out listing to name.
+    await getDb().execute({
+      args: [CONFIG_KEYS.PUBLIC_KEY],
+      sql: "DELETE FROM settings WHERE key = ?",
+    });
+    settings.invalidateCache();
+    await expectRejects(
+      createTestServicingEvent({
+        bookings: [{ listingId: listing.id, quantity: 1 }],
+        name: "Enc Fail",
+      }),
+      /Failed to save the service event/,
+    );
+    expect((await servicingRowsForListing(listing.id)).length).toBe(0);
+  });
+
   test("creating a servicing event rejects a hold that does not fit", async () => {
-    const listing = await createDailyTestListing({ maxAttendees: 1 });
+    const listing = await createDailyTestListing({
+      maxAttendees: 1,
+      name: "Overbooked Listing",
+    });
+    // The rejection must name the SPECIFIC listing that was sold out, not
+    // just surface the bare "capacity_exceeded" reason string.
     await expectRejects(
       createTestServicingEvent({
         bookings: [{ date: "2026-07-01", listingId: listing.id, quantity: 2 }],
         name: "Too Big",
       }),
+      /Overbooked Listing/,
     );
     expect((await servicingRowsForListing(listing.id)).length).toBe(0);
   });

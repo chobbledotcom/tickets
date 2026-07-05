@@ -262,31 +262,35 @@ export const ListingFormSections = ({
   return (
     <>
       {isTemplated && (
-        <label class="listing-customise-toggle">
-          <input
-            checked={customiseOpen}
-            id="customise-listing"
-            name="customise"
-            type="checkbox"
-            value="1"
-          />
-          {t("listings_table.customise")}{" "}
-          <small>{t("listings_table.customise_hint")}</small>
-        </label>
+        <fieldset class="checkboxes listing-customise-toggle">
+          <label>
+            <input
+              checked={customiseOpen}
+              id="customise-listing"
+              name="customise"
+              type="checkbox"
+              value="1"
+            />
+            {t("listings_table.customise")}{" "}
+            <small>{t("listings_table.customise_hint")}</small>
+          </label>
+        </fieldset>
       )}
 
       {showUseDefaults ? (
-        <label class="listing-use-defaults-toggle">
-          <input
-            checked={useDefaultsChecked}
-            id="use-defaults"
-            name="use_defaults"
-            type="checkbox"
-            value="1"
-          />
-          {t("listing_defaults.use_defaults_toggle")}{" "}
-          <small>{t("listing_defaults.use_defaults_hint")}</small>
-        </label>
+        <fieldset class="checkboxes listing-use-defaults-toggle">
+          <label>
+            <input
+              checked={useDefaultsChecked}
+              id="use-defaults"
+              name="use_defaults"
+              type="checkbox"
+              value="1"
+            />
+            {t("listing_defaults.use_defaults_toggle")}{" "}
+            <small>{t("listing_defaults.use_defaults_hint")}</small>
+          </label>
+        </fieldset>
       ) : (
         useDefaultsChecked && (
           <input name="use_defaults" type="hidden" value="1" />

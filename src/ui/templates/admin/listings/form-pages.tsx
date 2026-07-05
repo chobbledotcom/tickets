@@ -50,7 +50,7 @@ const createListingFormPage = ({
   title: string;
 }): string =>
   String(
-    <AdminPage active="/admin/" session={session} title={title}>
+    <AdminPage active="/admin/listing/new" session={session} title={title}>
       {beforeForm}
       <CsrfForm
         action="/admin/listing"
@@ -82,7 +82,7 @@ const createListingPageFromForm = (
 export const adminListingPickerPage = (session: AdminSession): string =>
   String(
     <AdminPage
-      active="/admin/"
+      active="/admin/listing/new"
       session={session}
       title={t("listings_table.add_listing")}
     >
@@ -112,6 +112,12 @@ export const adminListingPickerPage = (session: AdminSession): string =>
           <strong>{t("listings_table.listing_type_picker_custom")}</strong>
           <span>
             {t("listings_table.listing_type_picker_custom_description")}
+          </span>
+        </a>
+        <a class="listing-type-card" href="/admin/catalog/import">
+          <strong>{t("catalog_transfer.import_button")}</strong>
+          <span>
+            {t("listings_table.listing_type_picker_import_description")}
           </span>
         </a>
       </div>

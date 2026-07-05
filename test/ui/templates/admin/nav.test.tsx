@@ -1,20 +1,30 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import type { AdminLevel } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
-import { describeWithEnv, withSetting } from "#test-utils";
+import { describeWithEnv, setTestEnv, withSetting } from "#test-utils";
 
 describeWithEnv("AdminNav", {}, () => {
-  /** Assert that both owners and managers see a nav link to `href` labelled
+  /** Assert every role in `adminLevels` sees a nav link to `href` labelled
    *  `text` (rendered from the "/admin/" landing nav). */
-  const expectOwnerAndManagerLink = (href: string, text: string): void => {
-    for (const adminLevel of ["owner", "manager"] as const) {
+  const expectLinkForRoles = (
+    href: string,
+    text: string,
+    adminLevels: readonly AdminLevel[],
+  ): void => {
+    for (const adminLevel of adminLevels) {
       const html = String(
         AdminNav({ active: "/admin/", session: { adminLevel } }),
       );
-      expect(html).toContain(`href="${href}"`);
-      expect(html).toContain(text);
+      expect(html, adminLevel).toContain(`href="${href}"`);
+      expect(html, adminLevel).toContain(text);
     }
   };
+
+  /** Assert that both owners and managers see a nav link to `href` labelled
+   *  `text` (rendered from the "/admin/" landing nav). */
+  const expectOwnerAndManagerLink = (href: string, text: string): void =>
+    expectLinkForRoles(href, text, ["owner", "manager"]);
 
   test("AdminNav passes session.settingsNagItems to SettingsNagBanner for owner sessions", () => {
     const superuserNag = {
@@ -40,6 +50,85 @@ describeWithEnv("AdminNav", {}, () => {
 
   test("AdminNav links to servicing for owners and managers", () => {
     expectOwnerAndManagerLink("/admin/servicing", "Servicing");
+  });
+
+  test("AdminNav links to Add Listing for owners, managers, and editors", () => {
+    expectLinkForRoles("/admin/listing/new", "Add Listing", [
+      "owner",
+      "manager",
+      "editor",
+    ]);
+  });
+
+  test("AdminNav links to Add Group for owners, managers, and editors", () => {
+    expectLinkForRoles("/admin/groups/new", "Add Group", [
+      "owner",
+      "manager",
+      "editor",
+    ]);
+  });
+
+  test("AdminNav pairs every other staff-only section with its create link", () => {
+    const pairs: Array<{ addHref: string; addText: string }> = [
+      { addHref: "/admin/attendees/new", addText: "Add Attendee" },
+      { addHref: "/admin/modifiers/new", addText: "Add Modifier" },
+      { addHref: "/admin/servicing/new", addText: "New Service Event" },
+    ];
+    const html = String(
+      AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
+    );
+    for (const { addHref, addText } of pairs) {
+      expect(html, addHref).toContain(`href="${addHref}"`);
+      expect(html, addHref).toContain(addText);
+    }
+  });
+
+  test("AdminNav links to Invite User for owners only", () => {
+    const ownerHtml = String(
+      AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
+    );
+    expect(ownerHtml).toContain('href="/admin/user/new"');
+    expect(ownerHtml).toContain("Invite User");
+    const managerHtml = String(
+      AdminNav({ active: "/admin/", session: { adminLevel: "manager" } }),
+    );
+    expect(managerHtml).not.toContain('href="/admin/user/new"');
+  });
+
+  test("AdminNav hides every 'Add X' create link in read-only mode, keeping the section links", () => {
+    const restore = setTestEnv({
+      READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
+    });
+    try {
+      const html = String(
+        AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
+      );
+      for (const addHref of [
+        "/admin/listing/new",
+        "/admin/groups/new",
+        "/admin/attendees/new",
+        "/admin/modifiers/new",
+        "/admin/servicing/new",
+        "/admin/user/new",
+      ]) {
+        expect(html, addHref).not.toContain(`href="${addHref}"`);
+      }
+      // The sections themselves stay linkable.
+      expect(html).toContain('href="/admin/listings"');
+      expect(html).toContain('href="/admin/groups"');
+    } finally {
+      restore();
+    }
+  });
+
+  test("AdminNav marks Add Listing active on the new-listing page", () => {
+    const html = String(
+      AdminNav({
+        active: "/admin/listing/new",
+        session: { adminLevel: "owner" },
+      }),
+    );
+    expect(html).toContain('class="active" href="/admin/listing/new"');
   });
 
   test("AdminNav shows the Ledger link to owners but not managers", () => {

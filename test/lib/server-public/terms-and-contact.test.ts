@@ -27,11 +27,13 @@ describeWithEnv(
       test("shows terms page when enabled", async () => {
         await settings.update.showPublicSite(true);
         await settings.update.terms("Our terms and conditions.");
-        await assertPublicHtml(
+        const html = await assertPublicHtml(
           "/terms",
           "Our terms and conditions.",
           "T&amp;Cs",
         );
+        // The login footer is a homepage-only affordance (#69).
+        expect(html).not.toContain('href="/admin/login"');
       });
 
       test("returns 404 when terms not configured", async () => {
@@ -56,7 +58,13 @@ describeWithEnv(
       test("shows contact page when enabled", async () => {
         await settings.update.showPublicSite(true);
         await settings.update.contactPageText("Get in touch with us");
-        await assertPublicHtml("/contact", "Get in touch with us", "Contact");
+        const html = await assertPublicHtml(
+          "/contact",
+          "Get in touch with us",
+          "Contact",
+        );
+        // The login footer is a homepage-only affordance (#69).
+        expect(html).not.toContain('href="/admin/login"');
       });
 
       test("returns 404 when contact text not configured", async () => {

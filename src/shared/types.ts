@@ -576,6 +576,9 @@ export const isStaffRole = roleIn(STAFF_ADMIN_LEVELS);
 /** True for roles that may reach the delivery run sheet (owner/manager/agent). */
 export const isDeliveryRole = roleIn(DELIVERY_ADMIN_LEVELS);
 
+/** True for roles that may create/edit listings & groups (owner/manager/editor). */
+export const isContentRole = roleIn(CONTENT_ADMIN_LEVELS);
+
 /** Type guard: check if a string is a valid AdminLevel */
 export const isAdminLevel = (s: string): s is AdminLevel =>
   v.is(AdminLevelSchema, s);

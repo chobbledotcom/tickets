@@ -170,26 +170,56 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         expect(response.status, `${label} (${path})`).toBe(403);
       }
 
-      // On the tabbed listing page the staff-only tabs (roster, activity,
-      // actions) are hidden — visibility IS authorization, so naming one 404s
-      // rather than exposing that it exists. The editor's default landing tab
-      // is Edit (the base URL), which they may use.
-      for (const tab of ["attendees", "activity", "actions"]) {
+      // On the tabbed listing page the staff-only tabs (roster, activity) are
+      // hidden — visibility IS authorization, so naming one 404s rather than
+      // exposing that it exists. The editor's default landing tab is Edit
+      // (the base URL), which they may use.
+      for (const tab of ["attendees", "activity"]) {
         const hidden = await getAs(
           `/admin/listing/${listing.id}/${tab}`,
           cookie,
         );
         expect(hidden.status, `hidden ${tab} tab`).toBe(404);
       }
+      // Scanner isn't part of this tab framework at all — it's served by its
+      // own route (scanner.ts), staff-gated there, so it 403s rather than 404s.
+      const scanner = await getAs(
+        `/admin/listing/${listing.id}/scanner`,
+        cookie,
+      );
+      expect(scanner.status).toBe(403);
       const base = await getAs(`/admin/listing/${listing.id}`, cookie);
       const baseHtml = await base.text();
       expect(base.status).toBe(200);
       expect(baseHtml).toContain("listing-edit-form");
 
+      // The listing Actions tab IS open to an editor, but only Duplicate and
+      // Export — every staff-only action (email/refund/deactivate/delete) is
+      // absent, not merely unlinked.
+      const listingActions = await getAs(
+        `/admin/listing/${listing.id}/actions`,
+        cookie,
+      );
+      expect(listingActions.status).toBe(200);
+      const listingActionsHtml = await listingActions.text();
+      expect(listingActionsHtml).toContain(
+        `/admin/listing/${listing.id}/duplicate`,
+      );
+      expect(listingActionsHtml).toContain(
+        `/admin/listing/${listing.id}/export.json`,
+      );
+      expect(listingActionsHtml).not.toContain(
+        `/admin/listing/${listing.id}/deactivate`,
+      );
+      expect(listingActionsHtml).not.toContain(
+        `/admin/listing/${listing.id}/delete`,
+      );
+      expect(listingActionsHtml).not.toContain("/admin/emails");
+
       // Groups are the same tabbed shape: the staff-only tabs (Overview,
-      // Attendees, Actions) 404 for an editor, and the base URL resolves to the
+      // Attendees) 404 for an editor, and the base URL resolves to the
       // Edit tab they may use.
-      for (const tab of ["attendees", "actions"]) {
+      for (const tab of ["attendees"]) {
         const hidden = await getAs(`/admin/groups/${group.id}/${tab}`, cookie);
         expect(hidden.status, `hidden group ${tab} tab`).toBe(404);
       }
@@ -197,6 +227,24 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       expect(groupBase.status).toBe(200);
       expect(await groupBase.text()).toContain(
         `action="/admin/groups/${group.id}/edit"`,
+      );
+
+      // The group Actions tab is open to an editor too, but only Export —
+      // Bulk actions and Delete are staff-only.
+      const groupActions = await getAs(
+        `/admin/groups/${group.id}/actions`,
+        cookie,
+      );
+      expect(groupActions.status).toBe(200);
+      const groupActionsHtml = await groupActions.text();
+      expect(groupActionsHtml).toContain(
+        `/admin/groups/${group.id}/export.json`,
+      );
+      expect(groupActionsHtml).not.toContain(
+        `/admin/groups/${group.id}/bulk-actions`,
+      );
+      expect(groupActionsHtml).not.toContain(
+        `/admin/groups/${group.id}/delete`,
       );
     });
 
@@ -361,7 +409,9 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const html = await (await getAs("/admin/listings", cookie)).text();
 
       expect(html).toContain('href="/admin/listings"');
+      expect(html).toContain('href="/admin/listing/new"');
       expect(html).toContain('href="/admin/groups"');
+      expect(html).toContain('href="/admin/groups/new"');
       expect(html).toContain('href="/admin/site"');
       for (const forbidden of [
         '"/admin/users"',

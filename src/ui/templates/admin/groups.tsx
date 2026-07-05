@@ -39,7 +39,6 @@ import {
   AttendeeTableBlock,
   attendeeTableOptions,
 } from "#templates/admin/attendee-table-block.tsx";
-import { CatalogExportNav } from "#templates/admin/catalog-export-nav.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { CopyableInputRow } from "#templates/admin/copyable-row.tsx";
 import {
@@ -258,10 +257,6 @@ export const GroupEditPanel = ({
   members: PackageMemberValues;
 }): JSX.Element => (
   <>
-    {/* Export lives here too, not only on the (staff-only) Overview/Actions
-        tabs, so a content editor — who only reaches this Edit tab, never the
-        staff surfaces — can still download the group's catalog blob. */}
-    <CatalogExportNav href={`/admin/groups/${group.id}/export.json`} />
     <CsrfForm action={`/admin/groups/${group.id}/edit`}>
       <Raw html={renderFields(getGroupFields(), groupToFieldValues(group))} />
       <PackageMembersTable listings={listings} members={members} />

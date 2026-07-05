@@ -39,11 +39,21 @@ describeWithEnv("server listings > index and new", { db: true }, () => {
 
     test("renders type picker when authenticated (no template param)", async () => {
       const response = await adminGet("/admin/listing/new");
-      await expectHtmlResponse(
+      const html = await expectHtmlResponse(
         response,
         200,
         "Add Listing",
         "Choose a listing type",
+      );
+      // "Import from file" is a card in the picker grid, and the final one —
+      // after every listing-type card (including "Custom / advanced").
+      expect(html).toContain('href="/admin/catalog/import"');
+      expect(html.indexOf("Custom / advanced")).toBeLessThan(
+        html.indexOf("Import from file"),
+      );
+      // No other picker card follows it.
+      expect(html.lastIndexOf('class="listing-type-card"')).toBe(
+        html.indexOf('class="listing-type-card" href="/admin/catalog/import"'),
       );
     });
 

@@ -202,10 +202,14 @@ describe("adminGlobalActivityLogPage reference columns", () => {
       TEST_SESSION,
       emptyRefs(),
     );
-    expect(html).not.toContain('href="/admin/attendees/');
-    expect(html).not.toContain('href="/admin/listing/');
+    // Scoped to the table body: the admin nav itself always carries
+    // /admin/attendees and /admin/listing/... links, so a page-wide check
+    // would false-positive on those rather than the row's own cells.
+    const tbody = html.slice(html.indexOf("<tbody>"), html.indexOf("</tbody>"));
+    expect(tbody).not.toContain('href="/admin/attendees/');
+    expect(tbody).not.toContain('href="/admin/listing/');
     // The two reference columns are still rendered, just empty.
-    expect(html).toContain("<td></td><td></td>");
+    expect(tbody).toContain("<td></td><td></td>");
   });
 
   test("renders no link when the referenced attendee no longer exists", () => {

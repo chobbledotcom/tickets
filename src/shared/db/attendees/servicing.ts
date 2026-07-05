@@ -3,6 +3,7 @@ import { costAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import { postTransfers, postTransfersTx } from "#shared/accounting/store.ts";
+import { capacityErrorFormatter } from "#shared/capacity-error.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import type {
@@ -39,6 +40,7 @@ import {
   queryOne,
   withTransaction,
 } from "#shared/db/client.ts";
+import { getListingNamesByIds } from "#shared/db/listings.ts";
 import {
   type AttendeeAnswerSet,
   type AttendeeAnswersBatch,
@@ -134,13 +136,65 @@ const servicingInputAsserter =
 const assertServicingInput = servicingInputAsserter(true);
 const assertServicingEditInput = servicingInputAsserter(false);
 
+/** Admin-facing message for a servicing event that couldn't hold every
+ *  requested capacity slot — names the SPECIFIC listing(s) that were sold
+ *  out instead of surfacing the bare "capacity_exceeded"/"encryption_error"
+ *  reason string. */
+const formatServicingCapacityError = capacityErrorFormatter({
+  fallback: "Failed to save the service event. Please try again.",
+  generic: "Not enough spots available.",
+  withName: (name) => `Not enough spots available for: ${name}`,
+});
+
+/** The comma-joined names of the given listing ids, dropping any id whose
+ *  listing has since been deleted (a name lookup miss) rather than throwing. */
+const joinedListingNames = async (ids: number[]): Promise<string> => {
+  const names = await getListingNamesByIds(ids);
+  return ids
+    .map((id) => names.get(id))
+    .filter((name): name is string => Boolean(name))
+    .join(", ");
+};
+
+/** The requested listing ids among `bookings` that did NOT land a booking row
+ *  in create `result` — a multiset diff by listing id, so a listing requested
+ *  twice and fulfilled only once is still named. When NOTHING landed at all
+ *  (the create's own failure shape, `result.success === false` — e.g. a
+ *  single-listing hold that didn't fit), every requested listing is named:
+ *  there's no partial attendee to diff against, and for a single booking that
+ *  IS the specific listing that failed. */
+const unfulfilledListingIds = (
+  bookings: ListingBooking[],
+  result: CreateAttendeeResult,
+): number[] => {
+  if (!result.success) return unique(bookings.map((b) => b.listingId));
+  const remaining = new Map<number, number>();
+  for (const attendee of result.attendees) {
+    remaining.set(
+      attendee.listing_id,
+      (remaining.get(attendee.listing_id) ?? 0) + 1,
+    );
+  }
+  const failed: number[] = [];
+  for (const booking of bookings) {
+    const have = remaining.get(booking.listingId) ?? 0;
+    if (have > 0) remaining.set(booking.listingId, have - 1);
+    else failed.push(booking.listingId);
+  }
+  return unique(failed);
+};
+
 const ensureServicingCreateBookings = async (
   result: CreateAttendeeResult,
-  expectedCount: number,
+  bookings: ListingBooking[],
 ): Promise<Extract<CreateAttendeeResult, { success: true }>> => {
-  const check = await ensureAllBookings(result, expectedCount, "admin");
+  const check = await ensureAllBookings(result, bookings.length, "admin");
   if (!check.ok) {
-    throw new Error(check.reason);
+    const names =
+      check.reason === "capacity_exceeded"
+        ? await joinedListingNames(unfulfilledListingIds(bookings, result))
+        : "";
+    throw new Error(formatServicingCapacityError(check.reason, names));
   }
   return result as Extract<CreateAttendeeResult, { success: true }>;
 };
@@ -252,7 +306,7 @@ export const createServicingEvent = async (
   const name = assertServicingInput(input);
   const createResult = await ensureServicingCreateBookings(
     await createAttendeeAtomic(normalizedCreateInput(input, name)),
-    input.bookings.length,
+    input.bookings,
   );
   const id = createResult.attendees[0]!.id;
   // The attendee + bookings are committed by the atomic create; the remaining
@@ -475,7 +529,19 @@ export const updateServicingEvent = async (
     desiredLines(input, existingBefore),
     input.allowOverbook ?? false,
   );
-  if (!editResult.success) throw new Error(editResult.reason);
+  // Every failure shape carries listingIds ([] when no specific listing is to
+  // blame), so one throw covers both: capacity failures name their listings,
+  // anything else falls through to the formatter's generic/fallback message.
+  // (`no_lines` can't actually happen here — the edit input asserter already
+  // rejects empty bookings, and desiredLines maps them one-to-one.)
+  if (!editResult.success) {
+    throw new Error(
+      formatServicingCapacityError(
+        editResult.reason,
+        await joinedListingNames(editResult.listingIds),
+      ),
+    );
+  }
   // The booking + name edit is committed by the atomic edit; the answer save is
   // a separate batch. If it fails, compensate by restoring the pre-edit state
   // (name, bookings, and answers) so the edit doesn't land half-applied.

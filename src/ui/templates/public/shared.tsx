@@ -158,13 +158,17 @@ export const PackagesSection = ({
  *  all open with
  *    String(<Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
  *      {websiteTitle && <h1>{websiteTitle}</h1>}<PublicNav {...nav} />
- *      {body}<LoginFooter /></Layout>)
- *  — this captures that so they only declare their differences (title, body). */
+ *      {body}{showLoginFooter && <LoginFooter />}</Layout>)
+ *  — this captures that so they only declare their differences (title, body).
+ *  The login link is a "you've found the site, here's the door to the admin"
+ *  affordance that belongs only on the true homepage — every other public
+ *  page (listings, order, terms, contact, ...) leaves it out. */
 export const publicPage =
   (
     title: string,
     websiteTitle: string,
     nav: PublicNavProps,
+    showLoginFooter = false,
     headExtra: string = FEED_DISCOVERY_TAGS,
   ) =>
   (body: Child): string =>
@@ -173,7 +177,7 @@ export const publicPage =
         {websiteTitle && <h1>{websiteTitle}</h1>}
         <PublicNav {...nav} />
         {body}
-        <LoginFooter />
+        {showLoginFooter && <LoginFooter />}
       </Layout>,
     );
 

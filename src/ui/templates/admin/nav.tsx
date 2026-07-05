@@ -38,9 +38,6 @@ interface NavItem {
 }
 
 const navItem = (href: string, label: string): NavItem => ({ href, label });
-const listingsItem = (): NavItem =>
-  navItem("/admin/listings", t("terms.listings"));
-const groupsItem = (): NavItem => navItem("/admin/groups", t("terms.groups"));
 const imagesItem = (): NavItem => navItem("/admin/images", t("terms.images"));
 const siteItem = (): NavItem => navItem("/admin/site", t("nav.site"));
 
@@ -86,17 +83,50 @@ const renderReadOnlyBanner = (
   return null;
 };
 
+/** A section's index link paired with its "Add X" sibling — the repeated
+ * two-item shape every top-level section with its own create page uses
+ * (Listings, Groups, Attendees, Modifiers, Servicing, Users), so the pair is
+ * built once instead of hand-typed at every call site. The "Add X" sibling
+ * drops out in read-only mode, matching every other create affordance's own
+ * page (the dashboard's Add Listing button, the Modifiers page's Add
+ * Modifier button, …) — a nav link must not offer a create flow the site
+ * itself won't allow right now. */
+const sectionWithAdd = (
+  href: string,
+  label: string,
+  addHref: string,
+  addLabel: string,
+): NavItem[] => [
+  { href, label },
+  ...(isReadOnly() ? [] : [{ href: addHref, label: addLabel }]),
+];
+
+const listingsNavItems = (): NavItem[] =>
+  sectionWithAdd(
+    "/admin/listings",
+    t("terms.listings"),
+    "/admin/listing/new",
+    t("listings_table.add_listing"),
+  );
+
+const groupsNavItems = (): NavItem[] =>
+  sectionWithAdd(
+    "/admin/groups",
+    t("terms.groups"),
+    "/admin/groups/new",
+    t("groups.add_group"),
+  );
+
 /** Editors only ever reach the content pages: listings, groups, and the public
  * site editor. Everything else is gated away, so their nav lists exactly those
  * (no dead/forbidden links). The Site editor is surfaced top-level here because
  * the owner-only Settings parent it normally nests under is hidden from them. */
-const editorTopLevelItems = (): NavItem[] =>
-  compact([
-    listingsItem(),
-    groupsItem(),
-    isStorageEnabled() ? imagesItem() : null,
-    siteItem(),
-  ]);
+const editorTopLevelItems = (): NavItem[] => [
+  ...listingsNavItems(),
+  ...groupsNavItems(),
+  ...(isStorageEnabled() ? [imagesItem()] : []),
+  siteItem(),
+];
 
 /** Top-level admin links, in order. Users and Settings are owner-only. `active`
  * is the highlighted section route — passed so the Site parent stays present
@@ -108,16 +138,36 @@ const topLevelItems = (session: AdminSession, active: string): NavItem[] =>
     ? editorTopLevelItems()
     : compact([
         { href: "/admin/", label: t("nav.public.home") },
-        listingsItem(),
+        ...listingsNavItems(),
         { href: "/admin/calendar", label: t("nav.calendar") },
-        { href: "/admin/servicing", label: t("nav.servicing") },
-        { href: "/admin/attendees", label: t("terms.attendees") },
-        session.adminLevel === "owner"
-          ? { href: "/admin/users", label: t("terms.users") }
-          : null,
-        groupsItem(),
+        ...sectionWithAdd(
+          "/admin/servicing",
+          t("nav.servicing"),
+          "/admin/servicing/new",
+          t("nav.servicing_add"),
+        ),
+        ...sectionWithAdd(
+          "/admin/attendees",
+          t("terms.attendees"),
+          "/admin/attendees/new",
+          t("admin.listings.add_attendee"),
+        ),
+        ...(session.adminLevel === "owner"
+          ? sectionWithAdd(
+              "/admin/users",
+              t("terms.users"),
+              "/admin/user/new",
+              t("users.invite_user"),
+            )
+          : []),
+        ...groupsNavItems(),
         isStorageEnabled() ? imagesItem() : null,
-        { href: "/admin/modifiers", label: t("terms.modifiers") },
+        ...sectionWithAdd(
+          "/admin/modifiers",
+          t("terms.modifiers"),
+          "/admin/modifiers/new",
+          t("modifiers.add_modifier"),
+        ),
         session.adminLevel === "owner"
           ? { href: "/admin/ledger", label: t("nav.ledger") }
           : null,

@@ -9,6 +9,7 @@ import { ICS_DISCOVERY_TAG, RSS_DISCOVERY_TAG } from "#templates/public.tsx";
 import {
   assertPublicHtml,
   bookAttendee,
+  createTestGroup,
   createTestListing,
   describeWithEnv,
   mockFormRequest,
@@ -35,6 +36,11 @@ describeWithEnv(
         });
         const html = await assertPublicHtml("/listings", "Sold Out");
         expect(html).not.toContain(`href="/ticket/${listing.slug}"`);
+        // The "Sold Out" message lives inside the card's prose block as a red
+        // Badge, not a bare <p><strong>.
+        expect(html).toContain(
+          '<div class="prose"><h2>Full Listing</h2><p><span class="badge danger">Sold Out</span></p></div>',
+        );
       });
 
       test("a daily listing full on one date is not sold out date-lessly", async () => {
@@ -120,6 +126,18 @@ describeWithEnv(
           `href="/ticket/${flexDaily.slug}?date=${date}"`,
         );
         expect(filtered).not.toContain(`href="/ticket/${fullDaily.slug}`);
+        // The "Not available on" message is a red Badge inside the card's prose.
+        expect(filtered).toContain(
+          '<span class="badge danger">Not available on',
+        );
+        // The unavailable card moves into its own section below the available
+        // ones rather than staying interleaved among them.
+        expect(filtered.indexOf("Free Daily")).toBeLessThan(
+          filtered.indexOf("Unavailable"),
+        );
+        expect(filtered.indexOf("Unavailable")).toBeLessThan(
+          filtered.indexOf("Full Daily"),
+        );
 
         // A malformed date is ignored rather than trusted.
         const garbage = await assertPublicHtml("/listings?date=2026-02-30");
@@ -129,6 +147,140 @@ describeWithEnv(
         await assertPublicHtml(
           `/ticket/${freeDaily.slug}?date=${date}`,
           `<option value="${date}" selected>`,
+        );
+      });
+
+      test("shows a package as sold out when its member is unavailable on the searched date", async () => {
+        await settings.update.showPublicSite(true);
+        const date = addDays(todayInTz("UTC"), 2);
+        const pkg = await createTestGroup({
+          isPackage: true,
+          name: "Weekend Package",
+          slug: "weekend-package",
+        });
+        const packageDaily = await createTestListing({
+          groupId: pkg.id,
+          listingType: "daily",
+          maxAttendees: 1,
+          minimumDaysBefore: 0,
+          name: "Package Daily",
+        });
+        await bookAttendee(packageDaily, { date, quantity: 1 });
+        // A standalone listing keeps the page non-empty.
+        await createTestListing({
+          maxAttendees: 50,
+          name: "Standalone Listing",
+        });
+
+        const filtered = await assertPublicHtml(
+          `/listings?date=${date}`,
+          "Weekend Package",
+          "Standalone Listing",
+        );
+        expect(filtered).not.toContain(`href="/ticket/${pkg.slug}"`);
+        expect(filtered.indexOf("Standalone Listing")).toBeLessThan(
+          filtered.indexOf("Unavailable"),
+        );
+        expect(filtered.indexOf("Unavailable")).toBeLessThan(
+          filtered.indexOf("Weekend Package"),
+        );
+
+        // On a date the member CAN serve, the package still books normally.
+        const otherDate = addDays(todayInTz("UTC"), 3);
+        const available = await assertPublicHtml(
+          `/listings?date=${otherDate}`,
+          "Weekend Package",
+        );
+        expect(available).toContain(`href="/ticket/${pkg.slug}"`);
+      });
+
+      test("one full member is enough to mark a multi-member package sold out for the date", async () => {
+        // A package books as one whole bundle — every member together — so a
+        // single member with no room on the searched date makes the whole
+        // package unbookable that day, even while its other members are free.
+        await settings.update.showPublicSite(true);
+        const date = addDays(todayInTz("UTC"), 2);
+        const pkg = await createTestGroup({
+          isPackage: true,
+          name: "Bundle Package",
+          slug: "bundle-package",
+        });
+        await createTestListing({
+          groupId: pkg.id,
+          maxAttendees: 50,
+          name: "Roomy Member",
+        });
+        const fullMember = await createTestListing({
+          groupId: pkg.id,
+          listingType: "daily",
+          maxAttendees: 1,
+          minimumDaysBefore: 0,
+          name: "Tight Member",
+        });
+        await bookAttendee(fullMember, { date, quantity: 1 });
+        // A package of only date-less members answers the same search without
+        // any per-date lookup — and stays bookable.
+        const openPkg = await createTestGroup({
+          isPackage: true,
+          name: "Open Package",
+          slug: "open-package",
+        });
+        await createTestListing({
+          groupId: openPkg.id,
+          maxAttendees: 50,
+          name: "Open Member",
+        });
+
+        const filtered = await assertPublicHtml(
+          `/listings?date=${date}`,
+          "Bundle Package",
+          "Open Package",
+        );
+        expect(filtered).not.toContain(`href="/ticket/${pkg.slug}"`);
+        expect(filtered).toContain(`href="/ticket/${openPkg.slug}"`);
+        expect(filtered.indexOf("Open Package")).toBeLessThan(
+          filtered.indexOf("Unavailable"),
+        );
+        expect(filtered.indexOf("Unavailable")).toBeLessThan(
+          filtered.indexOf("Bundle Package"),
+        );
+      });
+
+      test("a date search still splits out a sold-out package whose daily member is hidden", async () => {
+        // With hide_package_listings the daily member never appears as its own
+        // card, so the page has no date-filter form — but a ?date= URL must
+        // still judge the package and move it into the Unavailable section.
+        await settings.update.showPublicSite(true);
+        const date = addDays(todayInTz("UTC"), 2);
+        const pkg = await createTestGroup({
+          isPackage: true,
+          name: "Hidden Member Package",
+          slug: "hidden-member-package",
+        });
+        const member = await createTestListing({
+          groupId: pkg.id,
+          listingType: "daily",
+          maxAttendees: 1,
+          minimumDaysBefore: 0,
+          name: "Hidden Daily Member",
+        });
+        const { groupsTable } = await import("#shared/db/groups.ts");
+        await groupsTable.update(pkg.id, { hidePackageListings: true });
+        await bookAttendee(member, { date, quantity: 1 });
+        await createTestListing({ maxAttendees: 50, name: "Plain Listing" });
+
+        const filtered = await assertPublicHtml(
+          `/listings?date=${date}`,
+          "Hidden Member Package",
+          "Plain Listing",
+        );
+        expect(filtered).not.toContain("listings-date-filter");
+        expect(filtered).not.toContain(`href="/ticket/${pkg.slug}"`);
+        expect(filtered.indexOf("Plain Listing")).toBeLessThan(
+          filtered.indexOf("Unavailable"),
+        );
+        expect(filtered.indexOf("Unavailable")).toBeLessThan(
+          filtered.indexOf("Hidden Member Package"),
         );
       });
 

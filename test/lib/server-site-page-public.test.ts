@@ -53,6 +53,8 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       );
       // No items ⇒ no item list at all.
       expect(html).not.toContain('class="page-items"');
+      // The login footer is a homepage-only affordance (#69).
+      expect(html).not.toContain('href="/admin/login"');
     });
 
     test("falls back to the page name for the title; no meta tag when empty", () =>
