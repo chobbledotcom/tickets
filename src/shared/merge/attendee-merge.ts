@@ -638,7 +638,9 @@ const applyBookingDecisions = (
       );
       bookingsMoved++;
     } else if (choice === "take_source" && item.targetBooking) {
-      // Replace target booking with source booking
+      // Replace the target booking with the source booking — only the one
+      // slot the decision names: a listing booked through several paths keeps
+      // its other package/standalone rows.
       deleteTargetBookingStatements.push({
         args: [
           targetId,
@@ -646,11 +648,13 @@ const applyBookingDecisions = (
           item.startAt,
           item.startAt,
           item.parentListingId,
+          item.packageGroupId,
         ],
         sql: `DELETE FROM listing_attendees
               WHERE attendee_id = ? AND listing_id = ?
               AND (start_at IS ? OR start_at = ?)
-              AND parent_listing_id = ?`,
+              AND parent_listing_id = ?
+              AND package_group_id = ?`,
       });
       insertStatements.push(
         bookingInsertStatement(targetId, item.sourceBooking),

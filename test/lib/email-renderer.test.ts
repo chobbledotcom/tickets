@@ -353,6 +353,38 @@ describeWithEnv("email-renderer", { db: true }, () => {
       ]);
     });
 
+    test("a mixed order conceals its hidden bundle beside plain rows", async () => {
+      // The flagship cart shape: a hidden package booked ALONGSIDE an ordinary
+      // listing. The buyer's confirmation must collapse the bundle's rows
+      // behind the package name while the plain row renders normally — a
+      // single-shared-package rule would leak every member name here.
+      const entries = await buildPackageEntries(true);
+      const lantern = await createTestListing({
+        name: "Lantern",
+        unitPrice: 300,
+      });
+      entries.push(
+        makeEntry(
+          { id: lantern.id, name: "Lantern", unit_price: 300 },
+          { price_paid: "300", quantity: 1 },
+        ),
+      );
+      const data = await buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+        { hidePackageMembers: true },
+      );
+      expect(data.listing_names).toBe("Camp Kit and Lantern");
+      expect(data.entries.map((e) => e.listing.name)).toEqual([
+        "Camp Kit",
+        "Lantern",
+      ]);
+      // The bundle row still sums its members; the plain row keeps its own.
+      expect(data.entries[0]!.attendee.quantity).toBe(8);
+      expect(data.entries[1]!.attendee.quantity).toBe(1);
+    });
+
     test("a standalone booking of a hidden one-member package's listing is NOT collapsed", async () => {
       // Regression for the membership-equality bug: a one-member HIDDEN package
       // whose sole listing is booked standalone (NOT via the package, so its

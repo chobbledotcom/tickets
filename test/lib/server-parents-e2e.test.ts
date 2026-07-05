@@ -496,6 +496,30 @@ describeWithEnv(
   },
 );
 
+/** A free "pick a widget" parent whose sole child widget is ALSO sold on its
+ * own (`bookableAlone`), wired as a parent edge — the two-path shape the
+ * standalone-child purchases exercise. */
+const setupPickerWithSoloWidget = async (): Promise<{
+  parent: Listing;
+  widget: Listing;
+}> => {
+  const parent = await createTestListing({
+    maxAttendees: 10,
+    name: "Widget Picker",
+    unitPrice: 0,
+  });
+  const widget = await createTestListing({
+    bookableAlone: true,
+    maxAttendees: 10,
+    maxQuantity: 3,
+    name: "Solo Widget",
+    thankYouUrl: "",
+    unitPrice: 0,
+  });
+  await setChildIds(parent.id, [widget.id]);
+  return { parent, widget };
+};
+
 describeWithEnv(
   "e2e > standalone and package-member child purchases",
   { db: true, triggers: true },
@@ -504,19 +528,7 @@ describeWithEnv(
       // A "pick a widget" parent offers a widget that is ALSO sold on its own.
       // The buyer books the widget directly on its own page — it books as a
       // standalone attendee, not folded under the picker.
-      const parent = await createTestListing({
-        name: "Widget Picker",
-        unitPrice: 0,
-      });
-      const widget = await createTestListing({
-        bookableAlone: true,
-        maxAttendees: 10,
-        maxQuantity: 3,
-        name: "Solo Widget",
-        thankYouUrl: "",
-        unitPrice: 0,
-      });
-      await setChildIds(parent.id, [widget.id]);
+      const { widget } = await setupPickerWithSoloWidget();
       // Its own page serves — a non-flagged child would 404 here.
       expect(await ticketPageStatus(widget.slug)).toBe(200);
 
@@ -532,6 +544,37 @@ describeWithEnv(
       expect(Number(rows[0]!.quantity)).toBe(1);
       // Booked on its own, with no parent — not folded under the picker.
       expect(Number(rows[0]!.parent_listing_id)).toBe(0);
+    });
+
+    test("buying the child on its own row AND under its parent books one row per path", async () => {
+      // One order, two paths for the widget: auto-folded under the picker
+      // (sole bookable child fills to the parent quantity) plus its own
+      // standalone row. The split must persist one parented row and one
+      // parent-less row — never a doubled allocation or a rejected order.
+      const { parent, widget } = await setupPickerWithSoloWidget();
+
+      const res = await postBooking(`${parent.slug}+${widget.slug}`, {
+        email: "both@example.com",
+        name: "Both Paths",
+        [`quantity_${parent.id}`]: "1",
+        [`quantity_${widget.id}`]: "1",
+      });
+      expectReserved(res);
+
+      const rows = await bookingRowsFor(widget.id);
+      expect(
+        rows.map((row) => [
+          Number(row.parent_listing_id),
+          Number(row.quantity),
+        ]),
+      ).toEqual(
+        expect.arrayContaining([
+          [parent.id, 1],
+          [0, 1],
+        ]),
+      );
+      expect(rows).toHaveLength(2);
+      expect(await bookingRowsFor(parent.id)).toHaveLength(1);
     });
 
     test("buying a package folds the parent member's chosen child under it", async () => {

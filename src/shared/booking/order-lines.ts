@@ -77,9 +77,15 @@ const childNodesByListingId = (tree: BookingTree): Map<number, BookingNode> => {
 /** Build the order's checkout lines. `nodeQuantities` carries each top-level
  * node's booked quantity by nodeKey; `foldedQuantities` is the fold's
  * per-listing aggregate (top-level paths plus folded children), so each child
- * line's quantity is whatever the top-level lines don't cover. `customPrices`
- * carries pay-more inputs and QR overrides by listing id (a pay-more listing
- * is never a package member, so one price per listing id stays sound). */
+ * line's quantity is whatever the other lines don't cover. A CHILD listing
+ * keeps ONE line for all its units — folded plus any of its own standalone row
+ * (a `bookable_alone` child beside its parent) — because the create paths
+ * split a child's line by the fold's allocations, and would mistake a second
+ * same-listing line for more folded units. One line loses nothing: a child is
+ * never a package member, so both its paths price by the same rule.
+ * `customPrices` carries pay-more inputs and QR overrides by listing id (a
+ * pay-more listing is never a package member, so one price per listing id
+ * stays sound). */
 export const buildOrderLines = (
   tree: BookingTree,
   nodeQuantities: ReadonlyMap<string, number>,
@@ -87,9 +93,10 @@ export const buildOrderLines = (
   customPrices: ReadonlyMap<number, number>,
   dayCount: number,
 ): CheckoutItem[] => {
+  const childById = childNodesByListingId(tree);
   const pathLines = tree.nodes.flatMap((node): CheckoutItem[] => {
     const quantity = nodeQuantities.get(node.nodeKey) ?? 0;
-    if (quantity <= 0) return [];
+    if (quantity <= 0 || childById.has(node.listingId)) return [];
     const packageGroupId = nodePackageGroupId(node);
     return [
       {
@@ -107,15 +114,19 @@ export const buildOrderLines = (
       },
     ];
   });
-  // The top-level paths' per-listing totals; whatever the fold booked beyond
-  // them is child units.
-  const coveredByListingId = aggregateNodeQuantities(tree, nodeQuantities);
-  const childById = childNodesByListingId(tree);
+  // Whatever the fold booked beyond the emitted lines is child units.
+  const emittedByListingId = new Map<number, number>();
+  for (const line of pathLines) {
+    emittedByListingId.set(
+      line.listingId,
+      (emittedByListingId.get(line.listingId) ?? 0) + line.quantity,
+    );
+  }
   const childLines = [...foldedQuantities].flatMap(
     ([listingId, total]): CheckoutItem[] => {
-      const quantity = total - (coveredByListingId.get(listingId) ?? 0);
+      const quantity = total - (emittedByListingId.get(listingId) ?? 0);
       if (quantity <= 0) return [];
-      // Every folded listing beyond the top-level lines is some parent's
+      // Every folded listing beyond the emitted lines is some parent's
       // child, so its node is always present here.
       const child = childById.get(listingId)!;
       return [

@@ -261,6 +261,53 @@ describe("buildOrderLines", () => {
     expect(Object.hasOwn(lines[1]!, "packageGroupId")).toBe(false);
   });
 
+  test("a bookable-alone child beside its parent keeps ONE aggregated line", () => {
+    // The child books 2 folded units under parent 1 AND 1 unit on its own
+    // row. One line carries all 3 — the create paths split it back into
+    // per-parent and standalone rows by the fold's allocations, and a second
+    // same-listing line would read as extra folded units.
+    const child = resolved({
+      id: 9,
+      name: "Addon",
+      slug: "addon",
+      unit_price: 250,
+    });
+    const tree = buildBookingTree({
+      childrenByParentId: new Map([[1, [child]]]),
+      listings: [resolved({ id: 1, name: "Big Top", slug: "bigto" }), child],
+      slugs: ["bigto", "addon"],
+    });
+    const lines = buildOrderLines(
+      tree,
+      new Map([
+        ["listing:1", 2],
+        ["listing:9", 1],
+      ]),
+      new Map([
+        [1, 2],
+        [9, 3],
+      ]),
+      new Map(),
+      1,
+    );
+    expect(lines).toEqual([
+      {
+        listingId: 1,
+        name: "Big Top",
+        quantity: 2,
+        slug: "bigto",
+        unitPrice: 0,
+      },
+      {
+        listingId: 9,
+        name: "Addon",
+        quantity: 3,
+        slug: "addon",
+        unitPrice: 250,
+      },
+    ]);
+  });
+
   test("skips a folded listing the top-level lines already cover", () => {
     const tree = dualPathTree();
     const nodeQuantities = nodeQuantitiesFor(

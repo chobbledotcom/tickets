@@ -82,6 +82,22 @@ generalized passes: render, fold, price, capacity, revalidate.
   loading each option's children in `loadOrderCatalog` and adding the
   guaranteed folded units (and their group pools) to `unitsByListingId`.
 
+- **Per-path sale amounts in the ledger projection.** A booking posts ONE
+  `sale` leg per listing (`bookingFactsFromOrder` sums the order's lines by
+  listing id; the leg reference is `["sale", listingId]`), and
+  `pricePaidFromLedger` splits that total across the listing's sibling rows in
+  quantity proportion. When one listing books through two paths at DIFFERENT
+  prices in one order (package override beside its own standalone row), the
+  per-row `price_paid` readback is therefore quantity-averaged — e.g. 4×400
+  package units + 1×500 standalone reads back 1680/420 instead of 1600/500.
+  Order totals, revenue sums, and refunds are exact (the shares telescope);
+  only per-row display/merge granularity blurs, and only when per-path prices
+  differ. Fixing it needs a SQL-queryable per-path discriminator on sale legs
+  (a transfers schema addition — `reference` is a hash, `kind`/`dest_id` feed
+  reports) or re-storing the per-row amount, plus a fallback for pre-upgrade
+  rows whose legs are untagged. Do it when per-row money display matters more
+  than the schema stability of the append-only ledger.
+
 - **Confirm the v1 drain bridge is genuinely unnecessary.** The original plan
   called for a bounded-window read-only parser for pre-cutover (v1) signed
   metadata plus a regression test for an old-shape session paid during the

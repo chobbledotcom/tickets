@@ -14,7 +14,8 @@ import {
  *   - checkout/quote line names → {@link concealMemberNames}
  *   - day-count + payment error text → {@link memberStandInName} /
  *     {@link resolveNamesConcealed}
- *   - confirmation email + SVG ticket collapse → {@link packagePrivacyOfDisplay}
+ *   - confirmation email + SVG ticket collapse → `buyerEntryGroups`
+ *     (email-renderer.ts; per package, so mixed carts conceal every bundle)
  *   - /t package cards, public API member lists → {@link namesConcealed}
  *
  * A surface added tomorrow takes a `PackagePrivacy` and cannot leak a member

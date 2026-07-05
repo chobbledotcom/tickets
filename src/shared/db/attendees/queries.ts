@@ -66,6 +66,11 @@ const refundedFromLedger = (attendeeIdExpr: string): string =>
  * whole leg for the ordinary one-row-per-listing case. `rowIdExpr` is the row's
  * own `id`; all four expressions MUST be qualified (they seed correlated
  * subqueries whose inner `sibling` alias would otherwise shadow a bare column).
+ *
+ * The same split covers a listing booked through two order paths (a package
+ * member row beside its standalone row). When those paths priced differently,
+ * the quantity split AVERAGES the rows — the leg carries no per-path key to do
+ * better with (see the per-path TODO entry). Sums over the order stay exact.
  */
 export const pricePaidFromLedger = (
   attendeeIdExpr: string,
@@ -118,7 +123,9 @@ const ATTENDEE_COLS = `attendee.id, attendee.created, attendee.kind, attendee.ti
 /** The two ledger-projected money columns (refunded flag + per-row amount paid)
  *  for a listing_attendees row reached through the `ea` alias. Shared by the
  *  INNER and LEFT JOIN selects so the projections never drift apart. */
-const EA_LEDGER_MONEY_COLS = `${refundedFromLedger("listingAttendee.attendee_id")}, ${pricePaidFromLedger(
+const EA_LEDGER_MONEY_COLS = `${refundedFromLedger(
+  "listingAttendee.attendee_id",
+)}, ${pricePaidFromLedger(
   "listingAttendee.attendee_id",
   "listingAttendee.listing_id",
   "listingAttendee.ledger_event_group",
@@ -416,7 +423,9 @@ export const hasPaidLine = (
 ): Promise<boolean> =>
   rowExists(
     `SELECT 1 FROM listing_attendees AS listingAttendee
-     WHERE listingAttendee.attendee_id = ? AND listingAttendee.listing_id IN (${inPlaceholders(listingIds)})
+     WHERE listingAttendee.attendee_id = ? AND listingAttendee.listing_id IN (${inPlaceholders(
+       listingIds,
+     )})
        AND EXISTS (
          SELECT 1 FROM transfers
          WHERE ${saleLegPredicate(
@@ -476,7 +485,9 @@ export const getAttendeesByIds = (ids: number[]): Promise<Attendee[]> => {
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees AS attendee
      LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-     WHERE attendee.kind = '${ATTENDEE_KIND}' AND attendee.id IN (${inPlaceholders(ids)})`,
+     WHERE attendee.kind = '${ATTENDEE_KIND}' AND attendee.id IN (${inPlaceholders(
+       ids,
+     )})`,
     ids,
   );
 };

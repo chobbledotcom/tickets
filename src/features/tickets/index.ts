@@ -8,7 +8,6 @@ import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import {
   createTokenRoute,
   lookupAttendees,
-  packageDisplaysForEntries,
   resolveEntries,
   type TokenEntry,
   type TokenRouteFn,
@@ -16,6 +15,7 @@ import {
 } from "#routes/tickets/token-utils.ts";
 import { signAttachmentUrl } from "#shared/attachment-url.ts";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
+import { packageDisplaysForRows } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
@@ -79,7 +79,7 @@ const handleTicketView = withResolvedEntries(async (entries, tokens) => {
   // QRs — separate while still collapsing each package. Disabling collapsing for
   // multi-token pages would render a hidden package's member rows as normal cards
   // and leak the concealed names, so it is always enabled.
-  const packageDisplays = await packageDisplaysForEntries(entries);
+  const packageDisplays = await packageDisplaysForRows(entries);
   return htmlResponse(
     ticketViewPage(
       cards,
