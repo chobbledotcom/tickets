@@ -92,10 +92,9 @@ const prepareListing = async (
     encThankYou,
     encWebhook,
     encClosesAt,
-    encImageUrl,
     encAttachmentUrl,
     encAttachmentName,
-  ] = await encryptBatch("", "", "", "", "", "", "");
+  ] = await encryptBatch("", "", "", "", "", "");
 
   return insert("listings", {
     active: 1,
@@ -116,7 +115,6 @@ const prepareListing = async (
     date: encDate,
     description: encDesc,
     fields: "email",
-    image_url: encImageUrl,
     listing_type: "standard",
     location: encLoc,
     max_attendees: maxAttendees,

@@ -14,14 +14,13 @@
 
 import { type Client, createClient } from "@libsql/client";
 import type { BuiltSite } from "#shared/db/built-sites.ts";
+import type { Result } from "#shared/result.ts";
 
 /** Credentials needed to open a read-only connection to a site's database. */
 export type SiteDbCredentials = Pick<BuiltSite, "dbUrl" | "dbToken">;
 
 /** Result of a read against a site database. */
-export type SiteDbResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: string };
+export type SiteDbResult<T> = Result<T>;
 
 /** Stubbable client factory so tests can inject an in-memory database. */
 export const siteDbApi = {

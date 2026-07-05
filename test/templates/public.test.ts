@@ -1552,13 +1552,14 @@ describeWithEnv(
   { env: { STORAGE_ZONE_KEY: "testkey", STORAGE_ZONE_NAME: "testzone" } },
   () => {
     describe("renderListingImage", () => {
-      test("returns empty string when image_url is null", () => {
-        const html = renderListingImage({ image_url: "" });
+      test("returns empty string when image_url is empty", () => {
+        const html = renderListingImage({ image_thumb_url: "", image_url: "" });
         expect(html).toBe("");
       });
 
       test("renders img tag with proxy URL when image_url is set", () => {
         const html = renderListingImage({
+          image_thumb_url: "",
           image_url: "abc123.jpg",
         });
         expect(html).toContain("/image/abc123.jpg");
@@ -1568,9 +1569,19 @@ describeWithEnv(
 
       test("uses empty alt text for decorative image", () => {
         const html = renderListingImage({
+          image_thumb_url: "",
           image_url: "img.jpg",
         });
         expect(html).toContain('alt=""');
+      });
+
+      test("uses escaped alt text when present", () => {
+        const html = renderListingImage({
+          image_alt_text: 'Front "hero" image',
+          image_thumb_url: "",
+          image_url: "img.jpg",
+        });
+        expect(html).toContain('alt="Front &quot;hero&quot; image"');
       });
 
       test("uses the thumbnail URL in thumb contexts when one exists", () => {
@@ -1585,7 +1596,6 @@ describeWithEnv(
       });
 
       test("falls back to the full image in thumb contexts when no thumbnail", () => {
-        // Legacy listings uploaded before thumbnails exist: never a dead link.
         const html = renderListingImage(
           { image_thumb_url: "", image_url: "full.webp" },
           "listing-thumbnail",
@@ -1604,6 +1614,29 @@ describeWithEnv(
       });
     });
 
+    test("renders a group image in the ticket header", () => {
+      const html = ticketPage({
+        baseUrl: "https://tickets.example",
+        groupImage: {
+          image_alt_text: "Camp kit display",
+          image_thumb_url: "camp-kit-thumb.webp",
+          image_url: "camp-kit.webp",
+        },
+        groupName: "Camp Kit",
+        listings: [
+          buildTicketListing(testListingWithCount(), false, undefined),
+        ],
+        slugs: ["camp-kit"],
+      });
+
+      expect(html).toContain("/image/camp-kit.webp");
+      expect(html).toContain('alt="Camp kit display"');
+      expect(html).toContain(
+        '<meta property="og:image" content="https://tickets.example/image/camp-kit.webp">',
+      );
+      expect(html).not.toContain('property="og:description"');
+    });
+
     describe("ticketPage with image", () => {
       const renderSingleListing = (ev: ListingWithCount) =>
         ticketPage({
@@ -1620,7 +1653,7 @@ describeWithEnv(
         expect(html).toContain('class="listing-image"');
       });
 
-      test("does not show image when image_url is null", () => {
+      test("does not show image when image_url is empty", () => {
         const listing = testListingWithCount({ image_url: "" });
         const html = renderSingleListing(listing);
         expect(html).not.toContain("/image/");
@@ -1662,7 +1695,7 @@ describeWithEnv(
         expect(html).toContain("/image/img-b.jpg");
       });
 
-      test("does not show images when image_url is null", () => {
+      test("does not show images when image_url is empty", () => {
         const listings = [
           buildTicketListing(
             testListingWithCount({ id: 1, image_url: "", name: "Listing A" }),

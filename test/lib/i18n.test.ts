@@ -33,6 +33,37 @@ describe("i18n", () => {
       );
     });
 
+    test("interpolates a value wrapped in literal quotes (ICU '' escaping), not just a bare placeholder", () => {
+      // Regression: these locale strings wrap the interpolated name in literal
+      // single quotes for display (`'{name}'`), which in ICU MessageFormat
+      // syntax requires doubled quotes (`''{name}''`) — a single quote pair
+      // is parsed as an escaped literal region, leaving `{name}` unsubstituted
+      // (and the quote marks themselves stripped) if written with only one
+      // quote each side. Covers every key across the two locale files that
+      // had this mistake.
+      expect(
+        t("listings_table.children_err_parent_is_child", { name: "Retreat" }),
+      ).toBe(
+        "'Retreat' is itself offered as a child of another listing, so it can't also be a parent.",
+      );
+      expect(
+        t("listings_table.children_err_child_is_parent", { name: "Retreat" }),
+      ).toBe(
+        "'Retreat' already has its own child listings, so it can't also be a child.",
+      );
+      expect(
+        t("listings_table.children_err_child_addon", {
+          addon: "Extra",
+          name: "Retreat",
+        }),
+      ).toBe(
+        "'Retreat' has the opt-in add-on 'Extra', which only its own booking page offers — make it reachable from the parent (or remove the add-on) before offering it as a child.",
+      );
+      expect(t("modifiers.err_child_only_addon", { name: "Retreat" })).toBe(
+        "'Retreat' is an opt-in add-on reachable only through a required child listing, so no booking page would offer it — scope it to the parent (or another bookable listing), or remove it as a child, before saving.",
+      );
+    });
+
     test("handles ICU plural format", () => {
       expect(t("admin.listings.failed_payments_count", { count: 1 })).toContain(
         "1 attendee",

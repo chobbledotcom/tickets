@@ -25,6 +25,7 @@ import {
   catalogVisibleSql,
   computeSlugIndex,
   deleteListing,
+  getAllListingNames,
   getAllListings,
   getListing,
   getListingNamesByIds,
@@ -45,6 +46,11 @@ import {
   isSessionProcessed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
 import {
   answersTable,
   getAttendeeAnswersBatch,
@@ -863,6 +869,32 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   });
 
   describe("bounded name lookups", () => {
+    test("getAllListingNames returns every decrypted name through the narrow projection", async () => {
+      const alpha = await createTestListing({
+        maxAttendees: 10,
+        name: "Alpha",
+      });
+      const beta = await createTestListing({ maxAttendees: 10, name: "Beta" });
+
+      await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        const names = await getAllListingNames();
+
+        expect([...names.entries()]).toEqual([
+          [alpha.id, "Alpha"],
+          [beta.id, "Beta"],
+        ]);
+        expect(getQueryLog().map((entry) => entry.sql)).toEqual([
+          "SELECT listing.id, listing.name AS name FROM listings AS listing ORDER BY listing.id ASC",
+        ]);
+      });
+    });
+
+    test("getAllListingNames returns an empty map with no listings", async () => {
+      const names = await getAllListingNames();
+      expect(names.size).toBe(0);
+    });
+
     test("getListingNamesByIds returns decrypted names only for the given ids", async () => {
       const alpha = await createTestListing({
         maxAttendees: 10,
