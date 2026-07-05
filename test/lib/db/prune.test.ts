@@ -248,6 +248,7 @@ const clearAllLastPruned = async (): Promise<void> => {
   await settings.update.lastPrunedSumup("");
   await settings.update.lastPrunedStrings("");
   await settings.update.lastPrunedContacts("");
+  await settings.update.lastPrunedAddresses("");
   await settings.update.lastPrunedInvites("");
   await settings.update.lastPrunedOrphans("");
 };
@@ -261,6 +262,7 @@ const setAllLastPruned = async (value: string): Promise<void> => {
   await settings.update.lastPrunedSumup(value);
   await settings.update.lastPrunedStrings(value);
   await settings.update.lastPrunedContacts(value);
+  await settings.update.lastPrunedAddresses(value);
   await settings.update.lastPrunedInvites(value);
   await settings.update.lastPrunedOrphans(value);
 };
@@ -614,6 +616,13 @@ describeWithEnv("db > prune", { db: true }, () => {
       await clearAllLastPruned();
       await expectFreshPrunedTimestampAfterRun(
         () => settings.lastPrunedContacts,
+      );
+    });
+
+    test("records fresh address-cache timestamp after running", async () => {
+      await clearAllLastPruned();
+      await expectFreshPrunedTimestampAfterRun(
+        () => settings.lastPrunedAddresses,
       );
     });
 

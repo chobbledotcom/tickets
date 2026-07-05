@@ -19,21 +19,33 @@ export type FakeElement = {
   required: boolean;
   disabled: boolean;
   hidden: boolean;
+  readOnly: boolean;
+  /** True after `focus()` was called (test-observable focus). */
+  focused: boolean;
+  focus: () => void;
+  /** The enclosing `<form>` element, linked by {@link installFakeDom}. */
+  form: FakeElement | null;
+  /** Re-dispatches "submit" listeners, like the DOM `form.requestSubmit()`. */
+  requestSubmit: () => void;
   textContent: string;
   dataset: Record<string, string>;
   children: FakeElement[];
+  appendChild: (child: FakeElement) => FakeElement;
+  replaceChildren: (...next: FakeElement[]) => void;
   getAttribute: (name: string) => string | null;
   /** Add (force=true) or remove (force=false) a boolean-ish attribute, mirroring
    * the DOM `Element.toggleAttribute(name, force)` the scripts use to flag a
    * sole-child block incompatible. */
   toggleAttribute: (name: string, force: boolean) => void;
+  querySelector: (selector: string) => FakeElement | null;
   querySelectorAll: (selector: string) => FakeElement[];
-  addEventListener: (event: string, listener: () => void) => void;
+  addEventListener: (event: string, listener: (event?: unknown) => void) => void;
   /** Dispatch a real `Event` to the registered listeners (the production scripts
    * call this to notify dependents). Returns true like the DOM API. */
   dispatchEvent: (event: Event) => boolean;
-  /** Fire a registered listener by name (test-only convenience). */
-  dispatch: (event: string) => void;
+  /** Fire registered listeners by name, passing `arg` as the event
+   * (test-only convenience — pass `{ key, preventDefault }`-shaped objects). */
+  dispatch: (event: string, arg?: unknown) => void;
 };
 
 export type ElementSpec = {
@@ -117,7 +129,7 @@ const datasetKey = (attr: string): string =>
   attr.replace(/^data-/, "").replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 
 const makeElement = (spec: ElementSpec): FakeElement => {
-  const listeners = new Map<string, (() => void)[]>();
+  const listeners = new Map<string, ((event?: unknown) => void)[]>();
   const attrs = new Map<string, string>();
   if (spec.name !== undefined) attrs.set("name", spec.name);
   for (const [k, v] of Object.entries(spec.data ?? {})) {
@@ -134,23 +146,40 @@ const makeElement = (spec: ElementSpec): FakeElement => {
       list.push(listener);
       listeners.set(event, list);
     },
+    appendChild: (child) => {
+      children.push(child);
+      return child;
+    },
     attrs,
     checked: spec.checked ?? false,
     children,
     classes: new Set(spec.class ? spec.class.split(" ") : []),
     dataset,
     disabled: spec.disabled ?? false,
-    dispatch: (event) => {
-      for (const listener of listeners.get(event) ?? []) listener();
+    dispatch: (event, arg) => {
+      for (const listener of listeners.get(event) ?? []) listener(arg);
     },
     dispatchEvent: (event) => {
-      for (const listener of listeners.get(event.type) ?? []) listener();
+      for (const listener of listeners.get(event.type) ?? []) listener(event);
       return true;
     },
+    focus: () => {
+      el.focused = true;
+    },
+    focused: false,
+    form: null,
     getAttribute: (name) => attrs.get(name) ?? null,
     hidden: spec.hidden ?? false,
+    querySelector: (selector) =>
+      collect(children).find((c) => matchesSelector(c, selector)) ?? null,
     querySelectorAll: (selector) =>
       collect(children).filter((c) => matchesSelector(c, selector)),
+    readOnly: false,
+    replaceChildren: (...next) => {
+      children.length = 0;
+      children.push(...next);
+    },
+    requestSubmit: () => el.dispatch("submit", { preventDefault: () => {} }),
     required: spec.required ?? false,
     tag: spec.tag ?? "input",
     textContent: "",
@@ -334,14 +363,25 @@ export const childPriceSpec = (
 
 const originalDocument = globalThis.document;
 
+/** Link each element's `.form` to its nearest ancestor `<form>`. */
+const linkForms = (roots: FakeElement[]): void => {
+  const walk = (el: FakeElement, form: FakeElement | null): void => {
+    el.form = el.tag === "form" ? el : form;
+    for (const child of el.children) walk(child, el.form);
+  };
+  for (const root of roots) walk(root, null);
+};
+
 /** Install a fake `document` whose body is the given element specs, returning
  * the built root elements. Call `restoreDocument()` in test teardown. */
 export const installFakeDom = (specs: ElementSpec[]): FakeElement[] => {
   const roots = specs.map(makeElement);
+  linkForms(roots);
   const all = collect(roots);
   Object.defineProperty(globalThis, "document", {
     configurable: true,
     value: {
+      createElement: (tag: string) => makeElement({ tag }),
       querySelector: (selector: string) =>
         all.find((el) => matchesSelector(el, selector)) ?? null,
       querySelectorAll: (selector: string) =>

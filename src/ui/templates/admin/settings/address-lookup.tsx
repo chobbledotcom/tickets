@@ -2,6 +2,7 @@
  * Address lookup form for advanced settings — provider picklist + API key.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { ADDRESS_LOOKUP_PROVIDERS } from "#shared/address-lookup/providers.ts";
 import {
@@ -13,6 +14,7 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
+/* jscpd:ignore-end */
 
 /** Picklist label: "none" is translated copy, real providers show their brand. */
 const providerLabel = (provider: AddressLookupSetting): string =>
