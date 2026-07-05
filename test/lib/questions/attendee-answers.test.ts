@@ -20,6 +20,15 @@ import {
 } from "./helpers.ts";
 
 describeWithEnv("custom questions", { db: true }, () => {
+  describe("createAttendee helper", () => {
+    test("throws when the listing has no capacity", async () => {
+      const listing = await createTestListing({ maxAttendees: 0 });
+      await expect(createAttendee(listing.id)).rejects.toThrow(
+        "Failed to create attendee",
+      );
+    });
+  });
+
   describe("attendee answers", () => {
     /** A free-text question plus a fresh attendee to answer it — shared setup
      *  for the text-answer save/dedup tests below. */
