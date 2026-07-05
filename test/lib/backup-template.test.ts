@@ -75,7 +75,7 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
     expect(html).toContain("No backups found");
   });
 
-  test("renders backup list as table with friendly date and size", () => {
+  test("renders backup list as table with friendly date, timestamp, and size", () => {
     const html = adminBackupPage(mockSession, {
       ...baseState,
       backups: [
@@ -83,10 +83,13 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
           filename: "backup-2024-01-15T12-00-00-000Z.zip",
           label: "Monday 15 January 2024 at 12:00 UTC",
           sizeLabel: "1MB",
+          timestamp: "2024-01-15T12-00-00-000Z",
         },
       ],
     });
     expect(html).toContain("Monday 15 January 2024 at 12:00 UTC");
+    expect(html).toContain("<code>2024-01-15T12-00-00-000Z</code>");
+    expect(html).toContain("Timestamp");
     expect(html).toContain("1MB");
     expect(html).toContain("Download");
     expect(html).toContain(
@@ -102,6 +105,7 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
           filename: "backup-2024-01-15T12-00-00-000Z.zip",
           label: "Monday 15 January 2024 at 12:00 UTC",
           sizeLabel: "1MB",
+          timestamp: "2024-01-15T12-00-00-000Z",
         },
       ],
       maxBackups: 30,
@@ -115,14 +119,15 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
   });
 
   test("retention note warns the oldest is purged next when at capacity", () => {
-    const entry = (n: number): BackupPageState["backups"][number] => ({
-      filename: `backup-2024-01-${String(n).padStart(
-        2,
-        "0",
-      )}T12-00-00-000Z.zip`,
-      label: `backup ${n}`,
-      sizeLabel: "1MB",
-    });
+    const entry = (n: number): BackupPageState["backups"][number] => {
+      const day = String(n).padStart(2, "0");
+      return {
+        filename: `backup-2024-01-${day}T12-00-00-000Z.zip`,
+        label: `backup ${n}`,
+        sizeLabel: "1MB",
+        timestamp: `2024-01-${day}T12-00-00-000Z`,
+      };
+    };
     const html = adminBackupPage(mockSession, {
       ...baseState,
       // newest first: oldest is the last entry
