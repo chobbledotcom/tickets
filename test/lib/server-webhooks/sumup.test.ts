@@ -72,17 +72,22 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
     id: "co_e2e",
   };
 
+  /** Stub SumUp's checkout lookup for the staged `reference` with the given
+   *  outcome — the end-to-end and cancel-page tests share everything but the
+   *  status/transactionId. */
+  const stubRetrieveCheckoutById = (
+    reference: string,
+    status: "FAILED" | "PAID",
+    transactionId: string,
+  ) =>
+    stub(sumupApi, "retrieveCheckoutById", () =>
+      Promise.resolve({ amountMinor: 1000, reference, status, transactionId }),
+    );
+
   test("processes an unsigned SumUp webhook end to end, idempotently", async () => {
     const listing = await createTestListing({ unitPrice: 1000 });
     const reference = await stageSumupCheckout(listing);
-    const restore = stub(sumupApi, "retrieveCheckoutById", () =>
-      Promise.resolve({
-        amountMinor: 1000,
-        reference,
-        status: "PAID" as const,
-        transactionId: "txn_e2e",
-      }),
-    );
+    const restore = stubRetrieveCheckoutById(reference, "PAID", "txn_e2e");
     try {
       const response = await handleRequest(
         mockWebhookRequest(sumupWebhookEvent),
@@ -122,14 +127,7 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
   test("shows the cancel page when a SumUp payment fails", async () => {
     const listing = await createTestListing({ unitPrice: 1000 });
     const reference = await stageSumupCheckout(listing);
-    const restore = stub(sumupApi, "retrieveCheckoutById", () =>
-      Promise.resolve({
-        amountMinor: 1000,
-        reference,
-        status: "FAILED" as const,
-        transactionId: "",
-      }),
-    );
+    const restore = stubRetrieveCheckoutById(reference, "FAILED", "");
     try {
       const response = await handleRequest(
         mockRequest(`/payment/success?session_id=${reference}`),

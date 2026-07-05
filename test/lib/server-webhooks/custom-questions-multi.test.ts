@@ -23,6 +23,50 @@ import {
 } from "#test-utils";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 
+/** Submit a multi-ticket form against a stubbed `createCheckoutSession` (so
+ *  the test drives the real checkout without a flaky Stripe HTTP round trip),
+ *  and assert it redirects to checkout — the shared prelude before both
+ *  "answers survive the webhook" scenarios below simulate the payment
+ *  provider's callback. */
+const submitMultiTicketFormWithStubbedCheckout = async (
+  slug: string,
+  formData: Record<string, string>,
+  stubSessionId: string,
+): Promise<void> => {
+  const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
+  const mockCreate = stub(stripePaymentProvider, "createCheckoutSession", () =>
+    Promise.resolve({
+      checkoutUrl: `https://checkout.stripe.com/pay/${stubSessionId}`,
+      sessionId: stubSessionId,
+    }),
+  );
+  const { submitMultiTicketForm, expectCheckoutRedirect } = await import(
+    "#test-utils"
+  );
+  try {
+    const checkoutResponse = await submitMultiTicketForm(slug, formData);
+    expectCheckoutRedirect(checkoutResponse);
+  } finally {
+    mockCreate.restore();
+  }
+};
+
+/** Fetch both listings' attendees, assert each has exactly one and that
+ *  they're the same shared attendee (a multi-listing checkout links one
+ *  attendee to every listing it books), and return that attendee's id. */
+const expectSharedAttendee = async (
+  listing1Id: number,
+  listing2Id: number,
+): Promise<number> => {
+  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  const att1 = await getAttendeesRaw(listing1Id);
+  const att2 = await getAttendeesRaw(listing2Id);
+  expect(att1.length).toBe(1);
+  expect(att2.length).toBe(1);
+  expect(att1[0]!.id).toBe(att2[0]!.id);
+  return att1[0]!.id;
+};
+
 describeWithEnv(
   "server webhooks > custom questions (multi-ticket)",
   { db: true },
@@ -133,35 +177,18 @@ describeWithEnv(
       // One listing is paid, so this triggers the payment flow.
       // Stub checkout creation to avoid flaky stripe-mock HTTP calls under
       // high concurrency — this test verifies webhook processing, not checkout.
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockCreate = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        () =>
-          Promise.resolve({
-            checkoutUrl: "https://checkout.stripe.com/pay/cs_multi_q_stub",
-            sessionId: "cs_multi_q_stub",
-          }),
-      );
-
-      const { submitMultiTicketForm, expectCheckoutRedirect } = await import(
-        "#test-utils"
-      );
       const slug = `${listing1.slug}+${listing2.slug}`;
-      try {
-        const checkoutResponse = await submitMultiTicketForm(slug, {
+      await submitMultiTicketFormWithStubbedCheckout(
+        slug,
+        {
           email: "qbuyer@example.com",
           name: "Q Buyer",
           [`quantity_${listing1.id}`]: "1",
           [`quantity_${listing2.id}`]: "1",
           [`question_${q.id}`]: String(a1.id),
-        });
-        expectCheckoutRedirect(checkoutResponse);
-      } finally {
-        mockCreate.restore();
-      }
+        },
+        "cs_multi_q_stub",
+      );
 
       // Now simulate the webhook callback from the payment provider.
       // The metadata includes answer_ids serialized during checkout.
@@ -199,17 +226,9 @@ describeWithEnv(
         },
       );
 
-      // Verify attendees were created
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const att1 = await getAttendeesRaw(listing1.id);
-      const att2 = await getAttendeesRaw(listing2.id);
-      expect(att1.length).toBe(1);
-      expect(att2.length).toBe(1);
-
       // With multi-listing attendees, one attendee is linked to both listings.
       // Answers are stored on the shared attendee ID.
-      const attendeeId = att1[0]!.id;
-      expect(attendeeId).toBe(att2[0]!.id); // same attendee
+      const attendeeId = await expectSharedAttendee(listing1.id, listing2.id);
       const batch = await getAttendeeAnswersBatch([attendeeId], {
         texts: false,
       });
@@ -243,35 +262,19 @@ describeWithEnv(
 
       // Drive the real checkout so ticket-submit parses the free-text answers and
       // packs them into the checkout intent (encrypting the strings on the way).
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockCreate = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        () =>
-          Promise.resolve({
-            checkoutUrl: "https://checkout.stripe.com/pay/cs_text_q_stub",
-            sessionId: "cs_text_q_stub",
-          }),
-      );
-      const { submitMultiTicketForm, expectCheckoutRedirect } = await import(
-        "#test-utils"
-      );
       const slug = `${listing1.slug}+${listing2.slug}`;
-      try {
-        const checkoutResponse = await submitMultiTicketForm(slug, {
+      await submitMultiTicketFormWithStubbedCheckout(
+        slug,
+        {
           email: "textbuyer@example.com",
           name: "Text Buyer",
           [`quantity_${listing1.id}`]: "1",
           [`quantity_${listing2.id}`]: "1",
           [`question_${q1.id}`]: "Wheelchair access",
           [`question_${q2.id}`]: "Vegan",
-        });
-        expectCheckoutRedirect(checkoutResponse);
-      } finally {
-        mockCreate.restore();
-      }
+        },
+        "cs_text_q_stub",
+      );
 
       // The encrypted strings now exist; resolve their ids to reference them in
       // the webhook metadata exactly as the real checkout would have.
@@ -319,16 +322,9 @@ describeWithEnv(
         },
       );
 
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const att1 = await getAttendeesRaw(listing1.id);
-      const att2 = await getAttendeesRaw(listing2.id);
-      expect(att1.length).toBe(1);
-      expect(att2.length).toBe(1);
-
       // The same attendee is linked to both listings, so both free-text
       // answers land on the one attendee.
-      const attendeeId = att1[0]!.id;
-      expect(attendeeId).toBe(att2[0]!.id);
+      const attendeeId = await expectSharedAttendee(listing1.id, listing2.id);
       const textAnswers = await getAttendeeTextAnswers(
         attendeeId,
         await getTestPrivateKey(),
