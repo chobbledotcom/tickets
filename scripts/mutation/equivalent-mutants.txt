@@ -486,3 +486,24 @@ src/shared/booking/package-cap.ts:163:22  === → ==   # limitedGroup: {groupId,
 # early return gives for a genuinely empty `shared`, so no input can ever
 # distinguish the two paths' output.
 src/shared/booking/package-cap.ts:170:25  0 → -1   # shared.length is never negative; the empty-array fallback path already returns 0 too
+
+# cache-registry.ts's setsIntersect is private and only ever consumed
+# negated (`!setsIntersect(...)`) inside invalidateCachesForWrite — `!false`
+# and `!undefined` both coerce to `true`, so no caller (internal or through
+# the public API) can ever observe the difference between the two return
+# values.
+src/shared/cache-registry.ts:69:10  return false → return undefined   # only ever consumed via `!setsIntersect(...)`; !false and !undefined agree
+
+# registerTableInvalidation: `invalidatorsByTable.get(table) ?? new Set()`
+# — Map#get() is undefined or a Set object, and a Set is always truthy
+# (even when empty), so ?? and || agree.
+src/shared/cache-registry.ts:87:47  ?? → ||   # invalidatorsByTable.get(): Set<Registration>|undefined — a Set is always truthy, even when empty
+
+# invalidateCachesForTable passes a literal `verb: "insert"` through to
+# invalidateCachesForWrite, whose only branch on verb is `=== "update"`.
+# Any string that isn't literally "update" takes the same (ungated) path,
+# and the verb is never otherwise observable (invalidators are called with
+# no arguments), so mutating this literal to any other non-"update" string
+# is unobservable.
+src/shared/cache-registry.ts:115:63  insert → ""   # invalidateCachesForWrite only branches on === "update"; any other literal behaves identically and is never otherwise observable
+src/shared/cache-registry.ts:115:63  insert → "insert mutated"   # same as above
