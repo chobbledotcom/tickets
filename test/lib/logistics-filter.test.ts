@@ -66,20 +66,60 @@ describe("logistics-filter assignmentMatchesAgentFilter", () => {
 describe("logistics-filter renderAgentFilter", () => {
   const href = (f: AgentFilter): string => `/x?agent=${agentFilterParam(f)}`;
 
-  test("renders All / None / each agent with the active one bold", () => {
+  test("renders All / None / each agent in order, with an agent id active", () => {
     const html = renderAgentFilter(1, agents, href);
-    expect(html).toContain("Agent:");
-    expect(html).toContain(">All<");
-    expect(html).toContain(">None<");
-    // The active agent (id 1) is bold + underlined, not a link.
-    expect(html).toContain("<strong><u>Van 1</u></strong>");
-    // The inactive agent is a link.
-    expect(html).toContain('<a href="/x?agent=2">Van 2</a>');
+    expect(html).toBe(
+      '<div class="table-actions">Agent: ' +
+        '<a href="/x?agent=">All</a>' +
+        ' / <a href="/x?agent=none">None</a>' +
+        " / <strong><u>Van 1</u></strong>" +
+        ' / <a href="/x?agent=2">Van 2</a>' +
+        "</div>",
+    );
+  });
+
+  test("bolds the All option when it is active", () => {
+    const html = renderAgentFilter("all", agents, href);
+    expect(html).toBe(
+      '<div class="table-actions">Agent: ' +
+        "<strong><u>All</u></strong>" +
+        ' / <a href="/x?agent=none">None</a>' +
+        ' / <a href="/x?agent=1">Van 1</a>' +
+        ' / <a href="/x?agent=2">Van 2</a>' +
+        "</div>",
+    );
+  });
+
+  test("bolds the None option when it is active", () => {
+    const html = renderAgentFilter("none", agents, href);
+    expect(html).toBe(
+      '<div class="table-actions">Agent: ' +
+        '<a href="/x?agent=">All</a>' +
+        " / <strong><u>None</u></strong>" +
+        ' / <a href="/x?agent=1">Van 1</a>' +
+        ' / <a href="/x?agent=2">Van 2</a>' +
+        "</div>",
+    );
+  });
+
+  test("renders just All / None when there are no agents", () => {
+    const html = renderAgentFilter("all", [], href);
+    expect(html).toBe(
+      '<div class="table-actions">Agent: ' +
+        "<strong><u>All</u></strong>" +
+        ' / <a href="/x?agent=none">None</a>' +
+        "</div>",
+    );
   });
 
   test("escapes agent names to prevent HTML injection", () => {
     const html = renderAgentFilter("all", [{ id: 9, name: "<b>x</b>" }], href);
-    expect(html).not.toContain("<b>x</b>");
-    expect(html).toContain("&lt;b&gt;x&lt;/b&gt;");
+    expect(html).toBe(
+      '<div class="table-actions">Agent: ' +
+        "<strong><u>All</u></strong>" +
+        ' / <a href="/x?agent=none">None</a>' +
+        ' / <a href="/x?agent=9">&lt;b&gt;x&lt;/b&gt;</a>' +
+        "</div>",
+    );
   });
 });
