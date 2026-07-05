@@ -789,14 +789,25 @@ const currentOrderTree = async (
   validatedItems: ValidatedItem[],
   pricingByGroup: ReadonlyMap<number, PackagePricing>,
 ): Promise<BookingTree> => {
-  const foldedChildIds = new Set(
-    (intent.allocations ?? []).map((a) => a.childId),
-  );
+  const allocatedByChild = new Map<number, number>();
+  for (const allocation of intent.allocations ?? []) {
+    allocatedByChild.set(
+      allocation.childId,
+      (allocatedByChild.get(allocation.childId) ?? 0) + allocation.qty,
+    );
+  }
+  // A line leaves the top level only when EVERY unit folds under a parent. A
+  // bookable-alone child bought beside its parent keeps ONE line whose surplus
+  // (q beyond the allocated units) books standalone, so that line must build
+  // its standalone node too — the drift walk revalidates the surplus against
+  // it, and dropping it by id alone would refund the legitimate order.
+  const fullyFolded = (listingId: number, quantity: number): boolean =>
+    (allocatedByChild.get(listingId) ?? 0) >= quantity;
   // One resolved listing per id: a listing booked through two paths is two
   // lines but one listing row; the tree builder makes one node per path.
   const topLevel = uniqueBy((info: TicketListing) => info.listing.id)(
     validatedItems
-      .filter((v) => !foldedChildIds.has(v.item.e))
+      .filter((v) => !fullyFolded(v.item.e, v.item.q))
       .map((v) => buildTicketListing(v.listing, false, undefined)),
   );
   const childRows = await getChildrenForParents(
@@ -816,7 +827,7 @@ const currentOrderTree = async (
   // package mid-checkout was legitimately booked standalone and must not
   // drift; a listing with BOTH kinds of line (booked through a package AND on
   // its own) gets both nodes.
-  const nonFolded = intent.items.filter((item) => !foldedChildIds.has(item.e));
+  const nonFolded = intent.items.filter((item) => !fullyFolded(item.e, item.q));
   const packages: TreePackage[] = [...pricingByGroup].map(([groupId, pkg]) => ({
     dayPrices: pkg.dayPriceMap,
     groupId,
@@ -964,8 +975,16 @@ const validateAllItems = async (
     intent.items.length > 1 && !hiddenPackage && !staleHiddenMember;
   const pricingByGroup = await loadPackagePricingByGroup(intent);
   const foldedChildIds = new Set(allocations.map((a) => a.childId));
+  // A folded child rides an UNTAGGED line that bundledChildIds removes from
+  // standaloneLineIds wholesale, yet that one line can hold more units than
+  // the package-tagged allocations cover (a bookable-alone child bought beside
+  // its member parent books one aggregated line). hasStaleStandaloneChild
+  // judges that per-child surplus itself, so consult it whenever the order
+  // carries any standalone line OR any folded allocation — only a pure
+  // member-only order skips its read.
   const staleNonStandaloneChild =
-    standaloneLineIds.length > 0 && (await hasStaleStandaloneChild(intent));
+    (standaloneLineIds.length > 0 || allocations.length > 0) &&
+    (await hasStaleStandaloneChild(intent));
   const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
     const vp = await validateListingForPayment(item.e, includeListingName);
@@ -1796,14 +1815,22 @@ const processReservedSession = async (
   if ("success" in validated) {
     // A trusted session (we signed it) whose listing was deleted between checkout
     // and payment. listing_attendees has no FK to listings, so we still keep a
-    // quantity-0 ghost against its id — preserving the customer and their refund
-    // — rather than stranding them behind a bare "listing not found". A foreign
-    // instance's 404 (signed by someone else) never reaches here.
+    // quantity-0 ghost per SIGNED LINE — the deleted listing may sit anywhere in
+    // a multi-item cart, and the operator record must name every line (with its
+    // package path) rather than collapse onto the first item's listing. Ghosts
+    // are dateless: the deleted line's listing row is gone, so there is nothing
+    // to derive date fields from. A foreign instance's 404 (signed by someone
+    // else) never reaches here.
     if (validated.status === 404) {
       return storeRefundedBooking(
         session,
         intent,
-        [{ listingId: signedListingId, pricePaid: 0, quantity: 0 }],
+        intent.items.map((item) => ({
+          listingId: item.e,
+          packageGroupId: lineGroupId(item) ?? 0,
+          pricePaid: 0,
+          quantity: 0,
+        })),
         deletedListingSpec(session),
       );
     }

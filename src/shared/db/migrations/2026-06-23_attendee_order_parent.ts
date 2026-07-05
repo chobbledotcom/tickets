@@ -1,4 +1,8 @@
-import { recreateSlotIndex, SLOT_INDEX } from "./booking-slot-index.ts";
+import {
+  recreateSlotIndex,
+  SLOT_INDEX,
+  verifySlotIndex,
+} from "./booking-slot-index.ts";
 import type {
   Migration,
   MigrationContext,
@@ -39,6 +43,11 @@ export default function attendeeOrderParentMigration(
       await ctx.applySchemaChanges();
       await recreateSlotIndex(ctx);
     },
-    verify: ctx.verifyRequirement(requires),
+    // Columns via the requirement; the index by its live definition (it is
+    // recreated under its old name, so existence alone can't prove widening).
+    verify: async () => {
+      await ctx.verifyRequirement(requires)();
+      await verifySlotIndex(ctx)();
+    },
   };
 }

@@ -1,6 +1,7 @@
 import {
   recreateSlotIndex,
   SLOT_INDEX_REQUIREMENT,
+  verifySlotIndex,
 } from "./booking-slot-index.ts";
 import type { Migration, MigrationContext } from "./types.ts";
 
@@ -25,6 +26,8 @@ export default function packageSlotIdentityMigration(
     id: "2026-07-05_package_slot_identity",
     requires: SLOT_INDEX_REQUIREMENT,
     up: () => recreateSlotIndex(ctx),
-    verify: ctx.verifyRequirement(SLOT_INDEX_REQUIREMENT),
+    // The index is recreated under its old name, so existence can't prove the
+    // widening landed — the verify demands the live definition's columns.
+    verify: verifySlotIndex(ctx),
   };
 }

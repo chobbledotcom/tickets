@@ -461,6 +461,37 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
     ).rejects.toThrow("missing table attendee_statuses");
   });
 
+  test("the slot-index verify demands the widened columns, not bare existence", async () => {
+    // The widening migrations recreate the slot index under its OLD name, so a
+    // name-existence check cannot tell a landed widening from a stale pre-drop
+    // definition that somehow survived. Simulate that survivor: same name,
+    // pre-widening column list.
+    const slotIndex = "idx_listing_attendees_listing_attendee_start";
+    await getDb().execute(`DROP INDEX IF EXISTS ${slotIndex}`);
+    await getDb().execute(
+      `CREATE UNIQUE INDEX ${slotIndex} ON listing_attendees ` +
+        "(listing_id, attendee_id, start_at, parent_listing_id)",
+    );
+    await expect(
+      migrationById("2026-07-05_package_slot_identity").verify(),
+    ).rejects.toThrow("package_group_id");
+    // Both widening migrations share the check: the 06-23 verify's own
+    // requirement is satisfied by the stale survivor (name + columns exist),
+    // so only the live-definition check can catch it.
+    await expect(
+      migrationById("2026-06-23_attendee_order_parent").verify(),
+    ).rejects.toThrow("package_group_id");
+    // An ABSENT index reads as lacking every column — never a silent pass.
+    await getDb().execute(`DROP INDEX IF EXISTS ${slotIndex}`);
+    await expect(
+      migrationById("2026-07-05_package_slot_identity").verify(),
+    ).rejects.toThrow("absent");
+    // Re-running the real up() restores the widened index and verify passes.
+    await migrationById("2026-07-05_package_slot_identity").up();
+    await migrationById("2026-07-05_package_slot_identity").verify();
+    expect(await indexExists(slotIndex)).toBe(true);
+  });
+
   test("schema assertions use context-specific missing table and column messages", () => {
     const live = { tables: new Map([["legacy", new Set(["id"])]]) };
 

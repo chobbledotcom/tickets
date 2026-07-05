@@ -46,26 +46,21 @@ const paidBundle = async (
   return { group, listing };
 };
 
-/** Stub a signed, paid dual-path session for the listing (its bundle line
- * plus its own standalone line) and the provider's refund call. Callers
- * restore both stubs. */
-const dualPathSession = async (
+/** Stub a signed, paid session over the given items/allocations plus the
+ * provider's refund call. Callers restore both stubs. */
+const paidSession = async (
   ref: string,
-  group: Group,
-  listing: Listing,
+  total: number,
+  fields: { items: string; allocations?: string },
   email: string,
   buyer: string,
 ) => {
-  const items = JSON.stringify([
-    { e: listing.id, k: "p", p: 1000, q: 1, r: group.id },
-    { e: listing.id, p: 1000, q: 1 },
-  ]);
   const mockVerify = await stubWebhookVerify({
     data: {
       object: {
-        amount_total: 2000,
+        amount_total: total,
         id: `cs_${ref}`,
-        metadata: signedMeta({ email, items, name: buyer }, 2000),
+        metadata: signedMeta({ email, name: buyer, ...fields }, total),
         payment_intent: `pi_${ref}`,
         payment_status: "paid",
       },
@@ -80,6 +75,28 @@ const dualPathSession = async (
   );
   return { mockRefund, mockVerify };
 };
+
+/** A signed, paid dual-path session for the listing: its bundle line plus its
+ * own standalone line. */
+const dualPathSession = (
+  ref: string,
+  group: Group,
+  listing: Listing,
+  email: string,
+  buyer: string,
+) =>
+  paidSession(
+    ref,
+    2000,
+    {
+      items: JSON.stringify([
+        { e: listing.id, k: "p", p: 1000, q: 1, r: group.id },
+        { e: listing.id, p: 1000, q: 1 },
+      ]),
+    },
+    email,
+    buyer,
+  );
 
 /** POST the webhook and expect the saved-and-refunded terminal outcome. */
 const expectSavedAndRefunded = () =>
@@ -170,6 +187,200 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
       );
       expect(rows.every((row) => row.quantity === 0)).toBe(true);
       expect(rows.length).toBeGreaterThan(0);
+      expect(mockRefund.calls.length).toBe(1);
+    } finally {
+      mockVerify.restore();
+      mockRefund.restore();
+    }
+  });
+
+  test("a non-first line deleted mid-checkout keeps a ghost for EVERY signed line", async () => {
+    await setupStripe();
+    const { group, listing } = await paidBundle(
+      "Ghost Bundle",
+      "ghost-bundle",
+      "Ghost Tent",
+      10,
+    );
+    const doomed = await createTestListing({
+      maxAttendees: 10,
+      name: "Doomed Extra",
+      unitPrice: 500,
+    });
+    const { mockRefund, mockVerify } = await paidSession(
+      "ghost_lines",
+      1500,
+      {
+        items: JSON.stringify([
+          { e: listing.id, k: "p", p: 1000, q: 1, r: group.id },
+          { e: doomed.id, p: 500, q: 1 },
+        ]),
+      },
+      "ghost@example.com",
+      "Ghost Buyer",
+    );
+    // The SECOND line's listing vanishes while the buyer pays. The stored
+    // operator record must keep one quantity-0 ghost per signed line — the
+    // bundle line under its package id and the deleted line under its own id —
+    // never a single ghost pinned to the first item's (surviving) listing.
+    const { deleteListing } = await import("#shared/db/listings.ts");
+    await deleteListing(doomed.id);
+
+    try {
+      await expectSavedAndRefunded();
+      const rows = await queryAll<{
+        listing_id: number;
+        package_group_id: number;
+        quantity: number;
+      }>(
+        `SELECT listing_id, package_group_id, quantity FROM listing_attendees
+          WHERE listing_id IN (?, ?) ORDER BY listing_id ASC`,
+        [listing.id, doomed.id],
+      );
+      expect(
+        rows.map((row) => [
+          Number(row.listing_id),
+          Number(row.package_group_id),
+          row.quantity,
+        ]),
+      ).toEqual([
+        [listing.id, group.id, 0],
+        [doomed.id, 0, 0],
+      ]);
+      expect(mockRefund.calls.length).toBe(1);
+    } finally {
+      mockVerify.restore();
+      mockRefund.restore();
+    }
+  });
+
+  test("a paid order folding a child AND buying its surplus standalone books both paths", async () => {
+    await setupStripe();
+    const parent = await createTestListing({
+      maxAttendees: 10,
+      maxQuantity: 5,
+      name: "Plain Parent",
+      unitPrice: 1000,
+    });
+    const addon = await createTestListing({
+      bookableAlone: true,
+      maxAttendees: 10,
+      maxQuantity: 5,
+      name: "Plain Addon",
+      thankYouUrl: "",
+      unitPrice: 300,
+    });
+    const { setChildIds } = await import("#shared/db/listing-parents.ts");
+    await setChildIds(parent.id, [addon.id]);
+    const { mockRefund, mockVerify } = await paidSession(
+      "legit_surplus",
+      1900,
+      {
+        allocations: JSON.stringify([
+          { childId: addon.id, parentId: parent.id, qty: 1 },
+        ]),
+        items: JSON.stringify([
+          { e: parent.id, p: 1000, q: 1 },
+          { e: addon.id, p: 900, q: 3 },
+        ]),
+      },
+      "legit@example.com",
+      "Legit Buyer",
+    );
+
+    try {
+      // One addon unit folds under the parent, two book standalone — a
+      // legitimate combination with stock for all of it. The webhook's drift
+      // walk must account for the aggregated line's standalone surplus and
+      // BOOK the order, never refund it.
+      await assertJson(
+        handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        ),
+        200,
+        (json) => {
+          expect(json.received).toBe(true);
+        },
+      );
+      const rows = await queryAll<{
+        parent_listing_id: number;
+        quantity: number;
+      }>(
+        `SELECT parent_listing_id, quantity FROM listing_attendees
+          WHERE listing_id = ? ORDER BY parent_listing_id ASC`,
+        [addon.id],
+      );
+      expect(
+        rows.map((row) => [Number(row.parent_listing_id), row.quantity]),
+      ).toEqual([
+        [0, 2],
+        [parent.id, 1],
+      ]);
+      expect(mockRefund.calls.length).toBe(0);
+    } finally {
+      mockVerify.restore();
+      mockRefund.restore();
+    }
+  });
+
+  test("surplus standalone units of a folded child fail closed when its flag clears", async () => {
+    await setupStripe();
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Slot Bundle",
+      slug: "slot-bundle",
+    });
+    const parent = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 10,
+      maxQuantity: 5,
+      name: "Slot Parent",
+      unitPrice: 1000,
+    });
+    const addon = await createTestListing({
+      bookableAlone: true,
+      maxAttendees: 10,
+      maxQuantity: 5,
+      name: "Slot Addon",
+      thankYouUrl: "",
+      unitPrice: 300,
+    });
+    const { setChildIds } = await import("#shared/db/listing-parents.ts");
+    await setChildIds(parent.id, [addon.id]);
+    await setGroupPackageMembers(group.id, [
+      { listingId: parent.id, price: 1000 },
+    ]);
+    const { mockRefund, mockVerify } = await paidSession(
+      "surplus_child",
+      1900,
+      {
+        allocations: JSON.stringify([
+          { childId: addon.id, parentId: parent.id, qty: 1 },
+        ]),
+        items: JSON.stringify([
+          { e: parent.id, k: "p", p: 1000, q: 1, r: group.id },
+          { e: addon.id, p: 900, q: 3 },
+        ]),
+      },
+      "surplus@example.com",
+      "Surplus Buyer",
+    );
+    // One addon unit folds under the bundle's parent; two more ride standalone
+    // on the SAME aggregated line. The operator clears "can be booked by
+    // itself" mid-payment: those standalone units now lead to a 404 page, so
+    // the order must be saved-and-refunded — the package allocation must not
+    // exempt the line's surplus from the stale check.
+    const { listingsTable } = await import("#shared/db/listings.ts");
+    await listingsTable.update(addon.id, { bookableAlone: false });
+
+    try {
+      await expectSavedAndRefunded();
+      const rows = await queryAll<{ quantity: number }>(
+        "SELECT quantity FROM listing_attendees WHERE listing_id = ?",
+        [addon.id],
+      );
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows.every((row) => row.quantity === 0)).toBe(true);
       expect(mockRefund.calls.length).toBe(1);
     } finally {
       mockVerify.restore();
