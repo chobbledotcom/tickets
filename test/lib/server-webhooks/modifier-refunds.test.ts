@@ -6,8 +6,7 @@ import {
   checkoutSessionEvent,
   createTestListing,
   describeWithEnv,
-  expectRefundedWithNote,
-  expectSessionFailed,
+  expectKeptAsQuantityZeroAndRefunded,
   expectWebhookKeptAndRefunded,
   setupStripe,
   signedMeta,
@@ -56,13 +55,13 @@ describeWithEnv(
       );
       // Signed by us → the booking is kept as a quantity-0 placeholder (not
       // dropped) and refunded once, with a system note recording the reason.
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
-      await expectRefundedWithNote(attendees[0]!.id, mockRefund);
       // The session is recorded as a terminal failure (placeholder kept, no
       // ticket attendee): attendee_id stays null and failure_data is set.
-      await expectSessionFailed("cs_modifier_mismatch");
+      await expectKeptAsQuantityZeroAndRefunded(
+        listing.id,
+        "cs_modifier_mismatch",
+        mockRefund,
+      );
     });
 
     test("keeps and refunds an add-on-only paid session whose total no longer matches", async () => {
@@ -99,11 +98,11 @@ describeWithEnv(
       );
       // Signed by us → the booking is kept as a quantity-0 placeholder (not
       // dropped) and refunded once, with a system note recording the reason.
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
-      await expectRefundedWithNote(attendees[0]!.id, mockRefund);
-      await expectSessionFailed("cs_addon_only_mismatch");
+      await expectKeptAsQuantityZeroAndRefunded(
+        listing.id,
+        "cs_addon_only_mismatch",
+        mockRefund,
+      );
     });
 
     test("keeps and refunds when a modifier sold out before the webhook finalized", async () => {
@@ -145,11 +144,11 @@ describeWithEnv(
       );
       // Signed by us → the booking is kept as a quantity-0 placeholder (not
       // dropped) and refunded once, with a system note recording the reason.
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
-      await expectRefundedWithNote(attendees[0]!.id, mockRefund);
-      await expectSessionFailed("cs_modifier_soldout");
+      await expectKeptAsQuantityZeroAndRefunded(
+        listing.id,
+        "cs_modifier_soldout",
+        mockRefund,
+      );
       // The greedy create's visit + booking are reversed, and the quantity-0
       // placeholder records neither, so the refunded order leaves no phantom
       // history on the buyer's contact.
