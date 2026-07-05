@@ -484,7 +484,6 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
           { e: listing.id, k: "p", p: 1500, q: 1, r: group.id },
         ]),
         name: "Buyer",
-        package_group_id: String(group.id),
       }),
       1500,
     );
@@ -861,7 +860,6 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
           { e: listingId, k: "p", p: price, q: 1, r: groupId },
         ]),
         name: "Buyer",
-        package_group_id: String(groupId),
       }),
       price,
     );
@@ -976,7 +974,6 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
           { e: listingId, k: "p", p: price, q: 1, r: groupId },
         ]),
         name: "Buyer",
-        package_group_id: String(groupId),
       }),
       price,
     );
@@ -1070,10 +1067,11 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     const metadata = signMeta(
       webhookMeta({
         email: "buyer@example.com",
-        items: singleItem(listing.id, 1, 0),
+        items: JSON.stringify([
+          { e: listing.id, k: "p", p: 0, q: 1, r: group.id },
+        ]),
         modifiers: JSON.stringify([{ i: addOn.id, q: 1 }]),
         name: "Buyer",
-        package_group_id: String(group.id),
       }),
       500,
     );
