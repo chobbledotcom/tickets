@@ -231,7 +231,7 @@ export const childSelectorSpec = (
 
 /** The date/span compatibility attributes a bookable child carries.
  * `data-child-dates` is the span-keyed wire shape `span:d,d|span:d,d`
- * (`encodeChildSpanDates`). `dates` is given as span → dates (a single span when
+ * (`encodeChildDatesByDayCount`). `dates` is given as span → dates (a single span when
  * the parent is fixed-duration); a flat `string[]` is sugar for one span "1".
  * `spans` are the supported day counts. */
 export type ChildCompat = {
@@ -240,7 +240,7 @@ export type ChildCompat = {
 };
 
 /** Encode the `data-child-dates` attribute value from a {@link ChildCompat}
- * `dates` spec, mirroring the server's `encodeChildSpanDates`. */
+ * `dates` spec, mirroring the server's `encodeChildDatesByDayCount`. */
 const encodeCompatDates = (
   dates: string[] | Record<string, string[]>,
 ): string =>

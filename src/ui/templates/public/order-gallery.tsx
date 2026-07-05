@@ -1,6 +1,7 @@
 /* jscpd:ignore-start */
 import { map, pipe } from "#fp";
 import { t } from "#i18n";
+import type { TicketListing } from "#shared/booking/model.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -16,7 +17,6 @@ import {
   /* jscpd:ignore-end */
   publicPage,
   renderListingImage,
-  type TicketListing,
 } from "./shared.tsx";
 
 /**

@@ -18,6 +18,10 @@ import {
   revenueAccount,
 } from "#shared/accounting/accounts.ts";
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
+import {
+  buildTicketListing,
+  type TicketListing,
+} from "#shared/booking/model.ts";
 import type { PriceRule } from "#shared/booking/tree.ts";
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import { addDays } from "#shared/dates.ts";
@@ -44,7 +48,6 @@ import {
 import { FormParams } from "#shared/form-data.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { ContactInfo, ListingWithCount } from "#shared/types.ts";
-import { buildTicketListing, type TicketListing } from "#templates/public.tsx";
 import {
   createTestGroup,
   createTestListing,

@@ -52,9 +52,9 @@ const selectedSpan = (): string => {
 const tokens = (raw: string): string[] => raw.split(",");
 
 /** Parse the span-keyed `data-child-dates` wire shape (`span:d,d|span:d,d`, from
- * `encodeChildSpanDates`) into a span → dates map. An empty dates segment
+ * `encodeChildDatesByDayCount`) into a span → dates map. An empty dates segment
  * (`span:`) yields an empty list — a span the child can't serve on any date. */
-const parseChildSpanDates = (raw: string): Map<string, string[]> => {
+const parseChildDatesByDayCount = (raw: string): Map<string, string[]> => {
   const bySpan = new Map<string, string[]>();
   for (const segment of raw.split("|")) {
     const sep = segment.indexOf(":");
@@ -92,7 +92,7 @@ const isCompatible = (
 ): boolean => {
   const dates = el.getAttribute("data-child-dates");
   if (dates !== null && date !== "") {
-    const applicable = datesForSpan(parseChildSpanDates(dates), span);
+    const applicable = datesForSpan(parseChildDatesByDayCount(dates), span);
     if (applicable !== null && !applicable.includes(date)) return false;
   }
   const spans = el.getAttribute("data-child-spans");

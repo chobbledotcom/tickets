@@ -896,7 +896,7 @@ describeWithEnv(
       await settings.update.showPublicApi(true);
       // Parent has two daily children: A serves all days, B serves only Monday.
       // When the buyer picks a non-Monday date, childA is available but childB
-      // is not — even though the parent-level constrainParentDailyDates check
+      // is not — even though the parent-level keepParentDailyDatesChildrenCanServe check
       // passes (childA covers the date). Fix B ensures buildChildAvailability
       // checks each child's own calendar, not just capacity.
       const { parent, children } = await makeParent({

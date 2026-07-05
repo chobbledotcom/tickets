@@ -4,14 +4,32 @@ import {
   type BuildTreeInput,
   buildBookingTree,
 } from "#shared/booking/build-tree.ts";
-import { packageQuantityCap } from "#shared/booking/capacity-tree.ts";
+import {
+  bookableChildIds,
+  type ChildDatesByDayCount,
+  childDateKey,
+  childDaysFromParent,
+  dayCountsChildSupports,
+  dayCountsEveryListingSupports,
+  encodeChildDatesByDayCount,
+  keepParentDayCountsChildrenSupport,
+  packageDayCountsChildrenSupport,
+  type TicketListing,
+} from "#shared/booking/model.ts";
+import {
+  childCanBeBooked,
+  childTicketLimit,
+  groupCapacityInfo,
+  packageBundleLimit,
+  packageChildTicketLimits,
+  packageLimitInfo,
+} from "#shared/booking/package-cap.ts";
 import { packageBundleTotal } from "#shared/booking/price-tree.ts";
 import {
   type BookingNode,
   type BookingTree,
   childPriceFieldName,
   childQuantityFieldName,
-  fixedQuantitiesByListingId,
   nodePriceFieldName,
   nodeQuantityFieldName,
   PACKAGE_QUANTITY_FIELD,
@@ -47,9 +65,6 @@ import {
   isPaidListing,
   type ListingFields,
   type ListingWithCount,
-  normalizeDurationDays,
-  PARENT_CHILD_GROUP_UNITS,
-  sharedGroupRemaining,
 } from "#shared/types.ts";
 import { Badge } from "#templates/components/badge.tsx";
 import { moneyPattern } from "#templates/components/price-input.tsx";
@@ -59,22 +74,7 @@ import {
 } from "#templates/components/question-text.tsx";
 import { getTicketFields, mergeListingFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
-import {
-  bookableChildIds,
-  type ChildSpanDates,
-  childActive,
-  childDateKey,
-  childInStock,
-  childOpen,
-  childSelectableIgnoringSpan,
-  constrainOptionsByChildUnion,
-  encodeChildSpanDates,
-  groupPoolUnits,
-  renderListingImage,
-  resolveInheritedDuration,
-  selectableChild,
-  type TicketListing,
-} from "./shared.tsx";
+import { renderListingImage } from "./shared.tsx";
 /** OpenGraph meta tags for a public listing page. */
 export const buildOgTags = (
   listing: {
@@ -137,102 +137,6 @@ const renderDateSelector = (
            )
            .join("")}
        </select>`;
-
-/**
- * Day-count options shared across every "customisable days" listing on the page:
- * the intersection of each listing's offered counts, so one selector can drive the
- * whole booking (groups enforce a uniform setting, but ad-hoc multi-listing URLs
- * may still mix). Empty when no listing is customisable.
- */
-export const sharedDayCounts = (listings: TicketListing[]): number[] => {
-  const customisable = listings.filter((e) => e.listing.customisable_days);
-  if (customisable.length === 0) return [];
-  const sets = customisable.map((e) => new Set(availableDayCounts(e.listing)));
-  const [first, ...rest] = sets;
-  return [...first!]
-    .filter((n) => rest.every((s) => s.has(n)))
-    .sort((a, b) => a - b);
-};
-
-/** The day-count spans a required child supports, or null when it imposes no
- * span constraint. A CUSTOMISABLE child supports its
- * {@link availableDayCounts}; a FIXED DAILY child supports only its own
- * `duration_days`; a STANDARD non-daily child folds duration-1 and is priced by
- * the parent's resolved span, so it constrains nothing ("any"). */
-const childSupportedSpans = (child: TicketListing): number[] | null => {
-  if (child.listing.customisable_days) return availableDayCounts(child.listing);
-  if (child.listing.listing_type === "daily") {
-    return [normalizeDurationDays(child.listing.duration_days)];
-  }
-  return null;
-};
-
-/**
- * Constrain a customisable parent's day-count options to the spans at least one
- * of its SELECTABLE required children can serve:
- * `parentDayCounts ∩ (UNION of the selectable children's supported spans)`.
- * Without this, a customisable parent offering {1,2} days whose only child prices
- * only 2 days still shows the 1-day option, which the submit-side fold rejects.
- *
- * Children are first filtered by the date-independent disqualifiers
- * ({@link childSelectableIgnoringSpan}) so an inactive / closed / sold-out child
- * contributes NOTHING: an inactive STANDARD child returns `null` from
- * {@link childSupportedSpans} ("any span") and would otherwise preserve every
- * parent span, and an inactive 1-day child would keep a 1-day option the active
- * 2-day child can't serve. After filtering, a child imposing no span constraint
- * ("any") still keeps every parent span.
- *
- * Scope mirrors the date rule (`constrainDatesByChildUnion` in ticket-payment.ts):
- * only a SINGLE-listing page that is itself a parent is constrained, since on a
- * multi-listing / group page one selector is shared and an unselected parent's
- * child spans must not remove a span a different page listing needs — the spec
- * defers that to the per-selected-parent JS constraint plus the submit fold.
- */
-const constrainDayCountsByChildUnion = (
-  listings: TicketListing[],
-  parentDayCounts: number[],
-  childrenByParentId: Map<number, TicketListing[]> | undefined,
-): number[] =>
-  !childrenByParentId || listings.length !== 1
-    ? parentDayCounts
-    : constrainCountsForMembers(listings, parentDayCounts, childrenByParentId);
-
-/** Fold each member's selectable-child span union over `counts` — the ONE
- * per-parent day-count constraint (a single-listing page is a member list of
- * one). A member without children leaves the counts untouched; an "any" child
- * (no span constraint) keeps every offered span, otherwise its own spans. */
-const constrainCountsForMembers = (
-  members: TicketListing[],
-  counts: number[],
-  childrenByParentId: Map<number, TicketListing[]>,
-): number[] =>
-  members.reduce((current, member) => {
-    const children = childrenByParentId.get(member.listing.id);
-    if (!children || children.length === 0) return current;
-    return constrainOptionsByChildUnion(
-      current,
-      children,
-      childSelectableIgnoringSpan,
-      (child) => childSupportedSpans(child) ?? current,
-    );
-  }, counts);
-
-/** A PACKAGE's day-count options: the members' shared counts constrained by
- * EVERY parent member's selectable-child union. Unlike a general multi-listing
- * page — where an unselected parent's children must not remove a span another
- * listing needs — a package books all of its members, so a span no selectable
- * child of some parent member can serve is unbookable: the fold would reject
- * it. Constraining here keeps the web selector (no-JS included) and the API
- * detail from advertising counts checkout cannot complete. */
-export const packageSharedDayCounts = (
-  listings: TicketListing[],
-  childrenByParentId: Map<number, TicketListing[]>,
-): number[] =>
-  constrainCountsForMembers(
-    listings,
-    sharedDayCounts(listings),
-    childrenByParentId,
-  );
 
 /** Render the "number of days" selector for customisable-days listings. When a
  * single listing drives the page, each option shows its price for that span.
@@ -465,14 +369,14 @@ const restoredQuantity = (
   );
 
 /** The package count to pre-select: the value the buyer just submitted (restored
- * when a validation error re-renders the page) clamped to the cap, else 1 (or 0
+ * when a validation error re-renders the page) clamped to the limit, else 1 (or 0
  * when nothing can be ordered). Without this an error would silently reset a
  * multi-package order to one, risking a wrong-quantity resubmit. */
-const restoredPackageQuantity = (cap: number): number =>
+const restoredPackageQuantity = (limit: number): number =>
   clampSavedQuantity(
     savedFormValue(PACKAGE_QUANTITY_FIELD),
-    cap,
-    Math.min(1, cap),
+    limit,
+    Math.min(1, limit),
   );
 
 /**
@@ -484,387 +388,39 @@ const restoredPackageQuantity = (cap: number): number =>
  */
 export type ChildRenderCtx = {
   children: Map<number, TicketListing[]>;
-  /** Each DAILY child's holiday-aware serveable start dates PER selectable parent
-   * span ({@link ChildSpanDates}), keyed by the (parent, child) PAIR
-   * ({@link childDateKey}) so a child required by two parents carries each parent's
-   * own dates; emitted as `data-child-dates` so the client compatibility script can
-   * disable a child the selected date/day-count can't serve.
-   * Non-daily children are omitted (no date constraint). */
-  childDatesById: ReadonlyMap<string, ChildSpanDates>;
-  /** Each GROUP id → its remaining spots (uncapped groups omitted), for the
-   * combined parent+child demand clamp against the SPECIFIC shared group;
-   * empty when no group caps apply. */
+  /** Daily-child start dates for each parent day count. */
+  childDatesById: ReadonlyMap<string, ChildDatesByDayCount>;
+  /** Remaining spots for limited groups. */
   groupRemainingByGroupId: ReadonlyMap<number, number>;
-  /** Each listing id → the ids of the groups it belongs to, so the
-   * shared-group/co-grouped checks resolve the group a parent and child share.
-   * Empty/absent entries mean ungrouped. */
+  /** Groups each listing belongs to. */
   groupIdsByListingId: ReadonlyMap<number, number[]>;
   questions: QuestionWithAnswers[];
   questionListingMap: QuestionListingMap | undefined;
   rendered: Set<number>;
-  /** For a child that ALSO renders its own top-level row (a bookable_alone child
-   * whose parent is on the same page), the capacity to hold back from that
-   * standalone row for the parents' folded demand — the sum of each page-parent's
-   * own `maxPurchasable`. Keyed by child listing id; absent ⇒ no reservation. So
-   * a standalone row and the parent selector can't jointly offer more of the
-   * child than its capacity, a combination the submit fold would reject. */
+  /** Child tickets already promised to parents on this page. */
   foldReserveByChildId: ReadonlyMap<number, number>;
 };
 
-/** Whether a child is currently bookable (its quantity controls render enabled):
- * active, not registration-closed, and not sold out. The server fold rejects an
- * inactive child, so an inactive option must never render enabled or
- * auto-checked: it would always fail at submit. Unavailable children render
- * disabled. A DAILY child never reads sold out
- * date-lessly (`buildTicketListing` makes no date-less capacity claim for
- * daily); its per-date capacity is enforced by the date-aware
- * submit fold / `checkBatchAvailability`. */
-const childBookable: (child: TicketListing) => boolean = selectableChild([
-  childActive,
-  childOpen,
-  childInStock,
-]);
-
-/**
- * A bookable child's date-LESS own capacity for the render cap. A STANDARD child's
- * `maxPurchasable` is cumulative and authoritative. A DAILY child's date-less
- * `maxPurchasable` carries no capacity fact (it is just its `max_quantity`
- * preference; daily capacity is per-date) — so it must NOT clamp the
- * parent's quantity; its real per-date capacity is enforced by the
- * date-aware submit fold once a date is chosen. So a daily child contributes
- * the parent's own max (no date-less ceiling), mirroring how
- * {@link childBookable}'s sold-out disqualifier never fires for daily. */
-const childOwnRenderCap = (
-  parent: TicketListing,
-  child: TicketListing,
-): number =>
-  child.listing.listing_type === "daily"
-    ? parent.maxPurchasable
-    : child.maxPurchasable;
-
-/**
- * A single bookable child's contribution to its parent's quantity ceiling, in
- * whole parent+child orders. Each order consumes one parent
- * unit plus one child unit. When the parent and child share a **capped group**
- * those two units land in the *same* pool, so the cap is
- * `floor(sharedRemaining / PARENT_CHILD_GROUP_UNITS)` — e.g. 3 shared spots offer
- * only 1 order (2 consumed), 4 offer 2. In different or uncapped groups they draw
- * from separate pools, so the child's own render cap ({@link childOwnRenderCap})
- * stands. `checkBatchAvailability` rejects (never clamps) anything above this, so
- * the selector must not offer a quantity it would reject.
- *
- * Even in a shared capped group the cap can never exceed the child's OWN
- * capacity. A 10-spot shared group with a 1-capacity child mathematically fits
- * `floor(10 / 2) = 5` orders, but the child can only fulfil 1 — `foldChild` rejects
- * the rest. So the shared-group cap is `min(floor(sharedRemaining / units), child
- * own cap)`. (A daily child is never in a date-less group aggregate, so it only
- * ever hits the separate-pool branch.)
- */
-const childOrderCap = (
-  parent: TicketListing,
-  child: TicketListing,
-  groupRemainingByGroupId: ReadonlyMap<number, number>,
-  groupIdsByListingId: ReadonlyMap<number, number[]>,
-): number => {
-  const shared = sharedGroupRemaining(
-    groupIdsByListingId.get(parent.listing.id) ?? [],
-    groupIdsByListingId.get(child.listing.id) ?? [],
-    groupRemainingByGroupId,
-  );
-  return shared === undefined
-    ? childOwnRenderCap(parent, child)
-    : Math.min(
-        groupPoolUnits(shared, PARENT_CHILD_GROUP_UNITS),
-        childOwnRenderCap(parent, child),
-      );
-};
-
-/** A capped child-only group's contribution to the combined cap: the
- * children in ONE capped group the parent is NOT part of all draw from a single
- * pool of `remaining` spots, and under per-unit selection each child unit consumes
- * ONE spot, so the whole cohort contributes a SINGLE `min(remaining, Σ child own
- * caps)` term — counted once, not per child. Summing each child individually
- * over-offers (two children in a 1-spot group each report cap 1, but 1-of-each
- * consumes 2 and `checkBatchAvailability` rejects). The `Σ own caps` clamp mirrors
- * the shared-with-parent cohort's own-capacity clamp: the buyer can't put more units than
- * the children can fulfil even when the pool has room. */
-const cappedGroupCohortCap = (remaining: number, ownCapSum: number): number =>
-  Math.min(remaining, ownCapSum);
-
-/**
- * The combined child-side capacity available to a parent across ALL its bookable
- * children, in whole parent+child orders. Under per-unit
- * distribution the buyer spreads Q child units across the children in any mix, so
- * separate-pool children COMBINE: two children each capped at 1 together serve a
- * parent quantity of 2 (1 + 1). So the contribution is the SUM of each child's
- * order cap ({@link childOrderCap}) — NOT the max of a single child.
- *
- * Children sharing ONE capped group WITH THE PARENT must not be over-counted: the
- * parent + every co-grouped child draw from the same pool, and each combined order
- * consumes {@link PARENT_CHILD_GROUP_UNITS} spots regardless of how many such
- * children exist, so the whole cohort contributes a SINGLE `floor(sharedRemaining /
- * units)` term. {@link sharedGroupRemaining} returns the shared pool's remaining
- * (same value for every co-grouped child) or `undefined` for a separate pool.
- *
- * Children sharing ONE capped group NOT containing the parent must ALSO
- * collapse to a single term — the parent isn't in their pool so each child unit
- * consumes one spot, and summing each over-offers (two children in a 1-spot group
- * render parent max 2, yet 1-of-each consumes 2 and the batch check rejects). So
- * separate-pool children are bucketed by their capped `group_id` and each bucket
- * clamped ONCE by its remaining ({@link cappedGroupCohortCap}); ungrouped/uncapped
- * children still add their own cap individually.
- *
- * Every cohort term is additionally clamped by its children's OWN combined
- * capacity (`Σ child own cap`) — the buyer can only put as many units on a cohort
- * as its children can fulfil, even when the pool would allow more (a 10-spot group
- * whose single co-grouped child caps at 1 contributes 1, which the fold would
- * otherwise reject).
- */
-const childCombinedCap = (
-  parent: TicketListing,
-  bookable: TicketListing[],
-  groupRemainingByGroupId: ReadonlyMap<number, number>,
-  groupIdsByListingId: ReadonlyMap<number, number[]>,
-): number => {
-  const parentGroupIds = groupIdsByListingId.get(parent.listing.id) ?? [];
-  let sharedCohortRemaining: number | undefined;
-  let sharedCohortChildMax = 0;
-  let separateSum = 0;
-  // Separate (not-with-parent) CAPPED groups, bucketed by the SPECIFIC capped
-  // group id the children share — NOT the child's whole group set.
-  // Two children both in capped group A but with different OTHER memberships
-  // would land in different full-set buckets and each offer cap 1, over-offering
-  // 2 where the shared pool fits 1; keying by the tightest capped group id they
-  // share collapses them into one term. A child in several separate capped groups
-  // is assigned to its tightest (least-remaining) one; the submit-time
-  // checkBatchAvailability is the authoritative per-group gate for the rest.
-  const cappedGroups = new Map<number, { remaining: number; ownCap: number }>();
-  for (const child of bookable) {
-    const ownCap = childOwnRenderCap(parent, child);
-    const childGroupIds = groupIdsByListingId.get(child.listing.id) ?? [];
-    const shared = sharedGroupRemaining(
-      parentGroupIds,
-      childGroupIds,
-      groupRemainingByGroupId,
-    );
-    if (shared !== undefined) {
-      // Co-grouped with the PARENT: one shared pool. The tightest shared group's
-      // remaining stands for every co-grouped child, so record it once; the
-      // cohort's combined order cap is added below, not per child. (Daily children
-      // never reach this branch — no date-less group entry.)
-      sharedCohortRemaining =
-        sharedCohortRemaining === undefined
-          ? shared
-          : Math.min(sharedCohortRemaining, shared);
-      sharedCohortChildMax += ownCap;
-      continue;
-    }
-    // The child's capped groups the parent is NOT in, tightest first.
-    const separateCapped = childGroupIds
-      .filter((g) => groupRemainingByGroupId.has(g))
-      .map((g) => ({ groupId: g, remaining: groupRemainingByGroupId.get(g)! }))
-      .sort((a, b) => a.remaining - b.remaining);
-    if (separateCapped.length === 0) {
-      // Ungrouped or uncapped: a private pool, so it adds its own cap directly.
-      separateSum += ownCap;
-      continue;
-    }
-    // A capped child-only group the parent is NOT in: bucket by
-    // the tightest shared capped group id so several children drawing on it
-    // collapse to one term clamped by that group's remaining.
-    const { groupId, remaining } = separateCapped[0]!;
-    const bucket = cappedGroups.get(groupId) ?? { ownCap: 0, remaining };
-    bucket.ownCap += ownCap;
-    cappedGroups.set(groupId, bucket);
-  }
-  const sharedCohortCap =
-    sharedCohortRemaining === undefined
-      ? 0
-      : Math.min(
-          groupPoolUnits(sharedCohortRemaining, PARENT_CHILD_GROUP_UNITS),
-          sharedCohortChildMax,
-        );
-  let cappedGroupsCap = 0;
-  for (const { remaining, ownCap } of cappedGroups.values()) {
-    cappedGroupsCap += cappedGroupCohortCap(remaining, ownCap);
-  }
-  return separateSum + sharedCohortCap + cappedGroupsCap;
-};
-
-/** Each parent MEMBER's required children's combined unit capacity (see
- * {@link childCombinedCap}), keyed by member listing id — only members with
- * children get an entry. Feeds {@link packageQuantityCap}: a package's count is
- * bounded by each parent member's child-side capacity too (every booked member
- * unit consumes one child unit), so the selector and the API never offer a
- * bundle count the required add-ons can't serve. */
-const packageChildUnitCaps = (
-  listings: TicketListing[],
-  childrenByParentId: Map<number, TicketListing[]> | undefined,
-  groupRemainingByGroupId: ReadonlyMap<number, number>,
-  groupIdsByListingId: ReadonlyMap<number, number[]>,
-): Map<number, number> => {
-  const caps = new Map<number, number>();
-  if (!childrenByParentId) return caps;
-  for (const member of listings) {
-    const children = childrenByParentId.get(member.listing.id);
-    if (!children || children.length === 0) continue;
-    caps.set(
-      member.listing.id,
-      childCombinedCap(
-        member,
-        children.filter(childBookable),
-        groupRemainingByGroupId,
-        groupIdsByListingId,
-      ),
-    );
-  }
-  return caps;
-};
-
-/** The tightest whole-bundle count the parents' UNAVOIDABLE child demand fits.
- * The per-member child caps ({@link packageChildUnitCaps}) can't see two parent
- * members draining ONE pool — each reports the pool's full capacity and the
- * tree cap takes their minimum, so the page could offer a bundle whose fold
- * sums both parents' demand and rejects. Demand on a pool is unavoidable when
- * EVERY one of a parent's bookable children draws from it: a sole STANDARD
- * child's own cumulative cap (a daily child's capacity is per-date, judged at
- * submit), or a capped group holding ALL the parent's bookable children.
- * Per-package demand is the member's fixed quantity; each pool divided by its
- * summed demand bounds the count. `Infinity` when no such pool exists — the
- * other caps stand. */
-/** The capped group ids EVERY one of a parent's bookable children sits in —
- * pools the parent's per-package child demand cannot avoid whichever child the
- * buyer picks. */
-const cappedGroupsOfAllChildren = (
-  bookable: TicketListing[],
-  groupRemainingByGroupId: ReadonlyMap<number, number>,
-  groupIdsByListingId: ReadonlyMap<number, number[]>,
-): number[] => {
-  const [firstChildIds, ...restChildIds] = bookable.map(
-    (child) =>
-      new Set(
-        (groupIdsByListingId.get(child.listing.id) ?? []).filter((g) =>
-          groupRemainingByGroupId.has(g),
-        ),
-      ),
-  );
-  return [...firstChildIds!].filter((g) =>
-    restChildIds.every((ids) => ids.has(g)),
-  );
-};
-
-const crossParentChildDemandCap = (
-  tree: BookingTree,
-  listings: TicketListing[],
-  childrenByParentId: Map<number, TicketListing[]> | undefined,
-  groupRemainingByGroupId: ReadonlyMap<number, number>,
-  groupIdsByListingId: ReadonlyMap<number, number[]>,
-): number => {
-  // Every package member node carries a FIXED per-package quantity, so the
-  // tree's quantity map is total over the members.
-  const memberQty = fixedQuantitiesByListingId(tree);
-  const soleChildPools = new Map<number, { cap: number; demand: number }>();
-  const groupDemand = new Map<number, number>();
-  for (const member of listings) {
-    const bookable = (childrenByParentId?.get(member.listing.id) ?? []).filter(
-      childBookable,
-    );
-    if (bookable.length === 0) continue;
-    const qty = memberQty.get(member.listing.id)!;
-    const sole = bookable.length === 1 ? bookable[0]! : null;
-    if (sole && sole.listing.listing_type !== "daily") {
-      const pool = soleChildPools.get(sole.listing.id) ?? {
-        cap: sole.maxPurchasable,
-        demand: 0,
-      };
-      pool.demand += qty;
-      soleChildPools.set(sole.listing.id, pool);
-    }
-    for (const g of cappedGroupsOfAllChildren(
-      bookable,
-      groupRemainingByGroupId,
-      groupIdsByListingId,
-    )) {
-      groupDemand.set(g, (groupDemand.get(g) ?? 0) + qty);
-    }
-  }
-  const poolUnits = [
-    ...[...soleChildPools.values()].map(({ cap, demand }) =>
-      groupPoolUnits(cap, demand),
-    ),
-    ...[...groupDemand].map(([g, demand]) =>
-      groupPoolUnits(groupRemainingByGroupId.get(g)!, demand),
-    ),
-  ];
-  return Math.min(Number.POSITIVE_INFINITY, ...poolUnits);
-};
-
-/** THE whole-bundle count cap — the one computation every surface shares: the
- * page selector, the submit clamp, the API detail/book cap, and the /listings
- * bookable gate. Members' own capacity, every capped group's pool, each
- * parent member's required-child capacity, and the parents' combined
- * unavoidable child demand ({@link crossParentChildDemandCap}) all bound it,
- * so no surface can advertise (or accept) a bundle count another surface
- * rejects. The group maps must cover the members AND their children
- * (getTicketContext's package maps do), so a child's shared capped pool
- * clamps here too. */
-export const packageBundleCap = (
-  tree: BookingTree,
-  listings: TicketListing[],
-  childrenByParentId: Map<number, TicketListing[]> | undefined,
-  groupRemainingByGroupId: ReadonlyMap<number, number>,
-  groupIdsByListingId: ReadonlyMap<number, number[]>,
-): number =>
-  Math.min(
-    packageQuantityCap(
-      tree,
-      new Map(listings.map((e) => [e.listing.id, e])),
-      groupRemainingByGroupId,
-      groupIdsByListingId,
-      packageChildUnitCaps(
-        listings,
-        childrenByParentId,
-        groupRemainingByGroupId,
-        groupIdsByListingId,
-      ),
-    ),
-    crossParentChildDemandCap(
-      tree,
-      listings,
-      childrenByParentId,
-      groupRemainingByGroupId,
-      groupIdsByListingId,
-    ),
-  );
-
-/**
- * The quantity cap to offer for a parent's own selector, clamped to its required
- * children's COMBINED capacity: `min(parentMaxPurchasable,
- * Σ combinable child capacities)` — the sum across separate-pool bookable children
- * plus a single shared-group cohort term (see {@link childCombinedCap}). Two
- * separate-pool children each capped at 1 thus offer a parent quantity of 2 (1 +
- * 1), which the fold accepts; the old per-child MAX wrongly blocked it at 1. A
- * parent with no bookable child is handled upstream (sold out); here
- * that yields a 0 cap.
- */
-const childCappedMax = (
+/** Max parent tickets after checking the children it must book too. */
+const childLimitedMax = (
   info: TicketListing,
   childCtx: ChildRenderCtx | undefined,
 ): number => {
   if (!childCtx) return info.maxPurchasable;
-  const caps = packageChildUnitCaps(
-    [info],
-    childCtx.children,
-    childCtx.groupRemainingByGroupId,
-    childCtx.groupIdsByListingId,
+  const limits = packageChildTicketLimits(
+    packageLimitInfo(
+      [info],
+      childCtx.children,
+      childCtx.groupRemainingByGroupId,
+      childCtx.groupIdsByListingId,
+    ),
   );
-  const childCap = caps.get(info.listing.id);
+  const childLimit = limits.get(info.listing.id);
   const ownMax =
-    childCap === undefined
+    childLimit === undefined
       ? info.maxPurchasable
-      : Math.min(info.maxPurchasable, childCap);
-  // Hold back capacity a page parent will fold into this same listing, so its
-  // standalone row and the parent's selector can't jointly over-offer it.
+      : Math.min(info.maxPurchasable, childLimit);
+  // Hold back child tickets the parent selector can already spend.
   const reserved = childCtx.foldReserveByChildId.get(info.listing.id) ?? 0;
   return Math.max(0, ownMax - reserved);
 };
@@ -886,9 +442,9 @@ const childQuestionsToRender = (
 /** The duration a customisable child inherits at no-JS render, or null when the
  * parent is itself customisable (the buyer hasn't yet chosen a day count, so
  * there is no single render-time duration). Specialises the shared
- * {@link resolveInheritedDuration}: customisable → null, standard → 1. */
+ * {@link childDaysFromParent}: customisable → null, standard → 1. */
 const parentRenderDuration = (parent: ListingWithCount): number | null =>
-  resolveInheritedDuration<number | null>(parent, null, 1);
+  childDaysFromParent<number | null>(parent, null, 1);
 
 /** The "from" price for a customisable child under a customisable parent: the
  * minimum child day price over the spans the parent can ACTUALLY offer (parent's
@@ -973,54 +529,43 @@ const restoredChildQty = (
   return Math.max(0, Math.min(Number.parseInt(saved, 10) || 0, max));
 };
 
-/** The date/span compatibility attributes a child qty/sole control carries so the
- * client compatibility script can disable it (and, for a sole child,
- * flag its parent) when the selected date/day-count can't be served:
- * `data-child-dates` (a DAILY child's serveable starts per selectable span, from
- * the holiday-aware {@link ChildRenderCtx.childDatesById}, encoded
- * `span:d,d|span:d,d`) and `data-child-spans` (a CUSTOMISABLE/fixed-DAILY
- * child's supported day counts, from {@link childSupportedSpans}). A child with no
- * date/span constraint (e.g. a standard child) emits NOTHING — always compatible.
- *
- * Serveable dates are keyed by the (parent, child) PAIR ({@link childDateKey})
- * so the same daily child under two parents with different calendars carries
- * each parent's own dates. */
-const childCompatAttrs = (
+/** Adds the child date data the browser uses to disable impossible choices. */
+const childDateAttrs = (
   parentId: number,
   child: TicketListing,
-  childDatesById: ReadonlyMap<string, ChildSpanDates>,
+  childDatesById: ReadonlyMap<string, ChildDatesByDayCount>,
 ): string => {
   const attrs: string[] = [];
   const dates = childDatesById.get(childDateKey(parentId, child.listing.id));
   if (dates !== undefined) {
     attrs.push(
-      ` data-child-dates="${escapeHtml(encodeChildSpanDates(dates))}"`,
+      ` data-child-dates="${escapeHtml(encodeChildDatesByDayCount(dates))}"`,
     );
   }
-  const spans = childSupportedSpans(child);
-  if (spans !== null) {
-    attrs.push(` data-child-spans="${escapeHtml(spans.join(","))}"`);
+  const dayCounts = dayCountsChildSupports(child);
+  if (dayCounts !== null) {
+    attrs.push(` data-child-spans="${escapeHtml(dayCounts.join(","))}"`);
   }
   return attrs.join("");
 };
 
 /** Render one child as a per-unit quantity row: a `child_qty_<parentId>_<childId>`
- * select over `0..childCap`, plus — for a bookable pay-more child — its
+ * select over `0..childLimit`, plus — for a bookable pay-more child — its
  * non-required price input. A sold-out/closed/inactive child renders a disabled
  * select fixed at 0, never selectable. The select is non-required in
  * markup; the server fold validates the per-parent total. A bookable
  * child also carries its date/span compatibility attributes ({@link
- * childCompatAttrs}) for the client compatibility script. */
+ * childDateAttrs}) for the client compatibility script. */
 const renderChildOption = (
   parent: ListingWithCount,
   child: TicketListing,
-  childCap: number,
-  childDatesById: ReadonlyMap<string, ChildSpanDates>,
+  childLimit: number,
+  childDatesById: ReadonlyMap<string, ChildDatesByDayCount>,
   showZero: boolean,
 ): string => {
   const parentId = parent.id;
   const { listing } = child;
-  const bookable = childBookable(child);
+  const bookable = childCanBeBooked(child);
   const selectName = childQuantityFieldName(parentId, listing.id);
   const priceHtml =
     listing.can_pay_more && bookable
@@ -1032,16 +577,20 @@ const renderChildOption = (
         )
       : "";
   const label = bookable
-    ? `${escapeHtml(listing.name)} ${childPriceLabel(listing, parent, showZero)}`.trim()
+    ? `${escapeHtml(listing.name)} ${childPriceLabel(
+        listing,
+        parent,
+        showZero,
+      )}`.trim()
     : escapeHtml(t("public.ticket.child_unavailable", { name: listing.name }));
   const select = bookable
-    ? `<select name="${selectName}" data-child-qty="${listing.id}"${childCompatAttrs(
+    ? `<select name="${selectName}" data-child-qty="${listing.id}"${childDateAttrs(
         parentId,
         child,
         childDatesById,
       )}>${quantityOptions(
-        childCap,
-        restoredChildQty(parentId, listing.id, childCap),
+        childLimit,
+        restoredChildQty(parentId, listing.id, childLimit),
       )}</select>`
     : `<select name="${selectName}" disabled><option value="0" selected>0</option></select>`;
   return `<label class="child-option">${select} ${label}</label>${priceHtml}`;
@@ -1063,7 +612,7 @@ const renderChildOption = (
  * the fold and the compat/required client scripts still drive off them.
  *
  * The informational marker ALSO carries the same date/span compatibility
- * attributes a selectable child option does ({@link childCompatAttrs}) so on a
+ * attributes a selectable child option does ({@link childDateAttrs}) so on a
  * group/multi-listing page (where the date/day-count controls aren't globally
  * constrained to the child's calendar) the client script can tell the auto-selected
  * sole child can't serve the chosen date/span and flag/disable the parent — rather
@@ -1071,7 +620,7 @@ const renderChildOption = (
 const renderSoleChildOption = (
   parent: ListingWithCount,
   child: TicketListing,
-  childDatesById: ReadonlyMap<string, ChildSpanDates>,
+  childDatesById: ReadonlyMap<string, ChildDatesByDayCount>,
   showZero: boolean,
 ): string => {
   const parentId = parent.id;
@@ -1088,7 +637,7 @@ const renderSoleChildOption = (
   const namePart = visible ? escapeHtml(listing.name) : "";
   const pricePart = visible ? childPriceLabel(listing, parent, showZero) : "";
   const label = `${namePart} ${pricePart}`.trim();
-  return `<p class="child-option child-sole" data-sole-parent="${parentId}" data-sole-child="${listing.id}"${childCompatAttrs(
+  return `<p class="child-option child-sole" data-sole-parent="${parentId}" data-sole-child="${listing.id}"${childDateAttrs(
     parentId,
     child,
     childDatesById,
@@ -1112,10 +661,10 @@ const renderChildBlock = (
   const parentId = parent.id;
   const children = ctx.children.get(parentId);
   if (!children || children.length === 0) return "";
-  const bookable = children.filter(childBookable);
+  const bookable = children.filter(childCanBeBooked);
   // The parent's effective max is the per-parent total ceiling; each child select is
   // additionally capped by its own parent+child order capacity (below).
-  const total = childCappedMax(parentInfo, ctx);
+  const total = childLimitedMax(parentInfo, ctx);
   // A SOLE bookable child is auto-selected by the fold (informational), so the buyer
   // makes no choice: suppress the "choose an option" legend and the "choose N in
   // total" guidance and let the child option show its name directly.
@@ -1136,14 +685,16 @@ const renderChildBlock = (
         : renderChildOption(
             parent,
             child,
-            childBookable(child)
+            childCanBeBooked(child)
               ? Math.min(
                   total,
-                  childOrderCap(
+                  childTicketLimit(
                     parentInfo,
                     child,
-                    ctx.groupRemainingByGroupId,
-                    ctx.groupIdsByListingId,
+                    groupCapacityInfo(
+                      ctx.groupRemainingByGroupId,
+                      ctx.groupIdsByListingId,
+                    ),
                   ),
                 )
               : 0,
@@ -1180,7 +731,9 @@ const renderChildBlock = (
       `<span class="child-total-hint" data-child-hint="${parentId}"></span></p>`;
   const legend = sole
     ? ""
-    : `<legend>${escapeHtml(t("public.ticket.choose_option", { name: parent.name }))}</legend>`;
+    : `<legend>${escapeHtml(
+        t("public.ticket.choose_option", { name: parent.name }),
+      )}</legend>`;
   // A package member parent has no quantity_<id> control, so the client scripts
   // derive its booked units from this fixed per-package quantity × the chosen
   // package count.
@@ -1206,7 +759,7 @@ const renderListingRow = (
   childCtx?: ChildRenderCtx,
 ): string => {
   const { listing, isSoldOut, isClosed } = info;
-  const maxPurchasable = childCappedMax(info, childCtx);
+  const maxPurchasable = childLimitedMax(info, childCtx);
   // A top-level booking node always carries a buyer-chosen quantity field.
   const fieldName = nodeQuantityFieldName(node)!;
   const imageHtml = renderListingImage(listing);
@@ -1274,7 +827,9 @@ const renderPackageMemberRow = (
 ): string => `
     <div class="ticket-row package-member">
       ${renderListingImage(info.listing)}
-      <label>${escapeHtml(info.listing.name)} <span class="package-member-qty">&times;${fixedQty}</span></label>
+      <label>${escapeHtml(
+        info.listing.name,
+      )} <span class="package-member-qty">&times;${fixedQty}</span></label>
       ${renderListingDescription(info.listing.description)}
       ${childCtx ? renderChildBlock(info, childCtx, fixedQty) : ""}
     </div>
@@ -1283,11 +838,11 @@ const renderPackageMemberRow = (
 /** A package booking page's listing area: the single "number of packages"
  * selector, then each member row (each showing its fixed quantity) — unless the
  * package hides its listings from buyers, in which case only the selector shows.
- * `cap` is the most packages the tightest member's capacity allows. */
+ * `limit` is the most packages the buyer can book. */
 const renderPackageRows = (
   listings: TicketListing[],
   quantities: ReadonlyMap<number, number>,
-  cap: number,
+  limit: number,
   hide: boolean,
   childCtx: ChildRenderCtx | undefined,
 ): string => {
@@ -1298,8 +853,8 @@ const renderPackageRows = (
   const selector = `<label>${t(
     "public.package.quantity",
   )}<select name="${PACKAGE_QUANTITY_FIELD}" data-package-members="${memberIds}">${quantityOptions(
-    cap,
-    restoredPackageQuantity(cap),
+    limit,
+    restoredPackageQuantity(limit),
   )}</select></label>`;
   const members = hide
     ? ""
@@ -1324,7 +879,7 @@ const renderSingleListingControls = (
   childCtx?: ChildRenderCtx,
 ): string => {
   const { listing } = info;
-  const maxPurchasable = childCappedMax(info, childCtx);
+  const maxPurchasable = childLimitedMax(info, childCtx);
   // A top-level booking node always carries a buyer-chosen quantity field.
   const fieldName = nodeQuantityFieldName(node)!;
   const prefilledQty = restoredQuantity(listing.id, prefill, maxPurchasable);
@@ -1430,17 +985,11 @@ export type TicketPageOptions = {
   /** Parent listing id → its children. Drives the per-parent child selector
    * rendered under each parent row. */
   childrenByParentId?: Map<number, TicketListing[]>;
-  /** Each DAILY child's holiday-aware serveable start dates per selectable parent
-   * span, keyed by the (parent, child) PAIR ({@link ChildRenderCtx.childDatesById}).
-   * Omitted/empty when no daily children. */
-  childDatesById?: ReadonlyMap<string, ChildSpanDates>;
-  /** Each GROUP id → its remaining spots (uncapped groups omitted), so a parent
-   * sharing a capped group with its child clamps its quantity by the combined
-   * parent+child demand against the SPECIFIC shared group. Empty/omitted when no
-   * group caps apply. */
+  /** Daily-child start dates for each parent day count. */
+  childDatesById?: ReadonlyMap<string, ChildDatesByDayCount>;
+  /** Remaining spots for limited groups. */
   groupRemainingByGroupId?: ReadonlyMap<number, number>;
-  /** Each listing id → the ids of the groups it belongs to, so the shared-group
-   * clamps resolve the group a parent and child share. Empty/omitted = ungrouped. */
+  /** Groups each listing belongs to. */
   groupIdsByListingId?: ReadonlyMap<number, number[]>;
   /** Package overrides (listing id → price) when this is a package page, so a
    * member whose base price is 0 but override is paid still renders the provider
@@ -1458,11 +1007,7 @@ export type TicketPageOptions = {
    * shows one package-quantity selector instead of per-member quantities. */
   packageGroupId?: number | null;
   packageQuantities?: ReadonlyMap<number, number> | null;
-  /** On a package page: every capped group the members belong to → its remaining
-   * spots, and each member → its group ids. {@link packageQuantityCap} bounds the
-   * bundle by `floor(remaining / combined demand)` per group — the package's own
-   * group and any other capped group members share alike. Empty/omitted for
-   * non-package pages (or when no member's group is capped). */
+  /** Remaining spots for package member groups. */
   packageGroupRemainingByGroupId?: ReadonlyMap<number, number>;
   packageMemberGroupIds?: ReadonlyMap<number, number[]>;
   hidePackageListings?: boolean;
@@ -1723,10 +1268,10 @@ const dayConfig = (
   // single-listing-parent case.
   dayCounts:
     isPackage && childrenByParentId
-      ? packageSharedDayCounts(listings, childrenByParentId)
-      : constrainDayCountsByChildUnion(
+      ? packageDayCountsChildrenSupport(listings, childrenByParentId)
+      : keepParentDayCountsChildrenSupport(
           listings,
-          sharedDayCounts(listings),
+          dayCountsEveryListingSupports(listings),
           childrenByParentId,
         ),
   hasCustomisable: listings.some((e) => e.listing.customisable_days),
@@ -1746,7 +1291,7 @@ const splitChildQuestions = (
   questionListingMap: QuestionListingMap | undefined,
   childrenByParentId: Map<number, TicketListing[]> | undefined,
   groupRemainingByGroupId: ReadonlyMap<number, number>,
-  childDatesById: ReadonlyMap<string, ChildSpanDates>,
+  childDatesById: ReadonlyMap<string, ChildDatesByDayCount>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
 ): { pageQuestions: QuestionWithAnswers[]; childCtx?: ChildRenderCtx } => {
   if (!childrenByParentId || childrenByParentId.size === 0) {
@@ -1895,7 +1440,7 @@ const buildPageListingRows = (opts: {
   listings: TicketListing[];
   nodeByListingId: ReadonlyMap<number, BookingNode>;
   packageQuantities: ReadonlyMap<number, number> | null | undefined;
-  packageCap: number;
+  packageLimit: number;
   hidePackageListings: boolean;
   isSingleListing: boolean;
   hideQuantity: boolean;
@@ -1907,7 +1452,7 @@ const buildPageListingRows = (opts: {
     return renderPackageRows(
       opts.listings,
       quantities,
-      opts.packageCap,
+      opts.packageLimit,
       opts.hidePackageListings,
       opts.childCtx,
     );
@@ -1922,13 +1467,7 @@ const buildPageListingRows = (opts: {
   );
 };
 
-/** The package-count cap for a package page (0 for non-package pages, where it
- * is unused) and whether the page should render as sold out. A package is
- * bookable only when at least one whole bundle fits: even if every member still
- * has individual capacity, a 0 cap (shared pool drained, or a member's fixed
- * per-package quantity exceeds its remaining units) would leave the selector
- * offering only "0", so treat it as sold out rather than letting submit fall
- * through to "select at least one ticket". */
+/** Package limit for this page, plus whether it should show as sold out. */
 const packagePageAvailability = (
   isPackage: boolean,
   tree: BookingTree,
@@ -1936,18 +1475,23 @@ const packagePageAvailability = (
   childrenByParentId: Map<number, TicketListing[]> | undefined,
   groupRemainingByGroupId: ReadonlyMap<number, number>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
-): { packageCap: number; soldOut: boolean } => {
-  const cap = isPackage
-    ? packageBundleCap(
+): { packageLimit: number; soldOut: boolean } => {
+  const limit = isPackage
+    ? packageBundleLimit(
         tree,
-        listings,
-        childrenByParentId,
-        groupRemainingByGroupId,
-        groupIdsByListingId,
+        packageLimitInfo(
+          listings,
+          childrenByParentId,
+          groupRemainingByGroupId,
+          groupIdsByListingId,
+        ),
       )
     : null;
   const membersUnavailable = listings.every((e) => e.isSoldOut || e.isClosed);
-  return { packageCap: cap ?? 0, soldOut: membersUnavailable || cap === 0 };
+  return {
+    packageLimit: limit ?? 0,
+    soldOut: membersUnavailable || limit === 0,
+  };
 };
 
 /** The lone listing whose rich details (image/date/location) head the page and
@@ -2013,7 +1557,7 @@ export const ticketPage = ({
     tree.nodes.map((node) => [node.listingId, node]),
   );
   const inIframe = getIframeMode();
-  const { packageCap, soldOut: allUnavailable } = packagePageAvailability(
+  const { packageLimit, soldOut: allUnavailable } = packagePageAvailability(
     isPackage,
     tree,
     listings,
@@ -2079,7 +1623,7 @@ export const ticketPage = ({
     isSingleListing,
     listings,
     nodeByListingId,
-    packageCap,
+    packageLimit,
     packageQuantities,
     prefill,
   });

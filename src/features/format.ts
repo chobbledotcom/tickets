@@ -10,28 +10,6 @@ export const isRegistrationClosed = (listing: {
 }): boolean =>
   listing.closes_at !== null && new Date(listing.closes_at).getTime() < nowMs();
 
-/**
- * Build a formatter for capacity-related attendee creation errors.
- * Returns a function `(reason, listingName) => message` that picks one of three
- * messages based on the failure reason and whether an listing name is known.
- */
-export const capacityErrorFormatter =
-  (messages: {
-    /** Returned when the failure isn't capacity-related (e.g. encryption_error). */
-    fallback: string;
-    /** Returned for capacity_exceeded when no listing name is available. */
-    generic: string;
-    /** Returned for capacity_exceeded with a known listing name. */
-    withName: (name: string) => string;
-  }) =>
-  (
-    reason: "capacity_exceeded" | "encryption_error",
-    listingName = "",
-  ): string => {
-    if (reason !== "capacity_exceeded") return messages.fallback;
-    return listingName ? messages.withName(listingName) : messages.generic;
-  };
-
 /** Format a countdown from now to a future closes_at date, e.g. "3 days and 5 hours from now" */
 export const formatCountdown = (closesAt: string): string => {
   const diffMs = new Date(closesAt).getTime() - nowMs();

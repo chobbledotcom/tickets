@@ -1,6 +1,7 @@
 /* jscpd:ignore-start */
 import { map, pipe } from "#fp";
 import { t } from "#i18n";
+import type { TicketListing } from "#shared/booking/model.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -13,7 +14,6 @@ import {
   type PublicNavProps,
   /* jscpd:ignore-end */
   publicPage,
-  type TicketListing,
 } from "./shared.tsx";
 
 /** How a public listing card should treat a child listing. A booking can never

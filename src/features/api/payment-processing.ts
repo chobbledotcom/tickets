@@ -41,10 +41,7 @@ import type {
   SignedVerdict,
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
-import {
-  capacityErrorFormatter,
-  isRegistrationClosed,
-} from "#routes/format.ts";
+import { isRegistrationClosed } from "#routes/format.ts";
 import {
   getVisibleGroupMembers,
   groupBookable,
@@ -56,6 +53,7 @@ import {
 import { htmlResponse, paymentErrorResponse } from "#routes/response.ts";
 import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
+import { buildTicketListing } from "#shared/booking/model.ts";
 import {
   effectivePrice,
   NO_CUSTOM_PRICES,
@@ -65,6 +63,7 @@ import {
 import { edgeDrifted } from "#shared/booking/signed-metadata.ts";
 import type { BookingTree } from "#shared/booking/tree.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
+import { capacityErrorFormatter } from "#shared/capacity-error.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import {
   type ModifierApplication,
@@ -140,7 +139,6 @@ import { bookingLedgerDisposition } from "#shared/session-ledger.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import { paymentCancelPage } from "#templates/payment.tsx";
-import { buildTicketListing } from "#templates/public/shared.tsx";
 
 /** User-facing message when the listing price changed between checkout and payment */
 const PRICE_CHANGED_MESSAGE =

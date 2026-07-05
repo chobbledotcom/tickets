@@ -7,10 +7,10 @@ import {
   parseAddOnSelections,
   parseQuantities,
 } from "#routes/public/ticket-form.ts";
+import type { TicketListing } from "#shared/booking/model.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { FormParams } from "#shared/form-data.ts";
-import type { TicketListing } from "#templates/public.tsx";
 
 const question = (
   id: number,

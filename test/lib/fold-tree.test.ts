@@ -14,10 +14,13 @@ import {
   resolveChildSelections,
   resolvedByNodeKey,
 } from "#shared/booking/fold-tree.ts";
+import {
+  buildTicketListing,
+  type TicketListing,
+} from "#shared/booking/model.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { Holiday, ListingWithCount } from "#shared/types.ts";
-import { buildTicketListing, type TicketListing } from "#templates/public.tsx";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** A cart line resolved against availability (the shape the fold reads). */
