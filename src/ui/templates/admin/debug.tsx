@@ -82,6 +82,7 @@ export type DebugPageState = {
   domain: string;
   limits: typeof LIMIT_ENTRIES;
   prune: {
+    addresses: string;
     payments: string;
     sessions: string;
     strings: string;
@@ -512,6 +513,10 @@ const PruneSection = ({
         <tr>
           <td>login_attempts</td>
           <td>{prune.logins}</td>
+        </tr>
+        <tr>
+          <td>address_cache</td>
+          <td>{prune.addresses}</td>
         </tr>
       </tbody>
     </>,

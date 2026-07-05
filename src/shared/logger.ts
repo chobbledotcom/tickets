@@ -86,6 +86,8 @@ export const runWithRequestId = <T>(fn: () => T): T =>
  * Single source of truth — ErrorCode and errorCodeLabel are derived from this.
  */
 const ERROR_DEFS = {
+  // Address lookup provider errors
+  ADDRESS_LOOKUP: ["E_ADDRESS_LOOKUP", "Address lookup failed"],
   AUTH_CSRF_MISMATCH: ["E_AUTH_CSRF_MISMATCH", "CSRF mismatch"],
   AUTH_EXPIRED: ["E_AUTH_EXPIRED", "Session expired"],
 

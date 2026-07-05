@@ -7,16 +7,18 @@
  * `login_attempts` table but are namespaced so they never affect login lockouts.
  */
 
-import { isIpRateLimited, recordIpAttempt } from "#shared/db/login-attempts.ts";
+import { makeIpRateLimiter } from "#shared/db/login-attempts.ts";
 import { BOOKING_LOCKOUT_MS, MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
 
-/** Namespace so booking counters don't collide with login or other limiters. */
-const BOOKING_PREFIX = "book:";
+/** "book:" namespaces the counters away from login and other limiters. */
+const limiter = makeIpRateLimiter(
+  "book:",
+  MAX_BOOKING_ATTEMPTS,
+  BOOKING_LOCKOUT_MS,
+);
 
 /** Check if an IP has exceeded the booking rate limit. */
-export const isBookingRateLimited = (ip: string): Promise<boolean> =>
-  isIpRateLimited(ip, BOOKING_PREFIX);
+export const isBookingRateLimited = limiter.isLimited;
 
 /** Record a booking attempt for an IP; returns true if now locked out. */
-export const recordBookingAttempt = (ip: string): Promise<boolean> =>
-  recordIpAttempt(ip, BOOKING_PREFIX, MAX_BOOKING_ATTEMPTS, BOOKING_LOCKOUT_MS);
+export const recordBookingAttempt = limiter.record;

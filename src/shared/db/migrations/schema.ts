@@ -33,7 +33,7 @@ export type Trigger = {
 
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
-export const LATEST_UPDATE = "Create first-class images and image_uses tables.";
+export const LATEST_UPDATE = "Create the address_cache lookup-result table.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -1144,6 +1144,31 @@ export const SCHEMA: [name: string, table: Table][] = [
           columns: ["item_type", "item_id"],
           name: "idx_site_page_items_child_page",
         },
+      ],
+    },
+  ],
+
+  [
+    // Address-lookup result cache. search_index is the HMAC blind index of
+    // "provider:normalised-search" and results is the encrypted JSON array of
+    // address lines, so neither the searched value nor the returned addresses
+    // are readable from a database dump. Rows expire after ADDRESS_CACHE_DAYS:
+    // reads filter on the cutoff and the prune task deletes past it.
+    "address_cache",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["search_index", "TEXT NOT NULL"],
+        ["results", "TEXT NOT NULL"],
+        ["created", "TEXT NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["search_index"],
+          name: "idx_address_cache_search_index",
+          unique: true,
+        },
+        { columns: ["created"], name: "idx_address_cache_created" },
       ],
     },
   ],

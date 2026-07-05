@@ -43,6 +43,10 @@ import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import { EmailFormatSchema } from "#shared/validation/email.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
+import {
+  type AddressLookupMode,
+  renderAddressLookupPanel,
+} from "#templates/components/address-lookup.tsx";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 
@@ -1094,14 +1098,36 @@ export { mergeListingFields, parseListingFields };
 export const fieldsApi = { getSettingCached: settings.getCachedRaw };
 
 /**
+ * Give the address field its postcode search panel when a lookup provider is
+ * configured (no provider ⇒ the plain textarea, unchanged).
+ */
+const withAddressLookup = (field: Field, mode: AddressLookupMode): Field => {
+  const panel = renderAddressLookupPanel(mode);
+  return panel ? { ...field, beforeHtml: panel } : field;
+};
+
+/** Resolve one contact field, attaching the address search panel. */
+const resolveContactField = (
+  name: ContactField,
+  addressLookupMode: AddressLookupMode,
+): Field =>
+  name === "address"
+    ? withAddressLookup(contactFieldMap[name], addressLookupMode)
+    : contactFieldMap[name];
+
+/**
  * Get ticket form fields based on listing fields setting.
  * Always includes name. Adds contact fields based on the comma-separated setting.
  * When isPaid is true and Square is the active provider, email is always included
  * because Square requires an email address for checkout.
+ * The address field carries the postcode search panel when a lookup provider is
+ * configured: "locked" (public — read-only until Edit) unless the caller is an
+ * admin form that keeps the textarea always editable.
  */
 export const getTicketFields = (
   fields: ListingFields,
   isPaid: boolean,
+  addressLookupMode: AddressLookupMode = "locked",
 ): Field[] => {
   const effective =
     isPaid &&
@@ -1109,7 +1135,10 @@ export const getTicketFields = (
       ? withRequiredEmail(fields)
       : fields;
   const parsed = parseListingFields(effective);
-  return [nameField, ...parsed.map((f) => contactFieldMap[f])];
+  return [
+    nameField,
+    ...parsed.map((f) => resolveContactField(f, addressLookupMode)),
+  ];
 };
 
 /** Validate ticket fields, mapping validation failure to a response via onError */
@@ -1179,8 +1208,9 @@ export const getAddAttendeeFields = (
   // Admin enters a customer's details here, so disable native autofill: we don't
   // want the operator's browser to store or suggest other customers' PII. The
   // shared ticket fields keep their semantic autocomplete for the public form,
-  // so override on copies rather than mutating the originals.
-  const contactFields = getTicketFields(fields, false).map(
+  // so override on copies rather than mutating the originals. The address
+  // search panel is "editable" — admin textareas are never locked.
+  const contactFields = getTicketFields(fields, false, "editable").map(
     (f): Field => ({ ...f, autocomplete: "off" }),
   );
   const result = [...contactFields, addAttendeeQuantityField];

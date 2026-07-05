@@ -35,6 +35,9 @@ export interface Field {
   accept?: string;
   autocomplete?: string;
   autofocus?: boolean;
+  /** Trusted template HTML rendered immediately before the field's label
+   *  (e.g. the address-lookup search panel above the address textarea). */
+  beforeHtml?: string;
   defaultValue?: string;
   hint?: string;
   hintHtml?: string;
@@ -252,6 +255,7 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
 };
 
 export const renderField = (field: Field, value: string = ""): string =>
+  (field.beforeHtml ?? "") +
   String(
     <label>
       {field.label}

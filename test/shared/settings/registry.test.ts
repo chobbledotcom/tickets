@@ -27,6 +27,8 @@ const lines = (text: string): string[] =>
 
 const EXPECTED_CONFIG_KEY_NAMES = lines(`
   ACTIVITY_LOG_BACKFILL_DONE
+  ADDRESS_LOOKUP_API_KEY
+  ADDRESS_LOOKUP_PROVIDER
   APPLE_WALLET_PASS_TYPE_ID
   APPLE_WALLET_SIGNING_CERT
   APPLE_WALLET_SIGNING_KEY
@@ -65,6 +67,7 @@ const EXPECTED_CONFIG_KEY_NAMES = lines(`
   HEADER_IMAGE_URL
   HOMEPAGE_TEXT
   LAST_ACTIVITY_LOG_BACKFILL
+  LAST_PRUNED_ADDRESSES
   LAST_PRUNED_CONTACTS
   LAST_PRUNED_INVITES
   LAST_PRUNED_LOGINS
@@ -114,6 +117,8 @@ const EXPECTED_SETTING_ROWS = [
   ["TERMS_AND_CONDITIONS", "plaintext", "terms"],
   ["BULK_EMAIL_DRAFT", "plaintext", "bulkEmailDraft"],
   ["EMAIL_PROVIDER", "plaintext", null],
+  ["ADDRESS_LOOKUP_PROVIDER", "plaintext", null],
+  ["ADDRESS_LOOKUP_API_KEY", "encrypted", null],
   ["CUSTOM_CSS", "plaintext", "customCss"],
   ["CUSTOM_DOMAIN", "plaintext", "customDomain"],
   [
@@ -147,6 +152,7 @@ const EXPECTED_SETTING_ROWS = [
   ["LAST_PRUNED_LOGINS", "plaintext", "lastPrunedLogins", "prune"],
   ["LAST_PRUNED_TOKENS", "plaintext", "lastPrunedTokens", "prune"],
   ["LAST_PRUNED_CONTACTS", "plaintext", "lastPrunedContacts", "prune"],
+  ["LAST_PRUNED_ADDRESSES", "plaintext", "lastPrunedAddresses", "prune"],
   ["LAST_PRUNED_INVITES", "plaintext", "lastPrunedInvites", "prune"],
   ["LAST_PRUNED_ORPHANS", "plaintext", "lastPrunedOrphans", "prune"],
   ["SMS_GATEWAY_BASE_URL", "plaintext", "smsGatewayBaseUrl"],

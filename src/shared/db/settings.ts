@@ -16,6 +16,10 @@
 
 import { lazyRef, unique } from "#fp";
 import {
+  type AddressLookupSetting,
+  isAddressLookupSetting,
+} from "#shared/address-lookup/types.ts";
+import {
   registerCache,
   registerTableInvalidation,
 } from "#shared/cache-registry.ts";
@@ -858,6 +862,19 @@ export const MAX_EMAIL_TEMPLATE_LENGTH = 51_200;
 // ---------------------------------------------------------------------------
 
 const settingsBase = {
+  // --- Address lookup ---
+  addressLookup: {
+    get apiKey(): string {
+      return snap("address_lookup_api_key");
+    },
+    get hasKey(): boolean {
+      return snap("address_lookup_api_key") !== "";
+    },
+    get provider(): AddressLookupSetting {
+      const value = snap("address_lookup_provider");
+      return isAddressLookupSetting(value) ? value : "none";
+    },
+  },
   // --- Apple Wallet ---
   appleWallet: createAppleWalletReadSettings(snap as (k: string) => string),
   get autoPurgeOrphans(): boolean {
@@ -1077,6 +1094,13 @@ const settingsBase = {
   // -----------------------------------------------------------------------
   update: {
     ...stringAccessors.updaters,
+    // --- Address lookup writes ---
+    addressLookup: {
+      apiKey: encryptedUpdate(CONFIG_KEYS.ADDRESS_LOOKUP_API_KEY),
+      provider: plaintextUpdate(CONFIG_KEYS.ADDRESS_LOOKUP_PROVIDER) as (
+        v: AddressLookupSetting,
+      ) => Promise<void>,
+    },
     // --- Apple Wallet writes ---
     appleWallet: createAppleWalletUpdateSettings(encryptedUpdate),
     autoPurgeOrphans: boolUpdate(

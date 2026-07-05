@@ -141,6 +141,32 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       expect(html).not.toContain("Current deadline:");
     });
 
+    test("renders the postcode search for an address-collecting tier", async () => {
+      // The renewal picker is the same booking form, so a tier that collects
+      // an address gets the address-lookup panel too — and its settings must
+      // be declared in the /renew preload bundle for this render to pass the
+      // settings-read audit.
+      await createTestListing({
+        fields: "address",
+        hidden: true,
+        monthsPerUnit: 1,
+        purchaseOnly: true,
+        unitPrice: 500,
+      });
+      const { token } = await setupRenewalSite();
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.addressLookup.provider("easypostcodes");
+      await settings.update.addressLookup.apiKey("test-key");
+
+      const response = await handleRequest(
+        mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
+      );
+
+      const html = await response.text();
+      expect(response.status).toBe(200);
+      expect(html).toContain('data-address-lookup="locked"');
+    });
+
     test("returns 404 for unknown token", async () => {
       const response = await handleRequest(
         mockRequest("/renew/?t=unknown-token"),
