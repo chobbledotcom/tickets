@@ -4,8 +4,8 @@
 
 import { t } from "#i18n";
 import { joinForm } from "#routes/join.ts";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { Flash } from "#shared/forms.tsx";
+import { IntroFormPage } from "#templates/components/intro-form-page.tsx";
 import { SuccessCompletePage } from "#templates/components/success-complete-page.tsx";
 import { Layout } from "#templates/layout.tsx";
 
@@ -17,19 +17,15 @@ export const joinPage = (
   username: string,
   error?: string,
 ): string =>
-  String(
-    <Layout title={t("join.set_password.title")}>
-      <CsrfForm action={`/join/${code}`}>
-        <div class="prose">
-          <h1>{t("join.set_password.welcome", { username })}</h1>
-          <p>{t("join.set_password.instructions")}</p>
-        </div>
-        <Flash error={error} />
-        <Raw html={joinForm.render()} />
-        <button type="submit">{t("join.set_password.submit")}</button>
-      </CsrfForm>
-    </Layout>,
-  );
+  IntroFormPage({
+    action: `/join/${code}`,
+    error,
+    fieldsHtml: joinForm.render(),
+    heading: t("join.set_password.welcome", { username }),
+    intro: t("join.set_password.instructions"),
+    pageTitle: t("join.set_password.title"),
+    submitLabel: t("join.set_password.submit"),
+  });
 
 /**
  * Join complete page - password set and account self-activated, ready to log in

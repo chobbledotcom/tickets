@@ -975,9 +975,9 @@ textarea[readonly] {
   flex-wrap: wrap;
   gap: var(--space-s);
   padding: var(--space-s);
+  border-radius: var(--border-radius) var(--border-radius) 0 0;
   border-bottom: 1px solid var(--color-bg-secondary);
   background: var(--color-bg-secondary);
-  border-radius: var(--border-radius) var(--border-radius) 0 0;
 }
 .md-toolbar-button {
   width: auto;
@@ -2905,7 +2905,7 @@ a.cal-day-selected:active {
   align-items: center;
   gap: var(--space-s);
   margin: 0;
-  box-shadow: var(--box-shadow) var(--color-shadow);
+  @include drop-shadow;
 }
 
 .order-cart-count::after {

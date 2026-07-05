@@ -43,9 +43,11 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
 import {
+  childIdsWhereParents,
   getVisibleGroupMembers,
   groupBookable,
 } from "#routes/public/discovery.ts";
+import { foldedChildIdSet } from "#shared/payment-helpers.ts";
 import {
   bookingDateFields,
   lacksStandalonePublicPage,
@@ -747,9 +749,7 @@ const currentOrderTree = async (
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
 ): Promise<BookingTree> => {
-  const foldedChildIds = new Set(
-    (intent.allocations ?? []).map((a) => a.childId),
-  );
+  const foldedChildIds = foldedChildIdSet(intent.allocations);
   const topLevel = validatedItems
     .filter((v) => !foldedChildIds.has(v.item.e))
     .map((v) => buildTicketListing(v.listing, false, undefined));
@@ -823,12 +823,10 @@ const hasStaleStandaloneChild = async (
   const parentsByChild = await getParentsForChildren([
     ...nonStandaloneChildIds,
   ]);
-  const adoptedByInOrderParent = new Set<number>();
-  for (const [childId, parents] of parentsByChild) {
-    if (parents.some((parent) => orderIdSet.has(parent.id))) {
-      adoptedByInOrderParent.add(childId);
-    }
-  }
+  const adoptedByInOrderParent = childIdsWhereParents(
+    parentsByChild,
+    (_childId, parents) => parents.some((parent) => orderIdSet.has(parent.id)),
+  );
   return intent.items.some((item) => {
     if (!nonStandaloneChildIds.has(item.e)) return false;
     const allocated = allocatedByChild.get(item.e) ?? 0;
@@ -869,9 +867,7 @@ const validateAllItems = async (
   const includeListingName =
     intent.items.length > 1 && !hiddenPackage && !staleHiddenMember;
   const pkg = await loadPackagePricing(intent);
-  const foldedChildIds = new Set(
-    (intent.allocations ?? []).map((a) => a.childId),
-  );
+  const foldedChildIds = foldedChildIdSet(intent.allocations);
   const staleNonStandaloneChild =
     !isPackageIntent && (await hasStaleStandaloneChild(intent));
   const validatedItems: ValidatedItem[] = [];
@@ -1637,6 +1633,15 @@ const replayBalanceFromLedger = async (
     ? replaySuccess(sessionId, attendeeId, listingId)
     : null;
 
+/** Turns a reserved/idempotency-keyed session into its terminal payment outcome.
+ * Both the reserve+process entry point and the inner reserved-session step share
+ * this shape (session id, validated data, optional processor options). */
+type SessionProcessor = (
+  sessionId: string,
+  data: ValidatedSession,
+  options?: SessionProcessorOptions,
+) => Promise<PaymentResult>;
+
 /**
  * Process a session we have just reserved (holding the lock). A signed session
  * either becomes a real ticket or — for ANY reason we can't honour it (charge
@@ -1647,11 +1652,11 @@ const replayBalanceFromLedger = async (
  * records it so a later redirect/webhook replays the same result instead of
  * re-running refunds or stalling behind the idempotency lock.
  */
-const processReservedSession = async (
-  sessionId: string,
-  data: ValidatedSession,
-  options?: SessionProcessorOptions,
-): Promise<PaymentResult> => {
+const processReservedSession: SessionProcessor = async (
+  sessionId,
+  data,
+  options,
+) => {
   const { session, intent, verdict } = data;
   const signedListingId = intent.items[0]!.e;
 
@@ -1789,11 +1794,11 @@ const processReservedSession = async (
   ]);
 };
 
-export const processPaymentSession = async (
-  sessionId: string,
-  data: ValidatedSession,
-  options?: SessionProcessorOptions,
-): Promise<PaymentResult> => {
+export const processPaymentSession: SessionProcessor = async (
+  sessionId,
+  data,
+  options,
+) => {
   // Phase 1: Reserve the session (claim the lock)
   const reservation = await reserveSession(sessionId);
   if (!reservation.reserved) {

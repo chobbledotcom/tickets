@@ -4,6 +4,7 @@ import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { settings } from "#shared/db/settings.ts";
 import { type Field, type FieldValues, renderFields } from "#shared/forms.tsx";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
@@ -215,6 +216,14 @@ export const ListingFormSections = ({
       mapNotNullish((name: string) => fieldMap.get(name))(names),
       values,
     );
+  // The two daily-related sections both open with the child-of note and then
+  // their own fields; this keeps that shared opening in one place.
+  const childNoteThen = (body: Child): JSX.Element => (
+    <>
+      <ChildNote note={childOfNote} />
+      {body}
+    </>
+  );
   const sections = [
     {
       children: (
@@ -233,24 +242,18 @@ export const ListingFormSections = ({
       legend: t("listings_table.tickets_pricing"),
     },
     {
-      children: (
-        <>
-          <ChildNote note={childOfNote} />
-          <Raw html={sectionFields(DAILY_FIELDS)} />
-        </>
-      ),
+      children: childNoteThen(<Raw html={sectionFields(DAILY_FIELDS)} />),
       className: "listing-section listing-section--daily",
       legend: t("listings_table.daily_scheduling"),
     },
     {
-      children: (
+      children: childNoteThen(
         <>
-          <ChildNote note={childOfNote} />
           <Raw html={sectionFields(["duration_days"])} />
           {durationWarning && <Raw html={durationWarning} />}
           <Raw html={sectionFields(["customisable_days"])} />
           <Raw html={renderDayPricesFieldset(dayPricesListing)} />
-        </>
+        </>,
       ),
       legend: t("listings_table.booking_duration_day_prices"),
     },

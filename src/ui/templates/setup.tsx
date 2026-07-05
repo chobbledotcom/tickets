@@ -4,11 +4,10 @@
 
 import { t } from "#i18n";
 import { COUNTRIES, DEFAULT_COUNTRY } from "#shared/countries.ts";
-import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { renderFields } from "#shared/forms.tsx";
+import { IntroFormPage } from "#templates/components/intro-form-page.tsx";
 import { SuccessCompletePage } from "#templates/components/success-complete-page.tsx";
 import { getSetupFields } from "#templates/fields.ts";
-import { Layout } from "#templates/layout.tsx";
 
 /**
  * Data Controller Agreement - displayed during setup
@@ -66,15 +65,10 @@ const DataControllerAgreement = (): JSX.Element => (
  * Initial setup page
  */
 export const setupPage = (error?: string): string =>
-  String(
-    <Layout title={t("setup.title")}>
-      <CsrfForm action="/setup/">
-        <div class="prose">
-          <h1>{t("setup.heading")}</h1>
-          <p>{t("setup.welcome")}</p>
-        </div>
-        <Flash error={error} />
-        <Raw html={renderFields(getSetupFields())} />
+  IntroFormPage({
+    action: "/setup/",
+    children: (
+      <>
         <div class="field">
           <label>
             {t("setup.country_label")}
@@ -89,10 +83,15 @@ export const setupPage = (error?: string): string =>
           <p class="hint">{t("setup.country_hint")}</p>
         </div>
         <DataControllerAgreement />
-        <button type="submit">{t("setup.submit")}</button>
-      </CsrfForm>
-    </Layout>,
-  );
+      </>
+    ),
+    error,
+    fieldsHtml: renderFields(getSetupFields()),
+    heading: t("setup.heading"),
+    intro: t("setup.welcome"),
+    pageTitle: t("setup.title"),
+    submitLabel: t("setup.submit"),
+  });
 
 /**
  * Setup complete page

@@ -90,6 +90,28 @@ export const CheckboxLabel = ({
   </label>
 );
 
+/** One "tick the ones that apply" checkbox per entity for a multi-select field:
+ *  each label is the entity's name, ticked when its id is in `selected`. The
+ *  single place a list of named things becomes name-labelled checkboxes, so the
+ *  listing/answer/group pickers all read the same. */
+export const entityCheckboxes = <T extends { id: number; name: string }>({
+  entities,
+  fieldName,
+  selected,
+}: {
+  entities: readonly T[];
+  fieldName: string;
+  selected?: ReadonlySet<number>;
+}): JSX.Element[] =>
+  entities.map((entity) => (
+    <CheckboxLabel
+      checked={selected?.has(entity.id) || undefined}
+      label={` ${entity.name}`}
+      name={fieldName}
+      value={String(entity.id)}
+    />
+  ));
+
 export const CheckboxesFieldset = <T extends { id: number; name: string }>({
   fieldName,
   noneMessage,
@@ -105,14 +127,11 @@ export const CheckboxesFieldset = <T extends { id: number; name: string }>({
     <p>{noneMessage}</p>
   ) : (
     <fieldset class="checkboxes">
-      {options.map((o) => (
-        <CheckboxLabel
-          checked={selected.includes(o.id) || undefined}
-          label={` ${o.name}`}
-          name={fieldName}
-          value={String(o.id)}
-        />
-      ))}
+      {entityCheckboxes({
+        entities: options,
+        fieldName,
+        selected: new Set(selected),
+      })}
     </fieldset>
   );
 

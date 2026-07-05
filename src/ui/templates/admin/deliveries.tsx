@@ -51,19 +51,6 @@ export type DeliveryDayGroup = {
   bookings: DeliveryBookingView[];
 };
 
-/** Header for an agent-class user: just the title and no staff navigation,
- * since an agent may only ever reach this page. The logout button lives in the
- * footer (rendered because we flag this as an admin page). */
-const AgentHeader = (): JSX.Element => {
-  // Only rendered for agent-class users (the bare run-sheet header).
-  markAdminFooter("agent");
-  return (
-    <header class="agent-header">
-      <h1>{t("deliveries.title")}</h1>
-    </header>
-  );
-};
-
 /** One job (drop-off or collection) within a booking: what to do, when, which
  * agent, and a done toggle. The attendee/listing ids for the mark form come
  * from the parent booking, since a job belongs to exactly one booking. */
@@ -164,7 +151,7 @@ export const agentDeliveriesPage = (
   String(
     <Layout title={t("deliveries.title")}>
       {session.adminLevel === "agent" ? (
-        <AgentHeader />
+        <AgentHeader title={t("deliveries.title")} />
       ) : (
         <>
           {/* Deliveries lives in the Calendar section, so highlight Calendar:

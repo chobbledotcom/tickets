@@ -1290,6 +1290,16 @@ const dayConfig = (
   hasCustomisable: listings.some((e) => e.listing.customisable_days),
 });
 
+/** The group + children lookups a package or child-bearing page threads through
+ * its render helpers: each parent's children, plus the remaining spots and group
+ * memberships used to cap group/package capacity. Bundled so the same cluster of
+ * arguments isn't spelled out on every helper that needs them. */
+type GroupLookups = {
+  childrenByParentId: Map<number, TicketListing[]> | undefined;
+  groupRemainingByGroupId: ReadonlyMap<number, number>;
+  groupIdsByListingId: ReadonlyMap<number, number[]>;
+};
+
 /**
  * Split the page's questions into the page-level set (rendered required in the main
  * block) and the per-parent child render context (child-only questions rendered
@@ -1302,11 +1312,11 @@ const splitChildQuestions = (
   listings: TicketListing[],
   questions: QuestionWithAnswers[],
   questionListingMap: QuestionListingMap | undefined,
-  childrenByParentId: Map<number, TicketListing[]> | undefined,
-  groupRemainingByGroupId: ReadonlyMap<number, number>,
   childDatesById: ReadonlyMap<string, ChildDatesByDayCount>,
-  groupIdsByListingId: ReadonlyMap<number, number[]>,
+  groups: GroupLookups,
 ): { pageQuestions: QuestionWithAnswers[]; childCtx?: ChildRenderCtx } => {
+  const { childrenByParentId, groupRemainingByGroupId, groupIdsByListingId } =
+    groups;
   if (!childrenByParentId || childrenByParentId.size === 0) {
     return { pageQuestions: questions };
   }
@@ -1485,10 +1495,10 @@ const packagePageAvailability = (
   isPackage: boolean,
   tree: BookingTree,
   listings: TicketListing[],
-  childrenByParentId: Map<number, TicketListing[]> | undefined,
-  groupRemainingByGroupId: ReadonlyMap<number, number>,
-  groupIdsByListingId: ReadonlyMap<number, number[]>,
+  groups: GroupLookups,
 ): { packageLimit: number; soldOut: boolean } => {
+  const { childrenByParentId, groupRemainingByGroupId, groupIdsByListingId } =
+    groups;
   const limit = isPackage
     ? packageBundleLimit(
         tree,
@@ -1595,9 +1605,11 @@ export const ticketPage = ({
     isPackage,
     tree,
     listings,
-    childrenByParentId,
-    packageGroupRemainingByGroupId,
-    packageMemberGroupIds,
+    {
+      childrenByParentId,
+      groupIdsByListingId: packageMemberGroupIds,
+      groupRemainingByGroupId: packageGroupRemainingByGroupId,
+    },
   );
   const allClosed = listings.every((e) => e.isClosed);
   const fields: Field[] = buildContactFields(
@@ -1641,10 +1653,12 @@ export const ticketPage = ({
     listings,
     questions ?? [],
     questionListingMap,
-    childrenByParentId,
-    groupRemainingByGroupId,
     childDatesById ?? new Map(),
-    groupIdsByListingId,
+    {
+      childrenByParentId,
+      groupIdsByListingId,
+      groupRemainingByGroupId,
+    },
   );
 
   // A package page shows one "number of packages" selector plus read-only member

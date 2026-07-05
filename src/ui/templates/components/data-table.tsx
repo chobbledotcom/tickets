@@ -61,6 +61,43 @@ export type DataTableProps = {
 const isCellRows = (rows: DataTableProps["rows"]): rows is Child[][] =>
   Array.isArray(rows) && (rows.length === 0 || Array.isArray(rows[0]));
 
+/**
+ * The scrollable admin-table shell: the `table-scroll` wrapper, the table, a
+ * single `<thead>` header row holding `head`, and the body rows. {@link DataTable}
+ * builds on this, and bespoke tables that assemble their own header/body cells
+ * (rather than the {@link Column} model) share this same outer scaffold through
+ * it, so there is one home for the wrapper/thead/tbody structure.
+ */
+export const ScrollTable = ({
+  head,
+  children,
+  scrollClass,
+  tableClass,
+  bodyAttrs,
+  foot,
+}: {
+  head: Child;
+  children: Child;
+  scrollClass?: string | undefined;
+  tableClass?: string | undefined;
+  bodyAttrs?: Record<string, string> | undefined;
+  foot?: Child;
+}): JSX.Element => (
+  <div
+    class={
+      scrollClass === undefined ? "table-scroll" : `table-scroll ${scrollClass}`
+    }
+  >
+    <table class={tableClass}>
+      <thead>
+        <tr>{head}</tr>
+      </thead>
+      <tbody {...bodyAttrs}>{children}</tbody>
+      {foot !== undefined && <tfoot>{foot}</tfoot>}
+    </table>
+  </div>
+);
+
 export const DataTable = ({
   columns,
   rows,
@@ -89,31 +126,46 @@ export const DataTable = ({
       rows
     );
   return (
-    <div
-      class={
-        scrollClass === undefined
-          ? "table-scroll"
-          : `table-scroll ${scrollClass}`
-      }
+    <ScrollTable
+      bodyAttrs={bodyAttrs}
+      foot={foot}
+      head={columns.map((c) =>
+        c.class === undefined ? (
+          <th>{c.header}</th>
+        ) : (
+          <th class={colClass(c.class)}>{c.header}</th>
+        ),
+      )}
+      scrollClass={scrollClass}
+      tableClass={tableClass}
     >
-      <table class={tableClass}>
-        <thead>
-          <tr>
-            {columns.map((c) =>
-              c.class === undefined ? (
-                <th>{c.header}</th>
-              ) : (
-                <th class={colClass(c.class)}>{c.header}</th>
-              ),
-            )}
-          </tr>
-        </thead>
-        <tbody {...bodyAttrs}>{body}</tbody>
-        {foot !== undefined && <tfoot>{foot}</tfoot>}
-      </table>
-    </div>
+      {body}
+    </ScrollTable>
   );
 };
+
+/**
+ * A {@link DataTable} that shows a short note in place of the table when there
+ * are no rows — the common "list page, or an empty message" shape. Pass
+ * `emphasiseEmpty` to wrap the note in `<em>` for the softer "nothing built
+ * yet" pages.
+ */
+export const DataTableOrEmpty = ({
+  columns,
+  rows,
+  emptyText,
+  emphasiseEmpty,
+}: {
+  columns: Column[];
+  rows: Child[][];
+  emptyText: Child;
+  emphasiseEmpty?: boolean;
+}): JSX.Element =>
+  rows.length === 0 ? (
+    <p>{emphasiseEmpty ? <em>{emptyText}</em> : emptyText}</p>
+  ) : (
+    <DataTable columns={columns} rows={rows} />
+  );
 
 /**
  * A heading above a data table, shown only when there are rows to list. When
