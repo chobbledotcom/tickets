@@ -7,6 +7,7 @@ import { isReadOnly } from "#shared/env.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { Group } from "#shared/types.ts";
+import { Badge } from "#templates/components/badge.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
 import {
   compareGroupsByName,
@@ -15,6 +16,12 @@ import {
   /* jscpd:ignore-end */
   publicPage,
 } from "./shared.tsx";
+
+/** A red {@link Badge} status line for the two date-search failure messages
+ *  ("Sold Out" and "Not available on {date}") — rendered as a paragraph so it
+ *  sits inline with the other prose paragraphs it lives alongside. */
+const statusBadgeParagraph = (message: string): string =>
+  `<p>${String(<Badge variant="danger">{message}</Badge>)}</p>`;
 
 /** How a public listing card should treat a child listing. A booking can never
  * start from a child, so a child never gets a standalone Book/Buy
@@ -92,26 +99,52 @@ const cardDateState = (
     : { date: filter.date, kind: "serves" };
 };
 
+/** A card's booking CTA / status line, plus WHERE it belongs: the two
+ *  date-search failure messages ("Sold Out", "Not available on {date}") live
+ *  inside the card's `.prose` block as a red {@link Badge}; every other state
+ *  (registration closed, add-on note, currently-unavailable note, the actual
+ *  Book/Buy link) keeps its previous place as a sibling after `.prose`. */
+type CardCta = { html: string; insideProse: boolean };
+
 const renderListingCardCta = (
   info: TicketListing,
   childState: ChildCardState,
   dateState: CardDateState,
-): string => {
+): CardCta => {
   const { listing, isSoldOut, isClosed } = info;
-  if (isSoldOut) return `<p><strong>${t("public.sold_out")}</strong></p>`;
+  if (isSoldOut) {
+    return {
+      html: statusBadgeParagraph(t("public.sold_out")),
+      insideProse: true,
+    };
+  }
   if (isClosed || isReadOnly()) {
-    return `<p><strong>${t("public.registration_closed")}</strong></p>`;
+    return {
+      html: `<p><strong>${t("public.registration_closed")}</strong></p>`,
+      insideProse: false,
+    };
   }
   if (dateState.kind === "filtered-out") {
-    return `<p><strong>${t("public.date_filter.unavailable_on", {
-      date: formatDateLabel(dateState.date),
-    })}</strong></p>`;
+    return {
+      html: statusBadgeParagraph(
+        t("public.date_filter.unavailable_on", {
+          date: formatDateLabel(dateState.date),
+        }),
+      ),
+      insideProse: true,
+    };
   }
   if (childState === "addon") {
-    return `<p><em>${t("public.available_with_other")}</em></p>`;
+    return {
+      html: `<p><em>${t("public.available_with_other")}</em></p>`,
+      insideProse: false,
+    };
   }
   if (childState === "unavailable") {
-    return `<p><strong>${t("public.currently_unavailable")}</strong></p>`;
+    return {
+      html: `<p><strong>${t("public.currently_unavailable")}</strong></p>`,
+      insideProse: false,
+    };
   }
   const bookLabel = listing.purchase_only
     ? t("public.buy_now")
@@ -120,10 +153,30 @@ const renderListingCardCta = (
     dateState.kind === "serves"
       ? `?date=${encodeURIComponent(dateState.date)}`
       : "";
-  return `<p><a class="btn" href="/ticket/${escapeHtml(
-    listing.slug,
-  )}${dateQuery}">${bookLabel}</a></p>`;
+  return {
+    html: `<p><a class="btn" href="/ticket/${escapeHtml(
+      listing.slug,
+    )}${dateQuery}">${bookLabel}</a></p>`,
+    insideProse: false,
+  };
 };
+
+/** Whether a listing card has no live booking path at all — the set the
+ *  date-search split moves into the page's own "Unavailable" section
+ *  when a date has actually been searched (`renderListingCardCta`'s sold-out,
+ *  registration-closed, date-filtered-out, and no-live-parent branches). An
+ *  add-on note is not itself an availability failure (the item is bookable
+ *  through its parent), so it stays with the available cards. */
+const isListingUnavailable = (
+  info: TicketListing,
+  childState: ChildCardState,
+  dateState: CardDateState,
+): boolean =>
+  info.isSoldOut ||
+  info.isClosed ||
+  isReadOnly() ||
+  dateState.kind === "filtered-out" ||
+  childState === "unavailable";
 
 /** Render a single listing listing for the listings page */
 const renderListingListing =
@@ -142,22 +195,33 @@ const renderListingListing =
     const descriptionHtml = listing.description
       ? renderMarkdown(listing.description)
       : "";
-    const linkHtml = renderListingCardCta(
+    const cta = renderListingCardCta(
       info,
       childStateOf(listing.id),
       cardDateState(info, dateFilter),
     );
 
-    return `<div class="prose"><h2>${escapeHtml(
+    const proseHtml = `<div class="prose"><h2>${escapeHtml(
       listing.name,
-    )}</h2>${dateHtml}${locationHtml}${descriptionHtml}</div>${linkHtml}`;
+    )}</h2>${dateHtml}${locationHtml}${descriptionHtml}${
+      cta.insideProse ? cta.html : ""
+    }</div>`;
+    return `${proseHtml}${cta.insideProse ? "" : cta.html}`;
   };
 
-/** Render a single group listing for the listings page (same style as listings) */
-const renderGroupListing = (group: Group): string => {
+/** Render a single group listing for the listings page (same style as
+ *  listings). A package that's sold out for the searched date shows the
+ *  same red "Sold Out" badge as a listing card, inside its `.prose` block,
+ *  instead of a Book link that could only fail. */
+const renderGroupListing = (group: Group, soldOut: boolean): string => {
   const descriptionHtml = group.description
     ? renderMarkdown(group.description)
     : "";
+  if (soldOut) {
+    return `<div class="prose"><h2>${escapeHtml(
+      group.name,
+    )}</h2>${descriptionHtml}${statusBadgeParagraph(t("public.sold_out"))}</div>`;
+  }
   const linkHtml = isReadOnly()
     ? `<p><strong>${t("public.registration_closed")}</strong></p>`
     : `<p><a class="btn" href="/ticket/${escapeHtml(
@@ -179,6 +243,7 @@ export const homepagePage = (
   childStateOf: (id: number) => ChildCardState,
   dateFilter: DailyDateFilter | null,
   nav: PublicNavProps,
+  soldOutPackageIds: ReadonlySet<number> = new Set(),
 ): string => {
   const listingsTitle = t("terms.listings");
   const title = websiteTitle
@@ -201,7 +266,14 @@ export const homepagePage = (
   // regular groups and individual listings follow together. Each set is sorted by
   // decrypted name in app code (SQL can't order the encrypted column).
   const renderGroupCards = (gs: Group[]): string =>
-    pipe(map(renderGroupListing), (rows) => rows.join(""))(gs);
+    pipe(
+      map((g: Group) => renderGroupListing(g, soldOutPackageIds.has(g.id))),
+      (rows) => rows.join(""),
+    )(gs);
+  const renderListingCards = pipe(
+    map(renderListingListing(childStateOf, dateFilter)),
+    (rows) => rows.join(""),
+  );
   const packageGroups = groups
     .filter((g) => g.is_package)
     .toSorted(compareGroupsByName);
@@ -209,10 +281,33 @@ export const homepagePage = (
     .filter((g) => !g.is_package)
     .toSorted(compareGroupsByName);
 
-  const listingListings = pipe(
-    map(renderListingListing(childStateOf, dateFilter)),
-    (rows) => rows.join(""),
-  )(listings);
+  // The date search splits the page into available/unavailable
+  // sections only once a date has actually been chosen; with no date picked
+  // yet (or no daily listings at all, so `dateFilter` is null) every card
+  // renders together in the single combined list, unchanged from before.
+  const searchedDate = dateFilter?.date ?? null;
+  const unavailable = (info: TicketListing): boolean =>
+    isListingUnavailable(
+      info,
+      childStateOf(info.listing.id),
+      cardDateState(info, dateFilter),
+    );
+  const [availablePackages, unavailablePackages] =
+    searchedDate === null
+      ? [packageGroups, []]
+      : [
+          packageGroups.filter((g) => !soldOutPackageIds.has(g.id)),
+          packageGroups.filter((g) => soldOutPackageIds.has(g.id)),
+        ];
+  const [availableListings, unavailableListings] =
+    searchedDate === null
+      ? [listings, []]
+      : [
+          listings.filter((info) => !unavailable(info)),
+          listings.filter(unavailable),
+        ];
+  const hasUnavailableSection =
+    unavailablePackages.length > 0 || unavailableListings.length > 0;
 
   return publicPage(
     title,
@@ -221,12 +316,19 @@ export const homepagePage = (
   )(
     <>
       {dateFilter !== null && <Raw html={renderDateFilter(dateFilter)} />}
-      <PackagesSection groups={packageGroups}>
-        <Raw html={renderGroupCards(packageGroups)} />
+      <PackagesSection groups={availablePackages}>
+        <Raw html={renderGroupCards(availablePackages)} />
       </PackagesSection>
       <h2>{t("public.all_bookable_listings")}</h2>
       <Raw html={renderGroupCards(regularGroups)} />
-      <Raw html={listingListings} />
+      <Raw html={renderListingCards(availableListings)} />
+      {hasUnavailableSection && (
+        <>
+          <h2>{t("public.date_filter.unavailable_heading")}</h2>
+          <Raw html={renderGroupCards(unavailablePackages)} />
+          <Raw html={renderListingCards(unavailableListings)} />
+        </>
+      )}
     </>,
   );
 };

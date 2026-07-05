@@ -42,6 +42,26 @@ describeWithEnv("AdminNav", {}, () => {
     expectOwnerAndManagerLink("/admin/servicing", "Servicing");
   });
 
+  test("AdminNav links to Add Listing for owners, managers, and editors", () => {
+    for (const adminLevel of ["owner", "manager", "editor"] as const) {
+      const html = String(
+        AdminNav({ active: "/admin/", session: { adminLevel } }),
+      );
+      expect(html, adminLevel).toContain('href="/admin/listing/new"');
+      expect(html, adminLevel).toContain("Add Listing");
+    }
+  });
+
+  test("AdminNav marks Add Listing active on the new-listing page", () => {
+    const html = String(
+      AdminNav({
+        active: "/admin/listing/new",
+        session: { adminLevel: "owner" },
+      }),
+    );
+    expect(html).toContain('class="active" href="/admin/listing/new"');
+  });
+
   test("AdminNav shows the Ledger link to owners but not managers", () => {
     const ownerHtml = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),

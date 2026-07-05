@@ -164,11 +164,10 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
 
     test("shows no listings message when enabled but no listings exist", async () => {
       await settings.update.showPublicSite(true);
-      await assertPublicHtml(
-        "/listings",
-        "No listings listed.",
-        "/admin/login",
-      );
+      const html = await assertPublicHtml("/listings", "No listings listed.");
+      // The login footer is a homepage-only affordance (#69) — /listings
+      // never shows it.
+      expect(html).not.toContain('href="/admin/login"');
     });
 
     test("shows website title with no listings message", async () => {
@@ -505,6 +504,11 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       });
       const html = await assertPublicHtml("/listings", "Sold Out");
       expect(html).not.toContain(`href="/ticket/${listing.slug}"`);
+      // The "Sold Out" message lives inside the card's prose block as a red
+      // Badge, not a bare <p><strong>.
+      expect(html).toContain(
+        '<div class="prose"><h2>Full Listing</h2><p><span class="badge danger">Sold Out</span></p></div>',
+      );
     });
 
     test("a daily listing full on one date is not sold out date-lessly", async () => {
@@ -590,6 +594,16 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
         `href="/ticket/${flexDaily.slug}?date=${date}"`,
       );
       expect(filtered).not.toContain(`href="/ticket/${fullDaily.slug}`);
+      // The "Not available on" message is a red Badge inside the card's prose.
+      expect(filtered).toContain('<span class="badge danger">Not available on');
+      // The unavailable card moves into its own section below the available
+      // ones rather than staying interleaved among them.
+      expect(filtered.indexOf("Free Daily")).toBeLessThan(
+        filtered.indexOf("Unavailable"),
+      );
+      expect(filtered.indexOf("Unavailable")).toBeLessThan(
+        filtered.indexOf("Full Daily"),
+      );
 
       // A malformed date is ignored rather than trusted.
       const garbage = await assertPublicHtml("/listings?date=2026-02-30");
@@ -600,6 +614,47 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
         `/ticket/${freeDaily.slug}?date=${date}`,
         `<option value="${date}" selected>`,
       );
+    });
+
+    test("shows a package as sold out when every member is unavailable on the searched date", async () => {
+      await settings.update.showPublicSite(true);
+      const date = addDays(todayInTz("UTC"), 2);
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Weekend Package",
+        slug: "weekend-package",
+      });
+      const packageDaily = await createTestListing({
+        groupId: pkg.id,
+        listingType: "daily",
+        maxAttendees: 1,
+        minimumDaysBefore: 0,
+        name: "Package Daily",
+      });
+      await bookAttendee(packageDaily, { date, quantity: 1 });
+      // A standalone listing keeps the page non-empty.
+      await createTestListing({ maxAttendees: 50, name: "Standalone Listing" });
+
+      const filtered = await assertPublicHtml(
+        `/listings?date=${date}`,
+        "Weekend Package",
+        "Standalone Listing",
+      );
+      expect(filtered).not.toContain(`href="/ticket/${pkg.slug}"`);
+      expect(filtered.indexOf("Standalone Listing")).toBeLessThan(
+        filtered.indexOf("Unavailable"),
+      );
+      expect(filtered.indexOf("Unavailable")).toBeLessThan(
+        filtered.indexOf("Weekend Package"),
+      );
+
+      // On a date the member CAN serve, the package still books normally.
+      const otherDate = addDays(todayInTz("UTC"), 3);
+      const available = await assertPublicHtml(
+        `/listings?date=${otherDate}`,
+        "Weekend Package",
+      );
+      expect(available).toContain(`href="/ticket/${pkg.slug}"`);
     });
 
     test("shows no date filter when no daily listings are listed", async () => {
@@ -693,7 +748,13 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
     test("shows terms page when enabled", async () => {
       await settings.update.showPublicSite(true);
       await settings.update.terms("Our terms and conditions.");
-      await assertPublicHtml("/terms", "Our terms and conditions.", "T&amp;Cs");
+      const html = await assertPublicHtml(
+        "/terms",
+        "Our terms and conditions.",
+        "T&amp;Cs",
+      );
+      // The login footer is a homepage-only affordance (#69).
+      expect(html).not.toContain('href="/admin/login"');
     });
 
     test("returns 404 when terms not configured", async () => {
@@ -718,7 +779,13 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
     test("shows contact page when enabled", async () => {
       await settings.update.showPublicSite(true);
       await settings.update.contactPageText("Get in touch with us");
-      await assertPublicHtml("/contact", "Get in touch with us", "Contact");
+      const html = await assertPublicHtml(
+        "/contact",
+        "Get in touch with us",
+        "Contact",
+      );
+      // The login footer is a homepage-only affordance (#69).
+      expect(html).not.toContain('href="/admin/login"');
     });
 
     test("returns 404 when contact text not configured", async () => {

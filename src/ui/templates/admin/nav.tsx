@@ -82,6 +82,7 @@ const renderReadOnlyBanner = (
  * the owner-only Settings parent it normally nests under is hidden from them. */
 const editorTopLevelItems = (): NavItem[] => [
   { href: "/admin/listings", label: t("terms.listings") },
+  { href: "/admin/listing/new", label: t("listings_table.add_listing") },
   { href: "/admin/groups", label: t("terms.groups") },
   { href: "/admin/site", label: t("nav.site") },
 ];
@@ -97,6 +98,7 @@ const topLevelItems = (session: AdminSession, active: string): NavItem[] =>
     : compact([
         { href: "/admin/", label: t("nav.public.home") },
         { href: "/admin/listings", label: t("terms.listings") },
+        { href: "/admin/listing/new", label: t("listings_table.add_listing") },
         { href: "/admin/calendar", label: t("nav.calendar") },
         { href: "/admin/servicing", label: t("nav.servicing") },
         { href: "/admin/attendees", label: t("terms.attendees") },

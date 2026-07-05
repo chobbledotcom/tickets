@@ -108,14 +108,14 @@ describe("adminListingEditPage group select", () => {
     expect(html).toContain("checked");
   });
 
-  test("links to the JSON export (reachable by a content editor)", () => {
+  test("does not link to the JSON export (that now lives on the Actions tab)", () => {
     const listing = testListingWithCount({ id: 9 });
     const html = String(
       ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
     );
-    // The Edit tab is editor-visible, so the export link here reaches editors
-    // who never see the staff-only Actions tab that also carries it.
-    expect(html).toContain(`/admin/listing/${listing.id}/export.json`);
+    // The Actions tab is now editor-visible too, so the export link lives
+    // only there — the Edit panel no longer duplicates it.
+    expect(html).not.toContain(`/admin/listing/${listing.id}/export.json`);
   });
 });
 

@@ -6,7 +6,6 @@ import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { inferTemplate } from "#shared/listing-templates.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { CatalogExportNav } from "#templates/admin/catalog-export-nav.tsx";
 import { MoneyAdjustSection } from "#templates/admin/money-adjust-section.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import {
@@ -203,7 +202,6 @@ export const ListingEditPanel = ({
   return (
     <>
       <Flash error={error} />
-      <CatalogExportNav href={`/admin/listing/${listing.id}/export.json`} />
       {childOfNames !== null && (
         <p class="notice listing-child-banner">
           {t("listings_table.child_banner", { names: childOfNames })}

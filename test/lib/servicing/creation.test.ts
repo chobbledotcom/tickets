@@ -116,6 +116,9 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
       listing: { maxAttendees: 1, name: "Cap1" },
       name: "First Hold",
     });
+    // Only "Cap1" (a) is actually full for that date — "Cap1-b" (b) would have
+    // fit alone — so the rejection must name specifically the listing that
+    // didn't fit, not the other booking in the same (rolled-back) request.
     await expectRejects(
       createTestServicingEvent({
         bookings: [
@@ -124,6 +127,7 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
         ],
         name: "Should Roll Back",
       }),
+      /Cap1(?!-b)/,
     );
     expect((await servicingRowsForListing(b.id)).length).toBe(0);
   });
@@ -140,12 +144,18 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
   });
 
   test("creating a servicing event rejects a hold that does not fit", async () => {
-    const listing = await createDailyTestListing({ maxAttendees: 1 });
+    const listing = await createDailyTestListing({
+      maxAttendees: 1,
+      name: "Overbooked Listing",
+    });
+    // The rejection must name the SPECIFIC listing that was sold out, not
+    // just surface the bare "capacity_exceeded" reason string.
     await expectRejects(
       createTestServicingEvent({
         bookings: [{ date: "2026-07-01", listingId: listing.id, quantity: 2 }],
         name: "Too Big",
       }),
+      /Overbooked Listing/,
     );
     expect((await servicingRowsForListing(listing.id)).length).toBe(0);
   });

@@ -7,9 +7,11 @@
  *                activity preview
  *   Attendees  — the roster (date + check-in filters), failed payments, quick
  *                add-attendee
+ *   Scanner    — the check-in scanner (hidden for a "No Check-In" listing)
  *   Activity   — the full activity log
- *   Actions    — duplicate / scanner / email / refund-all, danger zone:
- *                deactivate|reactivate, delete
+ *   Actions    — duplicate / export (open to editors too) / email /
+ *                refund-all, danger zone: deactivate|reactivate|delete
+ *                (staff only)
  *
  * The banner (the deactivated warning) shows on every tab. Sub-action POST
  * handlers keep their own routes; this file only owns the GET surface.
@@ -25,7 +27,7 @@ import {
 import { type AuthSession, requireContentOr } from "#routes/auth.ts";
 import { targetQuery } from "#shared/bulk-email-targets.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { isPaidListing, isStaffRole } from "#shared/types.ts";
+import { isContentRole, isPaidListing, isStaffRole } from "#shared/types.ts";
 import { ListingDeactivatedBanner } from "#templates/admin/listings/overview.tsx";
 import {
   type LoadedListing,
@@ -52,7 +54,10 @@ const actionUrl = ({ listing }: LoadedListing, action: string): string =>
   `/admin/listing/${listing.id}/${action}`;
 
 /** The Actions tab entries. Each `visible` mirrors the gate its old
- * {@link ListingActionNav} entry used, so no dead or forbidden link renders. */
+ * {@link ListingActionNav} entry used, so no dead or forbidden link renders.
+ * The tab itself is open to content roles (staff + editor), so every
+ * mutation-risk entry below now carries its own explicit `staffOnly` check —
+ * only Duplicate and Export are safe for an editor to use unrestricted. */
 const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
   {
     href: (entity) => actionUrl(entity, "duplicate"),
@@ -66,13 +71,6 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
     href: (entity) => actionUrl(entity, "export.json"),
     icon: "save",
     labelKey: "catalog_transfer.export_link",
-  },
-  {
-    href: (entity) => actionUrl(entity, "scanner"),
-    icon: "search",
-    labelKey: "listings_table.scanner",
-    // The scanner checks tickets in; a purchase-only listing has no check-in.
-    visible: ({ listing }) => !listing.purchase_only,
   },
   {
     href: ({ listing }) =>
@@ -90,27 +88,32 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
     href: (entity) => actionUrl(entity, "refund-all"),
     icon: "credit-card",
     labelKey: "listings_table.refund_all",
-    // Refunds only apply to a paid listing (the same gate the action bar used).
-    visible: ({ listing }) => isPaidListing(listing),
+    // Refunds only apply to a paid listing (the same gate the action bar used),
+    // and moving money is staff-only — an editor never sees this button.
+    visible: (entity, session) =>
+      staffOnly(entity, session) && isPaidListing(entity.listing),
   },
   {
     danger: true,
     href: (entity) => actionUrl(entity, "deactivate"),
     icon: "x",
     labelKey: "listings_table.deactivate",
-    visible: ({ listing }) => listing.active,
+    visible: (entity, session) =>
+      staffOnly(entity, session) && entity.listing.active,
   },
   {
     href: (entity) => actionUrl(entity, "reactivate"),
     icon: "rotate-ccw",
     labelKey: "listings_table.reactivate",
-    visible: ({ listing }) => !listing.active,
+    visible: (entity, session) =>
+      staffOnly(entity, session) && !entity.listing.active,
   },
   {
     danger: true,
     href: (entity) => actionUrl(entity, "delete"),
     icon: "trash-2",
     labelKey: "common.delete",
+    visible: staffOnly,
   },
 ];
 
@@ -147,6 +150,20 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
       sections: [{ kind: "custom", load: loadListingRosterPanel }],
       slug: "attendees",
       visible: staffOnly,
+    },
+    {
+      // The scanner is served by its own route (GET /admin/listing/:id/scanner,
+      // scanner.ts) rather than this tab framework's section loaders — the
+      // router tries literal paths before this page's /:tab wildcard, so that
+      // route always wins and this tab renders no content of its own. Its
+      // entry here exists only to promote the link into the top-level tab
+      // strip (out of the Actions tab's action list), same slug and same
+      // check-in gate the standalone route's link always used.
+      labelKey: "listings_table.scanner",
+      sections: [],
+      slug: "scanner",
+      visible: (entity, session) =>
+        staffOnly(entity, session) && !entity.listing.purchase_only,
     },
     {
       labelKey: "entity.tab.edit",
@@ -222,7 +239,10 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
         },
       ],
       slug: "actions",
-      visible: staffOnly,
+      // Open to editors too (unlike the other staff-only tabs): they may
+      // still only use Duplicate and Export, since every other action above
+      // carries its own `staffOnly` check.
+      visible: (_entity, session) => isContentRole(session.adminLevel),
     },
   ],
   titleOf: ({ listing }) =>

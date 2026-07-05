@@ -106,11 +106,15 @@ describeWithEnv("servicing §4 — editing", { db: true }, () => {
       name: "Second Hold",
       quantity: 1,
     });
+    // The rejection must name the SPECIFIC listing that was full ("Tiny
+    // Room"), not just surface the bare "capacity_exceeded" reason string —
+    // this is exactly the /admin/servicing/:id edit flow.
     await expectRejects(
       updateServicingEvent(second.id, {
         bookings: [{ date: "2026-07-01", listingId: listing.id, quantity: 1 }],
         name: "Second Hold",
       }),
+      /Tiny Room/,
     );
     expect(
       (await servicingRowsForListing(listing.id)).map((row) => row.date),

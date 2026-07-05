@@ -2,6 +2,7 @@
  * Public pages - home, listings, terms, contact
  */
 
+import { compact } from "#fp";
 import { applyFlash, requireMessageField, withCsrfForm } from "#routes/csrf.ts";
 import {
   errorRedirect,
@@ -25,7 +26,11 @@ import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
-import { type ListingWithCount, normalizeDurationDays } from "#shared/types.ts";
+import {
+  type Group,
+  type ListingWithCount,
+  normalizeDurationDays,
+} from "#shared/types.ts";
 import { parseEmail } from "#shared/validation/email.ts";
 import {
   childCardState,
@@ -39,6 +44,7 @@ import {
   applyParentSoldOut,
   classifyForDiscovery,
   dropHiddenPackageMembers,
+  getVisibleGroupMembersByGroupIds,
   loadPublicGroups,
 } from "./discovery.ts";
 import { publicNavProps } from "./site-nav.ts";
@@ -129,10 +135,59 @@ const buildDailyDateFilter = async (
   };
 };
 
+/** Whether a package member has no live booking path on the searched date:
+ * sold out or closed on its own date-less row, or (for a daily member)
+ * outside its calendar / full for that date. Mirrors the listing card's own
+ * unavailable check so a package reads sold out exactly when every one of its
+ * cards would. */
+const memberUnavailableOn = (
+  info: { isSoldOut: boolean; isClosed: boolean; listing: ListingWithCount },
+  dailyUnavailableIds: ReadonlySet<number>,
+): boolean =>
+  info.isSoldOut ||
+  info.isClosed ||
+  (info.listing.listing_type === "daily" &&
+    dailyUnavailableIds.has(info.listing.id));
+
+/** Package groups where EVERY member is unavailable on the searched date: a
+ * package is bought as one whole bundle, so if nothing in it can be booked on
+ * the chosen date the bundle itself must read as sold out rather than
+ * advertise a Book link that can only fail. Members are loaded fresh (not
+ * reused from the page's own listing set) because a hidden package's members
+ * never join that set, yet still decide whether their package is sold out. A
+ * `null` requested date means no search is in play, so nothing is projected
+ * sold out here. */
+const soldOutPackageIds = async (
+  groups: readonly Group[],
+  requestedDate: string | null,
+): Promise<ReadonlySet<number>> => {
+  const packages = groups.filter((g) => g.is_package);
+  if (requestedDate === null || packages.length === 0) return new Set();
+  const membersByGroup = await getVisibleGroupMembersByGroupIds(packages);
+  const soldOutIds = await Promise.all(
+    packages.map(async (pkg): Promise<number | null> => {
+      const members = membersByGroup.get(pkg.id) ?? [];
+      const daily = members.filter((m) => m.listing_type === "daily");
+      const [ticketListings, dailyUnavailableIds] = await Promise.all([
+        buildTicketListingsWithGroupCapacity(members),
+        daily.length > 0
+          ? dailyUnavailableOn(daily, requestedDate)
+          : Promise.resolve(new Set<number>()),
+      ]);
+      const allUnavailable = ticketListings.every((info) =>
+        memberUnavailableOn(info, dailyUnavailableIds),
+      );
+      return allUnavailable ? pkg.id : null;
+    }),
+  );
+  return new Set(compact(soldOutIds));
+};
+
 /** Handle GET /listings - public listings listing. Shows every active, visible
  * listing alongside the non-hidden groups. (Type filtering lives on the admin
  * listings dashboard, not the public page.) When daily listings are shown, a
- * `?date=` filter resolves their per-date availability (#51). */
+ * `?date=` filter resolves their per-date availability (#51), and any package
+ * whose every member is unavailable on that date reads as sold out too. */
 export const handlePublicListings = (
   request: Request,
 ): Response | Promise<Response> =>
@@ -148,12 +203,13 @@ export const handlePublicListings = (
     // Parents with no bookable child read as sold out; a (visible) child keeps
     // its card but loses its standalone Book CTA (invariants I3/I6).
     const classification = await classifyForDiscovery(listings);
-    const [ticketListings, dateFilter] = await Promise.all([
+    const requestedDate = parseIsoDateParam(
+      new URL(request.url).searchParams.get("date"),
+    );
+    const [ticketListings, dateFilter, soldOutPackages] = await Promise.all([
       buildTicketListingsWithGroupCapacity(listings),
-      buildDailyDateFilter(
-        listings,
-        parseIsoDateParam(new URL(request.url).searchParams.get("date")),
-      ),
+      buildDailyDateFilter(listings, requestedDate),
+      soldOutPackageIds(groups, requestedDate),
     ]);
     return htmlResponse(
       homepagePage(
@@ -166,6 +222,7 @@ export const handlePublicListings = (
         ),
         dateFilter,
         nav,
+        soldOutPackages,
       ),
     );
   });

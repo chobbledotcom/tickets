@@ -227,13 +227,13 @@ describe("GroupEditPanel package members table", () => {
     expect(html).toContain("Add listings to this group");
   });
 
-  test("links to the JSON export (reachable by a content editor)", () => {
+  test("does not link to the JSON export (that now lives on the Actions tab)", () => {
     const group = testGroup({ id: 7, name: "Exportable" });
     const html = String(
       GroupEditPanel({ group, listings: [], members: new Map() }),
     );
-    // The Edit tab is content-gated, so an editor who never sees the staff-only
-    // Overview/Actions tabs can still export the group from here.
-    expect(html).toContain(`/admin/groups/${group.id}/export.json`);
+    // The Actions tab is now editor-visible too, so the export link lives
+    // only there — the Edit panel no longer duplicates it.
+    expect(html).not.toContain(`/admin/groups/${group.id}/export.json`);
   });
 });

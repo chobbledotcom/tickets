@@ -11,7 +11,6 @@ import { nodeLis } from "#templates/components/nav.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import {
   FEED_DISCOVERY_TAGS,
-  LoginFooter,
   MarkdownProse,
   PublicNav,
   type PublicNavProps,
@@ -36,7 +35,6 @@ export const sitePagePage = (
       <h1>{page.name}</h1>
       <MarkdownProse markdown={page.content} />
       {items.length > 0 && <ul class="page-items">{nodeLis(items)}</ul>}
-      <LoginFooter />
     </Layout>,
   );
 };

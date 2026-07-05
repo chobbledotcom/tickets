@@ -661,12 +661,35 @@ describeWithEnv("QR Scanner", { db: true }, () => {
   });
 
   describe("listing page scanner link", () => {
-    test("listing actions tab has scanner link", async () => {
+    test("scanner is a top-level tab, not an Actions-tab link", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const response = await adminGet(`/admin/listing/${listing.id}/actions`);
+      const scannerHref = `/admin/listing/${listing.id}/scanner`;
+
+      const overview = await adminGet(`/admin/listing/${listing.id}`);
+      const overviewBody = await overview.text();
+      expect(overviewBody).toContain(scannerHref);
+      expect(overviewBody).toContain("Scanner");
+
+      // The tab strip renders on every tab (so the actions page still carries
+      // ONE occurrence, the strip link) — but the Actions section's own
+      // action-row markup for it must be gone.
+      const actions = await adminGet(`/admin/listing/${listing.id}/actions`);
+      const actionsBody = await actions.text();
+      const occurrences = actionsBody.split(scannerHref).length - 1;
+      expect(occurrences).toBe(1);
+      expect(actionsBody).not.toContain(
+        `<div class="entity-action"><a class="btn secondary" href="${scannerHref}"`,
+      );
+    });
+
+    test("scanner tab is hidden for a purchase-only (no check-in) listing", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        purchaseOnly: true,
+      });
+      const response = await adminGet(`/admin/listing/${listing.id}`);
       const body = await response.text();
-      expect(body).toContain(`/admin/listing/${listing.id}/scanner`);
-      expect(body).toContain("Scanner");
+      expect(body).not.toContain(`/admin/listing/${listing.id}/scanner`);
     });
   });
 
