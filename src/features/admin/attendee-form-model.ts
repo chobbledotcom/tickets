@@ -523,29 +523,60 @@ export const toLedgerOrder = (parsed: ParsedAttendeeForm): PricedOrder => {
  * booking keeps its original key (with the old start_at) and `exists: true`, so
  * a moved shared date becomes an in-place UPDATE rather than a drop-and-recreate;
  * not-booked listings are simply absent, so the diff deletes any old row.
+ *
+ * The editor shows ONE line per listing, but an attendee may hold several rows
+ * for one listing (a package path beside a standalone path, or two overlapping
+ * packages). Rows the submitted form never named are carried over exactly as
+ * stored — quantity, dates, and package path — so saving an unrelated field can
+ * never silently delete the other paths. Editing or removing those extra rows
+ * needs a row-per-path editor (see TODO.md); until then the form edits only the
+ * row its line key names.
  */
 export const toDesiredLines = (
   parsed: ParsedAttendeeForm,
-): DesiredListingLine[] =>
+  existingByKey: ReadonlyMap<string, ListingAttendeeRow> = new Map(),
+): DesiredListingLine[] => {
   // Retained lines, not just booked lines: a checked quantity-0 line must
   // persist (become/stay a quantity-0 row) rather than fall out and be deleted.
-  parsed.lines.filter(isRetainedLine).map((line): DesiredListingLine => {
-    const { date, durationDays } = lineDate(line, parsed);
-    return {
-      date,
-      durationDays,
-      exists: Boolean(line.existingBooking),
-      key: line.key,
-      listingId: line.listingId,
-      // Keep the row on its package path so the edit updates the right row
-      // when the same listing was booked through two packages; a new line is
-      // an ordinary non-package row.
-      packageGroupId: line.existingBooking?.package_group_id ?? 0,
-      // A retained line always has a non-null quantity: isBookedLine guarantees
-      // ≥ 1, and a no-quantity line is parsed/built with quantity 0.
-      quantity: line.quantity!,
-    };
-  });
+  const represented = parsed.lines
+    .filter(isRetainedLine)
+    .map((line): DesiredListingLine => {
+      const { date, durationDays } = lineDate(line, parsed);
+      return {
+        date,
+        durationDays,
+        exists: Boolean(line.existingBooking),
+        key: line.key,
+        listingId: line.listingId,
+        // Keep the row on its package path so the edit updates the right row
+        // when the same listing was booked through two packages; a new line is
+        // an ordinary non-package row.
+        packageGroupId: line.existingBooking?.package_group_id ?? 0,
+        // A retained line always has a non-null quantity: isBookedLine
+        // guarantees ≥ 1, and a no-quantity line is parsed/built with
+        // quantity 0.
+        quantity: line.quantity!,
+      };
+    });
+  // A deliberate removal names the row's key with a zeroed line — that key is
+  // "seen" and stays deleted. Only rows the form had no line for at all are
+  // preserved.
+  const seenKeys = new Set(parsed.lines.map((line) => line.key));
+  const carried = [...existingByKey]
+    .filter(([key]) => !seenKeys.has(key))
+    .map(
+      ([key, row]): DesiredListingLine => ({
+        date: row.start_at ? row.start_at.slice(0, 10) : null,
+        durationDays: bookingDurationDays(row) ?? 1,
+        exists: true,
+        key,
+        listingId: row.listing_id,
+        packageGroupId: row.package_group_id,
+        quantity: row.quantity,
+      }),
+    );
+  return [...represented, ...carried];
+};
 
 /** A status/balance mismatch surfaced on the attendee form. */
 export type BalanceNotice = { tone: "warning" | "info"; message: string };

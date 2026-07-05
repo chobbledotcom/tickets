@@ -22,6 +22,7 @@ import {
   ticketPage,
 } from "#templates/public.tsx";
 import { ticketViewPage } from "#templates/tickets.tsx";
+import { pagePackage as sharedPagePackage } from "#test/lib/package-cap-fixtures.ts";
 import {
   describeWithEnv,
   hasInputWithValue,
@@ -35,26 +36,20 @@ beforeAll(async () => {
   await signCsrfToken();
 });
 
-/** One page package with display fields defaulted; structural overrides per
- * test. The page renders as a classic package page when `slugs` names the
- * package (group) slug rather than a member's own slug. */
+/** This suite's package pages share one slug so each test's `slugs` array can
+ * name the package page. Delegates to the shared fixture; only the stable
+ * display defaults differ. */
+const PKG_SLUG = "pkg-slug";
 const pagePackage = (
   groupId: number,
   memberListingIds: number[],
   overrides: Partial<PagePackage> = {},
-): PagePackage => ({
-  dayPrices: new Map(),
-  description: "",
-  groupId,
-  hideListings: false,
-  memberListingIds,
-  name: "Package",
-  prices: new Map(),
-  quantities: new Map(),
-  slug: "pkg-slug",
-  terms: "",
-  ...overrides,
-});
+): PagePackage =>
+  sharedPagePackage(groupId, memberListingIds, {
+    name: "Package",
+    slug: PKG_SLUG,
+    ...overrides,
+  });
 
 afterEach(() => {
   detectIframeMode("https://example.com/");
@@ -156,7 +151,7 @@ describe("ticketPage (single listing)", () => {
           ...(packagePrices
             ? { packages: [pagePackage(5, [991], { prices: packagePrices })] }
             : {}),
-          slugs: ["pkg-slug"],
+          slugs: [PKG_SLUG],
         });
       expect(render()).not.toContain('name="email"');
       expect(render(new Map([[991, 1500]]))).toContain('name="email"');
@@ -547,7 +542,7 @@ describe("ticketPage", () => {
       listings,
       // Only listing 2 has a quantity row; listing 1 falls back to ×1.
       packages: [pagePackage(5, [1, 2], { quantities: new Map([[2, 4]]) })],
-      slugs: ["pkg-slug"],
+      slugs: [PKG_SLUG],
     });
     expect(html).toContain('name="package_quantity_5"');
     expect(html).toContain("Number of packages");
@@ -580,7 +575,7 @@ describe("ticketPage", () => {
         groupName: "Camp Kit",
         listings,
         packages: [pagePackage(5, [1], { quantities: new Map([[1, 1]]) })],
-        slugs: ["pkg-slug"],
+        slugs: [PKG_SLUG],
       });
       // The selector pre-selects the just-submitted count, not a reset 1.
       expect(html).toContain('value="3" selected');
@@ -630,7 +625,7 @@ describe("ticketPage", () => {
       // Listing 1 takes 2 per package; listing 2 is omitted → defaults to 1, so
       // one package consumes 3 of the pool of 4 → floor(4 / 3) = 1 package fits.
       packages: [pagePackage(7, [1, 2], { quantities: new Map([[1, 2]]) })],
-      slugs: ["pkg-slug"],
+      slugs: [PKG_SLUG],
     });
     expect(html).toContain('name="package_quantity_7"');
     expect(html).toContain('<option value="1"');
@@ -682,7 +677,7 @@ describe("ticketPage", () => {
           ]),
         }),
       ],
-      slugs: ["pkg-slug"],
+      slugs: [PKG_SLUG],
     });
     // No count selector for any package on the page.
     expect(html).not.toContain('name="package_quantity');
@@ -739,7 +734,7 @@ describe("ticketPage", () => {
           ]),
         }),
       ],
-      slugs: ["pkg-slug"],
+      slugs: [PKG_SLUG],
     });
     expect(html).toContain('name="package_quantity_7"');
     expect(html).toContain('<option value="1"');
@@ -765,7 +760,7 @@ describe("ticketPage", () => {
       groupName: "Hidden Bundle",
       listings,
       packages: [pagePackage(5, [1], { hideListings: true })],
-      slugs: ["pkg-slug"],
+      slugs: [PKG_SLUG],
     });
     expect(html).toContain('name="package_quantity_5"');
     expect(html).toContain("Hidden Bundle");

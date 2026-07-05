@@ -1529,13 +1529,14 @@ const buildPageListingRows = (opts: {
     buildListingRows(
       standalone,
       opts.nodeByListingId,
-      opts.isSingleListing,
+      // The bare single-listing controls (no name row — details live in the
+      // header) only fit a page with nothing else on it. Beside a package
+      // section, even a lone standalone row needs its named row, or the buyer
+      // sees an unlabelled quantity selector under the bundle.
+      opts.isSingleListing && opts.packages.length === 0,
       opts.hideQuantity,
       opts.prefill,
-      (info) =>
-        memberIds.has(info.listing.id) && !opts.singlePackagePage
-          ? undefined
-          : opts.childCtx,
+      (info) => (memberIds.has(info.listing.id) ? undefined : opts.childCtx),
     )
   );
 };

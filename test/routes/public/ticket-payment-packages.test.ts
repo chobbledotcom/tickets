@@ -56,11 +56,13 @@ describeWithEnv(
           ],
         });
         // Member 1's child 9 is concealed too; member 2 has no children entry.
-        expect([...standIns]).toEqual([
+        expect([...standIns.byListingId]).toEqual([
           [1, "Mystery Box"],
           [9, "Mystery Box"],
           [2, "Mystery Box"],
         ]);
+        // The bundle's own tagged lines rename through its group id.
+        expect([...standIns.byGroupId]).toEqual([[7, "Mystery Box"]]);
       });
 
       test("names nothing for a package that shows its listings", () => {
@@ -76,7 +78,8 @@ describeWithEnv(
             },
           ],
         });
-        expect(standIns.size).toBe(0);
+        expect(standIns.byGroupId.size).toBe(0);
+        expect(standIns.byListingId.size).toBe(0);
       });
     });
 

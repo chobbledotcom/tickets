@@ -87,44 +87,71 @@ export const resolveNamesConcealed = async (
   return false;
 };
 
-/** Each concealed listing id → the package name standing in for it: every
- * hidden package's members, plus those members' required children (a child
- * booked as part of a hidden bundle must not be named either). The per-listing
- * form of {@link concealMemberNames} for pages selling several bundles. */
-export const standInNamesByListingId = (
+/** The stand-in names concealing a page's hidden bundles, for pages selling
+ * several packages at once — the several-bundles form of
+ * {@link concealMemberNames}. */
+export type PackageStandIns = {
+  /** Hidden package name by ITS group id: renames the checkout lines TAGGED
+   * with that package. A line booked through a different path — a visible
+   * package, or the listing's own row — keeps its real name: the hidden
+   * bundle's contents stay concealed because only ITS OWN line is renamed,
+   * and a wrong-bundle label would mislead the buyer about what each line
+   * charges for. */
+  byGroupId: ReadonlyMap<number, string>;
+  /** Hidden package name by member/child listing id: renames UNTAGGED lines
+   * (a required child folded under a hidden bundle's member rides an untagged
+   * line) and feeds per-listing error text. Fail-safe by listing — an error
+   * about a hidden package's member never names it, whatever path it took. */
+  byListingId: ReadonlyMap<number, string>;
+};
+
+/** Build the page's stand-ins: every hidden package's name keyed by its group
+ * id, plus each of its members and those members' required children by listing
+ * id (a child booked as part of a hidden bundle must not be named either). */
+export const packageStandIns = (
   packages: readonly {
+    groupId: number;
     name: string;
     hideListings: boolean;
     memberListingIds: readonly number[];
   }[],
   childIdsOfMember: (memberListingId: number) => readonly number[],
-): Map<number, string> => {
-  const standIns = new Map<number, string>();
+): PackageStandIns => {
+  const byGroupId = new Map<number, string>();
+  const byListingId = new Map<number, string>();
   for (const pkg of packages) {
     if (!pkg.hideListings) continue;
+    byGroupId.set(pkg.groupId, pkg.name);
     for (const memberId of pkg.memberListingIds) {
-      standIns.set(memberId, pkg.name);
+      byListingId.set(memberId, pkg.name);
       for (const childId of childIdsOfMember(memberId)) {
-        standIns.set(childId, pkg.name);
+        byListingId.set(childId, pkg.name);
       }
     }
   }
-  return standIns;
+  return { byGroupId, byListingId };
 };
 
-/** Replace each concealed line's buyer-facing name with its package's name,
- * by listing id — the several-bundles form of {@link concealMemberNames}.
- * Prices, quantities and listing ids are untouched. A no-op when nothing on
- * the page is concealed. */
-export const concealNamesByListingId = <
-  T extends { name: string; listingId: number },
+/** Replace each concealed line's buyer-facing name with its package's name: a
+ * line TAGGED with a hidden package takes that package's name; an untagged
+ * line (a folded child) is concealed by listing id. Prices, quantities and
+ * listing ids are untouched. A no-op when nothing on the page is concealed. */
+export const concealLineNames = <
+  T extends {
+    name: string;
+    listingId: number;
+    packageGroupId?: number | undefined;
+  },
 >(
   items: T[],
-  standIns: ReadonlyMap<number, string>,
+  standIns: PackageStandIns,
 ): T[] =>
-  standIns.size === 0
+  standIns.byGroupId.size === 0
     ? items
     : items.map((item) => {
-        const standIn = standIns.get(item.listingId);
+        const standIn =
+          item.packageGroupId === undefined
+            ? standIns.byListingId.get(item.listingId)
+            : standIns.byGroupId.get(item.packageGroupId);
         return standIn === undefined ? item : { ...item, name: standIn };
       });

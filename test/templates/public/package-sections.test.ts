@@ -77,6 +77,23 @@ describe("ticketPage — package sections beside standalone rows", () => {
     expect(html).toContain('name="quantity_1"');
   });
 
+  test("a one-listing mixed page still NAMES the standalone row under the section", () => {
+    // The page's only listing books through the bundle AND its own row. The
+    // page is "single listing" for its header, but the standalone selector
+    // sits below a package section — it must render as a named row, never the
+    // bare single-listing controls (an unlabelled quantity box).
+    const html = ticketPage({
+      listings: [member()],
+      packages: [pagePackage(7, [1], { name: "Party Bundle" })],
+      slugs: ["pkg7s", "tent1"],
+    });
+    expect(html).toContain('name="package_quantity_7"');
+    // The standalone row carries the listing's name label (the row renderer's
+    // ticket-row), beside — not merged into — the bundle's member row.
+    expect(html).toContain('name="quantity_1"');
+    expect(html).toContain('<div class="ticket-row">');
+  });
+
   test("a single-package page keeps the classic layout (no section fieldset)", () => {
     const html = ticketPage({
       listings: [member()],

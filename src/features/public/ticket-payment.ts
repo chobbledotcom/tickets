@@ -82,7 +82,10 @@ import type { EmailEntry } from "#shared/email.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
-import { standInNamesByListingId } from "#shared/package-privacy.ts";
+import {
+  type PackageStandIns,
+  packageStandIns,
+} from "#shared/package-privacy.ts";
 import {
   type CheckoutIntent,
   type CheckoutItem,
@@ -234,14 +237,15 @@ export const loadPagePackage = async (
     await loadPackageMemberPricing(group.id),
   );
 
-/** Each concealed listing id on this page → the package name standing in for
- * it: every HIDDEN package's members and their required children. Buyer-facing
- * line names and error text resolve through this map so a concealed member is
- * never named. Empty when nothing on the page is concealed. */
+/** This page's hidden-package stand-ins: every HIDDEN package's name by group
+ * id (for its tagged lines) and by member/child listing id (for folded-child
+ * lines and error text). Buyer-facing line names and error text resolve
+ * through these maps so a concealed member is never named. Empty when nothing
+ * on the page is concealed. */
 export const ctxStandInNames = (
   ctx: Pick<TicketCtx, "packages" | "childrenByParentId">,
-): Map<number, string> =>
-  standInNamesByListingId(ctx.packages, (memberId) =>
+): PackageStandIns =>
+  packageStandIns(ctx.packages, (memberId) =>
     (ctx.childrenByParentId.get(memberId) ?? []).map(
       (child) => child.listing.id,
     ),

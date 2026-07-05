@@ -261,7 +261,10 @@ const evaluateRequest = async (
   return { date, dateNeeded, selectedKeys, states };
 };
 
-/** The user-facing label for a card's live state (empty = no label). */
+/** The user-facing label for a card's live state. Exhaustive over every state
+ * kind — a new kind must decide its label here (a missing case is a compile
+ * error), never silently show none. A selected or plainly-available card
+ * needs no label. */
 const stateLabel = (state: OrderOptionState): string => {
   switch (state.kind) {
     case "blocked":
@@ -270,7 +273,8 @@ const stateLabel = (state: OrderOptionState): string => {
       return t("public.order.pick_date_to_see");
     case "unavailable":
       return t("public.sold_out");
-    default:
+    case "selected":
+    case "available":
       return "";
   }
 };

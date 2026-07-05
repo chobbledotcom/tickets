@@ -5,8 +5,9 @@ import type {
 } from "#shared/order/options.ts";
 
 /**
- * The pure order evaluator: fold a visitor's ordered selections over the
- * shared capacity pools, then judge every other option against what remains.
+ * The pure order evaluator: subtract each of the visitor's selections from the
+ * shared capacity pools in the order they were added, then judge every other
+ * option against what remains.
  *
  * Selections are honoured in the order they were added — the earlier choice
  * always keeps its capacity, so adding something can grey out a later option

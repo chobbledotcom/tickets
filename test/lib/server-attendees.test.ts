@@ -1442,6 +1442,53 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(html).toContain("Wheelchair access");
     });
 
+    test("editing an unrelated field keeps every path of a dual-path booking", async () => {
+      // The attendee books the listing through package 7 AND its own row.
+      // The edit form renders one line per LISTING, so its fields can only
+      // name one of the two rows — saving a rename must carry the other row
+      // over untouched, never silently delete it.
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const { createTestGroup } = await import("#test-utils");
+      const group = await createTestGroup({ isPackage: true, name: "EditKit" });
+      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+      const made = await createAttendeeAtomic({
+        bookings: [
+          { listingId: listing.id, packageGroupId: group.id, quantity: 2 },
+          { listingId: listing.id, quantity: 1 },
+        ],
+        email: "dual-edit@example.com",
+        name: "Dual Edit",
+      });
+      expect(made.success).toBe(true);
+      const attendee = (made as Extract<typeof made, { success: true }>)
+        .attendees[0]!;
+
+      const form = await buildAttendeeEditForm(attendee.id, {
+        name: "Dual Edit Renamed",
+      });
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        form,
+      );
+      expect(response.status).toBe(302);
+
+      const { queryAll } = await import("#shared/db/client.ts");
+      const rows = await queryAll<{
+        package_group_id: number;
+        quantity: number;
+      }>(
+        `SELECT package_group_id, quantity FROM listing_attendees
+          WHERE attendee_id = ? ORDER BY package_group_id ASC`,
+        [attendee.id],
+      );
+      expect(
+        rows.map((row) => [Number(row.package_group_id), row.quantity]),
+      ).toEqual([
+        [0, 1],
+        [group.id, 2],
+      ]);
+    });
+
     test("returns to the edit form after edit, preserving return_url", async () => {
       const listing = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(

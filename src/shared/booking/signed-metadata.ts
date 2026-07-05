@@ -1,3 +1,4 @@
+import { mapNotNullish } from "#fp";
 import {
   type BookingNode,
   type BookingTree,
@@ -43,14 +44,8 @@ export const lineGroupId = (line: BookingItem): number | undefined =>
   line.k === "p" ? line.r : undefined;
 
 /** The distinct package group ids an order's lines were booked through. */
-export const lineGroupIds = (items: readonly BookingItem[]): Set<number> => {
-  const groupIds = new Set<number>();
-  for (const item of items) {
-    const groupId = lineGroupId(item);
-    if (groupId !== undefined) groupIds.add(groupId);
-  }
-  return groupIds;
-};
+export const lineGroupIds = (items: readonly BookingItem[]): Set<number> =>
+  new Set(mapNotNullish(lineGroupId)([...items]));
 
 /** Reconstruct a top-level line's canonical `nodeKey` from its compact edge tag.
  * A package/group member needs its group id (`r`); a line missing that ref (or

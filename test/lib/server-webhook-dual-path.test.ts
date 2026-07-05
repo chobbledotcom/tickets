@@ -98,6 +98,46 @@ const dualPathSession = (
     buyer,
   );
 
+/** Assert the listing's stored rows, one [package_group_id, quantity] pair
+ * per row in package-id order — the per-path record the store must keep. */
+const expectPathRows = async (
+  listingId: number,
+  expected: [number, number][],
+): Promise<void> => {
+  const rows = await queryAll<{
+    package_group_id: number;
+    quantity: number;
+  }>(
+    `SELECT package_group_id, quantity FROM listing_attendees
+      WHERE listing_id = ? ORDER BY package_group_id ASC`,
+    [listingId],
+  );
+  expect(
+    rows.map((row) => [Number(row.package_group_id), row.quantity]),
+  ).toEqual(expected);
+};
+
+/** Run a dual-path session's refusal epilogue: the webhook answers
+ * saved-and-refunded, the listing keeps one quantity-0 placeholder per path,
+ * exactly one refund fires — and both stubs are restored either way. */
+const expectDualPathRefused = async (
+  listing: Listing,
+  group: Group,
+  stubs: Awaited<ReturnType<typeof paidSession>>,
+): Promise<void> => {
+  try {
+    await expectSavedAndRefunded();
+    await expectPathRows(listing.id, [
+      [0, 0],
+      [group.id, 0],
+    ]);
+    expect(stubs.mockRefund.calls.length).toBe(1);
+  } finally {
+    stubs.mockVerify.restore();
+    stubs.mockRefund.restore();
+  }
+};
+
 /** POST the webhook and expect the saved-and-refunded terminal outcome. */
 const expectSavedAndRefunded = () =>
   assertJson(
@@ -123,7 +163,7 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
       "Tight Tent",
       1,
     );
-    const { mockRefund, mockVerify } = await dualPathSession(
+    const stubs = await dualPathSession(
       "dual_path",
       group,
       listing,
@@ -131,29 +171,9 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
       "Dual Buyer",
     );
 
-    try {
-      await expectSavedAndRefunded();
-      // The booking is kept as quantity-0 placeholders — one per PATH, each
-      // remembering which path it was — and the payment refunded once.
-      const rows = await queryAll<{
-        package_group_id: number;
-        quantity: number;
-      }>(
-        `SELECT package_group_id, quantity FROM listing_attendees
-          WHERE listing_id = ? ORDER BY package_group_id ASC`,
-        [listing.id],
-      );
-      expect(
-        rows.map((row) => [Number(row.package_group_id), row.quantity]),
-      ).toEqual([
-        [0, 0],
-        [group.id, 0],
-      ]);
-      expect(mockRefund.calls.length).toBe(1);
-    } finally {
-      mockVerify.restore();
-      mockRefund.restore();
-    }
+    // The booking is kept as quantity-0 placeholders — one per PATH, each
+    // remembering which path it was — and the payment refunded once.
+    await expectDualPathRefused(listing, group, stubs);
   });
 
   test("a listing gone hidden mid-checkout refuses its standalone path", async () => {
@@ -165,7 +185,7 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
       10,
     );
     // Signed while the package showed its members…
-    const { mockRefund, mockVerify } = await dualPathSession(
+    const stubs = await dualPathSession(
       "stale_dual",
       group,
       listing,
@@ -174,24 +194,13 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
     );
     // …then the operator hides them mid-checkout: the standalone page now
     // 404s, so the untagged path must fail the stale check even though a
-    // tagged line shares its listing id — saved and refunded, never a
-    // standalone ticket for a concealed listing.
+    // tagged line shares its listing id — saved and refunded (one quantity-0
+    // placeholder per path), never a standalone ticket for a concealed
+    // listing.
     const { groupsTable } = await import("#shared/db/groups.ts");
     await groupsTable.update(group.id, { hidePackageListings: true });
 
-    try {
-      await expectSavedAndRefunded();
-      const rows = await queryAll<{ quantity: number }>(
-        "SELECT quantity FROM listing_attendees WHERE listing_id = ?",
-        [listing.id],
-      );
-      expect(rows.every((row) => row.quantity === 0)).toBe(true);
-      expect(rows.length).toBeGreaterThan(0);
-      expect(mockRefund.calls.length).toBe(1);
-    } finally {
-      mockVerify.restore();
-      mockRefund.restore();
-    }
+    await expectDualPathRefused(listing, group, stubs);
   });
 
   test("a non-first line deleted mid-checkout keeps a ghost for EVERY signed line", async () => {
@@ -375,12 +384,9 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
 
     try {
       await expectSavedAndRefunded();
-      const rows = await queryAll<{ quantity: number }>(
-        "SELECT quantity FROM listing_attendees WHERE listing_id = ?",
-        [addon.id],
-      );
-      expect(rows.length).toBeGreaterThan(0);
-      expect(rows.every((row) => row.quantity === 0)).toBe(true);
+      // The addon keeps exactly one quantity-0 placeholder for its aggregated
+      // line — a plain (package-less) slot.
+      await expectPathRows(addon.id, [[0, 0]]);
       expect(mockRefund.calls.length).toBe(1);
     } finally {
       mockVerify.restore();

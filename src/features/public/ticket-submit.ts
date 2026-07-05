@@ -64,7 +64,7 @@ import {
 } from "#shared/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { concealNamesByListingId } from "#shared/package-privacy.ts";
+import { concealLineNames } from "#shared/package-privacy.ts";
 import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
@@ -697,7 +697,12 @@ const prepareOrder = async (
   // concealed member — resolved per listing, since a page can carry several
   // packages with different hide flags.
   const standIns = ctxStandInNames(ctx);
-  const dayResult = await resolveDayCount(pageSelected, form, date, standIns);
+  const dayResult = await resolveDayCount(
+    pageSelected,
+    form,
+    date,
+    standIns.byListingId,
+  );
   if ("error" in dayResult) return { error: dayResult.error, ok: false };
 
   // Parse the page listings' pay-more prices, then apply any signed QR override
@@ -753,7 +758,7 @@ const prepareOrder = async (
   // (each priced by its own rule — a package member's override is a node facet
   // scoped to that path) plus one line per folded child; then hidden-package
   // names are masked.
-  const items = concealNamesByListingId(
+  const items = concealLineNames(
     buildOrderLines(
       tree,
       nodeQuantities,

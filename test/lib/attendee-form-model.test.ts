@@ -570,6 +570,75 @@ describe("toDesiredLines", () => {
     expect(desired).toHaveLength(1);
     expect(desired[0]).toMatchObject({ exists: true, quantity: 0 });
   });
+
+  test("carries an existing row the form never named, exactly as stored", () => {
+    // The attendee books listing 1 through TWO paths (package 7 beside a
+    // standalone row); the editor's single line names only the standalone
+    // row's key. Saving must keep the package row untouched — never silently
+    // delete the path the form couldn't show.
+    const packageRow = bookingRow({
+      end_at: "2026-03-03T00:00:00Z",
+      listing_id: 1,
+      package_group_id: 7,
+      quantity: 2,
+      start_at: "2026-03-01T00:00:00Z",
+    });
+    const desired = toDesiredLines(
+      parsedBase({
+        lines: [
+          line({
+            existingBooking: bookingRow({ listing_id: 1 }),
+            key: "1|standalone",
+            listingId: 1,
+            quantity: 3,
+          }),
+        ],
+      }),
+      new Map([
+        ["1|standalone", bookingRow({ listing_id: 1 })],
+        ["1|package", packageRow],
+      ]),
+    );
+    expect(desired).toEqual([
+      {
+        date: null,
+        durationDays: 1,
+        exists: true,
+        key: "1|standalone",
+        listingId: 1,
+        packageGroupId: 0,
+        quantity: 3,
+      },
+      {
+        date: "2026-03-01",
+        durationDays: 2,
+        exists: true,
+        key: "1|package",
+        listingId: 1,
+        packageGroupId: 7,
+        quantity: 2,
+      },
+    ]);
+  });
+
+  test("a zeroed line's row is deleted, not carried back", () => {
+    // Zeroing the quantity names the row's key with an unretained line — a
+    // deliberate removal. Only rows the form had NO line for are carried.
+    const desired = toDesiredLines(
+      parsedBase({
+        lines: [
+          line({
+            existingBooking: bookingRow({ listing_id: 1 }),
+            key: "1|standalone",
+            listingId: 1,
+            quantity: 0,
+          }),
+        ],
+      }),
+      new Map([["1|standalone", bookingRow({ listing_id: 1 })]]),
+    );
+    expect(desired).toEqual([]);
+  });
 });
 
 describe("no-quantity persistence + paid-line guard", () => {

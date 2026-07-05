@@ -4,8 +4,9 @@
  * can reuse it). An {@link OrderOption} is one selectable thing (a listing or
  * a whole package) described purely by data: which listing units one selection
  * books, whether judging it needs a chosen date, and whether it is bookable at
- * all right now. The evaluator (see ./evaluate.ts) folds a visitor's ordered
- * selections over shared capacity pools to decide what else still fits —
+ * all right now. The evaluator (see ./evaluate.ts) subtracts a visitor's
+ * selections from shared capacity pools, in added order, to decide what else
+ * still fits —
  * context-agnostic and IO-free, so any surface can drive it.
  */
 

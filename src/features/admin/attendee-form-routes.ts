@@ -255,6 +255,7 @@ const handleSubmitInner = async (
           attendeeId!,
           parsed,
           attendee!,
+          existingByKey,
           questions,
           parseQuestionAnswers({ optional: true })(form, questions),
           logisticsPlan,
@@ -393,6 +394,7 @@ const applyEdit = async (
   attendeeId: number,
   parsed: ParsedAttendeeForm,
   attendee: Attendee,
+  existingByKey: Map<string, ListingAttendeeRow>,
   questions: QuestionWithAnswers[],
   answers: import("#shared/db/questions.ts").AttendeeAnswerSet,
   logisticsPlan: LogisticsPlan,
@@ -429,7 +431,7 @@ const applyEdit = async (
     settings.publicKey,
   ))!;
 
-  const desired = toDesiredLines(parsed);
+  const desired = toDesiredLines(parsed, existingByKey);
   // Admin manual edit may deliberately overbook (warned, not blocked).
   const editResult = await applyAttendeeAtomicEdit(
     attendeeId,

@@ -135,14 +135,12 @@ export const parentInCart = (parentId: string): boolean =>
 /** The member listing ids of every in-cart package: the ids encoded on each
  * count selector (`data-package-members`) whose chosen count is above zero.
  * Empty on package-less pages (no such selectors). */
-export const selectedPackageMemberIds = (): string[] => {
-  const ids: string[] = [];
-  for (const selector of packageQuantitySelectors()) {
-    if (controlQty(selector) <= 0) continue;
-    ids.push(...selectorMembers(selector).map((member) => member.id));
-  }
-  return ids;
-};
+export const selectedPackageMemberIds = (): string[] =>
+  packageQuantitySelectors()
+    .filter((selector) => controlQty(selector) > 0)
+    .flatMap((selector) =>
+      selectorMembers(selector).map((member) => member.id),
+    );
 
 /** The effective set of "active" listing ids: every page listing with quantity
  * > 0, plus every child given a positive `child_qty_*` under an in-cart parent.

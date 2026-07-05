@@ -85,7 +85,7 @@ import {
 } from "#shared/db/listings.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
-  concealNamesByListingId,
+  concealLineNames,
   namesConcealed,
   packagePrivacy,
 } from "#shared/package-privacy.ts";
@@ -1293,7 +1293,13 @@ const handleBookPackage = async (
   const body = bodyOrError;
 
   const standIns = ctxStandInNames(ctx);
-  const order = await resolvePackageOrder(body, ctx, tree, limit, standIns);
+  const order = await resolvePackageOrder(
+    body,
+    ctx,
+    tree,
+    limit,
+    standIns.byListingId,
+  );
   if (order instanceof Response) return order;
   const { date, dayCount, form, packageQty, quantities } = order;
 
@@ -1329,7 +1335,7 @@ const handleBookPackage = async (
   // the lines reach the provider. Paid-ness must come from these lines, not
   // `isPaidListing`: a package override can make a free member paid (and a
   // paid member free).
-  const items = concealNamesByListingId(
+  const items = concealLineNames(
     buildOrderLines(
       tree,
       nodeQuantitiesFor(tree, new Map(), new Map([[group.id, packageQty]])),

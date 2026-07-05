@@ -2,14 +2,14 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { groupsTable } from "#shared/db/groups.ts";
 import {
+  concealLineNames,
   concealMemberNames,
-  concealNamesByListingId,
   memberStandInName,
   namesConcealed,
   packagePrivacy,
   packagePrivacyOfDisplay,
+  packageStandIns,
   resolveNamesConcealed,
-  standInNamesByListingId,
 } from "#shared/package-privacy.ts";
 import { createTestGroup, describeWithEnv } from "#test-utils";
 
@@ -52,14 +52,16 @@ describe("package privacy (pure)", () => {
   });
 });
 
-describe("per-listing stand-in names (several bundles per page)", () => {
+describe("per-path stand-in names (several bundles per page)", () => {
   const packages = [
     {
+      groupId: 7,
       hideListings: true,
       memberListingIds: [1, 2],
       name: "Secret Box",
     },
     {
+      groupId: 8,
       hideListings: false,
       memberListingIds: [3],
       name: "Open Kit",
@@ -68,33 +70,82 @@ describe("per-listing stand-in names (several bundles per page)", () => {
   const childIds = (memberId: number): number[] => (memberId === 2 ? [9] : []);
 
   test("covers a hidden package's members AND their required children", () => {
-    const standIns = standInNamesByListingId(packages, childIds);
-    expect(standIns.get(1)).toBe("Secret Box");
-    expect(standIns.get(2)).toBe("Secret Box");
+    const standIns = packageStandIns(packages, childIds);
+    expect(standIns.byListingId.get(1)).toBe("Secret Box");
+    expect(standIns.byListingId.get(2)).toBe("Secret Box");
     // Member 2's required child books as part of the hidden bundle.
-    expect(standIns.get(9)).toBe("Secret Box");
+    expect(standIns.byListingId.get(9)).toBe("Secret Box");
+    expect(standIns.byGroupId.get(7)).toBe("Secret Box");
   });
 
   test("a visible package's members are never concealed", () => {
-    const standIns = standInNamesByListingId(packages, childIds);
-    expect(standIns.has(3)).toBe(false);
-    expect(standIns.size).toBe(3);
+    const standIns = packageStandIns(packages, childIds);
+    expect(standIns.byListingId.has(3)).toBe(false);
+    expect(standIns.byListingId.size).toBe(3);
+    expect(standIns.byGroupId.has(8)).toBe(false);
   });
 
-  test("concealNamesByListingId renames only the concealed lines", () => {
-    const standIns = standInNamesByListingId(packages, childIds);
+  test("concealLineNames renames the hidden package's own tagged lines", () => {
+    const standIns = packageStandIns(packages, childIds);
     const items = [
-      { listingId: 1, name: "Secret A", unitPrice: 500 },
-      { listingId: 3, name: "Open Thing", unitPrice: 700 },
+      { listingId: 1, name: "Secret A", packageGroupId: 7, unitPrice: 500 },
+      { listingId: 3, name: "Open Thing", packageGroupId: 8, unitPrice: 700 },
     ];
-    const result = concealNamesByListingId(items, standIns);
+    const result = concealLineNames(items, standIns);
     expect(result.map((i) => i.name)).toEqual(["Secret Box", "Open Thing"]);
     expect(result.map((i) => i.unitPrice)).toEqual([500, 700]);
   });
 
-  test("concealNamesByListingId is a no-op when nothing is concealed", () => {
+  test("a listing shared with a hidden package keeps its name on its OTHER paths", () => {
+    // Listing 1 is a hidden package's member, but this order books it through
+    // the VISIBLE package and its own standalone row — neither line belongs
+    // to the hidden bundle, so renaming them would mislabel what each line
+    // charges for (and the hidden bundle isn't even in this order).
+    const standIns = packageStandIns(
+      [packages[0]!, { ...packages[1]!, memberListingIds: [1] }],
+      () => [],
+    );
+    const items = [
+      { listingId: 1, name: "Secret A", packageGroupId: 8, unitPrice: 500 },
+      { listingId: 1, name: "Secret A", unitPrice: 500 },
+    ];
+    // The untagged line is concealed by listing id (fail-safe: a folded child
+    // of a hidden member rides an untagged line); the visible package's
+    // tagged line keeps its real name.
+    expect(concealLineNames(items, standIns).map((i) => i.name)).toEqual([
+      "Secret A",
+      "Secret Box",
+    ]);
+  });
+
+  test("two hidden packages sharing a listing each name their OWN line", () => {
+    const standIns = packageStandIns(
+      [
+        packages[0]!,
+        {
+          groupId: 8,
+          hideListings: true,
+          memberListingIds: [1],
+          name: "Mystery Kit",
+        },
+      ],
+      () => [],
+    );
+    const items = [
+      { listingId: 1, name: "Secret A", packageGroupId: 7 },
+      { listingId: 1, name: "Secret A", packageGroupId: 8 },
+    ];
+    expect(concealLineNames(items, standIns).map((i) => i.name)).toEqual([
+      "Secret Box",
+      "Mystery Kit",
+    ]);
+  });
+
+  test("concealLineNames is a no-op when nothing is concealed", () => {
     const items = [{ listingId: 3, name: "Open Thing" }];
-    expect(concealNamesByListingId(items, new Map())).toBe(items);
+    expect(
+      concealLineNames(items, { byGroupId: new Map(), byListingId: new Map() }),
+    ).toBe(items);
   });
 });
 
