@@ -1,6 +1,9 @@
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import type { TicketListing } from "#shared/booking/model.ts";
-import type { TreePackage } from "#shared/booking/page-packages.ts";
+import type {
+  PagePackage,
+  TreePackage,
+} from "#shared/booking/page-packages.ts";
 import type { BookingTree } from "#shared/booking/tree.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { resolved } from "./booking-model-fixtures.ts";
@@ -30,6 +33,20 @@ export const treePackage = (
   prices: new Map(),
   quantities: new Map(),
   ...overrides,
+});
+
+/** One page package (bundle + display fields) with everything defaulted. */
+export const pagePackage = (
+  groupId: number,
+  memberIds: number[],
+  over: Partial<PagePackage> = {},
+): PagePackage => ({
+  ...treePackage(groupId, memberIds),
+  description: "",
+  name: `Package ${groupId}`,
+  slug: `pkg${groupId}s`,
+  terms: "",
+  ...over,
 });
 
 /** A package tree over the given member ids, each with its per-package qty. */

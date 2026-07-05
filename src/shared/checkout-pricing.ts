@@ -86,10 +86,6 @@ export const lineTotalsByListingId = (
 export const lineListPrice = (line: PricedLine): number =>
   line.item.unitPrice * line.quantity;
 
-export const ticketLineTotalsByListingId = (
-  order: Pick<PricedOrder, "lines">,
-): Map<number, number> => lineTotalsByListingId(order.lines, lineCharge);
-
 /** The booking-fee extra line for a subtotal, or [] when the fee is zero. */
 const feeExtras = (fullSubtotal: number): ExtraLine[] => {
   const amount = getBookingFeeAmount(fullSubtotal);

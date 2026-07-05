@@ -6,27 +6,13 @@ import {
   explicitStandaloneIds,
   mergedPackageDayPrices,
   mergedPackagePrices,
-  type PagePackage,
   packageByMemberListingId,
   packageMemberIds,
   soleParentPackageIds,
   stampChildRowPackages,
 } from "#shared/booking/page-packages.ts";
 import { testGroup } from "#test-utils";
-import { treePackage } from "./package-cap-fixtures.ts";
-
-const pagePackage = (
-  groupId: number,
-  memberIds: number[],
-  over: Partial<PagePackage> = {},
-): PagePackage => ({
-  ...treePackage(groupId, memberIds),
-  description: "",
-  name: `Package ${groupId}`,
-  slug: `pkg${groupId}s`,
-  terms: "",
-  ...over,
-});
+import { pagePackage, treePackage } from "./package-cap-fixtures.ts";
 
 describe("buildPagePackage", () => {
   test("carries the group's display fields beside the loaded pricing", () => {

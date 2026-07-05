@@ -77,7 +77,8 @@ export const initOrderGallery = (): void => {
     dateNeeded: boolean,
   ): void => {
     for (const card of cards) {
-      const info = states[card.dataset.orderKey ?? ""];
+      // Cards are selected BY [data-order-key], so the key always exists.
+      const info = states[card.dataset.orderKey!];
       const box = card.querySelector<HTMLInputElement>("input.order-select");
       if (!info || !box) continue;
       const label = card.querySelector<HTMLElement>("[data-order-state-label]");

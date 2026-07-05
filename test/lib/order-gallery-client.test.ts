@@ -33,6 +33,8 @@ const GALLERY_HTML = `
       <span data-order-state-label></span>
     </label>
     <input name="loose" type="checkbox" value="1" />
+    <select name="pick"><option value="x" selected>x</option></select>
+    <input name="upload" type="file" />
   </form>`;
 
 const stash = createGlobalStash();
@@ -71,6 +73,12 @@ const harness = (html = GALLERY_HTML) => {
         dataset: Record<string, string | undefined>;
         querySelector: (sel: string) => { textContent: string } | null;
       },
+    changeField: (selector: string) => {
+      const field = document.querySelector(selector) as unknown as {
+        dispatchEvent: (event: unknown) => void;
+      };
+      field.dispatchEvent(new window.Event("change", { bubbles: true }));
+    },
     dateWrap: document.querySelector("[data-order-date]") as unknown as {
       classList: { contains: (cls: string) => boolean };
     },
@@ -123,6 +131,10 @@ describe("initOrderGallery", () => {
     const page = harness();
     page.tick("select_5", true);
     page.tick("loose", true);
+    // Non-checkbox changes (the date field, a select) refresh availability
+    // but never touch the recorded order either.
+    page.changeField('input[name="start_date"]');
+    page.changeField('select[name="pick"]');
     expect(page.orderField.value).toBe("listing:5");
     await settle();
   });
@@ -139,6 +151,8 @@ describe("initOrderGallery", () => {
     expect(page.requests[0]).toContain("select_package_7=1");
     expect(page.requests[0]).toContain("select_5=1");
     expect(page.requests[0]).toContain("order=package%3A7%2Clisting%3A5");
+    // File entries never join the query — only string form fields do.
+    expect(page.requests[0]).not.toContain("upload");
   });
 
   test("applies returned states: labels, greying, and the date nudge", async () => {
@@ -218,6 +232,15 @@ describe("initOrderGallery", () => {
     await settle();
     expect(page.cardFor("package:7").dataset.orderState).toBe("available");
     expect(page.cardFor("listing:5").dataset.orderState).toBeUndefined();
+  });
+
+  test("treats a payload without states as no news at all", async () => {
+    const page = harness();
+    page.responses.push({ body: { dateNeeded: false }, ok: true });
+    page.tick("select_5", true);
+    await settle();
+    expect(page.cardFor("listing:5").dataset.orderState).toBeUndefined();
+    expect(page.dateWrap.classList.contains("order-date--needed")).toBe(false);
   });
 
   test("survives a fetch rejection (offline) without applying anything", async () => {

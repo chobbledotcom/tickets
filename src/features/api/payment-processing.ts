@@ -1376,7 +1376,7 @@ const createAttendeeForSession = async (
   const paidByIntentItem = paidByItem(pricedOrder);
   const rawBookings = validatedItems.map(({ item, listing }, index) => ({
     listingId: item.e,
-    packageGroupId: item.k === "p" && item.r !== undefined ? item.r : 0,
+    packageGroupId: lineGroupId(item) ?? 0,
     pricePaid: paidByIntentItem.get(pricingIntent.items[index]!) ?? 0,
     quantity: item.q,
     ...bookingDateFields(listing, intent.date, intent.dayCount),
@@ -1546,13 +1546,16 @@ const logPromoCodeModifiers = async (
 
 /** The quantity-0, money-free booking lines for a stored-but-refunded placeholder
  *  — one per validated item, carrying the listing's current date range so the
- *  ghost still sits on the right day. */
+ *  ghost still sits on the right day, and each line's package path so a listing
+ *  booked through two paths keeps two distinct slots (identical slots would be
+ *  refused as duplicates and crash the store-and-refund). */
 const placeholderBookings = (
   validatedItems: ValidatedItem[],
   intent: BookingIntent,
 ) =>
   validatedItems.map(({ item, listing }) => ({
     listingId: item.e,
+    packageGroupId: lineGroupId(item) ?? 0,
     pricePaid: 0,
     quantity: 0,
     ...bookingDateFields(listing, intent.date, intent.dayCount),

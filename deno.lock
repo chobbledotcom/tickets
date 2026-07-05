@@ -34,7 +34,7 @@
     "npm:@biomejs/biome@2": "2.4.8",
     "npm:@biomejs/biome@2.4.8": "2.4.8",
     "npm:@botpoison/browser@~0.1.30": "0.1.30",
-    "npm:@bunny.net/edgescript-sdk@~0.12.1": "0.12.1",
+    "npm:@bunny.net/edgescript-sdk@~0.12.1": "0.12.1_hono@4.12.10",
     "npm:@bunny.net/storage-sdk@~0.3.1": "0.3.1",
     "npm:@iframe-resizer/child@^5.5.9": "5.5.9",
     "npm:@iframe-resizer/core@^5.5.9": "5.5.9",
@@ -54,6 +54,7 @@
     "npm:fast-check@^3.23.0": "3.23.2",
     "npm:fflate@~0.8.2": "0.8.2",
     "npm:happy-dom@15": "15.11.7",
+    "npm:happy-dom@20.0.11": "20.0.11",
     "npm:happy-dom@^15.11.7": "15.11.7",
     "npm:intl-messageformat@10": "10.7.18",
     "npm:jscpd@*": "4.0.8",
@@ -78,7 +79,7 @@
     "npm:prosemirror-view@^1.42.0": "1.42.0",
     "npm:resend@*": "6.12.4",
     "npm:sass@^1.101.0": "1.101.0",
-    "npm:stripe@^22.0.1": "22.1.0",
+    "npm:stripe@^22.0.1": "22.1.0_@types+node@24.2.0",
     "npm:temporal-polyfill@0.3": "0.3.2",
     "npm:uqr@~0.1.3": "0.1.3",
     "npm:valibot@*": "1.4.1",
@@ -312,7 +313,7 @@
         "js-sha512"
       ]
     },
-    "@bunny.net/edgescript-sdk@0.12.1": {
+    "@bunny.net/edgescript-sdk@0.12.1_hono@4.12.10": {
       "integrity": "sha512-+B+AUnfA+9y6PlyX6BNL2Uk8x3vExRIKKP+rH0r4UnEWRiJZsbuEnZg5Au6pglf67NumP8tOwbrqP9jS4e+jDQ==",
       "dependencies": [
         "@hono/node-server",
@@ -977,6 +978,12 @@
     "@types/mdurl@2.0.0": {
       "integrity": "sha512-RGdgjQUZba5p6QEFAVx2OGb8rQDL/cPRG7GiedRzMcJ1tYnUANBncjbSB1NRGwbvjcPeikRABz2nshyPk1bhWg=="
     },
+    "@types/node@20.19.43": {
+      "integrity": "sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA==",
+      "dependencies": [
+        "undici-types@6.21.0"
+      ]
+    },
     "@types/node@24.2.0": {
       "integrity": "sha512-3xyG3pMCq3oYCNg7/ZP+E1ooTaGB4cG8JWRsqqOYQdbWNY4zbaV0Ennrd7stjiJEFZCaybcIgpTjJWHRfBSIDw==",
       "dependencies": [
@@ -991,6 +998,9 @@
     },
     "@types/sarif@2.1.7": {
       "integrity": "sha512-kRz0VEkJqWLf1LLVN4pT1cg1Z9wAuvI6L97V3m2f5B76Tg8d413ddvLBPTEHAZJlnn4XSvu0FkZtViCQGVyrXQ=="
+    },
+    "@types/whatwg-mimetype@3.0.2": {
+      "integrity": "sha512-c2AKvDT8ToxLIOUlN51gTiHXflsfIFisS4pO7pDPoKouJCESkhZnEy623gwP9laCy5lnLDAw1vAzu2vM2YLOrA=="
     },
     "@types/ws@8.18.1": {
       "integrity": "sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==",
@@ -1390,6 +1400,14 @@
       "dependencies": [
         "entities",
         "webidl-conversions@7.0.0",
+        "whatwg-mimetype"
+      ]
+    },
+    "happy-dom@20.0.11": {
+      "integrity": "sha512-QsCdAUHAmiDeKeaNojb1OHOPF7NjcWPBR7obdu3NwH2a/oyQaLg5d0aaCy/9My6CdPChYF07dvz5chaXBGaD4g==",
+      "dependencies": [
+        "@types/node@20.19.43",
+        "@types/whatwg-mimetype",
         "whatwg-mimetype"
       ]
     },
@@ -2032,8 +2050,14 @@
     "strip-final-newline@2.0.0": {
       "integrity": "sha512-BrpvfNAE3dcvq7ll3xVumzjKjZQ5tI1sEUIKr3Uoks0XUl45St3FlatVqef9prk4jRDzhW6WZg+3bk93y6pLjA=="
     },
-    "stripe@22.1.0": {
-      "integrity": "sha512-w/xHyJGxXWnLPbNHG13sz/fae0MrFGC80Oz7YbICQymbfpqfEcsoG+6yG+9BWb81PWc4rrkeSO4wmTcmefmbLw=="
+    "stripe@22.1.0_@types+node@24.2.0": {
+      "integrity": "sha512-w/xHyJGxXWnLPbNHG13sz/fae0MrFGC80Oz7YbICQymbfpqfEcsoG+6yG+9BWb81PWc4rrkeSO4wmTcmefmbLw==",
+      "dependencies": [
+        "@types/node@24.2.0"
+      ],
+      "optionalPeers": [
+        "@types/node@24.2.0"
+      ]
     },
     "supports-preserve-symlinks-flag@1.0.0": {
       "integrity": "sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w=="
@@ -2064,6 +2088,9 @@
     },
     "uc.micro@2.1.0": {
       "integrity": "sha512-ARDJmphmdvUk6Glw7y9DQ2bFkKBHwQHLi2lsaH6PPmz/Ka9sFOBsBluozhDltWmnv9u/cF6Rt87znRTPV+yp/A=="
+    },
+    "undici-types@6.21.0": {
+      "integrity": "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="
     },
     "undici-types@7.10.0": {
       "integrity": "sha512-t5Fy/nfn+14LuOc2KNYg75vZqClpAiqscVvMygNnlsHBFpSXdJaYtXMcdNLpl/Qvc3P2cB3s6lOV51nqsFq4ag=="

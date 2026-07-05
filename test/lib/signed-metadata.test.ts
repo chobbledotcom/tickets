@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import { buildTicketListing } from "#shared/booking/model.ts";
 import {
+  applyLegacyPackageTag,
   edgeDrifted,
   lineNodeKey,
   signedEdgeFor,
@@ -163,5 +164,27 @@ describe("edgeDrifted", () => {
     // Child 9 has no required child of its own, so its standalone surplus unit is
     // a valid standalone line.
     expect(foldedPlusSurplusDrift(new Map([[5, [resolved(9)]]]))).toBe(false);
+  });
+});
+
+describe("applyLegacyPackageTag", () => {
+  const legacyMember: BookingItem = { e: 5, p: 100, q: 1 };
+
+  test("tags every non-folded line of a legacy one-package session", () => {
+    // Pre-cutover sessions carried one order-wide package id: the member line
+    // gains the per-line tag, the folded child stays untagged.
+    expect(
+      applyLegacyPackageTag([legacyMember, childLine], [childAlloc], 3),
+    ).toEqual([{ e: 5, k: "p", p: 100, q: 1, r: 3 }, childLine]);
+  });
+
+  test("leaves a session without a legacy id unchanged", () => {
+    const items = [legacyMember];
+    expect(applyLegacyPackageTag(items, [], undefined)).toBe(items);
+  });
+
+  test("leaves a per-line-tagged session unchanged whatever the metadata says", () => {
+    const items = [memberLine, childLine];
+    expect(applyLegacyPackageTag(items, [childAlloc], 7)).toBe(items);
   });
 });
