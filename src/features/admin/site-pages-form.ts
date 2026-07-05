@@ -8,7 +8,7 @@ import { defineForm } from "#shared/forms.tsx";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { normalizeSlug, validateSlug } from "#shared/slug.ts";
 import type { SitePage } from "#shared/types.ts";
-import { FORMATTING_HINT } from "#templates/fields.ts";
+import { formattingHint } from "#templates/fields.ts";
 
 const MAX_NAME = 128;
 const MAX_META_TITLE = 64;
@@ -47,7 +47,7 @@ export const sitePageForm = defineForm({
       type: "text" as const,
     },
     {
-      hintHtml: FORMATTING_HINT,
+      hintHtml: formattingHint(),
       label: t("site.pages.field.content"),
       markdown: true,
       maxlength: MAX_TEXTAREA_LENGTH,

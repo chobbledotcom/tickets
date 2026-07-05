@@ -152,6 +152,11 @@ src/shared/booking/capacity-tree.ts:47:61  ?? → ||    # demandByGroup.get(): u
 # v2 signed metadata (Phase 2d).
 src/shared/payment-helpers.ts:159:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
 
+# Settings registry: readOnly is optional but can only be true when present, so
+# `"readOnly" in accessor && accessor.readOnly` and `... || accessor.readOnly`
+# make the same if-condition decision for every valid accessor.
+src/shared/settings/registry.ts:345:40  && → ||   # readOnly?: true; absent is falsy either way, present is true either way
+
 # --- External order widget (src/ui/client/order.ts) ----------------------------
 # This is browser DOM-construction code; many operator swaps are provably
 # equivalent. Each `= → +=` below targets a property whose value before the

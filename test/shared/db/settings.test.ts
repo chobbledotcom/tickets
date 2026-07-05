@@ -362,6 +362,33 @@ describeWithEnv("db > settings", { db: true }, () => {
     });
   });
 
+  describe("generated string accessors", () => {
+    test("read and write registry-backed plaintext and encrypted settings", async () => {
+      await settings.update.customCss("body { color: red; }");
+      await settings.update.businessEmail("owner@example.com");
+      settings.invalidateCache();
+
+      await settings.loadKeys([
+        CONFIG_KEYS.CUSTOM_CSS,
+        CONFIG_KEYS.BUSINESS_EMAIL,
+      ]);
+
+      expect(settings.customCss).toBe("body { color: red; }");
+      expect(settings.businessEmail).toBe("owner@example.com");
+      expect(settings.getCachedRaw(CONFIG_KEYS.CUSTOM_CSS)).toBe(
+        "body { color: red; }",
+      );
+      expect(settings.getCachedRaw(CONFIG_KEYS.BUSINESS_EMAIL)).toMatch(
+        /^enc:1:/,
+      );
+    });
+
+    test("keeps read-only registry settings out of the update API", () => {
+      expect("publicKey" in settings.update).toBe(false);
+      expect("wrappedPrivateKey" in settings.update).toBe(false);
+    });
+  });
+
   describe("additional settings", () => {
     test("clearPaymentProvider removes payment provider setting", async () => {
       await settings.update.paymentProvider("stripe");

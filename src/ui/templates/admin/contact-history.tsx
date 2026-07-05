@@ -15,7 +15,7 @@ import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AttendeesPageLayout } from "#templates/admin/attendee-form.tsx";
-import { FORMATTING_HINT } from "#templates/fields.ts";
+import { formattingHint } from "#templates/fields.ts";
 /* jscpd:ignore-end */
 
 export type ContactHistoryPageData = {
@@ -103,7 +103,7 @@ export const contactHistoryPage = ({
         <Raw
           html={renderField(
             {
-              hintHtml: FORMATTING_HINT,
+              hintHtml: formattingHint(),
               label: t("contact_history.notes_label"),
               markdown: true,
               maxlength: MAX_TEXTAREA_LENGTH,

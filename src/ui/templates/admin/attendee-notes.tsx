@@ -25,7 +25,7 @@ import type { AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
-import { FORMATTING_HINT } from "#templates/fields.ts";
+import { formattingHint } from "#templates/fields.ts";
 
 /* jscpd:ignore-end */
 
@@ -184,7 +184,7 @@ export const adminAddNotePage = ({
         <Raw
           html={renderField({
             hint: t("notes.note_hint"),
-            hintHtml: FORMATTING_HINT,
+            hintHtml: formattingHint(),
             label: t("notes.note_label"),
             markdown: true,
             maxlength: MAX_TEXTAREA_LENGTH,

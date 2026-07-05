@@ -2,10 +2,9 @@
  * Factories for the single-field settings sections.
  *
  * Several settings sections are the same {@link SettingsSection} shell wrapped
- * around exactly one field: a labelled text input (business email, embed hosts)
- * or a single textarea (terms, custom CSS). These factories own that shape so
- * each section only declares its copy and field — rather than re-hand-rolling
- * the wrapper per section.
+ * around exactly one labelled text input. This factory owns that shape so each
+ * section only declares its copy and field rather than re-hand-rolling the
+ * wrapper per section.
  *
  * Each factory takes a `(state) => config` builder rather than a plain config
  * object. The builder runs inside the returned renderer, so `t(...)` calls in
@@ -14,7 +13,6 @@
  */
 
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
 
@@ -73,27 +71,3 @@ export const textSettingsSection = <S,>(
     />,
     c.footer,
   ])(config);
-
-/** A settings section holding a single textarea. */
-export const textareaSettingsSection = <S,>(
-  config: (state: S) => FieldCopy & {
-    /** Extra content rendered inside the `<label>`, after the label text. */
-    labelHint?: Child;
-    /** Enable the client-side markdown preview on the textarea. */
-    markdownPreview?: boolean;
-  },
-) =>
-  singleFieldSection<S, ReturnType<typeof config>>((c) => (
-    <label>
-      {c.label}
-      {c.labelHint}
-      <textarea
-        {...(c.markdownPreview ? { "data-markdown-preview": true } : {})}
-        maxlength={MAX_TEXTAREA_LENGTH}
-        name={c.name}
-        placeholder={c.placeholder}
-      >
-        {c.value}
-      </textarea>
-    </label>
-  ))(config);

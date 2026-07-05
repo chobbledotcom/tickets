@@ -78,7 +78,7 @@ import {
 import {
   type AnswerAggregateFormValues,
   answerAggregateFields,
-  FORMATTING_HINT,
+  formattingHint,
 } from "#templates/fields.ts";
 
 /* jscpd:ignore-end */
@@ -86,7 +86,7 @@ import {
 export const questionTextForm = defineForm({
   fields: [
     {
-      hintHtml: `Shown to attendees above the answer field. ${FORMATTING_HINT}`,
+      hintHtml: `Shown to attendees above the answer field. ${formattingHint()}`,
       label: "Question text",
       markdown: true,
       maxlength: MAX_TEXTAREA_LENGTH,

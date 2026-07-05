@@ -44,7 +44,10 @@ import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import { EmailFormatSchema } from "#shared/validation/email.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
+import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
+
+export { formattingHint };
 
 // ---------------------------------------------------------------------------
 // Typed form value interfaces
@@ -301,13 +304,6 @@ export const validateBookableDays = (value: string): string | null => {
   return null;
 };
 
-/** Shared formatting hint linking to the admin guide */
-// Links to the standalone formatting-help page (not the staff-only full guide),
-// so the hint works for every content role that edits markdown — including
-// editors, who 403 on /admin/guide.
-export const FORMATTING_HINT =
-  '<a href="/admin/formatting" target="_blank" rel="noopener">Formatting help</a>';
-
 /** Validate description length */
 const DescriptionSchema = v.pipe(v.string(), v.maxLength(MAX_TEXTAREA_LENGTH));
 const validateDescription = (value: string): string | null =>
@@ -385,7 +381,7 @@ export const getListingFields = (): Field[] => [
   },
   buildDescriptionField(
     t("fields.listing.description_hint_field"),
-    FORMATTING_HINT,
+    formattingHint(),
   ),
   {
     hint: t("fields.listing.date_hint"),
@@ -772,7 +768,7 @@ const getGroupMaxAttendeesField = (): Field => ({
 
 /** Group description field */
 const getGroupDescriptionField = (): Field =>
-  buildDescriptionField(t("fields.group.description_hint"), FORMATTING_HINT);
+  buildDescriptionField(t("fields.group.description_hint"), formattingHint());
 
 /** "Is a package" checkbox for group forms. Toggling it reveals the per-listing
  * price override table on the edit page via the CSS sibling trick. */
@@ -811,7 +807,7 @@ export const getGroupCreateFields = (): Field[] => {
     getGroupMaxAttendeesField(),
     {
       hint: t("fields.group.terms_hint"),
-      hintHtml: FORMATTING_HINT,
+      hintHtml: formattingHint(),
       label: t("fields.group.terms"),
       markdown: true,
       maxlength: MAX_TEXTAREA_LENGTH,
