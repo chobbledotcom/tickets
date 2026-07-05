@@ -108,6 +108,38 @@ describe("address lookup client", () => {
     expect(panel!.hidden).toBe(true);
   });
 
+  test("leaves a panel missing its own controls hidden", () => {
+    const gutted = { ...panelSpec("locked"), children: [] };
+    const [form] = installFakeDom([
+      { children: [gutted, { name: "address", tag: "textarea" }], tag: "form" },
+    ]);
+    initAddressLookup();
+    expect(form!.querySelector("[data-address-lookup]")!.hidden).toBe(true);
+  });
+
+  test("locked mode without an Edit button never locks the textarea", () => {
+    // The server always renders the Edit button in locked mode; if it is
+    // missing, locking would trap the user, so the textarea stays editable.
+    const noEdit = panelSpec("locked");
+    noEdit.children = noEdit.children!.filter(
+      (c) => !("addressEdit" in (c.data ?? {})),
+    );
+    const [form] = installFakeDom([
+      { children: [noEdit, { name: "address", tag: "textarea" }], tag: "form" },
+    ]);
+    initAddressLookup();
+    expect(form!.querySelector("textarea")!.readOnly).toBe(false);
+  });
+
+  test("a locked textarea outside any form still locks and unlocks", () => {
+    const [, textarea] = installFakeDom([
+      panelSpec("locked"),
+      { name: "address", tag: "textarea" },
+    ]);
+    initAddressLookup();
+    expect(textarea!.readOnly).toBe(true);
+  });
+
   test("locked mode reveals the panel, locks the textarea, shows Edit", () => {
     const { editButton, panel, textarea } = setup("locked");
     expect(panel.hidden).toBe(false);
@@ -214,6 +246,17 @@ describe("address lookup client", () => {
 
     expect(status.textContent).toBe("Not a valid postcode");
     expect(status.hidden).toBe(false);
+  });
+
+  test("a 200 with no address list falls back to the panel's error copy", async () => {
+    stubFetch(() => Promise.resolve(jsonResponse({})));
+    const { findButton, searchInput, status } = setup("editable");
+    searchInput.value = "SW1A 2AA";
+
+    findButton.dispatch("click");
+    await flush();
+
+    expect(status.textContent).toBe("Lookup failed");
   });
 
   test("a network failure falls back to the panel's error copy", async () => {
