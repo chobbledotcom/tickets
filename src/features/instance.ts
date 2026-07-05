@@ -2,10 +2,9 @@
  * Inter-instance machine endpoint (builder / main instance only).
  *
  * `POST /instance/site-credentials` with `Authorization: Bearer <MAIN_INSTANCE_KEY>`
- * returns the read-only database credentials for every built site, so the
- * upgrade GitHub Action can back each site up (to the builder's own storage)
- * before deploying to it — without storing per-site script ids or DB tokens in
- * GitHub.
+ * returns the database credentials for every built site, so the upgrade GitHub
+ * Action can back each site up (to the builder's own storage) before deploying
+ * to it — without storing per-site script ids or DB tokens in GitHub.
  *
  * The caller passes the release tier it is publishing as `?tier=alpha|beta|release`
  * (default `release`), and only the sites whose own channel accepts that tier are
@@ -19,8 +18,12 @@
  *   rather than advertising the route); boot checks fail fast if a configured
  *   key is blank or too short.
  * - The bearer key is compared in constant time.
- * - Only the per-site READ-ONLY db token is returned — no write access, and the
- *   per-site DB_ENCRYPTION_KEY is never stored here, so field-level PII stays
+ * - The returned per-site db token is the site's own FULL-ACCESS credential:
+ *   both database provisioners mint full-access tokens (see bunny-db.ts and
+ *   turso-api.ts), and the builder stores the same token it configures as the
+ *   site's DB_TOKEN. The callers only read (backups before an upgrade), but
+ *   treat the response as write-capable production secrets. The per-site
+ *   DB_ENCRYPTION_KEY is never stored here, so field-level PII stays
  *   unreadable to whoever holds the response.
  * - POST so the key and the response never land in access-log query strings;
  *   served over HTTPS at the edge. The tier is a non-secret filter, so it rides

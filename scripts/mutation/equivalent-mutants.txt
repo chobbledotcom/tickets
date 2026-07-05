@@ -258,6 +258,8 @@ src/features/admin/attendee-refunds.ts:172:24  ?? → ||    # flash.error: strin
 
 # attendee columns Listings/answers rework
 src/shared/columns/attendee-columns.ts:133:67  ?? → ||    # getAnswerDisplay attendeeAnswerMap.get(): number[]|undefined — an array is always truthy, so ?? and || coincide
+src/shared/columns/attendee-columns.ts:63:39  || → ??    # date column row.attendee.date: string|null; null gives "" under both operators, and "" is the only falsy-non-null string, which also gives "" under both
+src/shared/columns/attendee-columns.ts:75:36  || → ??    # email column row.attendee.email: string (never null/undefined); "" is the only falsy value and is also the fallback, so || and ?? agree for every possible value
 src/ui/templates/attendee-table.tsx:146:39  ?? → ||    # compareAttendeeRows listingA = a.listings[0]?.name ?? "": string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/ui/templates/attendee-table.tsx:147:39  ?? → ||    # compareAttendeeRows listingB = b.listings[0]?.name ?? "": string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 

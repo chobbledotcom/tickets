@@ -1,5 +1,7 @@
+import type { ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { unzipSync, zipSync } from "fflate";
 import {
   BACKUP_REQUIRED_WITHIN_MS,
@@ -26,8 +28,10 @@ import {
 } from "#shared/db/backup.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
 import { listingsTable } from "#shared/db/listings.ts";
+import { SCHEMA, TRIGGERS } from "#shared/db/migrations/schema.ts";
 import {
   initDb,
+  LATEST_UPDATE,
   SCHEMA_HASH,
   SCHEMA_TABLE_NAMES,
 } from "#shared/db/migrations.ts";
@@ -594,6 +598,98 @@ describeWithEnv("backup", { db: true }, () => {
         "SELECT value FROM settings WHERE key = 'k'",
       );
       expect(rows[0]!.value).toBe("v");
+    });
+
+    const sqlOf = (stmt: string | { sql: string }): string =>
+      typeof stmt === "string" ? stmt : stmt.sql;
+
+    test("succeeds even when a stale read says the wiped database is up to date", async () => {
+      // After the restore wipes every table, a lagging read replica can still
+      // serve the old settings rows. The restore must never consult that state:
+      // when it did (via initDb's state check), the stale "up to date" answer
+      // routed it into schema verification against the wiped primary, and the
+      // whole restore died with "missing table settings" — leaving the
+      // operator's database empty.
+      await createTestListing({ name: "Stale Read Survivor" });
+      const zip = await createBackupZip();
+
+      const client = getDb();
+      const originalExecute = client.execute.bind(client);
+      // The exact read initDb's state check issues; nothing else matches it.
+      const isMarkerRead = (sql: string): boolean =>
+        sql.includes("IN ('latest_db_update', 'db_schema_hash')");
+      const staleMarkers = {
+        rows: [
+          { key: "latest_db_update", value: LATEST_UPDATE },
+          { key: "db_schema_hash", value: SCHEMA_HASH },
+        ],
+      } as unknown as ResultSet;
+      const executeStub = stub(client, "execute", ((
+        stmt: string | { sql: string },
+      ) =>
+        isMarkerRead(sqlOf(stmt))
+          ? Promise.resolve(staleMarkers)
+          : originalExecute(stmt as never)) as never);
+
+      try {
+        await restoreFromZip(zip);
+      } finally {
+        executeStub.restore();
+      }
+
+      const listings = await listingsTable.findAll();
+      expect(listings.length).toBe(1);
+      expect(listings[0]!.name).toBe("Stale Read Survivor");
+    });
+
+    test("succeeds even when a schema snapshot still shows the pre-wipe tables", async () => {
+      // resetDatabase()'s drops can also outrun the live-schema snapshot the
+      // rebuild takes — even on the primary (read-your-writes propagation lag,
+      // the effect VERIFY_RETRY_BACKOFF_MS documents). A stale snapshot that
+      // claims every table still exists made the rebuild skip its CREATEs, so
+      // the restore died on the truly-wiped primary with "no such table". The
+      // rebuild must not consult the database at all.
+      await createTestListing({ name: "Snapshot Lag Survivor" });
+      const zip = await createBackupZip();
+
+      const client = getDb();
+      const originalBatch = client.batch.bind(client);
+      // The full pre-wipe schema, exactly as a lagging snapshot would report
+      // it: every table with all its columns, every index, every trigger.
+      const preWipeSnapshot = [
+        {
+          rows: SCHEMA.flatMap(([tbl, table]) =>
+            table.columns.map(([col]) => ({ col, tbl })),
+          ),
+        },
+        {
+          rows: SCHEMA.flatMap(([, table]) =>
+            (table.indexes ?? []).map((index) => ({ name: index.name })),
+          ),
+        },
+        { rows: TRIGGERS.map((trigger) => ({ name: trigger.name })) },
+      ] as unknown as ResultSet[];
+      const isSnapshotRead = (
+        stmts: Array<string | { sql: string }>,
+      ): boolean =>
+        stmts.some((stmt) => sqlOf(stmt).includes("pragma_table_info"));
+      const batchStub = stub(client, "batch", ((
+        stmts: Array<string | { sql: string }>,
+        mode: unknown,
+      ) =>
+        isSnapshotRead(stmts)
+          ? Promise.resolve(preWipeSnapshot)
+          : originalBatch(stmts as never, mode as never)) as never);
+
+      try {
+        await restoreFromZip(zip);
+      } finally {
+        batchStub.restore();
+      }
+
+      const listings = await listingsTable.findAll();
+      expect(listings.length).toBe(1);
+      expect(listings[0]!.name).toBe("Snapshot Lag Survivor");
     });
   });
 

@@ -488,7 +488,9 @@ export const col = {
    * lives elsewhere but rides the entity's shape — e.g. `day_prices`, projected
    * from the `day_count` rows of `listing_prices`. `read` must tolerate a missing
    * projection (undefined) so a stray un-projected SELECT degrades gracefully. */
-  projected: <App>(read: (raw: InValue) => App): ColumnDef<App> => ({
+  projected: <App>(
+    read: (raw: InValue | undefined) => Promise<App> | App,
+  ): ColumnDef<App> => ({
     generated: true,
     read: read as (v: App) => App,
   }),

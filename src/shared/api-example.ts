@@ -32,6 +32,7 @@ export const API_EXAMPLE_LISTING: ListingWithCount = {
   fields: "email",
   hidden: false,
   id: 1,
+  image_alt_text: "",
   image_thumb_url: "",
   image_url: "",
   income: 7500,

@@ -136,6 +136,27 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       expect(blob.listing.thankYouUrl).toBe("https://thanks.example.com");
     });
 
+    test("rejects stale listing image fields", async () => {
+      const staleFields = [
+        ["imageThumbUrl", "legacy-thumb.webp"],
+        ["imageUrl", "legacy.webp"],
+      ] as const;
+      for (const [field, value] of staleFields) {
+        const result = await importCatalog({
+          kind: "listing",
+          listing: {
+            [field]: value,
+            maxAttendees: 5,
+            name: `Legacy ${field} Import`,
+          },
+          version: 1,
+        });
+        expect(result.ok).toBe(false);
+        if (result.ok) throw new Error("unreachable");
+        expect(result.error).toContain(`listing.${field}`);
+      }
+    });
+
     test("preserves closesAt and re-syncs the derived price rows", async () => {
       const result = await importCatalog({
         kind: "listing",

@@ -14,7 +14,7 @@
 import type { Client } from "@libsql/client";
 import { lazyRef } from "#fp";
 import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import { getDb } from "#shared/db/client.ts";
+import { executeBatch, getDb } from "#shared/db/client.ts";
 import { invalidateGroupsCache } from "#shared/db/groups.ts";
 import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
@@ -93,6 +93,7 @@ import dropListingsDayPricesMigration from "./migrations/2026-07-02_drop_listing
 import groupFlatPricesMigration from "./migrations/2026-07-02_group_flat_prices.ts";
 import attendeeListingsTagMigration from "./migrations/2026-07-03_attendee_listings_tag.ts";
 import listingImageThumbMigration from "./migrations/2026-07-03_listing_image_thumb.ts";
+import firstClassImagesMigration from "./migrations/2026-07-05_first_class_images.ts";
 import packageSlotIdentityMigration from "./migrations/2026-07-05_package_slot_identity.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
@@ -100,6 +101,7 @@ import {
   SCHEMA,
   SCHEMA_HASH,
   SCHEMA_MIGRATIONS_TABLE,
+  TRIGGERS,
 } from "./migrations/schema.ts";
 import {
   applySchemaChanges,
@@ -107,6 +109,7 @@ import {
   backfillListingAggregates,
   backfillModifierAggregates,
   createTableSql,
+  fullSchemaCreateStatements,
   recreateTable,
   runMigration,
   syncCurrentSchema as syncCurrentSchemaBase,
@@ -298,16 +301,28 @@ export const MIGRATIONS: Migration[] = [
   // Data-only: rewrite {{listing}} → {{listings}} in the stored attendee
   // column-order template, matching the renamed grouped Listings column.
   attendeeListingsTagMigration,
-  // Pure additive column add: image_thumb_url on listings for the WebP thumbnail.
+  // Historical no-op: image thumbnails now live on first-class image records.
   listingImageThumbMigration,
   // Widen the unique booking-slot index with package_group_id so overlapping
   // package paths keep one row each.
   packageSlotIdentityMigration,
+  // Create reusable image records plus ordered item uses.
+  firstClassImagesMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(
   (migration) => migration.id,
 );
+
+/** Seed and stamp a freshly created schema: the default attendee status, the
+ *  schema markers, and every migration recorded as applied — so the next boot
+ *  treats the database as fully migrated. Shared by the fresh-install path and
+ *  the restore rebuild. */
+const sealFreshSchema = async (): Promise<void> => {
+  await ensureDefaultAttendeeStatus();
+  await writeSchemaMarkers();
+  await markMigrationsApplied(MIGRATIONS);
+};
 
 /**
  * Initialize a brand-new database directly from the current declarative schema.
@@ -321,10 +336,39 @@ const initializeFreshSchema = async (): Promise<void> => {
   logDebug("Migration", "Initializing fresh database from current schema");
   await applySchemaChanges();
   await syncIndexes();
-  await ensureDefaultAttendeeStatus();
   await syncTriggers();
-  await writeSchemaMarkers();
-  await markMigrationsApplied(MIGRATIONS);
+  await sealFreshSchema();
+};
+
+/**
+ * Rebuild the full schema on a database that resetDatabase() just wiped,
+ * without reading the database to decide what to create.
+ *
+ * The restore path cannot trust any schema or state read taken here: right
+ * after the drops, a replica AND even a freshly-routed primary connection can
+ * briefly serve the pre-wipe schema (read-your-writes propagation lag — the
+ * same effect VERIFY_RETRY_BACKOFF_MS documents). A lagged answer either
+ * routed boot into schema verification against the wiped primary ("missing
+ * table settings", via initDb's state check) or made the rebuild skip its
+ * CREATEs and die at the next write ("no such table: settings"), leaving the
+ * operator's database empty. So every statement here is unconditional and
+ * idempotent (IF NOT EXISTS), and nothing is consulted first. A just-wiped
+ * database has no legacy tables by definition, so the additive column
+ * reconciliation initializeFreshSchema performs (via applySchemaChanges) is
+ * not needed here.
+ */
+export const rebuildWipedSchema = async (): Promise<void> => {
+  logDebug("Migration", "Rebuilding wiped database from current schema");
+  await executeBatch(
+    fullSchemaCreateStatements().map((sql) => ({ args: [], sql })),
+  );
+  // A compound CREATE TRIGGER … BEGIN … END body carries internal semicolons
+  // that batch transports mis-split, so triggers run one by one, exactly as
+  // syncTriggers sends them.
+  for (const trigger of TRIGGERS) {
+    await runMigration(trigger.sql);
+  }
+  await sealFreshSchema();
 };
 
 const ensureMigrationTrackingTable = async (): Promise<void> => {

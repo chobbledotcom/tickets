@@ -98,6 +98,19 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
       expect(html).toContain(".zip");
     });
 
+    test("lists a created backup's raw timestamp exactly as named in its file", async () => {
+      await adminFormPost("/admin/backup/create");
+      const response = await adminGet("/admin/backup");
+      const html = await response.text();
+      // The timestamp column must show the same token the stored filename
+      // carries — the backup's unambiguous identifier.
+      const token = html.match(
+        /backup-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)\.zip/,
+      )?.[1];
+      expect(token).toBeDefined();
+      expect(html).toContain(`<code>${token}</code>`);
+    });
+
     test("shows the retention summary once a backup exists", async () => {
       await adminFormPost("/admin/backup/create");
       const response = await adminGet("/admin/backup");

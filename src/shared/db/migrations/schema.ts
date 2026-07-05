@@ -34,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Widen the unique booking-slot index with package_group_id so overlapping package paths keep one row per path.";
+  "Create first-class images and image_uses tables; widen the unique booking-slot index with package_group_id so overlapping package paths keep one row per path.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -89,8 +89,6 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["maximum_days_after", "INTEGER NOT NULL DEFAULT 90"],
         ["date", "TEXT NOT NULL DEFAULT ''"],
         ["location", "TEXT NOT NULL DEFAULT ''"],
-        ["image_url", "TEXT NOT NULL DEFAULT ''"],
-        ["image_thumb_url", "TEXT NOT NULL DEFAULT ''"],
         ["attachment_url", "TEXT NOT NULL DEFAULT ''"],
         ["attachment_name", "TEXT NOT NULL DEFAULT ''"],
         ["non_transferable", "INTEGER NOT NULL DEFAULT 0"],
@@ -217,6 +215,49 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["expires", "INTEGER NOT NULL"],
         ["wrapped_data_key", "TEXT"],
         ["user_id", "INTEGER"],
+      ],
+    },
+  ],
+
+  [
+    // First-class uploaded images. All string columns are encrypted with the
+    // same DB_ENCRYPTION_KEY-backed helpers as listings/groups; filenames are
+    // storage object keys, not public URLs.
+    "images",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["name", "TEXT NOT NULL DEFAULT ''"],
+        ["filename", "TEXT NOT NULL CHECK (filename <> '')"],
+        ["filename_thumb", "TEXT NOT NULL CHECK (filename_thumb <> '')"],
+        ["alt_text", "TEXT NOT NULL DEFAULT ''"],
+      ],
+    },
+  ],
+
+  [
+    // Ordered, reusable image attachments. A row links one image to one item
+    // (listing or group). No FKs (house style); delete paths prune these rows
+    // explicitly and the unique key prevents duplicate use of the same image on
+    // one item.
+    "image_uses",
+    {
+      columns: [
+        ["image_id", "INTEGER NOT NULL"],
+        ["item_type", "TEXT NOT NULL"],
+        ["item_id", "INTEGER NOT NULL"],
+        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      indexes: [
+        {
+          columns: ["item_type", "item_id", "sort_order"],
+          name: "idx_image_uses_item_order",
+        },
+        {
+          columns: ["image_id", "item_type", "item_id"],
+          name: "idx_image_uses_unique",
+          unique: true,
+        },
       ],
     },
   ],

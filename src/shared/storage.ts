@@ -1,5 +1,5 @@
 /**
- * Bunny CDN storage integration for listing images and attachments.
+ * Bunny CDN storage integration for uploaded images and listing attachments.
  * Uses @bunny.net/storage-sdk to upload/delete files.
  * Only enabled when STORAGE_ZONE_NAME and STORAGE_ZONE_KEY env vars are set.
  * Files are encrypted with DB_ENCRYPTION_KEY before upload.
@@ -18,6 +18,7 @@ import {
 } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { getDeleteOverride } from "#shared/test-overrides.ts";
+import type { NonEmptyString } from "#shared/validation/string.ts";
 
 // ---------------------------------------------------------------------------
 // Per-context storage config (eliminates env var races in concurrent tests)
@@ -215,36 +216,53 @@ export const tryDeleteFile = async (
   }
 };
 
-/** Listing shape that owns storage files */
-type ListingWithStorage = {
+/** Listing shape that owns an attachment file */
+type ListingWithAttachmentStorage = {
   id: number;
-  image_url: string;
-  image_thumb_url: string;
   attachment_url: string;
 };
 
-/** Delete the image, thumbnail, and attachment files for a single listing */
-export const deleteListingStorageFiles = async (
-  listing: ListingWithStorage,
+/** Image shape that owns storage files */
+type ImageWithStorage = {
+  id: number;
+  filename: NonEmptyString;
+  filename_thumb: NonEmptyString;
+};
+
+/** Delete the attachment file for a single listing */
+export const deleteListingAttachmentFile = async (
+  listing: ListingWithAttachmentStorage,
   reason: string,
 ): Promise<void> => {
-  if (listing.image_url) {
-    await tryDeleteFile(listing.image_url, listing.id, reason);
-  }
-  if (listing.image_thumb_url) {
-    await tryDeleteFile(listing.image_thumb_url, listing.id, reason);
-  }
   if (listing.attachment_url) {
     await tryDeleteFile(listing.attachment_url, listing.id, reason);
   }
 };
 
-/** Delete all storage files (images and attachments) for a list of listings */
-export const deleteAllListingStorageFiles = async (
-  listings: ReadonlyArray<ListingWithStorage>,
+/** Delete all attachment files for a list of listings */
+export const deleteAllListingAttachmentFiles = async (
+  listings: ReadonlyArray<ListingWithAttachmentStorage>,
 ): Promise<void> => {
   for (const listing of listings) {
-    await deleteListingStorageFiles(listing, "database reset");
+    await deleteListingAttachmentFile(listing, "database reset");
+  }
+};
+
+/** Delete the full-size image and thumbnail files for a first-class image. */
+export const deleteImageStorageFiles = async (
+  image: ImageWithStorage,
+  reason: string,
+): Promise<void> => {
+  await tryDeleteFile(image.filename, image.id, reason);
+  await tryDeleteFile(image.filename_thumb, image.id, reason);
+};
+
+/** Delete all first-class image files. */
+export const deleteAllImageStorageFiles = async (
+  images: ReadonlyArray<ImageWithStorage>,
+): Promise<void> => {
+  for (const image of images) {
+    await deleteImageStorageFiles(image, "database reset");
   }
 };
 

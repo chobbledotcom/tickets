@@ -233,10 +233,27 @@ describeWithEnv(
         });
         expect(fill.success).toBe(true);
 
+        // Dateless and buyer-chosen-span items are judged at one day beside it.
+        const mug = await createTestListing({ name: "Dated Mug" });
+        const flex = await createDailyTestListing({
+          customisableDays: true,
+          dayPrices: { 1: 100, 2: 180 },
+          durationDays: 2,
+          name: "Flex Pass",
+        });
+
         const data = await fetchAvailability(`start_date=${start}`);
         expect(data.states[`listing:${daily.id}`]).toEqual({
           label: "Sold Out",
           state: "unavailable",
+        });
+        expect(data.states[`listing:${mug.id}`]).toEqual({
+          label: "",
+          state: "available",
+        });
+        expect(data.states[`listing:${flex.id}`]).toEqual({
+          label: "",
+          state: "available",
         });
       });
 

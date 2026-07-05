@@ -66,6 +66,7 @@ import { ListingRosterPanel } from "#templates/admin/listings/roster.tsx";
 import type { AttendeeFilter } from "#templates/admin/listings/types.ts";
 import { ListingQuestionsPanel } from "#templates/admin/questions.tsx";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
+import { loadItemImagesPanel } from "./item-images.ts";
 import { EMPTY_QR_VALUES, loadQrFormContext } from "./listing-qr.ts";
 import { getListingAndGroups } from "./listings-edit.ts";
 import { loadListingParentsSection } from "./listings-parents.ts";
@@ -351,6 +352,12 @@ export const loadListingEditPanel = async (
     session: ctx.session,
   });
 };
+
+/** Build the Images tab: current linked images plus upload/existing selection. */
+export const loadListingImagesPanel = ({
+  listing,
+}: LoadedListing): Promise<JSX.Element> =>
+  loadItemImagesPanel("listing", listing.id, `/admin/listing/${listing.id}`);
 
 /** Build the Questions tab: assign the site's questions to this listing. The
  *  tab is owner-only (matching the route's own gate). `error` is set only on an

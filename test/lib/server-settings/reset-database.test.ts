@@ -1,8 +1,10 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { imagesTable } from "#shared/db/images.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
+import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   adminFormPost,
   adminGet,
@@ -56,7 +58,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       await listingsTable.update(listing.id, {
         attachmentName: "doc.pdf",
         attachmentUrl: "admin-reset-attachment.pdf",
-        imageUrl: "admin-reset-image.jpg",
+      });
+      await imagesTable.insert({
+        filename: nonEmptyString("admin-reset-image.jpg"),
+        filenameThumb: nonEmptyString("admin-reset-image-thumb.jpg"),
+        name: "Admin reset image",
       });
 
       await withBunnyDeleteCapture(async (deletedUrls) => {
@@ -71,6 +77,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         );
         expect(
           deletedUrls.some((u) => u.includes("admin-reset-image.jpg")),
+        ).toBe(true);
+        expect(
+          deletedUrls.some((u) => u.includes("admin-reset-image-thumb.jpg")),
         ).toBe(true);
         expect(
           deletedUrls.some((u) => u.includes("admin-reset-attachment.pdf")),

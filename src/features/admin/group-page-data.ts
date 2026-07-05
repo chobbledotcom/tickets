@@ -37,6 +37,7 @@ import {
   GroupOverviewPanel,
   type PackageMemberValues,
 } from "#templates/admin/groups.tsx";
+import { loadItemImagesPanel } from "./item-images.ts";
 
 /** The group entity page's loaded row is just the stored group; every tab's
  * remaining data is fetched by its own loader below, so a bare page frame never
@@ -187,3 +188,7 @@ export const loadGroupEditPanel = async (
   );
   return GroupEditPanel({ group, listings, members });
 };
+
+/** Build the Images tab: current linked images plus upload/existing selection. */
+export const loadGroupImagesPanel = (group: Group): Promise<JSX.Element> =>
+  loadItemImagesPanel("group", group.id, `/admin/groups/${group.id}`);

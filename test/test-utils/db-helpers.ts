@@ -278,6 +278,17 @@ const applyTestListingGroups = async (
   await setListingGroups(listingId, groupIds);
 };
 
+/** A minute-precision ISO timestamp one minute in the past — always already
+ * closed. The reference `closesAt` value for "registration closed" tests. */
+export const pastCloseTime = (): string =>
+  new Date(Date.now() - 60000).toISOString().slice(0, 16);
+
+/** A minute-precision ISO timestamp an hour in the future — always still
+ * open, so a test can fetch a CSRF token before closing the listing out from
+ * under it. */
+export const futureCloseTime = (): string =>
+  new Date(Date.now() + 3600000).toISOString().slice(0, 16);
+
 export const createTestListing = async (
   overrides: TestListingOverrides = {},
 ): Promise<Listing> => {

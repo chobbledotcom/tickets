@@ -12,7 +12,7 @@ import type {
   QuestionListingMap,
   QuestionWithAnswers,
 } from "#shared/db/questions.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import type { ItemImageProjection, ListingWithCount } from "#shared/types.ts";
 import type { BookingPrefill } from "#templates/public.tsx";
 
 /** Parent listing id → its bookable-child candidates, each hydrated to a
@@ -39,6 +39,7 @@ export type TicketSharedContext = {
   childDatesById: Map<string, ChildDatesByDayCount>;
   groupName?: string;
   groupDescription?: string;
+  groupImage?: ItemImageProjection;
   /** The package bundles sold on this page, in page order — each carrying its
    * own member ids, per-package quantities, price overrides, and hide flag. A
    * single-package page is an array of one; a plain listing page is empty. */

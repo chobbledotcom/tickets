@@ -785,12 +785,10 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
   });
 
   describe("DELETE /api/admin/listings/:listingId - with media", () => {
-    test("deletes listing with image_url and attachment_url", async () => {
+    test("deletes listing with attachment_url", async () => {
       const listing = await createTestListing({ name: "Media Listing" });
-      // Set image_url and attachment_url directly
       await listingsTable.update(listing.id, {
         attachmentUrl: "https://cdn.example.com/file.pdf",
-        imageUrl: "https://cdn.example.com/image.jpg",
       });
       invalidateListingsCache();
 

@@ -74,8 +74,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-03_attendee_listings_tag",
         "2026-07-03_listing_image_thumb",
         "2026-07-05_package_slot_identity",
+        "2026-07-05_first_class_images",
       ],
-      schemaHash: "11ahc8m",
+      schemaHash: "12in9xc",
     });
   });
 });

@@ -423,6 +423,20 @@ export const createTableSql = ([name, table]: [string, Table]): string => {
   return `CREATE TABLE IF NOT EXISTS ${name} (${parts.join(", ")})`;
 };
 
+/**
+ * Every CREATE TABLE and CREATE INDEX statement for the full current schema,
+ * in SCHEMA (FK-dependency) order, each table followed by its own indexes.
+ * All IF NOT EXISTS and derived purely from the SCHEMA declaration — no
+ * database reads — so a caller that KNOWS the database is blank (the restore
+ * path, straight after resetDatabase()) can rebuild it without trusting a
+ * schema snapshot that may lag behind the drops.
+ */
+export const fullSchemaCreateStatements = (): string[] =>
+  SCHEMA.flatMap(([name, table]) => [
+    createTableSql([name, table]),
+    ...(table.indexes ?? []).map((index) => createIndexSql(name, index)),
+  ]);
+
 const writeStatement = (sql: string): { args: InValue[]; sql: string } => ({
   args: [],
   sql,

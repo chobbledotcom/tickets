@@ -15,12 +15,17 @@ import { chunk, compact } from "#fp";
 import { executeBatch, queryAll } from "#shared/db/client.ts";
 import {
   clearAllCaches,
-  initDb,
   LATEST_UPDATE,
+  MIGRATION_IDS,
+  rebuildWipedSchema,
   resetDatabase,
   SCHEMA_HASH,
   SCHEMA_TABLE_NAMES,
 } from "#shared/db/migrations.ts";
+import {
+  dumpMigrationState,
+  legacyColumnRestores,
+} from "#shared/db/restore-legacy-columns.ts";
 import { requireEnv } from "#shared/env.ts";
 import { MAX_BACKUPS, readLimit } from "#shared/limits.ts";
 import {
@@ -397,8 +402,22 @@ export const countZipStatements = (zipData: Uint8Array): number => {
  * Restore the database from SQL content.
  * Drops all tables, reinitializes the schema, then executes all SQL
  * statements in a single transaction via executeBatch.
+ *
+ * Refuses a dump from a newer build BEFORE wiping anything: replaying it here
+ * would silently discard newer-schema data (tables this build's schema lacks
+ * are skipped), making an accidental rollback look like a successful restore.
  */
 export const restoreFromSql = async (sql: string): Promise<void> => {
+  const statements = splitStatements(sql);
+  const migrations = dumpMigrationState(statements, MIGRATION_IDS);
+  if (migrations.fromNewerBuild.length > 0) {
+    throw new Error(
+      "Backup is from a newer version of the app: it records migration(s) " +
+        `newer than this build knows (${migrations.fromNewerBuild.join(", ")}). ` +
+        "Update the site to that version or newer, then restore this backup.",
+    );
+  }
+
   // Capture any failure and re-throw as PostResetError outside the catch to
   // avoid V8 coverage gaps on `throw` inside catch blocks for async functions.
   // resetDatabase() is inside the try so that partial-drop failures (e.g. the
@@ -406,18 +425,34 @@ export const restoreFromSql = async (sql: string): Promise<void> => {
   let postResetErr: string | undefined;
   try {
     await resetDatabase();
-    await initDb({ allowMissingSettings: true });
+    // The database was just wiped, so rebuild the schema with unconditional
+    // IF NOT EXISTS creates. Never consult the database here — neither
+    // initDb's state check nor a live-schema snapshot: right after the drops,
+    // a replica and even the primary can briefly serve the pre-wipe schema
+    // (read-your-writes lag), and a stale answer either routed boot into
+    // schema verification against the wiped primary ("missing table
+    // settings") or skipped the CREATEs and died at the import ("no such
+    // table: settings").
+    await rebuildWipedSchema();
 
     // Roll the seed-data deletes into the same executeBatch transaction as the
     // import so that a failed import rolls the deletes back too, leaving the DB
     // in the clean post-initDb state rather than a mix of empty seed tables and
-    // partially applied backup rows.
-    await executeBatch([
-      { args: [], sql: "DELETE FROM settings" },
-      { args: [], sql: "DELETE FROM schema_migrations" },
-      { args: [], sql: "DELETE FROM attendee_statuses" },
-      ...splitStatements(sql).map((s) => ({ args: [], sql: s })),
-    ]);
+    // partially applied backup rows. Columns the dump writes that a migration
+    // the backup predates has since dropped are re-added first, so the replayed
+    // rows land intact for that pending migration to reshape on the next boot
+    // (see restore-legacy-columns.ts) — but only when the dump actually has
+    // pending migrations to consume them: with none pending, an unknown column
+    // is corruption, and the INSERT must fail loudly instead.
+    await executeBatch(
+      [
+        "DELETE FROM settings",
+        "DELETE FROM schema_migrations",
+        "DELETE FROM attendee_statuses",
+        ...(migrations.hasPending ? legacyColumnRestores(statements) : []),
+        ...statements,
+      ].map((s) => ({ args: [], sql: s })),
+    );
 
     // Clear all module-level caches — the backup may carry different data for
     // every table, so any warm cache is now stale. clearAllCaches() covers the

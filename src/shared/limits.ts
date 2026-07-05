@@ -31,8 +31,8 @@ export const readLimit = (envKey: string, defaultValue: number): number => {
 // Storage limits
 // ---------------------------------------------------------------------------
 
-/** Maximum image file size in bytes (default: 256KB) */
-export const MAX_IMAGE_SIZE = readLimit("MAX_IMAGE_SIZE", 256 * 1024);
+/** Maximum image file size in bytes (default: 32MB) */
+export const MAX_IMAGE_SIZE = readLimit("MAX_IMAGE_SIZE", 32 * 1024 * 1024);
 
 /** Maximum attachment file size in bytes (default: 25MB) */
 export const MAX_ATTACHMENT_SIZE = readLimit(

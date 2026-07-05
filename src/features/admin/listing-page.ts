@@ -25,6 +25,7 @@ import {
 import { type AuthSession, requireContentOr } from "#routes/auth.ts";
 import { targetQuery } from "#shared/bulk-email-targets.ts";
 import { isReadOnly } from "#shared/env.ts";
+import { isStorageEnabled } from "#shared/storage.ts";
 import { isPaidListing, isStaffRole } from "#shared/types.ts";
 import { ListingDeactivatedBanner } from "#templates/admin/listings/overview.tsx";
 import {
@@ -34,6 +35,7 @@ import {
   loadListingActivityPreview,
   loadListingEditPanel,
   loadListingForPage,
+  loadListingImagesPanel,
   loadListingOverviewPanel,
   loadListingQrPanel,
   loadListingQuestionsPanel,
@@ -162,6 +164,12 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
       // rather than render a link that immediately bounces (and so an editor's
       // bare-URL default can't resolve onto an un-editable form).
       visible: () => !isReadOnly(),
+    },
+    {
+      labelKey: "entity.tab.images",
+      sections: [{ kind: "custom", load: loadListingImagesPanel }],
+      slug: "images",
+      visible: () => !isReadOnly() && isStorageEnabled(),
     },
     {
       labelKey: "entity.tab.questions",
