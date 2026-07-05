@@ -507,3 +507,7 @@ src/shared/cache-registry.ts:87:47  ?? → ||   # invalidatorsByTable.get(): Set
 # is unobservable.
 src/shared/cache-registry.ts:115:63  insert → ""   # invalidateCachesForWrite only branches on === "update"; any other literal behaves identically and is never otherwise observable
 src/shared/cache-registry.ts:115:63  insert → "insert mutated"   # same as above
+
+# durationsCompatible: `dayPriceFor(child, ...) !== null` — dayPriceFor
+# returns number|null (no undefined case), so !== and != agree on null.
+src/shared/listing-parents-rules.ts:62:59  !== → !=   # dayPriceFor(): number|null (no undefined), so !== and != agree on null
