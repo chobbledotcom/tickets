@@ -55,6 +55,14 @@ const createScopedModifier = (name: string, scope: "groups" | "listings") =>
     scope,
   });
 
+/** £20 (2×£10) in scope + £25 out of scope — the checkout line items shared
+ *  by the listing-scoped and group-scoped parallel test cases. */
+const scopeTestItems = (listing1Id: number, listing2Id: number): string =>
+  JSON.stringify([
+    { e: listing1Id, p: 2000, q: 2 },
+    { e: listing2Id, p: 2500, q: 1 },
+  ]);
+
 describeWithEnv("server webhooks > modifiers", { db: true }, () => {
   afterEach(() => {
     resetStripeClient();
@@ -100,10 +108,7 @@ describeWithEnv("server webhooks > modifiers", { db: true }, () => {
         metadata: signedMeta(
           {
             email: "scope@example.com",
-            items: JSON.stringify([
-              { e: listing1.id, p: 2000, q: 2 },
-              { e: listing2.id, p: 2500, q: 1 },
-            ]),
+            items: scopeTestItems(listing1.id, listing2.id),
             modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
             name: "Scope Buyer",
           },
@@ -137,10 +142,7 @@ describeWithEnv("server webhooks > modifiers", { db: true }, () => {
         metadata: signedMeta(
           {
             email: "group@example.com",
-            items: JSON.stringify([
-              { e: listing1.id, p: 2000, q: 2 },
-              { e: listing2.id, p: 2500, q: 1 },
-            ]),
+            items: scopeTestItems(listing1.id, listing2.id),
             modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
             name: "Group Buyer",
           },
