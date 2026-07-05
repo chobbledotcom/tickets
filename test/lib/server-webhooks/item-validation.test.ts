@@ -6,6 +6,7 @@ import {
   checkoutSessionEvent,
   createTestListing,
   describeWithEnv,
+  expectWebhookIgnored,
   postWebhookAndAssert,
   setupStripe,
   stubWebhookVerify,
@@ -32,7 +33,7 @@ describeWithEnv(
       // Items without a p field can't carry a valid price proof, so the session
       // has no proof and classifies as "ignore": acknowledged (200) without
       // processing or refunding, never a throw.
-      const mockVerify = await stubWebhookVerify(
+      await expectWebhookIgnored(
         checkoutSessionEvent({
           amountTotal: 500,
           eventId: "evt_no_price",
@@ -45,17 +46,6 @@ describeWithEnv(
           sessionId: "cs_no_price",
         }),
       );
-
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-        },
-        200,
-        (json) => {
-          expect(json.received).toBe(true);
-          expect(json.processed).toBeUndefined();
-        },
-      );
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       expect((await getAttendeesRaw(listing1.id)).length).toBe(0);
     });
@@ -63,7 +53,7 @@ describeWithEnv(
     test("webhook returns error for invalid multi-ticket items", async () => {
       await setupStripe();
 
-      const mockVerify = await stubWebhookVerify(
+      await expectWebhookIgnored(
         checkoutSessionEvent({
           amountTotal: 0,
           eventId: "evt_bad_multi",
@@ -76,25 +66,12 @@ describeWithEnv(
           sessionId: "cs_bad_multi",
         }),
       );
-
-      // Unparseable items can't carry a valid price proof, so the session has
-      // no proof and is ignored: acknowledged (200) without processing.
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-        },
-        200,
-        (json) => {
-          expect(json.received).toBe(true);
-          expect(json.processed).toBeUndefined();
-        },
-      );
     });
 
     test("webhook with non-array items in multi-ticket returns null", async () => {
       await setupStripe();
 
-      const mockVerify = await stubWebhookVerify(
+      await expectWebhookIgnored(
         checkoutSessionEvent({
           amountTotal: 0,
           eventId: "evt_non_array",
@@ -106,19 +83,6 @@ describeWithEnv(
           paymentIntent: "pi_non_array",
           sessionId: "cs_non_array",
         }),
-      );
-
-      // Non-array items can't carry a valid price proof, so the session has no
-      // proof and is ignored: acknowledged (200) without processing.
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-        },
-        200,
-        (json) => {
-          expect(json.received).toBe(true);
-          expect(json.processed).toBeUndefined();
-        },
       );
     });
 
@@ -208,7 +172,7 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      const mockVerify = await stubWebhookVerify(
+      await expectWebhookIgnored(
         checkoutSessionEvent({
           amountTotal: 1000,
           eventId: "evt_bad_p",
@@ -220,19 +184,6 @@ describeWithEnv(
           paymentIntent: "pi_bad_p",
           sessionId: "cs_bad_p",
         }),
-      );
-
-      // A corrupt session can't carry a valid price proof, so it has no proof
-      // and is ignored: acknowledged (200) without processing, no throw.
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-        },
-        200,
-        (json) => {
-          expect(json.received).toBe(true);
-          expect(json.processed).toBeUndefined();
-        },
       );
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
@@ -246,7 +197,7 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      const mockVerify = await stubWebhookVerify(
+      await expectWebhookIgnored(
         checkoutSessionEvent({
           amountTotal: 1000,
           eventId: "evt_bad_item",
@@ -258,19 +209,6 @@ describeWithEnv(
           paymentIntent: "pi_bad_item",
           sessionId: "cs_bad_item",
         }),
-      );
-
-      // A corrupt session can't carry a valid price proof, so it has no proof
-      // and is ignored: acknowledged (200) without processing, no throw.
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-        },
-        200,
-        (json) => {
-          expect(json.received).toBe(true);
-          expect(json.processed).toBeUndefined();
-        },
       );
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);

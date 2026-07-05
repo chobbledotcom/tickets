@@ -5,6 +5,7 @@ import {
   checkoutSessionEvent,
   createTestListing,
   describeWithEnv,
+  expectWebhookIgnored,
   postWebhookAndAssert,
   setupStripe,
   singleItem,
@@ -102,7 +103,7 @@ describeWithEnv(
     test("webhook handles non-checkout listing type by acknowledging", async () => {
       await setupStripe();
 
-      const mockVerify = await stubWebhookVerify({
+      await expectWebhookIgnored({
         data: {
           object: {
             id: "pi_test",
@@ -111,17 +112,6 @@ describeWithEnv(
         id: "evt_other_type",
         type: "payment_intent.succeeded",
       });
-
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-        },
-        200,
-        (json) => {
-          expect(json.received).toBe(true);
-          expect(json.processed).toBeUndefined();
-        },
-      );
     });
   },
 );

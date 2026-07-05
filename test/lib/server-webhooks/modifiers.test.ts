@@ -18,6 +18,42 @@ import {
   singleItem,
 } from "#test-utils";
 
+/** Two listings (£10 / £25) for the in-scope-vs-out-of-scope modifier tests
+ *  below — identical for both the listing-scoped and group-scoped variants,
+ *  bar the group membership `extra1` layers onto the first listing. Created
+ *  sequentially: `createTestListing` shares test-session state that a
+ *  concurrent `Promise.all` would race. */
+const createTwoListings = async (
+  extra1: Record<string, unknown> = {},
+): Promise<
+  [
+    Awaited<ReturnType<typeof createTestListing>>,
+    Awaited<ReturnType<typeof createTestListing>>,
+  ]
+> => {
+  const listing1 = await createTestListing({
+    maxAttendees: 50,
+    unitPrice: 1000,
+    ...extra1,
+  });
+  const listing2 = await createTestListing({
+    maxAttendees: 50,
+    unitPrice: 2500,
+  });
+  return [listing1, listing2];
+};
+
+/** A 10%-charge modifier scoped to `scope`, for the listing-scoped vs
+ *  group-scoped parallel test cases. */
+const createScopedModifier = (name: string, scope: "groups" | "listings") =>
+  modifiersTable.insert({
+    calcKind: "percent",
+    calcValue: 10,
+    direction: "charge",
+    name,
+    scope,
+  });
+
 describeWithEnv("server webhooks > modifiers", { db: true }, () => {
   afterEach(() => {
     resetStripeClient();
@@ -60,21 +96,8 @@ describeWithEnv("server webhooks > modifiers", { db: true }, () => {
 
   test("records the in-scope amount for a listing-scoped modifier", async () => {
     await setupStripe();
-    const listing1 = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 1000,
-    });
-    const listing2 = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 2500,
-    });
-    const modifier = await modifiersTable.insert({
-      calcKind: "percent",
-      calcValue: 10,
-      direction: "charge",
-      name: "Listing fee",
-      scope: "listings",
-    });
+    const [listing1, listing2] = await createTwoListings();
+    const modifier = await createScopedModifier("Listing fee", "listings");
     await setModifierListings(modifier.id, [listing1.id]);
 
     await expectWebhookProcessed(
@@ -108,22 +131,10 @@ describeWithEnv("server webhooks > modifiers", { db: true }, () => {
   test("records the group-scoped amount for a grouped modifier", async () => {
     await setupStripe();
     const group = await createTestGroup({ maxAttendees: 50 });
-    const listing1 = await createTestListing({
+    const [listing1, listing2] = await createTwoListings({
       groupId: group.id,
-      maxAttendees: 50,
-      unitPrice: 1000,
     });
-    const listing2 = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 2500,
-    });
-    const modifier = await modifiersTable.insert({
-      calcKind: "percent",
-      calcValue: 10,
-      direction: "charge",
-      name: "Group fee",
-      scope: "groups",
-    });
+    const modifier = await createScopedModifier("Group fee", "groups");
     await setModifierGroups(modifier.id, [group.id]);
 
     await expectWebhookProcessed(

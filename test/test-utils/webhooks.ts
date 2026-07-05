@@ -74,26 +74,38 @@ export const postWebhookAndAssert = async <T = Record<string, unknown>>(
 };
 
 /**
- * The "happy path" webhook assertion: stub `verifyWebhookSignature` to return
- * `event`, POST the webhook, and assert it was processed successfully. This is
- * the single most common `server-webhooks` test shape — dozens of tests across
- * many topics (modifiers, promo codes, customisable-days pricing, can_pay_more
- * boundaries, ...) end with exactly this stub-post-assert-restore sequence, so
- * hoisting it here keeps that sequence defined once.
+ * Stub `verifyWebhookSignature` to return `event`, POST the webhook, assert
+ * its JSON response, and restore the stub — the stub-post-assert-restore
+ * sequence shared by every single-stub webhook outcome below (only the
+ * assertion itself varies: processed, ignored, ...).
+ */
+const stubAndPostWebhook = <T = Record<string, unknown>>(
+  event: Parameters<typeof stubWebhookVerify>[0],
+  assertions: (json: T) => void,
+): Promise<T> =>
+  stubWebhookVerify(event).then((mockVerify) =>
+    postWebhookAndAssert<T>(
+      () => {
+        mockVerify.restore();
+      },
+      200,
+      assertions,
+    ),
+  );
+
+/**
+ * The "happy path" webhook assertion: assert the webhook was processed
+ * successfully. This is the single most common `server-webhooks` test shape —
+ * dozens of tests across many topics (modifiers, promo codes,
+ * customisable-days pricing, can_pay_more boundaries, ...) end with exactly
+ * this outcome.
  */
 export const expectWebhookProcessed = async (
-  event: ReturnType<typeof checkoutSessionEvent>,
+  event: Parameters<typeof stubWebhookVerify>[0],
 ): Promise<void> => {
-  const mockVerify = await stubWebhookVerify(event);
-  await postWebhookAndAssert(
-    () => {
-      mockVerify.restore();
-    },
-    200,
-    (json) => {
-      expect(json.processed).toBe(true);
-    },
-  );
+  await stubAndPostWebhook(event, (json) => {
+    expect(json.processed).toBe(true);
+  });
 };
 
 /**
@@ -108,7 +120,7 @@ export const expectWebhookProcessed = async (
  * failed `processed_payments` record, ...).
  */
 export const expectWebhookKeptAndRefunded = async (
-  event: ReturnType<typeof checkoutSessionEvent>,
+  event: Parameters<typeof stubWebhookVerify>[0],
   refundId = "re_test",
   errorContains = "saved your details",
 ) => {
@@ -180,4 +192,19 @@ export const expectKeptAsQuantityZeroAndRefunded = async (
   expect(attendees[0]!.quantity).toBe(0);
   await expectRefundedWithNote(attendees[0]!.id, mockRefund);
   await expectSessionFailed(sessionId);
+};
+
+/**
+ * The third canonical webhook outcome alongside "processed" and "kept and
+ * refunded": the session carries no valid price proof (corrupt/missing/non-array
+ * items, an unparseable body, ...) so it classifies as "ignore" — acknowledged
+ * (200, `received: true`) without processing, never a throw or refund.
+ */
+export const expectWebhookIgnored = async (
+  event: Parameters<typeof stubWebhookVerify>[0],
+): Promise<void> => {
+  await stubAndPostWebhook(event, (json) => {
+    expect(json.received).toBe(true);
+    expect(json.processed).toBeUndefined();
+  });
 };
