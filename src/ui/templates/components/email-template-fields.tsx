@@ -9,12 +9,8 @@
  */
 
 import { t } from "#i18n";
-
-/** A {subject, html, text} triple — the shape both stored templates and
- *  DEFAULT_TEMPLATES share. */
-export type EmailTemplates = { subject: string; html: string; text: string };
-
-export type EmailTemplateKind = "admin" | "confirmation";
+import type { EmailTemplateType } from "#shared/types.ts";
+import type { EmailContent } from "#templates/email/shared.ts";
 
 /** The subject input. */
 const SubjectField = ({
@@ -76,8 +72,8 @@ const BodyField = ({
  * kind. Curried by `kind` so the call site passes only the stored values.
  */
 export const emailTemplateFields =
-  (kind: EmailTemplateKind) =>
-  (templates: EmailTemplates, defaults: EmailTemplates): JSX.Element => (
+  (kind: EmailTemplateType) =>
+  (templates: EmailContent, defaults: EmailContent): JSX.Element => (
     <>
       <SubjectField defaultValue={defaults.subject} value={templates.subject} />
       <BodyField

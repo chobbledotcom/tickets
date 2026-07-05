@@ -8,10 +8,22 @@
 
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { execute } from "#shared/db/client.ts";
+import type { SitePageItemType } from "#shared/types.ts";
 
-/** The slug-owning tables. A fixed constant list — never user input. */
+/** The slug-owning tables (plural form, one per {@link SitePageItemType}). */
 export type SlugTable = "listings" | "groups" | "site_pages";
-const SLUG_TABLES: readonly SlugTable[] = ["listings", "groups", "site_pages"];
+
+/** Exhaustive {@link SitePageItemType} → {@link SlugTable} map. Adding a new
+ *  slug-owning entity to {@link SitePageItemTypeSchema} forces a row here (a
+ *  compile error), so the cross-table uniqueness check can't silently miss the
+ *  new table the way a hand-listed `SlugTable[]` could. */
+const SLUG_TABLE_BY_TYPE: Record<SitePageItemType, SlugTable> = {
+  group: "groups",
+  listing: "listings",
+  page: "site_pages",
+};
+
+const SLUG_TABLES: readonly SlugTable[] = Object.values(SLUG_TABLE_BY_TYPE);
 
 /**
  * Is `slug` already used by any listing, group, or page? `exclude` skips one row

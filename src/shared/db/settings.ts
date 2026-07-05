@@ -57,6 +57,8 @@ import {
 import { requestCache } from "#shared/request-cache.ts";
 import { DEFAULT_TIMEZONE } from "#shared/timezone.ts";
 import type {
+  EmailTemplateFormat,
+  EmailTemplateType,
   PaymentProviderSetting,
   PaymentProviderType,
   Settings,
@@ -77,6 +79,7 @@ import {
   createGoogleWalletUpdateSettings,
 } from "#shared/wallets/google-wallet-settings.ts";
 import type { EncryptedUpdateFn } from "#shared/wallets/wallet-settings-types.ts";
+import type { EmailContent } from "#templates/email/shared.ts";
 
 // ---------------------------------------------------------------------------
 // Setting keys
@@ -272,12 +275,6 @@ export const bumpSettingsVersion = async (): Promise<void> => {
 // ---------------------------------------------------------------------------
 // Snapshot — pre-resolved settings for sync access
 // ---------------------------------------------------------------------------
-
-/** Valid email template types */
-export type EmailTemplateType = "confirmation" | "admin";
-
-/** Valid email template formats */
-export type EmailTemplateFormat = "subject" | "html" | "text";
 
 /** Template type:format → config key */
 type TemplateKeyMap = `${EmailTemplateType}:${EmailTemplateFormat}`;
@@ -1149,11 +1146,7 @@ const settingsBase = {
     template(type: EmailTemplateType, format: EmailTemplateFormat): string {
       return snap(TEMPLATE_KEYS[`${type}:${format}`]);
     },
-    templateSet(type: EmailTemplateType): {
-      subject: string;
-      html: string;
-      text: string;
-    } {
+    templateSet(type: EmailTemplateType): EmailContent {
       return {
         html: this.template(type, "html"),
         subject: this.template(type, "subject"),

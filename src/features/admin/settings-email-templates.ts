@@ -6,33 +6,25 @@
 import { settingsHandler } from "#routes/admin/settings-helpers.ts";
 import { OWNER_FORM, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
-import {
-  type EmailTemplateType,
-  MAX_EMAIL_TEMPLATE_LENGTH,
-  settings,
-} from "#shared/db/settings.ts";
+import { MAX_EMAIL_TEMPLATE_LENGTH, settings } from "#shared/db/settings.ts";
 import {
   buildTemplateData,
   renderTemplate,
   validateTemplate,
 } from "#shared/email-renderer.ts";
-
-/** Valid template types for form submissions — derived from the EmailTemplateType union */
-const VALID_TEMPLATE_TYPES: ReadonlySet<EmailTemplateType> =
-  new Set<EmailTemplateType>(["confirmation", "admin"]);
-
-/** Type guard: narrows a string to EmailTemplateType after Set membership check */
-const isEmailTemplateType = (v: string): v is EmailTemplateType =>
-  VALID_TEMPLATE_TYPES.has(v as EmailTemplateType);
+import {
+  type EmailTemplateType,
+  isEmailTemplateFormat,
+  isEmailTemplateType,
+} from "#shared/types.ts";
+import type { EmailContent } from "#templates/email/shared.ts";
 
 /** Handle POST /admin/settings/email-templates/:type - save custom email templates */
-type TemplateFormData = { subject: string; html: string; text: string };
-
 const validateTemplateFields = ({
   subject,
   html,
   text,
-}: TemplateFormData): string | null => {
+}: EmailContent): string | null => {
   for (const [name, value] of [
     ["subject", subject],
     ["html", html],
@@ -51,7 +43,7 @@ const validateTemplateFields = ({
 
 export const handleEmailTemplatePost = (type: EmailTemplateType) => {
   const label = type === "confirmation" ? "Confirmation" : "Admin notification";
-  return settingsHandler<TemplateFormData>({
+  return settingsHandler<EmailContent>({
     advanced: true,
     extract: (form) => ({
       html: form.getString("html"),
@@ -165,11 +157,15 @@ export const handleEmailTemplatePreviewPost = (
   withAuth(request, OWNER_FORM, async (_session, form) => {
     const type = form.getString("type");
     const template = form.getString("template");
-    const format = form.get("format") ?? "html";
+    const rawFormat = form.get("format") ?? "html";
 
     if (!isEmailTemplateType(type)) {
       return jsonResponse({ error: "Invalid template type" }, 400);
     }
+    if (!isEmailTemplateFormat(rawFormat)) {
+      return jsonResponse({ error: "Invalid template format" }, 400);
+    }
+    const format = rawFormat;
 
     const error = validateTemplate(template);
     if (error) {

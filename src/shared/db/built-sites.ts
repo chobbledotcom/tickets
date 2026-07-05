@@ -4,6 +4,8 @@
  */
 
 import type { InValue } from "@libsql/client";
+import * as v from "valibot";
+/* jscpd:ignore-start */
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import {
   inPlaceholders,
@@ -14,6 +16,7 @@ import {
 import type { ColumnDef, Table, TableSchema } from "#shared/db/table.ts";
 import { cachedTable, col, defineTable } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
+/* jscpd:ignore-end */
 
 /**
  * The release channels a built site can opt into, ordered most- to
@@ -23,16 +26,17 @@ import { nowIso } from "#shared/now.ts";
  * when `indexOf(S) <= indexOf(T)` — see {@link siteAcceptsDeployTier}.
  */
 export const UPDATE_TIERS = ["alpha", "beta", "release"] as const;
+export const UpdateTierSchema = v.picklist(UPDATE_TIERS);
 
 /** One of the {@link UPDATE_TIERS} release channels. */
-export type UpdateTier = (typeof UPDATE_TIERS)[number];
+export type UpdateTier = v.InferOutput<typeof UpdateTierSchema>;
 
 /** Default channel for a new built site — the most conservative (stable only). */
 export const DEFAULT_UPDATE_TIER: UpdateTier = "release";
 
 /** Narrow an arbitrary string to an {@link UpdateTier}. */
 export const isUpdateTier = (value: string): value is UpdateTier =>
-  (UPDATE_TIERS as readonly string[]).includes(value);
+  v.is(UpdateTierSchema, value);
 
 /**
  * True when a site on `siteTier` should receive a deploy published at

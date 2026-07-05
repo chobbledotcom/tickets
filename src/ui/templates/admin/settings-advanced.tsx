@@ -21,6 +21,7 @@ import { GoogleWalletForm } from "#templates/admin/settings/google-wallet.tsx";
 import { PublicApiForm } from "#templates/admin/settings/public-api.tsx";
 import { SmsGatewayForm } from "#templates/admin/settings/sms-gateway.tsx";
 import { HostSubdomainForm } from "#templates/admin/settings/subdomain.tsx";
+import type { EmailContent } from "#templates/email/shared.ts";
 
 export type AdvancedSettingsPageState = {
   showPublicApi: boolean;
@@ -30,16 +31,8 @@ export type AdvancedSettingsPageState = {
   emailFromAddress: string;
   hostEmailLabel: string;
   businessEmail: string;
-  confirmationTemplates: {
-    subject: string;
-    html: string;
-    text: string;
-  };
-  adminTemplates: {
-    subject: string;
-    html: string;
-    text: string;
-  };
+  confirmationTemplates: EmailContent;
+  adminTemplates: EmailContent;
   bunnyCdnEnabled: boolean;
   bunnyDnsEnabled: boolean;
   bunnySubdomain: string;
