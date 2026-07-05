@@ -244,7 +244,8 @@ export const homepagePage = (
   childStateOf: (id: number) => ChildCardState,
   dateFilter: DailyDateFilter | null,
   nav: PublicNavProps,
-  soldOutPackageIds: ReadonlySet<number> = new Set(),
+  soldOutPackageIds: ReadonlySet<number>,
+  requestedDate: string | null,
 ): string => {
   const listingsTitle = t("terms.listings");
   const title = websiteTitle
@@ -276,13 +277,15 @@ export const homepagePage = (
     .toSorted(compareGroupsByName);
 
   // The date search splits the page into available/unavailable sections only
-  // once a date has actually been chosen; with no date picked yet (or no daily
-  // listings at all, so `dateFilter` is null) nothing moves and every card
-  // renders in the single combined list, unchanged from before.
-  const searchedDate = dateFilter?.date ?? null;
+  // once a date has actually been chosen; with no date picked yet nothing
+  // moves and every card renders in the single combined list, unchanged from
+  // before. The split keys off `requestedDate` — NOT `dateFilter`, which is
+  // null whenever no standalone daily card needs the filter form, even though
+  // a package's (hidden) daily members can still make it sold out for the
+  // searched date.
   const keepTogether = <T,>(items: T[]): [T[], T[]] => [items, []];
   const [availablePackages, unavailablePackages] = (
-    searchedDate === null
+    requestedDate === null
       ? keepTogether
       : partition((g: Group) => !soldOutPackageIds.has(g.id))
   )(packageGroups);
@@ -290,7 +293,7 @@ export const homepagePage = (
     renderListingCard(childStateOf, dateFilter),
   );
   const [availableCards, unavailableCards] = (
-    searchedDate === null
+    requestedDate === null
       ? keepTogether
       : partition((card: RenderedCard) => !card.unavailable)
   )(listingCards);

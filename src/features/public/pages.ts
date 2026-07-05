@@ -229,6 +229,7 @@ export const handlePublicListings = (
         dateFilter,
         nav,
         soldOutPackages,
+        requestedDate,
       ),
     );
   });

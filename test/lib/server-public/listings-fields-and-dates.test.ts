@@ -246,6 +246,44 @@ describeWithEnv(
         );
       });
 
+      test("a date search still splits out a sold-out package whose daily member is hidden", async () => {
+        // With hide_package_listings the daily member never appears as its own
+        // card, so the page has no date-filter form — but a ?date= URL must
+        // still judge the package and move it into the Unavailable section.
+        await settings.update.showPublicSite(true);
+        const date = addDays(todayInTz("UTC"), 2);
+        const pkg = await createTestGroup({
+          isPackage: true,
+          name: "Hidden Member Package",
+          slug: "hidden-member-package",
+        });
+        const member = await createTestListing({
+          groupId: pkg.id,
+          listingType: "daily",
+          maxAttendees: 1,
+          minimumDaysBefore: 0,
+          name: "Hidden Daily Member",
+        });
+        const { groupsTable } = await import("#shared/db/groups.ts");
+        await groupsTable.update(pkg.id, { hidePackageListings: true });
+        await bookAttendee(member, { date, quantity: 1 });
+        await createTestListing({ maxAttendees: 50, name: "Plain Listing" });
+
+        const filtered = await assertPublicHtml(
+          `/listings?date=${date}`,
+          "Hidden Member Package",
+          "Plain Listing",
+        );
+        expect(filtered).not.toContain("listings-date-filter");
+        expect(filtered).not.toContain(`href="/ticket/${pkg.slug}"`);
+        expect(filtered.indexOf("Plain Listing")).toBeLessThan(
+          filtered.indexOf("Unavailable"),
+        );
+        expect(filtered.indexOf("Unavailable")).toBeLessThan(
+          filtered.indexOf("Hidden Member Package"),
+        );
+      });
+
       test("shows no date filter when no daily listings are listed", async () => {
         await settings.update.showPublicSite(true);
         await createTestListing({ maxAttendees: 5, name: "Standard Only" });
