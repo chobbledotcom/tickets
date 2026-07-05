@@ -13,7 +13,11 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { queryAll, type TxScope } from "#shared/db/client.ts";
+import {
+  queryAll,
+  type SqlStatement,
+  type TxScope,
+} from "#shared/db/client.ts";
 import {
   PRICE_TYPE_GROUP,
   PRICE_TYPE_GROUP_DAY,
@@ -55,7 +59,6 @@ export type ImportedMembership = {
 };
 
 /** A prepared write statement. */
-type Statement = { sql: string; args: InValue[] };
 
 /** Build a multi-row INSERT for `table(columns)` from `rows`, or null when there
  * are no rows. Each row supplies one value per column, in order. */
@@ -63,7 +66,7 @@ const multiRowInsert = (
   table: string,
   columns: readonly string[],
   rows: readonly InValue[][],
-): Statement | null => {
+): SqlStatement | null => {
   if (rows.length === 0) return null;
   const placeholder = `(${columns.map(() => "?").join(", ")})`;
   return {
@@ -82,7 +85,7 @@ const multiRowInsert = (
  * already-populated package never disturbs its other members. */
 export const membershipStatements = (
   memberships: readonly ImportedMembership[],
-): Statement[] => {
+): SqlStatement[] => {
   const memberRows = memberships.map((m) => [
     m.groupId,
     m.listingId,
@@ -113,7 +116,7 @@ export const membershipStatements = (
       ["listing_id", "price_type", "price_id", "unit_price"],
       [...flatRows, ...dayRows],
     ),
-  ].filter((stmt): stmt is Statement => stmt !== null);
+  ].filter((stmt): stmt is SqlStatement => stmt !== null);
 };
 
 /** Write every membership (batched) inside an existing write transaction — the

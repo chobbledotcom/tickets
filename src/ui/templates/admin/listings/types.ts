@@ -59,6 +59,10 @@ export type ListingOverviewPanelOptions = ListingPanelSharedOptions & {
   noteNames: Map<number, string>;
 };
 
+/** A selectable child candidate on the edit page's "required children" list: the
+ * listing plus why it can't be a child of the one being edited (null when it
+ * can). Ineligible candidates are pre-disabled (unless already ticked) so the
+ * operator can't build an edge the save would only reject (usability #4). */
 export type ChildCandidate = {
   listing: ListingWithCount;
   ineligibleReason: string | null;

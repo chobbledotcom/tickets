@@ -9,13 +9,13 @@
  * transaction** — two concurrent adds of the same page can't both slip through.
  */
 
-import type { InValue } from "@libsql/client";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
   executeBatch,
   inPlaceholders,
   queryAll,
   resultRows,
+  type SqlStatement,
   withTransaction,
 } from "#shared/db/client.ts";
 import { requestCache } from "#shared/request-cache.ts";
@@ -26,7 +26,6 @@ import {
 import type { SitePageItem, SitePageItemType } from "#shared/types.ts";
 
 /** A parameterised statement for a batch / transaction. */
-type Stmt = { sql: string; args: InValue[] };
 
 const SELECT_COLS = "page_id, item_type, item_id, sort_order";
 
@@ -136,7 +135,7 @@ const itemDeleteStatement = (
   pageId: number,
   itemType: SitePageItemType,
   itemId: number,
-): Stmt => ({
+): SqlStatement => ({
   args: [pageId, itemType, itemId],
   sql: "DELETE FROM site_page_items WHERE page_id = ? AND item_type = ? AND item_id = ?",
 });
@@ -183,7 +182,7 @@ const setOrderStatement = (
   pageId: number,
   ref: ItemRef,
   order: number,
-): Stmt => ({
+): SqlStatement => ({
   args: [order, pageId, ref.type, ref.id],
   sql: "UPDATE site_page_items SET sort_order = ? WHERE page_id = ? AND item_type = ? AND item_id = ?",
 });
@@ -211,7 +210,7 @@ export const deleteSitePageWithEdges = (pageId: number): Promise<void> =>
 export const clearItemEdgesStatement = (
   itemType: "listing" | "group",
   itemId: number,
-): Stmt => ({
+): SqlStatement => ({
   args: [itemType, itemId],
   sql: "DELETE FROM site_page_items WHERE item_type = ? AND item_id = ?",
 });

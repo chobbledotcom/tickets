@@ -9,7 +9,12 @@
 
 import type { InValue } from "@libsql/client";
 import { ATTENDEE } from "#shared/accounting/accounts.ts";
-import { queryAll, resultRows, type TxScope } from "#shared/db/client.ts";
+import {
+  queryAll,
+  resultRows,
+  type SqlStatement,
+  type TxScope,
+} from "#shared/db/client.ts";
 import { account } from "#shared/ledger/account.ts";
 import type {
   AccountRef,
@@ -68,7 +73,6 @@ const rowToTransfer = (row: TransferRow): Transfer => ({
 type LegColumn = { col: string; expr: string; args: InValue[] };
 
 /** A built statement ready for `execute`/`executeBatch`. */
-type Statement = { sql: string; args: InValue[] };
 
 /** A plain bound-placeholder column. */
 const lit = (col: string, value: InValue): LegColumn => ({
@@ -122,7 +126,7 @@ const legColumns = (
 const renderInsert = (
   columns: LegColumn[],
   guard?: { sql: string; args: InValue[] },
-): Statement => {
+): SqlStatement => {
   const exprs = columns.map((column) => column.expr).join(", ");
   return {
     args: [...columns.flatMap((column) => column.args), ...(guard?.args ?? [])],
@@ -136,7 +140,7 @@ const renderInsert = (
 export const insertStatement = (
   t: TransferInput,
   recordedAt: string,
-): Statement => renderInsert(legColumns(t, recordedAt));
+): SqlStatement => renderInsert(legColumns(t, recordedAt));
 
 /**
  * Rewrite a built transfer INSERT as `INSERT OR IGNORE`, so a leg whose unique
@@ -166,7 +170,7 @@ export const guardedInsertStatement = (
   recordedAt: string,
   guardSql: string,
   guardArgs: InValue[],
-): Statement =>
+): SqlStatement =>
   renderInsert(legColumns(t, recordedAt), { args: guardArgs, sql: guardSql });
 
 /**
@@ -185,7 +189,7 @@ export const bookingLegBatchInsert = (
   attendeeIdSql: string,
   attendeeIdArg: InValue,
   guard: { sql: string; args: InValue[] },
-): Statement =>
+): SqlStatement =>
   orIgnore(
     renderInsert(
       legColumns(t, recordedAt, (col, acct) =>

@@ -9,7 +9,11 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { inPlaceholders, queryAll } from "#shared/db/client.ts";
+import {
+  inPlaceholders,
+  queryAll,
+  type SqlStatement,
+} from "#shared/db/client.ts";
 import { mapByIds } from "#shared/db/query.ts";
 import { nowIso } from "#shared/now.ts";
 
@@ -22,7 +26,6 @@ export type ModifierUsage = {
 };
 
 /** A built SQL fragment: the text and its positional bind args. */
-type SqlFragment = { sql: string; args: InValue[] };
 
 /** Used quantity per modifier id, for remaining-stock checks at resolve time. */
 export const modifierUsedQuantities = (
@@ -44,7 +47,7 @@ export const modifierUsedQuantities = (
  * concurrency guard) and by the booking insert that must refuse to land when a
  * chosen modifier sold out mid-payment. Wrapped in parens so several can be
  * AND-ed safely. */
-export const modifierStockCondition = (usage: ModifierUsage): SqlFragment => ({
+export const modifierStockCondition = (usage: ModifierUsage): SqlStatement => ({
   args: [usage.modifierId, usage.modifierId, usage.modifierId, usage.quantity],
   sql: `((SELECT stock FROM modifiers WHERE id = ?) IS NULL
            OR (SELECT stock FROM modifiers WHERE id = ?)
@@ -61,7 +64,7 @@ export const modifierStockCondition = (usage: ModifierUsage): SqlFragment => ({
  * so the booking's capacity clause stands alone. */
 export const allModifiersInStockCondition = (
   usages: ModifierUsage[],
-): SqlFragment => {
+): SqlStatement => {
   if (usages.length === 0) return { args: [], sql: "1 = 1" };
   const parts = usages.map(modifierStockCondition);
   return {
@@ -84,8 +87,8 @@ export const usageInsert = (
   usage: ModifierUsage,
   attendeeIdExpr: string,
   attendeeIdArgs: InValue[],
-  guard: SqlFragment,
-): SqlFragment => ({
+  guard: SqlStatement,
+): SqlStatement => ({
   args: [
     usage.modifierId,
     ...attendeeIdArgs,
