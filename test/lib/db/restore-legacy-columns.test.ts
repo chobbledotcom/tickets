@@ -25,6 +25,30 @@ describe("db > restore legacy columns", () => {
       expect(state.fromNewerBuild).toEqual(["2099-01-01_from_the_future"]);
     });
 
+    test("an unknown id sharing the newest date fails closed when nothing is pending", () => {
+      // A complete dump plus an unrecognised same-day id: a same-day
+      // migration from a newer build looks exactly like this, so it must be
+      // refused rather than silently dropping that migration's table data.
+      const state = dumpMigrationState(
+        [...KNOWN, "2026-07-05_same_day_addition"].map(migrationRow),
+        KNOWN,
+      );
+      expect(state.fromNewerBuild).toEqual(["2026-07-05_same_day_addition"]);
+    });
+
+    test("an unknown same-date id is tolerated when the dump has pending migrations", () => {
+      // Pending migrations prove the dump predates this build, so a same-day
+      // unrecognised id can only be an orphaned marker from a same-day
+      // rename — refusing it would block a legitimate older backup.
+      const state = dumpMigrationState(
+        ["2026-06-16_agent_users", "2026-07-05_renamed_since"].map(
+          migrationRow,
+        ),
+        KNOWN,
+      );
+      expect(state).toEqual({ fromNewerBuild: [], hasPending: true });
+    });
+
     test("an orphaned marker from a renamed migration is tolerated", () => {
       // Real databases carry markers whose migration was later renamed (the
       // old row is never deleted). Dated within this build's history, it must
