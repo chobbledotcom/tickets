@@ -419,3 +419,52 @@ src/shared/listing-templates.ts:132:4  ?? → ||   # LISTING_TEMPLATES.find(): L
 # src/shared/images/codecs.ts's edge-only codec init below.
 src/shared/bulk-replace.ts:103:56  $1 00: → ""   # this runtime's ICU never renders local midnight as "24:00", so the regex this feeds never matches
 src/shared/bulk-replace.ts:103:56  $1 00: → "$1 00: mutated"   # same as above
+
+# booking/model.ts's childHasStartForDays predicate: `parentDates === null`
+# is checked on a `ReadonlySet<string> | null` (no undefined case), and the
+# `||` beside it always evaluates to a plain boolean (the result of `===`),
+# never a falsy-but-non-null value, so `??` agrees with both `==`/`===` and
+# `||` here.
+src/shared/booking/model.ts:53:19  === → ==   # parentDates is ReadonlySet<string>|null (no undefined), so === and == agree on null
+src/shared/booking/model.ts:53:28  || → ??   # left side is always a strict boolean (result of ===), never falsy-but-non-null
+
+# childHasDateOrStockForDays' `days ?? 1` fallback: normalizeDurationDays
+# (called downstream in isBookingRangeValid) clamps any non-finite or
+# sub-1 value up to 1, so `1`, `0`, and `-1` all normalize identically —
+# and `days || 1` reaches the same clamp for every falsy `days` (null, 0,
+# NaN), agreeing with `days ?? 1` for every value the type permits.
+src/shared/booking/model.ts:66:41  ?? → ||   # every falsy days (null/0/NaN) clamps to 1 downstream either way
+src/shared/booking/model.ts:66:45  1 → 0   # normalizeDurationDays clamps 0 up to 1 anyway
+src/shared/booking/model.ts:66:45  1 → -1   # normalizeDurationDays clamps negatives up to 1 anyway
+
+# childHasPriceForDays: dayPriceFor returns number|null (no undefined), so
+# !== and != agree on null.
+src/shared/booking/model.ts:74:37  !== → !=   # dayPriceFor(...): number|null (no undefined), so !== and != agree on null
+
+# bookableChildIds: `childrenByParentId?.values()` is either undefined or a
+# live MapIterator, and iterator objects are always truthy — never a
+# falsy-but-defined value — so ?? and || agree.
+src/shared/booking/model.ts:125:38  ?? → ||   # Map#values() is undefined or a truthy iterator object, never falsy-but-defined
+
+# dayCountsEveryListingSupports' final `.sort((a, b) => a - b)`: the array it
+# sorts is built by spreading `first` (a Set built from availableDayCounts,
+# which already returns its own ascending sort) and then `.filter(...)`ing
+# it — filtering a sorted array preserves order, so the input to this sort
+# is provably always already ascending. Confirmed empirically that engines
+# leave an already-sorted array untouched regardless of comparator sign
+# (`[2,3].sort((a,b)=>a+b)` stays `[2, 3]`), so no comparator mutation here
+# is observable for any reachable input.
+src/shared/booking/model.ts:226:22  - → +   # input is always pre-sorted ascending by construction; comparator is never exercised on unsorted data
+src/shared/booking/model.ts:226:22  - → *   # same as above
+src/shared/booking/model.ts:226:22  - → /   # same as above
+
+# keepDayCountsChildrenSupport: `dayCountsChildSupports(child) ?? current`
+# — dayCountsChildSupports returns number[]|null, and arrays are always
+# truthy in JS even when empty, so ?? and || agree for every possible
+# return value.
+src/shared/booking/model.ts:255:49  ?? → ||   # dayCountsChildSupports(): number[]|null, and an array is truthy even when empty
+
+# keepParentDayCountsChildrenSupport: `!childrenByParentId || ...` — the
+# left side is always a strict boolean (result of `!`), never falsy-but-
+# non-null, so || and ?? agree.
+src/shared/booking/model.ts:265:22  || → ??   # left side is always a strict boolean (result of !), never falsy-but-non-null
