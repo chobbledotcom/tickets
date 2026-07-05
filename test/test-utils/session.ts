@@ -399,7 +399,9 @@ export const setupListingAndLogin = async (
   cookie: string;
   csrfToken: string;
 }> => {
-  const { createTestListing } = await import("#test-utils/db-helpers.ts");
+  const { createTestListing } = await import(
+    "#test-utils/db-helpers/listings.ts"
+  );
   const listing = await createTestListing(overrides);
   const { cookie, csrfToken } = await getTestSession();
   return { cookie, csrfToken, listing };
@@ -467,8 +469,12 @@ export const getBulkActionForm =
 export const setupAdminTest = async (
   listingOverrides: TestListingOverrides = {},
 ): Promise<AdminTestContext> => {
-  const { createTestListing } = await import("#test-utils/db-helpers.ts");
-  const { createTestAttendee } = await import("#test-utils/db-helpers.ts");
+  const { createTestListing } = await import(
+    "#test-utils/db-helpers/listings.ts"
+  );
+  const { createTestAttendee } = await import(
+    "#test-utils/db-helpers/attendees.ts"
+  );
   const listing = await createTestListing({
     maxAttendees: 100,
     thankYouUrl: "https://example.com",

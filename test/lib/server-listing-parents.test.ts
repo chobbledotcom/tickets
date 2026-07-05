@@ -57,7 +57,9 @@ const postListingEdit = async (
   updates: Record<string, unknown> & { groupId?: number; groupIds?: number[] },
 ): Promise<Response> => {
   const { getListingWithCount } = await import("#shared/db/listings.ts");
-  const { buildUpdateListingForm } = await import("#test-utils/db-helpers.ts");
+  const { buildUpdateListingForm } = await import(
+    "#test-utils/db-helpers/listing-forms.ts"
+  );
   const { getTestSession } = await import("#test-utils/session.ts");
   const { handleRequest } = await import("#routes");
   const { mockMultipartRequest } = await import("#test-utils/mocks.ts");

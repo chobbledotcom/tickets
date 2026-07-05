@@ -3,10 +3,8 @@ import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import { hashEmail, unsubscribeHash } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
 import { adminFormPost } from "#test-utils";
-import {
-  createTestAttendeeDirect,
-  createTestListing,
-} from "#test-utils/db-helpers.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** Configure the owner's own (bulk-capable) email provider. */
 export const useResend = () =>

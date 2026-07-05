@@ -469,7 +469,9 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
 
   test("serves a cookie session without a CSRF header", async () => {
     const { getTestSession } = await import("#test-utils/session.ts");
-    const { createTestAttendee } = await import("#test-utils/db-helpers.ts");
+    const { createTestAttendee } = await import(
+      "#test-utils/db-helpers/attendees.ts"
+    );
     await settings.update.calendarFeedsEnabled(true);
     await settings.update.calendarFeedsGroupBy("attendees");
     const listing = await createTestListing({
@@ -498,7 +500,9 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
     const { createTestApiKeyFull, requestAsApiKey } = await import(
       "#test-utils/session.ts"
     );
-    const { createTestAttendee } = await import("#test-utils/db-helpers.ts");
+    const { createTestAttendee } = await import(
+      "#test-utils/db-helpers/attendees.ts"
+    );
     await settings.update.calendarFeedsEnabled(true);
     await settings.update.calendarFeedsGroupBy("attendees");
     const { apiKey } = await createTestApiKeyFull("Calendar");
@@ -531,7 +535,9 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
     const { createTestApiKeyFull, requestAsApiKey } = await import(
       "#test-utils/session.ts"
     );
-    const { createTestAttendee } = await import("#test-utils/db-helpers.ts");
+    const { createTestAttendee } = await import(
+      "#test-utils/db-helpers/attendees.ts"
+    );
     await settings.update.calendarFeedsEnabled(true);
     await settings.update.calendarFeedsGroupBy("listings");
     const { apiKey } = await createTestApiKeyFull("Calendar Listings");
@@ -557,7 +563,7 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
       "#test-utils/session.ts"
     );
     const { createTestAttendeeDirect } = await import(
-      "#test-utils/db-helpers.ts"
+      "#test-utils/db-helpers/attendees.ts"
     );
     await settings.update.calendarFeedsEnabled(true);
     const { apiKey } = await createTestApiKeyFull("Calendar Blank");
@@ -608,7 +614,9 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
     const { getTestDataKeyForApiKey, requestAsApiKey } = await import(
       "#test-utils/session.ts"
     );
-    const { createTestAttendee } = await import("#test-utils/db-helpers.ts");
+    const { createTestAttendee } = await import(
+      "#test-utils/db-helpers/attendees.ts"
+    );
     await settings.update.calendarFeedsEnabled(true);
     const dataKey = await getTestDataKeyForApiKey();
     const user = await createUser("feed-agent", "", null, "agent");

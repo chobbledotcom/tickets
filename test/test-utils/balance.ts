@@ -1,6 +1,6 @@
 import { attendeeStatusesTable } from "#shared/db/attendee-statuses.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
 /** A settle identity (session id + business time) for settleAttendeeBalance. */
