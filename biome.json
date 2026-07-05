@@ -52,6 +52,12 @@
         "noUnusedVariables": "error"
       },
       "nursery": {
+        "noExcessiveLinesPerFile": {
+          "level": "error",
+          "options": {
+            "maxLines": 1000
+          }
+        },
         "useSortedClasses": "error"
       },
       "performance": {
@@ -140,6 +146,54 @@
         "rules": {
           "suspicious": {
             "noTemplateCurlyInString": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "src/features/api/index.ts",
+        "src/features/api/payment-processing.ts",
+        "src/features/public/ticket-submit.ts",
+        "src/shared/band-name-generator/word-pools.ts",
+        "src/shared/db/migrations/schema.ts",
+        "src/shared/db/questions.ts",
+        "src/shared/db/settings.ts",
+        "src/ui/templates/fields.ts",
+        "src/ui/templates/public/reservations.tsx",
+        "test/admin-api-listings.test.ts",
+        "test/e2e/accounting.test.ts",
+        "test/e2e/duration-days.test.ts",
+        "test/lib/attendee-merge.test.ts",
+        "test/lib/db/listings.test.ts",
+        "test/lib/payment-helpers.test.ts",
+        "test/lib/questions.test.ts",
+        "test/lib/server-attendee-form.test.ts",
+        "test/lib/server-attendees.test.ts",
+        "test/lib/server-bulk-email.test.ts",
+        "test/lib/server-groups.test.ts",
+        "test/lib/server-images.test.ts",
+        "test/lib/server-listing-parents.test.ts",
+        "test/lib/server-modifiers.test.ts",
+        "test/lib/server-parents-booking.test.ts",
+        "test/lib/server-parents-gate.test.ts",
+        "test/lib/server-payments-success.test.ts",
+        "test/lib/server-payments.test.ts",
+        "test/lib/server-questions.test.ts",
+        "test/lib/server-reservation.test.ts",
+        "test/lib/square.test.ts",
+        "test/lib/stripe.test.ts",
+        "test/lib/test-utils.test.ts",
+        "test/lib/webhook-price-signature.test.ts",
+        "test/routes/api.test.ts",
+        "test/templates/admin/listings.test.ts",
+        "test/templates/public.test.ts",
+        "test/test-utils/db-helpers.ts"
+      ],
+      "linter": {
+        "rules": {
+          "nursery": {
+            "noExcessiveLinesPerFile": "off"
           }
         }
       }
