@@ -164,7 +164,6 @@
         "test/e2e/duration-days.test.ts",
         "test/lib/attendee-merge.test.ts",
         "test/lib/payment-helpers.test.ts",
-        "test/lib/questions.test.ts",
         "test/lib/server-attendee-form.test.ts",
         "test/lib/server-attendees.test.ts",
         "test/lib/server-groups.test.ts",
