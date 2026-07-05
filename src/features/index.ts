@@ -210,6 +210,16 @@ const loadInstanceRoutes = once(async () =>
   createRouter((await import("#routes/instance.ts")).instanceRoutes),
 );
 
+/** Lazy-load the address-lookup (postcode search) endpoint */
+const loadAddressLookupRoutes = once(async () => {
+  const { handleAddressLookupGet } = await import(
+    "#routes/public/address-lookup.ts"
+  );
+  return createRouter(
+    defineRoutes({ "GET /address-lookup": handleAddressLookupGet }),
+  );
+});
+
 /** Lazy-load unsubscribe routes */
 const loadUnsubscribeRoutes = once(async () => {
   const { handleUnsubscribeGet, handleUnsubscribePost } = await import(
@@ -406,13 +416,22 @@ const ADMIN_SETTINGS: readonly string[] = [...SNAPSHOT_KEYS, "db_schema_hash"];
 const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   // --- Public HTML pages (full nav) ---
   "": [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.HOMEPAGE_TEXT, CONFIG_KEYS.COUNTRY],
+  // --- Address lookup proxy (JSON only): provider choice + its API key ---
+  "address-lookup": [
+    CONFIG_KEYS.ADDRESS_LOOKUP_PROVIDER,
+    CONFIG_KEYS.ADDRESS_LOOKUP_API_KEY,
+  ],
   // --- Everything (may touch any setting) ---
   admin: ADMIN_SETTINGS,
   api: ALL_SNAPSHOT_SETTINGS,
   attachment: [],
   // Booking running total: reprices the cart with the same code path as
   // /ticket, so it needs the same booking-flow settings (not the full snapshot).
-  calculate: [...BOOKING_FLOW_SETTINGS, CONFIG_KEYS.EMBED_HOSTS],
+  calculate: [
+    ...BOOKING_FLOW_SETTINGS,
+    CONFIG_KEYS.EMBED_HOSTS,
+    CONFIG_KEYS.ADDRESS_LOOKUP_PROVIDER,
+  ],
   caldav: ALL_SNAPSHOT_SETTINGS,
   // --- Check-in (owner-authenticated admin view) ---
   checkin: [
@@ -469,7 +488,13 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   terms: PUBLIC_NAV_SETTINGS,
   // --- Booking flows (form + checkout + emails) ---
   // Ticket pages are embeddable, so applySecurityHeaders reads embed_hosts.
-  ticket: [...BOOKING_FLOW_SETTINGS, CONFIG_KEYS.EMBED_HOSTS],
+  // The form render checks the address-lookup provider to decide whether the
+  // address field gets a postcode search box.
+  ticket: [
+    ...BOOKING_FLOW_SETTINGS,
+    CONFIG_KEYS.EMBED_HOSTS,
+    CONFIG_KEYS.ADDRESS_LOOKUP_PROVIDER,
+  ],
   // --- Unsubscribe page (bare layout + page title) ---
   unsubscribe: [CONFIG_KEYS.WEBSITE_TITLE],
   v1: [...APPLE_WALLET_SETTINGS, CONFIG_KEYS.COUNTRY],
@@ -658,6 +683,7 @@ const customCssPrefixHandler: RouterFn = async (_request, path, method) => {
 const prefixHandlers: Record<string, RouterFn> = {
   ...publicPageHandlers,
   // Prefix-matched lazy-loaded route groups
+  "address-lookup": lazyRoute(loadAddressLookupRoutes),
   admin: lazyRoute(loadAdminRoutes),
   api: async (request, path, method, server) => {
     // Admin API is always available (auth-protected)

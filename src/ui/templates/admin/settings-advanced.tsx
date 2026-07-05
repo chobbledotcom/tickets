@@ -3,10 +3,12 @@
  */
 
 import { t } from "#i18n";
+import type { AddressLookupSetting } from "#shared/address-lookup/types.ts";
 import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { themedAdminPage } from "#templates/admin/admin-page.tsx";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
+import { AddressLookupForm } from "#templates/admin/settings/address-lookup.tsx";
 import { AppleWalletForm } from "#templates/admin/settings/apple-wallet.tsx";
 import {
   AttendeeColumnOrderForm,
@@ -23,6 +25,8 @@ import { HostSubdomainForm } from "#templates/admin/settings/subdomain.tsx";
 import type { EmailContent } from "#templates/email/shared.ts";
 
 export type AdvancedSettingsPageState = {
+  addressLookupProvider: AddressLookupSetting;
+  addressLookupApiKeyConfigured: boolean;
   showPublicApi: boolean;
   externalOrderEnabled: boolean;
   emailProvider: string;
@@ -86,6 +90,7 @@ export const adminAdvancedSettingsPage = (
       {GoogleWalletForm(s)}
       {AppleWalletForm(s)}
       {SmsGatewayForm(s)}
+      {AddressLookupForm(s)}
 
       <ResetDatabaseForm
         action="/admin/settings/reset-database"

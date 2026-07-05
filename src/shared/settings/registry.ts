@@ -34,6 +34,8 @@ export const STRING_SETTING_DEFINITIONS = [
     storage: "plaintext",
   }),
   setting({ key: CONFIG_KEYS.EMAIL_PROVIDER, storage: "plaintext" }),
+  setting({ key: CONFIG_KEYS.ADDRESS_LOOKUP_PROVIDER, storage: "plaintext" }),
+  setting({ key: CONFIG_KEYS.ADDRESS_LOOKUP_API_KEY, storage: "encrypted" }),
   // Custom CSS is served verbatim as a public stylesheet at /custom.css, so it
   // is stored unencrypted. There is nothing secret about it.
   setting({
@@ -139,6 +141,12 @@ export const STRING_SETTING_DEFINITIONS = [
   setting({
     accessor: { name: "lastPrunedContacts" },
     key: CONFIG_KEYS.LAST_PRUNED_CONTACTS,
+    storage: "plaintext",
+    tags: ["prune"],
+  }),
+  setting({
+    accessor: { name: "lastPrunedAddresses" },
+    key: CONFIG_KEYS.LAST_PRUNED_ADDRESSES,
     storage: "plaintext",
     tags: ["prune"],
   }),

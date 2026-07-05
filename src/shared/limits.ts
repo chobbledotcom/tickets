@@ -135,6 +135,19 @@ export const BOOKING_LOCKOUT_MS = readLimit(
 );
 
 // ---------------------------------------------------------------------------
+// Address lookup (postcode search)
+// ---------------------------------------------------------------------------
+
+/** Max address lookups per IP before lockout (default: 30) */
+export const MAX_ADDRESS_LOOKUPS = readLimit("MAX_ADDRESS_LOOKUPS", 30);
+
+/** Lockout duration after max address lookups in ms (default: 600000 = 10 min) */
+export const ADDRESS_LOOKUP_LOCKOUT_MS = readLimit(
+  "ADDRESS_LOOKUP_LOCKOUT_MS",
+  10 * 60 * 1000,
+);
+
+// ---------------------------------------------------------------------------
 // API-key (Bearer) auth rate limiting
 // ---------------------------------------------------------------------------
 
@@ -242,6 +255,13 @@ export const PRUNE_CONTACTS_RETENTION_DAYS = readLimit(
   1825,
 );
 
+/**
+ * How long (days) a cached address-lookup result stays servable (default: 90).
+ * A stale-but-unpruned row is never served: reads filter on the same cutoff
+ * the prune task deletes by.
+ */
+export const ADDRESS_CACHE_DAYS = readLimit("ADDRESS_CACHE_DAYS", 90);
+
 /** How often (hours) to re-run each prune task (default: 24 = daily) */
 export const PRUNE_INTERVAL_HOURS = readLimit("PRUNE_INTERVAL_HOURS", 24);
 
@@ -298,6 +318,7 @@ export const PRUNE_UNUSED_STRINGS_RETENTION_MS =
   PRUNE_UNUSED_STRINGS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_CONTACTS_RETENTION_MS =
   PRUNE_CONTACTS_RETENTION_DAYS * DAY_MS;
+export const ADDRESS_CACHE_MS = ADDRESS_CACHE_DAYS * DAY_MS;
 
 // ---------------------------------------------------------------------------
 // Form re-fill stash
@@ -507,6 +528,20 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     unit: "ms",
   },
   {
+    current: MAX_ADDRESS_LOOKUPS,
+    defaultValue: 30,
+    envKey: "MAX_ADDRESS_LOOKUPS",
+    label: "Max address lookups before lockout",
+    unit: "attempts",
+  },
+  {
+    current: ADDRESS_LOOKUP_LOCKOUT_MS,
+    defaultValue: 10 * 60 * 1000,
+    envKey: "ADDRESS_LOOKUP_LOCKOUT_MS",
+    label: "Address lookup lockout duration",
+    unit: "ms",
+  },
+  {
     current: MAX_APIKEY_ATTEMPTS,
     defaultValue: 20,
     envKey: "MAX_APIKEY_ATTEMPTS",
@@ -567,6 +602,13 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     defaultValue: 1825,
     envKey: "PRUNE_CONTACTS_RETENTION_DAYS",
     label: "Prune: contact-preferences retention",
+    unit: "days",
+  },
+  {
+    current: ADDRESS_CACHE_DAYS,
+    defaultValue: 90,
+    envKey: "ADDRESS_CACHE_DAYS",
+    label: "Address lookup cache retention",
     unit: "days",
   },
   {

@@ -93,6 +93,24 @@ export const recordIpAttempt = (
   withHashedIpAttempts(ip, prefix, makeRecordAttempt(maxAttempts, lockoutMs));
 
 /**
+ * Build a namespaced per-IP limiter: `isLimited` checks the lockout,
+ * `record` counts one attempt (locking out at `maxAttempts` for `lockoutMs`
+ * and returning true once locked). Each caller picks its own `prefix` so
+ * counters never collide across features.
+ */
+export const makeIpRateLimiter = (
+  prefix: string,
+  maxAttempts: number,
+  lockoutMs: number,
+): {
+  isLimited: (ip: string) => Promise<boolean>;
+  record: (ip: string) => Promise<boolean>;
+} => ({
+  isLimited: (ip) => isIpRateLimited(ip, prefix),
+  record: (ip) => recordIpAttempt(ip, prefix, maxAttempts, lockoutMs),
+});
+
+/**
  * Check if IP is rate limited for login.
  */
 export const isLoginRateLimited = (ip: string): Promise<boolean> =>

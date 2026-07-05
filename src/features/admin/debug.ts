@@ -216,6 +216,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       webhookConfigured: webhookConfiguredFor(paymentProvider),
     },
     prune: {
+      addresses: formatLastPruned(settings.lastPrunedAddresses),
       logins: formatLastPruned(settings.lastPrunedLogins),
       payments: formatLastPruned(settings.lastPrunedPayments),
       sessions: formatLastPruned(settings.lastPrunedSessions),

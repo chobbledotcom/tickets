@@ -1,0 +1,20 @@
+{
+  "address_lookup.settings.title": "Address Lookup",
+  "address_lookup.settings.save": "Save Address Lookup",
+  "address_lookup.settings.description": "<p>Let customers fill in their address by searching for their postcode instead of typing it out. Choose a lookup provider and enter the API key from your account with them — the key stays on this server, and search results are cached (encrypted) to keep your provider usage down. The same search box appears on the admin attendee forms.</p>",
+  "address_lookup.settings.provider": "Provider",
+  "address_lookup.settings.provider_none": "None (type addresses manually)",
+  "address_lookup.settings.api_key": "API key",
+  "address_lookup.settings.api_key_placeholder": "Key from your provider account",
+  "address_lookup.search.postcode": "Postcode",
+  "address_lookup.search.postcode_placeholder": "e.g. SW1A 1AA",
+  "address_lookup.find": "Find address",
+  "address_lookup.choose": "Choose your address",
+  "address_lookup.choose_placeholder": "Select an address…",
+  "address_lookup.edit": "Edit address",
+  "address_lookup.searching": "Searching…",
+  "address_lookup.no_results": "No addresses found — please type your address below.",
+  "address_lookup.invalid_search": "That doesn't look like a valid postcode",
+  "address_lookup.failed": "Address lookup failed — please try again or type your address",
+  "address_lookup.rate_limited": "Too many address lookups. Please try again later."
+}

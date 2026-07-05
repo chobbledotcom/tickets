@@ -2,6 +2,7 @@
  * English locale — loads and merges all JSON message files
  */
 
+import addressLookup from "./address-lookup.json" with { type: "json" };
 import admin from "./admin.json" with { type: "json" };
 import attendees from "./attendees.json" with { type: "json" };
 import availability from "./availability.json" with { type: "json" };
@@ -49,6 +50,7 @@ import update from "./update.json" with { type: "json" };
 import users from "./users.json" with { type: "json" };
 
 const en: Record<string, string> = {
+  ...addressLookup,
   ...admin,
   ...availability,
   ...attendees,
