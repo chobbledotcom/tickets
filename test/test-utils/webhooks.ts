@@ -80,21 +80,21 @@ export const postWebhookAndAssert = async <T = Record<string, unknown>>(
  * sequence shared by every single-stub webhook outcome below (only the
  * assertion itself varies: processed, ignored, ...).
  */
-const stubAndPostWebhook = <T = Record<string, unknown>>(
+const stubAndPostWebhook = async <T = Record<string, unknown>>(
   event: Parameters<typeof stubWebhookVerify>[0],
   assertions: (json: T) => void,
   extraCleanup?: () => void,
-): Promise<T> =>
-  stubWebhookVerify(event).then((mockVerify) =>
-    postWebhookAndAssert<T>(
-      () => {
-        mockVerify.restore();
-        extraCleanup?.();
-      },
-      200,
-      assertions,
-    ),
+): Promise<T> => {
+  const mockVerify = await stubWebhookVerify(event);
+  return postWebhookAndAssert<T>(
+    () => {
+      mockVerify.restore();
+      extraCleanup?.();
+    },
+    200,
+    assertions,
   );
+};
 
 /**
  * The "happy path" webhook assertion: assert the webhook was processed
