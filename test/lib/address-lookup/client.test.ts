@@ -89,6 +89,16 @@ const flush = async (): Promise<void> => {
 const jsonResponse = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), { status });
 
+/** Install a form holding this (possibly stripped-down) panel plus the
+ *  address textarea, run the enhancement, and hand back the form. */
+const initPanelInForm = (panel: ElementSpec): FakeElement => {
+  const [form] = installFakeDom([
+    { children: [panel, { name: "address", tag: "textarea" }], tag: "form" },
+  ]);
+  initAddressLookup();
+  return form!;
+};
+
 describe("address lookup client", () => {
   const { callCount, stubFetch } = setupFetchStub();
 
@@ -104,14 +114,8 @@ describe("address lookup client", () => {
         ? { data: { addressResults: "" }, tag: "select" as const }
         : c,
     );
-    const [form] = installFakeDom([
-      {
-        children: [partial, { name: "address", tag: "textarea" }],
-        tag: "form",
-      },
-    ]);
-    initAddressLookup();
-    expect(form!.querySelector("[data-address-lookup]")!.hidden).toBe(true);
+    const form = initPanelInForm(partial);
+    expect(form.querySelector("[data-address-lookup]")!.hidden).toBe(true);
   });
 
   test("does nothing on a page without a panel", () => {
@@ -128,11 +132,8 @@ describe("address lookup client", () => {
 
   test("leaves a panel missing its own controls hidden", () => {
     const gutted = { ...panelSpec("locked"), children: [] };
-    const [form] = installFakeDom([
-      { children: [gutted, { name: "address", tag: "textarea" }], tag: "form" },
-    ]);
-    initAddressLookup();
-    expect(form!.querySelector("[data-address-lookup]")!.hidden).toBe(true);
+    const form = initPanelInForm(gutted);
+    expect(form.querySelector("[data-address-lookup]")!.hidden).toBe(true);
   });
 
   // Any single absent control disables the whole panel — a partial panel
@@ -149,14 +150,8 @@ describe("address lookup client", () => {
         missing in (spec.data ?? {}) || (spec.children ?? []).some(hasControl);
       const partial = panelSpec("locked");
       partial.children = partial.children!.filter((c) => !hasControl(c));
-      const [form] = installFakeDom([
-        {
-          children: [partial, { name: "address", tag: "textarea" }],
-          tag: "form",
-        },
-      ]);
-      initAddressLookup();
-      expect(form!.querySelector("[data-address-lookup]")!.hidden).toBe(true);
+      const form = initPanelInForm(partial);
+      expect(form.querySelector("[data-address-lookup]")!.hidden).toBe(true);
     });
   }
 
@@ -167,11 +162,8 @@ describe("address lookup client", () => {
     noEdit.children = noEdit.children!.filter(
       (c) => !("addressEdit" in (c.data ?? {})),
     );
-    const [form] = installFakeDom([
-      { children: [noEdit, { name: "address", tag: "textarea" }], tag: "form" },
-    ]);
-    initAddressLookup();
-    expect(form!.querySelector("textarea")!.readOnly).toBe(false);
+    const form = initPanelInForm(noEdit);
+    expect(form.querySelector("textarea")!.readOnly).toBe(false);
   });
 
   test("a locked textarea outside any form still locks and unlocks", () => {
