@@ -426,6 +426,8 @@ describe("adminSettingsPage > SuperuserForm placement", () => {
 
 describe("adminAdvancedSettingsPage", () => {
   const advancedDefaultState: AdvancedSettingsPageState = {
+    addressLookupApiKeyConfigured: false,
+    addressLookupProvider: "none",
     adminTemplates: { html: "", subject: "", text: "" },
     appleWalletConfigured: false,
     appleWalletPassTypeId: "",
