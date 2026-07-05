@@ -34,8 +34,8 @@ import { VALID_DAY_NAMES } from "#templates/fields.ts";
 import { testListingWithCount, useSetting } from "#test-utils";
 
 const today = () => todayInTz("UTC");
-const todayWeekday = () =>
-  DAY_NAMES[new Date(`${today()}T00:00:00Z`).getUTCDay()]!;
+const weekdayOf = (dateStr: string) =>
+  DAY_NAMES[new Date(`${dateStr}T00:00:00Z`).getUTCDay()]!;
 
 const listing = (over: Partial<ListingWithCount> = {}): ListingWithCount =>
   testListingWithCount({ id: 1, ...over });
@@ -185,6 +185,11 @@ describe("booking model", () => {
       expect(check(resolved(dailyOverrides()))).toBe(false);
     });
 
+    test("allows a date that is included in the parent's own dates", () => {
+      const check = childHasDateOrStockForDays([], 3, new Set([today()]));
+      expect(check(resolved(dailyOverrides()))).toBe(true);
+    });
+
     describe("day count precision", () => {
       // Only one weekday a week is bookable, so a 1-day booking always fits
       // but any 2-day-or-longer span never does — this distinguishes an
@@ -193,7 +198,7 @@ describe("booking model", () => {
       const singleWeekdayChild = () =>
         resolved(
           dailyOverrides({
-            bookable_days: [todayWeekday()],
+            bookable_days: [weekdayOf(today())],
             maximum_days_after: 30,
           }),
         );
@@ -336,9 +341,10 @@ describe("booking model", () => {
       // getBookableStartDates().includes(date), not isBookingRangeValid with
       // the caller's duration, so a mismatched requested duration doesn't
       // affect a fixed child's own single-day start-date list.
-      const check = childDateOk(today(), [], 5);
+      const date = today();
+      const check = childDateOk(date, [], 5);
       expect(
-        check(resolved(dailyOverrides({ bookable_days: [todayWeekday()] }))),
+        check(resolved(dailyOverrides({ bookable_days: [weekdayOf(date)] }))),
       ).toBe(true);
     });
   });
@@ -562,12 +568,10 @@ describe("booking model", () => {
   });
 
   describe("updateForMembersWithChildren", () => {
-    for (
-      const [label, childrenByParentId] of [
-        ["has no children entry", new Map<number, TicketListing[]>()],
-        ["has an empty children array", new Map([[1, []]])],
-      ] as const
-    ) {
+    for (const [label, childrenByParentId] of [
+      ["has no children entry", new Map<number, TicketListing[]>()],
+      ["has an empty children array", new Map([[1, []]])],
+    ] as const) {
       test(`skips the step for a member that ${label}`, () => {
         const result = updateForMembersWithChildren(
           [resolved({ id: 1 })],
@@ -832,6 +836,17 @@ describe("booking model", () => {
       ).toEqual([2, 3]);
     });
 
+    test("ignores children entirely for a multi-listing package, even a restrictive one", () => {
+      const listings = [resolved({ id: 1 }), resolved({ id: 2 })];
+      expect(
+        keepParentDayCountsChildrenSupport(
+          listings,
+          [2, 3],
+          oneChildSupportingDayTwo(),
+        ),
+      ).toEqual([2, 3]);
+    });
+
     test("restricts to what children support for a single-listing selection", () => {
       const listing1 = resolved({ id: 1 });
       expect(
@@ -853,10 +868,7 @@ describe("booking model", () => {
         id: 1,
       });
       expect(
-        packageDayCountsChildrenSupport(
-          [listing1],
-          oneChildSupportingDayTwo(),
-        ),
+        packageDayCountsChildrenSupport([listing1], oneChildSupportingDayTwo()),
       ).toEqual([2]);
     });
 

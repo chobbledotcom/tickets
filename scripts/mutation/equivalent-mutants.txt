@@ -421,12 +421,12 @@ src/shared/bulk-replace.ts:103:56  $1 00: → ""   # this runtime's ICU never re
 src/shared/bulk-replace.ts:103:56  $1 00: → "$1 00: mutated"   # same as above
 
 # booking/model.ts's childHasStartForDays predicate: `parentDates === null`
-# is checked on a `ReadonlySet<string> | null` (no undefined case), and the
-# `||` beside it always evaluates to a plain boolean (the result of `===`),
-# never a falsy-but-non-null value, so `??` agrees with both `==`/`===` and
-# `||` here.
+# is checked on a `ReadonlySet<string> | null` (no undefined case), so ===
+# and == agree on null. (The neighboring `||` is NOT equivalent to `??` —
+# its left operand can be the boolean `false`, a defined-but-falsy value,
+# which `??` would return as-is instead of evaluating `.has(date)`; a test
+# covers that case directly.)
 src/shared/booking/model.ts:53:19  === → ==   # parentDates is ReadonlySet<string>|null (no undefined), so === and == agree on null
-src/shared/booking/model.ts:53:28  || → ??   # left side is always a strict boolean (result of ===), never falsy-but-non-null
 
 # childHasDateOrStockForDays' `days ?? 1` fallback: normalizeDurationDays
 # (called downstream in isBookingRangeValid) clamps any non-finite or
@@ -463,8 +463,3 @@ src/shared/booking/model.ts:226:22  - → /   # same as above
 # truthy in JS even when empty, so ?? and || agree for every possible
 # return value.
 src/shared/booking/model.ts:255:49  ?? → ||   # dayCountsChildSupports(): number[]|null, and an array is truthy even when empty
-
-# keepParentDayCountsChildrenSupport: `!childrenByParentId || ...` — the
-# left side is always a strict boolean (result of `!`), never falsy-but-
-# non-null, so || and ?? agree.
-src/shared/booking/model.ts:265:22  || → ??   # left side is always a strict boolean (result of !), never falsy-but-non-null
