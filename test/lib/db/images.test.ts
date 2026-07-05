@@ -14,6 +14,7 @@ import {
   setImagesForItem,
   setItemsForImage,
 } from "#shared/db/images.ts";
+import { getListingWithCount } from "#shared/db/listings.ts";
 import type { Image } from "#shared/types.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import {
@@ -166,6 +167,22 @@ describeWithEnv("db > images", { db: true }, () => {
         image_alt_text: "Primary image alt",
         image_thumb_url: "primary-thumb.webp",
         image_url: "primary.webp",
+      });
+    });
+
+    test("projects listing images through listing reads", async () => {
+      const listing = await createTestListing({ name: "Projected listing" });
+      const image = await makeImage("Projected", {
+        altText: "Projected image alt",
+        filename: "projected.webp",
+        filenameThumb: "projected-thumb.webp",
+      });
+      await setImagesForItem("listing", listing.id, [image.id]);
+
+      expect(await getListingWithCount(listing.id)).toMatchObject({
+        image_alt_text: "Projected image alt",
+        image_thumb_url: "projected-thumb.webp",
+        image_url: "projected.webp",
       });
     });
 

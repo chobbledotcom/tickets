@@ -24,7 +24,7 @@ import {
   imagesTable,
   setItemsForImage,
 } from "#shared/db/images.ts";
-import { getAllListings } from "#shared/db/listings.ts";
+import { getAllListingNames } from "#shared/db/listings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { deleteImageStorageFiles, isStorageEnabled } from "#shared/storage.ts";
 import { type Image, isImageUseItemType } from "#shared/types.ts";
@@ -79,9 +79,9 @@ const handleImageCreatePost: TypedRouteHandler<"POST /admin/images"> = (
   );
 
 const listingImageItemOptions = async (): Promise<ImageItemOption[]> =>
-  (await getAllListings()).map((listing) => ({
-    id: listing.id,
-    label: listing.name,
+  [...(await getAllListingNames()).entries()].map(([id, label]) => ({
+    id,
+    label,
     type: "listing" as const,
   }));
 
