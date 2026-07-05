@@ -1,15 +1,14 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
-import { handleRequest } from "#routes";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
-  assertJson,
+  checkoutSessionEvent,
   createTestListing,
   describeWithEnv,
-  mockWebhookRequest,
+  postWebhookAndAssert,
   setupStripe,
   singleItem,
+  stubWebhookVerify,
   webhookMeta,
 } from "#test-utils";
 
@@ -24,79 +23,45 @@ describeWithEnv(
     test("acknowledges non-checkout listings", async () => {
       await setupStripe();
 
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            listing: {
-              data: { object: {} },
-              id: "evt_test",
-              type: "payment_intent.created",
-            },
-            valid: true,
-          }),
-      );
+      const mockVerify = await stubWebhookVerify({
+        data: { object: {} },
+        id: "evt_test",
+        type: "payment_intent.created",
+      });
 
-      try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-          200,
-          (json) => {
-            expect(json.received).toBe(true);
-          },
-        );
-      } finally {
-        mockVerify.restore();
-      }
+      await postWebhookAndAssert(
+        () => {
+          mockVerify.restore();
+        },
+        200,
+        (json) => {
+          expect(json.received).toBe(true);
+        },
+      );
     });
 
     test("acknowledges webhook with unrecognized session metadata", async () => {
       await setupStripe();
 
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            listing: {
-              data: {
-                object: {
-                  amount_total: 0,
-                  id: "cs_test",
-                  metadata: {}, // Missing required fields — not our session
-                  payment_status: "paid",
-                },
-              },
-              id: "evt_test",
-              type: "checkout.session.completed",
-            },
-            valid: true,
-          }),
+      const mockVerify = await stubWebhookVerify(
+        checkoutSessionEvent({
+          amountTotal: 0,
+          eventId: "evt_test",
+          metadata: {}, // Missing required fields — not our session
+          sessionId: "cs_test",
+        }),
       );
 
-      try {
-        // Returns 200 to prevent provider retries
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-          200,
-          (json) => {
-            expect(json.received).toBe(true);
-          },
-        );
-      } finally {
-        mockVerify.restore();
-      }
+      // Returns 200 to prevent provider retries
+      await postWebhookAndAssert(
+        () => {
+          mockVerify.restore();
+        },
+        200,
+        (json) => {
+          expect(json.received).toBe(true);
+        },
+      );
     });
 
     test("acknowledges unpaid checkout without processing", async () => {
@@ -107,89 +72,56 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            listing: {
-              data: {
-                object: {
-                  amount_total: 1000,
-                  id: "cs_test",
-                  metadata: webhookMeta({
-                    email: "john@example.com",
-                    items: singleItem(listing.id, 1, 1000),
-                    name: "John",
-                  }),
-                  payment_intent: "pi_test",
-                  payment_status: "unpaid",
-                },
-              },
-              id: "evt_test",
-              type: "checkout.session.completed",
-            },
-            valid: true,
+      const mockVerify = await stubWebhookVerify(
+        checkoutSessionEvent({
+          amountTotal: 1000,
+          eventId: "evt_test",
+          metadata: webhookMeta({
+            email: "john@example.com",
+            items: singleItem(listing.id, 1, 1000),
+            name: "John",
           }),
+          paymentIntent: "pi_test",
+          paymentStatus: "unpaid",
+          sessionId: "cs_test",
+        }),
       );
 
-      try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-          200,
-          (json) => {
-            expect(json.received).toBe(true);
-            expect(json.status).toBe("pending");
-          },
-        );
-      } finally {
-        mockVerify.restore();
-      }
+      await postWebhookAndAssert(
+        () => {
+          mockVerify.restore();
+        },
+        200,
+        (json) => {
+          expect(json.received).toBe(true);
+          expect(json.status).toBe("pending");
+        },
+      );
     });
 
     test("webhook handles non-checkout listing type by acknowledging", async () => {
       await setupStripe();
 
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            listing: {
-              data: {
-                object: {
-                  id: "pi_test",
-                },
-              },
-              id: "evt_other_type",
-              type: "payment_intent.succeeded",
-            },
-            valid: true,
-          }),
-      );
-
-      try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-          200,
-          (json) => {
-            expect(json.received).toBe(true);
-            expect(json.processed).toBeUndefined();
+      const mockVerify = await stubWebhookVerify({
+        data: {
+          object: {
+            id: "pi_test",
           },
-        );
-      } finally {
-        mockVerify.restore();
-      }
+        },
+        id: "evt_other_type",
+        type: "payment_intent.succeeded",
+      });
+
+      await postWebhookAndAssert(
+        () => {
+          mockVerify.restore();
+        },
+        200,
+        (json) => {
+          expect(json.received).toBe(true);
+          expect(json.processed).toBeUndefined();
+        },
+      );
     });
   },
 );

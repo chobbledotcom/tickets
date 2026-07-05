@@ -1,3 +1,4 @@
+import { expect } from "@std/expect";
 import { execute, executeBatchWithResults, getDb } from "#shared/db/client.ts";
 import {
   type ModifierUsage,
@@ -139,4 +140,16 @@ export const modifierAggregates = async (
     totalUses: row.total_uses,
     usageCount: row.usage_count,
   };
+};
+
+/** Assert a modifier's recorded usage amount and aggregate totals in one
+ *  call — the pair of checks every scoped/grouped/promo-code modifier webhook
+ *  test ends with, varying only the numbers. */
+export const expectModifierUsage = async (
+  modifierId: number,
+  usageAmount: number,
+  aggregates: { totalRevenue: number; totalUses: number; usageCount: number },
+): Promise<void> => {
+  expect(await modifierUsageAmount(modifierId)).toBe(usageAmount);
+  expect(await modifierAggregates(modifierId)).toEqual(aggregates);
 };

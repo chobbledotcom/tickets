@@ -12,10 +12,11 @@ import {
 } from "#shared/db/questions.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
-  assertJson,
+  checkoutSessionEvent,
   createTestListing,
   describeWithEnv,
   mockWebhookRequest,
+  postWebhookAndAssert,
   setupStripe,
   signedMeta,
   stubWebhookVerify,
@@ -57,39 +58,24 @@ describeWithEnv(
       });
       await setListingQuestions(listing1.id, [q.id]);
 
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            listing: {
-              data: {
-                object: {
-                  amount_total: 500,
-                  id: "cs_answer",
-                  metadata: signedMeta(
-                    {
-                      answer_ids: JSON.stringify({
-                        [String(listing1.id)]: [a.id],
-                      }),
-                      email: "answer@example.com",
-                      items: JSON.stringify([{ e: listing1.id, p: 500, q: 1 }]),
-                      name: "Answer Buyer",
-                    },
-                    500,
-                  ),
-                  payment_intent: "pi_answer",
-                  payment_status: "paid",
-                },
-              },
-              id: "evt_answer",
-              type: "checkout.session.completed",
+      const mockVerify = await stubWebhookVerify(
+        checkoutSessionEvent({
+          amountTotal: 500,
+          eventId: "evt_answer",
+          metadata: signedMeta(
+            {
+              answer_ids: JSON.stringify({
+                [String(listing1.id)]: [a.id],
+              }),
+              email: "answer@example.com",
+              items: JSON.stringify([{ e: listing1.id, p: 500, q: 1 }]),
+              name: "Answer Buyer",
             },
-            valid: true,
-          }),
+            500,
+          ),
+          paymentIntent: "pi_answer",
+          sessionId: "cs_answer",
+        }),
       );
 
       try {
@@ -179,63 +165,55 @@ describeWithEnv(
 
       // Now simulate the webhook callback from the payment provider.
       // The metadata includes answer_ids serialized during checkout.
-      const mockVerify = await stubWebhookVerify({
-        data: {
-          object: {
-            amount_total: 1000,
-            id: "cs_multi_q",
-            metadata: signedMeta(
-              {
-                answer_ids: JSON.stringify({
-                  [String(listing1.id)]: [a1.id],
-                }),
-                email: "qbuyer@example.com",
-                items: JSON.stringify([
-                  { e: listing1.id, p: 1000, q: 1 },
-                  { e: listing2.id, p: 0, q: 1 },
-                ]),
-                name: "Q Buyer",
-              },
-              1000,
-            ),
-            payment_intent: "pi_multi_q",
-            payment_status: "paid",
-          },
-        },
-        id: "evt_multi_q",
-        type: "checkout.session.completed",
-      });
-
-      try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+      const mockVerify = await stubWebhookVerify(
+        checkoutSessionEvent({
+          amountTotal: 1000,
+          eventId: "evt_multi_q",
+          metadata: signedMeta(
+            {
+              answer_ids: JSON.stringify({
+                [String(listing1.id)]: [a1.id],
+              }),
+              email: "qbuyer@example.com",
+              items: JSON.stringify([
+                { e: listing1.id, p: 1000, q: 1 },
+                { e: listing2.id, p: 0, q: 1 },
+              ]),
+              name: "Q Buyer",
+            },
+            1000,
           ),
-          200,
-          (json) => {
-            expect(json.received).toBe(true);
-            expect(json.processed).toBe(true);
-          },
-        );
+          paymentIntent: "pi_multi_q",
+          sessionId: "cs_multi_q",
+        }),
+      );
 
-        // Verify attendees were created
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const att1 = await getAttendeesRaw(listing1.id);
-        const att2 = await getAttendeesRaw(listing2.id);
-        expect(att1.length).toBe(1);
-        expect(att2.length).toBe(1);
+      await postWebhookAndAssert(
+        () => {
+          mockVerify.restore();
+        },
+        200,
+        (json) => {
+          expect(json.received).toBe(true);
+          expect(json.processed).toBe(true);
+        },
+      );
 
-        // With multi-listing attendees, one attendee is linked to both listings.
-        // Answers are stored on the shared attendee ID.
-        const attendeeId = att1[0]!.id;
-        expect(attendeeId).toBe(att2[0]!.id); // same attendee
-        const batch = await getAttendeeAnswersBatch([attendeeId], {
-          texts: false,
-        });
-        expect(batch.get(attendeeId)).toEqual([a1.id]);
-      } finally {
-        mockVerify.restore();
-      }
+      // Verify attendees were created
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const att1 = await getAttendeesRaw(listing1.id);
+      const att2 = await getAttendeesRaw(listing2.id);
+      expect(att1.length).toBe(1);
+      expect(att2.length).toBe(1);
+
+      // With multi-listing attendees, one attendee is linked to both listings.
+      // Answers are stored on the shared attendee ID.
+      const attendeeId = att1[0]!.id;
+      expect(attendeeId).toBe(att2[0]!.id); // same attendee
+      const batch = await getAttendeeAnswersBatch([attendeeId], {
+        texts: false,
+      });
+      expect(batch.get(attendeeId)).toEqual([a1.id]);
     });
 
     test("saves free-text answers for a multi-listing checkout shared across listings", async () => {
@@ -302,69 +280,61 @@ describeWithEnv(
         "Vegan",
       ]);
 
-      const mockVerify = await stubWebhookVerify({
-        data: {
-          object: {
-            amount_total: 1000,
-            id: "cs_text_q",
-            metadata: signedMeta(
-              {
-                email: "textbuyer@example.com",
-                items: JSON.stringify([
-                  { e: listing1.id, p: 1000, q: 1 },
-                  { e: listing2.id, p: 0, q: 1 },
-                ]),
-                name: "Text Buyer",
-                text_answer_ids: JSON.stringify({
-                  [String(listing1.id)]: [
-                    { q: q1.id, s: stringIds.get("Wheelchair access") },
-                  ],
-                  [String(listing2.id)]: [
-                    { q: q2.id, s: stringIds.get("Vegan") },
-                  ],
-                }),
-              },
-              1000,
-            ),
-            payment_intent: "pi_text_q",
-            payment_status: "paid",
-          },
-        },
-        id: "evt_text_q",
-        type: "checkout.session.completed",
-      });
-
-      try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+      const mockVerify = await stubWebhookVerify(
+        checkoutSessionEvent({
+          amountTotal: 1000,
+          eventId: "evt_text_q",
+          metadata: signedMeta(
+            {
+              email: "textbuyer@example.com",
+              items: JSON.stringify([
+                { e: listing1.id, p: 1000, q: 1 },
+                { e: listing2.id, p: 0, q: 1 },
+              ]),
+              name: "Text Buyer",
+              text_answer_ids: JSON.stringify({
+                [String(listing1.id)]: [
+                  { q: q1.id, s: stringIds.get("Wheelchair access") },
+                ],
+                [String(listing2.id)]: [
+                  { q: q2.id, s: stringIds.get("Vegan") },
+                ],
+              }),
+            },
+            1000,
           ),
-          200,
-          (json) => {
-            expect(json.received).toBe(true);
-            expect(json.processed).toBe(true);
-          },
-        );
+          paymentIntent: "pi_text_q",
+          sessionId: "cs_text_q",
+        }),
+      );
 
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const att1 = await getAttendeesRaw(listing1.id);
-        const att2 = await getAttendeesRaw(listing2.id);
-        expect(att1.length).toBe(1);
-        expect(att2.length).toBe(1);
+      await postWebhookAndAssert(
+        () => {
+          mockVerify.restore();
+        },
+        200,
+        (json) => {
+          expect(json.received).toBe(true);
+          expect(json.processed).toBe(true);
+        },
+      );
 
-        // The same attendee is linked to both listings, so both free-text
-        // answers land on the one attendee.
-        const attendeeId = att1[0]!.id;
-        expect(attendeeId).toBe(att2[0]!.id);
-        const textAnswers = await getAttendeeTextAnswers(
-          attendeeId,
-          await getTestPrivateKey(),
-        );
-        expect(textAnswers.get(q1.id)).toBe("Wheelchair access");
-        expect(textAnswers.get(q2.id)).toBe("Vegan");
-      } finally {
-        mockVerify.restore();
-      }
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const att1 = await getAttendeesRaw(listing1.id);
+      const att2 = await getAttendeesRaw(listing2.id);
+      expect(att1.length).toBe(1);
+      expect(att2.length).toBe(1);
+
+      // The same attendee is linked to both listings, so both free-text
+      // answers land on the one attendee.
+      const attendeeId = att1[0]!.id;
+      expect(attendeeId).toBe(att2[0]!.id);
+      const textAnswers = await getAttendeeTextAnswers(
+        attendeeId,
+        await getTestPrivateKey(),
+      );
+      expect(textAnswers.get(q1.id)).toBe("Wheelchair access");
+      expect(textAnswers.get(q2.id)).toBe("Vegan");
     });
   },
 );

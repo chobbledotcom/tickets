@@ -4,14 +4,16 @@ import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
-  assertJson,
+  checkoutSessionEvent,
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
   mockWebhookRequest,
+  postWebhookAndAssert,
   setupStripe,
   signedMeta,
   singleItem,
+  stubWebhookVerify,
   webhookMeta,
 } from "#test-utils";
 
@@ -33,50 +35,31 @@ describeWithEnv(
       });
       await deactivateTestListing(listing.id);
 
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            listing: {
-              data: {
-                object: {
-                  amount_total: 500,
-                  id: "cs_noref",
-                  metadata: signedMeta(
-                    {
-                      email: "noref@example.com",
-                      items: singleItem(listing.id, 1, 500),
-                      name: "No Ref",
-                    },
-                    500,
-                  ),
-                  payment_status: "paid",
-                },
-              },
-              id: "evt_noref",
-              type: "checkout.session.completed",
+      const mockVerify = await stubWebhookVerify(
+        checkoutSessionEvent({
+          amountTotal: 500,
+          eventId: "evt_noref",
+          metadata: signedMeta(
+            {
+              email: "noref@example.com",
+              items: singleItem(listing.id, 1, 500),
+              name: "No Ref",
             },
-            valid: true,
-          }),
+            500,
+          ),
+          sessionId: "cs_noref",
+        }),
       );
 
-      try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-          200,
-          (json) => {
-            expect(json.error).toContain("no longer accepting");
-          },
-        );
-      } finally {
-        mockVerify.restore();
-      }
+      await postWebhookAndAssert(
+        () => {
+          mockVerify.restore();
+        },
+        200,
+        (json) => {
+          expect(json.error).toContain("no longer accepting");
+        },
+      );
     });
 
     test("tryRefund logs error when no payment provider is configured", async () => {
@@ -105,36 +88,21 @@ describeWithEnv(
         },
       );
 
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            listing: {
-              data: {
-                object: {
-                  amount_total: 500,
-                  id: "cs_tryrefund_noprov",
-                  metadata: signedMeta(
-                    {
-                      email: "noprov@example.com",
-                      items: singleItem(listing.id, 1, 500),
-                      name: "No Provider",
-                    },
-                    500,
-                  ),
-                  payment_intent: "pi_tryrefund_noprov",
-                  payment_status: "paid",
-                },
-              },
-              id: "evt_tryrefund_noprov",
-              type: "checkout.session.completed",
+      const mockVerify = await stubWebhookVerify(
+        checkoutSessionEvent({
+          amountTotal: 500,
+          eventId: "evt_tryrefund_noprov",
+          metadata: signedMeta(
+            {
+              email: "noprov@example.com",
+              items: singleItem(listing.id, 1, 500),
+              name: "No Provider",
             },
-            valid: true,
-          }),
+            500,
+          ),
+          paymentIntent: "pi_tryrefund_noprov",
+          sessionId: "cs_tryrefund_noprov",
+        }),
       );
 
       try {
@@ -162,65 +130,46 @@ describeWithEnv(
       });
       // listing2 does not exist (id 99999) — validation fails before any attendees are created
 
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            listing: {
-              data: {
-                object: {
-                  amount_total: 500,
-                  id: "cs_multi_rollback_cleanup",
-                  metadata: webhookMeta({
-                    email: "rollback@example.com",
-                    items: JSON.stringify([
-                      { e: listing1.id, p: 500, q: 1 },
-                      { e: 99999, p: 0, q: 1 },
-                    ]),
-                    name: "Rollback Test",
-                  }),
-                  payment_intent: "pi_multi_rollback",
-                  payment_status: "paid",
-                },
-              },
-              id: "evt_multi_rollback",
-              type: "checkout.session.completed",
-            },
-            valid: true,
+      const mockVerify = await stubWebhookVerify(
+        checkoutSessionEvent({
+          amountTotal: 500,
+          eventId: "evt_multi_rollback",
+          metadata: webhookMeta({
+            email: "rollback@example.com",
+            items: JSON.stringify([
+              { e: listing1.id, p: 500, q: 1 },
+              { e: 99999, p: 0, q: 1 },
+            ]),
+            name: "Rollback Test",
           }),
+          paymentIntent: "pi_multi_rollback",
+          sessionId: "cs_multi_rollback_cleanup",
+        }),
       );
 
       const mockRefund = spy(stripeApi, "refundPayment");
 
-      try {
-        // Unsigned session (no valid price proof): ignored (200 ack) without
-        // processing, without a refund, and without creating any attendee.
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-          200,
-          (json) => {
-            expect(json.received).toBe(true);
-            expect(json.processed).toBeUndefined();
-          },
-        );
+      // Unsigned session (no valid price proof): ignored (200 ack) without
+      // processing, without a refund, and without creating any attendee.
+      await postWebhookAndAssert(
+        () => {
+          mockVerify.restore();
+          mockRefund.restore();
+        },
+        200,
+        (json) => {
+          expect(json.received).toBe(true);
+          expect(json.processed).toBeUndefined();
+        },
+      );
 
-        // An unverifiable session must NOT trigger a refund.
-        expect(mockRefund.calls.length).toBe(0);
+      // An unverifiable session must NOT trigger a refund.
+      expect(mockRefund.calls.length).toBe(0);
 
-        // No attendees created (the session is ignored before any creation pass)
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(listing1.id);
-        expect(attendees.length).toBe(0);
-      } finally {
-        mockVerify.restore();
-        mockRefund.restore();
-      }
+      // No attendees created (the session is ignored before any creation pass)
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const attendees = await getAttendeesRaw(listing1.id);
+      expect(attendees.length).toBe(0);
     });
   },
 );

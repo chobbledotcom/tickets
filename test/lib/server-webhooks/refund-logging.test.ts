@@ -5,6 +5,7 @@ import { handleRequest } from "#routes";
 import { setSuppressDebugLogs } from "#shared/logger.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
+  checkoutSessionEvent,
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
@@ -12,6 +13,7 @@ import {
   setupStripe,
   signedMeta,
   singleItem,
+  stubWebhookVerify,
 } from "#test-utils";
 
 describeWithEnv("server webhooks > refund logging", { db: true }, () => {
@@ -28,36 +30,21 @@ describeWithEnv("server webhooks > refund logging", { db: true }, () => {
     });
     await deactivateTestListing(listing.id);
 
-    const { stripePaymentProvider } = await import(
-      "#shared/stripe-provider.ts"
-    );
-    const mockVerify = stub(
-      stripePaymentProvider,
-      "verifyWebhookSignature",
-      () =>
-        Promise.resolve({
-          listing: {
-            data: {
-              object: {
-                amount_total: 1000,
-                id: "cs_refund_log",
-                metadata: signedMeta(
-                  {
-                    email: "refundlog@example.com",
-                    items: singleItem(listing.id, 1, 1000),
-                    name: "Refund Log",
-                  },
-                  1000,
-                ),
-                payment_intent: "pi_refund_log",
-                payment_status: "paid",
-              },
-            },
-            id: "evt_refund_log",
-            type: "checkout.session.completed",
+    const mockVerify = await stubWebhookVerify(
+      checkoutSessionEvent({
+        amountTotal: 1000,
+        eventId: "evt_refund_log",
+        metadata: signedMeta(
+          {
+            email: "refundlog@example.com",
+            items: singleItem(listing.id, 1, 1000),
+            name: "Refund Log",
           },
-          valid: true,
-        }),
+          1000,
+        ),
+        paymentIntent: "pi_refund_log",
+        sessionId: "cs_refund_log",
+      }),
     );
 
     const mockRefund = stub(stripeApi, "refundPayment", () =>
@@ -111,36 +98,21 @@ describeWithEnv("server webhooks > refund logging", { db: true }, () => {
       unitPrice: 1000,
     });
 
-    const { stripePaymentProvider } = await import(
-      "#shared/stripe-provider.ts"
-    );
-    const mockVerify = stub(
-      stripePaymentProvider,
-      "verifyWebhookSignature",
-      () =>
-        Promise.resolve({
-          listing: {
-            data: {
-              object: {
-                amount_total: 500,
-                id: "cs_refund_activity",
-                metadata: signedMeta(
-                  {
-                    email: "activity@example.com",
-                    items: singleItem(listing.id, 1, 1000),
-                    name: "Activity Log User",
-                  },
-                  500,
-                ),
-                payment_intent: "pi_refund_activity",
-                payment_status: "paid",
-              },
-            },
-            id: "evt_refund_activity",
-            type: "checkout.session.completed",
+    const mockVerify = await stubWebhookVerify(
+      checkoutSessionEvent({
+        amountTotal: 500,
+        eventId: "evt_refund_activity",
+        metadata: signedMeta(
+          {
+            email: "activity@example.com",
+            items: singleItem(listing.id, 1, 1000),
+            name: "Activity Log User",
           },
-          valid: true,
-        }),
+          500,
+        ),
+        paymentIntent: "pi_refund_activity",
+        sessionId: "cs_refund_activity",
+      }),
     );
 
     const mockRefund = stub(stripeApi, "refundPayment", () =>

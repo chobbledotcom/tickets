@@ -1,16 +1,20 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { handleRequest } from "#routes";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
-  assertJson,
   bookAttendee,
+  checkoutSessionEvent,
   createTestListing,
   describeWithEnv,
-  mockWebhookRequest,
+  expectKeptAsQuantityZeroAndRefunded,
+  expectRefundedWithNote,
+  expectSessionFailed,
+  expectWebhookKeptAndRefunded,
+  postWebhookAndAssert,
   setupStripe,
   signedMeta,
+  stubWebhookVerify,
 } from "#test-utils";
 
 describeWithEnv(
@@ -42,39 +46,24 @@ describeWithEnv(
         quantity: 1,
       });
 
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            listing: {
-              data: {
-                object: {
-                  amount_total: 800,
-                  id: "cs_multi_cap",
-                  metadata: signedMeta(
-                    {
-                      email: "cap@example.com",
-                      items: JSON.stringify([
-                        { e: listing1.id, p: 500, q: 1 },
-                        { e: listing2.id, p: 300, q: 1 },
-                      ]),
-                      name: "Multi Cap",
-                    },
-                    800,
-                  ),
-                  payment_intent: "pi_multi_cap",
-                  payment_status: "paid",
-                },
-              },
-              id: "evt_multi_cap",
-              type: "checkout.session.completed",
+      const mockVerify = await stubWebhookVerify(
+        checkoutSessionEvent({
+          amountTotal: 800,
+          eventId: "evt_multi_cap",
+          metadata: signedMeta(
+            {
+              email: "cap@example.com",
+              items: JSON.stringify([
+                { e: listing1.id, p: 500, q: 1 },
+                { e: listing2.id, p: 300, q: 1 },
+              ]),
+              name: "Multi Cap",
             },
-            valid: true,
-          }),
+            800,
+          ),
+          paymentIntent: "pi_multi_cap",
+          sessionId: "cs_multi_cap",
+        }),
       );
 
       const mockRefund = stub(stripeApi, "refundPayment", () =>
@@ -85,39 +74,28 @@ describeWithEnv(
         ),
       );
 
-      try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-          200,
-          (json) => {
-            expect(json.processed).toBe(false);
-            // The capacity reason now lives in the note; the customer sees the
-            // generic saved-details message.
-            expect(json.error).toContain("saved your details");
-          },
-        );
+      await postWebhookAndAssert(
+        () => {
+          mockVerify.restore();
+          mockRefund.restore();
+        },
+        200,
+        (json) => {
+          expect(json.processed).toBe(false);
+          // The capacity reason now lives in the note; the customer sees the
+          // generic saved-details message.
+          expect(json.error).toContain("saved your details");
+        },
+      );
 
-        // Signed by us → the order is kept as a quantity-0 placeholder (one
-        // attendee across both listings), not dropped, and refunded once.
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(listing1.id);
-        expect(attendees1.length).toBe(1);
-        expect(attendees1[0]!.quantity).toBe(0);
-        expect(mockRefund.calls.length).toBe(1);
-        const { getNoteRows } = await import("#shared/db/system-notes.ts");
-        expect((await getNoteRows([attendees1[0]!.id])).length).toBe(1);
-        const { isSessionProcessed } = await import(
-          "#shared/db/processed-payments.ts"
-        );
-        const record = await isSessionProcessed("cs_multi_cap");
-        expect(record?.attendee_id).toBeNull();
-        expect(record?.failure_data).not.toBe("");
-      } finally {
-        mockVerify.restore();
-        mockRefund.restore();
-      }
+      // Signed by us → the order is kept as a quantity-0 placeholder (one
+      // attendee across both listings), not dropped, and refunded once.
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const attendees1 = await getAttendeesRaw(listing1.id);
+      expect(attendees1.length).toBe(1);
+      expect(attendees1[0]!.quantity).toBe(0);
+      await expectRefundedWithNote(attendees1[0]!.id, mockRefund);
+      await expectSessionFailed("cs_multi_cap");
     });
 
     test("multi-ticket is kept and refunded when prices changed since checkout", async () => {
@@ -136,86 +114,43 @@ describeWithEnv(
 
       // expectedTotal = 500*1 + 300*2 = 1100, but amountTotal = 1000
       // Price changed after checkout was created — should refund
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            listing: {
-              data: {
-                object: {
-                  amount_total: 1000,
-                  id: "cs_multi_mismatch",
-                  metadata: signedMeta(
-                    {
-                      email: "multimismatch@example.com",
-                      items: JSON.stringify([
-                        { e: listing1.id, p: 400, q: 1 },
-                        { e: listing2.id, p: 600, q: 2 },
-                      ]),
-                      name: "Multi Mismatch",
-                    },
-                    1000,
-                  ),
-                  payment_intent: "pi_multi_mismatch",
-                  payment_status: "paid",
-                },
-              },
-              id: "evt_multi_mismatch",
-              type: "checkout.session.completed",
+      const { mockRefund } = await expectWebhookKeptAndRefunded(
+        checkoutSessionEvent({
+          amountTotal: 1000,
+          eventId: "evt_multi_mismatch",
+          metadata: signedMeta(
+            {
+              email: "multimismatch@example.com",
+              items: JSON.stringify([
+                { e: listing1.id, p: 400, q: 1 },
+                { e: listing2.id, p: 600, q: 2 },
+              ]),
+              name: "Multi Mismatch",
             },
-            valid: true,
-          }),
-      );
-
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_multi_mismatch" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >),
-      );
-
-      try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+            1000,
           ),
-          200,
-          (json) => {
-            expect(json.processed).toBe(false);
-            // The price-changed reason now lives in the note; the customer sees
-            // the generic saved-details message.
-            expect(json.error).toContain("saved your details");
-          },
-        );
+          paymentIntent: "pi_multi_mismatch",
+          sessionId: "cs_multi_mismatch",
+        }),
+        "re_multi_mismatch",
+      );
 
-        // The multi-listing booking is kept across both listings as one
-        // quantity-0 placeholder and refunded once, with a system note.
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(listing1.id);
-        const attendees2 = await getAttendeesRaw(listing2.id);
-        expect(attendees1.length).toBe(1);
-        expect(attendees2.length).toBe(1);
-        expect(attendees1[0]!.id).toBe(attendees2[0]!.id);
-        expect(attendees1[0]!.quantity).toBe(0);
-        const { getNoteRows } = await import("#shared/db/system-notes.ts");
-        expect((await getNoteRows([attendees1[0]!.id])).length).toBe(1);
-        const { isSessionProcessed } = await import(
-          "#shared/db/processed-payments.ts"
-        );
-        const record = await isSessionProcessed("cs_multi_mismatch");
-        expect(record?.attendee_id).toBeNull();
-        expect(record?.failure_data).not.toBe("");
+      // The multi-listing booking is kept across both listings as one
+      // quantity-0 placeholder and refunded once, with a system note.
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const attendees1 = await getAttendeesRaw(listing1.id);
+      const attendees2 = await getAttendeesRaw(listing2.id);
+      expect(attendees1.length).toBe(1);
+      expect(attendees2.length).toBe(1);
+      expect(attendees1[0]!.id).toBe(attendees2[0]!.id);
+      expect(attendees1[0]!.quantity).toBe(0);
+      const { getNoteRows } = await import("#shared/db/system-notes.ts");
+      expect((await getNoteRows([attendees1[0]!.id])).length).toBe(1);
+      await expectSessionFailed("cs_multi_mismatch");
 
-        // Verify refund was attempted exactly once
-        expect(mockRefund.calls.length).toBe(1);
-        expect(mockRefund.calls[0]!.args).toEqual(["pi_multi_mismatch"]);
-      } finally {
-        mockVerify.restore();
-        mockRefund.restore();
-      }
+      // Verify refund was attempted exactly once
+      expect(mockRefund.calls.length).toBe(1);
+      expect(mockRefund.calls[0]!.args).toEqual(["pi_multi_mismatch"]);
     });
 
     test("multi-ticket keeps and refunds when per-item p does not match unit_price * q for non-pay-more listing", async () => {
@@ -226,78 +161,32 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
       // p=500 but listing costs 1000*1=1000, and listing is not can_pay_more
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            listing: {
-              data: {
-                object: {
-                  amount_total: 500,
-                  id: "cs_item_mismatch",
-                  metadata: signedMeta(
-                    {
-                      email: "mismatch@example.com",
-                      items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
-                      name: "Mismatch User",
-                    },
-                    500,
-                  ),
-                  payment_intent: "pi_item_mismatch",
-                  payment_status: "paid",
-                },
-              },
-              id: "evt_item_mismatch",
-              type: "checkout.session.completed",
+      const { mockRefund } = await expectWebhookKeptAndRefunded(
+        checkoutSessionEvent({
+          amountTotal: 500,
+          eventId: "evt_item_mismatch",
+          metadata: signedMeta(
+            {
+              email: "mismatch@example.com",
+              items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
+              name: "Mismatch User",
             },
-            valid: true,
-          }),
-      );
-
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_mismatch" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >),
-      );
-
-      try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+            500,
           ),
-          200,
-          (json) => {
-            expect(json.processed).toBe(false);
-            // The price reason now lives in the note; the customer sees the
-            // generic saved-details message.
-            expect(json.error).toContain("saved your details");
-          },
-        );
+          paymentIntent: "pi_item_mismatch",
+          sessionId: "cs_item_mismatch",
+        }),
+        "re_mismatch",
+      );
 
-        // Signed by us → the booking is kept as a quantity-0 placeholder and
-        // refunded once, with a system note recording the reason.
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(listing.id);
-        expect(attendees.length).toBe(1);
-        expect(attendees[0]!.quantity).toBe(0);
-        expect(mockRefund.calls.length).toBe(1);
-        const { getNoteRows } = await import("#shared/db/system-notes.ts");
-        expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
-        const { isSessionProcessed } = await import(
-          "#shared/db/processed-payments.ts"
-        );
-        const record = await isSessionProcessed("cs_item_mismatch");
-        expect(record?.attendee_id).toBeNull();
-        expect(record?.failure_data).not.toBe("");
-      } finally {
-        mockVerify.restore();
-        mockRefund.restore();
-      }
+      // Signed by us → the booking is kept as a quantity-0 placeholder and
+      // refunded once, with a system note recording the reason.
+      await expectKeptAsQuantityZeroAndRefunded(
+        listing.id,
+        "cs_item_mismatch",
+        mockRefund,
+      );
     });
 
     test("multi-ticket keeps and refunds when sum(p) does not equal amountTotal", async () => {
@@ -309,78 +198,32 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
       // p=2000 is valid for can_pay_more (>= 1000), but amountTotal=1500 != sum(p)=2000
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            listing: {
-              data: {
-                object: {
-                  amount_total: 1500,
-                  id: "cs_total_mismatch",
-                  metadata: signedMeta(
-                    {
-                      email: "total@example.com",
-                      items: JSON.stringify([{ e: listing.id, p: 2000, q: 1 }]),
-                      name: "Total Mismatch",
-                    },
-                    1500,
-                  ),
-                  payment_intent: "pi_total_mismatch",
-                  payment_status: "paid",
-                },
-              },
-              id: "evt_total_mismatch",
-              type: "checkout.session.completed",
+      const { mockRefund } = await expectWebhookKeptAndRefunded(
+        checkoutSessionEvent({
+          amountTotal: 1500,
+          eventId: "evt_total_mismatch",
+          metadata: signedMeta(
+            {
+              email: "total@example.com",
+              items: JSON.stringify([{ e: listing.id, p: 2000, q: 1 }]),
+              name: "Total Mismatch",
             },
-            valid: true,
-          }),
-      );
-
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_total" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >),
-      );
-
-      try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+            1500,
           ),
-          200,
-          (json) => {
-            expect(json.processed).toBe(false);
-            // The price reason now lives in the note; the customer sees the
-            // generic saved-details message.
-            expect(json.error).toContain("saved your details");
-          },
-        );
+          paymentIntent: "pi_total_mismatch",
+          sessionId: "cs_total_mismatch",
+        }),
+        "re_total",
+      );
 
-        // Signed by us → the booking is kept as a quantity-0 placeholder and
-        // refunded once, with a system note recording the reason.
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(listing.id);
-        expect(attendees.length).toBe(1);
-        expect(attendees[0]!.quantity).toBe(0);
-        expect(mockRefund.calls.length).toBe(1);
-        const { getNoteRows } = await import("#shared/db/system-notes.ts");
-        expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
-        const { isSessionProcessed } = await import(
-          "#shared/db/processed-payments.ts"
-        );
-        const record = await isSessionProcessed("cs_total_mismatch");
-        expect(record?.attendee_id).toBeNull();
-        expect(record?.failure_data).not.toBe("");
-      } finally {
-        mockVerify.restore();
-        mockRefund.restore();
-      }
+      // Signed by us → the booking is kept as a quantity-0 placeholder and
+      // refunded once, with a system note recording the reason.
+      await expectKeptAsQuantityZeroAndRefunded(
+        listing.id,
+        "cs_total_mismatch",
+        mockRefund,
+      );
     });
   },
 );

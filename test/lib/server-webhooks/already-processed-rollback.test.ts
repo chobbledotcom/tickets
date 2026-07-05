@@ -1,18 +1,20 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
-import { handleRequest } from "#routes";
-import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { resetStripeClient } from "#shared/stripe.ts";
 import {
-  assertJson,
   bookAttendee,
+  checkoutSessionEvent,
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
-  mockWebhookRequest,
+  expectRefundedWithNote,
+  expectSessionFailed,
+  expectWebhookKeptAndRefunded,
+  postWebhookAndAssert,
   setupStripe,
   signedMeta,
   singleItem,
+  stubWebhookVerify,
 } from "#test-utils";
 
 describeWithEnv(
@@ -38,66 +40,31 @@ describeWithEnv(
       });
       await deactivateTestListing(listing2.id);
 
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            listing: {
-              data: {
-                object: {
-                  amount_total: 1000,
-                  id: "cs_multi_inactive_wh",
-                  metadata: signedMeta(
-                    {
-                      email: "inactive@example.com",
-                      items: JSON.stringify([
-                        { e: listing1.id, p: 500, q: 1 },
-                        { e: listing2.id, p: 500, q: 1 },
-                      ]),
-                      name: "Multi Inactive",
-                    },
-                    1000,
-                  ),
-                  payment_intent: "pi_multi_inactive_wh",
-                  payment_status: "paid",
-                },
-              },
-              id: "evt_multi_inactive_wh",
-              type: "checkout.session.completed",
+      await expectWebhookKeptAndRefunded(
+        checkoutSessionEvent({
+          amountTotal: 1000,
+          eventId: "evt_multi_inactive_wh",
+          metadata: signedMeta(
+            {
+              email: "inactive@example.com",
+              items: JSON.stringify([
+                { e: listing1.id, p: 500, q: 1 },
+                { e: listing2.id, p: 500, q: 1 },
+              ]),
+              name: "Multi Inactive",
             },
-            valid: true,
-          }),
-      );
-
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_test" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >),
-      );
-
-      try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+            1000,
           ),
-          200,
-          (json) => {
-            expect(json.processed).toBe(false);
-            expect(json.error).toContain("no longer accepting");
-          },
-        );
+          paymentIntent: "pi_multi_inactive_wh",
+          sessionId: "cs_multi_inactive_wh",
+        }),
+        "re_test",
+        "no longer accepting",
+      );
 
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(listing1.id);
-        expect(attendees1.length).toBe(0);
-      } finally {
-        mockVerify.restore();
-        mockRefund.restore();
-      }
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const attendees1 = await getAttendeesRaw(listing1.id);
+      expect(attendees1.length).toBe(0);
     });
 
     test("webhook handles multi-ticket sold out in second listing", async () => {
@@ -120,80 +87,34 @@ describeWithEnv(
         quantity: 1,
       });
 
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            listing: {
-              data: {
-                object: {
-                  amount_total: 1000,
-                  id: "cs_multi_soldout_wh",
-                  metadata: signedMeta(
-                    {
-                      email: "soldout@example.com",
-                      items: JSON.stringify([
-                        { e: listing1.id, p: 500, q: 1 },
-                        { e: listing2.id, p: 500, q: 1 },
-                      ]),
-                      name: "Sold Out Multi",
-                    },
-                    1000,
-                  ),
-                  payment_intent: "pi_multi_soldout_wh",
-                  payment_status: "paid",
-                },
-              },
-              id: "evt_multi_soldout_wh",
-              type: "checkout.session.completed",
+      const { mockRefund } = await expectWebhookKeptAndRefunded(
+        checkoutSessionEvent({
+          amountTotal: 1000,
+          eventId: "evt_multi_soldout_wh",
+          metadata: signedMeta(
+            {
+              email: "soldout@example.com",
+              items: JSON.stringify([
+                { e: listing1.id, p: 500, q: 1 },
+                { e: listing2.id, p: 500, q: 1 },
+              ]),
+              name: "Sold Out Multi",
             },
-            valid: true,
-          }),
-      );
-
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_test" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >),
-      );
-
-      try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+            1000,
           ),
-          200,
-          (json) => {
-            expect(json.processed).toBe(false);
-            // The sold-out reason now lives in the note; the customer sees the
-            // generic saved-details message.
-            expect(json.error).toContain("saved your details");
-          },
-        );
+          paymentIntent: "pi_multi_soldout_wh",
+          sessionId: "cs_multi_soldout_wh",
+        }),
+      );
 
-        // Signed by us → the whole order is kept as a quantity-0 placeholder
-        // (one attendee against both listings), not dropped, and refunded once.
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(listing1.id);
-        expect(attendees1.length).toBe(1);
-        expect(attendees1[0]!.quantity).toBe(0);
-        expect(mockRefund.calls.length).toBe(1);
-        const { getNoteRows } = await import("#shared/db/system-notes.ts");
-        expect((await getNoteRows([attendees1[0]!.id])).length).toBe(1);
-        const { isSessionProcessed } = await import(
-          "#shared/db/processed-payments.ts"
-        );
-        const record = await isSessionProcessed("cs_multi_soldout_wh");
-        expect(record?.attendee_id).toBeNull();
-        expect(record?.failure_data).not.toBe("");
-      } finally {
-        mockVerify.restore();
-        mockRefund.restore();
-      }
+      // Signed by us → the whole order is kept as a quantity-0 placeholder
+      // (one attendee against both listings), not dropped, and refunded once.
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const attendees1 = await getAttendeesRaw(listing1.id);
+      expect(attendees1.length).toBe(1);
+      expect(attendees1[0]!.quantity).toBe(0);
+      await expectRefundedWithNote(attendees1[0]!.id, mockRefund);
+      await expectSessionFailed("cs_multi_soldout_wh");
     });
 
     test("webhook replays an already-processed session as success even if its listing was deleted", async () => {
@@ -223,56 +144,37 @@ describeWithEnv(
         "tok-test",
       ]);
 
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
       // The metadata points at a since-deleted listing (99999). Because the
       // session is already finalized (the attendee exists), the retry is an
       // idempotent success replay — a missing listing only means no thank-you
       // URL, not a "Listing not found" error for a payment that succeeded.
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            listing: {
-              data: {
-                object: {
-                  amount_total: 1000,
-                  id: "cs_del_listing_wh",
-                  metadata: signedMeta(
-                    {
-                      email: "deleted@example.com",
-                      items: singleItem(99999, 1, 1000),
-                      name: "Deleted Listing",
-                    },
-                    1000,
-                  ),
-                  payment_intent: "pi_del_listing_wh",
-                  payment_status: "paid",
-                },
-              },
-              id: "evt_del_listing_wh",
-              type: "checkout.session.completed",
+      const mockVerify = await stubWebhookVerify(
+        checkoutSessionEvent({
+          amountTotal: 1000,
+          eventId: "evt_del_listing_wh",
+          metadata: signedMeta(
+            {
+              email: "deleted@example.com",
+              items: singleItem(99999, 1, 1000),
+              name: "Deleted Listing",
             },
-            valid: true,
-          }),
+            1000,
+          ),
+          paymentIntent: "pi_del_listing_wh",
+          sessionId: "cs_del_listing_wh",
+        }),
       );
 
-      try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-          200,
-          (json) => {
-            expect(json.processed).toBe(true);
-            expect(json.error).toBeUndefined();
-          },
-        );
-      } finally {
-        mockVerify.restore();
-      }
+      await postWebhookAndAssert(
+        () => {
+          mockVerify.restore();
+        },
+        200,
+        (json) => {
+          expect(json.processed).toBe(true);
+          expect(json.error).toBeUndefined();
+        },
+      );
     });
   },
 );

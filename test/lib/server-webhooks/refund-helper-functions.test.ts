@@ -4,13 +4,13 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
-  assertJson,
+  checkoutSessionEvent,
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
   expectHtmlResponse,
+  expectWebhookProcessed,
   mockRequest,
-  mockWebhookRequest,
   setupStripe,
   signedMeta,
   signMeta,
@@ -78,57 +78,28 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            listing: {
-              data: {
-                object: {
-                  amount_total: 1000,
-                  id: "cs_pi_extract",
-                  metadata: signedMeta(
-                    {
-                      email: "pi@example.com",
-                      items: singleItem(listing.id, 1, 1000),
-                      name: "PI User",
-                    },
-                    1000,
-                  ),
-                  payment_intent: "pi_extracted_ref",
-                  payment_status: "paid",
-                },
-              },
-              id: "evt_pi_extract",
-              type: "checkout.session.completed",
+      await expectWebhookProcessed(
+        checkoutSessionEvent({
+          amountTotal: 1000,
+          eventId: "evt_pi_extract",
+          metadata: signedMeta(
+            {
+              email: "pi@example.com",
+              items: singleItem(listing.id, 1, 1000),
+              name: "PI User",
             },
-            valid: true,
-          }),
+            1000,
+          ),
+          paymentIntent: "pi_extracted_ref",
+          sessionId: "cs_pi_extract",
+        }),
       );
 
-      try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-          200,
-          (json) => {
-            expect(json.processed).toBe(true);
-          },
-        );
-
-        // Verify attendee was created with encrypted PII blob
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(listing.id);
-        expect(attendees.length).toBe(1);
-        expect(attendees[0]?.pii_blob).not.toBe("");
-      } finally {
-        mockVerify.restore();
-      }
+      // Verify attendee was created with encrypted PII blob
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const attendees = await getAttendeesRaw(listing.id);
+      expect(attendees.length).toBe(1);
+      expect(attendees[0]?.pii_blob).not.toBe("");
     });
 
     test("formatPaymentError returns plain error when refunded is undefined", async () => {

@@ -4,16 +4,18 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
-  assertJson,
+  checkoutSessionEvent,
   createTestListing,
   describeWithEnv,
   expectHtmlResponse,
+  expectWebhookProcessed,
   mockRequest,
-  mockWebhookRequest,
+  postWebhookAndAssert,
   setupStripe,
   signedMeta,
   signMeta,
   singleItem,
+  stubWebhookVerify,
   webhookMeta,
 } from "#test-utils";
 
@@ -86,36 +88,21 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            listing: {
-              data: {
-                object: {
-                  amount_total: 1000,
-                  id: "cs_closed_wh",
-                  metadata: signedMeta(
-                    {
-                      email: "jane@example.com",
-                      items: singleItem(listing.id, 1, 1000),
-                      name: "Jane",
-                    },
-                    1000,
-                  ),
-                  payment_intent: "pi_closed_wh",
-                  payment_status: "paid",
-                },
-              },
-              id: "evt_closed",
-              type: "checkout.session.completed",
+      const mockVerify = await stubWebhookVerify(
+        checkoutSessionEvent({
+          amountTotal: 1000,
+          eventId: "evt_closed",
+          metadata: signedMeta(
+            {
+              email: "jane@example.com",
+              items: singleItem(listing.id, 1, 1000),
+              name: "Jane",
             },
-            valid: true,
-          }),
+            1000,
+          ),
+          paymentIntent: "pi_closed_wh",
+          sessionId: "cs_closed_wh",
+        }),
       );
 
       const mockRefund = stub(stripeApi, "refundPayment", () =>
@@ -124,20 +111,17 @@ describeWithEnv(
         >),
       );
 
-      try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_closed" }),
-          ),
-          200,
-          (json) => {
-            expect(json.error).toContain("registration closed");
-          },
-        );
-      } finally {
-        mockVerify.restore();
-        mockRefund.restore();
-      }
+      await postWebhookAndAssert(
+        () => {
+          mockVerify.restore();
+          mockRefund.restore();
+        },
+        200,
+        (json) => {
+          expect(json.error).toContain("registration closed");
+        },
+        "sig_closed",
+      );
     });
 
     test("webhook refunds when multi-ticket listing registration has closed", async () => {
@@ -155,39 +139,24 @@ describeWithEnv(
         unitPrice: 500,
       });
 
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            listing: {
-              data: {
-                object: {
-                  amount_total: 1500,
-                  id: "cs_multi_closed",
-                  metadata: signedMeta(
-                    {
-                      email: "jane@example.com",
-                      items: JSON.stringify([
-                        { e: listing1.id, p: 1000, q: 1 },
-                        { e: listing2.id, p: 500, q: 1 },
-                      ]),
-                      name: "Jane",
-                    },
-                    1500,
-                  ),
-                  payment_intent: "pi_multi_closed",
-                  payment_status: "paid",
-                },
-              },
-              id: "evt_multi_closed",
-              type: "checkout.session.completed",
+      const mockVerify = await stubWebhookVerify(
+        checkoutSessionEvent({
+          amountTotal: 1500,
+          eventId: "evt_multi_closed",
+          metadata: signedMeta(
+            {
+              email: "jane@example.com",
+              items: JSON.stringify([
+                { e: listing1.id, p: 1000, q: 1 },
+                { e: listing2.id, p: 500, q: 1 },
+              ]),
+              name: "Jane",
             },
-            valid: true,
-          }),
+            1500,
+          ),
+          paymentIntent: "pi_multi_closed",
+          sessionId: "cs_multi_closed",
+        }),
       );
 
       const mockRefund = stub(stripeApi, "refundPayment", () =>
@@ -196,26 +165,23 @@ describeWithEnv(
         >),
       );
 
-      try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_multi_closed" }),
-          ),
-          200,
-          (json) => {
-            expect(json.error).toContain("registration for");
-            expect(json.error).toContain("closed");
-          },
-        );
+      await postWebhookAndAssert(
+        () => {
+          mockVerify.restore();
+          mockRefund.restore();
+        },
+        200,
+        (json) => {
+          expect(json.error).toContain("registration for");
+          expect(json.error).toContain("closed");
+        },
+        "sig_multi_closed",
+      );
 
-        // Verify listing1 attendee was rolled back
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(listing1.id);
-        expect(attendees1.length).toBe(0);
-      } finally {
-        mockVerify.restore();
-        mockRefund.restore();
-      }
+      // Verify listing1 attendee was rolled back
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const attendees1 = await getAttendeesRaw(listing1.id);
+      expect(attendees1.length).toBe(0);
     });
 
     test("multi-ticket webhook passes date to daily listings only", async () => {
@@ -244,66 +210,37 @@ describeWithEnv(
         unitPrice: 300,
       });
 
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockVerify = stub(
-        stripePaymentProvider,
-        "verifyWebhookSignature",
-        () =>
-          Promise.resolve({
-            listing: {
-              data: {
-                object: {
-                  amount_total: 800,
-                  id: "cs_multi_daily",
-                  metadata: signedMeta(
-                    {
-                      date: "2026-02-10",
-                      email: "multidaily@example.com",
-                      items: JSON.stringify([
-                        { e: listing1.id, p: 500, q: 1 },
-                        { e: listing2.id, p: 300, q: 1 },
-                      ]),
-                      name: "Multi Daily Buyer",
-                    },
-                    800,
-                  ),
-                  payment_intent: "pi_multi_daily",
-                  payment_status: "paid",
-                },
-              },
-              id: "evt_multi_daily",
-              type: "checkout.session.completed",
+      await expectWebhookProcessed(
+        checkoutSessionEvent({
+          amountTotal: 800,
+          eventId: "evt_multi_daily",
+          metadata: signedMeta(
+            {
+              date: "2026-02-10",
+              email: "multidaily@example.com",
+              items: JSON.stringify([
+                { e: listing1.id, p: 500, q: 1 },
+                { e: listing2.id, p: 300, q: 1 },
+              ]),
+              name: "Multi Daily Buyer",
             },
-            valid: true,
-          }),
+            800,
+          ),
+          paymentIntent: "pi_multi_daily",
+          sessionId: "cs_multi_daily",
+        }),
       );
 
-      try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-          200,
-          (json) => {
-            expect(json.processed).toBe(true);
-          },
-        );
+      // Verify daily listing attendee has the date set
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const attendees1 = await getAttendeesRaw(listing1.id);
+      expect(attendees1.length).toBe(1);
+      expect(attendees1[0]?.date).toBe("2026-02-10");
 
-        // Verify daily listing attendee has the date set
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(listing1.id);
-        expect(attendees1.length).toBe(1);
-        expect(attendees1[0]?.date).toBe("2026-02-10");
-
-        // Verify standard listing attendee has null date
-        const attendees2 = await getAttendeesRaw(listing2.id);
-        expect(attendees2.length).toBe(1);
-        expect(attendees2[0]?.date).toBeNull();
-      } finally {
-        mockVerify.restore();
-      }
+      // Verify standard listing attendee has null date
+      const attendees2 = await getAttendeesRaw(listing2.id);
+      expect(attendees2.length).toBe(1);
+      expect(attendees2[0]?.date).toBeNull();
     });
   },
 );

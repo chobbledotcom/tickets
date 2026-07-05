@@ -14,6 +14,58 @@ import {
   webhookMeta,
 } from "#test-utils";
 
+/**
+ * Stub `retrieveCheckoutSession` with the given session, follow the
+ * `/payment/success` redirect to completion, and return the listing's
+ * attendees — the stub/redirect/getAttendeesRaw scaffold every pricePaid test
+ * in this file shares, varying only the session payload and the resulting
+ * price/quantity it asserts on.
+ */
+const followPaymentRedirectAndGetAttendees = async (
+  session: {
+    amountTotal: number;
+    sessionId: string;
+    items: string;
+    email: string;
+    name: string;
+    paymentIntent: string;
+  },
+  listingId: number,
+) => {
+  const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+    Promise.resolve({
+      amount_total: session.amountTotal,
+      id: session.sessionId,
+      metadata: signMeta(
+        webhookMeta({
+          email: session.email,
+          items: session.items,
+          name: session.name,
+        }),
+        session.amountTotal,
+      ),
+      payment_intent: session.paymentIntent,
+      payment_status: "paid",
+    } as unknown as Awaited<
+      ReturnType<typeof stripeApi.retrieveCheckoutSession>
+    >),
+  );
+
+  try {
+    const redirectResponse = await handleRequest(
+      mockRequest(`/payment/success?session_id=${session.sessionId}`),
+    );
+    expect(redirectResponse.status).toBe(302);
+    const response = await followRedirect(redirectResponse, handleRequest);
+    expect(response.status).toBe(200);
+
+    const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+    return await getAttendeesRaw(listingId);
+  } finally {
+    mockRetrieve.restore();
+  }
+};
+
 describeWithEnv("server webhooks > pricePaid calculation", { db: true }, () => {
   afterEach(() => {
     resetStripeClient();
@@ -28,43 +80,22 @@ describeWithEnv("server webhooks > pricePaid calculation", { db: true }, () => {
       unitPrice: 500,
     });
 
-    const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 1500,
-        id: "cs_multi_price",
-        metadata: signMeta(
-          webhookMeta({
-            email: "price@example.com",
-            items: JSON.stringify([{ e: listing.id, p: 1500, q: 3 }]),
-            name: "Price Test",
-          }),
-          1500,
-        ),
-        payment_intent: "pi_multi_price",
-        payment_status: "paid",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
+    const attendees = await followPaymentRedirectAndGetAttendees(
+      {
+        amountTotal: 1500,
+        email: "price@example.com",
+        items: JSON.stringify([{ e: listing.id, p: 1500, q: 3 }]),
+        name: "Price Test",
+        paymentIntent: "pi_multi_price",
+        sessionId: "cs_multi_price",
+      },
+      listing.id,
     );
-
-    try {
-      const redirectResponse = await handleRequest(
-        mockRequest("/payment/success?session_id=cs_multi_price"),
-      );
-      expect(redirectResponse.status).toBe(302);
-      const response = await followRedirect(redirectResponse, handleRequest);
-      expect(response.status).toBe(200);
-
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
-      expect(attendees[0]?.quantity).toBe(3);
-      expect(
-        (attendees[0] as unknown as Record<string, unknown>).price_paid,
-      ).toBe(1500);
-    } finally {
-      mockRetrieve.restore();
-    }
+    expect(attendees.length).toBe(1);
+    expect(attendees[0]?.quantity).toBe(3);
+    expect(
+      (attendees[0] as unknown as Record<string, unknown>).price_paid,
+    ).toBe(1500);
   });
 
   test("single-ticket pricePaid calculation uses unit_price * quantity", async () => {
@@ -76,42 +107,21 @@ describeWithEnv("server webhooks > pricePaid calculation", { db: true }, () => {
       unitPrice: 1000,
     });
 
-    const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 2000,
-        id: "cs_single_price",
-        metadata: signMeta(
-          webhookMeta({
-            email: "price@example.com",
-            items: singleItem(listing.id, 2, 2000),
-            name: "Price Single",
-          }),
-          2000,
-        ),
-        payment_intent: "pi_single_price",
-        payment_status: "paid",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
+    const attendees = await followPaymentRedirectAndGetAttendees(
+      {
+        amountTotal: 2000,
+        email: "price@example.com",
+        items: singleItem(listing.id, 2, 2000),
+        name: "Price Single",
+        paymentIntent: "pi_single_price",
+        sessionId: "cs_single_price",
+      },
+      listing.id,
     );
-
-    try {
-      const redirectResponse = await handleRequest(
-        mockRequest("/payment/success?session_id=cs_single_price"),
-      );
-      expect(redirectResponse.status).toBe(302);
-      const response = await followRedirect(redirectResponse, handleRequest);
-      expect(response.status).toBe(200);
-
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
-      expect(
-        (attendees[0] as unknown as Record<string, unknown>).price_paid,
-      ).toBe(2000);
-    } finally {
-      mockRetrieve.restore();
-    }
+    expect(attendees.length).toBe(1);
+    expect(
+      (attendees[0] as unknown as Record<string, unknown>).price_paid,
+    ).toBe(2000);
   });
 
   test("multi-ticket pricePaid records zero when listing has no unit_price", async () => {
@@ -122,43 +132,22 @@ describeWithEnv("server webhooks > pricePaid calculation", { db: true }, () => {
       name: "WH Multi Free",
     });
 
-    const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 0,
-        id: "cs_multi_free",
-        metadata: signMeta(
-          webhookMeta({
-            email: "freemulti@example.com",
-            items: JSON.stringify([{ e: listing.id, p: 0, q: 2 }]),
-            name: "Free Multi",
-          }),
-          0,
-        ),
-        payment_intent: "pi_multi_free",
-        payment_status: "paid",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
+    const attendees = await followPaymentRedirectAndGetAttendees(
+      {
+        amountTotal: 0,
+        email: "freemulti@example.com",
+        items: JSON.stringify([{ e: listing.id, p: 0, q: 2 }]),
+        name: "Free Multi",
+        paymentIntent: "pi_multi_free",
+        sessionId: "cs_multi_free",
+      },
+      listing.id,
     );
-
-    try {
-      const redirectResponse = await handleRequest(
-        mockRequest("/payment/success?session_id=cs_multi_free"),
-      );
-      expect(redirectResponse.status).toBe(302);
-      const response = await followRedirect(redirectResponse, handleRequest);
-      expect(response.status).toBe(200);
-
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
-      expect(attendees[0]?.quantity).toBe(2);
-      expect(
-        (attendees[0] as unknown as Record<string, unknown>).price_paid,
-      ).toBe(0);
-    } finally {
-      mockRetrieve.restore();
-    }
+    expect(attendees.length).toBe(1);
+    expect(attendees[0]?.quantity).toBe(2);
+    expect(
+      (attendees[0] as unknown as Record<string, unknown>).price_paid,
+    ).toBe(0);
   });
 
   test("single-ticket pricePaid records zero when listing has no unit_price", async () => {
@@ -169,42 +158,21 @@ describeWithEnv("server webhooks > pricePaid calculation", { db: true }, () => {
       name: "WH Single Free",
     });
 
-    const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 0,
-        id: "cs_single_free",
-        metadata: signMeta(
-          webhookMeta({
-            email: "freesingle@example.com",
-            items: singleItem(listing.id, 2, 0),
-            name: "Free Single",
-          }),
-          0,
-        ),
-        payment_intent: "pi_single_free",
-        payment_status: "paid",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
+    const attendees = await followPaymentRedirectAndGetAttendees(
+      {
+        amountTotal: 0,
+        email: "freesingle@example.com",
+        items: singleItem(listing.id, 2, 0),
+        name: "Free Single",
+        paymentIntent: "pi_single_free",
+        sessionId: "cs_single_free",
+      },
+      listing.id,
     );
-
-    try {
-      const redirectResponse = await handleRequest(
-        mockRequest("/payment/success?session_id=cs_single_free"),
-      );
-      expect(redirectResponse.status).toBe(302);
-      const response = await followRedirect(redirectResponse, handleRequest);
-      expect(response.status).toBe(200);
-
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
-      expect(attendees[0]?.quantity).toBe(2);
-      expect(
-        (attendees[0] as unknown as Record<string, unknown>).price_paid,
-      ).toBe(0);
-    } finally {
-      mockRetrieve.restore();
-    }
+    expect(attendees.length).toBe(1);
+    expect(attendees[0]?.quantity).toBe(2);
+    expect(
+      (attendees[0] as unknown as Record<string, unknown>).price_paid,
+    ).toBe(0);
   });
 });

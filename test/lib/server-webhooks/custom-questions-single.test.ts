@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { handleRequest } from "#routes";
 import {
   answersTable,
   getAttendeeAnswersBatch,
@@ -13,11 +12,11 @@ import {
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
-  assertJson,
+  checkoutSessionEvent,
   createTestListing,
   describeWithEnv,
   getAllActivityLog,
-  mockWebhookRequest,
+  postWebhookAndAssert,
   setupStripe,
   signedMeta,
   singleItem,
@@ -53,54 +52,46 @@ describeWithEnv(
       });
       await setListingQuestions(listing.id, [q.id]);
 
-      const mockVerify = await stubWebhookVerify({
-        data: {
-          object: {
-            amount_total: 1000,
-            id: "cs_single_q",
-            metadata: signedMeta(
-              {
-                answer_ids: JSON.stringify({
-                  [String(listing.id)]: [a1.id],
-                }),
-                email: "qsingle@example.com",
-                items: singleItem(listing.id, 1, 1000),
-                name: "Q Single Buyer",
-              },
-              1000,
-            ),
-            payment_intent: "pi_single_q",
-            payment_status: "paid",
-          },
-        },
-        id: "evt_single_q",
-        type: "checkout.session.completed",
-      });
-
-      try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+      const mockVerify = await stubWebhookVerify(
+        checkoutSessionEvent({
+          amountTotal: 1000,
+          eventId: "evt_single_q",
+          metadata: signedMeta(
+            {
+              answer_ids: JSON.stringify({
+                [String(listing.id)]: [a1.id],
+              }),
+              email: "qsingle@example.com",
+              items: singleItem(listing.id, 1, 1000),
+              name: "Q Single Buyer",
+            },
+            1000,
           ),
-          200,
-          (json) => {
-            expect(json.received).toBe(true);
-            expect(json.processed).toBe(true);
-          },
-        );
+          paymentIntent: "pi_single_q",
+          sessionId: "cs_single_q",
+        }),
+      );
 
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(listing.id);
-        expect(attendees.length).toBe(1);
+      await postWebhookAndAssert(
+        () => {
+          mockVerify.restore();
+        },
+        200,
+        (json) => {
+          expect(json.received).toBe(true);
+          expect(json.processed).toBe(true);
+        },
+      );
 
-        // Verify custom question answers were saved
-        const batch = await getAttendeeAnswersBatch([attendees[0]!.id], {
-          texts: false,
-        });
-        expect(batch.get(attendees[0]!.id)).toEqual([a1.id]);
-      } finally {
-        mockVerify.restore();
-      }
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const attendees = await getAttendeesRaw(listing.id);
+      expect(attendees.length).toBe(1);
+
+      // Verify custom question answers were saved
+      const batch = await getAttendeeAnswersBatch([attendees[0]!.id], {
+        texts: false,
+      });
+      expect(batch.get(attendees[0]!.id)).toEqual([a1.id]);
     });
 
     test("a submitted free-text answer keeps its string id through checkout and the webhook", async () => {
@@ -161,53 +152,45 @@ describeWithEnv(
 
       // Serialize those exact refs into webhook metadata the way production does
       // and confirm the submitted text survives the full round-trip.
-      const mockVerify = await stubWebhookVerify({
-        data: {
-          object: {
-            amount_total: 1000,
-            id: "cs_round_trip",
-            metadata: signedMeta(
-              {
-                email: "rt@example.com",
-                items: singleItem(listing.id, 1, 1000),
-                name: "Round Tripper",
-                text_answer_ids: JSON.stringify(
-                  captured[0]!.listingTextAnswerIds,
-                ),
-              },
-              1000,
-            ),
-            payment_intent: "pi_round_trip",
-            payment_status: "paid",
-          },
-        },
-        id: "evt_round_trip",
-        type: "checkout.session.completed",
-      });
-
-      try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+      const mockVerify = await stubWebhookVerify(
+        checkoutSessionEvent({
+          amountTotal: 1000,
+          eventId: "evt_round_trip",
+          metadata: signedMeta(
+            {
+              email: "rt@example.com",
+              items: singleItem(listing.id, 1, 1000),
+              name: "Round Tripper",
+              text_answer_ids: JSON.stringify(
+                captured[0]!.listingTextAnswerIds,
+              ),
+            },
+            1000,
           ),
-          200,
-          (json) => {
-            expect(json.received).toBe(true);
-            expect(json.processed).toBe(true);
-          },
-        );
+          paymentIntent: "pi_round_trip",
+          sessionId: "cs_round_trip",
+        }),
+      );
 
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(listing.id);
-        expect(attendees.length).toBe(1);
-        const textAnswers = await getAttendeeTextAnswers(
-          attendees[0]!.id,
-          await getTestPrivateKey(),
-        );
-        expect(textAnswers.get(question.id)).toBe("Step-free entrance");
-      } finally {
-        mockVerify.restore();
-      }
+      await postWebhookAndAssert(
+        () => {
+          mockVerify.restore();
+        },
+        200,
+        (json) => {
+          expect(json.received).toBe(true);
+          expect(json.processed).toBe(true);
+        },
+      );
+
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const attendees = await getAttendeesRaw(listing.id);
+      expect(attendees.length).toBe(1);
+      const textAnswers = await getAttendeeTextAnswers(
+        attendees[0]!.id,
+        await getTestPrivateKey(),
+      );
+      expect(textAnswers.get(question.id)).toBe("Step-free entrance");
     });
 
     test("finalizes a paid booking when a text-answer ref lost its string id, dropping only that answer", async () => {
@@ -232,69 +215,61 @@ describeWithEnv(
 
       // lostQ's ref carries no `s` — the corrupt shape a pre-fix checkout wrote
       // when the string-id read raced replication and JSON.stringify dropped it.
-      const mockVerify = await stubWebhookVerify({
-        data: {
-          object: {
-            amount_total: 1000,
-            id: "cs_corrupt_ref",
-            metadata: signedMeta(
-              {
-                email: "corrupt@example.com",
-                items: singleItem(listing.id, 1, 1000),
-                name: "Corrupt Ref Buyer",
-                text_answer_ids: JSON.stringify({
-                  [String(listing.id)]: [
-                    { q: goodQ.id, s: stringIds.get("Step-free entrance") },
-                    { q: lostQ.id },
-                  ],
-                }),
-              },
-              1000,
-            ),
-            payment_intent: "pi_corrupt_ref",
-            payment_status: "paid",
-          },
+      const mockVerify = await stubWebhookVerify(
+        checkoutSessionEvent({
+          amountTotal: 1000,
+          eventId: "evt_corrupt_ref",
+          metadata: signedMeta(
+            {
+              email: "corrupt@example.com",
+              items: singleItem(listing.id, 1, 1000),
+              name: "Corrupt Ref Buyer",
+              text_answer_ids: JSON.stringify({
+                [String(listing.id)]: [
+                  { q: goodQ.id, s: stringIds.get("Step-free entrance") },
+                  { q: lostQ.id },
+                ],
+              }),
+            },
+            1000,
+          ),
+          paymentIntent: "pi_corrupt_ref",
+          sessionId: "cs_corrupt_ref",
+        }),
+      );
+
+      // The payment is already captured, so the booking must finalize (200,
+      // processed) rather than crash-loop on the unsupported undefined bind.
+      await postWebhookAndAssert(
+        () => {
+          mockVerify.restore();
         },
-        id: "evt_corrupt_ref",
-        type: "checkout.session.completed",
-      });
+        200,
+        (json) => {
+          expect(json.received).toBe(true);
+          expect(json.processed).toBe(true);
+        },
+      );
 
-      try {
-        // The payment is already captured, so the booking must finalize (200,
-        // processed) rather than crash-loop on the unsupported undefined bind.
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-          200,
-          (json) => {
-            expect(json.received).toBe(true);
-            expect(json.processed).toBe(true);
-          },
-        );
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const attendees = await getAttendeesRaw(listing.id);
+      expect(attendees.length).toBe(1);
 
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees = await getAttendeesRaw(listing.id);
-        expect(attendees.length).toBe(1);
+      // The intact answer is saved; the ref with no id is dropped, not guessed.
+      const textAnswers = await getAttendeeTextAnswers(
+        attendees[0]!.id,
+        await getTestPrivateKey(),
+      );
+      expect(textAnswers.get(goodQ.id)).toBe("Step-free entrance");
+      expect(textAnswers.has(lostQ.id)).toBe(false);
 
-        // The intact answer is saved; the ref with no id is dropped, not guessed.
-        const textAnswers = await getAttendeeTextAnswers(
-          attendees[0]!.id,
-          await getTestPrivateKey(),
-        );
-        expect(textAnswers.get(goodQ.id)).toBe("Step-free entrance");
-        expect(textAnswers.has(lostQ.id)).toBe(false);
-
-        // The dropped answer is surfaced loudly, not swallowed silently.
-        const log = await getAllActivityLog();
-        expect(
-          log.some((entry) =>
-            entry.message.includes("Text answer ref missing string id"),
-          ),
-        ).toBe(true);
-      } finally {
-        mockVerify.restore();
-      }
+      // The dropped answer is surfaced loudly, not swallowed silently.
+      const log = await getAllActivityLog();
+      expect(
+        log.some((entry) =>
+          entry.message.includes("Text answer ref missing string id"),
+        ),
+      ).toBe(true);
     });
   },
 );

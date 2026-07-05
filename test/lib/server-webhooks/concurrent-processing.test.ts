@@ -4,11 +4,12 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
-  assertJson,
   bookAttendee,
+  checkoutSessionEvent,
   createTestListing,
   describeWithEnv,
   expectHtmlResponse,
+  expectWebhookProcessed,
   mockRequest,
   mockWebhookRequest,
   setupStripe,
@@ -38,26 +39,22 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
     );
     await reserveSessionFn("cs_webhook_concurrent");
 
-    const mockVerify = await stubWebhookVerify({
-      data: {
-        object: {
-          amount_total: 1000,
-          id: "cs_webhook_concurrent",
-          metadata: signedMeta(
-            {
-              email: "concurrent@example.com",
-              items: singleItem(listing.id, 1, 1000),
-              name: "Concurrent Webhook",
-            },
-            1000,
-          ),
-          payment_intent: "pi_webhook_concurrent",
-          payment_status: "paid",
-        },
-      },
-      id: "evt_concurrent",
-      type: "checkout.session.completed",
-    });
+    const mockVerify = await stubWebhookVerify(
+      checkoutSessionEvent({
+        amountTotal: 1000,
+        eventId: "evt_concurrent",
+        metadata: signedMeta(
+          {
+            email: "concurrent@example.com",
+            items: singleItem(listing.id, 1, 1000),
+            name: "Concurrent Webhook",
+          },
+          1000,
+        ),
+        paymentIntent: "pi_webhook_concurrent",
+        sessionId: "cs_webhook_concurrent",
+      }),
+    );
 
     try {
       const response = await handleRequest(
@@ -183,50 +180,21 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
       attendee.ticket_token,
     ]);
 
-    const { stripePaymentProvider } = await import(
-      "#shared/stripe-provider.ts"
-    );
-    const mockVerify = stub(
-      stripePaymentProvider,
-      "verifyWebhookSignature",
-      () =>
-        Promise.resolve({
-          listing: {
-            data: {
-              object: {
-                amount_total: 500,
-                id: "cs_multi_already_done",
-                metadata: signedMeta(
-                  {
-                    email: "already@example.com",
-                    items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
-                    name: "Already Done",
-                  },
-                  500,
-                ),
-                payment_intent: "pi_already_done",
-                payment_status: "paid",
-              },
-            },
-            id: "evt_already_done",
-            type: "checkout.session.completed",
+    await expectWebhookProcessed(
+      checkoutSessionEvent({
+        amountTotal: 500,
+        eventId: "evt_already_done",
+        metadata: signedMeta(
+          {
+            email: "already@example.com",
+            items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
+            name: "Already Done",
           },
-          valid: true,
-        }),
-    );
-
-    try {
-      await assertJson(
-        handleRequest(
-          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          500,
         ),
-        200,
-        (json) => {
-          expect(json.processed).toBe(true);
-        },
-      );
-    } finally {
-      mockVerify.restore();
-    }
+        paymentIntent: "pi_already_done",
+        sessionId: "cs_multi_already_done",
+      }),
+    );
   });
 });
