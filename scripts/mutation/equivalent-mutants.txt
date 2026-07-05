@@ -102,6 +102,16 @@ src/features/public/ticket-form.ts:213:36  ?? → ||   # quantities.get(): numbe
 src/shared/largest-remainder.ts:19:40  ?? → ||   # canReceive?: function|undefined — functions are truthy, undefined→default
 src/shared/largest-remainder.ts:20:40  ?? → ||   # tieBreaker?: function|undefined — functions are truthy, undefined→default
 
+# largest-remainder's early-return guard `amount <= 0 || total <= 0`: mutating
+# just the amount side's `<=` to `<` can only change behavior at amount === 0
+# with total > 0 (every other amount makes both sides of the `||` agree, and
+# total <= 0 already short-circuits the whole condition on its own). At
+# amount === 0, every weight's share is `(0 * weight) / total`, which is 0 for
+# every finite weight — so falling through to compute instead of early-
+# returning produces the exact same all-zero result. No finite-weight input
+# can tell the two branches apart.
+src/shared/largest-remainder.ts:41:13  <= → <    # amount <= 0: at amount === 0 the fallthrough computation also yields all zeros for finite weights
+
 # crypto/utils: Uint8Array indexing yields number|undefined; fallback is 0, and
 # the only falsy non-null byte is 0, so `byte ?? 0` and `byte || 0` agree.
 src/shared/crypto/utils.ts:18:23  ?? → ||   # bufA[i]: number|undefined, 0 ?? 0 === 0 || 0

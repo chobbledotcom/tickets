@@ -29,4 +29,30 @@ describe("largestRemainderAllocation", () => {
       }),
     ).toEqual([0, 1]);
   });
+
+  test("gives the extra unit to the biggest fractional share, not the biggest floor", () => {
+    // weight 3 has the bigger whole share (2) but the smaller fraction (0.25);
+    // weight 1 has the smaller whole share (0) but the bigger fraction (0.75),
+    // so the leftover unit must go to weight 1.
+    expect(largestRemainderAllocation([3, 1], 3)).toEqual([2, 1]);
+  });
+
+  test("breaks a tie using the tie-break values themselves, not their sum", () => {
+    // weights 3 and 5 land on the same fractional share (0.5), so the
+    // tie-break values (-3 for index 0, 2 for index 1) decide the winner:
+    // -3 is the smaller value, so index 0 gets the leftover unit.
+    expect(
+      largestRemainderAllocation([3, 5, 2], 5, {
+        tieBreaker: (index) => [-3, 2, -1][index]!,
+      }),
+    ).toEqual([2, 2, 1]);
+  });
+
+  test("still computes a real allocation when the total is a small positive number", () => {
+    expect(largestRemainderAllocation([0.4, 0.4], 1)).toEqual([1, 0]);
+  });
+
+  test("returns zeros for an amount that is negative but greater than -1", () => {
+    expect(largestRemainderAllocation([10, 20], -0.5)).toEqual([0, 0]);
+  });
 });
