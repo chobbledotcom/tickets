@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
-import { handleRequest } from "#routes";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { assertJson } from "./assertions.ts";
@@ -63,6 +62,7 @@ export const postWebhookAndAssert = async <T = Record<string, unknown>>(
   assertions?: (json: T) => void,
   signature = "sig_valid",
 ): Promise<T> => {
+  const { handleRequest } = await import("#routes");
   try {
     return await assertJson<T>(
       handleRequest(mockWebhookRequest({}, { "stripe-signature": signature })),
