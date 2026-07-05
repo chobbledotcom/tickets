@@ -1916,12 +1916,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       });
       const result = await createAttendeeAtomic({
         bookings: [
-          { listingId: memberA.id, quantity: 1 },
-          { listingId: memberB.id, quantity: 2 },
+          { listingId: memberA.id, packageGroupId: group.id, quantity: 1 },
+          { listingId: memberB.id, packageGroupId: group.id, quantity: 2 },
         ],
         email: "duo@example.com",
         name: "Duo Buyer",
-        packageGroupId: group.id,
       });
       if (!result.success) throw new Error("package booking failed");
 

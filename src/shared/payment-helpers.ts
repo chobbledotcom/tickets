@@ -164,10 +164,7 @@ export const toBookingItems = (intent: CheckoutIntent): BookingItem[] => {
       e: i.listingId,
       p: i.unitPrice * i.quantity,
       q: i.quantity,
-      ...signedEdgeFor(
-        intent.packageGroupIdByListingId?.get(i.listingId),
-        foldedChildIds.has(i.listingId),
-      ),
+      ...signedEdgeFor(i.packageGroupId, foldedChildIds.has(i.listingId)),
     }),
   )(intent.items);
 };

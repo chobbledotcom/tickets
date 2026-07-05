@@ -37,31 +37,38 @@ export const signedEdgeFor = (
     ? { k: "p", r: packageGroupId }
     : {};
 
-/** Reconstruct which package each member line was booked through (listing id →
- * group id) from the signed lines' edge tags. Sessions from before the per-line
- * cutover carried ONE order-wide id in the legacy `package_group_id` metadata
- * field instead — apply it to every non-folded line so an in-flight pre-cutover
- * session still completes as a package order. */
-export const packageGroupIdsFromLines = (
-  items: readonly BookingItem[],
+/** The package a signed line was booked through, from its edge tag, or
+ * undefined for a standalone/child line. */
+export const lineGroupId = (line: BookingItem): number | undefined =>
+  line.k === "p" ? line.r : undefined;
+
+/** The distinct package group ids an order's lines were booked through. */
+export const lineGroupIds = (items: readonly BookingItem[]): Set<number> => {
+  const groupIds = new Set<number>();
+  for (const item of items) {
+    const groupId = lineGroupId(item);
+    if (groupId !== undefined) groupIds.add(groupId);
+  }
+  return groupIds;
+};
+
+/** Normalise a pre-cutover session's lines to the per-line edge-tag shape:
+ * sessions from before per-line tags carried ONE order-wide id in the legacy
+ * `package_group_id` metadata field, meaning every non-folded line was that
+ * package's member — tag them so every downstream reader sees one shape. A
+ * session with any tagged line (or no legacy id) is returned unchanged. */
+export const applyLegacyPackageTag = (
+  items: BookingItem[],
   allocations: readonly ChildAllocation[],
   legacyGroupId: number | undefined,
-): Map<number, number> => {
-  const byListingId = new Map<number, number>();
-  for (const item of items) {
-    if (item.k === "p" && item.r !== undefined) {
-      byListingId.set(item.e, item.r);
-    }
+): BookingItem[] => {
+  if (legacyGroupId === undefined || lineGroupIds(items).size > 0) {
+    return items;
   }
-  if (byListingId.size === 0 && legacyGroupId !== undefined) {
-    const foldedChildIds = new Set(allocations.map((a) => a.childId));
-    for (const item of items) {
-      if (!foldedChildIds.has(item.e)) {
-        byListingId.set(item.e, legacyGroupId);
-      }
-    }
-  }
-  return byListingId;
+  const foldedChildIds = new Set(allocations.map((a) => a.childId));
+  return items.map((item) =>
+    foldedChildIds.has(item.e) ? item : { ...item, k: "p", r: legacyGroupId },
+  );
 };
 
 /** Reconstruct a top-level line's canonical `nodeKey` from its compact edge tag.

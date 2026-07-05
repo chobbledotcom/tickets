@@ -34,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Rewrite the {{listing}} attendee column-order tag to {{listings}} for the grouped Listings column.";
+  "Widen the unique booking-slot index with package_group_id so overlapping package paths keep one row per path.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -392,13 +392,17 @@ export const SCHEMA: [name: string, table: Table][] = [
         {
           // Includes parent_listing_id so the SAME child chosen under two
           // parents is two distinct booking rows (one per parent, faithful
-          // provenance) rather than colliding into one folded row. A non-child
-          // line has parent_listing_id 0, so its slot is unchanged.
+          // provenance) rather than colliding into one folded row, AND
+          // package_group_id so the same listing booked through two
+          // overlapping packages (or a package plus its own standalone row) in
+          // one order keeps one faithful row per path. A plain line has 0 for
+          // both, so its slot is unchanged.
           columns: [
             "listing_id",
             "attendee_id",
             "start_at",
             "parent_listing_id",
+            "package_group_id",
           ],
           name: "idx_listing_attendees_listing_attendee_start",
           unique: true,

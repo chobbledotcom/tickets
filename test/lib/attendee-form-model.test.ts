@@ -530,13 +530,16 @@ describe("toDesiredLines", () => {
         startDate: "2026-03-05",
       }),
     );
-    // The existing line keeps its old key (so the date move is an UPDATE)…
+    // The existing line keeps its old key (so the date move is an UPDATE)
+    // and carries its booking's package path (0 = a plain line) so the
+    // update pins the right row when a listing books through several paths.
     expect(desired[0]).toEqual({
       date: "2026-03-05",
       durationDays: 2,
       exists: true,
       key: "1|2026-03-01T00:00:00Z",
       listingId: 1,
+      packageGroupId: 0,
       quantity: 1,
     });
     // …the new line is an INSERT.

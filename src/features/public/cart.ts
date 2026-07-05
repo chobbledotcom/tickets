@@ -6,25 +6,26 @@
  *
  * Slugs resolve in URL order. A slug that names neither an active listing nor
  * a complete package is dropped — exactly how unknown slugs have always been
- * dropped from multi-slug URLs — and so is any item that would book a listing
- * an EARLIER item already books: the same listing must never be reachable
- * through two paths in one order (a standalone row plus a package member, or
- * two overlapping packages), and first-wins matches the order the visitor
- * added things to their cart.
+ * dropped from multi-slug URLs — and so is an exact repeat of an item already
+ * in the cart. OVERLAP is allowed: two packages sharing a listing, or a
+ * package plus that listing's own row, book together in one order (each path
+ * its own line and row), capacity permitting — the cart never restricts what
+ * can be booked beyond stock.
  */
 
+import { uniqueBy } from "#fp";
+import { notFoundResponse } from "#routes/response.ts";
 import type { PagePackage } from "#shared/booking/page-packages.ts";
 import { getListingsBySlugsBatch } from "#shared/db/listings.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
-import { notFoundResponse } from "#routes/response.ts";
 import { dropHiddenPackageMembers } from "./discovery.ts";
 import { loadCartPackageBySlug } from "./groups.ts";
+import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import {
   dropChildListings,
   getTicketContext,
   loadPagePackage,
 } from "./ticket-payment.ts";
-import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import { handleTicket, parseQuantityPrefill } from "./ticket-submit.ts";
 
 /** One resolved cart item: a standalone listing or a whole package. */
@@ -39,47 +40,47 @@ const resolveCartSlugs = async (
 ): Promise<CartItem[] | null> => {
   const listings = await getListingsBySlugsBatch(slugs);
   const items: CartItem[] = [];
-  const bookedListingIds = new Set<number>();
+  const standaloneIds = new Set<number>();
+  const packageGroupIds = new Set<number>();
   let anyPackage = false;
   for (const [index, slug] of slugs.entries()) {
     const listing = listings[index] ?? null;
     if (listing !== null) {
-      if (!listing.active || bookedListingIds.has(listing.id)) continue;
-      bookedListingIds.add(listing.id);
+      // Drop only an exact repeat of the same standalone listing; a listing
+      // that also arrives inside a package keeps both paths.
+      if (!listing.active || standaloneIds.has(listing.id)) continue;
+      standaloneIds.add(listing.id);
       items.push({ kind: "listing", listing });
       continue;
     }
     const pkg = await loadCartPackageBySlug(slug);
-    if (pkg === null) continue;
-    // A package that books a listing an earlier item already books is dropped
-    // whole — a bundle never sells partially.
-    if (pkg.listings.some((member) => bookedListingIds.has(member.id))) {
-      continue;
-    }
-    for (const member of pkg.listings) bookedListingIds.add(member.id);
+    if (pkg === null || packageGroupIds.has(pkg.group.id)) continue;
+    packageGroupIds.add(pkg.group.id);
     items.push({ group: pkg.group, kind: "package", members: pkg.listings });
     anyPackage = true;
   }
   return anyPackage ? items : null;
 };
 
-/** The cart's listings in item order — packages expanded to their members —
- * with a hidden package's members dropped from the STANDALONE items (they only
- * sell through their package; an unknown-slug-style drop, not a 404, so the
- * rest of the cart still books). */
-const cartListings = async (
-  items: CartItem[],
-): Promise<ListingWithCount[]> => {
+/** The cart's listings in item order — packages expanded to their members,
+ * each listing kept ONCE (a listing reachable through several items keeps all
+ * its paths via `packages` + the standalone slugs, not repeated rows) — with a
+ * hidden package's members dropped from the STANDALONE items (they only sell
+ * through their package; an unknown-slug-style drop, not a 404, so the rest of
+ * the cart still books). */
+const cartListings = async (items: CartItem[]): Promise<ListingWithCount[]> => {
   const standalone = await dropHiddenPackageMembers(
     items.flatMap((item) => (item.kind === "listing" ? [item.listing] : [])),
   );
   const standaloneIds = new Set(standalone.map((listing) => listing.id));
-  return items.flatMap((item) =>
-    item.kind === "listing"
-      ? standaloneIds.has(item.listing.id)
-        ? [item.listing]
-        : []
-      : item.members,
+  return uniqueBy((listing: ListingWithCount) => listing.id)(
+    items.flatMap((item) =>
+      item.kind === "listing"
+        ? standaloneIds.has(item.listing.id)
+          ? [item.listing]
+          : []
+        : item.members,
+    ),
   );
 };
 

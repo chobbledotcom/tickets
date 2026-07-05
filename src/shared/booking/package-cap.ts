@@ -336,24 +336,22 @@ export const packageBundleLimit = (
 
 /** Whole bundles of ONE page package the buyer may still book, on a page that
  * can sell several bundles alongside other listings: {@link packageBundleLimit}
- * over just that package's member nodes and member listings. The one ceiling
- * the page render, the submit clamp, and the API all share. */
+ * over just that package's member nodes and member listings (`page` carries the
+ * whole page's limit info; the member listings are narrowed here). The one
+ * ceiling the page render, the submit clamp, and the API all share. A package
+ * with no member node on this page (every member dropped, e.g. as another
+ * listing's child) sells nothing, so its limit is 0 — never `Math.min()`'s
+ * Infinity. */
 export const pagePackageBundleLimit = (
   tree: BookingTree,
   pkg: TreePackage,
-  listings: readonly TicketListing[],
-  childrenByParentId: ReadonlyMap<number, readonly TicketListing[]> | undefined,
-  groupRemainingByGroupId: ReadonlyMap<number, number>,
-  groupIdsByListingId: ReadonlyMap<number, number[]>,
+  page: PackageLimitInfo,
 ): number => {
   const memberIds = new Set(pkg.memberListingIds);
-  return packageBundleLimit(
-    packageSubTree(tree, pkg.groupId),
-    packageLimitInfo(
-      listings.filter((info) => memberIds.has(info.listing.id)),
-      childrenByParentId,
-      groupRemainingByGroupId,
-      groupIdsByListingId,
-    ),
-  );
+  const subTree = packageSubTree(tree, pkg.groupId);
+  if (subTree.nodes.length === 0) return 0;
+  return packageBundleLimit(subTree, {
+    ...page,
+    listings: page.listings.filter((info) => memberIds.has(info.listing.id)),
+  });
 };

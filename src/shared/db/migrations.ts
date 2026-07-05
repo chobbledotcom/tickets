@@ -93,6 +93,7 @@ import dropListingsDayPricesMigration from "./migrations/2026-07-02_drop_listing
 import groupFlatPricesMigration from "./migrations/2026-07-02_group_flat_prices.ts";
 import attendeeListingsTagMigration from "./migrations/2026-07-03_attendee_listings_tag.ts";
 import listingImageThumbMigration from "./migrations/2026-07-03_listing_image_thumb.ts";
+import packageSlotIdentityMigration from "./migrations/2026-07-05_package_slot_identity.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -299,6 +300,9 @@ export const MIGRATIONS: Migration[] = [
   attendeeListingsTagMigration,
   // Pure additive column add: image_thumb_url on listings for the WebP thumbnail.
   listingImageThumbMigration,
+  // Widen the unique booking-slot index with package_group_id so overlapping
+  // package paths keep one row each.
+  packageSlotIdentityMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

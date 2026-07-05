@@ -186,15 +186,19 @@ export const quantitySpec = (id: string, value: string): ElementSpec => ({
   value,
 });
 
-/** The package-page `name="package_quantity"` selector, carrying its member
- * listing ids in `data-package-members` so the active-listing set picks up every
- * member once a package is chosen (even when members render no rows). */
+/** One package's `name="package_quantity_<groupId>"` count selector (a page can
+ * sell several bundles), carrying its members in `data-package-members` as
+ * space-separated `<listingId>:<fixedQty>` pairs (e.g. "7:2 8:1") so the
+ * active-listing set picks up every member once the package is chosen (even
+ * when members render no rows) and the child scripts know how many units one
+ * bundle books of each member. A bare `<listingId>` entry defaults to ×1. */
 export const packageSelectorSpec = (
-  memberIds: string[],
+  members: string[],
   value: string,
+  groupId = "3",
 ): ElementSpec => ({
-  data: { packageMembers: memberIds.join(" ") },
-  name: "package_quantity",
+  data: { packageMembers: members.join(" ") },
+  name: `package_quantity_${groupId}`,
   tag: "select",
   value,
 });
@@ -211,21 +215,13 @@ export const hiddenQuantitySpec = (id: string, value = "1"): ElementSpec => ({
   value,
 });
 
-/** A parent's child-selector fieldset. `packageFixedQty` models a PACKAGE
- * member parent, which has no own quantity control: the server stamps its fixed
- * per-package quantity on the fieldset so the client derives its booked units
- * from the chosen package count. */
-export const childSelectorSpec = (
-  parentId: string,
-  packageFixedQty?: number,
-): ElementSpec => ({
+/** A parent's child-selector fieldset. A PACKAGE member parent has no own
+ * quantity control: the client derives its booked units from each package
+ * selector's `data-package-members` `<listingId>:<fixedQty>` pairs × the chosen
+ * count, so the fieldset itself carries only the parent id. */
+export const childSelectorSpec = (parentId: string): ElementSpec => ({
   class: "child-selector",
-  data: {
-    parentId,
-    ...(packageFixedQty !== undefined && {
-      packageFixedQty: String(packageFixedQty),
-    }),
-  },
+  data: { parentId },
   tag: "fieldset",
 });
 

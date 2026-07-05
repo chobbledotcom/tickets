@@ -114,17 +114,22 @@ describe("payment-helpers", () => {
       ).toEqual(allocations);
     });
 
-    test("buildMetadata carries packageGroupId and round-trips it when packed", () => {
+    test("buildMetadata writes no package_group_id — the id rides per line", () => {
+      // New sessions carry the package id per signed line (`k:"p"`/`r:<id>`),
+      // never as an order-level package_group_id metadata key.
       const metadata = buildMetadata({
         date: null,
         email: "a@example.com",
-        items: [{ e: 2, p: 1500, q: 1 }],
+        items: [{ e: 2, k: "p", p: 1500, q: 1, r: 7 }],
         name: "Alice",
-        packageGroupId: 7,
       });
-      expect(metadata.package_group_id).toBe("7");
-      // It is a packed small field (kept out of the top level for Square's cap).
-      const packed = packMetadata(metadata);
+      expect(metadata.package_group_id).toBeUndefined();
+      expect(JSON.parse(metadata.items!)).toEqual([
+        { e: 2, k: "p", p: 1500, q: 1, r: 7 },
+      ]);
+      // LEGACY sessions (created before per-line tags) still pack and parse the
+      // order-level key on read.
+      const packed = packMetadata({ ...metadata, package_group_id: "7" });
       expect(packed.package_group_id).toBeUndefined();
       expect(JSON.parse(packed.b!).package_group_id).toBe("7");
       expect(
@@ -457,13 +462,24 @@ describe("payment-helpers", () => {
       const result = toBookingItems(
         checkoutIntent(
           [
-            { listingId: 5, name: "M", quantity: 2, slug: "m", unitPrice: 100 },
-            { listingId: 9, name: "C", quantity: 2, slug: "c", unitPrice: 50 },
+            {
+              listingId: 5,
+              name: "M",
+              packageGroupId: 3,
+              quantity: 2,
+              slug: "m",
+              unitPrice: 100,
+            },
+            {
+              listingId: 9,
+              name: "C",
+              packageGroupId: 3,
+              quantity: 2,
+              slug: "c",
+              unitPrice: 50,
+            },
           ],
-          {
-            allocations: [{ childId: 9, parentId: 5, qty: 2 }],
-            packageGroupId: 3,
-          },
+          { allocations: [{ childId: 9, parentId: 5, qty: 2 }] },
         ),
       );
       // The top-level member carries its package edge (k:"p", r=group id); the
@@ -1195,6 +1211,7 @@ describe("signed metadata budget", () => {
       ...members.map((id) => ({
         listingId: id,
         name: `Member ${id}`,
+        packageGroupId: 42,
         quantity: 2,
         slug: `m${id}`,
         unitPrice: 1234,
@@ -1210,7 +1227,6 @@ describe("signed metadata budget", () => {
       items,
       listingAnswerIds: { "11": [1, 2], "12": [3] },
       name: "Buyer Person",
-      packageGroupId: 42,
       phone: "+441234567890",
       reservationAmount: "10%",
       special_instructions: "Leave at the front desk",

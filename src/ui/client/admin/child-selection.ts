@@ -92,34 +92,43 @@ const packageQuantitySelectors = (): HTMLSelectElement[] => [
   ),
 ];
 
-/** The chosen count of ONE package, or 0 (no selector, none chosen). */
-const packageQuantity = (groupId: string): number =>
-  controlQty(
-    document.querySelector<HTMLSelectElement>(
-      `[name="package_quantity_${groupId}"]`,
-    ),
-  );
+/** One selector's members, parsed from its `data-package-members` attribute
+ * (`<listingId>:<fixedQty>` pairs — how many units of each member ONE bundle
+ * books). */
+const selectorMembers = (
+  selector: HTMLSelectElement,
+): { id: string; fixedQty: number }[] =>
+  (selector.getAttribute("data-package-members") ?? "")
+    .split(" ")
+    .filter((entry) => entry.length > 0)
+    .map((entry) => {
+      const [id = "", rawQty = ""] = entry.split(":");
+      const fixedQty = Number.parseInt(rawQty, 10);
+      return { fixedQty: Number.isNaN(fixedQty) ? 1 : fixedQty, id };
+    });
 
-/** A parent's effective booked units: its own `quantity_<parentId>` control, or
- * — for a package member, which has no own control — its fixed per-package
- * quantity (the fieldset's `data-package-fixed-qty`) × the chosen count of ITS
- * package (`data-package-group`), matching the total the submit fold requires
- * the child mix to reach. */
+/** A parent's effective booked units, totalled across EVERY path that books
+ * it: its own `quantity_<parentId>` control (when it sells standalone) plus,
+ * per package that includes it, its fixed per-bundle quantity × that package's
+ * chosen count — matching the total the submit fold requires the child mix to
+ * reach. */
 export const parentUnits = (parentId: string): number => {
   const own = document.querySelector<HTMLSelectElement | HTMLInputElement>(
     `[name="quantity_${parentId}"]`,
   );
-  if (own !== null) return controlQty(own);
-  const fieldset = document.querySelector<HTMLElement>(
-    `fieldset.child-selector[data-parent-id="${parentId}"]`,
-  );
-  const fixed = Number.parseInt(fieldset?.dataset.packageFixedQty ?? "", 10);
-  const groupId = fieldset?.dataset.packageGroup ?? "";
-  return Number.isNaN(fixed) ? 0 : fixed * packageQuantity(groupId);
+  let units = own === null ? 0 : controlQty(own);
+  for (const selector of packageQuantitySelectors()) {
+    const count = controlQty(selector);
+    if (count <= 0) continue;
+    for (const member of selectorMembers(selector)) {
+      if (member.id === parentId) units += member.fixedQty * count;
+    }
+  }
+  return units;
 };
 
 /** Whether the given parent is in the cart: its own quantity control > 0, or —
- * for a package member parent — at least one of its package selected. */
+ * for a package member parent — at least one of its packages selected. */
 export const parentInCart = (parentId: string): boolean =>
   parentUnits(parentId) > 0;
 
@@ -130,8 +139,7 @@ export const selectedPackageMemberIds = (): string[] => {
   const ids: string[] = [];
   for (const selector of packageQuantitySelectors()) {
     if (controlQty(selector) <= 0) continue;
-    const raw = selector.getAttribute("data-package-members") ?? "";
-    ids.push(...raw.split(" ").filter((id) => id.length > 0));
+    ids.push(...selectorMembers(selector).map((member) => member.id));
   }
   return ids;
 };

@@ -84,7 +84,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     ]);
 
     const response = await calculate(group.slug, group.slug, {
-      package_quantity: "1",
+      [`package_quantity_${group.id}`]: "1",
     });
     expect(response.status).toBe(200);
     const html = await response.text();
@@ -112,7 +112,9 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
 
     // A package is booked by package count, not per-member quantities.
     const html = await (
-      await calculate(group.slug, group.slug, { package_quantity: "1" })
+      await calculate(group.slug, group.slug, {
+        [`package_quantity_${group.id}`]: "1",
+      })
     ).text();
     // The package override (1500) prices the line — not the 5000 base.
     expect(html).toContain(formatCurrency(1500));
@@ -139,7 +141,9 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     ]);
 
     const html = await (
-      await calculate(group.slug, group.slug, { package_quantity: "1" })
+      await calculate(group.slug, group.slug, {
+        [`package_quantity_${group.id}`]: "1",
+      })
     ).text();
     expect(html).toContain(formatCurrency(0));
     expect(html).not.toContain(formatCurrency(5000));
@@ -163,7 +167,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
 
     // "abc" → 0 packages → empty order.
     const response = await calculate(group.slug, group.slug, {
-      package_quantity: "abc",
+      [`package_quantity_${group.id}`]: "abc",
     });
     expect(await response.text()).toContain("select at least one");
   });
@@ -188,7 +192,9 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
 
     // 2 packages → 6 units × 1000 = 6000.
     const html = await (
-      await calculate(group.slug, group.slug, { package_quantity: "2" })
+      await calculate(group.slug, group.slug, {
+        [`package_quantity_${group.id}`]: "2",
+      })
     ).text();
     expect(html).toContain(formatCurrency(6000));
   });
@@ -214,7 +220,9 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     // The member caps the package at 2 (max_quantity); a crafted count of 5
     // clamps to 2 → 2 × 1000 = 2000, never 5 × 1000.
     const html = await (
-      await calculate(group.slug, group.slug, { package_quantity: "5" })
+      await calculate(group.slug, group.slug, {
+        [`package_quantity_${group.id}`]: "5",
+      })
     ).text();
     expect(html).toContain(formatCurrency(2000));
     expect(html).not.toContain(formatCurrency(5000));
@@ -250,7 +258,9 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     // The group holds 2; one package consumes 1 A + 1 B = 2 spots, so only one
     // package fits. Posting 2 clamps to 1 → 1×1000 + 1×1000 = 2000, not 4000.
     const html = await (
-      await calculate(group.slug, group.slug, { package_quantity: "2" })
+      await calculate(group.slug, group.slug, {
+        [`package_quantity_${group.id}`]: "2",
+      })
     ).text();
     expect(html).toContain(formatCurrency(2000));
     expect(html).not.toContain(formatCurrency(4000));

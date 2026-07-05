@@ -22,24 +22,22 @@ import {
   quantityFieldName,
 } from "#shared/booking/tree.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { treePackage as pkg } from "./package-cap-fixtures.ts";
 
 const resolved = (overrides = {}, closed = false, groupRemaining = undefined) =>
   buildTicketListing(testListingWithCount(overrides), closed, groupRemaining);
 
-/** A package bundle for tree inputs, defaulting every map empty. */
-const pkg = (
-  groupId: number,
-  memberListingIds: number[],
-  overrides: Partial<TreePackage> = {},
-): TreePackage => ({
-  dayPrices: new Map(),
-  groupId,
-  hideListings: false,
-  memberListingIds,
-  prices: new Map(),
-  quantities: new Map(),
-  ...overrides,
-});
+/** A two-bundle cart beside a plain listing: packages 3 (member 7) and
+ * 4 (member 8) with listing 9 standalone. */
+const twoPackageCart = (
+  overrides3: Partial<TreePackage> = {},
+  overrides4: Partial<TreePackage> = {},
+) =>
+  buildBookingTree({
+    listings: [resolved({ id: 7 }), resolved({ id: 8 }), resolved({ id: 9 })],
+    packages: [pkg(3, [7], overrides3), pkg(4, [8], overrides4)],
+    slugs: ["a", "b", "c"],
+  });
 
 describe("booking tree — node identity (nodeKey scheme)", () => {
   test("addresses each path distinctly so the same listing never collapses", () => {
@@ -210,7 +208,10 @@ describe("buildBookingTree — root identity", () => {
       packages: [pkg(3, [7])],
       slugs: ["pkg-3", "ab12c"],
     });
-    expect(tree.rootRef).toEqual({ kind: "listing", slugs: ["pkg-3", "ab12c"] });
+    expect(tree.rootRef).toEqual({
+      kind: "listing",
+      slugs: ["pkg-3", "ab12c"],
+    });
   });
 
   test("a cart of two packages is a listing root (no single package identity)", () => {
@@ -355,18 +356,10 @@ describe("buildBookingTree — package members", () => {
   test("each listing builds under ITS OWN package on a two-package cart", () => {
     // A cart selling two bundles side by side: member nodes must carry each
     // package's own group id, quantity, and override — never the other's.
-    const tree = buildBookingTree({
-      listings: [
-        resolved({ id: 7 }),
-        resolved({ id: 8 }),
-        resolved({ id: 9 }),
-      ],
-      packages: [
-        pkg(3, [7], { prices: new Map([[7, 1500]]) }),
-        pkg(4, [8], { quantities: new Map([[8, 2]]) }),
-      ],
-      slugs: ["a", "b", "c"],
-    });
+    const tree = twoPackageCart(
+      { prices: new Map([[7, 1500]]) },
+      { quantities: new Map([[8, 2]]) },
+    );
     const [seven, eight, nine] = tree.nodes;
     expect(seven!.nodeKey).toBe("package:3/member:7");
     expect(seven!.priceRule).toEqual({ amountMinor: 1500, kind: "OVERRIDE" });
@@ -378,16 +371,7 @@ describe("buildBookingTree — package members", () => {
   });
 
   test("packageSubTree keeps just one package's member nodes", () => {
-    const tree = buildBookingTree({
-      listings: [
-        resolved({ id: 7 }),
-        resolved({ id: 8 }),
-        resolved({ id: 9 }),
-      ],
-      packages: [pkg(3, [7]), pkg(4, [8])],
-      slugs: ["a", "b", "c"],
-    });
-    const sub = packageSubTree(tree, 4);
+    const sub = packageSubTree(twoPackageCart(), 4);
     expect(sub.rootRef).toEqual({ groupId: 4, kind: "package" });
     expect(sub.nodes.map((n) => n.nodeKey)).toEqual(["package:4/member:8"]);
   });

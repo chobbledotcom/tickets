@@ -14,17 +14,19 @@ import { getBaseUrl } from "#routes/url.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import { parseCustomPrice } from "#shared/booking/form.ts";
 import type { TicketListing } from "#shared/booking/model.ts";
-import { pagePackageBundleLimit } from "#shared/booking/package-cap.ts";
 import {
-  packageGroupIdByListingId,
-  type PagePackage,
-  withoutPackageMembers,
-} from "#shared/booking/page-packages.ts";
+  aggregateNodeQuantities,
+  buildOrderLines,
+  nodeQuantitiesFor,
+} from "#shared/booking/order-lines.ts";
+import {
+  packageLimitInfo,
+  pagePackageBundleLimit,
+} from "#shared/booking/package-cap.ts";
+import type { PagePackage } from "#shared/booking/page-packages.ts";
 import {
   customPriceFieldName,
-  fixedQuantitiesByListingId,
   packageQuantityFieldName,
-  packageSubTree,
   quantityFieldName,
 } from "#shared/booking/tree.ts";
 import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
@@ -63,7 +65,7 @@ import {
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { concealNamesByListingId } from "#shared/package-privacy.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
+import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
@@ -101,7 +103,6 @@ import {
 } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import {
-  buildRegistrationItems,
   checkAvailability,
   createFreeReservation,
   ctxStandInNames,
@@ -288,7 +289,7 @@ type CheckoutIntentParams = {
   dayCount: number;
   hasCustomisable: boolean;
   info: AnswerInfo;
-  items: ReturnType<typeof buildRegistrationItems>;
+  items: CheckoutItem[];
   modifiers: CheckoutIntent["modifiers"];
   reservationAmount?: string | undefined;
 };
@@ -308,7 +309,6 @@ const checkoutIntentForSubmission = (
     reservationAmount,
   } = params;
   const listingAnswerIds = computeListingAnswerMap(ctx, info);
-  const memberGroups = packageGroupIdByListingId(ctx.packages);
   return {
     ...contact,
     date,
@@ -321,9 +321,6 @@ const checkoutIntentForSubmission = (
     ...(ctx.siteToken ? { siteToken: ctx.siteToken } : {}),
     ...(reservationAmount ? { reservationAmount } : {}),
     ...(modifiers && modifiers.length > 0 ? { modifiers } : {}),
-    ...(memberGroups.size > 0
-      ? { packageGroupIdByListingId: memberGroups }
-      : {}),
   };
 };
 
@@ -383,6 +380,7 @@ const publicReservationAmount = async (): Promise<string | undefined> => {
  */
 const handleFreePath = async (
   params: PathParams & {
+    items: CheckoutItem[];
     modifierUsages: ModifierApplication[];
     paymentBreakdown?: TicketPaymentBreakdown;
     /** Pre-fold single-parent thank-you URL, kept across the fold so a parent +
@@ -394,7 +392,7 @@ const handleFreePath = async (
 ): Promise<Response> => {
   const {
     ctx,
-    quantities,
+    items,
     date,
     dayCount,
     contact,
@@ -410,6 +408,10 @@ const handleFreePath = async (
     contact,
     date,
     dayCount,
+    // One booking row per checkout line — a listing booked through two paths
+    // (overlapping packages, or a package plus standalone) keeps one row per
+    // path, each carrying its own package id and charged amount.
+    items,
     // The caller decides whether this booking dual-writes the ledger: an enabled,
     // zero-total checkout posts the same gross-sale / discount / owed legs a paid
     // one would; a provider-less booking passes null and records nothing here
@@ -417,12 +419,7 @@ const handleFreePath = async (
     ledgerOrder,
     listings: ctx.listings,
     modifierUsages,
-    // Carry which package each member was booked through so each booking row
-    // stores it (0 = none), grouping the order's lines under the right bundle
-    // on the ticket view / email.
-    packageGroupIdByListingId: packageGroupIdByListingId(ctx.packages),
-    paidByListingId: paymentBreakdown?.paidByListingId,
-    quantities,
+    paidByItem: paymentBreakdown?.paidByItem,
     remainingBalance: paymentBreakdown?.remainingBalance,
   });
   if (!result.success) return ticketFormErrorResponse(ctx)(result.error);
@@ -586,10 +583,12 @@ const ctxPackageLimit = (
   pagePackageBundleLimit(
     tree,
     pkg,
-    ctx.listings,
-    ctx.childrenByParentId,
-    ctx.packageGroupRemainingByGroupId,
-    ctx.packageMemberGroupIds,
+    packageLimitInfo(
+      ctx.listings,
+      ctx.childrenByParentId,
+      ctx.packageGroupRemainingByGroupId,
+      ctx.packageMemberGroupIds,
+    ),
   );
 
 /**
@@ -606,28 +605,40 @@ const ctxPackageLimit = (
 const resolvePageQuantities = (
   form: FormParams,
   ctx: TicketCtx,
-): Map<number, number> => {
-  const standalone = withoutPackageMembers(
-    ctx.listings,
-    ctx.packages,
-    (info) => info.listing.id,
+  tree: ReturnType<typeof buildBookingTree>,
+): { nodeQuantities: Map<string, number>; quantities: Map<number, number> } => {
+  // Listings with a standalone node keep their own quantity_<id> input — every
+  // non-member, plus any member the cart also added by its own slug.
+  const standaloneIds = new Set(
+    tree.nodes
+      .filter((node) => node.quantityRule.kind === "BUYER_CHOICE")
+      .map((node) => node.listingId),
   );
-  const quantities = parseQuantities(form, standalone);
-  if (ctx.packages.length === 0) return quantities;
-  const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
-  for (const pkg of ctx.packages) {
-    const packageQty = Math.max(
-      0,
-      Math.min(parsePackageCount(form, pkg.groupId), ctxPackageLimit(ctx, tree, pkg)),
-    );
-    if (packageQty === 0) continue;
-    for (const [listingId, fixed] of fixedQuantitiesByListingId(
-      packageSubTree(tree, pkg.groupId),
-    )) {
-      quantities.set(listingId, fixed * packageQty);
-    }
-  }
-  return quantities;
+  const standaloneQuantities = parseQuantities(
+    form,
+    ctx.listings.filter((info) => standaloneIds.has(info.listing.id)),
+  );
+  const packageCounts = new Map(
+    ctx.packages.map((pkg) => [
+      pkg.groupId,
+      Math.max(
+        0,
+        Math.min(
+          parsePackageCount(form, pkg.groupId),
+          ctxPackageLimit(ctx, tree, pkg),
+        ),
+      ),
+    ]),
+  );
+  const nodeQuantities = nodeQuantitiesFor(
+    tree,
+    standaloneQuantities,
+    packageCounts,
+  );
+  return {
+    nodeQuantities,
+    quantities: aggregateNodeQuantities(tree, nodeQuantities),
+  };
 };
 
 /** A parsed-and-priced submission, or the message explaining why it could not
@@ -658,7 +669,12 @@ const prepareOrder = async (
   const stateError = validateFormState(form, ctx);
   if (stateError) return { error: stateError, ok: false };
 
-  const pageQuantities = resolvePageQuantities(form, ctx);
+  const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
+  const { nodeQuantities, quantities: pageQuantities } = resolvePageQuantities(
+    form,
+    ctx,
+    tree,
+  );
   const totalQuantity = sum(Array.from(pageQuantities.values()));
   if (totalQuantity === 0) {
     return { error: "Please select at least one ticket", ok: false };
@@ -696,13 +712,18 @@ const prepareOrder = async (
   // Fold each in-cart parent's selected child into the order: expand the listing
   // set + quantity/custom-price maps + selected ids, so every per-listing path
   // below sees children as ordinary lines.
-  const fold = await foldSelectedChildren(ctx, form, {
-    customPrices: customPricesResult,
-    date,
-    dayCount: dayResult.dayCount,
-    hasCustomisable: baseHasCustomisable,
-    quantities: pageQuantities,
-  });
+  const fold = await foldSelectedChildren(
+    ctx,
+    form,
+    {
+      customPrices: customPricesResult,
+      date,
+      dayCount: dayResult.dayCount,
+      hasCustomisable: baseHasCustomisable,
+      quantities: pageQuantities,
+    },
+    tree,
+  );
   if (!fold.ok) return { error: fold.error, ok: false };
   const { hasCustomisable, dayCount, quantities } = fold;
   const selectedListingIds = fold.selectedListingIds;
@@ -728,15 +749,16 @@ const prepareOrder = async (
   );
   if (!answersResult.ok) return { error: answersResult.error, ok: false };
 
-  // Build items from the folded set; each line is priced by the tree's price rule
-  // (a package member's override is a node facet scoped to the member line, so no
-  // separate override pass is needed), then hidden-package names are masked.
+  // Build the per-path lines from the tree: one line per booked top-level node
+  // (each priced by its own rule — a package member's override is a node facet
+  // scoped to that path) plus one line per folded child; then hidden-package
+  // names are masked.
   const items = concealNamesByListingId(
-    buildRegistrationItems(
-      foldedCtx.listings,
-      quantities,
+    buildOrderLines(
+      tree,
+      nodeQuantities,
+      fold.quantities,
       fold.customPrices,
-      fold.priceRuleByListingId,
       dayCount,
     ),
     standIns,
@@ -900,6 +922,7 @@ const processSubmission = async (
     dayCount,
     hasCustomisable,
     info,
+    items: pricingParams.items,
     // Always dual-write the ledger — outstanding balance is projected from it,
     // so an owed booking must record its legs at creation. A paid or enabled
     // zero-total checkout (fully discounted, zero-deposit reservation) posts
@@ -1212,8 +1235,7 @@ export const renderTicketFlow =
       mode: options.mode,
       // A caller-supplied pre-fill wins; otherwise read the query pre-fill so
       // e.g. the order cart's chosen date carries onto a package page.
-      prefill:
-        options.prefill ?? parseQuantityPrefill(request, activeListings),
+      prefill: options.prefill ?? parseQuantityPrefill(request, activeListings),
       request,
       slugs,
     });

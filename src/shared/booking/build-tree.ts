@@ -32,9 +32,14 @@ import type { ListingWithCount } from "#shared/types.ts";
 /** The resolved inputs a page already computed before render — mirrors what
  * `ticketPage`/`getTicketContext` produce, so building the tree needs no extra
  * queries. `packages` carries each package bundle sold on the page (empty/absent
- * for a plain listing page); a listing some package books builds as that
- * package's member node, every other listing as a standalone node. `root` names
- * a regular (non-package) group page's identity; a package page needs no root —
+ * for a plain listing page). A listing builds ONE NODE PER PATH it can be
+ * booked through: one member node per package that includes it, plus a
+ * standalone node when it is sold on its own — an order may book the same
+ * listing through overlapping packages AND standalone, and each path keeps its
+ * own price, quantity, and booking row. `standaloneListingIds` names the
+ * member listings that ALSO sell standalone on this page (a member the cart
+ * added by its own slug); non-members always sell standalone. `root` names a
+ * regular (non-package) group page's identity; a package page needs no root —
  * its identity is derived from `packages`. */
 export type BuildTreeInput = {
   readonly slugs: readonly string[];
@@ -42,6 +47,8 @@ export type BuildTreeInput = {
   readonly root?: Extract<RootRef, { kind: "group" }> | undefined;
   /** The package bundles sold on this page, in page order. */
   readonly packages?: readonly TreePackage[] | null | undefined;
+  /** Member listings that ALSO sell standalone on this page. */
+  readonly standaloneListingIds?: ReadonlySet<number> | undefined;
   /** Required children per parent listing id (already hydrated + availability). */
   readonly childrenByParentId?:
     | ReadonlyMap<number, readonly TicketListing[]>
@@ -194,33 +201,47 @@ const buildPackageMemberNode =
   };
 
 /** The page identity a built tree records: a regular group keeps its explicit
- * root; a page that is exactly one package (every listing a member) is that
- * package; anything else — a plain listing page or a mixed cart — is identified
- * by its slugs. */
+ * root; a page that is exactly one package (every listing a member, nothing
+ * sold standalone beside it) is that package; anything else — a plain listing
+ * page or a mixed cart — is identified by its slugs. */
 const deriveRootRef = (
   input: BuildTreeInput,
-  ownerByListingId: ReadonlyMap<number, TreePackage>,
+  memberByListingId: ReadonlyMap<number, TreePackage>,
 ): RootRef => {
   if (input.root !== undefined) return input.root;
   const [first] = input.packages ?? [];
   if (
     first !== undefined &&
     input.packages!.length === 1 &&
-    input.listings.every((info) => ownerByListingId.has(info.listing.id))
+    (input.standaloneListingIds?.size ?? 0) === 0 &&
+    input.listings.every((info) => memberByListingId.has(info.listing.id))
   ) {
     return { groupId: first.groupId, kind: "package" };
   }
   return { kind: "listing", slugs: input.slugs };
 };
 
-/** Construct the canonical {@link BookingTree} for a booking page. */
+/** Construct the canonical {@link BookingTree} for a booking page: one node
+ * per bookable path — a member node for EACH package that includes a listing,
+ * plus a standalone node for a non-member (or a member also sold standalone). */
 export const buildBookingTree = (input: BuildTreeInput): BookingTree => {
-  const ownerByListingId = packageByMemberListingId(input.packages ?? []);
-  const nodes = map((info: TicketListing) => {
-    const pkg = ownerByListingId.get(info.listing.id);
-    return pkg === undefined
-      ? buildListingNode(input, info)
-      : buildPackageMemberNode(input, pkg)(info);
-  })([...input.listings]);
-  return { nodes, rootRef: deriveRootRef(input, ownerByListingId) };
+  const packages = input.packages ?? [];
+  const nodes = [...input.listings].flatMap((info) => {
+    const memberOf = packages.filter((pkg) =>
+      pkg.memberListingIds.includes(info.listing.id),
+    );
+    const standalone =
+      memberOf.length === 0 ||
+      (input.standaloneListingIds?.has(info.listing.id) ?? false);
+    return [
+      ...map((pkg: TreePackage) => buildPackageMemberNode(input, pkg)(info))(
+        memberOf,
+      ),
+      ...(standalone ? [buildListingNode(input, info)] : []),
+    ];
+  });
+  return {
+    nodes,
+    rootRef: deriveRootRef(input, packageByMemberListingId(packages)),
+  };
 };

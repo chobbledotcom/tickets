@@ -3,7 +3,8 @@
 /**
  * Drive the public checkout submit for a package group: GET the package page
  * (seeding the CSRF token the POST needs), then POST the booking form fields.
- * Callers pass `package_quantity` plus any date/day-count/contact fields.
+ * Callers pass `package_quantity_<groupId>` plus any date/day-count/contact
+ * fields.
  */
 export const submitPackageBooking = async (
   slug: string,

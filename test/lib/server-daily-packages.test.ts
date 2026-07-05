@@ -59,7 +59,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     // One date control for the whole bundle (members share the start date).
     expect(body).toContain('name="date"');
     // The package quantity selector still rides alongside it.
-    expect(body).toContain('name="package_quantity"');
+    expect(body).toContain(`name="package_quantity_${group.id}"`);
   });
 
   test("books every member on the chosen date, stamped with the group", async () => {
@@ -70,7 +70,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       date,
       email: "camper@test.com",
       name: "Camper",
-      package_quantity: "1",
+      [`package_quantity_${group.id}`]: "1",
     });
     await expectPackageBookingAccepted(submit);
 
@@ -88,7 +88,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     const submit = await submitPackageBooking(group.slug, {
       email: "nodate@test.com",
       name: "No Date",
-      package_quantity: "1",
+      [`package_quantity_${group.id}`]: "1",
     });
     // The submit bounces back with the date error; nothing is booked.
     expect([302, 303]).toContain(submit.status);
@@ -123,7 +123,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       date: dateA,
       email: "late@test.com",
       name: "Late",
-      package_quantity: "1",
+      [`package_quantity_${group.id}`]: "1",
     });
     expect([302, 303]).toContain(sameDate.status);
     expect(await bookingRows(tent.id)).toHaveLength(1);
@@ -133,7 +133,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       date: addDays(dateA, 1),
       email: "next@test.com",
       name: "Next",
-      package_quantity: "1",
+      [`package_quantity_${group.id}`]: "1",
     });
     await expectPackageBookingAccepted(nextDay);
     expect(await bookingRows(tent.id)).toHaveLength(2);
@@ -172,14 +172,14 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     // The package page still renders (the whole pool is free on other dates)…
     const page = await handleRequest(mockRequest(`/ticket/${group.slug}`));
     expect(page.status).toBe(200);
-    expect(await page.text()).toContain('name="package_quantity"');
+    expect(await page.text()).toContain(`name="package_quantity_${group.id}"`);
 
     // …and a booking for a different date succeeds.
     const submit = await submitPackageBooking(group.slug, {
       date: addDays(dateA, 3),
       email: "later@test.com",
       name: "Later Camper",
-      package_quantity: "1",
+      [`package_quantity_${group.id}`]: "1",
     });
     await expectPackageBookingAccepted(submit);
     expect(await bookingRows(camper.id)).toHaveLength(2);
@@ -257,7 +257,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     const fragment = await postCalculate(group.slug, {
       date: bookingDate(),
       day_count: "2",
-      package_quantity: "1",
+      [`package_quantity_${group.id}`]: "1",
     });
     // 2-day bundle = boat 1800 + hut 900 = £27 — each member's ENTERED 2-day
     // price, not base × 2 (which would be £30).
@@ -286,7 +286,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     const fragment = await postCalculate(group.slug, {
       date: bookingDate(),
       day_count: "2",
-      package_quantity: "1",
+      [`package_quantity_${group.id}`]: "1",
     });
     // Boat's 2-day price is overridden to 1500 inside this package; the hut
     // keeps its own 900. Total £24, never the un-overridden £27.
@@ -303,7 +303,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     const fragment = await postCalculate(group.slug, {
       date: bookingDate(),
       day_count: "2",
-      package_quantity: "1",
+      [`package_quantity_${group.id}`]: "1",
     });
     // The boat's 2-day span is explicitly FREE inside this package (0 is a real
     // override, not "no override"); only the hut's own 900 charges.
@@ -350,7 +350,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       day_count: "5",
       email: "hush@test.com",
       name: "Hush",
-      package_quantity: "1",
+      [`package_quantity_${group.id}`]: "1",
     });
     expect([302, 303]).toContain(submit.status);
     expect(parseFlashCookie(submit).error).toBe(
@@ -367,7 +367,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     const fragment = await postCalculate(group.slug, {
       date: bookingDate(),
       day_count: "2",
-      package_quantity: "1",
+      [`package_quantity_${group.id}`]: "1",
     });
     // The boat's flat 500 override is one price whatever the span, outranking
     // both its 2-day override (1500) and its own day price (1800): 500 + 900.

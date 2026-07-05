@@ -84,18 +84,33 @@ export const packageByMemberListingId = <T extends TreePackage>(
 /** The listing ids booked by any of the given packages. */
 export const packageMemberIds = (
   packages: readonly TreePackage[],
-): Set<number> =>
-  new Set(packages.flatMap((pkg) => [...pkg.memberListingIds]));
+): Set<number> => new Set(packages.flatMap((pkg) => [...pkg.memberListingIds]));
 
-/** Keeps only the listings no page package books — the rows that keep their
- * own quantity selector. */
-export const withoutPackageMembers = <T>(
-  listings: readonly T[],
+/** The member listings a page ALSO sells standalone: those the visitor added
+ * by the listing's own slug (beside its package). Non-members always sell
+ * standalone, so they are not listed here; on a package-less page the set is
+ * empty and unused. A HIDDEN package's member never sells standalone — only
+ * its package's name is public — whatever the URL claims. */
+export const explicitStandaloneIds = (
+  listings: readonly { id: number; slug: string }[],
   packages: readonly TreePackage[],
-  idOf: (listing: T) => number,
-): T[] => {
+  slugs: readonly string[],
+): Set<number> => {
   const memberIds = packageMemberIds(packages);
-  return listings.filter((listing) => !memberIds.has(idOf(listing)));
+  const concealedIds = packageMemberIds(
+    packages.filter((pkg) => pkg.hideListings),
+  );
+  const slugSet = new Set(slugs);
+  return new Set(
+    listings
+      .filter(
+        (listing) =>
+          memberIds.has(listing.id) &&
+          !concealedIds.has(listing.id) &&
+          slugSet.has(listing.slug),
+      )
+      .map((listing) => listing.id),
+  );
 };
 
 /** The terms a page with packages must show: each package's own terms (in page
@@ -114,7 +129,7 @@ export const combinedPackageTerms = (
  * disjoint on a page, so merging loses nothing). Curried on which per-package
  * map to merge. */
 const mergedPackageMap =
-  <V,>(pick: (pkg: TreePackage) => ReadonlyMap<number, V>) =>
+  <V>(pick: (pkg: TreePackage) => ReadonlyMap<number, V>) =>
   (packages: readonly TreePackage[]): Map<number, V> => {
     const merged = new Map<number, V>();
     for (const pkg of packages) {
@@ -131,38 +146,50 @@ export const mergedPackagePrices = mergedPackageMap((pkg) => pkg.prices);
 /** Every package's per-day overrides as one listing-id map. */
 export const mergedPackageDayPrices = mergedPackageMap((pkg) => pkg.dayPrices);
 
-/** Each member listing id → its package's group id, for the order's packages —
- * the map an order carries so booking rows and signed checkout lines record
- * which bundle each line was booked through. */
-export const packageGroupIdByListingId = (
-  packages: readonly TreePackage[],
-): Map<number, number> =>
-  new Map(
-    [...packageByMemberListingId(packages)].map(([listingId, pkg]) => [
-      listingId,
-      pkg.groupId,
-    ]),
-  );
-
-/** Stamp each booking row with the package it was booked through: its own
- * listing's package, else its parent's (a folded child books as part of its
- * parent's bundle). Rows outside every package stay unstamped. Returns the
- * rows unchanged when the order has no packages. */
-export const stampBookingPackages = <
-  T extends { listingId: number; parentListingId?: number | undefined },
->(
-  bookings: readonly T[],
-  groupIdByListingId: ReadonlyMap<number, number> | undefined,
-): (T & { packageGroupId?: number })[] => {
-  if (groupIdByListingId === undefined || groupIdByListingId.size === 0) {
-    return [...bookings];
+/** Each parent listing id → its single package path, from the order's
+ * top-level lines: set only when EVERY line of that listing books through the
+ * same one package. A parent also sold standalone — or through two packages —
+ * has no single path, so its folded children's rows stay unstamped (they
+ * belong to the order, not to one identifiable bundle). */
+export const soleParentPackageIds = (
+  lines: readonly { listingId: number; packageGroupId?: number | undefined }[],
+): Map<number, number> => {
+  const byParent = new Map<number, number>();
+  const mixed = new Set<number>();
+  for (const line of lines) {
+    if (mixed.has(line.listingId)) continue;
+    const groupId = line.packageGroupId ?? 0;
+    const seen = byParent.get(line.listingId);
+    if (seen === undefined) {
+      byParent.set(line.listingId, groupId);
+    } else if (seen !== groupId) {
+      byParent.delete(line.listingId);
+      mixed.add(line.listingId);
+    }
   }
-  return bookings.map((booking) => {
-    const groupId =
-      groupIdByListingId.get(booking.listingId) ??
-      (booking.parentListingId !== undefined
-        ? groupIdByListingId.get(booking.parentListingId)
-        : undefined);
-    return groupId === undefined ? booking : { ...booking, packageGroupId: groupId };
-  });
+  for (const [listingId, groupId] of byParent) {
+    if (groupId === 0) byParent.delete(listingId);
+  }
+  return byParent;
 };
+
+/** Stamp each folded child row with its parent's package (when the parent
+ * books through exactly one path — see {@link soleParentPackageIds}), so a
+ * bundle's add-ons group under it on tickets and emails. Top-level rows keep
+ * the package their own line carries. */
+export const stampChildRowPackages = <
+  T extends {
+    parentListingId?: number | undefined;
+    packageGroupId?: number | undefined;
+  },
+>(
+  rows: readonly T[],
+  soleParentPackage: ReadonlyMap<number, number>,
+): T[] =>
+  rows.map((row) => {
+    if ((row.packageGroupId ?? 0) !== 0) return row;
+    const parentId = row.parentListingId ?? 0;
+    const groupId =
+      parentId === 0 ? undefined : soleParentPackage.get(parentId);
+    return groupId === undefined ? row : { ...row, packageGroupId: groupId };
+  });

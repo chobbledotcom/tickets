@@ -22,13 +22,19 @@ export const paymentsApi = {
 /** Re-export from types.ts (canonical definition) */
 export type { PaymentProviderType };
 
-/** Single item within a checkout */
+/** Single item within a checkout — one bookable PATH. A listing booked through
+ * two overlapping packages (or a package plus its own standalone row) in one
+ * order is one item per path, each with its own quantity and price. */
 export type CheckoutItem = {
   listingId: number;
   quantity: number;
   unitPrice: number;
   slug: string;
   name: string;
+  /** The package this line books through (absent = a standalone/child line).
+   * Signed per line as the item's `k`/`r` edge tag and stamped onto the line's
+   * booking row. */
+  packageGroupId?: number | undefined;
 };
 
 /**
@@ -113,12 +119,6 @@ type CheckoutMetaFields = {
    * signed metadata so the webhook can expand child bookings into per-parent
    * rows. Absent for legacy/no-parent orders. */
   allocations?: ChildAllocation[] | undefined;
-  /** Which package each member listing was booked through (listing id → group
-   * id). Carried per LINE in the signed items (each member line's `k`/`r` edge
-   * tag), so the webhook re-derives each member's expected price from its own
-   * group's current package overrides and stamps each booking row under the
-   * right bundle. Absent/empty when the order books no package. */
-  packageGroupIdByListingId?: ReadonlyMap<number, number> | undefined;
 };
 
 /** Fields shared by the booking and checkout intents: the contact, answer,

@@ -621,7 +621,11 @@ describeWithEnv("public API packages", { db: true }, () => {
       const visible = await apiBookPackage(group.slug);
       expect(visible.response.status).toBe(200);
       expect(visible.body.booking!.checkoutUrl).toContain("stripe.test");
-      expect(intents[0]!.packageGroupId).toBe(group.id);
+      // The package id rides per line now: every member item carries it.
+      expect(intents[0]!.items.map((i) => i.packageGroupId)).toEqual([
+        group.id,
+        group.id,
+      ]);
       expect(intents[0]!.items.map((i) => i.name)).toEqual([
         "Paid Kit A",
         "Paid Kit B",

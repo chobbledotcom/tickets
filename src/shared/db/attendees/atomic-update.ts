@@ -94,6 +94,7 @@ const lineBooking = (line: AtomicDesiredLine) => ({
   date: line.date,
   durationDays: line.durationDays,
   listingId: line.listingId,
+  packageGroupId: line.packageGroupId ?? 0,
   quantity: line.quantity,
 });
 
@@ -126,11 +127,13 @@ export const loadExistingLines = async (
 };
 
 /** Build the canonical line key from a stored booking row (matches the
- * `${listingId}|${startAt}|${parentListingId}` identity carried by the
- * form's hidden key field). Including parent_listing_id distinguishes the two
- * rows produced when the same child is booked under two different parents. */
+ * `${listingId}|${startAt}|${parentListingId}|${packageGroupId}` identity
+ * carried by the form's hidden key field). parent_listing_id distinguishes the
+ * two rows produced when the same child is booked under two different parents;
+ * package_group_id the rows produced when the same listing is booked through
+ * two packages (or a package plus its own standalone row) in one order. */
 export const lineKeyFromBooking = (booking: ListingAttendeeRow): string =>
-  `${booking.listing_id}|${booking.start_at ?? ""}|${booking.parent_listing_id}`;
+  `${booking.listing_id}|${booking.start_at ?? ""}|${booking.parent_listing_id}|${booking.package_group_id}`;
 
 /**
  * Read-only preflight: returns true when every desired line fits, using the
@@ -171,15 +174,21 @@ const changedLinesForPreflight = (
 ): AtomicDesiredLine[] =>
   desired.filter((line) => !isUnchangedLine(line, existingByKey));
 
-/** The existing row's start_at and parent_listing_id for the UPDATE pin, so an
- *  attendee holding two rows for the same daily listing on different dates or
- *  under different parents updates only the target row. */
+/** The existing row's start_at, parent_listing_id, and package_group_id for
+ *  the UPDATE pin, so an attendee holding two rows for the same daily listing
+ *  on different dates, under different parents, or through different packages
+ *  updates only the target row. */
 const oldPinOf = (
   line: AtomicDesiredLine,
   existingByKey: Map<string, ListingAttendeeRow>,
-): { startAt: string | null; parentListingId: number } => {
+): {
+  startAt: string | null;
+  parentListingId: number;
+  packageGroupId: number;
+} => {
   const row = existingByKey.get(line.key)!;
   return {
+    packageGroupId: row.package_group_id,
     parentListingId: row.parent_listing_id,
     startAt: row.start_at,
   };
@@ -191,15 +200,24 @@ const oldPinOf = (
 const updateStatementFor = (
   line: AtomicDesiredLine,
   attendeeId: number,
-  oldStartAt: string | null,
-  oldParentListingId: number,
+  oldPin: {
+    startAt: string | null;
+    parentListingId: number;
+    packageGroupId: number;
+  },
   skipCapacityGuard: boolean,
 ): { args: InValue[]; sql: string } => {
   const { startAt, endAt } = dateToStartEnd(line.date, line.durationDays);
-  const pin = [attendeeId, line.listingId, oldStartAt, oldParentListingId];
+  const pin = [
+    attendeeId,
+    line.listingId,
+    oldPin.startAt,
+    oldPin.parentListingId,
+    oldPin.packageGroupId,
+  ];
   const setClause =
     `UPDATE listing_attendees SET quantity = ?, start_at = ?, end_at = ?${noQuantityResetColumns(line.quantity)}` +
-    " WHERE attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ?";
+    " WHERE attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ? AND package_group_id = ?";
   if (skipCapacityGuard) {
     return { args: [line.quantity, startAt, endAt, ...pin], sql: setClause };
   }
@@ -266,7 +284,8 @@ export const applyAttendeeAtomicEdit = async (
     sql: "UPDATE attendees SET pii_blob = ? WHERE id = ?",
   });
 
-  // Step 2: Delete removed lines (identified by listing_id + start_at + parent_listing_id).
+  // Step 2: Delete removed lines (identified by the full slot: listing_id +
+  // start_at + parent_listing_id + package_group_id).
   for (const { booking } of removed) {
     statements.push({
       args: [
@@ -274,27 +293,26 @@ export const applyAttendeeAtomicEdit = async (
         booking.listing_id,
         booking.start_at ?? null,
         booking.parent_listing_id,
+        booking.package_group_id,
       ],
       sql: `DELETE FROM listing_attendees
-            WHERE attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ?`,
+            WHERE attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ? AND package_group_id = ?`,
     });
   }
 
   // Step 3: Update existing lines, capacity-checked + guarded unless
   // overbooking or the line is an unchanged preserve (skipping the capacity
   // re-check so a deactivated listing's hold isn't stranded). The WHERE pins
-  // by old start_at AND parent_listing_id so two rows for the same daily
-  // listing under different parents update only the target row.
+  // by old start_at, parent_listing_id AND package_group_id so two rows for
+  // the same listing — different dates, parents, or package paths — update
+  // only the target row.
   for (const line of updates) {
     const skipGuard = allowOverbook || isUnchangedLine(line, existingByKey);
-    const { startAt: oldStartAt, parentListingId: oldParentListingId } =
-      oldPinOf(line, existingByKey);
     statements.push(
       updateStatementFor(
         line,
         attendeeId,
-        oldStartAt,
-        oldParentListingId,
+        oldPinOf(line, existingByKey),
         skipGuard,
       ),
     );

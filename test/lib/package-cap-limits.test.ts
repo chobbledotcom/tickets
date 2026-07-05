@@ -1,12 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import type { TicketListing } from "#shared/booking/model.ts";
 import {
   packageBundleLimit,
   packageChildTicketLimits,
   packageLimitInfo,
+  pagePackageBundleLimit,
 } from "#shared/booking/package-cap.ts";
-import { packageTree, tl } from "./package-cap-fixtures.ts";
+import { packageTree, tl, treePackage } from "./package-cap-fixtures.ts";
 
 // PARENT_CHILD_GROUP_UNITS is 2, so a pool of 5 spots fits floor(5/2)=2
 // tickets — used across the group-sharing tests below.
@@ -247,5 +249,46 @@ describe("packageBundleLimit", () => {
       new Map(),
     );
     expect(packageBundleLimit(tree, ctx)).toBe(0);
+  });
+});
+
+describe("pagePackageBundleLimit", () => {
+  test("judges one package's bundle limit on a page selling several things", () => {
+    // Package 5 needs 2 of listing 1 (7 left → 3 bundles); package 6 and the
+    // standalone listing 3 must not leak into that judgement.
+    const tree = buildBookingTree({
+      listings: [tl(1, 7), tl(2, 1), tl(3, 1)],
+      packages: [
+        treePackage(5, [1], { quantities: new Map([[1, 2]]) }),
+        treePackage(6, [2]),
+      ],
+      slugs: ["pkg5s", "pkg6s", "cd34e"],
+    });
+    const pkg = treePackage(5, [1], { quantities: new Map([[1, 2]]) });
+    const page = packageLimitInfo(
+      [tl(1, 7), tl(2, 1), tl(3, 1)],
+      undefined,
+      new Map(),
+      new Map(),
+    );
+    expect(pagePackageBundleLimit(tree, pkg, page)).toBe(3);
+  });
+
+  test("a package with no member node on the page sells nothing", () => {
+    // Every member of package 5 was dropped from the page (e.g. as another
+    // listing's child), so no member node exists — the limit must read 0,
+    // never Math.min()'s empty-list Infinity.
+    const tree = buildBookingTree({
+      listings: [tl(3, 5)],
+      packages: [treePackage(5, [])],
+      slugs: ["cd34e"],
+    });
+    expect(
+      pagePackageBundleLimit(
+        tree,
+        treePackage(5, []),
+        packageLimitInfo([tl(3, 5)], undefined, new Map(), new Map()),
+      ),
+    ).toBe(0);
   });
 });

@@ -8,24 +8,34 @@ import {
 describe("db > attendees > booking-slot", () => {
   describe("bookingSlotKey", () => {
     test("produces stable key for listing + date", () => {
-      expect(bookingSlotKey(1, "2026-07-01")).toBe("1|2026-07-01|0");
+      expect(bookingSlotKey(1, "2026-07-01")).toBe("1|2026-07-01|0|0");
     });
 
     test("uses empty string for null date", () => {
-      expect(bookingSlotKey(1, null)).toBe("1||0");
+      expect(bookingSlotKey(1, null)).toBe("1||0|0");
     });
 
     test("uses empty string for undefined date", () => {
-      expect(bookingSlotKey(1, undefined)).toBe("1||0");
+      expect(bookingSlotKey(1, undefined)).toBe("1||0|0");
     });
 
     test("includes parentListingId when non-zero", () => {
-      expect(bookingSlotKey(7, "2026-07-01", 42)).toBe("7|2026-07-01|42");
+      expect(bookingSlotKey(7, "2026-07-01", 42)).toBe("7|2026-07-01|42|0");
+    });
+
+    test("includes packageGroupId when non-zero", () => {
+      expect(bookingSlotKey(7, "2026-07-01", 0, 3)).toBe("7|2026-07-01|0|3");
     });
 
     test("same child under different parents produces distinct keys", () => {
       const a = bookingSlotKey(7, "2026-07-01", 10);
       const b = bookingSlotKey(7, "2026-07-01", 20);
+      expect(a).not.toBe(b);
+    });
+
+    test("same listing through different packages produces distinct keys", () => {
+      const a = bookingSlotKey(7, "2026-07-01", 0, 3);
+      const b = bookingSlotKey(7, "2026-07-01", 0, 4);
       expect(a).not.toBe(b);
     });
   });
@@ -60,14 +70,44 @@ describe("db > attendees > booking-slot", () => {
     });
 
     test("same child under different parents (multi-parent) is NOT a duplicate", () => {
-      // The widened slot index (listing_id, attendee_id, start_at, parent_listing_id)
-      // allows one row per (child, parent) pair — these must not collide.
+      // The widened slot index (listing_id, attendee_id, start_at,
+      // parent_listing_id, package_group_id) allows one row per (child, parent)
+      // pair — these must not collide.
       expect(
         hasDuplicateBookingSlot([
           { date: "2026-07-01", listingId: 7, parentListingId: 10 },
           { date: "2026-07-01", listingId: 7, parentListingId: 20 },
         ]),
       ).toBe(false);
+    });
+
+    test("same listing booked through two different packages is NOT a duplicate", () => {
+      // One row per package PATH: overlapping packages (or a package plus the
+      // listing's own standalone line) keep one faithful row each.
+      expect(
+        hasDuplicateBookingSlot([
+          { date: "2026-07-01", listingId: 7, packageGroupId: 3 },
+          { date: "2026-07-01", listingId: 7, packageGroupId: 4 },
+        ]),
+      ).toBe(false);
+    });
+
+    test("a package line beside the listing's own standalone line is NOT a duplicate", () => {
+      expect(
+        hasDuplicateBookingSlot([
+          { date: "2026-07-01", listingId: 7, packageGroupId: 3 },
+          { date: "2026-07-01", listingId: 7 },
+        ]),
+      ).toBe(false);
+    });
+
+    test("two identical package-path lines ARE duplicates", () => {
+      expect(
+        hasDuplicateBookingSlot([
+          { date: "2026-07-01", listingId: 7, packageGroupId: 3 },
+          { date: "2026-07-01", listingId: 7, packageGroupId: 3 },
+        ]),
+      ).toBe(true);
     });
 
     test("two identical (child, date, parent) lines ARE duplicates", () => {

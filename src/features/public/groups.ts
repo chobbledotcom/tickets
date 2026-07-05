@@ -19,6 +19,16 @@ import type { AsyncHandler } from "./types.ts";
 /** A group resolved with its buyer-visible active listings. */
 type GroupWithListings = { group: Group; listings: ListingWithCount[] };
 
+/** Build a by-slug group loader: resolve the slug to its group (null for an
+ * unknown slug), then hand the group to the given loader. The one place every
+ * public group page turns a slug into a group. */
+const groupListingsLoader =
+  (load: (group: Group) => Promise<GroupWithListings | null>) =>
+  async (slug: string): Promise<GroupWithListings | null> => {
+    const group = await getGroupBySlugIndex(await computeGroupSlugIndex(slug));
+    return group === null ? null : load(group);
+  };
+
 /** Load a group by slug with its buyer-visible active listings, or null when
  * the slug is unknown or the group has none. A non-package group never exposes
  * a hidden package's members, so a regular group made only of them reads as
@@ -27,13 +37,7 @@ type GroupWithListings = { group: Group; listings: ListingWithCount[] };
  * bundle when a member was deactivated or the bundle no longer fits, even
  * though /listings and the group QR already hide it — apply the SAME gate they
  * use. A regular group is left to render its sold-out members as before. */
-const loadActiveGroupListingsBySlug = async (
-  slug: string,
-): Promise<GroupWithListings | null> => {
-  const slugIndex = await computeGroupSlugIndex(slug);
-  const group = await getGroupBySlugIndex(slugIndex);
-  if (!group) return null;
-
+const loadActiveGroupListingsBySlug = groupListingsLoader(async (group) => {
   const [visible, holidays] = await Promise.all([
     getVisibleGroupMembers(group),
     getActiveHolidays(),
@@ -44,7 +48,7 @@ const loadActiveGroupListingsBySlug = async (
     return null;
   }
   return { group, listings: sorted };
-};
+});
 
 /** Load group by slug and its buyer-visible active listings, return 404 if
  * empty ({@link loadActiveGroupListingsBySlug}). */
@@ -72,12 +76,14 @@ export const loadBookablePackageBySlug = async (
  * `/ticket/<group>` gate this does NOT require the bundle to still fit: a cart
  * renders a sold-out package as a dimmed section so the rest of the cart still
  * books, mirroring the order gallery's sold-out cards. */
-export const loadCartPackageBySlug = async (
-  slug: string,
+export const loadCartPackageBySlug = groupListingsLoader(async (group) =>
+  group.is_package ? completePackageListings(group) : null,
+);
+
+/** The package's members when the bundle is complete, else null. */
+const completePackageListings = async (
+  group: Group,
 ): Promise<GroupWithListings | null> => {
-  const slugIndex = await computeGroupSlugIndex(slug);
-  const group = await getGroupBySlugIndex(slugIndex);
-  if (!group?.is_package) return null;
   const [members, allMemberIds, holidays] = await Promise.all([
     getActiveListingsByGroupId(group.id),
     getGroupListingIds(group.id),

@@ -80,10 +80,11 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     const group = await createTestGroup({ isPackage: true, name: "Pkg" });
     const listing = await createTestListing({ groupId: group.id });
     const result = await createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, quantity: 1 }],
+      bookings: [
+        { listingId: listing.id, packageGroupId: group.id, quantity: 1 },
+      ],
       email: "buyer@example.com",
       name: "Buyer",
-      packageGroupId: group.id,
     });
     expect(result.success).toBe(true);
     if (!result.success) return;

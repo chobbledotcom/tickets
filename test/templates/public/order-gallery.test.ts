@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { OrderGalleryStates } from "#templates/public/order-gallery.tsx";
 import { orderGalleryPage } from "#templates/public/order-gallery.tsx";
 import type { PublicNavProps } from "#templates/public/shared.tsx";
 import { getRealEnv, setTestEnv, testGroup } from "#test-utils";
@@ -17,43 +18,55 @@ const emptyNav: PublicNavProps = {
   },
 };
 
+/** Live-availability states with nothing date-bound and no labels. */
+const states: OrderGalleryStates = { anyNeedsDate: false, labelFor: () => "" };
+
 describe("orderGalleryPage packages", () => {
-  test("renders package groups as direct book links, sorted by name", () => {
-    // No individual listings — only packages — so the page is not the empty
-    // state and renders no selection form, just the package link cards.
+  test("renders package groups as selectable cart cards, sorted by name", () => {
+    // No individual listings — only packages — so the grid holds just the
+    // package cards, selectable in the shared order form like listings.
     const html = orderGalleryPage(
       [],
       [
-        testGroup({
-          id: 1,
-          is_package: true,
-          name: "Zeta Bundle",
-          slug: "zeta",
-        }),
-        testGroup({
-          id: 2,
-          is_package: true,
-          name: "Alpha Bundle",
-          slug: "alpha",
-        }),
+        {
+          group: testGroup({
+            id: 1,
+            is_package: true,
+            name: "Zeta Bundle",
+            slug: "zeta",
+          }),
+          members: [],
+        },
+        {
+          group: testGroup({
+            id: 2,
+            is_package: true,
+            name: "Alpha Bundle",
+            slug: "alpha",
+          }),
+          members: [],
+        },
       ],
+      states,
       emptyNav,
       "",
     );
     expect(html).toContain("Packages");
-    expect(html).toContain('class="order-card order-card--package"');
-    expect(html).toContain('href="/ticket/alpha"');
-    expect(html).toContain('href="/ticket/zeta"');
+    // A package joins the cart as a checkbox card, never a direct book link.
+    expect(html).toContain('name="select_package_1"');
+    expect(html).toContain('name="select_package_2"');
+    expect(html).toContain('data-order-key="package:1"');
+    expect(html).toContain('class="order-select"');
+    expect(html).toContain('class="order-gallery"');
+    expect(html).not.toContain('href="/ticket/alpha"');
+    expect(html).not.toContain('href="/ticket/zeta"');
     // Sorted by decrypted name: Alpha precedes Zeta.
     expect(html.indexOf("Alpha Bundle")).toBeLessThan(
       html.indexOf("Zeta Bundle"),
     );
-    // A package is a link, never a selectable cart checkbox or its form.
-    expect(html).not.toContain("order-select");
-    expect(html).not.toContain('class="order-gallery"');
   });
 
-  test("renders packages as unavailable, not book links, in read-only mode", () => {
+  test("renders packages as unavailable, not selectable, in read-only mode", () => {
     const restore = setTestEnv({
       READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
     });
@@ -61,20 +74,26 @@ describe("orderGalleryPage packages", () => {
       const html = orderGalleryPage(
         [],
         [
-          testGroup({
-            is_package: true,
-            name: "Frozen Bundle",
-            slug: "frozen",
-          }),
+          {
+            group: testGroup({
+              is_package: true,
+              name: "Frozen Bundle",
+              slug: "frozen",
+            }),
+            members: [],
+          },
         ],
+        states,
         emptyNav,
         "",
       );
       expect(html).toContain("Frozen Bundle");
       expect(html).toContain("order-card--unavailable");
       expect(html).toContain("Registration Closed");
-      // No live booking link while the site is read-only.
+      // No live booking affordance while the site is read-only: neither a
+      // link nor a selectable checkbox.
       expect(html).not.toContain('href="/ticket/frozen"');
+      expect(html).not.toContain('class="order-select"');
       // The cutoff must stay in this worker's env overlay: a write to the real
       // process env is visible to every parallel test worker and flips the
       // whole app read-only under them mid-test.

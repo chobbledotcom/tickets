@@ -32,12 +32,12 @@ import {
 import {
   buildPagePackage,
   combinedPackageTerms,
+  explicitStandaloneIds,
   type PagePackage,
-  stampBookingPackages,
+  soleParentPackageIds,
+  stampChildRowPackages,
 } from "#shared/booking/page-packages.ts";
-import { standInNamesByListingId } from "#shared/package-privacy.ts";
-import { effectivePrice } from "#shared/booking/price-tree.ts";
-import type { BookingTree, PriceRule } from "#shared/booking/tree.ts";
+import type { BookingTree } from "#shared/booking/tree.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
@@ -81,6 +81,7 @@ import type { EmailEntry } from "#shared/email.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
+import { standInNamesByListingId } from "#shared/package-privacy.ts";
 import {
   type CheckoutIntent,
   type CheckoutItem,
@@ -219,37 +220,6 @@ export const bookingDateFields = (
       : 1,
 });
 
-/** Build registration items from the folded listings, pricing each line by the
- * tree's price rule via {@link effectivePrice} — a package member's `OVERRIDE`, a
- * pay-more custom price, a customisable day-price, or the base unit price, each
- * scoped correctly by construction (the override no longer needs a separate pass).
- * `priceRuleByListingId` covers every folded listing (top-level rule wins over a
- * child), so the lookup is always present. */
-export const buildRegistrationItems = (
-  listings: TicketListing[],
-  quantities: Map<number, number>,
-  customPrices: Map<number, number>,
-  priceRuleByListingId: ReadonlyMap<number, PriceRule>,
-  dayCount = 1,
-): CheckoutItem[] => {
-  const selected = listings.filter(({ listing }) => {
-    const qty = quantities.get(listing.id);
-    return qty !== undefined && qty > 0;
-  });
-  return selected.map(({ listing }) => ({
-    listingId: listing.id,
-    name: listing.name,
-    quantity: quantities.get(listing.id)!,
-    slug: listing.slug,
-    unitPrice: effectivePrice(
-      priceRuleByListingId.get(listing.id)!,
-      listing,
-      customPrices,
-      dayCount,
-    ),
-  }));
-};
-
 /** Load one group's package pricing and shape it into the {@link PagePackage}
  * the booking flow carries — the group's display fields plus its member
  * quantity/price maps, scoped to the members actually on the page. */
@@ -257,7 +227,11 @@ export const loadPagePackage = async (
   group: Group,
   memberListingIds: readonly number[],
 ): Promise<PagePackage> =>
-  buildPagePackage(group, memberListingIds, await loadPackageMemberPricing(group.id));
+  buildPagePackage(
+    group,
+    memberListingIds,
+    await loadPackageMemberPricing(group.id),
+  );
 
 /** Each concealed listing id on this page → the package name standing in for
  * it: every HIDDEN package's members and their required children. Buyer-facing
@@ -349,14 +323,20 @@ export const resolveDayCount = async (
 
 /** Build the pure {@link BuildTreeInput} from a resolved ticket context, so the
  * fold walks the same canonical tree render builds. Each page package's members
- * build as that package's FIXED/override member nodes; every other listing as a
- * standalone node (a regular group carries no id on the ctx yet, so its members
- * build as standalone listing nodes — identical fold field names). */
+ * build as that package's FIXED/override member nodes — plus a standalone node
+ * when the cart also added the member by its own slug — and every other listing
+ * as a standalone node (a regular group carries no id on the ctx yet, so its
+ * members build as standalone listing nodes — identical fold field names). */
 export const ctxToBuildTreeInput = (ctx: TicketCtx): BuildTreeInput => ({
   childrenByParentId: ctx.childrenByParentId,
   listings: ctx.listings,
   packages: ctx.packages,
   slugs: ctx.slugs,
+  standaloneListingIds: explicitStandaloneIds(
+    ctx.listings.map((info) => info.listing),
+    ctx.packages,
+    ctx.slugs,
+  ),
 });
 
 /**
@@ -394,12 +374,14 @@ export const foldSelectedChildren = async (
 };
 
 type FreeReservationParams = {
+  /** The order's per-path checkout lines ({@link buildOrderLines}) — each
+   * becomes its own booking row carrying its package and its charged amount. */
+  items: CheckoutItem[];
   listings: TicketListing[];
-  quantities: Map<number, number>;
   contact: ContactInfo;
   date: string | null;
   dayCount?: number;
-  paidByListingId?: Map<number, number> | undefined;
+  paidByItem?: Map<CheckoutItem, number> | undefined;
   remainingBalance?: number | undefined;
   /** Modifier stock to consume in the create transaction. Amounts are zeroed when
    *  payments are disabled — stock is still capped, nothing is charged. */
@@ -413,11 +395,6 @@ type FreeReservationParams = {
    * allocation instead of one summed row, giving each row its real
    * `parentListingId`. Absent for legacy/no-parent orders. */
   allocations?: ChildAllocation[] | undefined;
-  /** Which package each member listing was booked through (listing id → group
-   * id), stamped on that listing's booking rows so the ticket view /
-   * confirmation email group the order under the right package. Empty/absent
-   * for an order with no packages. */
-  packageGroupIdByListingId?: ReadonlyMap<number, number> | undefined;
 };
 
 type FreeReservationResult =
@@ -442,42 +419,46 @@ const EMPTY_PRICED_ORDER: PricedOrder = {
 };
 
 export const createFreeReservation = async ({
+  items,
   listings,
-  quantities,
   contact,
   date,
   dayCount = 1,
-  paidByListingId,
+  paidByItem,
   remainingBalance = 0,
   modifierUsages,
   ledgerOrder,
   allocations,
-  packageGroupIdByListingId,
 }: FreeReservationParams): Promise<FreeReservationResult> => {
-  const selected = listingsWithQuantity(listings, quantities);
-  const bookings = buildBookings(selected, date, dayCount).map((booking) => ({
-    ...booking,
-    ...(paidByListingId
-      ? { pricePaid: paidByListingId.get(booking.listingId)! }
-      : {}),
+  const listingById = new Map(
+    listings.map((info) => [info.listing.id, info.listing]),
+  );
+  // One row per checkout line: a listing booked through two paths keeps one
+  // row per path, each carrying its own package and its own charged amount.
+  const bookings: ListingBooking[] = items.map((item) => ({
+    listingId: item.listingId,
+    packageGroupId: item.packageGroupId ?? 0,
+    quantity: item.quantity,
+    ...bookingDateFields(listingById.get(item.listingId)!, date, dayCount),
+    ...(paidByItem ? { pricePaid: paidByItem.get(item) ?? 0 } : {}),
   }));
   // Expand summed child bookings into per-parent rows when allocations are
   // provided (free-path provenance): each allocation becomes its own
   // listing_attendees row with the real parentListingId, so the DB records
   // which parent each child unit came from. The slot dedup
   // (hasDuplicateBookingSlot) permits same-child/different-parent rows because
-  // it keys on (listingId, date, parentListingId). The expanded list replaces
-  // the summed list for the create call; ensureAllBookings' count uses the
-  // expanded length. Each row is then stamped with the package it was booked
-  // through (members by their own id, folded children by their parent's), so
-  // an order carrying several bundles records each row under the right one.
+  // it keys on (listingId, date, parentListingId, packageGroupId). The
+  // expanded list replaces the summed list for the create call;
+  // ensureAllBookings' count uses the expanded length. Each child row is then
+  // stamped with its parent's package when the parent books through exactly
+  // one path, so a bundle's add-ons group under it.
   const expanded: ListingBooking[] =
     allocations && allocations.length > 0
       ? expandChildAllocations(bookings, allocations)
       : bookings;
-  const finalBookings = stampBookingPackages(
+  const finalBookings = stampChildRowPackages(
     expanded,
-    packageGroupIdByListingId,
+    soleParentPackageIds(items),
   );
   // When there are legs to post or stock to consume, commit the booking, its
   // modifier stock, and its sale legs as ONE batch (exactly as the paid webhook
@@ -514,11 +495,10 @@ export const createFreeReservation = async ({
   if (!check.ok) {
     // A package order must never name a member in the capacity error — a hidden
     // package would leak the listing it concealed. Omit the name (generic
-    // message) for a package; a non-package order keeps its single listing's name.
-    const errorName =
-      packageGroupIdByListingId && packageGroupIdByListingId.size > 0
-        ? ""
-        : selected[0]!.listing.name;
+    // message) for a package; a non-package order keeps its first listing's name.
+    const errorName = items.some((item) => item.packageGroupId !== undefined)
+      ? ""
+      : listingById.get(items[0]!.listingId)!.name;
     return {
       error: formatAtomicError(check.reason, errorName),
       success: false,
@@ -530,7 +510,6 @@ export const createFreeReservation = async ({
     { success: true }
   >;
 
-  const listingById = new Map(listings.map((l) => [l.listing.id, l.listing]));
   const entries: EmailEntry[] = attendees.map((attendee) => ({
     attendee,
     listing: listingById.get(attendee.listing_id)!,

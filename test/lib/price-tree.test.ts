@@ -170,7 +170,9 @@ describe("priceRuleByListingId", () => {
         }),
       ],
       packages: [
-        treePackage(3, [5], { dayPrices: new Map([[5, new Map([[2, 1500]])]]) }),
+        treePackage(3, [5], {
+          dayPrices: new Map([[5, new Map([[2, 1500]])]]),
+        }),
       ],
       slugs: ["pkg"],
     });

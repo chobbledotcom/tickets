@@ -65,8 +65,7 @@ describe("per-listing stand-in names (several bundles per page)", () => {
       name: "Open Kit",
     },
   ];
-  const childIds = (memberId: number): number[] =>
-    memberId === 2 ? [9] : [];
+  const childIds = (memberId: number): number[] => (memberId === 2 ? [9] : []);
 
   test("covers a hidden package's members AND their required children", () => {
     const standIns = standInNamesByListingId(packages, childIds);

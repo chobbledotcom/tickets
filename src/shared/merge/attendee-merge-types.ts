@@ -73,6 +73,9 @@ export type AttendeeMergeDiffBookingItem = {
   listingId: number;
   startAt: string | null;
   parentListingId: number;
+  /** The package path this row was booked through (0 = none) — part of the
+   * row's slot, so two package paths for one listing stay two items. */
+  packageGroupId: number;
   sourceBooking: ListingAttendeeRow;
   targetBooking: ListingAttendeeRow | null;
   conflictClass: BookingConflictClass;
@@ -107,10 +110,10 @@ export type AttendeeMergeDecisionPii = Record<string, MergeValueChoice>;
 /** Per-question decision */
 export type AttendeeMergeDecisionAnswers = Record<string, MergeAnswerChoice>;
 
-/** Per-booking decision (keyed by "listingId:startAt:parentListingId") */
+/** Per-booking decision (keyed by "listingId:startAt:parentListingId:packageGroupId") */
 export type AttendeeMergeDecisionBookings = Record<string, MergeBookingChoice>;
 
-/** Per-conflict money decision (keyed by "listingId:startAt:parentListingId"), required when the
+/** Per-conflict money decision (keyed by "listingId:startAt:parentListingId:packageGroupId"), required when the
  *  booking the operator discards carries money (decision 17). */
 export type AttendeeMergeDecisionMoney = Record<string, MergeMoneyChoice>;
 

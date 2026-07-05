@@ -1,4 +1,4 @@
-import { compact } from "#fp";
+import { compact, uniqueBy } from "#fp";
 import { t } from "#i18n";
 import { formatAtomicError, parseCustomPrice } from "#shared/booking/form.ts";
 import {
@@ -400,16 +400,26 @@ export const foldBookingTree = (
     customisableDuration: base.hasCustomisable ? base.dayCount : null,
     customPrices: new Map(base.customPrices),
     // Every tree node was built from the same resolved context, so its key is
-    // always present in `resolved` (non-null by construction).
-    listings: tree.nodes.map((node) => resolved.get(node.nodeKey)!),
+    // always present in `resolved` (non-null by construction). A listing booked
+    // through several paths has one node per path — keep it once here.
+    listings: uniqueBy((info: TicketListing) => info.listing.id)(
+      tree.nodes.map((node) => resolved.get(node.nodeKey)!),
+    ),
     quantities: new Map(base.quantities),
     selectedListingIds: new Set(base.quantities.keys()),
   };
 
+  // A parent booked through several paths (overlapping packages, or a package
+  // plus its own standalone row) has one node per path with identical child
+  // edges; its children are chosen once against the parent's TOTAL quantity,
+  // so fold the first node and skip the rest.
+  const foldedParentIds = new Set<number>();
   for (const node of tree.nodes) {
     const parentQty = base.quantities.get(node.listingId) ?? 0;
     if (parentQty <= 0) continue;
     if (node.children.length === 0) continue;
+    if (foldedParentIds.has(node.listingId)) continue;
+    foldedParentIds.add(node.listingId);
     const error = foldParentNode(
       state,
       node,

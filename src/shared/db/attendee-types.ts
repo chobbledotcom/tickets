@@ -181,8 +181,8 @@ export type UpdateAttendeePIIInput = AttendeePii;
  */
 export type DesiredListingLine = {
   /** Stable identity of the existing row
-   * (`${listingId}|${startAt}|${parentListingId}`). Empty string for
-   * newly-added lines. */
+   * (`${listingId}|${startAt}|${parentListingId}|${packageGroupId}`). Empty
+   * string for newly-added lines. */
   key: string;
   listingId: number;
   quantity: number;
@@ -192,4 +192,8 @@ export type DesiredListingLine = {
   durationDays: number;
   /** True when the line carries an existing listing_attendees identity. */
   exists: boolean;
+  /** The package path this row belongs to (0/absent = none) — part of the
+   * row's slot identity, so an edit targets the right row when the same
+   * listing was booked through two packages. */
+  packageGroupId?: number;
 };

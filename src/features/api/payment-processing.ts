@@ -31,7 +31,7 @@
  */
 
 import * as v from "valibot";
-import { sumOf } from "#fp";
+import { sumOf, uniqueBy } from "#fp";
 import type {
   BookingIntent,
   ListingValidation,
@@ -53,18 +53,26 @@ import {
 import { htmlResponse, paymentErrorResponse } from "#routes/response.ts";
 import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
-import { buildTicketListing } from "#shared/booking/model.ts";
+import {
+  buildTicketListing,
+  type TicketListing,
+} from "#shared/booking/model.ts";
+import type { TreePackage } from "#shared/booking/page-packages.ts";
+import {
+  soleParentPackageIds,
+  stampChildRowPackages,
+} from "#shared/booking/page-packages.ts";
 import {
   effectivePrice,
   NO_CUSTOM_PRICES,
   type PricedListing,
   packageMemberPriceRule,
 } from "#shared/booking/price-tree.ts";
-import type { TreePackage } from "#shared/booking/page-packages.ts";
-import { stampBookingPackages } from "#shared/booking/page-packages.ts";
 import {
+  applyLegacyPackageTag,
   edgeDrifted,
-  packageGroupIdsFromLines,
+  lineGroupId,
+  lineGroupIds,
 } from "#shared/booking/signed-metadata.ts";
 import type { BookingTree } from "#shared/booking/tree.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
@@ -132,6 +140,7 @@ import {
   type BookingItem,
   BookingItemsSchema,
   type CheckoutIntent,
+  type CheckoutItem,
   getActivePaymentProvider,
   type ModifierRef,
   type ModifierSpec,
@@ -227,7 +236,7 @@ const retryHrefFor = async (
     (await lacksStandalonePublicPage(listing.id))
       ? null
       : `/ticket/${listing.slug}`;
-  const groupIds = new Set(intent?.packageGroupIdByListingId?.values() ?? []);
+  const groupIds = lineGroupIds(intent?.items ?? []);
   for (const groupId of groupIds) {
     const group = await groupsTable.findById(groupId);
     const bundleServes =
@@ -573,14 +582,6 @@ export const extractIntent = (
   const reservationAmount = metadata.reservation_amount || undefined;
   const siteTokenIndex = metadata.site_token_index || undefined;
   const thankYouUrl = metadata.thank_you_url || undefined;
-  // Which package each member line was booked through, read from the signed
-  // per-line edge tags; the legacy order-wide metadata field still applies to
-  // pre-cutover in-flight sessions.
-  const packageGroupIdByListingId = packageGroupIdsFromLines(
-    items,
-    allocations ?? [],
-    metadata.package_group_id ? Number(metadata.package_group_id) : undefined,
-  );
   return {
     address: metadata.address,
     allocations,
@@ -588,14 +589,17 @@ export const extractIntent = (
     date: metadata.date || null,
     dayCount,
     email: metadata.email,
-    items,
+    // Normalise a pre-cutover session's one order-wide package id onto the
+    // per-line edge tags, so every reader below sees one shape.
+    items: applyLegacyPackageTag(
+      items,
+      allocations ?? [],
+      metadata.package_group_id ? Number(metadata.package_group_id) : undefined,
+    ),
     listingAnswerIds,
     listingTextAnswerIds,
     modifiers: parseModifierRefs(metadata.modifiers),
     name: metadata.name,
-    ...(packageGroupIdByListingId.size > 0
-      ? { packageGroupIdByListingId }
-      : {}),
     phone: metadata.phone,
     reservationAmount,
     siteTokenIndex,
@@ -692,9 +696,7 @@ const loadPackagePricingByGroup = async (
   intent: BookingIntent,
 ): Promise<Map<number, PackagePricing>> => {
   const pricingByGroup = new Map<number, PackagePricing>();
-  for (const groupId of new Set(
-    intent.packageGroupIdByListingId?.values() ?? [],
-  )) {
+  for (const groupId of lineGroupIds(intent.items)) {
     if ((await getPackageGroupById(groupId)) === null) continue;
     const pricing = await loadPackageMemberPricing(groupId);
     pricingByGroup.set(groupId, {
@@ -766,22 +768,17 @@ export const packageBundleMismatch = (
 };
 
 /** Whether ANY booked package's lines drifted from its current bundle: each
- * group's member lines are checked against that group's own membership and
- * per-package quantities ({@link packageBundleMismatch}). */
+ * group's member lines (by their own edge tags) are checked against that
+ * group's own membership and per-package quantities
+ * ({@link packageBundleMismatch}). */
 export const anyPackageBundleMismatch = (
   pricingByGroup: ReadonlyMap<number, PackagePricing>,
-  groupIdByListingId: ReadonlyMap<number, number>,
   items: readonly BookingItem[],
-  foldedChildIds: ReadonlySet<number>,
 ): boolean =>
   [...pricingByGroup].some(([groupId, pkg]) =>
     packageBundleMismatch(
       pkg,
-      items.filter(
-        (item) =>
-          !foldedChildIds.has(item.e) &&
-          groupIdByListingId.get(item.e) === groupId,
-      ),
+      items.filter((item) => lineGroupId(item) === groupId),
     ),
   );
 
@@ -800,9 +797,13 @@ const currentOrderTree = async (
   const foldedChildIds = new Set(
     (intent.allocations ?? []).map((a) => a.childId),
   );
-  const topLevel = validatedItems
-    .filter((v) => !foldedChildIds.has(v.item.e))
-    .map((v) => buildTicketListing(v.listing, false, undefined));
+  // One resolved listing per id: a listing booked through two paths is two
+  // lines but one listing row; the tree builder makes one node per path.
+  const topLevel = uniqueBy((info: TicketListing) => info.listing.id)(
+    validatedItems
+      .filter((v) => !foldedChildIds.has(v.item.e))
+      .map((v) => buildTicketListing(v.listing, false, undefined)),
+  );
   const childRows = await getChildrenForParents(
     topLevel.map((t) => t.listing.id),
   );
@@ -817,25 +818,33 @@ const currentOrderTree = async (
   // member `nodeKey`; one no longer a member builds standalone, so its signed
   // member key drops from the tree and the drift check fails it closed. An
   // UNTAGGED line always builds standalone — a listing that joined a (visible)
-  // package mid-checkout was legitimately booked standalone and must not drift.
-  const lineGroups = intent.packageGroupIdByListingId;
+  // package mid-checkout was legitimately booked standalone and must not
+  // drift; a listing with BOTH kinds of line (booked through a package AND on
+  // its own) gets both nodes.
+  const nonFolded = intent.items.filter((item) => !foldedChildIds.has(item.e));
   const packages: TreePackage[] = [...pricingByGroup].map(([groupId, pkg]) => ({
     dayPrices: pkg.dayPriceMap,
     groupId,
     hideListings: false,
-    memberListingIds: topLevel
-      .map((t) => t.listing.id)
+    memberListingIds: nonFolded
       .filter(
-        (id) => lineGroups?.get(id) === groupId && pkg.memberIds.has(id),
-      ),
+        (item) => lineGroupId(item) === groupId && pkg.memberIds.has(item.e),
+      )
+      .map((item) => item.e),
     prices: pkg.priceMap,
     quantities: pkg.quantityMap,
   }));
+  const standaloneListingIds = new Set(
+    nonFolded
+      .filter((item) => lineGroupId(item) === undefined)
+      .map((item) => item.e),
+  );
   return buildBookingTree({
     childrenByParentId,
     listings: topLevel,
     packages,
     slugs: [],
+    standaloneListingIds,
   });
 };
 
@@ -917,15 +926,20 @@ const validateAllItems = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
 ): Promise<{ ok: true; items: ValidatedItem[] } | PaymentFailureResult> => {
-  const lineGroups =
-    intent.packageGroupIdByListingId ?? new Map<number, number>();
   const allocations = intent.allocations ?? [];
+  // Parent listings with at least one package-tagged line; children folded
+  // under them book as part of some bundle.
+  const taggedParentIds = new Set(
+    intent.items
+      .filter((item) => lineGroupId(item) !== undefined)
+      .map((item) => item.e),
+  );
   // Lines booked as part of some package bundle: each tagged member line, plus
   // every child folded under a tagged member.
   const packagedLineIds = new Set<number>([
-    ...lineGroups.keys(),
+    ...taggedParentIds,
     ...allocations
-      .filter((a) => lineGroups.has(a.parentId))
+      .filter((a) => taggedParentIds.has(a.parentId))
       .map((a) => a.childId),
   ]);
   const standaloneLineIds = intent.items
@@ -934,7 +948,7 @@ const validateAllItems = async (
   // For a hidden package, a per-member failure message would reveal a member
   // name on /payment/success, so never include the listing name in those errors
   // (fail-safe resolution — see resolveNamesConcealed).
-  const hiddenPackage = await resolveNamesConcealed(lineGroups.values());
+  const hiddenPackage = await resolveNamesConcealed(lineGroupIds(intent.items));
   // A standalone session started before its listing joined a HIDDEN package must
   // not book the now-hidden member: its /ticket/<slug> 404s and /t/<token> would
   // render the member name/details. Detected here, failed closed after pricing so
@@ -958,16 +972,14 @@ const validateAllItems = async (
   for (const item of intent.items) {
     const vp = await validateListingForPayment(item.e, includeListingName);
     if (!vp.ok) return validationFailure(session, vp, item.e);
-    const lineGroupId = lineGroups.get(item.e);
+    const itemGroupId = lineGroupId(item);
     // `null` here means "fail closed" (the line is no longer a valid package
     // member); it is carried through so the price-mismatch pass refunds it via
     // the normal stored-placeholder path.
     validatedItems.push({
       expectedPrice: expectedItemPrice(
-        lineGroupId === undefined
-          ? undefined
-          : pricingByGroup.get(lineGroupId),
-        lineGroupId,
+        itemGroupId === undefined ? undefined : pricingByGroup.get(itemGroupId),
+        itemGroupId,
         foldedChildIds,
         item,
         vp.listing,
@@ -984,12 +996,7 @@ const validateAllItems = async (
   if (
     staleHiddenMember ||
     staleNonStandaloneChild ||
-    anyPackageBundleMismatch(
-      pricingByGroup,
-      lineGroups,
-      intent.items,
-      foldedChildIds,
-    ) ||
+    anyPackageBundleMismatch(pricingByGroup, intent.items) ||
     (await orderEdgeDrifted(intent, validatedItems, pricingByGroup))
   ) {
     return {
@@ -1011,6 +1018,9 @@ const checkoutIntentForSession = (
   items: validatedItems.map((v) => ({
     listingId: v.item.e,
     name: v.listing.name,
+    ...(v.item.k === "p" && v.item.r !== undefined
+      ? { packageGroupId: v.item.r }
+      : {}),
     quantity: v.item.q,
     slug: v.listing.slug,
     unitPrice: v.item.p / v.item.q,
@@ -1031,14 +1041,13 @@ const orderLineTotal = (order: PricedOrder): number =>
       line.chargedUnitAmount * line.quantity,
   )(order.lines);
 
-const paidByListing = (order: PricedOrder): Map<number, number> => {
-  const paid = new Map<number, number>();
+/** Each intent item's charged total, keyed by the item OBJECT (a listing
+ * booked through two paths is two items, each with its own amount). */
+const paidByItem = (order: PricedOrder): Map<CheckoutItem, number> => {
+  const paid = new Map<CheckoutItem, number>();
   for (const line of order.lines) {
-    const current = paid.get(line.item.listingId) ?? 0;
-    paid.set(
-      line.item.listingId,
-      current + line.chargedUnitAmount * line.quantity,
-    );
+    const current = paid.get(line.item) ?? 0;
+    paid.set(line.item, current + line.chargedUnitAmount * line.quantity);
   }
   return paid;
 };
@@ -1357,28 +1366,37 @@ const createAttendeeForSession = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
+  pricingIntent: CheckoutIntent,
   pricedOrder: PricedOrder,
 ): Promise<HonourResult> => {
-  const linePaidByListing = paidByListing(pricedOrder);
-  const rawBookings = validatedItems.map(({ item, listing }) => ({
+  // Per-LINE paid amounts: a listing booked through two paths is two lines
+  // with their own prices, and each becomes its own booking row. The priced
+  // order's lines reference the pricing intent's item objects, which pair
+  // 1:1 by index with validatedItems.
+  const paidByIntentItem = paidByItem(pricedOrder);
+  const rawBookings = validatedItems.map(({ item, listing }, index) => ({
     listingId: item.e,
-    pricePaid: linePaidByListing.get(item.e)!,
+    packageGroupId: item.k === "p" && item.r !== undefined ? item.r : 0,
+    pricePaid: paidByIntentItem.get(pricingIntent.items[index]!) ?? 0,
     quantity: item.q,
     ...bookingDateFields(listing, intent.date, intent.dayCount),
   }));
   // Expand summed child bookings into per-parent rows when allocations were
   // carried through the signed metadata (paid-path provenance): each
   // allocation becomes its own listing_attendees row with the correct
-  // parentListingId and proportional pricePaid, mirroring the free-path behaviour
-  // in createFreeReservation.
-  // Stamp each row with the package it was booked through (members by their
-  // own line tag, folded children by their parent's), so a multi-bundle order
-  // groups each row under the right package on tickets and emails.
-  const bookings = stampBookingPackages(
+  // parentListingId and proportional pricePaid, mirroring the free-path
+  // behaviour in createFreeReservation. Each child row is then stamped with
+  // its parent's package when the parent books through exactly one path.
+  const bookings = stampChildRowPackages(
     intent.allocations && intent.allocations.length > 0
       ? expandChildAllocations(rawBookings, intent.allocations)
       : rawBookings,
-    intent.packageGroupIdByListingId,
+    soleParentPackageIds(
+      intent.items.map((item) => ({
+        listingId: item.e,
+        packageGroupId: lineGroupId(item),
+      })),
+    ),
   );
   const fullTotal = pricedOrder.fullSubtotal;
   const depositTotal = orderLineTotal(pricedOrder);
@@ -1829,6 +1847,7 @@ const processReservedSession = async (
       session,
       intent,
       validatedItems,
+      pricingIntent,
       pricedOrder,
     );
   } catch (error) {

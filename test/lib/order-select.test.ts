@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  orderedSelectionKeys,
   parseSelectedListingIds,
+  parseSelectedPackageIds,
   SELECT_PREFIX,
   selectedListingQuantities,
   selectedStartDate,
@@ -35,6 +37,51 @@ describe("parseSelectedListingIds", () => {
 
   test("returns an empty array when nothing is selected", () => {
     expect(parseSelectedListingIds(new URLSearchParams("foo=bar"))).toEqual([]);
+  });
+
+  test("never reads a package selection as a listing id", () => {
+    const params = new URLSearchParams("select_package_7=1&select_3=1");
+    expect(parseSelectedListingIds(params)).toEqual([3]);
+  });
+});
+
+describe("parseSelectedPackageIds", () => {
+  test("extracts selected package group ids, ignoring listing selections", () => {
+    const params = new URLSearchParams(
+      "select_package_9=1&select_package_2=1&select_5=1&select_package_0=1",
+    );
+    expect(parseSelectedPackageIds(params)).toEqual([2, 9]);
+  });
+});
+
+describe("orderedSelectionKeys", () => {
+  test("orders selected keys by the order field, appending the rest", () => {
+    const params = new URLSearchParams(
+      "select_3=1&select_8=1&select_package_7=1&order=package:7,listing:8",
+    );
+    expect(orderedSelectionKeys(params)).toEqual([
+      "package:7",
+      "listing:8",
+      "listing:3",
+    ]);
+  });
+
+  test("a tampered order value can neither add nor keep an unselected key", () => {
+    const params = new URLSearchParams(
+      "select_3=1&order=listing:99,listing:3,listing:3",
+    );
+    expect(orderedSelectionKeys(params)).toEqual(["listing:3"]);
+  });
+
+  test("falls back to id order without an order field", () => {
+    const params = new URLSearchParams(
+      "select_8=1&select_3=1&select_package_7=1",
+    );
+    expect(orderedSelectionKeys(params)).toEqual([
+      "listing:3",
+      "listing:8",
+      "package:7",
+    ]);
   });
 });
 

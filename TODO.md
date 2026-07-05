@@ -49,18 +49,18 @@ generalized passes: render, fold, price, capacity, revalidate.
   `classifySession`).
 - A package member may itself be a parent: `isPackageableMember`
   (`src/shared/.../groups.ts`, ~line 115) now permits it.
+- **Row-level admin identity + per-path bookings (multi-package orders).** The
+  same listing id may now legitimately book through more than one path in a
+  single order (a package member beside its own standalone row; the model also
+  supports two overlapping packages). One `CheckoutItem`/booking row per path,
+  each tagged `packageGroupId`; the booking-slot unique index and the
+  merge/check-in row keys are widened with `package_group_id`
+  (`2026-07-05_package_slot_identity` migration, `bookingKey`,
+  `bookingSlotKey`). `PagePackage` + `buildBookingTree` build one node per
+  path, and `/order` sells packages alongside listings via the pure
+  `#shared/order` evaluator (`options.ts`/`evaluate.ts`).
 
 **Remaining:**
-
-- **Row-level admin identity — do this BEFORE phase 3.** Attendee-merge's
-  `bookingKey` (`src/shared/merge/attendee-merge.ts`, ~lines 70–79) and the
-  check-in targeting key are both `listingId:startAt:parentListingId`. Once
-  phase 3 allows the *same* listing id to appear via more than one path (as a
-  parent's child AND as a package member), those keys collide and merge/check-in
-  target the wrong row. They must additionally key on `package_group_id` /
-  `nodeKey`. Write the persistence tests (merge conflict-keying, check-in
-  targeting for a listing reachable two ways) FIRST, then extend the key. Not a
-  live defect today because phase 3 hasn't introduced duplicate ids yet.
 
 - **Phase 3 — unified edge store (optional; one-way door).** Collapse
   `listing_parents` and `group_listings` into a single edge table (or make one a

@@ -1,10 +1,13 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { addDays } from "#shared/dates.ts";
 import { groupsTable } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
+import { todayInTz } from "#shared/timezone.ts";
 import {
   assertPublicHtml,
+  createDailyTestListing,
   createTestAttendee,
   createTestGroup,
   createTestListing,
@@ -20,6 +23,23 @@ const selectOrder = (ids: number[]): Promise<Response> => {
   const query = ids.map((id) => `select_${id}=1`).join("&");
   return handleRequest(mockRequest(`/order?${query}`));
 };
+
+/** GET /order/availability with a raw query, parsed as the endpoint's JSON. */
+const fetchAvailability = async (
+  query: string,
+): Promise<{
+  dateNeeded: boolean;
+  states: Record<string, { state: string; label: string }>;
+}> => {
+  const response = await handleRequest(
+    mockRequest(`/order/availability?${query}`),
+  );
+  expectStatus(200)(response);
+  return response.json();
+};
+
+/** A start date comfortably inside every daily listing's booking window. */
+const orderDate = (): string => addDays(todayInTz("UTC"), 2);
 
 const enablePublicOrder = (): void => {
   beforeEach(async () => {
@@ -140,7 +160,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       expect(html).not.toContain("Sold Out");
     });
 
-    test("lists bookable packages as direct book links under a Packages heading", async () => {
+    test("lists bookable packages as selectable cards under a Packages heading", async () => {
       // Two packages so the name sort actually runs (a single-element sort never
       // invokes the comparator).
       const camp = await createTestGroup({
@@ -148,7 +168,10 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         name: "Camp Bundle",
         slug: "camp-bundle",
       });
-      await createTestListing({ groupId: camp.id, name: "Bundle Tent" });
+      const tent = await createTestListing({
+        groupId: camp.id,
+        name: "Bundle Tent",
+      });
       const beach = await createTestGroup({
         isPackage: true,
         name: "Beach Bundle",
@@ -156,20 +179,53 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       });
       await createTestListing({ groupId: beach.id, name: "Bundle Towel" });
 
-      // A package is booked as a whole via its own page, so each surfaces as a
-      // direct book link (the order-card--package anchor to /ticket/<group>),
-      // under the Packages heading — not a selectable cart checkbox. (Their
-      // visible members are still independently selectable in the grid below,
-      // the same as on /listings.)
-      await assertPublicHtml(
+      // A package is a cart checkbox exactly like a listing card, so one order
+      // can carry several bundles alongside ordinary listings. Their visible
+      // members are still independently selectable in the grid below, the same
+      // as on /listings.
+      const html = await assertPublicHtml(
         "/order",
         "Packages",
         "Camp Bundle",
         "Beach Bundle",
-        "order-card--package",
-        `href="/ticket/${camp.slug}"`,
-        `href="/ticket/${beach.slug}"`,
+        `name="select_package_${camp.id}"`,
+        `name="select_package_${beach.id}"`,
+        `data-order-key="package:${camp.id}"`,
       );
+      expect(html).toContain(`name="select_${tent.id}"`);
+    });
+
+    test("the whole gallery is one cart form with live-availability hooks", async () => {
+      const item = await createTestListing({ name: "Hook Item" });
+      // data-order-gallery is the enhancement script's mount point; the hidden
+      // order field records the order things were added in.
+      const html = await assertPublicHtml(
+        "/order",
+        "data-order-gallery",
+        `name="order"`,
+        "data-order-state-label",
+      );
+      expect(html).toContain(`data-order-key="listing:${item.id}"`);
+    });
+
+    test("renders the date prompt and needs-date labels for daily items", async () => {
+      await createDailyTestListing({ name: "Day Pass" });
+      await createTestListing({ name: "Dateless Mug" });
+      // A daily card can't be judged without a date, so it says so server-side
+      // and the date field renders for the visitor to pick one up front.
+      const html = await assertPublicHtml(
+        "/order",
+        'name="start_date"',
+        "Have a date in mind?",
+        "Pick a date to see availability",
+      );
+      expect(html).toContain("data-order-date");
+    });
+
+    test("omits the date field when nothing on the page needs a date", async () => {
+      await createTestListing({ name: "Dateless Mug" });
+      const html = await assertPublicHtml("/order");
+      expect(html).not.toContain('name="start_date"');
     });
 
     test("shows a hidden package's bundle as bookable while its members stay hidden", async () => {
@@ -187,11 +243,8 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       // The bundle is buyable from /order (the package card), even though its
       // sole member is dropped from the selectable grid — so the page is not the
       // empty state and never exposes the member name or a checkbox for it.
-      const html = await assertPublicHtml(
-        "/order",
-        "Mystery Box",
-        `/ticket/${group.slug}`,
-      );
+      const html = await assertPublicHtml("/order", "Mystery Box");
+      expect(html).toContain(`name="select_package_${group.id}"`);
       expect(html).not.toContain("Secret Widget");
       expect(html).not.toContain(`name="select_${secret.id}"`);
       expect(html).not.toContain("No items are available to order");
@@ -245,6 +298,139 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         mockRequest("/order?select_99999=1"),
       );
       expectStatus(200)(response);
+    });
+
+    test("redirects a package pick to its booking page without a pre-fill", async () => {
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Camp Bundle",
+        slug: "camp-bundle",
+      });
+      await createTestListing({ groupId: group.id, name: "Bundle Tent" });
+      // A package needs no q_ pre-fill: its count selector defaults to one.
+      const response = await handleRequest(
+        mockRequest(`/order?select_package_${group.id}=1`),
+      );
+      expect(expectRedirect(response)).toBe(`/ticket/${group.slug}`);
+    });
+
+    test("orders the booking page's slugs by when things were added", async () => {
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Camp Bundle",
+        slug: "camp-bundle",
+      });
+      await createTestListing({ groupId: group.id, name: "Bundle Tent" });
+      const solo = await createTestListing({ name: "Lantern" });
+      // The hidden order field says the package was added first, so its slug
+      // leads even though the listing sorts first by id.
+      const response = await handleRequest(
+        mockRequest(
+          `/order?select_${solo.id}=1&select_package_${group.id}=1` +
+            `&order=package:${group.id},listing:${solo.id}`,
+        ),
+      );
+      expect(expectRedirect(response)).toBe(
+        `/ticket/${group.slug}+${solo.slug}?q_${solo.id}=1`,
+      );
+    });
+
+    test("a tampered order value cannot smuggle an unselected item along", async () => {
+      const chosen = await createTestListing({ name: "Chosen" });
+      const other = await createTestListing({ name: "Unchosen" });
+      const location = expectRedirect(
+        await handleRequest(
+          mockRequest(
+            `/order?select_${chosen.id}=1&order=listing:${other.id},listing:${chosen.id}`,
+          ),
+        ),
+      );
+      expect(location).toBe(`/ticket/${chosen.slug}?q_${chosen.id}=1`);
+    });
+
+    test("carries the chosen date into the booking page", async () => {
+      const daily = await createDailyTestListing({ name: "Day Pass" });
+      const date = orderDate();
+      const location = expectRedirect(
+        await handleRequest(
+          mockRequest(`/order?select_${daily.id}=1&start_date=${date}`),
+        ),
+      );
+      expect(location).toBe(
+        `/ticket/${daily.slug}?q_${daily.id}=1&date=${date}`,
+      );
+    });
+  });
+
+  describe("GET /order/availability (live evaluation)", () => {
+    enablePublicOrder();
+
+    test("is gated like the order page", async () => {
+      await settings.update.orderEnabled(false);
+      const response = await handleRequest(mockRequest("/order/availability"));
+      expectStatus(404)(response);
+    });
+
+    test("greys a card whose capacity the visitor's own pick holds, naming it", async () => {
+      const shared = await createTestGroup({
+        maxAttendees: 1,
+        name: "One Slot",
+      });
+      const morning = await createTestListing({
+        groupId: shared.id,
+        name: "Morning Cruise",
+      });
+      const afternoon = await createTestListing({
+        groupId: shared.id,
+        name: "Afternoon Cruise",
+      });
+
+      const data = await fetchAvailability(`select_${morning.id}=1`);
+      expect(data.dateNeeded).toBe(false);
+      expect(data.states[`listing:${morning.id}`]).toEqual({
+        label: "",
+        state: "selected",
+      });
+      // Not "Sold out": the visitor's own earlier choice holds the group's
+      // last slot, and the label says which one to remove.
+      expect(data.states[`listing:${afternoon.id}`]).toEqual({
+        label: "Remove Morning Cruise to add",
+        state: "blocked",
+      });
+    });
+
+    test("asks for a date before judging date-needing picks", async () => {
+      const chosen = await createDailyTestListing({ name: "Boat Day" });
+      const other = await createDailyTestListing({ name: "Kayak Day" });
+
+      const withoutDate = await fetchAvailability(`select_${chosen.id}=1`);
+      expect(withoutDate.dateNeeded).toBe(true);
+      expect(withoutDate.states[`listing:${other.id}`]).toEqual({
+        label: "Pick a date to see availability",
+        state: "needs_date",
+      });
+
+      const withDate = await fetchAvailability(
+        `select_${chosen.id}=1&start_date=${orderDate()}`,
+      );
+      expect(withDate.dateNeeded).toBe(false);
+      expect(withDate.states[`listing:${other.id}`]).toEqual({
+        label: "",
+        state: "available",
+      });
+    });
+
+    test("a date the calendar cannot serve reads as sold out for that day", async () => {
+      const daily = await createDailyTestListing({
+        maximumDaysAfter: 1,
+        name: "Near Pass",
+      });
+      const farDate = addDays(todayInTz("UTC"), 30);
+      const data = await fetchAvailability(`start_date=${farDate}`);
+      expect(data.states[`listing:${daily.id}`]).toEqual({
+        label: "Sold Out",
+        state: "unavailable",
+      });
     });
   });
 

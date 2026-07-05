@@ -537,6 +537,10 @@ export const toDesiredLines = (
       exists: Boolean(line.existingBooking),
       key: line.key,
       listingId: line.listingId,
+      // Keep the row on its package path so the edit updates the right row
+      // when the same listing was booked through two packages; a new line is
+      // an ordinary non-package row.
+      packageGroupId: line.existingBooking?.package_group_id ?? 0,
       // A retained line always has a non-null quantity: isBookedLine guarantees
       // ≥ 1, and a no-quantity line is parsed/built with quantity 0.
       quantity: line.quantity!,

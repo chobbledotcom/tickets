@@ -3,13 +3,12 @@ import { describe, it as test } from "@std/testing/bdd";
 import { parseQuantityValue } from "#routes/public/ticket-form.ts";
 import {
   bookingDateFields,
-  buildRegistrationItems,
   computeSharedDates,
   createFreeReservation,
   foldSelectedChildren,
   getTicketContext,
   loadChildrenByParentId,
-  loadPackageMemberMaps,
+  loadPagePackage,
   MODIFIER_SOLD_OUT_MESSAGE,
   resolveDayCount,
 } from "#routes/public/ticket-payment.ts";
@@ -18,11 +17,16 @@ import {
   revenueAccount,
 } from "#shared/accounting/accounts.ts";
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
+import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import {
   buildTicketListing,
   type TicketListing,
 } from "#shared/booking/model.ts";
-import type { PriceRule } from "#shared/booking/tree.ts";
+import {
+  aggregateNodeQuantities,
+  buildOrderLines,
+  nodeQuantitiesFor,
+} from "#shared/booking/order-lines.ts";
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import { addDays } from "#shared/dates.ts";
 import {
@@ -46,8 +50,10 @@ import {
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import { FormParams } from "#shared/form-data.ts";
+import type { CheckoutItem } from "#shared/payments.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { ContactInfo, ListingWithCount } from "#shared/types.ts";
+import { treePackage } from "#test/lib/package-cap-fixtures.ts";
 import {
   createTestGroup,
   createTestListing,
@@ -58,6 +64,25 @@ import { makeParent } from "#test-utils/parents.ts";
 
 /** Wrap a listing-with-count as a selected cart line. */
 const line = (listing: ListingWithCount, qty = 1) => ({ listing, qty });
+
+/** Build the per-path checkout items an old quantities map described: one line
+ * per listing with a positive quantity, priced at the listing's own unit price.
+ * A `packageGroupId` stamps every line as booked through that package. */
+const itemsFor = (
+  listings: TicketListing[],
+  quantities: Map<number, number>,
+  packageGroupId?: number,
+): CheckoutItem[] =>
+  listings
+    .filter((info) => (quantities.get(info.listing.id) ?? 0) > 0)
+    .map((info) => ({
+      listingId: info.listing.id,
+      name: info.listing.name,
+      ...(packageGroupId === undefined ? {} : { packageGroupId }),
+      quantity: quantities.get(info.listing.id)!,
+      slug: info.listing.slug,
+      unitPrice: info.listing.unit_price,
+    }));
 
 const allDays = [
   "Monday",
@@ -221,10 +246,10 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       const result = await createFreeReservation({
         contact,
         date: null,
+        items: itemsFor(ticketListings, quantities),
         ledgerOrder: null,
         listings: ticketListings,
         modifierUsages: [],
-        quantities,
       });
       expect(result.success).toBe(false);
       // Nothing persists for either listing — the partial booking is rolled back.
@@ -257,13 +282,16 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       const result = await createFreeReservation({
         contact,
         date: null,
+        items: itemsFor(
+          ticketListings,
+          new Map([
+            [e1.id, 1],
+            [e2.id, 2],
+          ]),
+        ),
         ledgerOrder: null,
         listings: ticketListings,
         modifierUsages: [],
-        quantities: new Map([
-          [e1.id, 1],
-          [e2.id, 2],
-        ]),
       });
       expect(result.success).toBe(true);
       expect((await getAttendeesRaw(e1.id))[0]!.quantity).toBe(1);
@@ -293,14 +321,16 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       });
       if (!first.success) throw new Error("setup booking failed");
 
+      const memberListings = [await ticketListingFor(member.id)];
       const result = await createFreeReservation({
         contact,
         date: null,
+        // The member's item carries the package id — the per-line stamp every
+        // package path now rides on.
+        items: itemsFor(memberListings, new Map([[member.id, 1]]), group.id),
         ledgerOrder: null,
-        listings: [await ticketListingFor(member.id)],
+        listings: memberListings,
         modifierUsages: [],
-        packageGroupId: group.id,
-        quantities: new Map([[member.id, 1]]),
       });
       if (result.success) throw new Error("expected a capacity failure");
       // Generic message — never the concealed member's name.
@@ -327,13 +357,16 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       return createFreeReservation({
         contact: { ...contact, email },
         date: null,
+        items: itemsFor(
+          listings,
+          new Map([
+            [parentId, 1],
+            [childId, 1],
+          ]),
+        ),
         ledgerOrder: null,
         listings,
         modifierUsages: [],
-        quantities: new Map([
-          [parentId, 1],
-          [childId, 1],
-        ]),
       });
     };
 
@@ -429,15 +462,28 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       };
     };
 
-    test("records the gross sale and the balance owed for a payments-enabled zero-total reservation", async () => {
+    /** A fresh five-spot listing with the one-unit reservation input every
+     * ledger test here builds on (ledgerOrder/modifierUsages vary per test). */
+    const oneLineBooking = async () => {
       const listing = await createTestListing({ maxAttendees: 5 });
+      const ticketListings = [await ticketListingFor(listing.id)];
+      return {
+        base: {
+          contact,
+          date: null,
+          items: itemsFor(ticketListings, new Map([[listing.id, 1]])),
+          listings: ticketListings,
+        },
+        listing,
+      };
+    };
+
+    test("records the gross sale and the balance owed for a payments-enabled zero-total reservation", async () => {
+      const { base, listing } = await oneLineBooking();
       const result = await createFreeReservation({
-        contact,
-        date: null,
+        ...base,
         ledgerOrder: zeroTotalOrder(listing.id, 5000),
-        listings: [await ticketListingFor(listing.id)],
         modifierUsages: [],
-        quantities: new Map([[listing.id, 1]]),
       });
 
       expect(result.success).toBe(true);
@@ -483,15 +529,19 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
 
       const { result, roundTrips } = await runWithQueryLogContext(async () => {
         enableQueryLog();
+        const ticketListings = await Promise.all(
+          listings.map((l) => ticketListingFor(l.id)),
+        );
         const r = await createFreeReservation({
           contact,
           date: null,
-          ledgerOrder,
-          listings: await Promise.all(
-            listings.map((l) => ticketListingFor(l.id)),
+          items: itemsFor(
+            ticketListings,
+            new Map(listings.map((l) => [l.id, 1])),
           ),
+          ledgerOrder,
+          listings: ticketListings,
           modifierUsages: [],
-          quantities: new Map(listings.map((l) => [l.id, 1])),
         });
         return {
           result: r,
@@ -506,7 +556,6 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
     });
 
     test("rolls back and reports the add-on as sold out when its stock is gone", async () => {
-      const listing = await createTestListing({ maxAttendees: 5 });
       const m = await modifiersTable.insert({
         calcKind: "fixed",
         calcValue: 5,
@@ -515,16 +564,14 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         stock: 0,
       });
 
+      const { base, listing } = await oneLineBooking();
       const result = await createFreeReservation({
-        contact,
-        date: null,
+        ...base,
         // No provider configured, but the booking still carries a stock-limited
         // add-on: the create runs in a transaction to consume stock and rolls the
         // whole thing back when that add-on is gone, even with no ledger to post.
         ledgerOrder: null,
-        listings: [await ticketListingFor(listing.id)],
         modifierUsages: [{ amountApplied: 500, modifierId: m.id, quantity: 1 }],
-        quantities: new Map([[listing.id, 1]]),
       });
 
       expect(result.success).toBe(false);
@@ -583,21 +630,32 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
     });
   });
 
-  describe("buildRegistrationItems", () => {
+  describe("buildOrderLines", () => {
     // Exhaustive unit-price precedence lives in test/lib/price-tree.test.ts; here
     // we cover assembly (filter + field mapping) and that each line is priced by
-    // its own tree rule (a package OVERRIDE scoped to that line).
-    const build = (
+    // its own tree PATH (a package OVERRIDE scoped to that member line).
+    /** Order lines for a standalone one-listing page at the given quantity. */
+    const buildStandalone = (
       listing: ListingWithCount,
-      quantities: Map<number, number>,
-      rules: Map<number, PriceRule>,
-    ) =>
-      buildRegistrationItems(
-        [buildTicketListing(listing, false, undefined)],
-        quantities,
+      quantity: number,
+    ): CheckoutItem[] => {
+      const tree = buildBookingTree({
+        listings: [buildTicketListing(listing, false, undefined)],
+        slugs: [listing.slug],
+      });
+      const nodeQuantities = nodeQuantitiesFor(
+        tree,
+        new Map([[listing.id, quantity]]),
         new Map(),
-        rules,
       );
+      return buildOrderLines(
+        tree,
+        nodeQuantities,
+        aggregateNodeQuantities(tree, nodeQuantities),
+        new Map(),
+        1,
+      );
+    };
 
     test("drops zero-quantity listings and assembles the checkout line", () => {
       const listing = testListingWithCount({
@@ -606,8 +664,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         slug: "wdgt1",
         unit_price: 500,
       });
-      const rules = new Map<number, PriceRule>([[9, { kind: "BASE" }]]);
-      expect(build(listing, new Map([[9, 2]]), rules)).toEqual([
+      expect(buildStandalone(listing, 2)).toEqual([
         {
           listingId: 9,
           name: "Widget",
@@ -616,24 +673,49 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
           unitPrice: 500,
         },
       ]);
-      expect(build(listing, new Map([[9, 0]]), rules)).toEqual([]);
+      expect(buildStandalone(listing, 0)).toEqual([]);
     });
 
-    test("prices each line by its tree rule (package override on the member line)", () => {
-      const listing = testListingWithCount({ id: 7, unit_price: 500 });
-      const items = build(
-        listing,
-        new Map([[7, 1]]),
-        new Map<number, PriceRule>([
-          [7, { amountMinor: 1200, kind: "OVERRIDE" }],
-        ]),
+    test("prices each line by its own path (package override on the member line)", () => {
+      const listing = testListingWithCount({
+        id: 7,
+        name: "Member",
+        slug: "mmbr7",
+        unit_price: 500,
+      });
+      const tree = buildBookingTree({
+        listings: [buildTicketListing(listing, false, undefined)],
+        packages: [treePackage(3, [7], { prices: new Map([[7, 1200]]) })],
+        slugs: ["pkg"],
+      });
+      const nodeQuantities = nodeQuantitiesFor(
+        tree,
+        new Map(),
+        new Map([[3, 1]]),
       );
-      expect(items[0]!.unitPrice).toBe(1200);
+      const items = buildOrderLines(
+        tree,
+        nodeQuantities,
+        aggregateNodeQuantities(tree, nodeQuantities),
+        new Map(),
+        1,
+      );
+      // The member line carries ITS package's id and ITS override price.
+      expect(items).toEqual([
+        {
+          listingId: 7,
+          name: "Member",
+          packageGroupId: 3,
+          quantity: 1,
+          slug: "mmbr7",
+          unitPrice: 1200,
+        },
+      ]);
     });
   });
 
-  describe("loadPackageMemberMaps / getTicketContext packages", () => {
-    test("loadPackageMemberMaps keeps overrides incl. free, skips no-override, and every quantity", async () => {
+  describe("loadPagePackage / getTicketContext packages", () => {
+    test("loadPagePackage keeps overrides incl. free, skips no-override, and every quantity", async () => {
       const group = await createTestGroup({ isPackage: true, name: "Pk" });
       const a = await createTestListing({ name: "PA" });
       const b = await createTestListing({ name: "PB" });
@@ -647,7 +729,10 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         { listingId: c.id, price: null },
       ]);
 
-      const { prices, quantities } = await loadPackageMemberMaps(group.id);
+      const pkg = await loadPagePackage(group, [a.id, b.id, c.id]);
+      expect(pkg.groupId).toBe(group.id);
+      expect(pkg.memberListingIds).toEqual([a.id, b.id, c.id]);
+      const { prices, quantities } = pkg;
       // A positive override and an explicit free (0) are both real prices kept
       // in the map; a null (no override) member is skipped so it falls back to
       // the listing's own price.
@@ -660,7 +745,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       expect(quantities.get(c.id)).toBe(1);
     });
 
-    test("getTicketContext exposes packageGroupId + prices for a package group", async () => {
+    test("getTicketContext exposes the package (group id + prices) for a package group", async () => {
       const group = await createTestGroup({ isPackage: true, name: "Ctx" });
       const a = await createTestListing({ name: "CA" });
       await setListingGroups(a.id, [group.id]);
@@ -678,15 +763,15 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         ],
         group,
       );
-      expect(ctx.packageGroupId).toBe(group.id);
-      expect(ctx.packagePrices?.get(a.id)).toBe(2000);
+      expect(ctx.packages).toHaveLength(1);
+      expect(ctx.packages[0]!.groupId).toBe(group.id);
+      expect(ctx.packages[0]!.prices.get(a.id)).toBe(2000);
     });
 
-    test("getTicketContext leaves package fields null for a non-package group", async () => {
+    test("getTicketContext carries no packages for a non-package group", async () => {
       const group = await createTestGroup({ name: "Plain" });
       const ctx = await getTicketContext([], group);
-      expect(ctx.packageGroupId).toBeNull();
-      expect(ctx.packagePrices).toBeNull();
+      expect(ctx.packages).toEqual([]);
     });
   });
 
@@ -826,6 +911,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       listings,
       packageGroupRemainingByGroupId: new Map(),
       packageMemberGroupIds: new Map(),
+      packages: [],
       questionListingMap: new Map(),
       questions: [],
       slugs: [],

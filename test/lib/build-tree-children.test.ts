@@ -85,7 +85,9 @@ describe("buildBookingTree — price rule", () => {
     const dayOverrides = new Map([[3, 900]]);
     const tree = buildBookingTree({
       listings: [resolved({ customisable_days: true, id: 1 })],
-      packages: [treePackage(3, [1], { dayPrices: new Map([[1, dayOverrides]]) })],
+      packages: [
+        treePackage(3, [1], { dayPrices: new Map([[1, dayOverrides]]) }),
+      ],
       slugs: ["ab12c"],
     });
     expect(tree.nodes[0]!.priceRule).toEqual({

@@ -574,7 +574,7 @@ describeWithEnv(
         [`child_qty_${picker.id}_${widget.id}`]: "1",
         email: "kit@example.com",
         name: "Kit Buyer",
-        package_quantity: "1",
+        [`package_quantity_${group.id}`]: "1",
       });
       await expectPackageBookingAccepted(submit);
 
