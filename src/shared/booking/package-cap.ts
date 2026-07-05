@@ -1,12 +1,12 @@
 import { sumByKey, sumOf } from "#fp";
-import { packageQuantityCap } from "#shared/booking/capacity-tree.ts";
+import { packageQuantityLimit } from "#shared/booking/capacity-tree.ts";
 import {
   childActive,
   childInStock,
   childOpen,
-  groupPoolUnits,
-  selectableChild,
+  childPassesAllChecks,
   type TicketListing,
+  ticketsThatFitInPool,
 } from "#shared/booking/model.ts";
 import {
   type BookingTree,
@@ -17,37 +17,36 @@ import {
   sharedGroupRemaining,
 } from "#shared/types.ts";
 
-export type GroupCapacityContext = {
+export type GroupCapacityInfo = {
   groupRemainingByGroupId: ReadonlyMap<number, number>;
   groupIdsByListingId: ReadonlyMap<number, number[]>;
 };
 
-export type PackageCapContext = GroupCapacityContext & {
+export type PackageLimitInfo = GroupCapacityInfo & {
   listings: readonly TicketListing[];
   childrenByParentId: ReadonlyMap<number, readonly TicketListing[]> | undefined;
 };
 
-export const groupCapacityContext = (
+export const groupCapacityInfo = (
   groupRemainingByGroupId: ReadonlyMap<number, number>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
-): GroupCapacityContext => ({ groupIdsByListingId, groupRemainingByGroupId });
+): GroupCapacityInfo => ({ groupIdsByListingId, groupRemainingByGroupId });
 
-export const packageCapContext = (
+export const packageLimitInfo = (
   listings: readonly TicketListing[],
   childrenByParentId: ReadonlyMap<number, readonly TicketListing[]> | undefined,
   groupRemainingByGroupId: ReadonlyMap<number, number>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
-): PackageCapContext => ({
+): PackageLimitInfo => ({
   childrenByParentId,
   listings,
-  ...groupCapacityContext(groupRemainingByGroupId, groupIdsByListingId),
+  ...groupCapacityInfo(groupRemainingByGroupId, groupIdsByListingId),
 });
 
-export const childBookable: (child: TicketListing) => boolean = selectableChild(
-  [childActive, childOpen, childInStock],
-);
+export const childCanBeBooked: (child: TicketListing) => boolean =
+  childPassesAllChecks([childActive, childOpen, childInStock]);
 
-const childOwnRenderCap = (
+const childOwnTicketLimit = (
   parent: TicketListing,
   child: TicketListing,
 ): number =>
@@ -56,12 +55,12 @@ const childOwnRenderCap = (
     : child.maxPurchasable;
 
 const groupIdsFor = (
-  ctx: GroupCapacityContext,
+  ctx: GroupCapacityInfo,
   listing: TicketListing,
 ): number[] => ctx.groupIdsByListingId.get(listing.listing.id) ?? [];
 
-const sharedRemainingFor = (
-  ctx: GroupCapacityContext,
+const sharedSeatsLeftFor = (
+  ctx: GroupCapacityInfo,
   parent: TicketListing,
   child: TicketListing,
 ): number | undefined =>
@@ -71,66 +70,68 @@ const sharedRemainingFor = (
     ctx.groupRemainingByGroupId,
   );
 
-export const childOrderCap = (
+/** Tickets this child can still offer with this parent. */
+export const childTicketLimit = (
   parent: TicketListing,
   child: TicketListing,
-  ctx: GroupCapacityContext,
+  ctx: GroupCapacityInfo,
 ): number => {
-  const shared = sharedRemainingFor(ctx, parent, child);
+  const shared = sharedSeatsLeftFor(ctx, parent, child);
   return shared === undefined
-    ? childOwnRenderCap(parent, child)
+    ? childOwnTicketLimit(parent, child)
     : Math.min(
-        groupPoolUnits(shared, PARENT_CHILD_GROUP_UNITS),
-        childOwnRenderCap(parent, child),
+        ticketsThatFitInPool(shared, PARENT_CHILD_GROUP_UNITS),
+        childOwnTicketLimit(parent, child),
       );
 };
 
-const cappedGroupCohortCap = (remaining: number, ownCapSum: number): number =>
-  Math.min(remaining, ownCapSum);
+const sharedGroupTicketLimit = (
+  spotsLeft: number,
+  childOwnLimitTotal: number,
+): number => Math.min(spotsLeft, childOwnLimitTotal);
 
-type ChildCapContribution =
-  | { kind: "uncapped"; ownCap: number }
-  | { kind: "shared"; ownCap: number; remaining: number }
-  | { kind: "group"; groupId: number; ownCap: number };
+type ChildLimitPart =
+  | { kind: "own"; ownLimit: number }
+  | { kind: "parentGroup"; ownLimit: number; spotsLeft: number }
+  | { kind: "childGroup"; groupId: number; ownLimit: number };
 
-type PackageMemberChildren = {
+type MemberWithChildren = {
   member: TicketListing;
   children: readonly TicketListing[];
 };
 
-type ChildDemand = {
-  bookable: TicketListing[];
-  qty: number;
+type ChildrenToBook = {
+  children: TicketListing[];
+  packageQty: number;
 };
 
-type SoleChildDemand = {
+type OneChildNeed = {
   childId: number;
-  cap: number;
-  demand: number;
+  childLimit: number;
+  ticketsNeeded: number;
 };
 
-type GroupDemand = {
+type GroupNeed = {
   groupId: number;
-  demand: number;
+  ticketsNeeded: number;
 };
 
-const isSharedContribution = (
-  contribution: ChildCapContribution,
-): contribution is Extract<ChildCapContribution, { kind: "shared" }> =>
-  contribution.kind === "shared";
+const usesParentGroup = (
+  part: ChildLimitPart,
+): part is Extract<ChildLimitPart, { kind: "parentGroup" }> =>
+  part.kind === "parentGroup";
 
-const isGroupContribution = (
-  contribution: ChildCapContribution,
-): contribution is Extract<ChildCapContribution, { kind: "group" }> =>
-  contribution.kind === "group";
+const usesChildGroup = (
+  part: ChildLimitPart,
+): part is Extract<ChildLimitPart, { kind: "childGroup" }> =>
+  part.kind === "childGroup";
 
-const isUncappedContribution = (
-  contribution: ChildCapContribution,
-): contribution is Extract<ChildCapContribution, { kind: "uncapped" }> =>
-  contribution.kind === "uncapped";
+const usesOnlyChildLimit = (
+  part: ChildLimitPart,
+): part is Extract<ChildLimitPart, { kind: "own" }> => part.kind === "own";
 
-const cappedGroupsFor = (
-  ctx: GroupCapacityContext,
+const limitedGroupsFor = (
+  ctx: GroupCapacityInfo,
   child: TicketListing,
 ): { groupId: number; remaining: number }[] =>
   groupIdsFor(ctx, child)
@@ -140,77 +141,71 @@ const cappedGroupsFor = (
       remaining: ctx.groupRemainingByGroupId.get(groupId)!,
     }));
 
-const tightestCappedGroupFor = (
-  ctx: GroupCapacityContext,
+const smallestLimitedGroupFor = (
+  ctx: GroupCapacityInfo,
   child: TicketListing,
 ): { groupId: number; remaining: number } | null =>
-  cappedGroupsFor(ctx, child).toSorted(
+  limitedGroupsFor(ctx, child).toSorted(
     (a, b) => a.remaining - b.remaining,
   )[0] ?? null;
 
-const childCapContribution = (
-  ctx: GroupCapacityContext,
+const childLimitPart = (
+  ctx: GroupCapacityInfo,
   parent: TicketListing,
   child: TicketListing,
-): ChildCapContribution => {
-  const ownCap = childOwnRenderCap(parent, child);
-  const shared = sharedRemainingFor(ctx, parent, child);
-  if (shared !== undefined)
-    return { kind: "shared", ownCap, remaining: shared };
-  const cappedGroup = tightestCappedGroupFor(ctx, child);
-  return cappedGroup === null
-    ? { kind: "uncapped", ownCap }
-    : { groupId: cappedGroup.groupId, kind: "group", ownCap };
+): ChildLimitPart => {
+  const ownLimit = childOwnTicketLimit(parent, child);
+  const shared = sharedSeatsLeftFor(ctx, parent, child);
+  if (shared !== undefined) {
+    return { kind: "parentGroup", ownLimit, spotsLeft: shared };
+  }
+  const limitedGroup = smallestLimitedGroupFor(ctx, child);
+  return limitedGroup === null
+    ? { kind: "own", ownLimit }
+    : { groupId: limitedGroup.groupId, kind: "childGroup", ownLimit };
 };
 
-const sharedCohortCap = (
-  contributions: readonly ChildCapContribution[],
-): number => {
-  const shared = contributions.filter(isSharedContribution);
+const parentGroupChildLimit = (parts: readonly ChildLimitPart[]): number => {
+  const shared = parts.filter(usesParentGroup);
   if (shared.length === 0) return 0;
   return Math.min(
-    groupPoolUnits(
-      Math.min(...shared.map((contribution) => contribution.remaining)),
+    ticketsThatFitInPool(
+      Math.min(...shared.map((part) => part.spotsLeft)),
       PARENT_CHILD_GROUP_UNITS,
     ),
-    sumOf((contribution: ChildCapContribution) => contribution.ownCap)(shared),
+    sumOf((part: ChildLimitPart) => part.ownLimit)(shared),
   );
 };
 
-const cappedGroupsCap = (
-  ctx: GroupCapacityContext,
-  contributions: readonly ChildCapContribution[],
+const childGroupLimit = (
+  ctx: GroupCapacityInfo,
+  parts: readonly ChildLimitPart[],
 ): number =>
-  sumOf(([groupId, ownCap]: [number, number]) =>
-    cappedGroupCohortCap(ctx.groupRemainingByGroupId.get(groupId)!, ownCap),
+  sumOf(([groupId, ownLimit]: [number, number]) =>
+    sharedGroupTicketLimit(ctx.groupRemainingByGroupId.get(groupId)!, ownLimit),
   )([
     ...sumByKey(
-      (contribution: Extract<ChildCapContribution, { kind: "group" }>) =>
-        contribution.groupId,
-      (contribution) => contribution.ownCap,
-    )(contributions.filter(isGroupContribution)),
+      (part: Extract<ChildLimitPart, { kind: "childGroup" }>) => part.groupId,
+      (part) => part.ownLimit,
+    )(parts.filter(usesChildGroup)),
   ]);
 
-const childCombinedCap = (
-  ctx: GroupCapacityContext,
+const childrenTicketLimit = (
+  ctx: GroupCapacityInfo,
   parent: TicketListing,
   bookable: readonly TicketListing[],
 ): number => {
-  const contributions = bookable.map((child) =>
-    childCapContribution(ctx, parent, child),
-  );
+  const parts = bookable.map((child) => childLimitPart(ctx, parent, child));
   return (
-    sumOf((contribution: ChildCapContribution) => contribution.ownCap)(
-      contributions.filter(isUncappedContribution),
+    sumOf((part: ChildLimitPart) => part.ownLimit)(
+      parts.filter(usesOnlyChildLimit),
     ) +
-    sharedCohortCap(contributions) +
-    cappedGroupsCap(ctx, contributions)
+    parentGroupChildLimit(parts) +
+    childGroupLimit(ctx, parts)
   );
 };
 
-const packageMembersWithChildren = (
-  ctx: PackageCapContext,
-): PackageMemberChildren[] =>
+const membersWithChildren = (ctx: PackageLimitInfo): MemberWithChildren[] =>
   ctx.childrenByParentId === undefined
     ? []
     : ctx.listings.flatMap((member) => {
@@ -218,108 +213,121 @@ const packageMembersWithChildren = (
         return !children || children.length === 0 ? [] : [{ children, member }];
       });
 
-export const packageChildUnitCaps = (
-  ctx: PackageCapContext,
+/** Ticket limits for package members that also need child tickets. */
+export const packageChildTicketLimits = (
+  ctx: PackageLimitInfo,
 ): Map<number, number> =>
   new Map(
-    packageMembersWithChildren(ctx).map(({ member, children }) => [
+    membersWithChildren(ctx).map(({ member, children }) => [
       member.listing.id,
-      childCombinedCap(ctx, member, children.filter(childBookable)),
+      childrenTicketLimit(ctx, member, children.filter(childCanBeBooked)),
     ]),
   );
 
-const cappedGroupsOfAllChildren = (
-  ctx: GroupCapacityContext,
+const groupsEveryChildUses = (
+  ctx: GroupCapacityInfo,
   bookable: readonly TicketListing[],
 ): number[] => {
   const [firstChildIds, ...restChildIds] = bookable.map(
     (child) =>
-      new Set(cappedGroupsFor(ctx, child).map(({ groupId }) => groupId)),
+      new Set(limitedGroupsFor(ctx, child).map(({ groupId }) => groupId)),
   );
   return [...firstChildIds!].filter((groupId) =>
     restChildIds.every((ids) => ids.has(groupId)),
   );
 };
 
-const packageChildDemands = (
+const packageChildrenToBook = (
   tree: BookingTree,
-  ctx: PackageCapContext,
-): ChildDemand[] => {
+  ctx: PackageLimitInfo,
+): ChildrenToBook[] => {
   const memberQty = fixedQuantitiesByListingId(tree);
-  return packageMembersWithChildren(ctx)
+  return membersWithChildren(ctx)
     .map(({ member, children }) => ({
-      bookable: children.filter(childBookable),
-      qty: memberQty.get(member.listing.id)!,
+      children: children.filter(childCanBeBooked),
+      packageQty: memberQty.get(member.listing.id)!,
     }))
-    .filter(({ bookable }) => bookable.length > 0);
+    .filter(({ children }) => children.length > 0);
 };
 
-const soleChildDemand = ({ bookable, qty }: ChildDemand): SoleChildDemand[] => {
-  const sole = bookable.length === 1 ? bookable[0]! : null;
+const oneChildNeed = ({
+  children,
+  packageQty,
+}: ChildrenToBook): OneChildNeed[] => {
+  const sole = children.length === 1 ? children[0]! : null;
   return sole && sole.listing.listing_type !== "daily"
-    ? [{ cap: sole.maxPurchasable, childId: sole.listing.id, demand: qty }]
+    ? [
+        {
+          childId: sole.listing.id,
+          childLimit: sole.maxPurchasable,
+          ticketsNeeded: packageQty,
+        },
+      ]
     : [];
 };
 
-const groupDemandsFor =
-  (ctx: GroupCapacityContext) =>
-  ({ bookable, qty }: ChildDemand): GroupDemand[] =>
-    cappedGroupsOfAllChildren(ctx, bookable).map((groupId) => ({
-      demand: qty,
+const groupNeedsFor =
+  (ctx: GroupCapacityInfo) =>
+  ({ children, packageQty }: ChildrenToBook): GroupNeed[] =>
+    groupsEveryChildUses(ctx, children).map((groupId) => ({
       groupId,
+      ticketsNeeded: packageQty,
     }));
 
-const demandPoolUnits = (demands: readonly SoleChildDemand[]): number[] => {
-  const capByChildId = new Map(
-    demands.map(({ cap, childId }) => [childId, cap]),
+const singleChildLimits = (needs: readonly OneChildNeed[]): number[] => {
+  const limitByChildId = new Map(
+    needs.map(({ childId, childLimit }) => [childId, childLimit]),
   );
   return [
-    ...sumByKey<SoleChildDemand, number>(
-      (demand) => demand.childId,
-      (demand) => demand.demand,
-    )(demands),
-  ].map(([childId, demand]) =>
-    groupPoolUnits(capByChildId.get(childId)!, demand),
+    ...sumByKey<OneChildNeed, number>(
+      (need) => need.childId,
+      (need) => need.ticketsNeeded,
+    )(needs),
+  ].map(([childId, ticketsNeeded]) =>
+    ticketsThatFitInPool(limitByChildId.get(childId)!, ticketsNeeded),
   );
 };
 
-const groupPoolDemandUnits = (
-  ctx: GroupCapacityContext,
-  demands: readonly GroupDemand[],
+const sharedChildGroupLimits = (
+  ctx: GroupCapacityInfo,
+  needs: readonly GroupNeed[],
 ): number[] =>
   [
-    ...sumByKey<GroupDemand, number>(
-      (demand) => demand.groupId,
-      (demand) => demand.demand,
-    )(demands),
-  ].map(([groupId, demand]) =>
-    groupPoolUnits(ctx.groupRemainingByGroupId.get(groupId)!, demand),
+    ...sumByKey<GroupNeed, number>(
+      (need) => need.groupId,
+      (need) => need.ticketsNeeded,
+    )(needs),
+  ].map(([groupId, ticketsNeeded]) =>
+    ticketsThatFitInPool(
+      ctx.groupRemainingByGroupId.get(groupId)!,
+      ticketsNeeded,
+    ),
   );
 
-const crossParentChildDemandCap = (
+const sharedChildrenAcrossMembersLimit = (
   tree: BookingTree,
-  ctx: PackageCapContext,
+  ctx: PackageLimitInfo,
 ): number => {
-  const demands = packageChildDemands(tree, ctx);
-  const poolUnits = [
-    ...demandPoolUnits(demands.flatMap(soleChildDemand)),
-    ...groupPoolDemandUnits(ctx, demands.flatMap(groupDemandsFor(ctx))),
+  const childrenToBook = packageChildrenToBook(tree, ctx);
+  const limits = [
+    ...singleChildLimits(childrenToBook.flatMap(oneChildNeed)),
+    ...sharedChildGroupLimits(ctx, childrenToBook.flatMap(groupNeedsFor(ctx))),
   ];
-  return Math.min(Number.POSITIVE_INFINITY, ...poolUnits);
+  return Math.min(Number.POSITIVE_INFINITY, ...limits);
 };
 
-/** The whole-bundle count cap shared by render, submit, API, and discovery. */
-export const packageBundleCap = (
+/** Whole packages the buyer may still book. */
+export const packageBundleLimit = (
   tree: BookingTree,
-  ctx: PackageCapContext,
+  ctx: PackageLimitInfo,
 ): number =>
   Math.min(
-    packageQuantityCap(
+    packageQuantityLimit(
       tree,
       new Map(ctx.listings.map((listing) => [listing.listing.id, listing])),
       ctx.groupRemainingByGroupId,
       ctx.groupIdsByListingId,
-      packageChildUnitCaps(ctx),
+      packageChildTicketLimits(ctx),
     ),
-    crossParentChildDemandCap(tree, ctx),
+    sharedChildrenAcrossMembersLimit(tree, ctx),
   );

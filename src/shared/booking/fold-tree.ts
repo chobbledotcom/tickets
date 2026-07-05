@@ -2,12 +2,12 @@ import { compact } from "#fp";
 import { t } from "#i18n";
 import { formatAtomicError, parseCustomPrice } from "#shared/booking/form.ts";
 import {
+  childCanBePickedBeforeDays,
   childDateOk,
-  childDurationMatches,
-  childPricedForSpan,
-  childSelectableIgnoringSpan,
-  resolveInheritedDuration,
-  selectableChild,
+  childDaysFromParent,
+  childHasPriceForDays,
+  childPassesAllChecks,
+  childUsesSameDays,
   type TicketListing,
 } from "#shared/booking/model.ts";
 import { priceRuleByListingId } from "#shared/booking/price-tree.ts";
@@ -40,11 +40,11 @@ import { parseNonNegativeInt } from "#shared/validation/number.ts";
 /** The booking duration a parent's customisable children inherit:
  * the shared `dayCount` for a customisable parent, fixed `duration_days` for a
  * fixed daily parent, 1 for a standard parent. Specialises the shared
- * {@link resolveInheritedDuration} with `(dayCount, 1)`. */
+ * {@link childDaysFromParent} with `(dayCount, 1)`. */
 const parentResolvedDuration = (
   parent: TicketListing["listing"],
   dayCount: number,
-): number => resolveInheritedDuration(parent, dayCount, 1);
+): number => childDaysFromParent(parent, dayCount, 1);
 
 /** Order context the candidate child must be bookable against: inherited
  * duration, resolved date, active holidays. */
@@ -54,26 +54,16 @@ type ChildBookableCtx = {
   holidays: Holiday[];
 };
 
-/** The date-INDEPENDENT disqualifiers `childIsBookable` applies. The date- and
- * span-independent part (active, not closed, standard child not date-less sold
- * out) is {@link childSelectableIgnoringSpan}. When the inherited span is known
- * (`duration` non-null) two span atoms also apply: a customisable child must
- * price it ({@link childPricedForSpan}) and a fixed daily child's `duration_days`
- * must equal it ({@link childDurationMatches}). A null `duration` (CUSTOMISABLE
- * parent, span not yet chosen at render) skips only those span atoms — enforced
- * per-span at submit. Deliberately omits the child's own date calendar
- * ({@link childDateOk}), which the union folds in per-candidate-date instead.
- * Shared with the render-side date union
- * (`constrainDatesByChildUnion`). */
+/** Checks if a child can be chosen before the final date check. */
 export const childSelectableForSpan = (
   child: TicketListing,
   duration: number | null,
 ): boolean =>
-  selectableChild(
+  childPassesAllChecks(
     compact([
-      childSelectableIgnoringSpan,
-      duration === null ? null : childPricedForSpan(duration),
-      duration === null ? null : childDurationMatches(duration),
+      childCanBePickedBeforeDays,
+      duration === null ? null : childHasPriceForDays(duration),
+      duration === null ? null : childUsesSameDays(duration),
     ]),
   )(child);
 

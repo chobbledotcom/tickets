@@ -1017,9 +1017,7 @@ describeWithEnv(
         [`quantity_${parent.id}`]: "1",
       });
       expect(res.status).toBe(302);
-      // The date the only child can't serve is no longer offered by the parent's
-      // selector (constrainDatesByChildUnion), so it fails the
-      // date-validation gate before the fold — still a rejection, no parent row.
+      // The parent no longer offers a date its only child cannot serve.
       expectFlash(res, "Please select a valid date", false);
       expect((await getAttendeesRaw(parent.id)).length).toBe(0);
     });
@@ -1961,7 +1959,7 @@ describeWithEnv(
       // daily listing, whose supported span is exactly its duration_days (2). The
       // day-count selector must therefore offer only the 2-day option — a daily
       // child must NOT be treated as imposing "any" span (which would keep all of
-      // {1,2,3}), it constrains to its own fixed duration (childSupportedSpans).
+      // {1,2,3}), it constrains to its own fixed duration (dayCountsChildSupports).
       // Only the child's own 2-day span is offered; the 1- and 3-day options the
       // child cannot serve are dropped from the union.
       {
@@ -2280,7 +2278,7 @@ describeWithEnv(
       // PARENT_CHILD_GROUP_UNITS (2) spots, so only one combined order fits
       // (floor(3 / 2) = 1). The parent's own max_quantity is high enough (5) that
       // its standalone capacity (clamped to the 3 group spots) would otherwise show
-      // a multi-option selector, so the rendered cap proves childOrderCap divides
+      // a multi-option selector, so the rendered cap proves childTicketLimit divides
       // (not the child's own maxPurchasable, and not remaining + units): the
       // quantity selector offers a 1 option but never a 2.
       const { PARENT_CHILD_GROUP_UNITS } = await import("#shared/types.ts");
@@ -2308,7 +2306,7 @@ describeWithEnv(
       // order cap, not only by the parent total. Here a separate-pool sibling
       // (cap 5) lifts the parent total well above 1, so the parent ceiling no
       // longer masks the shared child's cap: the shared child's select must still
-      // offer floor(3 / 2) = 1 — proving childOrderCap DIVIDES the shared
+      // offer floor(3 / 2) = 1 — proving childTicketLimit DIVIDES the shared
       // remaining (not remaining + units, which would offer 5).
       const { PARENT_CHILD_GROUP_UNITS } = await import("#shared/types.ts");
       expect(PARENT_CHILD_GROUP_UNITS).toBe(2);

@@ -15,8 +15,8 @@ import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import { parseCustomPrice } from "#shared/booking/form.ts";
 import type { TicketListing } from "#shared/booking/model.ts";
 import {
-  packageBundleCap,
-  packageCapContext,
+  packageBundleLimit,
+  packageLimitInfo,
 } from "#shared/booking/package-cap.ts";
 import {
   customPriceFieldName,
@@ -85,7 +85,7 @@ import {
 } from "#templates/public.tsx";
 import {
   applyBookingPageParentSoldOut,
-  type ChildCapacityCtx,
+  type ChildCapacityInfo,
 } from "./discovery.ts";
 import {
   buildListingAnswerMap,
@@ -578,7 +578,7 @@ const parsePackageCount = (form: FormParams): number =>
  * buyer chooses a single `package_quantity`; each member's booked quantity is
  * its fixed per-package quantity × that count (the per-member `quantity_<id>`
  * inputs are not offered, so they are ignored). The posted count is clamped to
- * the same capacity ceiling the page renders ({@link packageBundleCap}) so a
+ * the same capacity ceiling the page renders ({@link packageBundleLimit}) so a
  * crafted POST can't exceed a member's remaining capacity or book a
  * closed/sold-out member (whose `maxPurchasable` — and thus the cap — is 0). A
  * resulting count of 0 yields all-zero lines, which `prepareOrder` rejects as
@@ -594,13 +594,13 @@ const resolvePageQuantities = (
     return parseQuantities(form, ctx.listings);
   }
   // Clamp the posted count to the same tree-driven ceiling the page renders —
-  // packageBundleCap, including required-child capacity — so a crafted POST
+  // packageBundleLimit, including required-child capacity — so a crafted POST
   // can't exceed a member's remaining capacity, a shared pool, or the add-ons'
   // combined capacity.
   const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
-  const cap = packageBundleCap(
+  const cap = packageBundleLimit(
     tree,
-    packageCapContext(
+    packageLimitInfo(
       ctx.listings,
       ctx.childrenByParentId,
       ctx.packageGroupRemainingByGroupId,
@@ -1062,7 +1062,7 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
         ...children.map((c) => c.id),
       ]),
     ]);
-  const caps: ChildCapacityCtx = {
+  const caps: ChildCapacityInfo = {
     childOwnRemaining,
     membership,
     remainingByGroupId: childCaps.remaining,

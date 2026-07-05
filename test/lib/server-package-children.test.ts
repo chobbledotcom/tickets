@@ -162,7 +162,7 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
   test("a crafted POST is clamped to the child-capped bundle ceiling", async () => {
     // The page offers at most 3 bundles (add-on capacity 2 + 1); a no-JS/crafted
     // POST asking for 9 must be clamped to that SAME ceiling — the submit clamp
-    // and the rendered selector share packageBundleCap — so a mix that serves 3
+    // and the rendered selector share packageBundleLimit — so a mix that serves 3
     // bundles books 3 rather than bouncing with a child-count error.
     const { child, childB, group, other, parent } = await packageWithChild(
       "Clamp",

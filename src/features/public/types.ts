@@ -2,7 +2,10 @@
  * Shared types, constants, and tiny utilities for public ticket routes
  */
 
-import type { ChildSpanDates, TicketListing } from "#shared/booking/model.ts";
+import type {
+  ChildDatesByDayCount,
+  TicketListing,
+} from "#shared/booking/model.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type {
   QuestionListingMap,
@@ -31,8 +34,8 @@ export type TicketSharedContext = {
    * (parent, child) PAIR (`childDateKey`) so a child required by two parents
    * carries each parent's own dates; emitted as `data-child-dates` for
    * the client compatibility script; empty map when the page has no
-   * daily children. Per selectable parent span ({@link ChildSpanDates}). */
-  childDatesById: Map<string, ChildSpanDates>;
+   * daily children. Per selectable parent span ({@link ChildDatesByDayCount}). */
+  childDatesById: Map<string, ChildDatesByDayCount>;
   groupName?: string;
   groupDescription?: string;
   /** Set when the booking page is a package group: the group's id (for signed
@@ -60,7 +63,7 @@ export type TicketSharedContext = {
    * package's own group AND any other capped pool members or children share.
    * Empty for non-package pages or when nothing is capped. Carried on the
    * SHARED context so the page render, the submit clamp, and the API all use
-   * ONE ceiling ({@link packageBundleCap}). Always set by
+   * ONE ceiling ({@link packageBundleLimit}). Always set by
    * {@link getTicketContext} (empty Maps for a non-package page), so callers
    * read them without a fallback. */
   packageGroupRemainingByGroupId: ReadonlyMap<number, number>;

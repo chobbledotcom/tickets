@@ -24,11 +24,11 @@ import { buildTicketListingsWithGroupCapacity } from "#routes/public/ticket-list
 import {
   buildRegistrationItems,
   checkAvailability,
-  constrainParentDailyDates,
   createFreeReservation,
   ctxToBuildTreeInput,
   foldSelectedChildren,
   getTicketContext,
+  keepParentDailyDatesChildrenCanServe,
   parentRequiresChild,
   resolveDayCount,
 } from "#routes/public/ticket-payment.ts";
@@ -43,12 +43,12 @@ import { parseCustomPrice } from "#shared/booking/form.ts";
 import {
   bookableChildIds,
   buildTicketListing,
-  packageSharedDayCounts,
+  packageDayCountsChildrenSupport,
   type TicketListing,
 } from "#shared/booking/model.ts";
 import {
-  packageBundleCap,
-  packageCapContext,
+  packageBundleLimit,
+  packageLimitInfo,
 } from "#shared/booking/package-cap.ts";
 import { packageBundleTotal } from "#shared/booking/price-tree.ts";
 import {
@@ -448,7 +448,7 @@ const handleGetListing = withGuardedListing(
       // no required child can serve (for the inherited span) is removed from the
       // parent's own calendar, so the API never advertises a date the fold rejects
       // For a non-parent daily listing this is a no-op.
-      availableDates = await constrainParentDailyDates(
+      availableDates = await keepParentDailyDatesChildrenCanServe(
         listing,
         getAvailableDates(listing, holidays),
         holidays,
@@ -519,16 +519,11 @@ const handleCheckAvailability = withGuardedListing(
     const quantity =
       parseNonNegativeInt(url.searchParams.get("quantity") ?? "1") ?? 1;
     const date = url.searchParams.get("date") || undefined;
-    // A daily parent's availability must honour the child-date union: the
-    // route listing's own capacity ignores its children, so it could answer
-    // `available: true` for a date the (child-constrained) detail endpoint omits
-    // and the booking fold then rejects. Constrain the requested date through the
-    // same `constrainParentDailyDates` union the detail endpoint uses; a date no
-    // required child can serve for the inherited span is unavailable. For a
-    // non-parent daily listing (no child edges) this is a no-op.
+    // A daily parent is available only on dates its required children can serve.
+    // A daily listing with no children is returned unchanged by the helper.
     if (listing.listing_type === "daily" && date) {
       const holidays = await getActiveHolidays();
-      const childServableDates = await constrainParentDailyDates(
+      const childServableDates = await keepParentDailyDatesChildrenCanServe(
         listing,
         getAvailableDates(listing, holidays),
         holidays,
@@ -1067,9 +1062,7 @@ const handleBook = withActiveListing(async (request, listing, server) => {
 // Packages
 // =============================================================================
 
-/** Resolve a bookable package with the booking context and tree-driven package
- * cap the detail and booking endpoints share, or null (unknown slug, not a
- * package, or the bundle no longer fits — the /ticket/<group-slug> gate). */
+/** Loads a package only when at least one whole package can still be booked. */
 const loadPackageContext = async (slug: string) => {
   const loaded = await loadBookablePackageBySlug(slug);
   if (!loaded) return null;
@@ -1083,16 +1076,16 @@ const loadPackageContext = async (slug: string) => {
     slugs: [slug],
   };
   const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
-  const cap = packageBundleCap(
+  const limit = packageBundleLimit(
     tree,
-    packageCapContext(
+    packageLimitInfo(
       ticketListings,
       ctx.childrenByParentId,
       ctx.packageGroupRemainingByGroupId,
       ctx.packageMemberGroupIds,
     ),
   );
-  return { cap, ctx, group: loaded.group, tree };
+  return { ctx, group: loaded.group, limit, tree };
 };
 
 const PACKAGE_NOT_FOUND = { error: "Package not found" } as const;
@@ -1124,10 +1117,10 @@ const handleGetPackage = async (
 ): Promise<Response> => {
   const pkg = await loadPackageContext(slug);
   if (!pkg) return apiResponse(PACKAGE_NOT_FOUND, 404);
-  const { cap, ctx, group, tree } = pkg;
+  const { ctx, group, limit, tree } = pkg;
   const customisable = ctx.listings.some((e) => e.listing.customisable_days);
   const dayCounts = customisable
-    ? packageSharedDayCounts(ctx.listings, ctx.childrenByParentId)
+    ? packageDayCountsChildrenSupport(ctx.listings, ctx.childrenByParentId)
     : [];
   // A hidden package never names its members (or their children) — buyers see
   // only the bundle. `packageQuantities` covers every member by construction.
@@ -1163,7 +1156,7 @@ const handleGetPackage = async (
     package: {
       description: group.description,
       fields: packageMergedFields(ctx),
-      maxPurchasable: cap,
+      maxPurchasable: limit,
       name: group.name,
       slug: group.slug,
       ...(ctx.dates.length > 0 ? { availableDates: ctx.dates } : {}),
@@ -1215,22 +1208,12 @@ const applyPackageChildSelections = (
   return null;
 };
 
-/** Parse and validate a package booking body's order shape: the package count
- * (default 1, an explicit 0 rejected — the no-quantity sentinel is admin-only —
- * clamped to the SAME whole-bundle cap every surface shares
- * (packageBundleCap; the loader's gate computes it too, so it is ≥ 1 short of
- * a booking landing between the two loads — which the atomic write gate
- * rejects downstream), each member's booked quantity, the
- * ONE shared start date a dated package books every member on (offered from
- * the same intersection the web date selector shows), and the fold form seeded
- * with the customisable bundle's chosen span (the same `day_count` field the
- * web form posts, validated against every member's offered counts). Returns a
- * 400 response for any invalid input. */
+/** Reads a package API booking body and builds the form the booking flow uses. */
 const resolvePackageOrder = async (
   body: Record<string, unknown>,
   ctx: TicketCtx,
   tree: BookingTree,
-  cap: number,
+  limit: number,
   hiddenName: string | undefined,
 ): Promise<
   | Response
@@ -1245,7 +1228,7 @@ const resolvePackageOrder = async (
   if (parsedQuantity === 0) {
     return apiResponse({ error: "Quantity must be at least 1" }, 400);
   }
-  const packageQty = Math.min(parsedQuantity ?? 1, cap);
+  const packageQty = Math.min(parsedQuantity ?? 1, limit);
   const quantities = new Map(
     [...fixedQuantitiesByListingId(tree)].map(([listingId, fixed]) => [
       listingId,
@@ -1293,7 +1276,7 @@ const handleBookPackage = async (
   if (limited) return limited;
   const pkg = await loadPackageContext(slug);
   if (!pkg) return apiResponse(PACKAGE_NOT_FOUND, 404);
-  const { cap, ctx, group, tree } = pkg;
+  const { ctx, group, limit, tree } = pkg;
 
   const bodyOrError = await parseApiJsonBody(request);
   if (bodyOrError instanceof Response) return bodyOrError;
@@ -1304,7 +1287,7 @@ const handleBookPackage = async (
     body,
     ctx,
     tree,
-    cap,
+    limit,
     memberStandInName(privacy),
   );
   if (order instanceof Response) return order;

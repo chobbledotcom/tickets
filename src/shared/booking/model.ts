@@ -9,7 +9,7 @@ import {
   type SharedGroupCapacity,
 } from "#shared/types.ts";
 
-/** Listing info with date-less availability resolved for ticket display. */
+/** Listing info with availability ready for ticket display. */
 export type TicketListing = {
   listing: ListingWithCount;
   isSoldOut: boolean;
@@ -17,16 +17,20 @@ export type TicketListing = {
   maxPurchasable: number;
 };
 
-/** The composite key for a parent->child date constraint. */
+/** The key for one parent and one child. */
 export const childDateKey = (parentId: number, childId: number): string =>
   `${parentId}:${childId}`;
 
-/** A daily child's serveable start dates per selectable parent day count. */
-export type ChildSpanDates = ReadonlyMap<number, string[]>;
+/** Start dates a daily child can offer for each parent day count. */
+export type ChildDatesByDayCount = ReadonlyMap<number, string[]>;
 
-/** Encode a child's per-span serveable dates for the `data-child-dates` attribute. */
-export const encodeChildSpanDates = (bySpan: ChildSpanDates): string =>
-  [...bySpan].map(([span, dates]) => `${span}:${dates.join(",")}`).join("|");
+/** Packs child dates for the HTML `data-child-dates` attribute. */
+export const encodeChildDatesByDayCount = (
+  byDayCount: ChildDatesByDayCount,
+): string =>
+  [...byDayCount]
+    .map(([days, dates]) => `${days}:${dates.join(",")}`)
+    .join("|");
 
 /** The child's listing row is active. */
 export const childActive = (child: TicketListing): boolean =>
@@ -35,47 +39,47 @@ export const childActive = (child: TicketListing): boolean =>
 /** The child is not registration-closed. */
 export const childOpen = (child: TicketListing): boolean => !child.isClosed;
 
-/** Date-less sold-out check; daily listings are judged downstream per date. */
+/** Sold-out check before a date is chosen; daily listings are checked later. */
 export const childInStock = (child: TicketListing): boolean => !child.isSoldOut;
 
-const childHasStartForSpan = (
+const childHasStartForDays = (
   child: TicketListing,
-  span: number,
+  days: number,
   holidays: Holiday[],
   parentDates: ReadonlySet<string> | null,
 ): boolean =>
   getBookableStartDates(child.listing, holidays).some(
     (date) =>
       (parentDates === null || parentDates.has(date)) &&
-      isBookingRangeValid(child.listing, date, span, holidays),
+      isBookingRangeValid(child.listing, date, days, holidays),
   );
 
-/** Span-aware calendar/in-stock predicate for discovery and booking gates. */
-export const childCalendarOrInStockForSpan =
+/** Checks a child has either a valid date or ordinary stock. */
+export const childHasDateOrStockForDays =
   (
     holidays: Holiday[],
-    span: number | null,
+    days: number | null,
     parentDates: ReadonlySet<string> | null,
   ) =>
   (child: TicketListing): boolean =>
     child.listing.listing_type === "daily"
-      ? childHasStartForSpan(child, span ?? 1, holidays, parentDates)
+      ? childHasStartForDays(child, days ?? 1, holidays, parentDates)
       : childInStock(child);
 
-/** The child can be priced for the inherited span. */
-export const childPricedForSpan =
-  (duration: number) =>
+/** Checks the child has a price for the chosen day count. */
+export const childHasPriceForDays =
+  (days: number) =>
   (child: TicketListing): boolean =>
     !child.listing.customisable_days ||
-    dayPriceFor(child.listing, duration) !== null;
+    dayPriceFor(child.listing, days) !== null;
 
-/** The child's booked span matches the parent's inherited duration. */
-export const childDurationMatches =
-  (duration: number) =>
+/** Checks a fixed daily child lasts the same number of days as the parent. */
+export const childUsesSameDays =
+  (days: number) =>
   (child: TicketListing): boolean =>
     child.listing.customisable_days ||
     child.listing.listing_type !== "daily" ||
-    normalizeDurationDays(child.listing.duration_days) === duration;
+    normalizeDurationDays(child.listing.duration_days) === days;
 
 /** The order's resolved date is valid for a daily child's own calendar. */
 export const childDateOk =
@@ -88,38 +92,44 @@ export const childDateOk =
       : getBookableStartDates(child.listing, holidays).includes(date);
   };
 
-/** The combined one-parent-plus-one-child minimum order fits shared capacity. */
-export const combinedGroupDemandFits = (cap: SharedGroupCapacity): boolean =>
-  (cap.staticCap === undefined || cap.staticCap >= PARENT_CHILD_GROUP_UNITS) &&
-  (cap.remaining === undefined || cap.remaining >= PARENT_CHILD_GROUP_UNITS);
+/** Checks one parent plus one child can fit in their shared group. */
+export const parentAndChildFitGroup = (
+  capacity: SharedGroupCapacity,
+): boolean =>
+  (capacity.staticCap === undefined ||
+    capacity.staticCap >= PARENT_CHILD_GROUP_UNITS) &&
+  (capacity.remaining === undefined ||
+    capacity.remaining >= PARENT_CHILD_GROUP_UNITS);
 
-/** Whole orders that fit in one capped group pool. */
-export const groupPoolUnits = (remaining: number, demand: number): number =>
-  Math.floor(remaining / demand);
+/** Whole tickets that fit in a shared pool of remaining spots. */
+export const ticketsThatFitInPool = (
+  remaining: number,
+  spotsNeeded: number,
+): number => Math.floor(remaining / spotsNeeded);
 
-/** Combine child-availability atoms into one AND predicate. */
-export const selectableChild =
-  (atoms: ((child: TicketListing) => boolean)[]) =>
+/** Builds one child check from smaller child checks. */
+export const childPassesAllChecks =
+  (checks: ((child: TicketListing) => boolean)[]) =>
   (child: TicketListing): boolean =>
-    atoms.every((atom) => atom(child));
+    checks.every((check) => check(child));
 
-/** Date- and span-independent child disqualifiers. */
-export const childSelectableIgnoringSpan: (child: TicketListing) => boolean =
-  selectableChild([childActive, childOpen, childInStock]);
+/** Checks if a child can be picked before the buyer chooses days. */
+export const childCanBePickedBeforeDays: (child: TicketListing) => boolean =
+  childPassesAllChecks([childActive, childOpen, childInStock]);
 
-/** Bookable child ids for surfaces that price or cap over child nodes. */
+/** Child ids that can still be booked. */
 export const bookableChildIds = (
   childrenByParentId: ReadonlyMap<number, readonly TicketListing[]> | undefined,
 ): ReadonlySet<number> =>
   new Set(
     [...(childrenByParentId?.values() ?? [])]
       .flat()
-      .filter(childSelectableIgnoringSpan)
+      .filter(childCanBePickedBeforeDays)
       .map((child) => child.listing.id),
   );
 
-/** Resolve the duration a parent's children inherit. */
-export const resolveInheritedDuration = <T extends number | null>(
+/** Gets the day count a child should use from its parent. */
+export const childDaysFromParent = <T extends number | null>(
   parent: Pick<
     ListingWithCount,
     "customisable_days" | "duration_days" | "listing_type"
@@ -134,34 +144,35 @@ export const resolveInheritedDuration = <T extends number | null>(
   return standardValue;
 };
 
-/** A parent's fixed inherited span, or null when the buyer chooses the span. */
-export const fixedParentSpan = (
+/** A parent's fixed day count, or null when the buyer chooses it. */
+export const fixedParentDays = (
   parent: Pick<
     ListingWithCount,
     "customisable_days" | "duration_days" | "listing_type"
   >,
 ): number | null =>
-  resolveInheritedDuration<number | null>(
+  childDaysFromParent<number | null>(
     parent,
     null,
     normalizeDurationDays(parent.duration_days),
   );
 
-/** Constrain options to those at least one selectable child supports. */
-export const constrainOptionsByChildUnion = <T>(
+/** Keeps options that at least one child can support. */
+export const keepOptionsSomeChildSupports = <T>(
   options: T[],
   children: readonly TicketListing[],
-  selectable: (child: TicketListing) => boolean,
-  contribution: (child: TicketListing) => T[],
+  canUseChild: (child: TicketListing) => boolean,
+  optionsForChild: (child: TicketListing) => T[],
 ): T[] => {
-  const union = new Set<T>();
-  for (const child of children.filter(selectable)) {
-    for (const value of contribution(child)) union.add(value);
+  const supported = new Set<T>();
+  for (const child of children.filter(canUseChild)) {
+    for (const value of optionsForChild(child)) supported.add(value);
   }
-  return options.filter((value) => union.has(value));
+  return options.filter((value) => supported.has(value));
 };
 
-export const foldMembersWithChildren = <T>(
+/** Runs a step for each listing that has children, carrying the result along. */
+export const updateForMembersWithChildren = <T>(
   members: readonly TicketListing[],
   childrenByParentId: ReadonlyMap<number, readonly TicketListing[]>,
   initial: T,
@@ -178,7 +189,7 @@ export const foldMembersWithChildren = <T>(
       : step(current, member, children);
   }, initial);
 
-/** Build a date-less availability projection for a listing. */
+/** Builds listing availability for ticket pages before a date is chosen. */
 export const buildTicketListing = (
   listing: ListingWithCount,
   closed: boolean,
@@ -198,8 +209,10 @@ export const buildTicketListing = (
   return { isClosed: closed, isSoldOut, listing, maxPurchasable };
 };
 
-/** Shared day-count options across every customisable listing on a page. */
-export const sharedDayCounts = (listings: TicketListing[]): number[] => {
+/** Day counts every customisable listing on the page supports. */
+export const dayCountsEveryListingSupports = (
+  listings: TicketListing[],
+): number[] => {
   const customisable = listings.filter(
     (listing) => listing.listing.customisable_days,
   );
@@ -213,8 +226,10 @@ export const sharedDayCounts = (listings: TicketListing[]): number[] => {
     .sort((a, b) => a - b);
 };
 
-/** The day-count spans a required child supports, or null for no span constraint. */
-export const childSupportedSpans = (child: TicketListing): number[] | null => {
+/** Day counts a required child supports, or null when any count is fine. */
+export const dayCountsChildSupports = (
+  child: TicketListing,
+): number[] | null => {
   if (child.listing.customisable_days) return availableDayCounts(child.listing);
   if (child.listing.listing_type === "daily") {
     return [normalizeDurationDays(child.listing.duration_days)];
@@ -222,42 +237,46 @@ export const childSupportedSpans = (child: TicketListing): number[] | null => {
   return null;
 };
 
-/** Fold each member's selectable-child span union over `counts`. */
-export const constrainCountsForMembers = (
+/** Keeps day counts that each member's children can support. */
+export const keepDayCountsChildrenSupport = (
   members: TicketListing[],
   counts: number[],
   childrenByParentId: ReadonlyMap<number, TicketListing[]>,
 ): number[] =>
-  foldMembersWithChildren(
+  updateForMembersWithChildren(
     members,
     childrenByParentId,
     counts,
     (current, _member, children) =>
-      constrainOptionsByChildUnion(
+      keepOptionsSomeChildSupports(
         current,
         children,
-        childSelectableIgnoringSpan,
-        (child) => childSupportedSpans(child) ?? current,
+        childCanBePickedBeforeDays,
+        (child) => dayCountsChildSupports(child) ?? current,
       ),
   );
 
-/** Constrain a customisable parent's day counts to selectable child support. */
-export const constrainDayCountsByChildUnion = (
+/** Keeps parent day counts that at least one child can support. */
+export const keepParentDayCountsChildrenSupport = (
   listings: TicketListing[],
   parentDayCounts: number[],
   childrenByParentId: ReadonlyMap<number, TicketListing[]> | undefined,
 ): number[] =>
   !childrenByParentId || listings.length !== 1
     ? parentDayCounts
-    : constrainCountsForMembers(listings, parentDayCounts, childrenByParentId);
+    : keepDayCountsChildrenSupport(
+        listings,
+        parentDayCounts,
+        childrenByParentId,
+      );
 
-/** A package's day-count options constrained by every parent member's children. */
-export const packageSharedDayCounts = (
+/** Package day counts that all parent members and children can support. */
+export const packageDayCountsChildrenSupport = (
   listings: TicketListing[],
   childrenByParentId: ReadonlyMap<number, TicketListing[]>,
 ): number[] =>
-  constrainCountsForMembers(
+  keepDayCountsChildrenSupport(
     listings,
-    sharedDayCounts(listings),
+    dayCountsEveryListingSupports(listings),
     childrenByParentId,
   );
