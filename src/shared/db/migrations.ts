@@ -315,8 +315,16 @@ export const MIGRATION_IDS: string[] = MIGRATIONS.map(
  * there is no legacy data to backfill or reshape. Creating the latest schema in
  * one pass keeps first boot fast while still recording every migration marker so
  * future boots use the normal up-to-date path.
+ *
+ * Exported for the restore path: after resetDatabase() wipes every table,
+ * restoreFromSql rebuilds the schema by calling this directly instead of going
+ * through initDb. initDb's state check reads the settings markers, and a
+ * lagging read replica can still serve the pre-wipe rows — a stale "up to
+ * date" answer routes boot into schema verification against the wiped primary
+ * and fails the whole restore with "missing table settings". Here we already
+ * know the database was just wiped, so there is no state to check.
  */
-const initializeFreshSchema = async (): Promise<void> => {
+export const initializeFreshSchema = async (): Promise<void> => {
   logDebug("Migration", "Initializing fresh database from current schema");
   await applySchemaChanges();
   await syncIndexes();
