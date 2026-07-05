@@ -3,7 +3,7 @@ import { stub } from "@std/testing/mock";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { assertJson } from "./assertions.ts";
-import { signMeta, webhookMeta } from "./factories.ts";
+import { signedMeta } from "./factories.ts";
 import { mockWebhookRequest } from "./mocks.ts";
 import { stubWebhookVerify } from "./settings.ts";
 
@@ -269,34 +269,37 @@ export const expectWebhookIgnored = (
  * Stub `stripeApi.retrieveCheckoutSession` — the shape the `/payment/success`
  * redirect handler reads directly from Stripe, as opposed to the webhook's
  * signed-event path (see `checkoutSessionEvent`/`stubWebhookVerify` for that).
- * `email`/`items`/`name` build the standard signed metadata via
- * `webhookMeta`/`signMeta`; pass `metadata` directly instead for a scenario
- * that needs a non-standard or corrupt shape.
+ * `email`/`items`/`name` build the standard signed metadata via `signedMeta`;
+ * pass `metadata` directly instead for a scenario that needs a non-standard
+ * or corrupt shape. The two variants are exclusive by type, so a caller
+ * can't hand over a `metadata` blob and stray identity fields at once.
  */
-export const stubRetrieveCheckoutSession = (session: {
-  sessionId: string;
-  amountTotal?: number;
-  paymentIntent: string | null;
-  paymentStatus?: string;
-  metadata?: Record<string, unknown>;
-  email?: string;
-  items?: string;
-  name?: string;
-}) =>
+export const stubRetrieveCheckoutSession = (
+  session: {
+    sessionId: string;
+    amountTotal: number;
+    paymentIntent: string | null;
+    paymentStatus?: string;
+  } & (
+    | { metadata: Record<string, unknown> }
+    | { email: string; items: string; name: string }
+  ),
+) =>
   stub(stripeApi, "retrieveCheckoutSession", () =>
     Promise.resolve({
       amount_total: session.amountTotal,
       id: session.sessionId,
       metadata:
-        session.metadata ??
-        signMeta(
-          webhookMeta({
-            email: session.email ?? "",
-            items: session.items ?? "",
-            name: session.name ?? "",
-          }),
-          session.amountTotal ?? 0,
-        ),
+        "metadata" in session
+          ? session.metadata
+          : signedMeta(
+              {
+                email: session.email,
+                items: session.items,
+                name: session.name,
+              },
+              session.amountTotal,
+            ),
       payment_intent: session.paymentIntent,
       payment_status: session.paymentStatus ?? "paid",
     } as unknown as Awaited<
