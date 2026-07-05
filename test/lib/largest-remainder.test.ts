@@ -55,4 +55,21 @@ describe("largestRemainderAllocation", () => {
   test("returns zeros for an amount that is negative but greater than -1", () => {
     expect(largestRemainderAllocation([10, 20], -0.5)).toEqual([0, 0]);
   });
+
+  test("never calls the tie-break or cap hooks when the amount is exactly zero", () => {
+    // A zero amount must short-circuit before any per-weight logic runs, even
+    // though the maths would come out to zero anyway if it didn't.
+    const calls: string[] = [];
+    largestRemainderAllocation([10, 20], 0, {
+      tieBreaker: (index) => {
+        calls.push(`tieBreaker:${index}`);
+        return index;
+      },
+      canReceive: (index) => {
+        calls.push(`canReceive:${index}`);
+        return true;
+      },
+    });
+    expect(calls).toEqual([]);
+  });
 });
