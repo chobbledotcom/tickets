@@ -13,9 +13,8 @@ import {
   mockRequest,
   setupStripe,
   signedMeta,
-  signMeta,
   singleItem,
-  webhookMeta,
+  stubRetrieveCheckoutSession,
 } from "#test-utils";
 
 /** A listing whose registration closed a minute ago — every closes_at test
@@ -38,24 +37,14 @@ describeWithEnv(
 
       const listing = await createClosedListing(1000);
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 1000,
-          id: "cs_closed",
-          metadata: signMeta(
-            webhookMeta({
-              email: "john@example.com",
-              items: singleItem(listing.id, 1, 1000),
-              name: "John",
-            }),
-            1000,
-          ),
-          payment_intent: "pi_closed",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 1000,
+        email: "john@example.com",
+        items: singleItem(listing.id, 1, 1000),
+        name: "John",
+        paymentIntent: "pi_closed",
+        sessionId: "cs_closed",
+      });
 
       const mockRefund = stub(stripeApi, "refundPayment", () =>
         Promise.resolve({ id: "re_test" } as unknown as Awaited<

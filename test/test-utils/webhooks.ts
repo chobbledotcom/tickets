@@ -4,6 +4,7 @@ import { handleRequest } from "#routes";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { assertJson } from "./assertions.ts";
+import { signMeta, webhookMeta } from "./factories.ts";
 import { mockWebhookRequest } from "./mocks.ts";
 import { stubWebhookVerify } from "./settings.ts";
 
@@ -223,3 +224,42 @@ export const expectWebhookIgnored = async (
     extraCleanup,
   );
 };
+
+/**
+ * Stub `stripeApi.retrieveCheckoutSession` — the shape the `/payment/success`
+ * redirect handler reads directly from Stripe, as opposed to the webhook's
+ * signed-event path (see `checkoutSessionEvent`/`stubWebhookVerify` for that).
+ * `email`/`items`/`name` build the standard signed metadata via
+ * `webhookMeta`/`signMeta`; pass `metadata` directly instead for a scenario
+ * that needs a non-standard or corrupt shape.
+ */
+export const stubRetrieveCheckoutSession = (session: {
+  sessionId: string;
+  amountTotal?: number;
+  paymentIntent: string | null;
+  paymentStatus?: string;
+  metadata?: Record<string, unknown>;
+  email?: string;
+  items?: string;
+  name?: string;
+}) =>
+  stub(stripeApi, "retrieveCheckoutSession", () =>
+    Promise.resolve({
+      amount_total: session.amountTotal,
+      id: session.sessionId,
+      metadata:
+        session.metadata ??
+        signMeta(
+          webhookMeta({
+            email: session.email ?? "",
+            items: session.items ?? "",
+            name: session.name ?? "",
+          }),
+          session.amountTotal ?? 0,
+        ),
+      payment_intent: session.paymentIntent,
+      payment_status: session.paymentStatus ?? "paid",
+    } as unknown as Awaited<
+      ReturnType<typeof stripeApi.retrieveCheckoutSession>
+    >),
+  );

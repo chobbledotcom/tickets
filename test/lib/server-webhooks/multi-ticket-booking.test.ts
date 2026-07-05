@@ -40,7 +40,7 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
       unitPrice: 1000,
     });
 
-    const mockVerify = await stubWebhookVerify(
+    await expectWebhookProcessed(
       checkoutSessionEvent({
         amountTotal: 2000,
         eventId: "evt_multi",
@@ -59,17 +59,6 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
         paymentIntent: "pi_multi_webhook",
         sessionId: "cs_multi_webhook",
       }),
-    );
-
-    await postWebhookAndAssert(
-      () => {
-        mockVerify.restore();
-      },
-      200,
-      (json) => {
-        expect(json.received).toBe(true);
-        expect(json.processed).toBe(true);
-      },
     );
 
     // Verify attendees were created for both listings
@@ -92,7 +81,7 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
 
     const allocations = [{ childId: child.id, parentId: parent.id, qty: 1 }];
 
-    const mockVerify = await stubWebhookVerify(
+    await expectWebhookProcessed(
       checkoutSessionEvent({
         amountTotal: 1000,
         eventId: "evt_alloc",
@@ -111,17 +100,6 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
         paymentIntent: "pi_alloc",
         sessionId: "cs_webhook_alloc",
       }),
-    );
-
-    await postWebhookAndAssert(
-      () => {
-        mockVerify.restore();
-      },
-      200,
-      (json) => {
-        expect(json.received).toBe(true);
-        expect(json.processed).toBe(true);
-      },
     );
 
     const { getAttendeesRaw } = await import("#shared/db/attendees.ts");

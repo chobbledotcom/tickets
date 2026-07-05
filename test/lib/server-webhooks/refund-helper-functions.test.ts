@@ -13,9 +13,8 @@ import {
   mockRequest,
   setupStripe,
   signedMeta,
-  signMeta,
   singleItem,
-  webhookMeta,
+  stubRetrieveCheckoutSession,
 } from "#test-utils";
 
 describeWithEnv(
@@ -35,24 +34,14 @@ describeWithEnv(
       });
       await deactivateTestListing(listing.id);
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 1000,
-          id: "cs_null_ref",
-          metadata: signMeta(
-            webhookMeta({
-              email: "john@example.com",
-              items: singleItem(listing.id, 1, 1000),
-              name: "John",
-            }),
-            1000,
-          ),
-          payment_intent: null, // No payment reference
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 1000,
+        email: "john@example.com",
+        items: singleItem(listing.id, 1, 1000),
+        name: "John",
+        paymentIntent: null, // No payment reference
+        sessionId: "cs_null_ref",
+      });
 
       try {
         const response = await handleRequest(
@@ -158,24 +147,14 @@ describeWithEnv(
         name: "Create Boom",
         unitPrice: 500,
       });
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 500,
-          id: "cs_create_boom",
-          metadata: signMeta(
-            webhookMeta({
-              email: "boom@example.com",
-              items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
-              name: "Boom",
-            }),
-            500,
-          ),
-          payment_intent: "pi_create_boom",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 500,
+        email: "boom@example.com",
+        items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
+        name: "Boom",
+        paymentIntent: "pi_create_boom",
+        sessionId: "cs_create_boom",
+      });
       const mockRefund = stub(stripeApi, "refundPayment", () =>
         Promise.resolve({ id: "re_test" } as unknown as Awaited<
           ReturnType<typeof stripeApi.refundPayment>
