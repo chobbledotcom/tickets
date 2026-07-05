@@ -21,7 +21,7 @@ import {
   resetListingAggregateFields,
 } from "#shared/db/listings.ts";
 import { getFlash } from "#shared/flash-context.ts";
-import { adminListingRecalculatePage } from "#templates/admin/listings.tsx";
+import { adminListingRecalculatePage } from "#templates/admin/listings/aggregates.tsx";
 import { withEntityFromParam } from "./entity-handlers.ts";
 
 /* jscpd:ignore-end */

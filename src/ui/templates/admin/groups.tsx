@@ -35,7 +35,13 @@ import {
   errorAdminPage,
   successAdminPage,
 } from "#templates/admin/admin-page.tsx";
+import {
+  AttendeeTableBlock,
+  attendeeTableOptions,
+} from "#templates/admin/attendee-table-block.tsx";
+import { CatalogExportNav } from "#templates/admin/catalog-export-nav.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+import { CopyableInputRow } from "#templates/admin/copyable-row.tsx";
 import {
   renderListingRows,
   renderListingTable,
@@ -47,13 +53,15 @@ import {
 } from "#templates/admin/detail-rows.tsx";
 import {
   type ExpectedActualItem,
-  ExpectedActualNotice,
-  hasExpectedActualMismatches,
+  ExpectedActualTableRow,
 } from "#templates/admin/expected-actual.tsx";
 import {
-  AttendeeTable,
-  type AttendeeTableRow,
-  type TableQuestionData,
+  PublicTicketLink,
+  UnavailablePublicUrlRow,
+} from "#templates/admin/share-rows.tsx";
+import type {
+  AttendeeTableRow,
+  TableQuestionData,
 } from "#templates/attendee-table.tsx";
 import {
   ActionButton,
@@ -61,6 +69,7 @@ import {
   SaveChangesButton,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 import { DataTable, textColumns } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
@@ -252,15 +261,7 @@ export const GroupEditPanel = ({
     {/* Export lives here too, not only on the (staff-only) Overview/Actions
         tabs, so a content editor — who only reaches this Edit tab, never the
         staff surfaces — can still download the group's catalog blob. */}
-    <nav>
-      <ul>
-        <li>
-          <a href={`/admin/groups/${group.id}/export.json`}>
-            {t("catalog_transfer.export_link")}
-          </a>
-        </li>
-      </ul>
-    </nav>
+    <CatalogExportNav href={`/admin/groups/${group.id}/export.json`} />
     <CsrfForm action={`/admin/groups/${group.id}/edit`}>
       <Raw html={renderFields(getGroupFields(), groupToFieldValues(group))} />
       <PackageMembersTable listings={listings} members={members} />
@@ -366,21 +367,16 @@ const GroupAggregateMismatchRow = ({
   listings: ListingWithCount[];
 }): JSX.Element | null => {
   const items = groupAggregateMismatchItems(listings, attendees);
-  if (!hasExpectedActualMismatches(items)) return null;
-  return (
-    <tr>
-      <th>{t("groups.running_total_check")}</th>
-      <td>
-        <ExpectedActualNotice
-          actionHref="#listings"
-          actionLabel={t("groups.running_totals_error_action")}
-          explanation={t("groups.running_totals_error_explanation")}
-          items={items}
-          title={t("groups.running_totals_error_title")}
-        />
-      </td>
-    </tr>
-  );
+  return ExpectedActualTableRow({
+    header: t("groups.running_total_check"),
+    notice: {
+      actionHref: "#listings",
+      actionLabel: t("groups.running_totals_error_action"),
+      explanation: t("groups.running_totals_error_explanation"),
+      items,
+      title: t("groups.running_totals_error_title"),
+    },
+  });
 };
 
 /** Render the group-attendees row. The cap fragment is omitted when the
@@ -419,18 +415,6 @@ const GroupAttendeesRow = ({
   );
 };
 
-/** A two-column <tr> with a labelled read-only input field. */
-const readonlyRow = (label: string, id: string, value: string): JSX.Element => (
-  <tr>
-    <th>
-      <label for={id}>{label}</label>
-    </th>
-    <td>
-      <input data-select-on-click id={id} readonly type="text" value={value} />
-    </td>
-  </tr>
-);
-
 /**
  * Admin group detail page - shows group info, listings in group, and add-listings form
  */
@@ -458,31 +442,26 @@ const GroupShareRows = ({
       <tr>
         <th>{t("common.public_url")}</th>
         <td>
-          <a href={ticketUrl}>{`${allowedDomain}/ticket/${group.slug}`}</a>
-          <small>
-            {" "}
-            (<a href={`/ticket/${group.slug}/qr`}>{t("common.qr_code")}</a>)
-          </small>
+          <PublicTicketLink
+            href={ticketUrl}
+            label={`${allowedDomain}/ticket/${group.slug}`}
+            qrHref={`/ticket/${group.slug}/qr`}
+          />
         </td>
       </tr>
-      {readonlyRow(
-        t("common.embed_script"),
-        `embed-script-${group.id}`,
-        embedScriptCode,
-      )}
-      {readonlyRow(
-        t("common.embed_iframe"),
-        `embed-iframe-${group.id}`,
-        embedIframeCode,
-      )}
+      {CopyableInputRow({
+        id: `embed-script-${group.id}`,
+        label: t("common.embed_script"),
+        value: embedScriptCode,
+      })}
+      {CopyableInputRow({
+        id: `embed-iframe-${group.id}`,
+        label: t("common.embed_iframe"),
+        value: embedIframeCode,
+      })}
     </>
   ) : (
-    <tr>
-      <th>{t("common.public_url")}</th>
-      <td>
-        <em>{t("groups.detail.share_unavailable")}</em>
-      </td>
-    </tr>
+    <UnavailablePublicUrlRow message={t("groups.detail.share_unavailable")} />
   );
 
 /**
@@ -580,14 +559,12 @@ export const GroupOverviewPanel = ({
           <CsrfForm action={`/admin/groups/${group.id}/add-listings`}>
             <fieldset class="checkboxes">
               {ungroupedListings.map((e) => (
-                <label>
-                  <input
-                    name="listing_ids"
-                    type="checkbox"
-                    value={String(e.id)}
-                  />
-                  {` ${e.name}`}
-                </label>
+                <CheckboxLabel
+                  checked={undefined}
+                  label={` ${e.name}`}
+                  name="listing_ids"
+                  value={String(e.id)}
+                />
               ))}
             </fieldset>
             <SubmitButton icon="plus">
@@ -622,18 +599,16 @@ export const GroupAttendeesPanel = ({
 }): JSX.Element => (
   <article>
     <h2 id="attendees">{t("terms.attendees")}</h2>
-    <div class="table-scroll">
-      <Raw
-        html={AttendeeTable({
-          allowedDomain,
-          ...(phonePrefix !== undefined ? { phonePrefix } : {}),
-          ...(questionData !== undefined ? { questionData } : {}),
-          returnUrl: `/admin/groups/${group.id}/attendees`,
-          rows: buildAttendeeRows(attendees, listings),
-          showDate: listings.some((e) => e.listing_type === "daily"),
-          showListing: true,
-        })}
-      />
-    </div>
+    <AttendeeTableBlock
+      options={attendeeTableOptions({
+        allowedDomain,
+        phonePrefix,
+        questionData,
+        returnUrl: `/admin/groups/${group.id}/attendees`,
+        rows: buildAttendeeRows(attendees, listings),
+        showDate: listings.some((e) => e.listing_type === "daily"),
+        showListing: true,
+      })}
+    />
   </article>
 );

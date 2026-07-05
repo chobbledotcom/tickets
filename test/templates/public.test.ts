@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { buildTicketListing } from "#shared/booking/model.ts";
 import { getCurrentCsrfToken, signCsrfToken } from "#shared/csrf.ts";
 import { addDays } from "#shared/dates.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -12,7 +13,6 @@ import type { ListingWithCount } from "#shared/types.ts";
 import { fieldsApi } from "#templates/fields.ts";
 import {
   buildOgTags,
-  buildTicketListing,
   migrationInProgressPage,
   notFoundPage,
   renderListingImage,

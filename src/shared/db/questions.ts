@@ -6,6 +6,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import * as v from "valibot";
 import { filter, map, reduce } from "#fp";
 /* jscpd:ignore-start */
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
@@ -43,12 +44,14 @@ import { nowIso } from "#shared/now.ts";
 
 /** A custom multiple-choice question */
 export const QUESTION_DISPLAY_TYPES = ["radio", "select", "free_text"] as const;
-export type QuestionDisplayType = (typeof QUESTION_DISPLAY_TYPES)[number];
+export const QuestionDisplayTypeSchema = v.picklist(QUESTION_DISPLAY_TYPES);
+export type QuestionDisplayType = v.InferOutput<
+  typeof QuestionDisplayTypeSchema
+>;
 
 export const isQuestionDisplayType = (
   value: string,
-): value is QuestionDisplayType =>
-  QUESTION_DISPLAY_TYPES.includes(value as QuestionDisplayType);
+): value is QuestionDisplayType => v.is(QuestionDisplayTypeSchema, value);
 
 export const questionDisplayTypeError =
   "Display as must be radio buttons, a select box, or free text";

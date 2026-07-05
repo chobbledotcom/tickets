@@ -1,4 +1,5 @@
 import { map } from "#fp";
+import type { TicketListing } from "#shared/booking/model.ts";
 import { packageMemberPriceRule } from "#shared/booking/price-tree.ts";
 import {
   type BookingNode,
@@ -14,7 +15,6 @@ import {
   type Visibility,
 } from "#shared/booking/tree.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import type { TicketListing } from "#templates/public/shared.tsx";
 
 /**
  * The pure, DB-free builder that turns the data a booking page has already

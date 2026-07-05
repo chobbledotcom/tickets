@@ -13,10 +13,10 @@ import { getSearchParam } from "#routes/url.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
-  type AttendeeFilter,
   completePaymentAttendees,
   filterAttendees,
-} from "#templates/admin/listings.tsx";
+} from "#templates/admin/listings/attendees.tsx";
+import type { AttendeeFilter } from "#templates/admin/listings/types.ts";
 import {
   filteredAttendeesHandler,
   loadListingQuestionData,

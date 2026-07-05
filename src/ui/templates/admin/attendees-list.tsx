@@ -22,7 +22,7 @@ import type {
 } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
-import { AttendeeTable } from "#templates/attendee-table.tsx";
+import { AttendeeTableBlock } from "#templates/admin/attendee-table-block.tsx";
 import { ActionButton } from "#templates/components/actions.tsx";
 import {
   SelectField,
@@ -222,26 +222,23 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
           notes={props.systemNotes ?? []}
         />
 
-        <div class="table-scroll">
-          <Raw
-            html={AttendeeTable({
-              allowedDomain: props.allowedDomain,
-              emptyMessage: t("attendees_list.no_attendees_yet"),
-              phonePrefix: props.phonePrefix,
-              presorted: true,
-              rows: props.rows,
-              showCheckin: false,
-              showDate: false,
-              showListing: true,
-            })}
-          />
-        </div>
-
-        <div class="table-actions">
-          <a href={csvHref(props.listingId, props.type)}>
-            {t("listings_table.export_csv")}
-          </a>
-        </div>
+        <AttendeeTableBlock
+          actions={
+            <a href={csvHref(props.listingId, props.type)}>
+              {t("listings_table.export_csv")}
+            </a>
+          }
+          options={{
+            allowedDomain: props.allowedDomain,
+            emptyMessage: t("attendees_list.no_attendees_yet"),
+            phonePrefix: props.phonePrefix,
+            presorted: true,
+            rows: props.rows,
+            showCheckin: false,
+            showDate: false,
+            showListing: true,
+          }}
+        />
       </div>
 
       <Pagination

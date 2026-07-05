@@ -17,6 +17,7 @@ import { getSearchParam } from "#routes/url.ts";
 import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { isAttendeeSort } from "#shared/db/attendees/queries.ts";
 import {
   type AttendeeSort,
   decryptAttendees,
@@ -43,9 +44,13 @@ import {
 } from "#shared/validation/number.ts";
 import { adminAttendeesListPage } from "#templates/admin/attendees-list.tsx";
 
-/** Parse the ?sort= param, defaulting to newest-first */
-const parseSort = (request: Request): AttendeeSort =>
-  getSearchParam(request, "sort") === "oldest" ? "oldest" : "newest";
+/** Parse the ?sort= param, defaulting to newest-first. Validates against the
+ *  {@link AttendeeSort} picklist so the URL is the single source of valid sort
+ *  values — no second hand-listed `=== "oldest"` here. */
+const parseSort = (request: Request): AttendeeSort => {
+  const raw = getSearchParam(request, "sort");
+  return raw !== null && isAttendeeSort(raw) ? raw : "newest";
+};
 
 /** Parse the ?page= param into a zero-based, non-negative page index */
 const parsePage = (request: Request): number => {

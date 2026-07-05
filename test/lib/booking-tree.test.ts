@@ -4,6 +4,7 @@ import {
   type BuildTreeInput,
   buildBookingTree,
 } from "#shared/booking/build-tree.ts";
+import { buildTicketListing } from "#shared/booking/model.ts";
 import {
   type BookingNode,
   childNodeKey,
@@ -18,7 +19,6 @@ import {
   packageMemberNodeKey,
   quantityFieldName,
 } from "#shared/booking/tree.ts";
-import { buildTicketListing } from "#templates/public/shared.tsx";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 const resolved = (overrides = {}, closed = false, groupRemaining = undefined) =>

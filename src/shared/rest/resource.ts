@@ -22,6 +22,7 @@ import type { Table } from "#shared/db/table.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Field, FieldValues } from "#shared/forms.tsx";
 import { validateForm } from "#shared/forms.tsx";
+import type { ParseResult } from "#shared/rest/crud-api.ts";
 
 /** Success result with data */
 type SuccessResult<T> = { ok: true } & T;
@@ -43,9 +44,6 @@ export type UpdateResult<Row> =
 
 /** Result type for delete operations */
 export type DeleteResult = SuccessResult<object> | ErrorResult | NotFoundResult;
-
-/** Result type for input parsing */
-export type ParseResult<Input> = SuccessResult<{ input: Input }> | ErrorResult;
 
 /** Validation function type — Id defaults to InValue for broad compatibility */
 type ValidateFn<Input, Id = InValue> =

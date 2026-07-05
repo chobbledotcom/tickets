@@ -25,7 +25,7 @@ import {
   adminDeactivateListingPage,
   adminDeleteListingPage,
   adminReactivateListingPage,
-} from "#templates/admin/listings.tsx";
+} from "#templates/admin/listings/lifecycle.tsx";
 import { withEntityFromParam } from "./entity-handlers.ts";
 
 /* jscpd:ignore-end */

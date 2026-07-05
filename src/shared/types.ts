@@ -124,6 +124,35 @@ export type ListingType = v.InferOutput<typeof ListingTypeSchema>;
 export const isListingType = (s: string): s is ListingType =>
   v.is(ListingTypeSchema, s);
 
+/** Schema for the persisted email template types: the attendee confirmation and
+ *  the admin notification. The single source of truth for the template
+ *  discriminator used by the renderer, settings store, and admin forms. */
+export const EmailTemplateTypeSchema = v.picklist(["confirmation", "admin"]);
+
+/** Persisted email template type */
+export type EmailTemplateType = v.InferOutput<typeof EmailTemplateTypeSchema>;
+
+/** Type guard: check if a string is a valid EmailTemplateType */
+export const isEmailTemplateType = (s: string): s is EmailTemplateType =>
+  v.is(EmailTemplateTypeSchema, s);
+
+/** Schema for the parts of an email template: the subject line, the html
+ *  body, and the plain-text body. */
+export const EmailTemplateFormatSchema = v.picklist([
+  "subject",
+  "html",
+  "text",
+]);
+
+/** A single part of an email template */
+export type EmailTemplateFormat = v.InferOutput<
+  typeof EmailTemplateFormatSchema
+>;
+
+/** Type guard: check if a string is a valid EmailTemplateFormat */
+export const isEmailTemplateFormat = (s: string): s is EmailTemplateFormat =>
+  v.is(EmailTemplateFormatSchema, s);
+
 /** Whether an listing can accept payments: a flat price, pay-what-you-want, or
  * a customisable-days listing with at least one non-zero day-count price. */
 export const isPaidListing = (
@@ -524,6 +553,12 @@ export const SITE_ADMIN_LEVELS = ["owner", "editor"] as const;
  * (`/admin/deliveries`): staff plus delivery `agent`s. This is the audience the
  * run sheet has always had; the content-only `editor` is excluded. */
 export const DELIVERY_ADMIN_LEVELS = ["owner", "manager", "agent"] as const;
+
+/** Every admin role level — used to gate actions every authenticated user must
+ *  reach (e.g. logout). Derived from {@link AdminLevelSchema} so adding a new
+ *  role propagates automatically instead of being hand-listed here. */
+export const ALL_ADMIN_LEVELS =
+  AdminLevelSchema.options as readonly AdminLevel[];
 
 /** Admin role levels */
 export type AdminLevel = v.InferOutput<typeof AdminLevelSchema>;

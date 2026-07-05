@@ -11,7 +11,7 @@
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import {
-  constrainParentDailyDates,
+  keepParentDailyDatesChildrenCanServe,
   lacksStandalonePublicPage,
 } from "#routes/public/ticket-payment.ts";
 import {
@@ -49,19 +49,16 @@ export const EMPTY_QR_VALUES: AdminListingQrValues = {
 
 /** Load bookable dates for daily listings (empty for standard listings).
  * Customisable listings use single-day availability — the visitor chooses the
- * span on the booking form — so every individually-bookable start is offered.
+ * day count on the booking form — so every individually-bookable start is offered.
  *
- * When the listing is a parent, the offered dates are constrained to those at
- * least one required child can serve for the inherited span
- * (`constrainParentDailyDates`) — the same union the scanned booking form
- * enforces — so an admin can't mint a QR for a date the child-constrained
- * booking form would reject. A no-op for a daily listing with no child edges. */
+ * When the listing is a parent, keep only dates at least one required child can
+ * serve. A daily listing with no children is returned unchanged. */
 export const loadBookableDates = async (
   listing: ListingWithCount,
 ): Promise<string[]> => {
   if (listing.listing_type !== "daily") return [];
   const holidays = await getActiveHolidays();
-  return constrainParentDailyDates(
+  return keepParentDailyDatesChildrenCanServe(
     listing,
     getBookableStartDates(listing, holidays),
     holidays,

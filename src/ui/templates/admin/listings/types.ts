@@ -1,0 +1,81 @@
+import type {
+  ListingAggregateRecalculation,
+  ListingRevenueBreakdown,
+} from "#shared/db/listings.ts";
+import type { SystemNote } from "#shared/db/system-notes.ts";
+import type {
+  AdminSession,
+  Attendee,
+  Group,
+  ListingWithCount,
+} from "#shared/types.ts";
+import type { CheckedInStats } from "#templates/admin/detail-rows.tsx";
+import type { AccountLedgerData } from "#templates/admin/ledger.tsx";
+import type { TableQuestionData } from "#templates/attendee-table.tsx";
+
+export type DateOption = { value: string; label: string };
+
+export type AttendeeFilter = "all" | "in" | "out";
+
+export type GroupContext = {
+  group: Group;
+  attendeeCount: number;
+};
+
+type ListingPanelSharedOptions = {
+  aggregateRecalculation?: ListingAggregateRecalculation | undefined;
+  questionData?: TableQuestionData | undefined;
+  groupContext?: GroupContext | undefined;
+  revenueBreakdown?: ListingRevenueBreakdown | undefined;
+  ledger?: AccountLedgerData | undefined;
+  isChild?: boolean | undefined;
+  isHiddenPackageMember?: boolean | undefined;
+  systemNotes?: SystemNote[] | undefined;
+};
+
+export type ListingPanelOptions = ListingPanelSharedOptions & {
+  listing: ListingWithCount;
+  attendees: Attendee[];
+  allowedDomain: string;
+  activeFilter?: AttendeeFilter | undefined;
+  dateFilter?: string | null | undefined;
+  availableDates?: DateOption[] | undefined;
+  phonePrefix?: string | undefined;
+  hasEmailableAttendees?: boolean | undefined;
+  childNames?: string[] | undefined;
+};
+
+export type OverviewStats = {
+  adjustedCount: number;
+  completeQuantitySum: number;
+  checkedInStats: CheckedInStats;
+  completeRevenue: number;
+};
+
+export type ListingOverviewPanelOptions = ListingPanelSharedOptions & {
+  listing: ListingWithCount;
+  allowedDomain: string;
+  stats: OverviewStats;
+  noteNames: Map<number, string>;
+};
+
+export type ChildCandidate = {
+  listing: ListingWithCount;
+  ineligibleReason: string | null;
+};
+
+export type ListingEditPanelOptions = {
+  listing: ListingWithCount;
+  groups: Group[];
+  session: AdminSession;
+  error?: string | undefined;
+  aggregateRecalculation?: ListingAggregateRecalculation | undefined;
+  parents?:
+    | {
+        candidates: ChildCandidate[];
+        childIds: ReadonlySet<number>;
+        offeredUnder: ListingWithCount[];
+      }
+    | undefined;
+  selectedGroupIds?: number[] | undefined;
+};

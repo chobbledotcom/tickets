@@ -1,0 +1,338 @@
+/* jscpd:ignore-start */
+import { filter, joinStrings, map, pipe } from "#fp";
+import { t } from "#i18n";
+import { formatDatetimeShort } from "#shared/dates.ts";
+import { CsrfForm, renderFields } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import {
+  type Attendee,
+  availableDayCounts,
+  hasTicketQuantity,
+  isPaidListing,
+  type ListingWithCount,
+} from "#shared/types.ts";
+import {
+  AttendeeTableBlock,
+  attendeeTableOptions,
+} from "#templates/admin/attendee-table-block.tsx";
+import { sumQuantity } from "#templates/admin/detail-rows.tsx";
+import type {
+  AttendeeTableRow,
+  TableQuestionData,
+} from "#templates/attendee-table.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
+import { colClass } from "#templates/components/table-columns.ts";
+import { getAddAttendeeFields } from "#templates/fields.ts";
+import type { AttendeeFilter, DateOption } from "./types.ts";
+
+/* jscpd:ignore-end */
+
+export const isIncompletePayment = (
+  attendee: Attendee,
+  hasPaidListing: boolean,
+): boolean =>
+  hasPaidListing &&
+  !attendee.payment_id &&
+  Number.parseInt(attendee.price_paid, 10) > 0;
+
+const keepByRosterFilter: Record<AttendeeFilter, (a: Attendee) => boolean> = {
+  all: () => true,
+  in: (a) => a.checked_in && hasTicketQuantity(a),
+  out: (a) => !a.checked_in && hasTicketQuantity(a),
+};
+
+const ROSTER_FILTER_LINKS: { filter: AttendeeFilter; labelKey: string }[] = [
+  { filter: "all", labelKey: "listings_table.all" },
+  { filter: "in", labelKey: "common.checked_in" },
+  { filter: "out", labelKey: "listings_table.checked_out" },
+];
+
+const FailedPaymentRow = ({
+  attendee,
+  listingId,
+}: {
+  attendee: Attendee;
+  listingId: number;
+}): string =>
+  String(
+    <tr>
+      <td>{attendee.name}</td>
+      <td class={colClass("quantity")}>{attendee.quantity}</td>
+      <td>{formatDatetimeShort(attendee.created)}</td>
+      <td class={colClass("actions")}>
+        <CsrfForm
+          action={`/admin/listing/${listingId}/attendee/${attendee.id}/delete-incomplete`}
+          class="inline"
+        >
+          <button class="link-button danger" type="submit">
+            {t("common.delete")}
+          </button>
+        </CsrfForm>
+      </td>
+    </tr>,
+  );
+
+type FailedPaymentsProps = {
+  attendees: Attendee[];
+  listingId: number;
+};
+
+const FailedPaymentsTable = ({
+  attendees,
+  listingId,
+}: FailedPaymentsProps): string =>
+  String(
+    <table>
+      <thead>
+        <tr>
+          <th>{t("common.name")}</th>
+          <th class={colClass("quantity")}>{t("common.qty")}</th>
+          <th>{t("common.registered")}</th>
+          <th class={colClass("actions")}></th>
+        </tr>
+      </thead>
+      <tbody>
+        <Raw
+          html={pipe(
+            map((a: Attendee) => FailedPaymentRow({ attendee: a, listingId })),
+            joinStrings,
+          )(attendees)}
+        />
+      </tbody>
+    </table>,
+  );
+
+export const filterAttendees = (
+  attendees: Attendee[],
+  activeFilter: AttendeeFilter,
+): Attendee[] => filter(keepByRosterFilter[activeFilter])(attendees);
+
+const FilterLink = ({
+  href,
+  label,
+  active,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+}): string =>
+  active
+    ? String(<strong>{label}</strong>)
+    : String(<a href={href}>{label}</a>);
+
+export const rosterHref = (
+  listingId: number,
+  activeFilter: AttendeeFilter,
+  dateFilter: string | null,
+): string => {
+  const params = new URLSearchParams();
+  if (activeFilter !== "all") params.set("filter", activeFilter);
+  if (dateFilter) params.set("date", dateFilter);
+  const qs = params.toString();
+  return `/admin/listing/${listingId}/attendees${qs ? `?${qs}` : ""}`;
+};
+
+const DateSelector = ({
+  listingId,
+  activeFilter,
+  dateFilter,
+  dates,
+}: {
+  listingId: number;
+  activeFilter: AttendeeFilter;
+  dateFilter: string | null;
+  dates: DateOption[];
+}): string => {
+  const options = [
+    `<option value="${rosterHref(listingId, activeFilter, null)}"${
+      !dateFilter ? " selected" : ""
+    }>${t("listings_table.all_dates")}</option>`,
+    ...dates.map(
+      (d) =>
+        `<option value="${rosterHref(listingId, activeFilter, d.value)}"${
+          dateFilter === d.value ? " selected" : ""
+        }>${d.label}</option>`,
+    ),
+  ].join("");
+  return `<select data-nav-select aria-label="${t(
+    "listings_table.filter_by_date",
+  )}">${options}</select>`;
+};
+
+const AttendeesFilterLinks = ({
+  listingId,
+  dateFilter,
+  activeFilter,
+}: {
+  listingId: number;
+  dateFilter: string | null;
+  activeFilter: AttendeeFilter;
+}): JSX.Element => (
+  <p>
+    <Raw
+      html={ROSTER_FILTER_LINKS.map(({ filter, labelKey }) =>
+        FilterLink({
+          active: activeFilter === filter,
+          href: rosterHref(listingId, filter, dateFilter),
+          label: t(labelKey),
+        }),
+      ).join(" / ")}
+    />
+  </p>
+);
+
+export const AttendeesSection = ({
+  listingId,
+  allowedDomain,
+  isDaily,
+  availableDates,
+  activeFilter,
+  dateFilter,
+  basePath,
+  returnUrl,
+  tableRows,
+  questionData,
+  phonePrefix,
+}: {
+  listingId: number;
+  allowedDomain: string;
+  isDaily: boolean;
+  availableDates: DateOption[];
+  activeFilter: AttendeeFilter;
+  dateFilter: string | null;
+  basePath: string;
+  returnUrl: string;
+  tableRows: AttendeeTableRow[];
+  questionData: TableQuestionData | undefined;
+  phonePrefix: string | undefined;
+}): JSX.Element => {
+  const exportParams = new URLSearchParams();
+  if (dateFilter) exportParams.set("date", dateFilter);
+  if (activeFilter !== "all") exportParams.set("checkin", activeFilter);
+  const exportQuery = exportParams.toString();
+  const exportHref = `${basePath}/export${
+    exportQuery ? `?${exportQuery}` : ""
+  }`;
+  return (
+    <article>
+      <div class="prose">
+        <h2 id="attendees">{t("terms.attendees")}</h2>
+      </div>
+      {isDaily && availableDates.length > 0 && (
+        <Raw
+          html={DateSelector({
+            activeFilter,
+            dateFilter,
+            dates: availableDates,
+            listingId,
+          })}
+        />
+      )}
+      <AttendeesFilterLinks
+        activeFilter={activeFilter}
+        dateFilter={dateFilter}
+        listingId={listingId}
+      />
+      <AttendeeTableBlock
+        actions={<a href={exportHref}>{t("listings_table.export_csv")}</a>}
+        options={attendeeTableOptions({
+          activeFilter,
+          allowedDomain,
+          phonePrefix,
+          questionData,
+          returnUrl,
+          rows: tableRows,
+          showDate: isDaily,
+          showListing: false,
+        })}
+      />
+    </article>
+  );
+};
+
+export const FailedPaymentsSection = ({
+  attendees,
+  listingId,
+}: FailedPaymentsProps): JSX.Element => (
+  <article>
+    <div class="prose">
+      <h2 id="failed-payments">{t("listings_table.failed_payments")}</h2>
+      <p>
+        {t("listings_table.attendees_with_unresolved_payments", {
+          count: attendees.length,
+        })}
+      </p>
+    </div>
+    <div class="table-scroll">
+      <Raw html={FailedPaymentsTable({ attendees, listingId })} />
+    </div>
+  </article>
+);
+
+export const AddAttendeeSection = ({
+  listing,
+  childNames = [],
+}: {
+  listing: ListingWithCount;
+  childNames?: string[];
+}): JSX.Element => (
+  <article>
+    <h2 id="add-attendee">{t("listings_table.add_attendee")}</h2>
+    {childNames.length > 0 && (
+      <p class="notice">
+        {t("listings_table.add_attendee_parent_warning", {
+          children: childNames.join(", "),
+        })}
+      </p>
+    )}
+    <CsrfForm action={`/admin/listing/${listing.id}/attendee`}>
+      <Raw
+        html={renderFields(
+          getAddAttendeeFields(
+            listing.fields,
+            listing.listing_type === "daily",
+            listing.customisable_days && listing.listing_type === "daily"
+              ? availableDayCounts(listing)
+              : undefined,
+          ),
+        )}
+      />
+      <SubmitButton icon="plus">
+        {t("listings_table.add_attendee")}
+      </SubmitButton>
+    </CsrfForm>
+  </article>
+);
+
+export const completePaymentAttendees = (
+  listing: ListingWithCount,
+  attendees: Attendee[],
+): Attendee[] =>
+  isPaidListing(listing)
+    ? filter((a: Attendee) => !isIncompletePayment(a, true))(attendees)
+    : attendees;
+
+export const attendeeStatsForListing = (
+  listing: ListingWithCount,
+  attendees: Attendee[],
+  hasPaidListing: boolean,
+): {
+  incompleteAttendees: Attendee[];
+  completeAttendees: Attendee[];
+  adjustedCount: number;
+  completeQuantitySum: number;
+} => {
+  const incompleteAttendees = hasPaidListing
+    ? filter((a: Attendee) => isIncompletePayment(a, true))(attendees)
+    : [];
+  const completeAttendees = completePaymentAttendees(listing, attendees);
+  const adjustedCount =
+    listing.attendee_count - sumQuantity(incompleteAttendees);
+  const completeQuantitySum = sumQuantity(completeAttendees);
+  return {
+    adjustedCount,
+    completeAttendees,
+    completeQuantitySum,
+    incompleteAttendees,
+  };
+};

@@ -23,8 +23,10 @@ import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
   type AccountLedgerData,
-  AccountStatementSection,
+  EmbeddedAccountStatementSection,
 } from "#templates/admin/ledger.tsx";
+import { AdminListPage } from "#templates/admin/list-page.tsx";
+import { MoneyAdjustSection } from "#templates/admin/money-adjust-section.tsx";
 import type { RecalculateRow } from "#templates/admin/recalculate.tsx";
 import {
   ActionButton,
@@ -39,7 +41,6 @@ import {
   recalculatePageRenderer,
 } from "#templates/components/aggregate-sections.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
-import { PriceInput } from "#templates/components/price-input.tsx";
 import { modifierAggregateFields, modifierFields } from "#templates/fields.ts";
 
 /** Renders the static config bits of the modifier recalculate page (action,
@@ -139,8 +140,9 @@ const AnswerLinksForm = ({
 /** Human-readable summary of a modifier's rule, e.g. "Discount · 10%". */
 const ruleSummary = (m: Modifier): string => {
   const value = String(m.calc_value);
-  if (m.calc_kind === "multiply")
+  if (m.calc_kind === "multiply") {
     return t("modifiers.rule.multiply", { value });
+  }
   const action = t(
     m.direction === "discount"
       ? "modifiers.action.discount"
@@ -178,62 +180,33 @@ export const modifierAggregateToFieldValues = (
   usage_count: modifier.usage_count,
 });
 
-/**
- * Money-correction section for a modifier, kept separate from the counts override
- * ("splits by kind", decision 14). Shows the current projected revenue
- * (read-only) and an input for the corrected value; submitting posts a `writeoff`
- * adjustment for the difference to the source-of-truth money ledger. A prominent
- * warning states the entry is appended, not destructive. Its own CsrfForm, so it
- * posts independently of the main edit form.
- */
 const ModifierRevenueAdjustSection = ({
   modifier,
 }: {
   modifier: Modifier;
 }): JSX.Element => (
-  <CsrfForm action={`/admin/modifiers/${modifier.id}/revenue`}>
-    <h2>{t("modifiers.adjust_revenue")}</h2>
-    <div class="error" role="alert">
-      {t("modifiers.adjust_revenue_warning")}
-    </div>
-    <label>
-      {t("modifiers.adjust_revenue_current")}
-      <input
-        disabled
-        type="text"
-        value={formatCurrency(modifier.total_revenue)}
-      />
-    </label>
-    <label for="total_revenue">
-      {t("modifiers.adjust_revenue_new_label")}
-      <PriceInput
-        id="total_revenue"
-        name="total_revenue"
-        value={toMajorUnits(modifier.total_revenue)}
-      />
-    </label>
-    <SubmitButton icon="save">
-      {t("modifiers.adjust_revenue_submit")}
-    </SubmitButton>
-  </CsrfForm>
+  <MoneyAdjustSection
+    action={`/admin/modifiers/${modifier.id}/revenue`}
+    currentLabel={t("modifiers.adjust_revenue_current")}
+    currentValue={modifier.total_revenue}
+    inputId="total_revenue"
+    inputLabel={t("modifiers.adjust_revenue_new_label")}
+    submitLabel={t("modifiers.adjust_revenue_submit")}
+    title={t("modifiers.adjust_revenue")}
+    warning={t("modifiers.adjust_revenue_warning")}
+  />
 );
 
 const ModifierLedgerSection = ({
   ledger,
 }: {
   ledger: AccountLedgerData;
-}): JSX.Element => (
-  <section>
-    <h2>{t("admin.ledger.statement_heading")}</h2>
-    <AccountStatementSection
-      account={ledger.account}
-      fullLedgerHref={`/admin/ledger/${ledger.account.type}/${ledger.account.id}`}
-      lines={ledger.lines}
-      names={ledger.names}
-      returnUrl={`/admin/modifiers/${ledger.account.id}/edit`}
-    />
-  </section>
-);
+}): JSX.Element =>
+  EmbeddedAccountStatementSection({
+    fullLedgerHref: `/admin/ledger/${ledger.account.type}/${ledger.account.id}`,
+    ledger,
+    returnUrl: `/admin/modifiers/${ledger.account.id}/edit`,
+  });
 
 const ModifierRunningTotalsSection = ({
   modifier,
@@ -293,14 +266,9 @@ export const adminModifiersPage = (
   session: AdminSession,
   successMessage?: string,
 ): string =>
-  String(
-    <AdminPage
-      active="/admin/modifiers"
-      session={session}
-      title={t("terms.modifiers")}
-    >
-      <Flash success={successMessage} />
-      <p class="actions">
+  AdminListPage({
+    actions: (
+      <>
         {!isReadOnly() && (
           <ActionButton href="/admin/modifiers/new" icon="plus">
             {t("modifiers.add_modifier")}
@@ -309,29 +277,37 @@ export const adminModifiersPage = (
         <GuideLink href="/admin/guide#modifiers">
           {t("modifiers.guide_link")}
         </GuideLink>
-      </p>
-      {modifiers.length === 0 ? (
-        <p>{t("modifiers.no_modifiers")}</p>
-      ) : (
-        <DataTable
-          columns={[
-            { header: t("common.name") },
-            { header: t("modifiers.rule_column") },
-            { class: "quantity", header: t("modifiers.uses_column") },
-            { class: "quantity", header: t("modifiers.orders_column") },
-            { class: "amount", header: t("modifiers.revenue_column") },
-          ]}
-          rows={modifiers.map((m) => [
-            <a href={`/admin/modifiers/${m.id}/edit`}>{m.name}</a>,
-            ruleSummary(m),
-            m.total_uses,
-            m.usage_count,
-            formatCurrency(m.total_revenue),
-          ])}
-        />
-      )}
-    </AdminPage>,
-  );
+      </>
+    ),
+    active: "/admin/modifiers",
+    children: (
+      <>
+        {modifiers.length === 0 ? (
+          <p>{t("modifiers.no_modifiers")}</p>
+        ) : (
+          <DataTable
+            columns={[
+              { header: t("common.name") },
+              { header: t("modifiers.rule_column") },
+              { class: "quantity", header: t("modifiers.uses_column") },
+              { class: "quantity", header: t("modifiers.orders_column") },
+              { class: "amount", header: t("modifiers.revenue_column") },
+            ]}
+            rows={modifiers.map((m) => [
+              <a href={`/admin/modifiers/${m.id}/edit`}>{m.name}</a>,
+              ruleSummary(m),
+              m.total_uses,
+              m.usage_count,
+              formatCurrency(m.total_revenue),
+            ])}
+          />
+        )}
+      </>
+    ),
+    session,
+    successMessage,
+    title: t("terms.modifiers"),
+  });
 
 /** Admin modifier create page */
 export const adminModifierNewPage = (

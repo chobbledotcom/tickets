@@ -60,7 +60,7 @@ import {
   adminDuplicateListingPage,
   adminListingNewPage,
   adminListingPickerPage,
-} from "#templates/admin/listings.tsx";
+} from "#templates/admin/listings/form-pages.tsx";
 import type { ListingAggregateFormValues } from "#templates/fields.ts";
 import { listingAggregateFields } from "#templates/fields.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";

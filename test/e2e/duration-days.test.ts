@@ -700,9 +700,8 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
 
   describe("public ticket page", () => {
     test("shows booking duration hint for multi-day daily listings", async () => {
-      const { ticketPage, buildTicketListing } = await import(
-        "#templates/public.tsx"
-      );
+      const { buildTicketListing } = await import("#shared/booking/model.ts");
+      const { ticketPage } = await import("#templates/public.tsx");
       const listing = await createDailyTestListing({
         durationDays: 3,
         maxAttendees: 10,
@@ -717,9 +716,8 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
     });
 
     test("no duration hint for single-day daily listings", async () => {
-      const { ticketPage, buildTicketListing } = await import(
-        "#templates/public.tsx"
-      );
+      const { buildTicketListing } = await import("#shared/booking/model.ts");
+      const { ticketPage } = await import("#templates/public.tsx");
       const listing = await createDailyTestListing({ maxAttendees: 10 });
       const fresh = (await getListingWithCount(listing.id))!;
       const html = ticketPage({

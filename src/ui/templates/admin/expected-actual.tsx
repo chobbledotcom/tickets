@@ -63,3 +63,21 @@ export const ExpectedActualNotice = ({
     </details>
   );
 };
+
+export const ExpectedActualTableRow = ({
+  header,
+  notice,
+}: {
+  header: string;
+  notice: Parameters<typeof ExpectedActualNotice>[0];
+}): JSX.Element | null => {
+  if (!hasExpectedActualMismatches(notice.items)) return null;
+  return (
+    <tr>
+      <th>{header}</th>
+      <td>
+        <ExpectedActualNotice {...notice} />
+      </td>
+    </tr>
+  );
+};

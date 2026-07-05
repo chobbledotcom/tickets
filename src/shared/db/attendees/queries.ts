@@ -2,6 +2,7 @@
  * Read queries for attendees and their per-listing bookings.
  */
 
+import * as v from "valibot";
 import { map, unique } from "#fp";
 import { ATTENDEE } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
@@ -217,7 +218,12 @@ export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
   );
 
 /** Sort order for the admin attendees browser */
-export type AttendeeSort = "newest" | "oldest";
+export const AttendeeSortSchema = v.picklist(["newest", "oldest"]);
+export type AttendeeSort = v.InferOutput<typeof AttendeeSortSchema>;
+
+/** Type guard: narrows an arbitrary string to an {@link AttendeeSort}. */
+export const isAttendeeSort = (s: string): s is AttendeeSort =>
+  v.is(AttendeeSortSchema, s);
 
 /**
  * Attendees per page in the admin attendees browser. Fixed here so the

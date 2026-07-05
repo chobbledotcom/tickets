@@ -57,13 +57,13 @@ import {
 } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import { ListingQrPanel } from "#templates/admin/listing-qr.tsx";
+import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
 import {
-  type AttendeeFilter,
-  ListingEditPanel,
   ListingOverviewPanel,
-  ListingRosterPanel,
   overviewStatsFromDbStats,
-} from "#templates/admin/listings.tsx";
+} from "#templates/admin/listings/overview.tsx";
+import { ListingRosterPanel } from "#templates/admin/listings/roster.tsx";
+import type { AttendeeFilter } from "#templates/admin/listings/types.ts";
 import { ListingQuestionsPanel } from "#templates/admin/questions.tsx";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 import { loadItemImagesPanel } from "./item-images.ts";

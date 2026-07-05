@@ -20,6 +20,15 @@ import {
   foldBookingTree,
   resolvedByNodeKey,
 } from "#shared/booking/fold-tree.ts";
+import { formatAtomicError } from "#shared/booking/form.ts";
+import {
+  type ChildDatesByDayCount,
+  childDateKey,
+  fixedParentDays,
+  keepOptionsSomeChildSupports,
+  type TicketListing,
+  updateForMembersWithChildren,
+} from "#shared/booking/model.ts";
 import { effectivePrice } from "#shared/booking/price-tree.ts";
 import type { BookingTree, PriceRule } from "#shared/booking/tree.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
@@ -80,14 +89,7 @@ import {
   normalizeDurationDays,
 } from "#shared/types.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
-import {
-  type ChildSpanDates,
-  childDateKey,
-  constrainOptionsByChildUnion,
-  fixedParentSpan,
-  type TicketListing,
-} from "#templates/public.tsx";
-import { formatAtomicError, listingsWithQuantity } from "./ticket-form.ts";
+import { listingsWithQuantity } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import type {
   AsyncHandler,
@@ -309,7 +311,9 @@ export const resolveDayCount = async (
   for (const { listing } of customisable) {
     if (dayPriceFor(listing, raw) === null) {
       return {
-        error: `${hiddenName ?? listing.name} does not offer a ${raw}-day booking`,
+        error: `${
+          hiddenName ?? listing.name
+        } does not offer a ${raw}-day booking`,
       };
     }
   }
@@ -321,7 +325,9 @@ export const resolveDayCount = async (
     for (const { listing } of dailyCustomisable) {
       if (!isBookingRangeValid(listing, date, raw, holidays)) {
         return {
-          error: `${hiddenName ?? listing.name}: ${raw} days aren't all available from that date — choose fewer days or a different start date`,
+          error: `${
+            hiddenName ?? listing.name
+          }: ${raw} days aren't all available from that date — choose fewer days or a different start date`,
         };
       }
     }
@@ -605,102 +611,68 @@ export const computeSharedDates = async (
   return [...dateSets[0]!].filter((d) => dateSets.every((s) => s.has(d)));
 };
 
-/** A required child's contribution to its parent's bookable-date union. A
- * STANDARD (dateless) child imposes no date constraint — bookable on
- * EVERY parent date (subject only to non-date capacity) — so it contributes all of
- * `parentDates`. A DAILY child contributes the parent dates it can serve for the
- * inherited span: when `fixedSpan` is set (e.g. a 3-day fixed daily parent) the
- * child must cover the whole span, so each candidate start is validated with the
- * SAME {@link isBookingRangeValid} the fold uses (a child bookable only for a
- * single Monday must NOT be offered for a Mon–Wed parent it can't cover). A null
- * `fixedSpan` (customisable parent, no span chosen at render) keeps the per-start
- * {@link getBookableStartDates} behaviour. */
-const childDateContribution = (
+/** Dates this child can serve for the parent. */
+const datesChildCanServe = (
   child: TicketListing,
   parentDates: string[],
-  fixedSpan: number | null,
+  fixedDays: number | null,
   holidays: Holiday[],
 ): string[] => {
   if (child.listing.listing_type !== "daily") return parentDates;
-  if (fixedSpan === null) return getBookableStartDates(child.listing, holidays);
+  if (fixedDays === null) return getBookableStartDates(child.listing, holidays);
   return parentDates.filter((d) =>
-    isBookingRangeValid(child.listing, d, fixedSpan, holidays),
+    isBookingRangeValid(child.listing, d, fixedDays, holidays),
   );
 };
 
-/**
- * Constrain a daily parent's offered dates to those on which at least one of its
- * SELECTABLE required children is bookable:
- * `parentDates ∩ (UNION of the selectable children's bookable start dates)`.
- *
- * Children are first filtered by the date-INDEPENDENT disqualifiers
- * ({@link childSelectableForSpan}) so an inactive / closed / unpriced /
- * duration-incompatible child the fold would reject contributes NOTHING — else an
- * inactive child bookable only Tuesday would keep Tuesday selectable and submit
- * would fail. Remaining children each contribute the dates they serve
- * for the inherited span ({@link childDateContribution}). Without this, a daily
- * parent available Mon+Tue whose only ACTIVE child is bookable Mon still offers Tue
- * and the fold rejects. The caller scopes WHEN this applies (see
- * {@link singleDailyParent}).
- */
-const constrainDatesByChildUnion = (
+/** Keeps parent dates where at least one required child can also be booked. */
+const keepDatesSomeChildCanServe = (
   parentDates: string[],
-  children: TicketListing[],
-  fixedSpan: number | null,
+  children: readonly TicketListing[],
+  fixedDays: number | null,
   holidays: Holiday[],
 ): string[] =>
-  constrainOptionsByChildUnion(
+  keepOptionsSomeChildSupports(
     parentDates,
     children,
-    (c) => childSelectableForSpan(c, fixedSpan),
-    (c) => childDateContribution(c, parentDates, fixedSpan, holidays),
+    (c) => childSelectableForSpan(c, fixedDays),
+    (c) => datesChildCanServe(c, parentDates, fixedDays, holidays),
   );
 
-/**
- * The page's sole listing + its children when it is a daily parent, else null.
- * Scopes the child-date-union rule to a SINGLE-listing page that is
- * itself a daily parent — the common base-unit-plus-add-on case. On a multi-listing
- * / group page several listings share one date selector, and folding one parent's
- * child calendar into the shared set could wrongly remove a date a *different* page
- * listing needs — the spec defers that to the per-selected-parent JS constraint plus
- * the authoritative submit fold, so a multi-listing page's dates are left untouched.
- */
+/** The single daily parent on the page, with its children, if there is one. */
 const singleDailyParent = (
   listings: TicketListing[],
   childrenByParentId: ChildrenByParentId,
-): { children: TicketListing[]; fixedSpan: number | null } | null => {
+): { children: TicketListing[]; fixedDays: number | null } | null => {
   if (listings.length !== 1) return null;
   const parent = listings[0]!;
   if (parent.listing.listing_type !== "daily") return null;
   const children = childrenByParentId.get(parent.listing.id) ?? null;
   if (!children) return null;
-  return { children, fixedSpan: fixedParentSpan(parent.listing) };
+  return { children, fixedDays: fixedParentDays(parent.listing) };
 };
 
-/** A PACKAGE's shared dates constrained by EVERY daily parent member's child
- * union. A package books all its members together, so a date one member's
- * required children can't serve is unbookable for the whole bundle — unlike an
- * ad-hoc multi-listing page, where listings are independently optional and
- * removing a date one parent's children can't serve could hide it from a
- * different listing a buyer wanted alone ({@link singleDailyParent}'s scoping).
- * Members without children (or non-daily members) leave the set untouched. */
-const constrainPackageDatesByChildren = (
+/** Keeps package dates where every daily parent member's children can be booked. */
+const keepPackageDatesChildrenCanServe = (
   members: TicketListing[],
   childrenByParentId: ChildrenByParentId,
   dates: string[],
   holidays: Holiday[],
 ): string[] =>
-  members.reduce((acc, member) => {
-    if (member.listing.listing_type !== "daily") return acc;
-    const children = childrenByParentId.get(member.listing.id);
-    if (!children || children.length === 0) return acc;
-    return constrainDatesByChildUnion(
-      acc,
-      children,
-      fixedParentSpan(member.listing),
-      holidays,
-    );
-  }, dates);
+  updateForMembersWithChildren(
+    members,
+    childrenByParentId,
+    dates,
+    (acc, member, children) =>
+      member.listing.listing_type !== "daily"
+        ? acc
+        : keepDatesSomeChildCanServe(
+            acc,
+            children,
+            fixedParentDays(member.listing),
+            holidays,
+          ),
+  );
 
 /**
  * The parent→children relationship for the page's listings, each child hydrated to
@@ -747,55 +719,34 @@ export const childListingIdsOf = (
   return [...ids];
 };
 
-/** The selectable parent spans the child date sets are computed over: a
- * FIXED-duration parent has a single span ({@link fixedParentSpan}); a
- * CUSTOMISABLE parent has one per offered day-count ({@link availableDayCounts}),
- * since the buyer picks the span and a daily child's serveable starts differ per
- * span (a 2-day span can't start where only a 1-day window fits). */
-const parentRenderSpans = (parent: ListingWithCount): number[] => {
-  const fixed = fixedParentSpan(parent);
+/** Day counts the parent can pass to daily children. */
+const parentDayCountsForChildren = (parent: ListingWithCount): number[] => {
+  const fixed = fixedParentDays(parent);
   return fixed === null ? availableDayCounts(parent) : [fixed];
 };
 
-/** A DAILY child's serveable starts PER selectable parent span ({@link
- * ChildSpanDates}): for each span the parent can offer, the holiday-aware
- * parent dates from which the child can serve the WHOLE span — reusing the SAME
- * {@link childDateContribution} rule (span as its fixed span) the parent's date
- * union uses, so the client never disables a date the server would accept (or
- * re-enables one it rejects). A fixed parent yields one entry; a customisable
- * parent one per day-count, so the client matches the buyer's chosen `day_count`
- * rather than span-agnostic one-day starts (which let a 2-day child be offered a
- * Monday it can't cover). */
-const childSpanDates = (
+/** Child start dates for each parent day count. */
+const childDatesForParentDayCounts = (
   child: TicketListing,
   parent: ListingWithCount,
   holidays: Holiday[],
-): ChildSpanDates => {
+): ChildDatesByDayCount => {
   const parentDates = getBookableStartDates(parent, holidays);
   return new Map(
-    parentRenderSpans(parent).map((span) => [
-      span,
-      childDateContribution(child, parentDates, span, holidays),
+    parentDayCountsForChildren(parent).map((days) => [
+      days,
+      datesChildCanServe(child, parentDates, days, holidays),
     ]),
   );
 };
 
-/** The holiday-aware serveable start dates each DAILY child can serve per
- * selectable parent span, keyed by the (parent, child) PAIR ({@link childDateKey})
- * for the client compatibility script.
- *
- * Keying by the pair: the same daily child can be required by two parents
- * whose calendars/inherited spans differ, so each parent's block needs its OWN
- * `data-child-dates`. Keying by child id alone let the later parent overwrite the
- * earlier's constraint, so a child under one parent could carry the other's dates.
- * A non-daily child imposes no date constraint and is omitted (the client treats a
- * missing entry as "always compatible"). */
+/** Daily-child start dates, keyed by parent and child together. */
 export const buildChildDatesById = (
   activeListings: TicketListing[],
   childrenByParentId: ChildrenByParentId,
   holidays: Holiday[],
-): Map<string, ChildSpanDates> => {
-  const result = new Map<string, ChildSpanDates>();
+): Map<string, ChildDatesByDayCount> => {
+  const result = new Map<string, ChildDatesByDayCount>();
   for (const { listing: parent } of activeListings) {
     const children = childrenByParentId.get(parent.id);
     if (!children) continue;
@@ -803,7 +754,7 @@ export const buildChildDatesById = (
       if (child.listing.listing_type !== "daily") continue;
       result.set(
         childDateKey(parent.id, child.listing.id),
-        childSpanDates(child, parent, holidays),
+        childDatesForParentDayCounts(child, parent, holidays),
       );
     }
   }
@@ -812,30 +763,25 @@ export const buildChildDatesById = (
 
 /** Shared context for ticket pages: dates, terms, questions. A group's terms
  * override global terms and its name/description are included. */
-/** Membership and date-less remaining over a package's members AND their
- * required children — the group maps {@link packageBundleCap} judges. One
- * loader shared by the booking ctx and the discovery gate, so no surface can
- * compute the bundle cap from narrower pools: one package consumes the sum of
- * its members' fixed quantities (plus one child unit per booked parent unit)
- * from each capped group any of them sit in. */
-export const loadPackageCapGroupMaps = async (
+/** Group info needed to check a package's whole-package limit. */
+export const loadPackageLimitGroupMaps = async (
   members: TicketListing[],
   childrenByParentId: ChildrenByParentId,
 ): Promise<{
   groupIdsByListingId: Map<number, number[]>;
   groupRemainingByGroupId: ReadonlyMap<number, number>;
 }> => {
-  const capListings = [
+  const limitListings = [
     ...members.map((e) => e.listing),
     ...[...childrenByParentId.values()].flat().map((e) => e.listing),
   ];
   const groupIdsByListingId = await getGroupIdsByListingIds(
-    capListings.map((l) => l.id),
+    limitListings.map((l) => l.id),
   );
   return {
     groupIdsByListingId,
     groupRemainingByGroupId: await getDatelessGroupRemaining(
-      capListings,
+      limitListings,
       groupIdsByListingId,
     ),
   };
@@ -876,14 +822,14 @@ export const getTicketContext = async (
   const holidays = childrenByParentId.size > 0 ? await getActiveHolidays() : [];
   const dailyParent = singleDailyParent(activeListings, childrenByParentId);
   const dates = dailyParent
-    ? constrainDatesByChildUnion(
+    ? keepDatesSomeChildCanServe(
         sharedDates,
         dailyParent.children,
-        dailyParent.fixedSpan,
+        dailyParent.fixedDays,
         holidays,
       )
     : group?.is_package === true
-      ? constrainPackageDatesByChildren(
+      ? keepPackageDatesChildrenCanServe(
           activeListings,
           childrenByParentId,
           sharedDates,
@@ -905,7 +851,7 @@ export const getTicketContext = async (
     group?.is_package === true
       ? await Promise.all([
           loadPackageMemberMaps(group.id),
-          loadPackageCapGroupMaps(activeListings, childrenByParentId),
+          loadPackageLimitGroupMaps(activeListings, childrenByParentId),
         ])
       : [
           null,
@@ -939,21 +885,8 @@ export const getTicketContext = async (
   };
 };
 
-/**
- * Constrain a daily parent's candidate dates to those at least one required child
- * can serve for the inherited span — the SAME `parentDates ∩ (union of selectable
- * children's bookable dates)` rule the web booking page applies via
- * {@link constrainDatesByChildUnion}. Used by the JSON API
- * detail endpoint so it never advertises a date the web selector removes and the
- * fold rejects. The caller restricts this to daily listings (only they have an
- * `availableDates` list).
- *
- * A `parent` with no child edges is returned unchanged (the union only applies to
- * a parent that gates a child choice). Children are loaded by relationship and
- * built to {@link TicketListing} so the same date-/span-aware availability the gate
- * uses is evaluated here.
- */
-export const constrainParentDailyDates = async (
+/** Keeps daily parent dates where at least one required child can be booked. */
+export const keepParentDailyDatesChildrenCanServe = async (
   parent: ListingWithCount,
   parentDates: string[],
   holidays: Holiday[],
@@ -962,10 +895,10 @@ export const constrainParentDailyDates = async (
   const childRows = childrenByParent.get(parent.id);
   if (!childRows || childRows.length === 0) return parentDates;
   const children = await buildTicketListingsWithGroupCapacity(childRows);
-  return constrainDatesByChildUnion(
+  return keepDatesSomeChildCanServe(
     parentDates,
     children,
-    fixedParentSpan(parent),
+    fixedParentDays(parent),
     holidays,
   );
 };

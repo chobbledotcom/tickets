@@ -30,6 +30,7 @@ import { getCachedSession, setCachedSession } from "#shared/session-context.ts";
 import { getSettingsNagItemsForOwner } from "#shared/settings-nags.ts";
 import {
   type AdminLevel,
+  ALL_ADMIN_LEVELS,
   CONTENT_ADMIN_LEVELS,
   DELIVERY_ADMIN_LEVELS,
   isRecord,
@@ -287,7 +288,7 @@ export const DELIVERY_FORM: AuthPolicy<"form"> = {
  * used for actions every logged-in user must reach, like logout. */
 export const ANY_USER_FORM: AuthPolicy<"form"> = {
   body: "form",
-  roles: ["owner", "manager", "agent", "editor"],
+  roles: ALL_ADMIN_LEVELS,
 };
 export const AUTH_MULTIPART: AuthPolicy<"multipart"> = { body: "multipart" };
 export const OWNER_MULTIPART: AuthPolicy<"multipart"> = {

@@ -9,6 +9,7 @@
 
 import { isRegistrationClosed } from "#routes/format.ts";
 import { htmlResponse } from "#routes/response.ts";
+import { buildTicketListing } from "#shared/booking/model.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { getGroupRemainingForListing } from "#shared/db/attendees/capacity.ts";
 import { isHiddenPackageMember } from "#shared/db/groups.ts";
@@ -23,7 +24,6 @@ import { listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { type QrBookPayload, verifyQrBookToken } from "#shared/qr-token.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import {
-  buildTicketListing,
   type QrPrefill,
   qrBookErrorPage,
   type TicketPrefill,

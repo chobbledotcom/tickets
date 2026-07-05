@@ -65,8 +65,8 @@ export type AttendeeTableOptions = {
   allowedDomain: string;
   showListing: boolean;
   showDate: boolean;
-  activeFilter?: string;
-  returnUrl?: string;
+  activeFilter?: string | undefined;
+  returnUrl?: string | undefined;
   emptyMessage?: string;
   phonePrefix?: string | undefined;
   /** Show the check-in/check-out status column (default: true). Per-attendee

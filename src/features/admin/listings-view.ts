@@ -19,7 +19,7 @@ import {
 } from "#shared/db/questions.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
-import type { GroupContext } from "#templates/admin/listings.tsx";
+import type { GroupContext } from "#templates/admin/listings/types.ts";
 
 /** Filter attendees by date for daily listings */
 const filterByDate = (
