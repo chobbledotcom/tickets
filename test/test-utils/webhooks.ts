@@ -82,11 +82,13 @@ export const postWebhookAndAssert = async <T = Record<string, unknown>>(
 const stubAndPostWebhook = <T = Record<string, unknown>>(
   event: Parameters<typeof stubWebhookVerify>[0],
   assertions: (json: T) => void,
+  extraCleanup?: () => void,
 ): Promise<T> =>
   stubWebhookVerify(event).then((mockVerify) =>
     postWebhookAndAssert<T>(
       () => {
         mockVerify.restore();
+        extraCleanup?.();
       },
       200,
       assertions,
@@ -209,9 +211,14 @@ export const expectKeptAsQuantityZeroAndRefunded = async (
  */
 export const expectWebhookIgnored = async (
   event: Parameters<typeof stubWebhookVerify>[0],
+  extraCleanup?: () => void,
 ): Promise<void> => {
-  await stubAndPostWebhook(event, (json) => {
-    expect(json.received).toBe(true);
-    expect(json.processed).toBeUndefined();
-  });
+  await stubAndPostWebhook(
+    event,
+    (json) => {
+      expect(json.received).toBe(true);
+      expect(json.processed).toBeUndefined();
+    },
+    extraCleanup,
+  );
 };

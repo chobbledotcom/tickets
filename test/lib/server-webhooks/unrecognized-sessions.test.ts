@@ -5,10 +5,9 @@ import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
   checkoutSessionEvent,
   describeWithEnv,
-  postWebhookAndAssert,
+  expectWebhookIgnored,
   setupStripe,
   singleItem,
-  stubWebhookVerify,
   webhookMeta,
 } from "#test-utils";
 
@@ -20,7 +19,11 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
   test("webhook ignores session with no _origin marker", async () => {
     await setupStripe();
 
-    const mockVerify = await stubWebhookVerify(
+    const mockRefund = spy(stripeApi, "refundPayment");
+
+    // Returns 200 to prevent provider retries; should not attempt to process
+    // or refund.
+    await expectWebhookIgnored(
       checkoutSessionEvent({
         amountTotal: 30,
         eventId: "evt_foreign",
@@ -32,21 +35,8 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
         paymentIntent: "pi_foreign",
         sessionId: "cs_foreign",
       }),
-    );
-
-    const mockRefund = spy(stripeApi, "refundPayment");
-
-    // Returns 200 to prevent provider retries
-    await postWebhookAndAssert(
       () => {
-        mockVerify.restore();
         mockRefund.restore();
-      },
-      200,
-      (json) => {
-        expect(json.received).toBe(true);
-        // Should not attempt to process or refund
-        expect(json.processed).toBeUndefined();
       },
     );
     expect(mockRefund.calls.length).toBe(0);
@@ -55,7 +45,9 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
   test("webhook ignores session with wrong _origin marker", async () => {
     await setupStripe();
 
-    const mockVerify = await stubWebhookVerify(
+    const mockRefund = spy(stripeApi, "refundPayment");
+
+    await expectWebhookIgnored(
       checkoutSessionEvent({
         amountTotal: 500,
         eventId: "evt_other_instance",
@@ -68,19 +60,8 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
         paymentIntent: "pi_other_instance",
         sessionId: "cs_other_instance",
       }),
-    );
-
-    const mockRefund = spy(stripeApi, "refundPayment");
-
-    await postWebhookAndAssert(
       () => {
-        mockVerify.restore();
         mockRefund.restore();
-      },
-      200,
-      (json) => {
-        expect(json.received).toBe(true);
-        expect(json.processed).toBeUndefined();
       },
     );
     expect(mockRefund.calls.length).toBe(0);
@@ -88,18 +69,6 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
 
   test("webhook ignores unrecognized session via fallback retrieval path", async () => {
     await setupStripe();
-
-    const mockVerify = await stubWebhookVerify({
-      data: {
-        object: {
-          id: "cs_fallback_foreign",
-          status: "COMPLETED",
-          // No proper metadata -> extractSessionFromListing returns null
-        },
-      },
-      id: "evt_fallback_foreign",
-      type: "checkout.session.completed",
-    });
 
     const { stripePaymentProvider } = await import(
       "#shared/stripe-provider.ts"
@@ -123,16 +92,21 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
 
     const mockRefund = spy(stripeApi, "refundPayment");
 
-    await postWebhookAndAssert(
+    await expectWebhookIgnored(
+      {
+        data: {
+          object: {
+            id: "cs_fallback_foreign",
+            status: "COMPLETED",
+            // No proper metadata -> extractSessionFromListing returns null
+          },
+        },
+        id: "evt_fallback_foreign",
+        type: "checkout.session.completed",
+      },
       () => {
-        mockVerify.restore();
         mockRetrieveSession.restore();
         mockRefund.restore();
-      },
-      200,
-      (json) => {
-        expect(json.received).toBe(true);
-        expect(json.processed).toBeUndefined();
       },
     );
     expect(mockRefund.calls.length).toBe(0);
