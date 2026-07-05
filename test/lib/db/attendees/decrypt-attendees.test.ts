@@ -8,6 +8,7 @@ import {
   createTestListing,
   decryptFirstAttendee,
   describeWithEnv,
+  expectNoDecryptedAttendees,
   getTestPrivateKey,
 } from "#test-utils";
 
@@ -17,10 +18,7 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
       maxAttendees: 50,
       thankYouUrl: "https://example.com",
     });
-    const privateKey = await getTestPrivateKey();
-    const raw = await getAttendeesRaw(listing.id);
-    const attendees = await decryptAttendees(raw, privateKey);
-    expect(attendees).toEqual([]);
+    await expectNoDecryptedAttendees(listing.id);
   });
 
   test("returns decrypted attendees for listing", async () => {

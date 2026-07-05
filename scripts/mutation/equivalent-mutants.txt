@@ -547,3 +547,19 @@ src/ui/client/admin/address-lookup.ts:45:15  = → +=   # a just-created <option
 src/ui/client/admin/address-lookup.ts:46:21  = → +=   # a just-created <option>'s textContent is "", so append equals assign
 src/ui/client/admin/address-lookup.ts:140:12  return null → return undefined   # collectParts' result is only checked with falsy `!parts`
 src/ui/client/admin/address-lookup.ts:142:25  return null → return undefined   # collectParts' result is only checked with falsy `!parts`
+
+# renewal-helpers.ts's isProvisioned: BuiltSite.renewalTokenIndex is typed
+# string|null (no undefined case), so !== and != agree on null.
+src/shared/renewal-helpers.ts:10:25  !== → !=   # renewalTokenIndex: string|null (no undefined), so !== and != agree on null
+
+# renewal-helpers.ts's formatDeadlineLabel: `diffMs < 0` is only reached when
+# diffDays !== 0 (the line above already returns "today" otherwise), and
+# diffDays = Math.round(Math.abs(diffMs) / 86_400_000) is nonzero only when
+# Math.abs(diffMs) >= 43_200_000 (half a day — Math.round rounds a .5 up, so
+# anything below that rounds to 0 and returns earlier). So every diffMs that
+# reaches this line is already <= -43_200_000 or >= 43_200_000, nowhere near
+# 0, 1, or -1 — comparing it with `<` vs `<=`, or against 0 vs ±1, always
+# picks the same branch.
+src/shared/renewal-helpers.ts:20:13  < → <=   # diffMs here is always <= -43_200_000 or >= 43_200_000 (see block comment above); < and <= agree everywhere in that range
+src/shared/renewal-helpers.ts:20:16  0 → 1   # same reachability guarantee; diffMs is never in [0, 1)
+src/shared/renewal-helpers.ts:20:16  0 → -1   # same reachability guarantee; diffMs is never in [-1, 0)

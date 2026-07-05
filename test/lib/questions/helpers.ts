@@ -1,0 +1,112 @@
+import { expect } from "@std/expect";
+import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import {
+  answersTable,
+  assignNextQuestionSortOrder,
+  type Question,
+  questionsTable,
+  saveAttendeeAnswers,
+  setListingQuestions,
+  type TextAnswer,
+} from "#shared/db/questions.ts";
+import type { Attendee, Listing } from "#shared/types.ts";
+import { createTestListing } from "#test-utils";
+
+/** Create a test attendee directly via the DB (bypasses routes). Shared by
+ *  every questions test file that needs an attendee to hang answers off. */
+export const createAttendee = async (
+  listingId: number,
+  name = "Alice",
+): Promise<Attendee> => {
+  const result = await createAttendeeAtomic({
+    bookings: [{ listingId }],
+    email: `${name.toLowerCase()}@test.com`,
+    name,
+  });
+  if (!result.success) {
+    throw new Error(`Failed to create attendee: ${result.reason}`);
+  }
+  return result.attendees[0]!;
+};
+
+/** Insert a radio question directly. `overrides` covers the rare non-radio
+ *  or assign-all cases; every other question test wants the plain default. */
+export const createQuestion = (
+  text: string,
+  overrides: Partial<Parameters<typeof questionsTable.insert>[0]> = {},
+): Promise<Question> =>
+  questionsTable.insert({ displayType: "radio", text, ...overrides });
+
+/** Insert one answer at a given sort position — the shared shape behind
+ *  every "add an answer option" line across the questions test suite. */
+export const addAnswer = (
+  questionId: number,
+  sortOrder: number,
+  text: string,
+) => answersTable.insert({ questionId, sortOrder, text });
+
+/** Create a question and its answer options in one call, in the order
+ *  given (so `sortOrder` matches array position) — the single factory
+ *  every "set up a question with N answers" test in this suite goes
+ *  through instead of hand-rolling the insert pair. */
+export const createQuestionWithAnswers = async (
+  text: string,
+  answerTexts: string[] = [],
+  overrides: Partial<Parameters<typeof questionsTable.insert>[0]> = {},
+): Promise<Question> => {
+  const question = await createQuestion(text, overrides);
+  for (const [sortOrder, answerText] of answerTexts.entries()) {
+    await addAnswer(question.id, sortOrder, answerText);
+  }
+  return question;
+};
+
+/** Save one attendee's free-text answers — wraps the `{ answerIds: [],
+ *  textAnswers }` shape every free-text test in this suite otherwise
+ *  hand-rolls around `saveAttendeeAnswers`. */
+export const saveTextAnswers = (
+  attendeeId: number,
+  textAnswers: TextAnswer[],
+): Promise<void> =>
+  saveAttendeeAnswers(new Map([[attendeeId, { answerIds: [], textAnswers }]]));
+
+/** Assert a list of questions has exactly these texts, in this order — the
+ *  shared shape behind every "these questions come back, in this order"
+ *  check across the questions test suite. */
+export const expectQuestionTexts = (
+  questions: Array<{ text: string }>,
+  texts: string[],
+): void => {
+  expect(questions.map((q) => q.text)).toEqual(texts);
+};
+
+/** Create "Q1" and "Q2", each assigned the next global sort_order and given
+ *  one answer — the shared "two globally-ordered questions" fixture behind
+ *  every question-ordering test in this suite. */
+export const createOrderedQuestionPair = async (
+  answerA: string,
+  answerB: string,
+): Promise<{ q1: Question; q2: Question }> => {
+  const q1 = await createQuestion("Q1");
+  await assignNextQuestionSortOrder(q1.id);
+  const q2 = await createQuestion("Q2");
+  await assignNextQuestionSortOrder(q2.id);
+  await addAnswer(q1.id, 0, answerA);
+  await addAnswer(q2.id, 0, answerB);
+  return { q1, q2 };
+};
+
+/** A listing with two assigned questions, one answered and one not — the
+ *  shared "skips questions with no answers" fixture, read one way by the
+ *  per-listing lookup and another way by the batch lookup. */
+export const seedQuestionWithAndWithoutAnswers = async (): Promise<{
+  listing: Listing;
+  qNoAnswers: Question;
+  qWithAnswers: Question;
+}> => {
+  const qWithAnswers = await createQuestionWithAnswers("Has answers", ["Yes"]);
+  const qNoAnswers = await createQuestion("No answers");
+  const listing = await createTestListing();
+  await setListingQuestions(listing.id, [qWithAnswers.id, qNoAnswers.id]);
+  return { listing, qNoAnswers, qWithAnswers };
+};

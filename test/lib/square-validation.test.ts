@@ -42,9 +42,16 @@ describe("validateSquareAccessToken", () => {
     expect(error).toContain("application ID or secret");
   });
 
-  test("rejects a value matching no known token format", () => {
-    const error = validateSquareAccessToken("not-a-real-token");
-    expect(error).toContain("EAAA");
+  test("rejects a sandbox application secret with the exact app-credential message", () => {
+    expect(validateSquareAccessToken("sandbox-sq0csb-EXAMPLE")).toBe(
+      `That looks like a Square application ID or secret (it starts with "sq0"), not an access token. Copy the Access Token from your Square application's Credentials page.`,
+    );
+  });
+
+  test("rejects a value matching no known token format with the exact message", () => {
+    expect(validateSquareAccessToken("not-a-real-token")).toBe(
+      `That doesn't look like a Square access token. Access tokens start with "EAAA" or "eyJ". Please check you pasted the Access Token, not the Application ID or a webhook signature key.`,
+    );
   });
 
   test("rejects a value with a valid prefix that is not anchored at the start", () => {
@@ -62,9 +69,10 @@ describe("validateSquareLocationId", () => {
     expect(validateSquareLocationId("L_test_456")).toBeNull();
   });
 
-  test("rejects an application ID pasted into the location field", () => {
-    const error = validateSquareLocationId("sq0idp-EXAMPLE");
-    expect(error).toContain("not a Location ID");
+  test("rejects an application ID pasted into the location field, with the example ID in the hint", () => {
+    expect(validateSquareLocationId("sq0idp-EXAMPLE")).toBe(
+      `That looks like a Square application ID or secret, not a Location ID. The Location ID is a short code like "LH182V1KBR6V2" found under Locations in your Square Dashboard.`,
+    );
   });
 });
 
@@ -73,8 +81,9 @@ describe("validateSquareWebhookSignatureKey", () => {
     expect(validateSquareWebhookSignatureKey("aZ9_-realLookingKey")).toBeNull();
   });
 
-  test("rejects an application ID pasted into the signature key field", () => {
-    const error = validateSquareWebhookSignatureKey("sq0idp-EXAMPLE");
-    expect(error).toContain("not a webhook signature key");
+  test("rejects an application ID pasted into the signature key field, with the exact message", () => {
+    expect(validateSquareWebhookSignatureKey("sq0idp-EXAMPLE")).toBe(
+      "That looks like a Square application ID or secret, not a webhook signature key. Copy the Signature Key shown on your webhook subscription page in the Square Developer Dashboard.",
+    );
   });
 });

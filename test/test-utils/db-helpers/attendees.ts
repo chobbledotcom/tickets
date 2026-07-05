@@ -269,6 +269,17 @@ export const createDailyTestAttendee = async (
   return { attendee, listing, token: attendee.ticket_token };
 };
 
+/** Assert a listing decrypts to no attendees at all — used both for a
+ *  freshly created listing and after deleting one that had attendees. */
+export const expectNoDecryptedAttendees = async (
+  listingId: number,
+): Promise<void> => {
+  const privateKey = await getTestPrivateKey();
+  const raw = await getAttendeesRaw(listingId);
+  const attendees = await decryptAttendees(raw, privateKey);
+  expect(attendees).toEqual([]);
+};
+
 export const decryptFirstAttendee = async (
   listingId: number,
 ): Promise<Attendee> => {

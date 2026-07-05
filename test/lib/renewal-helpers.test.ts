@@ -40,4 +40,14 @@ describe("formatDeadlineLabel", () => {
     const past = new Date(NOW - 3 * DAY_MS).toISOString();
     expect(formatDeadlineLabel(past, NOW)).toBe("expired 3 day(s) ago");
   });
+
+  test("rounds a hair under the 1.5-day mark down to 1 day, not 2", () => {
+    const future = new Date(NOW + 1.5 * DAY_MS - 1).toISOString();
+    expect(formatDeadlineLabel(future, NOW)).toBe("in 1 day(s)");
+  });
+
+  test("rounds a hair over the 1.5-day mark up to 2 days, not 1", () => {
+    const future = new Date(NOW + 1.5 * DAY_MS + 1).toISOString();
+    expect(formatDeadlineLabel(future, NOW)).toBe("in 2 day(s)");
+  });
 });
