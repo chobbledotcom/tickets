@@ -4,7 +4,7 @@
  */
 
 import { expect } from "@std/expect";
-import { beforeEach, describe, it as test } from "@std/testing/bdd";
+import { beforeEach, it as test } from "@std/testing/bdd";
 import { lookupAddresses } from "#shared/address-lookup/service.ts";
 import {
   computeAddressSearchIndex,
