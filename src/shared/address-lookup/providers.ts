@@ -22,8 +22,7 @@ export const ADDRESS_LOOKUP_PROVIDERS: Record<
 };
 
 /** The configured provider, or null when address lookup is off ("none"). */
-export const activeAddressLookupProvider =
-  (): AddressLookupProvider | null => {
-    const provider = settings.addressLookup.provider;
-    return provider === "none" ? null : provider;
-  };
+export const activeAddressLookupProvider = (): AddressLookupProvider | null => {
+  const provider = settings.addressLookup.provider;
+  return provider === "none" ? null : provider;
+};

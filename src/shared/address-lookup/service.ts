@@ -9,13 +9,13 @@
  * public form.
  */
 
+import { t } from "#i18n";
 import {
   computeAddressSearchIndex,
   getCachedAddresses,
   storeCachedAddresses,
 } from "#shared/db/address-cache.ts";
 import { settings } from "#shared/db/settings.ts";
-import { t } from "#i18n";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { ADDRESS_LOOKUP_PROVIDERS } from "./providers.ts";
 import type { AddressLookupProvider } from "./types.ts";

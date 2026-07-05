@@ -42,6 +42,10 @@ const EasypostcodesResponseSchema = v.array(
   }),
 );
 
+type EasypostcodesEntry = v.InferOutput<
+  typeof EasypostcodesResponseSchema
+>[number];
+
 /** Parse a response body into summary lines, or null when it isn't the
  * documented shape. */
 export const parseEasypostcodesBody = (body: string): string[] | null => {
@@ -54,8 +58,7 @@ export const parseEasypostcodesBody = (body: string): string[] | null => {
   const parsed = v.safeParse(EasypostcodesResponseSchema, json);
   if (!parsed.success) return null;
   return mapNotNullish(
-    (entry: { envelopeAddress?: { summaryLine: string } }) =>
-      entry.envelopeAddress?.summaryLine,
+    (entry: EasypostcodesEntry) => entry.envelopeAddress?.summaryLine,
   )(parsed.output);
 };
 
@@ -70,7 +73,10 @@ export const fetchEasypostcodesAddresses = async (
       headers: { Key: apiKey },
     });
   } catch (error) {
-    return { error: `EasyPostcodes lookup failed: ${String(error)}`, ok: false };
+    return {
+      error: `EasyPostcodes lookup failed: ${String(error)}`,
+      ok: false,
+    };
   }
   // An unknown-but-well-formed postcode is a normal "no matches" outcome, not
   // a provider failure — return (and cache) the empty list.
@@ -78,7 +84,10 @@ export const fetchEasypostcodesAddresses = async (
   if (!response.ok) return parseApiError(response, "EasyPostcodes lookup");
   const addresses = parseEasypostcodesBody(response.text);
   if (addresses === null) {
-    return { error: "EasyPostcodes lookup returned an unexpected response", ok: false };
+    return {
+      error: "EasyPostcodes lookup returned an unexpected response",
+      ok: false,
+    };
   }
   return { addresses, ok: true };
 };

@@ -30,10 +30,6 @@ import {
 } from "#shared/slug.ts";
 import { isValidDatetime } from "#shared/timezone.ts";
 import {
-  type AddressLookupMode,
-  renderAddressLookupPanel,
-} from "#templates/components/address-lookup.tsx";
-import {
   type AdminLevel,
   type ContactField,
   type ContactInfo,
@@ -47,6 +43,10 @@ import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import { EmailFormatSchema } from "#shared/validation/email.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
+import {
+  type AddressLookupMode,
+  renderAddressLookupPanel,
+} from "#templates/components/address-lookup.tsx";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 
@@ -1101,10 +1101,7 @@ export const fieldsApi = { getSettingCached: settings.getCachedRaw };
  * Give the address field its postcode search panel when a lookup provider is
  * configured (no provider ⇒ the plain textarea, unchanged).
  */
-const withAddressLookup = (
-  field: Field,
-  mode: AddressLookupMode,
-): Field => {
+const withAddressLookup = (field: Field, mode: AddressLookupMode): Field => {
   const panel = renderAddressLookupPanel(mode);
   return panel ? { ...field, beforeHtml: panel } : field;
 };

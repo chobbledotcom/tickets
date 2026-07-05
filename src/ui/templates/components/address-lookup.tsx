@@ -15,8 +15,8 @@
 
 import { t } from "#i18n";
 import {
-  activeAddressLookupProvider,
   ADDRESS_LOOKUP_PROVIDERS,
+  activeAddressLookupProvider,
 } from "#shared/address-lookup/providers.ts";
 
 export type AddressLookupMode = "locked" | "editable";

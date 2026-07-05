@@ -10,13 +10,13 @@
  * requests.
  */
 
-import { lookupAddresses } from "#shared/address-lookup/service.ts";
-import { activeAddressLookupProvider } from "#shared/address-lookup/providers.ts";
+import { t } from "#i18n";
 import { jsonResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getClientIp } from "#routes/url.ts";
+import { activeAddressLookupProvider } from "#shared/address-lookup/providers.ts";
+import { lookupAddresses } from "#shared/address-lookup/service.ts";
 import { makeIpRateLimiter } from "#shared/db/login-attempts.ts";
-import { t } from "#i18n";
 import {
   ADDRESS_LOOKUP_LOCKOUT_MS,
   MAX_ADDRESS_LOOKUPS,
@@ -29,19 +29,20 @@ const limiter = makeIpRateLimiter(
   ADDRESS_LOOKUP_LOCKOUT_MS,
 );
 
-export const handleAddressLookupGet: TypedRouteHandler<"GET /address-lookup"> =
-  async (request, _params, server) => {
-    const provider = activeAddressLookupProvider();
-    if (!provider) return notFoundResponse();
+export const handleAddressLookupGet: TypedRouteHandler<
+  "GET /address-lookup"
+> = async (request, _params, server) => {
+  const provider = activeAddressLookupProvider();
+  if (!provider) return notFoundResponse();
 
-    const ip = getClientIp(request, server);
-    if (await limiter.isLimited(ip)) {
-      return jsonResponse({ error: t("address_lookup.rate_limited") }, 429);
-    }
-    await limiter.record(ip);
+  const ip = getClientIp(request, server);
+  if (await limiter.isLimited(ip)) {
+    return jsonResponse({ error: t("address_lookup.rate_limited") }, 429);
+  }
+  await limiter.record(ip);
 
-    const search = new URL(request.url).searchParams.get("search") ?? "";
-    const outcome = await lookupAddresses(provider, search);
-    if (!outcome.ok) return jsonResponse({ error: outcome.error }, 400);
-    return jsonResponse({ addresses: outcome.addresses });
-  };
+  const search = new URL(request.url).searchParams.get("search") ?? "";
+  const outcome = await lookupAddresses(provider, search);
+  if (!outcome.ok) return jsonResponse({ error: outcome.error }, 400);
+  return jsonResponse({ addresses: outcome.addresses });
+};

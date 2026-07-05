@@ -48,6 +48,10 @@ export const storeCachedAddresses = async (
   await execute(
     "INSERT INTO address_cache (search_index, results, created) VALUES (?, ?, ?) " +
       "ON CONFLICT(search_index) DO UPDATE SET results = excluded.results, created = excluded.created",
-    [searchIndex, await encrypt(JSON.stringify(addresses)), new Date(nowMs()).toISOString()],
+    [
+      searchIndex,
+      await encrypt(JSON.stringify(addresses)),
+      new Date(nowMs()).toISOString(),
+    ],
   );
 };
