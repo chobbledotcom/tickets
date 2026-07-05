@@ -2,7 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { queryAll } from "#shared/db/client.ts";
-import { setGroupPackageMembers } from "#shared/db/groups.ts";
+import { setGroupPackageMembers, setListingGroups } from "#shared/db/groups.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   createTestGroup,
   createTestListing,
@@ -161,6 +162,112 @@ describeWithEnv(
       expect(html).toContain(`name="package_quantity_${group.id}"`);
       expect(html).not.toContain("Secret Widget");
       expect(html).not.toContain(`name="quantity_${member.id}"`);
+    });
+
+    test("overlapping bundles pricing one listing differently keep the paid email", async () => {
+      // Square imposes a required email on PAID pages. The shared listing is
+      // free in bundle A (explicit 0) but charged in bundle B — the buyer can
+      // choose the paid path, so the email must render required. Judging
+      // paidness by the FIRST bundle's override alone would render it optional
+      // and the paid submit would then reject a form with no email to fill.
+      await settings.update.paymentProvider("square");
+      const a = await createTestGroup({
+        isPackage: true,
+        name: "Free Kit",
+        slug: "free-kit",
+      });
+      const b = await createTestGroup({
+        isPackage: true,
+        name: "Paid Kit",
+        slug: "paid-kit",
+      });
+      const shared = await createTestListing({
+        fields: "",
+        groupId: a.id,
+        name: "Shared Tent",
+        unitPrice: 0,
+      });
+      await setListingGroups(shared.id, [a.id, b.id]);
+      await setGroupPackageMembers(a.id, [{ listingId: shared.id, price: 0 }]);
+      await setGroupPackageMembers(b.id, [
+        { listingId: shared.id, price: 500 },
+      ]);
+
+      const html = await pageHtml(`${a.slug}+${b.slug}`);
+      expect(html).toContain(`name="package_quantity_${a.id}"`);
+      expect(html).toContain(`name="package_quantity_${b.id}"`);
+      expect(html).toMatch(/name="email"[^>]*required/);
+    });
+
+    test("a page whose every path is free asks for no provider email", async () => {
+      await settings.update.paymentProvider("square");
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Camp Kit",
+        slug: "camp-kit",
+      });
+      const member = await createTestListing({
+        fields: "",
+        groupId: group.id,
+        name: "Kit Tent",
+        unitPrice: 0,
+      });
+      await setGroupPackageMembers(group.id, [
+        { listingId: member.id, price: 0 },
+      ]);
+      const solo = await createTestListing({
+        fields: "",
+        name: "Lantern",
+        unitPrice: 0,
+      });
+      const html = await pageHtml(`${group.slug}+${solo.slug}`);
+      expect(html).not.toContain('name="email"');
+    });
+
+    test("two bundles sharing a parent render its child selector exactly once", async () => {
+      // Duplicate same-named child fields would drop the buyer's chosen mix
+      // (form parsing takes the first value), so the first section claims the
+      // parent's child block and the overlapping bundle's row suppresses it.
+      const a = await createTestGroup({
+        isPackage: true,
+        name: "Kit A",
+        slug: "kit-a",
+      });
+      const b = await createTestGroup({
+        isPackage: true,
+        name: "Kit B",
+        slug: "kit-b",
+      });
+      const parent = await createTestListing({
+        groupId: a.id,
+        maxQuantity: 5,
+        name: "Shared Parent",
+        unitPrice: 0,
+      });
+      await setListingGroups(parent.id, [a.id, b.id]);
+      await setGroupPackageMembers(a.id, [{ listingId: parent.id, price: 0 }]);
+      await setGroupPackageMembers(b.id, [{ listingId: parent.id, price: 0 }]);
+      const childA = await createTestListing({
+        maxQuantity: 5,
+        name: "Addon A",
+        unitPrice: 0,
+      });
+      const childB = await createTestListing({
+        maxQuantity: 5,
+        name: "Addon B",
+        unitPrice: 0,
+      });
+      const { setChildIds } = await import("#shared/db/listing-parents.ts");
+      await setChildIds(parent.id, [childA.id, childB.id]);
+
+      const html = await pageHtml(`${a.slug}+${b.slug}`);
+      for (const child of [childA, childB]) {
+        const field = new RegExp(
+          `name="child_qty_${parent.id}_${child.id}"`,
+          "g",
+        );
+        expect(html.match(field)).toHaveLength(1);
+      }
     });
 
     test("drops a non-package group's slug like any unknown slug", async () => {

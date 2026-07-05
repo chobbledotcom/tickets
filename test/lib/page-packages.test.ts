@@ -4,8 +4,6 @@ import {
   buildPagePackage,
   combinedPackageTerms,
   explicitStandaloneIds,
-  mergedPackageDayPrices,
-  mergedPackagePrices,
   packageByMemberListingId,
   packageMemberIds,
   soleParentPackageIds,
@@ -107,30 +105,6 @@ describe("combinedPackageTerms", () => {
       "House terms",
     );
     expect(combined).toBe("House terms");
-  });
-});
-
-describe("mergedPackagePrices / mergedPackageDayPrices", () => {
-  test("merges per-package maps with the first package winning", () => {
-    const dayMap = new Map([[2, 700]]);
-    const packages = [
-      treePackage(7, [1], {
-        dayPrices: new Map([[1, dayMap]]),
-        prices: new Map([[1, 400]]),
-      }),
-      treePackage(8, [1, 2], {
-        dayPrices: new Map([[1, new Map([[2, 999]])]]),
-        prices: new Map([
-          [1, 999],
-          [2, 300],
-        ]),
-      }),
-    ];
-    expect([...mergedPackagePrices(packages)]).toEqual([
-      [1, 400],
-      [2, 300],
-    ]);
-    expect(mergedPackageDayPrices(packages).get(1)).toBe(dayMap);
   });
 });
 

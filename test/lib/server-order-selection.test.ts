@@ -210,6 +210,36 @@ describeWithEnv(
         });
       });
 
+      test("a fixed multi-day booking is judged across its whole span", async () => {
+        // The 2-day pass occupies its start date AND the next day; with day two
+        // already full, a booking starting today can never fit — the card must
+        // read sold out for that date, matching what the form would enforce.
+        const daily = await createDailyTestListing({
+          durationDays: 2,
+          maxAttendees: 1,
+          maxQuantity: 1,
+          name: "Two Day Pass",
+        });
+        const start = orderDate();
+        const { createAttendeeAtomic } = await import(
+          "#shared/db/attendees.ts"
+        );
+        const fill = await createAttendeeAtomic({
+          bookings: [
+            { date: addDays(start, 1), listingId: daily.id, quantity: 1 },
+          ],
+          email: "early@test.com",
+          name: "Early Bird",
+        });
+        expect(fill.success).toBe(true);
+
+        const data = await fetchAvailability(`start_date=${start}`);
+        expect(data.states[`listing:${daily.id}`]).toEqual({
+          label: "Sold Out",
+          state: "unavailable",
+        });
+      });
+
       test("a date the calendar cannot serve reads as sold out for that day", async () => {
         const daily = await createDailyTestListing({
           maximumDaysAfter: 1,

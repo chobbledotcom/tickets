@@ -936,17 +936,20 @@ const validateAllItems = async (
       .filter((item) => lineGroupId(item) !== undefined)
       .map((item) => item.e),
   );
-  // Lines booked as part of some package bundle: each tagged member line, plus
-  // every child folded under a tagged member.
-  const packagedLineIds = new Set<number>([
-    ...taggedParentIds,
-    ...allocations
+  // Children folded under a tagged member book as part of that bundle.
+  const bundledChildIds = new Set(
+    allocations
       .filter((a) => taggedParentIds.has(a.parentId))
       .map((a) => a.childId),
-  ]);
+  );
+  // Standalone-ness is judged per LINE, not per listing: an order may book
+  // the same listing through a package AND its own row, and the standalone
+  // path must still take the stale checks below even though a tagged line
+  // shares its listing id.
   const standaloneLineIds = intent.items
+    .filter((item) => lineGroupId(item) === undefined)
     .map((i) => i.e)
-    .filter((id) => !packagedLineIds.has(id));
+    .filter((id) => !bundledChildIds.has(id));
   // For a hidden package, a per-member failure message would reveal a member
   // name on /payment/success, so never include the listing name in those errors
   // (fail-safe resolution — see resolveNamesConcealed).

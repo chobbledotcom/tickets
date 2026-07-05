@@ -22,6 +22,11 @@
  * carries every chosen bundle alongside ordinary listings. Nothing selected is
  * ever dropped: the booking page and its submit stay the availability
  * authority, so the redirect can't silently shrink an order.
+ *
+ * Known advisory limits (the booking form still enforces the real thing): an
+ * option's demand covers its direct listings, not the required children the
+ * form will auto-fold under them, so two selections contending for a shared
+ * child pool read as available here and are refused at the form instead.
  */
 
 import { compact, unique, uniqueBy } from "#fp";
@@ -158,11 +163,40 @@ const loadOrderCatalog = async (): Promise<OrderCatalog> => {
   return { options, packages, ticketListings };
 };
 
+/** The span a listing's booking occupies from a chosen start date: a fixed
+ * daily listing books its whole duration (capacity must hold on EVERY day); a
+ * customisable one is judged at its shortest bookable span (the gallery can't
+ * know the buyer's choice yet); everything else is dateless. */
+const bookingSpanDays = (listing: ListingWithCount): number =>
+  listing.listing_type === "daily" && !listing.customisable_days
+    ? Math.max(1, listing.duration_days)
+    : 1;
+
+/** Each involved listing's remaining units for the chosen date, judged over
+ * its own booking span — one range query per distinct span. */
+const remainingBySpan = async (
+  involved: ListingWithCount[],
+  date: string | null,
+): Promise<Map<number, number>> => {
+  const bySpan = new Map<number, ListingWithCount[]>();
+  for (const listing of involved) {
+    const span = date === null ? 1 : bookingSpanDays(listing);
+    bySpan.set(span, [...(bySpan.get(span) ?? []), listing]);
+  }
+  const maps = await Promise.all(
+    [...bySpan].map(([span, group]) =>
+      getListingRemainingForRange(group, date, span),
+    ),
+  );
+  return new Map(maps.flatMap((map) => [...map]));
+};
+
 /** The capacity pools the evaluator draws from, resolved for the chosen date
  * (or datelessly when none is chosen): each involved listing's remaining
- * (already clamped by its groups) and each capped group's remaining, so
- * demand two selections place on a shared pool adds up. A daily listing whose
- * calendar cannot serve the chosen date reads as zero remaining. */
+ * (already clamped by its groups, across its whole booking span) and each
+ * capped group's remaining, so demand two selections place on a shared pool
+ * adds up. A daily listing whose calendar cannot serve the chosen date reads
+ * as zero remaining. */
 const loadOrderPools = async (
   catalog: OrderCatalog,
   date: string | null,
@@ -179,7 +213,7 @@ const loadOrderPools = async (
   );
   const [remainingByListingId, remainingByGroupId, holidays] =
     await Promise.all([
-      getListingRemainingForRange(involved, date, 1),
+      remainingBySpan(involved, date),
       getGroupRemainingByGroupId(groupIds, date),
       date === null ? Promise.resolve([]) : getActiveHolidays(),
     ]);

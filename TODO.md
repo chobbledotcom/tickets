@@ -72,6 +72,16 @@ generalized passes: render, fold, price, capacity, revalidate.
   member offer a buyer-selected child (the parent/child choice UI, nested under a
   package). Build on demand when a real booking requires it.
 
+- **`/order` live availability: fold required-child demand into options.** The
+  order gallery's evaluator (`#shared/order`) judges an option by its direct
+  listings' units; the children the booking form auto-folds under a parent (a
+  sole bookable child fills to the parent quantity) are not part of the demand,
+  so two selections contending for a shared child pool read as available on the
+  gallery and are refused at the form. Advisory-only today (the form is the
+  authority — documented in `src/features/public/order.ts`); fixing it means
+  loading each option's children in `loadOrderCatalog` and adding the
+  guaranteed folded units (and their group pools) to `unitsByListingId`.
+
 - **Confirm the v1 drain bridge is genuinely unnecessary.** The original plan
   called for a bounded-window read-only parser for pre-cutover (v1) signed
   metadata plus a regression test for an old-shape session paid during the

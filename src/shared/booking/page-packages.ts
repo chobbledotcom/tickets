@@ -66,9 +66,10 @@ export const buildPagePackage = (
   terms: group.terms_and_conditions,
 });
 
-/** Each member listing id → the one package on the page that books it. Pages
- * never offer the same listing through two packages (the resolver rejects such
- * a cart), so the first package wins by construction. */
+/** Each member listing id → the FIRST package on the page that books it.
+ * Overlapping bundles may share a listing; the sole production caller
+ * (single-package root detection) only reads this when the page has exactly
+ * one package, where first-wins is exact. */
 export const packageByMemberListingId = <T extends TreePackage>(
   packages: readonly T[],
 ): Map<number, T> => {
@@ -124,27 +125,6 @@ export const combinedPackageTerms = (
   );
   return terms.length > 0 ? terms.join("\n\n") : fallback;
 };
-
-/** One merged listing-id map across a page's packages (member sets are
- * disjoint on a page, so merging loses nothing). Curried on which per-package
- * map to merge. */
-const mergedPackageMap =
-  <V>(pick: (pkg: TreePackage) => ReadonlyMap<number, V>) =>
-  (packages: readonly TreePackage[]): Map<number, V> => {
-    const merged = new Map<number, V>();
-    for (const pkg of packages) {
-      for (const [listingId, value] of pick(pkg)) {
-        if (!merged.has(listingId)) merged.set(listingId, value);
-      }
-    }
-    return merged;
-  };
-
-/** Every package's flat price overrides as one listing-id map. */
-export const mergedPackagePrices = mergedPackageMap((pkg) => pkg.prices);
-
-/** Every package's per-day overrides as one listing-id map. */
-export const mergedPackageDayPrices = mergedPackageMap((pkg) => pkg.dayPrices);
 
 /** Each parent listing id → its single package path, from the order's
  * top-level lines: set only when EVERY line of that listing books through the
