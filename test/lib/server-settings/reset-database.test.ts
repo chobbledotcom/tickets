@@ -4,6 +4,7 @@ import { handleRequest } from "#routes";
 import { imagesTable } from "#shared/db/images.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
+import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   adminFormPost,
   adminGet,
@@ -59,8 +60,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         attachmentUrl: "admin-reset-attachment.pdf",
       });
       await imagesTable.insert({
-        filename: "admin-reset-image.jpg",
-        filenameThumb: "",
+        filename: nonEmptyString("admin-reset-image.jpg"),
+        filenameThumb: nonEmptyString("admin-reset-image-thumb.jpg"),
         name: "Admin reset image",
       });
 
@@ -76,6 +77,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         );
         expect(
           deletedUrls.some((u) => u.includes("admin-reset-image.jpg")),
+        ).toBe(true);
+        expect(
+          deletedUrls.some((u) => u.includes("admin-reset-image-thumb.jpg")),
         ).toBe(true);
         expect(
           deletedUrls.some((u) => u.includes("admin-reset-attachment.pdf")),

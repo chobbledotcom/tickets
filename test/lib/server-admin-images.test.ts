@@ -7,9 +7,11 @@ import {
   getImageById,
   getImagesForItem,
   imagesTable,
+  setImagesForItem,
   setItemsForImage,
 } from "#shared/db/images.ts";
 import type { Image } from "#shared/types.ts";
+import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   createTestGroup,
   createTestListing,
@@ -31,8 +33,8 @@ import {
 const makeImage = (name: string): Promise<Image> =>
   imagesTable.insert({
     altText: `Alt ${name}`,
-    filename: `${name.toLowerCase()}.webp`,
-    filenameThumb: `${name.toLowerCase()}-thumb.webp`,
+    filename: nonEmptyString(`${name.toLowerCase()}.webp`),
+    filenameThumb: nonEmptyString(`${name.toLowerCase()}-thumb.webp`),
     name,
   });
 
@@ -316,6 +318,39 @@ describeWithEnv("admin image library routes", { db: true }, () => {
         "Updated",
       ]);
       expect(await imageNamesForItem("group", group.id)).toEqual(["Updated"]);
+    });
+
+    test("keeps an existing item image order during metadata-only saves", async () => {
+      const listing = await createTestListing({ name: "Stable edit listing" });
+      const image = await makeImage("Original first");
+      const trailing = await makeImage("Original trailing");
+      await setImagesForItem("listing", listing.id, [image.id, trailing.id]);
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const response = await handleRequest(
+        formRequest(
+          `/admin/images/${image.id}/edit`,
+          [
+            ["csrf_token", csrfToken],
+            ["name", "Renamed first"],
+            ["alt_text", "Updated alt"],
+            ["image_items", `listing:${listing.id}`],
+          ],
+          cookie,
+        ),
+      );
+
+      await expectFlashRedirect(
+        `/admin/images/${image.id}/edit`,
+        "Image updated",
+        true,
+        cookie,
+      )(response);
+      expect(await imageNamesForItem("listing", listing.id)).toEqual([
+        "Renamed first",
+        "Original trailing",
+      ]);
     });
   });
 

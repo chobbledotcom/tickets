@@ -47,6 +47,7 @@ import {
 } from "#shared/db/common-schema.ts";
 import {
   clearImageUsesForItemStatement,
+  getImageFilenamesForItem,
   imageFilenameSubqueries,
 } from "#shared/db/images.ts";
 import {
@@ -221,14 +222,16 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   duration_days: { default: () => 1, write: normalizeDurationDays },
   fields: col.withDefault<ListingFields>(() => "email"),
   hidden: col.boolean(false),
-  // Projected from the first linked first-class image. Keep the legacy field
-  // names on Listing so public renderers and API clients do not need a parallel
-  // branch while storage moves to images/image_uses.
+  // Projected from the first linked first-class image; an unlinked listing is
+  // projected as the encrypted-text empty string convention (`''`).
+  image_alt_text: col.projected<string>((v) =>
+    v === "" || v === undefined ? "" : decrypt(v as string),
+  ),
   image_thumb_url: col.projected<string>((v) =>
-    typeof v === "string" && v ? decrypt(v) : "",
+    v === "" || v === undefined ? "" : decrypt(v as string),
   ),
   image_url: col.projected<string>((v) =>
-    typeof v === "string" && v ? decrypt(v) : "",
+    v === "" || v === undefined ? "" : decrypt(v as string),
   ),
   initial_site_months: col.withDefault(() => 0),
   listing_type: col.withDefault<ListingType>(() => "standard"),
@@ -551,22 +554,38 @@ const listingsCache = listingsEntity.cache;
  * returned entity honest. `update` no-ops when the row is missing (returns null).
  */
 const rawTable = listingsEntity.table;
+type ListingImageProjection = Pick<
+  Listing,
+  "image_alt_text" | "image_thumb_url" | "image_url"
+>;
+const EMPTY_LISTING_IMAGE: ListingImageProjection = {
+  image_alt_text: "",
+  image_thumb_url: "",
+  image_url: "",
+};
+
 const withDayPrices = async (
   row: Listing,
   provided: DayPrices | undefined,
-): Promise<Listing> => ({
-  ...row,
-  day_prices: provided ?? (await getListingDayPrices(row.id)),
-  image_thumb_url: row.image_thumb_url ?? "",
-  image_url: row.image_url ?? "",
-});
+  projectedImage?: ListingImageProjection,
+): Promise<Listing> => {
+  const [day_prices, imageFilenames] = await Promise.all([
+    provided ?? getListingDayPrices(row.id),
+    projectedImage ?? getImageFilenamesForItem("listing", row.id),
+  ]);
+  return {
+    ...row,
+    ...imageFilenames,
+    day_prices,
+  };
+};
 export const listingsTable: typeof rawTable = {
   ...rawTable,
   insert: async (input) => {
     const row = await rawTable.insert(input);
     await syncListingPrices(row.id);
     await executeBatch(dayCountPriceStatements(row.id, input.dayPrices));
-    return withDayPrices(row, input.dayPrices);
+    return withDayPrices(row, input.dayPrices, EMPTY_LISTING_IMAGE);
   },
   update: async (id, input) => {
     const row = await rawTable.update(id, input);

@@ -19,6 +19,10 @@ import {
   validateImage,
 } from "#shared/storage.ts";
 import type { Image } from "#shared/types.ts";
+import {
+  type NonEmptyString,
+  nonEmptyString,
+} from "#shared/validation/string.ts";
 
 type ImageMetadata = {
   name: string;
@@ -45,7 +49,9 @@ const imageFileFromForm = (formData: FormData): FormResult<File> => {
 
 const uploadedFilenames = async (
   file: File,
-): Promise<FormResult<{ filename: string; filenameThumb: string }>> => {
+): Promise<
+  FormResult<{ filename: NonEmptyString; filenameThumb: NonEmptyString }>
+> => {
   if (!isStorageEnabled()) {
     return { error: t("images.storage_off"), ok: false };
   }
@@ -63,8 +69,11 @@ const uploadedFilenames = async (
     return {
       ok: true,
       value: {
-        filename: filename as string,
-        filenameThumb: filenameThumb as string,
+        filename: nonEmptyString(filename as string, "image filename"),
+        filenameThumb: nonEmptyString(
+          filenameThumb as string,
+          "image thumbnail filename",
+        ),
       },
     };
   } catch (err) {

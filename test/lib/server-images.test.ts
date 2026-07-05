@@ -15,6 +15,7 @@ import {
 } from "#shared/db/listings.ts";
 import { MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
+import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   cdnOkResponse,
   createTestListing,
@@ -131,30 +132,19 @@ const submitListingImagePng = async (
 const linkStoredImage = async (
   listingId: number,
   filename: string,
-  filenameThumb = "",
+  filenameThumb = `${filename}-thumb.webp`,
 ) => {
   const image = await imagesTable.insert({
-    filename,
-    filenameThumb,
+    filename: nonEmptyString(filename, "test image filename"),
+    filenameThumb: nonEmptyString(
+      filenameThumb,
+      "test image thumbnail filename",
+    ),
     name: filename,
   });
   await setImagesForItem("listing", listingId, [image.id]);
   return image;
 };
-
-/** Submit a POST to /admin/listing/:id/image/delete */
-const submitImageDelete = (
-  listingId: number,
-  cookie: string,
-  csrfToken: string,
-): Promise<Response> =>
-  handleRequest(
-    mockFormRequest(
-      `/admin/listing/${listingId}/image/delete`,
-      { csrf_token: csrfToken },
-      cookie,
-    ),
-  );
 
 /** Assert a 302 redirect with a flash error cookie containing the given substring */
 const expectImageErrorRedirect = (
@@ -551,81 +541,6 @@ describeWithEnv(
         );
         const html = await response.text();
         expect(html).not.toContain("image was not uploaded");
-      });
-    });
-
-    describe("POST /admin/listing/:id/image/delete", () => {
-      const expectImageDeleteRedirect = (
-        response: Response,
-        listingId: number,
-      ): Promise<Response> =>
-        expectFlashRedirect(
-          `/admin/listing/${listingId}`,
-          "Images removed",
-        )(response);
-
-      test("unlinks image and thumbnail from listing without deleting storage", async () => {
-        const { listing, cookie, csrfToken } = await setupListingAndLogin();
-        await linkStoredImage(
-          listing.id,
-          "to-delete.webp",
-          "to-delete-thumb.webp",
-        );
-
-        await withStorageMock(async (fetchCalls) => {
-          const response = await submitImageDelete(
-            listing.id,
-            cookie,
-            csrfToken,
-          );
-          await expectImageDeleteRedirect(response, listing.id);
-
-          const updated = await getListingWithCount(listing.id);
-          expect(updated?.image_url).toBe("");
-          expect(updated?.image_thumb_url).toBe("");
-          expect(fetchCalls.find((url) => url.includes("to-delete.webp"))).toBe(
-            undefined,
-          );
-          expect(
-            fetchCalls.find((url) => url.includes("to-delete-thumb.webp")),
-          ).toBe(undefined);
-        });
-      });
-
-      test("redirects when listing has no image", async () => {
-        const { listing, cookie, csrfToken } = await setupListingAndLogin();
-
-        const response = await submitImageDelete(listing.id, cookie, csrfToken);
-        await expectImageDeleteRedirect(response, listing.id);
-      });
-
-      test("returns 404 for non-existent listing", async () => {
-        const cookie = await testCookie();
-        const csrfToken = await testCsrfToken();
-
-        const response = await submitImageDelete(9999, cookie, csrfToken);
-        expect(response.status).toBe(404);
-      });
-
-      test("succeeds even when storage would fail to delete", async () => {
-        const { listing, cookie, csrfToken } = await setupListingAndLogin();
-        await linkStoredImage(listing.id, "failing.jpg");
-
-        await withFetchMock(async (originalFetch) => {
-          installUrlHandler(originalFetch, () =>
-            Promise.reject(new Error("CDN unreachable")),
-          );
-
-          const response = await submitImageDelete(
-            listing.id,
-            cookie,
-            csrfToken,
-          );
-          await expectImageDeleteRedirect(response, listing.id);
-
-          const updated = await getListingWithCount(listing.id);
-          expect(updated?.image_url).toBe("");
-        });
       });
     });
 

@@ -18,6 +18,7 @@ import {
 } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { getDeleteOverride } from "#shared/test-overrides.ts";
+import type { NonEmptyString } from "#shared/validation/string.ts";
 
 // ---------------------------------------------------------------------------
 // Per-context storage config (eliminates env var races in concurrent tests)
@@ -224,8 +225,8 @@ type ListingWithAttachmentStorage = {
 /** Image shape that owns storage files */
 type ImageWithStorage = {
   id: number;
-  filename: string;
-  filename_thumb: string;
+  filename: NonEmptyString;
+  filename_thumb: NonEmptyString;
 };
 
 /** Delete the attachment file for a single listing */
@@ -252,12 +253,8 @@ export const deleteImageStorageFiles = async (
   image: ImageWithStorage,
   reason: string,
 ): Promise<void> => {
-  if (image.filename) {
-    await tryDeleteFile(image.filename, image.id, reason);
-  }
-  if (image.filename_thumb) {
-    await tryDeleteFile(image.filename_thumb, image.id, reason);
-  }
+  await tryDeleteFile(image.filename, image.id, reason);
+  await tryDeleteFile(image.filename_thumb, image.id, reason);
 };
 
 /** Delete all first-class image files. */

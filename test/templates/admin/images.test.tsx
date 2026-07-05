@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { AdminSession, Image } from "#shared/types.ts";
+import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   adminImageDeletePage,
   adminImageEditPage,
@@ -20,8 +21,8 @@ const SESSION: AdminSession = { adminLevel: "owner" };
 
 const image = (id: number, name: string): Image => ({
   alt_text: `Alt ${name}`,
-  filename: `${name.toLowerCase()}.webp`,
-  filename_thumb: `${name.toLowerCase()}-thumb.webp`,
+  filename: nonEmptyString(`${name.toLowerCase()}.webp`),
+  filename_thumb: nonEmptyString(`${name.toLowerCase()}-thumb.webp`),
   id,
   name,
 });
@@ -45,12 +46,10 @@ describe("admin image templates", () => {
     }
   });
 
-  test("renders thumbnail fallback states", () => {
-    const onlyFull = { ...image(8, "Full only"), filename_thumb: "" };
-    const noFile = { ...image(9, "No file"), filename: "", filename_thumb: "" };
-    const html = adminImagesPage([onlyFull, noFile], SESSION);
-    expect(html).toContain("/image/full only.webp");
-    expect(html).toContain('<span class="muted">-</span>');
+  test("renders the thumbnail from the image thumbnail filename", () => {
+    const html = adminImagesPage([image(8, "Poster")], SESSION);
+    expect(html).toContain("/image/poster-thumb.webp");
+    expect(html).not.toContain("/image/poster.webp");
   });
 
   test("renders the new image upload form", () => {

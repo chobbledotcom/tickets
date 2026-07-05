@@ -32,10 +32,7 @@ import {
   handleListingRecalculateGet,
   handleListingRecalculatePost,
 } from "./listings-recalculate.ts";
-import {
-  handleAttachmentDelete,
-  handleImageDelete,
-} from "./listings-uploads.ts";
+import { handleAttachmentDelete } from "./listings-uploads.ts";
 
 const listingImageHandlers = createItemImageHandlers({
   itemType: "listing",
@@ -72,7 +69,6 @@ export const listingsRoutes = {
     "POST /admin/listing/:id/children": handleAdminListingChildren,
     "POST /admin/listing/:id/delete": handleAdminListingDelete,
     "POST /admin/listing/:id/edit": handleAdminListingEditPost,
-    "POST /admin/listing/:id/image/delete": handleImageDelete,
     "POST /admin/listing/:id/images": listingImageHandlers.set,
     "POST /admin/listing/:id/images/upload": listingImageHandlers.upload,
     "POST /admin/listing/:id/income": handleAdminListingIncomePost,

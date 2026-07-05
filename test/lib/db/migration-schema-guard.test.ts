@@ -75,7 +75,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-03_listing_image_thumb",
         "2026-07-05_first_class_images",
       ],
-      schemaHash: "dwmsir",
+      schemaHash: "suxi5o",
     });
   });
 });

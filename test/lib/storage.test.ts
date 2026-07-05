@@ -27,6 +27,7 @@ import {
   validateImage,
 } from "#shared/storage.ts";
 import { setDeleteOverride } from "#shared/test-overrides.ts";
+import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   describeWithEnv,
   expectWebpContainer,
@@ -625,8 +626,16 @@ describeWithEnv(
 
         test("deletes image files and thumbnails for all images", async () => {
           const images = [
-            { filename: "img1.webp", filename_thumb: "img1-thumb.webp", id: 1 },
-            { filename: "img2.webp", filename_thumb: "", id: 2 },
+            {
+              filename: nonEmptyString("img1.webp"),
+              filename_thumb: nonEmptyString("img1-thumb.webp"),
+              id: 1,
+            },
+            {
+              filename: nonEmptyString("img2.webp"),
+              filename_thumb: nonEmptyString("img2-thumb.webp"),
+              id: 2,
+            },
           ];
 
           await withBunnyDeleteCapture(async (deletedUrls) => {
@@ -637,7 +646,10 @@ describeWithEnv(
               true,
             );
             expect(deletedUrls.some((u) => u.includes("img2.webp"))).toBe(true);
-            expect(deletedUrls).toHaveLength(3);
+            expect(deletedUrls.some((u) => u.includes("img2-thumb.webp"))).toBe(
+              true,
+            );
+            expect(deletedUrls).toHaveLength(4);
           });
         });
       },

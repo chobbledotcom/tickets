@@ -66,16 +66,13 @@ const imageValue = (image?: Image): Record<string, string | number | null> => ({
   name: image?.name ?? "",
 });
 
-const thumbnail = (image: Image): JSX.Element =>
-  image.filename_thumb || image.filename ? (
-    <img
-      alt={image.alt_text || image.name}
-      class="image-library-thumb"
-      src={getImageProxyUrl(image.filename_thumb || image.filename)}
-    />
-  ) : (
-    <span class="muted">-</span>
-  );
+const thumbnail = (image: Image): JSX.Element => (
+  <img
+    alt={image.alt_text || image.name}
+    class="image-library-thumb"
+    src={getImageProxyUrl(image.filename_thumb)}
+  />
+);
 
 const linkedLabel = (option: ImageItemOption): string =>
   `${

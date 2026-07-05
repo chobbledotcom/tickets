@@ -1,17 +1,20 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { executeBatch, queryAll } from "#shared/db/client.ts";
+import { encrypt } from "#shared/crypto/encryption.ts";
+import { execute, executeBatch, queryAll } from "#shared/db/client.ts";
 import {
   clearImageUsesForItemStatement,
   deleteImageRecord,
   getAllImages,
   getImageById,
+  getImageFilenamesForItem,
   getImagesForItem,
   imagesTable,
   setImagesForItem,
   setItemsForImage,
 } from "#shared/db/images.ts";
 import type { Image } from "#shared/types.ts";
+import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   createTestGroup,
   createTestListing,
@@ -28,8 +31,14 @@ const makeImage = (
 ): Promise<Image> =>
   imagesTable.insert({
     altText: extra.altText ?? `Alt ${name}`,
-    filename: extra.filename ?? `${name.toLowerCase()}.webp`,
-    filenameThumb: extra.filenameThumb ?? `${name.toLowerCase()}-thumb.webp`,
+    filename: nonEmptyString(
+      extra.filename ?? `${name.toLowerCase()}.webp`,
+      "test image filename",
+    ),
+    filenameThumb: nonEmptyString(
+      extra.filenameThumb ?? `${name.toLowerCase()}-thumb.webp`,
+      "test image thumbnail filename",
+    ),
     name,
   });
 
@@ -67,6 +76,23 @@ describeWithEnv("db > images", { db: true }, () => {
       expect(await getAllImages()).toEqual([image]);
       expect(await getImageById(9999)).toBeNull();
     });
+
+    test("rejects stored images whose filename decrypts to an empty string", async () => {
+      await execute(
+        `INSERT INTO images (name, filename, filename_thumb, alt_text)
+         VALUES (?, ?, ?, ?)`,
+        [
+          await encrypt("Broken"),
+          await encrypt(""),
+          await encrypt("broken-thumb.webp"),
+          "",
+        ],
+      );
+
+      await expect(getAllImages()).rejects.toThrow(
+        "image filename must be non-empty",
+      );
+    });
   });
 
   describe("item links", () => {
@@ -91,6 +117,22 @@ describeWithEnv("db > images", { db: true }, () => {
         clearImageUsesForItemStatement("listing", listing.id),
       ]);
       expect(await linkedImageIds("listing", listing.id)).toEqual([]);
+    });
+
+    test("projects the primary image filenames and alt text for an item", async () => {
+      const listing = await createTestListing({ name: "Alt listing" });
+      const image = await makeImage("Primary", {
+        altText: "Primary image alt",
+        filename: "primary.webp",
+        filenameThumb: "primary-thumb.webp",
+      });
+      await setImagesForItem("listing", listing.id, [image.id]);
+
+      expect(await getImageFilenamesForItem("listing", listing.id)).toEqual({
+        image_alt_text: "Primary image alt",
+        image_thumb_url: "primary-thumb.webp",
+        image_url: "primary.webp",
+      });
     });
 
     test("sets all item links for one image and appends to existing item order", async () => {
@@ -118,6 +160,37 @@ describeWithEnv("db > images", { db: true }, () => {
       expect(await linkedImageIds("listing", listing.id)).toEqual([
         existing.id,
       ]);
+      expect(await linkedImageIds("group", group.id)).toEqual([]);
+    });
+
+    test("preserves existing item image order when saving one image's links", async () => {
+      const listing = await createTestListing({ name: "Stable listing" });
+      const edited = await makeImage("Edited");
+      const trailing = await makeImage("Trailing");
+      await setImagesForItem("listing", listing.id, [edited.id, trailing.id]);
+
+      await setItemsForImage(edited.id, [
+        { itemId: listing.id, itemType: "listing" },
+      ]);
+
+      expect(await linkedImageIds("listing", listing.id)).toEqual([
+        edited.id,
+        trailing.id,
+      ]);
+    });
+
+    test("clears every link for an image when saving no item links", async () => {
+      const listing = await createTestListing({ name: "Unlinked listing" });
+      const group = await createTestGroup({ name: "Unlinked group" });
+      const image = await makeImage("Unlinked");
+      await setItemsForImage(image.id, [
+        { itemId: listing.id, itemType: "listing" },
+        { itemId: group.id, itemType: "group" },
+      ]);
+
+      await setItemsForImage(image.id, []);
+
+      expect(await linkedImageIds("listing", listing.id)).toEqual([]);
       expect(await linkedImageIds("group", group.id)).toEqual([]);
     });
   });

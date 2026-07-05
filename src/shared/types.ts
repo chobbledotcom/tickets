@@ -9,6 +9,7 @@ import type {
   ModifierScope,
   ModifierTrigger,
 } from "#shared/price-modifier.ts";
+import type { NonEmptyString } from "#shared/validation/string.ts";
 
 /** Type guard: a non-null, non-array object (a Record shape). */
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -344,7 +345,17 @@ export const sharedGroupCapacity = (
   };
 };
 
-export interface Listing {
+export type ItemImageProjection = {
+  /** Projected from the first `image_uses` row for this item. Storage ownership
+   * lives in the first-class images tables. */
+  image_url: string;
+  /** Projected thumbnail filename for {@link image_url}. */
+  image_thumb_url: string;
+  /** Projected alt text for {@link image_url}. Empty means decorative. */
+  image_alt_text: string;
+};
+
+export interface Listing extends ItemImageProjection {
   active: boolean;
   assign_built_site: boolean;
   attachment_name: string;
@@ -361,12 +372,6 @@ export interface Listing {
   fields: ListingFields;
   hidden: boolean;
   id: number;
-  /** Projected from the first `image_uses` row for this listing. Kept on the
-   * listing shape so existing public renderers can read the primary image while
-   * storage ownership lives in the first-class images tables. */
-  image_url: string;
-  /** Projected thumbnail filename for {@link image_url}. */
-  image_thumb_url: string;
   location: string; // encrypted or empty string
   max_attendees: number;
   max_price: number;
@@ -402,8 +407,8 @@ export interface Listing {
 
 export interface Image {
   alt_text: string;
-  filename: string;
-  filename_thumb: string;
+  filename: NonEmptyString;
+  filename_thumb: NonEmptyString;
   id: number;
   name: string;
 }

@@ -44,6 +44,7 @@ import { getImageProxyUrl } from "#shared/storage.ts";
 import {
   availableDayCounts,
   dayPriceFor,
+  type ItemImageProjection,
   isPaidListing,
   type ListingFields,
   type ListingWithCount,
@@ -79,7 +80,8 @@ import {
 export const buildOgTags = (
   listing: {
     name: string;
-    description: string;
+    description?: string | null | undefined;
+    image_alt_text?: string | undefined;
     slug: string;
     image_url: string;
   },
@@ -105,6 +107,13 @@ export const buildOgTags = (
         getImageProxyUrl(listing.image_url),
       )}">`,
     );
+    if (listing.image_alt_text) {
+      tags.push(
+        `<meta property="og:image:alt" content="${escapeHtml(
+          listing.image_alt_text,
+        )}">`,
+      );
+    }
   }
   return tags.join("\n");
 };
@@ -1420,6 +1429,7 @@ export type TicketPageOptions = {
   baseUrl?: string;
   groupName?: string;
   groupDescription?: string;
+  groupImage?: ItemImageProjection;
   prefill?: BookingPrefill | undefined;
   /** Override the <form action="…"> URL. Defaults to `/ticket/<slugs>`. */
   actionUrl?: string;
@@ -1483,16 +1493,18 @@ const unavailableMessage = (
 const TicketPageHeader = ({
   headerName,
   headerDescription,
+  headerImage,
   singleListing,
   pastDays,
 }: {
   headerName: string;
   headerDescription: string | null | undefined;
+  headerImage: ItemImageProjection | null;
   singleListing: ListingWithCount | null;
   pastDays: number | null;
 }): JSX.Element => (
   <>
-    {singleListing && <Raw html={renderListingImage(singleListing)} />}
+    {headerImage && <Raw html={renderListingImage(headerImage)} />}
     <div class="prose">
       <h1>{headerName}</h1>
       {headerDescription && (
@@ -1959,6 +1971,26 @@ const headerListing = (
 ): ListingWithCount | null =>
   listings.length === 1 && !hidePackageListings ? listings[0]!.listing : null;
 
+const ticketPageHeadExtra = (
+  headerImage: ItemImageProjection | null,
+  headerName: string | undefined,
+  headerDescription: string | null | undefined,
+  slugs: string[],
+  baseUrl: string | undefined,
+): string | undefined => {
+  if (!headerImage || !headerName || !baseUrl) return undefined;
+  return buildOgTags(
+    {
+      description: headerDescription,
+      image_alt_text: headerImage.image_alt_text,
+      image_url: headerImage.image_url,
+      name: headerName,
+      slug: slugs.join("+"),
+    },
+    baseUrl,
+  );
+};
+
 /**
  * Ticket page - register for one or more listings
  * Single listings show rich details (image, description, date, location).
@@ -1975,6 +2007,7 @@ export const ticketPage = ({
   baseUrl,
   groupName,
   groupDescription,
+  groupImage,
   prefill,
   actionUrl,
   addOns,
@@ -2090,9 +2123,15 @@ export const ticketPage = ({
   // name/description.
   const headerName = groupName ?? singleListing?.name;
   const headerDescription = groupDescription ?? singleListing?.description;
+  const headerImage = groupImage?.image_url ? groupImage : singleListing;
   const title = headerName || t("public.multi.title");
-  const headExtra =
-    singleListing && baseUrl ? buildOgTags(singleListing, baseUrl) : undefined;
+  const headExtra = ticketPageHeadExtra(
+    headerImage,
+    headerName,
+    headerDescription,
+    slugs,
+    baseUrl,
+  );
 
   return String(
     <Layout
@@ -2103,6 +2142,7 @@ export const ticketPage = ({
       {headerName && !inIframe && (
         <TicketPageHeader
           headerDescription={headerDescription}
+          headerImage={headerImage}
           headerName={headerName}
           pastDays={pastDays}
           singleListing={singleListing}

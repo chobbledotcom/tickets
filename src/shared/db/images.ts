@@ -7,13 +7,22 @@ import { mapParallel } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { executeBatch, queryAll } from "#shared/db/client.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
-import { col } from "#shared/db/table.ts";
-import type { Image, ImageUse, ImageUseItemType } from "#shared/types.ts";
+import { type ColumnDef, col } from "#shared/db/table.ts";
+import type {
+  Image,
+  ImageUse,
+  ImageUseItemType,
+  ItemImageProjection,
+} from "#shared/types.ts";
+import {
+  isNonEmptyString,
+  type NonEmptyString,
+} from "#shared/validation/string.ts";
 
 export type ImageInput = {
   name: string;
-  filename: string;
-  filenameThumb: string;
+  filename: NonEmptyString;
+  filenameThumb: NonEmptyString;
   altText?: string | undefined;
 };
 
@@ -26,10 +35,28 @@ export type OrderedImage = Image & { sort_order: number };
 
 const IMAGE_COLUMNS = "id, name, filename, filename_thumb, alt_text";
 
+const decryptedNonEmptyString = async (
+  encrypted: string,
+  name: string,
+): Promise<NonEmptyString> => {
+  const decrypted = await decrypt(encrypted);
+  if (isNonEmptyString(decrypted)) return decrypted;
+  throw new Error(`${name} must be non-empty`);
+};
+
+const encryptedNonEmptyText = (name: string): ColumnDef<NonEmptyString> => ({
+  read: (async (value: NonEmptyString) =>
+    decryptedNonEmptyString(value, name)) as ColumnDef<NonEmptyString>["read"],
+  write: ((value: NonEmptyString) =>
+    encrypt(
+      value,
+    ) as Promise<NonEmptyString>) as ColumnDef<NonEmptyString>["write"],
+});
+
 export const imagesTable = defineIdTable<Image, ImageInput>("images", {
   alt_text: col.encryptedText(encrypt, decrypt),
-  filename: col.encryptedText(encrypt, decrypt),
-  filename_thumb: col.encryptedText(encrypt, decrypt),
+  filename: encryptedNonEmptyText("image filename"),
+  filename_thumb: encryptedNonEmptyText("image thumbnail filename"),
   id: col.generated<number>(),
   name: col.encryptedText(encrypt, decrypt),
 });
@@ -50,7 +77,7 @@ export const getImageById = (id: number): Promise<Image | null> =>
 export const imageFilenameSubquery = (
   itemType: ImageUseItemType,
   itemIdExpr: string,
-  filenameColumn: "filename" | "filename_thumb",
+  filenameColumn: "filename" | "filename_thumb" | "alt_text",
   alias: string,
 ): string =>
   `COALESCE((SELECT image.${filenameColumn}
@@ -67,6 +94,7 @@ export const imageFilenameSubqueries = (
 ): string =>
   [
     imageFilenameSubquery(itemType, itemIdExpr, "filename", "image_url"),
+    imageFilenameSubquery(itemType, itemIdExpr, "alt_text", "image_alt_text"),
     imageFilenameSubquery(
       itemType,
       itemIdExpr,
@@ -74,6 +102,35 @@ export const imageFilenameSubqueries = (
       "image_thumb_url",
     ),
   ].join(", ");
+
+export const getImageFilenamesForItem = async (
+  itemType: ImageUseItemType,
+  itemId: number,
+): Promise<ItemImageProjection> => {
+  const rows = await queryAll<{
+    alt_text: string;
+    filename: string;
+    filename_thumb: string;
+  }>(
+    `SELECT image.filename, image.filename_thumb, image.alt_text
+       FROM image_uses AS imageUse
+       JOIN images AS image ON image.id = imageUse.image_id
+      WHERE imageUse.item_type = ? AND imageUse.item_id = ?
+      ORDER BY imageUse.sort_order ASC, imageUse.image_id ASC
+      LIMIT 1`,
+    [itemType, itemId],
+  );
+  const row = rows[0];
+  if (!row) return { image_alt_text: "", image_thumb_url: "", image_url: "" };
+  return {
+    image_alt_text: row.alt_text === "" ? "" : await decrypt(row.alt_text),
+    image_thumb_url: await decryptedNonEmptyString(
+      row.filename_thumb,
+      "image thumbnail filename",
+    ),
+    image_url: await decryptedNonEmptyString(row.filename, "image filename"),
+  };
+};
 
 export const getImagesForItem = async (
   itemType: ImageUseItemType,
@@ -161,6 +218,24 @@ const attachImageToExistingItemStatement = (
   };
 };
 
+const clearStaleImageUseTargetsStatement = (
+  imageId: number,
+  targets: readonly ImageUseTarget[],
+): ImageUseStatement => {
+  const targetPredicates = targets.map(() => "(item_type = ? AND item_id = ?)");
+  return {
+    args: [
+      imageId,
+      ...targets.flatMap((target) => [target.itemType, target.itemId]),
+    ],
+    sql: `DELETE FROM image_uses WHERE image_id = ?${
+      targetPredicates.length === 0
+        ? ""
+        : ` AND NOT (${targetPredicates.join(" OR ")})`
+    }`,
+  };
+};
+
 export const setItemsForImage = (
   imageId: number,
   targets: readonly ImageUseTarget[],
@@ -171,7 +246,7 @@ export const setItemsForImage = (
     ).values(),
   ];
   return executeBatch([
-    { args: [imageId], sql: "DELETE FROM image_uses WHERE image_id = ?" },
+    clearStaleImageUseTargetsStatement(imageId, unique),
     ...unique.map((target) =>
       attachImageToExistingItemStatement(imageId, target),
     ),

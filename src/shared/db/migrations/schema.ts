@@ -33,8 +33,7 @@ export type Trigger = {
 
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
-export const LATEST_UPDATE =
-  "Move listing images into first-class images and image_uses tables.";
+export const LATEST_UPDATE = "Create first-class images and image_uses tables.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -228,8 +227,8 @@ export const SCHEMA: [name: string, table: Table][] = [
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["name", "TEXT NOT NULL DEFAULT ''"],
-        ["filename", "TEXT NOT NULL DEFAULT ''"],
-        ["filename_thumb", "TEXT NOT NULL DEFAULT ''"],
+        ["filename", "TEXT NOT NULL CHECK (filename <> '')"],
+        ["filename_thumb", "TEXT NOT NULL CHECK (filename_thumb <> '')"],
         ["alt_text", "TEXT NOT NULL DEFAULT ''"],
       ],
     },

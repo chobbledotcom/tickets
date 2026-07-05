@@ -7,7 +7,7 @@ import type {
   QuestionListingMap,
   QuestionWithAnswers,
 } from "#shared/db/questions.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import type { ItemImageProjection, ListingWithCount } from "#shared/types.ts";
 import type {
   BookingPrefill,
   ChildSpanDates,
@@ -38,6 +38,7 @@ export type TicketSharedContext = {
   childDatesById: Map<string, ChildSpanDates>;
   groupName?: string;
   groupDescription?: string;
+  groupImage?: ItemImageProjection;
   /** Set when the booking page is a package group: the group's id (for signed
    * metadata) and listing-id → override price map (only members with a flat
    * `group` override in listing_prices). `null`/absent for non-package pages. */

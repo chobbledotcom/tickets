@@ -298,10 +298,9 @@ export const MIGRATIONS: Migration[] = [
   // Data-only: rewrite {{listing}} → {{listings}} in the stored attendee
   // column-order template, matching the renamed grouped Listings column.
   attendeeListingsTagMigration,
-  // Pure additive column add: image_thumb_url on listings for the WebP thumbnail.
+  // Historical no-op: image thumbnails now live on first-class image records.
   listingImageThumbMigration,
-  // Move uploaded listing images into reusable image records plus ordered uses,
-  // then rebuild listings without the legacy filename columns.
+  // Create reusable image records plus ordered item uses.
   firstClassImagesMigration,
 ].map((build) => build(migrationContext));
 

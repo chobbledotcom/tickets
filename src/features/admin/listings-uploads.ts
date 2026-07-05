@@ -13,7 +13,6 @@ import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { listingReturnPath } from "#shared/admin-paths.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { setImagesForItem } from "#shared/db/images.ts";
 import {
   getListingWithCount,
   type ListingInput,
@@ -40,8 +39,6 @@ const processFormFile = async (opts: {
   fieldName: string;
   listingId: number;
   existingUrl?: string | undefined;
-  /** Further old files (e.g. an image's thumbnail) to delete before replacing. */
-  existingExtraUrls?: ReadonlyArray<string> | undefined;
   validate: (data: Uint8Array, file: File) => string | null;
   upload: (data: Uint8Array, file: File) => Promise<Partial<ListingInput>>;
   label: string;
@@ -62,10 +59,12 @@ const processFormFile = async (opts: {
   const error = opts.validate(data, entry);
   if (error) return error;
 
-  for (const oldUrl of [opts.existingUrl, ...(opts.existingExtraUrls ?? [])]) {
-    if (oldUrl) {
-      await tryDeleteFile(oldUrl, opts.listingId, `old ${opts.label} cleanup`);
-    }
+  if (opts.existingUrl) {
+    await tryDeleteFile(
+      opts.existingUrl,
+      opts.listingId,
+      `old ${opts.label} cleanup`,
+    );
   }
 
   const [uploadResult] = await Promise.allSettled([opts.upload(data, entry)]);
@@ -180,15 +179,6 @@ const handleFileDelete = (
       return redirect(returnPath, `${label} removal failed`, false);
     }
     return redirect(returnPath, `${label} removed`, true);
-  });
-
-/** Handle legacy POST /admin/listing/:id/image/delete by unlinking all images. */
-export const handleImageDelete: TypedRouteHandler<"POST /admin/listing/:id/image/delete"> =
-  listingUploadHandler(async (session, listing, id) => {
-    const returnPath = listingReturnPath(session.adminLevel, id);
-    await setImagesForItem("listing", listing.id, []);
-    await logActivity(`Images removed for '${listing.name}'`, listing);
-    return redirect(returnPath, "Images removed", true);
   });
 
 /** Handle POST /admin/listing/:id/attachment/delete (delete listing attachment) */
