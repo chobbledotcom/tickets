@@ -621,6 +621,17 @@ describe("toDesiredLines", () => {
     ]);
   });
 
+  test("a listing omitted from the form entirely is still removed", () => {
+    // Omission is the pre-carry removal contract (crafted posts and API
+    // helpers rely on it): only a sibling row hidden BEHIND a rendered line
+    // is preserved, never a listing the form dropped altogether.
+    const desired = toDesiredLines(
+      parsedBase({ lines: [] }),
+      new Map([["1|standalone", bookingRow({ listing_id: 1 })]]),
+    );
+    expect(desired).toEqual([]);
+  });
+
   test("a zeroed line's row is deleted, not carried back", () => {
     // Zeroing the quantity names the row's key with an unretained line — a
     // deliberate removal. Only rows the form had NO line for are carried.

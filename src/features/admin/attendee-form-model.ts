@@ -526,11 +526,13 @@ export const toLedgerOrder = (parsed: ParsedAttendeeForm): PricedOrder => {
  *
  * The editor shows ONE line per listing, but an attendee may hold several rows
  * for one listing (a package path beside a standalone path, or two overlapping
- * packages). Rows the submitted form never named are carried over exactly as
- * stored — quantity, dates, and package path — so saving an unrelated field can
- * never silently delete the other paths. Editing or removing those extra rows
- * needs a row-per-path editor (see TODO.md); until then the form edits only the
- * row its line key names.
+ * packages). A row the submitted form COULD NOT represent — its listing has a
+ * line, but that line's key names a sibling row — is carried over exactly as
+ * stored (quantity, dates, package path), so saving an unrelated field never
+ * silently deletes the other paths. A listing with no line at all keeps the
+ * old contract: absent means delete. Editing or removing a carried row needs
+ * a row-per-path editor (see TODO.md); until then the form edits only the row
+ * its line key names.
  */
 export const toDesiredLines = (
   parsed: ParsedAttendeeForm,
@@ -558,12 +560,24 @@ export const toDesiredLines = (
         quantity: line.quantity!,
       };
     });
-  // A deliberate removal names the row's key with a zeroed line — that key is
-  // "seen" and stays deleted. Only rows the form had no line for at all are
-  // preserved.
+  // A row is carried ONLY when the form's line for its listing names a real
+  // DIFFERENT sibling row — the one shape the one-line-per-listing editor
+  // cannot express. Everything else keeps the pre-carry contract: a zeroed
+  // line deletes the row its key names, an omitted listing deletes its rows,
+  // and a line with a blank/unknown key (a stale form) represents no stored
+  // row at all, so nothing hides behind it.
   const seenKeys = new Set(parsed.lines.map((line) => line.key));
   const carried = [...existingByKey]
-    .filter(([key]) => !seenKeys.has(key))
+    .filter(
+      ([key, row]) =>
+        !seenKeys.has(key) &&
+        parsed.lines.some(
+          (line) =>
+            line.listingId === row.listing_id &&
+            line.key !== key &&
+            existingByKey.has(line.key),
+        ),
+    )
     .map(
       ([key, row]): DesiredListingLine => ({
         date: row.start_at ? row.start_at.slice(0, 10) : null,
