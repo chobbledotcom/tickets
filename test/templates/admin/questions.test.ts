@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { buildAnswerSummaryRows } from "#templates/admin/listings/aggregates.tsx";
 import {
-  buildAnswerSummaryRows,
   ListingOverviewPanel,
   overviewStatsFromAttendees,
-} from "#templates/admin/listings.tsx";
+} from "#templates/admin/listings/overview.tsx";
 import {
   adminAnswerDeletePage,
   adminAnswerEditPage,

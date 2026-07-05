@@ -48,10 +48,9 @@ const installDom = (bodyHtml: string): Window => {
   return window;
 };
 
-afterEach(async () => {
+afterEach(() => {
   stash.restore();
   for (const window of openWindows) {
-    await window.happyDOM.abort();
     window.close();
   }
   openWindows.length = 0;

@@ -12,7 +12,7 @@ import { isPaidListing } from "#shared/types.ts";
 import {
   overviewStatsFromAttendees,
   overviewStatsFromDbStats,
-} from "#templates/admin/listings.tsx";
+} from "#templates/admin/listings/overview.tsx";
 import {
   createPaidAttendeeWithoutLedger,
   createPaidTestAttendee,

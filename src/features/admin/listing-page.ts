@@ -26,7 +26,7 @@ import { type AuthSession, requireContentOr } from "#routes/auth.ts";
 import { targetQuery } from "#shared/bulk-email-targets.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { isPaidListing, isStaffRole } from "#shared/types.ts";
-import { ListingDeactivatedBanner } from "#templates/admin/listings.tsx";
+import { ListingDeactivatedBanner } from "#templates/admin/listings/overview.tsx";
 import {
   type LoadedListing,
   listingHasEmailableAttendees,
