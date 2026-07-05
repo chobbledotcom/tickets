@@ -61,13 +61,13 @@ describe("largestRemainderAllocation", () => {
     // though the maths would come out to zero anyway if it didn't.
     const calls: string[] = [];
     largestRemainderAllocation([10, 20], 0, {
-      tieBreaker: (index) => {
-        calls.push(`tieBreaker:${index}`);
-        return index;
-      },
       canReceive: (index) => {
         calls.push(`canReceive:${index}`);
         return true;
+      },
+      tieBreaker: (index) => {
+        calls.push(`tieBreaker:${index}`);
+        return index;
       },
     });
     expect(calls).toEqual([]);
