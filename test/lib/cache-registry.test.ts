@@ -144,9 +144,7 @@ describe("cache-registry", () => {
 
       test("a gated dependency fires on update only when an assigned column is listed", () => {
         expect(callsForGatedUpdate(["price", "name"], ["name"])).toBe(1);
-        expect(callsForGatedUpdate(["price", "name"], ["description"])).toBe(
-          0,
-        );
+        expect(callsForGatedUpdate(["price", "name"], ["description"])).toBe(0);
       });
 
       test("an empty whenColumns list gates out every update, since no column can ever match", () => {
