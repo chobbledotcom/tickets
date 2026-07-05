@@ -6,10 +6,8 @@ import {
   createTestManagerSession,
   describeWithEnv,
 } from "#test-utils";
-import {
-  createTestAttendeeDirect,
-  createTestListing,
-} from "#test-utils/db-helpers.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { seedListingWithAttendees } from "./helpers.ts";
 
 describeWithEnv("server bulk email > links", { db: true }, () => {

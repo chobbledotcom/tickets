@@ -354,7 +354,7 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
         ...children.map((c) => c.id),
       ]),
     ]);
-  const caps = childCapacityInfo(childOwnRemaining, membership, childCaps);
+  const caps = childCapacityInfo(childCaps, childOwnRemaining, membership);
   return {
     ...ctx,
     // The PER-GROUP remaining drives the per-parent quantity clamp keyed by the

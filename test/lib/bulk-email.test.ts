@@ -33,11 +33,11 @@ import { hashEmail } from "#shared/db/contact-preferences.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { describeWithEnv, getTestPrivateKey } from "#test-utils";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import {
-  createTestAttendeeDirect,
   createTestListing,
   deactivateTestListing,
-} from "#test-utils/db-helpers.ts";
+} from "#test-utils/db-helpers/listings.ts";
 
 const audienceTarget = (audience: BulkEmailDraft["target"]) => audience;
 

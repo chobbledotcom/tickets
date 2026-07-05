@@ -35,8 +35,9 @@ export const createFlexPackage = async (
   } = { price: null },
 ) => {
   const { setGroupPackageMembers } = await import("#shared/db/groups.ts");
-  const { createTestGroup, createTestListing } = await import(
-    "#test-utils/db-helpers.ts"
+  const { createTestGroup } = await import("#test-utils/db-helpers/groups.ts");
+  const { createTestListing } = await import(
+    "#test-utils/db-helpers/listings.ts"
   );
   const group = await createTestGroup({ isPackage: true, name, slug });
   const boat = await createTestListing({

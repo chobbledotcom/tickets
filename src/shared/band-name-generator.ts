@@ -2,29 +2,35 @@
  * Procedural rock/heavy-metal band-name, venue, and gig-description
  * generator for sample data.
  *
- * Word pools live in `band-name-generator/word-pools.ts`. This
+ * Word pools live in the `band-name-generator/word-pools/` folder. This
  * module composes them with a small set of slot-heavy templates and a
  * seeded PRNG (mulberry32) so every output is deterministic given a seed
  * yet the variety is enormous.
  */
 
 import {
-  AGE_NOTES,
-  AUDIENCE_OUTCOMES,
-  BAND_ADJECTIVES,
-  BAND_DESCRIPTORS,
   BAND_NOUNS,
   BAND_PERSON_NAMES,
+} from "#shared/band-name-generator/word-pools/band-nouns.ts";
+import {
+  BAND_ADJECTIVES,
+  BAND_DESCRIPTORS,
   BAND_SUFFIXES,
   BAND_VERBS,
-  BUILDING_STATES,
-  CONNECTORS,
+} from "#shared/band-name-generator/word-pools/band-words.ts";
+import {
   CROSSOVERS,
   FESTIVAL_TYPES,
   GENRES,
   INTENSITIES,
   LISTING_TYPES,
   NOISE_VERBS,
+  TOUR_ADJECTIVES,
+} from "#shared/band-name-generator/word-pools/music.ts";
+import {
+  AGE_NOTES,
+  AUDIENCE_OUTCOMES,
+  CONNECTORS,
   NUMBER_WORDS,
   ODD_INSTRUMENTS,
   PRIZES,
@@ -32,14 +38,20 @@ import {
   REQUIREMENTS,
   SHOW_ITEMS,
   TIMES,
-  TOUR_ADJECTIVES,
+} from "#shared/band-name-generator/word-pools/shows.ts";
+import {
+  BUILDING_STATES,
   VENUE_TYPES,
   WEIRD_VENUES,
-} from "#shared/band-name-generator/word-pools.ts";
+} from "#shared/band-name-generator/word-pools/venues.ts";
 
 // Re-export every pool so existing call sites and tests can keep using
 // `import { BAND_ADJECTIVES } from "#shared/band-name-generator.ts"`.
-export * from "#shared/band-name-generator/word-pools.ts";
+export * from "#shared/band-name-generator/word-pools/band-nouns.ts";
+export * from "#shared/band-name-generator/word-pools/band-words.ts";
+export * from "#shared/band-name-generator/word-pools/music.ts";
+export * from "#shared/band-name-generator/word-pools/shows.ts";
+export * from "#shared/band-name-generator/word-pools/venues.ts";
 
 /** A pseudo-random function returning a value in [0, 1) */
 export type Rand = () => number;
