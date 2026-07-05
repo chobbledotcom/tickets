@@ -208,15 +208,23 @@ const attachImageToExistingItemStatement = (
       target.itemId,
       target.itemType,
       target.itemId,
+      imageId,
       target.itemId,
     ],
     sql: `INSERT OR IGNORE INTO image_uses (image_id, item_type, item_id, sort_order)
           SELECT ?, ?, ?,
                  COALESCE((SELECT MAX(sort_order) + 1 FROM image_uses
                             WHERE item_type = ? AND item_id = ?), 0)
-           WHERE EXISTS (SELECT 1 FROM ${table} WHERE id = ?)`,
+           WHERE EXISTS (SELECT 1 FROM images WHERE id = ?)
+             AND EXISTS (SELECT 1 FROM ${table} WHERE id = ?)`,
   };
 };
+
+export const appendImageToItem = (
+  imageId: number,
+  target: ImageUseTarget,
+): Promise<void> =>
+  executeBatch([attachImageToExistingItemStatement(imageId, target)]);
 
 const clearStaleImageUseTargetsStatement = (
   imageId: number,

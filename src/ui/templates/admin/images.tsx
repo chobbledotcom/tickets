@@ -258,6 +258,17 @@ const itemImageCheckboxes = (
   </fieldset>
 );
 
+const itemImageOptions = (
+  allImages: readonly Image[],
+  linkedImages: readonly Image[],
+): Image[] => {
+  const linkedIds = new Set(linkedImages.map((image) => image.id));
+  return [
+    ...linkedImages,
+    ...allImages.filter((image) => !linkedIds.has(image.id)),
+  ];
+};
+
 export const ItemImagesPanel = ({
   action,
   uploadAction,
@@ -288,7 +299,10 @@ export const ItemImagesPanel = ({
         {allImages.length === 0 ? (
           <p>{t("images.empty")}</p>
         ) : (
-          itemImageCheckboxes(allImages, selectedIds)
+          itemImageCheckboxes(
+            itemImageOptions(allImages, linkedImages),
+            selectedIds,
+          )
         )}
         {SaveChangesButton()}
       </CsrfForm>

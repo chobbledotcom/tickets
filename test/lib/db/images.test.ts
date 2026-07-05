@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { execute, executeBatch, queryAll } from "#shared/db/client.ts";
 import {
+  appendImageToItem,
   clearImageUsesForItemStatement,
   deleteImageRecord,
   getAllImages,
@@ -117,6 +118,39 @@ describeWithEnv("db > images", { db: true }, () => {
         clearImageUsesForItemStatement("listing", listing.id),
       ]);
       expect(await linkedImageIds("listing", listing.id)).toEqual([]);
+    });
+
+    test("appends one image link at the next item sort order", async () => {
+      const listing = await createTestListing({ name: "Append listing" });
+      const existing = await makeImage("Existing");
+      const uploaded = await makeImage("Uploaded");
+      await setImagesForItem("listing", listing.id, [existing.id]);
+
+      await appendImageToItem(uploaded.id, {
+        itemId: listing.id,
+        itemType: "listing",
+      });
+      await appendImageToItem(uploaded.id, {
+        itemId: listing.id,
+        itemType: "listing",
+      });
+
+      expect(await linkedImageIds("listing", listing.id)).toEqual([
+        existing.id,
+        uploaded.id,
+      ]);
+      expect(
+        await queryAll<{ image_id: number; sort_order: number }>(
+          `SELECT image_id, sort_order
+             FROM image_uses
+            WHERE item_type = ? AND item_id = ?
+            ORDER BY sort_order ASC, image_id ASC`,
+          ["listing", listing.id],
+        ),
+      ).toEqual([
+        { image_id: existing.id, sort_order: 0 },
+        { image_id: uploaded.id, sort_order: 1 },
+      ]);
     });
 
     test("projects the primary image filenames and alt text for an item", async () => {

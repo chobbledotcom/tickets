@@ -158,4 +158,29 @@ describe("admin image templates", () => {
       expect(html).toContain('enctype="multipart/form-data"');
       expect(html).toContain('name="image"');
     }));
+
+  test("renders selected item image checkboxes in current item order", () =>
+    withStorageEnabled(() => {
+      const html = String(
+        ItemImagesPanel({
+          action: "/admin/listing/1/images",
+          allImages: [
+            image(3, "Library"),
+            image(2, "Second"),
+            image(1, "First"),
+          ],
+          linkedImages: [image(1, "First"), image(2, "Second")],
+          uploadAction: "/admin/listing/1/images/upload",
+        }),
+      );
+
+      const first = html.indexOf('name="image_ids" type="checkbox" value="1"');
+      const second = html.indexOf('name="image_ids" type="checkbox" value="2"');
+      const library = html.indexOf(
+        'name="image_ids" type="checkbox" value="3"',
+      );
+      expect(first).toBeGreaterThan(-1);
+      expect(second).toBeGreaterThan(first);
+      expect(library).toBeGreaterThan(second);
+    }));
 });

@@ -8,6 +8,7 @@ import { redirect } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
+  appendImageToItem,
   getAllImages,
   getImagesForItem,
   setImagesForItem,
@@ -46,17 +47,6 @@ export const loadItemImagesPanel = async (
 
 const selectedImageIds = (form: FormParams): number[] =>
   form.getNumberArray("image_ids");
-
-const appendImage = async (
-  itemType: ImageUseItemType,
-  itemId: number,
-  imageId: number,
-): Promise<void> => {
-  const currentIds = (await getImagesForItem(itemType, itemId)).map(
-    (image) => image.id,
-  );
-  await setImagesForItem(itemType, itemId, [...currentIds, imageId]);
-};
 
 const storageDisabledResponse = <T>(
   config: ItemImageConfig<T>,
@@ -99,7 +89,10 @@ export const createItemImageHandlers = <T>(
         if (!result.ok) {
           return redirect(config.path(itemId), result.error, false);
         }
-        await appendImage(config.itemType, itemId, result.value.id);
+        await appendImageToItem(result.value.id, {
+          itemId,
+          itemType: config.itemType,
+        });
         await logActivity(
           `Image '${result.value.name}' uploaded for ${config.itemType} '${config.nameOf(
             item,
