@@ -1,10 +1,19 @@
 # Spec: "No-quantity" booking lines (`quantity = 0` sentinel), site-wide
 
-> Standalone feature spec, extracted from the importer plan and hardened across
-> six rounds of review. This feature is **independent** of the CSV importer and
-> of PR #1335 — it can be built and shipped on its own; the importer is just one
-> future consumer. Every file/function reference below was verified against the
-> current codebase.
+> **STATUS: SHIPPED.** This feature landed in main as **PR #1366** ("Add
+> no-quantity booking lines"); a later **servicing** feature then added an attendee
+> `kind` discriminator that folded into the same ticket-count / roster sites. This
+> document is retained as the design record and a **verification checklist**: the
+> mechanism in §1–§5 and most of §6–§7 is **implemented**, so read the imperative
+> "must do X" wording as "done: X — verify". Where the shipped code **diverged**
+> from this spec, an inline **[divergence]** note flags it; the **genuine remaining
+> gaps** are collected in [§9](#9-remaining-gaps). One cross-cutting change since
+> this spec was first written: the ticket-count predicate is now
+> `quantity > 0 AND kind = 'attendee'` (it also excludes servicing rows), shared as
+> the `TICKET_COUNTS_PREDICATE` constant.
+>
+> _(Originally a standalone spec, independent of the CSV importer and PR #1335 —
+> both of which have also since merged.)_
 
 ## 1. Concept
 
@@ -24,9 +33,13 @@ exclude `quantity = 0`; admin record/detail views keep them.*
 
 **Invariant:** a `quantity = 0` line has **no money recognised against it** — its
 `ledger_event_group` projects £0 per-listing amount-paid (no `sale`/`revenue` legs
-reference it). `price_paid` is gone (money projects from the `transfers` ledger,
-post-main), so this is enforced by never marking a line that has a non-zero
-projected amount-paid no-quantity (§4), not by zeroing a column.
+reference it). Note `price_paid`/`refunded`/`remaining_balance` are gone as **stored
+columns** but survive as **ledger-projected read aliases of the same name**
+(`pricePaidFromLedger` / `refundedFromLedger` / `remainingBalanceFromLedger` in
+`src/shared/db/attendees/queries.ts`), so a row object still exposes `.price_paid` —
+that is the projection, not a column. The invariant is enforced by never marking a
+line whose **projected** `price_paid` is non-zero no-quantity (§4), not by zeroing
+anything.
 
 ## 2. Data model
 
@@ -38,74 +51,70 @@ projected amount-paid no-quantity (§4), not by zeroing a column.
   `transfers` ledger as gross credits to `revenue:<listingId>`, post-main), and a
   quantity-0 line posts no revenue legs, so income needs no change either. Do not
   touch them.
-- The **one** aggregate that must change is `tickets_count`, currently a plain
-  `COUNT(*)`. See §3.
+- The **one** aggregate that changed is `tickets_count` (was a plain `COUNT(*)`),
+  which now also excludes servicing-kind rows. See §3.
 
-## 3. `tickets_count` → "count lines where `quantity > 0`"
+## 3. `tickets_count` → "count rows where `quantity > 0 AND kind = 'attendee'`" (SHIPPED)
 
-`tickets_count` (the "Total Ticket Records" aggregate on `listings`) must stop
-counting `quantity = 0` lines. It is computed in **five queries across four
-files** that must all change consistently, or the recalculate/repair flow will
-fight the triggers:
+`tickets_count` (the "Total Ticket Records" aggregate on `listings`) counts only
+real-ticket rows. **[SHIPPED]** in `2026-06-23_ticket_count_no_quantity.ts`; the
+servicing-`kind` clause arrived with `2026-06-24_attendees_kind.ts`. The rule lives
+in **one** shared constant — `TICKET_COUNTS_PREDICATE = "quantity > 0 AND kind =
+'${ATTENDEE_KIND}'"` (`schema.ts`; `ATTENDEE_KIND = "attendee"`,
+`src/shared/db/attendees/kind.ts`). **[divergence]** the second clause is new to
+this spec: it excludes **servicing**-kind rows, which use `listing_attendees`
+capacity but are not customer tickets. Because `kind` lives on `attendees` (not
+`listing_attendees`), the flat `quantity > 0` this section originally prescribed
+became a **correlated `EXISTS (SELECT … FROM attendees …)`**, built by a helper
+family so no site hand-writes it:
 
-1. **The three `LISTING_AGGREGATE_TRIGGERS`** (INSERT/DELETE/UPDATE) in
-   `src/shared/db/migrations/schema.ts`. Today each does
-   `tickets_count = tickets_count ± 1`. Change to
-   `± CASE WHEN <row>.quantity > 0 THEN 1 ELSE 0 END`. The UPDATE trigger already
-   fires on `quantity` (it's in `LISTING_AGGREGATE_WRITE_COLUMNS`), so toggling a
-   line 0↔n recomputes correctly via the OLD/NEW CASE deltas.
-2. **Two separate queries in `src/shared/db/listings.ts`**, each with its own
-   `tickets_count` (income is no longer an aggregate column — it projects from the
-   ledger — so neither query touches it, and `LISTING_AGGREGATE_FIELDS` is now just
-   `booked_quantity` + `tickets_count`):
-   - `aggregateResetSql` (used by `resetListingAggregateFields`) builds a
-     **separate** per-field subquery (`tickets_count = (SELECT COUNT(*) … WHERE
-     listing_id = ?)`) — add `AND quantity > 0` to **its** `WHERE`.
-   - `getListingAggregateRecalculation` computes `booked_quantity` and
-     `tickets_count` in **one** `SELECT … WHERE listing_id = ?` (no income).
-     Change only the count expression to `COALESCE(SUM(CASE WHEN quantity > 0 THEN
-     1 ELSE 0 END), 0) AS tickets_count` — the `COALESCE` is required because `SUM`
-     over zero rows returns `NULL` (unlike `COUNT(*)`'s `0`), so an empty listing
-     would otherwise report bogus drift against a stored `0`; this matches the
-     existing `booked_quantity` `COALESCE`. Leave `booked_quantity` summed over all
-     rows.
-   Missing the recalculation query makes the repair page report quantity-0 lines
-   as drift and push owners to "fix" aggregates back to the wrong value.
-3. **The full backfill in `src/shared/db/migrations/schema-sync.ts`**: the
-   `tickets_count = COALESCE((SELECT COUNT(*) …), 0)` gains `AND quantity > 0`.
-4. **The hold-delete restore in `src/shared/db/attendees/delete.ts`.**
-   `deleteAttendee(id, { releaseBookings: false })` pre-computes per-listing
-   contributions with `COUNT(*) AS tickets_count`, deletes the lines, then **adds
-   the count back**. With a plain `COUNT(*)` it would add `1` back for a
-   `quantity = 0` line the (now-fixed) delete trigger removed `0` for —
-   permanently inflating `tickets_count`. Change its `COUNT(*) AS tickets_count`
-   to `COALESCE(SUM(CASE WHEN quantity > 0 THEN 1 ELSE 0 END), 0) AS tickets_count`
-   (the `COALESCE` matches the recalc site's empty-set rule; each per-listing group
-   here always has ≥1 deleted row so it can't actually be NULL, but keep it
-   consistent). (`booked_quantity` there already uses `SUM(quantity)` — leave it;
-   there is no income/`price_paid` column to restore.)
+- `ticketCountPredicateFor(quantityExpr, attendeeIdExpr)` — the `EXISTS` wrapper (a
+  **missing** attendee row is treated as legacy `attendee` kind).
+- `ticketCountSumExpr()` — the `COALESCE(SUM(CASE WHEN … THEN 1 ELSE 0 END), 0)`
+  column for the recalc/reset/backfill reads.
+- `ticketCountTriggerDelta(row)` — the `+1`/`0` delta for the triggers.
 
-**Anti-drift requirement:** the predicate (`quantity > 0`) must live in **one**
-place — extract a constant (e.g. `TICKET_COUNTS_WHEN = "quantity > 0"`, or a tiny
-helper that builds the `CASE`/`WHERE`/`SUM(CASE …)` fragments) and reference it
-from every site (note `listings.ts` contributes two). This mirrors the existing shared
-`LISTING_AGGREGATE_WRITE_COLUMNS`. Add a guard test (like the existing
-"`LISTING_AGGREGATE_WRITE_COLUMNS` matches the trigger SQL" test) asserting the
-shared predicate appears in every site, so a future edit can't silently diverge.
-(Empty-set gotcha: every `SUM(CASE …)` count site — the recalc query and the
-`delete.ts` pre-compute — must `COALESCE(…, 0)`, since `SUM` over zero rows is
-`NULL`, not `0`.)
+It is computed at **five sites across four files**, all now carrying the predicate.
+The numbered list below is a **verification checklist**, not pending work:
 
-**Migration:** ship a migration that **explicitly `DROP TRIGGER IF EXISTS`** the
-three listing-aggregate triggers **before** `syncTriggers()` and the backfill.
-`syncTriggers` only creates a trigger when its name is *missing* (`CREATE TRIGGER
-IF NOT EXISTS` runs only for absent names), so reusing the same three names with
-new `CASE` bodies would otherwise leave the old `COUNT(*)` bodies installed and
-upgraded databases would keep incrementing `tickets_count` for `quantity = 0`
-writes. (Mirrors the existing answer-/modifier-aggregate migrations, which drop
-their triggers before re-syncing.) Then recompute `tickets_count` for existing
-data (a no-op today, since no `quantity = 0` lines exist yet). Update the
-listing-aggregates tests.
+1. **The three `LISTING_AGGREGATE_TRIGGERS`** (INSERT/DELETE/UPDATE,
+   `src/shared/db/migrations/schema.ts`) — each does
+   `tickets_count ± ticketCountTriggerDelta(NEW|OLD)` (`+1` only for a
+   `quantity > 0`, `kind = 'attendee'` row). The UPDATE trigger fires on `quantity`
+   (in `LISTING_AGGREGATE_WRITE_COLUMNS`), so a 0↔n toggle recomputes via the
+   OLD/NEW deltas.
+2. **`aggregateResetSql.tickets_count`** and **`LISTING_AGGREGATE_RECALC_SQL`** in
+   `src/shared/db/listings.ts` — both use `ticketCountSumExpr()` (the kind-aware
+   `COALESCE(SUM(CASE …), 0)`). Income is no longer an aggregate column, so
+   `LISTING_AGGREGATE_FIELDS` is just `booked_quantity` + `tickets_count`, and
+   `booked_quantity` still sums all rows. The `COALESCE` matters because `SUM` over
+   zero rows is `NULL`, not `0` — otherwise an empty listing reports bogus drift and
+   the repair page pushes owners to "fix" aggregates to the wrong value.
+3. **`BACKFILL_LISTING_AGGREGATES_SQL`** (`src/shared/db/migrations/schema-sync.ts`)
+   — carries the predicate, with a legacy `quantity > 0`-only
+   `BACKFILL_LEGACY_LISTING_AGGREGATES_SQL` selected at runtime for pre-`kind`
+   databases (`attendeeColumns.has("kind")`).
+4. **`ATTENDEE_LISTING_CONTRIBUTIONS_SQL`** — the hold-delete restore in
+   `src/shared/db/attendees/delete.ts`. `deleteAttendee(id, { releaseBookings:
+   false })` pre-computes per-listing contributions with `ticketCountSumExpr()`,
+   deletes the lines, then adds the count back, so it can't re-inflate
+   `tickets_count` for a removed `quantity = 0` line. (`booked_quantity` there sums
+   all rows; there is no income/`price_paid` column to restore.)
+
+**Anti-drift:** [SHIPPED] the predicate lives once in `TICKET_COUNTS_PREDICATE`
+(mirroring `LISTING_AGGREGATE_WRITE_COLUMNS`), and a guard test asserts every site
+carries it (`test/lib/db/listing-aggregates.test.ts`), with a servicing-specific
+assertion that the predicate matches **both** `/quantity > 0/` and
+`/kind = 'attendee'/` (`test/lib/servicing/listing-aggregates.test.ts`). Empty-set
+gotcha handled: every `SUM(CASE …)` read `COALESCE(…, 0)`s.
+
+**Migration:** [SHIPPED] `2026-06-23_ticket_count_no_quantity.ts` explicitly
+`DROP TRIGGER IF EXISTS`es the three listing-aggregate triggers **before**
+`syncTriggers()` + `backfillListingAggregates()` — required because `syncTriggers`
+only creates a trigger when its name is *missing* (`CREATE TRIGGER IF NOT EXISTS`),
+so reusing the names with new bodies needs the drop first (mirrors the
+answer-/modifier-aggregate migrations). The servicing-`kind` migration
+(`2026-06-24_attendees_kind.ts`) then re-backfilled once the column existed.
 
 ## 4. Owner UI — the "no quantity" checkbox (proxy for `quantity == 0`)
 
@@ -113,28 +122,32 @@ On the attendee edit form (`src/features/admin/attendee-form-model.ts` + its
 template), each booking line gets a **"no quantity"** checkbox. Owners never see a
 literal `0`.
 
-- **Render:** a line read with `quantity = 0` renders with the box **checked** and
-  its quantity input **hidden via CSS** — use the existing `hidden-in-form` mixin
-  family in `src/ui/static/style.scss` (add a `hidden-when-checked` companion to
-  the existing `reveal-when-checked` if absent). **No JavaScript** — pure
-  checkbox-driven CSS.
+- **Render:** [SHIPPED] a line read with `quantity = 0` renders with the box
+  **checked** and its quantity input **hidden via CSS**. **[divergence]** shipped as
+  a row-scoped `:has()` rule
+  (`.attendee-line-qty:has(.no-quantity-toggle:checked) .line-qty { display: none }`,
+  `src/ui/static/style.scss`), not a new `hidden-when-checked` mixin. **No
+  JavaScript** — pure checkbox-driven CSS.
 - **Save:** box checked → store `quantity = 0` and **keep the line**; unchecked →
   store the entered quantity (`>= 1`). Round-trips both ways.
-- **Forbid marking a paid line no-quantity.** A line with **money recognised
-  against it in the ledger** — its `ledger_event_group` projects a non-zero
-  per-listing amount-paid (`pricePaidFromLedger`), or the attendee carries a
-  provider `payment_id` — must be **refunded or retargeted to a real line first**.
-  Do *not* silently detach the line from its ledger legs to satisfy the §1
-  invariant: that drops listing income **and** strands the charge (the attendee
-  keeps its `payment_id` while §6c hides/refuses the refund actions on the now
-  quantity-0 row, so the payment can never be refunded/refreshed). Only a line with
-  no money recognised against it may be marked no-quantity. (Enforces the §1
-  invariant by construction.)
+- **Forbid marking a paid line no-quantity.** [SHIPPED] A line with **money
+  recognised against it in the ledger** — its `ledger_event_group` projects a
+  non-zero per-listing amount-paid (`pricePaidFromLedger`) — must be **refunded or
+  retargeted to a real line first**. Shipped as `isPaymentLockedLine`
+  (`src/features/admin/attendee-form-model.ts`, checks the projected `price_paid >
+  0`), enforced form-wide by `validatePaidNoQuantity` plus a server-side DB re-check
+  (`hasPaidLine` / `anyNoQuantityLineMatches`). **[divergence]** the `payment_id`
+  fallback this spec mentioned was **not** separately implemented — the projected
+  `price_paid` subsumes it. Do *not* silently detach the line from its ledger legs
+  to satisfy the §1 invariant: that drops listing income **and** strands the charge
+  (§6c hides/refuses the refund actions on the now quantity-0 row). Only a line with
+  no money recognised against it may be marked no-quantity.
 - **Clear `checked_in` when marking no-quantity** (same write). The §6b
   `updateCheckedIn` guard only refuses *future* check-ins; a line already
   `checked_in = 1` keeps that flag when flipped to quantity-0, and the roster
   reads key off it with **no quantity predicate** — `filterAttendees`
-  (`listings.tsx`) and `countCheckedInRows` (`detail-rows.tsx`, "ignoring
+  (`src/ui/templates/admin/listings/attendees.tsx`) and `countCheckedInRows`
+  (`detail-rows.tsx`, "ignoring
   quantity") — so the ghost stays in the "checked-in" filter and inflates
   row-level check-in progress. Clear the flag on the write (and in merge, §6b).
   Clearing the flag fixes the *numerator*, but the **totals** still count ghosts:
@@ -184,13 +197,13 @@ The guard must keep treating public `0` as "not selected" while **rejecting any
 persisted/selected zero-quantity line**, so a visitor can't end up with a
 no-capacity "ghost" line. Keep this server-side, not just in the UI.
 
-**Cover the JSON API too, not just the HTML form.** `POST /api/listings/:slug/book`
-(`src/features/api/index.ts`) parses `body.quantity` with
-`parsePositiveInt(...) ?? 1`, so a submitted `quantity: 0` currently becomes a
-**one-ticket booking**. Put the rule below the form layer (at the shared
-booking/checkout entry, or in each entry point) so a `0` is rejected or treated as
-not-selected on the API route as well — otherwise API clients can still create
-real bookings from `0`.
+**Cover the JSON API too, not just the HTML form.** [SHIPPED] `POST
+/api/listings/:slug/book` (`src/features/api/index.ts`) now parses `body.quantity`
+with `parseNonNegativeInt` and **explicitly 400s on an explicit `0`**
+(`resolveQuantityAndDate`, covering both standalone and parent/child paths); the
+public form path (`parseQuantities`, `src/features/public/ticket-form.ts`) still
+drops `<= 0` as "not selected". The earlier hole — `parsePositiveInt(...) ?? 1`
+turning `quantity: 0` into a one-ticket booking — is closed.
 
 ## 6. Reader/writer audit — site-wide
 
@@ -206,11 +219,14 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   `src/features/feeds.ts` (`GET /caldav/events.ics`) and (b) the admin calendar's
   standard-listing rows + CSV via `loadStandardListingAttendees` in
   `admin/calendar.ts` — both operational, exclude — **but it also feeds the admin
-  group-detail roster in `src/features/admin/groups.ts`, which must keep
-  `quantity = 0`.** Add an opt-in `quantity > 0` param the feed/calendar callers
-  pass, or split off a dedicated active-only helper. Never filter the shared
-  helper unconditionally. (This is the easiest thing to get wrong — it'll look
-  like you should just add the predicate to the helper.)
+  group-detail roster, now loaded via `src/features/admin/group-page-data.ts`
+  (`getAttendeesByListingIds`, default keeps ghosts), which must keep
+  `quantity = 0`.** [SHIPPED] the shared `getAttendeesByListingIds(listingIds,
+  filter)` gained the opt-in `quantity > 0` param the feed/calendar callers pass —
+  plus a `kindScope` dimension that defaults to `kind = 'attendee'` unless a caller
+  opts into `attendees-and-servicing`. The shared helper is never filtered
+  unconditionally. (This was the easiest thing to get wrong — it looks like you
+  should just add the predicate to the helper.)
 - **Bulk email** (`src/shared/bulk-email-targets.ts`) — two queries:
   - Listing-scoped ("Active listing attendees" / "Attendees of X") via
     `getAttendeePiiBlobsForListings` (`attendees/queries.ts`): add
@@ -392,21 +408,19 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   refunded / retargeted to a real line first — never normalize it during the copy.
   (Decision 17's own money reversal is `sale`-leg based; see the importer plan's
   merge note for the imported-leg interaction.)
-- **Visit recording on create.** `createAttendeeAtomic` (`attendees/create.ts`)
-  calls `recordOrderVisit` after a successful insert, bumping
-  `contact_preferences.visits` for the attendee's email/phone. Once a create path
-  can persist a no-quantity-only attendee (owner UI checkbox, or a future importer
-  consumer), that would count an interested/cancelled placeholder as a real visit
-  — and `buyerVisits` feeds `min_visits` modifier gating, so a ghost-only contact
-  could qualify as "returning". Gate the visit on the attendee having ≥1
-  `quantity > 0` line, mirroring the importer writer's rule (plan step 14) — on
-  every no-quantity-capable create path, not just the importer. **And the inverse
-  on edit/merge:** when a save or merge transitions an attendee from *zero* real
-  lines to ≥1 (un-checking the box on a quoted/cancelled placeholder, or a merge
-  that adds a real line), record the visit then — current edit/merge paths don't
-  call `recordOrderVisit`, so a ghost-only attendee later reactivated would
-  otherwise stay at zero `contact_preferences.visits` and `min_visits` modifiers
-  would keep treating that customer as never having booked.
+- **Visit recording on create.** [SHIPPED] `createAttendeeAtomic`
+  (`attendees/create.ts`) calls `recordOrderActivity` (**not** `recordOrderVisit` —
+  no such symbol exists) after a successful insert, bumping
+  `contact_preferences.visits` for the attendee's email/phone. That call is now
+  gated on the order having ≥1 `quantity > 0` line
+  (`if (successfulBookings.some((b) => b.quantity > 0)) …`), so a no-quantity-only
+  create records no visit — matching the importer writer's rule (plan step 14).
+  **[gap — G3]** the *inverse* on edit/merge is **not** implemented: when a save or
+  merge transitions an attendee from zero real lines to ≥1 (un-checking the box on
+  a quoted/cancelled placeholder, or a merge that adds a real line), no visit is
+  recorded — edit/merge paths never call `recordOrderActivity`/`recordVisit` — so a
+  reactivated ghost-only contact stays at zero `contact_preferences.visits` and
+  `min_visits` modifiers keep treating that customer as never having booked.
 
 ### 6c. INTENTIONALLY UNCHANGED (call out so nobody "fixes" them)
 
@@ -431,10 +445,11 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   surfaces and `/renew/` is one, this feature should at least **forbid marking an
   assigned built-site line no-quantity** (like the paid-line rule, §4) until the
   site is unassigned — rather than silently creating a hidden-but-renewable line.
-- **Edit-form custom-question loading + answer save** — must **keep** quantity-0
-  lines. `loadQuestionsForExisting` (`attendee-form-routes.ts`) derives its
-  `listingIds` from **all** of the attendee's bookings (`existing.map`, no
-  quantity predicate), and the admin question fields render without
+- **Edit-form custom-question loading + answer save** — [SHIPPED] correctly
+  **keeps** quantity-0 lines. `loadQuestionsForExisting`
+  (`src/features/admin/attendee-page-data.ts`) derives its `listingIds` from
+  **all** of the attendee's bookings (`existing.map`, no quantity predicate), and
+  the admin question fields render without
   `data-listing-ids`, so they are **not** quantity-hidden (the `quantity_<id> > 0`
   visibility in `custom-question-visibility.ts` is a *public-form* behaviour
   only). Because the save replaces the attendee's whole answer set from the
@@ -461,18 +476,17 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
     (`src/features/admin/attendees.ts`) → `updateCheckedIn` must be
     hidden/disabled for quantity-0 rows (render the indicator instead), since
     `updateCheckedIn` now refuses them.
-  - **Refunds (single + bulk).** `isRefundable`
-    (`src/ui/templates/admin/attendee-form.tsx`) and `getRefundable`
-    (`src/features/admin/attendee-refunds.ts`) gate on `payment_id` and the
-    ledger-projected `refunded` — both **attendee-level** now. The refund itself is
-    attendee/order-level: `recordAttendeeRefund(attendeeId)` reverses the whole
-    order's ledger legs (the old listing-scoped `markRefunded(..., listingId)` is
-    gone). But the single/bulk refund UI is still reached from a **listing's
-    roster**, so a mixed attendee with a no-quantity ghost row on that listing would
-    surface the refund / refund-all control against the ghost row. Add the quantity
-    guard to the refund UI: **hide/refuse the refund control on a no-quantity row**
-    (render the indicator instead). The refund action that fires is attendee-level
-    and correct regardless; the guard is about not surfacing it from a ghost line.
+  - **Refunds (single + bulk).** [SHIPPED, partial] `isRefundable` and the Actions
+    row now live in `src/features/admin/attendee-page.ts` (not `attendee-form.tsx`);
+    `getRefundable` (`src/features/admin/attendee-refunds.ts`) gates on `payment_id`
+    and the ledger-projected `refunded` — both **attendee-level** now. The refund
+    itself is attendee/order-level: `recordAttendeeRefund(attendeeId)` reverses the
+    whole order's ledger legs (the old listing-scoped `markRefunded(..., listingId)`
+    is gone). Bulk refund-all **is** quantity-guarded (`getRefundable` filters
+    `hasTicketQuantity`) and the refund **route** refuses a ghost via the shared
+    `hasActiveBookingLine`. **[gap — see §9]** but `isRefundable` itself carries no
+    quantity guard, so the single-refund and resend **links** still render on a
+    ghost-only attendee's Actions tab (route-refused when clicked, not hidden).
   - **Refresh-payment route.** `POST /admin/attendees/:id/refresh-payment`
     (`handleRefreshPayment` → `loadRefreshContext`,
     `src/features/admin/attendees-edit.ts`) picks the attendee's first booking row
@@ -482,13 +496,14 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
     mixed attendee whose first row is quantity-0, the logged/returned listing is
     still the ghost. Pick a `quantity > 0` row as the logged-activity listing,
     mirroring the manual-refund guard above.
-  - **Re-send notification.** The edit-page `AttendeeActions`
-    (`src/ui/templates/admin/attendee-form.tsx`) "Re-send notification" →
+  - **Re-send notification.** The edit-page Actions row (now in
+    `src/features/admin/attendee-page.ts`) "Re-send notification" →
     `handleResendNotification` (`src/features/admin/attendees.ts`) calls
     `logAndNotifyRegistration([{ attendee, listing }])`, emailing the customer a
     confirmation with a ticket URL/SVG. For a quantity-0 row this sends a
-    customer-facing ticket for a non-booking — **hide/refuse it on the invoked
-    quantity-0 row**, do **not** retarget to a real line: the route is
+    customer-facing ticket for a non-booking — the **route** refuses it via
+    `hasActiveBookingLine` [SHIPPED], though the link itself isn't hidden
+    ([gap — G5]); do **not** retarget to a real line: the route is
     listing-scoped and `logAndNotifyRegistration` builds the customer email/webhook
     and registration side-effects from the supplied listing, so retargeting from a
     ghost row would notify/log the wrong product.
@@ -586,17 +601,17 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   one-ticket booking created).
 - Capacity unaffected (`SUM(quantity)`); orphan purge keeps a quantity-0 attendee.
 
-## 8. Build order & independence
+## 8. Build order & independence (historical)
 
-This feature stands alone — it does **not** depend on the CSV importer or on PRs
-#1335/#1332/#1333, and should land first. Recommended order:
+This feature stood alone — independent of the CSV importer and of PRs
+#1335/#1332/#1333 — and **shipped as PR #1366** (the servicing-`kind` refinement
+followed). The recommended order below is retained as a record; all four steps are
+done:
 
 1. `tickets_count` shared predicate + migration + guard test.
 2. Edit-form "no quantity" checkbox + save path (incl. the §4 paid-line guard).
 3. The reader/writer audit surfaces (§6a/§6b).
 4. Public guard (§5).
-
-Each is independently testable.
 
 ### Out of scope (related, but NOT this feature)
 
@@ -610,3 +625,44 @@ questions work, not the no-quantity feature:
   (clamped to `MAX(existing.last_activity, source)` so it never moves an active
   contact backwards into prune range) — that's the importer's visit-recording
   writer.
+
+## 9. Remaining gaps
+
+The mechanism shipped, but a few things this spec asked for are **not** (or only
+partially) implemented. These are the genuine outstanding items — everything else
+above is done and was verified against current `main`.
+
+- **[G1] Token SVG / wallet-pass cache not versioned on the no-quantity
+  transition.** §6a asked the feature to purge / version the cached QR SVG and
+  wallet artifacts when a token flips to all-ghost. Not done: the origin now 404s an
+  all-ghost token, but the SVG still sets `max-age=31536000, immutable`
+  (`src/features/tickets/index.ts`) and passes use `WALLET_CACHE_CONTROL`
+  (`public, max-age=300, s-maxage=3600`), so a CDN/browser can keep serving a cached
+  copy to TTL. Mitigated because the QR content is token-only, so the bytes don't
+  change — only stale copies persist.
+- **[G2] `setLogisticsAssignments` lacks the `quantity > 0` guard.** §6a said "guard
+  the read, the completion write, **and the assignment write**." The read
+  (`getAgentRunSheet`) and completion (`setLegDone`) are guarded; the assignment
+  write (`src/shared/db/logistics.ts`) is not. Operationally inert today (the save
+  path's `noQuantityResetColumns` nulls agents on the transition), but not literally
+  guarded.
+- **[G3] No inverse visit-recording on edit/merge reactivation.** §6b asked that a
+  save/merge transitioning an attendee from zero real lines to ≥1 record the visit
+  then. Not implemented — `recordOrderActivity`/`recordVisit` are only called on the
+  create path, so a reactivated ghost-only contact stays at zero
+  `contact_preferences.visits`.
+- **[G4] Merge writer has no whole-result owed-legs reversal.** §4/§6b asked that
+  when a merge leaves the target with no real line, its owed legs be reversed (as the
+  edit path does, reconciling the projected balance to 0). The merge only blocks
+  per-line stranded *payments* (`strandedPaymentErrors`) and reverses discarded
+  conflicting bookings' `sale` legs (decision 17); it has no "target ends with zero
+  real lines → reverse owed" step.
+- **[G5] Ghost-row action links hidden only for bulk, not single-refund/resend.**
+  §6c asked to hide/refuse the per-row refund/resend controls on a ghost row. Bulk
+  refund-all is quantity-hidden and every action **route** refuses a ghost via
+  `hasActiveBookingLine`, but `isRefundable` itself has no quantity guard, so the
+  single-refund and resend **links** still render on a ghost-only attendee's Actions
+  tab (harmless — the route refuses them — but not hidden as specified).
+
+_(None of these blocks the CSV importer, which only **writes** quantity-0 lines;
+they are polish/robustness items on the shipped feature.)_
