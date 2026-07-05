@@ -27,6 +27,15 @@ describe("package privacy (pure)", () => {
     expect(packagePrivacyOfDisplay(null)).toEqual({ kind: "visible" });
   });
 
+  test("never reads a stale packageName off a visible privacy value", () => {
+    // A visible PackagePrivacy has no packageName field, but nothing stops a
+    // caller from holding a value that still carries one under the hood (e.g.
+    // built by spreading a once-hidden value and overwriting `kind`). The
+    // "visible" branch must ignore it rather than leak it.
+    const staleVisible = { ...HIDDEN, kind: "visible" as const };
+    expect(memberStandInName(staleVisible)).toBeUndefined();
+  });
+
   test("a display resolves through the same constructor", () => {
     expect(
       packagePrivacyOfDisplay({ hideListings: true, name: "Box" }),
@@ -38,6 +47,12 @@ describe("package privacy (pure)", () => {
       packagePrivacyOfCtx({ groupName: "Box", hidePackageListings: true }),
     ).toEqual({ kind: "hidden", packageName: "Box" });
     expect(packagePrivacyOfCtx({ groupName: "Plain Group" })).toEqual({
+      kind: "visible",
+    });
+  });
+
+  test("does not report hidden when hidePackageListings is true but there is no group name", () => {
+    expect(packagePrivacyOfCtx({ hidePackageListings: true })).toEqual({
       kind: "visible",
     });
   });

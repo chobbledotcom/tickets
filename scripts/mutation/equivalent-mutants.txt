@@ -554,3 +554,7 @@ src/shared/renewal-helpers.ts:10:25  !== → !=   # renewalTokenIndex: string|nu
 src/shared/renewal-helpers.ts:20:13  < → <=   # diffMs here is always <= -43_200_000 or >= 43_200_000 (see block comment above); < and <= agree everywhere in that range
 src/shared/renewal-helpers.ts:20:16  0 → 1   # same reachability guarantee; diffMs is never in [0, 1)
 src/shared/renewal-helpers.ts:20:16  0 → -1   # same reachability guarantee; diffMs is never in [-1, 0)
+
+# package-privacy.ts's packagePrivacyOfDisplay: display is typed
+# PackageDisplay|null (no undefined case), so === and == agree on null.
+src/shared/package-privacy.ts:44:10  === → ==   # display: PackageDisplay|null (no undefined), so === and == agree on null
