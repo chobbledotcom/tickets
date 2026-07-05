@@ -11,6 +11,7 @@ import {
   setupStripe,
   signMeta,
   singleItem,
+  stubRetrieveCheckoutSession,
   webhookMeta,
 } from "#test-utils";
 
@@ -60,24 +61,14 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 0,
-          id: "cs_qty_zero",
-          metadata: signMeta(
-            webhookMeta({
-              email: "john@example.com",
-              items: singleItem(listing.id, 0, 0),
-              name: "John",
-            }),
-            0,
-          ),
-          payment_intent: "pi_qty_zero",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 0,
+        email: "john@example.com",
+        items: singleItem(listing.id, 0, 0),
+        name: "John",
+        paymentIntent: "pi_qty_zero",
+        sessionId: "cs_qty_zero",
+      });
 
       try {
         const redirectResponse = await handleRequest(
@@ -135,25 +126,20 @@ describeWithEnv(
         Promise.resolve({ ok: true as const }),
       );
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 1000,
-          id: "cs_site_token",
-          metadata: signMeta(
-            webhookMeta({
-              email: "renew@example.com",
-              items: singleItem(tier.id, 1, 1000),
-              name: "Renewer",
-              site_token_index: tokenIndex,
-            }),
-            1000,
-          ),
-          payment_intent: "pi_site_token",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 1000,
+        metadata: signMeta(
+          webhookMeta({
+            email: "renew@example.com",
+            items: singleItem(tier.id, 1, 1000),
+            name: "Renewer",
+            site_token_index: tokenIndex,
+          }),
+          1000,
+        ),
+        paymentIntent: "pi_site_token",
+        sessionId: "cs_site_token",
+      });
 
       try {
         const redirectResponse = await handleRequest(
@@ -268,28 +254,23 @@ describeWithEnv(
       const secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
         Promise.resolve({ ok: true as const }),
       );
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 3000,
-          id: "cs_multi_tier_renewal",
-          metadata: signMeta(
-            webhookMeta({
-              email: "renew@example.com",
-              items: JSON.stringify([
-                { e: monthly.id, p: 2000, q: 2 },
-                { e: annual.id, p: 1000, q: 1 },
-              ]),
-              name: "Renewer",
-              site_token_index: tokenIndex,
-            }),
-            3000,
-          ),
-          payment_intent: "pi_multi_tier_renewal",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 3000,
+        metadata: signMeta(
+          webhookMeta({
+            email: "renew@example.com",
+            items: JSON.stringify([
+              { e: monthly.id, p: 2000, q: 2 },
+              { e: annual.id, p: 1000, q: 1 },
+            ]),
+            name: "Renewer",
+            site_token_index: tokenIndex,
+          }),
+          3000,
+        ),
+        paymentIntent: "pi_multi_tier_renewal",
+        sessionId: "cs_multi_tier_renewal",
+      });
 
       try {
         const redirectResponse = await handleRequest(
@@ -321,24 +302,14 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 1000,
-          id: "cs_square_order",
-          metadata: signMeta(
-            webhookMeta({
-              email: "square@example.com",
-              items: singleItem(listing.id, 1, 1000),
-              name: "Square User",
-            }),
-            1000,
-          ),
-          payment_intent: "pi_square_order",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 1000,
+        email: "square@example.com",
+        items: singleItem(listing.id, 1, 1000),
+        name: "Square User",
+        paymentIntent: "pi_square_order",
+        sessionId: "cs_square_order",
+      });
 
       try {
         // Square appends orderId as a query parameter (not session_id)
