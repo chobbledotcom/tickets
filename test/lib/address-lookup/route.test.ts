@@ -12,6 +12,7 @@ import { execute } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowMs } from "#shared/now.ts";
 import {
+  createTestEditorSession,
   describeWithEnv,
   getTestSession,
   mockRequest,
@@ -55,6 +56,14 @@ const lookupGet = async (search: string): Promise<Response> => {
   const { handleRequest } = await import("#routes");
   return handleRequest(
     mockRequest(`/address-lookup?search=${encodeURIComponent(search)}`),
+  );
+};
+
+/** A Downing Street lookup as a signed-in user (any role, via its cookie). */
+const lookupGetSignedIn = async (cookie: string): Promise<Response> => {
+  const { handleRequest } = await import("#routes");
+  return handleRequest(
+    mockRequest("/address-lookup?search=SW1A%202AA", { headers: { cookie } }),
   );
 };
 
@@ -126,16 +135,23 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
     await lockOutTestIp();
     const { cookie } = await getTestSession();
 
-    const { handleRequest } = await import("#routes");
-    const response = await handleRequest(
-      mockRequest("/address-lookup?search=SW1A%202AA", {
-        headers: { cookie },
-      }),
-    );
+    const response = await lookupGetSignedIn(cookie);
 
     expect(response.status).toBe(200);
     // Staff also get the located matches for the Logistics tab's map pin.
     expect(await response.json()).toEqual(DOWNING_STREET_WITH_MATCHES);
+  });
+
+  test("a restricted editor session gets lines but never coordinates", async () => {
+    await enableEasypostcodes();
+    stubFetch(() => Promise.resolve(new Response(PROVIDER_BODY)));
+    const { cookie } = await createTestEditorSession();
+
+    const response = await lookupGetSignedIn(cookie);
+
+    expect(response.status).toBe(200);
+    // Editors cannot open attendee pages, so no geolocation payload either.
+    expect(await response.json()).toEqual(DOWNING_STREET_LINES);
   });
 });
 
