@@ -87,10 +87,14 @@ const cartListings = async (items: CartItem[]): Promise<ListingWithCount[]> => {
 /**
  * Handle a multi-slug booking page whose slugs include at least one package,
  * or return null so the caller falls through to the plain multi-listing path.
- * Children never render standalone rows (their parents re-fold them), matching
- * the group and order entry points; each package's `PagePackage` carries the
- * members that survived that drop, so a child member still books through its
- * parent's fold rather than a top-level row.
+ * A child listing reached through a package's member expansion never renders
+ * a standalone row (its parent re-folds it), and a non-standalone child slug
+ * is dropped like any other unbookable slug — but a `bookable_alone` child
+ * the visitor added BY ITS OWN SLUG keeps its standalone row beside the
+ * parent's fold, exactly as the plain multi-listing page treats it. Each
+ * package's `PagePackage` carries the members that survived the drop, so a
+ * child member still books through its parent's fold rather than a top-level
+ * row.
  */
 export const handleCartBySlugs = async (
   request: Request,
@@ -99,7 +103,20 @@ export const handleCartBySlugs = async (
 ): Promise<Response | null> => {
   const items = await resolveCartSlugs(slugs);
   if (items === null) return null;
-  const withoutChildren = await dropChildListings(await cartListings(items));
+  const soloChildIds = new Set(
+    items.flatMap((item) =>
+      item.kind === "listing" && item.listing.bookable_alone
+        ? [item.listing.id]
+        : [],
+    ),
+  );
+  const listings = await cartListings(items);
+  const dropped = new Set(
+    (await dropChildListings(listings)).map((listing) => listing.id),
+  );
+  const withoutChildren = listings.filter(
+    (listing) => dropped.has(listing.id) || soloChildIds.has(listing.id),
+  );
   if (withoutChildren.length === 0) return notFoundResponse();
   const survivingIds = new Set(withoutChildren.map((listing) => listing.id));
   const activeListings =

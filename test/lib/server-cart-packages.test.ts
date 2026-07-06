@@ -38,9 +38,11 @@ const freePackage = async (name: string, slug: string, memberName: string) => {
 /** The booking rows for a listing, oldest first. */
 const bookingRows = (
   listingId: number,
-): Promise<{ quantity: number; package_group_id: number }[]> =>
+): Promise<
+  { quantity: number; package_group_id: number; parent_listing_id: number }[]
+> =>
   queryAll(
-    `SELECT quantity, package_group_id FROM listing_attendees
+    `SELECT quantity, package_group_id, parent_listing_id FROM listing_attendees
       WHERE listing_id = ? ORDER BY id ASC`,
     [listingId],
   );
@@ -112,6 +114,49 @@ describeWithEnv(
       expect(byGroup.get(0)).toBe(2);
     });
 
+    test("a bookable-alone child added by its own slug keeps its row in a package cart", async () => {
+      const { group } = await freePackage("Camp Kit", "camp-kit", "Kit Tent");
+      const parent = await createTestListing({
+        maxAttendees: 10,
+        name: "Marquee",
+        unitPrice: 0,
+      });
+      const child = await createTestListing({
+        bookableAlone: true,
+        maxAttendees: 10,
+        maxQuantity: 5,
+        name: "Generator",
+        unitPrice: 0,
+      });
+      const { setChildIds } = await import("#shared/db/listing-parents.ts");
+      await setChildIds(parent.id, [child.id]);
+
+      // The child keeps its own quantity row beside the parent's fold —
+      // exactly as the plain (package-less) multi-slug page treats it.
+      const slugs = `${group.slug}+${parent.slug}+${child.slug}`;
+      expect(await pageHtml(slugs)).toContain(`name="quantity_${child.id}"`);
+
+      const submit = await submitPackageBooking(slugs, {
+        email: "solo-child@test.com",
+        name: "Solo Child",
+        [`package_quantity_${group.id}`]: "1",
+        [`quantity_${child.id}`]: "1",
+        [`quantity_${parent.id}`]: "1",
+      });
+      await expectPackageBookingAccepted(submit);
+
+      // One row folded under the parent (the sole child fills its quantity)
+      // plus the child's own standalone row — the buyer's selection survives
+      // the package being in the same cart.
+      const rows = await bookingRows(child.id);
+      expect(
+        rows.map((row) => [Number(row.parent_listing_id), row.quantity]),
+      ).toEqual([
+        [parent.id, 1],
+        [0, 1],
+      ]);
+    });
+
     test("books two packages beside a plain listing in one order", async () => {
       const camp = await freePackage("Camp Kit", "camp-kit", "Kit Tent");
       const beach = await freePackage("Beach Kit", "beach-kit", "Kit Towel");
@@ -136,13 +181,17 @@ describeWithEnv(
       await expectPackageBookingAccepted(submit);
 
       expect(await bookingRows(camp.member.id)).toEqual([
-        { package_group_id: camp.group.id, quantity: 1 },
+        { package_group_id: camp.group.id, parent_listing_id: 0, quantity: 1 },
       ]);
       expect(await bookingRows(beach.member.id)).toEqual([
-        { package_group_id: beach.group.id, quantity: 2 },
+        {
+          package_group_id: beach.group.id,
+          parent_listing_id: 0,
+          quantity: 2,
+        },
       ]);
       expect(await bookingRows(solo.id)).toEqual([
-        { package_group_id: 0, quantity: 1 },
+        { package_group_id: 0, parent_listing_id: 0, quantity: 1 },
       ]);
     });
 
