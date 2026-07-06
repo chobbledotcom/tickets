@@ -27,6 +27,7 @@ import {
   expectGroupCtaSuppressed,
   expectListingDetailBookable,
   firstBookableDate,
+  fixedThreeDayParentWithCustomChild,
   groupQrStatus,
   groupWithChildOnlyMember,
   groupWithSoldOutParentMember,

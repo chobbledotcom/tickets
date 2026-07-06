@@ -50,7 +50,7 @@ import {
   withStripeStatus,
 } from "#test-utils/stripe-checkout.ts";
 import { webhookEvent } from "#test-utils/webhook-event.ts";
-import { hmacHex } from "#test-utils/webhook-signing.ts";
+import { expectSignatureError, hmacHex } from "#test-utils/webhook-signing.ts";
 
 /** A checkout line built from a test listing (quantity defaults to 1). */
 const listingItem = (listing: ReturnType<typeof testListing>, quantity = 1) =>

@@ -86,6 +86,22 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     return { attendees: await getAttendeesRaw(listingId), response };
   };
 
+  // Posts the check-in toggle again for an already-loaded check-in context
+  // (from `checkinAction`) — used to check an attendee back out or re-filter.
+  const toggleCheckin = (
+    ctx: {
+      attendee: { id: number };
+      cookie: string;
+      csrfToken: string;
+      listing: { id: number };
+    },
+    fields: Record<string, string> = {},
+  ): Promise<Response> =>
+    postAs(ctx)(
+      `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/checkin`,
+      fields,
+    );
+
   // Deletes an incomplete attendee as admin, expects the success redirect, and
   // confirms the attendee row is gone. Returns the response for extra checks.
   const expectIncompleteRemoved = async (
