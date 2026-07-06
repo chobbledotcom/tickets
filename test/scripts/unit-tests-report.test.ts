@@ -5,27 +5,15 @@ import {
   countLines,
   DEFAULT_LIMIT,
   DEFAULT_OPTIONS,
-  type FileLines,
-  formatRatio,
-  formatReport,
   isSourcePath,
   isTestableSource,
   isTestPath,
   mirrorPrefix,
-  type ReportOptions,
+  owningSourcePrefix,
   suggestedTarget,
-  testCoversPrefix,
+  toJsonReport,
 } from "../../scripts/unit-tests-report-lib.ts";
-
-const options: ReportOptions = {
-  exemptSourcePrefixes: ["src/locales/"],
-  exemptTestPrefixes: ["test/e2e/", "test/setup.ts"],
-  srcRoot: "src",
-  testRoot: "test",
-};
-
-const src = (path: string, lines: number): FileLines => ({ lines, path });
-const tst = (path: string, lines: number): FileLines => ({ lines, path });
+import { options, src, tst } from "./unit-tests-report-fixtures.ts";
 
 describe("countLines", () => {
   test("counts non-blank lines only", () => {
@@ -72,22 +60,43 @@ describe("mirrorPrefix", () => {
   });
 });
 
-describe("testCoversPrefix", () => {
-  const prefix = "test/shared/store";
-  test("matches the single .test.ts or .test.tsx mirror", () => {
-    expect(testCoversPrefix(prefix, "test/shared/store.test.ts")).toBe(true);
-    expect(testCoversPrefix(prefix, "test/shared/store.test.tsx")).toBe(true);
-  });
-  test("matches any file inside a directory named after the source", () => {
-    expect(testCoversPrefix(prefix, "test/shared/store/reads.test.ts")).toBe(
-      true,
+describe("owningSourcePrefix", () => {
+  test("matches a test's own direct mirror", () => {
+    const prefixes = new Set(["test/shared/store"]);
+    expect(owningSourcePrefix("test/shared/store.test.ts", prefixes)).toBe(
+      "test/shared/store",
+    );
+    expect(owningSourcePrefix("test/shared/store.test.tsx", prefixes)).toBe(
+      "test/shared/store",
     );
   });
-  test("rejects unrelated or sibling-prefixed paths", () => {
-    expect(testCoversPrefix(prefix, "test/shared/store-helpers.test.ts")).toBe(
-      false,
+
+  test("falls back to the nearest ancestor directory (directory suite)", () => {
+    const prefixes = new Set(["test/shared/store"]);
+    expect(
+      owningSourcePrefix("test/shared/store/reads.test.ts", prefixes),
+    ).toBe("test/shared/store");
+  });
+
+  test("prefers a child's own mirror over its parent directory", () => {
+    const prefixes = new Set(["test/db/attendees", "test/db/attendees/kind"]);
+    expect(owningSourcePrefix("test/db/attendees/kind.test.ts", prefixes)).toBe(
+      "test/db/attendees/kind",
     );
-    expect(testCoversPrefix(prefix, "test/shared/other.test.ts")).toBe(false);
+  });
+
+  test("does not match a sibling whose name merely starts with the prefix", () => {
+    const prefixes = new Set(["test/db/attendees"]);
+    // "attendees-notes" starts with "attendees" but is not inside it.
+    expect(
+      owningSourcePrefix("test/db/attendees-notes.test.ts", prefixes),
+    ).toBeNull();
+  });
+
+  test("returns null when no source owns the test", () => {
+    expect(
+      owningSourcePrefix("test/shared/ghost.test.ts", new Set()),
+    ).toBeNull();
   });
 });
 
@@ -133,6 +142,19 @@ describe("buildReport", () => {
       testFiles: ["test/shared/a/one.test.ts", "test/shared/a/two.test.ts"],
       testLines: 30,
     });
+  });
+
+  test("does not credit a child's mirror test to its parent source", () => {
+    const report = buildReport(
+      [src("src/db/attendees.ts", 100), src("src/db/attendees/kind.ts", 20)],
+      [tst("test/db/attendees/kind.test.ts", 10)],
+      options,
+    );
+    expect(report.untested.map((s) => s.path)).toEqual(["src/db/attendees.ts"]);
+    expect(report.ranked.map((s) => s.path)).toEqual([
+      "src/db/attendees/kind.ts",
+    ]);
+    expect(report.orphanTests).toEqual([]);
   });
 
   test("marks a source with no mirror as untested with an infinite ratio", () => {
@@ -253,133 +275,21 @@ describe("suggestedTarget", () => {
   });
 });
 
-describe("formatRatio", () => {
-  test("shows infinity as a symbol and finite ratios to two decimals", () => {
-    expect(formatRatio(Number.POSITIVE_INFINITY)).toBe("∞");
-    expect(formatRatio(2.5)).toBe("2.50");
-  });
-});
-
-describe("formatReport", () => {
-  // Exact-output assertions: the aligned columns, padding and labels are part
-  // of the report's contract, so every character is pinned down here.
-  test("renders the full report with an untested target, a ranked row and an orphan", () => {
-    const report = buildReport(
-      [src("src/big.ts", 200), src("src/thin.ts", 100)],
-      [tst("test/thin.test.ts", 5), tst("test/ghost.test.ts", 5)],
-      options,
+describe("toJsonReport", () => {
+  test("keeps finite ratios and turns infinite ones into null", () => {
+    const json = toJsonReport(
+      buildReport(
+        [src("src/thin.ts", 100), src("src/untested.ts", 50)],
+        [tst("test/thin.test.ts", 5)],
+        options,
+      ),
     );
-    expect(formatReport(report, null)).toEqual([
-      "Unit-test coverage report",
-      "=========================",
-      "Source files needing a test: 2",
-      "  with a mirrored test:      1 (50.0%)",
-      "  untested:                  1",
-      "Orphan test files (mirror no source): 1",
-      "",
-      "👉 Suggested next target: src/big.ts (untested, 200 lines)",
-      "",
-      "Untested source files (largest first):",
-      "    200  src/big.ts",
-      "",
-      "Thinnest-tested source files (highest src:test ratio first):",
-      "   ratio    src   test  file",
-      "   20.00    100      5  src/thin.ts",
-      "",
-      "Orphan test files (not at any source's mirror path):",
-      "  test/ghost.test.ts",
-    ]);
-  });
-
-  test("caps each list at the limit and notes how many rows were hidden", () => {
-    const report = buildReport(
-      [
-        src("src/u1.ts", 200),
-        src("src/u2.ts", 100),
-        src("src/t1.ts", 60),
-        src("src/t2.ts", 30),
-      ],
-      [
-        tst("test/t1.test.ts", 5),
-        tst("test/t2.test.ts", 5),
-        tst("test/o1.test.ts", 5),
-        tst("test/o2.test.ts", 5),
-      ],
-      options,
-    );
-    expect(formatReport(report, 1)).toEqual([
-      "Unit-test coverage report",
-      "=========================",
-      "Source files needing a test: 4",
-      "  with a mirrored test:      2 (50.0%)",
-      "  untested:                  2",
-      "Orphan test files (mirror no source): 2",
-      "",
-      "👉 Suggested next target: src/u1.ts (untested, 200 lines)",
-      "",
-      "Untested source files (largest first):",
-      "    200  src/u1.ts",
-      "  … and 1 more (use --all to list)",
-      "",
-      "Thinnest-tested source files (highest src:test ratio first):",
-      "   ratio    src   test  file",
-      "   12.00     60      5  src/t1.ts",
-      "  … and 1 more (use --all to list)",
-      "",
-      "Orphan test files (not at any source's mirror path):",
-      "  test/o1.test.ts",
-      "  … and 1 more (use --all to list)",
-    ]);
-  });
-
-  test("shows placeholders and a do-nothing target for an empty tree", () => {
-    expect(formatReport(buildReport([], [], options), null)).toEqual([
-      "Unit-test coverage report",
-      "=========================",
-      "Source files needing a test: 0",
-      "  with a mirrored test:      0 (0.0%)",
-      "  untested:                  0",
-      "Orphan test files (mirror no source): 0",
-      "",
-      "👉 Nothing to do — no testable sources found.",
-      "",
-      "Untested source files (largest first):",
-      "  (none — every source has a test)",
-      "",
-      "Thinnest-tested source files (highest src:test ratio first):",
-      "  (none)",
-      "",
-      "Orphan test files (not at any source's mirror path):",
-      "  (none)",
-    ]);
-  });
-
-  test("names a tested target with its ratio when nothing is untested", () => {
-    const report = buildReport(
-      [src("src/a.ts", 10)],
-      [tst("test/a.test.ts", 10)],
-      options,
-    );
-    expect(formatReport(report, null)).toEqual([
-      "Unit-test coverage report",
-      "=========================",
-      "Source files needing a test: 1",
-      "  with a mirrored test:      1 (100.0%)",
-      "  untested:                  0",
-      "Orphan test files (mirror no source): 0",
-      "",
-      "👉 Suggested next target: src/a.ts (ratio 1.00, 10 src / 10 test lines)",
-      "",
-      "Untested source files (largest first):",
-      "  (none — every source has a test)",
-      "",
-      "Thinnest-tested source files (highest src:test ratio first):",
-      "   ratio    src   test  file",
-      "    1.00     10     10  src/a.ts",
-      "",
-      "Orphan test files (not at any source's mirror path):",
-      "  (none)",
-    ]);
+    expect(json.ranked[0]).toMatchObject({ path: "src/thin.ts", ratio: 20 });
+    expect(json.untested[0]).toMatchObject({
+      path: "src/untested.ts",
+      ratio: null,
+    });
+    expect(json.totalSources).toBe(2);
   });
 });
 
