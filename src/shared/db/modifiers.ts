@@ -25,6 +25,7 @@ import {
   defineIdTable,
   encryptedNameSchema,
 } from "#shared/db/common-schema.ts";
+import { linkTableSide } from "#shared/db/link-table.ts";
 import { columnMapByIds, queryAndMap } from "#shared/db/query.ts";
 import { col } from "#shared/db/table.ts";
 import type {
@@ -209,12 +210,15 @@ export const resetModifierAggregateFields = async (
   await resetAggregates("modifiers", modifierId, fields, aggregateResetSql);
 };
 
+const listingLinks = linkTableSide(
+  "modifier_listings",
+  "modifier_id",
+  "listing_id",
+);
+const groupLinks = linkTableSide("modifier_groups", "modifier_id", "group_id");
+
 /** Listing ids a modifier is directly linked to (scope = "listings"). */
-export const getModifierListingIds = (modifierId: number): Promise<number[]> =>
-  queryIdColumn(
-    "SELECT listing_id AS id FROM modifier_listings WHERE modifier_id = ?",
-    [modifierId],
-  );
+export const getModifierListingIds = listingLinks.getIds;
 
 type ModifierListingLinkRow = { listing_id: number; modifier_id: number };
 
@@ -263,11 +267,7 @@ export const getModifierGroupListingIdsByModifierId =
   );
 
 /** Group ids a modifier is linked to (for the admin scope editor). */
-export const getModifierGroupIds = (modifierId: number): Promise<number[]> =>
-  queryIdColumn(
-    "SELECT group_id AS id FROM modifier_groups WHERE modifier_id = ?",
-    [modifierId],
-  );
+export const getModifierGroupIds = groupLinks.getIds;
 
 /** Group ids linked to each group-scoped modifier id (batched), so a caller can
  * resolve a modifier's group scope against *in-memory* listings (e.g. a listing
@@ -284,64 +284,31 @@ export const getModifierGroupIdsByModifierId = modifierScopeListingIdsLookup(
 export const getModifierAnswerIds = (modifierId: number): Promise<number[]> =>
   queryIdColumn("SELECT id FROM answers WHERE modifier_id = ?", [modifierId]);
 
-/** Run a "clear, then re-add" batch idempotently: one reset statement (bound to
- * `[modifierId]`), then one write per id (bound to `[modifierId, id]`). Shared
- * by every modifier-link save whether the links live in a join table (insert a
- * row per id) or a column on the target rows (update them), so the batch shape
- * lives in one place. */
-const resetAndWriteLinks = (
-  resetSql: string,
-  writeSql: string,
-  modifierId: number,
-  ids: number[],
-): Promise<unknown> =>
-  executeBatch([
-    { args: [modifierId], sql: resetSql },
-    ...ids.map((id) => ({ args: [modifierId, id], sql: writeSql })),
-  ]);
-
-/** Replace a modifier's link rows in `table` with one per id (reset + insert),
- * so saving the scope editor is idempotent. */
-const setModifierLinks = (
-  table: "modifier_listings" | "modifier_groups",
-  column: "listing_id" | "group_id",
-  modifierId: number,
-  ids: number[],
-): Promise<unknown> =>
-  resetAndWriteLinks(
-    `DELETE FROM ${table} WHERE modifier_id = ?`,
-    `INSERT INTO ${table} (modifier_id, ${column}) VALUES (?, ?)`,
-    modifierId,
-    ids,
-  );
-
 /** Set the listings a "listings"-scoped modifier is charged on. */
-export const setModifierListings = (
-  modifierId: number,
-  listingIds: number[],
-): Promise<unknown> =>
-  setModifierLinks("modifier_listings", "listing_id", modifierId, listingIds);
+export const setModifierListings = listingLinks.setIds;
 
 /** Set the groups a "groups"-scoped modifier is charged on. */
-export const setModifierGroups = (
-  modifierId: number,
-  groupIds: number[],
-): Promise<unknown> =>
-  setModifierLinks("modifier_groups", "group_id", modifierId, groupIds);
+export const setModifierGroups = groupLinks.setIds;
 
 /** Point the given answers at an "answer"-triggered modifier (and clear any
  * answers previously pointing at it), so saving the editor is idempotent and
- * an answer carries at most one modifier. */
+ * an answer carries at most one modifier. The links live on the answers rows
+ * themselves (a `modifier_id` column), so this is a clear-then-point batch
+ * rather than a link-table replace. */
 export const setModifierAnswers = (
   modifierId: number,
   answerIds: number[],
-): Promise<unknown> =>
-  resetAndWriteLinks(
-    "UPDATE answers SET modifier_id = NULL WHERE modifier_id = ?",
-    "UPDATE answers SET modifier_id = ? WHERE id = ?",
-    modifierId,
-    answerIds,
-  );
+): Promise<void> =>
+  executeBatch([
+    {
+      args: [modifierId],
+      sql: "UPDATE answers SET modifier_id = NULL WHERE modifier_id = ?",
+    },
+    ...answerIds.map((id) => ({
+      args: [modifierId, id],
+      sql: "UPDATE answers SET modifier_id = ? WHERE id = ?",
+    })),
+  ]);
 
 /** Selected answer id → the "answer"-trigger modifier it activates (as a
  * single-element list, absent when the answer has no modifier), keyed for

@@ -11,15 +11,9 @@
  * uses them, to keep the module free of unused exports.
  */
 
-import type { InValue } from "@libsql/client";
 import { mapNotNullish } from "#fp";
-import {
-  executeBatch,
-  inPlaceholders,
-  queryAll,
-  queryIdColumn,
-  type TxScope,
-} from "#shared/db/client.ts";
+import { inPlaceholders, queryAll, queryIdColumn } from "#shared/db/client.ts";
+import { linkTableSide } from "#shared/db/link-table.ts";
 import { getListingsById } from "#shared/db/listings.ts";
 import {
   type EdgeListing,
@@ -27,8 +21,16 @@ import {
 } from "#shared/listing-parents-rules.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
-const INSERT_EDGE =
-  "INSERT INTO listing_parents (parent_listing_id, child_listing_id) VALUES (?, ?)";
+const byParent = linkTableSide(
+  "listing_parents",
+  "parent_listing_id",
+  "child_listing_id",
+);
+const byChild = linkTableSide(
+  "listing_parents",
+  "child_listing_id",
+  "parent_listing_id",
+);
 
 /** Run a child-id-selecting query (whose SQL embeds an `IN (…)` placeholder list
  * over `ids`) and return its results as a set. Empty input short-circuits to an
@@ -86,42 +88,14 @@ export const anyNonStandaloneChild = async (
 ): Promise<boolean> => (await getNonStandaloneChildIds(ids)).size > 0;
 
 /** Child listing ids that must be chosen under `parentId` (relationship only). */
-export const getChildIds = (parentId: number): Promise<number[]> =>
-  queryIdColumn(
-    "SELECT child_listing_id AS id FROM listing_parents WHERE parent_listing_id = ? ORDER BY child_listing_id",
-    [parentId],
-  );
+export const getChildIds = byParent.getIds;
 
 /** Parent listing ids that `childId` is offered under (relationship only). */
-export const getParentIds = (childId: number): Promise<number[]> =>
-  queryIdColumn(
-    "SELECT parent_listing_id AS id FROM listing_parents WHERE child_listing_id = ? ORDER BY parent_listing_id",
-    [childId],
-  );
+export const getParentIds = byChild.getIds;
 
 /** Replace the set of children required under `parentId` (admin edit-on-parent):
  * clear the parent's edges, then insert one per supplied child id. */
-/** The DELETE-then-INSERT statements that replace a parent's child edges.
- * Shared by {@link setChildIds} (its own batch) and {@link setChildIdsTx} (run
- * on a caller's transaction) so the two can't drift. */
-const childEdgeStatements = (
-  parentId: number,
-  childIds: readonly number[],
-): { args: InValue[]; sql: string }[] => [
-  {
-    args: [parentId],
-    sql: "DELETE FROM listing_parents WHERE parent_listing_id = ?",
-  },
-  ...childIds.map((childId) => ({
-    args: [parentId, childId],
-    sql: INSERT_EDGE,
-  })),
-];
-
-export const setChildIds = (
-  parentId: number,
-  childIds: readonly number[],
-): Promise<void> => executeBatch(childEdgeStatements(parentId, childIds));
+export const setChildIds = byParent.setIds;
 
 /** Add `childId` as a child under each of `parentIds` inside an existing write
  * transaction — the catalog-import writer for a freshly-created listing that is
@@ -129,33 +103,13 @@ export const setChildIds = (
  * it can't disturb a parent's other children the way {@link setChildIdsTx}'s
  * replace would. One batched multi-row INSERT regardless of parent count, so a
  * many-parent import stays within the interactive-transaction round-trip cap. */
-export const addParentEdgesTx = async (
-  tx: TxScope,
-  childId: number,
-  parentIds: readonly number[],
-): Promise<void> => {
-  if (parentIds.length === 0) return;
-  await tx.execute({
-    args: parentIds.flatMap((parentId) => [parentId, childId]),
-    sql: `INSERT INTO listing_parents (parent_listing_id, child_listing_id) VALUES ${parentIds
-      .map(() => "(?, ?)")
-      .join(", ")}`,
-  });
-};
+export const addParentEdgesTx = byChild.addIdsTx;
 
 /** Replace a parent's child edges inside an existing write transaction, so the
  * edge replacement commits atomically with the listing row write (the admin API
- * create/update path). Mirrors {@link setChildIds} but runs each statement on the
- * caller's `tx` rather than its own batch. */
-export const setChildIdsTx = async (
-  tx: TxScope,
-  parentId: number,
-  childIds: readonly number[],
-): Promise<void> => {
-  for (const stmt of childEdgeStatements(parentId, childIds)) {
-    await tx.execute(stmt);
-  }
-};
+ * create/update path). Mirrors {@link setChildIds} but runs on the caller's
+ * `tx` rather than its own batch. */
+export const setChildIdsTx = byParent.setIdsTx;
 
 type EdgeColumn = "child_listing_id" | "parent_listing_id";
 
