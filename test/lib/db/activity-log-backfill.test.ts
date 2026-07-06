@@ -59,6 +59,23 @@ describeWithEnv("db > activity log backfill", { db: true }, () => {
     expect((await rawMessage(legacyId)).startsWith(HYBRID_PREFIX)).toBe(true);
   });
 
+  test("writes each re-encrypted message back to its own row (by id)", async () => {
+    const id1 = await insertLegacyRow("first plaintext");
+    const id2 = await insertLegacyRow("second plaintext");
+
+    await backfillActivityLogBatch(settings.publicKey);
+
+    // Keyed by row id: a crossed id in the batched UPDATEs would swap these.
+    const byId = new Map(
+      (await withTestSession(() => getAllActivityLog())).map((e) => [
+        e.id,
+        e.message,
+      ]),
+    );
+    expect(byId.get(id1)).toBe("first plaintext");
+    expect(byId.get(id2)).toBe("second plaintext");
+  });
+
   test("returns 0 when no legacy rows remain", async () => {
     await logActivity("owner-key only");
     expect(await backfillActivityLogBatch(settings.publicKey)).toBe(0);

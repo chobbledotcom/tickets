@@ -79,6 +79,21 @@ describeWithEnv("db > sumup-checkouts", { db: true }, () => {
       expect(await hasSumupCheckoutId("co_abc123")).toBe(true);
     });
 
+    test("setSumupCheckoutId updates only the matching reference", async () => {
+      const otherReference = crypto.randomUUID();
+      await storeSumupCheckout(REFERENCE, METADATA);
+      await storeSumupCheckout(otherReference, METADATA);
+
+      await setSumupCheckoutId(REFERENCE, "co_target");
+
+      const target = await getSumupCheckout(REFERENCE);
+      expect(target!.sumupId).toBe("co_target");
+      // The id write must not clobber the row's encrypted metadata.
+      expect(target!.metadata).toEqual(METADATA);
+      // The other row keeps its unset id.
+      expect((await getSumupCheckout(otherReference))!.sumupId).toBe("");
+    });
+
     test("hasSumupCheckoutId rejects ids we never created", async () => {
       await storeSumupCheckout(REFERENCE, METADATA);
       await setSumupCheckoutId(REFERENCE, "co_abc123");

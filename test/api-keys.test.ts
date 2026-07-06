@@ -143,12 +143,28 @@ describeWithEnv("API Keys", { db: true }, () => {
       expect(await countApiKeysForUser(1)).toBe(0);
     });
 
-    test("updates last_used timestamp", async () => {
-      const { id } = await createTestApiKeyFull("Touch Test");
+    test("touchApiKeyLastUsed stamps last_used on the stored row only", async () => {
+      const { dataKey, id } = await createTestApiKeyFull("Touch Test");
+      const other = await createApiKey(
+        1,
+        "Untouched",
+        dataKey,
+        generateSecureToken,
+      );
+
+      // Fresh keys start with an empty last_used.
+      const before = await getApiKeysForUser(1);
+      expect(before.find((k) => k.id === id)!.lastUsed).toBe("");
 
       await touchApiKeyLastUsed(id);
-      const keys = await getApiKeysForUser(1);
-      expect(keys[0]!.lastUsed).toBeTruthy();
+
+      const after = await getApiKeysForUser(1);
+      const touched = after.find((k) => k.id === id)!;
+      // The stored value changed to a parseable timestamp…
+      expect(touched.lastUsed).not.toBe("");
+      expect(Number.isNaN(Date.parse(touched.lastUsed))).toBe(false);
+      // …and only the touched key's row was updated.
+      expect(after.find((k) => k.id === other.id)!.lastUsed).toBe("");
     });
 
     test("gets a single API key by ID and user", async () => {
