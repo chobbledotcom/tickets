@@ -20,11 +20,18 @@ import {
 import { captureCheckoutIntent } from "#test-utils/checkout-intent.ts";
 import {
   apiListingBody,
+  apiListingRow,
   bookableDatesFor,
   enablePublicApi,
+  expectChildQuantity,
+  expectGroupCtaSuppressed,
   expectListingDetailBookable,
   firstBookableDate,
+  groupQrStatus,
+  groupWithChildOnlyMember,
+  groupWithSoldOutParentMember,
   parentWithBlockedSecondChild,
+  twoChildrenInCappedPool,
 } from "#test-utils/parent-booking-scenarios.ts";
 
 describeWithEnv(
@@ -130,19 +137,7 @@ describeWithEnv(
         // (1 + 1 = 2) over-offered, and `checkBatchAvailability` would reject a 2.
         name: "an ungrouped parent + two children sharing a 1-spot capped group offers parent max 1",
         notContains: ['"2"'],
-        setup: async () => {
-          const childGroup = await createTestGroup({
-            maxAttendees: 1,
-            name: "Add-on pool",
-          });
-          return makeParent({
-            children: [
-              { groupId: childGroup.id, maxAttendees: 50, maxQuantity: 5 },
-              { groupId: childGroup.id, maxAttendees: 50, maxQuantity: 5 },
-            ],
-            parent: { maxAttendees: 50, maxQuantity: 5 },
-          });
-        },
+        setup: () => twoChildrenInCappedPool(1, 5),
       },
       {
         contains: '"3"',
@@ -152,19 +147,7 @@ describeWithEnv(
         // per child (5 + 5) and not floor-divided (this group has no parent in it).
         name: "an ungrouped parent + two children sharing a 3-spot capped group offers parent max 3",
         notContains: ['"4"'],
-        setup: async () => {
-          const childGroup = await createTestGroup({
-            maxAttendees: 3,
-            name: "Add-on pool",
-          });
-          return makeParent({
-            children: [
-              { groupId: childGroup.id, maxAttendees: 50, maxQuantity: 5 },
-              { groupId: childGroup.id, maxAttendees: 50, maxQuantity: 5 },
-            ],
-            parent: { maxAttendees: 50, maxQuantity: 9 },
-          });
-        },
+        setup: () => twoChildrenInCappedPool(3, 9),
       },
       {
         contains: '"1"',
@@ -293,9 +276,8 @@ describeWithEnv(
         quantity: 2,
       });
       expect(res.status).toBe(200);
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      expect((await getAttendeesRaw(childA.id))[0]?.quantity).toBe(1);
-      expect((await getAttendeesRaw(childB.id))[0]?.quantity).toBe(1);
+      await expectChildQuantity(childA, 1);
+      await expectChildQuantity(childB, 1);
     });
 
     // Table-driven: the JSON-API rejection cluster. Each row enables the public
@@ -388,8 +370,7 @@ describeWithEnv(
         quantity: 2,
       });
       expect(res.status).toBe(200);
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      expect((await getAttendeesRaw(child.id))[0]?.quantity).toBe(2);
+      await expectChildQuantity(child, 2);
     });
 
     test("the JSON API requires a date when booking a daily parent", async () => {
@@ -602,11 +583,9 @@ describeWithEnv(
       // A child with no capacity is its parent's only child, so the parent has
       // no bookable child and is sold out.
       const { parent } = await makeParent({ children: [{ maxAttendees: 0 }] });
-      const res = await apiGet(`/api/listings/${parent.slug}`);
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as {
+      const body = await apiListingBody<{
         listing: { isSoldOut: boolean; maxPurchasable: number };
-      };
+      }>(parent.slug);
       expect(body.listing.isSoldOut).toBe(true);
       expect(body.listing.maxPurchasable).toBe(0);
     });
@@ -862,14 +841,11 @@ describeWithEnv(
       // that, matching the detail/availability endpoints, not advertise
       // the parent's own standalone capacity as bookable.
       const { parent } = await makeParent({ children: [{ maxAttendees: 0 }] });
-      const body = (await (await apiGet("/api/listings")).json()) as {
-        listings: {
-          slug: string;
-          isSoldOut: boolean;
-          maxPurchasable: number;
-        }[];
-      };
-      const row = body.listings.find((l) => l.slug === parent.slug)!;
+      const row = await apiListingRow<{
+        slug: string;
+        isSoldOut: boolean;
+        maxPurchasable: number;
+      }>(parent.slug);
       expect(row.isSoldOut).toBe(true);
       expect(row.maxPurchasable).toBe(0);
     });
@@ -877,14 +853,11 @@ describeWithEnv(
     test("GET /api/listings keeps a parent with a bookable child bookable", async () => {
       await enablePublicApi();
       const { parent } = await makeParent();
-      const body = (await (await apiGet("/api/listings")).json()) as {
-        listings: {
-          slug: string;
-          isSoldOut: boolean;
-          maxPurchasable: number;
-        }[];
-      };
-      const row = body.listings.find((l) => l.slug === parent.slug)!;
+      const row = await apiListingRow<{
+        slug: string;
+        isSoldOut: boolean;
+        maxPurchasable: number;
+      }>(parent.slug);
       expect(row.isSoldOut).toBe(false);
       expect(row.maxPurchasable).toBeGreaterThan(0);
     });
@@ -912,10 +885,9 @@ describeWithEnv(
       const childDates = new Set(getBookableStartDates(childRow, holidays));
       const expected = parentDates.filter((d) => childDates.has(d));
 
-      const res = await apiGet(`/api/listings/${parent.slug}`);
-      const body = (await res.json()) as {
+      const body = await apiListingBody<{
         listing: { availableDates: string[] };
-      };
+      }>(parent.slug);
       expect(body.listing.availableDates).toEqual(expected);
       // The constraint actually removed dates (the parent's own calendar is wider
       // than the intersection) — otherwise the assertion would pass vacuously.
@@ -935,10 +907,9 @@ describeWithEnv(
         (await getListingWithCount(listing.id))!,
         await getActiveHolidays(),
       );
-      const res = await apiGet(`/api/listings/${listing.slug}`);
-      const body = (await res.json()) as {
+      const body = await apiListingBody<{
         listing: { availableDates: string[] };
-      };
+      }>(listing.slug);
       expect(body.listing.availableDates).toEqual(expected);
       expect(expected.length).toBeGreaterThan(0);
     });
@@ -948,28 +919,17 @@ describeWithEnv(
       // dropping children empties the page — there is nothing standalone-bookable
       // and a booking can never start from a child, so the group page 404s rather
       // than rendering a 200 empty booking page.
-      const group = await createTestGroup({ name: "Child-only group" });
-      await makeParent({ children: [{ groupId: group.id }] });
+      const group = await groupWithChildOnlyMember("Child-only group");
       const res = await ticketGet(group.slug);
       res.body?.cancel();
       expect(res.status).toBe(404);
     });
 
     test("a group with a child-only set suppresses its CTA on /listings", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicSite(true);
-      const group = await createTestGroup({ name: "Child-only listed group" });
-      await makeParent({ children: [{ groupId: group.id }] });
       // The group page itself 404s (asserted above); the /listings CTA pointing
       // at it must be suppressed so it never advertises a dead link.
-      const { handleRequest } = await import("#routes");
-      const listings = await handleRequest(
-        new Request("http://localhost/listings", {
-          headers: { host: "localhost" },
-        }),
-      );
-      const listingsBody = await listings.text();
-      expect(listingsBody).not.toContain(`href="/ticket/${group.slug}"`);
+      const group = await groupWithChildOnlyMember("Child-only listed group");
+      await expectGroupCtaSuppressed(group.slug);
     });
 
     test("a group whose only non-child member is a no-bookable-child parent suppresses its /listings CTA", async () => {
@@ -978,43 +938,16 @@ describeWithEnv(
       // no bookable quantity. The /listings Book CTA to /ticket/<group> must be
       // suppressed too — counting the parent as a "bookable member" because it
       // isn't a child would advertise an uncompletable booking.
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicSite(true);
-      const group = await createTestGroup({ name: "Sold-out-parent group" });
-      const parent = await createTestListing({
-        groupId: group.id,
-        name: "Base in group",
-      });
-      const child = await createTestListing({
-        maxAttendees: 1,
-        name: "Sold-out add-on",
-      });
-      await createTestAttendee(child.id, child.slug, "Buyer", "b@x.com");
-      await setChildIds(parent.id, [child.id]);
-      const { handleRequest } = await import("#routes");
-      const listings = await handleRequest(
-        new Request("http://localhost/listings", {
-          headers: { host: "localhost" },
-        }),
-      );
-      const listingsBody = await listings.text();
-      expect(listingsBody).not.toContain(`href="/ticket/${group.slug}"`);
+      const group = await groupWithSoldOutParentMember("Sold-out-parent group");
+      await expectGroupCtaSuppressed(group.slug);
     });
 
     test("a group QR 404s when its only active member is a child", async () => {
       // The group's only active member is a child of a parent outside the group,
       // so `/ticket/<group>` drops it and 404s — its QR encodes that dead link,
       // so the QR route must 404 too.
-      const group = await createTestGroup({ name: "Child-only QR group" });
-      await makeParent({ children: [{ groupId: group.id }] });
-      const { handleRequest } = await import("#routes");
-      const res = await handleRequest(
-        new Request(`http://localhost/ticket/${group.slug}/qr`, {
-          headers: { host: "localhost" },
-        }),
-      );
-      res.body?.cancel();
-      expect(res.status).toBe(404);
+      const group = await groupWithChildOnlyMember("Child-only QR group");
+      expect(await groupQrStatus(group.slug)).toBe(404);
     });
 
     test("a group QR 404s when its only standalone member is a no-bookable-child parent", async () => {
@@ -1022,25 +955,10 @@ describeWithEnv(
       // sold out, so /ticket/<group> renders no bookable quantity. The QR
       // encodes that dead page, so it must 404 — the SAME gate as the /listings
       // CTA (a parent projected sold out is not a bookable member).
-      const group = await createTestGroup({ name: "Sold-out-parent QR group" });
-      const parent = await createTestListing({
-        groupId: group.id,
-        name: "Base in group",
-      });
-      const child = await createTestListing({
-        maxAttendees: 1,
-        name: "Sold-out add-on",
-      });
-      await createTestAttendee(child.id, child.slug, "Buyer", "b@x.com");
-      await setChildIds(parent.id, [child.id]);
-      const { handleRequest } = await import("#routes");
-      const res = await handleRequest(
-        new Request(`http://localhost/ticket/${group.slug}/qr`, {
-          headers: { host: "localhost" },
-        }),
+      const group = await groupWithSoldOutParentMember(
+        "Sold-out-parent QR group",
       );
-      res.body?.cancel();
-      expect(res.status).toBe(404);
+      expect(await groupQrStatus(group.slug)).toBe(404);
     });
 
     test("an ordinary group's QR still renders", async () => {

@@ -86,6 +86,44 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     return { attendees: await getAttendeesRaw(listingId), response };
   };
 
+  // Deletes an incomplete attendee as admin, expects the success redirect, and
+  // confirms the attendee row is gone. Returns the response for extra checks.
+  const expectIncompleteRemoved = async (
+    session: { cookie: string; csrfToken: string },
+    listing: { id: number },
+    attendee: { id: number },
+  ): Promise<Response> => {
+    const response = await postAs(session)(
+      `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
+    );
+    await expectFlashRedirect(
+      `/admin/listing/${listing.id}/attendees`,
+      "Incomplete registration removed",
+    )(response);
+    const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
+    expect(await getAttendeeRaw(attendee.id)).toBeNull();
+    return response;
+  };
+
+  // Tries to delete an attendee via delete-incomplete as admin, expects the
+  // refusal redirect (no success flash), and confirms the attendee still exists.
+  const expectIncompleteRefused = async (
+    session: { cookie: string; csrfToken: string },
+    listing: { id: number },
+    attendee: { id: number },
+  ) => {
+    const response = await postAs(session)(
+      `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
+    );
+    await expectFlashRedirect(
+      `/admin/listing/${listing.id}/attendees`,
+      undefined,
+      false,
+    )(response);
+    const rows = await getAttendeesRaw(listing.id);
+    expect(rows.length).toBe(1);
+  };
+
   // Books one attendee onto `listing` through the public booking path and
   // returns them, failing the test if the booking did not go through.
   const bookOne = async (
@@ -194,6 +232,23 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
   // Posts the merge form for a target attendee with the given fields.
   const postMerge = (targetId: number, fields: Record<string, string>) =>
     adminFormPost(`/admin/attendees/${targetId}/merge`, fields);
+
+  // Reads a fresh merge version off the preview page, then posts the merge with
+  // the two always-required fields plus any decision fields, returning the
+  // response.
+  const submitMerge = async (
+    targetId: number,
+    sourceToken: string,
+    decisions: Record<string, string> = {},
+  ): Promise<Response> => {
+    const mergeVersion = await getMergeVersion(targetId, sourceToken);
+    const { response } = await postMerge(targetId, {
+      merge_version: mergeVersion,
+      source_token: sourceToken,
+      ...decisions,
+    });
+    return response;
+  };
 
   // Books "Jane Doe" as the merge target on one listing and "John Smith" as the
   // merge source on another (pass the same id twice for the same-listing case).
@@ -591,18 +646,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         1000,
       );
 
-      const response = await postAs({ cookie, csrfToken })(
-        `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
-      );
-      await expectFlashRedirect(
-        `/admin/listing/${listing.id}/attendees`,
-        "Incomplete registration removed",
-      )(response);
-
-      // Verify attendee was deleted
-      const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
-      const deleted = await getAttendeeRaw(attendee.id);
-      expect(deleted).toBeNull();
+      await expectIncompleteRemoved({ cookie, csrfToken }, listing, attendee);
 
       // The deletion is recorded in the listing activity log.
       const { getListingActivityLog } = await import("#test-utils");
@@ -630,18 +674,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         1000,
       );
 
-      const response = await postAs({ cookie, csrfToken })(
-        `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
-      );
-      await expectFlashRedirect(
-        `/admin/listing/${listing.id}/attendees`,
-        undefined,
-        false,
-      )(response);
-
-      // Verify attendee was NOT deleted (still exists)
-      const rows = await getAttendeesRaw(listing.id);
-      expect(rows.length).toBe(1);
+      await expectIncompleteRefused({ cookie, csrfToken }, listing, attendee);
     });
 
     test("refuses to delete admin-added attendee on paid listing via delete-incomplete", async () => {
@@ -1219,7 +1252,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("shows edit form with prefilled attendee data", async () => {
       const listing = await createTestListing({ maxAttendees: 100 });
-      const result = await bookAttendee(listing, {
+      const attendee = await bookOne(listing, {
         address: "123 Main St",
         email: "john@example.com",
         name: "John Doe",
@@ -1227,8 +1260,6 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         quantity: 1,
         special_instructions: "VIP guest",
       });
-      if (!result.success) throw new Error("Failed to create attendee");
-      const attendee = result.attendees[0]!;
 
       const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(
@@ -1313,14 +1344,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 100,
         name: "Daily Dates Listing",
       });
-      const result = await bookAttendee(listing, {
+      const attendee = await bookOne(listing, {
         date: "2026-04-07",
         email: "daily@example.com",
         name: "Daily User",
       });
-      if (!result.success) throw new Error("Failed");
-      const attendeeId = result.attendees[0]!.id;
-      const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
+      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       const html = await expectHtmlResponse(
         response,
         200,
@@ -1579,13 +1608,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 100,
         name: "Listing 2",
       });
-      const result = await bookAttendee(listing1, {
+      const attendee = await bookOne(listing1, {
         email: "john@example.com",
         name: "John Doe",
         quantity: 1,
       });
-      if (!result.success) throw new Error("Failed to create attendee");
-      const attendee = result.attendees[0]!;
 
       const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(response, 200, "Listing 1", "Listing 2");
@@ -1593,13 +1620,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("shows edit form with empty email field", async () => {
       const listing = await createTestListing({ maxAttendees: 100 });
-      const result = await bookAttendee(listing, {
+      const attendee = await bookOne(listing, {
         email: "",
         name: "John Doe",
         quantity: 1,
       });
-      if (!result.success) throw new Error("Failed to create attendee");
-      const attendee = result.attendees[0]!;
 
       const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(response, 200, 'type="email"', 'name="email"');
@@ -1611,13 +1636,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         name: "Inactive Listing",
       });
 
-      const result = await bookAttendee(inactiveListing, {
+      const attendee = await bookOne(inactiveListing, {
         email: "john@example.com",
         name: "John Doe",
         quantity: 1,
       });
-      if (!result.success) throw new Error("Failed to create attendee");
-      const attendee = result.attendees[0]!;
 
       // Manually set listing to inactive after creating attendee
       const { getDb } = await import("#shared/db/client.ts");
@@ -1638,13 +1661,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("updates attendee with empty email", async () => {
       const listing = await createTestListing({ maxAttendees: 100 });
-      const result = await bookAttendee(listing, {
+      const attendee = await bookOne(listing, {
         email: "john@example.com",
         name: "John Doe",
         quantity: 1,
       });
-      if (!result.success) throw new Error("Failed to create attendee");
-      const attendee = result.attendees[0]!;
 
       const form = await buildAttendeeEditForm(attendee.id, {
         email: "",
@@ -1659,7 +1680,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("updates attendee with all non-empty fields", async () => {
       const listing = await createTestListing({ maxAttendees: 100 });
-      const result = await bookAttendee(listing, {
+      const attendee = await bookOne(listing, {
         address: "123 Main St",
         email: "john@example.com",
         name: "John Doe",
@@ -1667,8 +1688,6 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         quantity: 1,
         special_instructions: "VIP",
       });
-      if (!result.success) throw new Error("Failed to create attendee");
-      const attendee = result.attendees[0]!;
 
       const form = await buildAttendeeEditForm(attendee.id, {
         address: "456 Oak Ave",
@@ -1769,7 +1788,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const result = await bookAttendee(listing, {
+      const attendee = await bookOne(listing, {
         email: "jane@example.com",
         name: "Jane Paid",
         paymentId: "pi_test",
@@ -1777,12 +1796,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         quantity: 1,
       });
 
-      if (!result.success) {
-        throw new Error("Failed to create attendee");
-      }
-
       const response = await adminGet(
-        `/admin/attendees/${result.attendees[0]!.id}/resend-notification`,
+        `/admin/attendees/${attendee.id}/resend-notification`,
       );
       await expectHtmlResponse(
         response,
@@ -1954,17 +1969,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 100,
         unitPrice: 1000,
       });
-      const result = await bookAttendee(listing, {
+      const attendee = await bookOne(listing, {
         email: "paid@example.com",
         name: "Paid User",
         paymentId: "pi_test_123",
         pricePaid: 1000,
         quantity: 1,
       });
-      if (!result.success) throw new Error("Failed to create attendee");
-      const response = await adminGet(
-        `/admin/attendees/${result.attendees[0]!.id}`,
-      );
+      const response = await adminGet(`/admin/attendees/${attendee.id}`);
       await expectHtmlResponse(
         response,
         200,
@@ -1985,17 +1997,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           maxAttendees: 100,
           unitPrice: 1000,
         });
-        const result = await bookAttendee(listing, {
+        const attendee = await bookOne(listing, {
           email: "linked@example.com",
           name: "Linked User",
           paymentId: "pi_linked_123",
           pricePaid: 1000,
           quantity: 1,
         });
-        if (!result.success) throw new Error("Failed to create attendee");
-        const response = await adminGet(
-          `/admin/attendees/${result.attendees[0]!.id}`,
-        );
+        const response = await adminGet(`/admin/attendees/${attendee.id}`);
         await expectHtmlResponse(
           response,
           200,
@@ -2013,21 +2022,18 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         unitPrice: 1000,
       });
       const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
-      const result = await bookAttendee(listing, {
+      const attendee = await bookOne(listing, {
         email: "refunded@example.com",
         name: "Refunded User",
         paymentId: "pi_refunded_123",
         pricePaid: 1000,
         quantity: 1,
       });
-      if (!result.success) throw new Error("Failed to create attendee");
       await postAttendeeRefund({
-        attendeeId: result.attendees[0]!.id,
+        attendeeId: attendee.id,
         listingId: listing.id,
       });
-      const response = await adminGet(
-        `/admin/attendees/${result.attendees[0]!.id}`,
-      );
+      const response = await adminGet(`/admin/attendees/${attendee.id}`);
       await expectHtmlResponse(response, 200, "Refunded");
     });
 
@@ -2038,17 +2044,16 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       });
       const { updateCheckedIn } = await import("#shared/db/attendees.ts");
       const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
-      const result = await bookAttendee(listing, {
+      const attendee = await bookOne(listing, {
         email: "both@example.com",
         name: "Both Badges",
         paymentId: "pi_both_123",
         pricePaid: 1000,
         quantity: 1,
       });
-      if (!result.success) throw new Error("Failed to create attendee");
-      await updateCheckedIn(result.attendees[0]!.id, listing.id, true);
+      await updateCheckedIn(attendee.id, listing.id, true);
       await postAttendeeRefund({
-        attendeeId: result.attendees[0]!.id,
+        attendeeId: attendee.id,
         listingId: listing.id,
       });
       const response = await adminGet(
@@ -2402,11 +2407,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       method: "POST",
       setup: async () => {
         const listing = await createTestListing({ maxAttendees: 10 });
-        await createTestAttendeeDirect(
-          listing.id,
-          "John Doe",
-          "john@example.com",
-        );
+        await seedDirectAttendee(listing.id);
       },
     });
 
@@ -2464,9 +2465,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         listing2.id,
       );
 
-      const mergeVersion = await getMergeVersion(target.id, sourceToken);
-      const { response } = await postMerge(target.id, { merge_version: mergeVersion, source_token: sourceToken },
-      );
+      const response = await submitMerge(target.id, sourceToken);
 
       // The flash names both attendees, and with no PII chosen the kept name is
       // the target's — so it reads "into Jane Doe", never "into John Smith".
@@ -2525,10 +2524,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "555-9999",
       );
 
-      const mergeVersion = await getMergeVersion(target.id, sourceToken);
       // Submit without choosing source for any field (all default to target)
-      const { response } = await postMerge(target.id, { merge_version: mergeVersion, source_token: sourceToken },
-      );
+      const response = await submitMerge(target.id, sourceToken);
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Merged"), true);
 
@@ -2558,18 +2555,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "Source instructions",
       );
 
-      const mergeVersion = await getMergeVersion(target.id, sourceToken);
       // Choose source for all PII fields
-      const { response } = await postMerge(target.id, {
-          merge_version: mergeVersion,
-          pii_address: "source",
-          pii_email: "source",
-          pii_name: "source",
-          pii_phone: "source",
-          pii_special_instructions: "source",
-          source_token: sourceToken,
-        },
-      );
+      const response = await submitMerge(target.id, sourceToken, {
+        pii_address: "source",
+        pii_email: "source",
+        pii_name: "source",
+        pii_phone: "source",
+        pii_special_instructions: "source",
+      });
       expect(response.status).toBe(302);
 
       // Verify target now has source's PII
@@ -2594,15 +2587,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         listing.id,
       );
 
-      const mergeVersion = await getMergeVersion(target.id, sourceToken);
       // Booking conflict: same listing, same start_at (null) — choose keep_target
       const bookingKey = `${listing.id}:null:0`;
-      const { response } = await postMerge(target.id, {
-          merge_version: mergeVersion,
-          source_token: sourceToken,
-          [`booking_${bookingKey}`]: "keep_target",
-        },
-      );
+      const response = await submitMerge(target.id, sourceToken, {
+        [`booking_${bookingKey}`]: "keep_target",
+      });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Merged"), true);
 
@@ -2707,13 +2696,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 50,
         name: "Daily E",
       });
-      const result = await bookAttendee(dailyListing, {
+      const source = await bookOne(dailyListing, {
         date: "2026-05-01",
         email: "john@example.com",
         name: "John Smith",
       });
-      if (!result.success) throw new Error("createAttendeeAtomic failed");
-      const sourceToken = result.attendees[0]!.ticket_token;
+      const sourceToken = source.ticket_token;
 
       const response = await mergeSearch(target.id, sourceToken);
       // start_at is set for daily listings — exercises the b.start_at ? `— date` : "" branch
@@ -2775,14 +2763,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       await saveMergeAnswers(target.id, sourceToken, [a1.id], [a2.id]);
 
-      const mergeVersion = await getMergeVersion(target.id, sourceToken);
       // Submit choosing source answer
-      const { response } = await postMerge(target.id, {
-          merge_version: mergeVersion,
-          source_token: sourceToken,
-          [`answer_${q.id}`]: "source",
-        },
-      );
+      const response = await submitMerge(target.id, sourceToken, {
+        [`answer_${q.id}`]: "source",
+      });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Merged"), true);
 
@@ -2798,14 +2782,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         listing.id,
       );
 
-      const mergeVersion = await getMergeVersion(target.id, sourceToken);
       const bookingKey = `${listing.id}:null:0`;
-      const { response } = await postMerge(target.id, {
-          merge_version: mergeVersion,
-          source_token: sourceToken,
-          [`booking_${bookingKey}`]: "skip_source",
-        },
-      );
+      const response = await submitMerge(target.id, sourceToken, {
+        [`booking_${bookingKey}`]: "skip_source",
+      });
       expect(response.status).toBe(302);
       expectFlash(
         response,
@@ -2843,13 +2823,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       await saveMergeAnswers(target.id, sourceToken, [a1.id], [a2.id]);
 
-      const mergeVersion = await getMergeVersion(target.id, sourceToken);
-      const { response } = await postMerge(target.id, {
-          merge_version: mergeVersion,
-          source_token: sourceToken,
-          [`answer_${q.id}`]: "clear",
-        },
-      );
+      const response = await submitMerge(target.id, sourceToken, {
+        [`answer_${q.id}`]: "clear",
+      });
       expect(response.status).toBe(302);
 
       const finalAnswers = await answersAfterMerge(target.id);
@@ -2863,13 +2839,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       await saveMergeAnswers(target.id, sourceToken, [a1.id], [a2.id]);
 
-      const mergeVersion = await getMergeVersion(target.id, sourceToken);
-      const { response } = await postMerge(target.id, {
-          merge_version: mergeVersion,
-          source_token: sourceToken,
-          [`answer_${q.id}`]: "target",
-        },
-      );
+      const response = await submitMerge(target.id, sourceToken, {
+        [`answer_${q.id}`]: "target",
+      });
       expect(response.status).toBe(302);
 
       const finalAnswers = await answersAfterMerge(target.id);
@@ -2884,12 +2856,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       // Only source has an answer — no conflict
       await saveMergeAnswers(target.id, sourceToken, [], [a1.id]);
 
-      const mergeVersion = await getMergeVersion(target.id, sourceToken);
-      const { response } = await postMerge(target.id, {
-          merge_version: mergeVersion,
-          source_token: sourceToken,
-        },
-      );
+      const response = await submitMerge(target.id, sourceToken);
       expect(response.status).toBe(302);
 
       const finalAnswers = await answersAfterMerge(target.id);
@@ -2904,12 +2871,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       // Only target has an answer — no conflict
       await saveMergeAnswers(target.id, sourceToken, [a1.id], []);
 
-      const mergeVersion = await getMergeVersion(target.id, sourceToken);
-      const { response } = await postMerge(target.id, {
-          merge_version: mergeVersion,
-          source_token: sourceToken,
-        },
-      );
+      const response = await submitMerge(target.id, sourceToken);
       expect(response.status).toBe(302);
 
       const finalAnswers = await answersAfterMerge(target.id);
@@ -2923,14 +2885,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         listing.id,
       );
 
-      const mergeVersion = await getMergeVersion(target.id, sourceToken);
       const bookingKey = `${listing.id}:null:0`;
-      const { response } = await postMerge(target.id, {
-          merge_version: mergeVersion,
-          source_token: sourceToken,
-          [`booking_${bookingKey}`]: "take_source",
-        },
-      );
+      const response = await submitMerge(target.id, sourceToken, {
+        [`booking_${bookingKey}`]: "take_source",
+      });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Merged"), true);
     });

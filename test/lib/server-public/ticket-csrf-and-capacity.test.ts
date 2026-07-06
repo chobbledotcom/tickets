@@ -8,7 +8,6 @@ import {
   bookOneEachViaTicketForm,
   createTestListing,
   describeWithEnv,
-  expectAttendeeCounts,
   expectBookOneEachRejected,
   expectFlash,
   expectMissingCsrfRejected,
@@ -17,6 +16,7 @@ import {
   submitMultiTicketForm,
   submitTicketForm,
 } from "#test-utils";
+import { bookOnlySecondListing } from "#test-utils/multi-ticket-signup.ts";
 
 // jscpd:ignore-end
 
@@ -185,22 +185,18 @@ describeWithEnv(
           name: "Multi Nofield 2",
         });
 
-        // Submit form with quantity for listing2 only; listing1 has no quantity field at all
-        const response = await submitMultiTicketForm(
-          `${listing1.slug}+${listing2.slug}`,
-          {
-            email: "john@example.com",
-            name: "John Doe",
-            [`quantity_${listing2.id}`]: "1",
-          },
+        // Submit form with quantity for listing2 only; listing1 has no quantity
+        // field at all, so only listing2 gets an attendee.
+        await bookOnlySecondListing(
+          (quantities) =>
+            submitMultiTicketForm(`${listing1.slug}+${listing2.slug}`, {
+              email: "john@example.com",
+              name: "John Doe",
+              ...quantities,
+            }),
+          listing1,
+          listing2,
         );
-        expectReservedRedirectWithTokens(response);
-
-        // Verify only listing2 got an attendee
-        await expectAttendeeCounts([
-          { count: 0, listingId: listing1.id },
-          { count: 1, listingId: listing2.id },
-        ]);
       });
     });
 

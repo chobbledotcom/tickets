@@ -211,7 +211,10 @@ describe("square", () => {
             Promise.reject(new Error("Invalid access token")),
         },
         async () => {
-          expectTokenRejected(await testSquareConnection(), "Invalid access token");
+          expectTokenRejected(
+            await testSquareConnection(),
+            "Invalid access token",
+          );
         },
       );
     });

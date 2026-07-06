@@ -15,7 +15,9 @@ import { resetTestSlugCounter } from "#test-utils/internal.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 /** The live Stripe client type (getStripeClient's non-null result). */
-export type StripeClient = NonNullable<Awaited<ReturnType<typeof getStripeClient>>>;
+export type StripeClient = NonNullable<
+  Awaited<ReturnType<typeof getStripeClient>>
+>;
 
 /** The `describeWithEnv` env pin every Stripe suite shares — keeps the
  *  stripe-mock host/port stable for the tests that boot the real client. */
@@ -66,10 +68,7 @@ export const withCheckoutSessionsStub = (
   impl: (...args: unknown[]) => unknown,
   body: (spy: ReturnType<typeof stub>) => void | Promise<void>,
 ): Promise<void> =>
-  withMocks(
-    () => stub(client.checkout.sessions, method, impl as never),
-    body,
-  );
+  withMocks(() => stub(client.checkout.sessions, method, impl as never), body);
 
 /** Stub the checkout `retrieve` call to resolve `session`, run `body`. */
 export const withCheckoutRetrieve = (

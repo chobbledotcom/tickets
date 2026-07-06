@@ -24,3 +24,25 @@ export const bookTwoFreeListings = async (
     { count: 1, listingId: listing2.id, quantity: 1 },
   ]);
 };
+
+/** Submit a multi-ticket POST where only the SECOND listing gets a real
+ *  quantity, and confirm only the second listing reserved an attendee — the
+ *  shared "the first listing books nothing" check. The first listing's field is
+ *  left out by default; pass `firstListingField` to instead prove a bad value
+ *  (e.g. a non-numeric quantity) is ignored. */
+export const bookOnlySecondListing = async (
+  submit: (quantities: Record<string, string>) => Promise<Response>,
+  listing1: { id: number },
+  listing2: { id: number },
+  firstListingField: Record<string, string> = {},
+): Promise<void> => {
+  const response = await submit({
+    ...firstListingField,
+    [`quantity_${listing2.id}`]: "1",
+  });
+  expectReservedRedirectWithTokens(response);
+  await expectAttendeeCounts([
+    { count: 0, listingId: listing1.id },
+    { count: 1, listingId: listing2.id },
+  ]);
+};

@@ -590,7 +590,10 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const first = await createTestListing({ name: "Add-on A" });
     const second = await createTestListing({ name: "Add-on B" });
     await postChildren(parent.id, [first.id]);
-    await assertJson(putListing(parent.id, { child_listing_ids: [second.id] }), 200);
+    await assertJson(
+      putListing(parent.id, { child_listing_ids: [second.id] }),
+      200,
+    );
     expect(await getChildIds(parent.id)).toEqual([second.id]);
   });
 
@@ -616,7 +619,9 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // (200) and validateChildEdges drops the unknown id downstream.
     const { child, parent } = await parentAndChild();
     await assertJson(
-      putListing(parent.id, { child_listing_ids: [child.id, parent.id + 9999] }),
+      putListing(parent.id, {
+        child_listing_ids: [child.id, parent.id + 9999],
+      }),
       200,
     );
     expect(await getChildIds(parent.id)).toEqual([child.id]);

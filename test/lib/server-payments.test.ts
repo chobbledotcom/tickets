@@ -255,8 +255,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     });
 
     test("refunds payment when listing is sold out at confirmation time", async () => {
-      const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#shared/stripe.ts");
       const listing = await arrangeSoldOutListing();
 
       await withMocks(
@@ -1074,44 +1072,38 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     test("creates attendee and shows success when payment verified", async () => {
       const { listing, stubSession } = await arrangeJohnPaidSession();
 
-      await withMocks(
-        stubSession,
-        async () => {
-          const redirectResponse = await handleRequest(
-            mockRequest("/payment/success?session_id=cs_test_paid"),
-          );
+      await withMocks(stubSession, async () => {
+        const redirectResponse = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_test_paid"),
+        );
 
-          // Should redirect with tokens
-          expectRedirect(redirectResponse, /^\/payment\/success\?tokens=.+$/);
+        // Should redirect with tokens
+        expectRedirect(redirectResponse, /^\/payment\/success\?tokens=.+$/);
 
-          // Follow the redirect
-          const response = await followRedirect(
-            redirectResponse,
-            handleRequest,
-          );
-          await expectHtmlResponse(
-            response,
-            200,
-            "Thank you for your order",
-            "https://example.com/thanks",
-            "Click here to view your ticket",
-            'target="_blank"',
-          );
+        // Follow the redirect
+        const response = await followRedirect(redirectResponse, handleRequest);
+        await expectHtmlResponse(
+          response,
+          200,
+          "Thank you for your order",
+          "https://example.com/thanks",
+          "Click here to view your ticket",
+          'target="_blank"',
+        );
 
-          // Verify attendee was created with encrypted PII blob
-          const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-          const attendees = await getAttendeesRaw(listing.id);
-          expect(attendees.length).toBe(1);
-          expect(attendees[0]?.pii_blob).not.toBe("");
+        // Verify attendee was created with encrypted PII blob
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const attendees = await getAttendeesRaw(listing.id);
+        expect(attendees.length).toBe(1);
+        expect(attendees[0]?.pii_blob).not.toBe("");
 
-          // Verify tokens are NOT persisted in DB (redirect has them in URL, no need to store)
-          const { isSessionProcessed } = await import(
-            "#shared/db/processed-payments.ts"
-          );
-          const record = await isSessionProcessed("cs_test_paid");
-          expect(record?.ticket_tokens).toBe("");
-        },
-      );
+        // Verify tokens are NOT persisted in DB (redirect has them in URL, no need to store)
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_test_paid");
+        expect(record?.ticket_tokens).toBe("");
+      });
     });
 
     /** A parent with a configured thank-you URL folding one required paid child,
@@ -1123,8 +1115,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       sessionId: string,
       paymentIntent: string,
     ) => {
-      const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
 
       const { parent, child } = await makeParent({
@@ -1233,21 +1223,18 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         paymentId: "pi_test_123",
       });
 
-      await withMocks(
-        stubSession,
-        async () => {
-          const response = await handleRequest(
-            mockRequest("/payment/success?session_id=cs_test_paid"),
-          );
+      await withMocks(stubSession, async () => {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_test_paid"),
+        );
 
-          // Capacity check will now fail since we already have the attendee
-          // This is expected - in the new flow, replaying creates a duplicate attempt
-          // which fails the capacity check if listing is near full
-          // For idempotent behavior, we'd need to check payment_intent uniqueness
-          // Response is either a 302 redirect (with tokens) or 200 (direct render for replay)
-          expect([200, 302]).toContain(response.status);
-        },
-      );
+        // Capacity check will now fail since we already have the attendee
+        // This is expected - in the new flow, replaying creates a duplicate attempt
+        // which fails the capacity check if listing is near full
+        // For idempotent behavior, we'd need to check payment_intent uniqueness
+        // Response is either a 302 redirect (with tokens) or 200 (direct render for replay)
+        expect([200, 302]).toContain(response.status);
+      });
     });
 
     test("handles multiple quantity purchase", async () => {

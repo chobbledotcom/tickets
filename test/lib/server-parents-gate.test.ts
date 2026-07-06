@@ -31,6 +31,7 @@ import {
   dailyPairSharingPoolWithFiller,
   dailyParentWithChildOffParentDay,
   expectBookingRejected,
+  expectChildQuantity,
   expectEachChildQtyOne,
   expectOnlyChildBooked,
   firstBookableDate,
@@ -2067,16 +2068,13 @@ describeWithEnv(
       });
       const [childA, childB] = [children[0]!, children[1]!];
 
-      const res = await postBooking(parent.slug, {
-        email: "a@b.com",
-        name: "Ada",
+      const res = await bookOne(parent, 2, {
         [`child_qty_${parent.id}_${childA.id}`]: "1",
         [`child_qty_${parent.id}_${childB.id}`]: "1",
-        [`quantity_${parent.id}`]: "2",
       });
       expectReserved(res);
-      expect((await getAttendeesRaw(childA.id))[0]?.quantity).toBe(1);
-      expect((await getAttendeesRaw(childB.id))[0]?.quantity).toBe(1);
+      await expectChildQuantity(childA, 1);
+      await expectChildQuantity(childB, 1);
     });
 
     test("two children sharing one capped group with the parent cap by combined demand, not naive sum", async () => {

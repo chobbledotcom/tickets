@@ -98,6 +98,10 @@ const getBookings = (attendeeId: number) =>
     [attendeeId],
   );
 
+/** The target's booking row for a given listing after a merge (the moved leg). */
+const findMovedBooking = async (targetId: number, listingId: number) =>
+  (await getBookings(targetId)).find((b) => b.listing_id === listingId);
+
 /** Create a question with answers and assign to listing */
 const createQuestionWithAnswers = async (
   listingId: number,
@@ -131,6 +135,20 @@ const aliceAndBob = async (
   const source = await createAttendee(sourceListingId, "Bob");
   return { source, target };
 };
+
+/** Two fresh listings named E1 and E2 — the target/source pair for a
+ *  cross-listing merge. */
+const eventListings = async () => ({
+  listing1: await createTestListing({ maxAttendees: 10, name: "E1" }),
+  listing2: await createTestListing({ maxAttendees: 10, name: "E2" }),
+});
+
+/** A default listing plus a second one named E2, for the free-text/answer
+ *  merge tests where the target and source sit on different listings. */
+const listingPlusE2 = async () => ({
+  listing: await createTestListing({ maxAttendees: 10 }),
+  listing2: await createTestListing({ maxAttendees: 10, name: "E2" }),
+});
 
 /** The PII block for a merge party — every field empty except name and email. */
 const mergePii = (name: string, email: string) => ({
@@ -195,6 +213,80 @@ const applyMerge = async ({
       ticket_token: target.ticket_token!,
     },
   });
+
+/** One listing, an Alice (target) / Bob (source) pair on it, and their merge
+ *  diff — the simplest same-listing merge setup. */
+const sameListingMergeDiff = async () => {
+  const listing = await createTestListing({ maxAttendees: 10 });
+  const { source, target } = await aliceAndBob(listing.id, listing.id);
+  const diff = await buildMergeDiff(source, target);
+  return { diff, listing, source, target };
+};
+
+/** Build the diff for a source→target pair and apply the merge with the default
+ *  (take-everything) decision, returning both. */
+const mergeAndApply = async (
+  source: MergeParty,
+  target: MergeParty,
+  questions: QuestionWithAnswers[] = [],
+) => {
+  const diff = await buildMergeDiff(source, target, questions);
+  const result = await applyMerge({ diff, source, target });
+  return { diff, result };
+};
+
+/** Two attendees to merge, a radio question on the target's listing, the target
+ *  answering the first option and the source the second (a genuine conflict),
+ *  and the merge diff carrying that question. */
+const conflictingChoiceScenario = async (
+  targetListingId: number,
+  sourceListingId: number,
+  questionText: string,
+  options: string[],
+) => {
+  const { source, target } = await aliceAndBob(
+    targetListingId,
+    sourceListingId,
+  );
+  const { answers, question } = await createQuestionWithAnswers(
+    targetListingId,
+    questionText,
+    options,
+  );
+  await saveAttendeeAnswers(new Map([[target.id, [answers[0]!.id]]]));
+  await saveAttendeeAnswers(new Map([[source.id, [answers[1]!.id]]]));
+  const diff = await buildMergeDiff(source, target, [{ ...question, answers }]);
+  return { answers, diff, question, source, target };
+};
+
+/** Save `text` as a free-text "Dietary needs?" answer for `who`, merge the pair,
+ *  and return the target's text answer for that question afterwards. Proves a
+ *  target's own text survives and a source-only text is adopted. */
+const mergedTextAnswer = async (
+  who: "source" | "target",
+  text: string,
+): Promise<string | undefined> => {
+  const { listing, listing2 } = await listingPlusE2();
+  const textQuestion = await questionsTable.insert({
+    displayType: "free_text",
+    text: "Dietary needs?",
+  });
+  const { source, target } = await aliceAndBob(listing.id, listing2.id);
+  const answerer = who === "target" ? target : source;
+  await saveAttendeeAnswers(
+    new Map([
+      [
+        answerer.id,
+        { answerIds: [], textAnswers: [{ questionId: textQuestion.id, text }] },
+      ],
+    ]),
+  );
+  const { result } = await mergeAndApply(source, target);
+  expect(result.success).toBe(true);
+  return (
+    await getAttendeeTextAnswers(target.id, await getTestPrivateKey())
+  ).get(textQuestion.id);
+};
 
 /** A full listing-attendee booking row with sensible defaults, for the diff
  *  literals the decision-validation tests build by hand. Override only the
@@ -326,9 +418,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       },
     ]);
 
-    const diff = await buildMergeDiff(source, target);
-
-    const result = await applyMerge({ diff, source, target });
+    const { result } = await mergeAndApply(source, target);
 
     expect(result.success).toBe(true);
     // The source's legs now belong to the target; nothing strands on the
@@ -366,15 +456,12 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       name: "Bob",
     };
 
-    const diff = await buildMergeDiff(source, target);
-    const result = await applyMerge({ diff, source, target });
+    const { result } = await mergeAndApply(source, target);
 
     expect(result.success).toBe(true);
     // The moved package booking keeps its group, so the merged attendee's
     // ticket still renders/hides as the package rather than a bare listing.
-    const moved = (await getBookings(target.id)).find(
-      (b) => b.listing_id === member.id,
-    );
+    const moved = await findMovedBooking(target.id, member.id);
     expect(moved?.package_group_id).toBe(group.id);
   });
 
@@ -493,10 +580,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
   describe("buildAttendeeMergeDiff", () => {
     test("detects PII diffs", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const { source, target } = await aliceAndBob(listing.id, listing.id);
-
-      const diff = await buildMergeDiff(source, target);
+      const { diff } = await sameListingMergeDiff();
 
       expect(diff.piiFields.length).toBe(5);
       const nameField = diff.piiFields.find((f) => f.field === "name")!;
@@ -511,20 +595,12 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
     test("detects answer conflicts", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const { question, answers } = await createQuestionWithAnswers(
+      const { answers, diff } = await conflictingChoiceScenario(
+        listing.id,
         listing.id,
         "Favourite colour?",
         ["Red", "Blue"],
       );
-
-      const { source, target } = await aliceAndBob(listing.id, listing.id);
-
-      await saveAttendeeAnswers(new Map([[target.id, [answers[0]!.id]]])); // Red
-      await saveAttendeeAnswers(new Map([[source.id, [answers[1]!.id]]])); // Blue
-
-      const questions: QuestionWithAnswers[] = [{ ...question, answers }];
-
-      const diff = await buildMergeDiff(source, target, questions);
 
       expect(diff.answerItems.length).toBe(1);
       expect(diff.answerItems[0]!.conflict).toBe(true);
@@ -557,14 +633,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     });
 
     test("classifies bookings as moveable, duplicate, or conflicting", async () => {
-      const listing1 = await createTestListing({
-        maxAttendees: 10,
-        name: "E1",
-      });
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "E2",
-      });
+      const { listing1, listing2 } = await eventListings();
 
       const { source, target } = await aliceAndBob(listing1.id, listing1.id);
       // Add source to listing2 as well
@@ -581,10 +650,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     });
 
     test("includes version hash in diff", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const { source, target } = await aliceAndBob(listing.id, listing.id);
-
-      const diff = await buildMergeDiff(source, target);
+      const { diff } = await sameListingMergeDiff();
 
       expect(diff.version).toBeTruthy();
       expect(typeof diff.version).toBe("string");
@@ -624,7 +690,10 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         targetId: 1,
         version: "v1",
       };
-      const result = validateAttendeeMergeDecision(diff, noChangeDecision("v2"));
+      const result = validateAttendeeMergeDecision(
+        diff,
+        noChangeDecision("v2"),
+      );
       expect(result.valid).toBe(false);
       if (!result.valid) {
         expect(result.errors[0]).toContain("out of date");
@@ -810,42 +879,23 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         sql: "UPDATE listing_attendees SET quantity = 0, checked_in = 1 WHERE attendee_id = ?",
       });
 
-      const diff = await buildMergeDiff(source, target);
-      const result = await applyMerge({ diff, source, target });
+      const { result } = await mergeAndApply(source, target);
       expect(result.success).toBe(true);
 
-      const moved = (await getBookings(target.id)).find(
-        (b) => b.listing_id === listing2.id,
-      )!;
+      const moved = (await findMovedBooking(target.id, listing2.id))!;
       expect(moved.quantity).toBe(0);
       // The ghost line arrives with its check-in cleared.
       expect(moved.checked_in).toBe(0);
     });
 
     test("applies PII and answer decisions correctly", async () => {
-      const listing1 = await createTestListing({
-        maxAttendees: 10,
-        name: "E1",
-      });
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "E2",
-      });
+      const { listing1, listing2 } = await eventListings();
 
-      const { question, answers } = await createQuestionWithAnswers(
-        listing1.id,
-        "Colour?",
-        ["Red", "Blue"],
-      );
-
-      const { source, target } = await aliceAndBob(listing1.id, listing2.id);
-
-      await saveAttendeeAnswers(new Map([[target.id, [answers[0]!.id]]])); // Red
-      await saveAttendeeAnswers(new Map([[source.id, [answers[1]!.id]]])); // Blue
-
-      const diff = await buildMergeDiff(source, target, [
-        { ...question, answers },
-      ]);
+      const { answers, diff, question, source, target } =
+        await conflictingChoiceScenario(listing1.id, listing2.id, "Colour?", [
+          "Red",
+          "Blue",
+        ]);
 
       const result = await applyMerge({
         decision: decisionFor(diff, {
@@ -952,7 +1002,12 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       }
 
       const { result, roundTrips } = await countRoundTrips(() =>
-        applyMerge({ decision: decisionFor(diff, { bookings, money }), diff, source, target }),
+        applyMerge({
+          decision: decisionFor(diff, { bookings, money }),
+          diff,
+          source,
+          target,
+        }),
       );
 
       expect(result.success).toBe(true);
@@ -966,100 +1021,23 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       // Regression: the merge re-saves only the target's choice answers, which
       // deletes every attendee_answers row for the target. Without carrying the
       // free-text answers through, those text rows were silently wiped.
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "E2",
-      });
-      const textQuestion = await questionsTable.insert({
-        displayType: "free_text",
-        text: "Dietary needs?",
-      });
-
-      const { source, target } = await aliceAndBob(listing.id, listing2.id);
-
-      await saveAttendeeAnswers(
-        new Map([
-          [
-            target.id,
-            {
-              answerIds: [],
-              textAnswers: [{ questionId: textQuestion.id, text: "Coeliac" }],
-            },
-          ],
-        ]),
-      );
-
-      const diff = await buildMergeDiff(source, target);
-      const result = await applyMerge({ diff, source, target });
-
-      expect(result.success).toBe(true);
-      const textAnswers = await getAttendeeTextAnswers(
-        target.id,
-        await getTestPrivateKey(),
-      );
-      expect(textAnswers.get(textQuestion.id)).toBe("Coeliac");
+      expect(await mergedTextAnswer("target", "Coeliac")).toBe("Coeliac");
     });
 
     test("adopts a source-only free-text answer in a merge", async () => {
       // Source-only choice answers are adopted automatically; a source-only
       // text answer must be too, rather than vanishing when the source is
       // deleted.
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "E2",
-      });
-      const textQuestion = await questionsTable.insert({
-        displayType: "free_text",
-        text: "Dietary needs?",
-      });
-
-      const { source, target } = await aliceAndBob(listing.id, listing2.id);
-
-      await saveAttendeeAnswers(
-        new Map([
-          [
-            source.id,
-            {
-              answerIds: [],
-              textAnswers: [{ questionId: textQuestion.id, text: "Vegan" }],
-            },
-          ],
-        ]),
-      );
-
-      const diff = await buildMergeDiff(source, target);
-      const result = await applyMerge({ diff, source, target });
-
-      expect(result.success).toBe(true);
-      const textAnswers = await getAttendeeTextAnswers(
-        target.id,
-        await getTestPrivateKey(),
-      );
-      expect(textAnswers.get(textQuestion.id)).toBe("Vegan");
+      expect(await mergedTextAnswer("source", "Vegan")).toBe("Vegan");
     });
 
     test("clears answers when decision is clear", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "E2",
-      });
-      const { question, answers } = await createQuestionWithAnswers(
-        listing.id,
-        "Size?",
-        ["S", "L"],
-      );
-
-      const { source, target } = await aliceAndBob(listing.id, listing2.id);
-
-      await saveAttendeeAnswers(new Map([[target.id, [answers[0]!.id]]]));
-      await saveAttendeeAnswers(new Map([[source.id, [answers[1]!.id]]]));
-
-      const diff = await buildMergeDiff(source, target, [
-        { ...question, answers },
-      ]);
+      const { listing, listing2 } = await listingPlusE2();
+      const { diff, question, source, target } =
+        await conflictingChoiceScenario(listing.id, listing2.id, "Size?", [
+          "S",
+          "L",
+        ]);
 
       const result = await applyMerge({
         decision: decisionFor(diff, {
@@ -1076,11 +1054,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     });
 
     test("adopts source answers when target has none", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "E2",
-      });
+      const { listing, listing2 } = await listingPlusE2();
       const { question, answers } = await createQuestionWithAnswers(
         listing.id,
         "Meal?",
@@ -1092,11 +1066,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       // Only source has answer
       await saveAttendeeAnswers(new Map([[source.id, [answers[1]!.id]]]));
 
-      const diff = await buildMergeDiff(source, target, [
+      const { result } = await mergeAndApply(source, target, [
         { ...question, answers },
       ]);
-
-      const result = await applyMerge({ diff, source, target });
 
       expect(result.summary.answersTakenFromSource).toBe(1);
       const finalAnswers = await getAttendeeAnswersByQuestion(target.id);
@@ -1104,11 +1076,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     });
 
     test("handles duplicate booking with keep_target decision", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-
-      const { source, target } = await aliceAndBob(listing.id, listing.id);
-
-      const diff = await buildMergeDiff(source, target);
+      const { diff, listing, source, target } = await sameListingMergeDiff();
 
       expect(diff.bookingItems[0]!.conflictClass).toBe("duplicate");
 
@@ -1169,14 +1137,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     });
 
     test("returns accurate summary counts", async () => {
-      const listing1 = await createTestListing({
-        maxAttendees: 10,
-        name: "E1",
-      });
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "E2",
-      });
+      const { listing1, listing2 } = await eventListings();
 
       const { source, target } = await aliceAndBob(listing1.id, listing2.id);
 

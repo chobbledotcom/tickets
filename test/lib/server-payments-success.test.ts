@@ -188,7 +188,6 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       // tree revalidation must accept the tagged dated lines (no false drift)
       // and persist each member's row on that date.
       await setupStripe();
-      const { getDb } = await import("#shared/db/client.ts");
       const { addDays } = await import("#shared/dates.ts");
       const { todayInTz } = await import("#shared/timezone.ts");
       const group = await createTestGroup({
@@ -256,7 +255,6 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       // expectedItemPrice must re-derive both from CURRENT config — a mismatch
       // would refund instead of booking.
       await setupStripe();
-      const { getDb } = await import("#shared/db/client.ts");
       const { addDays } = await import("#shared/dates.ts");
       const { todayInTz } = await import("#shared/timezone.ts");
       const { setGroupPackageMembers } = await import("#shared/db/groups.ts");

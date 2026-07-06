@@ -132,7 +132,11 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
     );
     // The late buyer is not dropped: a quantity-0 placeholder is kept
     // alongside the original sold-out attendee, refunded once, with a note.
-    await expectSoldOutPlaceholderRefunded(listing.id, "cs_soldout", mockRefund);
+    await expectSoldOutPlaceholderRefunded(
+      listing.id,
+      "cs_soldout",
+      mockRefund,
+    );
   });
 
   test("multi-ticket webhook creates attendees for multiple listings", async () => {

@@ -76,6 +76,16 @@ export const expectListingDetailBookable = async (
   expect(body.listing.maxPurchasable).toBeGreaterThan(0);
 };
 
+/** The `GET /api/listings` collection row whose slug matches `slug`. */
+export const apiListingRow = async <T extends { slug: string }>(
+  slug: string,
+): Promise<T> => {
+  const body = (await (await apiGet("/api/listings")).json()) as {
+    listings: T[];
+  };
+  return body.listings.find((l) => l.slug === slug)!;
+};
+
 /** The `<option>` markup inside the first `<select name="{name}">` of `html` —
  * the shared "read what a dropdown offers" snip the render tests all do by
  * hand. */
@@ -117,6 +127,36 @@ export const expectBookingRejected = async (
   expect((await getAttendeesRaw(emptyListingId)).length).toBe(0);
 };
 
+/** Assert the newest attendee line for `child` has the given quantity. */
+export const expectChildQuantity = async (
+  child: Listing,
+  quantity: number,
+): Promise<void> => {
+  const rows = await getAttendeesRaw(child.id);
+  expect(rows[0]?.quantity).toBe(quantity);
+};
+
+/** An ungrouped parent (max 50 capacity) whose two children share one capped
+ * "Add-on pool" of `poolMax` spots; the parent's quantity ceiling is
+ * `parentMaxQuantity`. Each child is capped at 5 with 50 capacity. */
+export const twoChildrenInCappedPool = async (
+  poolMax: number,
+  parentMaxQuantity: number,
+): Promise<Awaited<ReturnType<typeof makeParent>>> => {
+  const { createTestGroup } = await import("#test-utils/db-helpers.ts");
+  const childGroup = await createTestGroup({
+    maxAttendees: poolMax,
+    name: "Add-on pool",
+  });
+  return makeParent({
+    children: [
+      { groupId: childGroup.id, maxAttendees: 50, maxQuantity: 5 },
+      { groupId: childGroup.id, maxAttendees: 50, maxQuantity: 5 },
+    ],
+    parent: { maxAttendees: 50, maxQuantity: parentMaxQuantity },
+  });
+};
+
 /** Assert exactly one attendee line of `quantity` was written for `booked`, and
  * none at all for `notBooked` — the shared "only the chosen child folded" check. */
 export const expectOnlyChildBooked = async (
@@ -151,6 +191,25 @@ export const expectEachChildQtyOne = async (
 // ---------------------------------------------------------------------------
 // Repeated arrange blocks
 // ---------------------------------------------------------------------------
+
+/** A FIXED 3-day daily parent whose only child is customisable (priced £10 for
+ * 1 day, £30 for 3) — so the child inherits and must be priced for the parent's
+ * 3-day span. The shared "fixed parent, customisable add-on" arrange. */
+export const fixedThreeDayParentWithCustomChild = (): ReturnType<
+  typeof makeParent
+> =>
+  makeParent({
+    children: [
+      {
+        customisableDays: true,
+        dayPrices: { 1: 1000, 3: 3000 },
+        durationDays: 3,
+        maxPrice: 0,
+        unitPrice: 0,
+      },
+    ],
+    parent: { daily: true, durationDays: 3 },
+  });
 
 /** A daily "Daily base" parent whose only child is a daily "Daily add-on"
  * bookable on every weekday EXCEPT the parent's first bookable date's weekday —
@@ -238,6 +297,65 @@ export const parentWithBlockedSecondChild = async (
     ]);
   }
   return { blockedChild, okChild, parent };
+};
+
+/** A regular group whose sole member is a child of a parent OUTSIDE the group,
+ * so the group folds empty. Returns the group. */
+export const groupWithChildOnlyMember = async (
+  name: string,
+): Promise<Group> => {
+  const { createTestGroup } = await import("#test-utils/db-helpers.ts");
+  const group = await createTestGroup({ name });
+  await makeParent({ children: [{ groupId: group.id }] });
+  return group;
+};
+
+/** A regular group whose sole member is a parent (in the group) whose one
+ * required child is sold out — so the group projects sold out. Returns the
+ * group. */
+export const groupWithSoldOutParentMember = async (
+  name: string,
+): Promise<Group> => {
+  const { createTestAttendee, createTestGroup, createTestListing } =
+    await import("#test-utils/db-helpers.ts");
+  const group = await createTestGroup({ name });
+  const parent = await createTestListing({
+    groupId: group.id,
+    name: "Base in group",
+  });
+  const child = await createTestListing({
+    maxAttendees: 1,
+    name: "Sold-out add-on",
+  });
+  await createTestAttendee(child.id, child.slug, "Buyer", "b@x.com");
+  await setChildIds(parent.id, [child.id]);
+  return group;
+};
+
+/** GET a group's public QR image (`/ticket/<slug>/qr`) and return its status,
+ * draining the body. */
+export const groupQrStatus = async (slug: string): Promise<number> => {
+  const { handleRequest } = await import("#routes");
+  const res = await handleRequest(
+    new Request(`http://localhost/ticket/${slug}/qr`, {
+      headers: { host: "localhost" },
+    }),
+  );
+  res.body?.cancel();
+  return res.status;
+};
+
+/** With the public site on, assert the /listings page shows no Book link to a
+ * group's `/ticket/<slug>` page — the shared dead-CTA suppression check. */
+export const expectGroupCtaSuppressed = async (
+  groupSlug: string,
+): Promise<void> => {
+  const { settings } = await import("#shared/db/settings.ts");
+  await settings.update.showPublicSite(true);
+  const { handleRequest } = await import("#routes");
+  const { mockRequest } = await import("#test-utils/mocks.ts");
+  const body = await (await handleRequest(mockRequest("/listings"))).text();
+  expect(body).not.toContain(`href="/ticket/${groupSlug}"`);
 };
 
 /** A daily parent + daily child sharing one 2-spot capped "Pool", plus a daily
