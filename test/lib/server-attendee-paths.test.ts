@@ -450,6 +450,30 @@ describeWithEnv(
       expect(await accountBalance(revenueAccount(listing.id))).toBe(1800);
     });
 
+    test("a member without a package override books at the listing's own price", async () => {
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Plain Kit",
+      });
+      const listing = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        maxQuantity: 5,
+        name: "Plain Kit Tent",
+        unitPrice: 700,
+      });
+      // No override: the member charges its listing's own price in the bundle.
+      await setGroupPackageMembers(group.id, [
+        { listingId: listing.id, price: null },
+      ]);
+
+      const attendeeId = await createViaForm("Plain Pricer", listing.id, [
+        { eventId: listing.id, packageGroupId: group.id, quantity: 1 },
+      ]);
+      await expectPaths(attendeeId, listing.id, [[group.id, 1]]);
+      expect(await accountBalance(revenueAccount(listing.id))).toBe(700);
+    });
+
     test("a crafted package id that is not a real membership books standalone", async () => {
       // A package deleted mid-edit (or a hand-crafted POST) must not mint a
       // row tagged with a package that does not contain the listing.
