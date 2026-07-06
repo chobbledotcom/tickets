@@ -9,38 +9,16 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { initAddressLookup } from "#src/ui/client/admin/address-lookup.ts";
 import {
+  flushLookup as flush,
+  panelSpec,
+} from "#test-utils/address-lookup-dom.ts";
+import {
   type ElementSpec,
   type FakeElement,
   installFakeDom,
   restoreDocument,
 } from "#test-utils/fake-dom.ts";
 import { setupFetchStub } from "#test-utils/fetch-stub.ts";
-
-const panelSpec = (): ElementSpec => ({
-  children: [
-    {
-      children: [{ data: { addressSearch: "" }, tag: "input", type: "text" }],
-      tag: "label",
-    },
-    { data: { addressFind: "" }, tag: "button" },
-    {
-      children: [{ data: { addressResults: "" }, tag: "select" }],
-      data: { addressResultsLabel: "" },
-      hidden: true,
-      tag: "label",
-    },
-    { data: { addressStatus: "" }, hidden: true, tag: "p" },
-  ],
-  data: {
-    addressLookup: "",
-    error: "Lookup failed",
-    noResults: "No addresses found",
-    placeholder: "Select an address…",
-    searching: "Searching…",
-  },
-  hidden: true,
-  tag: "div",
-});
 
 const formSpec = (): ElementSpec => ({
   children: [panelSpec(), { name: "address", tag: "textarea" }],
@@ -73,13 +51,6 @@ const setup = (): Parts => {
     status: one("[data-address-status]"),
     textarea: one("textarea"),
   };
-};
-
-/** Let the async search settle (fetch → json → DOM writes). */
-const flush = async (): Promise<void> => {
-  for (let i = 0; i < 3; i++) {
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
 };
 
 const jsonResponse = (body: unknown, status = 200): Response =>

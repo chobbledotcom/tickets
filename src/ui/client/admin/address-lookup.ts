@@ -13,9 +13,18 @@
  * can type or correct the address at any point.
  */
 
+import { renderAddressDiff } from "./address-diff.ts";
+
 const ENDPOINT = "/address-lookup";
 
-type LookupResponse = { addresses?: string[]; error?: string };
+/** One matching address with the provider's coordinates ("" = unlocated). */
+type AddressMatch = { line: string; lat: string; lng: string };
+
+type LookupResponse = {
+  addresses?: string[];
+  matches?: AddressMatch[];
+  error?: string;
+};
 
 type PanelParts = {
   panel: HTMLElement;
@@ -25,6 +34,8 @@ type PanelParts = {
   select: HTMLSelectElement;
   status: HTMLElement;
   textarea: HTMLTextAreaElement;
+  /** Each shown line's coordinates, remembered from the last search. */
+  coordsByLine: Map<string, AddressMatch>;
 };
 
 /** Show a status message under the search box ("" hides it). */
@@ -54,8 +65,13 @@ const placeholderOption = (panel: HTMLElement): HTMLOptionElement => {
 
 /** Render a completed search: options into the select, or a "none found"
  *  status when the provider had no addresses for the search. */
-const showResults = (parts: PanelParts, addresses: string[]): void => {
+const showResults = (parts: PanelParts, data: LookupResponse): void => {
   const { panel, resultsLabel, select, status } = parts;
+  const addresses = data.addresses!;
+  parts.coordsByLine.clear();
+  for (const match of data.matches ?? []) {
+    parts.coordsByLine.set(match.line, match);
+  }
   if (addresses.length === 0) {
     setStatus(status, panelText(panel, "noResults"));
     return;
@@ -85,21 +101,47 @@ const search = async (parts: PanelParts): Promise<void> => {
       setStatus(status, data.error || panelText(panel, "error"));
       return;
     }
-    showResults(parts, data.addresses);
+    showResults(parts, data);
   } catch {
     setStatus(status, panelText(panel, "error"));
   }
 };
 
+/** Set an input's value and fire an input event so dependent enhancements
+ * (the map, char counters) react straight away. */
+const fillInput = (input: HTMLInputElement, value: string): void => {
+  input.value = value;
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+};
+
+/** Copy the chosen address's coordinates into the page's lat/lng inputs (the
+ * Logistics tab's pin). Pages without the inputs, and unlocated addresses,
+ * leave everything untouched. */
+const fillCoordinates = (match: AddressMatch | undefined): void => {
+  if (!match || !match.lat || !match.lng) return;
+  const latInput =
+    document.querySelector<HTMLInputElement>('input[name="lat"]');
+  const lngInput =
+    document.querySelector<HTMLInputElement>('input[name="lng"]');
+  if (!latInput || !lngInput) return;
+  fillInput(latInput, match.lat);
+  fillInput(lngInput, match.lng);
+};
+
 /** Copy the chosen address into the textarea, hide the dropdown again, and
  *  fire an input event so dependent enhancements (e.g. the char counter)
- *  react to the prefilled value straight away. */
+ *  react to the prefilled value straight away. On pages with the extras, it
+ *  also highlights how the choice differs from what was typed and fills the
+ *  lat/lng pin inputs from the chosen match. */
 const chooseAddress = (parts: PanelParts): void => {
   const { resultsLabel, select, textarea } = parts;
   if (!select.value) return;
+  const typed = textarea.value;
   textarea.value = select.value;
   resultsLabel.hidden = true;
   textarea.dispatchEvent(new Event("input", { bubbles: true }));
+  renderAddressDiff(typed, select.value);
+  fillCoordinates(parts.coordsByLine.get(select.value));
 };
 
 /** Find the panel's controls and its form's address textarea. */
@@ -125,6 +167,7 @@ const collectParts = (panel: HTMLElement): PanelParts | null => {
   }
   if (!textarea) return null;
   return {
+    coordsByLine: new Map(),
     findButton,
     panel,
     resultsLabel,
