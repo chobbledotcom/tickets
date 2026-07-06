@@ -116,7 +116,7 @@ export const adminSiteContactPage = (
   error?: string,
   success?: string,
 ): string =>
-  flashAdminPage(t("site.contact_title"), "/admin/site")(
+  flashAdminPage(t("site.contact_title"), "/admin/site/contact")(
     session,
     error,
     success,
@@ -181,7 +181,11 @@ export const adminSiteOrderPage = (
   error?: string,
   success?: string,
 ): string =>
-  flashAdminPage(t("site.order_title"), "/admin/site")(session, error, success)(
+  flashAdminPage(t("site.order_title"), "/admin/site/order")(
+    session,
+    error,
+    success,
+  )(
     <>
       <div class="prose">
         <h2>{t("site.order_page_heading")}</h2>

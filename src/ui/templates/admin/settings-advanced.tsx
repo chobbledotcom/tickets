@@ -69,7 +69,10 @@ export const adminAdvancedSettingsPage = (
   session: AdminSession,
   s: AdvancedSettingsPageState,
 ): string =>
-  themedAdminPage(t("settings.advanced.title"))(session, s.theme)(
+  themedAdminPage(t("settings.advanced.title"), "/admin/settings-advanced")(
+    session,
+    s.theme,
+  )(
     <>
       <article>
         <aside>

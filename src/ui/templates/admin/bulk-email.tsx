@@ -23,7 +23,7 @@ import { ProsePanel } from "#templates/components/prose-panel.tsx";
 import { rawParagraph } from "#templates/components/raw-paragraph.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 
-const NAV_ACTIVE = "/admin/settings";
+const NAV_ACTIVE = "/admin/emails";
 
 /** Deep link to the Email Notifications form on the advanced settings page. */
 const EMAIL_SETTINGS_LINK = "/admin/settings-advanced#settings-email";

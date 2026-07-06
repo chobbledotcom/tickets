@@ -56,7 +56,7 @@ export const adminSupportPage = (opts: {
   success?: string | undefined;
   error?: string | undefined;
 }): string =>
-  flashAdminPage(t("support.page_title"), "/admin/settings")(
+  flashAdminPage(t("support.page_title"), "/admin/support")(
     opts.session,
     opts.error,
     opts.success,

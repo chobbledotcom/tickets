@@ -301,9 +301,10 @@ const ownsActive = (candidate: Section, active: string): boolean =>
   candidate.items.some((item) => item.href === active);
 
 /** Resolve which section (and sub-nav) the active route belongs to. Pages pass
- * their own route as `active` — a section's landing route highlights its
- * landing sub-item, and a create route (e.g. /admin/listing/new) highlights its
- * "Add X" sub-item. */
+ * their own route as `active`: the section landing route (e.g. /admin/settings)
+ * resolves the section so its top-level link highlights, and a deeper route
+ * (a create page like /admin/listing/new, or a sub-page like /admin/privacy)
+ * additionally highlights that sub-nav link — see `sectionLevels`. */
 const resolveSection = (
   active: string,
   adminLevel: AdminSession["adminLevel"],

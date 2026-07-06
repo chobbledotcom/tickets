@@ -95,7 +95,11 @@ export const adminUpdatePage = (
   error?: string,
   success?: string,
 ): string =>
-  flashAdminPage(t("update.page_title"))(session, error, success)(
+  flashAdminPage(t("update.page_title"), "/admin/update")(
+    session,
+    error,
+    success,
+  )(
     <>
       <h2>{t("update.software_update")}</h2>
 

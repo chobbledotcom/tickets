@@ -49,7 +49,7 @@ export const adminSessionsPage = (
     (s) => s.token !== currentToken,
   ).length;
 
-  return successAdminPage(t("sessions.title"), "/admin/users")(
+  return successAdminPage(t("sessions.title"), "/admin/sessions")(
     adminSession,
     success,
   )(

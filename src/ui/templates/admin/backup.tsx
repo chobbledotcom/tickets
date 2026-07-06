@@ -185,7 +185,7 @@ export const adminRestoreConfirmPage = (
 ): string =>
   ConfirmPage({
     action: "/admin/backup/restore/confirm",
-    active: "/admin/settings",
+    active: "/admin/backup",
     buttonText: t("backup.restore_button"),
     children: (
       <>

@@ -119,7 +119,7 @@ export const adminPrivacyPage = (
 ): string =>
   String(
     <AdminPage
-      active="/admin/settings"
+      active="/admin/privacy"
       session={session}
       title={t("privacy.title")}
     >

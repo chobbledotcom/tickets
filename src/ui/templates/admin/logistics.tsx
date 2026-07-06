@@ -152,7 +152,7 @@ const { deletePage, editPage, newPage } = defineAdminResourcePages<
   LogisticsAgent,
   AgentEditCtx
 >({
-  active: "/admin/settings",
+  active: "/admin/logistics",
   basePath: "/admin/logistics",
   delete: {
     confirm: (agent) => ({

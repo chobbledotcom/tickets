@@ -185,11 +185,12 @@ describeWithEnv("AdminNav", {}, () => {
     expect(html).toContain('class="active" href="/admin/listings"');
   });
 
-  // Regression (PR #1600 review): a page deep in a section renders with the
-  // section's own route as `active` (e.g. /admin/sessions and /admin/api-keys
-  // both pass "/admin/users"; settings sub-pages pass "/admin/settings"). The
-  // sub-nav must NOT then light up the section's landing sub-item — otherwise
-  // Sessions would highlight "Users", and Privacy would highlight "Settings".
+  // Regression (PR #1600 review): a section's *landing* page renders with the
+  // section route as `active` (e.g. /admin/users, /admin/settings). That route
+  // equals the landing sub-item's href, so highlighting it in the sub-nav would
+  // just duplicate the top-level highlight — and any deeper page that fell back
+  // to the section route would wrongly light the landing item. So the sub-nav
+  // stays clean on the landing route; the section shows as active on the top bar.
   test("a section sub-nav does not highlight its landing item from the section route", () => {
     for (const active of ["/admin/users", "/admin/settings"]) {
       const html = String(
@@ -201,6 +202,34 @@ describeWithEnv("AdminNav", {}, () => {
       expect(start, active).toBeGreaterThan(-1);
       const sub = html.slice(start, html.indexOf("</ul>", start));
       expect(sub, active).not.toContain('class="active"');
+    }
+  });
+
+  // The current-page highlight applies to EVERY sub-page, not just the "Add X"
+  // create pages: each deeper page passes its own route, so its sub-nav link
+  // lights up (while the section stays highlighted on the top-level bar).
+  test("every section sub-page highlights its own sub-nav link", () => {
+    const deepPages = [
+      { active: "/admin/sessions", href: "/admin/sessions" },
+      { active: "/admin/api-keys", href: "/admin/api-keys" },
+      { active: "/admin/deliveries", href: "/admin/deliveries" },
+      { active: "/admin/privacy", href: "/admin/privacy" },
+      { active: "/admin/questions", href: "/admin/questions" },
+      { active: "/admin/emails", href: "/admin/emails" },
+      { active: "/admin/settings/statuses", href: "/admin/settings/statuses" },
+      { active: "/admin/backup", href: "/admin/backup" },
+      { active: "/admin/site/contact", href: "/admin/site/contact" },
+      { active: "/admin/site/pages", href: "/admin/site/pages" },
+    ];
+    for (const { active, href } of deepPages) {
+      const settingOverrides =
+        active === "/admin/deliveries" ? { has_logistics: true } : {};
+      withSetting(settingOverrides, () => {
+        const html = String(
+          AdminNav({ active, session: { adminLevel: "owner" } }),
+        );
+        expect(html, active).toContain(`class="active" href="${href}"`);
+      });
     }
   });
 

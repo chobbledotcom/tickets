@@ -24,8 +24,8 @@ import {
 import { DataTable } from "#templates/components/data-table.tsx";
 import { ReorderArrows } from "#templates/components/reorder.tsx";
 
-const ACTIVE = "/admin/site";
 const LIST = "/admin/site/pages";
+const ACTIVE = LIST;
 
 export type PickerOption = { value: string; label: string };
 export type ResolvedItem = {

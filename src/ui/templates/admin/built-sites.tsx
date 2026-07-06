@@ -44,7 +44,7 @@ export const adminBuiltSitesPage = (
 
   return AdminListPage({
     actions: <BuiltSitesListActions />,
-    active: "/admin/settings",
+    active: "/admin/built-sites",
     children: (
       <BuiltSitesListBody
         hostingIds={hostingIds}
@@ -76,7 +76,7 @@ export const adminBuiltSiteNewPage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  errorAdminPage(t("built_sites.add_site_title"), "/admin/settings")(
+  errorAdminPage(t("built_sites.add_site_title"), "/admin/built-sites")(
     session,
     error,
   )(
@@ -98,7 +98,7 @@ export const adminBuiltSiteEditPage = (
 ): string =>
   String(
     <AdminPage
-      active="/admin/settings"
+      active="/admin/built-sites"
       session={session}
       title={t("built_sites.edit_site_title")}
     >
@@ -147,7 +147,7 @@ export const adminBuiltSiteDeletePage = (
 ): string =>
   ConfirmPage({
     action: `/admin/built-sites/${site.id}/delete`,
-    active: "/admin/settings",
+    active: "/admin/built-sites",
     buttonText: t("built_sites.delete_built_site_button"),
     children: (
       <>

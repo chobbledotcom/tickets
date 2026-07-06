@@ -529,7 +529,7 @@ export const adminDebugPage = (
   session: AdminSession,
   s: DebugPageState,
 ): string =>
-  themedAdminPage(t("debug.title"))(session, s.theme)(
+  themedAdminPage(t("debug.title"), "/admin/debug")(session, s.theme)(
     <>
       <div class="prose">
         <h1>{t("debug.heading")}</h1>

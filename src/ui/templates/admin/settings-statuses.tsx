@@ -127,7 +127,7 @@ const deleteChildren = (status: AttendeeStatus): JSX.Element => (
 
 const { deletePage, editPage, listPage, newPage } =
   defineAdminResourcePages<AttendeeStatus>({
-    active: "/admin/settings",
+    active: LIST_PATH,
     basePath: LIST_PATH,
     delete: {
       children: deleteChildren,

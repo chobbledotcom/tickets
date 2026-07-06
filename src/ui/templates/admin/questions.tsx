@@ -118,7 +118,7 @@ export const adminQuestionsPage = (
   listingNames: Map<number, string[]> = new Map(),
   totalListings = 0,
 ): string =>
-  errorAdminPage(t("questions.title"), "/admin/settings")(session, error)(
+  errorAdminPage(t("questions.title"), "/admin/questions")(session, error)(
     <>
       <CsrfForm action="/admin/questions" id="new-question">
         <Raw html={questionTextForm.render()} />
@@ -180,7 +180,7 @@ export const adminQuestionPage = (
 ): string =>
   errorAdminPage(
     `Question: ${questionTextFlat(question.text)}`,
-    "/admin/settings",
+    "/admin/questions",
   )(
     session,
     error,
@@ -381,7 +381,7 @@ export const adminAnswerEditPage = (
   modifiers: AnswerModifierOption[],
   modifierId: number | null,
 ): string =>
-  errorAdminPage(t("questions.edit_answer.title"), "/admin/settings")(
+  errorAdminPage(t("questions.edit_answer.title"), "/admin/questions")(
     session,
     error,
   )(
@@ -479,7 +479,7 @@ export const adminAnswerRecalculatePage = (
 ): string =>
   adminRecalculatePage({
     action: answerRecalculatePath(question.id, answer.id),
-    active: "/admin/settings",
+    active: "/admin/questions",
     currentLabel: t("questions.recalculate.current"),
     description: t("questions.recalculate.description"),
     error,
@@ -492,7 +492,7 @@ export const adminAnswerRecalculatePage = (
   });
 
 /** The question and answer delete-confirmation pages share one confirm shell:
- *  same `/admin/settings` nav and the standard `<prefix>.submit/heading/
+ *  same `/admin/questions` nav and the standard `<prefix>.submit/heading/
  *  confirm_label/confirm_prompt` locale keys, differing only in action URL,
  *  confirmed name, page title, and warning copy. Parameterising the locale
  *  prefix keeps the repeated `t()` block in one place. */
@@ -509,7 +509,7 @@ const questionDeleteConfirmPage = (
 ): string =>
   ConfirmPage({
     action: opts.action,
-    active: "/admin/settings",
+    active: "/admin/questions",
     buttonText: t(`${opts.prefix}.submit`),
     error,
     heading: t(`${opts.prefix}.heading`),
