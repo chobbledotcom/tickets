@@ -121,14 +121,40 @@ export const MarkdownProse = ({
     </div>
   ) : null;
 
-export const RSS_DISCOVERY_TAG =
-  '<link rel="alternate" type="application/rss+xml" title="Listings" href="/feeds/listings.rss" />';
+/** One `<link rel="alternate">` feed-discovery tag for the shared head. */
+const feedDiscoveryTag = (
+  type: string,
+  titleKey: string,
+  href: string,
+): string => {
+  const attributes = [
+    ["rel", "alternate"],
+    ["type", type],
+    ["title", t(titleKey)],
+    ["href", href],
+  ]
+    .map(([name, value]) => `${name}="${value}"`)
+    .join(" ");
+  return `<link ${attributes} />`;
+};
 
-export const NEWS_RSS_DISCOVERY_TAG =
-  '<link rel="alternate" type="application/rss+xml" title="News" href="/feeds/news.rss" />';
+export const RSS_DISCOVERY_TAG = feedDiscoveryTag(
+  "application/rss+xml",
+  "terms.listings",
+  "/feeds/listings.rss",
+);
 
-export const ICS_DISCOVERY_TAG =
-  '<link rel="alternate" type="text/calendar" title="Listings" href="/feeds/listings.ics" />';
+export const NEWS_RSS_DISCOVERY_TAG = feedDiscoveryTag(
+  "application/rss+xml",
+  "nav.public.news",
+  "/feeds/news.rss",
+);
+
+export const ICS_DISCOVERY_TAG = feedDiscoveryTag(
+  "text/calendar",
+  "terms.listings",
+  "/feeds/listings.ics",
+);
 
 export const FEED_DISCOVERY_TAGS = `${RSS_DISCOVERY_TAG}\n${NEWS_RSS_DISCOVERY_TAG}\n${ICS_DISCOVERY_TAG}`;
 

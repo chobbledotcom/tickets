@@ -41,35 +41,35 @@ describeWithEnv("server (public news)", { db: true }, () => {
 
     test("lists posts newest first as linked cards with name, snippet, and first image", () =>
       withSetting({ website_title: "Acme Site" }, async () => {
-      await newsPostsTable.insert({
-        created: "2026-07-01T10:00:00.000Z",
-        name: "Older Post",
-        snippet: "Old snippet",
-      });
-      const newer = await newsPostsTable.insert({
-        created: "2026-07-02T10:00:00.000Z",
-        name: "Newer Post",
-        snippet: "Fresh snippet",
-      });
-      const image = await makeImage("News Hero");
-      await appendImageToItem(image.id, {
-        itemId: newer.id,
-        itemType: "news",
-      });
+        await newsPostsTable.insert({
+          created: "2026-07-01T10:00:00.000Z",
+          name: "Older Post",
+          snippet: "Old snippet",
+        });
+        const newer = await newsPostsTable.insert({
+          created: "2026-07-02T10:00:00.000Z",
+          name: "Newer Post",
+          snippet: "Fresh snippet",
+        });
+        const image = await makeImage("News Hero");
+        await appendImageToItem(image.id, {
+          itemId: newer.id,
+          itemType: "news",
+        });
 
-      const html = await assertPublicHtml("/news");
-      expect(html).toContain("<title>News - Acme Site</title>");
-      // Both cards, newest first, each a link wrapping the shared card markup.
-      expect(html).toContain(`href="/news/${newer.id}"`);
-      expect(html).toContain('class="card news-card"');
-      expect(html.indexOf("Newer Post")).toBeLessThan(
-        html.indexOf("Older Post"),
-      );
-      expect(html).toContain("Fresh snippet");
-      expect(html).toContain('class="card-name"');
-      // The first image renders as the card thumbnail.
-      expect(html).toContain("news hero-thumb.webp");
-    }));
+        const html = await assertPublicHtml("/news");
+        expect(html).toContain("<title>News - Acme Site</title>");
+        // Both cards, newest first, each a link wrapping the shared card markup.
+        expect(html).toContain(`href="/news/${newer.id}"`);
+        expect(html).toContain('class="card news-card"');
+        expect(html.indexOf("Newer Post")).toBeLessThan(
+          html.indexOf("Older Post"),
+        );
+        expect(html).toContain("Fresh snippet");
+        expect(html).toContain('class="card-name"');
+        // The first image renders as the card thumbnail.
+        expect(html).toContain("news hero-thumb.webp");
+      }));
 
     test("the nav shows a News link on other public pages once a post exists", async () => {
       let html = await assertPublicHtml("/");
