@@ -28,8 +28,8 @@ import {
   daysAgoIso,
   describeWithEnv,
   orphanServicingEvent,
-  recordServiceCost,
 } from "#test-utils";
+import { seedBoilerPartCost } from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 
@@ -114,14 +114,7 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
     // it. A cost-bearing servicing event's `service_cost` legs remain in the
     // table as orphaned history, the same way sale legs for a deleted listing
     // remain. The ledger UI shows "Deleted listing" for the unresolved account.
-    const { id, listing } = await createServicingHold();
-    await recordServiceCost({
-      amount: 9000,
-      listingId: listing.id,
-      memo: "Boiler part",
-      occurredAt: "2026-07-01T00:00:00.000Z",
-      servicingId: id,
-    });
+    const { id } = await seedBoilerPartCost();
     const { allTransfers } = await import("#shared/accounting/queries.ts");
     const legsBefore = (await allTransfers()).filter(
       (t) => t.kind === "service_cost",

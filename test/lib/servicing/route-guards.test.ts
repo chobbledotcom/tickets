@@ -32,6 +32,24 @@ import {
 
 // jscpd:ignore-end
 
+/** POST an edit to a servicing cost through a given event's route and confirm
+ * the guard blocks it: the request 404s and the recorded cost is left untouched
+ * at its original £90. */
+const expectCostEditBlocked = async (
+  eventId: number,
+  costId: number,
+  listingId: number,
+): Promise<void> => {
+  const response = await adminPost(
+    `/admin/servicing/${eventId}/cost/${costId}`,
+    { amount: "60.00" },
+  );
+  expect(response.status).toBe(404);
+  response.body?.cancel();
+  const { costOf } = await import("#shared/accounting/projection.ts");
+  expect(await costOf(listingId)).toBe(9000);
+};
+
 describeWithEnv(
   "servicing §9 — single-record route guards",
   { db: true },

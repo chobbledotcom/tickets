@@ -598,18 +598,12 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("blocks marking a paid line no-quantity (line unchanged)", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      const created = await createAttendeeAtomic({
-        bookings: [{ listingId: listing.id, quantity: 2 }],
-        email: "paid@example.com",
-        name: "Paid",
-        paymentId: "pay_block",
-      });
-      if (!created.success) throw new Error("setup");
-      const attendeeId = created.attendees[0]!.id;
-      // Recognise the payment in the ledger: hasPaidLine (the DB guard) keys on a
-      // gross sale leg now, not a price_paid column.
-      await postListingSale({ attendeeId, gross: 1500, listingId: listing.id });
+      const { attendeeId, listing } = await seedPaidLine(
+        2,
+        "paid@example.com",
+        "Paid",
+        "pay_block",
+      );
 
       const response = await markNoQuantity(attendeeId, listing.id, "Paid");
 
@@ -685,27 +679,19 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("blocks no-quantity on a paid line even with a stale (missing) line key", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      const created = await createAttendeeAtomic({
-        bookings: [{ listingId: listing.id, quantity: 1 }],
-        email: "stale@example.com",
-        name: "Stale",
-        paymentId: "pay_stale",
-      });
-      if (!created.success) throw new Error("setup");
-      const attendeeId = created.attendees[0]!.id;
-      await postListingSale({ attendeeId, gross: 1500, listingId: listing.id });
+      const { attendeeId, listing } = await seedPaidLine(
+        1,
+        "stale@example.com",
+        "Stale",
+        "pay_stale",
+      );
       // Submit with an empty line key so the form's existingBooking is null and
       // the per-line model guard can't fire — the DB-based guard must still block.
-      const form = await buildAttendeeEditForm(attendeeId, {
+      const response = await submitAttendeeEdit(attendeeId, {
         extra: { [`noqty_${listing.id}`]: "1" },
         lines: [{ eventId: listing.id, key: "", quantity: 1 }],
         name: "Stale",
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendeeId}`,
-        form,
-      );
 
       const html = await expectHtmlResponse(response, 200);
       expect(html).toContain("Refund this booking's payment");
@@ -834,24 +820,13 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
   describe("daily defaults + mixed-timing alert on the edit page", () => {
     test("shows the mixed-timing alert when daily bookings differ in start date", async () => {
-      const daily = await createTestListing({
-        bookableDays: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
+      const daily = await createDailyTestListing({
         durationDays: 1,
-        listingType: "daily",
         maxAttendees: 50,
         name: "Mixed Daily",
       });
-      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
       // Book two distinct dates for the same attendee — both daily, different start dates.
-      const result = await createAttendeeAtomic({
+      const attendeeId = await bookAttendeeId({
         bookings: [
           { date: "2026-06-15", listingId: daily.id, quantity: 1 },
           { date: "2026-06-20", listingId: daily.id, quantity: 1 },
@@ -859,41 +834,24 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         email: "",
         name: "Mixed",
       });
-      if (!result.success) throw new Error("setup");
-      const attendee = result.attendees[0]!;
 
-      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
-      const html = await response.text();
+      const html = await editFormHtml(attendeeId);
       expect(html).toContain("different start dates or lengths");
     });
 
     test("does not show the mixed-timing alert when daily bookings are uniform", async () => {
-      const daily = await createTestListing({
-        bookableDays: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
+      const daily = await createDailyTestListing({
         durationDays: 1,
-        listingType: "daily",
         maxAttendees: 50,
         name: "Uniform Daily",
       });
-      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
-      const result = await createAttendeeAtomic({
+      const attendeeId = await bookAttendeeId({
         bookings: [{ date: "2026-06-15", listingId: daily.id, quantity: 1 }],
         email: "",
         name: "Uniform",
       });
-      if (!result.success) throw new Error("setup");
-      const attendee = result.attendees[0]!;
 
-      const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
-      const html = await response.text();
+      const html = await editFormHtml(attendeeId);
       expect(html).not.toContain("different start dates or lengths");
     });
   });

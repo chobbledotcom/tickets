@@ -108,6 +108,40 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     return { source, sourceToken, target };
   };
 
+  // Adds one multiple-choice question, assigns it to every listing given, and
+  // hands back the question plus its first two answer options.
+  const addMergeQuestion = async (
+    listingIds: number[],
+    text: string,
+    answerTexts: string[],
+  ) => {
+    const { question, answers } = await addQuestion(text, answerTexts);
+    for (const id of listingIds) {
+      await setListingQuestions(id, [question.id]);
+    }
+    return { a1: answers[0]!, a2: answers[1]!, q: question };
+  };
+
+  // Gives the merge target and the merge source (found by its token) their own
+  // saved answers, so a merge has a conflict to work through. Pass an empty list
+  // to leave one side unanswered.
+  const saveMergeAnswers = async (
+    targetId: number,
+    sourceToken: string,
+    targetAnswerIds: number[],
+    sourceAnswerIds: number[],
+  ) => {
+    const { saveAttendeeAnswers } = await import("#shared/db/questions.ts");
+    const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+    if (targetAnswerIds.length) {
+      await saveAttendeeAnswers(new Map([[targetId, targetAnswerIds]]));
+    }
+    if (sourceAnswerIds.length) {
+      const [source] = await getAttendeesByTokens([sourceToken]);
+      await saveAttendeeAnswers(new Map([[source!.id, sourceAnswerIds]]));
+    }
+  };
+
   describe("GET /admin/listing/:listingId/attendee/:attendeeId/delete", () => {
     testRequiresAuth("/admin/attendees/1/delete", {
       setup: () =>

@@ -19,6 +19,14 @@ const tl = (id: number, maxPurchasable: number): TicketListing => ({
   maxPurchasable,
 });
 
+/** Two package members (ids 1 and 2), each with a generous ticket limit so the
+ *  group caps — not the members' own pools — decide the package limit. */
+const twoMembersUncapped = (): ReadonlyMap<number, TicketListing> =>
+  new Map([
+    [1, tl(1, 100)],
+    [2, tl(2, 100)],
+  ]);
+
 /** A package tree over the given member ids, each with its per-package qty. */
 const packageTree = (
   qtyById: ReadonlyMap<number, number>,
@@ -58,10 +66,7 @@ describe("packageQuantityLimit", () => {
         [2, 1],
       ]),
     );
-    const listingById = new Map([
-      [1, tl(1, 100)],
-      [2, tl(2, 100)],
-    ]);
+    const listingById = twoMembersUncapped();
     const groupIdsByListingId = new Map([
       [1, [9]],
       [2, [9]],

@@ -558,14 +558,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
   });
 
   test("the servicing edit page lists recorded costs with amount, listing, memo, and edit controls", async () => {
-    const { id, listing } = await createServicingHold();
-    await recordServiceCost({
-      amount: 9000,
-      listingId: listing.id,
-      memo: "Boiler part",
-      occurredAt: "2026-07-01T00:00:00.000Z",
-      servicingId: id,
-    });
+    const { id, listing } = await seedBoilerPartCost();
     const body = await renderAdminPage(`/admin/servicing/${id}`);
     expect(body).toContain("Recorded costs");
     expect(body).toContain(formatCurrency(9000));

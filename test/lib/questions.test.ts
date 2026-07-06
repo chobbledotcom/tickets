@@ -170,7 +170,9 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("deletes a question and cascades", async () => {
-      const { answers, question: q } = await addQuestion("To delete", ["Opt A"]);
+      const { answers, question: q } = await addQuestion("To delete", [
+        "Opt A",
+      ]);
       const a = answers[0]!;
 
       const listing = await createTestListing();
@@ -519,8 +521,9 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("saves text-only answers and decrypts them for editing", async () => {
-      const { attendee, question: q } =
-        await freeTextQuestionWithAttendee("Accessibility needs?");
+      const { attendee, question: q } = await freeTextQuestionWithAttendee(
+        "Accessibility needs?",
+      );
 
       await saveTextAnswers(attendee.id, [
         { questionId: q.id, text: "Front row please" },
@@ -537,8 +540,9 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("deduplicates repeated text answers by question before saving", async () => {
-      const { attendee, question: q } =
-        await freeTextQuestionWithAttendee("Accessibility needs?");
+      const { attendee, question: q } = await freeTextQuestionWithAttendee(
+        "Accessibility needs?",
+      );
 
       await saveTextAnswers(attendee.id, [
         { questionId: q.id, text: "First answer" },

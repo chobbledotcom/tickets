@@ -335,35 +335,26 @@ describe("square", () => {
       await s.update.bookingFee("2.5");
       await settings.update.square.accessToken("EAAAl_test_123");
       await settings.update.square.locationId("L_loc_456");
-      const { client, checkoutCreate } = createMockClient({
-        checkoutCreate: () =>
-          Promise.resolve({
-            paymentLink: {
-              orderId: "order_fee",
-              url: "https://square.link/fee",
-            },
-          }),
+      const { client, checkoutCreate } = paymentLinkClient({
+        orderId: "order_fee",
+        url: "https://square.link/fee",
       });
 
       await withMocks(useSquareClient(client), async () => {
           const listing = testListing({ unit_price: 1000 });
-          const intent = {
-            address: "",
-            date: null,
+          const intent = checkoutIntent({
             email: "jane@example.com",
             items: [
-              {
+              checkoutItem({
                 listingId: listing.id,
                 name: listing.name,
                 quantity: 2,
                 slug: listing.slug,
                 unitPrice: listing.unit_price,
-              },
+              }),
             ],
             name: "Jane",
-            phone: "",
-            special_instructions: "",
-          };
+          });
 
           await squareApi.createPaymentLink(
             intent,
@@ -384,34 +375,13 @@ describe("square", () => {
     test("omits phone from pre-populated data when empty", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
       await settings.update.square.locationId("L_loc_456");
-      const { client, checkoutCreate } = createMockClient({
-        checkoutCreate: () =>
-          Promise.resolve({
-            paymentLink: {
-              orderId: "order_xyz",
-              url: "https://square.link/xyz",
-            },
-          }),
+      const { client, checkoutCreate } = paymentLinkClient({
+        orderId: "order_xyz",
+        url: "https://square.link/xyz",
       });
 
       await withMocks(useSquareClient(client), async () => {
-          const intent = {
-            address: "",
-            date: null,
-            email: "john@example.com",
-            items: [
-              {
-                listingId: 1,
-                name: "Test",
-                quantity: 1,
-                slug: "test-listing",
-                unitPrice: 1000,
-              },
-            ],
-            name: "John",
-            phone: "",
-            special_instructions: "",
-          };
+          const intent = checkoutIntent();
 
           await squareApi.createPaymentLink(intent, "http://localhost");
 
@@ -427,31 +397,12 @@ describe("square", () => {
     test("returns null when SDK response missing orderId", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
       await settings.update.square.locationId("L_loc_456");
-      const { client } = createMockClient({
-        checkoutCreate: () =>
-          Promise.resolve({
-            paymentLink: { url: "https://square.link/abc" },
-          }),
+      const { client } = paymentLinkClient({
+        url: "https://square.link/abc",
       });
 
       await withMocks(useSquareClient(client), async () => {
-          const intent = {
-            address: "",
-            date: null,
-            email: "john@example.com",
-            items: [
-              {
-                listingId: 1,
-                name: "Test",
-                quantity: 1,
-                slug: "test-listing",
-                unitPrice: 1000,
-              },
-            ],
-            name: "John",
-            phone: "",
-            special_instructions: "",
-          };
+          const intent = checkoutIntent();
 
           const result = await squareApi.createPaymentLink(
             intent,
@@ -465,30 +416,19 @@ describe("square", () => {
 
   describe("createPaymentLink", () => {
     test("returns null when access token not set", async () => {
-      const intent = {
-        address: "",
-        date: null,
-        email: "john@example.com",
+      const intent = checkoutIntent({
         items: [
-          {
-            listingId: 1,
-            name: "Listing 1",
-            quantity: 1,
-            slug: "listing-1",
-            unitPrice: 1000,
-          },
-          {
+          checkoutItem({ name: "Listing 1", slug: "listing-1" }),
+          checkoutItem({
             listingId: 2,
             name: "Listing 2",
             quantity: 2,
             slug: "listing-2",
             unitPrice: 500,
-          },
+          }),
         ],
         name: "John Doe",
-        phone: "",
-        special_instructions: "",
-      };
+      });
       const result = await squareApi.createPaymentLink(
         intent,
         "http://localhost",
@@ -498,23 +438,10 @@ describe("square", () => {
 
     test("returns null when location ID not configured", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
-      const intent = {
-        address: "",
-        date: null,
-        email: "john@example.com",
-        items: [
-          {
-            listingId: 1,
-            name: "Listing 1",
-            quantity: 1,
-            slug: "listing-1",
-            unitPrice: 1000,
-          },
-        ],
+      const intent = checkoutIntent({
+        items: [checkoutItem({ name: "Listing 1", slug: "listing-1" })],
         name: "John Doe",
-        phone: "",
-        special_instructions: "",
-      };
+      });
       const result = await squareApi.createPaymentLink(
         intent,
         "http://localhost",

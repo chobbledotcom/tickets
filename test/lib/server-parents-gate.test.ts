@@ -31,6 +31,7 @@ import {
   dailyParentWithChildOffParentDay,
   expectBookingRejected,
   firstBookableDate,
+  twoParentsSharingChild,
   weekdayOf,
 } from "#test-utils/parent-booking-scenarios.ts";
 
@@ -360,21 +361,11 @@ describeWithEnv(
       // expandChildAllocations splits the fold into per-parent rows so
       // each row carries its true parentListingId rather than collapsing into one
       // summed row that loses the per-parent provenance.
-      const parentA = await createTestListing({
-        maxQuantity: 5,
-        name: "Base A",
-      });
-      const parentB = await createTestListing({
-        maxQuantity: 5,
-        name: "Base B",
-      });
-      const child = await createTestListing({
+      const { parentA, parentB, child } = await twoParentsSharingChild({
         maxAttendees: 100,
         maxQuantity: 10,
         name: "Shared add-on",
       });
-      await setChildIds(parentA.id, [child.id]);
-      await setChildIds(parentB.id, [child.id]);
 
       const slugs = `${parentA.slug}+${parentB.slug}`;
       const res = await postBooking(slugs, {
@@ -392,21 +383,11 @@ describeWithEnv(
     });
 
     test("a shared child over its capacity when summed is rejected (not clamped)", async () => {
-      const parentA = await createTestListing({
-        maxQuantity: 5,
-        name: "Base A",
-      });
-      const parentB = await createTestListing({
-        maxQuantity: 5,
-        name: "Base B",
-      });
-      const child = await createTestListing({
+      const { parentA, parentB } = await twoParentsSharingChild({
         maxAttendees: 3,
         maxQuantity: 10,
         name: "Tight add-on",
       });
-      await setChildIds(parentA.id, [child.id]);
-      await setChildIds(parentB.id, [child.id]);
 
       const res = await postBooking(`${parentA.slug}+${parentB.slug}`, {
         email: "a@b.com",
@@ -414,9 +395,7 @@ describeWithEnv(
         [`quantity_${parentA.id}`]: "2",
         [`quantity_${parentB.id}`]: "2",
       });
-      expect(res.status).toBe(302);
-      expectFlash(res, undefined, false);
-      expect((await getAttendeesRaw(parentA.id)).length).toBe(0);
+      await expectBookingRejected(res, undefined, parentA.id);
     });
 
     test("a pay-more child's submitted price is folded into the order", async () => {
@@ -435,15 +414,7 @@ describeWithEnv(
     });
 
     test("a shared pay-more child with mismatched prices is rejected", async () => {
-      const parentA = await createTestListing({
-        maxQuantity: 5,
-        name: "Base A",
-      });
-      const parentB = await createTestListing({
-        maxQuantity: 5,
-        name: "Base B",
-      });
-      const child = await createTestListing({
+      const { parentA, parentB, child } = await twoParentsSharingChild({
         canPayMore: true,
         maxAttendees: 100,
         maxPrice: 9000,
@@ -451,8 +422,6 @@ describeWithEnv(
         name: "Shared donation",
         unitPrice: 1000,
       });
-      await setChildIds(parentA.id, [child.id]);
-      await setChildIds(parentB.id, [child.id]);
 
       const res = await postBooking(`${parentA.slug}+${parentB.slug}`, {
         email: "a@b.com",
@@ -462,9 +431,7 @@ describeWithEnv(
         [`child_price_${parentA.id}_${child.id}`]: "20.00",
         [`child_price_${parentB.id}_${child.id}`]: "30.00",
       });
-      expect(res.status).toBe(302);
-      expectFlash(res, undefined, false);
-      expect((await getAttendeesRaw(child.id)).length).toBe(0);
+      await expectBookingRejected(res, undefined, child.id);
     });
 
     test("an order needing two distinct customisable durations is rejected", async () => {

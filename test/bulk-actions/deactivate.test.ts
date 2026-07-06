@@ -9,24 +9,10 @@ import {
   createTestListing,
   describeWithEnv,
   getBulkActionForm,
-  insertModifier,
-  linkModifierListing,
-  patchModifier,
 } from "#test-utils";
+import { optInAddOnForListings } from "#test-utils/scoped-add-ons.ts";
 
 const getDeactivateForm = getBulkActionForm("deactivate");
-
-/** Insert an active opt-in add-on scoped to the given listing ids. */
-const optInAddOnForListings = async (
-  name: string,
-  listingIds: number[],
-): Promise<void> => {
-  const modifier = await insertModifier({ name });
-  await patchModifier(modifier.id, { scope: "listings", trigger: "optional" });
-  for (const listingId of listingIds) {
-    await linkModifierListing(modifier.id, listingId);
-  }
-};
 
 describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
   describe("GET /admin/groups/:id/bulk-actions/deactivate", () => {
