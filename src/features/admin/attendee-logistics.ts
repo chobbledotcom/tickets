@@ -159,6 +159,20 @@ const EMPTY_ASSIGNMENT: LogisticsAssignment = {
   startTime: "",
 };
 
+/** The selectors re-rendered with a submitted plan's choices in place of the
+ * saved ones — a failed save must show exactly what the operator entered,
+ * not what's stored. Pure: returns a new data object. */
+export const withSubmittedPlan = (
+  data: AttendeeLogisticsData,
+  plan: { split: boolean; perListing: Map<number, LogisticsAssignment> },
+): AttendeeLogisticsData => {
+  const lines = data.lines.map((line) => ({
+    ...line,
+    assignment: plan.perListing.get(line.listingId) ?? line.assignment,
+  }));
+  return { ...data, lines, single: lines[0]!.assignment, split: plan.split };
+};
+
 /**
  * Build the logistics render data, or undefined when logistics is disabled, no
  * agents exist, or the attendee books no logistics listing. For an edit the

@@ -44,31 +44,46 @@ export const storedFormLines = async (entity: LoadedAttendee) => {
   ).parsed.lines;
 };
 
-/** The attendee's whole booked span as [startAt, endAt) timestamps, or null
- * when they hold no real dated booking (nothing can overlap then). */
-export const bookedSpan = (
-  entity: LoadedAttendee,
-): { startAt: string; endAt: string } | null => {
-  const dated = entity.existing
-    .map(({ booking }) => booking)
-    .filter((booking) => booking.quantity > 0 && booking.start_at !== null);
-  if (dated.length === 0) return null;
-  const starts = dated.map((booking) => booking.start_at!).sort();
-  const ends = dated.map((booking) => booking.end_at!).sort();
-  return { endAt: ends[ends.length - 1]!, startAt: starts[0]! };
-};
+/** One booked window as [startAt, endAt) timestamps. */
+export type BookedInterval = { startAt: string; endAt: string };
 
-/** Load and label the other attendees booked on overlapping dates. */
+/** The attendee's real dated booking windows (quantity > 0 only). */
+export const bookedIntervals = (entity: LoadedAttendee): BookedInterval[] =>
+  entity.existing
+    .map(({ booking }) => booking)
+    .filter((booking) => booking.quantity > 0 && booking.start_at !== null)
+    .map((booking) => ({ endAt: booking.end_at!, startAt: booking.start_at! }));
+
+/** Whether a booking's [start_at, end_at) range overlaps any of the windows —
+ * the same predicate the SQL uses, re-applied per window so a gap between two
+ * bookings never counts as booked. */
+export const overlapsAnyInterval = (
+  intervals: BookedInterval[],
+  row: { start_at: string; end_at: string },
+): boolean =>
+  intervals.some(
+    (interval) =>
+      row.start_at < interval.endAt && row.end_at > interval.startAt,
+  );
+
+/** Load and label the other attendees booked on overlapping dates. One query
+ * bounded to the whole booked span, then filtered to the actual windows — an
+ * attendee booked only in a gap between this attendee's bookings never
+ * appears. */
 const loadOtherAttendees = async (
   entity: LoadedAttendee,
 ): Promise<AttendeeLogisticsTabData["others"]> => {
-  const span = bookedSpan(entity);
-  if (!span) return [];
-  const rows = await getOverlappingBookings(
-    entity.attendee.id,
-    span.startAt,
-    span.endAt,
-  );
+  const intervals = bookedIntervals(entity);
+  if (intervals.length === 0) return [];
+  const starts = intervals.map((interval) => interval.startAt).sort();
+  const ends = intervals.map((interval) => interval.endAt).sort();
+  const rows = (
+    await getOverlappingBookings(
+      entity.attendee.id,
+      starts[0]!,
+      ends[ends.length - 1]!,
+    )
+  ).filter((row) => overlapsAnyInterval(intervals, row));
   if (rows.length === 0) return [];
   const names = await getAttendeeNamesByIds(
     unique(rows.map((row) => row.attendee_id)),

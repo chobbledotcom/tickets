@@ -12,7 +12,10 @@ import {
   startAgentField,
   startTimeField,
 } from "#routes/admin/attendee-logistics.ts";
-import { bookedSpan } from "#routes/admin/attendee-logistics-tab.ts";
+import {
+  bookedIntervals,
+  overlapsAnyInterval,
+} from "#routes/admin/attendee-logistics-tab.ts";
 import type { LoadedAttendee } from "#routes/admin/attendee-page-data.ts";
 import type { ListingBooking } from "#shared/db/attendee-types.ts";
 import { createAttendeeAtomic, getAttendee } from "#shared/db/attendees.ts";
@@ -67,6 +70,19 @@ const postLogistics = async (
       cookie,
     ),
   );
+};
+
+/** A delivered (logistics) listing with one agent, booked by one attendee. */
+const deliveredListingSetup = async (
+  agentName: string,
+  attendeeName: string,
+) => {
+  settings.setForTest({ has_logistics: true });
+  const listing = await createTestListing({ maxAttendees: 10 });
+  await listingsTable.update(listing.id, { usesLogistics: true });
+  const van = await logisticsAgentsTable.insert({ name: agentName });
+  const id = await makeAttendee(attendeeName, [{ listingId: listing.id }]);
+  return { id, listing, van };
 };
 
 describeWithEnv("attendee Logistics tab (GET)", { db: true }, () => {
@@ -193,11 +209,10 @@ describeWithEnv("attendee Logistics tab (POST)", { db: true }, () => {
   });
 
   test("saves the start/end selectors for a delivered listing", async () => {
-    settings.setForTest({ has_logistics: true });
-    const listing = await createTestListing({ maxAttendees: 10 });
-    await listingsTable.update(listing.id, { usesLogistics: true });
-    const van = await logisticsAgentsTable.insert({ name: "Tab Van" });
-    const id = await makeAttendee("Legs Person", [{ listingId: listing.id }]);
+    const { id, listing, van } = await deliveredListingSetup(
+      "Tab Van",
+      "Legs Person",
+    );
 
     const html = await logisticsTabHtml(id);
     expect(html).toContain('name="logistics_start"');
@@ -252,6 +267,57 @@ describeWithEnv("attendee Logistics tab (POST)", { db: true }, () => {
     });
   });
 });
+
+describeWithEnv(
+  "attendee Logistics tab — failed save keeps the selectors",
+  { db: true },
+  () => {
+    test("a 400 re-render shows the submitted times, not the saved ones", async () => {
+      const { id, listing, van } = await deliveredListingSetup(
+        "Keep Van",
+        "Keep Input",
+      );
+      await setLogisticsAssignments(
+        id,
+        false,
+        new Map([
+          [
+            listing.id,
+            {
+              endAgentId: null,
+              endTime: "16:00",
+              startAgentId: null,
+              startTime: "08:00",
+            },
+          ],
+        ]),
+      );
+
+      // Submit new times together with an invalid pin.
+      const response = await postLogistics(id, {
+        address: "Somewhere",
+        [endTimeField()]: "18:30",
+        lat: "91",
+        lng: "0",
+        [startAgentField()]: String(van.id),
+        [startTimeField()]: "10:30",
+      });
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      // The form re-renders with the operator's submitted choices…
+      expect(html).toContain('value="10:30"');
+      expect(html).toContain('value="18:30"');
+      expect(html).not.toContain('value="08:00"');
+      // …while nothing was saved.
+      expect((await getLogisticsAssignments(id)).get(listing.id)).toEqual({
+        endAgentId: null,
+        endTime: "16:00",
+        startAgentId: null,
+        startTime: "08:00",
+      });
+    });
+  },
+);
 
 describeWithEnv(
   "attendee Logistics tab — Other Attendees",
@@ -313,6 +379,24 @@ describeWithEnv(
       expect(html).toContain("×2");
     });
 
+    test("a booking in the gap between two bookings is not listed", async () => {
+      const daily = await createDailyTestListing({ maxQuantity: 5 });
+      const current = await makeAttendee("Gap Current", [
+        { date: "2030-01-01", durationDays: 1, listingId: daily.id },
+        { date: "2030-01-10", durationDays: 1, listingId: daily.id },
+      ]);
+      await makeAttendee("Gap Middle Person", [
+        { date: "2030-01-05", durationDays: 1, listingId: daily.id },
+      ]);
+      await makeAttendee("Gap Edge Person", [
+        { date: "2030-01-10", durationDays: 1, listingId: daily.id },
+      ]);
+
+      const html = await logisticsTabHtml(current);
+      expect(html).toContain("Gap Edge Person");
+      expect(html).not.toContain("Gap Middle Person");
+    });
+
     test("the section is hidden when nothing overlaps", async () => {
       const daily = await createDailyTestListing({ maxQuantity: 5 });
       const alone = await makeAttendee("Alone Person", [
@@ -337,7 +421,7 @@ describeWithEnv(
   },
 );
 
-describe("bookedSpan", () => {
+describe("bookedIntervals and overlapsAnyInterval", () => {
   const entityWith = (
     bookings: Array<{
       start_at: string | null;
@@ -353,8 +437,8 @@ describe("bookedSpan", () => {
       })),
     }) as unknown as LoadedAttendee;
 
-  test("spans from the earliest start to the latest end", () => {
-    const span = bookedSpan(
+  test("collects one window per real dated booking", () => {
+    const intervals = bookedIntervals(
       entityWith([
         {
           end_at: "2030-01-12T00:00:00.000Z",
@@ -368,14 +452,20 @@ describe("bookedSpan", () => {
         },
       ]),
     );
-    expect(span).toEqual({
-      endAt: "2030-01-15T00:00:00.000Z",
-      startAt: "2030-01-10T00:00:00.000Z",
-    });
+    expect(intervals).toEqual([
+      {
+        endAt: "2030-01-12T00:00:00.000Z",
+        startAt: "2030-01-10T00:00:00.000Z",
+      },
+      {
+        endAt: "2030-01-15T00:00:00.000Z",
+        startAt: "2030-01-11T00:00:00.000Z",
+      },
+    ]);
   });
 
   test("ignores no-quantity and date-less bookings", () => {
-    const span = bookedSpan(
+    const intervals = bookedIntervals(
       entityWith([
         {
           end_at: "2030-01-12T00:00:00.000Z",
@@ -385,6 +475,17 @@ describe("bookedSpan", () => {
         { end_at: null, quantity: 1, start_at: null },
       ]),
     );
-    expect(span).toBeNull();
+    expect(intervals).toEqual([]);
+  });
+
+  test("a booking in the gap between two windows does not overlap", () => {
+    const intervals = [
+      { endAt: "2030-01-02", startAt: "2030-01-01" },
+      { endAt: "2030-01-11", startAt: "2030-01-10" },
+    ];
+    const inGap = { end_at: "2030-01-06", start_at: "2030-01-05" };
+    const onWindow = { end_at: "2030-01-11", start_at: "2030-01-10" };
+    expect(overlapsAnyInterval(intervals, inGap)).toBe(false);
+    expect(overlapsAnyInterval(intervals, onWindow)).toBe(true);
   });
 });

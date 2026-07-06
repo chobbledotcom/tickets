@@ -98,7 +98,7 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
 
     describe("Content-Security-Policy", () => {
       const baseCsp =
-        "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'";
+        "default-src 'self'; img-src 'self' https://tile.openstreetmap.org; base-uri 'self'; object-src 'none'; form-action 'self'";
 
       test("non-embeddable pages have frame-ancestors 'none' and security restrictions", async () => {
         const response = await handleRequest(mockRequest("/"));
@@ -138,6 +138,8 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
 
       const coreDirectives: Array<[string, string]> = [
         ["default-src", "'self'"],
+        // The Logistics map loads its tiles straight from OpenStreetMap.
+        ["img-src", "'self' https://tile.openstreetmap.org"],
         ["base-uri", "'self'"],
         ["object-src", "'none'"],
         ["form-action", "'self'"],

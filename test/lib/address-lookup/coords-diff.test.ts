@@ -118,15 +118,15 @@ describe("address lookup fills the pin inputs", () => {
     ],
   };
 
-  /** A logistics-tab-shaped form: the panel, the textarea, the pin inputs,
-   * and the differences notice. */
-  const formSpec = (): ElementSpec => ({
+  /** A logistics-tab-shaped form: the panel, the textarea, the pin inputs
+   * (optionally pre-filled with a saved pin), and the differences notice. */
+  const formSpec = (pin: [string, string] = ["", ""]): ElementSpec => ({
     children: [
       panelSpec(),
       { name: "address", tag: "textarea" },
       diffSpec(),
-      { name: "lat", tag: "input", type: "text" },
-      { name: "lng", tag: "input", type: "text" },
+      { name: "lat", tag: "input", type: "text", value: pin[0] },
+      { name: "lng", tag: "input", type: "text", value: pin[1] },
     ],
     tag: "form",
   });
@@ -170,19 +170,25 @@ describe("address lookup fills the pin inputs", () => {
     expect(inputs).toBe(1);
   });
 
-  test("an unlocated address leaves the pin inputs untouched", async () => {
-    const { lat, lng } = await searchAndChoose({
-      addresses: ["10 Downing Street, LONDON"],
-      matches: [{ lat: "", line: "10 Downing Street, LONDON", lng: "" }],
-    });
+  test("an unlocated address clears a previously saved pin", async () => {
+    // A pin left over from the old address must never save against the new
+    // one — the operator sets a fresh location instead.
+    const { lat, lng } = await searchAndChoose(
+      {
+        addresses: ["10 Downing Street, LONDON"],
+        matches: [{ lat: "", line: "10 Downing Street, LONDON", lng: "" }],
+      },
+      formSpec(["50.0", "1.0"]),
+    );
     expect(lat.value).toBe("");
     expect(lng.value).toBe("");
   });
 
-  test("a response without matches leaves the pin inputs untouched", async () => {
-    const { lat, lng } = await searchAndChoose({
-      addresses: ["10 Downing Street, LONDON"],
-    });
+  test("a response without matches also clears a saved pin", async () => {
+    const { lat, lng } = await searchAndChoose(
+      { addresses: ["10 Downing Street, LONDON"] },
+      formSpec(["50.0", "1.0"]),
+    );
     expect(lat.value).toBe("");
     expect(lng.value).toBe("");
   });

@@ -16,6 +16,7 @@ import {
   type LogisticsFormErrors,
   type LogisticsFormValues,
   parseLogisticsPlan,
+  withSubmittedPlan,
 } from "#routes/admin/attendee-logistics.ts";
 import {
   buildLogisticsTabData,
@@ -37,22 +38,36 @@ import { parseCoordinatePair } from "#shared/validation/coordinates.ts";
 import { AttendeeLogisticsPanel } from "#templates/admin/attendee-logistics-tab.tsx";
 import { validateAddress } from "#templates/fields.ts";
 
-/** Re-render the submitted form in place at 400 (validation failure). */
+/** Re-render the submitted form in place at 400 (validation failure). The
+ * start/end selectors show the SUBMITTED choices, not the saved ones, so
+ * fixing the address or pin never silently reverts the operator's times. */
 const renderSubmittedLogistics = (
   session: AuthSession,
   attendeeId: number,
+  form: FormParams,
   values: LogisticsFormValues,
   errors: LogisticsFormErrors,
 ): Promise<Response> =>
   attendeePage.renderPage(session, attendeeId, "logistics", {
-    sections: async (entity) => [
-      {
-        html: AttendeeLogisticsPanel({
-          data: await buildLogisticsTabData(entity, values, errors),
-        }),
-        kind: "custom" as const,
-      },
-    ],
+    sections: async (entity) => {
+      const data = await buildLogisticsTabData(entity, values, errors);
+      const logistics =
+        data.logistics &&
+        withSubmittedPlan(
+          data.logistics,
+          parseLogisticsPlan(
+            form,
+            await storedFormLines(entity),
+            new Set(data.logistics.agents.map((agent) => agent.id)),
+          ),
+        );
+      return [
+        {
+          html: AttendeeLogisticsPanel({ data: { ...data, logistics } }),
+          kind: "custom" as const,
+        },
+      ];
+    },
     status: 400,
   });
 
@@ -95,7 +110,7 @@ const handleLogisticsSubmit = async (
   const addressError = validateAddress(values.address);
   const coords = parseCoordinatePair(values.lat, values.lng);
   if (addressError || !coords.ok) {
-    return renderSubmittedLogistics(session, attendeeId, values, {
+    return renderSubmittedLogistics(session, attendeeId, form, values, {
       addressError,
       locationError: coords.ok ? null : t("attendee_logistics.location_error"),
     });

@@ -115,15 +115,16 @@ const fillInput = (input: HTMLInputElement, value: string): void => {
   input.dispatchEvent(new Event("input", { bubbles: true }));
 };
 
-/** Copy the chosen address's coordinates into the page's lat/lng inputs (the
- * Logistics tab's pin). Pages without the inputs, and unlocated addresses,
- * leave everything untouched. */
+/** Make the page's lat/lng inputs (the Logistics tab's pin) reflect the
+ * chosen address: its coordinates when the match is located, cleared when it
+ * isn't — a pin left over from a previous address would silently save the
+ * old spot against the new one. Pages without the inputs are untouched. */
 const fillCoordinates = (match: AddressMatch | undefined): void => {
-  if (!match || !match.lat || !match.lng) return;
   const inputs = findPinInputs();
   if (!inputs) return;
-  fillInput(inputs.latInput, match.lat);
-  fillInput(inputs.lngInput, match.lng);
+  const located = Boolean(match?.lat && match?.lng);
+  fillInput(inputs.latInput, located ? match!.lat : "");
+  fillInput(inputs.lngInput, located ? match!.lng : "");
 };
 
 /** Copy the chosen address into the textarea, hide the dropdown again, and

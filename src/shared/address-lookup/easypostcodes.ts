@@ -19,6 +19,10 @@ import type {
 
 const API_BASE = "https://api.easypostcodes.com/addresses/";
 
+/** Ask for each address's coordinates too — without this flag the API omits
+ * latitude/longitude entirely (they feed the Logistics tab's map pin). */
+const GEO_QUERY = "?includeGeo=true";
+
 /**
  * A UK postcode with the space removed: outward code (area letters + district
  * digit, optionally one more letter/digit) followed by the three-character
@@ -86,9 +90,10 @@ export const fetchEasypostcodesAddresses = async (
 ): Promise<ApiResult<AddressLookupResult>> => {
   let response: Awaited<ReturnType<typeof fetchText>>;
   try {
-    response = await fetchText(API_BASE + encodeURIComponent(search), {
-      headers: { Key: apiKey },
-    });
+    response = await fetchText(
+      API_BASE + encodeURIComponent(search) + GEO_QUERY,
+      { headers: { Key: apiKey } },
+    );
   } catch (error) {
     return {
       error: `EasyPostcodes lookup failed: ${String(error)}`,

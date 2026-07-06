@@ -39,6 +39,8 @@ export type PaymentCspConfig = {
  * provider's checkout host the browser blocks the redirect to it.
  * When Botpoison is enabled, connect-src allows the contact form's browser
  * widget to reach the Botpoison challenge API.
+ * img-src additionally allows OpenStreetMap tiles — the attendee Logistics
+ * tab's map loads its tile images straight from tile.openstreetmap.org.
  */
 export const buildCspHeader = (
   embeddable: boolean,
@@ -47,6 +49,7 @@ export const buildCspHeader = (
 ): string => {
   const directives = [
     "default-src 'self'",
+    "img-src 'self' https://tile.openstreetmap.org",
     "base-uri 'self'",
     "object-src 'none'",
   ];

@@ -177,8 +177,15 @@ const updateTargetPiiFromDecision = (
   target: Attendee,
 ): Promise<unknown> => {
   // The pinned location belongs to the address it was pinned for, so it
-  // follows whichever side's address the operator keeps.
-  const addressFrom = decision.pii.address === "source" ? source : target;
+  // follows whichever side's address the operator keeps. When the kept side
+  // has no pin but the OTHER side pinned the very same address text, keep
+  // that pin — identical addresses render as one "(same)" value on the merge
+  // form, so dropping the only pin there would be a silent loss.
+  const kept = decision.pii.address === "source" ? source : target;
+  const other = kept === source ? target : source;
+  const keptIsPinned = Boolean(kept.lat && kept.lng);
+  const addressFrom =
+    keptIsPinned || kept.address !== other.address ? kept : other;
   return updateAttendeePII(attendeeId, {
     address: pickPiiField(decision, "address", source, target),
     email: pickPiiField(decision, "email", source, target),

@@ -117,9 +117,10 @@ describe("fetchEasypostcodesAddresses", () => {
     const result = await fetchEasypostcodesAddresses("SW1A 1AA", "secret-key");
 
     expect(result).toEqual({ addresses: [], ok: true });
+    // includeGeo asks the API to return each address's latitude/longitude.
     expect(captured).toEqual({
       key: "secret-key",
-      url: "https://api.easypostcodes.com/addresses/SW1A%201AA",
+      url: "https://api.easypostcodes.com/addresses/SW1A%201AA?includeGeo=true",
     });
   });
 
