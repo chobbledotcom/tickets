@@ -57,6 +57,14 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       expect(await getChildIds(parent.id)).toEqual([childB.id]);
     });
 
+    test("dedupes a repeated child id to a single edge", async () => {
+      const { parent, childA } = await threeListings();
+      await setChildIds(parent.id, [childA.id, childA.id, childA.id]);
+      expect(await getChildIds(parent.id)).toEqual([childA.id]);
+      // And the reverse lookup sees exactly one edge too.
+      expect(await getParentIds(childA.id)).toEqual([parent.id]);
+    });
+
     test("an empty set clears all children", async () => {
       const { parent, childA } = await threeListings();
       await setChildIds(parent.id, [childA.id]);
@@ -70,6 +78,17 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       const { parent, childA } = await threeListings();
       await setChildIds(parent.id, [childA.id]);
       expect(await getParentIds(childA.id)).toEqual([parent.id]);
+    });
+
+    test("returns a child's parent ids ascending regardless of link order", async () => {
+      const { parent, childA } = await threeListings();
+      const parent2 = await createTestListing({ name: "Base unit 2" });
+      // Link the higher-id parent first so insert order is descending.
+      await setChildIds(parent2.id, [childA.id]);
+      await setChildIds(parent.id, [childA.id]);
+      expect(await getParentIds(childA.id)).toEqual(
+        ascending([parent.id, parent2.id]),
+      );
     });
 
     test("hydrates the parent listings of a child", async () => {
