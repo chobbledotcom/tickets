@@ -121,6 +121,8 @@ describeWithEnv("db > attendees > updateAttendeePII", { db: true }, () => {
     await updateAttendeePII(edited.id, {
       address: "1 New Street",
       email: "new@example.com",
+      lat: "",
+      lng: "",
       name: "New Name",
       payment_id: edited.payment_id,
       phone: "+447700900999",

@@ -300,8 +300,6 @@ const applyMergeDecisions = async (
     targetId: attendeeId,
     targetPii: {
       ...extractTargetPii(target),
-      lat: target.lat,
-      lng: target.lng,
       payment_id: target.payment_id,
       ticket_token: target.ticket_token,
     },

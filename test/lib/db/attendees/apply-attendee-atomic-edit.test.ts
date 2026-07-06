@@ -29,6 +29,8 @@ const encryptTestBlob = async (
   const blob = buildPiiBlob({
     address: "",
     email,
+    lat: "",
+    lng: "",
     name,
     payment_id: "",
     phone: "",
