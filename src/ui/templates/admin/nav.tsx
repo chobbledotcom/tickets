@@ -338,11 +338,16 @@ const sectionLevels = (
   const subHighlight = active === sectionItems.topHref ? "" : active;
   // Never repeat the section's own landing link inside its sub-nav — the
   // top-level bar already carries it, so the submenu shows only the pages
-  // *within* the section (Add, Import, sub-pages). Filtering here keeps every
-  // section builder free to list its landing link (for `ownsActive`) without
-  // it showing up twice in the menu.
+  // *within* the section (Add, Import, sub-pages). A "repeat" is the same
+  // destination under the same name: we drop a sub-item only when it matches
+  // the top-level link on both href AND label. That keeps a distinctly-named
+  // landing tab (e.g. Site's "Homepage", which shares /admin/site but reads
+  // differently) while removing true duplicates like Listings→Listings.
   const subItems = sectionItems.items.filter(
-    (item) => item.href !== sectionItems.topHref,
+    (item) =>
+      !(
+        item.href === sectionItems.topHref && item.label === sectionItems.label
+      ),
   );
   // The model never carries an empty level (every rendered <ul> must have
   // children), so a section left with no sub-pages — e.g. an "Add"-only
