@@ -8,9 +8,8 @@
  * messages from the panel's data attributes and never carries strings of its
  * own.
  *
- * Modes: "locked" (public booking form — the script makes the textarea
- * read-only until the Edit button unlocks it) and "editable" (admin attendee
- * forms — the textarea always stays editable).
+ * The address textarea always stays editable — searching a postcode fills it
+ * in, but the customer can type or correct it at any point.
  */
 
 import { t } from "#i18n";
@@ -19,17 +18,15 @@ import {
   activeAddressLookupProvider,
 } from "#shared/address-lookup/providers.ts";
 
-export type AddressLookupMode = "locked" | "editable";
-
 /** The search panel markup, or "" when no lookup provider is configured. */
-export const renderAddressLookupPanel = (mode: AddressLookupMode): string => {
+export const renderAddressLookupPanel = (): string => {
   const provider = activeAddressLookupProvider();
   if (!provider) return "";
   const definition = ADDRESS_LOOKUP_PROVIDERS[provider];
   return String(
     <fieldset
       class="address-lookup"
-      data-address-lookup={mode}
+      data-address-lookup={true}
       data-error={t("address_lookup.failed")}
       data-no-results={t("address_lookup.no_results")}
       data-placeholder={t("address_lookup.choose_placeholder")}
@@ -55,11 +52,6 @@ export const renderAddressLookupPanel = (mode: AddressLookupMode): string => {
         <select data-address-results={true}></select>
       </label>
       <p data-address-status={true} hidden></p>
-      {mode === "locked" && (
-        <button data-address-edit={true} hidden type="button">
-          {t("address_lookup.edit")}
-        </button>
-      )}
     </fieldset>,
   );
 };

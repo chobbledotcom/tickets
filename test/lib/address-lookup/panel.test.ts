@@ -1,8 +1,8 @@
 /**
  * The server-rendered postcode search panel: gated on the configured
  * provider, hidden by default, carrying all client copy in data attributes,
- * and threaded onto the address field by getTicketFields (public "locked",
- * admin "editable").
+ * and threaded onto the address field by getTicketFields. The address
+ * textarea always stays editable.
  */
 
 import { expect } from "@std/expect";
@@ -22,18 +22,18 @@ afterEach(() => {
 
 describe("renderAddressLookupPanel", () => {
   test("renders nothing while no provider is configured", () => {
-    expect(renderAddressLookupPanel("locked")).toBe("");
+    expect(renderAddressLookupPanel()).toBe("");
   });
 
   test("renders nothing for an unrecognised stored provider value", () => {
     settings.setForTest({ address_lookup_provider: "surprise" });
-    expect(renderAddressLookupPanel("locked")).toBe("");
+    expect(renderAddressLookupPanel()).toBe("");
   });
 
   test("renders a hidden panel with the provider's search copy", () => {
     enableProviderForTest();
-    const html = renderAddressLookupPanel("locked");
-    expect(html).toContain('data-address-lookup="locked"');
+    const html = renderAddressLookupPanel();
+    expect(html).toContain("data-address-lookup");
     expect(html).toContain("hidden");
     expect(html).toContain(">Postcode<");
     expect(html).toContain('placeholder="e.g. SW1A 1AA"');
@@ -47,12 +47,9 @@ describe("renderAddressLookupPanel", () => {
     expect(html).toContain("data-placeholder=");
   });
 
-  test("locked mode has an Edit button; editable mode does not", () => {
+  test("never renders an Edit button — the textarea stays editable", () => {
     enableProviderForTest();
-    expect(renderAddressLookupPanel("locked")).toContain("data-address-edit");
-    expect(renderAddressLookupPanel("editable")).not.toContain(
-      "data-address-edit",
-    );
+    expect(renderAddressLookupPanel()).not.toContain("data-address-edit");
   });
 });
 
@@ -60,16 +57,16 @@ describe("address field panel threading", () => {
   const addressField = (fields: Field[]): Field =>
     fields.find((f) => f.name === "address")!;
 
-  test("public ticket fields lock the address behind the panel", () => {
+  test("public ticket fields attach the panel to the address field", () => {
     enableProviderForTest();
     const field = addressField(getTicketFields("address", false));
-    expect(field.beforeHtml).toContain('data-address-lookup="locked"');
+    expect(field.beforeHtml).toContain("data-address-lookup");
   });
 
-  test("admin add-attendee fields keep the address editable", () => {
+  test("admin add-attendee fields attach the panel to the address field", () => {
     enableProviderForTest();
     const field = addressField(getAddAttendeeFields("address", false));
-    expect(field.beforeHtml).toContain('data-address-lookup="editable"');
+    expect(field.beforeHtml).toContain("data-address-lookup");
   });
 
   test("no provider means the plain field, with no panel attached", () => {
@@ -88,7 +85,7 @@ describe("address field panel threading", () => {
   test("renderFields emits the panel directly before the address label", () => {
     enableProviderForTest();
     const html = renderFields(getTicketFields("address", false));
-    const panelAt = html.indexOf('data-address-lookup="locked"');
+    const panelAt = html.indexOf("data-address-lookup");
     const labelAt = html.indexOf('name="address"');
     expect(panelAt).toBeGreaterThan(-1);
     expect(panelAt).toBeLessThan(labelAt);

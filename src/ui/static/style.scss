@@ -1638,6 +1638,12 @@ fieldset.inset {
   gap: var(--space-s);
 }
 
+/* The "Number of packages" selector only ever holds small counts, so keep it
+   narrow rather than stretching to the container width. */
+select[data-package-members] {
+  max-width: 5rem;
+}
+
 /* Booking-form running total: the "show total" button and the live summary the
    running-total script renders into the adjacent <output>. */
 .running-total {

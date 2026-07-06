@@ -1,7 +1,8 @@
 /**
  * Address-lookup client enhancement: reveals the server-rendered panel,
- * searches the endpoint, fills the select, copies the chosen line into the
- * textarea, and manages the locked/editable textarea modes.
+ * searches the endpoint, fills the select, and copies the chosen line into the
+ * always-editable textarea (re-hiding the dropdown and firing an input event
+ * so dependent enhancements refresh).
  */
 
 import { expect } from "@std/expect";
@@ -15,7 +16,7 @@ import {
 } from "#test-utils/fake-dom.ts";
 import { setupFetchStub } from "#test-utils/fetch-stub.ts";
 
-const panelSpec = (mode: "locked" | "editable"): ElementSpec => ({
+const panelSpec = (): ElementSpec => ({
   children: [
     {
       children: [{ data: { addressSearch: "" }, tag: "input", type: "text" }],
@@ -29,12 +30,9 @@ const panelSpec = (mode: "locked" | "editable"): ElementSpec => ({
       tag: "label",
     },
     { data: { addressStatus: "" }, hidden: true, tag: "p" },
-    ...(mode === "locked"
-      ? [{ data: { addressEdit: "" }, hidden: true, tag: "button" }]
-      : []),
   ],
   data: {
-    addressLookup: mode,
+    addressLookup: "",
     error: "Lookup failed",
     noResults: "No addresses found",
     placeholder: "Select an address…",
@@ -44,8 +42,8 @@ const panelSpec = (mode: "locked" | "editable"): ElementSpec => ({
   tag: "div",
 });
 
-const formSpec = (mode: "locked" | "editable"): ElementSpec => ({
-  children: [panelSpec(mode), { name: "address", tag: "textarea" }],
+const formSpec = (): ElementSpec => ({
+  children: [panelSpec(), { name: "address", tag: "textarea" }],
   tag: "form",
 });
 
@@ -57,17 +55,15 @@ type Parts = {
   resultsLabel: FakeElement;
   select: FakeElement;
   status: FakeElement;
-  editButton: FakeElement | null;
   textarea: FakeElement;
 };
 
 /** Install the DOM, run the enhancement, and hand back the pieces. */
-const setup = (mode: "locked" | "editable"): Parts => {
-  const [form] = installFakeDom([formSpec(mode)]);
+const setup = (): Parts => {
+  const [form] = installFakeDom([formSpec()]);
   initAddressLookup();
   const one = (selector: string) => form!.querySelector(selector)!;
   return {
-    editButton: form!.querySelector("[data-address-edit]"),
     findButton: one("[data-address-find]"),
     form: form!,
     panel: one("[data-address-lookup]"),
@@ -108,7 +104,7 @@ describe("address lookup client", () => {
 
   test("a select without its results-label wrapper stays disabled", () => {
     // The select alone isn't enough — revealing it needs the label to unhide.
-    const partial = panelSpec("locked");
+    const partial = panelSpec();
     partial.children = partial.children!.map((c) =>
       "addressResultsLabel" in (c.data ?? {})
         ? { data: { addressResults: "" }, tag: "select" as const }
@@ -125,13 +121,13 @@ describe("address lookup client", () => {
   });
 
   test("leaves the panel hidden when the address textarea is missing", () => {
-    const [panel] = installFakeDom([panelSpec("locked")]);
+    const [panel] = installFakeDom([panelSpec()]);
     initAddressLookup();
     expect(panel!.hidden).toBe(true);
   });
 
   test("leaves a panel missing its own controls hidden", () => {
-    const gutted = { ...panelSpec("locked"), children: [] };
+    const gutted = { ...panelSpec(), children: [] };
     const form = initPanelInForm(gutted);
     expect(form.querySelector("[data-address-lookup]")!.hidden).toBe(true);
   });
@@ -148,42 +144,15 @@ describe("address lookup client", () => {
     test(`leaves a panel missing its ${missing} control hidden`, () => {
       const hasControl = (spec: ElementSpec): boolean =>
         missing in (spec.data ?? {}) || (spec.children ?? []).some(hasControl);
-      const partial = panelSpec("locked");
+      const partial = panelSpec();
       partial.children = partial.children!.filter((c) => !hasControl(c));
       const form = initPanelInForm(partial);
       expect(form.querySelector("[data-address-lookup]")!.hidden).toBe(true);
     });
   }
 
-  test("locked mode without an Edit button never locks the textarea", () => {
-    // The server always renders the Edit button in locked mode; if it is
-    // missing, locking would trap the user, so the textarea stays editable.
-    const noEdit = panelSpec("locked");
-    noEdit.children = noEdit.children!.filter(
-      (c) => !("addressEdit" in (c.data ?? {})),
-    );
-    const form = initPanelInForm(noEdit);
-    expect(form.querySelector("textarea")!.readOnly).toBe(false);
-  });
-
-  test("a locked textarea outside any form still locks and unlocks", () => {
-    const [, textarea] = installFakeDom([
-      panelSpec("locked"),
-      { name: "address", tag: "textarea" },
-    ]);
-    initAddressLookup();
-    expect(textarea!.readOnly).toBe(true);
-  });
-
-  test("locked mode reveals the panel, locks the textarea, shows Edit", () => {
-    const { editButton, panel, textarea } = setup("locked");
-    expect(panel.hidden).toBe(false);
-    expect(textarea.readOnly).toBe(true);
-    expect(editButton!.hidden).toBe(false);
-  });
-
-  test("editable mode reveals the panel and leaves the textarea editable", () => {
-    const { panel, textarea } = setup("editable");
+  test("reveals the panel and leaves the textarea editable", () => {
+    const { panel, textarea } = setup();
     expect(panel.hidden).toBe(false);
     expect(textarea.readOnly).toBe(false);
   });
@@ -198,8 +167,7 @@ describe("address lookup client", () => {
         jsonResponse({ addresses: ["10 Downing Street", "11 Downing Street"] }),
       );
     });
-    const { findButton, resultsLabel, searchInput, select, status } =
-      setup("editable");
+    const { findButton, resultsLabel, searchInput, select, status } = setup();
     searchInput.value = "sw1a 2aa";
 
     findButton.dispatch("click");
@@ -220,7 +188,7 @@ describe("address lookup client", () => {
 
   test("shows the searching message while the lookup is in flight", async () => {
     stubFetch(() => new Promise(() => {})); // never resolves
-    const { findButton, searchInput, status } = setup("editable");
+    const { findButton, searchInput, status } = setup();
     searchInput.value = "SW1A 2AA";
 
     findButton.dispatch("click");
@@ -235,7 +203,7 @@ describe("address lookup client", () => {
     stubFetch(() =>
       Promise.resolve(jsonResponse({ addresses: ["10 Downing Street"] }, 500)),
     );
-    const { findButton, searchInput, select, status } = setup("editable");
+    const { findButton, searchInput, select, status } = setup();
     searchInput.value = "SW1A 2AA";
 
     findButton.dispatch("click");
@@ -247,7 +215,7 @@ describe("address lookup client", () => {
 
   test("an empty search box never calls the endpoint", async () => {
     stubFetch(() => Promise.reject(new Error("should not be called")));
-    const { findButton, searchInput } = setup("editable");
+    const { findButton, searchInput } = setup();
     searchInput.value = "   ";
 
     findButton.dispatch("click");
@@ -258,7 +226,7 @@ describe("address lookup client", () => {
 
   test("Enter in the search box searches instead of submitting the form", async () => {
     stubFetch(() => Promise.resolve(jsonResponse({ addresses: ["A"] })));
-    const { searchInput, select } = setup("editable");
+    const { searchInput, select } = setup();
     searchInput.value = "SW1A 2AA";
     let prevented = false;
 
@@ -276,7 +244,7 @@ describe("address lookup client", () => {
 
   test("other keys in the search box are ignored", async () => {
     stubFetch(() => Promise.reject(new Error("should not be called")));
-    const { searchInput } = setup("editable");
+    const { searchInput } = setup();
     searchInput.value = "SW1A 2AA";
 
     searchInput.dispatch("keydown", { key: "a", preventDefault: () => {} });
@@ -287,7 +255,7 @@ describe("address lookup client", () => {
 
   test("no matches shows the no-results message and keeps the select hidden", async () => {
     stubFetch(() => Promise.resolve(jsonResponse({ addresses: [] })));
-    const { findButton, resultsLabel, searchInput, status } = setup("editable");
+    const { findButton, resultsLabel, searchInput, status } = setup();
     searchInput.value = "ZZ99 9ZZ";
 
     findButton.dispatch("click");
@@ -300,7 +268,7 @@ describe("address lookup client", () => {
 
   /** Run a search with the current fetch stub and assert the shown status. */
   const searchExpectingStatus = async (expected: string): Promise<void> => {
-    const { findButton, searchInput, status } = setup("editable");
+    const { findButton, searchInput, status } = setup();
     searchInput.value = "SW1A 2AA";
 
     findButton.dispatch("click");
@@ -331,8 +299,8 @@ describe("address lookup client", () => {
     // The server always renders every data-* string; if one is missing the
     // status simply stays blank instead of showing "undefined".
     stubFetch(() => Promise.resolve(jsonResponse({ addresses: [] })));
-    const bare = panelSpec("editable");
-    bare.data = { addressLookup: "editable" };
+    const bare = panelSpec();
+    bare.data = { addressLookup: "" };
     const [form] = installFakeDom([
       { children: [bare, { name: "address", tag: "textarea" }], tag: "form" },
     ]);
@@ -349,7 +317,7 @@ describe("address lookup client", () => {
   });
 
   test("choosing an address replaces whatever the textarea held", () => {
-    const { select, textarea } = setup("editable");
+    const { select, textarea } = setup();
     textarea.value = "half-typed address";
     select.value = "10 Downing Street, LONDON";
 
@@ -358,52 +326,37 @@ describe("address lookup client", () => {
     expect(textarea.value).toBe("10 Downing Street, LONDON");
   });
 
+  test("choosing an address re-hides the dropdown", () => {
+    const { resultsLabel, select, textarea } = setup();
+    resultsLabel.hidden = false;
+    select.value = "10 Downing Street, LONDON";
+
+    select.dispatch("change");
+
+    expect(textarea.value).toBe("10 Downing Street, LONDON");
+    expect(resultsLabel.hidden).toBe(true);
+  });
+
+  test("choosing an address fires an input event on the textarea", () => {
+    const { select, textarea } = setup();
+    let inputs = 0;
+    textarea.addEventListener("input", () => {
+      inputs += 1;
+    });
+    select.value = "10 Downing Street, LONDON";
+
+    select.dispatch("change");
+
+    expect(inputs).toBe(1);
+  });
+
   test("choosing the placeholder leaves the textarea alone", () => {
-    const { select, textarea } = setup("locked");
+    const { select, textarea } = setup();
     textarea.value = "already chosen";
     select.value = "";
 
     select.dispatch("change");
 
     expect(textarea.value).toBe("already chosen");
-  });
-
-  test("Edit unlocks the textarea for corrections and focuses it", () => {
-    const { editButton, textarea } = setup("locked");
-
-    editButton!.dispatch("click");
-
-    expect(textarea.readOnly).toBe(false);
-    expect(editButton!.hidden).toBe(true);
-    expect(textarea.focused).toBe(true);
-  });
-
-  test("submitting with a locked empty address unlocks and resubmits", () => {
-    const { form, textarea } = setup("locked");
-    let prevented = false;
-
-    form.dispatch("submit", {
-      preventDefault: () => {
-        prevented = true;
-      },
-    });
-
-    expect(prevented).toBe(true);
-    expect(textarea.readOnly).toBe(false);
-  });
-
-  test("submitting with a chosen address goes straight through", () => {
-    const { form, textarea } = setup("locked");
-    textarea.value = "10 Downing Street";
-    let prevented = false;
-
-    form.dispatch("submit", {
-      preventDefault: () => {
-        prevented = true;
-      },
-    });
-
-    expect(prevented).toBe(false);
-    expect(textarea.readOnly).toBe(true);
   });
 });

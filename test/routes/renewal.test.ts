@@ -164,7 +164,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
 
       const html = await response.text();
       expect(response.status).toBe(200);
-      expect(html).toContain('data-address-lookup="locked"');
+      expect(html).toContain("data-address-lookup");
     });
 
     test("returns 404 for unknown token", async () => {

@@ -9,9 +9,8 @@
  * reaches the browser. Searching fills a select with the returned address
  * lines and choosing one fills the textarea.
  *
- * Modes ("data-address-lookup"): "locked" (public booking form) makes the
- * textarea read-only until the Edit button — or a submit with no address —
- * unlocks it; "editable" (admin attendee forms) leaves it always editable.
+ * The textarea always stays editable: a search fills it in, but the customer
+ * can type or correct the address at any point.
  */
 
 const ENDPOINT = "/address-lookup";
@@ -25,7 +24,6 @@ type PanelParts = {
   resultsLabel: HTMLElement;
   select: HTMLSelectElement;
   status: HTMLElement;
-  editButton: HTMLButtonElement | null;
   textarea: HTMLTextAreaElement;
 };
 
@@ -93,29 +91,15 @@ const search = async (parts: PanelParts): Promise<void> => {
   }
 };
 
-/** Lock the textarea behind the Edit button (public booking form). */
-const lockTextarea = (parts: PanelParts): void => {
-  const { editButton, textarea } = parts;
-  if (!editButton) return;
-  textarea.readOnly = true;
-  editButton.hidden = false;
-  const unlock = (): void => {
-    textarea.readOnly = false;
-    editButton.hidden = true;
-  };
-  editButton.addEventListener("click", () => {
-    unlock();
-    textarea.focus();
-  });
-  // A read-only textarea skips native required validation, so an untouched
-  // form could submit an empty address. Unlock and resubmit instead: the
-  // second pass runs native validation against the now-editable textarea.
-  textarea.form?.addEventListener("submit", (event) => {
-    if (!textarea.readOnly || textarea.value.trim() !== "") return;
-    event.preventDefault();
-    unlock();
-    textarea.form?.requestSubmit();
-  });
+/** Copy the chosen address into the textarea, hide the dropdown again, and
+ *  fire an input event so dependent enhancements (e.g. the char counter)
+ *  react to the prefilled value straight away. */
+const chooseAddress = (parts: PanelParts): void => {
+  const { resultsLabel, select, textarea } = parts;
+  if (!select.value) return;
+  textarea.value = select.value;
+  resultsLabel.hidden = true;
+  textarea.dispatchEvent(new Event("input", { bubbles: true }));
 };
 
 /** Find the panel's controls and its form's address textarea. */
@@ -141,7 +125,6 @@ const collectParts = (panel: HTMLElement): PanelParts | null => {
   }
   if (!textarea) return null;
   return {
-    editButton: panel.querySelector<HTMLButtonElement>("[data-address-edit]"),
     findButton,
     panel,
     resultsLabel,
@@ -152,23 +135,19 @@ const collectParts = (panel: HTMLElement): PanelParts | null => {
   };
 };
 
-/** Reveal one panel and wire its search, selection, and edit behaviors. */
+/** Reveal one panel and wire its search and selection behaviors. */
 const setupPanel = (panel: HTMLElement): void => {
   const parts = collectParts(panel);
   if (!parts) return;
-  const { findButton, searchInput, select, textarea } = parts;
+  const { findButton, searchInput, select } = parts;
   panel.hidden = false;
-  if (panel.dataset.addressLookup === "locked") lockTextarea(parts);
   findButton.addEventListener("click", () => void search(parts));
   searchInput.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
     void search(parts);
   });
-  select.addEventListener("change", () => {
-    if (!select.value) return;
-    textarea.value = select.value;
-  });
+  select.addEventListener("change", () => chooseAddress(parts));
 };
 
 /** Boot every address-lookup panel on the page. */
