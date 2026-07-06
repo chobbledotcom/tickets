@@ -7,7 +7,7 @@ import {
   logisticsAgentsTable,
 } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
-import { getUserAgentIds } from "#shared/db/user-agents.ts";
+import { userAgents } from "#shared/db/user-agents.ts";
 import { deleteUser, getUserByUsername } from "#shared/db/users.ts";
 import {
   adminFormPost,
@@ -49,7 +49,7 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
     expect(response.status).toBe(302);
 
     const user = await getUserByUsername("driverbob");
-    expect(await getUserAgentIds(user!.id)).toEqual([van.id]);
+    expect(await userAgents.getIds(user!.id)).toEqual([van.id]);
   });
 
   test("inviting an agent drops unknown agent ids", async () => {
@@ -59,7 +59,7 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
     expect(response.status).toBe(302);
 
     const user = await getUserByUsername("driverjoe");
-    expect(await getUserAgentIds(user!.id)).toEqual([]);
+    expect(await userAgents.getIds(user!.id)).toEqual([]);
   });
 
   test("the manage page lists an agent user's assigned logistics agents", async () => {
@@ -91,7 +91,7 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
       agent_ids: String(van.id),
     });
     expectRedirect(response, "/admin/users");
-    expect(await getUserAgentIds(userId)).toEqual([van.id]);
+    expect(await userAgents.getIds(userId)).toEqual([van.id]);
   });
 
   test("editing agents for a non-agent user is rejected", async () => {
@@ -131,11 +131,11 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
 
   test("deleting an agent user removes their links but keeps the agents", async () => {
     const { van, userId } = await vanWithAssignedAgent("ua6", "driverdel");
-    expect(await getUserAgentIds(userId)).toEqual([van.id]);
+    expect(await userAgents.getIds(userId)).toEqual([van.id]);
 
     await deleteUser(userId);
 
-    expect(await getUserAgentIds(userId)).toEqual([]);
+    expect(await userAgents.getIds(userId)).toEqual([]);
     const agents = await getAllLogisticsAgents();
     expect(agents.some((a) => a.id === van.id)).toBe(true);
   });

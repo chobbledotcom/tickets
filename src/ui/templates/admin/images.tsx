@@ -158,16 +158,11 @@ export const adminImagesPage = (
     successMessage,
   )(
     storageEnabled ? (
-      <>
-        {!isReadOnly() && (
-          <p class="actions">
-            <ActionButton href="/admin/images/new" icon="plus">
-              {t("images.add")}
-            </ActionButton>
-          </p>
-        )}
-        {images.length === 0 ? <p>{t("images.empty")}</p> : imageTable(images)}
-      </>
+      images.length === 0 ? (
+        <p>{t("images.empty")}</p>
+      ) : (
+        imageTable(images)
+      )
     ) : (
       storageDisabledNotice()
     ),

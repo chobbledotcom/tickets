@@ -66,9 +66,9 @@ import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getImageFilenamesForItem } from "#shared/db/images.ts";
 import {
   anyNonStandaloneChild,
-  getChildIds,
   getChildListingIds,
   getChildrenForParents,
+  listingChildren,
 } from "#shared/db/listing-parents.ts";
 import { getListingsBySlugsBatch } from "#shared/db/listings.ts";
 import {
@@ -566,7 +566,7 @@ export const dropChildListings = async (
  */
 export const parentRequiresChild = async (
   listingId: number,
-): Promise<boolean> => (await getChildIds(listingId)).length > 0;
+): Promise<boolean> => (await listingChildren.getIds(listingId)).length > 0;
 
 /** Load active listings, 404 if none — or if any resolved slug is a
  * non-standalone child (a booking can't start from a child unless it is flagged

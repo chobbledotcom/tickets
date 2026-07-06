@@ -28,7 +28,7 @@ import {
   getLogisticsAssignmentsForAttendees,
 } from "#shared/db/logistics.ts";
 import { settings } from "#shared/db/settings.ts";
-import { getUserAgentIds } from "#shared/db/user-agents.ts";
+import { userAgents } from "#shared/db/user-agents.ts";
 import { getRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   type ListingWithCount,
@@ -272,7 +272,7 @@ const filterCalendarFeedAttendees = async (
   if (session.adminLevel !== "agent") return attendees;
   const [assignments, agentIds] = await Promise.all([
     getLogisticsAssignmentsForAttendees(attendees.map((a) => a.id)),
-    getUserAgentIds(session.userId),
+    userAgents.getIds(session.userId),
   ]);
   const visible = new Set<string>();
   for (const assignment of assignments) {

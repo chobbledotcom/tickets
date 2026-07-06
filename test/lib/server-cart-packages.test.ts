@@ -128,8 +128,8 @@ describeWithEnv(
         name: "Generator",
         unitPrice: 0,
       });
-      const { setChildIds } = await import("#shared/db/listing-parents.ts");
-      await setChildIds(parent.id, [child.id]);
+      const { listingChildren } = await import("#shared/db/listing-parents.ts");
+      await listingChildren.setIds(parent.id, [child.id]);
 
       // The child keeps its own quantity row beside the parent's fold —
       // exactly as the plain (package-less) multi-slug page treats it.
@@ -306,8 +306,8 @@ describeWithEnv(
         name: "Addon B",
         unitPrice: 0,
       });
-      const { setChildIds } = await import("#shared/db/listing-parents.ts");
-      await setChildIds(parent.id, [childA.id, childB.id]);
+      const { listingChildren } = await import("#shared/db/listing-parents.ts");
+      await listingChildren.setIds(parent.id, [childA.id, childB.id]);
 
       const html = await pageHtml(`${a.slug}+${b.slug}`);
       for (const child of [childA, childB]) {
@@ -374,8 +374,8 @@ describeWithEnv(
         "Addon Widget",
       );
       const parent = await createTestListing({ name: "Big Parent" });
-      const { setChildIds } = await import("#shared/db/listing-parents.ts");
-      await setChildIds(parent.id, [member.id]);
+      const { listingChildren } = await import("#shared/db/listing-parents.ts");
+      await listingChildren.setIds(parent.id, [member.id]);
 
       const response = await handleRequest(
         mockRequest(`/ticket/${group.slug}+zzzzz`),

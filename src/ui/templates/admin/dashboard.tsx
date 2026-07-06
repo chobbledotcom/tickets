@@ -42,13 +42,16 @@ import { AttendeeTable } from "#templates/attendee-table.tsx";
 import { ActionButton } from "#templates/components/actions.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
 
-/** The "Add listing" action button — a quick create shortcut on the editor and
- *  staff dashboards (the listings index reaches the same create/import flows
- *  through its section sub-nav instead). */
-const AddListingButton = (): JSX.Element => (
+/** The dashboard's quick-create actions — shortcuts to add a listing or an
+ *  attendee straight from the home page (each section's own sub-nav reaches the
+ *  same create flows once you're inside it). */
+const DashboardQuickActions = (): JSX.Element => (
   <p class="actions">
     <ActionButton href="/admin/listing/new" icon="plus">
       {t("admin.dashboard.add_listing")}
+    </ActionButton>
+    <ActionButton href="/admin/attendees/new" icon="user-plus">
+      {t("admin.listings.add_attendee")}
     </ActionButton>
   </p>
 );
@@ -383,7 +386,7 @@ export const adminDashboardPage = (
     successMessage,
   )(
     <>
-      {!isReadOnly() && <AddListingButton />}
+      {!isReadOnly() && <DashboardQuickActions />}
 
       <ListingsTableBlock
         columnKeys={columnKeys}

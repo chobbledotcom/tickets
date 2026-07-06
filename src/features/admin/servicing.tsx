@@ -47,7 +47,7 @@ import type { ListingWithCount } from "#shared/types.ts";
 import { parsePositiveMinorUnits } from "#shared/validation/money.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
-import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
 
@@ -312,11 +312,6 @@ const renderServicingList = async (session: AuthSession): Promise<string> => {
   return String(
     <AdminPage active="/admin/servicing" session={session} title="Servicing">
       <h1>Servicing</h1>
-      <p>
-        <ActionButton href="/admin/servicing/new" icon="plus">
-          New service event
-        </ActionButton>
-      </p>
       <DataTable
         columns={[
           { header: "Name" },

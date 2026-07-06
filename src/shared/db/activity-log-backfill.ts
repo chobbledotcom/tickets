@@ -15,10 +15,10 @@
  * converging over successive requests.
  */
 
-import type { InValue } from "@libsql/client";
 import { decrypt, ENCRYPTION_PREFIX } from "#shared/crypto/encryption.ts";
 import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
-import { executeBatch, queryAll } from "#shared/db/client.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import { executeBatch, queryAll, update } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   ACTIVITY_LOG_BACKFILL_BATCH,
@@ -29,7 +29,9 @@ import { logDebug } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
 
 /** Legacy env-key row awaiting re-encryption. */
-type LegacyRow = { id: number; message: string };
+// The batch query filters on the env-key prefix, so every fetched message is
+// legacy env-key ciphertext.
+type LegacyRow = { id: number; message: EnvKeyEncrypted };
 
 /**
  * Re-encrypt one batch of legacy env-key rows to the owner key. Returns the
@@ -46,13 +48,18 @@ export const backfillActivityLogBatch = async (
   );
   if (rows.length === 0) return 0;
   const updates = await Promise.all(
-    rows.map(async (row) => ({
-      args: [
-        await encryptWithOwnerKey(await decrypt(row.message), publicKey),
-        row.id,
-      ] as InValue[],
-      sql: "UPDATE activity_log SET message = ? WHERE id = ?",
-    })),
+    rows.map(async (row) =>
+      update(
+        "activity_log",
+        {
+          message: await encryptWithOwnerKey(
+            await decrypt(row.message),
+            publicKey,
+          ),
+        },
+        { id: row.id },
+      ),
+    ),
   );
   await executeBatch(updates);
   return rows.length;

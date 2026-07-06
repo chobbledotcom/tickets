@@ -13,7 +13,7 @@ import {
   getGroupPackagePrices,
   setGroupPackageMembers,
 } from "#shared/db/groups.ts";
-import { getParentIds, setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren, listingParents } from "#shared/db/listing-parents.ts";
 import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
 import { getListing } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -61,7 +61,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
         name: "Child Listing",
         unitPrice: 1500,
       });
-      await setChildIds(parent.id, [child.id]);
+      await listingChildren.setIds(parent.id, [child.id]);
 
       const blob = unwrapExport(await exportListing(child.id));
       expect(blob.kind).toBe("listing");
@@ -86,7 +86,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       // Slug is freshly minted, never copied from the source.
       expect(imported.slug).not.toBe(child.slug);
       expect(await getGroupIdsByListingId(result.id)).toEqual([group.id]);
-      expect(await getParentIds(result.id)).toEqual([parent.id]);
+      expect(await listingParents.getIds(result.id)).toEqual([parent.id]);
     });
 
     test("preserves a child's bookable-alone standalone page", async () => {
@@ -95,7 +95,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
         bookableAlone: true,
         name: "Alone Child",
       });
-      await setChildIds(parent.id, [child.id]);
+      await listingChildren.setIds(parent.id, [child.id]);
 
       const blob = unwrapExport(await exportListing(child.id));
       // The flag must survive the export (otherwise import defaults it to false).
@@ -479,7 +479,7 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
   test("rejects a parent that is itself a child (single-level nesting)", async () => {
     const grandparent = await createTestListing({ name: "Grandparent" });
     const parent = await createTestListing({ name: "Middle" });
-    await setChildIds(grandparent.id, [parent.id]);
+    await listingChildren.setIds(grandparent.id, [parent.id]);
     const result = await importCatalog({
       kind: "listing",
       listing: { maxAttendees: 1, name: "Deep Child" },
@@ -635,7 +635,7 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
       version: 1,
     });
     if (!result.ok) throw new Error(result.error);
-    expect((await getParentIds(result.id)).length).toBe(30);
+    expect((await listingParents.getIds(result.id)).length).toBe(30);
   });
 
   test("imports a listing that belongs to many groups", async () => {
@@ -681,7 +681,7 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
       version: 1,
     });
     if (!result.ok) throw new Error(result.error);
-    expect((await getParentIds(result.id)).length).toBe(1);
+    expect((await listingParents.getIds(result.id)).length).toBe(1);
     expect((await getGroupIdsByListingId(result.id)).length).toBe(1);
   });
 

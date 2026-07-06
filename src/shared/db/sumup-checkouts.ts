@@ -36,12 +36,13 @@ import {
   unwrapKeyWithToken,
   wrapKeyWithToken,
 } from "#shared/crypto/keys.ts";
-import { execute, insert, queryOne } from "#shared/db/client.ts";
+import type { KeyEncrypted, WrappedKey } from "#shared/crypto/sealed.ts";
+import { execute, executeUpdate, insert, queryOne } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
 
 type SumupCheckoutRow = {
-  wrapped_key: string;
-  metadata: string;
+  wrapped_key: WrappedKey;
+  metadata: KeyEncrypted;
   sumup_id: string;
 };
 
@@ -77,9 +78,10 @@ export const setSumupCheckoutId = async (
   reference: string,
   sumupId: string,
 ): Promise<void> => {
-  await execute(
-    "UPDATE sumup_checkouts SET sumup_id = ? WHERE reference_index = ?",
-    [sumupId, await hmacHash(reference)],
+  await executeUpdate(
+    "sumup_checkouts",
+    { sumup_id: sumupId },
+    { reference_index: await hmacHash(reference) },
   );
 };
 

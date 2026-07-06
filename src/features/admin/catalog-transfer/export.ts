@@ -16,7 +16,7 @@ import {
   getGroupPackagePrices,
   groupsTable,
 } from "#shared/db/groups.ts";
-import { getParentIds } from "#shared/db/listing-parents.ts";
+import { listingParents } from "#shared/db/listing-parents.ts";
 import {
   getGroupDayPrices,
   getGroupDayPricesByGroupIds,
@@ -148,7 +148,7 @@ export const exportListing = async (
   const [memberships, groupNames, parentIds] = await Promise.all([
     getListingGroupMemberships(id),
     getAllGroupNames(),
-    getParentIds(id),
+    listingParents.getIds(id),
   ]);
   const groupDayPrices = await getGroupDayPricesByGroupIds(
     memberships.map((m) => m.group_id),

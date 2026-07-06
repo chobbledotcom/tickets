@@ -14,6 +14,7 @@ import {
   executeBatch,
   inPlaceholders,
   queryAll,
+  update,
 } from "#shared/db/client.ts";
 
 /** A start/end agent pair (null = unassigned) plus optional start/end times
@@ -66,23 +67,23 @@ export const setLogisticsAssignments = async (
   perListing: Map<number, LogisticsAssignment>,
 ): Promise<void> => {
   const statements = [
-    {
-      args: [split ? 1 : 0, attendeeId],
-      sql: "UPDATE attendees SET split_logistics_agents = ? WHERE id = ?",
-    },
-    ...Array.from(perListing.entries()).map(([listingId, assignment]) => ({
-      args: [
-        assignment.startAgentId,
-        assignment.endAgentId,
-        assignment.startTime,
-        assignment.endTime,
-        attendeeId,
-        listingId,
-      ],
-      sql: `UPDATE listing_attendees
-            SET start_agent_id = ?, end_agent_id = ?, start_time = ?, end_time = ?
-            WHERE attendee_id = ? AND listing_id = ?`,
-    })),
+    update(
+      "attendees",
+      { split_logistics_agents: split ? 1 : 0 },
+      { id: attendeeId },
+    ),
+    ...Array.from(perListing.entries()).map(([listingId, assignment]) =>
+      update(
+        "listing_attendees",
+        {
+          end_agent_id: assignment.endAgentId,
+          end_time: assignment.endTime,
+          start_agent_id: assignment.startAgentId,
+          start_time: assignment.startTime,
+        },
+        { attendee_id: attendeeId, listing_id: listingId },
+      ),
+    ),
   ];
   await executeBatch(statements);
 };
@@ -274,13 +275,15 @@ export const clearLogisticsAgentReferences = async (
   agentId: number,
 ): Promise<void> => {
   await executeBatch([
-    {
-      args: [agentId],
-      sql: "UPDATE listing_attendees SET start_agent_id = NULL WHERE start_agent_id = ?",
-    },
-    {
-      args: [agentId],
-      sql: "UPDATE listing_attendees SET end_agent_id = NULL WHERE end_agent_id = ?",
-    },
+    update(
+      "listing_attendees",
+      { start_agent_id: null },
+      { start_agent_id: agentId },
+    ),
+    update(
+      "listing_attendees",
+      { end_agent_id: null },
+      { end_agent_id: agentId },
+    ),
   ]);
 };

@@ -4,6 +4,7 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { buildSessionCookie } from "#shared/cookies.ts";
 import { hashPassword } from "#shared/crypto/hashing.ts";
+import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { createSession } from "#shared/db/sessions.ts";
@@ -298,7 +299,13 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
     test("when user already exists AND is activated redirects with message", async () => {
       restoreAdminEmail("admin@example.com");
       const passwordHash = await hashPassword("test");
-      await createUser("admin", passwordHash, "wrapped-bytes", "owner");
+      // Hand-crafted stored wrap — test fixture cast.
+      await createUser(
+        "admin",
+        passwordHash,
+        "wrapped-bytes" as WrappedKey,
+        "owner",
+      );
       const { response } = await postChoice("enable-superuser");
       expectErrorFlash(response, "already activated");
     });

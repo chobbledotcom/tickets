@@ -10,7 +10,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   adminGet,
@@ -48,7 +48,7 @@ const setupSoldOutChild = async () => {
   const parent = await createTestListing({ name: "Base unit" });
   const child = await createTestListing({ maxAttendees: 1, name: "Add-on" });
   await createTestAttendee(child.id, child.slug, "Buyer", "b@x.com");
-  await setChildIds(parent.id, [child.id]);
+  await listingChildren.setIds(parent.id, [child.id]);
   return { child, parent };
 };
 
@@ -250,8 +250,8 @@ describeWithEnv(
         const activeParent = await createTestListing({ name: "Active base" });
         const deadParent = await createTestListing({ name: "Dead base" });
         const child = await createTestListing({ name: "Add-on" });
-        await setChildIds(activeParent.id, [child.id]);
-        await setChildIds(deadParent.id, [child.id]);
+        await listingChildren.setIds(activeParent.id, [child.id]);
+        await listingChildren.setIds(deadParent.id, [child.id]);
         await deactivateTestListing(deadParent.id);
         await assertAddOnNote(child.slug);
       });
@@ -307,7 +307,7 @@ describeWithEnv(
           maxAttendees: 100,
           name: "Add-on",
         });
-        await setChildIds(parent.id, [child.id]);
+        await listingChildren.setIds(parent.id, [child.id]);
         await assertBookable(parent.slug);
       });
 
@@ -459,7 +459,7 @@ describeWithEnv(
           groupId: groupB.id,
           name: "Add-on",
         });
-        await setChildIds(parent.id, [child.id]);
+        await listingChildren.setIds(parent.id, [child.id]);
         const body = await publicBody("/listings");
         expect(body).toContain(`href="/ticket/${parent.slug}"`);
       });
@@ -551,7 +551,7 @@ describeWithEnv(
           name: "GalSoldChild",
         });
         await createTestAttendee(child.id, child.slug, "Buyer", "b@x.com");
-        await setChildIds(parent.id, [child.id]);
+        await listingChildren.setIds(parent.id, [child.id]);
         const body = await galleryBody();
         // Sold-out parents are rendered as a non-selectable, dimmed card.
         expect(body).not.toContain(`name="select_${parent.id}"`);

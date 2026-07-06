@@ -16,6 +16,7 @@ import {
   queryAll,
   resultRows,
   type SqlStatement,
+  update,
   withTransaction,
 } from "#shared/db/client.ts";
 import { requestCache } from "#shared/request-cache.ts";
@@ -180,10 +181,12 @@ const setOrderStatement = (
   pageId: number,
   ref: ItemRef,
   order: number,
-): SqlStatement => ({
-  args: [order, pageId, ref.type, ref.id],
-  sql: "UPDATE site_page_items SET sort_order = ? WHERE page_id = ? AND item_type = ? AND item_id = ?",
-});
+): SqlStatement =>
+  update(
+    "site_page_items",
+    { sort_order: order },
+    { item_id: ref.id, item_type: ref.type, page_id: pageId },
+  );
 
 /**
  * Delete a page and every edge touching it — its own items and any edge naming

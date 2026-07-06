@@ -19,10 +19,11 @@ import { createAuthedFormRoute } from "#shared/app-forms.ts";
 /* jscpd:ignore-start */
 import { getEffectiveDomain } from "#shared/config.ts";
 import { unwrapKeyWithToken, wrapKeyWithToken } from "#shared/crypto/keys.ts";
+import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllLogisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
-import { getUserAgentIds, setUserAgentIds } from "#shared/db/user-agents.ts";
+import { userAgents } from "#shared/db/user-agents.ts";
 import {
   createInvitedUser,
   decryptAdminLevel,
@@ -73,7 +74,7 @@ const loadAssignableAgents = (): Promise<LogisticsAgent[]> =>
 const wrapInviteDataKey = async (
   session: AuthSession,
   inviteCode: string,
-): Promise<string | Response> => {
+): Promise<WrappedKey | Response> => {
   if (!session.wrappedDataKey) {
     return errorRedirect("/admin/user/new", t("error.session_lacks_key"));
   }
@@ -108,7 +109,7 @@ const saveAgentSelection = async (
   form: FormParams,
 ): Promise<void> => {
   const agentIds = parseAssignedAgentIds(form, await loadAssignableAgents());
-  await setUserAgentIds(userId, agentIds);
+  await userAgents.setIds(userId, agentIds);
 };
 
 /**
@@ -122,7 +123,7 @@ const toDisplayUser = async (
   const adminLevel = await decryptAdminLevel(user);
   const agentNames =
     adminLevel === "agent" && agentNameById
-      ? (await getUserAgentIds(user.id))
+      ? (await userAgents.getIds(user.id))
           .map((id) => agentNameById.get(id))
           .filter((name): name is string => name !== undefined)
       : undefined;
@@ -329,7 +330,7 @@ const renderUserAgentsPage = async (
   if (notAgent) return notAgent;
   const [agents, selectedIds, username] = await Promise.all([
     loadAssignableAgents(),
-    getUserAgentIds(user.id),
+    userAgents.getIds(user.id),
     decryptUsername(user),
   ]);
   const displayUser = await toDisplayUser(user);

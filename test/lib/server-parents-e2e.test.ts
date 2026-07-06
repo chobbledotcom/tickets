@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import type { Listing } from "#shared/types.ts";
 import {
   bookingPageHtml,
@@ -516,7 +516,7 @@ const setupPickerWithSoloWidget = async (): Promise<{
     thankYouUrl: "",
     unitPrice: 0,
   });
-  await setChildIds(parent.id, [widget.id]);
+  await listingChildren.setIds(parent.id, [widget.id]);
   return { parent, widget };
 };
 
@@ -606,7 +606,7 @@ describeWithEnv(
         name: "Kit Widget",
         unitPrice: 0,
       });
-      await setChildIds(picker.id, [widget.id]);
+      await listingChildren.setIds(picker.id, [widget.id]);
       const { setGroupPackageMembers } = await import("#shared/db/groups.ts");
       await setGroupPackageMembers(group.id, [
         { listingId: picker.id, price: 0 },
@@ -648,7 +648,7 @@ describeWithEnv(
         maxQuantity: 5,
         name: "Solo Widget",
       });
-      await setChildIds(parent.id, [widget.id]);
+      await listingChildren.setIds(parent.id, [widget.id]);
 
       const html = await bookingPageHtml(`${parent.slug}+${widget.slug}`);
       const select = html.slice(

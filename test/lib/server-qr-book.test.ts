@@ -531,7 +531,7 @@ describeWithEnv("qr-book scan handler > parent gate", { db: true }, () => {
   const parentChildToken = async (
     slug: (ids: { parent: string; child: string }) => string,
   ) => {
-    const { setChildIds } = await import("#shared/db/listing-parents.ts");
+    const { listingChildren } = await import("#shared/db/listing-parents.ts");
     const parent = await createTestListing({
       fields: "",
       maxAttendees: 10,
@@ -542,7 +542,7 @@ describeWithEnv("qr-book scan handler > parent gate", { db: true }, () => {
       name: "Add-on",
       unitPrice: 0,
     });
-    await setChildIds(parent.id, [child.id]);
+    await listingChildren.setIds(parent.id, [child.id]);
     const tokenSlug = slug({ child: child.slug, parent: parent.slug });
     const token = await signQrBookToken(
       tokenSlug,

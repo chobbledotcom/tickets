@@ -6,7 +6,9 @@ import {
   adjustModifierRevenue,
   getActiveModifiers,
   getAllModifiers,
+  getModifier,
   getModifierAggregateRecalculation,
+  MODIFIER_AGGREGATE_FIELDS,
   modifiersTable,
   resetModifierAggregateFields,
   updateModifierAggregateValues,
@@ -46,6 +48,55 @@ describeWithEnv(
     /** total_revenue as the table read projects it (from the ledger). */
     const projectedRevenue = async (modifierId: number): Promise<number> =>
       (await getAllModifiers()).find((m) => m.id === modifierId)!.total_revenue;
+
+    test("a bare create fills the behavioural defaults", async () => {
+      // The base create form supplies only the pricing rule; the schema's
+      // defaults must make the modifier an active, automatic, whole-order rule
+      // with no gates — exactly what the admin docs promise a fresh modifier is.
+      const m = await makeModifier();
+      const stored = (await modifiersTable.findById(m.id))!;
+      expect(stored).toMatchObject({
+        active: true,
+        code_index: null,
+        min_subtotal: 0,
+        min_visits: 0,
+        scope: "all",
+        stock: null,
+        trigger: "automatic",
+      });
+    });
+
+    test("getModifier reads one modifier with its projected revenue", async () => {
+      const m = await makeModifier();
+      await postModifierLeg({ delta: 1200, modifierId: m.id });
+      const read = await getModifier(m.id);
+      expect(read).toMatchObject({
+        id: m.id,
+        name: "Add-on",
+        total_revenue: 1200,
+      });
+      // A missing id reads back as null, never a phantom row.
+      expect(await getModifier(m.id + 999)).toBeNull();
+    });
+
+    test("resetting every published aggregate field rebuilds both counts", async () => {
+      // Drives the reset through MODIFIER_AGGREGATE_FIELDS itself — the list the
+      // admin recalculate form submits — so a renamed/dropped field there breaks
+      // here, not silently on the form.
+      const m = await makeModifier();
+      await insertModifierUsage(m.id, 1, 3, 1500);
+      await updateModifierAggregateValues(m.id, {
+        total_uses: 9,
+        usage_count: 9,
+      });
+
+      await resetModifierAggregateFields(m.id, [...MODIFIER_AGGREGATE_FIELDS]);
+
+      expect(await aggregates(m.id)).toEqual({
+        total_uses: 3,
+        usage_count: 1,
+      });
+    });
 
     test("a new modifier starts with zeroed aggregates", async () => {
       const m = await makeModifier();

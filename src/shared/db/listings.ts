@@ -19,6 +19,7 @@ import {
 } from "#shared/accounting/range.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
+import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { addDays } from "#shared/dates.ts";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import {
@@ -92,7 +93,7 @@ export type ListingInput = {
   date?: string;
   location?: string;
   slug: string;
-  slugIndex: string;
+  slugIndex: BlindIndex;
   /** Ids of the groups this listing belongs to. Transient — membership lives in
    * the group_listings join table (written via setListingGroups), not a column,
    * so the listings table ignores this field. */
@@ -128,7 +129,7 @@ export type ListingInput = {
 };
 
 /** Compute slug index from slug for blind index lookup */
-export const computeSlugIndex = (slug: string): Promise<string> =>
+export const computeSlugIndex = (slug: string): Promise<BlindIndex> =>
   hmacHash(slug);
 
 const TZ_SUFFIX_REGEX = /(?:Z|[+-]\d{2}:\d{2})$/i;
@@ -159,29 +160,31 @@ const normalizeUtcDatetime = (value: string, label: string): string => {
 };
 
 /** Encrypt a datetime value for DB storage (normalized to UTC) */
-const encryptDatetime = (v: string, label: string): Promise<string> =>
+const encryptDatetime = (v: string, label: string): Promise<EnvKeyEncrypted> =>
   encrypt(normalizeUtcDatetime(v, label));
 
 /** Decrypt an encrypted datetime from DB storage (empty → empty, otherwise → ISO) */
-const decryptDatetime = async (v: string): Promise<string> => {
+const decryptDatetime = async (v: EnvKeyEncrypted): Promise<string> => {
   const str = await decrypt(v);
   if (str === "") return "";
   return normalizeUtcDatetime(str, "stored datetime");
 };
 
 /** Encrypt closes_at for DB storage (null/empty → encrypted empty) */
-export const writeClosesAt = (v: string | null): Promise<string | null> =>
+export const writeClosesAt = (v: string | null): Promise<EnvKeyEncrypted> =>
   encryptDatetime(v ?? "", "closes_at");
 
 /** Decrypt closes_at from DB storage (encrypted empty → null) */
 const readClosesAt = async (v: string | null): Promise<string | null> => {
-  // DB column is NOT NULL (writeClosesAt always encrypts), so v is always a string
-  const result = await decryptDatetime(v!);
+  // DB column is NOT NULL (writeClosesAt always seals env-key ciphertext), so v
+  // is always a stored EnvKeyEncrypted — the column's read boundary, mirroring
+  // col.encrypted's read transform.
+  const result = await decryptDatetime(v as EnvKeyEncrypted);
   return result === "" ? null : result;
 };
 
 /** Encrypt listing date for DB storage */
-export const writeListingDate = (v: string): Promise<string> =>
+export const writeListingDate = (v: string): Promise<EnvKeyEncrypted> =>
   encryptDatetime(v, "date");
 
 /**
@@ -209,7 +212,12 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   closes_at: col.transform<string | null>(writeClosesAt, readClosesAt),
   created: col.withDefault(() => nowIso()),
   customisable_days: col.boolean(false),
-  date: { default: () => "", read: decryptDatetime, write: writeListingDate },
+  date: {
+    default: () => "",
+    // col.encrypted carries the sanctioned read-boundary assertion for the
+    // stored env-key ciphertext (see table.ts).
+    ...col.encrypted(writeListingDate, decryptDatetime),
+  },
   // Not a physical column: `day_prices` is projected from the `day_count` rows
   // of listing_prices (see listingDayPricesSubquery) and read back here. The
   // write paths persist it as day_count rows from input; `col.projected` keeps it
@@ -223,15 +231,18 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   fields: col.withDefault<ListingFields>(() => "email"),
   hidden: col.boolean(false),
   // Projected from the first linked first-class image; an unlinked listing is
-  // projected as the encrypted-text empty string convention (`''`).
+  // projected as the encrypted-text empty string convention (`''`). The `as
+  // EnvKeyEncrypted` is each projection's read boundary: the subquery selects
+  // the images table's env-key-encrypted columns (same assertion as
+  // col.encrypted's read transform).
   image_alt_text: col.projected<string>((v) =>
-    v === "" || v === undefined ? "" : decrypt(v as string),
+    v === "" || v === undefined ? "" : decrypt(v as EnvKeyEncrypted),
   ),
   image_thumb_url: col.projected<string>((v) =>
-    v === "" || v === undefined ? "" : decrypt(v as string),
+    v === "" || v === undefined ? "" : decrypt(v as EnvKeyEncrypted),
   ),
   image_url: col.projected<string>((v) =>
-    v === "" || v === undefined ? "" : decrypt(v as string),
+    v === "" || v === undefined ? "" : decrypt(v as EnvKeyEncrypted),
   ),
   initial_site_months: col.withDefault(() => 0),
   listing_type: col.withDefault<ListingType>(() => "standard"),
@@ -731,17 +742,21 @@ export const getListingsById = async (): Promise<
  * listings cache. Ordered by id for a stable list. */
 export type ListingOption = { active: boolean; id: number; name: string };
 
+type ListingOptionRow = {
+  active: number;
+  id: number;
+  name: EnvKeyEncrypted;
+};
+
 export const getAllListingOptions = async (): Promise<ListingOption[]> => {
-  const rows = await queryAll<{ active: number; id: number; name: string }>(
+  const rows = await queryAll<ListingOptionRow>(
     "SELECT listing.id, listing.name, listing.active FROM listings AS listing ORDER BY listing.id ASC",
   );
-  return mapParallel(
-    async (row: { active: number; id: number; name: string }) => ({
-      active: row.active === 1,
-      id: row.id,
-      name: await decrypt(row.name),
-    }),
-  )(rows);
+  return mapParallel(async (row: ListingOptionRow) => ({
+    active: row.active === 1,
+    id: row.id,
+    name: await decrypt(row.name),
+  }))(rows);
 };
 
 /** Bounded id → name lookup for the given listings: selects and decrypts only
@@ -750,7 +765,7 @@ export const getAllListingOptions = async (): Promise<ListingOption[]> => {
 export const getListingNamesByIds = (
   ids: number[],
 ): Promise<Map<number, string>> =>
-  nameMapByIds("listings", "listing", "name", ids, (raw: string) =>
+  nameMapByIds("listings", "listing", "name", ids, (raw: EnvKeyEncrypted) =>
     decrypt(raw),
   );
 
@@ -804,7 +819,9 @@ export const getListingOfferFlags = async (
 export const getListingPickerNames = async (): Promise<
   Map<number, ListingPickerRow>
 > => {
-  const rows = await queryAll<RawOfferFlagRow & { id: number; name: string }>(
+  const rows = await queryAll<
+    RawOfferFlagRow & { id: number; name: EnvKeyEncrypted }
+  >(
     `SELECT listing.id, listing.name, ${OFFER_FLAG_COLUMNS} FROM listings AS listing ORDER BY listing.id ASC`,
   );
   const entries = await Promise.all(
@@ -852,8 +869,13 @@ export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
   // encrypted and the booleans as SQLite 0/1 integers.
   type CatalogRow = Omit<
     CatalogSourceListing,
-    "active" | "hidden" | "customisable_days" | "can_pay_more"
-  > & { customisable_days: number; can_pay_more: number };
+    "active" | "hidden" | "customisable_days" | "can_pay_more" | "name" | "slug"
+  > & {
+    customisable_days: number;
+    can_pay_more: number;
+    name: EnvKeyEncrypted;
+    slug: EnvKeyEncrypted;
+  };
   const rows = await queryAll<CatalogRow>(
     `SELECT listing.id, listing.slug, listing.name, listing.unit_price,
             listing.listing_type, listing.customisable_days, listing.can_pay_more

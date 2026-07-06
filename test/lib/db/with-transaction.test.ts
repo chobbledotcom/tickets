@@ -2,10 +2,15 @@ import { type Client, createClient, type Transaction } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  registerTableInvalidation,
+  resetCacheRegistry,
+} from "#shared/cache-registry.ts";
+import {
   DatabaseBusyError,
   queryOne,
   setDb,
   withTransaction,
+  writeRowInTransaction,
 } from "#shared/db/client.ts";
 import {
   enableQueryLog,
@@ -66,6 +71,21 @@ describe("withTransaction", () => {
     });
   });
 
+  test("allows a transaction holding exactly the threshold of statements", async () => {
+    // Boundary of the round-trip guard: exactly THRESHOLD statements is fine —
+    // the counter must start at zero, or the guard would trip one early.
+    await withFileDb(async () => {
+      await runWithQueryLogContext(async () => {
+        await withTransaction(async (tx) => {
+          for (let i = 0; i < TRANSACTION_ROUNDTRIP_THRESHOLD; i++) {
+            await tx.execute("INSERT INTO t VALUES (1)");
+          }
+        });
+      });
+      expect(await count()).toBe(TRANSACTION_ROUNDTRIP_THRESHOLD);
+    });
+  });
+
   test("trips the round-trip guard when a transaction holds too many statements", async () => {
     // A chatty interactive transaction (many sequential round-trips holding the
     // write lock) is the "Transaction timed-out" shape; the guard fails it loudly
@@ -80,6 +100,45 @@ describe("withTransaction", () => {
           });
         }),
       ).rejects.toThrow(/Interactive transaction too chatty/);
+    });
+  });
+
+  test("fires cache invalidation for each written statement after the commit", async () => {
+    await withFileDb(async () => {
+      resetCacheRegistry();
+      try {
+        let fired = 0;
+        registerTableInvalidation(["t"], () => {
+          fired++;
+        });
+        await withTransaction(async (tx) => {
+          await tx.execute("INSERT INTO t VALUES (1)");
+          await tx.execute("INSERT INTO t VALUES (2)");
+          // Invalidation must wait for the commit — a write that has not
+          // landed yet must not clear caches.
+          expect(fired).toBe(0);
+        });
+        expect(fired).toBe(2);
+      } finally {
+        resetCacheRegistry();
+      }
+    });
+  });
+
+  test("a failed transaction does not poison the queue for the next one", async () => {
+    // Each transaction waits for the previous one however it settled; the
+    // predecessor's failure is its own caller's concern and must not reject
+    // (or block) the transaction queued behind it.
+    await withFileDb(async () => {
+      await withTransaction(() => Promise.reject(new Error("boom"))).catch(
+        () => undefined,
+      );
+      const result = await withTransaction(async (tx) => {
+        await tx.execute("INSERT INTO t VALUES (1)");
+        return "ok";
+      });
+      expect(result).toBe("ok");
+      expect(await count()).toBe(1);
     });
   });
 
@@ -164,6 +223,32 @@ describe("withTransaction lock contention", () => {
         error = caught;
       }
       expect(error).toBeInstanceOf(DatabaseBusyError);
+    } finally {
+      setDb(null);
+    }
+  });
+
+  test("writeRowInTransaction honours an explicit existing id verbatim, even 0", async () => {
+    // `existingId ?? lastInsertRowid` must be nullish- (not falsy-) coalescing:
+    // only a null existingId means "this was an INSERT, use its new rowid".
+    const tx = {
+      commit: () => Promise.resolve(),
+      execute: () => Promise.resolve({ lastInsertRowid: 42n }),
+      rollback: () => Promise.resolve(),
+    } as unknown as Transaction;
+    setDb(clientWith(() => Promise.resolve(tx)));
+    try {
+      const persistedIds: number[] = [];
+      const id = await writeRowInTransaction(
+        "UPDATE rows SET x = 1",
+        0,
+        (_tx, rowId) => {
+          persistedIds.push(rowId);
+          return Promise.resolve();
+        },
+      );
+      expect(id).toBe(0);
+      expect(persistedIds).toEqual([0]);
     } finally {
       setDb(null);
     }

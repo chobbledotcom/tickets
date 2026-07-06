@@ -8,7 +8,7 @@ import {
   annotateOrderParents,
   expandChildAllocations,
 } from "#shared/db/attendees/order-parents.ts";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 
 /** A bare booking line for a listing id (other fields default at insert time). */
@@ -27,7 +27,7 @@ describeWithEnv("db > attendees > annotateOrderParents", { db: true }, () => {
   test("shares one token and records each child's parent", async () => {
     const parent = await createTestListing({ name: "Base" });
     const child = await createTestListing({ name: "Add-on" });
-    await setChildIds(parent.id, [child.id]);
+    await listingChildren.setIds(parent.id, [child.id]);
 
     const result = await annotateOrderParents([
       line(parent.id),
@@ -47,7 +47,7 @@ describeWithEnv("db > attendees > annotateOrderParents", { db: true }, () => {
     // so there is no in-order pairing to record and the order stays plain.
     const parent = await createTestListing({ name: "Absent base" });
     const child = await createTestListing({ name: "Lonely add-on" });
-    await setChildIds(parent.id, [child.id]);
+    await listingChildren.setIds(parent.id, [child.id]);
 
     const result = await annotateOrderParents([line(child.id)]);
     expect(result).toEqual([line(child.id)]);
@@ -59,8 +59,8 @@ describeWithEnv("db > attendees > annotateOrderParents", { db: true }, () => {
     const parentA = await createTestListing({ name: "Base A" });
     const parentB = await createTestListing({ name: "Base B" });
     const child = await createTestListing({ name: "Shared add-on" });
-    await setChildIds(parentA.id, [child.id]);
-    await setChildIds(parentB.id, [child.id]);
+    await listingChildren.setIds(parentA.id, [child.id]);
+    await listingChildren.setIds(parentB.id, [child.id]);
 
     const result = await annotateOrderParents([
       line(parentA.id),

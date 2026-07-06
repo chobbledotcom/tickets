@@ -16,7 +16,7 @@ import { isHiddenPackageMember } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   anyNonStandaloneChild,
-  getChildIds,
+  listingChildren,
 } from "#shared/db/listing-parents.ts";
 import { getListingWithCountBySlug } from "#shared/db/listings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
@@ -132,7 +132,7 @@ const skipToCheckout = (
  * required child). Falling back to the form runs `prepareOrder`, which folds the
  * child in. */
 const parentHasChildren = async (listing: ListingWithCount): Promise<boolean> =>
-  (await getChildIds(listing.id)).length > 0;
+  (await listingChildren.getIds(listing.id)).length > 0;
 
 /** Once the token is verified and the listing loaded, render or redirect */
 const dispatchVerified = async (

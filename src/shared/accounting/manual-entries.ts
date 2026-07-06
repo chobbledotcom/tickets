@@ -12,7 +12,7 @@ import { WORLD, WRITEOFF } from "#shared/accounting/accounts.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import { fromDb, selectById } from "#shared/accounting/rows.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
-import { execute } from "#shared/db/client.ts";
+import { execute, executeUpdate } from "#shared/db/client.ts";
 import type {
   AccountRef,
   Transfer,
@@ -221,9 +221,10 @@ export const updateManualLedgerEntry = async (
   assertManualLedgerTransfer(transfer);
   const next: TransferInput = { ...transfer, amount, occurredAt };
   assertValidTransfer(next, "invalid transfer update");
-  await execute(
-    "UPDATE transfers SET amount = ?, occurred_at = ? WHERE id = ?",
-    [amount, instantToEpochMs(occurredAt), transfer.id],
+  await executeUpdate(
+    "transfers",
+    { amount, occurred_at: instantToEpochMs(occurredAt) },
+    { id: transfer.id },
   );
 };
 

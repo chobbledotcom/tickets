@@ -59,7 +59,8 @@ describe("adminModifiersPage", () => {
     expect(html).toContain("Discount · 10%");
     expect(html).toContain("Charge · 500");
     expect(html).toContain("Multiply · ×1.5");
-    expect(html).toContain("Add Modifier");
+    // The create affordance now lives in the Modifiers section sub-nav.
+    expect(html).toContain('href="/admin/modifiers/new"');
     // The name links to the edit page; there is no separate actions column.
     expect(html).toContain("/admin/modifiers/1/edit");
   });

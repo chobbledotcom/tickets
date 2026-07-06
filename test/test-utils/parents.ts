@@ -14,7 +14,7 @@
  */
 
 import { expect } from "@std/expect";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import type { Group, Listing } from "#shared/types.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
@@ -256,7 +256,7 @@ export const makeParent = async (
       await makeListing(withGroup(childSpecs[i]!), `Child ${i + 1}`),
     );
   }
-  await setChildIds(
+  await listingChildren.setIds(
     parent.id,
     children.map((c) => c.id),
   );

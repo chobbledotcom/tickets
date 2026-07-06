@@ -3,7 +3,7 @@ import { beforeEach, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { queryAll } from "#shared/db/client.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
 import {
@@ -93,7 +93,7 @@ const withAddonGetPackage = async (
   slug: string,
   // deno-lint-ignore no-explicit-any
 ): Promise<any> => {
-  await setChildIds(memberId, [childId]);
+  await listingChildren.setIds(memberId, [childId]);
   return (await (await apiGet(`/api/packages/${slug}`)).json()).package;
 };
 
@@ -172,7 +172,7 @@ describeWithEnv("public API packages", { db: true }, () => {
       name: "Kit Addon",
       unitPrice: 300,
     });
-    await setChildIds(a.id, [child.id]);
+    await listingChildren.setIds(a.id, [child.id]);
     const { package: pkg } = await (
       await apiGet(`/api/packages/${group.slug}`)
     ).json();
@@ -209,7 +209,7 @@ describeWithEnv("public API packages", { db: true }, () => {
       name: "Dear Addon",
       unitPrice: 700,
     });
-    await setChildIds(a.id, [cheap.id, dear.id]);
+    await listingChildren.setIds(a.id, [cheap.id, dear.id]);
     const { package: pkg } = await (
       await apiGet(`/api/packages/${group.slug}`)
     ).json();
@@ -237,7 +237,7 @@ describeWithEnv("public API packages", { db: true }, () => {
       name: "Fields Addon",
       unitPrice: 0,
     });
-    await setChildIds(a.id, [child.id]);
+    await listingChildren.setIds(a.id, [child.id]);
     const { groupsTable } = await import("#shared/db/groups.ts");
     await groupsTable.update(group.id, { hidePackageListings: true });
 
@@ -261,7 +261,7 @@ describeWithEnv("public API packages", { db: true }, () => {
       name: "Two Day Addon",
       unitPrice: 200,
     });
-    await setChildIds(boat.id, [child.id]);
+    await listingChildren.setIds(boat.id, [child.id]);
 
     const { package: pkg } = await (
       await apiGet(`/api/packages/${group.slug}`)
@@ -364,7 +364,7 @@ describeWithEnv("public API packages", { db: true }, () => {
       name: "Monday Addon",
       unitPrice: 100,
     });
-    await setChildIds(member.id, [child.id]);
+    await listingChildren.setIds(member.id, [child.id]);
     const { package: pkg } = await (
       await apiGet(`/api/packages/${group.slug}`)
     ).json();
@@ -385,8 +385,8 @@ describeWithEnv("public API packages", { db: true }, () => {
       name: "Shared Addon",
       unitPrice: 100,
     });
-    await setChildIds(m1.id, [addon.id]);
-    await setChildIds(m2.id, [addon.id]);
+    await listingChildren.setIds(m1.id, [addon.id]);
+    await listingChildren.setIds(m2.id, [addon.id]);
     expect(await packageCap(group.slug)).toBe(1);
   });
 
@@ -414,8 +414,8 @@ describeWithEnv("public API packages", { db: true }, () => {
     for (const name of ["Choice 1", "Choice 2", "Choice 3", "Choice 4"]) {
       addons.push(await createTestListing({ ...addonOpts, name }));
     }
-    await setChildIds(m1.id, [addons[0]!.id, addons[1]!.id]);
-    await setChildIds(m2.id, [addons[2]!.id, addons[3]!.id]);
+    await listingChildren.setIds(m1.id, [addons[0]!.id, addons[1]!.id]);
+    await listingChildren.setIds(m2.id, [addons[2]!.id, addons[3]!.id]);
     expect(await packageCap(group.slug)).toBe(1);
   });
 
@@ -481,7 +481,7 @@ describeWithEnv("public API packages", { db: true }, () => {
       name: "Mix Kit Addon B",
       unitPrice: 400,
     });
-    await setChildIds(a.id, [child.id, childB.id]);
+    await listingChildren.setIds(a.id, [child.id, childB.id]);
 
     // Member A books 2 units per package; a single chosen add-on undershoots.
     const { body, response } = await apiBookPackage(group.slug, {
@@ -546,7 +546,7 @@ describeWithEnv("public API packages", { db: true }, () => {
       name: "Child Kit Addon B",
       unitPrice: 400,
     });
-    await setChildIds(a.id, [child.id, childB.id]);
+    await listingChildren.setIds(a.id, [child.id, childB.id]);
 
     // Member A books 2 units per package, so its child mix must total 2.
     const { body, response } = await apiBookPackage(group.slug, {

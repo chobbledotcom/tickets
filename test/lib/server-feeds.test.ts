@@ -609,7 +609,7 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
     const { logisticsAgentsTable } = await import(
       "#shared/db/logistics-agents.ts"
     );
-    const { setUserAgentIds } = await import("#shared/db/user-agents.ts");
+    const { userAgents } = await import("#shared/db/user-agents.ts");
     const { generateSecureToken } = await import("#shared/crypto/utils.ts");
     const { getTestDataKeyForApiKey, requestAsApiKey } = await import(
       "#test-utils/session.ts"
@@ -621,7 +621,7 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
     const dataKey = await getTestDataKeyForApiKey();
     const user = await createUser("feed-agent", "", null, "agent");
     const agent = await logisticsAgentsTable.insert({ name: "Van 1" });
-    await setUserAgentIds(user.id, [agent.id]);
+    await userAgents.setIds(user.id, [agent.id]);
     const { apiKey } = await createApiKey(
       user.id,
       "Agent Calendar",

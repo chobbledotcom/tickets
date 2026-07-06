@@ -15,6 +15,7 @@ import { wrapKeyWithToken } from "#shared/crypto/keys.ts";
 import {
   deleteByField,
   execute,
+  executeUpdate,
   insert,
   queryAll,
   queryOne,
@@ -142,10 +143,7 @@ export const deleteAllApiKeysForUser = (userId: number): Promise<void> =>
 export const touchApiKeyLastUsed = async (id: number): Promise<void> => {
   const override = getTouchOverride();
   if (override) throw override;
-  await execute("UPDATE api_keys SET last_used = ? WHERE id = ?", [
-    nowIso(),
-    id,
-  ]);
+  await executeUpdate("api_keys", { last_used: nowIso() }, { id });
 };
 
 export const apiKeysApi = {

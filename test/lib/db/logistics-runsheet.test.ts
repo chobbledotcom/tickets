@@ -12,6 +12,11 @@ import {
 } from "#shared/db/logistics.ts";
 import { logisticsAgentsTable } from "#shared/db/logistics-agents.ts";
 import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
+import {
   createListingWithAttendeeAndLogistics,
   createTestGroup,
   createTestListing,
@@ -210,6 +215,76 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
         startDate: D3,
       });
       expect(await getAgentRunSheet([van], [D1, D2])).toEqual([]);
+    });
+
+    test("issues no query at all when the agent set is empty", async () => {
+      // The empty-input early return is a subrequest-budget contract: an empty
+      // agent set must answer [] without ever hitting the database.
+      const { entries, legs } = await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        const legs = await getAgentRunSheet([], [D1]);
+        return { entries: getQueryLog(), legs };
+      });
+      expect(legs).toEqual([]);
+      expect(entries).toHaveLength(0);
+    });
+
+    test("excludes a collection leg outside the window even when its drop-off matches", async () => {
+      // The row matches the query via its drop-off (D1), but the collection
+      // falls on D3 (end_at = D4, exclusive) — outside the requested [D1]
+      // window — so only the drop-off leg may appear on the run sheet.
+      const { attendeeId, listingId } = await makeBooking({
+        endAgentId: van,
+        endDate: D4,
+        startAgentId: van,
+        startDate: D1,
+      });
+      const legs = await getAgentRunSheet([van], [D1]);
+      expect(legs).toEqual([
+        {
+          agentId: van,
+          attendeeId,
+          date: D1,
+          done: false,
+          kind: "start",
+          listingId,
+          time: "",
+        },
+      ]);
+    });
+
+    test("bookings whose ids run together never collapse into one leg", async () => {
+      // Attendee 91 on listing 12345 and attendee 911 on listing 2345: their
+      // identity fields concatenate to the same digits ("9112345…"), so only
+      // the "|" separator in the collapse key keeps these two different
+      // deliveries apart. Same agent, date and time on both rows.
+      for (const [attendeeId, listingId] of [
+        [91, 12345],
+        [911, 2345],
+      ]) {
+        await getDb().execute({
+          args: [
+            listingId!,
+            attendeeId!,
+            van,
+            `${D1}T00:00:00Z`,
+            `${D2}T00:00:00Z`,
+          ],
+          sql: `INSERT INTO listing_attendees
+                  (listing_id, attendee_id, quantity, start_agent_id, start_time, start_done, start_at, end_at)
+                VALUES (?, ?, 1, ?, '', 0, ?, ?)`,
+        });
+      }
+      const legs = await getAgentRunSheet([van], [D1]);
+      expect(
+        legs
+          .filter((leg) => leg.kind === "start")
+          .map((leg) => [leg.attendeeId, leg.listingId])
+          .sort((a, b) => a[0]! - b[0]!),
+      ).toEqual([
+        [91, 12345],
+        [911, 2345],
+      ]);
     });
 
     test("excludes legs for agents not in the set", async () => {

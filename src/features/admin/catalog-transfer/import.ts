@@ -28,8 +28,8 @@ import {
   groupsTable,
 } from "#shared/db/groups.ts";
 import {
-  addParentEdgesTx,
   getChildListingIds,
+  listingParents,
 } from "#shared/db/listing-parents.ts";
 import {
   syncListingPrices,
@@ -423,7 +423,7 @@ const importListing = async (
       // listing keeps its per-day prices, committed atomically with the row.
       await writeListingDayCounts(tx, newId, input.dayPrices);
       await writeMembershipsTx(tx, withNewId(specs, "listingId", newId));
-      await addParentEdgesTx(tx, newId, parentResolve.ids);
+      await listingParents.addIdsTx(tx, newId, parentResolve.ids);
     },
   );
   // insertStatement bypassed the table wrapper, so re-sync the derived `base`

@@ -56,9 +56,6 @@ describe("admin image templates", () => {
       );
       expect(html).not.toContain("/image/poster.webp");
       expect(html).toContain('<a class="active" href="/admin/images">');
-      expect(html).toContain('<p class="actions">');
-      expect(html).toContain('href="/admin/images/new"');
-      expect(html).toContain("/icons.svg#plus");
     });
   });
 

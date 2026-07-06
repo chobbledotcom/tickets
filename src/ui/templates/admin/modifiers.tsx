@@ -9,7 +9,6 @@ import type {
   ModifierAggregateRecalculation,
   ModifierRow,
 } from "#shared/db/modifiers.ts";
-import { isReadOnly } from "#shared/env.ts";
 import {
   booleanToCheckbox,
   CsrfForm,
@@ -29,7 +28,6 @@ import { AdminListPage } from "#templates/admin/list-page.tsx";
 import { MoneyAdjustSection } from "#templates/admin/money-adjust-section.tsx";
 import type { RecalculateRow } from "#templates/admin/recalculate.tsx";
 import {
-  ActionButton,
   GuideLink,
   SaveChangesButton,
   SubmitButton,
@@ -268,16 +266,9 @@ export const adminModifiersPage = (
 ): string =>
   AdminListPage({
     actions: (
-      <>
-        {!isReadOnly() && (
-          <ActionButton href="/admin/modifiers/new" icon="plus">
-            {t("modifiers.add_modifier")}
-          </ActionButton>
-        )}
-        <GuideLink href="/admin/guide#modifiers">
-          {t("modifiers.guide_link")}
-        </GuideLink>
-      </>
+      <GuideLink href="/admin/guide#modifiers">
+        {t("modifiers.guide_link")}
+      </GuideLink>
     ),
     active: "/admin/modifiers",
     children: (

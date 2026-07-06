@@ -15,6 +15,7 @@ import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
 } from "#shared/crypto/keys.ts";
+import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
   execute,
@@ -104,7 +105,7 @@ export type QuestionWithAnswers = Omit<Question, "assign_all"> & {
 
 /** Shared column defs for tables with an encrypted text column */
 const generatedId = col.generated<number>();
-const encryptedText = col.encrypted<string>(encrypt, decrypt);
+const encryptedText = col.encrypted(encrypt, decrypt);
 const questionIdAndSortOrder = {
   question_id: col.simple<number>(),
   sort_order: col.simple<number>(),
@@ -910,7 +911,7 @@ export const getAttendeeTextAnswersBatch = async (
   const rows = await queryAll<{
     attendee_id: number;
     question_id: number;
-    encrypted_text: string;
+    encrypted_text: OwnerKeyEncrypted;
   }>(
     `SELECT attendee_answer.attendee_id, attendee_answer.question_id,
             string.encrypted_text

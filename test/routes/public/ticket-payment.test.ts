@@ -808,19 +808,19 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         name: "shared-child",
       });
       // Both parents are wired directly to the shared child.
-      const { setChildIds } = await import("#shared/db/listing-parents.ts");
+      const { listingChildren } = await import("#shared/db/listing-parents.ts");
       const parentA = await createTestListing({
         maxAttendees: 10,
         maxQuantity: 10,
         name: "parentA",
       });
-      await setChildIds(parentA.id, [child.id]);
+      await listingChildren.setIds(parentA.id, [child.id]);
       const parentB = await createTestListing({
         maxAttendees: 10,
         maxQuantity: 10,
         name: "parentB",
       });
-      await setChildIds(parentB.id, [child.id]);
+      await listingChildren.setIds(parentB.id, [child.id]);
 
       const parentAListing = await ticketListingFor(parentA.id);
       const parentBListing = await ticketListingFor(parentB.id);
