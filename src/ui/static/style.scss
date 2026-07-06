@@ -1888,20 +1888,16 @@ label.terms-agree {
   );
 }
 
-// Reveal $target only while the <select> named $name has $value chosen.
-@mixin reveal-when-selected($name, $value, $target) {
-  @include hidden-in-form(
-    ':not(:has(#{select-on-value($name, $value)}))',
-    $target,
-  );
-}
-
-// Hide $target while the <select> named $name has $value chosen.
-@mixin hidden-when-selected($name, $value, $target) {
-  @include hidden-in-form(
-    ':has(#{select-on-value($name, $value)})',
-    $target,
-  );
+// Show or hide $target based on whether the <select> named $name has $value
+// chosen. $reveal: true keeps $target only while $value is chosen (hidden
+// otherwise); $reveal: false hides $target while $value is chosen.
+@mixin select-visibility($name, $value, $target, $reveal: true) {
+  $chosen: ":has(#{select-on-value($name, $value)})";
+  $when: $chosen;
+  @if $reveal {
+    $when: ":not(#{$chosen})";
+  }
+  @include hidden-in-form($when, $target);
 }
 
 // Hide a listing field whose value is supplied by the operator's listing
@@ -1918,10 +1914,11 @@ label.terms-agree {
 
 // Daily-only scheduling fields are grouped in one section, hidden entirely for
 // standard listings (which book a single fixed date instead).
-@include hidden-when-selected(
+@include select-visibility(
   "listing_type",
   "standard",
   ".listing-section--daily",
+  $reveal: false,
 );
 
 // Booking duration applies to daily listings, or any listing using customisable
@@ -1933,10 +1930,11 @@ label.terms-agree {
 );
 
 // Hide the listing date field for daily listings (dates are chosen per booking).
-@include hidden-when-selected(
+@include select-visibility(
   "listing_type",
   "daily",
   'label:has([name="date_date"])',
+  $reveal: false,
 );
 
 // Day prices only apply when "Customisable Days" is enabled; revealed in place
@@ -2004,7 +2002,7 @@ label.terms-agree {
 // shown only when the Trigger select has "Promo code" chosen. CSS-only show/hide
 // keeps the single labelled field in the DOM, so its "Promo code" label stays
 // associated for screen readers.
-@include reveal-when-selected("trigger", "code", 'label:has([name="code"])');
+@include select-visibility("trigger", "code", 'label:has([name="code"])');
 
 // In the attendee listing editor, ticking a row's "No quantity" box hides that
 // row's quantity input (the line is kept as a quantity-0 sentinel — owners never
@@ -2104,12 +2102,8 @@ label.terms-agree {
   cursor: not-allowed;
 }
 
-/* Customise toggle in listing forms */
-.listing-customise-toggle {
-  @extend %toggle-block;
-}
-
-/* "Use defaults" toggle in listing forms */
+/* Customise and "Use defaults" toggles in listing forms */
+.listing-customise-toggle,
 .listing-use-defaults-toggle {
   @extend %toggle-block;
 }

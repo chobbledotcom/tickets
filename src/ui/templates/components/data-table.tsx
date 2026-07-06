@@ -35,16 +35,10 @@ export type Column = {
 export const textColumns = (...headerKeys: string[]): Column[] =>
   headerKeys.map((key) => ({ header: t(key) }));
 
-export type DataTableProps = {
-  /** Column declarations (header + optional class). */
-  columns: Column[];
-  /** Either an array of rows (each row = array of body cells, positional to
-   *  its column, rendered as <tr><td>cell</td>...</tr> with the column's
-   *  class applied), an array of pre-rendered <tr> JSX elements (rendered
-   *  as-is — caller is responsible for cell classes), or a pre-rendered
-   *  HTML string rendered via <Raw> for callers with their own
-   *  renderRow() helper. */
-  rows: Child[][] | string | JSX.Element[];
+/** The presentational knobs shared by {@link ScrollTable} and {@link DataTable}:
+ *  the optional tfoot, the wrapper/table classes, and any tbody attributes.
+ *  Declared once so the two table entry points can't drift. */
+export type TableShellExtras = {
   /** Optional `<tfoot>` content (e.g. a totals row). Rendered after the body
    *  with the same column-width expectations. */
   foot?: Child;
@@ -56,6 +50,18 @@ export type DataTableProps = {
   /** Attributes on the <tbody> element (e.g. `{"data-duplicate-preview-rows": true}`
    *  for the bulk-actions duplicate-preview table's JS hook). */
   bodyAttrs?: Record<string, string> | undefined;
+};
+
+export type DataTableProps = TableShellExtras & {
+  /** Column declarations (header + optional class). */
+  columns: Column[];
+  /** Either an array of rows (each row = array of body cells, positional to
+   *  its column, rendered as <tr><td>cell</td>...</tr> with the column's
+   *  class applied), an array of pre-rendered <tr> JSX elements (rendered
+   *  as-is — caller is responsible for cell classes), or a pre-rendered
+   *  HTML string rendered via <Raw> for callers with their own
+   *  renderRow() helper. */
+  rows: Child[][] | string | JSX.Element[];
 };
 
 const isCellRows = (rows: DataTableProps["rows"]): rows is Child[][] =>
@@ -75,13 +81,9 @@ export const ScrollTable = ({
   tableClass,
   bodyAttrs,
   foot,
-}: {
+}: TableShellExtras & {
   head: Child;
   children: Child;
-  scrollClass?: string | undefined;
-  tableClass?: string | undefined;
-  bodyAttrs?: Record<string, string> | undefined;
-  foot?: Child;
 }): JSX.Element => (
   <div
     class={

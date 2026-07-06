@@ -20,6 +20,7 @@
 
 import { getAllGroups } from "#shared/db/groups.ts";
 import { getAllListings } from "#shared/db/listings.ts";
+import { type Check, firstProblem } from "#shared/first-problem.ts";
 import type { SitePageItemType } from "#shared/types.ts";
 
 /** The two entity kinds that share the catalog name namespace. Derived from
@@ -119,18 +120,16 @@ export const isNameTakenAnywhere = async (
  * the batch is always reported ahead of anything `check` would say about it.
  * Returns the problem message, or null when every name is unique and passes.
  */
-export const firstNameProblem = async (
+export const firstNameProblem = (
   names: readonly string[],
   duplicateMessage: (name: string) => string,
-  check: (name: string) => string | null | Promise<string | null>,
+  check: Check<string>,
 ): Promise<string | null> => {
   const seen = new Set<string>();
-  for (const name of names) {
+  return firstProblem(names, (name) => {
     const key = normalizeEntityName(name);
     if (seen.has(key)) return duplicateMessage(name);
     seen.add(key);
-    const problem = await check(name);
-    if (problem) return problem;
-  }
-  return null;
+    return check(name);
+  });
 };

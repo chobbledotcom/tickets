@@ -166,22 +166,21 @@ export const PACKAGE_QUANTITY_FIELD = "package_quantity";
 export const nodeFixedQuantity = (node: BookingNode): number =>
   node.quantityRule.kind === "FIXED" ? node.quantityRule.qty : 1;
 
-/** Every node in the tree, each one listed after all of its own descendants
- * (deepest first). Building a map by walking this order means a shallower node
- * is written last, so it wins over a same-keyed descendant — which is exactly
- * how "a top-level node beats a child with the same listing id" falls out. */
+/** Every node in the tree, grouped by how deep it sits and listed deepest level
+ * first, so the top level comes last. Building a map by walking this order means
+ * a shallower node is written after — and so wins over — any same-keyed node
+ * deeper down, which is exactly how "a top-level node beats a child with the
+ * same listing id" falls out. Ordering across a single depth is preserved. */
 export const nodesDeepestFirst = (
   nodes: readonly BookingNode[],
 ): BookingNode[] => {
-  const flat: BookingNode[] = [];
-  const collect = (group: readonly BookingNode[]): void => {
-    for (const node of group) {
-      collect(node.children);
-      flat.push(node);
-    }
+  const byDepth: BookingNode[][] = [];
+  const collect = (group: readonly BookingNode[], depth: number): void => {
+    (byDepth[depth] ??= []).push(...group);
+    for (const node of group) collect(node.children, depth + 1);
   };
-  collect(nodes);
-  return flat;
+  collect(nodes, 0);
+  return byDepth.reverse().flat();
 };
 
 /** Each top-level node's fixed per-package quantity keyed by listing id — the

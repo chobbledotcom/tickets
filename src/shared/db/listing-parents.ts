@@ -21,6 +21,7 @@ import {
   type TxScope,
 } from "#shared/db/client.ts";
 import { getListingsById } from "#shared/db/listings.ts";
+import { type Check, firstProblem } from "#shared/first-problem.ts";
 import {
   type EdgeListing,
   edgeFieldError,
@@ -278,18 +279,14 @@ export type TouchingEdge = {
  */
 export const firstTouchingEdgeError = async (
   listingId: number,
-  check: (edge: TouchingEdge) => string | null | Promise<string | null>,
+  check: Check<TouchingEdge>,
 ): Promise<string | null> => {
   const { childIds, parentIds } = await edgeIdsTouching(listingId);
   const edges: TouchingEdge[] = [
     ...childIds.map((otherId): TouchingEdge => ({ otherId, self: "parent" })),
     ...parentIds.map((otherId): TouchingEdge => ({ otherId, self: "child" })),
   ];
-  for (const edge of edges) {
-    const error = await check(edge);
-    if (error) return error;
-  }
-  return null;
+  return firstProblem(edges, check);
 };
 
 /**
