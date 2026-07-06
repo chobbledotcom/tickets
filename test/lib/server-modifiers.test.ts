@@ -765,12 +765,16 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       );
       const { id } = await lastModifier();
       const response = await adminGet(`/admin/modifiers/${id}/edit`);
-      await expectHtmlResponse(
+      const html = await expectHtmlResponse(
         response,
         200,
         "Linked groups",
         "Weekend",
         'name="group_ids"',
+      );
+      // Groups have no deactivated state, so a group option is never muted.
+      expect(html).not.toContain(
+        '<label class="muted"><input name="group_ids"',
       );
     });
 

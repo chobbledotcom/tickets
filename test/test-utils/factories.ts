@@ -17,6 +17,7 @@ import type {
   Holiday,
   Listing,
   ListingWithCount,
+  Modifier,
 } from "#shared/types.ts";
 import type { WebhookAttendee } from "#shared/webhook.ts";
 import { generateTestListingName } from "#test-utils/internal.ts";
@@ -111,6 +112,28 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   ticket_token: "test-token-1",
   // Hand-crafted fixture stand-in for the stored blind index — test cast.
   ticket_token_index: "test-token-index-1" as BlindIndex,
+  ...overrides,
+});
+
+/** In-memory price-modifier fixture: a 10%-off automatic discount applied to
+ * the whole order, with zeroed usage aggregates. Override any field. */
+export const testModifier = (overrides: Partial<Modifier> = {}): Modifier => ({
+  active: true,
+  calc_kind: "percent",
+  calc_value: 10,
+  code: "",
+  code_index: null,
+  direction: "discount",
+  id: 1,
+  min_subtotal: 0,
+  min_visits: 0,
+  name: "Early bird",
+  scope: "all",
+  stock: null,
+  total_revenue: 0,
+  total_uses: 0,
+  trigger: "automatic",
+  usage_count: 0,
   ...overrides,
 });
 
