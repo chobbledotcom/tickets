@@ -1,23 +1,62 @@
 /**
  * Delivery agent run sheet.
  *
- * The only page a delivery-agent user can see. It lists the drop-offs and
- * collections assigned to the logistics agents that user drives, for today and
- * tomorrow, with addresses (and map links), phone numbers and the logistics
- * time. Each leg can be toggled done so a driver can tick off their round.
+ * A delivery-agent user only ever sees today and tomorrow — the two days a
+ * driver works from. Staff (owner/manager) get the same run sheet plus the
+ * shared calendar date picker, so they can open any date (and its following
+ * day) rather than being pinned to today. It lists the drop-offs and
+ * collections assigned to the logistics agents that user drives, with
+ * addresses (and map links), phone numbers and the logistics time. Each leg
+ * can be toggled done so a driver can tick off their round.
  */
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
+import { isStaffRole } from "#shared/types.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
 import { markAdminFooter } from "#templates/admin/footer.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
+import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
 import { Layout } from "#templates/layout.tsx";
 /* jscpd:ignore-end */
+
+/** The date-picker context shown to staff so they can open any delivery date.
+ * `selected` is the currently opened date (null = today's default view). */
+export type DeliveriesDateNav = {
+  availableDates: DatePickerDate[];
+  today: string;
+  selected: string | null;
+  viewMonth: string | null;
+};
+
+/** The calendar date picker, wired to reopen the run sheet on a chosen date.
+ * Uses the same component as the calendar page, so paging months and jumping
+ * dates behave identically. */
+const DeliveriesDatePicker = ({
+  nav,
+}: {
+  nav: DeliveriesDateNav;
+}): JSX.Element => (
+  <DatePicker
+    anchorId="calendar"
+    ariaLabel={t("deliveries.select_date")}
+    clearHref="/admin/deliveries"
+    dates={nav.availableDates}
+    dayHref={(value) => `/admin/deliveries?date=${value}`}
+    monthHref={(month) =>
+      `/admin/deliveries?${
+        nav.selected ? `date=${nav.selected}&` : ""
+      }cal=${month}#calendar`
+    }
+    selected={nav.selected}
+    today={nav.today}
+    viewMonth={nav.viewMonth}
+  />
+);
 
 /** A single drop-off or collection job within a booking on the run sheet. */
 export type DeliveryLegView = {
@@ -153,13 +192,16 @@ export interface DeliveriesPageOpts {
 }
 
 /**
- * Render the agent run sheet, grouped by day.
+ * Render the agent run sheet, grouped by day. Staff are given the calendar
+ * date picker (`dateNav`) so they can open any date; agents pass `null` and
+ * stay pinned to today.
  */
 export const agentDeliveriesPage = (
   groups: DeliveryDayGroup[],
   phonePrefix: string,
   opts: DeliveriesPageOpts,
   session: AdminSession,
+  dateNav: DeliveriesDateNav | null,
 ): string =>
   String(
     <Layout title={t("deliveries.title")}>
@@ -175,6 +217,10 @@ export const agentDeliveriesPage = (
         </>
       )}
       <Flash {...flashProps(opts.error, opts.success)} />
+      {/* Only staff steer the date; the picker is absent for agents. */}
+      {isStaffRole(session.adminLevel) && dateNav && (
+        <DeliveriesDatePicker nav={dateNav} />
+      )}
       {opts.noAgents ? (
         <p>
           <em>{t("deliveries.no_agents")}</em>

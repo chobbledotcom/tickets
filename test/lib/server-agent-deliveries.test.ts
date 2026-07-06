@@ -2,11 +2,13 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { addDays } from "#shared/dates.ts";
+import { addDays, formatDateLabel } from "#shared/dates.ts";
 import { getDb } from "#shared/db/client.ts";
 import { setLogisticsAssignments } from "#shared/db/logistics.ts";
 import { logisticsAgentsTable } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
+import { userAgents } from "#shared/db/user-agents.ts";
+import { getUserByUsername } from "#shared/db/users.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
   awaitTestRequest,
@@ -19,18 +21,38 @@ import {
   mockRequest,
   testCookie,
 } from "#test-utils";
+import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
+
+/** Assign logistics agents (vans) to the owner test user, so the staff run
+ * sheet — scoped to the viewer's own agents — has deliveries to show. */
+const assignOwnerAgents = async (agentIds: number[]): Promise<void> => {
+  const owner = (await getUserByUsername(TEST_ADMIN_USERNAME))!;
+  await userAgents.setIds(owner.id, agentIds);
+};
+
+/** Fetch the owner run sheet for a specific date (the `?date=` picker link). */
+const fetchDeliveriesForDate = async (date: string): Promise<string> => {
+  const response = await handleRequest(
+    mockRequest(`/admin/deliveries?date=${date}`, {
+      headers: { cookie: await testCookie() },
+    }),
+  );
+  expect(response.status).toBe(200);
+  return response.text();
+};
 
 /** Create a logistics agent and return its id. */
 const makeVan = async (name: string): Promise<number> =>
   (await logisticsAgentsTable.insert({ name })).id;
 
-/** Create a booking dropped off today with the given drop-off/collection
- * agents. `durationDays` is the hire length in whole days: `end_at` is the
- * exclusive end (start + duration), so a 1-day hire is collected the same day
- * and a 2-day hire the next day. */
-const makeTodayBooking = async (
+/** Create a booking dropped off on `startDate` with the given drop-off/
+ * collection agents. `durationDays` is the hire length in whole days: `end_at`
+ * is the exclusive end (start + duration), so a 1-day hire is collected the
+ * same day and a 2-day hire the next day. Defaults to today's drop-off. */
+const makeBookingOn = async (
   startAgent: number,
   endAgent: number,
+  startDate: string,
   durationDays = 1,
   name = "Bouncy Castle",
 ): Promise<{ attendeeId: number; listingId: number; listingName: string }> => {
@@ -61,11 +83,10 @@ const makeTodayBooking = async (
       ],
     ]),
   );
-  const today = todayInTz(settings.timezone);
-  const endDate = addDays(today, durationDays);
+  const endDate = addDays(startDate, durationDays);
   await getDb().execute({
     args: [
-      `${today}T00:00:00Z`,
+      `${startDate}T00:00:00Z`,
       `${endDate}T00:00:00Z`,
       attendee.id,
       listing.id,
@@ -78,6 +99,21 @@ const makeTodayBooking = async (
     listingName: name,
   };
 };
+
+/** Create a booking dropped off today (the common case for agent run sheets). */
+const makeTodayBooking = (
+  startAgent: number,
+  endAgent: number,
+  durationDays = 1,
+  name = "Bouncy Castle",
+): Promise<{ attendeeId: number; listingId: number; listingName: string }> =>
+  makeBookingOn(
+    startAgent,
+    endAgent,
+    todayInTz(settings.timezone),
+    durationDays,
+    name,
+  );
 
 const markRequest = async (
   cookie: string,
@@ -338,6 +374,57 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
   test("staff with no assigned agents see the no-agents prompt", async () => {
     const html = await fetchDeliveriesHtml();
     expect(html).toContain("no logistics agents assigned");
+  });
+
+  test("staff can open a future date and see that day's deliveries", async () => {
+    const van = await makeVan("Van 1");
+    await assignOwnerAgents([van]);
+    const today = todayInTz(settings.timezone);
+    const future = addDays(today, 10);
+    await makeBookingOn(van, van, future, 1, "Future Castle");
+
+    const html = await fetchDeliveriesForDate(future);
+    // The picked day's booking is shown, headed by its full date label (it is
+    // neither today nor tomorrow).
+    expect(html).toContain("Future Castle");
+    expect(html).toContain(formatDateLabel(future));
+  });
+
+  test("staff run sheet offers a date picker linking to their delivery dates", async () => {
+    const van = await makeVan("Van 1");
+    await assignOwnerAgents([van]);
+    const future = addDays(todayInTz(settings.timezone), 10);
+    await makeBookingOn(van, van, future, 1, "Future Castle");
+
+    const html = await fetchDeliveriesHtml();
+    // The shared calendar picker renders, with the future delivery date as a
+    // selectable link back into the run sheet.
+    expect(html).toContain("date-picker");
+    expect(html).toContain(`/admin/deliveries?date=${future}`);
+  });
+
+  test("an agent cannot steer the date — the ?date= param is ignored", async () => {
+    const van = await makeVan("Van 1");
+    const { cookie } = await createTestAgentSession({
+      agentIds: [van],
+      token: "a15",
+      username: "agent15",
+    });
+    const today = todayInTz(settings.timezone);
+    const future = addDays(today, 10);
+    await makeBookingOn(van, van, today, 1, "Today Castle");
+    await makeBookingOn(van, van, future, 1, "Future Castle");
+
+    const response = await awaitTestRequest(
+      `/admin/deliveries?date=${future}`,
+      { cookie },
+    );
+    const html = await response.text();
+    // The agent stays pinned to today and tomorrow: today's booking shows, the
+    // future one the param asked for does not, and no date picker is offered.
+    expect(html).toContain("Today Castle");
+    expect(html).not.toContain("Future Castle");
+    expect(html).not.toContain("date-picker");
   });
 
   test("logging in as an agent lands on the run sheet", async () => {

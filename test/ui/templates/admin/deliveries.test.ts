@@ -4,6 +4,7 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import type { AdminSession } from "#shared/types.ts";
 import {
   agentDeliveriesPage,
+  type DeliveriesDateNav,
   type DeliveryBookingView,
   type DeliveryDayGroup,
   type DeliveryLegView,
@@ -12,6 +13,20 @@ import { setupTestEncryptionKey } from "#test-utils";
 
 /** Agent-class session so the page renders the agent header (no staff nav). */
 const agentSession: AdminSession = { adminLevel: "agent" };
+
+/** Staff session so the page renders the calendar date picker. */
+const managerSession: AdminSession = { adminLevel: "manager" };
+
+/** A date picker offering one selectable delivery date. */
+const dateNav = (over: Partial<DeliveriesDateNav> = {}): DeliveriesDateNav => ({
+  availableDates: [
+    { label: "Monday 6 July 2026", selectable: true, value: "2026-07-06" },
+  ],
+  selected: null,
+  today: "2026-07-06",
+  viewMonth: null,
+  ...over,
+});
 
 beforeAll(async () => {
   setupTestEncryptionKey();
@@ -41,11 +56,11 @@ const booking = (
 });
 
 describe("agentDeliveriesPage", () => {
-  /** Render the deliveries page for the standard "agent has groups" case:
-   *  `agentDeliveriesPage(groups, "44", { noAgents: false }, agentSession)`.
-   *  Every test in this block that passes groups uses this exact call. */
+  /** Render the deliveries page for the standard "agent has groups" case.
+   *  Agents get no date picker, so `dateNav` is null. Every test in this block
+   *  that passes groups uses this exact call. */
   const renderDeliveries = (groups: DeliveryDayGroup[]): string =>
-    agentDeliveriesPage(groups, "44", { noAgents: false }, agentSession);
+    agentDeliveriesPage(groups, "44", { noAgents: false }, agentSession, null);
 
   test("shows a prompt when no agents are assigned", () => {
     const html = agentDeliveriesPage(
@@ -53,6 +68,7 @@ describe("agentDeliveriesPage", () => {
       "44",
       { noAgents: true },
       agentSession,
+      null,
     );
     expect(html).toContain("no logistics agents assigned");
     expect(html).toContain("/admin/logout");
@@ -149,6 +165,7 @@ describe("agentDeliveriesPage", () => {
       "44",
       { error: "Something went wrong", noAgents: true },
       agentSession,
+      null,
     );
     expect(html).toContain("Something went wrong");
   });
@@ -159,7 +176,56 @@ describe("agentDeliveriesPage", () => {
       "44",
       { noAgents: true, success: "Marked done" },
       agentSession,
+      null,
     );
     expect(html).toContain("Marked done");
+  });
+
+  test("agents never see the date picker even if one is somehow passed", () => {
+    const html = agentDeliveriesPage(
+      [
+        { bookings: [], heading: "Today" },
+        { bookings: [], heading: "Tomorrow" },
+      ],
+      "44",
+      { noAgents: false },
+      agentSession,
+      dateNav(),
+    );
+    expect(html).not.toContain("date-picker");
+  });
+
+  test("staff get the calendar date picker linking each date to the run sheet", () => {
+    const html = agentDeliveriesPage(
+      [
+        { bookings: [], heading: "Today" },
+        { bookings: [], heading: "Tomorrow" },
+      ],
+      "44",
+      { noAgents: false },
+      managerSession,
+      dateNav(),
+    );
+    // The shared calendar component renders, wired to reopen the run sheet.
+    expect(html).toContain("date-picker");
+    expect(html).toContain('href="/admin/deliveries?date=2026-07-06"');
+    // Month paging keeps the deliveries route (not the calendar page).
+    expect(html).toContain("/admin/deliveries?cal=");
+  });
+
+  test("staff picker keeps the opened date while paging months", () => {
+    const html = agentDeliveriesPage(
+      [
+        { bookings: [], heading: "Sunday 12 July 2026" },
+        { bookings: [], heading: "Monday 13 July 2026" },
+      ],
+      "44",
+      { noAgents: false },
+      managerSession,
+      dateNav({ selected: "2026-07-12" }),
+    );
+    // Paging months carries the selected date so it stays highlighted (the
+    // ampersand is HTML-escaped in the rendered href).
+    expect(html).toContain("/admin/deliveries?date=2026-07-12&amp;cal=");
   });
 });
