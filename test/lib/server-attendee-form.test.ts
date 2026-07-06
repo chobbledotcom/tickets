@@ -638,7 +638,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // The alert is focusable (autofocus + tabindex) so the browser scrolls to
       // it after the failed submit.
       expect(html).toContain(
-        `<output autofocus class="error" role="alert" tabindex="-1">Refund this line's payment before marking it no quantity.</output>`,
+        `<div autofocus class="error" role="alert" tabindex="-1">Refund this line's payment before marking it no quantity.</div>`,
       );
       // The paid line's "no quantity" box is disabled with an explaining tooltip
       // so it can't be ticked in the first place.
@@ -1290,7 +1290,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // browser scrolls straight to it instead of leaving the operator at the
       // top of the page — no JavaScript involved.
       expect(html).toContain(
-        `<output autofocus class="error" role="alert" tabindex="-1">A start date is required`,
+        `<div autofocus class="error" role="alert" tabindex="-1">A start date is required`,
       );
       // The name field gives up its default autofocus so it doesn't win the
       // focus race over the (lower) date error.

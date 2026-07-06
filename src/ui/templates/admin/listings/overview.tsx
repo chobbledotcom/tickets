@@ -12,6 +12,7 @@ import {
   getCheckedInStats,
   renderDetailRows,
 } from "#templates/admin/detail-rows.tsx";
+import { ErrorNote } from "#templates/components/error.tsx";
 import { attendeeStatsForListing } from "./attendees.tsx";
 import { listingCapacityRowsFor } from "./capacity-rows.tsx";
 import { ListingDetailsTable } from "./details.tsx";
@@ -30,9 +31,7 @@ export const ListingDeactivatedBanner = ({
   active: boolean;
 }): JSX.Element | null =>
   active ? null : (
-    <div class="error" role="alert">
-      {t("listings_table.listing_deactivated_warning")}
-    </div>
+    <ErrorNote>{t("listings_table.listing_deactivated_warning")}</ErrorNote>
   );
 
 export const overviewStatsFromAttendees = (

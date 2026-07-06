@@ -6,6 +6,7 @@ import { t } from "#i18n";
 import { getIframeMode } from "#shared/iframe.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { Icon } from "#templates/components/actions.tsx";
+import { ErrorAlert } from "#templates/components/error.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /**
@@ -142,9 +143,9 @@ export const paymentErrorPage = (message: string): string =>
   String(
     <Layout title={t("payment.error.title")}>
       <h1>{t("payment.error.heading")}</h1>
-      <div class="error" role="alert">
+      <ErrorAlert>
         <p>{message}</p>
-      </div>
+      </ErrorAlert>
       <p>
         <a href="/">{t("payment.error.return_home")}</a>
       </p>

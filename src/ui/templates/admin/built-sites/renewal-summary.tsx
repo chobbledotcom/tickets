@@ -1,8 +1,9 @@
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { DataTable } from "#templates/components/data-table.tsx";
-import { ErrorAlert } from "#templates/components/error-alert.tsx";
+import { ErrorNote } from "#templates/components/error.tsx";
 
 export const RenewalTierSummary = ({
   tiers,
@@ -12,7 +13,9 @@ export const RenewalTierSummary = ({
   <section>
     <h2>{t("built_sites.renewal_tiers_title")}</h2>
     {tiers.length === 0 ? (
-      <ErrorAlert message={t("built_sites.no_renewal_tier")} />
+      <ErrorNote>
+        <Raw html={t("built_sites.no_renewal_tier")} />
+      </ErrorNote>
     ) : (
       <DataTable
         columns={[
