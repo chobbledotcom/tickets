@@ -482,6 +482,40 @@ const kindsOf = (legs: Transfer[]): string[] =>
 const legsOfKind = (legs: Transfer[], kind: string): Transfer[] =>
   legs.filter((leg) => leg.kind === kind);
 
+// Reads the one cash-refund leg on an attendee's account and checks its size,
+// then hands the leg back for any further checks (e.g. where the cash landed).
+const expectOneRefundCash = async (
+  attendeeId: number,
+  amount: number,
+): Promise<Transfer> => {
+  const refundCash = legsOfKind(
+    await transfersByAccount(attendeeAccount(attendeeId)),
+    "refund_cash",
+  );
+  expect(refundCash.length).toBe(1);
+  expect(refundCash[0]!.amount).toBe(amount);
+  return refundCash[0]!;
+};
+
+// Merges a duplicate booking, keeping the target ticket and resolving the
+// discarded payment the chosen way ("credit" or "writeoff"); expects the
+// redirect back and hands the response back.
+const keepTargetMerge = async (
+  targetId: number,
+  sourceToken: string,
+  moneyDecision: string,
+): Promise<Response> => {
+  const { version, bookingField } = await mergePreview(targetId, sourceToken);
+  const merged = await mergePost(targetId, {
+    [bookingField]: "keep_target",
+    [moneyFieldFor(bookingField)]: moneyDecision,
+    merge_version: version,
+    source_token: sourceToken,
+  });
+  expect(merged.status).toBe(302);
+  return merged;
+};
+
 describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
   afterEach(() => resetStripeClient());
 
@@ -626,12 +660,7 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
     expect(await owedBy(attendeeId)).toBe(0);
     expect(await incomeOf(listing.id)).toBe(-3000);
     expect(await sumOfAllBalances()).toBe(0);
-    const refundCash = legsOfKind(
-      await transfersByAccount(attendeeAccount(attendeeId)),
-      "refund_cash",
-    );
-    expect(refundCash.length).toBe(1);
-    expect(refundCash[0]!.amount).toBe(5000);
+    await expectOneRefundCash(attendeeId, 5000);
     // Both rendered income surfaces, each against its own (divergent) contract.
     await assertStatementBalance(listing.id, -3000);
     await assertEditPageIncome(listing.id, 2000);
@@ -765,13 +794,8 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
     expect(await owedBy(attendeeId)).toBe(0);
 
     // A single full refund_cash leg of the whole payment, returned to the world.
-    const refundCash = legsOfKind(
-      await transfersByAccount(attendeeAccount(attendeeId)),
-      "refund_cash",
-    );
-    expect(refundCash.length).toBe(1);
-    expect(refundCash[0]!.amount).toBe(4500);
-    expect(refundCash[0]!.destination).toEqual(WORLD);
+    const refund = await expectOneRefundCash(attendeeId, 4500);
+    expect(refund.destination).toEqual(WORLD);
 
     // Conservation across every touched account.
     expect(await sumOfAllBalances()).toBe(0);
@@ -1350,14 +1374,7 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
 
     // Keep the target ticket; CREDIT the discarded source payment (both decisions
     // are scraped from the rendered form, then applied).
-    const { version, bookingField } = await mergePreview(targetId, sourceToken);
-    const merged = await mergePost(targetId, {
-      [bookingField]: "keep_target",
-      [moneyFieldFor(bookingField)]: "credit",
-      merge_version: version,
-      source_token: sourceToken,
-    });
-    expect(merged.status).toBe(302);
+    await keepTargetMerge(targetId, sourceToken, "credit");
 
     // Income now counts the ONE kept ticket; the survivor holds the over-paid £50
     // as a credit (negative owed); the source account is emptied; conservation holds.
@@ -1382,14 +1399,7 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
       await twoPaidDuplicates("Gala");
     const writeoffBefore = norm(await accountBalance(WRITEOFF));
 
-    const { version, bookingField } = await mergePreview(targetId, sourceToken);
-    const merged = await mergePost(targetId, {
-      [bookingField]: "keep_target",
-      [moneyFieldFor(bookingField)]: "writeoff",
-      merge_version: version,
-      source_token: sourceToken,
-    });
-    expect(merged.status).toBe(302);
+    await keepTargetMerge(targetId, sourceToken, "writeoff");
 
     // One ticket's income survives; the survivor owes nothing; the un-billed £50
     // lands in writeoff (not returned); the source empties; conservation holds.

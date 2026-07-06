@@ -68,6 +68,42 @@ const seedDraft = async (draft: BulkEmailDraft) =>
     ),
   });
 
+/** Read back the rendered preview of whatever email draft is currently staged. */
+const readEmailPreview = async () =>
+  await (await adminGet("/admin/emails/preview")).text();
+
+/** Draft an email for one listing via the preview form, then return its preview. */
+const previewListingEmail = async (
+  listingId: number,
+  fields: Record<string, string>,
+) => {
+  await adminFormPost("/admin/emails/preview", {
+    ...fields,
+    listing_id: String(listingId),
+  });
+  return await readEmailPreview();
+};
+
+/** Stage the "listing since deleted" draft (listing 987654) and return its preview. */
+const previewDeletedListingDraft = async () => {
+  useResend();
+  await seedDraft({
+    body: "Body",
+    marketing: false,
+    subject: "Subject",
+    target: { kind: "listing", listingId: 987654 },
+  });
+  return await readEmailPreview();
+};
+
+/** Seed a two-attendee listing with Alice unsubscribed, ready for a marketing send. */
+const seedListingWithAliceUnsubscribed = async () => {
+  useResend();
+  const listing = await seedListingWithAttendees();
+  await unsubscribeHash(await hashEmail("alice@example.com"));
+  return listing;
+};
+
 describeWithEnv("server (bulk email)", { db: true }, () => {
   describe("GET /admin/emails", () => {
     testRequiresAuth("/admin/emails");
@@ -236,12 +272,10 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       useResend();
       settings.setForTest({ business_email: "owner@example.com" });
       const listing = await seedListingWithAttendees();
-      await adminFormPost("/admin/emails/preview", {
+      const html = await previewListingEmail(listing.id, {
         body: "Hello",
-        listing_id: String(listing.id),
         subject: "Big news",
       });
-      const html = await (await adminGet("/admin/emails/preview")).text();
       expect(html).toContain("everyone in BCC");
       expect(html).toContain("Open a BCC draft to 2 recipients");
       expect(html).toContain("mailto:owner%40example.com?bcc=");
@@ -252,12 +286,10 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       // A business email is set but must be ignored for a single recipient.
       settings.setForTest({ business_email: "owner@example.com" });
       const listing = await seedSingleAttendeeListing();
-      await adminFormPost("/admin/emails/preview", {
+      const html = await previewListingEmail(listing.id, {
         body: "Hello",
-        listing_id: String(listing.id),
         subject: "Big news",
       });
-      const html = await (await adminGet("/admin/emails/preview")).text();
       expect(html).toContain("Open a draft to 1 recipient");
       expect(html).toContain("addressed straight to your one recipient");
       expect(html).toContain("mailto:alice%40example.com?");
@@ -266,14 +298,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
     });
 
     test("omits the address list when there are no recipients", async () => {
-      useResend();
-      await seedDraft({
-        body: "Body",
-        marketing: false,
-        subject: "Subject",
-        target: { kind: "listing", listingId: 987654 },
-      });
-      const html = await (await adminGet("/admin/emails/preview")).text();
+      const html = await previewDeletedListingDraft();
       expect(html).not.toContain('class="recipient-emails"');
     });
 
@@ -309,28 +334,17 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
     });
 
     test("labels a target whose listing has since been deleted", async () => {
-      useResend();
-      await seedDraft({
-        body: "Body",
-        marketing: false,
-        subject: "Subject",
-        target: { kind: "listing", listingId: 987654 },
-      });
-      const html = await (await adminGet("/admin/emails/preview")).text();
+      const html = await previewDeletedListingDraft();
       expect(html).toContain("Listing attendees");
     });
 
     test("notes how many unsubscribed recipients are skipped", async () => {
-      useResend();
-      const listing = await seedListingWithAttendees();
-      await unsubscribeHash(await hashEmail("alice@example.com"));
-      await adminFormPost("/admin/emails/preview", {
+      const listing = await seedListingWithAliceUnsubscribed();
+      const html = await previewListingEmail(listing.id, {
         body: "Promo",
-        listing_id: String(listing.id),
         marketing: "1",
         subject: "Sale",
       });
-      const html = await (await adminGet("/admin/emails/preview")).text();
       expect(html).toContain("1 unsubscribed will be skipped");
     });
   });
@@ -470,12 +484,9 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
     });
 
     test("excludes unsubscribed recipients from a marketing send", async () => {
-      useResend();
-      const listing = await seedListingWithAttendees();
-      await unsubscribeHash(await hashEmail("alice@example.com"));
-      await adminFormPost("/admin/emails/preview", {
+      const listing = await seedListingWithAliceUnsubscribed();
+      await previewListingEmail(listing.id, {
         body: "Promo",
-        listing_id: String(listing.id),
         marketing: "1",
         subject: "Sale",
       });

@@ -5,6 +5,7 @@ import { initChildRequired } from "#src/ui/client/admin/child-required.ts";
 // jscpd:ignore-start
 import {
   byName,
+  type ChildCompat,
   childPriceSpec as childPrice,
   childQtySpec as childQty,
   childSelectorSpec as childSelector,
@@ -40,6 +41,33 @@ const soleSetup = (hidden = false) =>
 const switchDate = (roots: FakeElement[], val: string): void => {
   byName(roots, "date").value = val;
   byName(roots, "date").dispatch("change");
+};
+
+// Builds a customisable-parent page with one daily child (101→202) whose
+// bookable dates/spans are described by `childData`, under the given selected
+// start date and day-count.
+const oneChildSpanSetup = (
+  selectedDate: string,
+  selectedDayCount: string,
+  childData: ChildCompat,
+) =>
+  installFakeDom([
+    date(selectedDate),
+    dayCount(selectedDayCount),
+    quantity("101", "1"),
+    childSelector("101"),
+    childQty("101", "202", "1", false, childData),
+  ]);
+
+// Checks the parent quantity (101) control's enabled state and current value
+// together — several sole-child re-enable cases assert exactly this pair.
+const expectParentQuantity = (
+  roots: FakeElement[],
+  disabled: boolean,
+  value: string,
+): void => {
+  expect(byName(roots, "quantity_101").disabled).toBe(disabled);
+  expect(byName(roots, "quantity_101").value).toBe(value);
 };
 
 /** Assert the canonical `child_qty_101_202` field is enabled and holds
@@ -191,16 +219,10 @@ describe("child date/span compatibility", () => {
     // 2026-06-09 for a 2-day span. With day_count=2 chosen, selecting 2026-06-08
     // (valid for a 1-day span but NOT a 2-day span) must disable the child; a
     // span/date it can serve (day_count=1, 2026-06-08) keeps it enabled.
-    const roots = installFakeDom([
-      date("2026-06-08"),
-      dayCount("2"),
-      quantity("101", "1"),
-      childSelector("101"),
-      childQty("101", "202", "1", false, {
-        dates: { "1": ["2026-06-08", "2026-06-09"], "2": ["2026-06-09"] },
-        spans: [1, 2],
-      }),
-    ]);
+    const roots = oneChildSpanSetup("2026-06-08", "2", {
+      dates: { "1": ["2026-06-08", "2026-06-09"], "2": ["2026-06-09"] },
+      spans: [1, 2],
+    });
 
     initChildCompat();
     // day_count=2 + 2026-06-08: the 2-day span can't start that day → disabled.
@@ -252,14 +274,12 @@ describe("child date/span compatibility", () => {
 
     initChildCompat();
     // Incompatible date: the hidden parent quantity is disabled and zeroed.
-    expect(byName(roots, "quantity_101").disabled).toBe(true);
-    expect(byName(roots, "quantity_101").value).toBe("0");
+    expectParentQuantity(roots, true, "0");
 
     // Switch to a date the sole child serves: parent re-enabled AND restored to 1.
     switchDate(roots, "2026-06-01");
 
-    expect(byName(roots, "quantity_101").disabled).toBe(false);
-    expect(byName(roots, "quantity_101").value).toBe("1");
+    expectParentQuantity(roots, false, "1");
   });
 
   test("dispatches a change event after restoring the auto-hidden parent quantity", () => {
@@ -294,8 +314,7 @@ describe("child date/span compatibility", () => {
 
     switchDate(roots, "2026-06-01");
 
-    expect(byName(roots, "quantity_101").disabled).toBe(false);
-    expect(byName(roots, "quantity_101").value).toBe("0");
+    expectParentQuantity(roots, false, "0");
   });
 
   test("leaves a date/span-constrained child enabled until a date and day-count are chosen", () => {
@@ -320,15 +339,9 @@ describe("child date/span compatibility", () => {
   test("disables a child whose selected span serves no date (empty per-span set)", () => {
     // The child serves the 8th for a 1-day span, but its 2-day span serves no
     // date at all (encoded `2:`); with day_count=2 chosen it can't be booked.
-    const roots = installFakeDom([
-      date("2026-06-08"),
-      dayCount("2"),
-      quantity("101", "1"),
-      childSelector("101"),
-      childQty("101", "202", "1", false, {
-        dates: { "1": ["2026-06-08"], "2": [] },
-      }),
-    ]);
+    const roots = oneChildSpanSetup("2026-06-08", "2", {
+      dates: { "1": ["2026-06-08"], "2": [] },
+    });
 
     initChildCompat();
 

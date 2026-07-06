@@ -58,6 +58,38 @@ const lastModifier = async (): Promise<Modifier> => {
   return all[all.length - 1]!;
 };
 
+/** Create a VIP listing plus a listings-scoped "Scoped" modifier; return both. */
+const seedScopedListingModifier = async () => {
+  const listing = await createTestListing({
+    maxAttendees: 10,
+    name: "VIP",
+    unitPrice: 100,
+  });
+  await adminFormPost(
+    "/admin/modifiers",
+    createData({ name: "Scoped", scope: "listings" }),
+  );
+  const { id } = await lastModifier();
+  return { id, listing };
+};
+
+/** Link one child listing to a modifier and assert the "Scope updated" success. */
+const expectScopeUpdatedLinkingChild = async (
+  modifierId: number,
+  childId: number,
+) => {
+  const { response } = await adminFormPost(
+    `/admin/modifiers/${modifierId}/links`,
+    { listing_ids: String(childId) },
+  );
+  await expectFlashRedirect(
+    `/admin/modifiers/${modifierId}/edit`,
+    "Scope updated",
+    true,
+  )(response);
+  expect(await getModifierListingIds(modifierId)).toEqual([childId]);
+};
+
 describeWithEnv("server (admin modifiers)", { db: true }, () => {
   describe("GET /admin/modifiers", () => {
     testRequiresAuth("/admin/modifiers");
@@ -737,16 +769,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     });
 
     test("edit page lists linkable listings for a listings-scoped modifier", async () => {
-      await createTestListing({
-        maxAttendees: 10,
-        name: "VIP",
-        unitPrice: 100,
-      });
-      await adminFormPost(
-        "/admin/modifiers",
-        createData({ name: "Scoped", scope: "listings" }),
-      );
-      const { id } = await lastModifier();
+      const { id } = await seedScopedListingModifier();
       const response = await adminGet(`/admin/modifiers/${id}/edit`);
       await expectHtmlResponse(
         response,
@@ -775,16 +798,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     });
 
     test("links listings via the scope form", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        name: "VIP",
-        unitPrice: 100,
-      });
-      await adminFormPost(
-        "/admin/modifiers",
-        createData({ name: "Scoped", scope: "listings" }),
-      );
-      const { id } = await lastModifier();
+      const { id, listing } = await seedScopedListingModifier();
       await adminFormPost(`/admin/modifiers/${id}/links`, {
         listing_ids: String(listing.id),
       });

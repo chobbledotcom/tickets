@@ -27,6 +27,10 @@ import {
   testRequiresAuth,
   withMocks,
 } from "#test-utils";
+import {
+  orphanAttendee,
+  seedListingAttendee,
+} from "#test-utils/attendee-fixtures.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 // -- URL builders --------------------------------------------------------- //
@@ -201,18 +205,8 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
     test("returns 404 for an orphan attendee with no home listing", async () => {
       // The attendee-scoped route loads the attendee's home listing; an
       // attendee whose bookings are all gone has none, so the action 404s.
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
-      const { getDb } = await import("#shared/db/client.ts");
-      await getDb().execute(
-        "DELETE FROM listing_attendees WHERE attendee_id = ?",
-        [attendee.id],
-      );
+      const { attendee } = await seedListingAttendee();
+      await orphanAttendee(attendee.id);
       const response = await awaitTestRequest(refundUrl(attendee.id), {
         cookie: await testCookie(),
       });

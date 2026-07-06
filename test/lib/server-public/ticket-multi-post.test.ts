@@ -13,6 +13,7 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils";
+import { bookTwoFreeListings } from "#test-utils/multi-ticket-signup.ts";
 
 // jscpd:ignore-end
 
@@ -134,22 +135,16 @@ describeWithEnv(
           maxQuantity: 5,
           name: "Post Multi Free 2",
         });
-        const response = await submitMultiTicketForm(
-          [listing1.slug, listing2.slug],
-          {
-            email: "john@example.com",
-            name: "John Doe",
-            [`quantity_${listing1.id}`]: "2",
-            [`quantity_${listing2.id}`]: "1",
-          },
+        await bookTwoFreeListings(
+          (quantities) =>
+            submitMultiTicketForm([listing1.slug, listing2.slug], {
+              email: "john@example.com",
+              name: "John Doe",
+              ...quantities,
+            }),
+          listing1,
+          listing2,
         );
-        expectReservedRedirectWithTokens(response);
-
-        // Verify attendees were created
-        await expectAttendeeCounts([
-          { count: 1, listingId: listing1.id, quantity: 2 },
-          { count: 1, listingId: listing2.id, quantity: 1 },
-        ]);
       });
 
       test("only registers for listings with quantity > 0", async () => {

@@ -1,12 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  answersTable,
-  questionsTable,
-  saveAttendeeAnswers,
-  setListingQuestions,
-} from "#shared/db/questions.ts";
+import { saveAttendeeAnswers } from "#shared/db/questions.ts";
 import {
   adminFormPost,
   adminGet,
@@ -18,6 +13,7 @@ import {
   setupListingAndLogin,
   testRequiresAuth,
 } from "#test-utils";
+import { addListingQuestion } from "#test-utils/custom-questions.ts";
 
 // jscpd:ignore-end
 
@@ -144,22 +140,11 @@ describeWithEnv("server listings > export", { db: true }, () => {
       );
 
       // Create question, answers, and assign to listing
-      const q = await questionsTable.insert({
-        displayType: "radio",
-        text: "Shirt Size",
-      });
-      const a1 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
-        text: "Small",
-      });
-      await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 1,
-        text: "Large",
-      });
-      await setListingQuestions(listing.id, [q.id]);
-      await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
+      const { answers } = await addListingQuestion(listing.id, "Shirt Size", [
+        "Small",
+        "Large",
+      ]);
+      await saveAttendeeAnswers(new Map([[attendee.id, [answers[0]!.id]]]));
 
       const response = await awaitTestRequest(
         `/admin/listing/${listing.id}/export`,

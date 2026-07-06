@@ -7,12 +7,7 @@ import {
   modifiersTable,
   setModifierAnswers,
 } from "#shared/db/modifiers.ts";
-import {
-  answersTable,
-  getAttendeeAnswersBatch,
-  questionsTable,
-  setListingQuestions,
-} from "#shared/db/questions.ts";
+import { getAttendeeAnswersBatch } from "#shared/db/questions.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
   createTestListing,
@@ -21,6 +16,7 @@ import {
   expectReservedRedirectWithTokens,
   submitTicketForm,
 } from "#test-utils";
+import { addListingQuestion } from "#test-utils/custom-questions.ts";
 import { createDailyListing } from "./daily-listing.ts";
 
 // jscpd:ignore-end
@@ -32,22 +28,12 @@ describeWithEnv(
     describe("single-ticket with custom questions", () => {
       /** Create a question with answers and assign it to an listing */
       const setupQuestionForListing = async (listingId: number) => {
-        const q = await questionsTable.insert({
-          displayType: "radio",
-          text: "T-shirt size?",
-        });
-        const a1 = await answersTable.insert({
-          questionId: q.id,
-          sortOrder: 0,
-          text: "Small",
-        });
-        const a2 = await answersTable.insert({
-          questionId: q.id,
-          sortOrder: 1,
-          text: "Large",
-        });
-        await setListingQuestions(listingId, [q.id]);
-        return { answer1: a1, answer2: a2, question: q };
+        const { question, answers } = await addListingQuestion(
+          listingId,
+          "T-shirt size?",
+          ["Small", "Large"],
+        );
+        return { answer1: answers[0]!, answer2: answers[1]!, question };
       };
 
       test("saves answers when question is answered correctly", async () => {

@@ -223,6 +223,22 @@ const submitCreateImage = (
     ),
   );
 
+/** Submit a create-listing form with a stray image, confirm it redirects, and
+ * hand back the listing that was created (looked up by its name). */
+const createImageListingAndFind = async (
+  cookie: string,
+  csrfToken: string,
+  listingName: string,
+  file: { name: string; data: Uint8Array; contentType: string },
+) => {
+  const response = await submitCreateImage(cookie, csrfToken, listingName, file);
+  expect(response.status).toBe(302);
+
+  const { getAllListings } = await import("#shared/db/listings.ts");
+  const listings = await getAllListings();
+  return listings.find((e) => e.name === listingName);
+};
+
 /** Submit a POST to /admin/listing/:id/attachment/delete */
 const submitAttachmentDelete = (
   listingId: number,
@@ -454,7 +470,7 @@ describeWithEnv(
         const csrfToken = await testCsrfToken();
 
         await withStorageMock(async () => {
-          const response = await submitCreateImage(
+          const created = await createImageListingAndFind(
             cookie,
             csrfToken,
             "Image Test Listing",
@@ -464,11 +480,6 @@ describeWithEnv(
               name: "photo.png",
             },
           );
-          expect(response.status).toBe(302);
-
-          const { getAllListings } = await import("#shared/db/listings.ts");
-          const listings = await getAllListings();
-          const created = listings.find((e) => e.name === "Image Test Listing");
           expect(created).not.toBeUndefined();
           expect(created?.image_url).toBe("");
           expect(created?.image_thumb_url).toBe("");
@@ -480,7 +491,7 @@ describeWithEnv(
         const csrfToken = await testCsrfToken();
 
         await withStorageMock(async () => {
-          const response = await submitCreateImage(
+          const created = await createImageListingAndFind(
             cookie,
             csrfToken,
             "Bad Image Listing",
@@ -490,11 +501,6 @@ describeWithEnv(
               name: "test.pdf",
             },
           );
-          expect(response.status).toBe(302);
-
-          const { getAllListings } = await import("#shared/db/listings.ts");
-          const listings = await getAllListings();
-          const created = listings.find((e) => e.name === "Bad Image Listing");
           expect(created).not.toBeUndefined();
           expect(created?.image_url).toBe("");
         });
