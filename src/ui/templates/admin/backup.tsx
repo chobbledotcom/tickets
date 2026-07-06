@@ -65,7 +65,11 @@ export const adminBackupPage = (
   error?: string,
   success?: string,
 ): string =>
-  flashAdminPage(t("backup.page_title"))(session, error, success)(
+  flashAdminPage(t("backup.page_title"), "/admin/backup")(
+    session,
+    error,
+    success,
+  )(
     <>
       <ProseHeading heading={t("backup.heading")}>
         <p class="actions">

@@ -72,6 +72,14 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       expect(body).toContain('href="/admin/logistics"');
       expect(body).toContain(">Logistics<");
     });
+
+    test("highlights the Logistics sub-nav link on the logistics page", async () => {
+      // Regression: the main /admin/logistics page used the admin-page helper's
+      // default active route (/admin/settings), so the Logistics sub-nav link
+      // never lit up on the page users actually land on.
+      const body = await (await adminGet("/admin/logistics")).text();
+      expect(body).toContain('class="active" href="/admin/logistics"');
+    });
   });
 
   describe("POST /admin/logistics/has-logistics", () => {

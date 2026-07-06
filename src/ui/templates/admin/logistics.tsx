@@ -82,7 +82,10 @@ export const adminLogisticsPage = (
   session: AdminSession,
   successMessage?: string,
 ): string =>
-  successAdminPage(t("logistics.title"))(session, successMessage)(
+  successAdminPage(t("logistics.title"), "/admin/logistics")(
+    session,
+    successMessage,
+  )(
     <>
       <p class="actions">
         <GuideLink href="/admin/guide#logistics">
