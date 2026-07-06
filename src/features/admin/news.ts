@@ -18,7 +18,7 @@ import {
   createNewsPost,
   deleteNewsPostWithImages,
   getNewsPostById,
-  getNewsPostCards,
+  getNewsPostSummaries,
   type NewsPostWriteInput,
   updateNewsPost,
 } from "#shared/db/news-posts.ts";
@@ -70,7 +70,7 @@ const validateFields = (
 // ─── Page CRUD ──────────────────────────────────────────────────
 
 const renderList = siteContentGet(async (session) =>
-  adminNewsListPage(await getNewsPostCards(), session),
+  adminNewsListPage(await getNewsPostSummaries(), session),
 );
 
 const renderNew = siteContentGet((session) => adminNewsNewPage(session));

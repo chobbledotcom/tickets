@@ -26,7 +26,7 @@ import {
 import { col } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
-import type { NewsPost, NewsPostCard } from "#shared/types.ts";
+import type { NewsPost, NewsPostCard, NewsPostSummary } from "#shared/types.ts";
 
 /** Create/update input (camelCase keys → snake_case columns). `created`
  * defaults to now at insert time; the admin flow never supplies it (only
@@ -72,9 +72,31 @@ export const hasNewsPosts = async (): Promise<boolean> =>
 const decryptText = (value: string): Promise<string> | string =>
   value === "" ? value : decrypt(value);
 
-/** Load the card projection for every post, newest first: id, created, name,
- * snippet, and the post's first linked image — decrypting just name, snippet,
- * and the image fields (never content/meta). Feeds /news and the RSS feed. */
+/** Decrypt one summary row (name and snippet only). */
+const decryptSummary = async (
+  row: NewsPostSummary,
+): Promise<NewsPostSummary> => ({
+  created: row.created,
+  id: row.id,
+  name: await decrypt(row.name),
+  snippet: await decryptText(row.snippet),
+});
+
+/** Load the summary projection for every post, newest first: id, created,
+ * name, snippet — no image reads or decrypts. Feeds the RSS feed and the
+ * admin list, which render no images. */
+export const getNewsPostSummaries = async (): Promise<NewsPostSummary[]> => {
+  const rows = await queryAll<NewsPostSummary>(
+    `SELECT id, created, name, snippet
+       FROM news_posts
+      ORDER BY created DESC, id DESC`,
+  );
+  return mapParallel(decryptSummary)(rows);
+};
+
+/** Load the card projection for every post, newest first: the summary plus
+ * the post's first linked image — for the public /news list, the one reader
+ * that shows pictures. */
 export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
   const rows = await queryAll<NewsPostCard>(
     `SELECT news_post.id, news_post.created, news_post.name, news_post.snippet,
@@ -83,13 +105,10 @@ export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
       ORDER BY news_post.created DESC, news_post.id DESC`,
   );
   return mapParallel(async (row: NewsPostCard) => ({
-    created: row.created,
-    id: row.id,
+    ...(await decryptSummary(row)),
     image_alt_text: await decryptText(row.image_alt_text),
     image_thumb_url: await decryptText(row.image_thumb_url),
     image_url: await decryptText(row.image_url),
-    name: await decrypt(row.name),
-    snippet: await decryptText(row.snippet),
   }))(rows);
 };
 

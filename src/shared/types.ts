@@ -732,14 +732,18 @@ export interface NewsPost {
   content: string;
 }
 
-/** The narrow projection the public /news list and the RSS feed render: name,
- * snippet, created, and the post's first image — never the large
+/** The narrowest list projection — id, created, name, snippet — for readers
+ * that render no images (the RSS feed, the admin list). Never the large
  * `content`/`meta_*` blobs (cold-start efficiency, like {@link SitePageNavRow}). */
-export interface NewsPostCard {
+export interface NewsPostSummary {
   id: number;
   created: string;
   name: string;
   snippet: string;
+}
+
+/** The public /news list projection: a summary plus the post's first image. */
+export interface NewsPostCard extends NewsPostSummary {
   image_url: string;
   image_thumb_url: string;
   image_alt_text: string;

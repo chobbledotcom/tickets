@@ -9,7 +9,7 @@ import { t } from "#i18n";
 import { newsPostForm, newsPostToValues } from "#routes/admin/news-form.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession, NewsPost, NewsPostCard } from "#shared/types.ts";
+import type { AdminSession, NewsPost, NewsPostSummary } from "#shared/types.ts";
 import { AdminPage, adminFormPage } from "#templates/admin/admin-page.tsx";
 import {
   collectionPage,
@@ -25,7 +25,7 @@ const LIST = "/admin/site/news";
 const ACTIVE = LIST;
 
 export const adminNewsListPage = (
-  posts: NewsPostCard[],
+  posts: NewsPostSummary[],
   session: AdminSession,
   successMessage?: string,
 ): string =>

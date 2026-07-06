@@ -27,7 +27,7 @@ import {
   bookingAssignmentKey,
   getLogisticsAssignmentsForAttendees,
 } from "#shared/db/logistics.ts";
-import { getNewsPostCards } from "#shared/db/news-posts.ts";
+import { getNewsPostSummaries } from "#shared/db/news-posts.ts";
 import { settings } from "#shared/db/settings.ts";
 import { userAgents } from "#shared/db/user-agents.ts";
 import { getRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -35,7 +35,7 @@ import {
   type ListingWithCount,
   loadSortedListings,
 } from "#shared/sort-listings.ts";
-import type { Attendee, Group, NewsPostCard } from "#shared/types.ts";
+import type { Attendee, Group, NewsPostSummary } from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 
 /** Escape text for ICS (RFC 5545): backslash-escape special characters */
@@ -252,7 +252,7 @@ const buildRss = ({ items: feedItems, domain, title }: FeedData): string =>
 
 /** The news RSS document: every post, newest first, linking to `/news/:id`
  * with the plain-text snippet as the description. */
-const buildNewsRss = (posts: NewsPostCard[], domain: string): string => {
+const buildNewsRss = (posts: NewsPostSummary[], domain: string): string => {
   const title = settings.websiteTitle || "News";
   return buildRssDocument(
     {
@@ -395,7 +395,9 @@ const handleRss = (): Promise<Response> =>
 /** Handle GET /feeds/news.rss */
 const handleNewsRss = (): Promise<Response> =>
   requirePublicSite(async () =>
-    rssResponse(buildNewsRss(await getNewsPostCards(), getEffectiveDomain())),
+    rssResponse(
+      buildNewsRss(await getNewsPostSummaries(), getEffectiveDomain()),
+    ),
   ) as Promise<Response>;
 
 /** Feed routes */
