@@ -374,6 +374,32 @@ export const parentWithBlockedSecondChild = async (
   return { blockedChild, okChild, parent };
 };
 
+/** A "Base unit" parent in a roomy shared group A (10 spots) and its "Add-on"
+ * child in BOTH group A and its own tighter private group B (1 spot) — so the
+ * shared-pool check must read group A, not the child's tightest group. */
+export const parentChildRoomySharedTightPrivate = async (): Promise<{
+  parent: Listing;
+  child: Listing;
+}> => {
+  const { createTestGroup, createTestListing } = await import(
+    "#test-utils/db-helpers.ts"
+  );
+  const groupA = await createTestGroup({ maxAttendees: 10, name: "Shared" });
+  const groupB = await createTestGroup({ maxAttendees: 1, name: "Tighter" });
+  const parent = await createTestListing({
+    groupIds: [groupA.id],
+    maxAttendees: 100,
+    name: "Base unit",
+  });
+  const child = await createTestListing({
+    groupIds: [groupA.id, groupB.id],
+    maxAttendees: 100,
+    name: "Add-on",
+  });
+  await setChildIds(parent.id, [child.id]);
+  return { child, parent };
+};
+
 /** A regular group whose sole member is a child of a parent OUTSIDE the group,
  * so the group folds empty. Returns the group. */
 export const groupWithChildOnlyMember = async (

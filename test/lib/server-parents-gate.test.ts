@@ -2003,25 +2003,7 @@ describeWithEnv(
       // order fits and the page renders a bookable form. The pre-fix code took the
       // child's per-listing minimum (1), computed floor(1 / 2) = 0, and wrongly
       // marked the parent sold out.
-      const groupA = await createTestGroup({
-        maxAttendees: 10,
-        name: "Shared",
-      });
-      const groupB = await createTestGroup({
-        maxAttendees: 1,
-        name: "Tighter",
-      });
-      const parent = await createTestListing({
-        groupIds: [groupA.id],
-        maxAttendees: 100,
-        name: "Base unit",
-      });
-      const child = await createTestListing({
-        groupIds: [groupA.id, groupB.id],
-        maxAttendees: 100,
-        name: "Add-on",
-      });
-      await setChildIds(parent.id, [child.id]);
+      const { parent } = await parentChildRoomySharedTightPrivate();
 
       const html = await bookingPageHtml(parent.slug);
       expect(html).not.toContain("Sorry, this listing is full.");
