@@ -215,6 +215,30 @@ describeWithEnv(
     const fixedStatus = async (): Promise<number> =>
       (await getPaidDefaultStatus())!.id;
 
+    test("persists the chosen status on the attendees row while the balance reconciles", async () => {
+      // The status write and the ledger reconcile share one transaction; the
+      // status must land on the attendees row itself, visible to a plain read.
+      const { attendeeId } = await createReservedAttendee(1500);
+      const statusId = await fixedStatus();
+
+      await updateAttendeeOrder(attendeeId, statusId, 500);
+
+      const state = await getAttendeeBalanceState(attendeeId);
+      expect(state?.statusId).toBe(statusId);
+      expect(state?.remainingBalance).toBe(500);
+    });
+
+    test("clears the status when null is chosen", async () => {
+      const { attendeeId } = await createReservedAttendee(1500);
+      // Give it a status first so the null write is a real change.
+      await updateAttendeeOrder(attendeeId, await fixedStatus(), 1500);
+
+      await updateAttendeeOrder(attendeeId, null, 1500);
+
+      const state = await getAttendeeBalanceState(attendeeId);
+      expect(state?.statusId).toBeNull();
+    });
+
     test("raising the outstanding balance posts an attendee→writeoff debit", async () => {
       // Start fully paid (owes 0), then correct the balance up to £15.
       const { attendeeId } = await createReservedAttendee(0);
