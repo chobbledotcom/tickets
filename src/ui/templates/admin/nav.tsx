@@ -151,77 +151,66 @@ const calendarSub = (): NavItem[] | null =>
       ]
     : null;
 
-/** A section's landing link paired with its "Add X" sibling — the repeated
- * two-item shape every section with its own create page uses (Listings, Groups,
- * Attendees, Modifiers, Servicing, Users). The "Add X" sibling lives in the
- * section's sub-nav, so it only shows once you're inside that section, and it
- * drops out in read-only mode, matching every other create affordance's own
- * page (the dashboard's Add Listing button, the Modifiers page's Add Modifier
- * button, …) — a nav link must not offer a create flow the site itself won't
- * allow right now. */
+/** A section's landing link paired with its create link. The landing link is
+ * listed so the section can `ownsActive` its own route, but it's never rendered
+ * in the sub-nav (`sectionLevels` filters it out — the top-level bar carries
+ * it). The create link is a plain, collection-agnostic "Add": we're already
+ * inside the section, so it needn't repeat the collection name. It drops out in
+ * read-only mode, matching every other create affordance — a nav link must not
+ * offer a create flow the site itself won't allow right now. */
 const sectionWithAdd = (
   href: string,
   label: string,
   addHref: string,
-  addLabel: string,
 ): NavItem[] => [
-  { href, label },
-  ...(isReadOnly() ? [] : [{ href: addHref, label: addLabel }]),
+  navItem(href, label),
+  ...(isReadOnly() ? [] : [navItem(addHref, t("nav.sub.add"))]),
 ];
 
-/** Listings sub-nav: the listings table plus its create link. */
-const listingsSub = (): NavItem[] =>
-  sectionWithAdd(
-    "/admin/listings",
-    t("terms.listings"),
-    "/admin/listing/new",
-    t("listings_table.add_listing"),
-  );
+/** Listings sub-nav: an "Add" create link and a catalog "Import" link (both
+ * read-only-gated), sitting under the top-level Listings link. */
+const listingsSub = (): NavItem[] => [
+  navItem("/admin/listings", t("terms.listings")),
+  ...(isReadOnly()
+    ? []
+    : [
+        navItem("/admin/listing/new", t("nav.sub.add")),
+        navItem("/admin/catalog/import", t("nav.sub.import")),
+      ]),
+];
 
-/** Groups sub-nav: the groups table plus its create link. */
+/** Groups sub-nav: an "Add" create link. */
 const groupsSub = (): NavItem[] =>
-  sectionWithAdd(
-    "/admin/groups",
-    t("terms.groups"),
-    "/admin/groups/new",
-    t("groups.add_group"),
-  );
+  sectionWithAdd("/admin/groups", t("terms.groups"), "/admin/groups/new");
 
-/** Servicing sub-nav: the servicing list plus its create link. */
+/** Servicing sub-nav: an "Add" create link. */
 const servicingSub = (): NavItem[] =>
   sectionWithAdd(
     "/admin/servicing",
     t("nav.servicing"),
     "/admin/servicing/new",
-    t("nav.servicing_add"),
   );
 
-/** Attendees sub-nav: the attendees browser plus its create link. */
+/** Attendees sub-nav: an "Add" create link. */
 const attendeesSub = (): NavItem[] =>
   sectionWithAdd(
     "/admin/attendees",
     t("terms.attendees"),
     "/admin/attendees/new",
-    t("admin.listings.add_attendee"),
   );
 
-/** Modifiers sub-nav: the modifiers list plus its create link. */
+/** Modifiers sub-nav: an "Add" create link. */
 const modifiersSub = (): NavItem[] =>
   sectionWithAdd(
     "/admin/modifiers",
     t("terms.modifiers"),
     "/admin/modifiers/new",
-    t("modifiers.add_modifier"),
   );
 
-/** Users sub-nav: the users list and its Invite link, then sessions/API keys. */
+/** Users sub-nav: an "Invite" link, then sessions/API keys. */
 const usersSub = (): NavItem[] => [
-  ...sectionWithAdd(
-    "/admin/users",
-    t("terms.users"),
-    "/admin/user/new",
-    t("users.invite_user"),
-  ),
+  navItem("/admin/users", t("terms.users")),
+  ...(isReadOnly() ? [] : [navItem("/admin/user/new", t("nav.sub.invite"))]),
   { href: "/admin/sessions", label: t("nav.sub.sessions") },
   { href: "/admin/api-keys", label: t("nav.sub.api_keys") },
 ];
@@ -347,10 +336,27 @@ const sectionLevels = (
 ): LeveledNavLevel[] => {
   if (!sectionItems) return [];
   const subHighlight = active === sectionItems.topHref ? "" : active;
+  // Never repeat the section's own landing link inside its sub-nav — the
+  // top-level bar already carries it, so the submenu shows only the pages
+  // *within* the section (Add, Import, sub-pages). A "repeat" is the same
+  // destination under the same name: we drop a sub-item only when it matches
+  // the top-level link on both href AND label. That keeps a distinctly-named
+  // landing tab (e.g. Site's "Homepage", which shares /admin/site but reads
+  // differently) while removing true duplicates like Listings→Listings.
+  const subItems = sectionItems.items.filter(
+    (item) =>
+      !(
+        item.href === sectionItems.topHref && item.label === sectionItems.label
+      ),
+  );
+  // The model never carries an empty level (every rendered <ul> must have
+  // children), so a section left with no sub-pages — e.g. an "Add"-only
+  // section in read-only mode — contributes no submenu at all.
+  if (subItems.length === 0) return [];
   return [
     {
       label: sectionItems.label,
-      nodes: toNodes(sectionItems.items, subHighlight),
+      nodes: toNodes(subItems, subHighlight),
     },
   ];
 };

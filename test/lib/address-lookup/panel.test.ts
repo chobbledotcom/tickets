@@ -36,7 +36,9 @@ describe("renderAddressLookupPanel", () => {
     expect(html).toContain("data-address-lookup");
     expect(html).toContain("hidden");
     expect(html).toContain(">Postcode<");
-    expect(html).toContain('placeholder="e.g. SW1A 1AA"');
+    // The search input carries no placeholder (the `data-placeholder` results
+    // attribute is a different thing — hence the leading-space match).
+    expect(html).not.toContain(" placeholder=");
     expect(html).toContain(">Find address<");
     expect(html).toContain("data-address-search");
     expect(html).toContain("data-address-results");
@@ -50,6 +52,29 @@ describe("renderAddressLookupPanel", () => {
   test("never renders an Edit button — the textarea stays editable", () => {
     enableProviderForTest();
     expect(renderAddressLookupPanel()).not.toContain("data-address-edit");
+  });
+
+  test("pre-fills the search box from an address ending in a postcode", () => {
+    enableProviderForTest();
+    const html = renderAddressLookupPanel("1 High Street, London, SW1A 1AA");
+    expect(html).toContain('value="SW1A 1AA"');
+  });
+
+  test("normalises the trailing postcode before pre-filling", () => {
+    enableProviderForTest();
+    const html = renderAddressLookupPanel("1 High Street, London, sw1a1aa");
+    expect(html).toContain('value="SW1A 1AA"');
+  });
+
+  test("leaves the search box empty when the address has no trailing postcode", () => {
+    enableProviderForTest();
+    const html = renderAddressLookupPanel("1 High Street, London");
+    expect(html).not.toContain("value=");
+  });
+
+  test("leaves the search box empty with no address given", () => {
+    enableProviderForTest();
+    expect(renderAddressLookupPanel()).not.toContain("value=");
   });
 });
 

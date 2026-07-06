@@ -23,7 +23,6 @@ import type {
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
 import { AttendeeTableBlock } from "#templates/admin/attendee-table-block.tsx";
-import { ActionButton } from "#templates/components/actions.tsx";
 import {
   SelectField,
   type SelectOption,
@@ -186,11 +185,6 @@ const Pagination = ({
 export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
   String(
     <AdminPage
-      actions={
-        <ActionButton href="/admin/attendees/new" icon="plus">
-          {t("admin.listings.add_attendee")}
-        </ActionButton>
-      }
       active={NAV_ACTIVE}
       session={props.session}
       title={t("terms.attendees")}

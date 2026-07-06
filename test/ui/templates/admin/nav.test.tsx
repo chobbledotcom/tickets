@@ -59,42 +59,42 @@ describeWithEnv("AdminNav", {}, () => {
   const addLinkSections = [
     {
       addHref: "/admin/listing/new",
-      addText: "Add Listing",
+      addText: "Add",
       createActive: "/admin/listing/new",
       roles: ["owner", "manager", "editor"] as const,
       sectionActive: "/admin/listings",
     },
     {
       addHref: "/admin/groups/new",
-      addText: "Add Group",
+      addText: "Add",
       createActive: "/admin/groups/new",
       roles: ["owner", "manager", "editor"] as const,
       sectionActive: "/admin/groups",
     },
     {
       addHref: "/admin/servicing/new",
-      addText: "New Service Event",
+      addText: "Add",
       createActive: "/admin/servicing/new",
       roles: ["owner", "manager"] as const,
       sectionActive: "/admin/servicing",
     },
     {
       addHref: "/admin/attendees/new",
-      addText: "Add Attendee",
+      addText: "Add",
       createActive: "/admin/attendees/new",
       roles: ["owner", "manager"] as const,
       sectionActive: "/admin/attendees",
     },
     {
       addHref: "/admin/modifiers/new",
-      addText: "Add Modifier",
+      addText: "Add",
       createActive: "/admin/modifiers/new",
       roles: ["owner", "manager"] as const,
       sectionActive: "/admin/modifiers",
     },
     {
       addHref: "/admin/user/new",
-      addText: "Invite User",
+      addText: "Invite",
       createActive: "/admin/user/new",
       roles: ["owner"] as const,
       sectionActive: "/admin/users",
@@ -147,6 +147,31 @@ describeWithEnv("AdminNav", {}, () => {
       );
       expect(html, addHref).toContain(`class="active" href="${addHref}"`);
     }
+  });
+
+  // The sub-nav lists only the pages *within* a section — it must not repeat the
+  // section's own landing link (that already sits on the top-level bar).
+  test("a section's sub-nav does not repeat its landing link", () => {
+    for (const { sectionActive } of addLinkSections) {
+      const html = String(
+        AdminNav({ active: sectionActive, session: { adminLevel: "owner" } }),
+      );
+      const start = html.indexOf('class="admin-subnav"');
+      expect(start, sectionActive).toBeGreaterThan(-1);
+      const sub = html.slice(start, html.indexOf("</ul>", start));
+      expect(sub, sectionActive).not.toContain(`href="${sectionActive}"`);
+    }
+  });
+
+  // The catalog import lives as a plain "Import" link in the Listings sub-nav.
+  test("the Listings sub-nav offers an Import link", () => {
+    const html = String(
+      AdminNav({ active: "/admin/listings", session: { adminLevel: "owner" } }),
+    );
+    expect(html).toContain('href="/admin/catalog/import"');
+    const start = html.indexOf('class="admin-subnav"');
+    const sub = html.slice(start, html.indexOf("</ul>", start));
+    expect(sub).toContain("Import");
   });
 
   test("Invite User stays owner-only", () => {

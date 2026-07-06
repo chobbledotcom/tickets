@@ -23,7 +23,6 @@ import { formatDateLabel } from "#shared/dates.ts";
 import type { ServicingEventSummary } from "#shared/db/attendees/servicing.ts";
 import type { ActiveListingStats } from "#shared/db/attendees.ts";
 import { isReadOnly } from "#shared/env.ts";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   filterListingsByType,
@@ -40,25 +39,17 @@ import type {
 import { AdminPage, flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { HolidayTable } from "#templates/admin/holidays.tsx";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
-import {
-  ActionButton,
-  ImportCatalogButton,
-} from "#templates/components/actions.tsx";
+import { ActionButton } from "#templates/components/actions.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
 
-/** The "Add listing" action button — shared by the editor and staff dashboards.
- *  Optional `children` render as extra buttons inside the same actions row
- *  (the listings page also offers a catalog import). */
-const AddListingButton = ({
-  children,
-}: {
-  children?: Child;
-} = {}): JSX.Element => (
+/** The "Add listing" action button — a quick create shortcut on the editor and
+ *  staff dashboards (the listings index reaches the same create/import flows
+ *  through its section sub-nav instead). */
+const AddListingButton = (): JSX.Element => (
   <p class="actions">
     <ActionButton href="/admin/listing/new" icon="plus">
       {t("admin.dashboard.add_listing")}
     </ActionButton>
-    {children}
   </p>
 );
 
@@ -451,12 +442,6 @@ export const adminListingsPage = (
       session={session}
       title={t("terms.listings")}
     >
-      {!isReadOnly() && (
-        <AddListingButton>
-          <ImportCatalogButton />
-        </AddListingButton>
-      )}
-
       <ListingsTableBlock
         columnKeys={columnKeys}
         columns={columns}

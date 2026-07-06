@@ -43,8 +43,6 @@ export type AddressLookupProviderDefinition = {
   label: string;
   /** i18n key for the search box label (e.g. "Postcode"). */
   searchLabelKey: string;
-  /** i18n key for the search box placeholder (e.g. an example postcode). */
-  searchPlaceholderKey: string;
   /**
    * Normalise a raw search to the provider's canonical form for its locale
    * (e.g. UK postcodes: uppercase, one space before the last three

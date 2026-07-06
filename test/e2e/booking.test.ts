@@ -81,11 +81,18 @@ describe("e2e: full booking flow", () => {
     await browser.submitForm({ question_ids: questionIds }, "Save");
     expect(browser.containsText("Questions updated")).toBe(true);
 
-    // 6. Navigate to Groups and create a group
+    // 6. Navigate to Groups and create a group. The section sub-nav offers a
+    //    concise "Add" link (the create form itself is titled "Add Group").
     await browser.clickLink("Groups");
+    // The Groups section sub-nav exposes a concise "Add" link. Resolve it by
+    // destination rather than link text: the settings nag banner also carries
+    // an "Add …" link, so a text match on "Add" would be ambiguous.
+    const addGroupLink = browser.links.find((l) =>
+      l.href.endsWith("/admin/groups/new"),
+    );
+    expect(addGroupLink).toBeTruthy();
+    await browser.visit(addGroupLink!.href);
     expect(browser.containsText("Add Group")).toBe(true);
-
-    await browser.clickLink("Add Group");
     await browser.submitForm(
       {
         name: "Summer Festival",

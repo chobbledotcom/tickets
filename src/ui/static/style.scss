@@ -759,6 +759,7 @@ textarea {
 select {
   box-sizing: border-box;
   max-width: 100%;
+  width: fit-content;
 }
 
 input[type="checkbox"],
@@ -3194,8 +3195,7 @@ label:hover .embed-toggle-badge,
 /* ── Entity pages: the tabbed admin "edit X" framework ── */
 
 .entity-tabs {
-  border-bottom: 1px solid var(--color-bg-secondary);
-  margin-block: var(--space-m);
+  margin: 0;
   /* The base `nav` rule centres its row; the tab strip reads left-to-right
      like the page content beneath it, so pin it to the start. */
   justify-content: flex-start;
