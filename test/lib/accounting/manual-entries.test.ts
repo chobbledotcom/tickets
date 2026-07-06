@@ -169,7 +169,10 @@ describe("db > accounting > manual ledger entries", () => {
   test("edits only the targeted entry, leaving sibling manual entries alone", async () => {
     // Two owner-entered rows on the same account: the update must be keyed on
     // the transfer id, never bleed onto the account's other entries.
-    for (const type of [MANUAL_ATTENDEE_PAYMENT, MANUAL_ATTENDEE_CHARGE]) {
+    for (const type of [
+      MANUAL_ATTENDEE_PAYMENT,
+      MANUAL_ATTENDEE_CHARGE,
+    ] as const) {
       await postManualLedgerEntry({
         account: account("attendee", 1),
         amount: 100,
