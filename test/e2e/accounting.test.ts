@@ -32,6 +32,10 @@ import {
   WRITEOFF,
 } from "#shared/accounting/accounts.ts";
 import {
+  MANUAL_ATTENDEE_CHARGE,
+  MANUAL_ATTENDEE_WRITEOFF,
+} from "#shared/accounting/manual-entries.ts";
+import {
   accountBalance,
   allTransfers,
   transfersByAccount,
@@ -440,46 +444,23 @@ const submitRefund = async (
  *  from the rendered edit page, so a balance correction re-submits the EXACT
  *  booking and changes only the owed figure — exactly what a browser would
  *  post back. */
-const scrapeEditFields = (html: string): Record<string, string> => {
-  const fields: Record<string, string> = {};
-  for (const match of html.matchAll(/<input\b[^>]*name="([^"]+)"[^>]*>/g)) {
-    const tag = match[0];
-    const fieldName = match[1]!;
-    if (
-      !/^(line_listing_\d+|qty_\d+|line_key_\d+|line_package_\d+)$/.test(
-        fieldName,
-      )
-    ) {
-      continue;
-    }
-    fields[fieldName] = tag.match(/value="([^"]*)"/)?.[1] ?? "";
-  }
-  const select = html.match(/<select\b[^>]*name="status_id"[\s\S]*?<\/select>/);
-  const selected = select?.[0].match(
-    /<option[^>]*\bselected\b[^>]*value="([^"]*)"|<option[^>]*value="([^"]*)"[^>]*\bselected\b/,
-  );
-  if (selected) fields.status_id = (selected[1] ?? selected[2])!;
-  return fields;
-};
-
-/** Correct an attendee's owed balance to `targetMajor` pounds through the real
- *  attendee edit POST, preserving the booking lines scraped from the edit page.
- *  Returns the route's response. */
-const correctOwedBalance = async (
+/** Move an attendee's owed balance through the ledger — the proper path now the
+ *  attendee form no longer edits balances. `MANUAL_ATTENDEE_WRITEOFF` lowers what
+ *  they owe (a goodwill write-off), `MANUAL_ATTENDEE_CHARGE` raises it, each by
+ *  `amountMajor` pounds. Returns the route's response. */
+const postAttendeeBalanceEntry = async (
   attendeeId: number,
-  name: string,
-  email: string,
-  targetMajor: string,
-): Promise<Response> => {
-  const editHtml = await adminPageHtml(`/admin/attendees/${attendeeId}/edit`);
-  const { response } = await adminFormPost(`/admin/attendees/${attendeeId}`, {
-    ...scrapeEditFields(editHtml),
-    email,
-    name,
-    remaining_balance: targetMajor,
-  });
-  return response;
-};
+  entryType: string,
+  amountMajor: string,
+): Promise<Response> =>
+  (
+    await adminFormPost(`/admin/ledger/attendee/${attendeeId}/add`, {
+      amount: amountMajor,
+      entry_type: entryType,
+      occurred_at: "2026-06-22T12:00",
+      return_url: `/admin/attendees/${attendeeId}/edit`,
+    })
+  ).response;
 
 // -- Leg helpers ---------------------------------------------------------- //
 
@@ -663,32 +644,24 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
     expect(await owedBy(attendee.id)).toBe(6000);
     const worldStart = await worldBalance();
 
-    // Correct owed DOWN to £25 (e.g. a goodwill reduction).
-    const down = await correctOwedBalance(
+    // Correct owed DOWN by £35 through the ledger (goodwill write-off): £60 → £25.
+    const down = await postAttendeeBalanceEntry(
       attendee.id,
-      "Balance Edith",
-      "edith@example.com",
-      "25.00",
+      MANUAL_ATTENDEE_WRITEOFF,
+      "35.00",
     );
-    await expectFlashRedirect(
-      `/admin/attendees/${attendee.id}/edit?form=attendee-form#attendee-form`,
-      "Updated Balance Edith",
-    )(down);
+    expect(down.status).toBe(302);
     expect(await owedBy(attendee.id)).toBe(2500);
     await assertRenderedOwed(attendee.id, 2500);
     expect(await worldBalance()).toBe(worldStart);
 
-    // Correct owed UP to £40 — the delta moves owed by +£15 from here.
-    const up = await correctOwedBalance(
+    // Correct owed UP by £15 (a manual charge): £25 → £40.
+    const up = await postAttendeeBalanceEntry(
       attendee.id,
-      "Balance Edith",
-      "edith@example.com",
-      "40.00",
+      MANUAL_ATTENDEE_CHARGE,
+      "15.00",
     );
-    await expectFlashRedirect(
-      `/admin/attendees/${attendee.id}/edit?form=attendee-form#attendee-form`,
-      "Updated Balance Edith",
-    )(up);
+    expect(up.status).toBe(302);
     expect(await owedBy(attendee.id)).toBe(4000);
     await assertRenderedOwed(attendee.id, 4000);
     // Cash never moved through either correction — only the writeoff contra did.
