@@ -12,8 +12,7 @@ import { DatabaseBusyError, execute, setDb } from "#shared/db/client.ts";
  * A stubbed client makes contention deterministic; FakeTime pins the backoff.
  */
 describe("db > client write-lock retry", () => {
-  const busyError = (): Error =>
-    new Error("SQLITE_BUSY: database is locked");
+  const busyError = (): Error => new Error("SQLITE_BUSY: database is locked");
   const emptyResultSet = (): ResultSet => ({
     columns: [],
     columnTypes: [],

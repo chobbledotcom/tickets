@@ -327,7 +327,10 @@ describeWithEnv("db > client", { db: true }, () => {
     // Two expressions must join into one valid SET clause, with the entity id
     // bound once per field plus once for the WHERE.
     expect(captured).toEqual([
-      { args: [7, 7, 7], sql: "UPDATE agg_t SET a = a + ?, b = ? WHERE id = ?" },
+      {
+        args: [7, 7, 7],
+        sql: "UPDATE agg_t SET a = a + ?, b = ? WHERE id = ?",
+      },
     ]);
   });
 
@@ -349,5 +352,4 @@ describeWithEnv("db > client", { db: true }, () => {
       ]),
     ).toBe(false);
   });
-
 });

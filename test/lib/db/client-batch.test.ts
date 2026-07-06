@@ -2,11 +2,7 @@ import type { ResultSet, TransactionMode } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { returnsNext, stub } from "@std/testing/mock";
-import {
-  getDb,
-  queryBatch,
-  queryBatchPrimary,
-} from "#shared/db/client.ts";
+import { getDb, queryBatch, queryBatchPrimary } from "#shared/db/client.ts";
 import {
   enableQueryLog,
   getQueryLog,
