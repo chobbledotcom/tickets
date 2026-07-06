@@ -127,6 +127,22 @@ export type AttendeeFormTemplateData = {
   logistics?: AttendeeLogisticsData | undefined;
 };
 
+/**
+ * The attributes every *fresh* validation-error alert shares: styled as an
+ * error, announced assertively, and focusable (`tabindex="-1"` + `autofocus`).
+ * Because only the first `autofocus` element on the page takes focus, and these
+ * alerts render in document order, a failed submit lands the browser on the
+ * topmost error and scrolls straight to it — no JavaScript needed. Standing
+ * notes styled as `.error` (e.g. the money-ledger caution) deliberately omit
+ * these, so they are never a focus target.
+ */
+const errorAlertAttrs = {
+  autofocus: true,
+  class: "error",
+  role: "alert",
+  tabindex: "-1",
+} as const;
+
 /** The line's booking-path label: "via <package>" for a package path (its id
  * when the package no longer exists), "add-on under <parent>" for a folded
  * child row, nothing for the listing's own row. */
@@ -252,11 +268,7 @@ const ListingRow = ({
             )}
           </div>
         ) : null}
-        {line.error ? (
-          <div class="error" role="alert">
-            {line.error}
-          </div>
-        ) : null}
+        {line.error ? <div {...errorAlertAttrs}>{line.error}</div> : null}
         {warnings.map((w) => (
           <div class="warning small" role="alert">
             {w}
@@ -491,11 +503,7 @@ const SharedDateFields = ({
     <>
       <h3>{t("attendee_form.dates_heading")}</h3>
       <p class="small">{t("attendee_form.dates_hint")}</p>
-      {data.dateError && (
-        <output class="error" role="alert">
-          {data.dateError}
-        </output>
-      )}
+      {data.dateError && <output {...errorAlertAttrs}>{data.dateError}</output>}
       <label for={START_DATE_FIELD}>
         {t("attendee_form.start_date")}
         <input
@@ -574,6 +582,18 @@ const StatusAndBalanceFields = ({
 };
 
 /**
+ * True when the last submit left any error on the form — an attendee, date,
+ * form-wide, save, or per-line error. When it did, each error alert is
+ * focusable ({@link errorAlertAttrs}), so the browser hands autofocus to the
+ * first one and scrolls straight to it; the name field then gives up its
+ * default autofocus so a failed submit lands on the problem, not the page top.
+ */
+const formHasError = (data: AttendeeFormTemplateData): boolean =>
+  Boolean(
+    data.saveError || data.formError || data.attendeeError || data.dateError,
+  ) || data.parsed.lines.some((line) => line.error !== null);
+
+/**
  * The editable attendee form: contact details, the shared date range, optional
  * custom questions, and the listing editor — all inside one CsrfForm. The
  * CsrfForm renders the flash inline when a redirect targeted this form's id.
@@ -600,7 +620,7 @@ const AttendeeEditForm = ({
         {t("common.name")}
         <input
           autocomplete="off"
-          autofocus
+          autofocus={!formHasError(data)}
           id="name"
           name="name"
           required
@@ -710,16 +730,8 @@ export const AttendeeFormPanel = ({
   data: AttendeeFormTemplateData;
 }): JSX.Element => (
   <>
-    {data.saveError && (
-      <output class="error" role="alert">
-        {data.saveError}
-      </output>
-    )}
-    {data.formError && (
-      <output class="error" role="alert">
-        {data.formError}
-      </output>
-    )}
+    {data.saveError && <output {...errorAlertAttrs}>{data.saveError}</output>}
+    {data.formError && <output {...errorAlertAttrs}>{data.formError}</output>}
     {data.topWarnings.length > 0 && (
       <output class="warning" role="alert">
         <strong>{t("attendee_form.double_check")}</strong>
@@ -730,11 +742,7 @@ export const AttendeeFormPanel = ({
         </ul>
       </output>
     )}
-    {data.attendeeError && (
-      <div class="error" role="alert">
-        {data.attendeeError}
-      </div>
-    )}
+    {data.attendeeError && <div {...errorAlertAttrs}>{data.attendeeError}</div>}
     <AttendeeEditForm data={data} />
   </>
 );

@@ -70,6 +70,10 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // A quantity box per listing, and no add-line button (fixed table).
       expect(attendeeLineIndex(html, listing.id)).not.toBeNull();
       expect(html).not.toContain("Add Listing Line");
+      // A clean form has no errors, so the name field keeps its autofocus and
+      // no error alert claims it.
+      expect(html).toContain(`autocomplete="off" autofocus id="name"`);
+      expect(html).not.toContain("autofocus class=");
     });
 
     test("hides the date fields when there are no daily listings", async () => {
@@ -631,8 +635,10 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // Re-renders the form in place (200) with the line untouched.
       const html = await expectHtmlResponse(response, 200);
       // The block is surfaced as a top-of-page error, not buried in the table.
+      // The alert is focusable (autofocus + tabindex) so the browser scrolls to
+      // it after the failed submit.
       expect(html).toContain(
-        `<output class="error" role="alert">Refund this line's payment before marking it no quantity.</output>`,
+        `<output autofocus class="error" role="alert" tabindex="-1">Refund this line's payment before marking it no quantity.</output>`,
       );
       // The paid line's "no quantity" box is disabled with an explaining tooltip
       // so it can't be ticked in the first place.
@@ -1279,7 +1285,17 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       });
       // The shared start date is missing, so the daily booking can't be saved.
       expect(response.status).toBe(200);
-      expect(await response.text()).toContain("A start date is required");
+      const html = await response.text();
+      // The date error is a focusable alert (autofocus + tabindex), so the
+      // browser scrolls straight to it instead of leaving the operator at the
+      // top of the page — no JavaScript involved.
+      expect(html).toContain(
+        `<output autofocus class="error" role="alert" tabindex="-1">A start date is required`,
+      );
+      // The name field gives up its default autofocus so it doesn't win the
+      // focus race over the (lower) date error.
+      expect(html).toContain(`autocomplete="off" id="name"`);
+      expect(html).not.toContain(`autocomplete="off" autofocus id="name"`);
       expect((await getAttendeesRaw(daily.id)).length).toBe(0);
     });
 

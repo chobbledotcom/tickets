@@ -1340,8 +1340,9 @@ output.success {
 /* A live error alert (role="alert", raised in response to the operator's
    action) fades in with a brief glow that fades back out, so it stands out
    from the form around it and is easy to spot. Static .error notes that carry
-   no role="alert" stay calm. The scroll-to-error script brings the first such
-   alert into view. Skipped entirely under reduced-motion. */
+   no role="alert" stay calm. On the attendee form the first error alert is
+   also focusable (tabindex="-1" + autofocus), so the browser scrolls to it.
+   Skipped entirely under reduced-motion. */
 @keyframes error-alert-in {
   0% {
     opacity: 0;
