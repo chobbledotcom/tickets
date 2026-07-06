@@ -24,7 +24,7 @@ import {
   imagesTable,
   setItemsForImage,
 } from "#shared/db/images.ts";
-import { getAllListingNames } from "#shared/db/listings.ts";
+import { getAllListingOptions } from "#shared/db/listings.ts";
 import { getNewsPostNames } from "#shared/db/news-posts.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { deleteImageStorageFiles, isStorageEnabled } from "#shared/storage.ts";
@@ -85,18 +85,25 @@ const handleImageCreatePost: TypedRouteHandler<"POST /admin/images"> = (
     }),
   );
 
-/** Turn an id→name map into link-target options of one type. */
-const optionsOfType =
+const listingImageItemOptions = async (): Promise<ImageItemOption[]> =>
+  (await getAllListingOptions()).map((listing) => ({
+    active: listing.active,
+    id: listing.id,
+    label: listing.name,
+    type: "listing" as const,
+  }));
+
+/** Options of one always-active type from (id, label) pairs — groups and news
+ * posts have no deactivated state. */
+const activeOptionsOfType =
   (type: ImageUseItemType) =>
-  (names: ReadonlyMap<number, string>): ImageItemOption[] =>
-    [...names.entries()].map(([id, label]) => ({ id, label, type }));
+  (entries: Iterable<readonly [number, string]>): ImageItemOption[] =>
+    [...entries].map(([id, label]) => ({ active: true, id, label, type }));
 
 const groupImageItemOptions = async (): Promise<ImageItemOption[]> =>
-  (await getAllGroups()).map((group) => ({
-    id: group.id,
-    label: group.name,
-    type: "group" as const,
-  }));
+  activeOptionsOfType("group")(
+    (await getAllGroups()).map((group) => [group.id, group.name] as const),
+  );
 
 /** The link targets this session may manage. News posts are Site-gated
  * (owner + editor): a manager never sees them here, matching the news image
@@ -104,10 +111,10 @@ const groupImageItemOptions = async (): Promise<ImageItemOption[]> =>
 const imageItemOptions = async (
   adminLevel: AdminLevel,
 ): Promise<ImageItemOption[]> => [
-  ...optionsOfType("listing")(await getAllListingNames()),
+  ...(await listingImageItemOptions()),
   ...(await groupImageItemOptions()),
   ...(isSiteRole(adminLevel)
-    ? optionsOfType("news")(await getNewsPostNames())
+    ? activeOptionsOfType("news")(await getNewsPostNames())
     : []),
 ];
 

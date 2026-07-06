@@ -12,6 +12,7 @@ import { parseCookies } from "#routes/url.ts";
 import { getRequestClientIp } from "#shared/client-context.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
+import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
 import {
@@ -53,7 +54,7 @@ export { generateSecureToken };
 /** Session with wrapped data key for private key derivation, and user role */
 export type AuthSession = {
   token: string;
-  wrappedDataKey: string | null;
+  wrappedDataKey: WrappedKey | null;
   userId: number;
   adminLevel: AdminLevel;
   settingsNagItems?: readonly NagItem[];

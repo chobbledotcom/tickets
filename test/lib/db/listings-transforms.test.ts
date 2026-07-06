@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   catalogVisibleSql,
@@ -14,12 +15,11 @@ import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils";
 
 /** Decrypt a value written by `writeClosesAt`/`writeListingDate` — both
- * return an already-encrypted string (writeClosesAt's `null` still carries the
- * same runtime string type), so every test in this file needs the same
- * round-trip before asserting on the plaintext. */
-const decryptWritten = async (encrypted: string | null): Promise<string> => {
+ * return already-sealed env-key ciphertext, so every test in this file needs
+ * the same round-trip before asserting on the plaintext. */
+const decryptWritten = async (encrypted: EnvKeyEncrypted): Promise<string> => {
   const { decrypt } = await import("#shared/crypto/encryption.ts");
-  return decrypt(encrypted as unknown as string);
+  return decrypt(encrypted);
 };
 
 describeWithEnv("db > listings", { db: true, triggers: true }, () => {

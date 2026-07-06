@@ -12,6 +12,7 @@
 import { mapParallel } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { executeBatch, queryAll } from "#shared/db/client.ts";
 import {
   defineIdTable,
@@ -69,12 +70,25 @@ export const hasNewsPosts = async (): Promise<boolean> =>
 
 /** Decrypt an encrypted-text value, honouring the `''` = "no value" convention
  * (matches `col.encryptedText`'s read — an empty column never decrypts). */
-const decryptText = (value: string): Promise<string> | string =>
+const decryptText = (value: EnvKeyEncrypted | ""): Promise<string> | string =>
   value === "" ? value : decrypt(value);
+
+/** A summary row as stored: name and snippet still sealed. */
+type SealedSummaryRow = Omit<NewsPostSummary, "name" | "snippet"> & {
+  name: EnvKeyEncrypted;
+  snippet: EnvKeyEncrypted | "";
+};
+
+/** A card row as stored: the sealed summary plus sealed image projections. */
+type SealedCardRow = SealedSummaryRow & {
+  image_alt_text: EnvKeyEncrypted | "";
+  image_thumb_url: EnvKeyEncrypted | "";
+  image_url: EnvKeyEncrypted | "";
+};
 
 /** Decrypt one summary row (name and snippet only). */
 const decryptSummary = async (
-  row: NewsPostSummary,
+  row: SealedSummaryRow,
 ): Promise<NewsPostSummary> => ({
   created: row.created,
   id: row.id,
@@ -86,7 +100,7 @@ const decryptSummary = async (
  * name, snippet — no image reads or decrypts. Feeds the RSS feed and the
  * admin list, which render no images. */
 export const getNewsPostSummaries = async (): Promise<NewsPostSummary[]> => {
-  const rows = await queryAll<NewsPostSummary>(
+  const rows = await queryAll<SealedSummaryRow>(
     `SELECT id, created, name, snippet
        FROM news_posts
       ORDER BY created DESC, id DESC`,
@@ -98,13 +112,13 @@ export const getNewsPostSummaries = async (): Promise<NewsPostSummary[]> => {
  * the post's first linked image — for the public /news list, the one reader
  * that shows pictures. */
 export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
-  const rows = await queryAll<NewsPostCard>(
+  const rows = await queryAll<SealedCardRow>(
     `SELECT news_post.id, news_post.created, news_post.name, news_post.snippet,
             ${imageFilenameSubqueries("news", "news_post.id")}
        FROM news_posts AS news_post
       ORDER BY news_post.created DESC, news_post.id DESC`,
   );
-  return mapParallel(async (row: NewsPostCard) => ({
+  return mapParallel(async (row: SealedCardRow) => ({
     ...(await decryptSummary(row)),
     image_alt_text: await decryptText(row.image_alt_text),
     image_thumb_url: await decryptText(row.image_thumb_url),
@@ -115,11 +129,11 @@ export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
 /** id → decrypted name for every post, newest first — the image library's
  * link-target labels (nothing but the name decrypted). */
 export const getNewsPostNames = async (): Promise<Map<number, string>> => {
-  const rows = await queryAll<{ id: number; name: string }>(
+  const rows = await queryAll<{ id: number; name: EnvKeyEncrypted }>(
     "SELECT id, name FROM news_posts ORDER BY created DESC, id DESC",
   );
   const entries = await mapParallel(
-    async (row: { id: number; name: string }) =>
+    async (row: { id: number; name: EnvKeyEncrypted }) =>
       [row.id, await decrypt(row.name)] as const,
   )(rows);
   return new Map(entries);

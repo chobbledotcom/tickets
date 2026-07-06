@@ -144,7 +144,8 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
         200,
       );
       expect(html).toContain(`value="news:${post.id}"`);
-      expect(html).toContain("News: Linkable post");
+      expect(html).toContain("Linked news");
+      expect(html).toContain("Linkable post");
     });
 
     test("saving the image edit form links it to a news post", async () => {

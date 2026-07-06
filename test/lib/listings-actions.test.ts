@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
+import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { groupsTable } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
@@ -32,7 +33,8 @@ setupTestEncryptionKey();
 const inputFor = (overrides: Partial<ListingInput>): ListingInput => ({
   ...testListingInput(overrides),
   slug: "some-slug",
-  slugIndex: "some-index",
+  // Hand-crafted fixture stand-in for the blind index — test cast.
+  slugIndex: "some-index" as BlindIndex,
   ...overrides,
 });
 
@@ -76,18 +78,24 @@ describe("listingInputToEdge", () => {
 // shares these names, so the uniqueness check passes and each case exercises
 // the specific rule it names.
 describeWithEnv("validateListingInput", { db: true }, () => {
+  /** A listing input with the slug fields every validation case needs; the
+   * fixture index is a hand-crafted stand-in for the blind index (test cast). */
+  const sluggedInput = (
+    overrides: Partial<Parameters<typeof testListingInput>[0]> = {},
+  ): ListingInput => ({
+    ...testListingInput(overrides),
+    slug: "test-listing",
+    slugIndex: "test-index" as BlindIndex,
+  });
+
   test("rejects assignBuiltSite with initialSiteMonths <= 0", async () => {
-    const input: ListingInput = {
-      ...testListingInput({
-        assignBuiltSite: true,
-        hidden: true,
-        initialSiteMonths: 0,
-        monthsPerUnit: 1,
-        purchaseOnly: true,
-      }),
-      slug: "test-listing",
-      slugIndex: "test-index",
-    };
+    const input: ListingInput = sluggedInput({
+      assignBuiltSite: true,
+      hidden: true,
+      initialSiteMonths: 0,
+      monthsPerUnit: 1,
+      purchaseOnly: true,
+    });
     const error = await validateListingInput(input);
     expect(error).toBe(
       "Initial site months is required when a site is assigned.",
@@ -95,16 +103,12 @@ describeWithEnv("validateListingInput", { db: true }, () => {
   });
 
   test("rejects assignBuiltSite without initial site months", async () => {
-    const input: ListingInput = {
-      ...testListingInput({
-        assignBuiltSite: true,
-        hidden: true,
-        monthsPerUnit: 1,
-        purchaseOnly: true,
-      }),
-      slug: "test-listing",
-      slugIndex: "test-index",
-    };
+    const input: ListingInput = sluggedInput({
+      assignBuiltSite: true,
+      hidden: true,
+      monthsPerUnit: 1,
+      purchaseOnly: true,
+    });
     const error = await validateListingInput(input);
     expect(error).toBe(
       "Initial site months is required when a site is assigned.",
@@ -112,55 +116,38 @@ describeWithEnv("validateListingInput", { db: true }, () => {
   });
 
   test("accepts assignBuiltSite when initial site months is positive", async () => {
-    const input: ListingInput = {
-      ...testListingInput({
-        assignBuiltSite: true,
-        hidden: true,
-        initialSiteMonths: 1,
-        monthsPerUnit: 1,
-        purchaseOnly: true,
-      }),
-      slug: "test-listing",
-      slugIndex: "test-index",
-    };
+    const input: ListingInput = sluggedInput({
+      assignBuiltSite: true,
+      hidden: true,
+      initialSiteMonths: 1,
+      monthsPerUnit: 1,
+      purchaseOnly: true,
+    });
     await expect(validateListingInput(input)).resolves.toBeNull();
   });
 
   test("rejects unsafe thank_you_url before webhook validation", async () => {
-    const input: ListingInput = {
-      ...testListingInput({
-        thankYouUrl: "https://127.0.0.1/thanks",
-        webhookUrl: "https://example.com/webhook",
-      }),
-      slug: "test-listing",
-      slugIndex: "test-index",
-    };
+    const input: ListingInput = sluggedInput({
+      thankYouUrl: "https://127.0.0.1/thanks",
+      webhookUrl: "https://example.com/webhook",
+    });
     await expect(validateListingInput(input)).resolves.toBe(
       "Thank you URL must be a public https:// domain",
     );
   });
 
   test("rejects unsafe webhook_url", async () => {
-    const input: ListingInput = {
-      ...testListingInput({
-        thankYouUrl: "https://example.com/thanks",
-        webhookUrl: "https://127.0.0.1/webhook",
-      }),
-      slug: "test-listing",
-      slugIndex: "test-index",
-    };
+    const input: ListingInput = sluggedInput({
+      thankYouUrl: "https://example.com/thanks",
+      webhookUrl: "https://127.0.0.1/webhook",
+    });
     await expect(validateListingInput(input)).resolves.toBe(
       "Webhook URL must be a public https:// domain",
     );
   });
 
-  const customisableInput = (
-    overrides: Partial<ListingInput>,
-  ): ListingInput => ({
-    ...testListingInput({ customisableDays: true, ...overrides }),
-    slug: "test-listing",
-    slugIndex: "test-index",
-  });
+  const customisableInput = (overrides: Partial<ListingInput>): ListingInput =>
+    sluggedInput({ customisableDays: true, ...overrides });
 
   test("rejects customisable days combined with pay-more", async () => {
     const input = customisableInput({
@@ -210,7 +197,8 @@ describeWithEnv("validateListingInput", { db: true }, () => {
   const namedInput = (name: string): ListingInput => ({
     ...testListingInput({ name }),
     slug: "some-slug",
-    slugIndex: "some-index",
+    // Hand-crafted fixture stand-in for the blind index — test cast.
+    slugIndex: "some-index" as BlindIndex,
   });
 
   test("rejects a create whose name is used by an existing listing", async () => {
@@ -426,7 +414,8 @@ describeWithEnv("validateListingInput edge rules", { db: true }, () => {
     const error = await validateListingInput({
       ...inputFor({ name: "Slug Taker" }),
       slug: owner.slug,
-      slugIndex: "taker-index",
+      // Hand-crafted fixture stand-in for the blind index — test cast.
+      slugIndex: "taker-index" as BlindIndex,
     });
     expect(error).toBeNull();
   });

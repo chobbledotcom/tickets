@@ -24,7 +24,7 @@ const rawHolidaysTable = defineTable<Holiday, HolidayInput>({
   schema: {
     end_date: col.simple<string>(),
     id: col.generated<number>(),
-    name: col.encrypted<string>(encrypt, decrypt),
+    name: col.encrypted(encrypt, decrypt),
     start_date: col.simple<string>(),
   },
 });

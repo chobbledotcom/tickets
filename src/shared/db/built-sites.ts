@@ -7,6 +7,7 @@ import type { InValue } from "@libsql/client";
 import * as v from "valibot";
 /* jscpd:ignore-start */
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   inPlaceholders,
   queryAll,
@@ -235,7 +236,7 @@ const rawBuiltSiteSchema = {
   ...builtSitePlainSchema,
   created: createdCol,
   id: idCol,
-  site_data: col.encrypted<string>(encrypt, decrypt),
+  site_data: col.encrypted(encrypt, decrypt),
 } satisfies TableSchema<BuiltSiteRow>;
 
 const builtSiteSelectColumns = Object.keys(rawBuiltSiteSchema).join(", ");
@@ -557,7 +558,7 @@ export const claimNextBuiltSiteForPrune = async (): Promise<{
   id: number;
   siteUrl: string;
 } | null> => {
-  const row = await queryOne<{ id: number; site_data: string }>(
+  const row = await queryOne<{ id: number; site_data: EnvKeyEncrypted }>(
     `UPDATE built_sites AS builtSite SET last_pruned = ?
      WHERE builtSite.id = (
        SELECT candidate.id FROM built_sites AS candidate

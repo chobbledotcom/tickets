@@ -14,6 +14,12 @@ import {
   parseEncryptedPayload,
 } from "./encryption.ts";
 import { getPbkdf2Iterations } from "./hashing.ts";
+import type {
+  KeyEncrypted,
+  OwnerKeyEncrypted,
+  PasswordHash,
+  WrappedKey,
+} from "./sealed.ts";
 import { fromBase64 } from "./utils.ts";
 
 /**
@@ -75,7 +81,7 @@ const deriveKek = async (
  * {@link deriveKEKFromPassword}. Salt prefix is empty so this stays
  * byte-compatible with keys wrapped before the v2 split.
  */
-export const deriveKEK = (passwordHash: string): Promise<CryptoKey> =>
+export const deriveKEK = (passwordHash: PasswordHash): Promise<CryptoKey> =>
   deriveKek(passwordHash, "");
 
 /**
@@ -92,7 +98,7 @@ export const deriveKEK = (passwordHash: string): Promise<CryptoKey> =>
  */
 export const deriveKEKFromPassword = (
   password: string,
-  passwordHash: string,
+  passwordHash: PasswordHash,
 ): Promise<CryptoKey> => deriveKek(password, `kek-v2:${passwordHash}:`);
 
 /**
@@ -121,17 +127,17 @@ export const generateDataKey = (): Promise<CryptoKey> => {
 const exportAndWrapKey = async (
   keyToWrap: CryptoKey,
   wrappingKey: CryptoKey,
-): Promise<string> => {
+): Promise<WrappedKey> => {
   const rawKey = await crypto.subtle.exportKey("raw", keyToWrap);
   const { iv, ciphertext } = await aesGcmEncryptRaw(rawKey, wrappingKey);
-  return formatPrefixed(WRAPPED_KEY_PREFIX, iv, ciphertext);
+  return formatPrefixed(WRAPPED_KEY_PREFIX, iv, ciphertext) as WrappedKey;
 };
 
 /**
  * Decrypt a wrapped key payload and reimport it as an AES-GCM CryptoKey.
  */
 const unwrapAndImportKey = async (
-  wrapped: string,
+  wrapped: WrappedKey,
   unwrappingKey: CryptoKey,
 ): Promise<CryptoKey> => {
   const { iv, ciphertext } = parseEncryptedPayload(
@@ -156,7 +162,7 @@ const unwrapAndImportKey = async (
 export const wrapKey = (
   keyToWrap: CryptoKey,
   wrappingKey: CryptoKey,
-): Promise<string> => exportAndWrapKey(keyToWrap, wrappingKey);
+): Promise<WrappedKey> => exportAndWrapKey(keyToWrap, wrappingKey);
 
 /**
  * Wrap a DATA_KEY under the password-bound (v2) KEK in one step. The single
@@ -167,8 +173,8 @@ export const wrapKey = (
 export const wrapDataKeyForPassword = async (
   dataKey: CryptoKey,
   password: string,
-  passwordHash: string,
-): Promise<string> =>
+  passwordHash: PasswordHash,
+): Promise<WrappedKey> =>
   wrapKey(dataKey, await deriveKEKFromPassword(password, passwordHash));
 
 /**
@@ -176,7 +182,7 @@ export const wrapDataKeyForPassword = async (
  * Expects format: wk:1:$base64iv:$base64wrapped
  */
 export const unwrapKey = (
-  wrapped: string,
+  wrapped: WrappedKey,
   unwrappingKey: CryptoKey,
 ): Promise<CryptoKey> => unwrapAndImportKey(wrapped, unwrappingKey);
 
@@ -218,7 +224,7 @@ const deriveTokenKey = async (
 export const wrapKeyWithToken = async (
   keyToWrap: CryptoKey,
   sessionToken: string,
-): Promise<string> => {
+): Promise<WrappedKey> => {
   const wrappingKey = await deriveTokenKey(sessionToken, "encrypt");
   return exportAndWrapKey(keyToWrap, wrappingKey);
 };
@@ -227,7 +233,7 @@ export const wrapKeyWithToken = async (
  * Unwrap a key using a session token
  */
 export const unwrapKeyWithToken = async (
-  wrapped: string,
+  wrapped: WrappedKey,
   sessionToken: string,
 ): Promise<CryptoKey> => {
   const unwrappingKey = await deriveTokenKey(sessionToken, "decrypt");
@@ -323,7 +329,7 @@ export const HYBRID_PREFIX = "hyb:1:";
 export const hybridEncrypt = async (
   plaintext: string,
   publicKey: CryptoKey,
-): Promise<string> => {
+): Promise<OwnerKeyEncrypted> => {
   // Generate random AES key and encrypt the data
   const aesKey = await generateDataKey();
   const { iv, ciphertext } = await aesGcmEncryptRaw(
@@ -337,7 +343,12 @@ export const hybridEncrypt = async (
     await crypto.subtle.encrypt({ name: "RSA-OAEP" }, publicKey, rawAesKey),
   );
 
-  return formatPrefixed(HYBRID_PREFIX, wrappedKey, iv, ciphertext);
+  return formatPrefixed(
+    HYBRID_PREFIX,
+    wrappedKey,
+    iv,
+    ciphertext,
+  ) as OwnerKeyEncrypted;
 };
 
 /**
@@ -359,7 +370,7 @@ registerCache(() => ({
  * Results are cached in a bounded LRU (ciphertext -> plaintext)
  */
 export const hybridDecrypt = async (
-  encrypted: string,
+  encrypted: OwnerKeyEncrypted,
   privateKey: CryptoKey,
 ): Promise<string> => {
   const cached = hybridDecryptCache.get(encrypted);
@@ -414,7 +425,7 @@ export const hybridDecrypt = async (
 export const encryptWithOwnerKey = async (
   plaintext: string,
   publicKeyJwk: string,
-): Promise<string> => {
+): Promise<OwnerKeyEncrypted> => {
   const publicKey = await importPublicKey(publicKeyJwk);
   return hybridEncrypt(plaintext, publicKey);
 };
@@ -434,8 +445,8 @@ registerCache(() => ({ entries: privateKeyCache.size(), name: "privateKeys" }));
  */
 export const getPrivateKeyFromSession = async (
   sessionToken: string,
-  wrappedDataKey: string,
-  wrappedPrivateKey: string,
+  wrappedDataKey: WrappedKey,
+  wrappedPrivateKey: KeyEncrypted,
 ): Promise<CryptoKey> => {
   const cached = privateKeyCache.get(sessionToken);
   if (cached) return cached;
@@ -458,7 +469,7 @@ export const getPrivateKeyFromSession = async (
  * owner's private key (obtained from the session in admin views).
  */
 export const decryptWithOwnerKey = (
-  encrypted: string,
+  encrypted: OwnerKeyEncrypted,
   privateKey: CryptoKey,
 ): Promise<string> => {
   return hybridDecrypt(encrypted, privateKey);

@@ -17,24 +17,34 @@ import {
   wrapKey,
   wrapKeyWithToken,
 } from "#shared/crypto/keys.ts";
+import type {
+  OwnerKeyEncrypted,
+  PasswordHash,
+  WrappedKey,
+} from "#shared/crypto/sealed.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { describeWithEnv } from "#test-utils";
 
 // Two stored-password-hash stand-ins. The v2 KEK folds the account's password
 // hash into its salt, so these stand in for two different users' hashes.
-const HASH_A = "pbkdf2:1000:c2FsdEE=:aGFzaEE=";
-const HASH_B = "pbkdf2:1000:c2FsdEI=:aGFzaEI=";
+// Hand-crafted stored values — test fixture casts. This file exercises the
+// crypto helpers directly, so the inline `as PasswordHash` / `as WrappedKey` /
+// `as OwnerKeyEncrypted` literals below are likewise deliberate fake inputs.
+const HASH_A = "pbkdf2:1000:c2FsdEE=:aGFzaEE=" as PasswordHash;
+const HASH_B = "pbkdf2:1000:c2FsdEI=:aGFzaEI=" as PasswordHash;
 
 describeWithEnv("KEK derivation", { encryptionKey: true }, () => {
   it("derives a usable CryptoKey", async () => {
-    const passwordHash = "pbkdf2:1000:c2FsdA==:aGFzaA==";
+    // Hand-crafted stored password hash — test fixture cast.
+    const passwordHash = "pbkdf2:1000:c2FsdA==:aGFzaA==" as PasswordHash;
     const kek = await deriveKEK(passwordHash);
     expect(kek).toBeDefined();
     expect(kek.type).toBe("secret");
   });
 
   it("produces same key for same inputs", async () => {
-    const passwordHash = "pbkdf2:1000:c2FsdA==:aGFzaA==";
+    // Hand-crafted stored password hash — test fixture cast.
+    const passwordHash = "pbkdf2:1000:c2FsdA==:aGFzaA==" as PasswordHash;
     const kek1 = await deriveKEK(passwordHash);
     const kek2 = await deriveKEK(passwordHash);
 
@@ -46,8 +56,8 @@ describeWithEnv("KEK derivation", { encryptionKey: true }, () => {
   });
 
   it("produces different keys for different password hashes", async () => {
-    const kek1 = await deriveKEK("hash1");
-    const kek2 = await deriveKEK("hash2");
+    const kek1 = await deriveKEK("hash1" as PasswordHash);
+    const kek2 = await deriveKEK("hash2" as PasswordHash);
 
     const dataKey = await generateDataKey();
     const wrapped = await wrapKey(dataKey, kek1);
@@ -79,7 +89,7 @@ describeWithEnv("KEK derivation", { encryptionKey: true }, () => {
       await deriveKEKFromPassword("same-string", HASH_A),
     );
     await expect(
-      unwrapKey(wrappedV2, await deriveKEK("same-string")),
+      unwrapKey(wrappedV2, await deriveKEK("same-string" as PasswordHash)),
     ).rejects.toThrow();
   });
 
@@ -125,7 +135,7 @@ describeWithEnv("key wrapping", { encryptionKey: true }, () => {
   describe("wrapKey and unwrapKey", () => {
     it("round-trips a data key", async () => {
       const dataKey = await generateDataKey();
-      const kek = await deriveKEK("test-hash");
+      const kek = await deriveKEK("test-hash" as PasswordHash);
 
       const wrapped = await wrapKey(dataKey, kek);
       const unwrapped = await unwrapKey(wrapped, kek);
@@ -139,23 +149,23 @@ describeWithEnv("key wrapping", { encryptionKey: true }, () => {
 
     it("produces wrapped key with correct prefix", async () => {
       const dataKey = await generateDataKey();
-      const kek = await deriveKEK("test-hash");
+      const kek = await deriveKEK("test-hash" as PasswordHash);
       const wrapped = await wrapKey(dataKey, kek);
       expect(wrapped.startsWith("wk:1:")).toBe(true);
     });
 
     it("throws on invalid format", async () => {
-      const kek = await deriveKEK("test-hash");
-      await expect(unwrapKey("invalid", kek)).rejects.toThrow(
+      const kek = await deriveKEK("test-hash" as PasswordHash);
+      await expect(unwrapKey("invalid" as WrappedKey, kek)).rejects.toThrow(
         "Invalid wrapped key format",
       );
     });
 
     it("throws on missing IV separator", async () => {
-      const kek = await deriveKEK("test-hash");
-      await expect(unwrapKey("wk:1:nocoIon", kek)).rejects.toThrow(
-        "Invalid wrapped key format: missing IV separator",
-      );
+      const kek = await deriveKEK("test-hash" as PasswordHash);
+      await expect(
+        unwrapKey("wk:1:nocoIon" as WrappedKey, kek),
+      ).rejects.toThrow("Invalid wrapped key format: missing IV separator");
     });
   });
 
@@ -186,14 +196,14 @@ describeWithEnv("key wrapping", { encryptionKey: true }, () => {
     it("throws on invalid wrapped key format (missing prefix)", async () => {
       const sessionToken = generateSecureToken();
       await expect(
-        unwrapKeyWithToken("invalid-data", sessionToken),
+        unwrapKeyWithToken("invalid-data" as WrappedKey, sessionToken),
       ).rejects.toThrow("Invalid wrapped key format");
     });
 
     it("throws on invalid wrapped key format (missing IV separator)", async () => {
       const sessionToken = generateSecureToken();
       await expect(
-        unwrapKeyWithToken("wk:1:nodatahere", sessionToken),
+        unwrapKeyWithToken("wk:1:nodatahere" as WrappedKey, sessionToken),
       ).rejects.toThrow("Invalid wrapped key format: missing IV separator");
     });
   });
@@ -289,16 +299,16 @@ describe("RSA key pair and hybrid encryption", () => {
     it("throws on invalid format", async () => {
       await ensureSharedKeyPair();
 
-      await expect(hybridDecrypt("invalid", sharedPrivKey)).rejects.toThrow(
-        "Invalid hybrid encrypted data format",
-      );
+      await expect(
+        hybridDecrypt("invalid" as OwnerKeyEncrypted, sharedPrivKey),
+      ).rejects.toThrow("Invalid hybrid encrypted data format");
     });
 
     it("throws on wrong number of parts", async () => {
       await ensureSharedKeyPair();
 
       await expect(
-        hybridDecrypt("hyb:1:only:two", sharedPrivKey),
+        hybridDecrypt("hyb:1:only:two" as OwnerKeyEncrypted, sharedPrivKey),
       ).rejects.toThrow(
         "Invalid hybrid encrypted data format: wrong number of parts",
       );

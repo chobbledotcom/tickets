@@ -20,11 +20,12 @@
  */
 
 import { getPrivateKeyFromSession } from "#shared/crypto/keys.ts";
+import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getCachedSession } from "#shared/session-context.ts";
 
 /** Minimal session shape needed to derive the private key. */
-type KeyedSession = { token: string; wrappedDataKey: string | null };
+type KeyedSession = { token: string; wrappedDataKey: WrappedKey | null };
 
 /** Thrown when the current session's private key cannot be derived (e.g.
  * wrappedDataKey missing, no key pair configured, or unwrap failure). */

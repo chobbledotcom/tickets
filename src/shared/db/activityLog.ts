@@ -21,6 +21,10 @@ import {
   encryptWithOwnerKey,
   HYBRID_PREFIX,
 } from "#shared/crypto/keys.ts";
+import type {
+  EnvKeyEncrypted,
+  OwnerKeyEncrypted,
+} from "#shared/crypto/sealed.ts";
 import { queryAll, queryBatch, resultRows } from "#shared/db/client.ts";
 import {
   decryptListingWithCount,
@@ -33,7 +37,12 @@ import { nowIso } from "#shared/now.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
-/** Activity log entry */
+/** A stored log message: owner-key ciphertext for rows written since the
+ * keypair existed, env-key ciphertext for legacy rows the backfill hasn't
+ * re-encrypted yet. The format prefix routes decryption at runtime. */
+export type StoredLogMessage = OwnerKeyEncrypted | EnvKeyEncrypted;
+
+/** Activity log entry as callers see it: the message decrypted to plaintext. */
 export interface ActivityLogEntry {
   created: string;
   listing_id: number | null;
@@ -42,11 +51,17 @@ export interface ActivityLogEntry {
   message: string;
 }
 
+/** An activity log row as stored — the message is still sealed ciphertext.
+ * {@link decryptLogRows} turns these into plaintext {@link ActivityLogEntry}s. */
+type StoredActivityLogEntry = Omit<ActivityLogEntry, "message"> & {
+  message: StoredLogMessage;
+};
+
 /** Activity log input for create */
 export type ActivityLogInput = {
   listingId?: number | null;
   attendeeId?: number | null;
-  message: string;
+  message: StoredLogMessage;
 };
 
 /**
@@ -57,31 +72,34 @@ export type ActivityLogInput = {
  * configured, else the env key) and the read key is the per-request private key.
  * {@link logActivity} and {@link decryptLogRows} own those two steps.
  */
-export const activityLogTable = defineTable<ActivityLogEntry, ActivityLogInput>(
-  {
-    name: "activity_log",
-    primaryKey: "id",
-    schema: {
-      attendee_id: col.simple<number | null>(),
-      created: col.withDefault(() => nowIso()),
-      id: col.generated<number>(),
-      listing_id: col.simple<number | null>(),
-      message: col.simple<string>(),
-    },
+export const activityLogTable = defineTable<
+  StoredActivityLogEntry,
+  ActivityLogInput
+>({
+  name: "activity_log",
+  primaryKey: "id",
+  schema: {
+    attendee_id: col.simple<number | null>(),
+    created: col.withDefault(() => nowIso()),
+    id: col.generated<number>(),
+    listing_id: col.simple<number | null>(),
+    message: col.simple<StoredLogMessage>(),
   },
-);
+});
 
 /**
  * Decrypt a stored log message, routing by format prefix: owner-key (hybrid)
  * rows need the session private key; legacy env-key rows decrypt without it.
  */
 const decryptLogMessage = (
-  message: string,
+  message: StoredLogMessage,
   privateKey: CryptoKey | null,
 ): Promise<string> =>
+  // The prefix is the runtime discriminator between the union's two kinds —
+  // the narrowing the type system can't see, asserted per branch.
   message.startsWith(HYBRID_PREFIX)
-    ? decryptWithOwnerKey(message, privateKey as CryptoKey)
-    : decrypt(message);
+    ? decryptWithOwnerKey(message as OwnerKeyEncrypted, privateKey as CryptoKey)
+    : decrypt(message as EnvKeyEncrypted);
 
 /**
  * The owner public key, loading it into the settings snapshot on demand if a
@@ -132,7 +150,7 @@ export const logActivity = async (
  * decrypts without a key, so such pages still render where none is in scope.
  */
 const decryptLogRows = async (
-  rows: ActivityLogEntry[],
+  rows: StoredActivityLogEntry[],
 ): Promise<ActivityLogEntry[]> => {
   const needsKey = rows.some((row) => row.message.startsWith(HYBRID_PREFIX));
   const privateKey = needsKey ? await requireRequestPrivateKey() : null;
@@ -156,7 +174,7 @@ const queryActivityLog = async (
   // it is served straight from the primary key / idx_activity_log_listing_id
   // without a sort over the unbounded log table.
   return decryptLogRows(
-    await queryAll<ActivityLogEntry>(
+    await queryAll<StoredActivityLogEntry>(
       `SELECT * FROM activity_log ${whereClause} ORDER BY id DESC LIMIT ?`,
       args,
     ),
@@ -186,7 +204,7 @@ export const getAttendeeActivityLog = async (
   limit = 100,
 ): Promise<ActivityLogEntry[]> => {
   return decryptLogRows(
-    await queryAll<ActivityLogEntry>(
+    await queryAll<StoredActivityLogEntry>(
       "SELECT * FROM activity_log WHERE attendee_id = ? ORDER BY id DESC LIMIT ?",
       [attendeeId, limit],
     ),
@@ -224,7 +242,7 @@ export const getListingWithActivityLog = async (
   const listing = await decryptListingWithCount(listingRow);
 
   const entries = await decryptLogRows(
-    resultRows<ActivityLogEntry>(results[1]!),
+    resultRows<StoredActivityLogEntry>(results[1]!),
   );
 
   return { entries, listing };

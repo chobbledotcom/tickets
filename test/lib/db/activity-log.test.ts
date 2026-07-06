@@ -6,6 +6,7 @@ import {
   encrypt,
 } from "#shared/crypto/encryption.ts";
 import { HYBRID_PREFIX } from "#shared/crypto/keys.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   getAllActivityLog,
   getAttendeeActivityLog,
@@ -62,7 +63,9 @@ describeWithEnv("db > activity log", { db: true }, () => {
     expect(stored.startsWith(ENCRYPTION_PREFIX)).toBe(false);
     // A database dump plus DB_ENCRYPTION_KEY cannot read it: the env-key
     // decrypt rejects an owner-key payload outright.
-    await expect(decrypt(stored)).rejects.toThrow();
+    // Deliberately decrypt the owner-key payload with the env-key scheme —
+    // wrong-scheme fixture cast; the runtime rejection is the assertion.
+    await expect(decrypt(stored as EnvKeyEncrypted)).rejects.toThrow();
   });
 
   test("reading owner-key entries fails closed without a session", async () => {

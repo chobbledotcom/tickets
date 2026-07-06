@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import {
   getAllListings,
   getListing,
@@ -193,7 +194,8 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         maxAttendees: 50,
         name: "Non Existent",
         slug: "non-existent",
-        slugIndex: "non-existent",
+        // Hand-crafted fixture stand-in for the blind index — test cast.
+        slugIndex: "non-existent" as BlindIndex,
         thankYouUrl: "https://example.com",
       });
       expect(result).toBeNull();

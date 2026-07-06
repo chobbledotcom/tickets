@@ -34,6 +34,13 @@ import {
   unwrapKey,
   wrapDataKeyForPassword,
 } from "#shared/crypto/keys.ts";
+import type {
+  EnvKeyEncrypted,
+  KeyEncrypted,
+  OwnerKeyEncrypted,
+  PasswordHash,
+  WrappedKey,
+} from "#shared/crypto/sealed.ts";
 import {
   execute,
   executeBatch,
@@ -216,8 +223,22 @@ const TEMPLATE_KEYS: Record<TemplateKeyMap, StringSettingKey> = {
   "confirmation:text": "email_tpl_confirmation_text",
 };
 
-/** All string setting fields: empty string means "no value". */
-type StringSettingFields = Record<StringSettingKey, string>;
+/** Snapshot fields whose stored value is itself a sealed string (the snapshot
+ * holds it verbatim, still sealed): the bulk-email draft is owner-key
+ * ciphertext, and the owner private key is KeyEncrypted under the DATA_KEY.
+ * Empty string still means "no value". The public key is a plain JWK string. */
+type SealedSettingFields = {
+  bulk_email_draft: OwnerKeyEncrypted | "";
+  wrapped_private_key: KeyEncrypted | "";
+};
+
+/** All string setting fields: empty string means "no value". Fields listed in
+ * {@link SealedSettingFields} carry their sealed type; the rest are plain. */
+type StringSettingFields = {
+  [K in StringSettingKey]: K extends keyof SealedSettingFields
+    ? SealedSettingFields[K]
+    : string;
+};
 
 /** Generate empty-string defaults for every string setting field. */
 const stringSettingDefaults = Object.fromEntries(
@@ -419,8 +440,11 @@ const plaintextUpdate: EncryptedUpdateFn = stringUpdate(writeOrDelete);
 // writer encrypts is derived from the same registry entry's storage mode.
 // ---------------------------------------------------------------------------
 
-/** Sync getter per accessor entry. */
-type GeneratedGetters = { readonly [K in keyof StringAccessors]: string };
+/** Sync getter per accessor entry, typed by the underlying snapshot field so
+ * sealed settings (e.g. the bulk-email draft) keep their brand. */
+type GeneratedGetters = {
+  readonly [K in keyof StringAccessors]: SettingsData[StringAccessors[K]["key"]];
+};
 
 /** Writable accessor names (entries without readOnly). */
 type WritableAccessor = {
@@ -429,9 +453,12 @@ type WritableAccessor = {
     : K;
 }[keyof StringAccessors];
 
-/** Async writer per writable accessor entry. */
+/** Async writer per writable accessor entry, typed like its getter so a sealed
+ * setting can only be written with a correctly-sealed value. */
 type GeneratedUpdaters = {
-  [K in WritableAccessor]: (v: string) => Promise<void>;
+  [K in WritableAccessor]: (
+    v: SettingsData[StringAccessors[K]["key"]],
+  ) => Promise<void>;
 };
 
 const ENCRYPTED_KEY_SET: ReadonlySet<string> = new Set(ENCRYPTED_KEYS);
@@ -614,7 +641,12 @@ const applyKey = async (
   if (special) return special(values.get(key));
   if (ENCRYPTED_KEY_SET.has(key)) {
     const v = values.get(key);
-    setSnapshotField(key as StringSettingKey, v ? await decrypt(v) : "");
+    // Raw settings row for a key the registry declares encrypted — the
+    // read-boundary assertion, mirroring col.encrypted's read transform.
+    setSnapshotField(
+      key as StringSettingKey,
+      v ? await decrypt(v as EnvKeyEncrypted) : "",
+    );
     return;
   }
   if (PLAINTEXT_KEY_SET.has(key)) {
@@ -769,8 +801,8 @@ const updateUserPassword = async (
   userId: number,
   opts: {
     oldPassword: string;
-    oldPasswordHash: string;
-    oldWrappedDataKey: string;
+    oldPasswordHash: PasswordHash;
+    oldWrappedDataKey: WrappedKey;
     oldKekVersion: number;
     newPassword: string;
   },

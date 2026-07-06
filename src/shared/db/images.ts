@@ -4,6 +4,7 @@
 
 import { mapParallel } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   executeBatch,
   queryAll,
@@ -39,7 +40,7 @@ export type OrderedImage = Image & { sort_order: number };
 const IMAGE_COLUMNS = "id, name, filename, filename_thumb, alt_text";
 
 const decryptedNonEmptyString = async (
-  encrypted: string,
+  encrypted: EnvKeyEncrypted,
   name: string,
 ): Promise<NonEmptyString> => {
   const decrypted = await decrypt(encrypted);
@@ -47,14 +48,13 @@ const decryptedNonEmptyString = async (
   throw new Error(`${name} must be non-empty`);
 };
 
-const encryptedNonEmptyText = (name: string): ColumnDef<NonEmptyString> => ({
-  read: (async (value: NonEmptyString) =>
-    decryptedNonEmptyString(value, name)) as ColumnDef<NonEmptyString>["read"],
-  write: ((value: NonEmptyString) =>
-    encrypt(
-      value,
-    ) as Promise<NonEmptyString>) as ColumnDef<NonEmptyString>["write"],
-});
+/** Encrypted NonEmptyString column: sealed on write, decrypted and re-checked
+ * non-empty on read. col.encrypted carries the read-boundary assertion. */
+const encryptedNonEmptyText = (name: string): ColumnDef<NonEmptyString> =>
+  col.encrypted<NonEmptyString, EnvKeyEncrypted<NonEmptyString>>(
+    (value) => encrypt(value),
+    (value) => decryptedNonEmptyString(value, name),
+  );
 
 export const imagesTable = defineIdTable<Image, ImageInput>("images", {
   alt_text: col.encryptedText(encrypt, decrypt),
@@ -111,9 +111,9 @@ export const getImageFilenamesForItem = async (
   itemId: number,
 ): Promise<ItemImageProjection> => {
   const rows = await queryAll<{
-    alt_text: string;
-    filename: string;
-    filename_thumb: string;
+    alt_text: EnvKeyEncrypted | "";
+    filename: EnvKeyEncrypted;
+    filename_thumb: EnvKeyEncrypted;
   }>(
     `SELECT image.filename, image.filename_thumb, image.alt_text
        FROM image_uses AS imageUse
