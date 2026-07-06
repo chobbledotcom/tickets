@@ -166,7 +166,6 @@
         "test/lib/server-attendees.test.ts",
         "test/lib/server-groups.test.ts",
         "test/lib/server-listing-parents.test.ts",
-        "test/lib/server-modifiers.test.ts",
         "test/lib/server-parents-booking.test.ts",
         "test/lib/server-parents-gate.test.ts",
         "test/lib/server-payments.test.ts",
