@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { backupKey, backupTimestamp } from "#shared/db/backup.ts";
@@ -16,12 +16,12 @@ import {
   expectRedirect,
   FLASH_TEST_ID,
   flashCookieHeader,
-  setTestEnv,
   stubReleaseFetch,
   testCookie,
   testRequiresAuth,
   withMocks,
 } from "#test-utils";
+import { useLocalStorageTempDir } from "#test-utils/local-storage-temp-dir.ts";
 
 /** GitHub release API response with no assets */
 const MOCK_RELEASE_NO_ASSET = {
@@ -84,20 +84,10 @@ const getUpdatePageHtml = async (): Promise<string> => {
 };
 
 describeWithEnv("server (admin update)", { db: true }, () => {
-  let storageTmp: string;
-  let restoreStorage: () => void;
-
-  beforeEach(() => {
-    // Local storage so the pre-update backup gate has somewhere to look.
-    storageTmp = Deno.makeTempDirSync();
-    restoreStorage = setTestEnv({ LOCAL_STORAGE_PATH: storageTmp });
-  });
-
-  afterEach(() => {
+  // Local storage so the pre-update backup gate has somewhere to look.
+  useLocalStorageTempDir(() => {
     settings.clearTestOverrides();
     setBuildTimestampForTest(null);
-    restoreStorage?.();
-    if (storageTmp) Deno.removeSync(storageTmp, { recursive: true });
   });
 
   describe("GET /admin/update", () => {

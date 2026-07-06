@@ -40,6 +40,12 @@ const renderConfirmation = async (): Promise<{
   return { data, result };
 };
 
+/** The first argument of every console.error the spy recorded — the log lines. */
+const errorLogLines = (errorSpy: {
+  calls: ReadonlyArray<{ args: unknown[] }>;
+}): string[] =>
+  map((c: { args: unknown[] }) => c.args[0] as string)(errorSpy.calls);
+
 describeWithEnv("email-renderer", { db: true }, () => {
   useSetting({ currency: "GBP" });
   beforeEach(resetEngine);
@@ -602,9 +608,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
         // Should fall back to default subject
         expect(result.subject).toContain("Test Listing");
         // Should have logged the error
-        const logs = map((c: { args: unknown[] }) => c.args[0] as string)(
-          errorSpy.calls,
-        );
+        const logs = errorLogLines(errorSpy);
         expect(
           logs.some(
             (l) =>
@@ -794,9 +798,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
         );
         await renderEmailContent("confirmation", data);
 
-        const logs = map((c: { args: unknown[] }) => c.args[0] as string)(
-          errorSpy.calls,
-        );
+        const logs = errorLogLines(errorSpy);
         expect(logs.some((l) => l.includes("string error value"))).toBe(true);
       } finally {
         parseAndRenderStub.restore();

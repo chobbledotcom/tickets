@@ -16,11 +16,8 @@ import {
   toContactHashParam,
 } from "#shared/db/contact-preferences.ts";
 import {
-  answersTable,
   getAttendeeAnswersBatch,
-  questionsTable,
   saveAttendeeAnswers,
-  setListingQuestions,
 } from "#shared/db/questions.ts";
 import {
   adminFormPost,
@@ -40,14 +37,75 @@ import {
   getTestPrivateKey,
   hasSelectedOption,
   mockFormRequest,
-  setupListingAndLogin,
   testCookie,
   testRequiresAuth,
   withMocks,
 } from "#test-utils";
+import {
+  orphanAttendee,
+  seedListingAttendee,
+} from "#test-utils/attendee-fixtures.ts";
+import { addListingQuestion } from "#test-utils/custom-questions.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
 describeWithEnv("server (unified attendee form)", { db: true }, () => {
+  // ---- Local helpers: collapse the arrange/act/assert shapes this file
+  // repeats, so one change lands everywhere and jscpd stays at 0%. ----
+
+  /** Seed one plain listing, open the bare "add attendee" form, return its HTML. */
+  const bareCreateFormHtml = async (): Promise<string> => {
+    await createTestListing({ maxAttendees: 100, name: "Pick Me" });
+    return expectHtmlResponse(await adminGet("/admin/attendees/new"), 200);
+  };
+
+  /** Open an attendee's edit page and return its raw HTML. */
+  const editFormHtml = async (attendeeId: number): Promise<string> =>
+    (await adminGet(`/admin/attendees/${attendeeId}/edit`)).text();
+
+  /** Open an attendee's edit page, assert it renders OK, return its HTML. */
+  const editFormHtmlOk = async (attendeeId: number): Promise<string> =>
+    expectHtmlResponse(await adminGet(`/admin/attendees/${attendeeId}/edit`), 200);
+
+  /** Assert how many booking rows a listing currently has. */
+  const expectBookingCount = async (
+    listingId: number,
+    count: number,
+  ): Promise<void> => {
+    expect((await getAttendeesRaw(listingId)).length).toBe(count);
+  };
+
+  /** Book an attendee straight into the database and return its id, failing
+   *  loudly if the booking didn't take. */
+  const bookAttendeeId = async (
+    options: Parameters<typeof createAttendeeAtomic>[0],
+  ): Promise<number> => {
+    const created = await createAttendeeAtomic(options);
+    if (!created.success) throw new Error("setup");
+    return created.attendees[0]!.id;
+  };
+
+  /** Build an attendee's edit form (applying any overrides) and submit it as
+   *  the logged-in admin. Returns the response. */
+  const submitAttendeeEdit = async (
+    attendeeId: number,
+    overrides: Parameters<typeof buildAttendeeEditForm>[1] = {},
+  ): Promise<Response> => {
+    const form = await buildAttendeeEditForm(attendeeId, overrides);
+    const { response } = await adminFormPost(
+      `/admin/attendees/${attendeeId}`,
+      form,
+    );
+    return response;
+  };
+
+  /** Tomorrow's date in the site timezone, formatted the way the form wants. */
+  const tomorrowDate = async (): Promise<string> => {
+    const { addDays } = await import("#shared/dates.ts");
+    const { todayInTz } = await import("#shared/timezone.ts");
+    const { settings } = await import("#shared/db/settings.ts");
+    return addDays(todayInTz(settings.timezone), 1);
+  };
+
   describe("GET /admin/attendees/new", () => {
     testRequiresAuth("/admin/attendees/new");
 
@@ -93,9 +151,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
     test("omits the 'Back without saving' link", async () => {
       // The browser back button is enough; the explicit link was removed.
-      await createTestListing({ maxAttendees: 100, name: "Pick Me" });
-      const response = await adminGet("/admin/attendees/new");
-      const html = await expectHtmlResponse(response, 200);
+      const html = await bareCreateFormHtml();
       expect(html).not.toContain("Back without saving");
     });
 
@@ -135,9 +191,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     test("omits the 'Show all listings' toggle on a bare create form", async () => {
       // Nothing is booked yet, so an un-ticked toggle would hide every row.
       // Instead the form drops the toggle and shows every listing.
-      await createTestListing({ maxAttendees: 100, name: "Pick Me" });
-      const response = await adminGet("/admin/attendees/new");
-      const html = await expectHtmlResponse(response, 200);
+      const html = await bareCreateFormHtml();
       expect(html).not.toContain("Show all listings");
       expect(html).not.toContain('name="show_all"');
       // The editor carries the show-all modifier so the not-booked rows stay
@@ -264,25 +318,15 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("creates an attendee with one listing line", async () => {
-      const { listing: event } = await setupListingAndLogin({
+      const event = await createTestListing({
         maxAttendees: 100,
         maxQuantity: 5,
       });
-      const { cookie, csrfToken } = await (
-        await import("#test-utils")
-      ).getTestSession();
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/attendees/new",
-          {
-            csrf_token: csrfToken,
-            email: "jane@example.com",
-            name: "Jane Doe",
-            [`qty_${event.id}`]: "2",
-          },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/attendees/new", {
+        email: "jane@example.com",
+        name: "Jane Doe",
+        [`qty_${event.id}`]: "2",
+      });
       expectRedirect(response, "/admin/attendees/");
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(1);
@@ -290,25 +334,13 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("a no-quantity-only create persists the line and clears any balance", async () => {
-      const { listing: event } = await setupListingAndLogin({
-        maxAttendees: 100,
+      const event = await createTestListing({ maxAttendees: 100 });
+      const { response } = await adminFormPost("/admin/attendees/new", {
+        name: "Ghost Only",
+        [`noqty_${event.id}`]: "1",
+        [`qty_${event.id}`]: "1",
+        remaining_balance: "20",
       });
-      const { cookie, csrfToken } = await (
-        await import("#test-utils")
-      ).getTestSession();
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/attendees/new",
-          {
-            csrf_token: csrfToken,
-            name: "Ghost Only",
-            [`noqty_${event.id}`]: "1",
-            [`qty_${event.id}`]: "1",
-            remaining_balance: "20",
-          },
-          cookie,
-        ),
-      );
       expectRedirect(response, "/admin/attendees/");
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(1);
@@ -333,22 +365,12 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         maxQuantity: 5,
         name: "B",
       });
-      const { cookie, csrfToken } = await (
-        await import("#test-utils")
-      ).getTestSession();
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/attendees/new",
-          {
-            csrf_token: csrfToken,
-            email: "multi@example.com",
-            name: "Multi",
-            [`qty_${event1.id}`]: "1",
-            [`qty_${event2.id}`]: "3",
-          },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/attendees/new", {
+        email: "multi@example.com",
+        name: "Multi",
+        [`qty_${event1.id}`]: "1",
+        [`qty_${event2.id}`]: "3",
+      });
       expect(response.status).toBe(302);
       expect((await getAttendeesRaw(event1.id)).length).toBe(1);
       const att2 = await getAttendeesRaw(event2.id);
@@ -361,21 +383,11 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         maxAttendees: 100,
         maxQuantity: 5,
       });
-      const { cookie, csrfToken } = await (
-        await import("#test-utils")
-      ).getTestSession();
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/attendees/new",
-          {
-            csrf_token: csrfToken,
-            email: "preserve@example.com",
-            name: "",
-            [`qty_${event.id}`]: "1",
-          },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/attendees/new", {
+        email: "preserve@example.com",
+        name: "",
+        [`qty_${event.id}`]: "1",
+      });
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Name is required");
@@ -418,56 +430,42 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // Load the existing line key for event1
       const { loadExistingLines } = await import("#shared/db/attendees.ts");
       const existing = await loadExistingLines(attendee.id);
-      const form = await buildAttendeeEditForm(attendee.id, {
+      const response = await submitAttendeeEdit(attendee.id, {
         lines: [
           { eventId: event1.id, key: existing[0]!.key, quantity: 1 },
           { eventId: event2.id, key: "", quantity: 1 },
         ],
         name: "Link",
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        form,
-      );
       expect(response.status).toBe(302);
-      expect((await getAttendeesRaw(event1.id)).length).toBe(1);
-      expect((await getAttendeesRaw(event2.id)).length).toBe(1);
+      await expectBookingCount(event1.id, 1);
+      await expectBookingCount(event2.id, 1);
     });
 
     test("removes an existing listing line via the unified form", async () => {
       const event1 = await createTestListing({ maxAttendees: 50, name: "E1" });
       const event2 = await createTestListing({ maxAttendees: 50, name: "E2" });
-      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
-      const result = await createAttendeeAtomic({
+      const attendeeId = await bookAttendeeId({
         bookings: [
           { listingId: event1.id, quantity: 1 },
-          {
-            listingId: event2.id,
-            quantity: 1,
-          },
+          { listingId: event2.id, quantity: 1 },
         ],
         email: "",
         name: "Multi",
       });
-      if (!result.success) throw new Error("setup");
-      const attendeeId = result.attendees[0]!.id;
       const { loadExistingLines } = await import("#shared/db/attendees.ts");
       const existing = await loadExistingLines(attendeeId);
       const event1Key = existing.find(
         (e) => e.booking.listing_id === event1.id,
       )!.key;
       // Submit only event1 — event2 should be removed
-      const form = await buildAttendeeEditForm(attendeeId, {
+      const response = await submitAttendeeEdit(attendeeId, {
         lines: [{ eventId: event1.id, key: event1Key, quantity: 1 }],
         name: "Multi",
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendeeId}`,
-        form,
-      );
       expect(response.status).toBe(302);
-      expect((await getAttendeesRaw(event1.id)).length).toBe(1);
-      expect((await getAttendeesRaw(event2.id)).length).toBe(0);
+      await expectBookingCount(event1.id, 1);
+      await expectBookingCount(event2.id, 0);
     });
 
     test("updates quantity on an existing line via the unified form", async () => {
@@ -484,14 +482,10 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
       const { loadExistingLines } = await import("#shared/db/attendees.ts");
       const existing = await loadExistingLines(attendee.id);
-      const form = await buildAttendeeEditForm(attendee.id, {
+      const response = await submitAttendeeEdit(attendee.id, {
         lines: [{ eventId: event.id, key: existing[0]!.key, quantity: 4 }],
         name: "Qty",
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        form,
-      );
       expect(response.status).toBe(302);
       expect((await getAttendeesRaw(event.id))[0]!.quantity).toBe(4);
     });
@@ -518,16 +512,30 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const key = (await loadExistingLines(attendeeId)).find(
         (e) => e.booking.listing_id === listingId,
       )!.key;
-      const form = await buildAttendeeEditForm(attendeeId, {
+      return submitAttendeeEdit(attendeeId, {
         extra: { [`noqty_${listingId}`]: "1" },
         lines: [{ eventId: listingId, key, quantity: 1 }],
         name,
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendeeId}`,
-        form,
-      );
-      return response;
+    };
+
+    /** Seed a listing with one paid booking (a payment plus its matching ledger
+     *  sale) — the state that blocks marking the line no-quantity. */
+    const seedPaidLine = async (
+      quantity: number,
+      email: string,
+      name: string,
+      paymentId: string,
+    ) => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendeeId = await bookAttendeeId({
+        bookings: [{ listingId: listing.id, quantity }],
+        email,
+        name,
+        paymentId,
+      });
+      await postListingSale({ attendeeId, gross: 1500, listingId: listing.id });
+      return { attendeeId, listing };
     };
 
     test("marking a line no-quantity keeps it as a quantity-0 row, not deleted", async () => {

@@ -8,6 +8,7 @@ import {
   bookOneEachViaTicketForm,
   createTestListing,
   describeWithEnv,
+  expectAttendeeCounts,
   expectBookOneEachRejected,
   expectFlash,
   expectMissingCsrfRejected,
@@ -196,11 +197,10 @@ describeWithEnv(
         expectReservedRedirectWithTokens(response);
 
         // Verify only listing2 got an attendee
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(listing1.id);
-        const attendees2 = await getAttendeesRaw(listing2.id);
-        expect(attendees1.length).toBe(0);
-        expect(attendees2.length).toBe(1);
+        await expectAttendeeCounts([
+          { count: 0, listingId: listing1.id },
+          { count: 1, listingId: listing2.id },
+        ]);
       });
     });
 

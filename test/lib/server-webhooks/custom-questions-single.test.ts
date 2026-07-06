@@ -34,6 +34,18 @@ describeWithEnv(
       resetStripeClient();
     });
 
+    /** After a single-attendee booking, fetch that one attendee's decrypted
+     * text answers (asserting exactly one attendee exists for the listing). */
+    const singleAttendeeTextAnswers = async (listingId: number) => {
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const attendees = await getAttendeesRaw(listingId);
+      expect(attendees.length).toBe(1);
+      return getAttendeeTextAnswers(
+        attendees[0]!.id,
+        await getTestPrivateKey(),
+      );
+    };
+
     test("saves custom question answers for paid single-ticket checkout", async () => {
       await setupStripe();
 
@@ -163,13 +175,7 @@ describeWithEnv(
         }),
       );
 
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
-      const textAnswers = await getAttendeeTextAnswers(
-        attendees[0]!.id,
-        await getTestPrivateKey(),
-      );
+      const textAnswers = await singleAttendeeTextAnswers(listing.id);
       expect(textAnswers.get(question.id)).toBe("Step-free entrance");
     });
 
@@ -220,15 +226,8 @@ describeWithEnv(
         }),
       );
 
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
-
       // The intact answer is saved; the ref with no id is dropped, not guessed.
-      const textAnswers = await getAttendeeTextAnswers(
-        attendees[0]!.id,
-        await getTestPrivateKey(),
-      );
+      const textAnswers = await singleAttendeeTextAnswers(listing.id);
       expect(textAnswers.get(goodQ.id)).toBe("Step-free entrance");
       expect(textAnswers.has(lostQ.id)).toBe(false);
 

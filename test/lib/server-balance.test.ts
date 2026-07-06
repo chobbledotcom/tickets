@@ -131,6 +131,14 @@ const stubBalanceSession = (...args: Parameters<typeof balanceSession>) =>
     Promise.resolve(balanceSession(...args)),
   );
 
+/** Stub the provider refund call so it resolves with a fake refund id. */
+const stubRefund = (id: string) =>
+  stub(stripeApi, "refundPayment", () =>
+    Promise.resolve({ id } as unknown as Awaited<
+      ReturnType<typeof stripeApi.refundPayment>
+    >),
+  );
+
 /** Drive the success webhook for `sessionId` and assert it cleared the balance
  * and flipped the attendee onto the paid default status. */
 const expectSettled = async (
@@ -357,11 +365,7 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     // The replay: the balance is already paid (owed 0), so without the ledger
     // preflight settleAttendeeBalance reports nothing_owed and refunds the
     // already-paid customer. The preflight replays success instead.
-    const refund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({ id: "re_x" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
-    );
+    const refund = stubRefund("re_x");
     const second = stubBalanceSession(attendeeId, 1500, "cs_balance_replay");
     try {
       const response = await handleRequest(
@@ -417,11 +421,7 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
   test("a balance checkout with a tampered signature is ignored, not settled", async () => {
     await setupStripe();
     const attendeeId = await createReserved(1500);
-    const refund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({ id: "re_bal" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
-    );
+    const refund = stubRefund("re_bal");
     // Valid total, wrong digest — an invalid proof, so the session is ignored:
     // not settled, and not refunded (we can't prove it is ours).
     const session = stubBalanceSession(
@@ -468,11 +468,7 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     // lowered the live balance to 500. The stale 1500 callback must refund and
     // leave the balance untouched rather than clear the wrong amount.
     const attendeeId = await createReserved(500);
-    const refund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({ id: "re_bal" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
-    );
+    const refund = stubRefund("re_bal");
     const session = stubBalanceSession(attendeeId, 1500, "cs_bal_stale");
     try {
       const response = await handleRequest(
@@ -496,11 +492,7 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     // The checkout was signed for 1500, but the provider reports charging only
     // 1000 — a charge/signed-total mismatch, refunded before any settlement.
     const attendeeId = await createReserved(1500);
-    const refund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({ id: "re_amt" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
-    );
+    const refund = stubRefund("re_amt");
     const session = stubBalanceSession(attendeeId, 1500, "cs_bal_amt", {
       chargedAmount: 1000,
     });

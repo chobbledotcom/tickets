@@ -6,6 +6,7 @@ import { PaymentUserError } from "#shared/payment-helpers.ts";
 import { squareApi } from "#shared/square.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { createTestDb, resetDb, testListing, withMocks } from "#test-utils";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout-intents.ts";
 
 /** A Square Money value in the given minor units (defaults to USD). */
 const money = (amount: number, currency = "USD") => ({
@@ -51,23 +52,18 @@ const paidPay1Mocks = (id: string, createdAt?: string) => ({
 const listingIntent = (
   listing: ReturnType<typeof testListing>,
   phone: string,
-) => ({
-  address: "",
-  date: null,
-  email: "john@example.com",
-  items: [
-    {
-      listingId: listing.id,
-      name: listing.name,
-      quantity: 1,
-      slug: listing.slug,
-      unitPrice: listing.unit_price,
-    },
-  ],
-  name: "John",
-  phone,
-  special_instructions: "",
-});
+) =>
+  checkoutIntent({
+    items: [
+      checkoutItem({
+        listingId: listing.id,
+        name: listing.name,
+        slug: listing.slug,
+        unitPrice: listing.unit_price,
+      }),
+    ],
+    phone,
+  });
 
 /** Assert createCheckoutSession surfaces a thrown PaymentUserError's message. */
 const expectCheckoutUserError = async (
@@ -350,23 +346,10 @@ describe("square-provider", () => {
 
   describe("createCheckoutSession", () => {
     test("returns error result when createPaymentLink throws PaymentUserError", async () => {
-      const intent = {
-        address: "",
-        date: null,
+      const intent = checkoutIntent({
         email: "bad",
-        items: [
-          {
-            listingId: 1,
-            name: "Evt",
-            quantity: 1,
-            slug: "evt",
-            unitPrice: 1000,
-          },
-        ],
-        name: "John",
-        phone: "",
-        special_instructions: "",
-      };
+        items: [checkoutItem({ name: "Evt", slug: "evt" })],
+      });
       await expectCheckoutUserError(intent, "Email address is invalid");
     });
   });

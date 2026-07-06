@@ -5,13 +5,11 @@ import { spy } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
-  bookAttendee,
   checkoutSessionEvent,
   createTestListing,
   describeWithEnv,
   expectAttendeeCounts,
-  expectRefundedWithNote,
-  expectSessionFailed,
+  expectSoldOutPlaceholderRefunded,
   expectWebhookIgnored,
   expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
@@ -21,6 +19,7 @@ import {
   singleItem,
   webhookMeta,
 } from "#test-utils";
+import { arrangeSoldOutListing } from "#test-utils/payment-scenarios.ts";
 
 // jscpd:ignore-end
 
@@ -113,19 +112,7 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
   });
 
   test("webhook handles sold-out listing and returns error in JSON", async () => {
-    await setupStripe();
-
-    const listing = await createTestListing({
-      maxAttendees: 1,
-      unitPrice: 1000,
-    });
-
-    // Fill the listing
-    await bookAttendee(listing, {
-      email: "first@example.com",
-      name: "First",
-      paymentId: "pi_first",
-    });
+    const listing = await arrangeSoldOutListing();
 
     const { mockRefund } = await expectWebhookKeptAndRefunded(
       checkoutSessionEvent({
@@ -145,12 +132,7 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
     );
     // The late buyer is not dropped: a quantity-0 placeholder is kept
     // alongside the original sold-out attendee, refunded once, with a note.
-    const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-    const attendees = await getAttendeesRaw(listing.id);
-    const placeholder = attendees.find((a) => a.quantity === 0);
-    expect(placeholder).toBeDefined();
-    await expectRefundedWithNote(placeholder!.id, mockRefund);
-    await expectSessionFailed("cs_soldout");
+    await expectSoldOutPlaceholderRefunded(listing.id, "cs_soldout", mockRefund);
   });
 
   test("multi-ticket webhook creates attendees for multiple listings", async () => {

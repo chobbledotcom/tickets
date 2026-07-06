@@ -575,7 +575,7 @@ describeWithEnv(
       const date = addDays(todayInTz("UTC"), 2);
       // Booked narrow → widest → narrow, so the widest-member scan must both
       // REPLACE a narrower card and KEEP the widest over a later narrower one.
-      const result = await createAttendeeAtomic({
+      const body = await bookPackageTicketBody({
         bookings: [
           { date, listingId: oneDay.id, quantity: 1 },
           // The real booking flow stores a fixed daily member's duration
@@ -587,9 +587,6 @@ describeWithEnv(
         name: "Tripper",
         packageGroupId: group.id,
       });
-      if (!result.success) throw new Error("package booking failed");
-
-      const body = await fetchTicketBody(result.attendees[0]!.ticket_token);
       const { formatDateRangeLabelCompactEn } = await import(
         "#shared/dates.ts"
       );
@@ -626,7 +623,7 @@ describeWithEnv(
         name: "Flex Firepit",
       });
       const date = addDays(todayInTz("UTC"), 2);
-      const result = await createAttendeeAtomic({
+      const body = await bookPackageTicketBody({
         bookings: [
           { date, durationDays: 3, listingId: flex.id, quantity: 1 },
           { date, listingId: fixed.id, quantity: 1 },
@@ -635,9 +632,6 @@ describeWithEnv(
         name: "Flexer",
         packageGroupId: group.id,
       });
-      if (!result.success) throw new Error("package booking failed");
-
-      const body = await fetchTicketBody(result.attendees[0]!.ticket_token);
       // The 3-day BOOKED stay heads the card…
       expect(body).toContain(
         formatDateRangeLabelCompactEn(date, addDays(date, 2)),

@@ -3,15 +3,14 @@ import { describe, it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
 import { handleRequest } from "#routes";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
-import { groupsTable } from "#shared/db/groups.ts";
 import {
   assertJson,
   createTestAttendeeWithToken,
-  createTestGroup,
   createTestListing,
   describeWithEnv,
 } from "#test-utils";
 import { configureAppleWallet } from "#test-utils/crypto.ts";
+import { createHiddenPackage } from "#test-utils/payment-scenarios.ts";
 
 /** Make a request through the full handler pipeline */
 const walletRequest = (
@@ -163,10 +162,7 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
 
     test("404s a package booking's token (a single-member pass would leak/misrepresent the bundle)", async () => {
       await configureAppleWallet();
-      const group = await createTestGroup({ isPackage: true, name: "Bundle" });
-      await groupsTable.update(group.id, { hidePackageListings: true });
-      const member = await createTestListing({
-        groupId: group.id,
+      const { group, member } = await createHiddenPackage({
         maxAttendees: 10,
         name: "Secret Member",
       });
@@ -191,13 +187,10 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
       // is wrong even if the standalone row sorts first — the gate must inspect
       // every booking, not just the first.
       await configureAppleWallet();
-      const group = await createTestGroup({ isPackage: true, name: "Bundle2" });
-      await groupsTable.update(group.id, { hidePackageListings: true });
-      const member = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-        name: "Hidden Member 2",
-      });
+      const { group, member } = await createHiddenPackage(
+        { maxAttendees: 10, name: "Hidden Member 2" },
+        "Bundle2",
+      );
       const standalone = await createTestListing({
         maxAttendees: 10,
         name: "Plain Ticket",

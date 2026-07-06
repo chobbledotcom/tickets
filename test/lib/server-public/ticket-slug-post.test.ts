@@ -8,6 +8,7 @@ import {
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
+  expectAttendeeCounts,
   expectFlash,
   expectMissingCsrfRejected,
   expectReservedRedirectWithTokens,
@@ -74,13 +75,10 @@ describeWithEnv(
         );
         expectReservedRedirectWithTokens(response);
 
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(listing1.id);
-        const attendees2 = await getAttendeesRaw(listing2.id);
-        expect(attendees1.length).toBe(1);
-        expect(attendees1[0]?.quantity).toBe(1);
-        expect(attendees2.length).toBe(1);
-        expect(attendees2[0]?.quantity).toBe(2);
+        await expectAttendeeCounts([
+          { count: 1, listingId: listing1.id, quantity: 1 },
+          { count: 1, listingId: listing2.id, quantity: 2 },
+        ]);
       });
 
       test("rejects group registration when group capacity exceeded", async () => {

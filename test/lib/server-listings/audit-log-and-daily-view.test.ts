@@ -8,13 +8,13 @@ import {
   adminGet,
   awaitTestRequest,
   createTestAttendee,
-  createTestListing,
   describeWithEnv,
   expectHtmlResponse,
   getListingActivityLog,
   setupListingAndLogin,
   submitTicketForm,
 } from "#test-utils";
+import { createEveryDayDailyListing } from "#test-utils/daily-listing.ts";
 
 // jscpd:ignore-end
 
@@ -50,20 +50,7 @@ describeWithEnv(
       const validDate2 = addDays(todayInTz("UTC"), 2);
 
       const createDailyListingWithAttendees = async () => {
-        const listing = await createTestListing({
-          bookableDays: [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-          ],
-          listingType: "daily",
-          maximumDaysAfter: 14,
-          minimumDaysBefore: 0,
-        });
+        const listing = await createEveryDayDailyListing();
         // Create attendees on two different dates via the public form
         await submitTicketForm(listing.slug, {
           date: validDate1,
@@ -93,6 +80,18 @@ describeWithEnv(
           `/admin/listing/${listing.id}/attendees${query}`,
         );
         return response.text();
+      };
+
+      /** Builds the seeded daily listing and returns it alongside its Attendees
+       *  roster HTML filtered to the first valid date — the shared starting
+       *  point for the export-link and filter-link tests. */
+      const datedRoster = async () => {
+        const listing = await createDailyListingWithAttendees();
+        const html = await getAttendeesRosterHtml(
+          listing,
+          `?date=${validDate1}`,
+        );
+        return { html, listing };
       };
 
       test("shows date selector dropdown for daily listings", async () => {
@@ -293,24 +292,14 @@ describeWithEnv(
       });
 
       test("Export CSV link includes ?date= when filter is active", async () => {
-        const listing = await createDailyListingWithAttendees();
-
-        const response = await adminGet(
-          `/admin/listing/${listing.id}/attendees?date=${validDate1}`,
-        );
-        const html = await response.text();
+        const { listing, html } = await datedRoster();
         expect(html).toContain(
           `/admin/listing/${listing.id}/export?date=${validDate1}`,
         );
       });
 
       test("filter links preserve ?date= query parameter", async () => {
-        const listing = await createDailyListingWithAttendees();
-
-        const response = await adminGet(
-          `/admin/listing/${listing.id}/attendees?date=${validDate1}`,
-        );
-        const html = await response.text();
+        const { listing, html } = await datedRoster();
         // The roster's check-in filters are query params now (&amp; in rendered
         // HTML), not the old /in and /out path segments with an #attendees anchor.
         expect(html).toContain(

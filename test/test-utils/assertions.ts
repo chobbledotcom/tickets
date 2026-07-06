@@ -232,16 +232,26 @@ export const expectReservedRedirectWithTokens = (response: Response): void => {
 
 /** Asserts each listing in `expectations` ended up with exactly `count` raw
  *  attendee rows, and (when given) that the single resulting attendee's
- *  `quantity` matches. This is the "who got booked, and for how many" check
- *  repeated after almost every multi-listing booking POST. */
+ *  `quantity` and/or `pricePaid` match. This is the "who got booked, for how
+ *  many, and at what price" check repeated after almost every multi-listing
+ *  booking POST and paid-webhook success. */
 export const expectAttendeeCounts = async (
-  expectations: { count: number; listingId: number; quantity?: number }[],
+  expectations: {
+    count: number;
+    listingId: number;
+    quantity?: number;
+    pricePaid?: number;
+  }[],
 ): Promise<void> => {
   const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-  for (const { count, listingId, quantity } of expectations) {
+  for (const { count, listingId, quantity, pricePaid } of expectations) {
     const attendees = await getAttendeesRaw(listingId);
     expect(attendees.length).toBe(count);
     if (quantity !== undefined) expect(attendees[0]?.quantity).toBe(quantity);
+    if (pricePaid !== undefined)
+      expect(
+        (attendees[0] as unknown as Record<string, unknown>).price_paid,
+      ).toBe(pricePaid);
   }
 };
 

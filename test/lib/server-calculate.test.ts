@@ -481,6 +481,23 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     ).text();
   };
 
+  /** Quote a single unit of the promo listing with the given extra form fields
+   *  and assert no discount landed — full £10.00, no £9.00, no "10% off". */
+  const expectNoPromoDiscount = async (
+    extra: Record<string, string> = {},
+  ): Promise<void> => {
+    const listing = await setupPromoListing();
+    const html = await (
+      await calculate(listing.slug, listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+        ...extra,
+      })
+    ).text();
+    expect(html).toContain(formatCurrency(1000));
+    expect(html).not.toContain(formatCurrency(900));
+    expect(html).not.toContain("10% off");
+  };
+
   test("applies a promo code discount when the correct code is submitted", async () => {
     const html = await quoteSave10Promo();
 
@@ -505,34 +522,13 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
   });
 
   test("does not apply a promo code discount when no code is submitted", async () => {
-    const listing = await setupPromoListing();
-
-    const html = await (
-      await calculate(listing.slug, listing.slug, {
-        [`quantity_${listing.id}`]: "1",
-      })
-    ).text();
-
     // Full price — no promo code entered, no discount line.
-    expect(html).toContain(formatCurrency(1000));
-    expect(html).not.toContain(formatCurrency(900));
-    expect(html).not.toContain("10% off");
+    await expectNoPromoDiscount();
   });
 
   test("does not apply a promo code discount when a wrong code is submitted", async () => {
-    const listing = await setupPromoListing();
-
-    const html = await (
-      await calculate(listing.slug, listing.slug, {
-        [`quantity_${listing.id}`]: "1",
-        promo_code: "WRONGCODE",
-      })
-    ).text();
-
     // Full price — wrong promo code, no discount line.
-    expect(html).toContain(formatCurrency(1000));
-    expect(html).not.toContain(formatCurrency(900));
-    expect(html).not.toContain("10% off");
+    await expectNoPromoDiscount({ promo_code: "WRONGCODE" });
   });
 
   /** Turn the seeded public-default status into a reservation charging `amount`,

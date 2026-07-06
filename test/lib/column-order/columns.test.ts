@@ -9,6 +9,7 @@ import {
   testAttendee,
   testListingWithCount,
 } from "#test-utils";
+import { makeAttendeeRow as makeRow } from "#test-utils/attendee-row.ts";
 
 setupTestEncryptionKey();
 
@@ -192,14 +193,6 @@ describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {
     phonePrefix: "44",
     renderStatus: () => "",
   };
-  const makeRow = (
-    overrides: Partial<AttendeeTableRow> = {},
-  ): AttendeeTableRow => ({
-    attendee: testAttendee(),
-    listings: [{ id: 1, name: "Test Listing" }],
-    ...overrides,
-  });
-
   /** The listings cell rendered for a two-listing grouped row */
   const twoListingCell = (): string =>
     ATTENDEE_TABLE_COLUMNS.listings!.cell(

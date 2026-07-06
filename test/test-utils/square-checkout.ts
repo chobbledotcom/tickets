@@ -57,6 +57,13 @@ export const createMockClient = (
   };
 };
 
+/** A `withMocks` setup thunk that points `squareApi.getSquareClient` at
+ *  `client`. Use as the first argument to `withMocks` when the test body needs
+ *  to keep its existing shape. */
+export const useSquareClient =
+  (client: SquareClient) => (): ReturnType<typeof stub> =>
+    stub(squareApi, "getSquareClient", () => Promise.resolve(client));
+
 /** Make `squareApi.getSquareClient` resolve to `client` for the duration of
  *  `body`, then restore the real implementation. */
 export const withSquareClient = (

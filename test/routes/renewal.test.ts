@@ -18,6 +18,7 @@ import {
   provisionTestBuiltSite,
   setupStripe,
 } from "#test-utils";
+import { expectNoCheckoutSession } from "#test-utils/checkout-guard.ts";
 
 const setupRenewalSite = async () => {
   await insertBuiltSite(
@@ -362,31 +363,17 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       });
       const { token } = await setupRenewalSite();
 
-      const mockCreate = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        () =>
-          Promise.resolve({
-            checkoutUrl: "https://checkout.stripe.com/should-not-run",
-            sessionId: "cs_should_not_run",
-          }),
-      );
-
-      try {
-        const response = await handleRequest(
+      // Standard ticket-form behavior: missing CSRF → redirect back to the form,
+      // no payment session created.
+      await expectNoCheckoutSession(() =>
+        handleRequest(
           mockFormRequest(`/renew/?t=${encodeURIComponent(token)}`, {
             email: "renew@example.com",
             name: "Renewer",
             [`quantity_${tier.id}`]: "1",
           }),
-        );
-        // Standard ticket-form behavior: missing CSRF → redirect back to the
-        // form (no payment session created).
-        expect(response.status).toBe(302);
-        expect(mockCreate.calls.length).toBe(0);
-      } finally {
-        mockCreate.restore();
-      }
+        ),
+      );
     });
   });
 });

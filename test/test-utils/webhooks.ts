@@ -206,6 +206,28 @@ export const expectKeptAsQuantityZeroAndRefunded = async (
 };
 
 /**
+ * Assert the standard "sold out after payment" aftermath on a listing that
+ * ALREADY had a paying attendee: the late buyer is not dropped — a quantity-0
+ * placeholder is kept alongside the original attendee, refunded exactly once
+ * with a system note (see `expectRefundedWithNote`), and the session is filed
+ * as a terminal failure (see `expectSessionFailed`). Unlike
+ * `expectKeptAsQuantityZeroAndRefunded`, this finds the placeholder among
+ * several attendees rather than requiring it to be the only one.
+ */
+export const expectSoldOutPlaceholderRefunded = async (
+  listingId: number,
+  sessionId: string,
+  mockRefund: { calls: unknown[] },
+): Promise<void> => {
+  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  const attendees = await getAttendeesRaw(listingId);
+  const placeholder = attendees.find((a) => a.quantity === 0);
+  expect(placeholder).toBeDefined();
+  await expectRefundedWithNote(placeholder!.id, mockRefund);
+  await expectSessionFailed(sessionId);
+};
+
+/**
  * Assert a multi-listing order was kept as a single quantity-0 placeholder
  * shared across both listings (never dropped or split), and return that
  * attendee so the caller can continue with its own refund/note/failure

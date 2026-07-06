@@ -55,6 +55,7 @@ import {
   recordServiceCost,
   renderAdminPage,
 } from "#test-utils";
+import { seedBoilerPartCost } from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 
@@ -72,6 +73,13 @@ const recordBoilerCost = (servicingId: number, listingId: number) =>
     occurredAt: SERVICE_DATE,
     servicingId,
   });
+
+/** A servicing hold with one recorded £90 boiler cost, ready to be edited. */
+const holdWithBoilerCost = async () => {
+  const { id, listing } = await createServicingHold();
+  const costId = await recordBoilerCost(id, listing.id);
+  return { costId, listing };
+};
 
 /** Post a £200 customer sale against `listingId` (the income side of a profit
  *  assertion, so cost/profit can be checked against real revenue). */
@@ -342,8 +350,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
   });
 
   test("editing a cost posts a correcting adjustment, never mutates a row", async () => {
-    const { id, listing } = await createServicingHold();
-    const costId = await recordBoilerCost(id, listing.id);
+    const { costId, listing } = await holdWithBoilerCost();
     const beforeRows = (await transfersOfKind(KIND.serviceCost)).length;
     // Lower £90 → £60: a −3000 delta leg is posted; no row is UPDATEd.
     await editServiceCost(costId, { amount: 6000 });
@@ -355,8 +362,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
   });
 
   test("editing a cost to the same amount is a no-op", async () => {
-    const { id, listing } = await createServicingHold();
-    const costId = await recordBoilerCost(id, listing.id);
+    const { costId, listing } = await holdWithBoilerCost();
     const beforeRows = (await transfersOfKind(KIND.serviceCost)).length;
     await editServiceCost(costId, { amount: 9000 });
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(beforeRows);
@@ -657,8 +663,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     // ignoring prior adjustments. A second edit would double-count the first
     // adjustment, undershooting the target.
     // Record £90, edit to £60 (delta −30), then edit again to £50 (delta −10).
-    const { id, listing } = await createServicingHold();
-    const costId = await recordBoilerCost(id, listing.id); // £90
+    const { costId, listing } = await holdWithBoilerCost(); // £90
     await editServiceCost(costId, { amount: 6000 }); // → £60; delta −30
     await editServiceCost(costId, { amount: 5000 }); // → £50; delta should be −10
     expect(await costOf(listing.id)).toBe(5000);
@@ -705,8 +710,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     // If the event key omits currentAmount, the third edit's eventGroup and
     // reference hash-collide with the first edit's (same costId + same target),
     // causing assertEventMatches to throw a LedgerConflictError.
-    const { id, listing } = await createServicingHold();
-    const costId = await recordBoilerCost(id, listing.id); // £90
+    const { costId, listing } = await holdWithBoilerCost(); // £90
     await editServiceCost(costId, { amount: 6000 }); // → £60; delta −30
     await editServiceCost(costId, { amount: 7000 }); // → £70; delta +10
     await editServiceCost(costId, { amount: 6000 }); // → £60; delta must be −10

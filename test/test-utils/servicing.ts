@@ -154,6 +154,23 @@ export const createServicingHold = async (
   return { event, id: event.id, listing, ticketToken: event.ticketToken };
 };
 
+/** A fresh servicing hold with a single £90 "Boiler part" cost recorded against
+ *  it (dated 2026-07-01). Returns the servicing id and its listing. */
+export const seedBoilerPartCost = async (): Promise<{
+  id: number;
+  listing: Listing;
+}> => {
+  const { id, listing } = await createServicingHold();
+  await recordServiceCost({
+    amount: 9000,
+    listingId: listing.id,
+    memo: "Boiler part",
+    occurredAt: "2026-07-01T00:00:00.000Z",
+    servicingId: id,
+  });
+  return { id, listing };
+};
+
 // ─── DB query helpers ───────────────────────────────────────────────────────
 
 /** The `kind` column value for an attendee row, or null when the id is gone. */

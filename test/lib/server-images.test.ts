@@ -231,7 +231,12 @@ const createImageListingAndFind = async (
   listingName: string,
   file: { name: string; data: Uint8Array; contentType: string },
 ) => {
-  const response = await submitCreateImage(cookie, csrfToken, listingName, file);
+  const response = await submitCreateImage(
+    cookie,
+    csrfToken,
+    listingName,
+    file,
+  );
   expect(response.status).toBe(302);
 
   const { getAllListings } = await import("#shared/db/listings.ts");

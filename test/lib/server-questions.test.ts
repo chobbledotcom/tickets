@@ -53,6 +53,39 @@ const addAnswer = async (questionId: number, text: string): Promise<number> => {
   return found!.id;
 };
 
+/** Load a question with its answers straight from the DB (bypassing the UI). */
+const loadQuestionWithAnswers = async (qId: number) => {
+  const { getQuestionWithAnswers } = await import("#shared/db/questions.ts");
+  return await getQuestionWithAnswers(qId);
+};
+
+/** POST an answer edit that should be rejected for an invalid modifier, and
+ *  confirm the answer kept no modifier link. */
+const expectRejectedModifierEdit = async (
+  qId: number,
+  aId: number,
+  modifierId: string,
+) => {
+  const { response } = await adminFormPost(
+    `/admin/questions/${qId}/answers/${aId}/edit`,
+    { modifier_id: modifierId, text: "Pick" },
+  );
+  expect(response.status).toBe(302);
+  expectFlash(response, expect.stringContaining("Invalid modifier"), false);
+  const { getAnswerModifierId } = await import("#shared/db/questions.ts");
+  expect(await getAnswerModifierId(aId)).toBeNull();
+};
+
+/** Assert a listing's question assignment saved, then return its question ids. */
+const expectQuestionsUpdated = async (listingId: number, response: Response) => {
+  await expectFlashRedirect(
+    `/admin/listing/${listingId}/questions`,
+    "Questions updated",
+  )(response);
+  const { getListingQuestionIds } = await import("#shared/db/questions.ts");
+  return await getListingQuestionIds(listingId);
+};
+
 describeWithEnv("server (admin questions)", { db: true }, () => {
   describe("GET /admin/questions", () => {
     testRequiresAuth("/admin/questions");
@@ -853,10 +886,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "Answer updated",
       )(response);
 
-      const { getQuestionWithAnswers } = await import(
-        "#shared/db/questions.ts"
-      );
-      const question = await getQuestionWithAnswers(qId);
+      const question = await loadQuestionWithAnswers(qId);
       expect(question!.answers.find((a) => a.id === aId)!.text).toBe("After");
     });
 
@@ -925,15 +955,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const qId = await createQuestion("Invalid modifier question");
       const aId = await addAnswer(qId, "Pick");
 
-      const { response } = await adminFormPost(
-        `/admin/questions/${qId}/answers/${aId}/edit`,
-        { modifier_id: "9999", text: "Pick" },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Invalid modifier"), false);
-
-      const { getAnswerModifierId } = await import("#shared/db/questions.ts");
-      expect(await getAnswerModifierId(aId)).toBeNull();
+      await expectRejectedModifierEdit(qId, aId, "9999");
     });
 
     test("parses the modifier id as decimal, rejecting a hex-encoded id", async () => {
@@ -945,15 +967,11 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       // (radix 10) reads "0x…" as 0 → no such modifier → rejected. A base-0
       // parse would read the hex digits and wrongly accept it, silently linking
       // the modifier, so the id must be parsed as decimal.
-      const { response } = await adminFormPost(
-        `/admin/questions/${qId}/answers/${aId}/edit`,
-        { modifier_id: `0x${modifierId.toString(16)}`, text: "Pick" },
+      await expectRejectedModifierEdit(
+        qId,
+        aId,
+        `0x${modifierId.toString(16)}`,
       );
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Invalid modifier"), false);
-
-      const { getAnswerModifierId } = await import("#shared/db/questions.ts");
-      expect(await getAnswerModifierId(aId)).toBeNull();
     });
 
     test("rejects linking a modifier that isn't answer-triggered", async () => {
@@ -968,15 +986,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         trigger: "automatic",
       });
 
-      const { response } = await adminFormPost(
-        `/admin/questions/${qId}/answers/${aId}/edit`,
-        { modifier_id: String(automatic.id), text: "Pick" },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Invalid modifier"), false);
-
-      const { getAnswerModifierId } = await import("#shared/db/questions.ts");
-      expect(await getAnswerModifierId(aId)).toBeNull();
+      await expectRejectedModifierEdit(qId, aId, String(automatic.id));
     });
 
     test("rejects empty answer text", async () => {
@@ -1035,10 +1045,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const { getQuestionWithAnswers } = await import(
-        "#shared/db/questions.ts"
-      );
-      const question = await getQuestionWithAnswers(qId);
+      const question = await loadQuestionWithAnswers(qId);
       // The invalid aggregate aborts the whole edit, so the text is unchanged.
       expect(question!.answers.find((a) => a.id === aId)!.text).toBe("Before");
     });
@@ -1239,14 +1246,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
           cookie,
         ),
       );
-      await expectFlashRedirect(
-        `/admin/listing/${listing.id}/questions`,
-        "Questions updated",
-      )(response);
-
-      // Verify the questions are assigned
-      const { getListingQuestionIds } = await import("#shared/db/questions.ts");
-      const assigned = await getListingQuestionIds(listing.id);
+      const assigned = await expectQuestionsUpdated(listing.id, response);
       expect(assigned.length).toBe(1);
       expect(assigned[0]).toBe(q1);
     });
@@ -1257,13 +1257,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/listing/${listing.id}/questions`,
         {},
       );
-      await expectFlashRedirect(
-        `/admin/listing/${listing.id}/questions`,
-        "Questions updated",
-      )(response);
-
-      const { getListingQuestionIds } = await import("#shared/db/questions.ts");
-      const assigned = await getListingQuestionIds(listing.id);
+      const assigned = await expectQuestionsUpdated(listing.id, response);
       expect(assigned.length).toBe(0);
     });
 

@@ -40,22 +40,34 @@ const setLatestRelease = async (tag: string): Promise<void> => {
   await settings.loadKeys(ALL_SETTINGS_KEYS);
 };
 
+/** Wire the per-suite site-db stub: register an afterEach that restores the
+ * stub and clears settings overrides, and hand back helpers to replace the
+ * site-db factory — either with a whole implementation, or pointed straight at
+ * a seeded in-memory client. Call once inside each describe body. */
+const useStubbedSiteDb = (): {
+  stubCreateClient: (impl: () => Client) => void;
+  stubSiteDb: (client: Client) => void;
+} => {
+  let createStub: Stub | null = null;
+  afterEach(() => {
+    createStub?.restore();
+    createStub = null;
+    settings.clearTestOverrides();
+  });
+  const stubCreateClient = (impl: () => Client): void => {
+    createStub = stub(siteDbApi, "createClient", impl);
+  };
+  return {
+    stubCreateClient,
+    stubSiteDb: (client: Client): void => stubCreateClient(() => client),
+  };
+};
+
 describeWithEnv(
   "loadBuiltSiteUpdateState",
   { db: true, env: { BUNNY_API_KEY: "host-key" } },
   () => {
-    let createStub: Stub | null;
-
-    afterEach(() => {
-      createStub?.restore();
-      createStub = null;
-      settings.clearTestOverrides();
-    });
-
-    /** Point the site-db factory at a seeded in-memory client. */
-    const stubSiteDb = (client: Client): void => {
-      createStub = stub(siteDbApi, "createClient", () => client);
-    };
+    const { stubCreateClient, stubSiteDb } = useStubbedSiteDb();
 
     test("reports an update when the latest release is newer than the site", async () => {
       await setLatestRelease(LATEST_TAG);
@@ -108,7 +120,7 @@ describeWithEnv(
 
     test("surfaces a read error when the site's database is unreachable", async () => {
       await setLatestRelease(LATEST_TAG);
-      createStub = stub(siteDbApi, "createClient", () => {
+      stubCreateClient(() => {
         throw new Error("connection refused");
       });
       const site = await createTestBuiltSite({
@@ -145,17 +157,7 @@ describeWithEnv(
   "loadBuiltSiteUpdateState (Deno site)",
   { db: true, env: { DENO_DEPLOY_TOKEN: "tok123" } },
   () => {
-    let createStub: Stub | null;
-
-    afterEach(() => {
-      createStub?.restore();
-      createStub = null;
-      settings.clearTestOverrides();
-    });
-
-    const stubSiteDb = (client: Client): void => {
-      createStub = stub(siteDbApi, "createClient", () => client);
-    };
+    const { stubSiteDb } = useStubbedSiteDb();
 
     test("reports providerConfigured true for a Deno site when DENO_DEPLOY_TOKEN is set", async () => {
       await setLatestRelease(LATEST_TAG);

@@ -46,25 +46,75 @@ import {
   testRequiresAuth,
   withMocks,
 } from "#test-utils";
+import {
+  orphanAttendee,
+  seedListingAttendee,
+} from "#test-utils/attendee-fixtures.ts";
+import { addQuestion, addListingQuestion } from "#test-utils/custom-questions.ts";
 
 describeWithEnv("server (admin attendees)", { db: true }, () => {
   const deleteAction = adminAttendeeAction("delete");
   const checkinAction = adminAttendeeAction("checkin", "listing");
 
+  // Sends a signed-in admin's form POST: takes their login cookie and CSRF
+  // token once, then posts any url with any fields and hands back the response.
+  const postAs =
+    (session: { cookie: string; csrfToken: string }) =>
+    (url: string, fields: Record<string, string> = {}): Promise<Response> =>
+      handleRequest(
+        mockFormRequest(
+          url,
+          { csrf_token: session.csrfToken, ...fields },
+          session.cookie,
+        ),
+      );
+
+  // Adds one attendee through the admin "add attendee" form, checks the add
+  // worked (redirect back with an "Added" note), and returns the response plus
+  // the listing's stored attendee rows so the test can check the details.
+  const addAttendeeOk = async (
+    session: { cookie: string; csrfToken: string },
+    listingId: number,
+    fields: Record<string, string>,
+  ): Promise<{ response: Response; attendees: Awaited<ReturnType<typeof getAttendeesRaw>> }> => {
+    const response = await postAs(session)(
+      `/admin/listing/${listingId}/attendee`,
+      fields,
+    );
+    expect(response.status).toBe(302);
+    expectFlash(response, expect.stringContaining("Added"));
+    return { attendees: await getAttendeesRaw(listingId), response };
+  };
+
+  // Books "Jane Doe" as the merge target on one listing and "John Smith" as the
+  // merge source on another (pass the same id twice for the same-listing case).
+  // Returns both people and the source's ticket token, which the merge search
+  // box looks up.
+  const seedMergePair = async (
+    targetListingId: number,
+    sourceListingId: number,
+  ) => {
+    const { attendee: target } = await createTestAttendeeDirect(
+      targetListingId,
+      "Jane Doe",
+      "jane@example.com",
+    );
+    const { token: sourceToken, attendee: source } =
+      await createTestAttendeeDirect(
+        sourceListingId,
+        "John Smith",
+        "john@example.com",
+      );
+    return { source, sourceToken, target };
+  };
+
   describe("GET /admin/listing/:listingId/attendee/:attendeeId/delete", () => {
     testRequiresAuth("/admin/attendees/1/delete", {
-      setup: async () => {
-        const listing = await createTestListing({
+      setup: () =>
+        seedListingAttendee({
           maxAttendees: 100,
           thankYouUrl: "https://example.com",
-        });
-        await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
-      },
+        }),
     });
 
     test("returns 404 for non-existent listing", async () => {
@@ -85,22 +135,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("returns 404 for an orphan attendee with no home listing", async () => {
       // The attendee-scoped action loads the attendee's home listing; an
       // attendee whose bookings are all gone has none, so the page 404s.
-      const listing = await createTestListing({
+      const { attendee } = await seedListingAttendee({
         maxAttendees: 100,
         name: "Listing 1",
         thankYouUrl: "https://example.com",
       });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
-      const { getDb } = await import("#shared/db/client.ts");
-      await getDb().execute(
-        "DELETE FROM listing_attendees WHERE attendee_id = ?",
-        [attendee.id],
-      );
+      await orphanAttendee(attendee.id);
 
       const response = await adminGet(`/admin/attendees/${attendee.id}/delete`);
       expect(response.status).toBe(404);
@@ -143,18 +183,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         confirm_identifier: "John Doe",
       },
       method: "POST",
-      setup: async () => {
-        const listing = await createTestListing({
+      setup: () =>
+        seedListingAttendee({
           maxAttendees: 100,
           thankYouUrl: "https://example.com",
-        });
-        await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
-      },
+        }),
     });
 
     test("returns 404 for non-existent listing", async () => {
@@ -261,16 +294,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("DELETE /admin/listing/:listingId/attendee/:attendeeId/delete", () => {
     test("deletes attendee with DELETE method", async () => {
-      const listing = await createTestListing({
+      const { attendee } = await seedListingAttendee({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
 
       const formBody = new URLSearchParams({
         confirm_identifier: "John Doe",
@@ -535,18 +562,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     testRequiresAuth("/admin/listing/1/attendee/1/checkin", {
       body: {},
       method: "POST",
-      setup: async () => {
-        const listing = await createTestListing({
+      setup: () =>
+        seedListingAttendee({
           maxAttendees: 100,
           thankYouUrl: "https://example.com",
-        });
-        await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
-      },
+        }),
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -958,10 +978,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("redirects with error when capacity exceeded", async () => {
-      const listing = await createTestListing({ maxAttendees: 1 });
-      await createTestAttendee(
-        listing.id,
-        listing.slug,
+      const { listing } = await seedListingAttendee(
+        { maxAttendees: 1 },
         "First",
         "first@example.com",
       );
@@ -1104,15 +1122,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("GET /admin/attendees/:attendeeId", () => {
     testRequiresAuth("/admin/attendees/1", {
-      setup: async () => {
-        const listing = await createTestListing({ maxAttendees: 100 });
-        await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
-      },
+      setup: () => seedListingAttendee(),
     });
 
     test("returns 404 for non-existent attendee", async () => {
@@ -1147,13 +1157,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("includes return_url as hidden field when provided", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
+      const { attendee } = await seedListingAttendee();
       const response = await adminGet(
         `/admin/attendees/${attendee.id}/edit?return_url=${encodeURIComponent(
           "/admin/calendar#attendees",
@@ -1168,16 +1172,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("shows current listing in registrations table", async () => {
-      const listing = await createTestListing({
+      const { attendee } = await seedListingAttendee({
         maxAttendees: 100,
         name: "Current Listing",
       });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
       const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(
         response,
@@ -1188,13 +1186,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("edit page shows listing registrations and add-to-listing sections", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 100,
-        name: "Edit Page Listing",
-      });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
+      const { attendee } = await seedListingAttendee(
+        { maxAttendees: 100, name: "Edit Page Listing" },
         "Edit User",
         "edit@example.com",
       );
@@ -1212,13 +1205,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("edit page shows checked-in badge for checked-in attendee", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 100,
-        name: "Checkin Badge Listing",
-      });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
+      const { listing, attendee } = await seedListingAttendee(
+        { maxAttendees: 100, name: "Checkin Badge Listing" },
         "Badge User",
         "badge@example.com",
       );
@@ -1256,7 +1244,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("includes active listings in add-to-listing selector", async () => {
-      const listing1 = await createTestListing({
+      const { attendee } = await seedListingAttendee({
         maxAttendees: 100,
         name: "Listing 1",
       });
@@ -1265,12 +1253,6 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 100,
         name: "Listing 2",
       });
-      const attendee = await createTestAttendee(
-        listing1.id,
-        listing1.slug,
-        "John Doe",
-        "john@example.com",
-      );
       const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(response, 200, "Listing 1", "Listing 2");
     });
@@ -1290,15 +1272,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         special_instructions: "",
       },
       method: "POST",
-      setup: async () => {
-        const listing = await createTestListing({ maxAttendees: 100 });
-        await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
-      },
+      setup: () => seedListingAttendee(),
     });
 
     test("returns 404 for non-existent attendee", async () => {
@@ -1316,13 +1290,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("rejects invalid CSRF token", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
+      const { listing, attendee } = await seedListingAttendee();
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}`,
@@ -1344,13 +1312,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("rejects empty name", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
+      const { attendee } = await seedListingAttendee();
       const form = await buildAttendeeEditForm(attendee.id, { name: "" });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
@@ -1363,13 +1325,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("preserves return_url on edit validation error", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
+      const { attendee } = await seedListingAttendee();
       const returnUrl = "/admin/calendar#attendees";
 
       const form = await buildAttendeeEditForm(attendee.id, {
@@ -1387,13 +1343,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("rejects whitespace-only name", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
+      const { attendee } = await seedListingAttendee();
       const form = await buildAttendeeEditForm(attendee.id, { name: "   " });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
@@ -1405,13 +1355,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("updates attendee with new data", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
+      const { attendee } = await seedListingAttendee();
       const form = await buildAttendeeEditForm(attendee.id, {
         address: "456 Oak Ave",
         email: "jane@example.com",
@@ -1443,13 +1387,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("returns to the edit form after edit, preserving return_url", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
+      const { attendee } = await seedListingAttendee();
       const returnUrl = "/admin/calendar?date=2026-03-15#attendees";
 
       const form = await buildAttendeeEditForm(attendee.id, {
@@ -1473,16 +1411,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("updates attendee PII via edit form", async () => {
-      const listing = await createTestListing({
+      const { attendee } = await seedListingAttendee({
         maxAttendees: 100,
         name: "Listing 1",
       });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
       const form = await buildAttendeeEditForm(attendee.id, {
         email: "jane@example.com",
         name: "Jane Smith",
@@ -1539,13 +1471,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("attendee table shows edit link", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
+      const { listing, attendee } = await seedListingAttendee();
       const response = await adminGet(`/admin/listing/${listing.id}/attendees`);
       await expectHtmlResponse(
         response,
@@ -1676,16 +1602,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("shows quantity field on edit form", async () => {
-      const listing = await createTestListing({
+      const { attendee } = await seedListingAttendee({
         maxAttendees: 100,
         maxQuantity: 5,
       });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
       const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(response, 200, 'name="qty_');
     });
@@ -1693,15 +1613,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("GET /admin/listing/:listingId/attendee/:attendeeId/resend-notification", () => {
     testRequiresAuth("/admin/attendees/1/resend-notification", {
-      setup: async () => {
-        const listing = await createTestListing({ maxAttendees: 100 });
-        await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
-      },
+      setup: () => seedListingAttendee(),
     });
 
     test("returns 404 for non-existent listing", async () => {
@@ -1803,15 +1715,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         confirm_identifier: "John Doe",
       },
       method: "POST",
-      setup: async () => {
-        const listing = await createTestListing({ maxAttendees: 100 });
-        await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
-      },
+      setup: () => seedListingAttendee(),
     });
 
     test("returns 404 for non-existent listing", async () => {
@@ -2071,13 +1975,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("shows success message when flash cookie present", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
+      const { attendee } = await seedListingAttendee();
       const cookie = await testCookie();
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}?flash=${FLASH_TEST_ID}`,
@@ -2091,10 +1989,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("does not show payment details for free attendee", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
+      const { attendee } = await seedListingAttendee(
+        { maxAttendees: 100 },
         "Free User",
         "free@example.com",
       );
@@ -2109,25 +2005,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     testRequiresAuth("/admin/attendees/1/refresh-payment", {
       body: {},
       method: "POST",
-      setup: async () => {
-        const listing = await createTestListing({ maxAttendees: 100 });
-        await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
-      },
+      setup: () => seedListingAttendee(),
     });
 
     test("redirects to edit page when attendee has no payment", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
+      const { attendee } = await seedListingAttendee();
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/refresh-payment`,
       );
@@ -2147,19 +2029,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("returns 404 when attendee has no bookings", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
-      const { getDb: getDbFn } = await import("#shared/db/client.ts");
-      const db = getDbFn();
-      await db.execute({
-        args: [attendee.id],
-        sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
-      });
+      const { attendee } = await seedListingAttendee();
+      await orphanAttendee(attendee.id);
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/refresh-payment`,
       );
@@ -2325,30 +2196,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("edit attendee questions", () => {
     const setupQuestionAndAttendee = async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
       // Create attendee before assigning questions (public route requires answers)
-      const attendee = await createTestAttendee(
+      const { listing, attendee } = await seedListingAttendee();
+      const { question: q, answers } = await addListingQuestion(
         listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
+        "T-shirt size?",
+        ["Small", "Large"],
       );
-      const q = await questionsTable.insert({
-        displayType: "radio",
-        text: "T-shirt size?",
-      });
-      const a1 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
-        text: "Small",
-      });
-      const a2 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 1,
-        text: "Large",
-      });
-      await setListingQuestions(listing.id, [q.id]);
-      return { a1, a2, attendee, listing, q };
+      return { a1: answers[0]!, a2: answers[1]!, attendee, listing, q };
     };
 
     test("shows questions on edit page", async () => {
@@ -2377,10 +2232,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("does not show questions when listing has none", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
+      const { attendee } = await seedListingAttendee(
+        { maxAttendees: 100 },
         "Jane Doe",
         "jane@example.com",
       );
@@ -2486,15 +2339,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("merge panel on the Actions tab", () => {
     testRequiresAuth("/admin/attendees/1/actions", {
-      setup: async () => {
-        const listing = await createTestListing({ maxAttendees: 10 });
-        await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
-      },
+      setup: () => seedListingAttendee({ maxAttendees: 10 }),
     });
 
     test("returns 404 for non-existent attendee", async () => {

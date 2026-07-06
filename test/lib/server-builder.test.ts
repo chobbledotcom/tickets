@@ -88,6 +88,24 @@ describeWithEnv(
       expectFlash(response, expect.stringContaining(message), false);
     };
 
+    /** POST a builder form under a stubbed successful build, assert it
+     *  redirected with a "created successfully" flash, and return the one site
+     *  that was recorded. */
+    const createSiteViaBuilder = async (
+      form: Record<string, string>,
+    ): Promise<Awaited<ReturnType<typeof getAllBuiltSites>>[number]> => {
+      let created: Awaited<ReturnType<typeof getAllBuiltSites>>[number];
+      await withMocks(stubSuccessfulBuild, async () => {
+        const { response } = await adminFormPost("/admin/builder", form);
+        expectRedirect(response, "/admin/builder");
+        expectFlash(response, expect.stringContaining("created successfully"));
+        const sites = await getAllBuiltSites();
+        expect(sites).toHaveLength(1);
+        created = sites[0]!;
+      });
+      return created!;
+    };
+
     test("GET /admin/builder returns 404 when CAN_BUILD_SITES is not set", async () => {
       const restore = setTestEnv({ CAN_BUILD_SITES: undefined });
       try {
@@ -277,44 +295,28 @@ describeWithEnv(
     });
 
     test("POST /admin/builder creates site and records it on success with provided db", async () => {
-      await withMocks(stubSuccessfulBuild, async () => {
-        const { response } = await adminFormPost("/admin/builder", {
-          db_token: "token123",
-          db_url: "libsql://test.turso.io",
-          site_name: "My Test Site",
-        });
-
-        expectRedirect(response, "/admin/builder");
-        expectFlash(response, expect.stringContaining("created successfully"));
-
-        // Verify site was recorded with db credentials from buildResult
-        const sites = await getAllBuiltSites();
-        expect(sites).toHaveLength(1);
-        expect(sites[0]!.name).toBe("My Test Site");
-        expect(sites[0]!.siteUrl).toBe("https://test-42.b-cdn.net");
-        expect(sites[0]!.dbUrl).toBe("libsql://test.turso.io");
-        expect(sites[0]!.dbToken).toBe("token123");
-        expect(sites[0]!.hostingId).toBe("42");
-        expect(sites[0]!.assignable).toBe(false);
+      // Verify site was recorded with db credentials from buildResult
+      const site = await createSiteViaBuilder({
+        db_token: "token123",
+        db_url: "libsql://test.turso.io",
+        site_name: "My Test Site",
       });
+      expect(site.name).toBe("My Test Site");
+      expect(site.siteUrl).toBe("https://test-42.b-cdn.net");
+      expect(site.dbUrl).toBe("libsql://test.turso.io");
+      expect(site.dbToken).toBe("token123");
+      expect(site.hostingId).toBe("42");
+      expect(site.assignable).toBe(false);
     });
 
     test("POST /admin/builder auto-creates database when db_url is blank", async () => {
-      await withMocks(stubSuccessfulBuild, async () => {
-        const { response } = await adminFormPost("/admin/builder", {
-          db_url: "",
-          site_name: "Auto DB Site",
-        });
-
-        expectRedirect(response, "/admin/builder");
-        expectFlash(response, expect.stringContaining("created successfully"));
-
-        const sites = await getAllBuiltSites();
-        expect(sites).toHaveLength(1);
-        expect(sites[0]!.name).toBe("Auto DB Site");
-        expect(sites[0]!.dbUrl).toBe(MOCK_DB_RESULT.dbUrl);
-        expect(sites[0]!.dbToken).toBe(MOCK_DB_RESULT.dbToken);
+      const site = await createSiteViaBuilder({
+        db_url: "",
+        site_name: "Auto DB Site",
       });
+      expect(site.name).toBe("Auto DB Site");
+      expect(site.dbUrl).toBe(MOCK_DB_RESULT.dbUrl);
+      expect(site.dbToken).toBe(MOCK_DB_RESULT.dbToken);
     });
 
     test("POST /admin/builder passes assignable flag", async () => {

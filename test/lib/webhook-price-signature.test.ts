@@ -853,14 +853,10 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       false,
       listing.id,
       async (refund) => {
-        await assertJson(webhookRequest(), 200, (json) => {
-          expect(json.processed).toBe(false);
-        });
+        await expectDeliveryUnprocessed();
         // A second delivery replays the recorded outcome — it does not re-create the
         // attendee or re-attempt the (now operator-owned) refund.
-        await assertJson(webhookRequest(), 200, (json) => {
-          expect(json.processed).toBe(false);
-        });
+        await expectDeliveryUnprocessed();
         expect(refund.calls.length).toBe(1);
         const [attendee] = await getAttendeesRaw(listing.id);
         expect(attendee?.quantity).toBe(0);
@@ -918,17 +914,7 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
   /** Signed metadata for a one-line package booking at `price` (the override).
    * The line carries its package edge (k:"p", r=group id), as the checkout emits. */
   const packageMetadata = (groupId: number, listingId: number, price: number) =>
-    signMeta(
-      webhookMeta({
-        email: "buyer@example.com",
-        items: JSON.stringify([
-          { e: listingId, k: "p", p: price, q: 1, r: groupId },
-        ]),
-        name: "Buyer",
-        package_group_id: String(groupId),
-      }),
-      price,
-    );
+    signMeta(webhookMeta(packageWebhookFields(groupId, listingId, price)), price);
 
   /** Drive a 1500 package session through the webhook and assert it was kept as
    * a refunded placeholder (the post-checkout change invalidated the price). */
@@ -1032,16 +1018,12 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     const { addDays } = await import("#shared/dates.ts");
     const { todayInTz } = await import("#shared/timezone.ts");
     return signMeta(
-      webhookMeta({
-        date: addDays(todayInTz("UTC"), 2),
-        day_count: "2",
-        email: "buyer@example.com",
-        items: JSON.stringify([
-          { e: listingId, k: "p", p: price, q: 1, r: groupId },
-        ]),
-        name: "Buyer",
-        package_group_id: String(groupId),
-      }),
+      webhookMeta(
+        packageWebhookFields(groupId, listingId, price, {
+          date: addDays(todayInTz("UTC"), 2),
+          day_count: "2",
+        }),
+      ),
       price,
     );
   };
@@ -1197,14 +1179,7 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     // standalone page — completing it would book a leaking ticket whose
     // /ticket/<slug> 404s. The stale-non-standalone-child guard must fail it
     // closed to a stored refund. Isolates that guard from orderEdgeDrifted.
-    const parent = await createTestListing({ name: "Picker" });
-    const child = await createTestListing({
-      bookableAlone: true,
-      maxAttendees: 50,
-      name: "Solo Widget",
-      unitPrice: 1000,
-    });
-    await setChildIds(parent.id, [child.id]);
+    const { child } = await seedBookableAloneChild();
     await listingsTable.update(child.id, { bookableAlone: false });
     await runWebhook(
       {
@@ -1223,14 +1198,7 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     await setupStripe();
     // The contrast: the flag is STILL set, so the standalone child books
     // normally — the guard must not fire on a flag that never changed.
-    const parent = await createTestListing({ name: "Picker" });
-    const child = await createTestListing({
-      bookableAlone: true,
-      maxAttendees: 50,
-      name: "Solo Widget",
-      unitPrice: 1000,
-    });
-    await setChildIds(parent.id, [child.id]);
+    const { child } = await seedBookableAloneChild();
     await runWebhook(
       {
         amount_total: 1000,
@@ -1251,33 +1219,7 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     // standalone (the remainder). Clearing the flag strips the standalone unit's
     // page, so the whole order refunds even though a parent is present and the
     // folded unit alone would be fine.
-    const parent = await createTestListing({
-      maxAttendees: 50,
-      name: "Picker",
-      unitPrice: 1000,
-    });
-    const child = await createTestListing({
-      bookableAlone: true,
-      maxAttendees: 50,
-      name: "Solo Widget",
-      unitPrice: 0,
-    });
-    await setChildIds(parent.id, [child.id]);
-    await listingsTable.update(child.id, { bookableAlone: false });
-    const metadata = signMeta(
-      webhookMeta({
-        allocations: JSON.stringify([
-          { childId: child.id, parentId: parent.id, qty: 1 },
-        ]),
-        email: "buyer@example.com",
-        items: JSON.stringify([
-          { e: parent.id, p: 1000, q: 1 },
-          { e: child.id, p: 0, q: 2 },
-        ]),
-        name: "Buyer",
-      }),
-      1000,
-    );
+    const { parent, metadata } = await seedClearedFoldedChildOrder(2);
     await runWebhook(
       { amount_total: 1000, id: "cs_stale_remainder", metadata },
       async (refund) => {
@@ -1291,33 +1233,7 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     await setupStripe();
     // Every child unit is allocated under the parent (no standalone remainder), so
     // clearing the flag leaves nothing standalone to leak — the order completes.
-    const parent = await createTestListing({
-      maxAttendees: 50,
-      name: "Picker",
-      unitPrice: 1000,
-    });
-    const child = await createTestListing({
-      bookableAlone: true,
-      maxAttendees: 50,
-      name: "Solo Widget",
-      unitPrice: 0,
-    });
-    await setChildIds(parent.id, [child.id]);
-    await listingsTable.update(child.id, { bookableAlone: false });
-    const metadata = signMeta(
-      webhookMeta({
-        allocations: JSON.stringify([
-          { childId: child.id, parentId: parent.id, qty: 1 },
-        ]),
-        email: "buyer@example.com",
-        items: JSON.stringify([
-          { e: parent.id, p: 1000, q: 1 },
-          { e: child.id, p: 0, q: 1 },
-        ]),
-        name: "Buyer",
-      }),
-      1000,
-    );
+    const { parent, metadata } = await seedClearedFoldedChildOrder(1);
     await runWebhook(
       { amount_total: 1000, id: "cs_folded_after_clear", metadata },
       async (refund) => {

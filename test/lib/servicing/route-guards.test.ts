@@ -131,14 +131,7 @@ describeWithEnv(
       // The cost belongs to `held`, but it is posted through `other`'s route —
       // the cost's listing is not held by `other`, so it 404s instead of
       // silently editing a cost from a different event.
-      const response = await adminPost(
-        `/admin/servicing/${other.id}/cost/${costId}`,
-        { amount: "60.00" },
-      );
-      expect(response.status).toBe(404);
-      response.body?.cancel();
-      const { costOf } = await import("#shared/accounting/projection.ts");
-      expect(await costOf(heldListing.id)).toBe(9000);
+      await expectCostEditBlocked(other.id, costId, heldListing.id);
     });
 
     test("POST /admin/servicing/:id/cost/:costId 404s for a cost from a different event on the SAME listing", async () => {
@@ -165,16 +158,9 @@ describeWithEnv(
         occurredAt: "2026-07-01T00:00:00.000Z",
         servicingId: eventA.id,
       });
-      // Attempting to edit event A's cost through event B's route must 404.
-      const response = await adminPost(
-        `/admin/servicing/${eventB.id}/cost/${costId}`,
-        { amount: "60.00" },
-      );
-      expect(response.status).toBe(404);
-      response.body?.cancel();
-      // The cost is unchanged.
-      const { costOf } = await import("#shared/accounting/projection.ts");
-      expect(await costOf(sharedListing.id)).toBe(9000);
+      // Attempting to edit event A's cost through event B's route must 404,
+      // leaving the cost unchanged.
+      await expectCostEditBlocked(eventB.id, costId, sharedListing.id);
     });
   },
 );

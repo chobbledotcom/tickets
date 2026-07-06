@@ -97,6 +97,25 @@ const withAddonGetPackage = async (
   return (await (await apiGet(`/api/packages/${slug}`)).json()).package;
 };
 
+/** Give a package member two priced child add-ons (a 300 one and a 400 one)
+ * and link both, returning them for the test to book. */
+const attachTwoChildAddons = async (memberId: number, namePrefix: string) => {
+  const child = await createTestListing({
+    maxAttendees: 10,
+    maxQuantity: 10,
+    name: `${namePrefix} Addon`,
+    unitPrice: 300,
+  });
+  const childB = await createTestListing({
+    maxAttendees: 10,
+    maxQuantity: 10,
+    name: `${namePrefix} Addon B`,
+    unitPrice: 400,
+  });
+  await setChildIds(memberId, [child.id, childB.id]);
+  return { child, childB };
+};
+
 /** A package of two identical parent-capable members, for the cross-parent
  * child-demand cases (each member gets its add-ons attached by the test). */
 const twoParentPackage = async (name: string, slug: string) => {
@@ -469,19 +488,7 @@ describeWithEnv("public API packages", { db: true }, () => {
 
   test("POST rejects a child mix that does not total the member's units", async () => {
     const { a, group } = await fixedPackage("Mix Kit", "mix-kit");
-    const child = await createTestListing({
-      maxAttendees: 10,
-      maxQuantity: 10,
-      name: "Mix Kit Addon",
-      unitPrice: 300,
-    });
-    const childB = await createTestListing({
-      maxAttendees: 10,
-      maxQuantity: 10,
-      name: "Mix Kit Addon B",
-      unitPrice: 400,
-    });
-    await setChildIds(a.id, [child.id, childB.id]);
+    const { child } = await attachTwoChildAddons(a.id, "Mix Kit");
 
     // Member A books 2 units per package; a single chosen add-on undershoots.
     const { body, response } = await apiBookPackage(group.slug, {
@@ -534,19 +541,7 @@ describeWithEnv("public API packages", { db: true }, () => {
 
   test("POST folds a member's chosen child and rejects unknown or malformed selections", async () => {
     const { a, group } = await fixedPackage("Child Kit", "child-kit");
-    const child = await createTestListing({
-      maxAttendees: 10,
-      maxQuantity: 10,
-      name: "Child Kit Addon",
-      unitPrice: 300,
-    });
-    const childB = await createTestListing({
-      maxAttendees: 10,
-      maxQuantity: 10,
-      name: "Child Kit Addon B",
-      unitPrice: 400,
-    });
-    await setChildIds(a.id, [child.id, childB.id]);
+    const { child, childB } = await attachTwoChildAddons(a.id, "Child Kit");
 
     // Member A books 2 units per package, so its child mix must total 2.
     const { body, response } = await apiBookPackage(group.slug, {

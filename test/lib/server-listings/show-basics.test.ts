@@ -70,9 +70,8 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
     });
 
     test("renders the income & ledger breakdown reconciling income with the balance", async () => {
-      const { listing, cookie, buyer } = await setupListingWithSale(
-        "Ledger Listing",
-      );
+      const { listing, cookie, buyer } =
+        await setupListingWithSale("Ledger Listing");
       // On top of the £50 sale, refund a £20 booking (postAttendeeRefund posts a
       // self-contained net-zero order — a sale plus its full reversal). So gross
       // credits total £70 and recognised income is £70 (refund-agnostic), while

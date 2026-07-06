@@ -661,6 +661,51 @@ describe("test-utils", () => {
   });
 
   describe("submitTicketForm", () => {
+    // Books a small quantity-capped listing through the public form with the
+    // fields the case supplies (built from the listing so it can target the
+    // per-listing field), then checks a single attendee booked at the expected
+    // quantity.
+    const bookAndExpectQuantity = async (
+      buildFields: (listing: { id: number }) => Record<string, string>,
+      expectedQuantity: number,
+    ): Promise<void> => {
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 5,
+      });
+      const response = await submitTicketForm(listing.slug, {
+        email: "quantity@example.com",
+        name: "Quantity User",
+        ...buildFields(listing),
+      });
+      expect(response.status).toBe(302);
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const attendees = await getAttendeesRaw(listing.id);
+      expect(attendees).toHaveLength(1);
+      expect(attendees[0]!.quantity).toBe(expectedQuantity);
+    };
+
+    // Submits a pay-more listing through the public form with the case's price
+    // fields and expects it to hand off to Stripe checkout.
+    const bookCustomPrice = async (
+      buildFields: (listing: { id: number }) => Record<string, string>,
+    ): Promise<void> => {
+      await setupStripe();
+      const listing = await createTestListing({
+        canPayMore: true,
+        maxAttendees: 10,
+        maxQuantity: 5,
+        unitPrice: 1000,
+      });
+      const response = await submitTicketForm(listing.slug, {
+        email: "custom-price@example.com",
+        name: "Custom Price",
+        quantity: "1",
+        ...buildFields(listing),
+      });
+      expectCheckoutRedirect(response);
+    };
+
     test("submits a ticket form with CSRF token handling", async () => {
       await createTestDbWithSetup();
       const listing = await createTestListing();
@@ -683,78 +728,28 @@ describe("test-utils", () => {
 
     test("maps generic quantity onto the single listing field", async () => {
       await createTestDbWithSetup();
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        maxQuantity: 5,
-      });
-      const response = await submitTicketForm(listing.slug, {
-        email: "quantity@example.com",
-        name: "Quantity User",
-        quantity: "3",
-      });
-      expect(response.status).toBe(302);
-
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees).toHaveLength(1);
-      expect(attendees[0]!.quantity).toBe(3);
+      await bookAndExpectQuantity(() => ({ quantity: "3" }), 3);
     });
 
     test("keeps an explicit single-listing quantity field over the generic field", async () => {
       await createTestDbWithSetup();
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        maxQuantity: 5,
-      });
-      const response = await submitTicketForm(listing.slug, {
-        email: "explicit@example.com",
-        name: "Explicit Quantity",
-        quantity: "5",
-        [`quantity_${listing.id}`]: "2",
-      });
-      expect(response.status).toBe(302);
-
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees).toHaveLength(1);
-      expect(attendees[0]!.quantity).toBe(2);
+      await bookAndExpectQuantity(
+        (listing) => ({ quantity: "5", [`quantity_${listing.id}`]: "2" }),
+        2,
+      );
     });
 
     test("maps generic custom price onto the single listing field", async () => {
       await createTestDbWithSetup();
-      await setupStripe();
-      const listing = await createTestListing({
-        canPayMore: true,
-        maxAttendees: 10,
-        maxQuantity: 5,
-        unitPrice: 1000,
-      });
-      const response = await submitTicketForm(listing.slug, {
-        custom_price: "25.00",
-        email: "custom-price@example.com",
-        name: "Custom Price",
-        quantity: "1",
-      });
-      expectCheckoutRedirect(response);
+      await bookCustomPrice(() => ({ custom_price: "25.00" }));
     });
 
     test("keeps an explicit custom price over the generic field", async () => {
       await createTestDbWithSetup();
-      await setupStripe();
-      const listing = await createTestListing({
-        canPayMore: true,
-        maxAttendees: 10,
-        maxQuantity: 5,
-        unitPrice: 1000,
-      });
-      const response = await submitTicketForm(listing.slug, {
+      await bookCustomPrice((listing) => ({
         custom_price: "5.00",
         [`custom_price_${listing.id}`]: "25.00",
-        email: "explicit-price@example.com",
-        name: "Explicit Price",
-        quantity: "1",
-      });
-      expectCheckoutRedirect(response);
+      }));
     });
   });
 

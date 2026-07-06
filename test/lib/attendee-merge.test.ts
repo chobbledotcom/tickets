@@ -47,24 +47,137 @@ import {
   describeWithEnv,
 } from "#test-utils";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { countRoundTrips } from "#test-utils/round-trips.ts";
 
-/** Create a test attendee directly via the DB */
+/** One person in a merge: the attendee id plus the name/email that make up its
+ *  PII, and (for a merge target) the encrypted ids the rebuilt blob needs. */
+type MergeParty = {
+  id: number;
+  name: string;
+  email: string;
+  payment_id?: string;
+  ticket_token?: string;
+};
+
+/** Create a test attendee directly via the DB, tagged with the name and email
+ *  that form its PII so it can be passed straight into the merge helpers. */
 const createAttendee = async (
   listingId: number,
   name = "Alice",
   email?: string,
   date?: string | null,
 ) => {
+  const resolvedEmail = email ?? `${name.toLowerCase()}@test.com`;
   const result = await createAttendeeAtomic({
     bookings: [{ ...(date !== undefined ? { date } : {}), listingId }],
-    email: email ?? `${name.toLowerCase()}@test.com`,
+    email: resolvedEmail,
     name,
   });
   if (!result.success) {
     throw new Error(`Failed to create attendee: ${result.reason}`);
   }
-  return result.attendees[0]!;
+  return { ...result.attendees[0]!, email: resolvedEmail, name };
 };
+
+/** The PII block for a merge party — every field empty except name and email. */
+const mergePii = (name: string, email: string) => ({
+  address: "",
+  email,
+  name,
+  phone: "",
+  special_instructions: "",
+});
+
+/** A do-nothing merge decision (take every default) stamped with a version. */
+const noChangeDecision = (
+  version: string,
+): AttendeeMergeDecisionInput => ({
+  answers: {},
+  bookings: {},
+  money: {},
+  pii: {},
+  version,
+});
+
+/** Build the merge diff for a source→target pair, using each party's standard
+ *  bookings and PII. */
+const buildMergeDiff = async (
+  source: MergeParty,
+  target: MergeParty,
+  questions: QuestionWithAnswers[] = [],
+): Promise<AttendeeMergeDiff> =>
+  buildAttendeeMergeDiff(
+    {
+      sourceBookings: await getBookings(source.id),
+      sourceId: source.id,
+      sourcePii: mergePii(source.name, source.email),
+      targetBookings: await getBookings(target.id),
+      targetId: target.id,
+      targetPii: mergePii(target.name, target.email),
+    },
+    questions,
+  );
+
+/** Apply a merge of `source` into `target`. The decision defaults to "take
+ *  every default"; pass one to override specific booking/answer/money/pii calls. */
+const applyMerge = async ({
+  decision,
+  diff,
+  source,
+  target,
+}: {
+  diff: AttendeeMergeDiff;
+  source: MergeParty;
+  target: MergeParty;
+  decision?: AttendeeMergeDecisionInput;
+}) =>
+  applyAttendeeMerge({
+    decision: decision ?? noChangeDecision(diff.version),
+    diff,
+    privateKey: await getTestPrivateKey(),
+    sourceId: source.id,
+    sourcePii: mergePii(source.name, source.email),
+    targetId: target.id,
+    targetPii: {
+      ...mergePii(target.name, target.email),
+      payment_id: target.payment_id!,
+      ticket_token: target.ticket_token!,
+    },
+  });
+
+/** A full listing-attendee booking row with sensible defaults, for the diff
+ *  literals the decision-validation tests build by hand. Override only the
+ *  columns a case cares about. */
+const mergeBookingRow = (
+  overrides: Partial<ListingAttendeeRow> = {},
+): ListingAttendeeRow => ({
+  attachment_downloads: 0,
+  checked_in: 0,
+  end_at: null,
+  ledger_event_group: "",
+  listing_id: 5,
+  order_token: "",
+  package_group_id: 0,
+  parent_listing_id: 0,
+  price_paid: 0,
+  quantity: 1,
+  refunded: 0,
+  start_at: null,
+  ...overrides,
+});
+
+/** A diff carrying a single booking conflict between source #2 and target #1 —
+ *  the shape every decision-validation test starts from. */
+const oneBookingConflictDiff = (
+  bookingItem: AttendeeMergeDiff["bookingItems"][number],
+): AttendeeMergeDiff => ({
+  answerItems: [],
+  bookingItems: [bookingItem],
+  piiFields: [],
+  sourceId: 2,
+  targetId: 1,
+  version: "v1",
+});
 
 /** Get bookings for an attendee — `refunded` is projected from the ledger, the
  *  same shape production's merge loader returns. */
@@ -142,59 +255,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       },
     ]);
 
-    const diff = await buildAttendeeMergeDiff(
-      {
-        sourceBookings: await getBookings(source.id),
-        sourceId: source.id,
-        sourcePii: {
-          address: "",
-          email: "bob@test.com",
-          name: "Bob",
-          phone: "",
-          special_instructions: "",
-        },
-        targetBookings: await getBookings(target.id),
-        targetId: target.id,
-        targetPii: {
-          address: "",
-          email: "alice@test.com",
-          name: "Alice",
-          phone: "",
-          special_instructions: "",
-        },
-      },
-      [],
-    );
+    const diff = await buildMergeDiff(source, target);
 
-    const result = await applyAttendeeMerge({
-      decision: {
-        answers: {},
-        bookings: {},
-        money: {},
-        pii: {},
-        version: diff.version,
-      },
-      diff,
-      privateKey: await getTestPrivateKey(),
-      sourceId: source.id,
-      sourcePii: {
-        address: "",
-        email: "bob@test.com",
-        name: "Bob",
-        phone: "",
-        special_instructions: "",
-      },
-      targetId: target.id,
-      targetPii: {
-        address: "",
-        email: "alice@test.com",
-        name: "Alice",
-        payment_id: target.payment_id,
-        phone: "",
-        special_instructions: "",
-        ticket_token: target.ticket_token,
-      },
-    });
+    const result = await applyMerge({ diff, source, target });
 
     expect(result.success).toBe(true);
     // The source's legs now belong to the target; nothing strands on the
@@ -226,52 +289,14 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       packageGroupId: group.id,
     });
     if (!sourceResult.success) throw new Error("source booking failed");
-    const source = sourceResult.attendees[0]!;
-
-    const sourcePii = {
-      address: "",
+    const source = {
+      ...sourceResult.attendees[0]!,
       email: "bob@test.com",
       name: "Bob",
-      phone: "",
-      special_instructions: "",
     };
-    const targetPii = {
-      address: "",
-      email: "alice@test.com",
-      name: "Alice",
-      phone: "",
-      special_instructions: "",
-    };
-    const diff = await buildAttendeeMergeDiff(
-      {
-        sourceBookings: await getBookings(source.id),
-        sourceId: source.id,
-        sourcePii,
-        targetBookings: await getBookings(target.id),
-        targetId: target.id,
-        targetPii,
-      },
-      [],
-    );
-    const result = await applyAttendeeMerge({
-      decision: {
-        answers: {},
-        bookings: {},
-        money: {},
-        pii: {},
-        version: diff.version,
-      },
-      diff,
-      privateKey: await getTestPrivateKey(),
-      sourceId: source.id,
-      sourcePii,
-      targetId: target.id,
-      targetPii: {
-        ...targetPii,
-        payment_id: target.payment_id,
-        ticket_token: target.ticket_token,
-      },
-    });
+
+    const diff = await buildMergeDiff(source, target);
+    const result = await applyMerge({ diff, source, target });
 
     expect(result.success).toBe(true);
     // The moved package booking keeps its group, so the merged attendee's

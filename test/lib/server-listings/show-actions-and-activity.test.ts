@@ -9,7 +9,6 @@ import {
   adminGet,
   awaitTestRequest,
   createTestAttendee,
-  createTestListing,
   deactivateTestListing,
   describeWithEnv,
   expectFlashRedirect,
@@ -17,6 +16,7 @@ import {
   setupListingAndLogin,
   submitTicketForm,
 } from "#test-utils";
+import { createEveryDayDailyListing } from "#test-utils/daily-listing.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
 // jscpd:ignore-end
@@ -62,20 +62,7 @@ describeWithEnv(
       test("keeps the email action enabled when the date filter hides emailable attendees", async () => {
         const visibleDate = addDays(todayInTz("UTC"), 1);
         const hiddenDate = addDays(todayInTz("UTC"), 2);
-        const listing = await createTestListing({
-          bookableDays: [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-          ],
-          listingType: "daily",
-          maximumDaysAfter: 14,
-          minimumDaysBefore: 0,
-        });
+        const listing = await createEveryDayDailyListing();
         await submitTicketForm(listing.slug, {
           date: visibleDate,
           email: "ada@example.com",

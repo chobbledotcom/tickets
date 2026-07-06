@@ -6,6 +6,7 @@ import {
   checkoutSessionEvent,
   createTestListing,
   describeWithEnv,
+  expectAttendeeCounts,
   expectKeptAsQuantityZeroAndRefunded,
   expectMergedMultiListingAttendee,
   expectRefundedWithNote,
@@ -65,17 +66,10 @@ describeWithEnv(
       );
 
       // Verify both attendees were created with correct per-item prices
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const attendees1 = await getAttendeesRaw(listing1.id);
-      const attendees2 = await getAttendeesRaw(listing2.id);
-      expect(attendees1.length).toBe(1);
-      expect(
-        (attendees1[0] as unknown as Record<string, unknown>).price_paid,
-      ).toBe(2000);
-      expect(attendees2.length).toBe(1);
-      expect(
-        (attendees2[0] as unknown as Record<string, unknown>).price_paid,
-      ).toBe(1000);
+      await expectAttendeeCounts([
+        { count: 1, listingId: listing1.id, pricePaid: 2000 },
+        { count: 1, listingId: listing2.id, pricePaid: 1000 },
+      ]);
     });
 
     test("multi-ticket keeps and refunds amount above listing price when can_pay_more is disabled", async () => {

@@ -15,13 +15,13 @@
 
 import { expect } from "@std/expect";
 import { setChildIds } from "#shared/db/listing-parents.ts";
-import type { Listing } from "#shared/types.ts";
+import type { Group, Listing } from "#shared/types.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers.ts";
-import { postBooking } from "#test-utils/parents.ts";
+import { makeParent, postBooking } from "#test-utils/parents.ts";
 
 // ---------------------------------------------------------------------------
 // Bookable-date lookups (holiday-aware)
@@ -127,4 +127,28 @@ export const twoParentsSharingChild = async (
   await setChildIds(parentA.id, [child.id]);
   await setChildIds(parentB.id, [child.id]);
   return { child, parentA, parentB };
+};
+
+/** A daily parent + daily child sharing one 2-spot capped "Pool", plus a daily
+ * "Daily filler" in the same pool used to burn spots on a chosen date, plus the
+ * parent's bookable dates. The shared arrange for the daily-group date tests. */
+export const dailyPairSharingPoolWithFiller = async (): Promise<{
+  group: Group;
+  parent: Listing;
+  child: Listing;
+  filler: Listing;
+  dates: string[];
+}> => {
+  const { group, parent, child } = await makeParent({
+    children: [{ daily: true }],
+    group: { maxAttendees: 2, name: "Pool" },
+    parent: { daily: true },
+  });
+  const filler = await createDailyTestListing({
+    groupId: group!.id,
+    name: "Daily filler",
+    thankYouUrl: "",
+  });
+  const dates = await bookableDatesFor(parent.id);
+  return { child, dates, filler, group: group!, parent };
 };

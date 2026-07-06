@@ -1173,13 +1173,7 @@ describe("adminListingPage export button", () => {
 
 describe("adminListingPage filter links", () => {
   test("renders All / Checked In / Checked Out links", () => {
-    const listing = testListingWithCount({ attendee_count: 1 });
-    const attendees = [testAttendee()];
-    const html = renderListingDetail({
-      allowedDomain: "localhost",
-      attendees,
-      listing,
-    });
+    const html = renderOneAttendeeDetail();
     expect(html).toContain("All");
     expect(html).toContain("Checked In");
     expect(html).toContain("Checked Out");
@@ -1229,14 +1223,10 @@ describe("adminListingPage filter links", () => {
 
   test("filters to only checked-in attendees when filter is in", () => {
     const listing = testListingWithCount({ attendee_count: 2 });
-    const attendees = [
-      testAttendee({ checked_in: true, id: 1, name: "Checked In User" }),
-      testAttendee({ checked_in: false, id: 2, name: "Not Checked In User" }),
-    ];
     const html = renderListingDetail({
       activeFilter: "in",
       allowedDomain: "localhost",
-      attendees,
+      attendees: checkedInAndOutAttendees(),
       listing,
     });
     expect(html).toContain("Checked In User");
@@ -1261,14 +1251,10 @@ describe("adminListingPage filter links", () => {
 
   test("shows all attendees when filter is all", () => {
     const listing = testListingWithCount({ attendee_count: 2 });
-    const attendees = [
-      testAttendee({ checked_in: true, id: 1, name: "Checked In User" }),
-      testAttendee({ checked_in: false, id: 2, name: "Not Checked In User" }),
-    ];
     const html = renderListingDetail({
       activeFilter: "all",
       allowedDomain: "localhost",
-      attendees,
+      attendees: checkedInAndOutAttendees(),
       listing,
     });
     expect(html).toContain("Checked In User");
@@ -1641,13 +1627,9 @@ describe("adminListingPage failed payments", () => {
       attendee_count: 3,
       unit_price: 1000,
     });
-    const attendees = [
-      testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
-      testAttendee({ id: 2, payment_id: "", price_paid: "1000" }),
-    ];
     const html = renderListingDetail({
       allowedDomain: "localhost",
-      attendees,
+      attendees: paidAndFailedAttendees(),
       listing,
     });
     expect(html).toContain("Failed Payments");
@@ -1688,13 +1670,9 @@ describe("adminListingPage failed payments", () => {
       max_attendees: 100,
       unit_price: 1000,
     });
-    const attendees = [
-      testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
-      testAttendee({ id: 2, payment_id: "", price_paid: "1000" }),
-    ];
     const html = renderListingDetail({
       allowedDomain: "localhost",
-      attendees,
+      attendees: paidAndFailedAttendees(),
       listing,
     });
     // adjusted count: 3 - 1 (incomplete qty) = 2
@@ -1954,29 +1932,15 @@ describeWithEnv(
       test("does not show image controls on duplicate or create forms", () => {
         runWithStorageConfig(TEST_STORAGE_ZONE, () => {
           const listing = testListingWithCount({ image_url: "current.jpg" });
-          expect(
-            adminDuplicateListingPage(listing, [], TEST_SESSION),
-          ).not.toContain('name="image"');
-          expect(adminListingNewPage([], TEST_SESSION)).not.toContain(
-            'name="image"',
-          );
+          expectDuplicateAndNewLack(listing, 'name="image"');
         });
       });
 
       test("keeps image controls absent when storage is disabled", () => {
         withStorageDisabled(() => {
           const listing = testListingWithCount({ image_url: "current.jpg" });
-          expect(
-            String(
-              ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
-            ),
-          ).not.toContain('name="image"');
-          expect(
-            adminDuplicateListingPage(listing, [], TEST_SESSION),
-          ).not.toContain('name="image"');
-          expect(adminListingNewPage([], TEST_SESSION)).not.toContain(
-            'name="image"',
-          );
+          expect(editPanelHtml(listing)).not.toContain('name="image"');
+          expectDuplicateAndNewLack(listing, 'name="image"');
         });
       });
     });
@@ -2040,13 +2004,7 @@ describeWithEnv(
 
       test("shows on edit page when CAN_BUILD_SITES is true", () => {
         withBuilder(() => {
-          const listing = testListingWithCount({
-            initial_site_months: 6,
-            months_per_unit: 3,
-          });
-          const html = String(
-            ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
-          );
+          const html = editPanelHtml(renewalFieldsListing());
           expect(html).toContain("months_per_unit");
           expect(html).toContain("initial_site_months");
         });
@@ -2054,13 +2012,7 @@ describeWithEnv(
 
       test("hides on edit page when CAN_BUILD_SITES is not set", () => {
         withoutBuilder(() => {
-          const listing = testListingWithCount({
-            initial_site_months: 6,
-            months_per_unit: 3,
-          });
-          const html = String(
-            ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
-          );
+          const html = editPanelHtml(renewalFieldsListing());
           expect(html).not.toContain("months_per_unit");
           expect(html).not.toContain("initial_site_months");
         });
@@ -2068,11 +2020,11 @@ describeWithEnv(
 
       test("shows on duplicate page when CAN_BUILD_SITES is true", () => {
         withBuilder(() => {
-          const listing = testListingWithCount({
-            initial_site_months: 6,
-            months_per_unit: 3,
-          });
-          const html = adminDuplicateListingPage(listing, [], TEST_SESSION);
+          const html = adminDuplicateListingPage(
+            renewalFieldsListing(),
+            [],
+            TEST_SESSION,
+          );
           expect(html).toContain("months_per_unit");
           expect(html).toContain("initial_site_months");
         });
@@ -2080,11 +2032,11 @@ describeWithEnv(
 
       test("hides on duplicate page when CAN_BUILD_SITES is not set", () => {
         withoutBuilder(() => {
-          const listing = testListingWithCount({
-            initial_site_months: 6,
-            months_per_unit: 3,
-          });
-          const html = adminDuplicateListingPage(listing, [], TEST_SESSION);
+          const html = adminDuplicateListingPage(
+            renewalFieldsListing(),
+            [],
+            TEST_SESSION,
+          );
           expect(html).not.toContain("months_per_unit");
           expect(html).not.toContain("initial_site_months");
         });

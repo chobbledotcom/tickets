@@ -27,6 +27,7 @@ import { captureCheckoutIntent } from "#test-utils/checkout-intent.ts";
 import {
   bookableDatesFor,
   bookOne,
+  dailyPairSharingPoolWithFiller,
   dailyParentWithChildOffParentDay,
   expectBookingRejected,
   firstBookableDate,
@@ -43,11 +44,7 @@ describeWithEnv(
         parent: { maxQuantity: 5 },
       });
 
-      const res = await postBooking(parent.slug, {
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "2",
-      });
+      const res = await bookOne(parent, 2);
       expectReserved(res);
 
       const parentRows = await getAttendeesRaw(parent.id);
@@ -74,11 +71,7 @@ describeWithEnv(
       expect(html).not.toContain(`name="child_qty_${parent.id}_${child.id}"`);
 
       // Booking the parent at quantity 1 succeeds (no 'too many').
-      const res = await postBooking(parent.slug, {
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
-      });
+      const res = await bookOne(parent, 1);
       expectReserved(res);
       const childRows = await getAttendeesRaw(child.id);
       expect(childRows.length).toBe(1);
@@ -132,24 +125,19 @@ describeWithEnv(
         parent: { name: "Base unit" },
       });
 
-      const res = await postBooking(parent.slug, {
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
-      });
-      expect(res.status).toBe(302);
-      expectFlash(res, "Choose 1 more add-on for Base unit.", false);
-      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+      const res = await bookOne(parent, 1);
+      await expectBookingRejected(
+        res,
+        "Choose 1 more add-on for Base unit.",
+        parent.id,
+      );
     });
 
     test("a multi-child parent accepts the chosen child and folds only it", async () => {
       const { parent, children } = await makeParent({ children: [{}, {}] });
       const [childA, childB] = [children[0]!, children[1]!];
 
-      const res = await postBooking(parent.slug, {
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
+      const res = await bookOne(parent, 1, {
         [`child_qty_${parent.id}_${childB.id}`]: "1",
       });
       expectReserved(res);
@@ -164,10 +152,7 @@ describeWithEnv(
       const { parent, children } = await makeParent({ children: [{}, {}] });
       const [childA, childB] = [children[0]!, children[1]!];
 
-      const res = await postBooking(parent.slug, {
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
+      const res = await bookOne(parent, 1, {
         [`child_qty_${parent.id}_${childA.id}`]: "1",
       });
       expectReserved(res);
@@ -186,10 +171,7 @@ describeWithEnv(
       });
       const [childA, childB] = [children[0]!, children[1]!];
 
-      const res = await postBooking(parent.slug, {
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "2",
+      const res = await bookOne(parent, 2, {
         [`child_qty_${parent.id}_${childA.id}`]: "2",
       });
       expectReserved(res);
@@ -209,10 +191,7 @@ describeWithEnv(
       });
       const [childA, childB] = [children[0]!, children[1]!];
 
-      const res = await postBooking(parent.slug, {
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "2",
+      const res = await bookOne(parent, 2, {
         [`child_qty_${parent.id}_${childA.id}`]: "1",
         [`child_qty_${parent.id}_${childB.id}`]: "1",
       });
@@ -333,9 +312,7 @@ describeWithEnv(
           name: "Ada",
           ...c.postFields({ children, parentId: parent.id, stranger }),
         });
-        expect(res.status).toBe(302);
-        expectFlash(res, c.flash, false);
-        expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+        await expectBookingRejected(res, c.flash, parent.id);
         if (c.extraChildIdsZero) {
           const [childA, childB] = [children[0]!, children[1]!];
           expect((await getAttendeesRaw(childA.id)).length).toBe(0);
@@ -351,14 +328,12 @@ describeWithEnv(
         parent: { name: "Base unit" },
       });
 
-      const res = await postBooking(parent.slug, {
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
-      });
-      expect(res.status).toBe(302);
-      expectFlash(res, "Base unit has no available options right now.", false);
-      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+      const res = await bookOne(parent, 1);
+      await expectBookingRejected(
+        res,
+        "Base unit has no available options right now.",
+        parent.id,
+      );
     });
 
     test("child fields under a zero-quantity parent are ignored, not rejected", async () => {
@@ -513,14 +488,7 @@ describeWithEnv(
         parent: { daily: true, durationDays: 3 },
       });
 
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-      const parentRow = (await getListingWithCount(parent.id))!;
-      const date = getBookableStartDates(
-        parentRow,
-        await getActiveHolidays(),
-      )[0]!;
+      const date = await firstBookableDate(parent.id);
 
       const res = await postBooking(`${pageCustom.slug}+${parent.slug}`, {
         date,
@@ -568,14 +536,7 @@ describeWithEnv(
         parent: { daily: true, durationDays: 3 },
       });
 
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-      const parentRow = (await getListingWithCount(parent.id))!;
-      const date = getBookableStartDates(
-        parentRow,
-        await getActiveHolidays(),
-      )[0]!;
+      const date = await firstBookableDate(parent.id);
 
       // The quote owes the child's 3-day price (30.00), not its 1-day price.
       const html = await postCalculate(parent.slug, {
@@ -613,14 +574,7 @@ describeWithEnv(
         parent: { daily: true, durationDays: 3 },
       });
 
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-      const parentRow = (await getListingWithCount(parent.id))!;
-      const date = getBookableStartDates(
-        parentRow,
-        await getActiveHolidays(),
-      )[0]!;
+      const date = await firstBookableDate(parent.id);
 
       let capturedIntent:
         | import("#shared/payments.ts").CheckoutIntent
@@ -999,36 +953,11 @@ describeWithEnv(
     });
 
     test("a daily child whose calendar excludes the submitted date is rejected", async () => {
-      const { DAY_NAMES, getBookableStartDates } = await import(
-        "#shared/dates.ts"
-      );
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      const { parent, parentDate } = await dailyParentWithChildOffParentDay();
 
-      const parent = await createDailyTestListing({ name: "Daily base" });
-      const parentRow = (await getListingWithCount(parent.id))!;
-      const holidays = await getActiveHolidays();
-      const parentDate = getBookableStartDates(parentRow, holidays)[0]!;
-      const parentDay =
-        DAY_NAMES[new Date(`${parentDate}T00:00:00Z`).getUTCDay()]!;
-      // A daily child bookable on every weekday EXCEPT the parent's date day, so
-      // the parent's date is not in the child's own calendar.
-      const child = await createDailyTestListing({
-        bookableDays: DAY_NAMES.filter((d) => d !== parentDay),
-        name: "Daily add-on",
-      });
-      await setChildIds(parent.id, [child.id]);
-
-      const res = await postBooking(parent.slug, {
-        date: parentDate,
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
-      });
-      expect(res.status).toBe(302);
+      const res = await bookOne(parent, 1, { date: parentDate });
       // The parent no longer offers a date its only child cannot serve.
-      expectFlash(res, "Please select a valid date", false);
-      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+      await expectBookingRejected(res, "Please select a valid date", parent.id);
     });
 
     test("the fold rejects a daily child's excluded date on a multi-listing page", async () => {
@@ -1036,24 +965,8 @@ describeWithEnv(
       // applied (it would wrongly strip dates a sibling page listing needs), so
       // the child-excluded date IS offered and reaches the submit fold, which
       // rejects it because the parent then has no bookable child for that date.
-      const { DAY_NAMES, getBookableStartDates } = await import(
-        "#shared/dates.ts"
-      );
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-
-      const parent = await createDailyTestListing({ name: "Daily base" });
+      const { parent, parentDate } = await dailyParentWithChildOffParentDay();
       const plain = await createDailyTestListing({ name: "Daily plain" });
-      const parentRow = (await getListingWithCount(parent.id))!;
-      const holidays = await getActiveHolidays();
-      const parentDate = getBookableStartDates(parentRow, holidays)[0]!;
-      const parentDay =
-        DAY_NAMES[new Date(`${parentDate}T00:00:00Z`).getUTCDay()]!;
-      const child = await createDailyTestListing({
-        bookableDays: DAY_NAMES.filter((d) => d !== parentDay),
-        name: "Daily add-on",
-      });
-      await setChildIds(parent.id, [child.id]);
 
       const res = await postBooking(`${parent.slug}+${plain.slug}`, {
         date: parentDate,
@@ -1062,34 +975,22 @@ describeWithEnv(
         [`quantity_${parent.id}`]: "1",
         [`quantity_${plain.id}`]: "0",
       });
-      expect(res.status).toBe(302);
-      expectFlash(res, "Daily base has no available options right now.", false);
-      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+      await expectBookingRejected(
+        res,
+        "Daily base has no available options right now.",
+        parent.id,
+      );
     });
 
     test("a daily child that allows the submitted date folds fine", async () => {
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-
       // The child shares the parent's full (every-day) calendar.
       const { parent, child } = await makeParent({
         children: [{ daily: true }],
         parent: { daily: true },
       });
 
-      const parentRow = (await getListingWithCount(parent.id))!;
-      const date = getBookableStartDates(
-        parentRow,
-        await getActiveHolidays(),
-      )[0]!;
-
-      const res = await postBooking(parent.slug, {
-        date,
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
-      });
+      const date = await firstBookableDate(parent.id);
+      const res = await bookOne(parent, 1, { date });
       expectReserved(res);
       expect((await getAttendeesRaw(child.id)).length).toBe(1);
     });
@@ -1101,17 +1002,13 @@ describeWithEnv(
       // flag must not block a daily child. A booking on day A is
       // still rejected, by the folded per-date availability check.
       const { bookAttendee } = await import("#test-utils");
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
 
       const { parent, child } = await makeParent({
         children: [{ daily: true, maxAttendees: 1 }],
         parent: { daily: true },
       });
 
-      const childRow = (await getListingWithCount(child.id))!;
-      const dates = getBookableStartDates(childRow, await getActiveHolidays());
+      const dates = await bookableDatesFor(child.id);
       const [dayA, dayB] = [dates[0]!, dates[1]!];
 
       // Fill the child's single spot on day A.
@@ -1119,12 +1016,7 @@ describeWithEnv(
       expect(booked.success).toBe(true);
 
       // A parent booking on day B folds the child fine (it has day-B capacity).
-      const okRes = await postBooking(parent.slug, {
-        date: dayB,
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
-      });
+      const okRes = await bookOne(parent, 1, { date: dayB });
       expectReserved(okRes);
       const childOnB = (await getAttendeesRaw(child.id)).filter(
         (r) => r.date === dayB,
@@ -1132,11 +1024,10 @@ describeWithEnv(
       expect(childOnB.length).toBe(1);
 
       // A parent booking on day A is rejected — the child is genuinely full there.
-      const fullRes = await postBooking(parent.slug, {
+      const fullRes = await bookOne(parent, 1, {
         date: dayA,
         email: "b@c.com",
         name: "Bea",
-        [`quantity_${parent.id}`]: "1",
       });
       expect(fullRes.status).toBe(302);
       expectFlash(fullRes, undefined, false);
@@ -1155,9 +1046,6 @@ describeWithEnv(
       // clamped the parent's quantity to 0 on every date; after it the parent
       // still offers a bookable quantity and the child a per-unit select.
       const { bookAttendee } = await import("#test-utils");
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
 
       const { parent, child } = await makeParent({
         children: [{ daily: true, maxAttendees: 1 }],
@@ -1165,11 +1053,7 @@ describeWithEnv(
       });
 
       // Fill the child's single spot on its first bookable date.
-      const childRow = (await getListingWithCount(child.id))!;
-      const dayA = getBookableStartDates(
-        childRow,
-        await getActiveHolidays(),
-      )[0]!;
+      const dayA = await firstBookableDate(child.id);
       expect((await bookAttendee(child, { date: dayA })).success).toBe(true);
 
       const html = await bookingPageHtml(parent.slug);
@@ -1198,23 +1082,9 @@ describeWithEnv(
     // unreachable; these tests lock in the correct date-A/date-B behavior.)
     test("a daily parent + daily child in a group full on one date still book on a free date", async () => {
       const { bookAttendee } = await import("#test-utils");
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
 
-      const { group, parent, child } = await makeParent({
-        children: [{ daily: true }],
-        group: { maxAttendees: 2, name: "Pool" },
-        parent: { daily: true },
-      });
-      const filler = await createDailyTestListing({
-        groupId: group!.id,
-        name: "Daily filler",
-        thankYouUrl: "",
-      });
-
-      const parentRow = (await getListingWithCount(parent.id))!;
-      const dates = getBookableStartDates(parentRow, await getActiveHolidays());
+      const { child, dates, filler, parent } =
+        await dailyPairSharingPoolWithFiller();
       const [dayA, dayB] = [dates[0]!, dates[1]!];
 
       // Fill the group's two spots on date A via the daily filler.
@@ -1223,12 +1093,7 @@ describeWithEnv(
 
       // A parent booking on date B folds the daily child and reserves — date A's
       // cumulative bookings do not clamp the child date-lessly.
-      const okRes = await postBooking(parent.slug, {
-        date: dayB,
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
-      });
+      const okRes = await bookOne(parent, 1, { date: dayB });
       expectReserved(okRes);
       expect(
         (await getAttendeesRaw(child.id)).filter((r) => r.date === dayB).length,
@@ -1249,21 +1114,9 @@ describeWithEnv(
       // row keeps the booked date.
       const { parent, child } = await makeParent({ parent: { daily: true } });
 
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-      const parentRow = (await getListingWithCount(parent.id))!;
-      const dayB = getBookableStartDates(
-        parentRow,
-        await getActiveHolidays(),
-      )[0]!;
+      const dayB = await firstBookableDate(parent.id);
 
-      const res = await postBooking(parent.slug, {
-        date: dayB,
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
-      });
+      const res = await bookOne(parent, 1, { date: dayB });
       expectReserved(res);
       // Parent row keeps the booked date; the standard child row is date-less.
       expect((await getAttendeesRaw(parent.id))[0]?.date).toBe(dayB);
@@ -1274,38 +1127,21 @@ describeWithEnv(
       // The date-aware checkBatchAvailability must still reject the parent+child
       // on a date whose shared group is full, so deferring does not oversell.
       const { bookAttendee } = await import("#test-utils");
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
 
-      const { group, parent, child } = await makeParent({
-        children: [{ daily: true }],
-        group: { maxAttendees: 2, name: "Pool" },
-        parent: { daily: true },
-      });
-      const filler = await createDailyTestListing({
-        groupId: group!.id,
-        name: "Daily filler",
-        thankYouUrl: "",
-      });
-
-      const parentRow = (await getListingWithCount(parent.id))!;
-      const dates = getBookableStartDates(parentRow, await getActiveHolidays());
+      const { child, dates, filler, parent } =
+        await dailyPairSharingPoolWithFiller();
       const dayA = dates[0]!;
 
       // Fill date A's two group spots with the daily filler.
       const booked = await bookAttendee(filler, { date: dayA, quantity: 2 });
       expect(booked.success).toBe(true);
 
-      const fullRes = await postBooking(parent.slug, {
+      const fullRes = await bookOne(parent, 1, {
         date: dayA,
         email: "b@c.com",
         name: "Bea",
-        [`quantity_${parent.id}`]: "1",
       });
-      expect(fullRes.status).toBe(302);
-      expectFlash(fullRes, undefined, false);
-      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+      await expectBookingRejected(fullRes, undefined, parent.id);
       expect((await getAttendeesRaw(child.id)).length).toBe(0);
     });
 
@@ -1316,10 +1152,6 @@ describeWithEnv(
       // keyed by the (parent, child) pair. A map keyed by child
       // id alone, so the second parent overwrote the first and both blocks showed
       // the same (later parent's) dates.
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-
       // Each parent gets a SECOND child so the shared child renders as a
       // selectable `child_qty_*` option (carrying data-child-dates) rather than
       // the informational sole-child path (which emits no compat attributes).
@@ -1337,15 +1169,8 @@ describeWithEnv(
       await setChildIds(parentA.id, [shared.id, extraA.id]);
       await setChildIds(parentB.id, [shared.id, extraB.id]);
 
-      const holidays = await getActiveHolidays();
-      const mondayDate = getBookableStartDates(
-        (await getListingWithCount(parentA.id))!,
-        holidays,
-      )[0]!;
-      const tuesdayDate = getBookableStartDates(
-        (await getListingWithCount(parentB.id))!,
-        holidays,
-      )[0]!;
+      const mondayDate = await firstBookableDate(parentA.id);
+      const tuesdayDate = await firstBookableDate(parentB.id);
       expect(mondayDate).not.toBe(tuesdayDate);
 
       const html = await bookingPageHtml(`${parentA.slug}+${parentB.slug}`);
@@ -1553,14 +1378,7 @@ describeWithEnv(
         },
       });
 
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-      const parentRow = (await getListingWithCount(parent.id))!;
-      const date = getBookableStartDates(
-        parentRow,
-        await getActiveHolidays(),
-      )[0]!;
+      const date = await firstBookableDate(parent.id);
 
       const res = await postBooking(parent.slug, {
         date,
@@ -1589,14 +1407,7 @@ describeWithEnv(
         },
       });
 
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-      const parentRow = (await getListingWithCount(parent.id))!;
-      const date = getBookableStartDates(
-        parentRow,
-        await getActiveHolidays(),
-      )[0]!;
+      const date = await firstBookableDate(parent.id);
 
       const rejected = await postBooking(parent.slug, {
         date,

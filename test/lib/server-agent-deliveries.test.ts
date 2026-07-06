@@ -102,6 +102,27 @@ const fetchDeliveriesHtml = async (): Promise<string> => {
   return response.text();
 };
 
+/** Load the deliveries board for an agent and report where the Tomorrow
+ *  divider, the Drop-off, and the Collection labels fall in the page. */
+const deliveryBoardPositions = async (
+  cookie: string,
+): Promise<{
+  collection: number;
+  dropOff: number;
+  html: string;
+  tomorrow: number;
+}> => {
+  const html = await (
+    await awaitTestRequest("/admin/deliveries", { cookie })
+  ).text();
+  return {
+    collection: html.indexOf("Collection"),
+    dropOff: html.indexOf("Drop-off"),
+    html,
+    tomorrow: html.indexOf("Tomorrow"),
+  };
+};
+
 describeWithEnv("server (agent deliveries)", { db: true }, () => {
   test("agent sees their run sheet for today", async () => {
     const van = await makeVan("Van 1");
@@ -135,13 +156,11 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     });
     await makeTodayBooking(van, van, 1);
 
-    const html = await (
-      await awaitTestRequest("/admin/deliveries", { cookie })
-    ).text();
+    const { collection, dropOff, html, tomorrow } =
+      await deliveryBoardPositions(cookie);
     // Both legs fall in the Today section, before the Tomorrow heading.
-    const tomorrowIdx = html.indexOf("Tomorrow");
-    expect(html.indexOf("Drop-off")).toBeLessThan(tomorrowIdx);
-    expect(html.indexOf("Collection")).toBeLessThan(tomorrowIdx);
+    expect(dropOff).toBeLessThan(tomorrow);
+    expect(collection).toBeLessThan(tomorrow);
     // Nothing is scheduled for tomorrow.
     expect(html).toContain("Nothing scheduled");
   });
@@ -155,13 +174,11 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     });
     await makeTodayBooking(van, van, 2);
 
-    const html = await (
-      await awaitTestRequest("/admin/deliveries", { cookie })
-    ).text();
+    const { collection, dropOff, tomorrow } =
+      await deliveryBoardPositions(cookie);
     // Drop-off is in the Today section; collection moves to the Tomorrow one.
-    const tomorrowIdx = html.indexOf("Tomorrow");
-    expect(html.indexOf("Drop-off")).toBeLessThan(tomorrowIdx);
-    expect(html.indexOf("Collection")).toBeGreaterThan(tomorrowIdx);
+    expect(dropOff).toBeLessThan(tomorrow);
+    expect(collection).toBeGreaterThan(tomorrow);
   });
 
   test("agent with no assigned agents sees a prompt", async () => {

@@ -15,20 +15,13 @@ import {
   testAttendee,
   testRadioQuestion,
 } from "#test-utils";
+import { makeAttendeeRow as makeRow } from "#test-utils/attendee-row.ts";
 
 const ALLOWED_DOMAIN = "example.com";
 
 beforeAll(async () => {
   setupTestEncryptionKey();
   await signCsrfToken();
-});
-
-const makeRow = (
-  overrides: Partial<AttendeeTableRow> = {},
-): AttendeeTableRow => ({
-  attendee: testAttendee(),
-  listings: [{ id: 1, name: "Test Listing" }],
-  ...overrides,
 });
 
 /** A one-listing row whose listing is named `name` (id 1) */

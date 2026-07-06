@@ -21,42 +21,43 @@ import {
 } from "#shared/square.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { createTestDb, resetDb, testListing, withMocks } from "#test-utils";
+import {
+  checkoutIntent,
+  checkoutItem,
+  numberedItems,
+} from "#test-utils/checkout-intents.ts";
+import {
+  createMockClient,
+  useSquareClient,
+  withMockSquareClient,
+  withSquareClient,
+} from "#test-utils/square-checkout.ts";
+import { hmacBase64 } from "#test-utils/webhook-signing.ts";
 
-/** Mock implementation function type (accepts unknown args, returns unknown) */
-type MockFn = (...args: unknown[]) => unknown;
+/** A live, ACTIVE Square location the connection tests match against. */
+const TEST_STORE = { id: "L_test_123", name: "Test Store", status: "ACTIVE" };
 
-/** Create a mock Square SDK client with spyable methods */
-const createMockClient = (
-  impls: {
-    checkoutCreate?: MockFn;
-    ordersGet?: MockFn;
-    paymentsGet?: MockFn;
-    refundsRefundPayment?: MockFn;
-    locationsList?: MockFn;
-  } = {},
-) => {
-  const noop: MockFn = () => undefined;
-  const checkoutCreate = spy(impls.checkoutCreate ?? noop);
-  const ordersGet = spy(impls.ordersGet ?? noop);
-  const paymentsGet = spy(impls.paymentsGet ?? noop);
-  const refundsRefundPayment = spy(impls.refundsRefundPayment ?? noop);
-  const locationsList = spy(impls.locationsList ?? noop);
+/** A COMPLETED Square payment with just the fields the provider reads. */
+const completedPayment = (id: string) => ({ id, status: "COMPLETED" });
 
-  return {
-    checkoutCreate,
-    client: {
-      checkout: { paymentLinks: { create: checkoutCreate } },
-      locations: { list: locationsList },
-      orders: { get: ordersGet },
-      payments: { get: paymentsGet },
-      refunds: { refundPayment: refundsRefundPayment },
-    } as unknown as SquareClient,
-    locationsList,
-    ordersGet,
-    paymentsGet,
-    refundsRefundPayment,
-  };
-};
+/** A mock client whose payment-link create resolves to `{ paymentLink }`. */
+const paymentLinkClient = (paymentLink: { orderId?: string; url?: string }) =>
+  createMockClient({
+    checkoutCreate: () => Promise.resolve({ paymentLink }),
+  });
+
+/** Run testSquareConnection against a mock client whose location list returns
+ *  `locationsResponse`, then hand the result to `check`. */
+const checkConnection = (
+  locationsResponse: unknown,
+  check: (
+    result: Awaited<ReturnType<typeof testSquareConnection>>,
+  ) => void,
+): Promise<void> =>
+  withMockSquareClient(
+    { locationsList: () => Promise.resolve(locationsResponse) },
+    async () => check(await testSquareConnection()),
+  );
 
 describe("square", () => {
   beforeEach(async () => {
@@ -138,15 +139,11 @@ describe("square", () => {
 
     test("returns error when locations list fails", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
-      const mock = createMockClient({
-        locationsList: () => Promise.reject(new Error("Invalid access token")),
-      });
-
-      await withMocks(
-        () =>
-          stub(squareApi, "getSquareClient", () =>
-            Promise.resolve(mock.client),
-          ),
+      await withMockSquareClient(
+        {
+          locationsList: () =>
+            Promise.reject(new Error("Invalid access token")),
+        },
         async () => {
           const result = await testSquareConnection();
           expect(result.ok).toBe(false);
@@ -161,31 +158,15 @@ describe("square", () => {
       await settings.update.square.sandbox(true);
       await settings.update.square.locationId("L_test_123");
       await settings.update.square.webhookSignatureKey("sig_key_test");
-      const mock = createMockClient({
-        locationsList: () =>
-          Promise.resolve({
-            locations: [
-              { id: "L_test_123", name: "Test Store", status: "ACTIVE" },
-            ],
-          }),
+      await checkConnection({ locations: [TEST_STORE] }, (result) => {
+        expect(result.ok).toBe(true);
+        expect(result.accessToken.valid).toBe(true);
+        expect(result.accessToken.mode).toBe("sandbox");
+        expect(result.location.configured).toBe(true);
+        expect(result.location.name).toBe("Test Store");
+        expect(result.location.status).toBe("ACTIVE");
+        expect(result.webhook.configured).toBe(true);
       });
-
-      await withMocks(
-        () =>
-          stub(squareApi, "getSquareClient", () =>
-            Promise.resolve(mock.client),
-          ),
-        async () => {
-          const result = await testSquareConnection();
-          expect(result.ok).toBe(true);
-          expect(result.accessToken.valid).toBe(true);
-          expect(result.accessToken.mode).toBe("sandbox");
-          expect(result.location.configured).toBe(true);
-          expect(result.location.name).toBe("Test Store");
-          expect(result.location.status).toBe("ACTIVE");
-          expect(result.webhook.configured).toBe(true);
-        },
-      );
     });
 
     test("returns production mode when sandbox disabled", async () => {
@@ -193,79 +174,36 @@ describe("square", () => {
       await settings.update.square.sandbox(false);
       await settings.update.square.locationId("L_live_123");
       await settings.update.square.webhookSignatureKey("sig_key_live");
-      const mock = createMockClient({
-        locationsList: () =>
-          Promise.resolve({
-            locations: [
-              { id: "L_live_123", name: "Live Store", status: "ACTIVE" },
-            ],
-          }),
+      const liveStore = { id: "L_live_123", name: "Live Store", status: "ACTIVE" };
+      await checkConnection({ locations: [liveStore] }, (result) => {
+        expect(result.ok).toBe(true);
+        expect(result.accessToken.valid).toBe(true);
+        expect(result.accessToken.mode).toBe("production");
       });
-
-      await withMocks(
-        () =>
-          stub(squareApi, "getSquareClient", () =>
-            Promise.resolve(mock.client),
-          ),
-        async () => {
-          const result = await testSquareConnection();
-          expect(result.ok).toBe(true);
-          expect(result.accessToken.valid).toBe(true);
-          expect(result.accessToken.mode).toBe("production");
-        },
-      );
     });
 
     test("returns location error when location ID not found", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
       await settings.update.square.locationId("L_wrong");
       await settings.update.square.webhookSignatureKey("sig_key_test");
-      const mock = createMockClient({
-        locationsList: () =>
-          Promise.resolve({
-            locations: [
-              { id: "L_test_123", name: "Test Store", status: "ACTIVE" },
-            ],
-          }),
+      await checkConnection({ locations: [TEST_STORE] }, (result) => {
+        expect(result.ok).toBe(false);
+        expect(result.accessToken.valid).toBe(true);
+        expect(result.location.configured).toBe(false);
+        expect(result.location.error).toContain(
+          "Location ID not found in account",
+        );
       });
-
-      await withMocks(
-        () =>
-          stub(squareApi, "getSquareClient", () =>
-            Promise.resolve(mock.client),
-          ),
-        async () => {
-          const result = await testSquareConnection();
-          expect(result.ok).toBe(false);
-          expect(result.accessToken.valid).toBe(true);
-          expect(result.location.configured).toBe(false);
-          expect(result.location.error).toContain(
-            "Location ID not found in account",
-          );
-        },
-      );
     });
 
     test("returns location error when no location ID configured", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
       await settings.update.square.webhookSignatureKey("sig_key_test");
-      const mock = createMockClient({
-        locationsList: () =>
-          Promise.resolve({ locations: [{ id: "L_test_123" }] }),
+      await checkConnection({ locations: [{ id: "L_test_123" }] }, (result) => {
+        expect(result.ok).toBe(false);
+        expect(result.location.configured).toBe(false);
+        expect(result.location.error).toContain("No location ID configured");
       });
-
-      await withMocks(
-        () =>
-          stub(squareApi, "getSquareClient", () =>
-            Promise.resolve(mock.client),
-          ),
-        async () => {
-          const result = await testSquareConnection();
-          expect(result.ok).toBe(false);
-          expect(result.location.configured).toBe(false);
-          expect(result.location.error).toContain("No location ID configured");
-        },
-      );
     });
 
     test("handles empty locations response", async () => {
@@ -273,76 +211,36 @@ describe("square", () => {
       await settings.update.square.sandbox(true);
       await settings.update.square.locationId("L_test_123");
       await settings.update.square.webhookSignatureKey("sig_key_test");
-      const mock = createMockClient({
-        locationsList: () => Promise.resolve({}),
+      await checkConnection({}, (result) => {
+        expect(result.accessToken.valid).toBe(true);
+        expect(result.location.configured).toBe(false);
+        expect(result.location.error).toContain(
+          "Location ID not found in account",
+        );
       });
-
-      await withMocks(
-        () =>
-          stub(squareApi, "getSquareClient", () =>
-            Promise.resolve(mock.client),
-          ),
-        async () => {
-          const result = await testSquareConnection();
-          expect(result.accessToken.valid).toBe(true);
-          expect(result.location.configured).toBe(false);
-          expect(result.location.error).toContain(
-            "Location ID not found in account",
-          );
-        },
-      );
     });
 
     test("returns webhook error when no signature key configured", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
       await settings.update.square.locationId("L_test_123");
-      const mock = createMockClient({
-        locationsList: () =>
-          Promise.resolve({
-            locations: [
-              { id: "L_test_123", name: "Test Store", status: "ACTIVE" },
-            ],
-          }),
+      await checkConnection({ locations: [TEST_STORE] }, (result) => {
+        expect(result.ok).toBe(false);
+        expect(result.accessToken.valid).toBe(true);
+        expect(result.location.configured).toBe(true);
+        expect(result.webhook.configured).toBe(false);
+        expect(result.webhook.error).toContain(
+          "No webhook signature key configured",
+        );
       });
-
-      await withMocks(
-        () =>
-          stub(squareApi, "getSquareClient", () =>
-            Promise.resolve(mock.client),
-          ),
-        async () => {
-          const result = await testSquareConnection();
-          expect(result.ok).toBe(false);
-          expect(result.accessToken.valid).toBe(true);
-          expect(result.location.configured).toBe(true);
-          expect(result.webhook.configured).toBe(false);
-          expect(result.webhook.error).toContain(
-            "No webhook signature key configured",
-          );
-        },
-      );
     });
   });
 
   describe("createPaymentLink", () => {
     test("returns null when access token not set", async () => {
-      const intent = {
-        address: "",
-        date: null,
-        email: "john@example.com",
-        items: [
-          {
-            listingId: 1,
-            name: "Test Listing",
-            quantity: 1,
-            slug: "test-listing",
-            unitPrice: 1000,
-          },
-        ],
+      const intent = checkoutIntent({
+        items: [checkoutItem({ name: "Test Listing" })],
         name: "John Doe",
-        phone: "",
-        special_instructions: "",
-      };
+      });
       const result = await squareApi.createPaymentLink(
         intent,
         "http://localhost",
@@ -353,23 +251,7 @@ describe("square", () => {
     test("returns null when location ID not configured", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
       // No location ID set
-      const intent = {
-        address: "",
-        date: null,
-        email: "john@example.com",
-        items: [
-          {
-            listingId: 1,
-            name: "Test",
-            quantity: 1,
-            slug: "test-listing",
-            unitPrice: 1000,
-          },
-        ],
-        name: "John",
-        phone: "",
-        special_instructions: "",
-      };
+      const intent = checkoutIntent();
       const result = await squareApi.createPaymentLink(
         intent,
         "http://localhost",
@@ -380,38 +262,28 @@ describe("square", () => {
     test("constructs correct SDK call for single-listing checkout", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
       await settings.update.square.locationId("L_loc_456");
-      const { client, checkoutCreate } = createMockClient({
-        checkoutCreate: () =>
-          Promise.resolve({
-            paymentLink: {
-              orderId: "order_abc",
-              url: "https://square.link/abc",
-            },
-          }),
+      const { client, checkoutCreate } = paymentLinkClient({
+        orderId: "order_abc",
+        url: "https://square.link/abc",
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
-          const intent = {
-            address: "",
-            date: null,
-            email: "jane@example.com",
-            items: [
-              {
-                listingId: 7,
-                name: "Concert",
-                quantity: 3,
-                slug: "concert-2025",
-                unitPrice: 2500,
-              },
-            ],
-            name: "Jane Smith",
-            phone: "555-9876",
-            special_instructions: "",
-          };
+      await withSquareClient(client, async () => {
+        const intent = checkoutIntent({
+          email: "jane@example.com",
+          items: [
+            checkoutItem({
+              listingId: 7,
+              name: "Concert",
+              quantity: 3,
+              slug: "concert-2025",
+              unitPrice: 2500,
+            }),
+          ],
+          name: "Jane Smith",
+          phone: "555-9876",
+        });
 
-          const result = await squareApi.createPaymentLink(
+        const result = await squareApi.createPaymentLink(
             intent,
             "https://tickets.example.com",
           );
@@ -455,8 +327,7 @@ describe("square", () => {
           // Verify idempotency key is present
           expect(typeof args.idempotencyKey).toBe("string");
           expect(args.idempotencyKey.length).toBeGreaterThan(0);
-        },
-      );
+      });
     });
 
     test("includes booking fee line item when fee is set", async () => {
@@ -474,9 +345,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const listing = testListing({ unit_price: 1000 });
           const intent = {
             address: "",
@@ -525,9 +394,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const intent = {
             address: "",
             date: null,
@@ -567,9 +434,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const intent = {
             address: "",
             date: null,
@@ -667,9 +532,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const intent = {
             address: "",
             date: null,
@@ -710,9 +573,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const intent = {
             address: "",
             date: null,
@@ -794,9 +655,7 @@ describe("square", () => {
       await settings.update.square.locationId("L_multi_loc");
       const { client, checkoutCreate } = createMockClient();
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           // Generate enough items to exceed 255-char serialized metadata
           const items = Array.from({ length: 30 }, (_, i) => ({
             listingId: i + 1,
@@ -866,9 +725,7 @@ describe("square", () => {
         ),
       );
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           try {
             await squareApi.createPaymentLink(
               validationIntent,
@@ -890,9 +747,7 @@ describe("square", () => {
         ),
       );
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           try {
             await squareApi.createPaymentLink(
               validationIntent,
@@ -916,9 +771,7 @@ describe("square", () => {
         ),
       );
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result = await squareApi.createPaymentLink(
             validationIntent,
             "http://localhost",
@@ -935,9 +788,7 @@ describe("square", () => {
         ),
       );
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result = await squareApi.createPaymentLink(
             validationIntent,
             "http://localhost",
@@ -950,9 +801,7 @@ describe("square", () => {
     test("returns null for non-Body error messages", async () => {
       const client = await setupFailingCheckout(new Error("Network timeout"));
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result = await squareApi.createPaymentLink(
             validationIntent,
             "http://localhost",
@@ -967,9 +816,7 @@ describe("square", () => {
         new Error("Status code: 400 Body: { invalid json content }"),
       );
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result = await squareApi.createPaymentLink(
             validationIntent,
             "http://localhost",
@@ -991,9 +838,7 @@ describe("square", () => {
         ordersGet: () => Promise.resolve({ order: null }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result = await squareApi.retrieveOrder("order_missing");
           expect(result).toBeNull();
           expect(ordersGet.calls[0]!.args[0]).toEqual({
@@ -1024,9 +869,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result = await squareApi.retrieveOrder("order_tenders");
           expect(result).not.toBeNull();
           expect(result!.tenders).toHaveLength(2);
@@ -1050,9 +893,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result = await squareApi.retrieveOrder("order_shape");
           expect(result).not.toBeNull();
           expect(result!.id).toBe("order_shape");
@@ -1081,9 +922,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result = await squareApi.retrieveOrder("order_with_total");
           expect(result).not.toBeNull();
           expect(result!.totalMoney.amount).toBe(BigInt(7500));
@@ -1104,9 +943,7 @@ describe("square", () => {
         paymentsGet: () => Promise.resolve({ payment: null }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result = await squareApi.retrievePayment("pay_missing");
           expect(result).toBeNull();
           expect(paymentsGet.calls[0]!.args[0]).toEqual({
@@ -1136,9 +973,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result = await squareApi.retrievePayment("pay_full");
           expect(result).not.toBeNull();
           expect(result!.id).toBe("pay_full");
@@ -1167,9 +1002,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result = await retrievePayment("pay_wrapper");
           expect(result).not.toBeNull();
           expect(result!.id).toBe("pay_wrapper");
@@ -1215,9 +1048,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result = await squareApi.refundPayment("pay_refund_me");
           expect(result).toBe(true);
 
@@ -1253,9 +1084,7 @@ describe("square", () => {
           Promise.reject(new Error("Square API error")),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result = await squareApi.refundPayment("pay_fail");
           expect(result).toBe(false);
         },
@@ -1814,9 +1643,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_paid");
           expect(result).not.toBeNull();
@@ -1848,9 +1675,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_open");
           expect(result).not.toBeNull();
@@ -1871,9 +1696,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_no_meta");
           expect(result).toBeNull();
@@ -1893,9 +1716,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_bad_meta");
           expect(result).toBeNull();
@@ -1908,9 +1729,7 @@ describe("square", () => {
         ordersGet: () => Promise.resolve({ order: null }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_gone");
           expect(result).toBeNull();
@@ -1940,9 +1759,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_with_amount");
           expect(result).not.toBeNull();
@@ -1979,9 +1796,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_multi");
           expect(result).not.toBeNull();
@@ -2002,9 +1817,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           await settings.update.square.accessToken("EAAAl_test_123");
           await settings.update.square.locationId("L_loc_prov");
           const intent = {
@@ -2049,9 +1862,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           await settings.update.square.accessToken("EAAAl_test_123");
           await settings.update.square.locationId("L_loc_prov");
           const intent = {
@@ -2102,9 +1913,7 @@ describe("square", () => {
           }),
       });
 
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withMocks(useSquareClient(client), async () => {
           const result =
             await squarePaymentProvider.refundPayment("pay_prov_ref");
           expect(result).toBe(true);

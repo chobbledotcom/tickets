@@ -41,6 +41,17 @@ const listingAOnly = () => [
   makeListing({ attendee_count: 0, id: 1, name: "Listing A", slug: "ab12c" }),
 ];
 
+// A second listing ("Listing B", slug "cd34e") that is already full, used by
+// the multi-listing tests that need one bookable and one sold-out listing.
+const soldOutListingB = () =>
+  makeListing({
+    attendee_count: 50,
+    id: 2,
+    max_attendees: 50,
+    name: "Listing B",
+    slug: "cd34e",
+  });
+
 // The two package members ("Big" and "Small") shared by the shared-pool tests.
 // Pass a per-order limit when the test needs a quantity selector on each member.
 const bigAndSmallListings = (perOrderLimit?: number) => {
@@ -73,6 +84,18 @@ const makeCard = (
   token: string,
   attendee: ReturnType<typeof testAttendee> = testAttendee(),
 ) => ({ entry: { attendee, listing }, token });
+
+// One package member's card: an attendee in package group 1 (quantity 1) and
+// its listing, under a scan token.
+const packageMemberCard = (listing: ListingWithCount, token: string) =>
+  makeCard(listing, token, testAttendee({ package_group_id: 1, quantity: 1 }));
+
+// Renders the ticket-view page for a single package (group id 1) with wallets
+// off, given the group's display name and whether it hides its members.
+const renderPackageView = (
+  cards: Parameters<typeof ticketViewPage>[0],
+  group: { hideListings: boolean; name: string },
+) => ticketViewPage(cards, false, false, new Map([[1, group]]));
 
 // Asserts the package selector is present but the shared pool caps it at a
 // single package (a "1" option, never a "2").
@@ -523,13 +546,7 @@ describe("ticketPage", () => {
         name: "Listing A",
         slug: "ab12c",
       }),
-      makeListing({
-        attendee_count: 50,
-        id: 2,
-        max_attendees: 50,
-        name: "Listing B",
-        slug: "cd34e",
-      }),
+      soldOutListingB(),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c", "cd34e"] });
     expect(html).toContain("Sorry, all listings are sold out.");
@@ -601,24 +618,7 @@ describe("ticketPage", () => {
   });
 
   test("caps the package selector by the shared pool, defaulting a missing member quantity to 1", () => {
-    const listings = [
-      makeListing({
-        attendee_count: 0,
-        id: 1,
-        max_attendees: 100,
-        max_quantity: 10,
-        name: "Big",
-        slug: "big01",
-      }),
-      makeListing({
-        attendee_count: 0,
-        id: 2,
-        max_attendees: 100,
-        max_quantity: 10,
-        name: "Small",
-        slug: "sml01",
-      }),
-    ];
+    const listings = bigAndSmallListings(10);
     const html = ticketPage({
       groupName: "Pool Pkg",
       listings,
@@ -636,29 +636,12 @@ describe("ticketPage", () => {
       packageQuantities: new Map([[1, 2]]),
       slugs: ["big01", "sml01"],
     });
-    expect(html).toContain('name="package_quantity"');
-    expect(html).toContain('<option value="1"');
     // The shared pool caps the count at 1, so no "2 packages" option is offered.
-    expect(html).not.toContain('<option value="2"');
+    expectPackageCappedAtOne(html);
   });
 
   test("renders a package as sold out when its cap is zero", () => {
-    const listings = [
-      makeListing({
-        attendee_count: 0,
-        id: 1,
-        max_attendees: 100,
-        name: "Big",
-        slug: "big01",
-      }),
-      makeListing({
-        attendee_count: 0,
-        id: 2,
-        max_attendees: 100,
-        name: "Small",
-        slug: "sml01",
-      }),
-    ];
+    const listings = bigAndSmallListings();
     // Both members still have individual capacity, but one package consumes 2
     // units (1 each) from a shared pool with only 1 left → floor(1 / 2) = 0
     // packages fit. The page must show sold out, not a 0-only selector.
@@ -682,24 +665,7 @@ describe("ticketPage", () => {
   });
 
   test("caps the package by a SECOND capped group the members share", () => {
-    const listings = [
-      makeListing({
-        attendee_count: 0,
-        id: 1,
-        max_attendees: 100,
-        max_quantity: 10,
-        name: "Big",
-        slug: "big01",
-      }),
-      makeListing({
-        attendee_count: 0,
-        id: 2,
-        max_attendees: 100,
-        max_quantity: 10,
-        name: "Small",
-        slug: "sml01",
-      }),
-    ];
+    const listings = bigAndSmallListings(10);
     // The package group (7) is roomy — floor(10 / 2) = 5 packages fit — but both
     // members ALSO belong to a second capped group (9) with only 2 spots, and one
     // package consumes 2 (1 each) from it → floor(2 / 2) = 1. The tighter shared
@@ -722,9 +688,7 @@ describe("ticketPage", () => {
       ]),
       slugs: ["big01", "sml01"],
     });
-    expect(html).toContain('name="package_quantity"');
-    expect(html).toContain('<option value="1"');
-    expect(html).not.toContain('<option value="2"');
+    expectPackageCappedAtOne(html);
   });
 
   test("hides member rows when the package hides its listings", () => {
@@ -751,14 +715,7 @@ describe("ticketPage", () => {
   });
 
   test("renders markdown paragraphs in terms and conditions", () => {
-    const listings = [
-      makeListing({
-        attendee_count: 0,
-        id: 1,
-        name: "Listing A",
-        slug: "ab12c",
-      }),
-    ];
+    const listings = listingAOnly();
     const html = ticketPage({
       listings,
       slugs: ["ab12c"],
@@ -770,14 +727,7 @@ describe("ticketPage", () => {
   });
 
   test("renders custom questions with listing IDs", () => {
-    const listings = [
-      makeListing({
-        attendee_count: 0,
-        id: 1,
-        name: "Listing A",
-        slug: "ab12c",
-      }),
-    ];
+    const listings = listingAOnly();
     const questions = [
       {
         answers: [
@@ -807,14 +757,7 @@ describe("ticketPage", () => {
   });
 
   test("renders a promo-code field when promo codes are enabled", () => {
-    const listings = [
-      makeListing({
-        attendee_count: 0,
-        id: 1,
-        name: "Listing A",
-        slug: "ab12c",
-      }),
-    ];
+    const listings = listingAOnly();
     const html = ticketPage({
       listings,
       promoCodesEnabled: true,
@@ -825,27 +768,13 @@ describe("ticketPage", () => {
   });
 
   test("omits the promo-code field when promo codes are disabled", () => {
-    const listings = [
-      makeListing({
-        attendee_count: 0,
-        id: 1,
-        name: "Listing A",
-        slug: "ab12c",
-      }),
-    ];
+    const listings = listingAOnly();
     const html = ticketPage({ listings, slugs: ["ab12c"] });
     expect(html).not.toContain('name="promo_code"');
   });
 
   test("renders an opt-in add-on selector with its price label", () => {
-    const listings = [
-      makeListing({
-        attendee_count: 0,
-        id: 1,
-        name: "Listing A",
-        slug: "ab12c",
-      }),
-    ];
+    const listings = listingAOnly();
     const html = ticketPage({
       addOns: [
         {
@@ -867,14 +796,7 @@ describe("ticketPage", () => {
 
   test("appends ?iframe=true to form action in iframe mode", () => {
     detectIframeMode("https://example.com/?iframe=true");
-    const listings = [
-      makeListing({
-        attendee_count: 0,
-        id: 1,
-        name: "Listing A",
-        slug: "ab12c",
-      }),
-    ];
+    const listings = listingAOnly();
     const html = ticketPage({ listings, slugs: ["ab12c"] });
     expect(html).toContain('action="/ticket/ab12c?iframe=true"');
     expect(html).toContain('class="iframe"');
@@ -883,41 +805,20 @@ describe("ticketPage", () => {
 
   test("includes iframe-resizer child script in iframe mode", () => {
     detectIframeMode("https://example.com/?iframe=true");
-    const listings = [
-      makeListing({
-        attendee_count: 0,
-        id: 1,
-        name: "Listing A",
-        slug: "ab12c",
-      }),
-    ];
+    const listings = listingAOnly();
     const html = ticketPage({ listings, slugs: ["ab12c"] });
     expect(html).toContain("iframe-resizer-child.js");
     detectIframeMode("https://example.com/");
   });
 
   test("excludes iframe-resizer child script without iframe mode", () => {
-    const listings = [
-      makeListing({
-        attendee_count: 0,
-        id: 1,
-        name: "Listing A",
-        slug: "ab12c",
-      }),
-    ];
+    const listings = listingAOnly();
     const html = ticketPage({ listings, slugs: ["ab12c"] });
     expect(html).not.toContain("iframe-resizer-child.js");
   });
 
   test("does not append ?iframe=true without iframe mode", () => {
-    const listings = [
-      makeListing({
-        attendee_count: 0,
-        id: 1,
-        name: "Listing A",
-        slug: "ab12c",
-      }),
-    ];
+    const listings = listingAOnly();
     const html = ticketPage({ listings, slugs: ["ab12c"] });
     expect(html).toContain('action="/ticket/ab12c"');
     expect(html).not.toContain("?iframe=true");
@@ -988,13 +889,7 @@ describe("ticketPage", () => {
         name: "Listing A",
         slug: "ab12c",
       }),
-      makeListing({
-        attendee_count: 50,
-        id: 2,
-        max_attendees: 50,
-        name: "Listing B",
-        slug: "cd34e",
-      }),
+      soldOutListingB(),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c", "cd34e"] });
     expect(hasInputWithValue(html, "quantity_1", "1")).toBe(true);
@@ -1195,20 +1090,15 @@ describe("ticketViewPage package grouping", () => {
 
   test("a purchase-only package omits the QR", () => {
     const cards = [
-      {
-        entry: {
-          attendee: testAttendee({ package_group_id: 1, quantity: 1 }),
-          listing: testListingWithCount({ name: "Pass", purchase_only: true }),
-        },
+      packageMemberCard(
+        testListingWithCount({ name: "Pass", purchase_only: true }),
         token,
-      },
+      ),
     ];
-    const html = ticketViewPage(
-      cards,
-      false,
-      false,
-      new Map([[1, { hideListings: false, name: "Purchase Bundle" }]]),
-    );
+    const html = renderPackageView(cards, {
+      hideListings: false,
+      name: "Purchase Bundle",
+    });
     expect(html).toContain("Purchase Bundle");
     expect(html).not.toContain(`/t/${token}/svg`);
   });
@@ -1243,24 +1133,19 @@ describe("ticketViewPage package grouping", () => {
     // A purchase-only member is never checked in, so its non-transferable flag
     // raises no "ID required" warning.
     const cards = [
-      {
-        entry: {
-          attendee: testAttendee({ package_group_id: 1, quantity: 1 }),
-          listing: testListingWithCount({
-            name: "Pass",
-            non_transferable: true,
-            purchase_only: true,
-          }),
-        },
+      packageMemberCard(
+        testListingWithCount({
+          name: "Pass",
+          non_transferable: true,
+          purchase_only: true,
+        }),
         token,
-      },
+      ),
     ];
-    const html = ticketViewPage(
-      cards,
-      false,
-      false,
-      new Map([[1, { hideListings: false, name: "Purchase Bundle" }]]),
-    );
+    const html = renderPackageView(cards, {
+      hideListings: false,
+      name: "Purchase Bundle",
+    });
     expect(html).not.toContain("ID required at entry");
   });
 });
@@ -1389,13 +1274,7 @@ describe("ticketViewPage listing date and location", () => {
 
   test("hides QR code and token for purchase_only listings", () => {
     const cards = [
-      {
-        entry: {
-          attendee: testAttendee(),
-          listing: testListingWithCount({ purchase_only: true }),
-        },
-        token,
-      },
+      makeCard(testListingWithCount({ purchase_only: true }), token),
     ];
     const html = ticketViewPage(cards);
     expect(html).not.toContain("ticket-card-qr");
@@ -1405,13 +1284,7 @@ describe("ticketViewPage listing date and location", () => {
 
   test("hides wallet links for purchase_only listings", () => {
     const cards = [
-      {
-        entry: {
-          attendee: testAttendee(),
-          listing: testListingWithCount({ purchase_only: true }),
-        },
-        token,
-      },
+      makeCard(testListingWithCount({ purchase_only: true }), token),
     ];
     const html = ticketViewPage(cards, true, true);
     expect(html).not.toContain("wallet-link");
@@ -1438,13 +1311,7 @@ describe("ticketViewPage listing date and location", () => {
 
   test("shows Your Purchase heading for purchase_only listings", () => {
     const cards = [
-      {
-        entry: {
-          attendee: testAttendee(),
-          listing: testListingWithCount({ purchase_only: true }),
-        },
-        token,
-      },
+      makeCard(testListingWithCount({ purchase_only: true }), token),
     ];
     const html = ticketViewPage(cards);
     expect(html).toContain("Your Purchase");

@@ -20,14 +20,21 @@ import {
 
 describeWithEnv("backup routes", { db: true }, () => {
   describe("GET /admin/backup", () => {
-    test("loads backup page without storage enabled", async () => {
-      const cookie = await testCookie();
+    /** GET the backup admin page with a cookie, confirm it loads (200), and
+     * return its HTML — which always carries the "Backup" heading. */
+    const loadBackupPage = async (cookie: string): Promise<string> => {
       const response = await handleRequest(
         mockRequest("/admin/backup", { headers: { cookie } }),
       );
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Backup");
+      return html;
+    };
+
+    test("loads backup page without storage enabled", async () => {
+      const cookie = await testCookie();
+      await loadBackupPage(cookie);
     });
 
     test("loads backup page when storage cleanup fails (fire-and-forget)", async () => {
@@ -41,13 +48,8 @@ describeWithEnv("backup routes", { db: true }, () => {
         // Make deleteFile throw
         setDeleteOverride(new Error("delete failed"));
         try {
-          const response = await handleRequest(
-            mockRequest("/admin/backup", { headers: { cookie } }),
-          );
-          // Page should still load despite deleteFile throwing
-          expect(response.status).toBe(200);
-          const html = await response.text();
-          expect(html).toContain("Backup");
+          // Page should still load despite deleteFile throwing.
+          await loadBackupPage(cookie);
         } finally {
           setDeleteOverride(null);
         }
@@ -68,12 +70,7 @@ describeWithEnv("backup routes", { db: true }, () => {
               : Promise.resolve(Response.json([]));
           });
 
-          const response = await handleRequest(
-            mockRequest("/admin/backup", { headers: { cookie } }),
-          );
-
-          expect(response.status).toBe(200);
-          expect(await response.text()).toContain("Backup");
+          await loadBackupPage(cookie);
         }),
       );
     });

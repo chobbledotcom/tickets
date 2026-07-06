@@ -3,11 +3,11 @@ import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import * as v from "valibot";
 import { handleRequest } from "#routes";
-import type { CheckoutIntent } from "#shared/payments.ts";
 import { addDays } from "#shared/dates.ts";
 import { groupsTable } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
+import type { CheckoutIntent } from "#shared/payments.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
   assertJson,
@@ -202,7 +202,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
     );
     let response: Response;
     try {
-      response = await bookListing(slug);
+      ({ response } = await bookListing(slug));
     } finally {
       mockCreate.restore();
     }
@@ -1070,15 +1070,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
 
     test("books no attendees when conflicting child prices are rejected", async () => {
       const { parent, child } = await parentWithTwoUnitPayMoreChild();
-      await bookListing(parent.slug, {
-        children: [
-          { customPrice: 30, quantity: 1, slug: child.slug },
-          { customPrice: 20, quantity: 1, slug: child.slug },
-        ],
-        email: "alice@test.com",
-        name: "Alice",
-        quantity: 2,
-      });
+      await bookParentWithTwoChildPrices(parent.slug, child.slug, 30, 20);
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       expect((await getAttendeesRaw(child.id)).length).toBe(0);
       expect((await getAttendeesRaw(parent.id)).length).toBe(0);
@@ -1196,14 +1188,30 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
   });
 
   describe("booking listing_id manipulation", () => {
-    test("ignores listing_id in JSON body", async () => {
+    /** A target listing (booked via its slug) and a separate "other" listing
+     * whose id or slug a tampered body might try to divert the booking to. */
+    const targetAndOtherListings = async () => {
       const target = await createTestListing({ maxAttendees: 50 });
       const other = await createTestListing({ maxAttendees: 50 });
+      return { other, target };
+    };
 
-      const { response } = await bookListing(target.slug, {
+    /** Book as "Mallory" against `targetSlug`, smuggling in whatever extra body
+     * fields the test wants to try (e.g. a foreign listing_id or slug). */
+    const bookAsMallory = (
+      targetSlug: string,
+      extra: Record<string, unknown>,
+    ) =>
+      bookListing(targetSlug, {
         email: "mallory@example.com",
-        listing_id: other.id,
         name: "Mallory",
+        ...extra,
+      });
+
+    test("ignores listing_id in JSON body", async () => {
+      const { other, target } = await targetAndOtherListings();
+      const { response } = await bookAsMallory(target.slug, {
+        listing_id: other.id,
       });
       expect(response.status).toBe(200);
 
@@ -1214,10 +1222,8 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
     test("returns 404 for non-existent slug even with valid listing_id in body", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
 
-      const { response } = await bookListing("nonexistent", {
-        email: "mallory@example.com",
+      const { response } = await bookAsMallory("nonexistent", {
         listing_id: listing.id,
-        name: "Mallory",
       });
       expect(response.status).toBe(404);
 
@@ -1228,12 +1234,8 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
     });
 
     test("ignores slug field in JSON body", async () => {
-      const target = await createTestListing({ maxAttendees: 50 });
-      const other = await createTestListing({ maxAttendees: 50 });
-
-      const { response } = await bookListing(target.slug, {
-        email: "mallory@example.com",
-        name: "Mallory",
+      const { other, target } = await targetAndOtherListings();
+      const { response } = await bookAsMallory(target.slug, {
         slug: other.slug,
       });
       expect(response.status).toBe(200);
