@@ -314,7 +314,7 @@ export const adminModifierNewPage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  errorAdminPage(t("modifiers.add.heading"), "/admin/modifiers")(
+  errorAdminPage(t("modifiers.add.heading"), "/admin/modifiers/new")(
     session,
     error,
   )(

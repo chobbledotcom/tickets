@@ -254,7 +254,7 @@ export const adminUserNewPage = (
   agents: LogisticsAgent[],
   error?: string,
 ): string =>
-  errorAdminPage(t("users.invite.title"), "/admin/users")(session, error)(
+  errorAdminPage(t("users.invite.title"), "/admin/user/new")(session, error)(
     <NewResourceForm
       action="/admin/users"
       fieldsHtml={renderFields(getInviteUserFields())}

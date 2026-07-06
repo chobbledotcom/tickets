@@ -181,7 +181,11 @@ const renderServicingPage = ({
     ? `/admin/servicing/${event.id}`
     : "/admin/servicing/new";
   return String(
-    <AdminPage active="/admin/servicing" session={session} title={title}>
+    <AdminPage
+      active={event ? "/admin/servicing" : "/admin/servicing/new"}
+      session={session}
+      title={title}
+    >
       <h1>{title}</h1>
       {deletedHolds.length > 0 && (
         <p class="warning">

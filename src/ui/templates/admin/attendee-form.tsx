@@ -672,14 +672,21 @@ export const AttendeeFormPanel = ({
  * goes in `children`. Shared by the create form and the contact-history editor.
  */
 export const AttendeesPageLayout = (props: {
+  active?: string;
   children: JSX.Element;
   prose?: JSX.Element;
   session: AdminSession;
   title: string;
 }): JSX.Element => {
-  const { children, prose, session, title } = props;
+  const {
+    active = "/admin/attendees",
+    children,
+    prose,
+    session,
+    title,
+  } = props;
   return (
-    <AdminPage active="/admin/attendees" session={session} title={title}>
+    <AdminPage active={active} session={session} title={title}>
       <ProseHeading heading={title}>{prose}</ProseHeading>
       {children}
     </AdminPage>
@@ -694,6 +701,7 @@ export const attendeeFormPage = (
 ): string =>
   String(
     <AttendeesPageLayout
+      active="/admin/attendees/new"
       session={session}
       title={t("attendee_form.title_create")}
     >

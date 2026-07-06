@@ -52,45 +52,106 @@ describeWithEnv("AdminNav", {}, () => {
     expectOwnerAndManagerLink("/admin/servicing", "Servicing");
   });
 
-  test("AdminNav links to Add Listing for owners, managers, and editors", () => {
-    expectLinkForRoles("/admin/listing/new", "Add Listing", [
-      "owner",
-      "manager",
-      "editor",
-    ]);
-  });
+  /** Every section that carries an "Add X" create link in its sub-nav: the
+   * section's landing route, the create link, and the route the create page
+   * itself renders with (which should highlight the create link). Each pair
+   * lives only in its own section's sub-nav — never on the top-level bar. */
+  const addLinkSections = [
+    {
+      addHref: "/admin/listing/new",
+      addText: "Add Listing",
+      createActive: "/admin/listing/new",
+      roles: ["owner", "manager", "editor"] as const,
+      sectionActive: "/admin/listings",
+    },
+    {
+      addHref: "/admin/groups/new",
+      addText: "Add Group",
+      createActive: "/admin/groups/new",
+      roles: ["owner", "manager", "editor"] as const,
+      sectionActive: "/admin/groups",
+    },
+    {
+      addHref: "/admin/servicing/new",
+      addText: "New Service Event",
+      createActive: "/admin/servicing/new",
+      roles: ["owner", "manager"] as const,
+      sectionActive: "/admin/servicing",
+    },
+    {
+      addHref: "/admin/attendees/new",
+      addText: "Add Attendee",
+      createActive: "/admin/attendees/new",
+      roles: ["owner", "manager"] as const,
+      sectionActive: "/admin/attendees",
+    },
+    {
+      addHref: "/admin/modifiers/new",
+      addText: "Add Modifier",
+      createActive: "/admin/modifiers/new",
+      roles: ["owner", "manager"] as const,
+      sectionActive: "/admin/modifiers",
+    },
+    {
+      addHref: "/admin/user/new",
+      addText: "Invite User",
+      createActive: "/admin/user/new",
+      roles: ["owner"] as const,
+      sectionActive: "/admin/users",
+    },
+  ];
 
-  test("AdminNav links to Add Group for owners, managers, and editors", () => {
-    expectLinkForRoles("/admin/groups/new", "Add Group", [
-      "owner",
-      "manager",
-      "editor",
-    ]);
-  });
-
-  test("AdminNav pairs every other staff-only section with its create link", () => {
-    const pairs: Array<{ addHref: string; addText: string }> = [
-      { addHref: "/admin/attendees/new", addText: "Add Attendee" },
-      { addHref: "/admin/modifiers/new", addText: "Add Modifier" },
-      { addHref: "/admin/servicing/new", addText: "New Service Event" },
-    ];
+  // Regression: the create links used to sit on the top-level nav bar, visible
+  // on every page. They must not appear at the top level any more — only inside
+  // their own section's sub-nav.
+  test("no 'Add X' create link shows on the top-level nav (away from its section)", () => {
     const html = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
     );
-    for (const { addHref, addText } of pairs) {
-      expect(html, addHref).toContain(`href="${addHref}"`);
-      expect(html, addHref).toContain(addText);
+    for (const { addHref } of addLinkSections) {
+      expect(html, addHref).not.toContain(`href="${addHref}"`);
     }
   });
 
-  test("AdminNav links to Invite User for owners only", () => {
-    const ownerHtml = String(
-      AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
+  test("each 'Add X' link shows inside its own section for the roles that reach it", () => {
+    for (const { sectionActive, addHref, addText, roles } of addLinkSections) {
+      for (const adminLevel of roles) {
+        const html = String(
+          AdminNav({ active: sectionActive, session: { adminLevel } }),
+        );
+        expect(html, `${addHref} ${adminLevel}`).toContain(`href="${addHref}"`);
+        expect(html, `${addHref} ${adminLevel}`).toContain(addText);
+      }
+    }
+  });
+
+  // Regression: a section's create link must stay inside that section, not leak
+  // into a sibling section's sub-nav.
+  test("a section's 'Add X' link does not show in a different section", () => {
+    const listingsHtml = String(
+      AdminNav({ active: "/admin/listings", session: { adminLevel: "owner" } }),
     );
-    expect(ownerHtml).toContain('href="/admin/user/new"');
-    expect(ownerHtml).toContain("Invite User");
+    for (const { addHref } of addLinkSections.filter(
+      (s) => s.addHref !== "/admin/listing/new",
+    )) {
+      expect(listingsHtml, addHref).not.toContain(`href="${addHref}"`);
+    }
+  });
+
+  // Regression: clicking an "Add X" link landed on its create page but left the
+  // link un-highlighted. Each create page now marks its own link active.
+  test("each 'Add X' link highlights as active on its create page", () => {
+    for (const { createActive, addHref, roles } of addLinkSections) {
+      const html = String(
+        AdminNav({ active: createActive, session: { adminLevel: roles[0] } }),
+      );
+      expect(html, addHref).toContain(`class="active" href="${addHref}"`);
+    }
+  });
+
+  test("Invite User stays owner-only", () => {
     const managerHtml = String(
-      AdminNav({ active: "/admin/", session: { adminLevel: "manager" } }),
+      AdminNav({ active: "/admin/users", session: { adminLevel: "manager" } }),
     );
     expect(managerHtml).not.toContain('href="/admin/user/new"');
   });
@@ -100,35 +161,29 @@ describeWithEnv("AdminNav", {}, () => {
       READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
     });
     try {
-      const html = String(
-        AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
-      );
-      for (const addHref of [
-        "/admin/listing/new",
-        "/admin/groups/new",
-        "/admin/attendees/new",
-        "/admin/modifiers/new",
-        "/admin/servicing/new",
-        "/admin/user/new",
-      ]) {
+      // Rendered from inside each section (where the links live), the create
+      // links drop out under read-only while the section landing links stay.
+      for (const { sectionActive, addHref } of addLinkSections) {
+        const html = String(
+          AdminNav({ active: sectionActive, session: { adminLevel: "owner" } }),
+        );
         expect(html, addHref).not.toContain(`href="${addHref}"`);
+        expect(html, sectionActive).toContain(`href="${sectionActive}"`);
       }
-      // The sections themselves stay linkable.
-      expect(html).toContain('href="/admin/listings"');
-      expect(html).toContain('href="/admin/groups"');
     } finally {
       restore();
     }
   });
 
-  test("AdminNav marks Add Listing active on the new-listing page", () => {
+  test("AdminNav marks the section landing link active on its landing page", () => {
     const html = String(
       AdminNav({
-        active: "/admin/listing/new",
+        active: "/admin/listings",
         session: { adminLevel: "owner" },
       }),
     );
-    expect(html).toContain('class="active" href="/admin/listing/new"');
+    // The sub-nav highlights the landing link itself, not just the top bar.
+    expect(html).toContain('class="active" href="/admin/listings"');
   });
 
   test("AdminNav shows the Ledger link to owners but not managers", () => {
