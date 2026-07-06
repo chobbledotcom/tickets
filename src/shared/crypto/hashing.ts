@@ -70,9 +70,7 @@ const derivePbkdf2Hash = async (
  * Hash a password using PBKDF2
  * Returns format: pbkdf2:iterations:$base64salt:$base64hash
  */
-export const hashPassword = async (
-  password: string,
-): Promise<PasswordHash> => {
+export const hashPassword = async (password: string): Promise<PasswordHash> => {
   const salt = getRandomBytes(16);
   const iterations = getPbkdf2Iterations();
   const hash = await derivePbkdf2Hash(password, salt, iterations);

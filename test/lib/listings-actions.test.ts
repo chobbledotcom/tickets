@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
+import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { groupsTable } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
@@ -32,7 +33,8 @@ setupTestEncryptionKey();
 const inputFor = (overrides: Partial<ListingInput>): ListingInput => ({
   ...testListingInput(overrides),
   slug: "some-slug",
-  slugIndex: "some-index",
+  // Hand-crafted fixture stand-in for the blind index — test cast.
+  slugIndex: "some-index" as BlindIndex,
   ...overrides,
 });
 
@@ -86,7 +88,8 @@ describeWithEnv("validateListingInput", { db: true }, () => {
         purchaseOnly: true,
       }),
       slug: "test-listing",
-      slugIndex: "test-index",
+      // Hand-crafted fixture stand-in for the blind index — test cast.
+      slugIndex: "test-index" as BlindIndex,
     };
     const error = await validateListingInput(input);
     expect(error).toBe(
@@ -103,7 +106,8 @@ describeWithEnv("validateListingInput", { db: true }, () => {
         purchaseOnly: true,
       }),
       slug: "test-listing",
-      slugIndex: "test-index",
+      // Hand-crafted fixture stand-in for the blind index — test cast.
+      slugIndex: "test-index" as BlindIndex,
     };
     const error = await validateListingInput(input);
     expect(error).toBe(
@@ -121,7 +125,8 @@ describeWithEnv("validateListingInput", { db: true }, () => {
         purchaseOnly: true,
       }),
       slug: "test-listing",
-      slugIndex: "test-index",
+      // Hand-crafted fixture stand-in for the blind index — test cast.
+      slugIndex: "test-index" as BlindIndex,
     };
     await expect(validateListingInput(input)).resolves.toBeNull();
   });
@@ -133,7 +138,8 @@ describeWithEnv("validateListingInput", { db: true }, () => {
         webhookUrl: "https://example.com/webhook",
       }),
       slug: "test-listing",
-      slugIndex: "test-index",
+      // Hand-crafted fixture stand-in for the blind index — test cast.
+      slugIndex: "test-index" as BlindIndex,
     };
     await expect(validateListingInput(input)).resolves.toBe(
       "Thank you URL must be a public https:// domain",
@@ -147,7 +153,8 @@ describeWithEnv("validateListingInput", { db: true }, () => {
         webhookUrl: "https://127.0.0.1/webhook",
       }),
       slug: "test-listing",
-      slugIndex: "test-index",
+      // Hand-crafted fixture stand-in for the blind index — test cast.
+      slugIndex: "test-index" as BlindIndex,
     };
     await expect(validateListingInput(input)).resolves.toBe(
       "Webhook URL must be a public https:// domain",
@@ -159,7 +166,8 @@ describeWithEnv("validateListingInput", { db: true }, () => {
   ): ListingInput => ({
     ...testListingInput({ customisableDays: true, ...overrides }),
     slug: "test-listing",
-    slugIndex: "test-index",
+    // Hand-crafted fixture stand-in for the blind index — test cast.
+    slugIndex: "test-index" as BlindIndex,
   });
 
   test("rejects customisable days combined with pay-more", async () => {
@@ -210,7 +218,8 @@ describeWithEnv("validateListingInput", { db: true }, () => {
   const namedInput = (name: string): ListingInput => ({
     ...testListingInput({ name }),
     slug: "some-slug",
-    slugIndex: "some-index",
+    // Hand-crafted fixture stand-in for the blind index — test cast.
+    slugIndex: "some-index" as BlindIndex,
   });
 
   test("rejects a create whose name is used by an existing listing", async () => {
@@ -426,7 +435,8 @@ describeWithEnv("validateListingInput edge rules", { db: true }, () => {
     const error = await validateListingInput({
       ...inputFor({ name: "Slug Taker" }),
       slug: owner.slug,
-      slugIndex: "taker-index",
+      // Hand-crafted fixture stand-in for the blind index — test cast.
+      slugIndex: "taker-index" as BlindIndex,
     });
     expect(error).toBeNull();
   });

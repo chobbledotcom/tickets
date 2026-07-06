@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import {
   buildForest,
   buildNavModel,
@@ -90,7 +91,8 @@ describe("sitePagePage (nav-model race)", () => {
       meta_title: "",
       name: "Racy Page",
       slug: "racy",
-      slug_index: "idx",
+      // Hand-crafted fixture stand-in for the blind index — test cast.
+      slug_index: "idx" as BlindIndex,
       sort_order: 0,
     };
     const model = buildNavModel(

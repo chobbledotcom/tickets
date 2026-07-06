@@ -69,18 +69,22 @@ export const firstIssueMessage = <T>(
 export const validateSlug = (slug: string): string | null =>
   firstIssueMessage(SlugSchema, slug);
 
-/** Slug-with-index pair */
-export type SlugWithIndex = { slug: string; slugIndex: string };
+/** Slug-with-index pair. `Index` is the blind-index type `computeIndex`
+ * produces (a `BlindIndex` for the real tables). */
+export type SlugWithIndex<Index extends string = string> = {
+  slug: string;
+  slugIndex: Index;
+};
 
 /**
  * Generate a unique slug by retrying until one is not taken.
  * @param computeIndex - hash the slug for blind-index lookup
  * @param isTaken - check cross-table uniqueness
  */
-export const generateUniqueSlug = async (
-  computeIndex: (slug: string) => Promise<string>,
+export const generateUniqueSlug = async <Index extends string>(
+  computeIndex: (slug: string) => Promise<Index>,
   isTaken: (slug: string) => Promise<boolean>,
-): Promise<SlugWithIndex> => {
+): Promise<SlugWithIndex<Index>> => {
   for (let attempt = 0; attempt < 10; attempt++) {
     const slug = generateSlug();
     const slugIndex = await computeIndex(slug);

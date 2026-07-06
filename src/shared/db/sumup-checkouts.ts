@@ -36,12 +36,13 @@ import {
   unwrapKeyWithToken,
   wrapKeyWithToken,
 } from "#shared/crypto/keys.ts";
+import type { KeyEncrypted, WrappedKey } from "#shared/crypto/sealed.ts";
 import { execute, executeUpdate, insert, queryOne } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
 
 type SumupCheckoutRow = {
-  wrapped_key: string;
-  metadata: string;
+  wrapped_key: WrappedKey;
+  metadata: KeyEncrypted;
   sumup_id: string;
 };
 

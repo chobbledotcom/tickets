@@ -6,6 +6,7 @@ import {
   importPrivateKey,
   unwrapKey,
 } from "#shared/crypto/keys.ts";
+import type { KeyEncrypted, PasswordHash } from "#shared/crypto/sealed.ts";
 import { getAttendee } from "#shared/db/attendees.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
@@ -76,7 +77,8 @@ describeWithEnv("db > auth", { db: true }, () => {
         newPassword: "newpassword",
         oldKekVersion: user!.kek_version,
         oldPassword: "wrong-current-password",
-        oldPasswordHash: "pbkdf2:bogus:hash",
+        // Hand-crafted bogus stored hash — test fixture cast.
+        oldPasswordHash: "pbkdf2:bogus:hash" as PasswordHash,
         oldWrappedDataKey: user!.wrapped_data_key!,
       });
       expect(success).toBe(false);
@@ -144,7 +146,11 @@ describeWithEnv("db > auth", { db: true }, () => {
       const wrappedPrivateKey = settings.wrappedPrivateKey;
       expect(wrappedPrivateKey).toBeTruthy();
 
-      const privateKeyJwk = await decryptWithKey(wrappedPrivateKey!, dataKey);
+      // Asserted non-empty above, so the "" branch of the union is excluded.
+      const privateKeyJwk = await decryptWithKey(
+        wrappedPrivateKey as KeyEncrypted,
+        dataKey,
+      );
       const privateKey = await importPrivateKey(privateKeyJwk);
 
       // Decrypt the attendee created BEFORE password change

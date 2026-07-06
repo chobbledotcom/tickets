@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#shared/crypto/encryption.ts";
+import type { PasswordHash, WrappedKey } from "#shared/crypto/sealed.ts";
 import { execute, getDb } from "#shared/db/client.ts";
 import {
   ALL_SETTINGS_KEYS,
@@ -267,7 +268,13 @@ describeWithEnv("db > settings", { db: true }, () => {
       await getDb().execute("DELETE FROM settings");
       // Pre-seed a user whose username collides with the owner-to-be, so the
       // owner INSERT violates the unique username index and aborts the batch.
-      await createUser("ownerdupe", "pbkdf2:seedhash", null, "manager");
+      // Hand-crafted stored hash — test fixture cast.
+      await createUser(
+        "ownerdupe",
+        "pbkdf2:seedhash" as PasswordHash,
+        null,
+        "manager",
+      );
       settings.setup.clearCache();
       settings.invalidateCache();
       await settings.loadKeys(ALL_SETTINGS_KEYS);
@@ -470,7 +477,8 @@ describeWithEnv("db > settings", { db: true }, () => {
         oldKekVersion: user!.kek_version,
         oldPassword: TEST_ADMIN_PASSWORD,
         oldPasswordHash: passwordHash!,
-        oldWrappedDataKey: "corrupted_wrapped_data_key",
+        // Hand-crafted corrupt stored wrap — test fixture cast.
+        oldWrappedDataKey: "corrupted_wrapped_data_key" as WrappedKey,
       });
       expect(result).toBe(false);
     });

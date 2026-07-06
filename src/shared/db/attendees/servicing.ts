@@ -5,6 +5,7 @@ import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import { postTransfers, postTransfersTx } from "#shared/accounting/store.ts";
 import { capacityErrorFormatter } from "#shared/capacity-error.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import type {
   AttendeeInput,
@@ -672,7 +673,7 @@ const matchingServiceCostReplayId = async (
     amount: number;
     servicing_attendee_id: number;
     listing_id: number;
-    memo: string;
+    memo: EnvKeyEncrypted;
   }>(
     `SELECT transfer.id AS transfer_id, transfer.amount,
             cost.servicing_attendee_id, cost.listing_id, cost.memo
@@ -748,7 +749,7 @@ type CostRow = {
   dest_type: string;
   dest_id: string;
   amount: number;
-  memo?: string;
+  memo?: EnvKeyEncrypted;
 };
 
 const COST_ROW_SELECT =
@@ -928,7 +929,7 @@ export const getServicingCosts = async (
     transfer_id: number;
     listing_id: number;
     occurred_at: string;
-    memo: string;
+    memo: EnvKeyEncrypted;
   }>(
     "SELECT transfer_id, listing_id, occurred_at, memo FROM service_costs WHERE servicing_attendee_id = ? ORDER BY occurred_at, transfer_id",
     [servicingId],

@@ -6,6 +6,7 @@ import * as v from "valibot";
 import type {
   BlindIndex,
   EnvKeyEncrypted,
+  OwnerKeyEncrypted,
   PasswordHash,
   TokenHash,
   WrappedKey,
@@ -418,7 +419,7 @@ export interface Listing extends ItemImageProjection {
   non_transferable: boolean;
   purchase_only: boolean;
   slug: string;
-  slug_index: string;
+  slug_index: BlindIndex;
   thank_you_url: string;
   unit_price: number;
   webhook_url: string;
@@ -479,7 +480,9 @@ export interface Attendee extends ContactInfo {
   listing_id: number;
   id: number;
   payment_id: string;
-  pii_blob: string;
+  /** Owner-key-encrypted PII blob as stored; "" only on a just-created
+   * in-memory echo (see buildAttendeeResult), never in the database. */
+  pii_blob: OwnerKeyEncrypted | "";
   price_paid: string;
   quantity: number;
   refunded: boolean;
@@ -491,7 +494,7 @@ export interface Attendee extends ContactInfo {
    * drop-off/collection agents; when false a single pair applies to them all. */
   split_logistics_agents: boolean;
   ticket_token: string;
-  ticket_token_index: string;
+  ticket_token_index: BlindIndex;
   /** The package group this booking row belongs to (0 = not a package). Stamped
    * on every row of a package order so tickets/emails group the order under the
    * package by this persisted id. */
@@ -646,7 +649,7 @@ export interface Group {
   max_attendees: number;
   name: string;
   slug: string;
-  slug_index: string;
+  slug_index: BlindIndex;
   terms_and_conditions: string;
 }
 
@@ -697,7 +700,7 @@ export const isSitePageItemType = (s: string): s is SitePageItemType =>
 export interface SitePage {
   id: number;
   slug: string;
-  slug_index: string;
+  slug_index: BlindIndex;
   name: string;
   meta_title: string;
   meta_description: string;

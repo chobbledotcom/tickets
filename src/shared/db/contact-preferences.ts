@@ -13,6 +13,7 @@ import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
 } from "#shared/crypto/keys.ts";
+import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   execute,
   executeBatch,
@@ -202,7 +203,7 @@ const EMPTY_STATS: ContactStats = {
 };
 
 const parseStats = async (
-  blob: string,
+  blob: OwnerKeyEncrypted | "",
   privateKey: CryptoKey,
 ): Promise<ContactStats> => {
   if (!blob) return EMPTY_STATS;
@@ -219,8 +220,11 @@ const parseStats = async (
 
 const loadStatsBlobs = async (
   hashes: string[],
-): Promise<Map<string, string>> => {
-  const rows = await queryAll<{ contact_hash: string; stats_blob: string }>(
+): Promise<Map<string, OwnerKeyEncrypted | "">> => {
+  const rows = await queryAll<{
+    contact_hash: string;
+    stats_blob: OwnerKeyEncrypted | "";
+  }>(
     `SELECT contact_hash, stats_blob FROM contact_preferences
      WHERE contact_hash IN (${inPlaceholders(hashes)})`,
     hashes,
@@ -253,7 +257,9 @@ export const getContactRecord = async (
   hash: string,
   privateKey: CryptoKey,
 ): Promise<ContactRecord> => {
-  const row = await queryOne<CountColumnsRow & { stats_blob: string }>(
+  const row = await queryOne<
+    CountColumnsRow & { stats_blob: OwnerKeyEncrypted | "" }
+  >(
     "SELECT visits, public_booking_count, admin_booking_count, stats_blob FROM contact_preferences WHERE contact_hash = ?",
     [hash],
   );

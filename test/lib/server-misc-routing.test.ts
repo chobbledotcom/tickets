@@ -14,6 +14,7 @@ import {
   resetEffectiveDomain,
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
+import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { runWithRequestId } from "#shared/logger.ts";
@@ -367,7 +368,8 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
       );
       const result = await getSessionPrivateKey({
         token: "any-token",
-        wrappedDataKey: "some-wrapped-key",
+        // Hand-crafted stored value — test fixture cast.
+        wrappedDataKey: "some-wrapped-key" as WrappedKey,
       });
       expect(result).toBeNull();
     });
@@ -378,7 +380,8 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
       );
       const result = await getSessionPrivateKey({
         token: "any-token",
-        wrappedDataKey: "corrupt-key-data",
+        // Hand-crafted corrupt stored value — test fixture cast.
+        wrappedDataKey: "corrupt-key-data" as WrappedKey,
       });
       expect(result).toBeNull();
     });

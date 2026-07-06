@@ -7,6 +7,7 @@
  */
 
 import { type PublicListing, toPublicListing } from "#routes/api/index.ts";
+import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { EXAMPLE_LISTING } from "#shared/webhook-example.ts";
 
@@ -50,7 +51,9 @@ export const API_EXAMPLE_LISTING: ListingWithCount = {
   profit: 7500,
   purchase_only: false,
   slug: EXAMPLE_LISTING.slug,
-  slug_index: EXAMPLE_LISTING.slug,
+  // Documentation fixture, never queried — a hand-crafted stand-in for the
+  // stored blind index (same boundary as test fixtures).
+  slug_index: EXAMPLE_LISTING.slug as BlindIndex,
   thank_you_url: "",
   tickets_count: 3,
   unit_price: EXAMPLE_LISTING.unit_price,

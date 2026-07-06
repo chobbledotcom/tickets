@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 
@@ -308,7 +309,8 @@ describeWithEnv("db > table utilities", { db: true }, () => {
       maxAttendees: 10,
       name: "Updated Name",
       slug: "updated-slug",
-      slugIndex: "updated-index",
+      // Hand-crafted fixture stand-in for the blind index — test cast.
+      slugIndex: "updated-index" as BlindIndex,
       thankYouUrl: "https://example.com",
     });
     expect(updated?.name).toBe("Updated Name");

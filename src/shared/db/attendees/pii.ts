@@ -12,6 +12,7 @@ import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
 } from "#shared/crypto/keys.ts";
+import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { generateTicketToken } from "#shared/crypto/utils.ts";
 import type {
   AttendeePii,
@@ -50,11 +51,11 @@ export const parsePiiBlob = (json: string): PiiBlob => {
 export const encryptPiiBlob = (
   blobJson: string,
   publicKeyJwk: string,
-): Promise<string> => encryptWithOwnerKey(blobJson, publicKeyJwk);
+): Promise<OwnerKeyEncrypted> => encryptWithOwnerKey(blobJson, publicKeyJwk);
 
 /** Decrypt a PII blob and extract all contact fields */
 export const decryptPiiBlob = async (
-  encrypted: string,
+  encrypted: OwnerKeyEncrypted,
   privateKey: CryptoKey,
   paidListing: boolean,
 ): Promise<UpdateAttendeePIIInput> => {
@@ -81,7 +82,14 @@ export const decryptAttendeeFields = async (
   privateKey: CryptoKey,
   paidListing = true,
 ): Promise<Attendee> => {
-  const pii = await decryptPiiBlob(row.pii_blob, privateKey, paidListing);
+  // Rows reaching here were read from the database, where pii_blob is always
+  // stored owner-key ciphertext; the "" sentinel exists only on just-created
+  // in-memory echoes, which are never decrypted.
+  const pii = await decryptPiiBlob(
+    row.pii_blob as OwnerKeyEncrypted,
+    privateKey,
+    paidListing,
+  );
   return {
     ...row,
     ...pii,

@@ -4,10 +4,7 @@ import {
   registerDependencies,
   registerTableInvalidation,
 } from "#shared/cache-registry.ts";
-import type {
-  BlindIndex,
-  EnvKeyEncrypted,
-} from "#shared/crypto/sealed.ts";
+import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   createKeyedCache,
   type KeyedCache,

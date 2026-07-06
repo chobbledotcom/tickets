@@ -133,12 +133,12 @@ export const parseAndValidate = async <Input>(
  * Parse an optional slug field from a JSON body for update operations.
  * Returns the normalized slug and computed index, falling back to the existing slug.
  */
-export const parseUpdateSlug = async (
+export const parseUpdateSlug = async <Index extends string>(
   body: Record<string, unknown>,
   existing: string,
   normalize: (slug: string) => string,
-  computeIndex: (slug: string) => Promise<string>,
-): Promise<{ slug: string; slugIndex: string }> => {
+  computeIndex: (slug: string) => Promise<Index>,
+): Promise<{ slug: string; slugIndex: Index }> => {
   const slug = body.slug != null ? normalize(String(body.slug)) : existing;
   return { slug, slugIndex: await computeIndex(slug) };
 };

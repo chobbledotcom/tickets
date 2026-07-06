@@ -4,6 +4,7 @@
 
 import { registerCache } from "#shared/cache-registry.ts";
 import { hashSessionToken } from "#shared/crypto/hashing.ts";
+import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import {
   deleteByField,
   execute,
@@ -82,7 +83,7 @@ export const createSession = async (
   token: string,
   csrfToken: string,
   expires: number,
-  wrappedDataKey: string | null,
+  wrappedDataKey: WrappedKey | null,
   userId: number,
 ): Promise<void> => {
   const tokenHash = await hashSessionToken(token);

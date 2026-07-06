@@ -1,4 +1,5 @@
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
+import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import type { BuiltSite } from "#shared/db/built-sites.ts";
 import type { ListingInput } from "#shared/db/listings.ts";
 import type {
@@ -62,7 +63,8 @@ export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   non_transferable: false,
   purchase_only: false,
   slug: "ab12c",
-  slug_index: "test-listing-index",
+  // Hand-crafted fixture stand-in for the stored blind index — test cast.
+  slug_index: "test-listing-index" as BlindIndex,
   thank_you_url: "https://example.com/thanks",
   unit_price: 0,
   use_defaults: false,
@@ -107,7 +109,8 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   split_logistics_agents: false,
   status_id: null,
   ticket_token: "test-token-1",
-  ticket_token_index: "test-token-index-1",
+  // Hand-crafted fixture stand-in for the stored blind index — test cast.
+  ticket_token_index: "test-token-index-1" as BlindIndex,
   ...overrides,
 });
 
@@ -139,7 +142,8 @@ export const testGroup = (overrides: Partial<Group> = {}): Group => ({
   max_attendees: 0,
   name: "Test Group",
   slug: "test-group",
-  slug_index: "test-group-index",
+  // Hand-crafted fixture stand-in for the stored blind index — test cast.
+  slug_index: "test-group-index" as BlindIndex,
   terms_and_conditions: "",
   ...overrides,
 });

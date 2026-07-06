@@ -25,11 +25,13 @@ declare const sealedPlain: unique symbol;
  * kinds also carry `Plain` — the type the value opens back into — so a nested
  * seal survives the round trip (e.g. `EnvKeyEncrypted<PasswordHash>` decrypts
  * to a `PasswordHash`, not a bare string). */
-export type Sealed<Kind extends string, Plain extends string = string> =
-  string & {
-    readonly [sealedKind]: Kind;
-    readonly [sealedPlain]: Plain;
-  };
+export type Sealed<
+  Kind extends string,
+  Plain extends string = string,
+> = string & {
+  readonly [sealedKind]: Kind;
+  readonly [sealedPlain]: Plain;
+};
 
 /** Symmetric ciphertext under the env `DB_ENCRYPTION_KEY` (`enc:1:` values
  * from `encrypt()`); `decrypt()` opens it back into `Plain`. */

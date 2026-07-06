@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   batchFinalizeStatement,
@@ -161,7 +162,10 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     });
 
     test("parseSessionFailure degrades undecryptable data to a terminal failure instead of throwing", async () => {
-      const result = await parseSessionFailure("not valid ciphertext{");
+      // Deliberately corrupt stored value — test fixture cast.
+      const result = await parseSessionFailure(
+        "not valid ciphertext{" as EnvKeyEncrypted,
+      );
       // A value that won't decrypt/parse must not crash the replay path; it
       // resolves to a generic terminal failure (non-empty message, 500 status).
       expect(result?.status).toBe(500);

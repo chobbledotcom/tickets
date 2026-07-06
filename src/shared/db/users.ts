@@ -13,6 +13,11 @@ import {
   unwrapKeyWithToken,
   wrapDataKeyForPassword,
 } from "#shared/crypto/keys.ts";
+import type {
+  EnvKeyEncrypted,
+  PasswordHash,
+  WrappedKey,
+} from "#shared/crypto/sealed.ts";
 import {
   deleteByFieldBatch,
   execute,
@@ -104,12 +109,13 @@ registerTableInvalidation(["users"], invalidateUsersCache);
 type InsertUserOpts = {
   username: string;
   adminLevel: AdminLevel;
-  passwordHash: string;
-  wrappedDataKey: string | null;
+  /** "" for an invited user who has not set a password yet. */
+  passwordHash: PasswordHash | "";
+  wrappedDataKey: WrappedKey | null;
   inviteCodeHash: string | null;
   inviteExpiry: string | null;
   kekVersion: number;
-  inviteWrappedDataKey: string | null;
+  inviteWrappedDataKey: WrappedKey | null;
 };
 
 /**
@@ -126,9 +132,8 @@ const buildUserInsert = async (
   const usernameIndex = await hmacHash(opts.username.toLowerCase());
   const encryptedUsername = await encrypt(opts.username.toLowerCase());
   const encryptedAdminLevel = await encrypt(opts.adminLevel);
-  const encryptedPasswordHash = opts.passwordHash
-    ? await encrypt(opts.passwordHash)
-    : "";
+  const encryptedPasswordHash: EnvKeyEncrypted<PasswordHash> | "" =
+    opts.passwordHash ? await encrypt(opts.passwordHash) : "";
   const encryptedInviteCode = opts.inviteCodeHash
     ? await encrypt(opts.inviteCodeHash)
     : null;
@@ -166,11 +171,12 @@ const runUserInsert = async ({
 const insertUser = async (opts: InsertUserOpts): Promise<User> =>
   runUserInsert(await buildUserInsert(opts));
 
-/** Build the opts for an already-activated user (no invite, password-bound). */
+/** Build the opts for an already-activated user (no invite, password-bound).
+ * `passwordHash` may be "" — the stored not-yet-set sentinel. */
 const activatedUserOpts = (
   username: string,
-  passwordHash: string,
-  wrappedDataKey: string | null,
+  passwordHash: PasswordHash | "",
+  wrappedDataKey: WrappedKey | null,
   adminLevel: AdminLevel,
   kekVersion: number,
 ): InsertUserOpts => ({
@@ -193,8 +199,8 @@ const consumeActivatedUserInsert =
   <T>(consume: (built: BuiltUserInsert) => T | Promise<T>) =>
   async (
     username: string,
-    passwordHash: string,
-    wrappedDataKey: string | null,
+    passwordHash: PasswordHash | "",
+    wrappedDataKey: WrappedKey | null,
     adminLevel: AdminLevel,
     kekVersion = 2,
   ): Promise<T> =>
@@ -238,7 +244,7 @@ export const createInvitedUser = (
   adminLevel: AdminLevel,
   inviteCodeHash: string,
   inviteExpiry: string,
-  inviteWrappedDataKey: string | null = null,
+  inviteWrappedDataKey: WrappedKey | null = null,
 ): Promise<User> =>
   insertUser({
     adminLevel,
@@ -295,7 +301,7 @@ export const getUserDisplayFields = (): Promise<UserDisplayFields[]> =>
 export const verifyUserPassword = async (
   user: User,
   password: string,
-): Promise<string | null> => {
+): Promise<PasswordHash | null> => {
   if (!user.password_hash) return null;
   const decryptedHash = await decrypt(user.password_hash);
   const isValid = await verifyPassword(password, decryptedHash);
@@ -340,9 +346,9 @@ export const decryptUsername = (
 const buildActivationSecrets = async (
   password: string,
 ): Promise<{
-  passwordHash: string;
-  encryptedHash: string;
-  encryptedEmpty: string;
+  passwordHash: PasswordHash;
+  encryptedHash: EnvKeyEncrypted<PasswordHash>;
+  encryptedEmpty: EnvKeyEncrypted;
 }> => {
   const passwordHash = await hashPassword(password);
   const [encryptedHash, encryptedEmpty] = await Promise.all([
@@ -354,7 +360,7 @@ const buildActivationSecrets = async (
 
 export const acceptInvite = async (
   userId: number,
-  inviteWrappedDataKey: string,
+  inviteWrappedDataKey: WrappedKey,
   inviteCode: string,
   password: string,
 ): Promise<boolean> => {
@@ -409,7 +415,7 @@ export const migrateUserToV2Kek = async (
   userId: number,
   dataKey: CryptoKey,
   password: string,
-  passwordHash: string,
+  passwordHash: PasswordHash,
 ): Promise<void> => {
   const wrappedDataKey = await wrapDataKeyForPassword(
     dataKey,
