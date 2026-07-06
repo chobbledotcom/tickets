@@ -11,14 +11,14 @@
  */
 
 import { t } from "#i18n";
-import { formatDatetimeShort } from "#shared/dates.ts";
+import { formatDateLongLabel } from "#shared/dates.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { renderMarkdown } from "#shared/markdown.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import type { Image, NewsPost, NewsPostCard } from "#shared/types.ts";
 import { CARD_GRID_CLASS, cardInner } from "#templates/components/card.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
 import {
-  MarkdownProse,
   type PublicNavProps,
   publicPage,
   publicSeoPage,
@@ -105,8 +105,12 @@ const NewsGallery = ({
     </fieldset>
   );
 
-/** The /news/:slug post page: SEO meta (like site pages), the published date,
- * the image gallery, and the markdown body. */
+/** The /news/:slug post page: SEO meta (like site pages) and one `.prose`
+ * block that folds the title, the published date (a plain date, no time, in
+ * italics), the image gallery, and the markdown body together — so the heading
+ * and date read as part of the article rather than page chrome. The shared
+ * shell renders no `<h1>` of its own (`showHeading: false`); this page supplies
+ * it inside the prose. */
 export const newsPostPage = (
   post: NewsPost,
   images: readonly Image[],
@@ -117,10 +121,14 @@ export const newsPostPage = (
     post,
     nav,
     websiteTitle,
+    { showHeading: false },
   )(
-    <>
-      <p class="news-post-date">{formatDatetimeShort(post.created)}</p>
+    <div class="prose">
+      <h1>{post.name}</h1>
+      <p class="news-post-date">
+        <em>{formatDateLongLabel(post.created)}</em>
+      </p>
       <NewsGallery images={images} />
-      <MarkdownProse markdown={post.content} />
-    </>,
+      {post.content && <Raw html={renderMarkdown(post.content)} />}
+    </div>,
   );

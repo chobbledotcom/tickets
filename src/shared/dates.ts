@@ -524,3 +524,14 @@ export const listingDateToCalendarDate = (utcIso: string): string | null => {
     return null;
   }
 };
+
+/**
+ * Format a UTC ISO datetime as a date-only label in the configured timezone,
+ * e.g. "Monday 15 June 2026" — no time. Returns "" for an empty/invalid input.
+ * Used where a stored timestamp should read as a plain published date (the
+ * public news post page).
+ */
+export const formatDateLongLabel = (utcIso: string): string => {
+  const calendarDate = listingDateToCalendarDate(utcIso);
+  return calendarDate ? formatDateLabel(calendarDate) : "";
+};

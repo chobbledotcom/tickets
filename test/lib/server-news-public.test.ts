@@ -97,6 +97,7 @@ describeWithEnv("server (public news)", { db: true }, () => {
       withSetting({ website_title: "Acme Site" }, async () => {
         const post = await createTestNewsPost("Big Launch", {
           content: "It is **finally** here",
+          created: "2026-06-15T14:30:00.000Z",
           metaDescription: 'News about "things" & fun',
           metaTitle: "Launch | Acme",
         });
@@ -107,7 +108,13 @@ describeWithEnv("server (public news)", { db: true }, () => {
         expect(html).toContain(
           '<meta name="description" content="News about &quot;things&quot; &amp; fun" />',
         );
-        expect(html).toContain('class="news-post-date"');
+        // The title, the date, and the body all sit inside the one .prose block.
+        expect(html).toContain('<div class="prose"><h1>Big Launch</h1>');
+        // The date reads as a plain date (no time) in italics.
+        expect(html).toContain(
+          '<p class="news-post-date"><em>Monday 15 June 2026</em></p>',
+        );
+        expect(html).not.toContain("14:30");
       }));
 
     test("falls back to the post name for the title; no meta tag when empty", async () => {

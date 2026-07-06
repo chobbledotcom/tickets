@@ -177,20 +177,23 @@ const seoPageHead = (
 };
 
 /** Curried shell for an operator-authored page with SEO fields (a site page,
- * a news post): the SEO head, the public nav, and the page's own name as the
- * `<h1>` — the caller supplies just the body under that heading. */
+ * a news post): the SEO head, the public nav, and — unless `showHeading` is
+ * false — the page's own name as the `<h1>`. A caller that renders its own
+ * heading inside the body (the news post page, which folds the heading into its
+ * `.prose` block) passes `showHeading: false`. */
 export const publicSeoPage =
   (
     page: { name: string; meta_title: string; meta_description: string },
     nav: PublicNavProps,
     websiteTitle: string,
+    { showHeading = true }: { showHeading?: boolean } = {},
   ) =>
   (body: Child): string => {
     const { title, headExtra } = seoPageHead(page, websiteTitle);
     return String(
       <Layout headExtra={headExtra} title={title}>
         <PublicNav {...nav} />
-        <h1>{page.name}</h1>
+        {showHeading && <h1>{page.name}</h1>}
         {body}
       </Layout>,
     );
