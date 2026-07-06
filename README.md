@@ -1,6 +1,6 @@
 # Chobble Tickets
 
-Chobble Tickets is a reservation system that runs on Bunny Edge Scripting (or any Deno environment) with libsql, which encrypts all PII at rest and handles free and paid listings with Stripe or Square.
+Chobble Tickets is a reservation system that runs on Bunny Edge Scripting (or any Deno environment) with libsql, which encrypts all PII at rest and handles free and paid listings with Stripe, Square, or SumUp.
 
 It is developed by [Chobble CIC](https://chobble.com) - a community interest company, which means the assets are locked to the community and can't be sold off.
 
@@ -55,11 +55,14 @@ For image uploads, also add `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY` as Bunny 
 
 ### Payments
 
-- Stripe and Square, with a provider interface so adding others is straightforward
+- Stripe, Square, and SumUp, with a provider interface so adding others is straightforward
 - Enter your API key in admin settings and the webhook endpoint configures itself
 - Checkout sessions with metadata, webhook-driven attendee creation
 - Configurable booking fee added to each transaction
 - "Pay what you want" pricing with optional minimum and maximum
+- Deposits / partial payments: take a flat, percentage, or per-item amount up front and track the rest as owed
+- Self-service balance payment: attendees get a signed, PII-free `/pay/:token` link to pay off what they owe, no login
+- With no provider configured, paid bookings are still accepted and recorded as a balance owed
 - Automatic refund if capacity exceeded after payment or listing price changes during checkout
 - Admin-issued full refunds for individual attendees or all attendees in bulk
 
@@ -72,11 +75,17 @@ For image uploads, also add `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY` as Bunny 
 - Cross-listing detection: scanner warns if a ticket belongs to a different listing
 - Multi-ticket view for multi-listing bookings (`/t/token1+token2`)
 
-### Apple Wallet
+### Wallet passes
 
-- Generates `.pkpass` files for Apple Wallet with listing details and barcode
-- Web service API for automatic pass updates (follows the Apple Wallet spec)
+- Apple Wallet: generates `.pkpass` files with listing details and barcode
+- Web service API for automatic Apple pass updates (follows the Apple Wallet spec)
+- Google Wallet: inline RS256-signed "Add to Google Wallet" save links
 - Configurable via admin settings or environment variables
+
+### Localisation
+
+- ICU MessageFormat copy with locale picked from the `Accept-Language` header
+- Rebrand layer (`I18N_REPLACEMENTS`): substring replacements (e.g. `ticket|booking`) that rewrite copy without touching HTML, links, or interpolated values, applied once at load
 
 ### Admin
 
@@ -87,18 +96,49 @@ For image uploads, also add `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY` as Bunny 
 - CSV export (respects active filters)
 - Per-listing and global activity log (creation, updates, check-ins, exports, refunds, deletions)
 - Holiday/blackout date management for daily listings
-- Multi-user: owners invite managers via time-limited links (7-day expiry)
+- Multi-user with graded roles: owners invite managers (full back office) via time-limited links (7-day expiry), plus a content-only `editor` (edits listings/site but holds no data key, so attendee PII stays undecryptable) and a delivery `agent` (locked to its own run sheet)
 - Session management: view active sessions, kill all others
+- Attendee merge: deduplicate records with a review-then-apply diff that repoints ledger entries and posts write-off adjustments so balances stay correct
+- Contact history per email/phone: last-contacted, visit/booking counts, and an owner-encrypted private note, keyed by a blind HMAC index
+- Bulk email: compose/preview/send to filtered attendee groups with reusable subject/body templates (encrypted under the owner key); recipients get one-click unsubscribe / resubscribe / erase links
+- Catalog import/export: export any listing or group as portable JSON and re-import it to move a catalog between sites
 - Settings: payment provider config, email templates, custom domain, embed host restrictions, terms and conditions, password change
 - Privacy tools (`/admin/privacy`): plain-language data-minimisation guidance, automatic/manual purging of orphaned attendee records, and GDPR erasure of a contact's recognition record by email or phone
+- Demo mode (`DEMO_MODE=true`): replaces all user-entered text with generated sample data so demos hold no real PII
 - Branding: custom header image, website title, theme colours
 - Built-in admin guide (`/admin/guide`) with FAQ for all features
-- Ntfy error notifications for production monitoring (optional)
+- Ntfy error notifications for production monitoring (optional; sends domain + error code only, never PII)
+
+### Logistics
+
+- Optional postcode/address lookup on booking and admin forms, via a same-origin proxy that keeps the provider key server-side, caches results encrypted, and rate-limits anonymous use; provider is pluggable
+- Drop-off and collection dates per booking (collection on the last booked day)
+- Van/agent allocations: assign a drop-off and collection agent per booking, filter the calendar by agent
+- Delivery driver login (`agent` role): an auto-generated run sheet of today's and tomorrow's drop-offs and collections with per-leg done toggles, walled off from the rest of admin
+
+### Multi-site hosting
+
+- One-click site builder: provision a new tenant on Bunny Edge or Deno Deploy, auto-creating its database and its own encryption key
+- Sell sites as products: buying a "site" listing auto-provisions and assigns a live site to the buyer, with its own renewal tracking and tokenised `/renew` flow
+- Self-updating fleet: each site records its build commit; the host sees which sites are behind and redeploys them from the latest GitHub release
+- Secret backfill: detects host secrets a site is missing and fills them in without overwriting deliberately-changed values
+
+### Embedding
+
+- Generated `<script>` and `<iframe>` snippets to drop the booking form onto an existing site
+- `/order.js` widget turns any `data-add-listing` link on the operator's own site into a live multi-item cart, with per-origin CORS
+- Iframe-aware checkout (popup vs redirect, hidden header, auto-resize) and a dynamic, CDN-cached `/custom.css` for restyling public pages
+
+### SMS
+
+- Two-way SMS to attendees via the SMS Gateway for Android relay, with message text and phone numbers encrypted before they leave the server
+- Signed inbound webhook ingests delivery receipts and replies, matching inbound messages to the right attendee by phone
 
 ### Feeds
 
 - ICS calendar feed (`/feeds/listings.ics`) for calendar apps
 - RSS feed (`/feeds/listings.rss`) for feed readers
+- CalDAV operations feed (`/caldav/events.ics`) of bookings for staff calendars, filtered per agent so a driver sees only their jobs
 
 ### Email Notifications
 
@@ -173,6 +213,8 @@ Prices are in the smallest currency unit (e.g. pence, cents). For multi-listing 
 - **AES-256-GCM** for payment IDs, prices, check-in status, API keys, holiday names, usernames
 - **PBKDF2** (600k iterations, SHA-256) for password hashing
 - Three-layer key hierarchy: env var root key → RSA key pair → per-user wrapped data keys
+- The data key is wrapped with a key derived from the admin password (never stored), so a database dump plus the environment key still can't decrypt PII without a login
+- Activity log entries are encrypted with the owner's public key: unauthenticated code (webhooks, error handlers) can write them, but only a logged-in admin can read them
 - If you lose the password, the data is permanently unreadable - there is no backdoor
 
 ### Concurrency
@@ -183,8 +225,10 @@ Prices are in the smallest currency unit (e.g. pence, cents). For multi-listing 
 
 ### Security
 
-- CSRF: double-submit cookie with 256-bit random tokens, path-scoped
-- Rate limiting: 5 failed logins → 15-minute IP lockout (IPs HMAC-hashed before storage)
+- CSRF: double-submit cookie with 256-bit random tokens, path-scoped, plus an HMAC-signed cookieless fallback so checkout works inside in-app browsers that block cookies
+- Rate limiting: 5 failed logins → 15-minute IP lockout (IPs HMAC-hashed before storage), plus separate lockouts on unknown ticket tokens and failed API keys
+- SSRF guard: any URL the server fetches on the operator's behalf is forced to public HTTPS (localhost, `.internal`, and raw IPs rejected)
+- Boot-time config checks: refuses to start with a missing/short encryption key rather than run insecure
 - Constant-time password comparison with random delay
 - Session tokens hashed before database storage, 24-hour expiry, HttpOnly cookies
 - Content-Type validation on all POST endpoints
