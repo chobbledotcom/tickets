@@ -7,12 +7,14 @@ import {
 } from "#shared/cache-registry.ts";
 import {
   execute,
+  executeUpdate,
   extractUpdateColumns,
   getDb,
   insert,
   rawSql,
   resetAggregates,
   setDb,
+  update,
 } from "#shared/db/client.ts";
 import { describeWithEnv, setTestEnv } from "#test-utils";
 
@@ -195,6 +197,77 @@ describeWithEnv("db > client", { db: true }, () => {
       "SELECT value FROM settings" + " WHERE key = 'insert_test'",
     );
     expect(row.rows[0]!.value).toBe("works");
+  });
+
+  test("update builds sql and args, SET args before WHERE args", () => {
+    const stmt = update(
+      "attendees",
+      { pii_blob: "encrypted" },
+      { id: 4, kind: "attendee" },
+    );
+    expect(stmt.sql).toBe(
+      "UPDATE attendees SET pii_blob = ?" + " WHERE id = ? AND kind = ?",
+    );
+    expect(stmt.args).toEqual(["encrypted", 4, "attendee"]);
+  });
+
+  test("update supports rawSql expressions in SET", () => {
+    const stmt = update(
+      "listing_attendees",
+      { attachment_downloads: rawSql("attachment_downloads + 1") },
+      { attendee_id: 1, listing_id: 2 },
+    );
+    expect(stmt.sql).toBe(
+      "UPDATE listing_attendees" +
+        " SET attachment_downloads = attachment_downloads + 1" +
+        " WHERE attendee_id = ? AND listing_id = ?",
+    );
+    expect(stmt.args).toEqual([1, 2]);
+  });
+
+  test("update passes null SET values as params", () => {
+    const stmt = update(
+      "listing_attendees",
+      { start_agent_id: null },
+      { start_agent_id: 7 },
+    );
+    expect(stmt.sql).toBe(
+      "UPDATE listing_attendees SET start_agent_id = ?" +
+        " WHERE start_agent_id = ?",
+    );
+    expect(stmt.args).toEqual([null, 7]);
+  });
+
+  test("executeUpdate writes the matched row", async () => {
+    await execute(
+      "INSERT INTO settings (key, value) VALUES ('update_test', 'before')",
+    );
+    const result = await executeUpdate(
+      "settings",
+      { value: "after" },
+      { key: "update_test" },
+    );
+    expect(result.rowsAffected).toBe(1);
+    const row = await getDb().execute(
+      "SELECT value FROM settings WHERE key = 'update_test'",
+    );
+    expect(row.rows[0]!.value).toBe("after");
+  });
+
+  test("executeUpdate leaves non-matching rows alone", async () => {
+    await execute(
+      "INSERT INTO settings (key, value) VALUES ('update_scope', 'kept')",
+    );
+    const result = await executeUpdate(
+      "settings",
+      { value: "clobbered" },
+      { key: "update_scope", value: "other" },
+    );
+    expect(result.rowsAffected).toBe(0);
+    const row = await getDb().execute(
+      "SELECT value FROM settings WHERE key = 'update_scope'",
+    );
+    expect(row.rows[0]!.value).toBe("kept");
   });
 
   test("resetAggregates does not issue an empty update", async () => {

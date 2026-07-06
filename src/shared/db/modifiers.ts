@@ -11,13 +11,14 @@ import { inOwnTx, ledgerTx } from "#shared/accounting/ledger-tx.ts";
 import { accountBalanceSubquery } from "#shared/accounting/projection-sql.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import {
-  execute,
   executeBatch,
+  executeUpdate,
   inPlaceholders,
   queryAll,
   queryIdColumn,
   queryOne,
   resetAggregates,
+  update,
 } from "#shared/db/client.ts";
 import {
   type AggregateRecalculation,
@@ -178,10 +179,7 @@ export const updateModifierAggregateValues = async (
   modifierId: number,
   values: ModifierAggregateValues,
 ): Promise<void> => {
-  await execute(
-    "UPDATE modifiers SET total_uses = ?, usage_count = ? WHERE id = ?",
-    [values.total_uses, values.usage_count, modifierId],
-  );
+  await executeUpdate("modifiers", { ...values }, { id: modifierId });
 };
 
 /**
@@ -300,14 +298,10 @@ export const setModifierAnswers = (
   answerIds: number[],
 ): Promise<void> =>
   executeBatch([
-    {
-      args: [modifierId],
-      sql: "UPDATE answers SET modifier_id = NULL WHERE modifier_id = ?",
-    },
-    ...answerIds.map((id) => ({
-      args: [modifierId, id],
-      sql: "UPDATE answers SET modifier_id = ? WHERE id = ?",
-    })),
+    update("answers", { modifier_id: null }, { modifier_id: modifierId }),
+    ...answerIds.map((id) =>
+      update("answers", { modifier_id: modifierId }, { id }),
+    ),
   ]);
 
 /** Selected answer id → the "answer"-trigger modifier it activates (as a

@@ -554,3 +554,68 @@ export const insert = (
     )})`,
   };
 };
+
+/** One `column = <?|raw>` fragment per entry, collecting plain values into
+ * `args` — the shared clause shape of {@link update}'s SET and WHERE parts. */
+const equalityClauses = (
+  values: Record<string, InValue | RawSql>,
+  args: InValue[],
+): string[] =>
+  Object.entries(values).map(([col, val]) => {
+    if (val !== null && typeof val === "object" && RAW_SQL in val) {
+      return `${col} = ${val[RAW_SQL]}`;
+    }
+    args.push(val as InValue);
+    return `${col} = ?`;
+  });
+
+/**
+ * Build an UPDATE statement from a table name, a column→value record for the
+ * SET clause, and a column→value record for the WHERE clause (equality checks,
+ * ANDed together). The counterpart of {@link insert} — use it instead of
+ * hand-writing the `UPDATE … SET … WHERE …` string when every condition is a
+ * plain `column = value` match; a write that needs a richer guard (`IS NULL`,
+ * an inequality, a subquery) keeps its own SQL. SET values may be
+ * {@link rawSql} expressions (e.g. a counter increment).
+ *
+ * ```ts
+ * update("attendees", { pii_blob: encrypted }, { id: 4 })
+ * // → { sql: "UPDATE attendees SET pii_blob = ? WHERE id = ?",
+ * //     args: [encrypted, 4] }
+ *
+ * update(
+ *   "listing_attendees",
+ *   { attachment_downloads: rawSql("attachment_downloads + 1") },
+ *   { attendee_id: 1, listing_id: 2 },
+ * )
+ * // → { sql: "UPDATE listing_attendees SET attachment_downloads = attachment_downloads + 1
+ * //           WHERE attendee_id = ? AND listing_id = ?", args: [1, 2] }
+ * ```
+ */
+export const update = (
+  table: string,
+  set: Record<string, InValue | RawSql>,
+  where: Record<string, InValue>,
+): SqlStatement => {
+  const args: InValue[] = [];
+  const setClauses = equalityClauses(set, args);
+  const whereClauses = equalityClauses(where, args);
+  return {
+    args,
+    sql: `UPDATE ${table} SET ${setClauses.join(", ")} WHERE ${whereClauses.join(
+      " AND ",
+    )}`,
+  };
+};
+
+/** Build the {@link update} statement and run it in one call — the executing
+ * form for the single-statement call sites (batch and transactional callers
+ * use {@link update} itself). */
+export const executeUpdate = (
+  table: string,
+  set: Record<string, InValue | RawSql>,
+  where: Record<string, InValue>,
+): Promise<ResultSet> => {
+  const stmt = update(table, set, where);
+  return execute(stmt.sql, stmt.args);
+};

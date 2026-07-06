@@ -22,7 +22,7 @@ import {
   type BookingBatchPlan,
   reconcileLedgerBalanceTx,
 } from "#shared/db/attendees.ts";
-import type { TxScope } from "#shared/db/client.ts";
+import { type TxScope, update } from "#shared/db/client.ts";
 import type { ModifierUsage } from "#shared/db/modifier-usage.ts";
 import { nowIso } from "#shared/now.ts";
 
@@ -71,10 +71,13 @@ export const postBookingLegsTx = async (
 ): Promise<void> => {
   await ledgerTx.post(tx, legs);
   if (legs.length > 0) {
-    await tx.execute({
-      args: [legs[0]!.eventGroup, attendeeId],
-      sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ?",
-    });
+    await tx.execute(
+      update(
+        "listing_attendees",
+        { ledger_event_group: legs[0]!.eventGroup },
+        { attendee_id: attendeeId },
+      ),
+    );
   }
 };
 

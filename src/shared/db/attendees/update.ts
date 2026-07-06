@@ -6,7 +6,14 @@ import { filter, map, pipe, reduce, sumOf, unique } from "#fp";
 import { ledgerTx } from "#shared/accounting/ledger-tx.ts";
 import type { UpdateAttendeePIIInput } from "#shared/db/attendee-types.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
-import { execute, queryAll, withTransaction } from "#shared/db/client.ts";
+import {
+  execute,
+  executeUpdate,
+  queryAll,
+  rawSql,
+  update,
+  withTransaction,
+} from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
 
@@ -60,10 +67,9 @@ export const updateAttendeeOrder = (
   remainingBalance: number,
 ): Promise<void> =>
   withTransaction(async (tx) => {
-    await tx.execute({
-      args: [statusId, attendeeId],
-      sql: "UPDATE attendees SET status_id = ? WHERE id = ?",
-    });
+    await tx.execute(
+      update("attendees", { status_id: statusId }, { id: attendeeId }),
+    );
     await reconcileLedgerBalanceTx(tx, attendeeId, remainingBalance);
   });
 
@@ -71,9 +77,10 @@ export const incrementAttachmentDownloads = async (
   attendeeId: number,
   listingId: number,
 ): Promise<void> => {
-  await execute(
-    "UPDATE listing_attendees SET attachment_downloads = attachment_downloads + 1 WHERE attendee_id = ? AND listing_id = ?",
-    [attendeeId, listingId],
+  await executeUpdate(
+    "listing_attendees",
+    { attachment_downloads: rawSql("attachment_downloads + 1") },
+    { attendee_id: attendeeId, listing_id: listingId },
   );
 };
 
@@ -89,10 +96,11 @@ export const updateAttendeePII = async (
     }),
     settings.publicKey,
   );
-  await execute("UPDATE attendees SET pii_blob = ? WHERE id = ?", [
-    encryptedPiiBlob,
-    attendeeId,
-  ]);
+  await executeUpdate(
+    "attendees",
+    { pii_blob: encryptedPiiBlob },
+    { id: attendeeId },
+  );
 };
 
 /**
