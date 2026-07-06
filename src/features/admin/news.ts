@@ -1,8 +1,9 @@
 /**
  * Admin CRUD for news posts, under Site → News. Owner + editor (the shared
- * Site-tab gates in `site-content.ts`). Posts are a flat newest-first list —
- * no slugs, no ordering controls — and each edit page carries the shared
- * images panel (image_uses with item_type 'news').
+ * Site-tab gates in `site-content.ts`). Posts are a flat newest-first list with
+ * no ordering controls; the `/news/:slug` permalink is auto-generated on
+ * create (never entered) and shown read-only on the edit page, which also
+ * carries the shared images panel (image_uses with item_type 'news').
  */
 
 /* jscpd:ignore-start */
