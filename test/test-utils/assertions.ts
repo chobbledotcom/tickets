@@ -66,6 +66,20 @@ export const expectCsvDownloadHeaders = (
   );
 };
 
+/** Fetch a listing's CSV export as the given admin, assert 200, return the body. */
+export const fetchListingExportCsv = async (
+  listingId: number,
+  cookie: string,
+): Promise<string> => {
+  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
+  const response = await awaitTestRequest(
+    `/admin/listing/${listingId}/export`,
+    { cookie },
+  );
+  expect(response.status).toBe(200);
+  return await response.text();
+};
+
 export const expectJsonResponse =
   // deno-lint-ignore no-explicit-any
     <T = any>(status: number, assertions?: (body: T) => void) =>

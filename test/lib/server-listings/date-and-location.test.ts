@@ -5,11 +5,11 @@ import { getListingWithCount } from "#shared/db/listings.ts";
 import {
   adminFormPost,
   assertAdminHtml,
-  awaitTestRequest,
   createTestAttendee,
   createTestListing,
   describeWithEnv,
   expectHtmlResponse,
+  fetchListingExportCsv,
   setupListingAndLogin,
   updateTestListing,
 } from "#test-utils";
@@ -110,12 +110,7 @@ describeWithEnv("server listings > date and location", { db: true }, () => {
     test("CSV export omits Listing Date and Listing Location when empty", async () => {
       const { listing, cookie } = await setupListingAndLogin();
       await createTestAttendee(listing.id, listing.slug, "Bob", "bob@test.com");
-      const response = await awaitTestRequest(
-        `/admin/listing/${listing.id}/export`,
-        { cookie },
-      );
-      expect(response.status).toBe(200);
-      const csv = await response.text();
+      const csv = await fetchListingExportCsv(listing.id, cookie);
       expect(csv).not.toContain("Listing Date");
       expect(csv).not.toContain("Listing Location");
     });
