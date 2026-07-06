@@ -32,6 +32,7 @@ import { initPaymentResultNotifier } from "./admin/payment-result.ts";
 import { initPaymentTestButtons } from "./admin/payment-test-buttons.ts";
 import { initQrRefresh } from "./admin/qr-refresh.ts";
 import { initRunningTotal } from "./admin/running-total.ts";
+import { initScrollToError } from "./admin/scroll-to-error.ts";
 import { initSelectOnClick } from "./admin/select-on-click.ts";
 import { initTicketQuantityRequired } from "./admin/ticket-quantity-required.ts";
 
@@ -64,3 +65,6 @@ initDuplicatePreview();
 initDurationWarning();
 initTicketQuantityRequired();
 initAddressLookup();
+// Run last: once the page's behaviours are wired, bring any live error alert
+// (e.g. a validation error after a failed submit) into view.
+initScrollToError();
