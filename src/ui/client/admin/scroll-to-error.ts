@@ -118,15 +118,17 @@ export const initScrollToError = (): void => {
   // a plain page, not a failed-submit re-render (whose validation errors must
   // not be folded into the standing-note baseline, or a retry would miss them).
   window.addEventListener("pageshow", (event) => {
-    const wasSubmitReRender =
+    // Only a *failed* submit re-render (validation errors present) carries the
+    // mark; a plain or successful page has standing notes only and is safe to
+    // re-baseline from.
+    const failedReRender =
       document.documentElement.hasAttribute(SUBMIT_RERENDER_ATTR);
-    if ((event as PageTransitionEvent).persisted && !wasSubmitReRender) {
+    if ((event as PageTransitionEvent).persisted && !failedReRender) {
       recordBaseline();
     }
   });
 
   const justSubmitted = safeRead(SUBMITTED_KEY) !== null;
-  document.documentElement.toggleAttribute(SUBMIT_RERENDER_ATTR, justSubmitted);
   safeWrite((store) => store.removeItem(SUBMITTED_KEY));
 
   if (!justSubmitted) {
@@ -137,11 +139,17 @@ export const initScrollToError = (): void => {
   }
 
   // A success/info flash means the submit worked (and may have redirected to a
-  // page carrying its own standing note) — don't chase an error.
+  // page carrying its own standing note) — don't chase an error. Such a page
+  // has only standing notes, so it stays unmarked and a bfcache restore may
+  // re-baseline from it.
   if (document.querySelector('.success[role="alert"], .info[role="alert"]')) {
     return;
   }
 
+  // A failed submit re-render carries fresh validation errors: mark it (each
+  // load is a fresh document, so the attribute defaults absent) so a bfcache
+  // restore won't fold those errors into the standing-note baseline.
+  document.documentElement.toggleAttribute(SUBMIT_RERENDER_ATTR, true);
   const notes = standingNotes();
   const fresh = errorAlerts().find((alert) => !notes.has(signatureOf(alert)));
   if (!fresh) return; // nothing new — e.g. the submit actually succeeded

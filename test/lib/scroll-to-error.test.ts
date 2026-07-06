@@ -276,6 +276,20 @@ describe("initScrollToError", {
     expect(h.baseline()).toBe(JSON.stringify(["Elsewhere"]));
   });
 
+  test("re-baselines a successful-submit page restored from bfcache", () => {
+    const h = setup(note);
+    initScrollToError(); // plain load: baseline = {standing note}
+    h.submit();
+    h.render(successFlash + note); // successful redirect target: flash + standing note
+    initScrollToError(); // submit succeeded — page is safe to re-baseline later
+    h.setBaseline(JSON.stringify(["Elsewhere"])); // a page visited in between
+    h.pageshow(true); // Back → bfcache restore → should re-baseline to {standing note}
+    h.submit();
+    h.render(note + dateError); // now a genuine failed submit
+    initScrollToError();
+    expect(h.scrolled()).toEqual(["A start date is required"]);
+  });
+
   test("a bfcache restore of a failed submit keeps the retry working", () => {
     const h = setup(note);
     initScrollToError(); // plain load: baseline = {standing note}
