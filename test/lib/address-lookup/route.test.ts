@@ -1,7 +1,8 @@
 /**
  * GET /address-lookup through the full request pipeline, plus the search
- * panel appearing on the public booking form ("locked") and the admin
- * attendee forms ("editable") only while a provider is configured.
+ * panel appearing on the public booking form and the admin attendee forms
+ * only while a provider is configured (the address textarea always stays
+ * editable).
  */
 
 import { expect } from "@std/expect";
@@ -134,20 +135,22 @@ describeWithEnv("address lookup search panels", { db: true }, () => {
     expect(html).not.toContain("data-address-lookup");
   });
 
-  test("the booking form renders a locked panel when a provider is set", async () => {
+  test("the booking form renders the panel when a provider is set", async () => {
     const { listing } = await setupListingAndLogin({ fields: "address" });
     await enableEasypostcodes();
     const html = await bookingFormHtml(listing.slug);
-    expect(html).toContain('data-address-lookup="locked"');
+    expect(html).toContain("data-address-lookup");
     // The panel sits directly above the address textarea, hidden until the
     // client script reveals it.
     expect(html.indexOf("data-address-lookup")).toBeLessThan(
       html.indexOf('name="address"'),
     );
     expect(html).toContain('placeholder="e.g. SW1A 1AA"');
+    // The textarea is always editable — no Edit button is rendered.
+    expect(html).not.toContain("data-address-edit");
   });
 
-  test("the admin attendee form renders an always-editable panel", async () => {
+  test("the admin attendee form renders the panel", async () => {
     await setupListingAndLogin();
     await enableEasypostcodes();
     const { cookie } = await getTestSession();
@@ -156,9 +159,7 @@ describeWithEnv("address lookup search panels", { db: true }, () => {
       mockRequest("/admin/attendees/new", { headers: { cookie } }),
     );
     const html = await response.text();
-    expect(html).toContain('data-address-lookup="editable"');
-    expect(html).not.toContain('data-address-lookup="locked"');
-    // Admin mode has no Edit button — the textarea is never locked.
+    expect(html).toContain("data-address-lookup");
     expect(html).not.toContain("data-address-edit");
   });
 });
