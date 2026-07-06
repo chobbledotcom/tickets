@@ -136,6 +136,34 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
       ]);
     });
 
+    test("a manager cannot delete an image that a news post uses", async () => {
+      const post = await createTestNewsPost("Guarded post");
+      const image = await makeImage("News-linked image");
+      await appendImageToItem(image.id, { itemId: post.id, itemType: "news" });
+      const managerCookie = await createTestManagerSession();
+
+      const response = await handleRequest(
+        formRequest(
+          `/admin/images/${image.id}/delete`,
+          [
+            ["csrf_token", await signCsrfToken()],
+            ["confirm_identifier", "News-linked image"],
+          ],
+          managerCookie,
+        ),
+      );
+      // Blocked with an error flash; the image and its news use both survive.
+      await expectFlashRedirect(
+        `/admin/images/${image.id}/delete`,
+        "This image is used by a news post — only site editors can delete it.",
+        false,
+        managerCookie,
+      )(response);
+      expect(await imageNamesForItem("news", post.id)).toEqual([
+        "News-linked image",
+      ]);
+    });
+
     test("the image edit page offers news posts as link targets", async () => {
       const post = await createTestNewsPost("Linkable post");
       const image = await makeImage("Library image");

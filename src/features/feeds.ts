@@ -250,7 +250,7 @@ const buildRss = ({ items: feedItems, domain, title }: FeedData): string =>
     })),
   );
 
-/** The news RSS document: every post, newest first, linking to `/news/:id`
+/** The news RSS document: every post, newest first, linking to `/news/:slug`
  * with the plain-text snippet as the description. */
 const buildNewsRss = (posts: NewsPostSummary[], domain: string): string => {
   const title = settings.websiteTitle || "News";
@@ -262,7 +262,7 @@ const buildNewsRss = (posts: NewsPostSummary[], domain: string): string => {
     },
     posts.map((post) => ({
       description: post.snippet,
-      link: `https://${domain}/news/${post.id}`,
+      link: `https://${domain}/news/${post.slug}`,
       pubDate: post.created,
       title: post.name,
     })),

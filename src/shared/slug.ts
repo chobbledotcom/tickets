@@ -43,6 +43,15 @@ export const generateSlug = (): string => {
 export const normalizeSlug = (input: string): string =>
   input.trim().toLowerCase().replace(/\s+/g, "-");
 
+/** Turn arbitrary text into a URL slug: lowercase, every run of non
+ * `[a-z0-9]` collapsed to a single hyphen, no leading/trailing hyphen. Shared
+ * by the news permalink builder and the provider-resource slug. */
+export const slugify = (text: string): string =>
+  text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
 /**
  * Valid slug schema: non-empty, lowercase alphanumeric segments joined by
  * single hyphens or underscores (valibot's canonical slug form). The same
@@ -76,19 +85,63 @@ export type SlugWithIndex<Index extends string = string> = {
   slugIndex: Index;
 };
 
+/** Hash a slug into its blind-index (for blind-index lookups). */
+type ComputeIndex<Index extends string> = (slug: string) => Promise<Index>;
+/** Is this slug already taken (cross-table or within one table)? */
+type IsTaken = (slug: string) => Promise<boolean>;
+
+/** Try up to `maxAttempts` candidate slugs (`candidate(0)`, `candidate(1)`, …)
+ * and return the first free one's {@link SlugWithIndex} — the blind index is
+ * computed only for the slug that wins. Throws `exhausted()` if every candidate
+ * is taken. The single retry loop behind both public generators below. */
+const uniqueSlugFrom = async <Index extends string>(opts: {
+  maxAttempts: number;
+  candidate: (attempt: number) => string;
+  computeIndex: ComputeIndex<Index>;
+  isTaken: IsTaken;
+  exhausted: () => string;
+}): Promise<SlugWithIndex<Index>> => {
+  for (let attempt = 0; attempt < opts.maxAttempts; attempt++) {
+    const slug = opts.candidate(attempt);
+    if (!(await opts.isTaken(slug)))
+      return { slug, slugIndex: await opts.computeIndex(slug) };
+  }
+  throw new Error(opts.exhausted());
+};
+
 /**
- * Generate a unique slug by retrying until one is not taken.
+ * Generate a unique slug by retrying random slugs until one is not taken.
  * @param computeIndex - hash the slug for blind-index lookup
  * @param isTaken - check cross-table uniqueness
  */
-export const generateUniqueSlug = async <Index extends string>(
-  computeIndex: (slug: string) => Promise<Index>,
-  isTaken: (slug: string) => Promise<boolean>,
-): Promise<SlugWithIndex<Index>> => {
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const slug = generateSlug();
-    const slugIndex = await computeIndex(slug);
-    if (!(await isTaken(slug))) return { slug, slugIndex };
-  }
-  throw new Error("Failed to generate unique slug after 10 attempts");
-};
+export const generateUniqueSlug = <Index extends string>(
+  computeIndex: ComputeIndex<Index>,
+  isTaken: IsTaken,
+): Promise<SlugWithIndex<Index>> =>
+  uniqueSlugFrom({
+    candidate: generateSlug,
+    computeIndex,
+    exhausted: () => "Failed to generate unique slug after 10 attempts",
+    isTaken,
+    maxAttempts: 10,
+  });
+
+/**
+ * Make a deterministic `base` slug unique by appending `-2`, `-3`, … until one
+ * is free. Unlike {@link generateUniqueSlug} (random 5-char slugs), this keeps
+ * a human-readable base — the news permalink `yyyy-MM-dd-post-name` — and only
+ * disambiguates on collision (two same-day posts with the same name).
+ */
+export const uniqueSlugFromBase = <Index extends string>(opts: {
+  base: string;
+  computeIndex: ComputeIndex<Index>;
+  isTaken: IsTaken;
+}): Promise<SlugWithIndex<Index>> =>
+  uniqueSlugFrom({
+    candidate: (attempt) =>
+      attempt === 0 ? opts.base : `${opts.base}-${attempt + 1}`,
+    computeIndex: opts.computeIndex,
+    exhausted: () => `Failed to generate unique slug from base "${opts.base}"`,
+    isTaken: opts.isTaken,
+    maxAttempts: 100,
+  });

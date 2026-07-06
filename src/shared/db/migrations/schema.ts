@@ -34,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Create the news_posts table backing the public news system under the Site tab.";
+  "Create the news_posts table (with a slug permalink) backing the public news system under the Site tab.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -1124,14 +1124,18 @@ export const SCHEMA: [name: string, table: Table][] = [
   ],
 
   [
-    // News posts shown on the public /news page. All free text is stored
-    // encrypted; `created` stays plaintext (like listings.created) so the
-    // newest-first ordering and the RSS pubDate never need a scan-and-decrypt.
+    // News posts shown on the public /news page. All free text (including the
+    // slug) is stored encrypted; `created` stays plaintext (like
+    // listings.created) so the newest-first ordering and the RSS pubDate never
+    // need a scan-and-decrypt. `slug_index` is the plaintext HMAC blind index
+    // of the `/news/:slug` permalink, so a post loads by slug without decrypting.
     "news_posts",
     {
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["created", "TEXT NOT NULL"],
+        ["slug", "TEXT NOT NULL DEFAULT ''"],
+        ["slug_index", "TEXT NOT NULL DEFAULT ''"],
         ["name", "TEXT NOT NULL"],
         ["meta_title", "TEXT NOT NULL DEFAULT ''"],
         ["meta_description", "TEXT NOT NULL DEFAULT ''"],
@@ -1142,6 +1146,11 @@ export const SCHEMA: [name: string, table: Table][] = [
         {
           columns: ["created"],
           name: "idx_news_posts_created",
+        },
+        {
+          columns: ["slug_index"],
+          name: "idx_news_posts_slug_index",
+          unique: true,
         },
       ],
     },

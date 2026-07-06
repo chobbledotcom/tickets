@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { newsPostsTable } from "#shared/db/news-posts.ts";
 import { settings } from "#shared/db/settings.ts";
 import { createTestNewsPost, describeWithEnv, mockRequest } from "#test-utils";
 
@@ -43,14 +42,12 @@ describeWithEnv("server (news RSS feed)", { db: true }, () => {
 
   test("lists posts newest first with escaped snippet, permalink, and pubDate", async () => {
     await settings.update.showPublicSite(true);
-    await newsPostsTable.insert({
+    await createTestNewsPost("Older news", {
       created: "2026-07-01T10:00:00.000Z",
-      name: "Older news",
       snippet: "old",
     });
-    const newer = await newsPostsTable.insert({
+    const newer = await createTestNewsPost("Tom & Jerry <launch>", {
       created: "2026-07-02T10:00:00.000Z",
-      name: "Tom & Jerry <launch>",
       snippet: 'Snippet with "quotes" & ampersands',
     });
     const body = await (await fetchNewsRss()).text();
@@ -58,7 +55,9 @@ describeWithEnv("server (news RSS feed)", { db: true }, () => {
     expect(body).toContain(
       "<description>Snippet with &quot;quotes&quot; &amp; ampersands</description>",
     );
-    const link = `https://localhost/news/${newer.id}`;
+    // The permalink slug strips the punctuation from the name.
+    expect(newer.slug).toBe("2026-07-02-tom-jerry-launch");
+    const link = `https://localhost/news/${newer.slug}`;
     expect(body).toContain(`<link>${link}</link>`);
     expect(body).toContain(`<guid isPermaLink="true">${link}</guid>`);
     expect(body).toContain("<pubDate>Thu, 02 Jul 2026 10:00:00 GMT</pubDate>");

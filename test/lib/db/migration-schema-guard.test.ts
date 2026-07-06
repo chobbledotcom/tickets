@@ -78,7 +78,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-05_address_cache",
         "2026-07-06_news_posts",
       ],
-      schemaHash: "4orh5i",
+      schemaHash: "1dwtb1i",
     });
   });
 });

@@ -1,6 +1,6 @@
 /**
  * Public news templates: the `/news` list (newest first, one shared Card per
- * post — name, snippet, first image) and the `/news/:id` post page (SEO meta,
+ * post — name, snippet, first image) and the `/news/:slug` post page (SEO meta,
  * the post's images as a CSS-only gallery, and the markdown body).
  *
  * The gallery is pure CSS: each image contributes a visually-hidden radio, a
@@ -27,7 +27,7 @@ import {
 
 /** One post on the /news list: the shared Card wrapped in a link. */
 const newsCard = (post: NewsPostCard): string =>
-  `<a class="card news-card" href="/news/${post.id}">
+  `<a class="card news-card" href="/news/${escapeHtml(post.slug)}">
       ${cardInner({
         detailHtml: post.snippet
           ? `<span class="news-card-snippet">${escapeHtml(post.snippet)}</span>`
@@ -105,7 +105,7 @@ const NewsGallery = ({
     </fieldset>
   );
 
-/** The /news/:id post page: SEO meta (like site pages), the published date,
+/** The /news/:slug post page: SEO meta (like site pages), the published date,
  * the image gallery, and the markdown body. */
 export const newsPostPage = (
   post: NewsPost,

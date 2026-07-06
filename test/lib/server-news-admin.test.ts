@@ -85,6 +85,8 @@ describeWithEnv("server (admin news)", { db: true }, () => {
       expect(post.meta_description).toBe("Meta description");
       expect(post.snippet).toBe("Short summary");
       expect(post.created).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      // The permalink slug is auto-generated from the created date and name.
+      expect(post.slug).toBe(`${post.created.slice(0, 10)}-launch`);
       expect(await wasLogged("News post 'Launch' created")).toBe(true);
     });
 
@@ -106,12 +108,20 @@ describeWithEnv("server (admin news)", { db: true }, () => {
       );
       expect(html).toContain('value="Editable"');
       expect(html).toContain("the snippet");
+      // The read-only permalink is shown on the edit page (not the new page).
+      expect(html).toContain(`<code>/news/${post.slug}</code>`);
       // The shared images panel renders (storage is off in this suite, so it
       // shows the storage notice; the live panel is covered in the news image
       // routes suite).
       expect(html).toContain("<h2>Images</h2>");
       expect(html).toContain("File storage is not configured.");
       expect(html).toContain(`${BASE}/${post.id}/delete`);
+    });
+
+    test("the new page has no slug field (the permalink is auto-generated)", async () => {
+      const html = await expectHtmlResponse(await adminGet(`${BASE}/new`), 200);
+      expect(html).not.toContain('name="slug"');
+      expect(html).not.toContain("/news/");
     });
 
     test("edit 404s for a missing id", async () => {

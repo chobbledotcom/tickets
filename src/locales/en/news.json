@@ -14,6 +14,7 @@
   "news.delete_submit": "Delete News Post",
   "news.delete_prompt": "Type the post name \"{name}\" to confirm deletion. Its images stay in the image library.",
   "news.name_label": "Post name",
+  "news.permalink_label": "Permalink",
   "news.created": "News post created",
   "news.updated": "News post updated",
   "news.deleted": "News post deleted",

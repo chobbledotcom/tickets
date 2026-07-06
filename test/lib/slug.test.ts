@@ -5,6 +5,8 @@ import {
   generateSlug,
   generateUniqueSlug,
   normalizeSlug,
+  slugify,
+  uniqueSlugFromBase,
   validateSlug,
 } from "#shared/slug.ts";
 
@@ -128,6 +130,56 @@ describe("slug", () => {
         const once = normalizeSlug(example);
         expect(normalizeSlug(once)).toBe(once);
       }
+    });
+  });
+
+  describe("slugify", () => {
+    test("lowercases and collapses runs of non-alphanumerics to one hyphen", () => {
+      expect(slugify("Big Launch!")).toBe("big-launch");
+      expect(slugify("Tom & Jerry <launch>")).toBe("tom-jerry-launch");
+      expect(slugify("a___b   c")).toBe("a-b-c");
+    });
+
+    test("trims leading and trailing hyphens; keeps digits and existing hyphens", () => {
+      expect(slugify("  --Hello--  ")).toBe("hello");
+      expect(slugify("2026-07-06-Big Launch")).toBe("2026-07-06-big-launch");
+    });
+  });
+
+  describe("uniqueSlugFromBase", () => {
+    const computeIndex = (slug: string): Promise<string> =>
+      Promise.resolve(`idx:${slug}`);
+
+    test("returns the base slug untouched when it is free", async () => {
+      const result = await uniqueSlugFromBase({
+        base: "2026-07-06-update",
+        computeIndex,
+        isTaken: () => Promise.resolve(false),
+      });
+      expect(result).toEqual({
+        slug: "2026-07-06-update",
+        slugIndex: "idx:2026-07-06-update",
+      });
+    });
+
+    test("appends -2, -3, … until a free slug is found", async () => {
+      const taken = new Set(["2026-07-06-update", "2026-07-06-update-2"]);
+      const result = await uniqueSlugFromBase({
+        base: "2026-07-06-update",
+        computeIndex,
+        isTaken: (slug) => Promise.resolve(taken.has(slug)),
+      });
+      expect(result.slug).toBe("2026-07-06-update-3");
+    });
+
+    test("throws when no free slug is found within the bound", async () => {
+      await expect(
+        uniqueSlugFromBase({
+          base: "dupe",
+          computeIndex,
+          isTaken: () => Promise.resolve(true),
+        }),
+      ).rejects.toThrow('Failed to generate unique slug from base "dupe"');
     });
   });
 

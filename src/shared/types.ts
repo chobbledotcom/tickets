@@ -732,10 +732,14 @@ export interface SitePageItem {
 
 /** A news post shown on the public /news page. All free-text columns are
  * stored encrypted; `created` stays plaintext (like listings) so the
- * newest-first ordering and the RSS pubDate never need a scan-and-decrypt. */
+ * newest-first ordering and the RSS pubDate never need a scan-and-decrypt.
+ * `slug` is the `/news/:slug` permalink (auto-generated from the created date
+ * and the name at creation, then immutable); `slug_index` is its blind index. */
 export interface NewsPost {
   id: number;
   created: string;
+  slug: string;
+  slug_index: BlindIndex;
   name: string;
   meta_title: string;
   meta_description: string;
@@ -743,12 +747,13 @@ export interface NewsPost {
   content: string;
 }
 
-/** The narrowest list projection — id, created, name, snippet — for readers
+/** The narrow list projection — id, created, slug, name, snippet — for readers
  * that render no images (the RSS feed, the admin list). Never the large
  * `content`/`meta_*` blobs (cold-start efficiency, like {@link SitePageNavRow}). */
 export interface NewsPostSummary {
   id: number;
   created: string;
+  slug: string;
   name: string;
   snippet: string;
 }

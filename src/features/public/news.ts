@@ -11,7 +11,11 @@
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { getImagesForItem } from "#shared/db/images.ts";
-import { getNewsPostById, getNewsPostCards } from "#shared/db/news-posts.ts";
+import {
+  computeNewsSlugIndex,
+  getNewsPostBySlugIndex,
+  getNewsPostCards,
+} from "#shared/db/news-posts.ts";
 import { settings } from "#shared/db/settings.ts";
 import { newsListPage, newsPostPage } from "#templates/public.tsx";
 import { requirePublicSite } from "./pages.ts";
@@ -26,8 +30,8 @@ const handleNewsList = async (): Promise<Response> => {
   return htmlResponse(newsListPage(posts, nav, settings.websiteTitle));
 };
 
-const handleNewsPost = async (id: number): Promise<Response> => {
-  const post = await getNewsPostById(id);
+const handleNewsPost = async (slug: string): Promise<Response> => {
+  const post = await getNewsPostBySlugIndex(await computeNewsSlugIndex(slug));
   if (!post) return notFoundResponse();
   const [images, nav] = await Promise.all([
     getImagesForItem("news", post.id),
@@ -40,7 +44,7 @@ const handleNewsPost = async (id: number): Promise<Response> => {
 export const routeNews = createRouter(
   defineRoutes({
     "GET /news": () => requirePublicSite(handleNewsList),
-    "GET /news/:id": (_request, { id }: { id: number }) =>
-      requirePublicSite(() => handleNewsPost(id)),
+    "GET /news/:slug": (_request, { slug }: { slug: string }) =>
+      requirePublicSite(() => handleNewsPost(slug)),
   }),
 );

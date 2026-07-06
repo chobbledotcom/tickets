@@ -85,6 +85,10 @@ export const adminNewsEditPage = (
         title={t("news.edit_title")}
       />
 
+      <p class="prose">
+        {t("news.permalink_label")}: <code>/news/{post.slug}</code>
+      </p>
+
       <h2>{t("news.images_heading")}</h2>
       {imagesPanel}
 

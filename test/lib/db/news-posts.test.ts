@@ -3,12 +3,13 @@ import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#shared/db/client.ts";
 import { appendImageToItem, getImagesForItem } from "#shared/db/images.ts";
 import {
+  computeNewsSlugIndex,
   deleteNewsPostWithImages,
   getNewsPostById,
+  getNewsPostBySlugIndex,
   getNewsPostCards,
   getNewsPostNames,
   hasNewsPosts,
-  newsPostsTable,
   updateNewsPost,
 } from "#shared/db/news-posts.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
@@ -100,15 +101,13 @@ describeWithEnv("db > news-posts", { db: true }, () => {
   });
 
   describe("getNewsPostCards", () => {
-    test("lists newest first with the first linked image decrypted", async () => {
-      await newsPostsTable.insert({
+    test("lists newest first with slug and the first linked image decrypted", async () => {
+      await createTestNewsPost("Older", {
         created: "2026-07-01T10:00:00.000Z",
-        name: "Older",
         snippet: "old news",
       });
-      const newer = await newsPostsTable.insert({
+      const newer = await createTestNewsPost("Newer", {
         created: "2026-07-02T10:00:00.000Z",
-        name: "Newer",
         snippet: "fresh news",
       });
       const [first, second] = await makeImageOrder(newer.id);
@@ -116,6 +115,8 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       const cards = await getNewsPostCards();
       expect(cards.map((card) => card.name)).toEqual(["Newer", "Older"]);
       expect(cards[0]?.snippet).toBe("fresh news");
+      // The card carries the decrypted /news permalink.
+      expect(cards[0]?.slug).toBe("2026-07-02-newer");
       // The FIRST linked image (by sort_order) projects into the card.
       expect(cards[0]?.image_url).toBe(first.filename);
       expect(cards[0]?.image_thumb_url).toBe(first.filename_thumb);
@@ -129,19 +130,76 @@ describeWithEnv("db > news-posts", { db: true }, () => {
 
     test("same-day posts tie-break by id, newest insert first", async () => {
       const sameCreated = "2026-07-03T09:00:00.000Z";
-      await newsPostsTable.insert({
-        created: sameCreated,
-        name: "First insert",
-      });
-      await newsPostsTable.insert({
-        created: sameCreated,
-        name: "Second insert",
-      });
+      await createTestNewsPost("First insert", { created: sameCreated });
+      await createTestNewsPost("Second insert", { created: sameCreated });
       const cards = await getNewsPostCards();
       expect(cards.map((card) => card.name)).toEqual([
         "Second insert",
         "First insert",
       ]);
+    });
+  });
+
+  describe("slug permalink", () => {
+    test("generates yyyy-MM-dd-name from the created date and name", async () => {
+      const post = await createTestNewsPost("Big Launch!", {
+        created: "2026-07-06T12:00:00.000Z",
+      });
+      expect(post.slug).toBe("2026-07-06-big-launch");
+    });
+
+    test("disambiguates a same-day, same-name collision with a suffix", async () => {
+      const created = "2026-07-06T12:00:00.000Z";
+      const first = await createTestNewsPost("Update", { created });
+      const second = await createTestNewsPost("Update", { created });
+      const third = await createTestNewsPost("Update", { created });
+      expect(first.slug).toBe("2026-07-06-update");
+      expect(second.slug).toBe("2026-07-06-update-2");
+      expect(third.slug).toBe("2026-07-06-update-3");
+    });
+
+    test("stores the slug encrypted with a plaintext blind index", async () => {
+      const post = await createTestNewsPost("Indexed", {
+        created: "2026-07-06T12:00:00.000Z",
+      });
+      const raw = await queryAll<{ slug: string; slug_index: string }>(
+        "SELECT slug, slug_index FROM news_posts WHERE id = ?",
+        [post.id],
+      );
+      expectEncryptedAtRest(raw[0]?.slug);
+      // The index is the plaintext HMAC of the slug, not the slug itself.
+      expect(raw[0]?.slug_index).not.toBe("");
+      expect(raw[0]?.slug_index).not.toContain("2026-07-06-indexed");
+    });
+
+    test("getNewsPostBySlugIndex round-trips the post; null for an unknown slug", async () => {
+      const post = await createTestNewsPost("Findable", {
+        created: "2026-07-06T12:00:00.000Z",
+      });
+      const found = await getNewsPostBySlugIndex(
+        await computeNewsSlugIndex(post.slug),
+      );
+      expect(found?.id).toBe(post.id);
+      expect(found?.name).toBe("Findable");
+      expect(
+        await getNewsPostBySlugIndex(await computeNewsSlugIndex("nope")),
+      ).toBeNull();
+    });
+
+    test("update keeps the slug immutable when the name changes", async () => {
+      const post = await createTestNewsPost("Original name", {
+        created: "2026-07-06T12:00:00.000Z",
+      });
+      await updateNewsPost(post.id, {
+        content: "",
+        metaDescription: "",
+        metaTitle: "",
+        name: "Renamed",
+        snippet: "",
+      });
+      const reloaded = await getNewsPostById(post.id);
+      expect(reloaded?.name).toBe("Renamed");
+      expect(reloaded?.slug).toBe("2026-07-06-original-name");
     });
   });
 

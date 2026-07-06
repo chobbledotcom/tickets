@@ -57,14 +57,23 @@ export type AggregateRecalculation<F extends string> = Record<
 type EncryptFn = (v: string) => Promise<EnvKeyEncrypted>;
 type DecryptFn = (v: EnvKeyEncrypted) => Promise<string>;
 
-/** Shared columns for tables with encrypted `slug` + blind-index `slug_index`. */
+/** Encrypted `slug` + its plaintext blind-index `slug_index` (the permalink
+ * pair shared by pages and news posts). */
+export const encryptedSlugSchema = (
+  encrypt: EncryptFn,
+  decrypt: DecryptFn,
+) => ({
+  slug: col.encrypted(encrypt, decrypt),
+  slug_index: col.simple<BlindIndex>(),
+});
+
+/** Shared columns for tables with a generated id plus the encrypted slug pair. */
 export const idAndEncryptedSlugSchema = (
   encrypt: EncryptFn,
   decrypt: DecryptFn,
 ) => ({
   id: col.generated<number>(),
-  slug: col.encrypted(encrypt, decrypt),
-  slug_index: col.simple<BlindIndex>(),
+  ...encryptedSlugSchema(encrypt, decrypt),
 });
 
 /** Shared encrypted `name` column for tables that store a display name. */

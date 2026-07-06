@@ -92,11 +92,12 @@ export const createTestSitePage = async (
  * own suite). `created` is stamped by the column default. */
 export const createTestNewsPost = async (
   name: string,
-  extra: Partial<Omit<NewsPostWriteInput, "name">> = {},
+  extra: Partial<Omit<NewsPostWriteInput, "name">> & { created?: string } = {},
 ): Promise<NewsPost> => {
   const { createNewsPost } = await import("#shared/db/news-posts.ts");
   return createNewsPost({
     content: extra.content ?? "",
+    ...(extra.created !== undefined ? { created: extra.created } : {}),
     metaDescription: extra.metaDescription ?? "",
     metaTitle: extra.metaTitle ?? "",
     name,
