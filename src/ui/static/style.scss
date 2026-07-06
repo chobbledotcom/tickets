@@ -2832,11 +2832,17 @@ a.cal-day-selected:active {
   color: var(--color-text-secondary);
 }
 
+/* The gallery is a fieldset (for the visually-hidden legend), so the row
+   direction must be restated over the fieldset default's column stack. */
 .news-gallery {
   display: flex;
+  flex-direction: row;
   flex-wrap: wrap;
   gap: var(--space-s);
   margin-bottom: var(--space-m);
+  border: 0;
+  margin-top: 0;
+  padding: 0;
 }
 
 /* Visually hidden but still focusable so keyboard users can arrow between
