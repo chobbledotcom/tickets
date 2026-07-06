@@ -1,13 +1,13 @@
 /**
  * Tests for the scroll-to-error enhancement
- * (`src/ui/client/admin/scroll-to-error.ts`), which anchors the page to the
- * first *newly-raised* error alert after a form submit re-renders it.
+ * (`src/ui/client/admin/scroll-to-error.ts`), which anchors the page to a
+ * freshly-raised validation error after a form submit re-renders it.
  *
  * `errorAlertNeedsScroll` is a pure viewport check, tested table-driven. The
  * `initScrollToError` shell is browser code, so it runs against a happy-dom
- * `document`/`window`/`sessionStorage`, driving the real submit → reload flow:
- * a snapshot of the errors already on the page is taken on submit, and the next
- * load scrolls to the first error that was NOT in that snapshot.
+ * `document`/`window`/`sessionStorage`, driving the real load → submit → reload
+ * flow. A plain load records the page's standing notes as a baseline; a submit
+ * re-render scrolls to the first alert not in that baseline.
  */
 
 import { expect } from "@std/expect";
@@ -60,22 +60,26 @@ describe("initScrollToError", {
   });
 
   type Harness = {
-    /** The element each `scrollIntoView` was called on, with its options. */
-    scrolls: { text: string; options: ScrollIntoViewOptions }[];
+    /** The text of each element `scrollIntoView` was called on, in order. */
+    scrolled: () => string[];
+    /** The options of the last `scrollIntoView` call. */
+    lastOptions: () => ScrollIntoViewOptions | undefined;
     /** Fire a `submit` event; pass `cancelled` to model a form that called
      * `preventDefault` (posts via fetch, no re-render). */
     submit: (cancelled?: boolean) => void;
-    /** Replace `.error[role="alert"]` markup, as a re-render would. */
+    /** Replace the page markup, as a navigation / re-render would. */
     render: (html: string) => void;
-    /** The raw value stored under the snapshot key, or null. */
-    snapshot: () => string | null;
+    /** Directly poke the baseline store (for the corrupted-value test). */
+    setBaseline: (value: string) => void;
+    /** Remove the stored baseline (e.g. storage evicted it between loads). */
+    clearBaseline: () => void;
     /** Overwrite the global `sessionStorage` (for the failure-mode tests). */
     breakStorage: () => void;
   };
 
   /** Install a happy-dom page and instrument every error alert: happy-dom has
-   * no layout engine, so each gets a scripted rect (keyed by the `data-rect`
-   * attribute: "on" = on-screen, otherwise far below the fold) and a captured
+   * no layout engine, so each gets a scripted rect (keyed by `data-rect`:
+   * "on" = on-screen, otherwise far below the fold) and a captured
    * `scrollIntoView`. */
   const setup = (html: string): Harness => {
     const window = new Window({ url: "https://tickets.test/admin" });
@@ -85,10 +89,10 @@ describe("initScrollToError", {
       for (const el of window.document.querySelectorAll(
         '.error[role="alert"]',
       )) {
-        const onScreen = el.getAttribute("data-rect") === "on";
-        const rect = onScreen
-          ? { bottom: 60, top: 10 }
-          : { bottom: 5040, top: 5000 };
+        const rect =
+          el.getAttribute("data-rect") === "on"
+            ? { bottom: 60, top: 10 }
+            : { bottom: 5040, top: 5000 };
         (
           el as unknown as { getBoundingClientRect: () => DOMRect }
         ).getBoundingClientRect = () => rect as DOMRect;
@@ -113,11 +117,19 @@ describe("initScrollToError", {
         const boom = (): never => {
           throw new Error("storage disabled");
         };
-        stash.set("sessionStorage", { getItem: boom, setItem: boom });
+        stash.set("sessionStorage", {
+          getItem: boom,
+          removeItem: boom,
+          setItem: boom,
+        });
       },
+      clearBaseline: () =>
+        window.sessionStorage.removeItem("tickets:error-baseline"),
+      lastOptions: () => scrolls.at(-1)?.options,
       render,
-      scrolls,
-      snapshot: () => window.sessionStorage.getItem("tickets:submit-errors"),
+      scrolled: () => scrolls.map((s) => s.text),
+      setBaseline: (value) =>
+        window.sessionStorage.setItem("tickets:error-baseline", value),
       submit: (cancelled = false) => {
         const event = new window.Event("submit", {
           bubbles: true,
@@ -129,89 +141,138 @@ describe("initScrollToError", {
     };
   };
 
-  // A standing note (on-screen, always present) followed by a to-be-raised
-  // validation error further down the form (off-screen). Mirrors the attendee
-  // form, where the balance-ledger note is rendered before the date field.
-  const standingNote = `<div class="error" role="alert" data-rect="on">Standing ledger note</div>`;
+  // A standing note (on-screen, always present) and, further down the form, the
+  // validation errors a submit can raise (off-screen). Mirrors the attendee
+  // form, where the balance-ledger note renders above the date/quantity fields.
+  const note = `<div class="error" role="alert" data-rect="on">Standing ledger note</div>`;
   const dateError = `<div class="error" role="alert">A start date is required</div>`;
+  const qtyError = `<div class="error" role="alert">Too many tickets</div>`;
+  const successFlash = `<div class="success" role="alert">Saved</div>`;
 
   test("does not scroll on a plain load with no preceding submit", () => {
-    // The error is off-screen, so any scroll would register — proving the
-    // no-submit path really returns early rather than just finding nothing.
-    const h = setup(dateError);
+    const h = setup(dateError); // off-screen error, but no submit happened
     initScrollToError();
-    expect(h.scrolls).toEqual([]);
+    expect(h.scrolled()).toEqual([]);
   });
 
-  test("records the pre-submit errors under the snapshot key", () => {
-    const h = setup(standingNote);
-    initScrollToError(); // arms the listener
-    h.submit();
-    // The exact key and payload the next load reads back: the errors already
-    // showing when the form was sent.
-    expect(h.snapshot()).toBe(JSON.stringify(["Standing ledger note"]));
-  });
-
-  test("scrolls to the freshly-raised error, skipping the standing note", () => {
-    const h = setup(standingNote); // page as first loaded: only the standing note
-    initScrollToError(); // arms the listener
-    h.submit(); // form sent — snapshots {standing note}
-    h.render(standingNote + dateError); // server re-renders with the new error
-    initScrollToError(); // page B: consumes the snapshot
-    // The standing note was already there; only the date error is new.
-    expect(h.scrolls.map((s) => s.text)).toEqual(["A start date is required"]);
-    expect(h.scrolls[0]?.options).toEqual({ block: "center" });
-  });
-
-  test("does not scroll when the freshly-raised error is already visible", () => {
-    const h = setup(standingNote);
+  test("scrolls to the fresh error, skipping the standing note", () => {
+    const h = setup(note); // plain load: baseline = {standing note}
     initScrollToError();
     h.submit();
-    // The new error is on-screen (data-rect="on"): no nudge needed.
+    h.render(note + dateError); // server re-renders with the new error
+    initScrollToError();
+    expect(h.scrolled()).toEqual(["A start date is required"]);
+    expect(h.lastOptions()).toEqual({ block: "center" });
+  });
+
+  test("scrolls to an error that persists across a retry", () => {
+    const h = setup(note); // plain load: baseline = {standing note}
+    initScrollToError();
+    h.submit(); // first submit
+    h.render(note + dateError + qtyError); // two independent errors
+    initScrollToError(); // scrolls to the first (date)
+    h.submit(); // operator fixed the date, resubmits
+    h.render(note + qtyError); // date gone, quantity error remains
+    initScrollToError();
+    // The quantity error was already visible on the previous render, but it is
+    // NOT a standing note, so the retry still scrolls to it.
+    expect(h.scrolled()).toEqual([
+      "A start date is required",
+      "Too many tickets",
+    ]);
+  });
+
+  test("does not scroll when a success flash is present (redirect target)", () => {
+    // Baseline was captured on some other page (empty), then the successful
+    // submit redirected here — a page that carries its own standing note.
+    const h = setup(note); // plain load elsewhere would set a baseline; here none matches
+    initScrollToError();
+    h.submit();
+    h.render(successFlash + note); // redirect target: success + a standing note
+    initScrollToError();
+    expect(h.scrolled()).toEqual([]);
+  });
+
+  test("does not scroll when the fresh error is already visible", () => {
+    const h = setup(note);
+    initScrollToError();
+    h.submit();
     h.render(
-      `${standingNote}<div class="error" role="alert" data-rect="on">Name is required</div>`,
+      `${note}<div class="error" role="alert" data-rect="on">Name is required</div>`,
     );
     initScrollToError();
-    expect(h.scrolls).toEqual([]);
+    expect(h.scrolled()).toEqual([]);
   });
 
-  test("does not scroll when the submit raised no new error (it succeeded)", () => {
-    const h = setup(standingNote);
+  test("does not scroll when the submit raised no new error", () => {
+    const h = setup(note);
     initScrollToError();
     h.submit();
-    h.render(standingNote); // re-render still shows only the standing note
+    h.render(note); // re-render still shows only the standing note
     initScrollToError();
-    expect(h.scrolls).toEqual([]);
+    expect(h.scrolled()).toEqual([]);
   });
 
-  test("consumes the snapshot once — a later plain load does not re-scroll", () => {
-    const h = setup(standingNote);
+  test("consumes the submit marker once — a later plain load does not scroll", () => {
+    const h = setup(note);
     initScrollToError();
     h.submit();
-    h.render(standingNote + dateError);
-    initScrollToError(); // consumes + scrolls
-    h.scrolls.length = 0;
-    initScrollToError(); // snapshot already cleared → nothing
-    expect(h.scrolls).toEqual([]);
+    h.render(note + dateError);
+    initScrollToError(); // submit re-render: scrolls
+    initScrollToError(); // now a plain load (marker cleared): re-baselines, no scroll
+    expect(h.scrolled()).toEqual(["A start date is required"]);
   });
 
   test("ignores a client-cancelled submit (no re-render is coming)", () => {
-    const h = setup(standingNote);
+    const h = setup(note);
     initScrollToError();
     h.submit(true); // preventDefault()'d — e.g. a fetch-posting form
-    h.render(standingNote + dateError);
+    h.render(note + dateError);
     initScrollToError();
-    // No snapshot was stored, so the later error is not chased.
-    expect(h.scrolls).toEqual([]);
+    expect(h.scrolled()).toEqual([]);
+  });
+
+  test("scrolls to the error when no baseline was ever recorded", () => {
+    const h = setup(dateError);
+    initScrollToError(); // arms the listener, baseline = {date error}
+    h.clearBaseline(); // storage evicted the baseline between loads
+    h.submit();
+    initScrollToError(); // missing baseline → empty → error is "fresh"
+    expect(h.scrolled()).toEqual(["A start date is required"]);
+  });
+
+  test("treats a corrupted baseline as empty, still scrolling to the error", () => {
+    const h = setup(dateError);
+    initScrollToError(); // arms the listener, baseline = {date error}
+    h.setBaseline("not json"); // e.g. tampered storage
+    h.submit();
+    initScrollToError(); // corrupted baseline parses to empty → error is "fresh"
+    expect(h.scrolled()).toEqual(["A start date is required"]);
+  });
+
+  test("records the submit marker so the next load knows a submit happened", () => {
+    const h = setup(note);
+    initScrollToError(); // arms the listener
+    h.submit();
+    // The exact key/value the next load reads to decide it followed a submit.
+    expect(openWindow!.sessionStorage.getItem("tickets:form-submitted")).toBe(
+      "1",
+    );
+  });
+
+  test("records the standing notes under the baseline key on a plain load", () => {
+    setup(note);
+    initScrollToError();
+    // The exact key and payload a later submit re-render reads back.
+    const stored = openWindow!.sessionStorage.getItem("tickets:error-baseline");
+    expect(stored).toBe(JSON.stringify(["Standing ledger note"]));
   });
 
   test("survives a submit when sessionStorage is unavailable", () => {
-    // The error is off-screen, so the early return (not a missed scroll) is
-    // what keeps the page still when storage throws.
-    const h = setup(dateError);
+    const h = setup(dateError); // off-screen: a stray scroll would register
     h.breakStorage();
-    initScrollToError(); // takeSnapshot swallows the throw → null
-    expect(() => h.submit()).not.toThrow(); // remember swallows the throw
-    expect(h.scrolls).toEqual([]);
+    initScrollToError(); // reads throw → treated as no submit, writes swallowed
+    expect(() => h.submit()).not.toThrow();
+    expect(h.scrolled()).toEqual([]);
   });
 });

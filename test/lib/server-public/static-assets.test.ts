@@ -135,7 +135,7 @@ describeWithEnv(
           "[data-duplicate-preview]",
           "duration-warning-confirm",
           "Please select at least one ticket",
-          "tickets:submit-errors",
+          "tickets:error-baseline",
         ];
         const response = await handleRequest(mockRequest("/admin.js"));
         const js = await response.text();
