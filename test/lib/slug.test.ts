@@ -1,11 +1,23 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import {
   generateSlug,
   generateUniqueSlug,
   normalizeSlug,
   validateSlug,
 } from "#shared/slug.ts";
+
+/** Feed a fixed sequence of Math.random() values, in order, to the body. */
+const withRandomSequence = <T>(values: number[], body: () => T): T => {
+  let index = 0;
+  const randomStub = stub(Math, "random", () => values[index++]!);
+  try {
+    return body();
+  } finally {
+    randomStub.restore();
+  }
+};
 
 describe("slug", () => {
   describe("generateSlug", () => {
@@ -39,15 +51,47 @@ describe("slug", () => {
       // With ~1.15M combinations, 20 slugs should all be unique
       expect(slugs.size).toBe(20);
     });
+
+    test("shuffles the guaranteed digits/letters via a real Fisher-Yates pass", () => {
+      // Pins every Math.random() call the function makes: the 5 guaranteed
+      // characters (digit, digit, letter, letter, any), then the 4 shuffle
+      // swaps. This exact sequence starts as "37cfa" and the shuffle moves
+      // every character at least once, so a broken swap index, a skipped
+      // swap, or a wrong loop bound all produce a different result.
+      const slug = withRandomSequence(
+        [0.35, 0.75, 0.3, 0.7, 0.56, 0.1, 0.9, 0.5, 0.1],
+        () => generateSlug(),
+      );
+      expect(slug).toBe("ca7f3");
+    });
   });
 
   describe("generateUniqueSlug", () => {
     test("throws after exhausting all retry attempts", async () => {
       const alwaysTaken = () => Promise.resolve(true);
       const computeIndex = (s: string) => Promise.resolve(s);
+      let error: Error | undefined;
+      try {
+        await generateUniqueSlug(computeIndex, alwaysTaken);
+      } catch (e) {
+        error = e as Error;
+      }
+      expect(error?.message).toBe(
+        "Failed to generate unique slug after 10 attempts",
+      );
+    });
+
+    test("retries exactly 10 times before giving up, not more or fewer", async () => {
+      let calls = 0;
+      const alwaysTaken = () => {
+        calls++;
+        return Promise.resolve(true);
+      };
+      const computeIndex = (s: string) => Promise.resolve(s);
       await expect(
         generateUniqueSlug(computeIndex, alwaysTaken),
-      ).rejects.toThrow("Failed to generate unique slug after 10 attempts");
+      ).rejects.toThrow();
+      expect(calls).toBe(10);
     });
   });
 

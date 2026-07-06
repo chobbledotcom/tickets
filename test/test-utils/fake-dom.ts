@@ -20,13 +20,8 @@ export type FakeElement = {
   disabled: boolean;
   hidden: boolean;
   readOnly: boolean;
-  /** True after `focus()` was called (test-observable focus). */
-  focused: boolean;
-  focus: () => void;
   /** The enclosing `<form>` element, linked by {@link installFakeDom}. */
   form: FakeElement | null;
-  /** Re-dispatches "submit" listeners, like the DOM `form.requestSubmit()`. */
-  requestSubmit: () => void;
   textContent: string;
   dataset: Record<string, string>;
   children: FakeElement[];
@@ -164,10 +159,6 @@ const makeElement = (spec: ElementSpec): FakeElement => {
       for (const listener of listeners.get(event.type) ?? []) listener(event);
       return true;
     },
-    focus: () => {
-      el.focused = true;
-    },
-    focused: false,
     form: null,
     getAttribute: (name) => attrs.get(name) ?? null,
     hidden: spec.hidden ?? false,
@@ -180,7 +171,6 @@ const makeElement = (spec: ElementSpec): FakeElement => {
       children.length = 0;
       children.push(...next);
     },
-    requestSubmit: () => el.dispatch("submit", { preventDefault: () => {} }),
     required: spec.required ?? false,
     tag: spec.tag ?? "input",
     textContent: "",

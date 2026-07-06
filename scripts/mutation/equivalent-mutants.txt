@@ -577,3 +577,67 @@ src/shared/renewal-helpers.ts:20:16  0 → -1   # same reachability guarantee; d
 # package-privacy.ts's packagePrivacyOfDisplay: display is typed
 # PackageDisplay|null (no undefined case), so === and == agree on null.
 src/shared/package-privacy.ts:44:10  === → ==   # display: PackageDisplay|null (no undefined), so === and == agree on null
+
+# slug.ts's firstIssueMessage: `abortPipeEarly` only changes whether valibot
+# keeps validating later pipe steps after an earlier one fails — it never
+# changes which issue is reported *first*, since a pipe step only runs on a
+# value that already passed every prior step. Checked directly against the
+# only schema this helper is ever called with (SlugSchema = v.pipe(v.string(),
+# v.nonEmpty(...), v.slug(...))): every input that fails at any step —
+# non-string, empty, uppercase, spaces, symbols, leading/trailing separator,
+# consecutive separators — produces the identical issues[0].message under
+# both true and false.
+src/shared/slug.ts:64:63  true → false   # abortPipeEarly: SlugSchema's issues[0] message is identical either way for every input category the pipe can fail on
+
+# url-safety.ts: isInternalHostname and isIpLiteral are private helpers only
+# ever called (via isSafeServerFetchUrl) with `url.hostname` from an already
+# `new URL()`-parsed, `URL.canParse()`-gated string — never with an arbitrary
+# string. That constrains the reachable input space enough to make two
+# clusters of mutants unobservable through the exported functions, confirmed
+# empirically (see scripts/mutation.ts run history / PR for the isSafeServer-
+# FetchUrl-level checks that back these):
+#
+# 1. isInternalHostname's exact-match arms (`h === "localhost"`, `h ===
+#    "local"`): both target strings contain no ".", and isDomainHostname
+#    requires `host.includes(".")` — so any host these arms would ever match
+#    is *already* rejected by the separate, independent isDomainHostname
+#    dot-check. Mutating the literal (even to "" or a nonsense string) cannot
+#    change isSafeServerFetchUrl's output for any reachable host.
+src/shared/url-safety.ts:13:9  localhost → ""   # bare "localhost" has no dot; isDomainHostname's dot-check rejects it independently either way
+src/shared/url-safety.ts:13:9  localhost → "localhost mutated"   # same as above
+src/shared/url-safety.ts:15:9  local → ""   # bare "local" has no dot; isDomainHostname's dot-check rejects it independently either way
+src/shared/url-safety.ts:15:9  local → "local mutated"   # same as above
+#
+# 2. isIpLiteral's bracket-stripping ternary and its `h.includes(":")` check:
+#    the WHATWG URL spec only accepts a bracketed host if it's a syntactically
+#    valid IPv6 address (confirmed empirically: any asymmetric-bracket or
+#    non-IPv6 bracketed string fails URL.canParse entirely, so isIpLiteral
+#    never sees it), and every valid IPv6 address contains a colon — with or
+#    without the surrounding brackets stripped. So whichever way the ternary
+#    or the slice bounds are mutated, `h.includes(":")` still finds a colon
+#    for every reachable bracketed host, and `return true`/`return undefined`/
+#    `return false` from that branch don't matter either, because any dotless
+#    host (which every such host is — Deno's URL parser normalizes embedded
+#    IPv4-in-IPv6 notation to hex, e.g. "[::ffff:1.2.3.4]" → "[::ffff:102:
+#    304]", so no bracketed host ever keeps a literal "."} is *also*
+#    independently rejected by isDomainHostname's dot-check. Verified directly
+#    against isSafeServerFetchUrl (not just isIpLiteral in isolation) across
+#    every bracketed test case already in this suite plus IPv4-mapped and
+#    malformed-bracket variants — all agree with the unmutated function.
+src/shared/url-safety.ts:22:5  ?: → alternate only   # bracket-stripping is unobservable; see block comment above
+src/shared/url-safety.ts:22:25  && → ||   # host can never start with "[" without also ending with "]" (URL.canParse rejects the asymmetric case), so && and || agree
+src/shared/url-safety.ts:22:25  && → ??   # startsWith("["): plain boolean, never nullish, so ?? reduces to the left operand alone — which agrees with && given the bracket-symmetry invariant above
+src/shared/url-safety.ts:22:21  [ → ""   # startsWith("") is always true; combined with the bracket-symmetry invariant this doesn't change which hosts get stripped
+src/shared/url-safety.ts:22:21  [ → "[ mutated"   # no reachable host starts with this literal, so stripping never happens — but unobservable either way, see block comment above
+src/shared/url-safety.ts:22:43  ] → ""   # endsWith("") is always true; see block comment above
+src/shared/url-safety.ts:22:43  ] → "] mutated"   # no reachable host ends with this literal, so stripping never happens — but unobservable either way, see block comment above
+src/shared/url-safety.ts:22:61  1 → 0   # slice(0,-1) vs slice(1,-1): still leaves a colon in every reachable bracketed (IPv6) host
+src/shared/url-safety.ts:22:61  1 → 2   # slice(2,-1) vs slice(1,-1): still leaves a colon in every reachable bracketed (IPv6) host
+src/shared/url-safety.ts:22:61  1 → -1   # slice(-1,-1) empties h, but the resulting dotless "" is caught by isDomainHostname's dot-check regardless
+src/shared/url-safety.ts:22:64  - → +   # slice(1,+1) empties h; same isDomainHostname fallback as above
+src/shared/url-safety.ts:22:65  1 → 0   # slice(1,-0)=slice(1,0) empties h; same isDomainHostname fallback as above
+src/shared/url-safety.ts:22:65  1 → 2   # slice(1,-2) vs slice(1,-1): still leaves a colon in every reachable bracketed (IPv6) host
+src/shared/url-safety.ts:22:65  1 → -1   # slice(1,1) empties h; same isDomainHostname fallback as above
+src/shared/url-safety.ts:23:18  : → ": mutated"   # h never contains this literal, so the colon-detection branch is skipped — falls to the regex, but the dotless-host isDomainHostname fallback still catches it
+src/shared/url-safety.ts:23:31  return true → return undefined   # !undefined behaves like !false downstream; same isDomainHostname fallback as above
+src/shared/url-safety.ts:23:31  true → false   # isIpLiteral wrongly says "not an IP literal", but the dotless-host isDomainHostname fallback still rejects it

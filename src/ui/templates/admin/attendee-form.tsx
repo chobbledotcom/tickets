@@ -635,7 +635,7 @@ const AttendeeEditForm = ({
         />
       </label>
 
-      <Raw html={renderAddressLookupPanel("editable")} />
+      <Raw html={renderAddressLookupPanel()} />
       <label for="address">
         {t("common.address")}
         <textarea
