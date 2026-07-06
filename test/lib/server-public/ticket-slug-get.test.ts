@@ -209,7 +209,10 @@ describeWithEnv(
           }),
         );
 
-      test("CSRF error response does not set cookies in iframe mode", async () => {
+      /** Create a listing, POST its iframe form with a bad CSRF token, and
+       * confirm it redirects with the "invalid form" flash — the shared body of
+       * both CSRF-error checks. Hands back the response for any further checks. */
+      const expectWrongCsrfTokenFlash = async (): Promise<Response> => {
         const listing = await createTestListing({ maxAttendees: 50 });
         const response = await postWrongCsrfToken(listing);
         expect(response.status).toBe(302);
@@ -218,6 +221,11 @@ describeWithEnv(
           expect.stringContaining("Invalid or expired form"),
           false,
         );
+        return response;
+      };
+
+      test("CSRF error response does not set cookies in iframe mode", async () => {
+        const response = await expectWrongCsrfTokenFlash();
         const cookies = response.headers.getSetCookie().join("; ");
         expect(cookies).not.toContain("csrf_token=");
       });
@@ -252,15 +260,8 @@ describeWithEnv(
       });
 
       test("CSRF error regenerates a signed token", async () => {
-        const listing = await createTestListing({ maxAttendees: 50 });
-        const response = await postWrongCsrfToken(listing);
-        // Now redirects with flash error instead of rendering a 403 page
-        expect(response.status).toBe(302);
-        expectFlash(
-          response,
-          expect.stringContaining("Invalid or expired form"),
-          false,
-        );
+        // Redirects with flash error instead of rendering a 403 page.
+        await expectWrongCsrfTokenFlash();
       });
     });
   },

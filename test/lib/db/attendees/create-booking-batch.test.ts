@@ -119,6 +119,16 @@ const expectCapacityExceeded = async (
   await expectNothingWritten(listingId, transferCount);
 };
 
+/** Assert an atomic booking landed and hand back its successful result. */
+const expectBookingSucceeded = (
+  result: Awaited<ReturnType<typeof createBookingAtomic>>,
+) => {
+  if (result === "sold-out" || !result.success) {
+    throw new Error("expected ok");
+  }
+  return result;
+};
+
 describeWithEnv("db > createBookingAtomic", { db: true }, () => {
   test("posts legs, consumes modifier stock, and finalizes the session in one batch", async () => {
     const listing = await createTestListing({
@@ -144,10 +154,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     const result = await createBookingAtomic(paidInput(listing.id, 600), plan);
 
     expect(result).not.toBe("sold-out");
-    if (result === "sold-out" || !result.success) {
-      throw new Error("expected ok");
-    }
-    const attendeeId = result.attendees[0]!.id;
+    const attendeeId = expectBookingSucceeded(result).attendees[0]!.id;
     // Gross revenue recognised, surcharge billed, and the £6 paid clears the
     // balance to zero — the legs were posted with the real attendee id.
     expect(await accountBalance(revenueAccount(listing.id))).toBe(500);
@@ -225,10 +232,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       plan,
     );
 
-    if (result === "sold-out" || !result.success) {
-      throw new Error("expected ok");
-    }
-    expect(result.attendees.length).toBe(1);
+    expect(expectBookingSucceeded(result).attendees.length).toBe(1);
     // No money moved, no event-group stamp written.
     expect((await allTransfers()).length).toBe(0);
   });

@@ -1044,6 +1044,21 @@ describeWithEnv(
       return modifier;
     };
 
+    /**
+     * Make a parent whose "Solo Widget" child can be booked on its own, add a
+     * "Solo extra" opt-in add-on, and link that add-on to the child.
+     */
+    const linkSoloExtraToBookableChild = async () => {
+      const { child } = await makeParent({
+        children: [{ bookableAlone: true, name: "Solo Widget" }],
+      });
+      const modifier = await optInAddOn("Solo extra");
+      await adminFormPost(`/admin/modifiers/${modifier.id}/links`, {
+        listing_ids: String(child.id),
+      });
+      return { child, modifier };
+    };
+
     test("allows creating a whole-order opt-in add-on (reachable everywhere)", async () => {
       // A whole-order (scope "all") add-on loads on every page, so it can never
       // be a child-only dead end — creating one with the flag on is allowed.
@@ -1084,13 +1099,7 @@ describeWithEnv(
       // A `bookable_alone` child serves its own booking page, so an add-on
       // scoped to it alone is reachable (not a dead end) — the two-sided
       // reachability counts the flagged child as a live page.
-      const { child } = await makeParent({
-        children: [{ bookableAlone: true, name: "Solo Widget" }],
-      });
-      const modifier = await optInAddOn("Solo extra");
-      await adminFormPost(`/admin/modifiers/${modifier.id}/links`, {
-        listing_ids: String(child.id),
-      });
+      const { child, modifier } = await linkSoloExtraToBookableChild();
       // The link stuck — no child-only dead-end block fired.
       expect(await getModifierListingIds(modifier.id)).toEqual([child.id]);
     });
@@ -1099,13 +1108,7 @@ describeWithEnv(
       // The child's own page is the ONLY thing rescuing the add-on. Clearing the
       // flag would strip that page and dead-end the add-on, so the listing save
       // is rejected (the false-transition guard) and the flag stays true.
-      const { child } = await makeParent({
-        children: [{ bookableAlone: true, name: "Solo Widget" }],
-      });
-      const modifier = await optInAddOn("Solo extra");
-      await adminFormPost(`/admin/modifiers/${modifier.id}/links`, {
-        listing_ids: String(child.id),
-      });
+      const { child } = await linkSoloExtraToBookableChild();
       // The edit endpoint 400s (non-302), so the helper throws; the flag is kept.
       await expect(
         updateTestListing(child.id, { bookableAlone: false }),
@@ -1232,16 +1235,7 @@ describeWithEnv(
       // be scoped to a child without dead-ending.
       const modifier = await insertModifier({ name: "Auto surcharge" });
       await patchModifier(modifier.id, { active: 1, scope: "listings" });
-      const { response } = await adminFormPost(
-        `/admin/modifiers/${modifier.id}/links`,
-        { listing_ids: String(child.id) },
-      );
-      await expectFlashRedirect(
-        `/admin/modifiers/${modifier.id}/edit`,
-        "Scope updated",
-        true,
-      )(response);
-      expect(await getModifierListingIds(modifier.id)).toEqual([child.id]);
+      await expectScopeUpdatedLinkingChild(modifier.id, child.id);
     });
 
     test("allows an inactive child-scoped opt-in add-on (never loads on a page)", async () => {
@@ -1254,16 +1248,7 @@ describeWithEnv(
         scope: "listings",
         trigger: "optional",
       });
-      const { response } = await adminFormPost(
-        `/admin/modifiers/${modifier.id}/links`,
-        { listing_ids: String(child.id) },
-      );
-      await expectFlashRedirect(
-        `/admin/modifiers/${modifier.id}/edit`,
-        "Scope updated",
-        true,
-      )(response);
-      expect(await getModifierListingIds(modifier.id)).toEqual([child.id]);
+      await expectScopeUpdatedLinkingChild(modifier.id, child.id);
     });
 
     /** POST the scope-links form with repeated `listing_ids` values

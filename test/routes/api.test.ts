@@ -3,6 +3,7 @@ import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import * as v from "valibot";
 import { handleRequest } from "#routes";
+import type { CheckoutIntent } from "#shared/payments.ts";
 import { addDays } from "#shared/dates.ts";
 import { groupsTable } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";

@@ -21,6 +21,21 @@ const withGroup9Pool5 = (
     groupIdsByListingId,
   );
 
+// A single package member that needs 2 of listing 1 (own pool 100), carrying
+// the given children; returns the bundle limit the cap logic computes.
+const bundleLimitWithChildren = (
+  children: readonly TicketListing[],
+): number => {
+  const tree = packageTree(new Map([[1, 2]]));
+  const ctx = packageLimitInfo(
+    [tl(1, 100)],
+    new Map([[1, children]]),
+    new Map(),
+    new Map(),
+  );
+  return packageBundleLimit(tree, ctx);
+};
+
 describe("packageChildTicketLimits", () => {
   test("omits members that have no children entry", () => {
     const ctx = packageLimitInfo([tl(1, 10)], new Map(), new Map(), new Map());
@@ -142,14 +157,7 @@ describe("packageBundleLimit", () => {
     // Each package needs 2 of this member, and its sole child can only
     // supply 5 tickets total, so floor(5/2)=2 packages — tighter than the
     // package's own quantity limit (floor(100/2)=50).
-    const tree = packageTree(new Map([[1, 2]]));
-    const ctx = packageLimitInfo(
-      [tl(1, 100)],
-      new Map([[1, [tl(2, 5)]]]),
-      new Map(),
-      new Map(),
-    );
-    expect(packageBundleLimit(tree, ctx)).toBe(2);
+    expect(bundleLimitWithChildren([tl(2, 5)])).toBe(2);
   });
 
   test("a sole daily child is not constrained by the per-package ticket pool", () => {
@@ -158,14 +166,9 @@ describe("packageBundleLimit", () => {
     // governed by the parent's capacity elsewhere — it must not also be
     // pooled here, so the bundle limit falls back to the package's own
     // quantity limit (floor(100/2)=50).
-    const tree = packageTree(new Map([[1, 2]]));
-    const ctx = packageLimitInfo(
-      [tl(1, 100)],
-      new Map([[1, [tl(2, 5, { listing_type: "daily" })]]]),
-      new Map(),
-      new Map(),
-    );
-    expect(packageBundleLimit(tree, ctx)).toBe(50);
+    expect(
+      bundleLimitWithChildren([tl(2, 5, { listing_type: "daily" })]),
+    ).toBe(50);
   });
 
   test("does not apply single-child ticket pooling when a member has more than one child", () => {
@@ -173,14 +176,7 @@ describe("packageBundleLimit", () => {
     // own quantity limit already incorporates their summed own-limits via
     // packageChildTicketLimits, so the additional single-child pool must
     // not also apply (which would wrongly treat the first child as sole).
-    const tree = packageTree(new Map([[1, 2]]));
-    const ctx = packageLimitInfo(
-      [tl(1, 100)],
-      new Map([[1, [tl(2, 3), tl(3, 3)]]]),
-      new Map(),
-      new Map(),
-    );
-    expect(packageBundleLimit(tree, ctx)).toBe(3);
+    expect(bundleLimitWithChildren([tl(2, 3), tl(3, 3)])).toBe(3);
   });
 
   test("pools a shared capped group's capacity across different package members, not per-member", () => {

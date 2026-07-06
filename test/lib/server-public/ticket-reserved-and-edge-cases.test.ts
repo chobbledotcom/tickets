@@ -11,7 +11,6 @@ import {
   createTestAttendeeWithToken,
   createTestListing,
   describeWithEnv,
-  expectAttendeeCounts,
   expectBookOneEachRejected,
   expectCheckoutRedirect,
   expectFlash,
@@ -24,6 +23,7 @@ import {
   submitMultiTicketForm,
   submitTicketForm,
 } from "#test-utils";
+import { bookTwoFreeListings } from "#test-utils/multi-ticket-signup.ts";
 
 // jscpd:ignore-end
 
@@ -266,23 +266,16 @@ describeWithEnv(
           name: "Multi Free Ok 2",
         });
 
-        const response = await submitMultiTicketForm(
-          `${listing1.slug}+${listing2.slug}`,
-          {
-            email: "multifree@example.com",
-            name: "Multi Free User",
-            [`quantity_${listing1.id}`]: "2",
-            [`quantity_${listing2.id}`]: "1",
-          },
+        await bookTwoFreeListings(
+          (quantities) =>
+            submitMultiTicketForm(`${listing1.slug}+${listing2.slug}`, {
+              email: "multifree@example.com",
+              name: "Multi Free User",
+              ...quantities,
+            }),
+          listing1,
+          listing2,
         );
-
-        expectReservedRedirectWithTokens(response);
-
-        // Verify attendees created for both listings
-        await expectAttendeeCounts([
-          { count: 1, listingId: listing1.id, quantity: 2 },
-          { count: 1, listingId: listing2.id, quantity: 1 },
-        ]);
       });
     });
 
