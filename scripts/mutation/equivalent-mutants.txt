@@ -577,3 +577,14 @@ src/shared/renewal-helpers.ts:20:16  0 → -1   # same reachability guarantee; d
 # package-privacy.ts's packagePrivacyOfDisplay: display is typed
 # PackageDisplay|null (no undefined case), so === and == agree on null.
 src/shared/package-privacy.ts:44:10  === → ==   # display: PackageDisplay|null (no undefined), so === and == agree on null
+
+# slug.ts's firstIssueMessage: `abortPipeEarly` only changes whether valibot
+# keeps validating later pipe steps after an earlier one fails — it never
+# changes which issue is reported *first*, since a pipe step only runs on a
+# value that already passed every prior step. Checked directly against the
+# only schema this helper is ever called with (SlugSchema = v.pipe(v.string(),
+# v.nonEmpty(...), v.slug(...))): every input that fails at any step —
+# non-string, empty, uppercase, spaces, symbols, leading/trailing separator,
+# consecutive separators — produces the identical issues[0].message under
+# both true and false.
+src/shared/slug.ts:64:63  true → false   # abortPipeEarly: SlugSchema's issues[0] message is identical either way for every input category the pipe can fail on
