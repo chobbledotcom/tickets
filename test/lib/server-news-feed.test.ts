@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { newsPostsTable } from "#shared/db/news-posts.ts";
 import { settings } from "#shared/db/settings.ts";

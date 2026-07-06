@@ -3,7 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#shared/db/client.ts";
 import { appendImageToItem, getImagesForItem } from "#shared/db/images.ts";
 import {
-  createNewsPost,
   deleteNewsPostWithImages,
   getNewsPostById,
   getNewsPostCards,
