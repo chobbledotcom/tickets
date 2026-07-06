@@ -166,6 +166,35 @@ describe("db > accounting > manual ledger entries", () => {
     expect(after!.reference).toBe(before!.reference);
   });
 
+  test("edits only the targeted entry, leaving sibling manual entries alone", async () => {
+    // Two owner-entered rows on the same account: the update must be keyed on
+    // the transfer id, never bleed onto the account's other entries.
+    for (const type of [MANUAL_ATTENDEE_PAYMENT, MANUAL_ATTENDEE_CHARGE]) {
+      await postManualLedgerEntry({
+        account: account("attendee", 1),
+        amount: 100,
+        occurredAt: "2026-06-22T09:30:00.000Z",
+        postedBy: "1",
+        type,
+      });
+    }
+    const findByKind = async (kind: string): Promise<Transfer> =>
+      (await allTransfers()).find((transfer) => transfer.kind === kind)!;
+
+    await updateManualLedgerEntry(
+      await findByKind(MANUAL_ATTENDEE_PAYMENT),
+      777,
+      "2026-06-25T12:00:00.000Z",
+    );
+
+    const untouched = await findByKind(MANUAL_ATTENDEE_CHARGE);
+    expect(untouched.amount).toBe(100);
+    expect(untouched.occurredAt).toBe("2026-06-22T09:30:00.000Z");
+    const edited = await findByKind(MANUAL_ATTENDEE_PAYMENT);
+    expect(edited.amount).toBe(777);
+    expect(edited.occurredAt).toBe("2026-06-25T12:00:00.000Z");
+  });
+
   test("deletes an owner-entered entry", async () => {
     await postManualLedgerEntry({
       account: account("attendee", 1),

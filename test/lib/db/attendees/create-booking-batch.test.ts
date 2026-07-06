@@ -18,6 +18,7 @@ import {
   createBookingAtomic,
   getAttendeesRaw,
 } from "#shared/db/attendees.ts";
+import { queryOne } from "#shared/db/client.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
@@ -119,6 +120,15 @@ const expectCapacityExceeded = async (
   await expectNothingWritten(listingId, transferCount);
 };
 
+/** The stored ledger_event_group stamp on an attendee's booking row. */
+const storedEventGroup = async (attendeeId: number): Promise<string> => {
+  const row = await queryOne<{ ledger_event_group: string }>(
+    "SELECT ledger_event_group FROM listing_attendees WHERE attendee_id = ?",
+    [attendeeId],
+  );
+  return row!.ledger_event_group;
+};
+
 describeWithEnv("db > createBookingAtomic", { db: true }, () => {
   test("posts legs, consumes modifier stock, and finalizes the session in one batch", async () => {
     const listing = await createTestListing({
@@ -158,6 +168,10 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     // Session finalized atomically: attendee_id set in the same batch.
     const session = await isSessionProcessed("sess_batch_ok");
     expect(session!.attendee_id).toBe(attendeeId);
+    // The booking row is stamped with the legs' event group, so the per-row
+    // amount-paid projection resolves exactly this booking's legs.
+    expect(plan.legs.length).toBeGreaterThan(0);
+    expect(await storedEventGroup(attendeeId)).toBe(plan.legs[0]!.eventGroup);
   });
 
   test("returns 'sold-out' and writes nothing when a chosen modifier is sold out", async () => {
@@ -231,6 +245,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     expect(result.attendees.length).toBe(1);
     // No money moved, no event-group stamp written.
     expect((await allTransfers()).length).toBe(0);
+    expect(await storedEventGroup(result.attendees[0]!.id)).toBe("");
   });
 
   test("blames capacity, not the modifiers, when the booking fails but every modifier still has stock", async () => {
