@@ -7,6 +7,7 @@ import {
 } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
+import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import {
   createAttendeeAtomic,
   LISTING_ATTENDEE_ROW_COLS,

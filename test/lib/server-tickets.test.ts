@@ -492,26 +492,25 @@ describeWithEnv(
       expect(body).not.toContain("Widget");
     });
 
-    /** Book `listingId` as a member of package `groupId` and return the rendered
-     * /t ticket body. */
+    /** Book a package — one or more member bookings under a single group — fail
+     * loudly if the booking didn't go through, and return the first attendee's
+     * rendered /t ticket body. */
     const bookPackageTicketBody = async (
-      groupId: number,
-      listingId: number,
-      quantity: number,
+      input: Parameters<typeof createAttendeeAtomic>[0],
     ): Promise<string> => {
-      const result = await createAttendeeAtomic({
-        bookings: [{ listingId, quantity }],
-        email: "pkgbook@test.com",
-        name: "Package Buyer",
-        packageGroupId: groupId,
-      });
+      const result = await createAttendeeAtomic(input);
       if (!result.success) throw new Error("package booking failed");
       return fetchTicketBody(result.attendees[0]!.ticket_token);
     };
 
     test("a hidden package card shows the booked quantity without naming members", async () => {
       const { group, widget } = await hiddenOneMemberPackage();
-      const body = await bookPackageTicketBody(group.id, widget.id, 3);
+      const body = await bookPackageTicketBody({
+        bookings: [{ listingId: widget.id, quantity: 3 }],
+        email: "pkgbook@test.com",
+        name: "Package Buyer",
+        packageGroupId: group.id,
+      });
       expect(body).toContain("Kit Bag");
       // The count is shown at package level; the member name is not.
       expect(body).toContain("&times;3");
@@ -534,15 +533,12 @@ describeWithEnv(
         attachmentName: "Handbook.pdf",
         attachmentUrl: "handbook.pdf",
       });
-      const result = await createAttendeeAtomic({
+      const body = await bookPackageTicketBody({
         bookings: [{ listingId: member.id, quantity: 1 }],
         email: "pkg@test.com",
         name: "Buyer",
         packageGroupId: group.id,
       });
-      if (!result.success) throw new Error("package booking failed");
-
-      const body = await fetchTicketBody(result.attendees[0]!.ticket_token);
       expect(body).toContain("Welcome Pack");
       expect(body).toContain("Handbook");
       expect(body).toContain("attachment-link");

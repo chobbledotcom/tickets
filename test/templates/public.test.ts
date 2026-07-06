@@ -517,19 +517,19 @@ describe("ticketPage", () => {
   test("shows all sold out message when every listing is sold out", () => {
     const listings = [
       makeListing({
-          attendee_count: 100,
-          id: 1,
-          max_attendees: 100,
-          name: "Listing A",
-          slug: "ab12c",
-        }),
+        attendee_count: 100,
+        id: 1,
+        max_attendees: 100,
+        name: "Listing A",
+        slug: "ab12c",
+      }),
       makeListing({
-          attendee_count: 50,
-          id: 2,
-          max_attendees: 50,
-          name: "Listing B",
-          slug: "cd34e",
-        }),
+        attendee_count: 50,
+        id: 2,
+        max_attendees: 50,
+        name: "Listing B",
+        slug: "cd34e",
+      }),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c", "cd34e"] });
     expect(html).toContain("Sorry, all listings are sold out.");
@@ -539,21 +539,21 @@ describe("ticketPage", () => {
   test("renders a package quantity selector and member rows with fixed quantities", () => {
     const listings = [
       makeListing({
-          attendee_count: 0,
-          id: 1,
-          max_attendees: 100,
-          name: "Tent",
-          slug: "tent1",
-        }),
+        attendee_count: 0,
+        id: 1,
+        max_attendees: 100,
+        name: "Tent",
+        slug: "tent1",
+      }),
       makeListing({
-          attendee_count: 0,
-          id: 2,
-          max_attendees: 100,
-          // ×4 per package, so its per-order limit must admit at least 4.
-          max_quantity: 10,
-          name: "Chair",
-          slug: "chr12",
-        }),
+        attendee_count: 0,
+        id: 2,
+        max_attendees: 100,
+        // ×4 per package, so its per-order limit must admit at least 4.
+        max_quantity: 10,
+        name: "Chair",
+        slug: "chr12",
+      }),
     ];
     const html = ticketPage({
       groupName: "Camp Kit",
@@ -578,13 +578,13 @@ describe("ticketPage", () => {
     try {
       const listings = [
         makeListing({
-            attendee_count: 0,
-            id: 1,
-            max_attendees: 100,
-            max_quantity: 10,
-            name: "Tent",
-            slug: "tent1",
-          }),
+          attendee_count: 0,
+          id: 1,
+          max_attendees: 100,
+          max_quantity: 10,
+          name: "Tent",
+          slug: "tent1",
+        }),
       ];
       const html = ticketPage({
         groupName: "Camp Kit",
@@ -603,21 +603,21 @@ describe("ticketPage", () => {
   test("caps the package selector by the shared pool, defaulting a missing member quantity to 1", () => {
     const listings = [
       makeListing({
-          attendee_count: 0,
-          id: 1,
-          max_attendees: 100,
-          max_quantity: 10,
-          name: "Big",
-          slug: "big01",
-        }),
+        attendee_count: 0,
+        id: 1,
+        max_attendees: 100,
+        max_quantity: 10,
+        name: "Big",
+        slug: "big01",
+      }),
       makeListing({
-          attendee_count: 0,
-          id: 2,
-          max_attendees: 100,
-          max_quantity: 10,
-          name: "Small",
-          slug: "sml01",
-        }),
+        attendee_count: 0,
+        id: 2,
+        max_attendees: 100,
+        max_quantity: 10,
+        name: "Small",
+        slug: "sml01",
+      }),
     ];
     const html = ticketPage({
       groupName: "Pool Pkg",
@@ -645,19 +645,19 @@ describe("ticketPage", () => {
   test("renders a package as sold out when its cap is zero", () => {
     const listings = [
       makeListing({
-          attendee_count: 0,
-          id: 1,
-          max_attendees: 100,
-          name: "Big",
-          slug: "big01",
-        }),
+        attendee_count: 0,
+        id: 1,
+        max_attendees: 100,
+        name: "Big",
+        slug: "big01",
+      }),
       makeListing({
-          attendee_count: 0,
-          id: 2,
-          max_attendees: 100,
-          name: "Small",
-          slug: "sml01",
-        }),
+        attendee_count: 0,
+        id: 2,
+        max_attendees: 100,
+        name: "Small",
+        slug: "sml01",
+      }),
     ];
     // Both members still have individual capacity, but one package consumes 2
     // units (1 each) from a shared pool with only 1 left → floor(1 / 2) = 0
@@ -684,21 +684,21 @@ describe("ticketPage", () => {
   test("caps the package by a SECOND capped group the members share", () => {
     const listings = [
       makeListing({
-          attendee_count: 0,
-          id: 1,
-          max_attendees: 100,
-          max_quantity: 10,
-          name: "Big",
-          slug: "big01",
-        }),
+        attendee_count: 0,
+        id: 1,
+        max_attendees: 100,
+        max_quantity: 10,
+        name: "Big",
+        slug: "big01",
+      }),
       makeListing({
-          attendee_count: 0,
-          id: 2,
-          max_attendees: 100,
-          max_quantity: 10,
-          name: "Small",
-          slug: "sml01",
-        }),
+        attendee_count: 0,
+        id: 2,
+        max_attendees: 100,
+        max_quantity: 10,
+        name: "Small",
+        slug: "sml01",
+      }),
     ];
     // The package group (7) is roomy — floor(10 / 2) = 5 packages fit — but both
     // members ALSO belong to a second capped group (9) with only 2 spots, and one
@@ -730,12 +730,12 @@ describe("ticketPage", () => {
   test("hides member rows when the package hides its listings", () => {
     const listings = [
       makeListing({
-          attendee_count: 0,
-          id: 1,
-          max_attendees: 100,
-          name: "SecretItem",
-          slug: "sec12",
-        }),
+        attendee_count: 0,
+        id: 1,
+        max_attendees: 100,
+        name: "SecretItem",
+        slug: "sec12",
+      }),
     ];
     // packageQuantities omitted exercises the defensive empty-map fallback.
     const html = ticketPage({
@@ -753,11 +753,11 @@ describe("ticketPage", () => {
   test("renders markdown paragraphs in terms and conditions", () => {
     const listings = [
       makeListing({
-          attendee_count: 0,
-          id: 1,
-          name: "Listing A",
-          slug: "ab12c",
-        }),
+        attendee_count: 0,
+        id: 1,
+        name: "Listing A",
+        slug: "ab12c",
+      }),
     ];
     const html = ticketPage({
       listings,
@@ -772,11 +772,11 @@ describe("ticketPage", () => {
   test("renders custom questions with listing IDs", () => {
     const listings = [
       makeListing({
-          attendee_count: 0,
-          id: 1,
-          name: "Listing A",
-          slug: "ab12c",
-        }),
+        attendee_count: 0,
+        id: 1,
+        name: "Listing A",
+        slug: "ab12c",
+      }),
     ];
     const questions = [
       {
@@ -809,11 +809,11 @@ describe("ticketPage", () => {
   test("renders a promo-code field when promo codes are enabled", () => {
     const listings = [
       makeListing({
-          attendee_count: 0,
-          id: 1,
-          name: "Listing A",
-          slug: "ab12c",
-        }),
+        attendee_count: 0,
+        id: 1,
+        name: "Listing A",
+        slug: "ab12c",
+      }),
     ];
     const html = ticketPage({
       listings,
@@ -827,11 +827,11 @@ describe("ticketPage", () => {
   test("omits the promo-code field when promo codes are disabled", () => {
     const listings = [
       makeListing({
-          attendee_count: 0,
-          id: 1,
-          name: "Listing A",
-          slug: "ab12c",
-        }),
+        attendee_count: 0,
+        id: 1,
+        name: "Listing A",
+        slug: "ab12c",
+      }),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c"] });
     expect(html).not.toContain('name="promo_code"');
@@ -840,11 +840,11 @@ describe("ticketPage", () => {
   test("renders an opt-in add-on selector with its price label", () => {
     const listings = [
       makeListing({
-          attendee_count: 0,
-          id: 1,
-          name: "Listing A",
-          slug: "ab12c",
-        }),
+        attendee_count: 0,
+        id: 1,
+        name: "Listing A",
+        slug: "ab12c",
+      }),
     ];
     const html = ticketPage({
       addOns: [
@@ -869,11 +869,11 @@ describe("ticketPage", () => {
     detectIframeMode("https://example.com/?iframe=true");
     const listings = [
       makeListing({
-          attendee_count: 0,
-          id: 1,
-          name: "Listing A",
-          slug: "ab12c",
-        }),
+        attendee_count: 0,
+        id: 1,
+        name: "Listing A",
+        slug: "ab12c",
+      }),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c"] });
     expect(html).toContain('action="/ticket/ab12c?iframe=true"');
@@ -885,11 +885,11 @@ describe("ticketPage", () => {
     detectIframeMode("https://example.com/?iframe=true");
     const listings = [
       makeListing({
-          attendee_count: 0,
-          id: 1,
-          name: "Listing A",
-          slug: "ab12c",
-        }),
+        attendee_count: 0,
+        id: 1,
+        name: "Listing A",
+        slug: "ab12c",
+      }),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c"] });
     expect(html).toContain("iframe-resizer-child.js");
@@ -899,11 +899,11 @@ describe("ticketPage", () => {
   test("excludes iframe-resizer child script without iframe mode", () => {
     const listings = [
       makeListing({
-          attendee_count: 0,
-          id: 1,
-          name: "Listing A",
-          slug: "ab12c",
-        }),
+        attendee_count: 0,
+        id: 1,
+        name: "Listing A",
+        slug: "ab12c",
+      }),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c"] });
     expect(html).not.toContain("iframe-resizer-child.js");
@@ -912,11 +912,11 @@ describe("ticketPage", () => {
   test("does not append ?iframe=true without iframe mode", () => {
     const listings = [
       makeListing({
-          attendee_count: 0,
-          id: 1,
-          name: "Listing A",
-          slug: "ab12c",
-        }),
+        attendee_count: 0,
+        id: 1,
+        name: "Listing A",
+        slug: "ab12c",
+      }),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c"] });
     expect(html).toContain('action="/ticket/ab12c"');
@@ -927,12 +927,12 @@ describe("ticketPage", () => {
   test("hides quantity selector for single listing with max quantity 1", () => {
     const listings = [
       makeListing({
-          attendee_count: 0,
-          id: 1,
-          max_quantity: 1,
-          name: "Listing A",
-          slug: "ab12c",
-        }),
+        attendee_count: 0,
+        id: 1,
+        max_quantity: 1,
+        name: "Listing A",
+        slug: "ab12c",
+      }),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c"] });
     expect(hasInputWithValue(html, "quantity_1", "1")).toBe(true);
@@ -943,12 +943,12 @@ describe("ticketPage", () => {
   test("shows quantity selector for single listing with max quantity above 1", () => {
     const listings = [
       makeListing({
-          attendee_count: 0,
-          id: 1,
-          max_quantity: 3,
-          name: "Listing A",
-          slug: "ab12c",
-        }),
+        attendee_count: 0,
+        id: 1,
+        max_quantity: 3,
+        name: "Listing A",
+        slug: "ab12c",
+      }),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c"] });
     expect(html).toContain("<select");
@@ -960,19 +960,19 @@ describe("ticketPage", () => {
   test("shows quantity selector for multiple listings even with max quantity 1", () => {
     const listings = [
       makeListing({
-          attendee_count: 0,
-          id: 1,
-          max_quantity: 1,
-          name: "Listing A",
-          slug: "ab12c",
-        }),
+        attendee_count: 0,
+        id: 1,
+        max_quantity: 1,
+        name: "Listing A",
+        slug: "ab12c",
+      }),
       makeListing({
-          attendee_count: 0,
-          id: 2,
-          max_quantity: 1,
-          name: "Listing B",
-          slug: "cd34e",
-        }),
+        attendee_count: 0,
+        id: 2,
+        max_quantity: 1,
+        name: "Listing B",
+        slug: "cd34e",
+      }),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c", "cd34e"] });
     expect(html).toContain("<select");
@@ -982,19 +982,19 @@ describe("ticketPage", () => {
   test("hides quantity selector when one listing available and one sold out", () => {
     const listings = [
       makeListing({
-          attendee_count: 0,
-          id: 1,
-          max_quantity: 1,
-          name: "Listing A",
-          slug: "ab12c",
-        }),
+        attendee_count: 0,
+        id: 1,
+        max_quantity: 1,
+        name: "Listing A",
+        slug: "ab12c",
+      }),
       makeListing({
-          attendee_count: 50,
-          id: 2,
-          max_attendees: 50,
-          name: "Listing B",
-          slug: "cd34e",
-        }),
+        attendee_count: 50,
+        id: 2,
+        max_attendees: 50,
+        name: "Listing B",
+        slug: "cd34e",
+      }),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c", "cd34e"] });
     expect(hasInputWithValue(html, "quantity_1", "1")).toBe(true);
@@ -1568,9 +1568,7 @@ describeWithEnv(
           image_url: "camp-kit.webp",
         },
         groupName: "Camp Kit",
-        listings: [
-          makeListing(),
-        ],
+        listings: [makeListing()],
         slugs: ["camp-kit"],
       });
 
@@ -1617,15 +1615,15 @@ describeWithEnv(
       test("shows image before each listing with image_url", () => {
         const listings = [
           makeListing({
-              id: 1,
-              image_url: "img-a.jpg",
-              name: "Listing A",
-            }),
+            id: 1,
+            image_url: "img-a.jpg",
+            name: "Listing A",
+          }),
           makeListing({
-              id: 2,
-              image_url: "img-b.jpg",
-              name: "Listing B",
-            }),
+            id: 2,
+            image_url: "img-b.jpg",
+            name: "Listing B",
+          }),
         ];
         const html = ticketPage({ listings, slugs: ["slug-a", "slug-b"] });
         expect(html).toContain("/image/img-a.jpg");
@@ -1740,23 +1738,23 @@ describe("ticketPage day-count selector", () => {
     // Two customisable listings offering disjoint counts intersect to nothing,
     // so the shared selector reports that no length is available.
     const a = makeListing({
-        attendee_count: 0,
-        customisable_days: true,
-        day_prices: { 1: 1000 },
-        duration_days: 1,
-        id: 1,
-        name: "One Day Only",
-        slug: "ab12c",
-      });
+      attendee_count: 0,
+      customisable_days: true,
+      day_prices: { 1: 1000 },
+      duration_days: 1,
+      id: 1,
+      name: "One Day Only",
+      slug: "ab12c",
+    });
     const b = makeListing({
-        attendee_count: 0,
-        customisable_days: true,
-        day_prices: { 2: 1800 },
-        duration_days: 2,
-        id: 2,
-        name: "Two Days Only",
-        slug: "cd34e",
-      });
+      attendee_count: 0,
+      customisable_days: true,
+      day_prices: { 2: 1800 },
+      duration_days: 2,
+      id: 2,
+      name: "Two Days Only",
+      slug: "cd34e",
+    });
     const html = ticketPage({ listings: [a, b], slugs: ["ab12c", "cd34e"] });
     expect(html).toContain("No booking lengths are currently available.");
     expect(html).not.toContain('<option value="1">1 day');
@@ -1766,23 +1764,23 @@ describe("ticketPage day-count selector", () => {
     // Two customisable listings that both offer a 1-day option share it; with
     // multiple listings there's no single price to show per option.
     const a = makeListing({
-        attendee_count: 0,
-        customisable_days: true,
-        day_prices: { 1: 1000, 2: 1800 },
-        duration_days: 2,
-        id: 1,
-        name: "Listing A",
-        slug: "ab12c",
-      });
+      attendee_count: 0,
+      customisable_days: true,
+      day_prices: { 1: 1000, 2: 1800 },
+      duration_days: 2,
+      id: 1,
+      name: "Listing A",
+      slug: "ab12c",
+    });
     const b = makeListing({
-        attendee_count: 0,
-        customisable_days: true,
-        day_prices: { 1: 1500, 2: 2400 },
-        duration_days: 2,
-        id: 2,
-        name: "Listing B",
-        slug: "cd34e",
-      });
+      attendee_count: 0,
+      customisable_days: true,
+      day_prices: { 1: 1500, 2: 2400 },
+      duration_days: 2,
+      id: 2,
+      name: "Listing B",
+      slug: "cd34e",
+    });
     const html = ticketPage({ listings: [a, b], slugs: ["ab12c", "cd34e"] });
     expect(html).toContain('name="day_count"');
     expect(html).toContain('<option value="1">1 day</option>');

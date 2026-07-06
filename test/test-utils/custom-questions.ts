@@ -24,7 +24,7 @@ export const addQuestion = async (
     text,
     ...options,
   });
-  const answers = [];
+  const answers: Awaited<ReturnType<typeof answersTable.insert>>[] = [];
   for (const answerText of answerTexts) {
     answers.push(
       await answersTable.insert({

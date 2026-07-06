@@ -215,6 +215,15 @@ describeWithEnv(
     const fixedStatus = async (): Promise<number> =>
       (await getPaidDefaultStatus())!.id;
 
+    /** The single adjustment leg the last balance correction posted. */
+    const onlyAdjustment = async () => {
+      const adjustments = (await allTransfers()).filter(
+        (leg) => leg.kind === "adjustment",
+      );
+      expect(adjustments).toHaveLength(1);
+      return adjustments[0]!;
+    };
+
     test("raising the outstanding balance posts an attendee→writeoff debit", async () => {
       // Start fully paid (owes 0), then correct the balance up to £15.
       const { attendeeId } = await createReservedAttendee(0);
@@ -230,17 +239,12 @@ describeWithEnv(
       expect(
         (await getAttendeeBalanceState(attendeeId))?.remainingBalance,
       ).toBe(1500);
-      const adjustments = (await allTransfers()).filter(
-        (leg) => leg.kind === "adjustment",
-      );
-      expect(adjustments).toHaveLength(1);
-      expect(accountKey(adjustments[0]!.source)).toBe(
+      const adjustment = await onlyAdjustment();
+      expect(accountKey(adjustment.source)).toBe(
         accountKey(attendeeAccount(attendeeId)),
       );
-      expect(accountKey(adjustments[0]!.destination)).toBe(
-        accountKey(WRITEOFF),
-      );
-      expect(adjustments[0]!.amount).toBe(1500);
+      expect(accountKey(adjustment.destination)).toBe(accountKey(WRITEOFF));
+      expect(adjustment.amount).toBe(1500);
     });
 
     test("lowering the outstanding balance posts a writeoff→attendee credit", async () => {
@@ -252,16 +256,13 @@ describeWithEnv(
       expect(
         (await getAttendeeBalanceState(attendeeId))?.remainingBalance,
       ).toBe(500);
-      const adjustments = (await allTransfers()).filter(
-        (leg) => leg.kind === "adjustment",
-      );
-      expect(adjustments).toHaveLength(1);
+      const adjustment = await onlyAdjustment();
       // Lowering what's owed credits the attendee from writeoff.
-      expect(accountKey(adjustments[0]!.source)).toBe(accountKey(WRITEOFF));
-      expect(accountKey(adjustments[0]!.destination)).toBe(
+      expect(accountKey(adjustment.source)).toBe(accountKey(WRITEOFF));
+      expect(accountKey(adjustment.destination)).toBe(
         accountKey(attendeeAccount(attendeeId)),
       );
-      expect(adjustments[0]!.amount).toBe(1000);
+      expect(adjustment.amount).toBe(1000);
     });
 
     test("setting the balance to its current value posts no adjustment", async () => {

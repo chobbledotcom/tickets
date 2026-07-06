@@ -230,6 +230,74 @@ const expectReplayOutcome = async (
   });
 };
 
+/** Assert one webhook delivery reports the session was not finalized. */
+const expectDeliveryUnprocessed = (): Promise<void> =>
+  assertJson(webhookRequest(), 200, (json) => {
+    expect(json.processed).toBe(false);
+  });
+
+/** The fields every package-line webhook shares: buyer identity, the single
+ *  package line, and its group. Extra fields (e.g. the per-day date) merge on top. */
+const packageWebhookFields = (
+  groupId: number,
+  listingId: number,
+  price: number,
+  extra: Record<string, string> = {},
+) => ({
+  email: "buyer@example.com",
+  items: JSON.stringify([{ e: listingId, k: "p", p: price, q: 1, r: groupId }]),
+  name: "Buyer",
+  package_group_id: String(groupId),
+  ...extra,
+});
+
+/** A "Picker" parent with a bookable-alone "Solo Widget" child linked under it. */
+const seedBookableAloneChild = async () => {
+  const parent = await createTestListing({ name: "Picker" });
+  const child = await createTestListing({
+    bookableAlone: true,
+    maxAttendees: 50,
+    name: "Solo Widget",
+    unitPrice: 1000,
+  });
+  await setChildIds(parent.id, [child.id]);
+  return { child, parent };
+};
+
+/** A "Picker" parent with a zero-price bookable-alone child whose flag was then
+ *  cleared, plus a signed order: one child unit folded under the parent and
+ *  `childQty` child units billed as line items. */
+const seedClearedFoldedChildOrder = async (childQty: number) => {
+  const parent = await createTestListing({
+    maxAttendees: 50,
+    name: "Picker",
+    unitPrice: 1000,
+  });
+  const child = await createTestListing({
+    bookableAlone: true,
+    maxAttendees: 50,
+    name: "Solo Widget",
+    unitPrice: 0,
+  });
+  await setChildIds(parent.id, [child.id]);
+  await listingsTable.update(child.id, { bookableAlone: false });
+  const metadata = signMeta(
+    webhookMeta({
+      allocations: JSON.stringify([
+        { childId: child.id, parentId: parent.id, qty: 1 },
+      ]),
+      email: "buyer@example.com",
+      items: JSON.stringify([
+        { e: parent.id, p: 1000, q: 1 },
+        { e: child.id, p: 0, q: childQty },
+      ]),
+      name: "Buyer",
+    }),
+    1000,
+  );
+  return { child, metadata, parent };
+};
+
 describeWithEnv("webhook signed price oracle", { db: true }, () => {
   afterEach(() => {
     resetStripeClient();
@@ -571,16 +639,12 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
         metadata: signedMeta(999, { items: singleItem(listing.id, 1, 1000) }),
       },
       async (refund) => {
-        await assertJson(webhookRequest(), 200, (json) => {
-          expect(json.processed).toBe(false);
-        });
+        await expectDeliveryUnprocessed();
         // The redelivery must replay the SAME refund outcome (processed:false), not
         // a finalized success (processed:true / a ticket) — and must not duplicate
         // the booking or re-refund. This is the exact failure an over-eager finalize
         // would cause, which the type system can't see.
-        await assertJson(webhookRequest(), 200, (json) => {
-          expect(json.processed).toBe(false);
-        });
+        await expectDeliveryUnprocessed();
         expect((await getAttendeesRaw(listing.id)).length).toBe(1);
         expect(refund.calls.length).toBe(1);
       },

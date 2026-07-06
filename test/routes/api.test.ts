@@ -171,6 +171,62 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
     }
   };
 
+  /** A free parent that folds in one free child, both with the standard 10
+   * seats. Returns the created parent and child. */
+  const makeFreeParentChild = () =>
+    makeParent({
+      children: [{ maxAttendees: 10, unitPrice: 0 }],
+      parent: { maxAttendees: 10, unitPrice: 0 },
+    });
+
+  /** Book `slug` while standing in for Stripe's checkout step, and hand back
+   * both the order (the "checkout intent") the app tried to charge and the
+   * booking response. The real payment provider is never called. */
+  const bookAndCaptureIntent = async (
+    slug: string,
+  ): Promise<{ intent: CheckoutIntent | undefined; response: Response }> => {
+    const { stripePaymentProvider } = await import(
+      "#shared/stripe-provider.ts"
+    );
+    let intent: CheckoutIntent | undefined;
+    const mockCreate = stub(
+      stripePaymentProvider,
+      "createCheckoutSession",
+      (received) => {
+        intent = received;
+        return Promise.resolve({
+          checkoutUrl: "https://checkout.test/session",
+          sessionId: "sess_test",
+        });
+      },
+    );
+    let response: Response;
+    try {
+      response = await bookListing(slug);
+    } finally {
+      mockCreate.restore();
+    }
+    return { intent, response: response! };
+  };
+
+  /** Book the parent with two entries for the same child (1 unit each) at the
+   * two given prices — the duplicate-child shape the price tests all use. */
+  const bookParentWithTwoChildPrices = (
+    parentSlug: string,
+    childSlug: string,
+    firstPrice: number,
+    secondPrice: number,
+  ) =>
+    bookListing(parentSlug, {
+      children: [
+        { customPrice: firstPrice, quantity: 1, slug: childSlug },
+        { customPrice: secondPrice, quantity: 1, slug: childSlug },
+      ],
+      email: "alice@test.com",
+      name: "Alice",
+      quantity: 2,
+    });
+
   describe("GET /api/listings", () => {
     test("returns empty array when no listings exist", async () => {
       const { response, listings } = await fetchListingsList();
@@ -913,9 +969,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       // No setupStripe: payments disabled, so the parent+child booking is taken
       // without checkout and the child's value is recorded as owed.
       const parent = await parentWithPaidChild();
-      const { response, body } = await bookListing(parent.slug);
-      expect(response.status).toBe(200);
-      expect(body.booking?.ticketToken).toBeDefined();
+      const body = await bookForToken(parent.slug);
       expect(body.booking?.amountOwed).toBe(1500);
     });
 
@@ -923,13 +977,8 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       // Payments enabled but the whole order is free, so it takes the no-charge
       // path and owes nothing (the provider is never invoked).
       await setupStripe();
-      const { parent } = await makeParent({
-        children: [{ maxAttendees: 10, unitPrice: 0 }],
-        parent: { maxAttendees: 10, unitPrice: 0 },
-      });
-      const { response, body } = await bookListing(parent.slug);
-      expect(response.status).toBe(200);
-      expect(body.booking?.ticketToken).toBeDefined();
+      const { parent } = await makeFreeParentChild();
+      const body = await bookForToken(parent.slug);
       expect(body.booking?.checkoutUrl).toBeUndefined();
       expect(body.booking?.amountOwed).toBe(0);
     });
@@ -937,10 +986,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
     test("a free parent+child booking records the child under its parent", async () => {
       // The free path threads the fold's allocations into createFreeReservation,
       // so the auto-folded child is stored as its own row under the parent.
-      const { parent, child } = await makeParent({
-        children: [{ maxAttendees: 10, unitPrice: 0 }],
-        parent: { maxAttendees: 10, unitPrice: 0 },
-      });
+      const { parent, child } = await makeFreeParentChild();
       const { body } = await bookListing(parent.slug);
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [attendee] = await getAttendeesByTokens([
@@ -958,28 +1004,9 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
         children: [{ maxAttendees: 10, unitPrice: 500 }],
         parent: { maxAttendees: 10, unitPrice: 1000 },
       });
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      let capturedAllocations: unknown;
-      const mockCreate = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        (intent) => {
-          capturedAllocations = intent.allocations;
-          return Promise.resolve({
-            checkoutUrl: "https://checkout.test/session",
-            sessionId: "sess_test",
-          });
-        },
-      );
-      try {
-        const { response } = await bookListing(parent.slug);
-        expect(response.status).toBe(200);
-      } finally {
-        mockCreate.restore();
-      }
-      expect(capturedAllocations).toEqual([
+      const { intent, response } = await bookAndCaptureIntent(parent.slug);
+      expect(response.status).toBe(200);
+      expect(intent?.allocations).toEqual([
         { childId: child.id, parentId: parent.id, qty: 1 },
       ]);
     });
@@ -1031,15 +1058,12 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       // `child_price_*` can't honour both, so rather than letting the last
       // entry's price silently win and book both units at £20, reject.
       const { parent, child } = await parentWithTwoUnitPayMoreChild();
-      const { response, body } = await bookListing(parent.slug, {
-        children: [
-          { customPrice: 30, quantity: 1, slug: child.slug },
-          { customPrice: 20, quantity: 1, slug: child.slug },
-        ],
-        email: "alice@test.com",
-        name: "Alice",
-        quantity: 2,
-      });
+      const { response, body } = await bookParentWithTwoChildPrices(
+        parent.slug,
+        child.slug,
+        30,
+        20,
+      );
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/conflicting prices/i);
     });
@@ -1063,29 +1087,15 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
     test("accepts repeated child entries that agree on the price", async () => {
       // Duplicate entries for the same child are fine when they agree on the
       // price: the quantities sum and the single agreed price applies.
-      const { parent, child } = await makeParent({
-        // maxQuantity 2 on the child so it can take both summed units.
-        children: [
-          {
-            canPayMore: true,
-            maxAttendees: 10,
-            maxPrice: 5000,
-            maxQuantity: 2,
-            unitPrice: 1000,
-          },
-        ],
-        // maxQuantity 2 so the parent can take 2 units (the summed child total).
-        parent: { maxAttendees: 10, maxQuantity: 2, unitPrice: 0 },
-      });
-      const { response, body } = await bookListing(parent.slug, {
-        children: [
-          { customPrice: 20, quantity: 1, slug: child.slug },
-          { customPrice: 20, quantity: 1, slug: child.slug },
-        ],
-        email: "alice@test.com",
-        name: "Alice",
-        quantity: 2,
-      });
+      // maxQuantity 2 on both child and parent so they can take both summed
+      // units at the single agreed price.
+      const { parent, child } = await parentWithTwoUnitPayMoreChild();
+      const { response, body } = await bookParentWithTwoChildPrices(
+        parent.slug,
+        child.slug,
+        20,
+        20,
+      );
       expect(response.status).toBe(200);
       // 2 units of the child at the agreed £20 each = £40 owed (no provider).
       expect(body.booking?.amountOwed).toBe(4000);
@@ -1096,10 +1106,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       // still log/notify the registration, exactly like the standalone API
       // booking and the web free path. The activity log is the observable proof
       // the notifier ran (it also fires the email/webhook).
-      const { parent, child } = await makeParent({
-        children: [{ maxAttendees: 10, unitPrice: 0 }],
-        parent: { maxAttendees: 10, unitPrice: 0 },
-      });
+      const { parent, child } = await makeFreeParentChild();
       const { response } = await bookListing(parent.slug);
       expect(response.status).toBe(200);
 
@@ -1123,28 +1130,9 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
           unitPrice: 0,
         },
       });
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      let capturedThankYou: string | undefined;
-      const mockCreate = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        (intent) => {
-          capturedThankYou = intent.thankYouUrl;
-          return Promise.resolve({
-            checkoutUrl: "https://checkout.test/session",
-            sessionId: "sess_test",
-          });
-        },
-      );
-      try {
-        const { response } = await bookListing(parent.slug);
-        expect(response.status).toBe(200);
-      } finally {
-        mockCreate.restore();
-      }
-      expect(capturedThankYou).toBe("https://example.com/thanks");
+      const { intent, response } = await bookAndCaptureIntent(parent.slug);
+      expect(response.status).toBe(200);
+      expect(intent?.thankYouUrl).toBe("https://example.com/thanks");
     });
 
     test("omits the thank-you URL when the parent has none", async () => {
@@ -1152,27 +1140,8 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       // success handler's default single-listing rule still applies otherwise.
       await setupStripe();
       const parent = await parentWithPaidChild();
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      let capturedThankYou: string | undefined = "sentinel";
-      const mockCreate = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        (intent) => {
-          capturedThankYou = intent.thankYouUrl;
-          return Promise.resolve({
-            checkoutUrl: "https://checkout.test/session",
-            sessionId: "sess_test",
-          });
-        },
-      );
-      try {
-        await bookListing(parent.slug);
-      } finally {
-        mockCreate.restore();
-      }
-      expect(capturedThankYou).toBeUndefined();
+      const { intent } = await bookAndCaptureIntent(parent.slug);
+      expect(intent?.thankYouUrl).toBeUndefined();
     });
   });
 

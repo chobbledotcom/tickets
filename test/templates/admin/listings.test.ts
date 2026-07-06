@@ -82,6 +82,94 @@ const renderListingDetail = (
     }),
   ) + String(ListingRosterPanel(opts));
 
+type EditPanelProps = Parameters<typeof ListingEditPanel>[0];
+
+/** Render the listing edit form to a string. Pass extra props (an error, a
+ *  recalculation mismatch, preselected groups) to override the defaults. */
+const editPanelHtml = (
+  listing: EditPanelProps["listing"],
+  extra: Partial<EditPanelProps> = {},
+): string =>
+  String(
+    ListingEditPanel({ groups: [], listing, session: TEST_SESSION, ...extra }),
+  );
+
+/** The Advanced settings disclosure is forced open. */
+const expectAdvancedOpen = (html: string): void => {
+  expect(html).toContain('<details class="listing-advanced" open>');
+};
+
+/** The Advanced settings disclosure is present but stays closed. */
+const expectAdvancedCollapsed = (html: string): void => {
+  expect(html).toContain('<details class="listing-advanced">');
+  expect(html).not.toContain('<details class="listing-advanced" open>');
+};
+
+/** With site-building turned on, a listing carrying the given fields should
+ *  open the Advanced settings section on its own. */
+const expectBuilderFieldOpensAdvanced = (
+  overrides: Parameters<typeof testListingWithCount>[0],
+): void => {
+  withBuilder(() => {
+    const listing = testListingWithCount({
+      thank_you_url: "",
+      webhook_url: "",
+      ...overrides,
+    });
+    expectAdvancedOpen(editPanelHtml(listing));
+  });
+};
+
+/** Two attendees on different ticket quantities — one checked in, one not —
+ *  used to exercise the split tickets/attendees checked-in rows. */
+const twoMultiQuantityAttendees = () => [
+  testAttendee({ checked_in: true, id: 1, quantity: 2 }),
+  testAttendee({ checked_in: false, id: 2, quantity: 3 }),
+];
+
+/** One checked-in and one checked-out attendee with distinct names, so filter
+ *  tests can assert which names survive the check-in filter. */
+const checkedInAndOutAttendees = () => [
+  testAttendee({ checked_in: true, id: 1, name: "Checked In User" }),
+  testAttendee({ checked_in: false, id: 2, name: "Not Checked In User" }),
+];
+
+/** One paid attendee and one whose payment never resolved, both priced £10 —
+ *  the fixture for the "failed payments" listing scenarios. */
+const paidAndFailedAttendees = () => [
+  testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
+  testAttendee({ id: 2, payment_id: "", price_paid: "1000" }),
+];
+
+/** Detail view for a listing that has a single default attendee. Pass extra
+ *  options (e.g. an active check-in filter) to override the defaults. */
+const renderOneAttendeeDetail = (
+  extra: Partial<Parameters<typeof renderListingDetail>[0]> = {},
+): string =>
+  renderListingDetail({
+    allowedDomain: "localhost",
+    attendees: [testAttendee()],
+    listing: testListingWithCount({ attendee_count: 1 }),
+    ...extra,
+  });
+
+/** A listing carrying the builder renewal fields (months per unit + initial
+ *  site months), used to check those fields show only when building is on. */
+const renewalFieldsListing = () =>
+  testListingWithCount({ initial_site_months: 6, months_per_unit: 3 });
+
+/** Neither the duplicate-listing form nor the create-listing form contains the
+ *  given text. */
+const expectDuplicateAndNewLack = (
+  listing: Parameters<typeof adminDuplicateListingPage>[0],
+  text: string,
+): void => {
+  expect(adminDuplicateListingPage(listing, [], TEST_SESSION)).not.toContain(
+    text,
+  );
+  expect(adminListingNewPage([], TEST_SESSION)).not.toContain(text);
+};
+
 beforeAll(async () => {
   setupTestEncryptionKey();
   await signCsrfToken();
@@ -314,11 +402,7 @@ describe("adminListingEditPage Advanced section auto-open", () => {
       thank_you_url: "",
       webhook_url: "",
     });
-    const html = String(
-      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
-    );
-    expect(html).toContain('<details class="listing-advanced">');
-    expect(html).not.toContain('<details class="listing-advanced" open>');
+    expectAdvancedCollapsed(editPanelHtml(listing));
   });
 
   test("opens when a thank-you URL is set", () => {
@@ -326,10 +410,7 @@ describe("adminListingEditPage Advanced section auto-open", () => {
       thank_you_url: "https://example.com/thanks",
       webhook_url: "",
     });
-    const html = String(
-      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
-    );
-    expect(html).toContain('<details class="listing-advanced" open>');
+    expectAdvancedOpen(editPanelHtml(listing));
   });
 
   test("opens when a webhook URL is set", () => {
@@ -337,10 +418,7 @@ describe("adminListingEditPage Advanced section auto-open", () => {
       thank_you_url: "",
       webhook_url: "https://hooks.example.com/notify",
     });
-    const html = String(
-      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
-    );
-    expect(html).toContain('<details class="listing-advanced" open>');
+    expectAdvancedOpen(editPanelHtml(listing));
   });
 
   test("opens on a validation error so hidden fields stay reachable", () => {
@@ -348,15 +426,7 @@ describe("adminListingEditPage Advanced section auto-open", () => {
       thank_you_url: "",
       webhook_url: "",
     });
-    const html = String(
-      ListingEditPanel({
-        error: "Bad input",
-        groups: [],
-        listing,
-        session: TEST_SESSION,
-      }),
-    );
-    expect(html).toContain('<details class="listing-advanced" open>');
+    expectAdvancedOpen(editPanelHtml(listing, { error: "Bad input" }));
   });
 });
 
@@ -377,47 +447,21 @@ describe("adminListingNewPage Advanced section", () => {
 
 describe("adminListingEditPage Advanced section auto-open (builder fields)", () => {
   test("opens when a renewal tier (months per unit) is set", () => {
-    withBuilder(() => {
-      const listing = testListingWithCount({
-        months_per_unit: 3,
-        thank_you_url: "",
-        webhook_url: "",
-      });
-      const html = String(
-        ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
-      );
-      expect(html).toContain('<details class="listing-advanced" open>');
-    });
+    expectBuilderFieldOpensAdvanced({ months_per_unit: 3 });
   });
 
   test("opens when initial site months is set", () => {
-    withBuilder(() => {
-      const listing = testListingWithCount({
-        initial_site_months: 6,
-        months_per_unit: 0,
-        thank_you_url: "",
-        webhook_url: "",
-      });
-      const html = String(
-        ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
-      );
-      expect(html).toContain('<details class="listing-advanced" open>');
+    expectBuilderFieldOpensAdvanced({
+      initial_site_months: 6,
+      months_per_unit: 0,
     });
   });
 
   test("opens when a built site is assigned on booking", () => {
-    withBuilder(() => {
-      const listing = testListingWithCount({
-        assign_built_site: true,
-        initial_site_months: 0,
-        months_per_unit: 0,
-        thank_you_url: "",
-        webhook_url: "",
-      });
-      const html = String(
-        ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
-      );
-      expect(html).toContain('<details class="listing-advanced" open>');
+    expectBuilderFieldOpensAdvanced({
+      assign_built_site: true,
+      initial_site_months: 0,
+      months_per_unit: 0,
     });
   });
 
@@ -430,11 +474,7 @@ describe("adminListingEditPage Advanced section auto-open (builder fields)", () 
         thank_you_url: "",
         webhook_url: "",
       });
-      const html = String(
-        ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
-      );
-      expect(html).toContain('<details class="listing-advanced">');
-      expect(html).not.toContain('<details class="listing-advanced" open>');
+      expectAdvancedCollapsed(editPanelHtml(listing));
     });
   });
 });
@@ -708,13 +748,9 @@ describe("adminListingPage", () => {
   });
 
   test("shows dual checked-in rows when attendees have multi-quantity", () => {
-    const attendees = [
-      testAttendee({ checked_in: true, id: 1, quantity: 2 }),
-      testAttendee({ checked_in: false, id: 2, quantity: 3 }),
-    ];
     const html = renderListingDetail({
       allowedDomain: "localhost",
-      attendees,
+      attendees: twoMultiQuantityAttendees(),
       listing,
     });
     // Tickets Checked In: 1 row / 2 rows, 1 remain
@@ -732,13 +768,9 @@ describe("adminListingPage", () => {
       attendee_count: 5,
       listing_type: "daily",
     });
-    const attendees = [
-      testAttendee({ checked_in: true, id: 1, quantity: 2 }),
-      testAttendee({ checked_in: false, id: 2, quantity: 3 }),
-    ];
     const html = renderListingDetail({
       allowedDomain: "localhost",
-      attendees,
+      attendees: twoMultiQuantityAttendees(),
       dateFilter: "2026-03-15",
       listing: dailyListing,
     });
@@ -751,13 +783,9 @@ describe("adminListingPage", () => {
       attendee_count: 5,
       listing_type: "daily",
     });
-    const attendees = [
-      testAttendee({ checked_in: true, id: 1, quantity: 2 }),
-      testAttendee({ checked_in: false, id: 2, quantity: 3 }),
-    ];
     const html = renderListingDetail({
       allowedDomain: "localhost",
-      attendees,
+      attendees: twoMultiQuantityAttendees(),
       listing: dailyListing,
     });
     expect(html).toContain("Attendees Checked In (total)");

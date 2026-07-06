@@ -319,10 +319,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     );
 
     // Greedy create: the open listing's booking landed, the full one didn't.
-    if (result === "sold-out" || !result.success) {
-      throw new Error("expected ok");
-    }
-    expect(result.attendees.length).toBe(1);
+    expect(expectBookingSucceeded(result).attendees.length).toBe(1);
     // The all-bookings-landed guard held back every leg and the finalize, so the
     // caller's ensureAllBookings can roll the partial booking back cleanly.
     expect((await allTransfers()).length).toBe(0);

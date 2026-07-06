@@ -40,11 +40,6 @@ import {
 import { setGroupPackageMembers, setListingGroups } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { ContactInfo, ListingWithCount } from "#shared/types.ts";
@@ -55,6 +50,7 @@ import {
   testListingWithCount,
 } from "#test-utils";
 import { makeParent } from "#test-utils/parents.ts";
+import { countRoundTrips } from "#test-utils/round-trips.ts";
 
 /** Wrap a listing-with-count as a selected cart line. */
 const line = (listing: ListingWithCount, qty = 1) => ({ listing, qty });
@@ -481,9 +477,8 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         total: 0,
       };
 
-      const { result, roundTrips } = await runWithQueryLogContext(async () => {
-        enableQueryLog();
-        const r = await createFreeReservation({
+      const { result, roundTrips } = await countRoundTrips(async () =>
+        createFreeReservation({
           contact,
           date: null,
           ledgerOrder,
@@ -492,12 +487,8 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
           ),
           modifierUsages: [],
           quantities: new Map(listings.map((l) => [l.id, 1])),
-        });
-        return {
-          result: r,
-          roundTrips: new Set(getQueryLog().map((q) => q.startedAtMs)).size,
-        };
-      });
+        }),
+      );
 
       expect(result.success).toBe(true);
       // The N sale legs ride one batch, so the reservation's round-trips don't

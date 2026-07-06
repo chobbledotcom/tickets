@@ -15,6 +15,15 @@ const dirExists = (path: string): boolean => {
   }
 };
 
+/** Assert the suite has a live local storage dir and hand it back. */
+const expectLiveLocalDir = (): string => {
+  const dir = getTestStoragePath();
+  expect(dir).not.toBeNull();
+  expect(dirExists(dir!)).toBe(true);
+  expect(getStorageBackend()).toBe("local");
+  return dir!;
+};
+
 describe("describeWithEnv storage option", () => {
   describeWithEnv("cdn backend", { storage: "cdn" }, () => {
     test("resolves the Bunny CDN backend for every test", () => {
@@ -33,20 +42,14 @@ describe("describeWithEnv storage option", () => {
 
     describeWithEnv("local storage lifecycle", { storage: "local" }, () => {
       test("allocates a real temp dir and selects the local backend", () => {
-        const dir = getTestStoragePath();
-        expect(dir).not.toBeNull();
-        expect(dirExists(dir!)).toBe(true);
-        expect(getStorageBackend()).toBe("local");
+        const dir = expectLiveLocalDir();
         expect(isStorageEnabled()).toBe(true);
         observedDir = dir;
       });
 
       test("a per-test withStorageDisabled scope overrides the suite default", () => {
         // This test has its own live dir…
-        const dir = getTestStoragePath();
-        expect(dir).not.toBeNull();
-        expect(dirExists(dir!)).toBe(true);
-        expect(getStorageBackend()).toBe("local");
+        const dir = expectLiveLocalDir();
         // …but an explicit scope wins over the suite's env default.
         withStorageDisabled(() => {
           expect(getStorageBackend()).toBe("none");

@@ -1,4 +1,7 @@
-import { createTestAttendee, createTestListing } from "#test-utils/db-helpers.ts";
+import {
+  createTestAttendee,
+  createTestListing,
+} from "#test-utils/db-helpers.ts";
 
 type ListingOverrides = Parameters<typeof createTestListing>[0];
 
@@ -28,8 +31,7 @@ export const seedListingAttendee = async (
  */
 export const orphanAttendee = async (attendeeId: number) => {
   const { getDb } = await import("#shared/db/client.ts");
-  await getDb().execute(
-    "DELETE FROM listing_attendees WHERE attendee_id = ?",
-    [attendeeId],
-  );
+  await getDb().execute("DELETE FROM listing_attendees WHERE attendee_id = ?", [
+    attendeeId,
+  ]);
 };
