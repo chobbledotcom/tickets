@@ -27,10 +27,15 @@ const PROVIDER_BODY = JSON.stringify([
   },
 ]);
 
-/** The JSON body both lookup responses carry: the lines-only `addresses`
- * (what the booking form reads) plus each line's located match. */
-const DOWNING_STREET_RESPONSE = {
+/** The lines-only body an anonymous lookup gets — no geolocation data. */
+const DOWNING_STREET_LINES = {
   addresses: ["10 Downing Street, LONDON, SW1A 2AA"],
+};
+
+/** The staff body: the lines plus each line's located match (the Logistics
+ * tab's map pin). */
+const DOWNING_STREET_WITH_MATCHES = {
+  ...DOWNING_STREET_LINES,
   matches: [
     {
       lat: "51.503396",
@@ -61,14 +66,14 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
     expect(response.status).toBe(404);
   });
 
-  test("returns the provider's addresses and located matches as JSON", async () => {
+  test("an anonymous lookup gets address lines but never coordinates", async () => {
     await enableEasypostcodes();
     stubFetch(() => Promise.resolve(new Response(PROVIDER_BODY)));
 
     const response = await lookupGet("sw1a2aa");
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(DOWNING_STREET_RESPONSE);
+    expect(await response.json()).toEqual(DOWNING_STREET_LINES);
   });
 
   test("400s with the validation message for a malformed postcode", async () => {
@@ -129,7 +134,8 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
     );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(DOWNING_STREET_RESPONSE);
+    // Staff also get the located matches for the Logistics tab's map pin.
+    expect(await response.json()).toEqual(DOWNING_STREET_WITH_MATCHES);
   });
 });
 

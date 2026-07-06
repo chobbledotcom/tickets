@@ -37,7 +37,8 @@ export const handleAddressLookupGet: TypedRouteHandler<
   const provider = activeAddressLookupProvider();
   if (!provider) return notFoundResponse();
 
-  if (!(await getAuthenticatedSession(request))) {
+  const session = await getAuthenticatedSession(request);
+  if (!session) {
     const ip = getClientIp(request, server);
     if (await limiter.isLimited(ip)) {
       return jsonResponse({ error: t("address_lookup.rate_limited") }, 429);
@@ -48,11 +49,11 @@ export const handleAddressLookupGet: TypedRouteHandler<
   const search = new URL(request.url).searchParams.get("search") ?? "";
   const outcome = await lookupAddresses(provider, search);
   if (!outcome.ok) return jsonResponse({ error: outcome.error }, 400);
-  // `addresses` keeps the original lines-only shape; `matches` adds each
-  // line's coordinates. The public booking form only ever reads (and never
-  // stores) the lines — the admin Logistics tab uses the matches to pin a map.
+  // `addresses` is the lines-only list the public booking form reads.
+  // `matches` adds each line's coordinates for the admin Logistics tab's
+  // map pin — staff-only, so the public response never carries geolocation.
   return jsonResponse({
     addresses: outcome.addresses.map((match) => match.line),
-    matches: outcome.addresses,
+    ...(session ? { matches: outcome.addresses } : {}),
   });
 };
