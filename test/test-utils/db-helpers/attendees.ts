@@ -4,6 +4,7 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import {
   createAttendeeAtomic,
   decryptAttendees,
+  ensureAllBookings,
   getAttendeesRaw,
 } from "#shared/db/attendees.ts";
 import type { ListingInput } from "#shared/db/listings.ts";
@@ -27,15 +28,17 @@ export const bookTestAttendee = async (
     name,
   });
   if (!result.success) {
-    throw new Error(`Failed to create attendee: ${result.reason}`);
+    throw new Error(`Failed to create test attendee: ${result.reason}`);
   }
-  // createAttendeeAtomic is greedy on the plain path: it reports success once
-  // any booking lands, so a full/blocked listing would silently yield an
-  // attendee booked onto fewer listings than asked for. Fail loudly instead —
-  // there's one result entry per booked listing.
-  if (result.attendees.length !== listingIds.length) {
+  // createAttendeeAtomic is greedy: it reports success once any booking lands,
+  // so a full/blocked listing would silently leave the attendee booked onto
+  // fewer listings than asked for. Reuse production's "no half-saved attendee"
+  // rule, which rolls the partial attendee back and reports failure, then fail
+  // the setup loudly rather than leaving stray bookings to skew the test.
+  const check = await ensureAllBookings(result, listingIds.length, "admin");
+  if (!check.ok) {
     throw new Error(
-      `Expected ${listingIds.length} booking(s) but only ${result.attendees.length} landed — a listing was full or blocked`,
+      `Failed to book test attendee onto all ${listingIds.length} listing(s): ${check.reason}`,
     );
   }
   return result.attendees[0]!;

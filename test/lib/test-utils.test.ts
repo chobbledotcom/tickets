@@ -931,13 +931,19 @@ describe("test-utils", () => {
       expect(attendee.id).toBeGreaterThan(0);
     });
 
-    test("fails loudly when a listing can't take the booking", async () => {
+    test("rolls back the partial booking and fails loudly when a listing can't take it", async () => {
       const open = await createTestListing({ maxAttendees: 10 });
       const full = await createTestListing({ maxAttendees: 1, name: "Full" });
       await bookTestAttendee([full.id], "Filler"); // uses the only spot
+
       await expect(
         bookTestAttendee([open.id, full.id], "Partial"),
-      ).rejects.toThrow("a listing was full or blocked");
+      ).rejects.toThrow("Failed to book test attendee onto all 2 listing(s)");
+
+      // The booking that DID land on `open` is rolled back, so no stray
+      // attendee is left occupying capacity or skewing later assertions.
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      expect((await getAttendeesRaw(open.id)).length).toBe(0);
     });
   });
 
