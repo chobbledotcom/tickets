@@ -26,6 +26,7 @@ import {
 } from "#shared/db/images.ts";
 import { getAllListingOptions } from "#shared/db/listings.ts";
 import { getNewsPostNames } from "#shared/db/news-posts.ts";
+import { getSitePageNavRows } from "#shared/db/site-pages.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { deleteImageStorageFiles, isStorageEnabled } from "#shared/storage.ts";
 import {
@@ -105,17 +106,24 @@ const groupImageItemOptions = async (): Promise<ImageItemOption[]> =>
     (await getAllGroups()).map((group) => [group.id, group.name] as const),
   );
 
-/** The link targets this session may manage. News posts are Site-gated
- * (owner + editor): a manager never sees them here, matching the news image
- * routes that exclude managers. */
+/** News + page options — the Site-gated content types, shown only to a Site
+ * role. Both are read one narrow name projection at a time. */
+const siteContentImageOptions = async (): Promise<ImageItemOption[]> => [
+  ...activeOptionsOfType("news")(await getNewsPostNames()),
+  ...activeOptionsOfType("page")(
+    (await getSitePageNavRows()).map((page) => [page.id, page.name] as const),
+  ),
+];
+
+/** The link targets this session may manage. News posts and pages are
+ * Site-gated (owner + editor): a manager never sees them here, matching the
+ * Site content image routes that exclude managers. */
 const imageItemOptions = async (
   adminLevel: AdminLevel,
 ): Promise<ImageItemOption[]> => [
   ...(await listingImageItemOptions()),
   ...(await groupImageItemOptions()),
-  ...(isSiteRole(adminLevel)
-    ? activeOptionsOfType("news")(await getNewsPostNames())
-    : []),
+  ...(isSiteRole(adminLevel) ? await siteContentImageOptions() : []),
 ];
 
 const selectedUses = async (imageId: number): Promise<Set<string>> =>
@@ -171,43 +179,52 @@ const withStorageImageForm = (
     ),
   );
 
-/** Does this image sit on any news post? Its metadata (name/alt_text) and its
- * presence render on the public news card/gallery, so changing or removing it
- * is a Site-gated action a manager may not take. */
-const imageHasNewsUse = async (imageId: number): Promise<boolean> =>
-  (await getImageUsesForImage(imageId)).some((use) => use.item_type === "news");
+/** The image-use item types that are public Site content (owner + editor):
+ * news posts and pages. An image on either surfaces publicly, so a manager may
+ * not manage it. */
+const isSiteContentImageType = (type: ImageUseItemType): boolean =>
+  type === "news" || type === "page";
+
+/** Does this image sit on any Site content (a news post or a page)? Its
+ * metadata (name/alt_text) and its presence render on that public surface, so
+ * changing or removing it is a Site-gated action a manager may not take. */
+const imageHasSiteContentUse = async (imageId: number): Promise<boolean> =>
+  (await getImageUsesForImage(imageId)).some((use) =>
+    isSiteContentImageType(use.item_type),
+  );
 
 /** Block a non-Site session (a manager) from a save that would change an image
- * a news post uses — its metadata and links both surface as public news
+ * a news post or page uses — its metadata and links both surface as public Site
  * content. Returns the bounce-back response, or null when the save may proceed.
  * Shared by the edit and delete handlers. */
-const newsImageGate = async (
+const siteContentImageGate = async (
   adminLevel: AdminLevel,
   imageId: number,
   redirectTo: string,
 ): Promise<Response | null> =>
-  !isSiteRole(adminLevel) && (await imageHasNewsUse(imageId))
+  !isSiteRole(adminLevel) && (await imageHasSiteContentUse(imageId))
     ? redirect(redirectTo, t("images.news_gated"), false)
     : null;
 
 /** The link targets a save may apply. A non-Site session (manager) never
- * attaches a news target — any submitted `news:<id>` is dropped. Editing an
- * image that already HAS a news use is blocked outright by {@link
- * newsImageGate}, so there are no existing news links to preserve here. */
+ * attaches a Site-content target — any submitted `news:<id>`/`page:<id>` is
+ * dropped. Editing an image that already HAS such a use is blocked outright by
+ * {@link siteContentImageGate}, so there are no existing Site links to preserve
+ * here. */
 const allowedImageTargets = (
   adminLevel: AdminLevel,
   submitted: ImageUseTarget[],
 ): ImageUseTarget[] =>
   isSiteRole(adminLevel)
     ? submitted
-    : submitted.filter((target) => target.itemType !== "news");
+    : submitted.filter((target) => !isSiteContentImageType(target.itemType));
 
 const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> = (
   request,
   { id },
 ) =>
   withStorageImageForm(request, id, async (image, form, adminLevel) => {
-    const blocked = await newsImageGate(
+    const blocked = await siteContentImageGate(
       adminLevel,
       image.id,
       imagePath(image.id),
@@ -250,7 +267,7 @@ const handleImageDeletePost: TypedRouteHandler<
     const deletePath = `/admin/images/${image.id}/delete`;
     // deleteImageRecord prunes every use, including a news one, so a non-Site
     // role may not delete an image a news post uses (public Site content).
-    const blocked = await newsImageGate(adminLevel, image.id, deletePath);
+    const blocked = await siteContentImageGate(adminLevel, image.id, deletePath);
     if (blocked) return blocked;
     const mismatch = confirmDelete(form, image);
     if (mismatch) return redirect(deletePath, mismatch, false);

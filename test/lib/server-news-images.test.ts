@@ -101,7 +101,7 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
 
   describe("image library integration", () => {
     const NEWS_GATED =
-      "This image is used by a news post — only site editors can manage it.";
+      "This image is used by public site content — only site editors can manage it.";
 
     test("a manager sees no news targets and cannot edit a news-linked image", async () => {
       const post = await createTestNewsPost("Manager-proof post");

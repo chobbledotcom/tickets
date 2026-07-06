@@ -93,6 +93,7 @@ const imageItemTypeLabels = (): Record<ImageUseItemType, string> => ({
   group: t("terms.groups"),
   listing: t("terms.listings"),
   news: t("nav.site.news"),
+  page: t("nav.site.pages"),
 });
 
 /** One LinkedItemGroup per linkable type, in the schema's type order. */

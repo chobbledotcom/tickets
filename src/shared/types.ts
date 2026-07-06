@@ -679,7 +679,12 @@ export interface GroupListing {
 }
 
 /** Schema for the kind of item an image can be attached to. */
-export const ImageUseItemTypeSchema = v.picklist(["listing", "group", "news"]);
+export const ImageUseItemTypeSchema = v.picklist([
+  "listing",
+  "group",
+  "news",
+  "page",
+]);
 
 export type ImageUseItemType = v.InferOutput<typeof ImageUseItemTypeSchema>;
 
