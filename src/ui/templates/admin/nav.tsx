@@ -315,7 +315,7 @@ const resolveSection = (
 /** Lift the plain link schema into leveled-nav nodes: every admin link is live
  * (the schema already omits links the viewer's role can't open), and `highlight`
  * marks the current route's link — the section's top-level link at the root
- * level, and the exact current sub-page (landing or "Add X") in its sub-nav. */
+ * level, and the exact current sub-page (e.g. an "Add X") in its sub-nav. */
 const toNodes = (items: NavItem[], highlight: string): LeveledNavNode[] =>
   items.map((item) => ({
     ...item,
@@ -324,20 +324,27 @@ const toNodes = (items: NavItem[], highlight: string): LeveledNavNode[] =>
   }));
 
 /** The section's sub-nav as the model's submenu levels — one level, or none.
- * The active route highlights its own sub-item so the current page reads as
- * active in the sub-nav, not just at the top level. */
+ *
+ * A page deep in a section (a session list, a settings sub-page, a site editor
+ * tab) renders with the *section's own route* as `active`, so we can't tell it
+ * apart from the section landing page by `active` alone. Highlighting the
+ * matching sub-item would then wrongly light the landing link on every such
+ * page — so we only highlight a sub-item when `active` is more specific than
+ * the section route (an "Add X" create page, or any page that declares its own
+ * route). The section itself is already highlighted on the top-level bar. */
 const sectionLevels = (
   sectionItems: Section | null,
   active: string,
-): LeveledNavLevel[] =>
-  sectionItems
-    ? [
-        {
-          label: sectionItems.label,
-          nodes: toNodes(sectionItems.items, active),
-        },
-      ]
-    : [];
+): LeveledNavLevel[] => {
+  if (!sectionItems) return [];
+  const subHighlight = active === sectionItems.topHref ? "" : active;
+  return [
+    {
+      label: sectionItems.label,
+      nodes: toNodes(sectionItems.items, subHighlight),
+    },
+  ];
+};
 
 interface AdminNavProps {
   active: string;

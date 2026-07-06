@@ -175,15 +175,33 @@ describeWithEnv("AdminNav", {}, () => {
     }
   });
 
-  test("AdminNav marks the section landing link active on its landing page", () => {
+  test("AdminNav marks the section's top-level link active on its landing page", () => {
     const html = String(
       AdminNav({
         active: "/admin/listings",
         session: { adminLevel: "owner" },
       }),
     );
-    // The sub-nav highlights the landing link itself, not just the top bar.
     expect(html).toContain('class="active" href="/admin/listings"');
+  });
+
+  // Regression (PR #1600 review): a page deep in a section renders with the
+  // section's own route as `active` (e.g. /admin/sessions and /admin/api-keys
+  // both pass "/admin/users"; settings sub-pages pass "/admin/settings"). The
+  // sub-nav must NOT then light up the section's landing sub-item — otherwise
+  // Sessions would highlight "Users", and Privacy would highlight "Settings".
+  test("a section sub-nav does not highlight its landing item from the section route", () => {
+    for (const active of ["/admin/users", "/admin/settings"]) {
+      const html = String(
+        AdminNav({ active, session: { adminLevel: "owner" } }),
+      );
+      // Isolate the desktop sub-nav (the nested <ul class="admin-subnav">) and
+      // confirm nothing inside it is marked active.
+      const start = html.indexOf('class="admin-subnav"');
+      expect(start, active).toBeGreaterThan(-1);
+      const sub = html.slice(start, html.indexOf("</ul>", start));
+      expect(sub, active).not.toContain('class="active"');
+    }
   });
 
   test("AdminNav shows the Ledger link to owners but not managers", () => {

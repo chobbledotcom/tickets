@@ -429,7 +429,9 @@ describeWithEnv("server (editor role)", { db: true }, () => {
 
       // On the Listings section, Add Listing shows but Add Group does not —
       // create links live in their own section's sub-nav, not on every page.
-      const listingsHtml = await (await getAs("/admin/listings", cookie)).text();
+      const listingsHtml = await (
+        await getAs("/admin/listings", cookie)
+      ).text();
       expect(listingsHtml).toContain('href="/admin/listing/new"');
       expect(listingsHtml).not.toContain('href="/admin/groups/new"');
 
