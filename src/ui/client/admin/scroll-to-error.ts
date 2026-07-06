@@ -14,16 +14,20 @@
  *
  * - On a plain page load (an initial GET, a link, the back button) the alerts
  *   showing are the view's standing notes; they're recorded as the baseline.
+ *   A back/forward-cache restore doesn't re-run this script, so a persisted
+ *   `pageshow` re-records the baseline too — otherwise it could be left holding
+ *   a baseline from a page visited in between.
  * - On a submit re-render, the error to scroll to is the first alert that is
  *   NOT in that baseline. The baseline is left untouched on submit re-renders,
  *   so an error that persists across a retry (the operator fixed one of two
  *   errors) is still found the next time.
  *
- * Two more guards keep it honest: client-cancelled submits (a form that
- * `preventDefault`s to post via fetch, like the scanner) are ignored so they
- * don't arm a phantom scroll; and a success/info flash means the submit worked
- * — possibly after redirecting to a page with its own standing note — so we
- * don't chase an error there.
+ * A few guards keep it honest: only POST submits are tracked (GET filter /
+ * navigation forms just navigate and never re-render with validation errors);
+ * client-cancelled submits (a form that `preventDefault`s to post via fetch,
+ * like the scanner) are ignored; and a success/info flash means the submit
+ * worked — possibly after redirecting to a page with its own standing note —
+ * so we don't chase an error there.
  *
  * Smoothness is inherited from the page's CSS `scroll-behavior`, which is set
  * to `auto` under `prefers-reduced-motion: reduce`, so this honours the motion
@@ -60,6 +64,13 @@ const safeWrite = (mutate: (store: Storage) => void): void => {
   }
 };
 
+/** Record the alerts showing now as the view's standing notes — the baseline a
+ * later submit re-render diffs against. */
+const recordBaseline = (): void => {
+  const notes = JSON.stringify(errorAlerts().map(signatureOf));
+  safeWrite((store) => store.setItem(BASELINE_KEY, notes));
+};
+
 /** Should the fresh alert be scrolled to? True only when it is not already
  * fully within the viewport — an error already on screen (e.g. one at the top
  * of the form) is left where it is rather than nudged to the middle. */
@@ -69,10 +80,15 @@ export const errorAlertNeedsScroll = (
   viewportHeight: number,
 ): boolean => top < 0 || bottom > viewportHeight;
 
-/** On a real (not client-cancelled) submit, record that a submit happened so
- * the next load knows to look for a freshly-raised error. */
+/** On a real POST submit, record that a submit happened so the next load knows
+ * to look for a freshly-raised error. Ignores client-cancelled submits and GET
+ * forms (filters, prefill navigation) — neither re-renders with validation
+ * errors, so arming the scroll for them would misfire on the next page. */
 const rememberSubmit = (event: Event): void => {
   if (event.defaultPrevented) return;
+  // A submit event's target is always the form it fired on.
+  const form = event.target as HTMLFormElement;
+  if (form.method !== "post") return;
   safeWrite((store) => store.setItem(SUBMITTED_KEY, "1"));
 };
 
@@ -91,6 +107,11 @@ export const initScrollToError = (): void => {
   // Submit events bubble to the document; no handler in the app stops them, so
   // the default (bubble) phase reliably catches every form send.
   document.addEventListener("submit", rememberSubmit);
+  // A bfcache restore doesn't re-run this script, so refresh the baseline from
+  // the restored page before the operator submits from it.
+  window.addEventListener("pageshow", (event) => {
+    if ((event as PageTransitionEvent).persisted) recordBaseline();
+  });
 
   const justSubmitted = safeRead(SUBMITTED_KEY) !== null;
   safeWrite((store) => store.removeItem(SUBMITTED_KEY));
@@ -98,8 +119,7 @@ export const initScrollToError = (): void => {
   if (!justSubmitted) {
     // Plain load: the alerts showing now are the view's standing notes. Record
     // them as the baseline the next submit re-render diffs against; don't scroll.
-    const notes = JSON.stringify(errorAlerts().map(signatureOf));
-    safeWrite((store) => store.setItem(BASELINE_KEY, notes));
+    recordBaseline();
     return;
   }
 

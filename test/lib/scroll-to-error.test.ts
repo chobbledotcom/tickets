@@ -64,9 +64,14 @@ describe("initScrollToError", {
     scrolled: () => string[];
     /** The options of the last `scrollIntoView` call. */
     lastOptions: () => ScrollIntoViewOptions | undefined;
-    /** Fire a `submit` event; pass `cancelled` to model a form that called
-     * `preventDefault` (posts via fetch, no re-render). */
-    submit: (cancelled?: boolean) => void;
+    /** Fire a `submit` event from a form with the given method (default POST);
+     * pass `cancelled` to model a form that called `preventDefault` (posts via
+     * fetch, no re-render). */
+    submit: (opts?: { cancelled?: boolean; method?: string }) => void;
+    /** Fire a `pageshow` event (bfcache restore when `persisted` is true). */
+    pageshow: (persisted: boolean) => void;
+    /** The raw value stored under the baseline key, or null. */
+    baseline: () => string | null;
     /** Replace the page markup, as a navigation / re-render would. */
     render: (html: string) => void;
     /** Directly poke the baseline store (for the corrupted-value test). */
@@ -113,6 +118,7 @@ describe("initScrollToError", {
     stash.set("window", window);
     stash.set("sessionStorage", window.sessionStorage);
     return {
+      baseline: () => window.sessionStorage.getItem("tickets:error-baseline"),
       breakStorage: () => {
         const boom = (): never => {
           throw new Error("storage disabled");
@@ -126,17 +132,27 @@ describe("initScrollToError", {
       clearBaseline: () =>
         window.sessionStorage.removeItem("tickets:error-baseline"),
       lastOptions: () => scrolls.at(-1)?.options,
+      pageshow: (persisted) => {
+        const event = new window.Event("pageshow");
+        Object.defineProperty(event, "persisted", { value: persisted });
+        window.dispatchEvent(event);
+      },
       render,
       scrolled: () => scrolls.map((s) => s.text),
       setBaseline: (value) =>
         window.sessionStorage.setItem("tickets:error-baseline", value),
-      submit: (cancelled = false) => {
+      submit: ({ cancelled = false, method = "post" } = {}) => {
+        // Submit events fire on a form; give it the right method so the POST-only
+        // guard sees it, and attach it so the event bubbles to the document.
+        const form = window.document.createElement("form");
+        form.setAttribute("method", method);
+        window.document.body.appendChild(form);
         const event = new window.Event("submit", {
           bubbles: true,
           cancelable: true,
         });
         if (cancelled) event.preventDefault();
-        window.document.dispatchEvent(event);
+        form.dispatchEvent(event);
       },
     };
   };
@@ -226,10 +242,38 @@ describe("initScrollToError", {
   test("ignores a client-cancelled submit (no re-render is coming)", () => {
     const h = setup(note);
     initScrollToError();
-    h.submit(true); // preventDefault()'d — e.g. a fetch-posting form
+    h.submit({ cancelled: true }); // preventDefault()'d — e.g. a fetch-posting form
     h.render(note + dateError);
     initScrollToError();
     expect(h.scrolled()).toEqual([]);
+  });
+
+  test("ignores a GET form submit (a filter / navigation, not a re-render)", () => {
+    const h = setup(note);
+    initScrollToError();
+    h.submit({ method: "get" }); // e.g. the availability-checker's GET form
+    h.render(note + dateError);
+    initScrollToError();
+    expect(h.scrolled()).toEqual([]);
+  });
+
+  test("re-records the baseline on a bfcache restore (persisted pageshow)", () => {
+    const h = setup(note); // attendee page: standing note
+    initScrollToError(); // baseline = {standing note}
+    h.setBaseline(JSON.stringify(["A note from some other page"])); // a page visited in between
+    h.pageshow(true); // press Back → bfcache restore re-baselines to this page
+    h.submit();
+    h.render(note + dateError);
+    initScrollToError();
+    expect(h.scrolled()).toEqual(["A start date is required"]);
+  });
+
+  test("a non-persisted pageshow leaves the baseline alone", () => {
+    const h = setup(note);
+    initScrollToError();
+    h.setBaseline(JSON.stringify(["Elsewhere"]));
+    h.pageshow(false); // an ordinary navigation pageshow — not a bfcache restore
+    expect(h.baseline()).toBe(JSON.stringify(["Elsewhere"]));
   });
 
   test("scrolls to the error when no baseline was ever recorded", () => {
