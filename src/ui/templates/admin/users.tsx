@@ -123,12 +123,6 @@ export const adminUsersPage = (
         </div>
       )}
 
-      <p class="actions">
-        <ActionButton href="/admin/user/new" icon="user-plus">
-          {t("users.invite_user")}
-        </ActionButton>
-      </p>
-
       <DataTable
         columns={[
           { header: t("common.username") },

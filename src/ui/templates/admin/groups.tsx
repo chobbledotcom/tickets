@@ -63,8 +63,6 @@ import type {
   TableQuestionData,
 } from "#templates/attendee-table.tsx";
 import {
-  ActionButton,
-  ImportCatalogButton,
   SaveChangesButton,
   SubmitButton,
 } from "#templates/components/actions.tsx";
@@ -84,14 +82,6 @@ export const adminGroupsPage = (
 ): string =>
   successAdminPage(t("terms.groups"), "/admin/groups")(session, successMessage)(
     <>
-      {!isReadOnly() && (
-        <p class="actions">
-          <ImportCatalogButton />
-          <ActionButton href="/admin/groups/new" icon="plus">
-            {t("groups.add_group")}
-          </ActionButton>
-        </p>
-      )}
       {groups.length === 0 ? (
         <p>{t("groups.no_groups")}</p>
       ) : (

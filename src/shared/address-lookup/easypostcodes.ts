@@ -98,5 +98,4 @@ export const EASYPOSTCODES_PROVIDER: AddressLookupProviderDefinition = {
   label: "EasyPostcodes",
   normaliseSearch: normaliseUkPostcode,
   searchLabelKey: "address_lookup.search.postcode",
-  searchPlaceholderKey: "address_lookup.search.postcode_placeholder",
 };

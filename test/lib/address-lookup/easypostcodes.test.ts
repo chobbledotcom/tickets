@@ -165,13 +165,10 @@ describe("EASYPOSTCODES_PROVIDER", () => {
     );
   });
 
-  test("names real message keys for the search box copy", () => {
-    // The panel template t()s these — a broken key throws at render time.
+  test("names a real message key for the search box label", () => {
+    // The panel template t()s this — a broken key throws at render time.
     expect(EASYPOSTCODES_PROVIDER.searchLabelKey).toBe(
       "address_lookup.search.postcode",
-    );
-    expect(EASYPOSTCODES_PROVIDER.searchPlaceholderKey).toBe(
-      "address_lookup.search.postcode_placeholder",
     );
   });
 });

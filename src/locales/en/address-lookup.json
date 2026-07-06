@@ -7,7 +7,6 @@
   "address_lookup.settings.api_key": "API key",
   "address_lookup.settings.api_key_placeholder": "Key from your provider account",
   "address_lookup.search.postcode": "Postcode",
-  "address_lookup.search.postcode_placeholder": "e.g. SW1A 1AA",
   "address_lookup.find": "Find address",
   "address_lookup.choose": "Choose your address",
   "address_lookup.choose_placeholder": "Select an address…",

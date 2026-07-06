@@ -852,6 +852,39 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
     });
 
+    test("pre-fills the postcode search box from an address ending in a postcode", async () => {
+      settings.setForTest({
+        address_lookup_api_key: "test-api-key",
+        address_lookup_provider: "easypostcodes",
+      });
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+        fields: "address",
+        maxAttendees: 100,
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/listing/${listing.id}/attendee`,
+          {
+            address: "1 High Street, London, SW1A 1AA",
+            csrf_token: csrfToken,
+            name: "Postcode Person",
+            quantity: "1",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      const [added] = await getAttendeesRaw(listing.id);
+      const edit = await adminGet(`/admin/attendees/${added!.id}/edit`);
+      const html = await edit.text();
+      // The lookup panel's search box starts filled with the saved postcode.
+      expect(html).toContain(
+        'data-address-search type="text" value="SW1A 1AA"',
+      );
+    });
+
     test("adds a customisable daily attendee spanning the chosen day count", async () => {
       const { listing, cookie, csrfToken } = await setupListingAndLogin({
         customisableDays: true,

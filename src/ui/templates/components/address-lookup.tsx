@@ -17,12 +17,33 @@ import {
   ADDRESS_LOOKUP_PROVIDERS,
   activeAddressLookupProvider,
 } from "#shared/address-lookup/providers.ts";
+import type { AddressLookupProviderDefinition } from "#shared/address-lookup/types.ts";
 
-/** The search panel markup, or "" when no lookup provider is configured. */
-export const renderAddressLookupPanel = (): string => {
+/**
+ * Pull a search value out of an existing address so the box starts pre-filled.
+ * When the address ends with ", <valid postcode>" (as saved addresses do), the
+ * trailing postcode is offered to the search box; otherwise "".
+ */
+const initialSearchFrom = (
+  definition: AddressLookupProviderDefinition,
+  address: string,
+): string => {
+  const idx = address.lastIndexOf(", ");
+  if (idx === -1) return "";
+  return definition.normaliseSearch(address.slice(idx + 2)) ?? "";
+};
+
+/**
+ * The search panel markup, or "" when no lookup provider is configured.
+ *
+ * `address` pre-fills the search box from an existing saved address (its
+ * trailing postcode), so editing an attendee starts ready to re-search.
+ */
+export const renderAddressLookupPanel = (address = ""): string => {
   const provider = activeAddressLookupProvider();
   if (!provider) return "";
   const definition = ADDRESS_LOOKUP_PROVIDERS[provider];
+  const initialSearch = initialSearchFrom(definition, address);
   return String(
     <fieldset
       class="address-lookup"
@@ -39,8 +60,8 @@ export const renderAddressLookupPanel = (): string => {
           <input
             autocomplete="off"
             data-address-search={true}
-            placeholder={t(definition.searchPlaceholderKey)}
             type="text"
+            value={initialSearch || undefined}
           />
         </label>
         <button data-address-find={true} type="button">

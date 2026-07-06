@@ -781,7 +781,7 @@ describe("adminListingsPage", () => {
     expect(html).toContain("Deactivated");
     expect(html).toContain("Old Show");
     expect(html.indexOf("Active Show")).toBeLessThan(html.indexOf("Old Show"));
-    // The actions bar offers the import-from-file entry point.
+    // The Listings section sub-nav offers the catalog import entry point.
     expect(html).toContain('href="/admin/catalog/import"');
   });
 

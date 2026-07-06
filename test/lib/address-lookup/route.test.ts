@@ -145,7 +145,6 @@ describeWithEnv("address lookup search panels", { db: true }, () => {
     expect(html.indexOf("data-address-lookup")).toBeLessThan(
       html.indexOf('name="address"'),
     );
-    expect(html).toContain('placeholder="e.g. SW1A 1AA"');
     // The textarea is always editable — no Edit button is rendered.
     expect(html).not.toContain("data-address-edit");
   });

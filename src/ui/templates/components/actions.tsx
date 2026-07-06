@@ -64,14 +64,6 @@ export const ActionButton = ({
   </a>
 );
 
-/** The outline "Import" button linking to the catalog JSON import — shown on
- *  both the listings dashboard and the groups index action rows. */
-export const ImportCatalogButton = (): SafeHtml => (
-  <ActionButton href="/admin/catalog/import" variant="outline">
-    {t("catalog_transfer.import_button")}
-  </ActionButton>
-);
-
 /**
  * A form submit button with a leading icon. Mirrors {@link ActionButton} for
  * the primary action of a form (e.g. "Save", "Create Listing"). Pass `class`

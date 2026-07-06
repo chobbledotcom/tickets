@@ -635,7 +635,7 @@ const AttendeeEditForm = ({
         />
       </label>
 
-      <Raw html={renderAddressLookupPanel()} />
+      <Raw html={renderAddressLookupPanel(data.parsed.address || "")} />
       <label for="address">
         {t("common.address")}
         <textarea
