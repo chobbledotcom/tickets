@@ -15,6 +15,7 @@
 
 import { expect } from "@std/expect";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import type { CheckoutIntent } from "#shared/payments.ts";
 import { setChildIds } from "#shared/db/listing-parents.ts";
 import type { Group, Listing } from "#shared/types.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
