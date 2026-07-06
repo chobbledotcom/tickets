@@ -2803,12 +2803,18 @@ a.cal-day-selected:active {
   max-width: 15rem;
 }
 
-/* Stack a table with its controls/action rows, evenly spaced. */
+/* Stack a table with its controls/action rows, evenly spaced. Pinned to the
+   full container width: as a flex-column these groups would otherwise size to
+   their widest child, and a `.table-scroll` holding a `white-space: nowrap`
+   table reports that whole nowrap width as its content size — so without an
+   explicit width the group grows to the table's full width and pushes the page
+   sideways on mobile instead of letting the inner `.table-scroll` scroll. */
 .table-controls,
 .table-block {
   display: flex;
   flex-direction: column;
   gap: var(--space-m);
+  width: 100%;
 }
 
 /* Link/button rows attached to a table.
