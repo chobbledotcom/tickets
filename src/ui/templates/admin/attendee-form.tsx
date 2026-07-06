@@ -17,7 +17,6 @@
  */
 
 import { t } from "#i18n";
-import { Raw } from "#jsx/jsx-runtime.ts";
 import type { BalanceNotice } from "#routes/admin/attendee-form-model.ts";
 import {
   ATTENDEE_FORM_ID,
@@ -64,8 +63,8 @@ import {
   InactiveNote,
 } from "#templates/admin/attendee-detail.tsx";
 import { EditQuestions } from "#templates/admin/attendees.tsx";
-import { Icon } from "#templates/components/actions.tsx";
-import { renderAddressLookupPanel } from "#templates/components/address-lookup.tsx";
+import { SaveActions } from "#templates/components/actions.tsx";
+import { AddressFieldWithLookup } from "#templates/components/address-field.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import {
@@ -389,14 +388,14 @@ const LogisticsLeg = ({
  * Logistics agent + time selectors for logistics listings. A "different agents
  * per item" checkbox switches (pure CSS) between one shared start/end pair and
  * a pair per logistics listing. Grouped in a fieldset/legend like the listing
- * editor. Only rendered when logistics applies.
+ * editor. Only rendered when logistics applies. Shared by the Edit tab's form
+ * and the Logistics tab's form (attendee-logistics-tab.tsx).
  */
-const LogisticsSection = ({
-  data,
+export const LogisticsSection = ({
+  logistics,
 }: {
-  data: AttendeeFormTemplateData;
+  logistics: AttendeeLogisticsData | undefined;
 }): JSX.Element | null => {
-  const logistics = data.logistics;
   if (!logistics) return null;
   return (
     <fieldset class="logistics-agents listing-section">
@@ -630,19 +629,7 @@ const AttendeeEditForm = ({
         />
       </label>
 
-      <Raw html={renderAddressLookupPanel(data.parsed.address || "")} />
-      <label for="address">
-        {t("common.address")}
-        <textarea
-          autocomplete="off"
-          id="address"
-          maxlength={250}
-          name="address"
-          rows={3}
-        >
-          {data.parsed.address || ""}
-        </textarea>
-      </label>
+      <AddressFieldWithLookup address={data.parsed.address || ""} />
 
       <label for="special_instructions">
         {t("common.special_instructions")}
@@ -678,18 +665,13 @@ const AttendeeEditForm = ({
       )}
       <ListingEditor data={data} />
 
-      <LogisticsSection data={data} />
+      <LogisticsSection logistics={data.logistics} />
 
       <hr />
 
-      <p class="form-actions">
-        <button class="primary" type="submit">
-          <Icon name="save" />
-          <span>
-            {isEdit ? t("attendee_form.save") : t("attendee_form.create")}
-          </span>
-        </button>
-      </p>
+      <SaveActions>
+        {isEdit ? t("attendee_form.save") : t("attendee_form.create")}
+      </SaveActions>
     </CsrfForm>
   );
 };

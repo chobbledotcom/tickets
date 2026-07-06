@@ -6,10 +6,7 @@
  * 2. Apply: the admin submits explicit decisions for each conflict.
  */
 
-import type {
-  AttendeePii,
-  ListingAttendeeRow,
-} from "#shared/db/attendee-types.ts";
+import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import type { ContactInfo } from "#shared/types.ts";
 
 // ---------------------------------------------------------------------------
@@ -175,7 +172,9 @@ export type BuildAttendeeMergeDiffInput = {
 export type ApplyAttendeeMergeInput = {
   targetId: number;
   sourceId: number;
-  targetPii: AttendeePii;
+  /** The merge only reads the decision fields plus payment/ticket identity —
+   * it never rebuilds the PII blob (the feature layer does, pin included). */
+  targetPii: ContactInfo & { payment_id: string; ticket_token: string };
   sourcePii: ContactInfo;
   diff: AttendeeMergeDiff;
   decision: AttendeeMergeDecisionInput;

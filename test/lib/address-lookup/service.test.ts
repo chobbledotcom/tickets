@@ -17,8 +17,18 @@ import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { setupFetchStub } from "#test-utils/fetch-stub.ts";
 
 const PROVIDER_BODY = JSON.stringify([
-  { envelopeAddress: { summaryLine: "10 Downing Street, LONDON, SW1A 2AA" } },
+  {
+    envelopeAddress: { summaryLine: "10 Downing Street, LONDON, SW1A 2AA" },
+    latitude: "51.503396",
+    longitude: "-0.127640",
+  },
 ]);
+
+const DOWNING_STREET_MATCH = {
+  lat: "51.503396",
+  line: "10 Downing Street, LONDON, SW1A 2AA",
+  lng: "-0.127640",
+};
 
 describeWithEnv("address lookup service", { db: true }, () => {
   const { callCount, stubFetch } = setupFetchStub();
@@ -48,26 +58,29 @@ describeWithEnv("address lookup service", { db: true }, () => {
     const outcome = await lookupAddresses("easypostcodes", "sw1a2aa");
 
     expect(outcome).toEqual({
-      addresses: ["10 Downing Street, LONDON, SW1A 2AA"],
+      addresses: [DOWNING_STREET_MATCH],
       ok: true,
     });
     expect(sentKey).toBe("test-api-key");
     // The result was cached under the normalised search's blind index.
     const index = await computeAddressSearchIndex("easypostcodes", "SW1A 2AA");
-    expect(await getCachedAddresses(index)).toEqual([
-      "10 Downing Street, LONDON, SW1A 2AA",
-    ]);
+    expect(await getCachedAddresses(index)).toEqual([DOWNING_STREET_MATCH]);
   });
 
   test("serves a cached search without touching the provider", async () => {
     stubFetch(() => Promise.reject(new Error("should not be called")));
     const index = await computeAddressSearchIndex("easypostcodes", "SW1A 2AA");
-    await storeCachedAddresses(index, ["Cached Address Line"]);
+    await storeCachedAddresses(index, [
+      { lat: "51.5", line: "Cached Address Line", lng: "-0.1" },
+    ]);
 
     // Differently-formatted input normalises to the same cached search.
     const outcome = await lookupAddresses("easypostcodes", "  sw1a 2aa ");
 
-    expect(outcome).toEqual({ addresses: ["Cached Address Line"], ok: true });
+    expect(outcome).toEqual({
+      addresses: [{ lat: "51.5", line: "Cached Address Line", lng: "-0.1" }],
+      ok: true,
+    });
     expect(callCount()).toBe(0);
   });
 

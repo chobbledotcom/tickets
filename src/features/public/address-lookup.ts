@@ -23,6 +23,7 @@ import {
   ADDRESS_LOOKUP_LOCKOUT_MS,
   MAX_ADDRESS_LOOKUPS,
 } from "#shared/limits.ts";
+import { isStaffRole } from "#shared/types.ts";
 
 /** "address:" namespaces the counters away from login/booking limiters. */
 const limiter = makeIpRateLimiter(
@@ -37,7 +38,8 @@ export const handleAddressLookupGet: TypedRouteHandler<
   const provider = activeAddressLookupProvider();
   if (!provider) return notFoundResponse();
 
-  if (!(await getAuthenticatedSession(request))) {
+  const session = await getAuthenticatedSession(request);
+  if (!session) {
     const ip = getClientIp(request, server);
     if (await limiter.isLimited(ip)) {
       return jsonResponse({ error: t("address_lookup.rate_limited") }, 429);
@@ -48,5 +50,14 @@ export const handleAddressLookupGet: TypedRouteHandler<
   const search = new URL(request.url).searchParams.get("search") ?? "";
   const outcome = await lookupAddresses(provider, search);
   if (!outcome.ok) return jsonResponse({ error: outcome.error }, 400);
-  return jsonResponse({ addresses: outcome.addresses });
+  // `addresses` is the lines-only list the public booking form reads.
+  // `matches` adds each line's coordinates for the admin Logistics tab's map
+  // pin — gated on the back-office staff roles that can open attendee pages,
+  // so neither anonymous visitors nor restricted agent/editor sessions ever
+  // receive geolocation data.
+  const staff = session && isStaffRole(session.adminLevel);
+  return jsonResponse({
+    addresses: outcome.addresses.map((match) => match.line),
+    ...(staff ? { matches: outcome.addresses } : {}),
+  });
 };

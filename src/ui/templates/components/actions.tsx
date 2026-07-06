@@ -87,6 +87,16 @@ export const SubmitButton = ({
   </button>
 );
 
+/** The form-footer save row: the primary save-icon submit button in its
+ * `form-actions` paragraph. Pass the button label as children. */
+export const SaveActions = ({ children }: { children?: Child }): SafeHtml => (
+  <p class="form-actions">
+    <SubmitButton class="primary" icon="save">
+      {children}
+    </SubmitButton>
+  </p>
+);
+
 /** The standard "Save changes" submit button used on admin edit pages. */
 export const SaveChangesButton = (): SafeHtml => (
   <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>

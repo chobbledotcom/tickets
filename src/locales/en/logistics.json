@@ -17,5 +17,21 @@
   "logistics.delete_confirm": "Are you sure you want to delete the logistics agent <strong>{name}</strong>? Any attendees assigned to this agent will have that assignment cleared.",
   "logistics.type_name_to_confirm": "Type the agent name \"{name}\" to confirm:",
   "logistics.add_logistics_agent": "Add Logistics Agent",
-  "logistics.delete_logistics_agent": "Delete Logistics Agent"
+  "logistics.delete_logistics_agent": "Delete Logistics Agent",
+  "attendee_logistics.address_heading": "Address",
+  "attendee_logistics.location_heading": "Pinned location",
+  "attendee_logistics.location_hint": "The latitude and longitude pin the exact spot on the map. Search by postcode to fill them in, or type them yourself.",
+  "attendee_logistics.latitude": "Latitude",
+  "attendee_logistics.longitude": "Longitude",
+  "attendee_logistics.location_error": "Enter a latitude between -90 and 90 and a longitude between -180 and 180, or leave both empty",
+  "attendee_logistics.map_label": "Map of the pinned location",
+  "attendee_logistics.diff_heading": "The chosen address differs from what's typed:",
+  "attendee_logistics.save": "Save Logistics",
+  "attendee_logistics.saved": "Logistics saved for '{value}'",
+  "attendee_logistics.others_heading": "Other Attendees",
+  "attendee_logistics.others_hint": "Everyone else with a booking on the same dates. Open one to plan its times alongside this job.",
+  "attendee_logistics.col_attendee": "Attendee",
+  "attendee_logistics.col_dates": "Dates",
+  "attendee_logistics.col_start": "Start",
+  "attendee_logistics.col_end": "End"
 }

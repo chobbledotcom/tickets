@@ -33,7 +33,9 @@ export type BookingLogisticsAssignment = LogisticsAssignment & {
   listingId: number;
 };
 
-type AssignmentRow = {
+/** The raw `listing_attendees` logistics columns: who/what plus each leg's
+ * agent and time. Also the base of the overlap query's rows (overlap.ts). */
+export type AssignmentRow = {
   attendee_id: number;
   listing_id: number;
   start_agent_id: number | null;

@@ -77,8 +77,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-05_first_class_images",
         "2026-07-05_address_cache",
         "2026-07-06_news_posts",
+        "2026-07-06_listing_attendees_end_start_index",
       ],
-      schemaHash: "1dwtb1i",
+      schemaHash: "1devkcu",
     });
   });
 });

@@ -126,6 +126,9 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
     ? addDays(input.date, normalizeDurationDays(input.durationDays ?? 1))
     : null,
   kind: input.kind,
+  // A booking never pins a location; only an admin can, later.
+  lat: "",
+  lng: "",
   package_group_id: input.packageGroupId,
   payment_id: input.paymentId,
   pii_blob: "",

@@ -12,6 +12,7 @@ import { execute } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowMs } from "#shared/now.ts";
 import {
+  createTestEditorSession,
   describeWithEnv,
   getTestSession,
   mockRequest,
@@ -20,8 +21,30 @@ import {
 import { setupFetchStub } from "#test-utils/fetch-stub.ts";
 
 const PROVIDER_BODY = JSON.stringify([
-  { envelopeAddress: { summaryLine: "10 Downing Street, LONDON, SW1A 2AA" } },
+  {
+    envelopeAddress: { summaryLine: "10 Downing Street, LONDON, SW1A 2AA" },
+    latitude: "51.503396",
+    longitude: "-0.127640",
+  },
 ]);
+
+/** The lines-only body an anonymous lookup gets — no geolocation data. */
+const DOWNING_STREET_LINES = {
+  addresses: ["10 Downing Street, LONDON, SW1A 2AA"],
+};
+
+/** The staff body: the lines plus each line's located match (the Logistics
+ * tab's map pin). */
+const DOWNING_STREET_WITH_MATCHES = {
+  ...DOWNING_STREET_LINES,
+  matches: [
+    {
+      lat: "51.503396",
+      line: "10 Downing Street, LONDON, SW1A 2AA",
+      lng: "-0.127640",
+    },
+  ],
+};
 
 /** Turn the lookup on (writes settings like the admin form would). */
 const enableEasypostcodes = async (): Promise<void> => {
@@ -36,6 +59,14 @@ const lookupGet = async (search: string): Promise<Response> => {
   );
 };
 
+/** A Downing Street lookup as a signed-in user (any role, via its cookie). */
+const lookupGetSignedIn = async (cookie: string): Promise<Response> => {
+  const { handleRequest } = await import("#routes");
+  return handleRequest(
+    mockRequest("/address-lookup?search=SW1A%202AA", { headers: { cookie } }),
+  );
+};
+
 describeWithEnv("GET /address-lookup", { db: true }, () => {
   const { stubFetch } = setupFetchStub();
 
@@ -44,16 +75,14 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
     expect(response.status).toBe(404);
   });
 
-  test("returns the provider's addresses as JSON", async () => {
+  test("an anonymous lookup gets address lines but never coordinates", async () => {
     await enableEasypostcodes();
     stubFetch(() => Promise.resolve(new Response(PROVIDER_BODY)));
 
     const response = await lookupGet("sw1a2aa");
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      addresses: ["10 Downing Street, LONDON, SW1A 2AA"],
-    });
+    expect(await response.json()).toEqual(DOWNING_STREET_LINES);
   });
 
   test("400s with the validation message for a malformed postcode", async () => {
@@ -106,17 +135,23 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
     await lockOutTestIp();
     const { cookie } = await getTestSession();
 
-    const { handleRequest } = await import("#routes");
-    const response = await handleRequest(
-      mockRequest("/address-lookup?search=SW1A%202AA", {
-        headers: { cookie },
-      }),
-    );
+    const response = await lookupGetSignedIn(cookie);
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      addresses: ["10 Downing Street, LONDON, SW1A 2AA"],
-    });
+    // Staff also get the located matches for the Logistics tab's map pin.
+    expect(await response.json()).toEqual(DOWNING_STREET_WITH_MATCHES);
+  });
+
+  test("a restricted editor session gets lines but never coordinates", async () => {
+    await enableEasypostcodes();
+    stubFetch(() => Promise.resolve(new Response(PROVIDER_BODY)));
+    const { cookie } = await createTestEditorSession();
+
+    const response = await lookupGetSignedIn(cookie);
+
+    expect(response.status).toBe(200);
+    // Editors cannot open attendee pages, so no geolocation payload either.
+    expect(await response.json()).toEqual(DOWNING_STREET_LINES);
   });
 });
 

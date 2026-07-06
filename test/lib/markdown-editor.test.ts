@@ -12,7 +12,7 @@
 
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { Window } from "happy-dom";
+import type { Window } from "happy-dom";
 import { type EditorState, TextSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import {
@@ -29,32 +29,16 @@ import {
   serializeMarkdown,
 } from "#src/ui/client/admin/markdown-editor-setup.ts";
 import { TOOLBAR_ITEMS } from "#src/ui/client/admin/markdown-editor-toolbar.ts";
-import { createGlobalStash } from "#test-utils/happy-dom.ts";
+import { createDomInstaller } from "#test-utils/happy-dom.ts";
 
-const stash = createGlobalStash();
-const openWindows: Window[] = [];
+const { installDom, cleanup } = createDomInstaller([
+  "navigator",
+  "getComputedStyle",
+  "MutationObserver",
+  "Event",
+]);
 
-/** Install a fresh happy-dom window (with the given body) onto the globals. */
-const installDom = (bodyHtml: string): Window => {
-  const window = new Window({ url: "https://admin.test/" });
-  window.document.body.innerHTML = bodyHtml;
-  stash.set("document", window.document);
-  stash.set("window", window);
-  stash.set("navigator", window.navigator);
-  stash.set("getComputedStyle", window.getComputedStyle.bind(window));
-  stash.set("MutationObserver", window.MutationObserver);
-  stash.set("Event", window.Event);
-  openWindows.push(window);
-  return window;
-};
-
-afterEach(() => {
-  stash.restore();
-  for (const window of openWindows) {
-    window.close();
-  }
-  openWindows.length = 0;
-});
+afterEach(cleanup);
 
 const TEXTAREA = "<textarea data-markdown-preview>%s</textarea>";
 const FOOTER =

@@ -126,6 +126,7 @@ describeWithEnv(
           "char-counter-warn",
           "/admin/markdown-preview",
           "/markdown-editor.js",
+          "/logistics-map.js",
           "#manual-checkin-input",
           ":not([data-manual-checkin])",
           ".custom-question[data-listing-ids]",
@@ -168,6 +169,25 @@ describeWithEnv(
           (js) => expect(js).toContain("md-editor"),
         );
         await expectLongCacheHeaders("/markdown-editor.js");
+      });
+    });
+
+    describe("GET /logistics-map.js and /logistics-map.css", () => {
+      test("serves the map bundle with long cache headers", async () => {
+        await expectStaticFile(
+          "/logistics-map.js",
+          "application/javascript; charset=utf-8",
+          (js) => expect(js).toContain("logistics-map-pin"),
+        );
+        await expectLongCacheHeaders("/logistics-map.js");
+      });
+
+      test("serves Leaflet's stylesheet", async () => {
+        await expectStaticFile(
+          "/logistics-map.css",
+          "text/css; charset=utf-8",
+          (css) => expect(css).toContain(".leaflet-pane"),
+        );
       });
     });
   },

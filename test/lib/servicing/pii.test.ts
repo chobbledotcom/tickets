@@ -27,6 +27,8 @@ describe("servicing §0 — buildPiiBlob with name only produces an all-empty-bu
   const input = {
     address: "",
     email: "",
+    lat: "",
+    lng: "",
     name: "Boiler Service",
     payment_id: "",
     phone: "",

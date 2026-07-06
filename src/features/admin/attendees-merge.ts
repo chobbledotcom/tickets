@@ -62,6 +62,8 @@ const loadMergeSource = async (
 ): Promise<
   | (ContactInfo & {
       id: number;
+      lat: string;
+      lng: string;
       ticket_token: string;
       bookings: ListingAttendeeRow[];
     })
@@ -81,6 +83,8 @@ const loadMergeSource = async (
     bookings: raw.bookings,
     email: decrypted.email,
     id: raw.id,
+    lat: decrypted.lat,
+    lng: decrypted.lng,
     name: decrypted.name,
     phone: decrypted.phone,
     special_instructions: decrypted.special_instructions,
@@ -171,10 +175,22 @@ const updateTargetPiiFromDecision = (
   decision: AttendeeMergeDecisionInput,
   source: MergeSource,
   target: Attendee,
-): Promise<unknown> =>
-  updateAttendeePII(attendeeId, {
+): Promise<unknown> => {
+  // The pinned location belongs to the address it was pinned for, so it
+  // follows whichever side's address the operator keeps. When the kept side
+  // has no pin but the OTHER side pinned the very same address text, keep
+  // that pin — identical addresses render as one "(same)" value on the merge
+  // form, so dropping the only pin there would be a silent loss.
+  const kept = decision.pii.address === "source" ? source : target;
+  const other = kept === source ? target : source;
+  const keptIsPinned = Boolean(kept.lat && kept.lng);
+  const addressFrom =
+    keptIsPinned || kept.address !== other.address ? kept : other;
+  return updateAttendeePII(attendeeId, {
     address: pickPiiField(decision, "address", source, target),
     email: pickPiiField(decision, "email", source, target),
+    lat: addressFrom.lat,
+    lng: addressFrom.lng,
     name: pickPiiField(decision, "name", source, target),
     payment_id: target.payment_id,
     phone: pickPiiField(decision, "phone", source, target),
@@ -186,6 +202,7 @@ const updateTargetPiiFromDecision = (
     ),
     ticket_token: target.ticket_token,
   });
+};
 
 /** Build labeled count strings from summary fields, omitting zero-count entries */
 const mergeCountParts = (fields: Array<[number, string]>): string[] =>

@@ -39,6 +39,7 @@ import {
   handleAttendeeNewGet,
   handleAttendeeNewPost,
 } from "./attendee-form-routes.ts";
+import { handleAttendeeLogisticsPost } from "./attendee-logistics-routes.ts";
 import { attendeePage } from "./attendee-page.ts";
 import { handleRefreshPayment } from "./attendees-edit.ts";
 import {
@@ -374,6 +375,7 @@ export const attendeesRoutes = defineRoutes({
   "GET /admin/attendees/new": handleAttendeeNewGet,
   "POST /admin/attendees/:attendeeId": handleAttendeeEditPost,
   "POST /admin/attendees/:attendeeId/delete": handleAttendeeDelete,
+  "POST /admin/attendees/:attendeeId/logistics": handleAttendeeLogisticsPost,
   "POST /admin/attendees/:attendeeId/merge": handleMergePost,
   "POST /admin/attendees/:attendeeId/refresh-payment": handleRefreshPayment,
   "POST /admin/attendees/:attendeeId/resend-notification":

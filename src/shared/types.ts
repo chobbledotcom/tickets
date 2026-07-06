@@ -466,6 +466,11 @@ export interface UserLogisticsAgent {
 }
 
 export interface Attendee extends ContactInfo {
+  /** Latitude the operator pinned for the address ("" = not pinned). Lives in
+   * the encrypted pii_blob and is only ever written from the admin side. */
+  lat: string;
+  /** Longitude the operator pinned for the address ("" = not pinned). */
+  lng: string;
   attachment_downloads: number;
   checked_in: boolean;
   created: string;
@@ -511,6 +516,8 @@ export type PiiBlob = {
   s: string; // special_instructions
   pi: string; // payment_id
   t: string; // ticket_token
+  la?: string | undefined; // latitude (absent = not pinned; set by admins, never at booking)
+  lo?: string | undefined; // longitude (absent = not pinned; set by admins, never at booking)
 };
 
 export interface Settings {

@@ -50,14 +50,18 @@ describe("normaliseUkPostcode", () => {
 });
 
 describe("parseEasypostcodesBody", () => {
-  test("extracts each address's summary line", () => {
+  test("extracts each address's summary line and coordinates", () => {
     const body = JSON.stringify([
-      { envelopeAddress: { summaryLine: "Flat 9, 16 Netherkirkgate" } },
+      {
+        envelopeAddress: { summaryLine: "Flat 9, 16 Netherkirkgate" },
+        latitude: "57.147740",
+        longitude: "-2.096323",
+      },
       { envelopeAddress: { summaryLine: "10 Downing Street" } },
     ]);
     expect(parseEasypostcodesBody(body)).toEqual([
-      "Flat 9, 16 Netherkirkgate",
-      "10 Downing Street",
+      { lat: "57.147740", line: "Flat 9, 16 Netherkirkgate", lng: "-2.096323" },
+      { lat: "", line: "10 Downing Street", lng: "" },
     ]);
   });
 
@@ -66,7 +70,21 @@ describe("parseEasypostcodesBody", () => {
       { udprn: "16" },
       { envelopeAddress: { summaryLine: "10 Downing Street" } },
     ]);
-    expect(parseEasypostcodesBody(body)).toEqual(["10 Downing Street"]);
+    expect(parseEasypostcodesBody(body)).toEqual([
+      { lat: "", line: "10 Downing Street", lng: "" },
+    ]);
+  });
+
+  test("half a location (latitude without longitude) reads as unlocated", () => {
+    const body = JSON.stringify([
+      {
+        envelopeAddress: { summaryLine: "10 Downing Street" },
+        latitude: "51.503396",
+      },
+    ]);
+    expect(parseEasypostcodesBody(body)).toEqual([
+      { lat: "", line: "10 Downing Street", lng: "" },
+    ]);
   });
 
   test("returns an empty list for an empty array", () => {
@@ -99,25 +117,32 @@ describe("fetchEasypostcodesAddresses", () => {
     const result = await fetchEasypostcodesAddresses("SW1A 1AA", "secret-key");
 
     expect(result).toEqual({ addresses: [], ok: true });
+    // includeGeo asks the API to return each address's latitude/longitude.
     expect(captured).toEqual({
       key: "secret-key",
-      url: "https://api.easypostcodes.com/addresses/SW1A%201AA",
+      url: "https://api.easypostcodes.com/addresses/SW1A%201AA?includeGeo=true",
     });
   });
 
-  test("returns the summary lines from a successful response", async () => {
+  test("returns the matches from a successful response", async () => {
     stubFetch(() =>
       Promise.resolve(
         new Response(
           JSON.stringify([
-            { envelopeAddress: { summaryLine: "10 Downing Street" } },
+            {
+              envelopeAddress: { summaryLine: "10 Downing Street" },
+              latitude: "51.503396",
+              longitude: "-0.127640",
+            },
           ]),
         ),
       ),
     );
 
     expect(await fetchEasypostcodesAddresses("SW1A 1AA", "k")).toEqual({
-      addresses: ["10 Downing Street"],
+      addresses: [
+        { lat: "51.503396", line: "10 Downing Street", lng: "-0.127640" },
+      ],
       ok: true,
     });
   });

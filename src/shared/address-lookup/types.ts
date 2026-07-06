@@ -34,8 +34,12 @@ export const isAddressLookupSetting = (s: string): s is AddressLookupSetting =>
 /** A provider that can actually search — every setting except "none". */
 export type AddressLookupProvider = Exclude<AddressLookupSetting, "none">;
 
-/** A successful search: one ready-to-display line per matching address. */
-export type AddressLookupResult = { addresses: string[] };
+/** One matching address: its ready-to-display line, plus the provider's
+ * latitude/longitude when it knows them ("" when it doesn't). */
+export type AddressMatch = { line: string; lat: string; lng: string };
+
+/** A successful search: one match per address the provider found. */
+export type AddressLookupResult = { addresses: AddressMatch[] };
 
 /** Everything one lookup provider knows how to do. */
 export type AddressLookupProviderDefinition = {

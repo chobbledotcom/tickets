@@ -416,10 +416,17 @@ const applyEdit = async (
     return { ok: false, saveError: t("attendee_form.error_paid_no_qty") };
   }
 
+  // The Edit tab has no location inputs, so the Logistics pin survives only
+  // while the address it was pinned for stays the same — an edit that changes
+  // the address clears the now-stale pin (a fresh one is set on the
+  // Logistics tab).
+  const addressUnchanged = parsed.address === attendee.address;
   const encryptedPiiBlob = (await encryptPiiBlob(
     buildPiiBlob({
       address: parsed.address,
       email: parsed.email,
+      lat: addressUnchanged ? attendee.lat : "",
+      lng: addressUnchanged ? attendee.lng : "",
       name: parsed.name,
       payment_id: attendee.payment_id,
       phone: parsed.phone,

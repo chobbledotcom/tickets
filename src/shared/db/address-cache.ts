@@ -10,6 +10,7 @@
  */
 
 /* jscpd:ignore-start */
+import type { AddressMatch } from "#shared/address-lookup/types.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
@@ -31,22 +32,30 @@ export const computeAddressSearchIndex = (
 const freshCutoffIso = (): string =>
   new Date(nowMs() - ADDRESS_CACHE_MS).toISOString();
 
-/** Read a fresh cached result. Null on miss (absent or expired). */
+/** Read a fresh cached result. Null on miss (absent or expired). Rows cached
+ * before matches carried coordinates hold bare line strings; those read as a
+ * miss too, so the next lookup re-fetches the postcode WITH coordinates and
+ * overwrites the row instead of serving locationless results until expiry. */
 export const getCachedAddresses = async (
   searchIndex: BlindIndex,
-): Promise<string[] | null> => {
+): Promise<AddressMatch[] | null> => {
   const row = await queryOne<{ results: EnvKeyEncrypted }>(
     "SELECT results FROM address_cache WHERE search_index = ? AND created >= ? LIMIT 1",
     [searchIndex, freshCutoffIso()],
   );
   if (!row) return null;
-  return JSON.parse(await decrypt(row.results)) as string[];
+  const entries = JSON.parse(await decrypt(row.results)) as (
+    | string
+    | AddressMatch
+  )[];
+  if (entries.some((entry) => typeof entry === "string")) return null;
+  return entries as AddressMatch[];
 };
 
 /** Cache a lookup result, replacing any previous row for the same search. */
 export const storeCachedAddresses = async (
   searchIndex: BlindIndex,
-  addresses: string[],
+  addresses: AddressMatch[],
 ): Promise<void> => {
   await execute(
     "INSERT INTO address_cache (search_index, results, created) VALUES (?, ?, ?) " +

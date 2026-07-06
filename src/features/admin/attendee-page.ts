@@ -17,6 +17,7 @@
 import { t } from "#i18n";
 import { loadAttendeeBalancePanel } from "#routes/admin/attendee-balance.ts";
 import { attendeeBookingsFromLines } from "#routes/admin/attendee-form-model.ts";
+import { loadLogisticsPanel } from "#routes/admin/attendee-logistics-tab.ts";
 import {
   buildEditFormFromAttendee,
   buildTemplateData,
@@ -221,6 +222,11 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
       labelKey: "entity.tab.edit",
       sections: [{ kind: "custom", load: loadEditPanel }],
       slug: "edit",
+    },
+    {
+      labelKey: "entity.tab.logistics",
+      sections: [{ kind: "custom", load: loadLogisticsPanel }],
+      slug: "logistics",
     },
     {
       labelKey: "entity.tab.ledger",

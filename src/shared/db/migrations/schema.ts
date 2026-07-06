@@ -34,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Create the news_posts table (with a slug permalink) backing the public news system under the Site tab.";
+  "Add idx_listing_attendees_end_start so the Logistics tab's cross-listing overlap query stays bounded.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -460,6 +460,14 @@ export const SCHEMA: [name: string, table: Table][] = [
         {
           columns: ["listing_id", "end_at", "start_at"],
           name: "idx_listing_attendees_listing_end_start",
+        },
+        // The Logistics tab's Other Attendees list overlaps a date window
+        // across ALL listings, so the listing_id-first index above can't serve
+        // it. Same end_at-first shape for the same reason: the range scan
+        // skips historical rows instead of walking every booking ever made.
+        {
+          columns: ["end_at", "start_at"],
+          name: "idx_listing_attendees_end_start",
         },
         // The ledger-replay owner lookup (attendeeIdByLedgerEventGroup) seeks a
         // booking by its event group: WHERE ledger_event_group = ?. Without this

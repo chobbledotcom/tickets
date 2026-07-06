@@ -67,9 +67,11 @@ const ASSET_DEFS: AssetDef[] = [
   ["icons.svg", "handleIcons", SVG, "ICONS_PATH"],
   ["style.css", "handleStyleCss", CSS, "CSS_PATH"],
   ["admin.js", "handleAdminJs", JS, "JS_PATH"],
-  // No path constant: the client-side loader derives the cache-busted URL
+  // No path constants: the client-side loader derives these cache-busted URLs
   // from the admin bundle's own script tag.
   ["markdown-editor.js", "handleMarkdownEditorJs", JS, ""],
+  ["logistics-map.js", "handleLogisticsMapJs", JS, ""],
+  ["logistics-map.css", "handleLogisticsMapCss", CSS, ""],
   ["scanner.js", "handleScannerJs", JS, "SCANNER_JS_PATH"],
   [
     "iframe-resizer-parent.js",

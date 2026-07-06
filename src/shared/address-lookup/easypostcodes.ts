@@ -3,7 +3,8 @@
  *
  * https://easypostcodes.com/documentation — `GET /addresses/{postcode}` with
  * the API key in a `Key` header returns a JSON array of addresses; we keep
- * each one's ready-made `envelopeAddress.summaryLine`.
+ * each one's ready-made `envelopeAddress.summaryLine` and its
+ * `latitude`/`longitude` (used by the admin Logistics tab to pin a map).
  */
 
 import * as v from "valibot";
@@ -13,9 +14,14 @@ import { fetchText, parseApiError } from "#shared/fetch.ts";
 import type {
   AddressLookupProviderDefinition,
   AddressLookupResult,
+  AddressMatch,
 } from "./types.ts";
 
 const API_BASE = "https://api.easypostcodes.com/addresses/";
+
+/** Ask for each address's coordinates too — without this flag the API omits
+ * latitude/longitude entirely (they feed the Logistics tab's map pin). */
+const GEO_QUERY = "?includeGeo=true";
 
 /**
  * A UK postcode with the space removed: outward code (area letters + district
@@ -35,10 +41,13 @@ export const normaliseUkPostcode = (raw: string): string | null => {
   return `${compact.slice(0, -3)} ${compact.slice(-3)}`;
 };
 
-/** The one slice of each returned address we keep. */
+/** The slice of each returned address we keep: the ready-made summary line
+ * plus the coordinates (absent for ~0.03% of postcodes, e.g. brand-new ones). */
 const EasypostcodesResponseSchema = v.array(
   v.object({
     envelopeAddress: v.optional(v.object({ summaryLine: v.string() })),
+    latitude: v.optional(v.string()),
+    longitude: v.optional(v.string()),
   }),
 );
 
@@ -46,9 +55,23 @@ type EasypostcodesEntry = v.InferOutput<
   typeof EasypostcodesResponseSchema
 >[number];
 
-/** Parse a response body into summary lines, or null when it isn't the
+/** An entry's match, or undefined when it has no envelope address. A match
+ * only carries coordinates when the entry has BOTH — half a location is no
+ * location. */
+const entryMatch = (entry: EasypostcodesEntry): AddressMatch | undefined => {
+  const line = entry.envelopeAddress?.summaryLine;
+  if (line === undefined) return undefined;
+  const located = Boolean(entry.latitude && entry.longitude);
+  return {
+    lat: located ? entry.latitude! : "",
+    line,
+    lng: located ? entry.longitude! : "",
+  };
+};
+
+/** Parse a response body into address matches, or null when it isn't the
  * documented shape. */
-export const parseEasypostcodesBody = (body: string): string[] | null => {
+export const parseEasypostcodesBody = (body: string): AddressMatch[] | null => {
   let json: unknown;
   try {
     json = JSON.parse(body);
@@ -57,9 +80,7 @@ export const parseEasypostcodesBody = (body: string): string[] | null => {
   }
   const parsed = v.safeParse(EasypostcodesResponseSchema, json);
   if (!parsed.success) return null;
-  return mapNotNullish(
-    (entry: EasypostcodesEntry) => entry.envelopeAddress?.summaryLine,
-  )(parsed.output);
+  return mapNotNullish(entryMatch)(parsed.output);
 };
 
 /** Look up a normalised postcode against the EasyPostcodes API. */
@@ -69,9 +90,10 @@ export const fetchEasypostcodesAddresses = async (
 ): Promise<ApiResult<AddressLookupResult>> => {
   let response: Awaited<ReturnType<typeof fetchText>>;
   try {
-    response = await fetchText(API_BASE + encodeURIComponent(search), {
-      headers: { Key: apiKey },
-    });
+    response = await fetchText(
+      API_BASE + encodeURIComponent(search) + GEO_QUERY,
+      { headers: { Key: apiKey } },
+    );
   } catch (error) {
     return {
       error: `EasyPostcodes lookup failed: ${String(error)}`,
