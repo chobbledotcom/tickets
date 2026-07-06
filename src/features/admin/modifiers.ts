@@ -69,15 +69,17 @@ import {
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import type { Modifier } from "#shared/types.ts";
 import { exceedsCurrencyPrecision } from "#shared/validation/money.ts";
+import { adminModifierRecalculatePage } from "#templates/admin/modifiers/aggregates.tsx";
+import type {
+  AnswerLinks,
+  ScopeLinks,
+} from "#templates/admin/modifiers/links.tsx";
 import {
-  type AnswerLinks,
   adminModifierDeletePage,
   adminModifierEditPage,
   adminModifierNewPage,
-  adminModifierRecalculatePage,
   adminModifiersPage,
-  type ScopeLinks,
-} from "#templates/admin/modifiers.tsx";
+} from "#templates/admin/modifiers/pages.tsx";
 import type {
   ModifierAggregateFormValues,
   ModifierFormValues,
