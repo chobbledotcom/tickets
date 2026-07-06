@@ -1,7 +1,8 @@
 {
   "deliveries.title": "Deliveries",
   "deliveries.no_agents": "You have no logistics agents assigned yet. Ask the site owner to assign you.",
-  "deliveries.none_scheduled": "No deliveries scheduled for today or tomorrow.",
+  "deliveries.none_scheduled": "No deliveries scheduled for these dates.",
+  "deliveries.select_date": "Select a delivery date",
   "deliveries.nothing_scheduled": "Nothing scheduled.",
   "deliveries.dropoff": "Drop-off",
   "deliveries.collection": "Collection",

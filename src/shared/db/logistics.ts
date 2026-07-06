@@ -246,6 +246,33 @@ export const getAgentRunSheet = async (
 };
 
 /**
+ * The distinct calendar dates on which the given logistics agents have any
+ * run-sheet leg: every drop-off date (`start_at`) and every collection date
+ * (`end_at - 1 day`, the last booked day — see {@link getAgentRunSheet}). These
+ * are the days a staff member can open on the run sheet's date picker. Empty
+ * input yields no query.
+ */
+export const getAgentRunSheetDates = async (
+  agentIds: number[],
+): Promise<string[]> => {
+  if (agentIds.length === 0) return [];
+  const placeholders = inPlaceholders(agentIds);
+  const rows = await queryAll<{ date: string }>(
+    // quantity > 0 mirrors the run-sheet query: a no-quantity sentinel line is
+    // never an operational delivery, so it must not offer a date to open.
+    `SELECT DATE(start_at) AS date FROM listing_attendees
+        WHERE start_agent_id IN (${placeholders})
+          AND start_at IS NOT NULL AND quantity > 0
+      UNION
+      SELECT DATE(end_at, '-1 day') AS date FROM listing_attendees
+        WHERE end_agent_id IN (${placeholders})
+          AND end_at IS NOT NULL AND quantity > 0`,
+    [...agentIds, ...agentIds],
+  );
+  return rows.map((row) => row.date).sort((a, b) => a.localeCompare(b));
+};
+
+/**
  * Mark a booking leg done/undone, but only when the leg's logistics agent is
  * one of `agentIds` — this enforces that an agent user can only update their
  * own runs. Returns true when a row was updated (i.e. the agent owns the leg).

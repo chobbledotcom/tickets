@@ -6,6 +6,7 @@ import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import {
   type DeliveryLegKind,
   getAgentRunSheet,
+  getAgentRunSheetDates,
   type LogisticsAssignment,
   setLegDone,
   setLogisticsAssignments,
@@ -376,6 +377,61 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
         [attendeeId],
       );
       expect(rows.map((row) => row.start_done)).toEqual([1, 1]);
+    });
+  });
+
+  describe("getAgentRunSheetDates", () => {
+    test("returns [] for no agent ids without hitting the database", async () => {
+      const { entries, dates } = await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        const dates = await getAgentRunSheetDates([]);
+        return { dates, entries: getQueryLog() };
+      });
+      expect(dates).toEqual([]);
+      expect(entries).toHaveLength(0);
+    });
+
+    test("returns the drop-off and collection dates, sorted and deduped", async () => {
+      // Drop-off D1, collection on D2 (end_at = D3, exclusive → last booked day).
+      await makeBooking({
+        endAgentId: van,
+        endDate: D3,
+        startAgentId: van,
+        startDate: D1,
+      });
+      // A second booking dropped off the same day the first is collected, so D2
+      // is offered by both — it must appear only once.
+      await makeBooking({
+        endAgentId: van,
+        endDate: D4,
+        startAgentId: van,
+        startDate: D2,
+      });
+      expect(await getAgentRunSheetDates([van])).toEqual([D1, D2, D3]);
+    });
+
+    test("excludes dates for agents outside the set", async () => {
+      await makeBooking({
+        endAgentId: other,
+        endDate: D2,
+        startAgentId: other,
+        startDate: D1,
+      });
+      expect(await getAgentRunSheetDates([van])).toEqual([]);
+    });
+
+    test("ignores no-quantity sentinel lines", async () => {
+      const { attendeeId, listingId } = await makeBooking({
+        endAgentId: van,
+        endDate: D2,
+        startAgentId: van,
+        startDate: D1,
+      });
+      await getDb().execute({
+        args: [attendeeId, listingId],
+        sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ? AND listing_id = ?",
+      });
+      expect(await getAgentRunSheetDates([van])).toEqual([]);
     });
   });
 
