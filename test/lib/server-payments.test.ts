@@ -1,11 +1,13 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
+import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
   assertPublicHtml,
   awaitTestRequest,
@@ -14,18 +16,77 @@ import {
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
+  expectAttendeeCounts,
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
+  expectSoldOutPlaceholderRefunded,
   followRedirect,
   makeParent,
   mockRequest,
   setupStripe,
   signMeta,
   singleItem,
+  stubRefundPayment,
+  stubRetrieveCheckoutSession,
   submitTicketForm,
   withMocks,
 } from "#test-utils";
+import { captureCheckoutIntent } from "#test-utils/checkout-intent.ts";
+import { arrangeSoldOutListing } from "#test-utils/payment-scenarios.ts";
+
+/** setupStripe, then a standard 50-capacity £10 listing whose thank-you URL is
+ *  the bare `https://example.com`. The arrange step most /payment tests share
+ *  before they stub the checkout session. Pass overrides to vary a field. */
+const arrangePaidListing = async (
+  overrides: Parameters<typeof createTestListing>[0] = {},
+) => {
+  await setupStripe();
+  return createTestListing({
+    maxAttendees: 50,
+    thankYouUrl: "https://example.com",
+    unitPrice: 1000,
+    ...overrides,
+  });
+};
+
+/** setupStripe (optionally with a specific key), make a 50-capacity listing at
+ *  the given price, and submit John Doe's ticket form for it — the "try to buy
+ *  a ticket" arrange+act the payment-enabled flow tests share. */
+const submitJohnToNewListing = async (
+  opts: { stripeKey?: string; unitPrice?: number } = {},
+) => {
+  await setupStripe(opts.stripeKey);
+  const listing = await createTestListing({
+    maxAttendees: 50,
+    thankYouUrl: "https://example.com/thanks",
+    unitPrice: opts.unitPrice ?? 1000,
+  });
+  const response = await submitTicketForm(listing.slug, {
+    email: "john@example.com",
+    name: "John Doe",
+  });
+  return { listing, response };
+};
+
+/** Re-hit a handled-failure session and assert it replays the SAME stored
+ *  terminal outcome: HTTP 200 with the saved-your-details message, never the
+ *  transient "being processed" lock, and no second refund. Returns the page
+ *  HTML so a caller can make its own extra checks. */
+const expectHandledFailureReplay = async (
+  sessionId: string,
+  mockRefund: { calls: unknown[] },
+): Promise<string> => {
+  const second = await handleRequest(
+    mockRequest(`/payment/success?session_id=${sessionId}`),
+  );
+  expect(second.status).toBe(200);
+  const html = await second.text();
+  expect(html).toContain("saved your details");
+  expect(html).not.toContain("being processed");
+  expect(mockRefund.calls.length).toBe(1);
+  return html;
+};
 
 describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
   describe("GET /payment/success", () => {
@@ -55,32 +116,21 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     });
 
     test("returns error when payment not verified", async () => {
-      const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#shared/stripe.ts");
-      await setupStripe();
-
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-        unitPrice: 1000,
-      });
+      const listing = await arrangePaidListing();
 
       await withMocks(
         () =>
-          stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve({
-              id: "cs_test",
-              metadata: {
-                email: "john@example.com",
-                items: singleItem(listing.id, 1, 1000),
-                name: "John",
-              },
-              payment_intent: "pi_test",
-              payment_status: "unpaid",
-            } as unknown as Awaited<
-              ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >),
-          ),
+          stubRetrieveCheckoutSession({
+            amountTotal: 1000,
+            metadata: {
+              email: "john@example.com",
+              items: singleItem(listing.id, 1, 1000),
+              name: "John",
+            },
+            paymentIntent: "pi_test",
+            paymentStatus: "unpaid",
+            sessionId: "cs_test",
+          }),
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test"),
@@ -96,22 +146,16 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     });
 
     test("returns error for invalid session metadata", async () => {
-      const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
 
       await withMocks(
         () =>
-          stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve({
-              id: "cs_test",
-              metadata: {}, // Missing required fields
-              payment_intent: "pi_test",
-              payment_status: "paid",
-            } as unknown as Awaited<
-              ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >),
-          ),
+          stubRetrieveCheckoutSession({
+            amountTotal: 1000,
+            metadata: {}, // Missing required fields
+            paymentIntent: "pi_test",
+            sessionId: "cs_test",
+          }),
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test"),
@@ -126,44 +170,22 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     });
 
     test("rejects payment for inactive listing and refunds", async () => {
-      const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#shared/stripe.ts");
-      await setupStripe();
-
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-        unitPrice: 1000,
-      });
+      const listing = await arrangePaidListing();
 
       // Deactivate the listing
       await deactivateTestListing(listing.id);
 
       await withMocks(
         () => ({
-          mockRefund: stub(stripeApi, "refundPayment", () =>
-            Promise.resolve({ id: "re_test" } as unknown as Awaited<
-              ReturnType<typeof stripeApi.refundPayment>
-            >),
-          ),
-          mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve({
-              amount_total: 1000,
-              id: "cs_test",
-              metadata: signMeta(
-                {
-                  email: "john@example.com",
-                  items: singleItem(listing.id, 1, 1000),
-                  name: "John",
-                },
-                1000,
-              ),
-              payment_intent: "pi_test_123",
-              payment_status: "paid",
-            } as unknown as Awaited<
-              ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >),
-          ),
+          mockRefund: stubRefundPayment(),
+          mockRetrieve: stubRetrieveCheckoutSession({
+            amountTotal: 1000,
+            email: "john@example.com",
+            items: singleItem(listing.id, 1, 1000),
+            name: "John",
+            paymentIntent: "pi_test_123",
+            sessionId: "cs_test",
+          }),
         }),
         async ({ mockRefund }) => {
           const response = await handleRequest(

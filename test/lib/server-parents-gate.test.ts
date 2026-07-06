@@ -31,6 +31,7 @@ import {
   dailyParentWithChildOffParentDay,
   expectBookingRejected,
   firstBookableDate,
+  selectOptions,
   twoParentsSharingChild,
   weekdayOf,
 } from "#test-utils/parent-booking-scenarios.ts";
@@ -522,10 +523,6 @@ describeWithEnv(
       // drop dayCount and the webhook would reprice the child at its 1-day span
       // (£10) — so a missing dayCount on the intent is caught.
       const { setupStripe } = await import("#test-utils");
-      const { stub } = await import("@std/testing/mock");
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
       await setupStripe();
 
       const { parent, child } = await makeParent({
@@ -543,39 +540,20 @@ describeWithEnv(
 
       const date = await firstBookableDate(parent.id);
 
-      let capturedIntent:
-        | import("#shared/payments.ts").CheckoutIntent
-        | undefined;
-      const mockCreate = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        (intent: import("#shared/payments.ts").CheckoutIntent) => {
-          capturedIntent = intent;
-          return Promise.resolve({
-            checkoutUrl: "https://stripe.test/checkout",
-            sessionId: "cs_custom_child",
-          });
-        },
-      );
-
+      const capture = captureCheckoutIntent("cs_custom_child");
       try {
-        const res = await postBooking(parent.slug, {
-          date,
-          email: "a@b.com",
-          name: "Ada",
-          [`quantity_${parent.id}`]: "1",
-        });
+        const res = await bookOne(parent, 1, { date });
         expect(res.status).toBe(302);
         // The folded order is customisable, so the chosen span is serialized on the
         // intent (the webhook reprices the child for the inherited 3-day span).
-        expect(capturedIntent?.dayCount).toBe(3);
+        expect(capture.intent?.dayCount).toBe(3);
         // The child is priced for the inherited 3 days (£30), never its 1-day £10.
-        const childItem = capturedIntent?.items.find(
+        const childItem = capture.intent?.items.find(
           (i) => i.listingId === child.id,
         );
         expect(childItem?.unitPrice).toBe(3000);
       } finally {
-        mockCreate.restore();
+        capture.restore();
       }
     });
 
@@ -800,15 +778,15 @@ describeWithEnv(
       const html = await refilled.text();
       // childB's per-unit select restores quantity 1; childA's garbage value
       // restores as 0 (the parsed-fallback branch).
-      const selectB = html.slice(
-        html.indexOf(`name="child_qty_${parent.id}_${childB.id}"`),
+      const optionsB = selectOptions(
+        html,
+        `child_qty_${parent.id}_${childB.id}`,
       );
-      const optionsB = selectB.slice(0, selectB.indexOf("</select>"));
       expect(optionsB).toContain('value="1" selected');
-      const selectA = html.slice(
-        html.indexOf(`name="child_qty_${parent.id}_${childA.id}"`),
+      const optionsA = selectOptions(
+        html,
+        `child_qty_${parent.id}_${childA.id}`,
       );
-      const optionsA = selectA.slice(0, selectA.indexOf("</select>"));
       expect(optionsA).toContain('value="0" selected');
     });
 
@@ -817,11 +795,7 @@ describeWithEnv(
         parent: { thankYouUrl: "https://example.com/thanks-parent" },
       });
 
-      const res = await postBooking(parent.slug, {
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
-      });
+      const res = await bookOne(parent, 1);
       expect(res.status).toBe(302);
       expect(res.headers.get("location")).toBe(
         "https://example.com/thanks-parent",
@@ -834,10 +808,6 @@ describeWithEnv(
       // drop the parent's URL, so it must be set explicitly on the intent.
       // Capture the intent handed to the provider and assert it.
       const { setupStripe } = await import("#test-utils");
-      const { stub } = await import("@std/testing/mock");
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
       await setupStripe();
 
       const { parent } = await makeParent({
@@ -849,39 +819,21 @@ describeWithEnv(
         },
       });
 
-      let capturedIntent:
-        | import("#shared/payments.ts").CheckoutIntent
-        | undefined;
-      const mockCreate = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        (intent: import("#shared/payments.ts").CheckoutIntent) => {
-          capturedIntent = intent;
-          return Promise.resolve({
-            checkoutUrl: "https://stripe.test/checkout",
-            sessionId: "cs_parent_paid",
-          });
-        },
-      );
-
+      const capture = captureCheckoutIntent("cs_parent_paid");
       try {
-        const res = await postBooking(parent.slug, {
-          email: "a@b.com",
-          name: "Ada",
-          [`quantity_${parent.id}`]: "1",
-        });
+        const res = await bookOne(parent, 1);
         expect(res.status).toBe(302);
         // The order folded the child (two distinct listings) yet still carries
         // the parent's configured thank-you URL.
         const listingIds = new Set(
-          capturedIntent?.items.map((i) => i.listingId),
+          capture.intent?.items.map((i) => i.listingId),
         );
         expect(listingIds.size).toBe(2);
-        expect(capturedIntent?.thankYouUrl).toBe(
+        expect(capture.intent?.thankYouUrl).toBe(
           "https://example.com/thanks-parent",
         );
       } finally {
-        mockCreate.restore();
+        capture.restore();
       }
     });
 
@@ -1026,8 +978,7 @@ describeWithEnv(
       const html = await bookingPageHtml(parent.slug);
       // The parent's quantity selector still offers a bookable quantity (the
       // date-less sold-out child did NOT clamp it to 0).
-      const select = html.slice(html.indexOf(`name="quantity_${parent.id}"`));
-      const options = select.slice(0, select.indexOf("</select>"));
+      const options = selectOptions(html, `quantity_${parent.id}`);
       expect(options).toContain('value="1"');
       // The sole daily child renders informational (auto-selected), not disabled.
       expect(html).toContain(`data-sole-child="${child.id}"`);
@@ -1492,10 +1443,10 @@ describeWithEnv(
         `<select name="child_qty_${parent.id}_${childB.id}"`,
       );
       // The select offers 0..2 (the parent's effective max).
-      const selectA = html.slice(
-        html.indexOf(`name="child_qty_${parent.id}_${childA.id}"`),
+      const optionsA = selectOptions(
+        html,
+        `child_qty_${parent.id}_${childA.id}`,
       );
-      const optionsA = selectA.slice(0, selectA.indexOf("</select>"));
       expect(optionsA).toContain('value="2"');
       expect(optionsA).not.toContain('value="3"');
       // The "choose N in total" note names the parent's quantity (2).
@@ -2077,13 +2028,7 @@ describeWithEnv(
       });
 
       const html = await bookingPageHtml(parent.slug);
-      const quantitySelect = html.slice(
-        html.indexOf(`name="quantity_${parent.id}"`),
-      );
-      const quantityOptionsHtml = quantitySelect.slice(
-        0,
-        quantitySelect.indexOf("</select>"),
-      );
+      const quantityOptionsHtml = selectOptions(html, `quantity_${parent.id}`);
       expect(quantityOptionsHtml).toContain(">1</option>");
       expect(quantityOptionsHtml).not.toContain(">2</option>");
     });
@@ -2120,12 +2065,9 @@ describeWithEnv(
       await setChildIds(parent.id, [sibling.id, sharedChild.id]);
 
       const html = await bookingPageHtml(parent.slug);
-      const sharedSelect = html.slice(
-        html.indexOf(`name="child_qty_${parent.id}_${sharedChild.id}"`),
-      );
-      const sharedOptions = sharedSelect.slice(
-        0,
-        sharedSelect.indexOf("</select>"),
+      const sharedOptions = selectOptions(
+        html,
+        `child_qty_${parent.id}_${sharedChild.id}`,
       );
       expect(sharedOptions).toContain(">1</option>");
       expect(sharedOptions).not.toContain(">2</option>");
@@ -2142,13 +2084,7 @@ describeWithEnv(
       });
 
       const html = await bookingPageHtml(parent.slug);
-      const quantitySelect = html.slice(
-        html.indexOf(`name="quantity_${parent.id}"`),
-      );
-      const quantityOptionsHtml = quantitySelect.slice(
-        0,
-        quantitySelect.indexOf("</select>"),
-      );
+      const quantityOptionsHtml = selectOptions(html, `quantity_${parent.id}`);
       // The combined cap (1 + 1) offers a 2 option but never a 3.
       expect(quantityOptionsHtml).toContain(">2</option>");
       expect(quantityOptionsHtml).not.toContain(">3</option>");
@@ -2189,13 +2125,7 @@ describeWithEnv(
       });
 
       const html = await bookingPageHtml(parent.slug);
-      const quantitySelect = html.slice(
-        html.indexOf(`name="quantity_${parent.id}"`),
-      );
-      const quantityOptionsHtml = quantitySelect.slice(
-        0,
-        quantitySelect.indexOf("</select>"),
-      );
+      const quantityOptionsHtml = selectOptions(html, `quantity_${parent.id}`);
       // floor(5 / 2) = 2: offers a 2 option but never a 3 (the cohort is counted
       // once, not summed per co-grouped child).
       expect(quantityOptionsHtml).toContain(">2</option>");
@@ -2267,13 +2197,7 @@ describeWithEnv(
       await setChildIds(parent.id, [childOne.id, childTwo.id]);
 
       const html = await bookingPageHtml(parent.slug);
-      const quantitySelect = html.slice(
-        html.indexOf(`name="quantity_${parent.id}"`),
-      );
-      const quantityOptionsHtml = quantitySelect.slice(
-        0,
-        quantitySelect.indexOf("</select>"),
-      );
+      const quantityOptionsHtml = selectOptions(html, `quantity_${parent.id}`);
       expect(quantityOptionsHtml).toContain(">1</option>");
       expect(quantityOptionsHtml).not.toContain(">2</option>");
     });

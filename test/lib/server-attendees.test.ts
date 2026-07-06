@@ -108,6 +108,21 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     return { source, sourceToken, target };
   };
 
+  // Two 10-seat listings a merge can move bookings between; the second is "E2".
+  const twoMergeListings = async () => ({
+    first: await createTestListing({ maxAttendees: 10 }),
+    second: await createTestListing({ maxAttendees: 10, name: "E2" }),
+  });
+
+  // The target attendee's saved answers, keyed by question — read back after a
+  // merge to check which side's answer was kept.
+  const answersAfterMerge = async (targetId: number) => {
+    const { getAttendeeAnswersByQuestion } = await import(
+      "#shared/db/questions.ts"
+    );
+    return getAttendeeAnswersByQuestion(targetId);
+  };
+
   // Adds one multiple-choice question, assigns it to every listing given, and
   // hands back the question plus its first two answer options.
   const addMergeQuestion = async (
@@ -2943,48 +2958,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("merge with answer conflicts", () => {
     test("GET merge page renders answer decision table when conflicts exist", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const q = await questionsTable.insert({
-        displayType: "radio",
-        text: "Favourite colour?",
-      });
-      const a1 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
-        text: "Red",
-      });
-      const a2 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 1,
-        text: "Blue",
-      });
-      await setListingQuestions(listing.id, [q.id]);
-
-      const { attendee: target } = await createTestAttendeeDirect(
+      const { first: listing, second: listing2 } = await twoMergeListings();
+      const { a1, a2 } = await addMergeQuestion(
+        [listing.id, listing2.id],
+        "Favourite colour?",
+        ["Red", "Blue"],
+      );
+      const { target, sourceToken } = await seedMergePair(
         listing.id,
-        "Jane Doe",
-        "jane@example.com",
-      );
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "E2",
-      });
-      await setListingQuestions(listing2.id, [q.id]);
-      const { token: sourceToken } = await createTestAttendeeDirect(
         listing2.id,
-        "John Smith",
-        "john@example.com",
       );
-
-      // Assign different answers
-      const { saveAttendeeAnswers: save } = await import(
-        "#shared/db/questions.ts"
-      );
-      await save(new Map([[target.id, [a1.id]]]));
-      // Need source attendee ID
-      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
-      const [sourceData] = await getAttendeesByTokens([sourceToken]);
-      await save(new Map([[sourceData!.id, [a2.id]]]));
+      await saveMergeAnswers(target.id, sourceToken, [a1.id], [a2.id]);
 
       const response = await adminGet(
         `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
@@ -3000,55 +2984,19 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("POST merge applies selected answer winners", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const q = await questionsTable.insert({
-        displayType: "radio",
-        text: "Size?",
-      });
-      const a1 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
-        text: "Small",
-      });
-      const a2 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 1,
-        text: "Large",
-      });
-      await setListingQuestions(listing.id, [q.id]);
-
-      const { attendee: target } = await createTestAttendeeDirect(
+      const { first: listing, second: listing2 } = await twoMergeListings();
+      const { q, a1, a2 } = await addMergeQuestion(
+        [listing.id, listing2.id],
+        "Size?",
+        ["Small", "Large"],
+      );
+      const { target, sourceToken } = await seedMergePair(
         listing.id,
-        "Jane Doe",
-        "jane@example.com",
-      );
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "E2",
-      });
-      await setListingQuestions(listing2.id, [q.id]);
-      const { token: sourceToken } = await createTestAttendeeDirect(
         listing2.id,
-        "John Smith",
-        "john@example.com",
       );
+      await saveMergeAnswers(target.id, sourceToken, [a1.id], [a2.id]);
 
-      const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
-        await import("#shared/db/questions.ts");
-      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
-      const [sourceData] = await getAttendeesByTokens([sourceToken]);
-      await save(new Map([[target.id, [a1.id]]])); // Small
-      await save(new Map([[sourceData!.id, [a2.id]]])); // Large
-
-      // Get merge version from preview page
-      const previewPage = await adminGet(
-        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
-          sourceToken,
-        )}`,
-      );
-      const previewHtml = await previewPage.text();
-      const mergeVersion = extractInputValue(previewHtml, "merge_version")!;
-
+      const mergeVersion = await getMergeVersion(target.id, sourceToken);
       // Submit choosing source answer
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
@@ -3062,33 +3010,18 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expectFlash(response, expect.stringContaining("Merged"), true);
 
       // Verify target now has source's answer (Large)
-      const finalAnswers = await getAttendeeAnswersByQuestion(target.id);
+      const finalAnswers = await answersAfterMerge(target.id);
       expect(finalAnswers.get(q.id)?.answerId).toBe(a2.id);
     });
 
     test("POST merge reports skipped bookings in flash", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-
-      const { attendee: target } = await createTestAttendeeDirect(
+      const { target, sourceToken } = await seedMergePair(
         listing.id,
-        "Jane Doe",
-        "jane@example.com",
-      );
-      const { token: sourceToken } = await createTestAttendeeDirect(
         listing.id,
-        "John Smith",
-        "john@example.com",
       );
 
-      // Get merge version
-      const previewPage = await adminGet(
-        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
-          sourceToken,
-        )}`,
-      );
-      const html = await previewPage.text();
-      const mergeVersion = extractInputValue(html, "merge_version")!;
-
+      const mergeVersion = await getMergeVersion(target.id, sourceToken);
       const bookingKey = `${listing.id}:null:0`;
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
@@ -3107,21 +3040,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("stale preview version rejected", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "E2",
-      });
-
-      const { attendee: target } = await createTestAttendeeDirect(
+      const { first: listing, second: listing2 } = await twoMergeListings();
+      const { target, sourceToken } = await seedMergePair(
         listing.id,
-        "Jane Doe",
-        "jane@example.com",
-      );
-      const { token: sourceToken } = await createTestAttendeeDirect(
         listing2.id,
-        "John Smith",
-        "john@example.com",
       );
 
       // Submit with wrong version — bounced back to the Actions tab's merge
@@ -3142,48 +3064,19 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("POST merge with clear answer choice clears the answer", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const q = await questionsTable.insert({
-        displayType: "radio",
-        text: "Diet?",
-      });
-      const a1 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
-        text: "Vegan",
-      });
-      const a2 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 1,
-        text: "Keto",
-      });
-      await setListingQuestions(listing.id, [q.id]);
-
-      const { attendee: target } = await createTestAttendeeDirect(
+      const { first: listing, second: listing2 } = await twoMergeListings();
+      const { q, a1, a2 } = await addMergeQuestion(
+        [listing.id, listing2.id],
+        "Diet?",
+        ["Vegan", "Keto"],
+      );
+      const { target, sourceToken } = await seedMergePair(
         listing.id,
-        "Jane Doe",
-        "jane@example.com",
-      );
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "E2",
-      });
-      await setListingQuestions(listing2.id, [q.id]);
-      const { token: sourceToken } = await createTestAttendeeDirect(
         listing2.id,
-        "John Smith",
-        "john@example.com",
       );
-
-      const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
-        await import("#shared/db/questions.ts");
-      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
-      const [sourceData] = await getAttendeesByTokens([sourceToken]);
-      await save(new Map([[target.id, [a1.id]]]));
-      await save(new Map([[sourceData!.id, [a2.id]]]));
+      await saveMergeAnswers(target.id, sourceToken, [a1.id], [a2.id]);
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
-
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
@@ -3194,53 +3087,24 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const finalAnswers = await getAttendeeAnswersByQuestion(target.id);
+      const finalAnswers = await answersAfterMerge(target.id);
       expect(finalAnswers.has(q.id)).toBe(false);
     });
 
     test("POST merge with target answer choice keeps target answer", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const q = await questionsTable.insert({
-        displayType: "radio",
-        text: "Shirt?",
-      });
-      const a1 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
-        text: "M",
-      });
-      const a2 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 1,
-        text: "L",
-      });
-      await setListingQuestions(listing.id, [q.id]);
-
-      const { attendee: target } = await createTestAttendeeDirect(
+      const { first: listing, second: listing2 } = await twoMergeListings();
+      const { q, a1, a2 } = await addMergeQuestion(
+        [listing.id, listing2.id],
+        "Shirt?",
+        ["M", "L"],
+      );
+      const { target, sourceToken } = await seedMergePair(
         listing.id,
-        "Jane Doe",
-        "jane@example.com",
-      );
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "E2",
-      });
-      await setListingQuestions(listing2.id, [q.id]);
-      const { token: sourceToken } = await createTestAttendeeDirect(
         listing2.id,
-        "John Smith",
-        "john@example.com",
       );
-
-      const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
-        await import("#shared/db/questions.ts");
-      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
-      const [sourceData] = await getAttendeesByTokens([sourceToken]);
-      await save(new Map([[target.id, [a1.id]]]));
-      await save(new Map([[sourceData!.id, [a2.id]]]));
+      await saveMergeAnswers(target.id, sourceToken, [a1.id], [a2.id]);
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
-
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
@@ -3251,48 +3115,25 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const finalAnswers = await getAttendeeAnswersByQuestion(target.id);
+      const finalAnswers = await answersAfterMerge(target.id);
       expect(finalAnswers.get(q.id)?.answerId).toBe(a1.id);
     });
 
     test("POST merge auto-adopts source-only non-conflicting answer", async () => {
-      const listing1 = await createTestListing({ maxAttendees: 10 });
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "E2",
-      });
-      const q = await questionsTable.insert({
-        displayType: "radio",
-        text: "Colour?",
-      });
-      const a1 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
-        text: "Green",
-      });
-      await setListingQuestions(listing1.id, [q.id]);
-      await setListingQuestions(listing2.id, [q.id]);
-
-      const { attendee: target } = await createTestAttendeeDirect(
+      const { first: listing1, second: listing2 } = await twoMergeListings();
+      const { q, a1 } = await addMergeQuestion(
+        [listing1.id, listing2.id],
+        "Colour?",
+        ["Green"],
+      );
+      const { target, sourceToken } = await seedMergePair(
         listing1.id,
-        "Jane Doe",
-        "jane@example.com",
-      );
-      const { token: sourceToken } = await createTestAttendeeDirect(
         listing2.id,
-        "John Smith",
-        "john@example.com",
       );
-
       // Only source has an answer — no conflict
-      const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
-        await import("#shared/db/questions.ts");
-      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
-      const [sourceData] = await getAttendeesByTokens([sourceToken]);
-      await save(new Map([[sourceData!.id, [a1.id]]]));
+      await saveMergeAnswers(target.id, sourceToken, [], [a1.id]);
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
-
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
@@ -3302,46 +3143,25 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const finalAnswers = await getAttendeeAnswersByQuestion(target.id);
+      const finalAnswers = await answersAfterMerge(target.id);
       expect(finalAnswers.get(q.id)?.answerId).toBe(a1.id);
     });
 
     test("POST merge keeps target-only non-conflicting answer", async () => {
-      const listing1 = await createTestListing({ maxAttendees: 10 });
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "E2",
-      });
-      const q = await questionsTable.insert({
-        displayType: "radio",
-        text: "Food?",
-      });
-      const a1 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
-        text: "Pizza",
-      });
-      await setListingQuestions(listing1.id, [q.id]);
-      await setListingQuestions(listing2.id, [q.id]);
-
-      const { attendee: target } = await createTestAttendeeDirect(
+      const { first: listing1, second: listing2 } = await twoMergeListings();
+      const { q, a1 } = await addMergeQuestion(
+        [listing1.id, listing2.id],
+        "Food?",
+        ["Pizza"],
+      );
+      const { target, sourceToken } = await seedMergePair(
         listing1.id,
-        "Jane Doe",
-        "jane@example.com",
-      );
-      const { token: sourceToken } = await createTestAttendeeDirect(
         listing2.id,
-        "John Smith",
-        "john@example.com",
       );
-
       // Only target has an answer — no conflict
-      const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
-        await import("#shared/db/questions.ts");
-      await save(new Map([[target.id, [a1.id]]]));
+      await saveMergeAnswers(target.id, sourceToken, [a1.id], []);
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
-
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
@@ -3351,26 +3171,18 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const finalAnswers = await getAttendeeAnswersByQuestion(target.id);
+      const finalAnswers = await answersAfterMerge(target.id);
       expect(finalAnswers.get(q.id)?.answerId).toBe(a1.id);
     });
 
     test("POST merge with take_source replaces target booking", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-
-      const { attendee: target } = await createTestAttendeeDirect(
+      const { target, sourceToken } = await seedMergePair(
         listing.id,
-        "Jane Doe",
-        "jane@example.com",
-      );
-      const { token: sourceToken } = await createTestAttendeeDirect(
         listing.id,
-        "John Smith",
-        "john@example.com",
       );
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
-
       const bookingKey = `${listing.id}:null:0`;
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,

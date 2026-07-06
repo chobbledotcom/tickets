@@ -866,7 +866,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         durationDays: 2,
         name: "Two Day",
       });
-      const result = await createAttendeeAtomic({
+      const attendeeId = await bookAttendeeId({
         bookings: [
           { date: "2026-05-01", durationDays: 3, listingId: oneDay.id },
           { date: "2026-05-01", durationDays: 3, listingId: twoDay.id },
@@ -874,9 +874,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         email: "",
         name: "Over",
       });
-      const attendeeId = result.success ? result.attendees[0]!.id : 0;
-      const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
-      const html = await expectHtmlResponse(response, 200);
+      const html = await editFormHtmlOk(attendeeId);
       // Per-listing warnings (singular + plural) and a top-of-page summary.
       expect(html).toContain(
         "One Day is designed for up to 1 day, but the booking spans 3.",
@@ -897,8 +895,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         durationDays: 3,
       });
       const attendeeId = result.success ? result.attendees[0]!.id : 0;
-      const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
-      const html = await expectHtmlResponse(response, 200);
+      const html = await editFormHtmlOk(attendeeId);
       expect(html).not.toContain("Please double-check");
     });
   });
@@ -1007,61 +1004,53 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
   });
 
   describe("integration: mixed single-day and multi-day on one attendee", () => {
+    /** Assert the attendee ended up with exactly one dateless standard booking
+     *  and one daily booking on `dailyDate`; return the daily row for any
+     *  extra checks (e.g. its quantity). */
+    const expectStandardAndDailyBooked = async (
+      standardId: number,
+      dailyId: number,
+      dailyDate: string,
+    ) => {
+      const standardRows = await getAttendeesRaw(standardId);
+      expect(standardRows.length).toBe(1);
+      expect(standardRows[0]!.date).toBeNull();
+      const dailyRows = await getAttendeesRaw(dailyId);
+      expect(dailyRows.length).toBe(1);
+      expect(dailyRows[0]!.date).toBe(dailyDate);
+      return dailyRows[0]!;
+    };
+
     test("creates an attendee with both a standard and a daily line", async () => {
       const standard = await createTestListing({
         maxAttendees: 50,
         maxQuantity: 5,
         name: "Standard Ev",
       });
-      const daily = await createTestListing({
-        bookableDays: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
+      const daily = await createDailyTestListing({
         durationDays: 1,
-        listingType: "daily",
         maxAttendees: 50,
         maxQuantity: 5,
         name: "Daily Ev",
       });
-      const { cookie, csrfToken } = await (
-        await import("#test-utils")
-      ).getTestSession();
-      const { addDays } = await import("#shared/dates.ts");
-      const { todayInTz } = await import("#shared/timezone.ts");
-      const { settings } = await import("#shared/db/settings.ts");
-      const tomorrow = addDays(todayInTz(settings.timezone), 1);
+      const tomorrow = await tomorrowDate();
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/attendees/new",
-          {
-            csrf_token: csrfToken,
-            day_count: "1",
-            email: "mix@example.com",
-            name: "Mix",
-            start_date: tomorrow,
-            [`qty_${standard.id}`]: "1",
-            [`qty_${daily.id}`]: "2",
-          },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/attendees/new", {
+        day_count: "1",
+        email: "mix@example.com",
+        name: "Mix",
+        start_date: tomorrow,
+        [`qty_${standard.id}`]: "1",
+        [`qty_${daily.id}`]: "2",
+      });
       expect(response.status).toBe(302);
 
-      const stdAttendees = await getAttendeesRaw(standard.id);
-      expect(stdAttendees.length).toBe(1);
-      expect(stdAttendees[0]!.date).toBeNull();
-
-      const dailyAttendees = await getAttendeesRaw(daily.id);
-      expect(dailyAttendees.length).toBe(1);
-      expect(dailyAttendees[0]!.date).toBe(tomorrow);
-      expect(dailyAttendees[0]!.quantity).toBe(2);
+      const dailyRow = await expectStandardAndDailyBooked(
+        standard.id,
+        daily.id,
+        tomorrow,
+      );
+      expect(dailyRow.quantity).toBe(2);
     });
 
     test("edits an attendee adding a daily line alongside an existing standard one", async () => {
@@ -1070,18 +1059,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         maxQuantity: 5,
         name: "Std Ev",
       });
-      const daily = await createTestListing({
-        bookableDays: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
+      const daily = await createDailyTestListing({
         durationDays: 1,
-        listingType: "daily",
         maxAttendees: 50,
         maxQuantity: 5,
         name: "Daily Ev",
@@ -1094,12 +1073,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
       const { loadExistingLines } = await import("#shared/db/attendees.ts");
       const existing = await loadExistingLines(attendee.id);
-      const { addDays } = await import("#shared/dates.ts");
-      const { todayInTz } = await import("#shared/timezone.ts");
-      const { settings } = await import("#shared/db/settings.ts");
-      const tomorrow = addDays(todayInTz(settings.timezone), 1);
+      const tomorrow = await tomorrowDate();
 
-      const form = await buildAttendeeEditForm(attendee.id, {
+      const response = await submitAttendeeEdit(attendee.id, {
         lines: [
           { eventId: standard.id, key: existing[0]!.key, quantity: 1 },
           { eventId: daily.id, key: "", quantity: 2 },
@@ -1107,19 +1083,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         name: "Edit Mix",
         startDate: tomorrow,
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        form,
-      );
       expect(response.status).toBe(302);
 
-      const stdAttendees = await getAttendeesRaw(standard.id);
-      expect(stdAttendees.length).toBe(1);
-      expect(stdAttendees[0]!.date).toBeNull();
-
-      const dailyAttendees = await getAttendeesRaw(daily.id);
-      expect(dailyAttendees.length).toBe(1);
-      expect(dailyAttendees[0]!.date).toBe(tomorrow);
+      await expectStandardAndDailyBooked(standard.id, daily.id, tomorrow);
     });
   });
 
@@ -1257,13 +1223,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
             }),
           ),
         async () => {
-          const form = await buildAttendeeEditForm(attendee.id, {
+          const response = await submitAttendeeEdit(attendee.id, {
             name: "Cap Edited",
           });
-          const { response } = await adminFormPost(
-            `/admin/attendees/${attendee.id}`,
-            form,
-          );
           // Re-render in place (200), keeping the operator's edits, with a
           // page-level explanation that nothing was saved.
           expect(response.status).toBe(200);
@@ -1275,18 +1237,12 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("GET edit page for attendee with no bookings renders with no questions", async () => {
-      const event = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+      const { attendee } = await seedListingAttendee(
+        { maxAttendees: 100 },
         "Orphan",
         "orphan@example.com",
       );
-      const { getDb: getDbFn } = await import("#shared/db/client.ts");
-      const db = getDbFn();
-      await db.execute("DELETE FROM listing_attendees WHERE attendee_id = ?", [
-        attendee.id,
-      ]);
+      await orphanAttendee(attendee.id);
       const response = await adminGet(`/admin/attendees/${attendee.id}`);
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -1294,18 +1250,12 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("POST edit for attendee with no bookings re-renders with no_lines error", async () => {
-      const event = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        event.id,
-        event.slug,
+      const { attendee } = await seedListingAttendee(
+        { maxAttendees: 100 },
         "Orphan",
         "orphan@example.com",
       );
-      const { getDb: getDbFn } = await import("#shared/db/client.ts");
-      const db = getDbFn();
-      await db.execute("DELETE FROM listing_attendees WHERE attendee_id = ?", [
-        attendee.id,
-      ]);
+      await orphanAttendee(attendee.id);
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}`,
         { name: "Orphan" },
@@ -1328,29 +1278,20 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         name: "QB Event",
       });
 
-      const qA = await questionsTable.insert({
-        displayType: "radio",
-        text: "Shirt size?",
-      });
-      const aA = await answersTable.insert({
-        questionId: qA.id,
-        sortOrder: 0,
-        text: "Medium",
-      });
-      await setListingQuestions(eventA.id, [qA.id]);
+      const { question: qA, answers: aAnswers } = await addListingQuestion(
+        eventA.id,
+        "Shirt size?",
+        ["Medium"],
+      );
+      const { question: qB, answers: bAnswers } = await addListingQuestion(
+        eventB.id,
+        "Meal choice?",
+        ["Vegan"],
+      );
+      const aA = aAnswers[0]!;
+      const aB = bAnswers[0]!;
 
-      const qB = await questionsTable.insert({
-        displayType: "radio",
-        text: "Meal choice?",
-      });
-      const aB = await answersTable.insert({
-        questionId: qB.id,
-        sortOrder: 0,
-        text: "Vegan",
-      });
-      await setListingQuestions(eventB.id, [qB.id]);
-
-      const created = await createAttendeeAtomic({
+      const attendeeId = await bookAttendeeId({
         bookings: [
           { listingId: eventA.id, quantity: 1 },
           { listingId: eventB.id, quantity: 1 },
@@ -1358,11 +1299,19 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         email: "multi@example.com",
         name: "Multi",
       });
-      if (!created.success) throw new Error("setup");
-      const attendeeId = created.attendees[0]!.id;
       await saveAttendeeAnswers(new Map([[attendeeId, [aA.id, aB.id]]]));
       return { aA, aB, attendeeId, qA, qB };
     };
+
+    /** The answer ids currently saved for an attendee. */
+    const savedAnswerIds = async (
+      attendeeId: number,
+    ): Promise<Set<number>> =>
+      new Set(
+        (await getAttendeeAnswersBatch([attendeeId], { texts: false })).get(
+          attendeeId,
+        ) ?? [],
+      );
 
     test("edit page renders questions from every booked event", async () => {
       const { attendeeId } = await setupMultiEventQuestions();
@@ -1381,25 +1330,17 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const { aA, aB, attendeeId, qA, qB } = await setupMultiEventQuestions();
 
       // Submit both answers, as the rendered (pre-checked) form would.
-      const form = await buildAttendeeEditForm(attendeeId, {
+      const response = await submitAttendeeEdit(attendeeId, {
         extra: {
           [`question_${qA.id}`]: String(aA.id),
           [`question_${qB.id}`]: String(aB.id),
         },
         name: "Multi Edited",
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendeeId}`,
-        form,
-      );
       expect(response.status).toBe(302);
 
       // Both answers survive — not just the first event's.
-      const saved = new Set(
-        (await getAttendeeAnswersBatch([attendeeId], { texts: false })).get(
-          attendeeId,
-        ) ?? [],
-      );
+      const saved = await savedAnswerIds(attendeeId);
       expect(saved.has(aA.id)).toBe(true);
       expect(saved.has(aB.id)).toBe(true);
     });
@@ -1408,24 +1349,16 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const { aA, attendeeId, qA, qB } = await setupMultiEventQuestions();
 
       // Valid answer for qA; a bogus id for qB that isn't one of its options.
-      const form = await buildAttendeeEditForm(attendeeId, {
+      const response = await submitAttendeeEdit(attendeeId, {
         extra: {
           [`question_${qA.id}`]: String(aA.id),
           [`question_${qB.id}`]: "99999",
         },
         name: "Multi",
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendeeId}`,
-        form,
-      );
       expect(response.status).toBe(302);
 
-      const saved = new Set(
-        (await getAttendeeAnswersBatch([attendeeId], { texts: false })).get(
-          attendeeId,
-        ) ?? [],
-      );
+      const saved = await savedAnswerIds(attendeeId);
       // The bogus id is silently dropped (admin answers are optional), never
       // written — so the form can't inject an arbitrary answer row.
       expect(saved.has(aA.id)).toBe(true);
@@ -1437,45 +1370,30 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         maxAttendees: 10,
         name: "Shared",
       });
-      const q = await questionsTable.insert({
-        displayType: "radio",
-        text: "Size?",
-      });
-      const a1 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
-        text: "S",
-      });
-      const a2 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 1,
-        text: "L",
-      });
-      await setListingQuestions(event.id, [q.id]);
+      const { question: q, answers } = await addListingQuestion(
+        event.id,
+        "Size?",
+        ["S", "L"],
+      );
+      const a1 = answers[0]!;
+      const a2 = answers[1]!;
 
-      const makeAttendee = async (name: string, email: string) => {
-        const result = await createAttendeeAtomic({
+      const makeAttendee = (name: string, email: string) =>
+        bookAttendeeId({
           bookings: [{ listingId: event.id, quantity: 1 }],
           email,
           name,
         });
-        if (!result.success) throw new Error("setup");
-        return result.attendees[0]!.id;
-      };
       const alice = await makeAttendee("Alice", "alice@example.com");
       const bob = await makeAttendee("Bob", "bob@example.com");
       await saveAttendeeAnswers(new Map([[alice, [a1.id]]]));
       await saveAttendeeAnswers(new Map([[bob, [a2.id]]]));
 
       // Edit Alice's answer; her save must not touch Bob's row.
-      const form = await buildAttendeeEditForm(alice, {
+      const response = await submitAttendeeEdit(alice, {
         extra: { [`question_${q.id}`]: String(a2.id) },
         name: "Alice",
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${alice}`,
-        form,
-      );
       expect(response.status).toBe(302);
 
       const bobAnswers =

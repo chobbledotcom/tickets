@@ -10,6 +10,7 @@ import {
   describeWithEnv,
   getTestPrivateKey,
 } from "#test-utils";
+import { decryptListingAttendees } from "#test-utils/db-helpers.ts";
 
 describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
   test("returns empty array when no attendees", async () => {
@@ -17,9 +18,7 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
       maxAttendees: 50,
       thankYouUrl: "https://example.com",
     });
-    const privateKey = await getTestPrivateKey();
-    const raw = await getAttendeesRaw(listing.id);
-    const attendees = await decryptAttendees(raw, privateKey);
+    const attendees = await decryptListingAttendees(listing.id);
     expect(attendees).toEqual([]);
   });
 

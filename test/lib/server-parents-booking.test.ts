@@ -17,6 +17,11 @@ import {
   postBooking,
   ticketGet,
 } from "#test-utils";
+import { captureCheckoutIntent } from "#test-utils/checkout-intent.ts";
+import {
+  bookableDatesFor,
+  firstBookableDate,
+} from "#test-utils/parent-booking-scenarios.ts";
 
 describeWithEnv(
   "server > parents booking gate",
@@ -459,10 +464,6 @@ describeWithEnv(
       // folded onto the parent line, so the checkout item is charged at the
       // chosen £30, not its £10 unit price (which would undercharge).
       const { setupStripe } = await import("#test-utils");
-      const { stub } = await import("@std/testing/mock");
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
       await setupStripe();
 
       const { parent } = await makeParent({
@@ -475,30 +476,16 @@ describeWithEnv(
         },
       });
 
-      let capturedIntent:
-        | import("#shared/payments.ts").CheckoutIntent
-        | undefined;
-      const mockCreate = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        (intent: import("#shared/payments.ts").CheckoutIntent) => {
-          capturedIntent = intent;
-          return Promise.resolve({
-            checkoutUrl: "https://stripe.test/checkout",
-            sessionId: "cs_parent_custom_price",
-          });
-        },
-      );
-
+      const capture = captureCheckoutIntent("cs_parent_custom_price");
       try {
         const res = await apiBook(parent.slug, { customPrice: "30.00" });
         expect(res.status).toBe(200);
-        const parentItem = capturedIntent?.items.find(
+        const parentItem = capture.intent?.items.find(
           (i) => i.listingId === parent.id,
         );
         expect(parentItem?.unitPrice).toBe(3000);
       } finally {
-        mockCreate.restore();
+        capture.restore();
       }
     });
 

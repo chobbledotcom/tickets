@@ -106,10 +106,7 @@ describe("packageQuantityLimit", () => {
         [2, 1],
       ]),
     );
-    const listingById = new Map([
-      [1, tl(1, 100)],
-      [2, tl(2, 100)],
-    ]);
+    const listingById = twoMembersUncapped();
     // Group 7 only needs member 1, so 6 packages fit.
     // Group 9 needs both members, so only 2 packages fit.
     const groupIdsByListingId = new Map([

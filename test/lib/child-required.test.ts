@@ -27,6 +27,17 @@ const twoChoiceSetup = () =>
     priceInput("101", "303"),
   ]);
 
+// Wires the two-choice child setup and confirms the chosen child's (202) price
+// is required while the unselected sibling's (303) is not — the starting state
+// the quantity tests share. Returns the roots for any further steps.
+const initTwoChoiceWithChosenRequired = (): FakeElement[] => {
+  const roots = twoChoiceSetup();
+  initChildRequired();
+  expect(byName(roots, "child_price_101_202").required).toBe(true);
+  expect(byName(roots, "child_price_101_303").required).toBe(false);
+  return roots;
+};
+
 describe("child required toggling", () => {
   afterEach(restoreDocument);
 
@@ -37,13 +48,8 @@ describe("child required toggling", () => {
   });
 
   test("requires only the price inputs of children with a positive quantity for an in-cart parent", () => {
-    const roots = twoChoiceSetup();
-
-    initChildRequired();
-
     // The chosen child's (202) price is required; the unselected sibling's is not.
-    expect(byName(roots, "child_price_101_202").required).toBe(true);
-    expect(byName(roots, "child_price_101_303").required).toBe(false);
+    initTwoChoiceWithChosenRequired();
   });
 
   test("relaxes all child price controls when the parent is at zero quantity", () => {
@@ -60,11 +66,7 @@ describe("child required toggling", () => {
   });
 
   test("re-requires the new price input when the buyer redistributes the quantities", () => {
-    const roots = twoChoiceSetup();
-
-    initChildRequired();
-    expect(byName(roots, "child_price_101_202").required).toBe(true);
-    expect(byName(roots, "child_price_101_303").required).toBe(false);
+    const roots = initTwoChoiceWithChosenRequired();
 
     // Move one unit from 202 to 303 (still totalling 2).
     const first = byName(roots, "child_qty_101_202");

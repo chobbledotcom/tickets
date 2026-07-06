@@ -49,6 +49,14 @@ export const weekdayOf = async (date: string): Promise<string> => {
   return DAY_NAMES[new Date(`${date}T00:00:00Z`).getUTCDay()]!;
 };
 
+/** The `<option>` markup inside the first `<select name="{name}">` of `html` —
+ * the shared "read what a dropdown offers" snip the render tests all do by
+ * hand. */
+export const selectOptions = (html: string, name: string): string => {
+  const select = html.slice(html.indexOf(`name="${name}"`));
+  return select.slice(0, select.indexOf("</select>"));
+};
+
 // ---------------------------------------------------------------------------
 // Booking a parent as the standard test buyer
 // ---------------------------------------------------------------------------

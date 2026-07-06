@@ -1132,12 +1132,19 @@ export const getEmbeddableTicketResponse = async (): Promise<Response> => {
   return handleRequest(mockRequest(`/ticket/${listing.slug}`));
 };
 
+/** Decrypt every attendee stored against a listing. */
+export const decryptListingAttendees = async (
+  listingId: number,
+): Promise<Attendee[]> => {
+  const privateKey = await getTestPrivateKey();
+  const raw = await getAttendeesRaw(listingId);
+  return await decryptAttendees(raw, privateKey);
+};
+
 export const decryptFirstAttendee = async (
   listingId: number,
 ): Promise<Attendee> => {
-  const privateKey = await getTestPrivateKey();
-  const raw = await getAttendeesRaw(listingId);
-  const attendees = await decryptAttendees(raw, privateKey);
+  const attendees = await decryptListingAttendees(listingId);
   expect(attendees.length).toBe(1);
   return attendees[0]!;
 };
