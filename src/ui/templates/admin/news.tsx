@@ -1,22 +1,31 @@
 /**
- * Admin templates for Site → News: the newest-first list, the create/edit
- * forms (the edit page carrying the shared images panel), and the delete
- * confirmation.
+ * Admin templates for Site → News: the newest-first list, the create form, the
+ * Edit-tab panel (the pre-filled fields form, posting to the update route), and
+ * the delete confirmation. The edit page itself is the shared tabbed entity page
+ * (Edit / Images / Actions) built in `#routes/admin/news-page.ts`; this file
+ * only supplies the Edit tab's form.
  */
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { newsPostForm, newsPostToValues } from "#routes/admin/news-form.ts";
+import {
+  newsPostEditForm,
+  newsPostForm,
+  newsPostToValues,
+} from "#routes/admin/news-form.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
+import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, NewsPost, NewsPostSummary } from "#shared/types.ts";
-import { AdminPage, adminFormPage } from "#templates/admin/admin-page.tsx";
+import { adminFormPage } from "#templates/admin/admin-page.tsx";
 import {
   collectionPage,
   deleteConfirmPage,
-  EditForm,
 } from "#templates/admin/site-content.tsx";
-import { DeleteSection, SubmitButton } from "#templates/components/actions.tsx";
+import {
+  SaveChangesButton,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 
 /* jscpd:ignore-end */
@@ -70,36 +79,15 @@ export const adminNewsNewPage = (
     title: t("news.new_title"),
   });
 
-export const adminNewsEditPage = (
-  post: NewsPost,
-  imagesPanel: JSX.Element,
-  session: AdminSession,
-  error?: string,
-): string =>
-  String(
-    <AdminPage active={ACTIVE} session={session} title={t("news.edit_title")}>
-      <EditForm
-        action={`${LIST}/${post.id}/edit`}
-        error={error}
-        fieldsHtml={newsPostForm.renderFields(newsPostToValues(post))}
-        title={t("news.edit_title")}
-      />
-
-      <p class="prose">
-        {t("news.permalink_label")}: <code>/news/{post.slug}</code>
-      </p>
-
-      <h2>{t("news.images_heading")}</h2>
-      {imagesPanel}
-
-      <DeleteSection
-        heading={t("common.delete")}
-        href={`${LIST}/${post.id}/delete`}
-      >
-        {t("news.delete_submit")}
-      </DeleteSection>
-    </AdminPage>,
-  );
+/** The Edit tab's panel: the pre-filled fields form (name, the editable slug
+ * with its public link, SEO meta, snippet, markdown body) posting to the update
+ * route. */
+export const newsEditPanel = (post: NewsPost): JSX.Element => (
+  <CsrfForm action={`${LIST}/${post.id}/edit`}>
+    <Raw html={newsPostEditForm.renderFields(newsPostToValues(post))} />
+    {SaveChangesButton()}
+  </CsrfForm>
+);
 
 export const adminNewsDeletePage = (
   post: NewsPost,

@@ -21,6 +21,9 @@ export const sitePageForm = defineForm({
       label: t("common.slug"),
       name: "slug",
       pattern: "[a-z0-9_-]+",
+      // The saved slug's public page (only shown once the page has a slug, so
+      // the "new" form renders no link until one is entered).
+      publicLinkPath: (slug: string) => `/page/${slug}`,
       required: true,
       title: t("fields.listing.slug_title"),
       type: "text" as const,

@@ -98,7 +98,7 @@ describeWithEnv("server (admin news)", { db: true }, () => {
   });
 
   describe("edit + update", () => {
-    test("edit renders the pre-filled form, images panel, and delete section", async () => {
+    test("the edit tab renders the pre-filled form, editable slug, public link, and tab strip", async () => {
       const post = await createTestNewsPost("Editable", {
         snippet: "the snippet",
       });
@@ -108,14 +108,46 @@ describeWithEnv("server (admin news)", { db: true }, () => {
       );
       expect(html).toContain('value="Editable"');
       expect(html).toContain("the snippet");
-      // The read-only permalink is shown on the edit page (not the new page).
-      expect(html).toContain(`<code>/news/${post.slug}</code>`);
-      // The shared images panel renders (storage is off in this suite, so it
-      // shows the storage notice; the live panel is covered in the news image
-      // routes suite).
-      expect(html).toContain("<h2>Images</h2>");
-      expect(html).toContain("File storage is not configured.");
-      expect(html).toContain(`${BASE}/${post.id}/delete`);
+      // The slug is now an editable field pre-filled with the saved slug.
+      expect(html).toContain(`name="slug"`);
+      expect(html).toContain(`value="${post.slug}"`);
+      // The public link sits under the slug field, opening in a new tab.
+      expect(html).toContain(
+        `Public link: <a href="/news/${post.slug}" rel="noopener" target="_blank">/news/${post.slug}</a>`,
+      );
+      // The shared tabbed strip carries Edit and Actions (Images is hidden
+      // while storage is off — the live panel is covered in the news image
+      // routes suite). Delete lives on the Actions tab, not the Edit form.
+      expect(html).toContain('class="entity-tabs"');
+      expect(html).toContain(`href="${BASE}/${post.id}/actions"`);
+      expect(html).not.toContain(`href="${BASE}/${post.id}/images"`);
+      expect(html).not.toContain("File storage is not configured.");
+      expect(html).not.toContain(`${BASE}/${post.id}/delete`);
+    });
+
+    test("a bare /:id lands on the edit tab", async () => {
+      const post = await createTestNewsPost("Bare");
+      const html = await expectHtmlResponse(
+        await adminGet(`${BASE}/${post.id}`),
+        200,
+      );
+      expect(html).toContain('value="Bare"');
+      expect(html).toContain('class="entity-tabs"');
+    });
+
+    test("the images tab 404s while storage is disabled", async () => {
+      const post = await createTestNewsPost("No images tab");
+      const response = await adminGet(`${BASE}/${post.id}/images`);
+      expect(response.status).toBe(404);
+    });
+
+    test("the actions tab links to the delete confirmation", async () => {
+      const post = await createTestNewsPost("With actions");
+      const html = await expectHtmlResponse(
+        await adminGet(`${BASE}/${post.id}/actions`),
+        200,
+      );
+      expect(html).toContain(`href="${BASE}/${post.id}/delete"`);
     });
 
     test("the new page has no slug field (the permalink is auto-generated)", async () => {
@@ -129,11 +161,12 @@ describeWithEnv("server (admin news)", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
-    test("update rewrites the fields and logs", async () => {
+    test("update rewrites the fields (slug included) and logs", async () => {
       const post = await createTestNewsPost("Before update");
       const { response } = await adminFormPost(`${BASE}/${post.id}/edit`, {
         content: "new body",
         name: "After update",
+        slug: "my-new-slug",
         snippet: "new snippet",
       });
       expectRedirectWithFlash(
@@ -145,16 +178,56 @@ describeWithEnv("server (admin news)", { db: true }, () => {
       expect(updated?.name).toBe("After update");
       expect(updated?.snippet).toBe("new snippet");
       expect(updated?.content).toBe("new body");
+      // The edited slug is persisted and now resolves the public page.
+      expect(updated?.slug).toBe("my-new-slug");
       expect(await wasLogged("News post 'After update' updated")).toBe(true);
+    });
+
+    test("update rejects a slug already used by another post", async () => {
+      const taken = await createTestNewsPost("Has the slug");
+      const post = await createTestNewsPost("Wants the slug");
+      const { response } = await adminFormPost(`${BASE}/${post.id}/edit`, {
+        name: "Wants the slug",
+        slug: taken.slug,
+      });
+      expectErrorFlash(response, "already used by another news post");
+      // Nothing changed — the original slug is intact.
+      const unchanged = await getNewsPostById(post.id);
+      expect(unchanged?.slug).toBe(post.slug);
+    });
+
+    test("update lets a post keep its own slug", async () => {
+      const post = await createTestNewsPost("Keeps slug");
+      const { response } = await adminFormPost(`${BASE}/${post.id}/edit`, {
+        name: "Keeps slug renamed",
+        slug: post.slug,
+      });
+      expectRedirectWithFlash(
+        `${BASE}/${post.id}/edit`,
+        "News post updated",
+        true,
+      )(response);
+      expect((await getNewsPostById(post.id))?.name).toBe("Keeps slug renamed");
     });
 
     test("update rejects a missing name and changes nothing", async () => {
       const post = await createTestNewsPost("Unchanged");
       const { response } = await adminFormPost(`${BASE}/${post.id}/edit`, {
         name: "",
+        slug: "whatever",
       });
       expectRedirect(response, new RegExp(`^${BASE}/${post.id}/edit\\?`));
       expect((await getNewsPostById(post.id))?.name).toBe("Unchanged");
+    });
+
+    test("update rejects an invalid slug and changes nothing", async () => {
+      const post = await createTestNewsPost("Slug guard");
+      const { response } = await adminFormPost(`${BASE}/${post.id}/edit`, {
+        name: "Slug guard",
+        slug: "Not A Valid Slug!",
+      });
+      expectRedirect(response, new RegExp(`^${BASE}/${post.id}/edit\\?`));
+      expect((await getNewsPostById(post.id))?.name).toBe("Slug guard");
     });
   });
 

@@ -48,7 +48,7 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
       );
 
       await expectFlashRedirect(
-        `/admin/site/news/${post.id}/edit`,
+        `/admin/site/news/${post.id}/images`,
         "Images updated",
         true,
         cookie,
@@ -87,7 +87,7 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
           "Fresh news image",
         );
         await expectFlashRedirect(
-          `/admin/site/news/${post.id}/edit`,
+          `/admin/site/news/${post.id}/images`,
           "Image uploaded",
           true,
           cookie,

@@ -10,6 +10,7 @@ import {
   getNewsPostCards,
   getNewsPostNames,
   hasNewsPosts,
+  isNewsSlugTaken,
   updateNewsPost,
 } from "#shared/db/news-posts.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
@@ -80,7 +81,7 @@ describeWithEnv("db > news-posts", { db: true }, () => {
   });
 
   describe("updateNewsPost", () => {
-    test("rewrites every editable field but never created", async () => {
+    test("rewrites every editable field (slug included) but never created", async () => {
       const created = await createTestNewsPost("Before", {
         snippet: "old snippet",
       });
@@ -89,6 +90,8 @@ describeWithEnv("db > news-posts", { db: true }, () => {
         metaDescription: "new description",
         metaTitle: "new title",
         name: "After",
+        slug: "edited-slug",
+        slugIndex: await computeNewsSlugIndex("edited-slug"),
         snippet: "new snippet",
       });
       expect(updated?.name).toBe("After");
@@ -97,6 +100,24 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       expect(updated?.meta_title).toBe("new title");
       expect(updated?.meta_description).toBe("new description");
       expect(updated?.created).toBe(created.created);
+      // The edited slug (and its blind index) now resolve the post.
+      expect(updated?.slug).toBe("edited-slug");
+      const bySlug = await getNewsPostBySlugIndex(
+        await computeNewsSlugIndex("edited-slug"),
+      );
+      expect(bySlug?.id).toBe(created.id);
+    });
+  });
+
+  describe("isNewsSlugTaken", () => {
+    test("reports a slug taken by any post, and free once excluded", async () => {
+      const post = await createTestNewsPost("Owns the slug");
+      // Taken outright…
+      expect(await isNewsSlugTaken(post.slug)).toBe(true);
+      // …but not taken when the owning post is excluded (an edit keeping its
+      // own slug), and an unused slug is free either way.
+      expect(await isNewsSlugTaken(post.slug, post.id)).toBe(false);
+      expect(await isNewsSlugTaken("never-used-slug")).toBe(false);
     });
   });
 
@@ -186,15 +207,19 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       ).toBeNull();
     });
 
-    test("update keeps the slug immutable when the name changes", async () => {
+    test("update can keep the existing slug while the name changes", async () => {
       const post = await createTestNewsPost("Original name", {
         created: "2026-07-06T12:00:00.000Z",
       });
+      // The caller passes the post's own slug back to keep the permalink stable
+      // even as the name changes (the slug is no longer derived from the name).
       await updateNewsPost(post.id, {
         content: "",
         metaDescription: "",
         metaTitle: "",
         name: "Renamed",
+        slug: post.slug,
+        slugIndex: await computeNewsSlugIndex(post.slug),
         snippet: "",
       });
       const reloaded = await getNewsPostById(post.id);

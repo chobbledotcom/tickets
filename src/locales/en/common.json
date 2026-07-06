@@ -37,6 +37,7 @@
   "common.description": "Description",
   "common.formatting_help": "Formatting help",
   "common.slug": "Slug",
+  "common.public_link": "Public link",
   "common.quantity": "Quantity",
   "common.close": "Close",
   "common.continue": "Continue",

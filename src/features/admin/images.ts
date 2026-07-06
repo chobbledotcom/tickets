@@ -267,7 +267,11 @@ const handleImageDeletePost: TypedRouteHandler<
     const deletePath = `/admin/images/${image.id}/delete`;
     // deleteImageRecord prunes every use, including a news one, so a non-Site
     // role may not delete an image a news post uses (public Site content).
-    const blocked = await siteContentImageGate(adminLevel, image.id, deletePath);
+    const blocked = await siteContentImageGate(
+      adminLevel,
+      image.id,
+      deletePath,
+    );
     if (blocked) return blocked;
     const mismatch = confirmDelete(form, image);
     if (mismatch) return redirect(deletePath, mismatch, false);

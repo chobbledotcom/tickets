@@ -13,34 +13,37 @@ import {
   createConfirmedHandlers,
 } from "#routes/admin/confirmation.ts";
 import { SITE_FORM, SITE_MULTIPART } from "#routes/auth.ts";
+import { errorRedirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
+  computeNewsSlugIndex,
   createNewsPost,
   deleteNewsPostWithImages,
   getNewsPostById,
   getNewsPostSummaries,
+  isNewsSlugTaken,
   type NewsPostWriteInput,
   updateNewsPost,
 } from "#shared/db/news-posts.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { normalizeSlug } from "#shared/slug.ts";
 import type { AdminSession, NewsPost } from "#shared/types.ts";
 import {
   adminNewsDeletePage,
-  adminNewsEditPage,
   adminNewsListPage,
   adminNewsNewPage,
 } from "#templates/admin/news.tsx";
 import { seoContentInput } from "./content-form-fields.ts";
-import { createItemImageHandlers, loadItemImagesPanel } from "./item-images.ts";
-import { newsPostForm } from "./news-form.ts";
+import { createItemImageHandlers } from "./item-images.ts";
+import { newsPostEditForm, newsPostForm } from "./news-form.ts";
+import { newsPage } from "./news-page.ts";
 import {
   savedContentResponse,
   siteConfirmAuth,
   siteContentGet,
   siteContentPaths,
   siteContentPost,
-  siteEntityGet,
   siteEntityPost,
   validateContentFormOr,
 } from "./site-content.ts";
@@ -76,14 +79,6 @@ const renderList = siteContentGet(async (session) =>
 
 const renderNew = siteContentGet((session) => adminNewsNewPage(session));
 
-const renderEdit = siteEntityGet(getNewsPostById)(async (post, session) =>
-  adminNewsEditPage(
-    post,
-    await loadItemImagesPanel("news", post.id, `${paths.list}/${post.id}`),
-    session,
-  ),
-);
-
 const handleCreate = siteContentPost(async (form) => {
   const fields = validateFields(form, paths.newPage);
   if (!fields.ok) return fields.response;
@@ -96,12 +91,28 @@ const handleCreate = siteContentPost(async (form) => {
 });
 
 const handleUpdate = siteEntityPost(getNewsPostById)(async (post, form) => {
-  const fields = validateFields(form, paths.edit(post.id));
-  if (!fields.ok) return fields.response;
-  await updateNewsPost(post.id, fields.input);
+  const editPath = paths.edit(post.id);
+  // The edit form carries an editable slug on top of the shared content fields.
+  const result = validateContentFormOr(
+    newsPostEditForm.validate(form),
+    editPath,
+  );
+  if (!result.ok) return result.response;
+  // The slug field's validator already ran `validateSlug(normalizeSlug())`, so
+  // the format is known-good; re-normalise for the uniqueness check and storage.
+  const slug = normalizeSlug(result.values.slug);
+  if (await isNewsSlugTaken(slug, post.id)) {
+    return errorRedirect(editPath, t("news.error.slug_taken"));
+  }
+  await updateNewsPost(post.id, {
+    ...seoContentInput(form, result.values.name),
+    slug,
+    slugIndex: await computeNewsSlugIndex(slug),
+    snippet: form.getString("snippet"),
+  });
   return savedContentResponse(
-    paths.edit(post.id),
-    `News post '${fields.input.name}' updated`,
+    editPath,
+    `News post '${result.values.name}' updated`,
     t("news.updated"),
   );
 });
@@ -126,15 +137,19 @@ const postDelete: ConfirmedHandlers = createConfirmedHandlers<
 
 // ─── Images ─────────────────────────────────────────────────────
 
+/** The Images tab lives at `/admin/site/news/:id/images`; its set/upload POSTs
+ * bounce back there (not to the Edit tab). */
+const imagesPath = (id: number): string => `${paths.list}/${id}/images`;
+
 /** The shared per-entity image handlers, gated at the Site level (owner +
  * editor) to match the pages that link to them. */
 const newsImageHandlers = createItemImageHandlers({
   auth: { form: SITE_FORM, multipart: SITE_MULTIPART },
-  disabledPath: paths.edit,
+  disabledPath: imagesPath,
   itemType: "news",
   load: getNewsPostById,
   nameOf: (post) => post.name,
-  path: paths.edit,
+  path: imagesPath,
 });
 
 // ─── Routes ─────────────────────────────────────────────────────
@@ -143,7 +158,10 @@ export const newsRoutes = {
   ...postDelete.routes,
   ...defineRoutes({
     "GET /admin/site/news": renderList,
-    "GET /admin/site/news/:id/edit": renderEdit,
+    "GET /admin/site/news/:id": (request, { id }) =>
+      newsPage.renderTab(request, id, ""),
+    "GET /admin/site/news/:id/:tab": (request, { id, tab }) =>
+      newsPage.renderTab(request, id, tab),
     "GET /admin/site/news/new": renderNew,
     "POST /admin/site/news": handleCreate,
     "POST /admin/site/news/:id/edit": handleUpdate,

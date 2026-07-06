@@ -127,7 +127,11 @@ describe("LinkedItemsCheckboxes", () => {
         label: "Listings",
         options: [
           option("listing:1", { label: "Live unlinked" }),
-          option("listing:2", { active: false, checked: true, label: "Old linked" }),
+          option("listing:2", {
+            active: false,
+            checked: true,
+            label: "Old linked",
+          }),
         ],
       },
     ]);

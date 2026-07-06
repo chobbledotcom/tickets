@@ -117,12 +117,7 @@ export const newsPostPage = (
   nav: PublicNavProps,
   websiteTitle: string,
 ): string =>
-  publicSeoPage(
-    post,
-    nav,
-    websiteTitle,
-    { showHeading: false },
-  )(
+  publicSeoPage(post, nav, websiteTitle, { showHeading: false })(
     <div class="prose">
       <h1>{post.name}</h1>
       <p class="news-post-date">
