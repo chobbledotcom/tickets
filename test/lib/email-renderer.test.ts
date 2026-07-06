@@ -44,7 +44,7 @@ const renderConfirmation = async (): Promise<{
 const errorLogLines = (errorSpy: {
   calls: ReadonlyArray<{ args: unknown[] }>;
 }): string[] =>
-  map((c: { args: unknown[] }) => c.args[0] as string)(errorSpy.calls);
+  map((c: { args: unknown[] }) => c.args[0] as string)([...errorSpy.calls]);
 
 describeWithEnv("email-renderer", { db: true }, () => {
   useSetting({ currency: "GBP" });

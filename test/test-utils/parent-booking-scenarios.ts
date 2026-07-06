@@ -15,15 +15,21 @@
 
 import { expect } from "@std/expect";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
 import { setChildIds } from "#shared/db/listing-parents.ts";
+import type { CheckoutIntent } from "#shared/payments.ts";
 import type { Group, Listing } from "#shared/types.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers.ts";
-import { apiBook, apiGet, makeParent, postBooking } from "#test-utils/parents.ts";
+import {
+  apiBook,
+  apiGet,
+  bookingPageHtml,
+  makeParent,
+  postBooking,
+} from "#test-utils/parents.ts";
 
 // ---------------------------------------------------------------------------
 // Bookable-date lookups (holiday-aware)
@@ -99,6 +105,20 @@ export const apiListingRow = async <T extends { slug: string }>(
   return body.listings.find((l) => l.slug === slug)!;
 };
 
+/** Render the parent's booking page and assert its quantity selector offers the
+ * `allowed` option but not the `forbidden` one (values compared as `>N</option>`
+ * so a substring can't false-match). The shared group-cap render check. */
+export const expectQuantityCap = async (
+  parent: Listing,
+  allowed: string,
+  forbidden: string,
+): Promise<void> => {
+  const html = await bookingPageHtml(parent.slug);
+  const options = selectOptions(html, `quantity_${parent.id}`);
+  expect(options).toContain(`>${allowed}</option>`);
+  expect(options).not.toContain(`>${forbidden}</option>`);
+};
+
 /** The `<option>` markup inside the first `<select name="{name}">` of `html` —
  * the shared "read what a dropdown offers" snip the render tests all do by
  * hand. */
@@ -124,6 +144,18 @@ export const bookOne = (
     name: "Ada",
     [`quantity_${parent.id}`]: String(quantity),
     ...extra,
+  });
+
+/** Book a parent at quantity 2 as Ada, choosing one unit of each of two
+ * children — the shared "one of each child folds two lines" act. */
+export const bookOneOfEachChild = (
+  parent: Listing,
+  childA: Listing,
+  childB: Listing,
+): Promise<Response> =>
+  bookOne(parent, 2, {
+    [`child_qty_${parent.id}_${childA.id}`]: "1",
+    [`child_qty_${parent.id}_${childB.id}`]: "1",
   });
 
 /** Assert a booking bounced: a 302 back to the page, the given failure flash
@@ -155,6 +187,18 @@ export const expectChildAvailability = async (
       expected.map(([child, available]) => ({ available, slug: child.slug })),
     ),
   );
+};
+
+/** Assert a captured checkout intent carries a 3-day span and prices the folded
+ * `child` for that span (£30) — the "child inherited the fixed 3-day parent
+ * duration" check shared by the web and API paid-booking tests. */
+export const expectFoldedChild3DaySpan = (
+  intent: CheckoutIntent | undefined,
+  child: Listing,
+): void => {
+  expect(intent?.dayCount).toBe(3);
+  const childItem = intent?.items.find((i) => i.listingId === child.id);
+  expect(childItem?.unitPrice).toBe(3000);
 };
 
 /** Assert the newest attendee line for `child` has the given quantity. */
@@ -244,6 +288,24 @@ export const twoChildParent = async (
   });
   return { childA: children[0]!, childB: children[1]!, parent };
 };
+
+/** A parent (max 100 capacity, quantity 5) whose two children each have a single
+ * spot in their own separate pools — so the children's caps combine (1 + 1). */
+export const twoSeparatePoolChildrenParent = (): ReturnType<
+  typeof makeParent
+> =>
+  makeParent({
+    children: [{ maxAttendees: 1 }, { maxAttendees: 1 }],
+    parent: { maxAttendees: 100, maxQuantity: 5 },
+  });
+
+/** A daily parent whose only child is a daily add-on bookable on Mondays only —
+ * so the parent offers dates its child cannot serve. */
+export const dailyParentMondayOnlyChild = (): ReturnType<typeof makeParent> =>
+  makeParent({
+    children: [{ bookableDays: ["Monday"], daily: true }],
+    parent: { daily: true },
+  });
 
 /** A daily parent whose only child is a daily add-on with a single spot
  * (`maxAttendees: 1`). Extra parent overrides merge onto `{ daily: true }`. */

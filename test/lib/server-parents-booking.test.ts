@@ -22,10 +22,12 @@ import {
   apiListingBody,
   apiListingRow,
   bookableDatesFor,
+  dailyParentMondayOnlyChild,
   dailyParentWithOneCapChild,
   enablePublicApi,
   expectChildAvailability,
   expectChildQuantity,
+  expectFoldedChild3DaySpan,
   expectGroupCtaSuppressed,
   expectListingDetailBookable,
   firstBookableDate,
@@ -478,11 +480,7 @@ describeWithEnv(
           date,
         });
         expect(res.status).toBe(200);
-        expect(capture.intent?.dayCount).toBe(3);
-        const childItem = capture.intent?.items.find(
-          (i) => i.listingId === child.id,
-        );
-        expect(childItem?.unitPrice).toBe(3000);
+        expectFoldedChild3DaySpan(capture.intent, child);
       } finally {
         capture.restore();
       }
@@ -679,10 +677,7 @@ describeWithEnv(
       // `available: false` even though the parent's OWN row has capacity — the
       // availability endpoint must honour the child-date union, matching the
       // detail endpoint and the booking fold.
-      const { parent, child } = await makeParent({
-        children: [{ bookableDays: ["Monday"], daily: true }],
-        parent: { daily: true },
-      });
+      const { parent, child } = await dailyParentMondayOnlyChild();
 
       const parentDates = await bookableDatesFor(parent.id);
       const childDates = new Set(await bookableDatesFor(child.id));
@@ -823,10 +818,7 @@ describeWithEnv(
       // bookable only on Mondays. The API detail must advertise only the dates a
       // child can serve — the intersection — so it never offers a date the web
       // selector removes and the fold rejects.
-      const { parent, child } = await makeParent({
-        children: [{ bookableDays: ["Monday"], daily: true }],
-        parent: { daily: true },
-      });
+      const { parent, child } = await dailyParentMondayOnlyChild();
 
       const { getAvailableDates, getBookableStartDates } = await import(
         "#shared/dates.ts"

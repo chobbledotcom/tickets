@@ -28,6 +28,7 @@ import {
   addRadioQuestion,
   bookableDatesFor,
   bookOne,
+  bookOneOfEachChild,
   dailyBaseWithDates,
   dailyPairSharingPoolWithFiller,
   dailyParentWithChildOffParentDay,
@@ -35,20 +36,67 @@ import {
   expectBookingRejected,
   expectChildQuantity,
   expectEachChildQtyOne,
+  expectFoldedChild3DaySpan,
   expectOnlyChildBooked,
+  expectQuantityCap,
   firstBookableDate,
   fixedThreeDayParentWithCustomChild,
   parentChildRoomySharedTightPrivate,
   selectOptions,
   twoChildParent,
   twoParentsSharingChild,
+  twoSeparatePoolChildrenParent,
   weekdayOf,
 } from "#test-utils/parent-booking-scenarios.ts";
+
+// Shared listing specs for the customisable day-count render tests: a parent
+// that prices 1- and 2-day spans, and the two add-on children the tests reuse.
+const CUSTOM_1_2_DAY_PARENT = {
+  customisableDays: true,
+  dayPrices: { 1: 1000, 2: 1800 },
+  durationDays: 2,
+};
+const CUSTOM_2DAY_ONLY_CHILD = {
+  customisableDays: true,
+  dayPrices: { 2: 2500 },
+  durationDays: 2,
+  maxPrice: 0,
+  unitPrice: 0,
+};
+const CUSTOM_BOTH_SPAN_CHILD = {
+  customisableDays: true,
+  dayPrices: { 1: 1500, 2: 2500 },
+  durationDays: 2,
+  maxPrice: 0,
+  unitPrice: 0,
+};
 
 describeWithEnv(
   "server > parents booking fold",
   { db: true, triggers: true },
   () => {
+    // Registers one render test per case: build the parent from `spec`, render
+    // its booking page, and assert each `contains`/`notContains` fragment.
+    const defineRenderCases = (
+      cases: {
+        name: string;
+        spec: Parameters<typeof makeParent>[0];
+        contains: string[];
+        notContains: string[];
+      }[],
+    ): void => {
+      for (const c of cases) {
+        test(c.name, async () => {
+          const { parent } = await makeParent(c.spec);
+          const html = await bookingPageHtml(parent.slug);
+          for (const needle of c.contains) expect(html).toContain(needle);
+          for (const needle of c.notContains) {
+            expect(html).not.toContain(needle);
+          }
+        });
+      }
+    };
+
     test("a single bookable child auto-selects and folds into a free booking", async () => {
       const { parent, child } = await makeParent({
         children: [{ maxQuantity: 5 }],
@@ -192,10 +240,7 @@ describeWithEnv(
         maxQuantity: 5,
       });
 
-      const res = await bookOne(parent, 2, {
-        [`child_qty_${parent.id}_${childA.id}`]: "1",
-        [`child_qty_${parent.id}_${childB.id}`]: "1",
-      });
+      const res = await bookOneOfEachChild(parent, childA, childB);
       expectReserved(res);
       await expectEachChildQtyOne(childA, childB);
     });
@@ -510,13 +555,9 @@ describeWithEnv(
         const res = await bookOne(parent, 1, { date });
         expect(res.status).toBe(302);
         // The folded order is customisable, so the chosen span is serialized on the
-        // intent (the webhook reprices the child for the inherited 3-day span).
-        expect(capture.intent?.dayCount).toBe(3);
-        // The child is priced for the inherited 3 days (£30), never its 1-day £10.
-        const childItem = capture.intent?.items.find(
-          (i) => i.listingId === child.id,
-        );
-        expect(childItem?.unitPrice).toBe(3000);
+        // intent (the webhook reprices the child for the inherited 3-day span), and
+        // the child is priced for the inherited 3 days (£30), never its 1-day £10.
+        expectFoldedChild3DaySpan(capture.intent, child);
       } finally {
         capture.restore();
       }
@@ -532,20 +573,8 @@ describeWithEnv(
       // customisable lines would reprice at a 4-day span neither offers (→ £0),
       // changing the total — so a non-idempotent `recordDuration` is caught.
       const { parent } = await makeParent({
-        children: [
-          {
-            customisableDays: true,
-            dayPrices: { 1: 1500, 2: 2500 },
-            durationDays: 2,
-            maxPrice: 0,
-            unitPrice: 0,
-          },
-        ],
-        parent: {
-          customisableDays: true,
-          dayPrices: { 1: 1000, 2: 1800 },
-          durationDays: 2,
-        },
+        children: [CUSTOM_BOTH_SPAN_CHILD],
+        parent: CUSTOM_1_2_DAY_PARENT,
       });
 
       const html = await postCalculate(parent.slug, {
@@ -1169,18 +1198,7 @@ describeWithEnv(
         },
       },
     ];
-    for (const c of PRICE_LABEL_CASES) {
-      test(c.name, async () => {
-        const { parent } = await makeParent(c.spec);
-        const html = await bookingPageHtml(parent.slug);
-        for (const needle of c.contains) {
-          expect(html).toContain(needle);
-        }
-        for (const needle of c.notContains) {
-          expect(html).not.toContain(needle);
-        }
-      });
-    }
+    defineRenderCases(PRICE_LABEL_CASES);
 
     test("a daily child under a dateless (standard) parent is rejected", async () => {
       // The standard parent produces no date, so a daily child can never be
@@ -1330,8 +1348,11 @@ describeWithEnv(
       // leaving the lone active child as the sole bookable option — which, being
       // the only bookable child, renders informational (auto-filled by the fold)
       // and posts NO quantity field of its own.
-      const { parent, childA: liveChild, childB: deadChild } =
-        await twoChildParent();
+      const {
+        parent,
+        childA: liveChild,
+        childB: deadChild,
+      } = await twoChildParent();
       await deactivateTestListing(deadChild.id);
 
       const html = await bookingPageHtml(parent.slug);
@@ -1558,20 +1579,8 @@ describeWithEnv(
         name: "a customisable parent offers only day counts its child can serve",
         notContains: [">1 day"],
         spec: {
-          children: [
-            {
-              customisableDays: true,
-              dayPrices: { 2: 2500 },
-              durationDays: 2,
-              maxPrice: 0,
-              unitPrice: 0,
-            },
-          ],
-          parent: {
-            customisableDays: true,
-            dayPrices: { 1: 1000, 2: 1800 },
-            durationDays: 2,
-          },
+          children: [CUSTOM_2DAY_ONLY_CHILD],
+          parent: CUSTOM_1_2_DAY_PARENT,
         },
       },
       // The child prices both 1 and 2 days, so the parent keeps both options
@@ -1581,20 +1590,8 @@ describeWithEnv(
         name: "a customisable parent keeps day counts a child supports both of",
         notContains: [],
         spec: {
-          children: [
-            {
-              customisableDays: true,
-              dayPrices: { 1: 1500, 2: 2500 },
-              durationDays: 2,
-              maxPrice: 0,
-              unitPrice: 0,
-            },
-          ],
-          parent: {
-            customisableDays: true,
-            dayPrices: { 1: 1000, 2: 1800 },
-            durationDays: 2,
-          },
+          children: [CUSTOM_BOTH_SPAN_CHILD],
+          parent: CUSTOM_1_2_DAY_PARENT,
         },
       },
       // The parent offers {1,2,3} days; its only required child is a FIXED 2-day
@@ -1618,18 +1615,7 @@ describeWithEnv(
         },
       },
     ];
-    for (const c of DAY_COUNT_UNION_CASES) {
-      test(c.name, async () => {
-        const { parent } = await makeParent(c.spec);
-        const html = await bookingPageHtml(parent.slug);
-        for (const needle of c.contains) {
-          expect(html).toContain(needle);
-        }
-        for (const needle of c.notContains) {
-          expect(html).not.toContain(needle);
-        }
-      });
-    }
+    defineRenderCases(DAY_COUNT_UNION_CASES);
 
     test("a multi-listing page does NOT constrain the shared day counts by one parent's child", async () => {
       // The day-count union constraint is SINGLE-listing only: on a multi-listing
@@ -1639,20 +1625,8 @@ describeWithEnv(
       // parent (child supports only 2 days) PLUS a plain customisable listing
       // offering {1,2}: the shared selector must keep BOTH the 1- and 2-day options.
       const { parent } = await makeParent({
-        children: [
-          {
-            customisableDays: true,
-            dayPrices: { 2: 2500 },
-            durationDays: 2,
-            maxPrice: 0,
-            unitPrice: 0,
-          },
-        ],
-        parent: {
-          customisableDays: true,
-          dayPrices: { 1: 1000, 2: 1800 },
-          durationDays: 2,
-        },
+        children: [CUSTOM_2DAY_ONLY_CHILD],
+        parent: CUSTOM_1_2_DAY_PARENT,
       });
       const sibling = await createTestListing({
         customisableDays: true,
@@ -1779,21 +1753,8 @@ describeWithEnv(
       // every parent span via its "any" null result); the ACTIVE 2-day child
       // alone drives the union, so only the 2-day option renders.
       const { parent, children } = await makeParent({
-        children: [
-          { maxPrice: 0, unitPrice: 0 },
-          {
-            customisableDays: true,
-            dayPrices: { 2: 2500 },
-            durationDays: 2,
-            maxPrice: 0,
-            unitPrice: 0,
-          },
-        ],
-        parent: {
-          customisableDays: true,
-          dayPrices: { 1: 1000, 2: 1800 },
-          durationDays: 2,
-        },
+        children: [{ maxPrice: 0, unitPrice: 0 }, CUSTOM_2DAY_ONLY_CHILD],
+        parent: CUSTOM_1_2_DAY_PARENT,
       });
       const inactiveOneDay = children[0]!;
       await deactivateTestListing(inactiveOneDay.id);
@@ -1894,10 +1855,7 @@ describeWithEnv(
         parent: { maxQuantity: 5 },
       });
 
-      const html = await bookingPageHtml(parent.slug);
-      const quantityOptionsHtml = selectOptions(html, `quantity_${parent.id}`);
-      expect(quantityOptionsHtml).toContain(">1</option>");
-      expect(quantityOptionsHtml).not.toContain(">2</option>");
+      await expectQuantityCap(parent, "1", "2");
     });
 
     test("a shared-group child's own qty select is capped by floor(remaining / units)", async () => {
@@ -1945,31 +1903,19 @@ describeWithEnv(
       // each capped at 1 together serve a parent quantity of 2 (1 + 1). The old
       // per-child MAX wrongly clamped the parent selector to 1; summing them is
       // correct.
-      const { parent } = await makeParent({
-        children: [{ maxAttendees: 1 }, { maxAttendees: 1 }],
-        parent: { maxAttendees: 100, maxQuantity: 5 },
-      });
+      const { parent } = await twoSeparatePoolChildrenParent();
 
-      const html = await bookingPageHtml(parent.slug);
-      const quantityOptionsHtml = selectOptions(html, `quantity_${parent.id}`);
       // The combined cap (1 + 1) offers a 2 option but never a 3.
-      expect(quantityOptionsHtml).toContain(">2</option>");
-      expect(quantityOptionsHtml).not.toContain(">3</option>");
+      await expectQuantityCap(parent, "2", "3");
     });
 
     test("a 1+1 booking across two separate-pool children each cap 1 succeeds", async () => {
       // The fold accepts a parent quantity of 2 split 1 of A + 1 of B, which the
       // selector now offers — proving the combined-cap render matches the fold.
-      const { parent, children } = await makeParent({
-        children: [{ maxAttendees: 1 }, { maxAttendees: 1 }],
-        parent: { maxAttendees: 100, maxQuantity: 5 },
-      });
+      const { parent, children } = await twoSeparatePoolChildrenParent();
       const [childA, childB] = [children[0]!, children[1]!];
 
-      const res = await bookOne(parent, 2, {
-        [`child_qty_${parent.id}_${childA.id}`]: "1",
-        [`child_qty_${parent.id}_${childB.id}`]: "1",
-      });
+      const res = await bookOneOfEachChild(parent, childA, childB);
       expectReserved(res);
       await expectChildQuantity(childA, 1);
       await expectChildQuantity(childB, 1);
@@ -1988,12 +1934,9 @@ describeWithEnv(
         parent: { maxQuantity: 9 },
       });
 
-      const html = await bookingPageHtml(parent.slug);
-      const quantityOptionsHtml = selectOptions(html, `quantity_${parent.id}`);
       // floor(5 / 2) = 2: offers a 2 option but never a 3 (the cohort is counted
       // once, not summed per co-grouped child).
-      expect(quantityOptionsHtml).toContain(">2</option>");
-      expect(quantityOptionsHtml).not.toContain(">3</option>");
+      await expectQuantityCap(parent, "2", "3");
     });
 
     test("a child sharing a roomy group with the parent is NOT sold out by a tighter NON-shared group", async () => {
@@ -2042,10 +1985,7 @@ describeWithEnv(
       });
       await setChildIds(parent.id, [childOne.id, childTwo.id]);
 
-      const html = await bookingPageHtml(parent.slug);
-      const quantityOptionsHtml = selectOptions(html, `quantity_${parent.id}`);
-      expect(quantityOptionsHtml).toContain(">1</option>");
-      expect(quantityOptionsHtml).not.toContain(">2</option>");
+      await expectQuantityCap(parent, "1", "2");
     });
 
     test("a parent whose only child is sold out renders sold out on its own page", async () => {
@@ -2191,7 +2131,9 @@ describeWithEnv(
       // client compatibility script can tell them apart by their date sets.
       const parent = await createDailyTestListing({ name: "Daily base" });
       const childA = await createDailyTestListing({ name: "Daily add-on A" });
-      const parentDay = await weekdayOf((await bookableDatesFor(parent.id))[0]!);
+      const parentDay = await weekdayOf(
+        (await bookableDatesFor(parent.id))[0]!,
+      );
       const childB = await createDailyTestListing({
         bookableDays: [parentDay],
         name: "Daily add-on B",

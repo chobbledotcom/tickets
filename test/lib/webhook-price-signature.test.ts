@@ -231,10 +231,11 @@ const expectReplayOutcome = async (
 };
 
 /** Assert one webhook delivery reports the session was not finalized. */
-const expectDeliveryUnprocessed = (): Promise<void> =>
-  assertJson(webhookRequest(), 200, (json) => {
+const expectDeliveryUnprocessed = async (): Promise<void> => {
+  await assertJson(webhookRequest(), 200, (json) => {
     expect(json.processed).toBe(false);
   });
+};
 
 /** The fields every package-line webhook shares: buyer identity, the single
  *  package line, and its group. Extra fields (e.g. the per-day date) merge on top. */

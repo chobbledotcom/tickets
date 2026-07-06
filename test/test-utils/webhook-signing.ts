@@ -29,7 +29,9 @@ export const hmacSign = async (
     false,
     ["sign"],
   );
-  return new Uint8Array(await crypto.subtle.sign("HMAC", key, message));
+  return new Uint8Array(
+    await crypto.subtle.sign("HMAC", key, message as BufferSource),
+  );
 };
 
 /** Sign a text message and return the lowercase hex digest (Stripe's `v1=`). */

@@ -7,7 +7,7 @@
  */
 
 import { afterEach, beforeEach } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { type Spy, stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
 import { getStripeClient, resetStripeClient } from "#shared/stripe.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
@@ -66,15 +66,23 @@ export const withCheckoutSessionsStub = (
   client: StripeClient,
   method: "create" | "retrieve",
   impl: (...args: unknown[]) => unknown,
-  body: (spy: ReturnType<typeof stub>) => void | Promise<void>,
+  body: (spy: Spy<unknown, unknown[], unknown>) => void | Promise<void>,
 ): Promise<void> =>
-  withMocks(() => stub(client.checkout.sessions, method, impl as never), body);
+  withMocks(
+    () =>
+      stub(client.checkout.sessions, method, impl as never) as unknown as Spy<
+        unknown,
+        unknown[],
+        unknown
+      >,
+    body,
+  );
 
 /** Stub the checkout `retrieve` call to resolve `session`, run `body`. */
 export const withCheckoutRetrieve = (
   client: StripeClient,
   session: unknown,
-  body: (spy: ReturnType<typeof stub>) => void | Promise<void>,
+  body: (spy: Spy<unknown, unknown[], unknown>) => void | Promise<void>,
 ): Promise<void> =>
   withCheckoutSessionsStub(
     client,
@@ -87,7 +95,7 @@ export const withCheckoutRetrieve = (
 export const withCheckoutCreate = (
   client: StripeClient,
   session: unknown,
-  body: (spy: ReturnType<typeof stub>) => void | Promise<void>,
+  body: (spy: Spy<unknown, unknown[], unknown>) => void | Promise<void>,
 ): Promise<void> =>
   withCheckoutSessionsStub(
     client,
@@ -98,7 +106,7 @@ export const withCheckoutCreate = (
 
 /** The `line_items` + `metadata` the checkout-create stub was called with. */
 export const stripeCreateArgs = (
-  createSpy: ReturnType<typeof stub>,
+  createSpy: Spy<unknown, unknown[], unknown>,
 ): {
   line_items: {
     price_data: { product_data: { name: string }; unit_amount: number };

@@ -13,15 +13,10 @@ import { withMocks } from "#test-utils/mocks.ts";
 /** A stubbed SDK method: takes any args, returns whatever the test resolves. */
 export type MockFn = (...args: unknown[]) => unknown;
 
-/** The spies `createMockClient` exposes alongside the fake client. */
-export interface SquareClientMock {
-  client: SquareClient;
-  checkoutCreate: ReturnType<typeof spy>;
-  ordersGet: ReturnType<typeof spy>;
-  paymentsGet: ReturnType<typeof spy>;
-  refundsRefundPayment: ReturnType<typeof spy>;
-  locationsList: ReturnType<typeof spy>;
-}
+/** The fake client plus the spies for each call, as inferred from
+ *  {@link createMockClient} — so each spy field keeps its exact `spy(...)` type
+ *  instead of the wrong overload `ReturnType<typeof spy>` picks. */
+export type SquareClientMock = ReturnType<typeof createMockClient>;
 
 /** Build a fake Square SDK client whose methods are spies. Pass an
  *  implementation for each call the test exercises; the rest are no-ops. */
@@ -33,7 +28,7 @@ export const createMockClient = (
     refundsRefundPayment?: MockFn;
     locationsList?: MockFn;
   } = {},
-): SquareClientMock => {
+) => {
   const noop: MockFn = () => undefined;
   const checkoutCreate = spy(impls.checkoutCreate ?? noop);
   const ordersGet = spy(impls.ordersGet ?? noop);
@@ -60,9 +55,8 @@ export const createMockClient = (
 /** A `withMocks` setup thunk that points `squareApi.getSquareClient` at
  *  `client`. Use as the first argument to `withMocks` when the test body needs
  *  to keep its existing shape. */
-export const useSquareClient =
-  (client: SquareClient) => (): ReturnType<typeof stub> =>
-    stub(squareApi, "getSquareClient", () => Promise.resolve(client));
+export const useSquareClient = (client: SquareClient) => () =>
+  stub(squareApi, "getSquareClient", () => Promise.resolve(client));
 
 /** Make `squareApi.getSquareClient` resolve to `client` for the duration of
  *  `body`, then restore the real implementation. */
