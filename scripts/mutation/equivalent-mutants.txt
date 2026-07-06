@@ -77,10 +77,13 @@ src/ui/templates/public/shared.tsx:318:41  ?? → ||   # span: null or a duratio
 # Parent/child per-unit render (reservations.tsx).
 src/ui/templates/public/reservations.tsx:1546:50  ?? → ||   # addOns?.some(...) is boolean|undefined; ?? and || agree on every boolean and on undefined
 
+# Attendee phone blind-index (attendee-phone-index.ts).
+src/shared/db/attendee-phone-index.ts:36:17  ?? → ||   # row?.id is undefined or an AUTOINCREMENT id (≥1, never 0), so ?? and || agree
+
 # Parent/child relationship DB (listing-parents.ts).
-src/shared/db/listing-parents.ts:156:21  ?? → ||   # result.get(key): ListingWithCount[]|undefined, arrays always truthy; ?? and || agree
-src/shared/db/listing-parents.ts:213:44  ?? → ||   # childrenByParent.get(id): ListingWithCount[]|undefined — an array is always truthy
-src/shared/db/listing-parents.ts:214:43  ?? → ||   # parentsByChild.get(id): ListingWithCount[]|undefined — an array is always truthy
+src/shared/db/listing-parents.ts:144:21  ?? → ||   # result.get(key): ListingWithCount[]|undefined, arrays always truthy; ?? and || agree
+src/shared/db/listing-parents.ts:201:44  ?? → ||   # childrenByParent.get(id): ListingWithCount[]|undefined — an array is always truthy
+src/shared/db/listing-parents.ts:202:43  ?? → ||   # parentsByChild.get(id): ListingWithCount[]|undefined — an array is always truthy
 
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is
@@ -641,3 +644,33 @@ src/shared/url-safety.ts:22:65  1 → -1   # slice(1,1) empties h; same isDomain
 src/shared/url-safety.ts:23:18  : → ": mutated"   # h never contains this literal, so the colon-detection branch is skipped — falls to the regex, but the dotless-host isDomainHostname fallback still catches it
 src/shared/url-safety.ts:23:31  return true → return undefined   # !undefined behaves like !false downstream; same isDomainHostname fallback as above
 src/shared/url-safety.ts:23:31  true → false   # isIpLiteral wrongly says "not an IP literal", but the dotless-host isDomainHostname fallback still rejects it
+
+# Run-sheet leg building (logistics.ts): buildLeg's ONLY call site wraps both
+# calls in compact() from #fp, which drops null and undefined alike, so a
+# null-vs-undefined return is indistinguishable to every caller. buildLeg is
+# module-private, so no other consumer can ever observe the difference.
+src/shared/db/logistics.ts:160:58  return null → return undefined   # compact() drops null and undefined the same way
+src/shared/db/logistics.ts:161:51  return null → return undefined   # compact() drops null and undefined the same way
+
+# Group-cap sweep (attendees/update.ts): the boundary-delta accumulator is a
+# Map<string, number>; the only falsy-but-non-null number is 0 and the fallback
+# is 0, so `?? 0` and `|| 0` always agree.
+src/shared/db/attendees/update.ts:193:43  ?? → ||   # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
+src/shared/db/attendees/update.ts:194:39  ?? → ||   # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
+
+# DB client (client.ts) — extractUpdateColumns assignment guard.
+src/shared/db/client.ts:58:17  0 → 1   # eqIdx===0 means the fragment starts with "="; slice(0,0) is always "" so the column is dropped by the `if (col)` guard either way — early return and fall-through agree on every input
+
+# DB client (client.ts) — write-verb classification. The WriteVerb produced by
+# invalidateForSql is consumed ONLY by invalidateCachesForWrite, whose single
+# branch tests `info.verb === "update"` (cache-registry.ts); client.ts's own
+# `verb === "update"` check happens before these sites take effect. Any two
+# non-"update" verb values are therefore indistinguishable by every possible
+# test, so mutants that only reclassify/rename a non-update verb are equivalent.
+src/shared/db/client.ts:98:19  delete → ""   # DELETEs classify as "insert" instead of "delete": both are non-"update", so every invalidator (gated or not) still fires identically
+src/shared/db/client.ts:98:71  replace → ""   # REPLACEs classify as "insert" instead of "replace": both non-"update", identical invalidation
+src/shared/db/client.ts:100:9  insert → ""   # non-delete/update/replace statements get verb "" instead of "insert": both non-"update", identical invalidation
+src/shared/db/client.ts:105:67  insert → ""   # unparseable-UPDATE fallback fires with verb "" instead of "insert": both non-"update", identical (unconditional) invalidation
+
+# DB client (client.ts) — rawSql sentinel symbol.
+src/shared/db/client.ts:509:24  raw-sql → ""   # Symbol("raw-sql") description is debug-only metadata; the symbol's identity (not its description) is what insert()/update() branch on, and RAW_SQL is module-private so no test can observe the description

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupIdsByListingId } from "#shared/db/groups.ts";
-import { getChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import {
   apiRequest,
@@ -104,7 +104,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     );
     // A success flash, not an error one.
     expectFlash(res, "Required children updated");
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
     // The save is recorded in the listing's activity log, with the count
     // singularised ("1 listing", not "1 listings").
     const logs = await getListingActivityLog(parent.id);
@@ -120,7 +120,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const parent = await createTestListing({ name: "Base unit" });
     const child = await createTestListing({ name: "Add-on" });
     await postChildren(parent.id, [parent.id, child.id, parent.id + 9999]);
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("renders the section with the chosen child checked", async () => {
@@ -139,7 +139,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const childA = await createTestListing({ name: "Add-on A" });
     const childB = await createTestListing({ name: "Add-on B" });
     await postChildren(parent.id, [childA.id, childB.id]);
-    expect(await getChildIds(parent.id)).toEqual(
+    expect(await listingChildren.getIds(parent.id)).toEqual(
       [childA.id, childB.id].sort((a, b) => a - b),
     );
   });
@@ -278,7 +278,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const res = await postChildren(parent.id, [child.id]);
     // A rejected save redirects back with an ERROR flash, not a success one.
     expectFlash(res, expect.anything(), false);
-    expect(await getChildIds(parent.id)).toEqual([]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("rejects giving children to a listing that is itself a child", async () => {
@@ -287,7 +287,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const child = await createTestListing({ name: "Child" });
     await postChildren(grandparent.id, [parent.id]); // parent becomes a child
     await postChildren(parent.id, [child.id]); // blocked: parent is a child
-    expect(await getChildIds(parent.id)).toEqual([]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("rejects choosing a child that is itself a parent", async () => {
@@ -296,7 +296,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const grandchild = await createTestListing({ name: "Grandchild" });
     await postChildren(child.id, [grandchild.id]); // child becomes a parent
     await postChildren(parent.id, [child.id]); // blocked: child is a parent
-    expect(await getChildIds(parent.id)).toEqual([]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("rejects a renewal-tier parent", async () => {
@@ -304,7 +304,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     await makeRenewalTier(parent.id);
     const child = await createTestListing({ name: "Add-on" });
     await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("rejects a renewal-tier child", async () => {
@@ -312,7 +312,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const child = await createTestListing({ name: "Renewal add-on" });
     await makeRenewalTier(child.id);
     await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("rejects a daily child whose fixed duration differs from the parent", async () => {
@@ -327,7 +327,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       name: "1-day add-on",
     });
     await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("rejects a customisable child that can't price the parent's fixed span", async () => {
@@ -339,7 +339,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       name: "Add-on (no 1-day price)",
     });
     await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("accepts a customisable child that prices the parent's fixed span", async () => {
@@ -351,7 +351,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       name: "Add-on (prices 1 day)",
     });
     await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("accepts overlapping customisable parent and child day ranges", async () => {
@@ -368,7 +368,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       name: "Flexible add-on",
     });
     await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("rejects non-overlapping customisable parent and child day ranges", async () => {
@@ -385,7 +385,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       name: "2-3 day add-on",
     });
     await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("accepts a plain standard child under a multi-day daily parent", async () => {
@@ -398,7 +398,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     });
     const child = await createTestListing({ name: "Booking fee" });
     await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("accepts a plain standard child under a parent with no 1-day span", async () => {
@@ -410,7 +410,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     });
     const child = await createTestListing({ name: "Merch add-on" });
     await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("accepts a daily child whose span a customisable daily parent offers", async () => {
@@ -427,7 +427,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       name: "2-day add-on",
     });
     await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("rejects a daily child whose span a customisable daily parent can't offer", async () => {
@@ -444,7 +444,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       name: "1-day add-on",
     });
     await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("blocks a listing edit that would break an existing edge", async () => {
@@ -475,7 +475,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       name: "Renamed base",
     });
     expect(after.name).toBe("Renamed base");
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("lets a listing that is itself a child save an empty children set", async () => {
@@ -486,7 +486,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect(res.headers.get("set-cookie")).toContain(
       "Required%20children%20updated",
     );
-    expect(await getChildIds(parent.id)).toEqual([]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("admin API create writes child edges", async () => {
@@ -496,7 +496,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       max_attendees: 10,
       name: "Base unit",
     });
-    expect(await getChildIds(parentId)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parentId)).toEqual([child.id]);
   });
 
   test("admin API update changes child edges", async () => {
@@ -511,7 +511,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       }),
       200,
     );
-    expect(await getChildIds(parent.id)).toEqual([second.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([second.id]);
   });
 
   test("admin API rejects a non-numeric child id entry without clearing edges", async () => {
@@ -533,7 +533,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
         );
       },
     );
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("admin API keeps known ids and drops an unknown NUMERIC child id", async () => {
@@ -548,7 +548,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       }),
       200,
     );
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("admin API rejects a string child_listing_ids without clearing edges", async () => {
@@ -567,7 +567,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
         );
       },
     );
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("admin API rejects an object child_listing_ids without clearing edges", async () => {
@@ -581,7 +581,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       }),
       400,
     );
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("admin API leaves edges untouched when child_listing_ids is omitted", async () => {
@@ -595,7 +595,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       }),
       200,
     );
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("admin API clears edges when child_listing_ids is an empty array", async () => {
@@ -609,7 +609,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       }),
       200,
     );
-    expect(await getChildIds(parent.id)).toEqual([]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("admin API rejects an invalid edge with no write", async () => {
@@ -628,7 +628,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
         expect(typeof json.error).toBe("string");
       },
     );
-    expect(await getChildIds(parent.id)).toEqual([]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("admin API blocks a child whose add-on only it can reach", async () => {
@@ -642,7 +642,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       }),
       400,
     );
-    expect(await getChildIds(parent.id)).toEqual([]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("blocks a child whose opt-in add-on only it can reach", async () => {
@@ -650,7 +650,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const child = await createTestListing({ name: "Add-on" });
     await optInAddOnForListings("Child-only extra", [child.id]);
     await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("allows a bookable_alone child whose opt-in add-on only it can reach", async () => {
@@ -663,7 +663,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     });
     await optInAddOnForListings("Child-only extra", [child.id]);
     await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("allows a child whose add-on is also scoped to the parent", async () => {
@@ -671,7 +671,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const child = await createTestListing({ name: "Add-on" });
     await optInAddOnForListings("Shared extra", [parent.id, child.id]);
     await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("allows a child whose add-on is scoped to a group containing the parent", async () => {
@@ -694,7 +694,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     });
     await linkModifierGroup(modifier.id, group.id);
     await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("blocks a child whose add-on is reachable only via a parent's group sibling", async () => {
@@ -713,7 +713,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const child = await createTestListing({ name: "Add-on" });
     await optInAddOnForListings("Sibling-only extra", [sibling.id, child.id]);
     await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("a listing save moving a parent out of a group orphans a group-scoped add-on (rejected)", async () => {
@@ -741,7 +741,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     await linkModifierGroup(modifier.id, group.id);
     // The edge is valid while the parent is in the group.
     await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
 
     // Moving the parent out of the group orphans the add-on, so the save is
     // blocked (400 with the child-add-on error) and the parent stays in its
@@ -798,7 +798,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     await linkModifierGroup(modifier.id, group.id);
     // Edge is valid while the child is ungrouped (add-on doesn't reach it).
     await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
 
     const res = await postListingEdit(child.id, { groupId: group.id });
     expect(res.status).toBe(400);
@@ -859,7 +859,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       400,
     );
     // Neither the edge nor the rename persisted.
-    expect(await getChildIds(parent.id)).toEqual([]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
     expect((await getListingWithCount(parent.id))?.name).toBe("Base unit");
   });
 
@@ -1223,7 +1223,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       max_attendees: 10,
       name: "New base unit",
     });
-    expect(await getChildIds(newId)).toEqual([child.id]);
+    expect(await listingChildren.getIds(newId)).toEqual([child.id]);
   });
 
   test("API update moving a parent's group so the add-on becomes unreachable is rejected", async () => {
@@ -1260,7 +1260,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // Neither the group move nor the edge change is partially applied; the
     // existing edge is preserved and the parent stays in its group.
     expect(await getGroupIdsByListingId(parent.id)).toContain(group.id);
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("duplicate child_listing_ids collapse to a single edge with no error", async () => {
@@ -1278,7 +1278,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       200,
     );
     // Exactly one edge, no error, no partial write.
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("duplicate child_listing_ids in the HTML children form collapse to one edge", async () => {
@@ -1288,30 +1288,29 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const res = await postChildren(parent.id, [child.id, child.id]);
     res.body?.cancel();
     expectFlash(res, "Required children updated");
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
-  test("addParentEdgesTx adds a child under each parent without disturbing others", async () => {
-    const { addParentEdgesTx, getChildIds: getChildIdsFn } = await import(
+  test("addIdsTx adds a child under each parent without disturbing others", async () => {
+    const { listingChildren, listingParents } = await import(
       "#shared/db/listing-parents.ts"
     );
-    const { setChildIds } = await import("#shared/db/listing-parents.ts");
     const { withTransaction } = await import("#shared/db/client.ts");
     const parentA = await createTestListing({ name: "Parent A" });
     const parentB = await createTestListing({ name: "Parent B" });
     const existingChild = await createTestListing({ name: "Existing Child" });
     const newChild = await createTestListing({ name: "New Child" });
     // parentA already has a child; adding newChild under both parents must keep it.
-    await setChildIds(parentA.id, [existingChild.id]);
+    await listingChildren.setIds(parentA.id, [existingChild.id]);
 
     await withTransaction((tx) =>
-      addParentEdgesTx(tx, newChild.id, [parentA.id, parentB.id]),
+      listingParents.addIdsTx(tx, newChild.id, [parentA.id, parentB.id]),
     );
 
-    expect(await getChildIdsFn(parentA.id)).toEqual([
+    expect(await listingChildren.getIds(parentA.id)).toEqual([
       existingChild.id,
       newChild.id,
     ]);
-    expect(await getChildIdsFn(parentB.id)).toEqual([newChild.id]);
+    expect(await listingChildren.getIds(parentB.id)).toEqual([newChild.id]);
   });
 });

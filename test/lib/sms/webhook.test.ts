@@ -5,6 +5,7 @@ import {
   findAttendeeIdByPhoneIndex,
   setAttendeePhoneIndexIfEmpty,
 } from "#shared/db/attendee-phone-index.ts";
+import { queryOne } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   getSmsMessageByProviderId,
@@ -95,6 +96,53 @@ describeWithEnv("sms phone index", { encryptionKey: true }, () => {
 });
 
 describeWithEnv("db > attendee phone index", { db: true }, () => {
+  /** The raw stored phone_index column for one attendee row. */
+  const storedPhoneIndex = async (attendeeId: number): Promise<string> => {
+    const row = await queryOne<{ phone_index: string }>(
+      "SELECT phone_index FROM attendees WHERE id = ?",
+      [attendeeId],
+    );
+    return row!.phone_index;
+  };
+
+  test("setAttendeePhoneIndexIfEmpty fills an empty column, for that attendee only", async () => {
+    const attendee = await makeAttendee();
+    const listing = await createTestListing({ maxAttendees: 100 });
+    const { attendee: other } = await createTestAttendeeDirect(
+      listing.id,
+      "Other",
+      "other@example.com",
+    );
+    const idx = await computePhoneIndex("+447700900123");
+
+    await setAttendeePhoneIndexIfEmpty(attendee.id, idx);
+
+    expect(await storedPhoneIndex(attendee.id)).toBe(idx);
+    // The write is keyed on the id — the other attendee stays unset.
+    expect(await storedPhoneIndex(other.id)).toBe("");
+  });
+
+  test("setAttendeePhoneIndexIfEmpty never overwrites an existing index", async () => {
+    const attendee = await makeAttendee();
+    const idx = await computePhoneIndex("+447700900123");
+    await setAttendeePhoneIndexIfEmpty(attendee.id, idx);
+
+    await setAttendeePhoneIndexIfEmpty(
+      attendee.id,
+      await computePhoneIndex("+447700900456"),
+    );
+
+    expect(await storedPhoneIndex(attendee.id)).toBe(idx);
+  });
+
+  test("setAttendeePhoneIndexIfEmpty with an empty index leaves the row unset", async () => {
+    const attendee = await makeAttendee();
+
+    await setAttendeePhoneIndexIfEmpty(attendee.id, "");
+
+    expect(await storedPhoneIndex(attendee.id)).toBe("");
+  });
+
   test("set is idempotent and lookup finds the attendee", async () => {
     const attendee = await makeAttendee();
     const idx = await computePhoneIndex("+447700900123");

@@ -1,3 +1,4 @@
+import type { InStatement, ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -7,14 +8,28 @@ import {
 } from "#shared/cache-registry.ts";
 import {
   execute,
+  executeUpdate,
   extractUpdateColumns,
   getDb,
+  inPlaceholders,
   insert,
   rawSql,
   resetAggregates,
+  rowExists,
   setDb,
+  update,
 } from "#shared/db/client.ts";
 import { describeWithEnv, setTestEnv } from "#test-utils";
+
+/** A minimal libsql ResultSet for stubbed execute/batch calls. */
+const emptyResultSet = (): ResultSet => ({
+  columns: [],
+  columnTypes: [],
+  lastInsertRowid: undefined,
+  rows: [],
+  rowsAffected: 0,
+  toJSON: () => ({}),
+});
 
 describe("extractUpdateColumns", () => {
   test("single column assignment", () => {
@@ -61,6 +76,15 @@ describe("extractUpdateColumns", () => {
     expect([...cols!].sort()).toEqual(["a", "b"]);
   });
 
+  test("depth scan starts at the very first character of the SET clause", () => {
+    // Synthetic SQL whose SET clause opens with "(": the paren-depth scan must
+    // see that first character, otherwise depth goes negative at ")" and the
+    // top-level comma never splits — losing the second assignment ("b").
+    const cols = extractUpdateColumns("UPDATE t SET (a) = 1, b = 2");
+    expect(cols).toBeDefined();
+    expect([...cols!].sort()).toEqual(["(a)", "b"]);
+  });
+
   test("returns null for non-UPDATE SQL (no SET clause)", () => {
     expect(extractUpdateColumns("INSERT INTO t (a) VALUES (?)")).toBeNull();
   });
@@ -92,14 +116,7 @@ describeWithEnv("invalidateForSql fallback path", { db: true }, () => {
       { whenColumns: ["col1"] },
     );
     const executeStub = stub(getDb(), "execute", () =>
-      Promise.resolve({
-        columns: [],
-        columnTypes: [],
-        lastInsertRowid: undefined,
-        rows: [],
-        rowsAffected: 0,
-        toJSON: () => ({}),
-      }),
+      Promise.resolve(emptyResultSet()),
     );
     try {
       // Empty SET clause → extractUpdateColumns returns null → fallback fires
@@ -197,6 +214,90 @@ describeWithEnv("db > client", { db: true }, () => {
     expect(row.rows[0]!.value).toBe("works");
   });
 
+  test("update builds sql and args, SET args before WHERE args", () => {
+    const stmt = update(
+      "attendees",
+      { pii_blob: "encrypted" },
+      { id: 4, kind: "attendee" },
+    );
+    expect(stmt.sql).toBe(
+      "UPDATE attendees SET pii_blob = ?" + " WHERE id = ? AND kind = ?",
+    );
+    expect(stmt.args).toEqual(["encrypted", 4, "attendee"]);
+  });
+
+  test("update supports rawSql expressions in SET", () => {
+    const stmt = update(
+      "listing_attendees",
+      { attachment_downloads: rawSql("attachment_downloads + 1") },
+      { attendee_id: 1, listing_id: 2 },
+    );
+    expect(stmt.sql).toBe(
+      "UPDATE listing_attendees" +
+        " SET attachment_downloads = attachment_downloads + 1" +
+        " WHERE attendee_id = ? AND listing_id = ?",
+    );
+    expect(stmt.args).toEqual([1, 2]);
+  });
+
+  test("update joins multiple SET assignments with commas", () => {
+    const stmt = update("listings", { name: "n", slug: "s" }, { id: 3 });
+    expect(stmt.sql).toBe(
+      "UPDATE listings SET name = ?, slug = ? WHERE id = ?",
+    );
+    expect(stmt.args).toEqual(["n", "s", 3]);
+  });
+
+  test("inPlaceholders builds one comma-separated placeholder per value", () => {
+    expect(inPlaceholders([10, 20, 30])).toBe("?, ?, ?");
+    expect(inPlaceholders([])).toBe("");
+  });
+
+  test("update passes null SET values as params", () => {
+    const stmt = update(
+      "listing_attendees",
+      { start_agent_id: null },
+      { start_agent_id: 7 },
+    );
+    expect(stmt.sql).toBe(
+      "UPDATE listing_attendees SET start_agent_id = ?" +
+        " WHERE start_agent_id = ?",
+    );
+    expect(stmt.args).toEqual([null, 7]);
+  });
+
+  test("executeUpdate writes the matched row", async () => {
+    await execute(
+      "INSERT INTO settings (key, value) VALUES ('update_test', 'before')",
+    );
+    const result = await executeUpdate(
+      "settings",
+      { value: "after" },
+      { key: "update_test" },
+    );
+    expect(result.rowsAffected).toBe(1);
+    const row = await getDb().execute(
+      "SELECT value FROM settings WHERE key = 'update_test'",
+    );
+    expect(row.rows[0]!.value).toBe("after");
+  });
+
+  test("executeUpdate leaves non-matching rows alone", async () => {
+    await execute(
+      "INSERT INTO settings (key, value) VALUES ('update_scope', 'kept')",
+    );
+    const result = await executeUpdate(
+      "settings",
+      { value: "clobbered" },
+      { key: "update_scope", value: "other" },
+    );
+    expect(result.rowsAffected).toBe(0);
+    const row = await getDb().execute(
+      "SELECT value FROM settings WHERE key = 'update_scope'",
+    );
+    expect(row.rows[0]!.value).toBe("kept");
+  });
+
   test("resetAggregates does not issue an empty update", async () => {
     const executeStub = stub(getDb(), "execute", () =>
       Promise.reject(new Error("unexpected aggregate reset query")),
@@ -207,5 +308,48 @@ describeWithEnv("db > client", { db: true }, () => {
     } finally {
       executeStub.restore();
     }
+  });
+
+  test("resetAggregates joins the reset expressions with commas", async () => {
+    const captured: InStatement[] = [];
+    const executeStub = stub(getDb(), "execute", (stmt: InStatement) => {
+      captured.push(stmt);
+      return Promise.resolve(emptyResultSet());
+    });
+    try {
+      await resetAggregates("agg_t", 7, ["a", "b"], {
+        a: "a = a + ?",
+        b: "b = ?",
+      });
+    } finally {
+      executeStub.restore();
+    }
+    // Two expressions must join into one valid SET clause, with the entity id
+    // bound once per field plus once for the WHERE.
+    expect(captured).toEqual([
+      {
+        args: [7, 7, 7],
+        sql: "UPDATE agg_t SET a = a + ?, b = ? WHERE id = ?",
+      },
+    ]);
+  });
+
+  test("rowExists is true when the probe matches a row", async () => {
+    await execute(
+      "INSERT INTO settings (key, value) VALUES ('exists_test', 'x')",
+    );
+    expect(
+      await rowExists("SELECT 1 FROM settings WHERE key = ? LIMIT 1", [
+        "exists_test",
+      ]),
+    ).toBe(true);
+  });
+
+  test("rowExists is false when no row matches", async () => {
+    expect(
+      await rowExists("SELECT 1 FROM settings WHERE key = ? LIMIT 1", [
+        "missing_key",
+      ]),
+    ).toBe(false);
   });
 });

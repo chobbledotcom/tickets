@@ -265,8 +265,8 @@ export const createTestAgentSession = async (
   const userId = (await getUserByUsername(username))!.id;
 
   if (opts.agentIds && opts.agentIds.length > 0) {
-    const { setUserAgentIds } = await import("#shared/db/user-agents.ts");
-    await setUserAgentIds(userId, opts.agentIds);
+    const { userAgents } = await import("#shared/db/user-agents.ts");
+    await userAgents.setIds(userId, opts.agentIds);
   }
 
   const wrappedDataKey = await wrapKeyWithToken(dataKey, token);

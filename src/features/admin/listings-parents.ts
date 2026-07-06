@@ -17,11 +17,10 @@ import {
   packageChildEdgeConflict,
 } from "#shared/db/groups.ts";
 import {
-  getChildIds,
   getChildrenForParents,
-  getParentIds,
   getParentsOf,
-  setChildIds,
+  listingChildren,
+  listingParents,
 } from "#shared/db/listing-parents.ts";
 import {
   getAllListings,
@@ -80,7 +79,7 @@ export const loadListingParentsSection = async (
 ): Promise<ListingParentsSection> => {
   const [allListings, childIds, offeredUnder] = await Promise.all([
     getAllListings(),
-    getChildIds(listing.id),
+    listingChildren.getIds(listing.id),
     getParentsOf(listing.id),
   ]);
   const others = allListings.filter((other) => other.id !== listing.id);
@@ -255,9 +254,9 @@ export const validateChildEdges = async (
   // which chosen children are themselves parents (childChildIds).
   const [parentIds, resolveChildOnlyAddOn, ...childChildIds] =
     await Promise.all([
-      getParentIds(parent.id),
+      listingParents.getIds(parent.id),
       childOnlyAddOnResolver(parent, options),
-      ...childIds.map((childId) => getChildIds(childId)),
+      ...childIds.map((childId) => listingChildren.getIds(childId)),
     ]);
   const children = childIds.map((childId, index) => ({
     isParent: childChildIds[index]!.length > 0,
@@ -297,7 +296,7 @@ export const copyDuplicatedChildEdges = async (
 ): Promise<string | null> => {
   const result = await validateChildEdges(newParent, childIds);
   if (!result.ok) return result.error;
-  await setChildIds(newParent.id, result.childIds);
+  await listingChildren.setIds(newParent.id, result.childIds);
   return null;
 };
 
@@ -314,7 +313,7 @@ const addChildrenToParent = async (
 ): Promise<string | null> => {
   // The parent always loads (it is a real listing referenced by an existing edge).
   const parent = (await getListingWithCount(parentId))!;
-  const existing = await getChildIds(parentId);
+  const existing = await listingChildren.getIds(parentId);
   return copyDuplicatedChildEdges(parent, [...existing, ...addChildIds]);
 };
 
@@ -350,7 +349,7 @@ export const remapDuplicatedGroupEdges = async (
   const errors: string[] = [];
   // Direction 1: outgoing edges of each cloned parent.
   for (const [sourceId, newId] of idMap) {
-    const sourceChildIds = await getChildIds(sourceId);
+    const sourceChildIds = await listingChildren.getIds(sourceId);
     if (sourceChildIds.length === 0) continue;
     const remapped = sourceChildIds.map(
       (childId) => idMap.get(childId) ?? childId,
@@ -367,7 +366,7 @@ export const remapDuplicatedGroupEdges = async (
   // preserved).
   const outsidePairs: { parentId: number; cloneId: number }[] = [];
   for (const [sourceId, cloneId] of idMap) {
-    const parentIds = await getParentIds(sourceId);
+    const parentIds = await listingParents.getIds(sourceId);
     for (const parentId of parentIds) {
       if (!idMap.has(parentId)) outsidePairs.push({ cloneId, parentId });
     }
@@ -413,7 +412,7 @@ export const handleAdminListingChildren: TypedRouteHandler<
           false,
         );
       }
-      await setChildIds(id, childIds);
+      await listingChildren.setIds(id, childIds);
       await logActivity(
         `Listing '${listing.name}' required children set to ${childIds.length} listing${
           childIds.length === 1 ? "" : "s"

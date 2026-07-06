@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
   answersTable,
   getAttendeeAnswersBatch,
@@ -389,8 +389,8 @@ describeWithEnv(
         maxQuantity: 10,
         name: "Shared add-on",
       });
-      await setChildIds(parentA.id, [child.id]);
-      await setChildIds(parentB.id, [child.id]);
+      await listingChildren.setIds(parentA.id, [child.id]);
+      await listingChildren.setIds(parentB.id, [child.id]);
 
       const slugs = `${parentA.slug}+${parentB.slug}`;
       const res = await postBooking(slugs, {
@@ -421,8 +421,8 @@ describeWithEnv(
         maxQuantity: 10,
         name: "Tight add-on",
       });
-      await setChildIds(parentA.id, [child.id]);
-      await setChildIds(parentB.id, [child.id]);
+      await listingChildren.setIds(parentA.id, [child.id]);
+      await listingChildren.setIds(parentB.id, [child.id]);
 
       const res = await postBooking(`${parentA.slug}+${parentB.slug}`, {
         email: "a@b.com",
@@ -467,8 +467,8 @@ describeWithEnv(
         name: "Shared donation",
         unitPrice: 1000,
       });
-      await setChildIds(parentA.id, [child.id]);
-      await setChildIds(parentB.id, [child.id]);
+      await listingChildren.setIds(parentA.id, [child.id]);
+      await listingChildren.setIds(parentB.id, [child.id]);
 
       const res = await postBooking(`${parentA.slug}+${parentB.slug}`, {
         email: "a@b.com",
@@ -1008,7 +1008,7 @@ describeWithEnv(
         bookableDays: DAY_NAMES.filter((d) => d !== parentDay),
         name: "Daily add-on",
       });
-      await setChildIds(parent.id, [child.id]);
+      await listingChildren.setIds(parent.id, [child.id]);
 
       const res = await postBooking(parent.slug, {
         date: parentDate,
@@ -1044,7 +1044,7 @@ describeWithEnv(
         bookableDays: DAY_NAMES.filter((d) => d !== parentDay),
         name: "Daily add-on",
       });
-      await setChildIds(parent.id, [child.id]);
+      await listingChildren.setIds(parent.id, [child.id]);
 
       const res = await postBooking(`${parent.slug}+${plain.slug}`, {
         date: parentDate,
@@ -1325,8 +1325,8 @@ describeWithEnv(
       const shared = await createDailyTestListing({ name: "Shared add-on" });
       const extraA = await createDailyTestListing({ name: "Extra A" });
       const extraB = await createDailyTestListing({ name: "Extra B" });
-      await setChildIds(parentA.id, [shared.id, extraA.id]);
-      await setChildIds(parentB.id, [shared.id, extraB.id]);
+      await listingChildren.setIds(parentA.id, [shared.id, extraA.id]);
+      await listingChildren.setIds(parentB.id, [shared.id, extraB.id]);
 
       const holidays = await getActiveHolidays();
       const mondayDate = getBookableStartDates(
@@ -1862,7 +1862,7 @@ describeWithEnv(
         bookableDays: [childDay],
         name: "Daily add-on",
       });
-      await setChildIds(parent.id, [child.id]);
+      await listingChildren.setIds(parent.id, [child.id]);
 
       const childRow = (await getListingWithCount(child.id))!;
       const childDates = getBookableStartDates(childRow, holidays);
@@ -2055,7 +2055,10 @@ describeWithEnv(
         bookableDays: [tuesdayName],
         name: "Inactive add-on",
       });
-      await setChildIds(parent.id, [activeChild.id, inactiveChild.id]);
+      await listingChildren.setIds(parent.id, [
+        activeChild.id,
+        inactiveChild.id,
+      ]);
       await deactivateTestListing(inactiveChild.id);
 
       const html = await bookingPageHtml(parent.slug);
@@ -2096,7 +2099,7 @@ describeWithEnv(
         name: "Mon-only add-on",
         unitPrice: 0,
       });
-      await setChildIds(parent.id, [child.id]);
+      await listingChildren.setIds(parent.id, [child.id]);
 
       const html = await bookingPageHtml(parent.slug);
       // No Monday→Wednesday span is valid for the child, so Monday is not offered.
@@ -2234,7 +2237,7 @@ describeWithEnv(
         name: "Standard add-on",
       });
       await createTestAttendee(child.id, child.slug, "Buyer", "b@x.com");
-      await setChildIds(parent.id, [child.id]);
+      await listingChildren.setIds(parent.id, [child.id]);
 
       const html = await bookingPageHtml(parent.slug);
       expect(html).toContain("Sorry, this listing is full.");
@@ -2330,7 +2333,7 @@ describeWithEnv(
         maxQuantity: 5,
         name: "Add-on shared",
       });
-      await setChildIds(parent.id, [sibling.id, sharedChild.id]);
+      await listingChildren.setIds(parent.id, [sibling.id, sharedChild.id]);
 
       const html = await bookingPageHtml(parent.slug);
       const sharedSelect = html.slice(
@@ -2441,7 +2444,7 @@ describeWithEnv(
         maxAttendees: 100,
         name: "Add-on",
       });
-      await setChildIds(parent.id, [child.id]);
+      await listingChildren.setIds(parent.id, [child.id]);
 
       const html = await bookingPageHtml(parent.slug);
       expect(html).not.toContain("Sorry, this listing is full.");
@@ -2477,7 +2480,7 @@ describeWithEnv(
         maxQuantity: 5,
         name: "Add-on two",
       });
-      await setChildIds(parent.id, [childOne.id, childTwo.id]);
+      await listingChildren.setIds(parent.id, [childOne.id, childTwo.id]);
 
       const html = await bookingPageHtml(parent.slug);
       const quantitySelect = html.slice(
@@ -2649,7 +2652,7 @@ describeWithEnv(
         bookableDays: [parentDay],
         name: "Daily add-on B",
       });
-      await setChildIds(parent.id, [childA.id, childB.id]);
+      await listingChildren.setIds(parent.id, [childA.id, childB.id]);
 
       const childBRow = (await getListingWithCount(childB.id))!;
       // Mark an active holiday on one of child B's serveable starts. The server's

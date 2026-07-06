@@ -30,11 +30,7 @@ import {
   logisticsAgentsTable,
 } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
-import {
-  clearUserAgentLinksForAgent,
-  getAgentUserIds,
-  setAgentUserIds,
-} from "#shared/db/user-agents.ts";
+import { agentUsers } from "#shared/db/user-agents.ts";
 import {
   decryptAdminLevel,
   decryptUsername,
@@ -95,7 +91,7 @@ const logisticsAgentsResource = defineNamedResource({
   nameField: "name",
   onDelete: async (id: InValue): Promise<void> => {
     await clearLogisticsAgentReferences(Number(id));
-    await clearUserAgentLinksForAgent(Number(id));
+    await agentUsers.clear(Number(id));
     await logisticsAgentsTable.deleteById(id);
   },
   table: logisticsAgentsTable,
@@ -145,7 +141,7 @@ const handleAgentEditGet: IdRouteHandler = (request, { id }) =>
     if (!agent) return notFoundResponse();
     const [users, selectedIds] = await Promise.all([
       loadAgentUserOptions(),
-      getAgentUserIds(id),
+      agentUsers.getIds(id),
     ]);
     return htmlResponse(
       adminLogisticsAgentEditPage(agent, users, new Set(selectedIds), session),
@@ -160,7 +156,7 @@ const handleAgentEditPost: IdRouteHandler = (request, { id }) =>
       if ("notFound" in result) return notFoundResponse();
       return errorRedirect(`/admin/logistics/${id}/edit`, result.error);
     }
-    await setAgentUserIds(id, await parseAssignedUserIds(form));
+    await agentUsers.setIds(id, await parseAssignedUserIds(form));
     await logActivity(`Logistics agent '${result.row.name}' updated`);
     return redirect("/admin/logistics", "Logistics agent updated", true);
   });

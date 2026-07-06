@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import {
   deleteManualLedgerEntry,
   MANUAL_ATTENDEE_CHARGE,
@@ -10,12 +11,15 @@ import {
   MANUAL_MODIFIER_INCOME,
   MANUAL_MODIFIER_REDUCTION,
   type ManualLedgerEntryType,
+  manualEntrySpecByType,
   manualLedgerEntryOptionsFor,
   postManualLedgerEntry,
   updateManualLedgerEntry,
 } from "#shared/accounting/manual-entries.ts";
 import { allTransfers } from "#shared/accounting/queries.ts";
+import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
+import { t } from "#shared/i18n.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
@@ -102,6 +106,53 @@ describe("db > accounting > manual ledger entries", () => {
     }
   });
 
+  test("derives the reference and event group from the manual-entry parts", async () => {
+    // Pin the nonce so the HMAC parts are fully known: the test recomputes both
+    // digests from the documented tuple — the "manual-ledger-entry" prefix, the
+    // entry type, the account, the nonce, and the reference's "transfer" leg
+    // part — so a drifted prefix or leg part changes the stored digests.
+    const nonce = "00000000-0000-4000-8000-000000000000" as const;
+    using _uuid = stub(crypto, "randomUUID", () => nonce);
+
+    await postManualLedgerEntry({
+      account: account("attendee", 1),
+      amount: 100,
+      occurredAt: "2026-06-22T09:30:00.000Z",
+      postedBy: "1",
+      type: MANUAL_ATTENDEE_PAYMENT,
+    });
+
+    const [stored] = await allTransfers();
+    const parts = [
+      "manual-ledger-entry",
+      MANUAL_ATTENDEE_PAYMENT,
+      "attendee",
+      "1",
+      nonce,
+    ];
+    expect(stored!.eventGroup).toBe(await eventGroup(parts));
+    expect(stored!.reference).toBe(await legReference([...parts, "transfer"]));
+  });
+
+  test("every entry type's label, hint and description keys have translations", () => {
+    // t() throws on a key missing from the locale files, so resolving every key
+    // proves the spec table and the en catalogue stay in sync.
+    for (const spec of Object.values(manualEntrySpecByType)) {
+      for (const key of [spec.labelKey, spec.hintKey, spec.descriptionKey]) {
+        expect(t(key).length).toBeGreaterThan(0);
+      }
+    }
+    // One spec spelled out in full: the copy the admin actually reads.
+    const payment = manualEntrySpecByType[MANUAL_ATTENDEE_PAYMENT];
+    expect(t(payment.labelKey)).toBe("Payment received outside checkout");
+    expect(t(payment.hintKey)).toBe(
+      "Use for cash, bank transfer, a separate card machine, vouchers, or another payment system.",
+    );
+    expect(t(payment.descriptionKey)).toBe(
+      "Payment received outside checkout for",
+    );
+  });
+
   test("rejects an entry type that does not belong to the account", async () => {
     await expect(
       postManualLedgerEntry({
@@ -164,6 +215,38 @@ describe("db > accounting > manual ledger entries", () => {
     // Identity and provenance are untouched by an amount/time edit.
     expect(after!.id).toBe(before!.id);
     expect(after!.reference).toBe(before!.reference);
+  });
+
+  test("edits only the targeted entry, leaving sibling manual entries alone", async () => {
+    // Two owner-entered rows on the same account: the update must be keyed on
+    // the transfer id, never bleed onto the account's other entries.
+    for (const type of [
+      MANUAL_ATTENDEE_PAYMENT,
+      MANUAL_ATTENDEE_CHARGE,
+    ] as const) {
+      await postManualLedgerEntry({
+        account: account("attendee", 1),
+        amount: 100,
+        occurredAt: "2026-06-22T09:30:00.000Z",
+        postedBy: "1",
+        type,
+      });
+    }
+    const findByKind = async (kind: string): Promise<Transfer> =>
+      (await allTransfers()).find((transfer) => transfer.kind === kind)!;
+
+    await updateManualLedgerEntry(
+      await findByKind(MANUAL_ATTENDEE_PAYMENT),
+      777,
+      "2026-06-25T12:00:00.000Z",
+    );
+
+    const untouched = await findByKind(MANUAL_ATTENDEE_CHARGE);
+    expect(untouched.amount).toBe(100);
+    expect(untouched.occurredAt).toBe("2026-06-22T09:30:00.000Z");
+    const edited = await findByKind(MANUAL_ATTENDEE_PAYMENT);
+    expect(edited.amount).toBe(777);
+    expect(edited.occurredAt).toBe("2026-06-25T12:00:00.000Z");
   });
 
   test("deletes an owner-entered entry", async () => {

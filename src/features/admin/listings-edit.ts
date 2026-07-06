@@ -30,7 +30,7 @@ import {
   getAllGroups,
   getGroupIdsByListingId,
 } from "#shared/db/groups.ts";
-import { getChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
   adjustListingIncome,
   getListingAggregateRecalculation,
@@ -154,7 +154,7 @@ const copyEdgesFromDuplicateSource = async (
   // The source's per-package price/quantity is copied onto the copy's membership
   // rows atomically in the create write's afterWrite (see buildCreateListingResource);
   // here we only carry the parent/child gate.
-  const childIds = await getChildIds(sourceId);
+  const childIds = await listingChildren.getIds(sourceId);
   if (childIds.length === 0) return null;
   // A HIDDEN package's member can't gate required children (its members are
   // collapsed to the package name, so a child selector would leak them), so a

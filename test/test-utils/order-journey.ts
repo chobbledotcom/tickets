@@ -21,7 +21,7 @@ import { handleRequest } from "#routes";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { setGroupPackageMembers, setListingGroups } from "#shared/db/groups.ts";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   PACKAGE_SELECT_PREFIX,
@@ -203,7 +203,7 @@ const mintCatalog = async (
       thankYouUrl: "",
       unitPrice: 0,
     });
-    await setChildIds(parentListing.id, [child.id]);
+    await listingChildren.setIds(parentListing.id, [child.id]);
     listings.set(parent.name, parentListing);
     listings.set(parent.childName, child);
   }

@@ -10,23 +10,25 @@
  * rows, so the updates are a harmless no-op.
  */
 
-import type { InValue } from "@libsql/client";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
+import { type SqlStatement, update } from "#shared/db/client.ts";
 
 export const repointAttendeeStatements = (
   fromAttendeeId: number,
   toAttendeeId: number,
-): { args: InValue[]; sql: string }[] => {
+): SqlStatement[] => {
   const from = attendeeAccount(fromAttendeeId);
   const to = attendeeAccount(toAttendeeId);
   return [
-    {
-      args: [to.id, from.type, from.id],
-      sql: "UPDATE transfers SET source_id = ? WHERE source_type = ? AND source_id = ?",
-    },
-    {
-      args: [to.id, from.type, from.id],
-      sql: "UPDATE transfers SET dest_id = ? WHERE dest_type = ? AND dest_id = ?",
-    },
+    update(
+      "transfers",
+      { source_id: to.id },
+      { source_id: from.id, source_type: from.type },
+    ),
+    update(
+      "transfers",
+      { dest_id: to.id },
+      { dest_id: from.id, dest_type: from.type },
+    ),
   ];
 };

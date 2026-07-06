@@ -2,7 +2,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import { getDb } from "#shared/db/client.ts";
-import { insertEmailTemplate } from "#shared/db/email-templates.ts";
+import {
+  deleteEmailTemplate,
+  getAllRawEmailTemplates,
+  getRawEmailTemplate,
+  insertEmailTemplate,
+  updateEmailTemplate,
+} from "#shared/db/email-templates.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
 import {
@@ -23,6 +29,59 @@ const seedTemplate = async (subject: string, body: string) => {
 };
 
 describeWithEnv("server bulk email > templates", { db: true }, () => {
+  describe("raw template storage", () => {
+    // The module stores opaque TEXT (the routes encrypt before writing), so
+    // these direct tests can round-trip plain strings.
+    test("insert then getRawEmailTemplate returns the stored row", async () => {
+      const id = await insertEmailTemplate("enc-subject", "enc-body");
+      expect(await getRawEmailTemplate(id)).toEqual({
+        body: "enc-body",
+        id,
+        subject: "enc-subject",
+      });
+    });
+
+    test("getRawEmailTemplate returns null for an unknown id", async () => {
+      expect(await getRawEmailTemplate(9999)).toBeNull();
+    });
+
+    test("updateEmailTemplate persists the new subject and body for that row only", async () => {
+      const edited = await insertEmailTemplate("old-subject", "old-body");
+      const untouched = await insertEmailTemplate("keep-subject", "keep-body");
+
+      await updateEmailTemplate(edited, "new-subject", "new-body");
+
+      expect(await getRawEmailTemplate(edited)).toEqual({
+        body: "new-body",
+        id: edited,
+        subject: "new-subject",
+      });
+      expect(await getRawEmailTemplate(untouched)).toEqual({
+        body: "keep-body",
+        id: untouched,
+        subject: "keep-subject",
+      });
+    });
+
+    test("deleteEmailTemplate removes the row", async () => {
+      const doomed = await insertEmailTemplate("bye-subject", "bye-body");
+      const kept = await insertEmailTemplate("stay-subject", "stay-body");
+
+      await deleteEmailTemplate(doomed);
+
+      expect(await getRawEmailTemplate(doomed)).toBeNull();
+      expect((await getRawEmailTemplate(kept))?.subject).toBe("stay-subject");
+    });
+
+    test("getAllRawEmailTemplates lists every template newest-first", async () => {
+      const first = await insertEmailTemplate("first-subject", "first-body");
+      const second = await insertEmailTemplate("second-subject", "second-body");
+      expect(
+        (await getAllRawEmailTemplates()).map((template) => template.id),
+      ).toEqual([second, first]);
+    });
+  });
+
   describe("email templates", () => {
     test("compose page lists saved templates", async () => {
       await seedTemplate("My Newsletter", "Hello everyone");

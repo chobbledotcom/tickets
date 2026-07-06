@@ -67,6 +67,35 @@ describeWithEnv(
       expect(diffDays).toBe(1);
     });
 
+    test("only rewrites the given listing's rows, not another listing's", async () => {
+      const target = await createDailyTestListing({
+        maxAttendees: 5,
+        maximumDaysAfter: 30,
+      });
+      const other = await createDailyTestListing({
+        maxAttendees: 5,
+        maximumDaysAfter: 30,
+      });
+      await createAttendeeAtomic({
+        bookings: [
+          { date: "2026-05-01", listingId: target.id, quantity: 1 },
+          { date: "2026-05-01", listingId: other.id, quantity: 1 },
+        ],
+        email: "scope@example.com",
+        name: "Scope",
+      });
+
+      await recomputeListingBookingRanges(target.id, 5);
+
+      expect(String((await getRow(target.id)).end_at)).toBe(
+        "2026-05-06T00:00:00.000Z",
+      );
+      // The other listing's booking keeps its original one-day range.
+      expect(String((await getRow(other.id)).end_at)).toBe(
+        "2026-05-02T00:00:00.000Z",
+      );
+    });
+
     test("leaves non-daily (NULL start_at) rows alone", async () => {
       const daily = await createDailyTestListing({
         maxAttendees: 5,

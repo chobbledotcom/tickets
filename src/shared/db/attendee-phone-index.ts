@@ -3,7 +3,7 @@
  */
 
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { executeUpdate, queryOne } from "#shared/db/client.ts";
 
 /**
  * Store the phone blind-index on an attendee, but only if one isn't set yet.
@@ -14,9 +14,11 @@ export const setAttendeePhoneIndexIfEmpty = async (
   phoneIndex: string,
 ): Promise<void> => {
   if (!phoneIndex) return;
-  await execute(
-    "UPDATE attendees SET phone_index = ? WHERE id = ? AND phone_index = ''",
-    [phoneIndex, attendeeId],
+  // The `phone_index: ""` condition scopes the write to a not-yet-set row.
+  await executeUpdate(
+    "attendees",
+    { phone_index: phoneIndex },
+    { id: attendeeId, phone_index: "" },
   );
 };
 

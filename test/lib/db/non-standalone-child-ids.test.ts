@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import {
   anyNonStandaloneChild,
   getNonStandaloneChildIds,
-  setChildIds,
+  listingChildren,
 } from "#shared/db/listing-parents.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
@@ -18,7 +18,7 @@ describeWithEnv(
     const parentWithChild = async (bookableAlone: boolean, label = "") => {
       const parent = await createTestListing({ name: `Picker${label}` });
       const child = await createTestListing({ name: `Widget${label}` });
-      await setChildIds(parent.id, [child.id]);
+      await listingChildren.setIds(parent.id, [child.id]);
       if (bookableAlone) {
         await listingsTable.update(child.id, { bookableAlone: true });
       }

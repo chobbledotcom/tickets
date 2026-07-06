@@ -317,8 +317,10 @@ describeWithEnv("db > site-pages", { db: true }, () => {
 
     test("swapPageItemOrder swaps by full composite key", async () => {
       const p = await makePage("swap");
+      const q = await makePage("swap-other");
       await addPageItem(p.id, "listing", 5);
       await addPageItem(p.id, "group", 5);
+      await addPageItem(q.id, "listing", 5); // same type+id on ANOTHER page
       await swapPageItemOrder(
         p.id,
         { id: 5, type: "listing" },
@@ -329,6 +331,8 @@ describeWithEnv("db > site-pages", { db: true }, () => {
         { item_id: 5, item_type: "group", page_id: p.id, sort_order: 0 },
         { item_id: 5, item_type: "listing", page_id: p.id, sort_order: 1 },
       ]);
+      // page_id is part of the match: the other page's row is untouched.
+      expect((await getItemsForPage(q.id))[0]?.sort_order).toBe(0);
     });
 
     test("swapPageItemOrder is a no-op when an item is missing", async () => {

@@ -5,9 +5,13 @@ import {
   modifierAccount,
   revenueAccount,
 } from "#shared/accounting/accounts.ts";
+import { mapBooking } from "#shared/accounting/mappers.ts";
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
-import { bookingBatchPlan } from "#shared/checkout-complete.ts";
+import {
+  bookingBatchPlan,
+  postBookingLegsTx,
+} from "#shared/checkout-complete.ts";
 import type {
   ModifierApplication,
   PricedLine,
@@ -18,6 +22,7 @@ import {
   createBookingAtomic,
   getAttendeesRaw,
 } from "#shared/db/attendees.ts";
+import { queryOne, withTransaction } from "#shared/db/client.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
@@ -119,6 +124,15 @@ const expectCapacityExceeded = async (
   await expectNothingWritten(listingId, transferCount);
 };
 
+/** The stored ledger_event_group stamp on an attendee's booking row. */
+const storedEventGroup = async (attendeeId: number): Promise<string> => {
+  const row = await queryOne<{ ledger_event_group: string }>(
+    "SELECT ledger_event_group FROM listing_attendees WHERE attendee_id = ?",
+    [attendeeId],
+  );
+  return row!.ledger_event_group;
+};
+
 describeWithEnv("db > createBookingAtomic", { db: true }, () => {
   test("posts legs, consumes modifier stock, and finalizes the session in one batch", async () => {
     const listing = await createTestListing({
@@ -158,6 +172,10 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     // Session finalized atomically: attendee_id set in the same batch.
     const session = await isSessionProcessed("sess_batch_ok");
     expect(session!.attendee_id).toBe(attendeeId);
+    // The booking row is stamped with the legs' event group, so the per-row
+    // amount-paid projection resolves exactly this booking's legs.
+    expect(plan.legs.length).toBeGreaterThan(0);
+    expect(await storedEventGroup(attendeeId)).toBe(plan.legs[0]!.eventGroup);
   });
 
   test("returns 'sold-out' and writes nothing when a chosen modifier is sold out", async () => {
@@ -231,6 +249,69 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     expect(result.attendees.length).toBe(1);
     // No money moved, no event-group stamp written.
     expect((await allTransfers()).length).toBe(0);
+    expect(await storedEventGroup(result.attendees[0]!.id)).toBe("");
+  });
+
+  test("postBookingLegsTx stamps a one-leg owed booking's event group", async () => {
+    // The transactional poster (owed bookings, manual adds) — distinct from
+    // the batch path above. An owed booking posts exactly one sale leg, so
+    // the stamp must come from the first (only) leg.
+    const listing = await createTestListing({ maxAttendees: 5, unitPrice: 0 });
+    const { plan } = await buildPlan({
+      eventId: "owed-stamp",
+      lines: [line(listing.id, 0, 1)],
+    });
+    const result = await createBookingAtomic(
+      {
+        bookings: [{ listingId: listing.id, quantity: 1 }],
+        email: "o@o.o",
+        name: "O",
+      },
+      plan,
+    );
+    if (result === "sold-out" || !result.success)
+      throw new Error("expected ok");
+    const attendeeId = result.attendees[0]!.id;
+
+    const legs = await mapBooking({
+      amountPaid: 0,
+      attendeeId,
+      bookingFee: 0,
+      eventId: `booking-${attendeeId}`,
+      lines: [{ gross: 500, listingId: listing.id }],
+      modifiers: [],
+      occurredAt: OCCURRED_AT,
+    });
+    expect(legs.length).toBe(1);
+    await withTransaction((tx) => postBookingLegsTx(tx, attendeeId, legs));
+
+    expect(await storedEventGroup(attendeeId)).toBe(legs[0]!.eventGroup);
+    expect(await accountBalance(attendeeAccount(attendeeId))).toBe(-500);
+  });
+
+  test("postBookingLegsTx leaves the stamp empty and posts nothing for no legs", async () => {
+    const listing = await createTestListing({ maxAttendees: 5, unitPrice: 0 });
+    const { plan } = await buildPlan({
+      eventId: "owed-empty",
+      lines: [line(listing.id, 0, 1)],
+    });
+    const result = await createBookingAtomic(
+      {
+        bookings: [{ listingId: listing.id, quantity: 1 }],
+        email: "e@e.e",
+        name: "E",
+      },
+      plan,
+    );
+    if (result === "sold-out" || !result.success)
+      throw new Error("expected ok");
+    const attendeeId = result.attendees[0]!.id;
+    const transfersBefore = (await allTransfers()).length;
+
+    await withTransaction((tx) => postBookingLegsTx(tx, attendeeId, []));
+
+    expect(await storedEventGroup(attendeeId)).toBe("");
+    expect((await allTransfers()).length).toBe(transfersBefore);
   });
 
   test("blames capacity, not the modifiers, when the booking fails but every modifier still has stock", async () => {

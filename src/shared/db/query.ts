@@ -4,6 +4,7 @@ import {
   inPlaceholders,
   queryAll,
   resultRows,
+  update,
   withTransaction,
 } from "#shared/db/client.ts";
 
@@ -44,14 +45,8 @@ export const swapSortOrder = (
     // No-op when either row is gone (a stale click racing a delete): binding
     // an undefined sort_order would fail the NOT NULL constraint with a 500.
     if (order1 === undefined || order2 === undefined) return;
-    await tx.execute({
-      args: [order2, id1],
-      sql: `UPDATE ${table} SET sort_order = ? WHERE id = ?`,
-    });
-    await tx.execute({
-      args: [order1, id2],
-      sql: `UPDATE ${table} SET sort_order = ? WHERE id = ?`,
-    });
+    await tx.execute(update(table, { sort_order: order2 }, { id: id1 }));
+    await tx.execute(update(table, { sort_order: order1 }, { id: id2 }));
   });
 
 /**
@@ -59,7 +54,7 @@ export const swapSortOrder = (
  * empty. `buildSql` receives the bound `?`-placeholder list for `ids`, so `ids`
  * are the only query args. The base skeleton for the id-map helpers below.
  */
-export const rowsByIds = async <Row>(
+const rowsByIds = async <Row>(
   ids: number[],
   buildSql: (placeholders: string) => string,
 ): Promise<Row[]> =>

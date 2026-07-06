@@ -20,7 +20,7 @@ import {
   packageChildEdgeConflict,
   setListingGroupsTx,
 } from "#shared/db/groups.ts";
-import { setChildIdsTx } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
   syncListingPrices,
   writeListingDayCounts,
@@ -505,7 +505,7 @@ const persistListingJoins = async (
   value: PreparedListingJoins,
 ): Promise<void> => {
   if (value.childEdges !== null) {
-    await setChildIdsTx(tx, listingId, value.childEdges);
+    await listingChildren.setIdsTx(tx, listingId, value.childEdges);
   }
   if (value.groupIds !== undefined) {
     await setListingGroupsTx(tx, listingId, value.groupIds);

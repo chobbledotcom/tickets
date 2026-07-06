@@ -12,7 +12,7 @@ import {
   getGroupPackagePrices,
   groupsTable,
 } from "#shared/db/groups.ts";
-import { getChildIds, setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
   adminFormPost,
   adminGet,
@@ -383,7 +383,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     const group = await createTestGroup({ name: "ParentG", slug: "parent-g" });
     const parent = await member(group, "Parent Member");
     const child = await createTestListing({ name: "Child Of Parent" });
-    await setChildIds(parent.id, [child.id]);
+    await listingChildren.setIds(parent.id, [child.id]);
     // A VISIBLE package renders the member's child selector, so a parent
     // member is fine…
     await expectPackageAccepted(group);
@@ -408,7 +408,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     const group = await createTestGroup({ name: "ChildG", slug: "child-g" });
     const childMember = await member(group, "Child Member");
     const parent = await createTestListing({ name: "Outside Gate" });
-    await setChildIds(parent.id, [childMember.id]);
+    await listingChildren.setIds(parent.id, [childMember.id]);
     // A package member is only ever sold as part of its bundle, so a listing
     // folded under another parent can't be packaged — visible or not.
     await expectPackageRejected(group);
@@ -422,7 +422,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     });
     const parent = await createTestListing({ name: "Outside Parent" });
     const child = await createTestListing({ name: "Child Add" });
-    await setChildIds(parent.id, [child.id]);
+    await listingChildren.setIds(parent.id, [child.id]);
 
     await expectAddListingRejected(group, child.id);
   });
@@ -502,7 +502,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
   test("the listings API lets a parent join a visible package but not a hidden one", async () => {
     const parent = await createTestListing({ name: "Parent List" });
     const child = await createTestListing({ name: "Child List" });
-    await setChildIds(parent.id, [child.id]);
+    await listingChildren.setIds(parent.id, [child.id]);
 
     // A visible package renders the member's child selector, so the parent
     // joins with its gate intact.
@@ -518,7 +518,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       }),
       200,
     );
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
 
     // A hidden package collapses members to the package name, so a member's
     // child selector would leak them — the join is rejected.
@@ -643,7 +643,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       expect.stringContaining("Packages cannot contain"),
       false,
     )(response);
-    expect(await getChildIds(parent.id)).toEqual([]);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("the children sub-form lets a visible package's member gain children, but not a hidden one's", async () => {
@@ -662,8 +662,8 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       { child_listing_ids: String(child.id) },
     );
     expect(accepted.status).toBe(302);
-    expect(await getChildIds(memberListing.id)).toEqual([child.id]);
-    await setChildIds(memberListing.id, []);
+    expect(await listingChildren.getIds(memberListing.id)).toEqual([child.id]);
+    await listingChildren.setIds(memberListing.id, []);
 
     // Hidden package: the same edge would leak the collapsed member.
     await groupsTable.update(group.id, { hidePackageListings: true });
@@ -676,7 +676,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       expect.stringContaining("Packages cannot contain"),
       false,
     )(response);
-    expect(await getChildIds(memberListing.id)).toEqual([]);
+    expect(await listingChildren.getIds(memberListing.id)).toEqual([]);
   });
 
   test("edit POST without is_package clears the package flag and overrides", async () => {
