@@ -726,6 +726,24 @@ export const getListingsById = async (): Promise<
   Map<number, ListingWithCount>
 > => new Map((await getAllListings()).map((l) => [l.id, l]));
 
+/** The narrow projection an item picker needs: id, name, and active for every
+ * listing. Selects and decrypts only the name rather than warming the whole
+ * listings cache. Ordered by id for a stable list. */
+export type ListingOption = { active: boolean; id: number; name: string };
+
+export const getAllListingOptions = async (): Promise<ListingOption[]> => {
+  const rows = await queryAll<{ active: number; id: number; name: string }>(
+    "SELECT listing.id, listing.name, listing.active FROM listings AS listing ORDER BY listing.id ASC",
+  );
+  return mapParallel(
+    async (row: { active: number; id: number; name: string }) => ({
+      active: row.active === 1,
+      id: row.id,
+      name: await decrypt(row.name),
+    }),
+  )(rows);
+};
+
 /** Bounded id → name lookup for the given listings: selects and decrypts only
  * their names, rather than loading the whole listings cache like getAllListings.
  * Empty ids ⇒ empty map (no query). Used for link labels in the activity log. */

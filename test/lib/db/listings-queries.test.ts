@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeNamesByIds } from "#shared/db/attendees.ts";
 import {
+  getAllListingOptions,
   getListingNamesByIds,
   getListingsBySlugsBatch,
   getListingWithAttendeeRaw,
@@ -9,10 +10,16 @@ import {
   getListingWithCount,
   getStoredListingWithCount,
 } from "#shared/db/listings.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   createTestAttendee,
   createTestListing,
+  deactivateTestListing,
   describeWithEnv,
   getTestPrivateKey,
 } from "#test-utils";
@@ -159,6 +166,32 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   });
 
   describe("bounded name lookups", () => {
+    test("getAllListingOptions returns every listing's decrypted name and active flag through the narrow projection", async () => {
+      const alpha = await createTestListing({
+        maxAttendees: 10,
+        name: "Alpha",
+      });
+      const beta = await createTestListing({ maxAttendees: 10, name: "Beta" });
+      await deactivateTestListing(beta.id);
+
+      await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        const options = await getAllListingOptions();
+
+        expect(options).toEqual([
+          { active: true, id: alpha.id, name: "Alpha" },
+          { active: false, id: beta.id, name: "Beta" },
+        ]);
+        expect(getQueryLog().map((entry) => entry.sql)).toEqual([
+          "SELECT listing.id, listing.name, listing.active FROM listings AS listing ORDER BY listing.id ASC",
+        ]);
+      });
+    });
+
+    test("getAllListingOptions returns an empty list with no listings", async () => {
+      expect(await getAllListingOptions()).toEqual([]);
+    });
+
     test("getListingNamesByIds returns decrypted names only for the given ids", async () => {
       const alpha = await createTestListing({
         maxAttendees: 10,
