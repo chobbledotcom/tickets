@@ -235,14 +235,15 @@ describe("adminModifierEditPage scope editor", () => {
       undefined,
       {
         kind: "listings",
-        options: [{ id: 7, name: "VIP Pass" }],
+        options: [{ active: true, id: 7, name: "VIP Pass" }],
         selected: [7],
       },
     );
-    expect(html).toContain("Linked listings");
+    expect(html).toContain("<strong>Linked listings (1):</strong>");
     expect(html).toContain("VIP Pass");
-    expect(html).toContain('name="listing_ids"');
-    expect(html).toContain("checked");
+    expect(html).toContain(
+      'checked name="listing_ids" type="checkbox" value="7"',
+    );
   });
 
   test("renders group checkboxes for a groups-scoped modifier", () => {
@@ -250,11 +251,37 @@ describe("adminModifierEditPage scope editor", () => {
       mod({ scope: "groups" }),
       SESSION,
       undefined,
-      { kind: "groups", options: [{ id: 3, name: "Weekend" }], selected: [] },
+      {
+        kind: "groups",
+        options: [{ active: true, id: 3, name: "Weekend" }],
+        selected: [],
+      },
     );
-    expect(html).toContain("Linked groups");
+    expect(html).toContain("<strong>Linked groups (0):</strong>");
     expect(html).toContain("Weekend");
-    expect(html).toContain('name="group_ids"');
+    expect(html).toContain('name="group_ids" type="checkbox" value="3"');
+  });
+
+  test("sorts a deactivated scope listing last and renders it muted", () => {
+    const html = adminModifierEditPage(
+      mod({ scope: "listings" }),
+      SESSION,
+      undefined,
+      {
+        kind: "listings",
+        options: [
+          { active: false, id: 7, name: "Retired Pass" },
+          { active: true, id: 8, name: "Live Pass" },
+        ],
+        selected: [],
+      },
+    );
+    const live = html.indexOf('value="8"');
+    const retired = html.indexOf(
+      '<label class="muted"><input name="listing_ids" type="checkbox" value="7"',
+    );
+    expect(live).toBeGreaterThan(-1);
+    expect(retired).toBeGreaterThan(live);
   });
 
   test("shows an empty note when nothing is linkable", () => {
@@ -290,14 +317,16 @@ describe("adminModifierEditPage answer editor", () => {
         selected: [10],
       },
     );
-    expect(html).toContain("Linked answers");
+    expect(html).toContain("<strong>Linked answers (1):</strong>");
     expect(html).toContain("Size — Large");
     expect(html).toContain("/admin/modifiers/1/answers");
     // The linked answer (10) is checked; the unlinked one (11) is not.
     expect(html).toContain(
       'checked name="answer_ids" type="checkbox" value="10"',
     );
-    expect(html).toContain('name="answer_ids" type="checkbox" value="11"');
+    expect(html).toContain(
+      '<label><input name="answer_ids" type="checkbox" value="11"',
+    );
   });
 
   test("shows an empty note when there are no answers to link", () => {

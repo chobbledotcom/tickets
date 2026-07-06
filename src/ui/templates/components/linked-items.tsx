@@ -4,9 +4,14 @@
  * labelled row in a list; with a single type the heading and checkboxes share
  * one wrapping line. The heading counts the items currently linked, and
  * deactivated items sort to the end of their row and render muted.
+ *
+ * The heading wording defaults to "Linked …" but is overridable per caller (an
+ * "add these" picker reads "Add listings:", a read-back reads "Current …"),
+ * which is what lets the same component back every checkbox-list on the site.
  */
 
 import { t } from "#i18n";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 
 export type LinkedItemOption = {
@@ -22,6 +27,34 @@ export type LinkedItemGroup = {
   label: string;
   options: readonly LinkedItemOption[];
 };
+
+/** Builds the heading from the linked count and the lowercased type name
+ * (`type` is null for a multi-type list). Pass a custom one to change the
+ * wording — e.g. an "Add {type}:" picker heading with no count. */
+export type LinkedItemsHeading = (args: {
+  count: number;
+  type: string | null;
+}) => Child;
+
+/** Map plain `{id, name, active}` rows plus the set of linked ids into checkbox
+ * options — the shared shape every simple (id-valued) caller feeds the list. */
+export const toLinkedItemOptions = (
+  options: readonly { active: boolean; id: number; name: string }[],
+  selectedIds: Iterable<number>,
+): LinkedItemOption[] => {
+  const selected = new Set(selectedIds);
+  return options.map((option) => ({
+    active: option.active,
+    checked: selected.has(option.id),
+    label: option.name,
+    value: String(option.id),
+  }));
+};
+
+const defaultHeading: LinkedItemsHeading = ({ count, type }) =>
+  type === null
+    ? t("linked_items.heading", { count })
+    : t("linked_items.heading_typed", { count, type });
 
 const activeFirst = (
   options: readonly LinkedItemOption[],
@@ -50,10 +83,17 @@ const optionCheckboxes =
 export const LinkedItemsCheckboxes = ({
   groups,
   name,
+  heading = defaultHeading,
+  leading,
 }: {
   groups: readonly LinkedItemGroup[];
   /** The checkbox input name shared by every option. */
   name: string;
+  /** Override the default "Linked …" heading wording. */
+  heading?: LinkedItemsHeading | undefined;
+  /** Rendered inside a single-type list, before its checkboxes (e.g. a
+   * "select all" toggle). */
+  leading?: Child | undefined;
 }): JSX.Element => {
   const withOptions = groups.filter((group) => group.options.length > 0);
   const checkboxes = optionCheckboxes(name);
@@ -62,12 +102,8 @@ export const LinkedItemsCheckboxes = ({
   if (only) {
     return (
       <fieldset class="checkboxes">
-        <strong>
-          {t("linked_items.heading_typed", {
-            count,
-            type: only.label.toLowerCase(),
-          })}
-        </strong>
+        <strong>{heading({ count, type: only.label.toLowerCase() })}</strong>
+        {leading}
         {checkboxes(only.options)}
       </fieldset>
     );
@@ -75,7 +111,7 @@ export const LinkedItemsCheckboxes = ({
   return (
     <>
       <p>
-        <strong>{t("linked_items.heading", { count })}</strong>
+        <strong>{heading({ count, type: null })}</strong>
       </p>
       <ul class="linked-items">
         {withOptions.map((group) => (

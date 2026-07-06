@@ -35,6 +35,10 @@ import {
   CheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
 import {
+  LinkedItemsCheckboxes,
+  toLinkedItemOptions,
+} from "#templates/components/linked-items.tsx";
+import {
   ReorderArrows,
   type ReorderProps,
 } from "#templates/components/reorder.tsx";
@@ -278,25 +282,38 @@ export const adminQuestionPage = (
           <em>No listings yet.</em>
         </p>
       ) : (
-        <CheckboxForm
+        <CsrfForm
           action={`/admin/questions/${question.id}/listings`}
           id="question-listings"
-          submitLabel="Save Listings"
         >
-          <CheckboxLabel
-            checked={question.assign_all || undefined}
-            label=" Assign to all listings"
-            name="assign_all"
+          <LinkedItemsCheckboxes
+            groups={[
+              {
+                label: t("terms.listings"),
+                options: toLinkedItemOptions(allListings, assignedListingIds),
+              },
+            ]}
+            // assign_all applies the question to every listing regardless of the
+            // individually-ticked ids (which may be empty), so show "(all)"
+            // rather than a misleading count of the stored id set.
+            heading={
+              question.assign_all
+                ? ({ type }) => t("questions.linked_all_listings", { type })
+                : undefined
+            }
+            leading={
+              <CheckboxLabel
+                checked={question.assign_all || undefined}
+                label={t("questions.assign_all_listings")}
+                name="assign_all"
+              />
+            }
+            name="listing_ids"
           />
-          {map((e: ListingWithCount) => (
-            <CheckboxLabel
-              checked={assignedListingIds.has(e.id) || undefined}
-              label={` ${e.name}`}
-              name="listing_ids"
-              value={String(e.id)}
-            />
-          ))(allListings)}
-        </CheckboxForm>
+          <SubmitButton icon="save">
+            {t("questions.save_listings")}
+          </SubmitButton>
+        </CsrfForm>
       )}
 
       <p>

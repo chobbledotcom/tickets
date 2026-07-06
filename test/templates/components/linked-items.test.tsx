@@ -4,6 +4,7 @@ import {
   type LinkedItemGroup,
   type LinkedItemOption,
   LinkedItemsCheckboxes,
+  toLinkedItemOptions,
 } from "#templates/components/linked-items.tsx";
 
 const option = (
@@ -111,5 +112,56 @@ describe("LinkedItemsCheckboxes", () => {
     ]);
 
     expect(html).toContain("<strong>Linked listings (1):</strong>");
+  });
+
+  test("applies a custom heading and renders the leading control first", () => {
+    const html = String(
+      LinkedItemsCheckboxes({
+        groups: [{ label: "Listings", options: [option("listing:1")] }],
+        heading: ({ type }) => `Add ${type}:`,
+        leading: (
+          <label>
+            <input name="all" type="checkbox" />
+            All
+          </label>
+        ),
+        name: "linked",
+      }),
+    );
+
+    expect(html).toContain("<strong>Add listings:</strong>");
+    expect(html).not.toContain("Linked");
+    const leading = html.indexOf('name="all"');
+    const firstOption = html.indexOf('name="linked"');
+    expect(leading).toBeGreaterThan(-1);
+    expect(firstOption).toBeGreaterThan(leading);
+  });
+});
+
+describe("toLinkedItemOptions", () => {
+  test("maps id/name/active rows and checks the selected ids", () => {
+    const options = toLinkedItemOptions(
+      [
+        { active: true, id: 1, name: "First" },
+        { active: false, id: 2, name: "Second" },
+      ],
+      new Set([2]),
+    );
+
+    expect(options).toEqual([
+      { active: true, checked: false, label: "First", value: "1" },
+      { active: false, checked: true, label: "Second", value: "2" },
+    ]);
+  });
+
+  test("accepts an array of selected ids and leaves unlisted ones unchecked", () => {
+    const options = toLinkedItemOptions(
+      [{ active: true, id: 5, name: "Only" }],
+      [],
+    );
+
+    expect(options).toEqual([
+      { active: true, checked: false, label: "Only", value: "5" },
+    ]);
   });
 });

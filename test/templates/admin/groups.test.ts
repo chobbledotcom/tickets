@@ -148,9 +148,26 @@ describe("GroupOverviewPanel", () => {
       group,
       ungroupedListings: [testListingWithCount({ id: 7, name: "Joinable" })],
     });
-    expect(html).toContain("Add Listings to Group");
+    expect(html).toContain("<strong>Add listings:</strong>");
     expect(html).toContain('value="7"');
     expect(html).toContain("Joinable");
+  });
+
+  test("shows deactivated candidates muted and last in the add-to-group list", () => {
+    const group = testGroup({ name: "Target" });
+    const html = overviewHtml({
+      group,
+      ungroupedListings: [
+        testListingWithCount({ active: false, id: 7, name: "Retired" }),
+        testListingWithCount({ active: true, id: 8, name: "Live" }),
+      ],
+    });
+    const live = html.indexOf('value="8"');
+    const retired = html.indexOf(
+      '<label class="muted"><input name="listing_ids" type="checkbox" value="7"',
+    );
+    expect(live).toBeGreaterThan(-1);
+    expect(retired).toBeGreaterThan(live);
   });
 });
 

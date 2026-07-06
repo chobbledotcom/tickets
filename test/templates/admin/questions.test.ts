@@ -260,11 +260,61 @@ describe("adminQuestionPage", () => {
       TEST_LISTINGS,
     );
     expect(html).toContain('action="/admin/questions/1/listings"');
+    expect(html).toContain("<strong>Linked listings (0):</strong>");
     expect(html).toContain('name="listing_ids"');
     expect(html).toContain('value="1"');
     expect(html).toContain('value="2"');
     expect(html).toContain("Spring Gig");
     expect(html).toContain("Summer Gig");
+  });
+
+  test("renders the assign-to-all toggle before the listing checkboxes", () => {
+    const html = adminQuestionPage(
+      { ...question, assign_all: true },
+      TEST_SESSION,
+      undefined,
+      undefined,
+      TEST_LISTINGS,
+    );
+    const toggle = html.indexOf('checked name="assign_all" type="checkbox"');
+    const firstListing = html.indexOf('name="listing_ids"');
+    expect(toggle).toBeGreaterThan(-1);
+    expect(firstListing).toBeGreaterThan(toggle);
+    expect(html).toContain("Assign to all listings");
+  });
+
+  test("shows an '(all)' heading, not a stored-id count, when assign-all is set", () => {
+    // assign_all applies to every listing even with no individually-ticked ids,
+    // so the count must not read "(0)" next to a checked "Assign to all" toggle.
+    const html = adminQuestionPage(
+      { ...question, assign_all: true },
+      TEST_SESSION,
+      undefined,
+      undefined,
+      TEST_LISTINGS,
+      new Set(),
+    );
+    expect(html).toContain("<strong>Linked listings (all):</strong>");
+    expect(html).not.toContain("Linked listings (0):");
+  });
+
+  test("sorts a deactivated listing last and renders it muted", () => {
+    const html = adminQuestionPage(
+      question,
+      TEST_SESSION,
+      undefined,
+      undefined,
+      [
+        testListingWithCount({ active: false, id: 1, name: "Retired Gig" }),
+        testListingWithCount({ active: true, id: 2, name: "Live Gig" }),
+      ],
+    );
+    const live = html.indexOf('value="2"');
+    const retired = html.indexOf(
+      '<label class="muted"><input name="listing_ids" type="checkbox" value="1"',
+    );
+    expect(live).toBeGreaterThan(-1);
+    expect(retired).toBeGreaterThan(live);
   });
 
   test("checks listings the question is assigned to", () => {
