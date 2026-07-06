@@ -7,6 +7,7 @@ import {
   describeWithEnv,
   expectFlashRedirect,
   expectHtmlResponse,
+  getAllActivityLog,
   mockMultipartRequest,
   testCookie,
   testCsrfToken,
@@ -215,6 +216,10 @@ describeWithEnv(
         expect(image?.alt_text).toBe("Alt New library image");
         expect(image?.filename).toMatch(/\.webp$/);
         expect(image?.filename_thumb).toMatch(/\.webp$/);
+        const messages = (await getAllActivityLog()).map(
+          (entry) => entry.message,
+        );
+        expect(messages).toContain("Image 'New library image' uploaded");
       });
     });
   },

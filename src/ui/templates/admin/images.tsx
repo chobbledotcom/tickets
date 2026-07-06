@@ -8,7 +8,12 @@ import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm, type Field, Flash, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { getImageProxyUrl, isStorageEnabled } from "#shared/storage.ts";
-import type { AdminSession, Image, ImageUseItemType } from "#shared/types.ts";
+import {
+  type AdminSession,
+  type Image,
+  type ImageUseItemType,
+  ImageUseItemTypeSchema,
+} from "#shared/types.ts";
 import {
   errorAdminPage,
   successAdminPage,
@@ -24,12 +29,18 @@ import {
   type DataColumn,
   dataTable,
 } from "#templates/components/data-table.tsx";
+import {
+  type LinkedItemGroup,
+  LinkedItemsCheckboxes,
+} from "#templates/components/linked-items.tsx";
 // jscpd:ignore-end
 
 export type ImageItemOption = {
   type: ImageUseItemType;
   id: number;
   label: string;
+  /** Deactivated items render muted at the end of their row. */
+  active: boolean;
 };
 
 export type ItemImagePanelProps = {
@@ -54,11 +65,12 @@ const imageFields = (): Field[] => [
   },
 ];
 
+// No `required`: file inputs never render the attribute (renderFieldInput
+// omits it) and the upload POST checks the file's presence itself.
 const imageUploadField = (): Field => ({
   accept: "image/jpeg,image/png,image/webp",
   label: t("images.field.file"),
   name: "image",
-  required: true,
   type: "file",
 });
 
@@ -75,32 +87,32 @@ const thumbnail = (image: Image): JSX.Element => (
   />
 );
 
-const linkedLabel = (option: ImageItemOption): string =>
-  `${
-    option.type === "listing" ? t("terms.listing") : t("terms.group")
-  }: ${option.label}`;
+const imageItemTypeLabels = (): Record<ImageUseItemType, string> => ({
+  group: t("terms.groups"),
+  listing: t("terms.listings"),
+});
 
-const itemCheckboxes = (
+/** One LinkedItemGroup per linkable type, in the schema's type order. */
+const imageLinkedItemGroups = (
   options: readonly ImageItemOption[],
   selected: ReadonlySet<string>,
-): JSX.Element => (
-  <fieldset class="checkboxes image-item-checkboxes">
-    {options.map((option) => {
-      const value = `${option.type}:${option.id}`;
-      return (
-        <label>
-          <input
-            checked={selected.has(value)}
-            name="image_items"
-            type="checkbox"
-            value={value}
-          />
-          {linkedLabel(option)}
-        </label>
-      );
-    })}
-  </fieldset>
-);
+): LinkedItemGroup[] => {
+  const labels = imageItemTypeLabels();
+  return ImageUseItemTypeSchema.options.map((type) => ({
+    label: labels[type],
+    options: options
+      .filter((option) => option.type === type)
+      .map((option) => {
+        const value = `${option.type}:${option.id}`;
+        return {
+          active: option.active,
+          checked: selected.has(value),
+          label: option.label,
+          value,
+        };
+      }),
+  }));
+};
 
 const imageColumns: readonly DataColumn<Image>[] = [
   { cell: (image) => thumbnail(image), header: t("images.column.thumbnail") },
@@ -196,11 +208,13 @@ export const adminImageEditPage = ({
       <div class="image-library-preview">{thumbnail(image)}</div>
       <CsrfForm action={`/admin/images/${image.id}/edit`}>
         <Raw html={renderFields(imageFields(), imageValue(image))} />
-        <h2>{t("images.linked_items.heading")}</h2>
         {options.length === 0 ? (
           <p>{t("images.linked_items.empty")}</p>
         ) : (
-          itemCheckboxes(options, selected)
+          <LinkedItemsCheckboxes
+            groups={imageLinkedItemGroups(options, selected)}
+            name="image_items"
+          />
         )}
         {SaveChangesButton()}
       </CsrfForm>

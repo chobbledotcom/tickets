@@ -3,15 +3,18 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import {
   getImageById,
+  getImageUsesForImage,
   setImagesForItem,
   setItemsForImage,
 } from "#shared/db/images.ts";
 import {
   createTestGroup,
   createTestListing,
+  deactivateTestListing,
   describeWithEnv,
   expectFlashRedirect,
   expectHtmlResponse,
+  getAllActivityLog,
   mockFormRequest,
   testCookie,
   testCsrfToken,
@@ -26,6 +29,7 @@ import {
   imageNamesForItem,
   makeImage,
 } from "#test-utils/admin-images.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 describeWithEnv(
   "admin image edit and delete routes",
@@ -45,9 +49,31 @@ describeWithEnv(
           await adminGet(`/admin/images/${image.id}/edit`),
           200,
           "Edit Shared",
+          "<strong>Linked items (2):</strong>",
+          '<li class="checkboxes"><strong>Listings:</strong>',
+          '<li class="checkboxes"><strong>Groups:</strong>',
           `checked name="image_items" type="checkbox" value="listing:${listing.id}"`,
-          `checked name="image_items" type="checkbox" value="group:${group.id}"`,
+          // Groups have no deactivated state, so a group is never muted.
+          `<label><input checked name="image_items" type="checkbox" value="group:${group.id}"`,
         );
+      });
+
+      test("lists a deactivated listing muted at the end of its row", async () => {
+        const image = await makeImage("Fading");
+        const retired = await createTestListing({ name: "Retired listing" });
+        const live = await createTestListing({ name: "Live listing" });
+        await deactivateTestListing(retired.id);
+
+        const response = await adminGet(`/admin/images/${image.id}/edit`);
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        expect(html).toContain("<strong>Linked listings (0):</strong>");
+        const liveIndex = html.indexOf(`value="listing:${live.id}"`);
+        const retiredIndex = html.indexOf(
+          `<label class="muted"><input name="image_items" type="checkbox" value="listing:${retired.id}"`,
+        );
+        expect(liveIndex).toBeGreaterThan(-1);
+        expect(retiredIndex).toBeGreaterThan(liveIndex);
       });
 
       test("redirects away from edit when storage is disabled", async () => {
@@ -108,6 +134,8 @@ describeWithEnv(
               ["image_items", `listing:${listing.id}`],
               ["image_items", `group:${group.id}`],
               ["image_items", "not-an-item"],
+              ["image_items", "bogus:12"],
+              ["image_items", "listing:0"],
             ],
             cookie,
           ),
@@ -127,6 +155,13 @@ describeWithEnv(
           "Updated",
         ]);
         expect(await imageNamesForItem("group", group.id)).toEqual(["Updated"]);
+        // The malformed entries (unknown type, bad id) must not create links.
+        const uses = await getImageUsesForImage(image.id);
+        expect(uses.length).toBe(2);
+        const messages = (await getAllActivityLog()).map(
+          (entry) => entry.message,
+        );
+        expect(messages).toContain("Image 'Updated' updated");
       });
 
       test("keeps an existing item image order during metadata-only saves", async () => {
@@ -196,6 +231,8 @@ describeWithEnv(
     });
 
     describe("POST /admin/images/:id/delete", () => {
+      const errors = setupErrorSpy();
+
       test("redirects away from delete confirmation when storage is disabled", async () => {
         const image = await makeImage("Disabled delete");
 
@@ -273,6 +310,10 @@ describeWithEnv(
           ).toBe(true);
         });
         expect(await getImageById(image.id)).toBeNull();
+        const messages = (await getAllActivityLog()).map(
+          (entry) => entry.message,
+        );
+        expect(messages).toContain("Image 'Discard' deleted");
       });
 
       test("deletes the image row even when storage cleanup fails", async () => {
@@ -298,6 +339,12 @@ describeWithEnv(
           });
         });
         expect(await getImageById(image.id)).toBeNull();
+        // Both files (full-size + thumbnail) log their failed cleanup with the
+        // "image deletion" context so an operator can trace the orphaned files.
+        const cleanupFailures = errors.calls
+          .map((call) => String(call.args[0]))
+          .filter((message) => message.includes('detail="image deletion"'));
+        expect(cleanupFailures.length).toBe(2);
       });
     });
   },

@@ -24,7 +24,7 @@ import {
   imagesTable,
   setItemsForImage,
 } from "#shared/db/images.ts";
-import { getAllListingNames } from "#shared/db/listings.ts";
+import { getAllListings } from "#shared/db/listings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { deleteImageStorageFiles, isStorageEnabled } from "#shared/storage.ts";
 import { type Image, isImageUseItemType } from "#shared/types.ts";
@@ -79,14 +79,17 @@ const handleImageCreatePost: TypedRouteHandler<"POST /admin/images"> = (
   );
 
 const listingImageItemOptions = async (): Promise<ImageItemOption[]> =>
-  [...(await getAllListingNames()).entries()].map(([id, label]) => ({
-    id,
-    label,
+  (await getAllListings()).map((listing) => ({
+    active: listing.active,
+    id: listing.id,
+    label: listing.name,
     type: "listing" as const,
   }));
 
+// Groups have no deactivated state, so every group option is active.
 const groupImageItemOptions = async (): Promise<ImageItemOption[]> =>
   (await getAllGroups()).map((group) => ({
+    active: true,
     id: group.id,
     label: group.name,
     type: "group" as const,

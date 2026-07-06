@@ -23,7 +23,6 @@
   "images.item.upload_submit": "Upload image",
   "images.item.uploaded": "Image uploaded",
   "images.linked_items.empty": "No listings or groups yet.",
-  "images.linked_items.heading": "Linked items",
   "images.new.heading": "Add Image",
   "images.new.submit": "Create image",
   "images.storage_off": "File storage is not configured.",

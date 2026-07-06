@@ -51,15 +51,30 @@ describe("admin image templates", () => {
   test("renders the thumbnail from the image thumbnail filename", () => {
     withStorageEnabled(() => {
       const html = adminImagesPage([image(8, "Poster")], SESSION);
-      expect(html).toContain("/image/poster-thumb.webp");
+      expect(html).toContain(
+        '<img alt="Alt Poster" class="image-library-thumb" src="/image/poster-thumb.webp">',
+      );
       expect(html).not.toContain("/image/poster.webp");
+      expect(html).toContain('<a class="active" href="/admin/images">');
+      expect(html).toContain('<p class="actions">');
+      expect(html).toContain('href="/admin/images/new"');
+      expect(html).toContain("/icons.svg#plus");
+    });
+  });
+
+  test("renders the empty-library message when there are no images", () => {
+    withStorageEnabled(() => {
+      const html = adminImagesPage([], SESSION);
+      expect(html).toContain("No images yet.");
     });
   });
 
   test("hides the image library table and actions when storage is disabled", () => {
     withStorageDisabled(() => {
       const html = adminImagesPage([image(8, "Poster")], SESSION);
-      expect(html).toContain("File storage is not configured.");
+      expect(html).toContain(
+        '<p class="notice">File storage is not configured.</p>',
+      );
       expect(html).not.toContain('href="/admin/images/new"');
       expect(html).not.toContain("/image/poster-thumb.webp");
       expect(html).not.toContain("Poster");
@@ -72,7 +87,13 @@ describe("admin image templates", () => {
       expect(html).toContain("Upload failed");
       expect(html).toContain('action="/admin/images"');
       expect(html).toContain('enctype="multipart/form-data"');
-      expect(html).toContain('name="image"');
+      expect(html).toContain('<a class="active" href="/admin/images">');
+      expect(html).toContain('<input name="name" required type="text">');
+      expect(html).toContain('<input name="alt_text" type="text">');
+      expect(html).toContain(
+        '<input accept="image/jpeg,image/png,image/webp" name="image" type="file">',
+      );
+      expect(html).toContain("/icons.svg#save");
     });
   });
 
@@ -87,23 +108,55 @@ describe("admin image templates", () => {
   });
 
   test("renders edit fields, linked item checkboxes, and delete action", () => {
-    const html = adminImageEditPage({
-      image: image(3, "Poster"),
-      options: [
-        { id: 4, label: "Listing A", type: "listing" },
-        { id: 5, label: "Group B", type: "group" },
-      ],
-      selected: new Set(["group:5"]),
-      session: SESSION,
-    });
+    const html = withStorageEnabled(() =>
+      adminImageEditPage({
+        image: image(3, "Poster"),
+        options: [
+          { active: true, id: 4, label: "Listing A", type: "listing" },
+          { active: true, id: 5, label: "Group B", type: "group" },
+        ],
+        selected: new Set(["group:5"]),
+        session: SESSION,
+      }),
+    );
 
     expect(html).toContain("Edit Poster");
+    expect(html).toContain('<div class="image-library-preview">');
     expect(html).toContain('value="Poster"');
+    expect(html).toContain("<strong>Linked items (1):</strong>");
+    expect(html).toContain('<li class="checkboxes"><strong>Listings:</strong>');
+    expect(html).toContain('<li class="checkboxes"><strong>Groups:</strong>');
     expect(html).toContain('value="listing:4"');
     expect(html).toContain(
       'checked name="image_items" type="checkbox" value="group:5"',
     );
+    expect(html).toContain('<a class="active" href="/admin/images">');
+    expect(html).toContain('<p class="prose">');
+    expect(html).toContain('class="btn secondary"');
+    expect(html).toContain("/icons.svg#trash-2");
     expect(html).toContain('href="/admin/images/3/delete"');
+  });
+
+  test("renders a listings-only image as a single linked-listings line", () => {
+    const html = adminImageEditPage({
+      image: image(6, "Solo"),
+      options: [
+        { active: true, id: 4, label: "Listing A", type: "listing" },
+        { active: false, id: 7, label: "Retired listing", type: "listing" },
+      ],
+      selected: new Set(["listing:4"]),
+      session: SESSION,
+    });
+
+    expect(html).toContain("<strong>Linked listings (1):</strong>");
+    expect(html).not.toContain("Linked items");
+    const active = html.indexOf('value="listing:4"');
+    const retired = html.indexOf('value="listing:7"');
+    expect(active).toBeGreaterThan(-1);
+    expect(retired).toBeGreaterThan(active);
+    expect(html).toContain(
+      '<label class="muted"><input name="image_items" type="checkbox" value="listing:7"',
+    );
   });
 
   test("renders edit empty linked-item state", () => {
@@ -117,10 +170,14 @@ describe("admin image templates", () => {
   });
 
   test("renders the delete confirmation page", () => {
-    const html = adminImageDeletePage(image(2, "Remove me"), SESSION, "Nope");
+    const html = withStorageEnabled(() =>
+      adminImageDeletePage(image(2, "Remove me"), SESSION, "Nope"),
+    );
     expect(html).toContain("Delete Remove me");
     expect(html).toContain("Nope");
     expect(html).toContain('action="/admin/images/2/delete"');
+    expect(html).toContain('<a class="active" href="/admin/images">');
+    expect(html).toContain('<button class="danger" type="submit">');
     expect(html).toContain("Type the image name to confirm");
   });
 
@@ -174,6 +231,10 @@ describe("admin image templates", () => {
         }),
       );
 
+      expect(html).toContain(
+        '<fieldset class="checkboxes image-picker-checkboxes">',
+      );
+      expect(html).toContain("/icons.svg#plus");
       const first = html.indexOf('name="image_ids" type="checkbox" value="1"');
       const second = html.indexOf('name="image_ids" type="checkbox" value="2"');
       const library = html.indexOf(
