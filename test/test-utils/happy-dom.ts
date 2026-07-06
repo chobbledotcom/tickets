@@ -48,7 +48,7 @@ export type DomInstaller = {
   /** Mount a fresh window (with the given body) onto the globals. */
   installDom: (bodyHtml: string) => Window;
   /** Restore the globals and close every opened window (call in afterEach). */
-  cleanup: () => void;
+  cleanup: () => Promise<void>;
 };
 
 /**
@@ -62,13 +62,24 @@ export const createDomInstaller = (
   const stash = createGlobalStash();
   const openWindows: Window[] = [];
   return {
-    cleanup: (): void => {
+    cleanup: async (): Promise<void> => {
       stash.restore();
-      for (const window of openWindows) window.close();
+      // happyDOM.close() (not the DOM-level window.close()) aborts pending
+      // async tasks, so nothing a test started can fail after it finished.
+      await Promise.all(openWindows.map((window) => window.happyDOM.close()));
       openWindows.length = 0;
     },
     installDom: (bodyHtml: string): Window => {
-      const window = new Window({ url: "https://admin.test/" });
+      const window = new Window({
+        // Tests exercise DOM wiring only — never let an injected <script src>
+        // or <link> stylesheet start a real fetch of its URL.
+        settings: {
+          disableCSSFileLoading: true,
+          disableJavaScriptEvaluation: true,
+          disableJavaScriptFileLoading: true,
+        },
+        url: "https://admin.test/",
+      });
       window.document.body.innerHTML = bodyHtml;
       stash.set("document", window.document);
       stash.set("window", window);
