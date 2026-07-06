@@ -7,7 +7,7 @@ import {
   getListingsByGroupId,
   setGroupPackageMembers,
 } from "#shared/db/groups.ts";
-import { getChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
   adminFormPost,
   baseListingForm,
@@ -33,8 +33,8 @@ const makeExternalBundle = async (groupName: string) => {
     groupId: group.id,
     name: "Bundled add-on",
   });
-  const { setChildIds } = await import("#shared/db/listing-parents.ts");
-  await setChildIds(outsideParent.id, [child.id]);
+  const { listingChildren } = await import("#shared/db/listing-parents.ts");
+  await listingChildren.setIds(outsideParent.id, [child.id]);
   return { child, group, outsideParent };
 };
 
@@ -43,8 +43,8 @@ const setChildren = async (
   parentId: number,
   childIds: number[],
 ): Promise<void> => {
-  const { setChildIds } = await import("#shared/db/listing-parents.ts");
-  await setChildIds(parentId, childIds);
+  const { listingChildren } = await import("#shared/db/listing-parents.ts");
+  await listingChildren.setIds(parentId, childIds);
 };
 
 /** Duplicate a single listing via the real admin create flow, returning the raw
@@ -146,9 +146,9 @@ describeWithEnv(
       const copy = await duplicateTestListing(parent.id, { name: "Base copy" });
 
       expect(copy.id).not.toBe(parent.id);
-      expect(await getChildIds(copy.id)).toEqual([child.id]);
+      expect(await listingChildren.getIds(copy.id)).toEqual([child.id]);
       // The original is untouched.
-      expect(await getChildIds(parent.id)).toEqual([child.id]);
+      expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
     });
 
     test("duplicating a parent whose child became a parent skips the invalid edge", async () => {
@@ -166,7 +166,7 @@ describeWithEnv(
         name: "Nested base copy",
       });
 
-      expect(await getChildIds(copy.id)).toEqual([]);
+      expect(await listingChildren.getIds(copy.id)).toEqual([]);
     });
 
     test("duplicating a parent whose child carries a {parent,child}-scoped opt-in add-on warns and does not silently copy a gateless standalone", async () => {
@@ -190,7 +190,7 @@ describeWithEnv(
 
       // The copy's required-child gate was NOT silently created (would-be
       // gateless standalone is instead flagged, not hidden).
-      expect(await getChildIds(copy.id)).toEqual([]);
+      expect(await listingChildren.getIds(copy.id)).toEqual([]);
       // The operator is warned (a non-success flash), not told "created":
       // the create success prefix is suffixed with the dropped-children caveat.
       const reason = t("listings_table.children_err_child_addon", {
@@ -211,7 +211,7 @@ describeWithEnv(
         name: "Standalone copy",
       });
 
-      expect(await getChildIds(copy.id)).toEqual([]);
+      expect(await listingChildren.getIds(copy.id)).toEqual([]);
     });
 
     test("duplicating a child yields a standalone copy with no edges", async () => {
@@ -224,8 +224,8 @@ describeWithEnv(
 
       // The copied child is not auto-attached under the original's parents,
       // and is not itself a parent.
-      expect(await getChildIds(copy.id)).toEqual([]);
-      expect(await getChildIds(parent.id)).toEqual([child.id]);
+      expect(await listingChildren.getIds(copy.id)).toEqual([]);
+      expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
     });
 
     test("group duplicate remaps an intra-group parent/child edge to the clones", async () => {
@@ -245,7 +245,9 @@ describeWithEnv(
       const parentCopy = copies.find((l) => l.name === "Cloned parent")!;
       const childCopy = copies.find((l) => l.name === "Cloned child")!;
       // The cloned parent requires the cloned child, not the original.
-      expect(await getChildIds(parentCopy.id)).toEqual([childCopy.id]);
+      expect(await listingChildren.getIds(parentCopy.id)).toEqual([
+        childCopy.id,
+      ]);
       expect(childCopy.id).not.toBe(child.id);
     });
 
@@ -267,7 +269,9 @@ describeWithEnv(
 
       const parentCopy = copies.find((l) => l.name === "Cloned parent")!;
       // The external child is referenced by its original id (not cloned).
-      expect(await getChildIds(parentCopy.id)).toEqual([outsideChild.id]);
+      expect(await listingChildren.getIds(parentCopy.id)).toEqual([
+        outsideChild.id,
+      ]);
     });
 
     test("group duplicate remaps an incoming edge from a parent outside the group", async () => {
@@ -292,7 +296,7 @@ describeWithEnv(
 
       const childCopy = copies.find((l) => l.name === "Cloned child")!;
       // The outside parent now gates BOTH the original child and its clone.
-      expect((await getChildIds(outsideParent.id)).sort()).toEqual(
+      expect((await listingChildren.getIds(outsideParent.id)).sort()).toEqual(
         [child.id, childCopy.id].sort(),
       );
       // The clone is itself a child (in getChildListingIds), so its standalone
@@ -304,7 +308,7 @@ describeWithEnv(
         true,
       );
       // The clone is not itself a parent (no children of its own).
-      expect(await getChildIds(childCopy.id)).toEqual([]);
+      expect(await listingChildren.getIds(childCopy.id)).toEqual([]);
     });
 
     test("group duplicate whose cloned parent's edge copy fails surfaces a warning and leaves no gateless clone", async () => {
@@ -344,7 +348,7 @@ describeWithEnv(
       const parentCopy = copies.find((l) => l.name === "Cloned parent")!;
       // The cloned parent has NO gate (the invalid edge was not written) rather
       // than a silently-gateless standalone reported as success.
-      expect(await getChildIds(parentCopy.id)).toEqual([]);
+      expect(await listingChildren.getIds(parentCopy.id)).toEqual([]);
       // A warning flash (not a success) carries the dropped-children reason.
       expect(response.status).toBe(302);
       const reason = t("listings_table.children_err_child_addon", {
@@ -392,10 +396,12 @@ describeWithEnv(
       // The incoming edge `outsideParent -> childCopy` was NOT written (the full
       // set re-validation failed), so the external parent keeps only its
       // original child.
-      expect(await getChildIds(outsideParent.id)).toEqual([child.id]);
-      expect((await getChildIds(outsideParent.id)).includes(childCopy.id)).toBe(
-        false,
-      );
+      expect(await listingChildren.getIds(outsideParent.id)).toEqual([
+        child.id,
+      ]);
+      expect(
+        (await listingChildren.getIds(outsideParent.id)).includes(childCopy.id),
+      ).toBe(false);
       // A warning flash carries the reason.
       const reason = t("listings_table.children_err_child_addon", {
         addon: "Child-only extra",
@@ -528,7 +534,7 @@ describeWithEnv(
           (r) => r.listing_id === copy.id,
         ),
       ).toBe(true);
-      expect(await getChildIds(copy.id)).toEqual([child.id]);
+      expect(await listingChildren.getIds(copy.id)).toEqual([child.id]);
 
       // A HIDDEN package collapses members to the package name, so its copy
       // must NOT inherit the child edges — the member stays valid and the
@@ -543,7 +549,7 @@ describeWithEnv(
         "Parent hidden copy",
         hidden.id,
       );
-      expect(await getChildIds(hiddenCopy.id)).toEqual([]);
+      expect(await listingChildren.getIds(hiddenCopy.id)).toEqual([]);
     });
   },
 );

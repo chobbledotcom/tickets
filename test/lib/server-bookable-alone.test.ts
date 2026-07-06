@@ -16,7 +16,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { groupsTable } from "#shared/db/groups.ts";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -161,7 +161,7 @@ describeWithEnv(
           groupId: group.id,
           name: "Grouped Widget",
         });
-        await setChildIds(parent.id, [child.id]);
+        await listingChildren.setIds(parent.id, [child.id]);
         // Deactivate the parent so the group's ONLY standalone-eligible member is
         // the flagged child; if group liveness used the narrowed set it would now
         // (wrongly) go live.

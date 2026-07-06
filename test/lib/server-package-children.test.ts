@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { queryAll } from "#shared/db/client.ts";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
   createTestGroup,
@@ -60,7 +60,7 @@ const packageWithChild = async (name: string, slug: string) => {
     name: `${name} Addon B`,
     unitPrice: 400,
   });
-  await setChildIds(parent.id, [child.id, childB.id]);
+  await listingChildren.setIds(parent.id, [child.id, childB.id]);
   return { child, childB, group, other, parent };
 };
 
@@ -329,7 +329,7 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
       // The operator removes the child edge while the customer is paying: the
       // signed child nodeKey no longer resolves, so the order refunds rather
       // than booking a bundle the current config can't represent.
-      await setChildIds(parent.id, []);
+      await listingChildren.setIds(parent.id, []);
       const response = await handleRequest(
         mockRequest("/payment/success?session_id=cs_pkg_child_drift"),
       );
@@ -394,7 +394,7 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
       // The operator gives the member a required add-on while the customer is
       // paying: the current page would demand a child mix the signed order
       // never chose, so the order refunds rather than booking without it.
-      await setChildIds(member.id, [addon.id]);
+      await listingChildren.setIds(member.id, [addon.id]);
       const response = await handleRequest(
         mockRequest("/payment/success?session_id=cs_pkg_grown"),
       );

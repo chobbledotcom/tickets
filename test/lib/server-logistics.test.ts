@@ -6,7 +6,7 @@ import {
   logisticsAgentsTable,
 } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
-import { getAgentUserIds } from "#shared/db/user-agents.ts";
+import { agentUsers } from "#shared/db/user-agents.ts";
 import { getAllUsers } from "#shared/db/users.ts";
 import {
   adminFormPost,
@@ -184,7 +184,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
         "/admin/logistics",
         "Logistics agent updated",
       )(assigned.response);
-      expect(await getAgentUserIds(id)).toEqual([userId]);
+      expect(await agentUsers.getIds(id)).toEqual([userId]);
 
       // The edit form pre-checks the assigned user.
       const editHtml = await (
@@ -197,7 +197,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
         name: "Crewed Van",
         user_ids: "999999",
       });
-      expect(await getAgentUserIds(id)).toEqual([]);
+      expect(await agentUsers.getIds(id)).toEqual([]);
     });
 
     test("does not offer or accept editors as logistics drivers", async () => {
@@ -222,7 +222,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
         name: "No Editors Van",
         user_ids: String(editorUserId),
       });
-      expect(await getAgentUserIds(id)).toEqual([]);
+      expect(await agentUsers.getIds(id)).toEqual([]);
     });
 
     test("shows a delete confirmation and deletes the agent", async () => {

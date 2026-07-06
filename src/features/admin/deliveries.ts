@@ -27,7 +27,7 @@ import {
   getAllLogisticsAgents,
 } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
-import { getUserAgentIds } from "#shared/db/user-agents.ts";
+import { userAgents } from "#shared/db/user-agents.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { todayInTz } from "#shared/timezone.ts";
@@ -140,7 +140,7 @@ const loadLegLookups = async (
  * their only page; staff (owner/manager) reach it from the Calendar submenu. */
 const handleDeliveriesGet = deliveryPage(async (session) => {
   const flash = getFlash();
-  const agentIds = await getUserAgentIds(session.userId);
+  const agentIds = await userAgents.getIds(session.userId);
   if (agentIds.length === 0) {
     return agentDeliveriesPage(
       [],
@@ -186,7 +186,7 @@ const handleDeliveriesMark = (request: Request): Promise<Response> =>
       );
     }
 
-    const agentIds = await getUserAgentIds(session.userId);
+    const agentIds = await userAgents.getIds(session.userId);
     const updated = await setLegDone(
       attendeeId,
       listingId,

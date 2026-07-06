@@ -9,20 +9,19 @@
 
 import { linkTableSide } from "#shared/db/link-table.ts";
 
-const byUser = linkTableSide("user_logistics_agents", "user_id", "agent_id");
-const byAgent = linkTableSide("user_logistics_agents", "agent_id", "user_id");
+/** The logistics agents assigned to a user, keyed by user id: read with
+ * `getIds` (ascending), replace with `setIds` (deduped). */
+export const userAgents = linkTableSide(
+  "user_logistics_agents",
+  "user_id",
+  "agent_id",
+);
 
-/** The logistics agent ids assigned to a user, ascending. */
-export const getUserAgentIds = byUser.getIds;
-
-/** Replace a user's logistics-agent links with exactly `agentIds` (deduped). */
-export const setUserAgentIds = byUser.setIds;
-
-/** The ids of the users assigned to drive a logistics agent, ascending. */
-export const getAgentUserIds = byAgent.getIds;
-
-/** Replace a logistics agent's user links with exactly `userIds` (deduped). */
-export const setAgentUserIds = byAgent.setIds;
-
-/** Remove every user link to a logistics agent (used before deleting it). */
-export const clearUserAgentLinksForAgent = byAgent.clear;
+/** The users assigned to drive a logistics agent, keyed by agent id — the
+ * reverse side. `clear` removes every user link to an agent (used before
+ * deleting it). */
+export const agentUsers = linkTableSide(
+  "user_logistics_agents",
+  "agent_id",
+  "user_id",
+);

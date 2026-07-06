@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { groupsTable } from "#shared/db/groups.ts";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
   getListing,
   getListingWithCount,
@@ -249,7 +249,7 @@ describeWithEnv("validateListingInput package membership", { db: true }, () => {
   test("rejects a package group when the listing is a child of another", async () => {
     const parent = await createTestListing({ name: "Edge Parent" });
     const child = await createTestListing({ name: "Edge Child" });
-    await setChildIds(parent.id, [child.id]);
+    await listingChildren.setIds(parent.id, [child.id]);
     const pkg = await createTestGroup({ isPackage: true, name: "Edge Pkg" });
 
     // A package member may never itself be another listing's child.
@@ -263,7 +263,7 @@ describeWithEnv("validateListingInput package membership", { db: true }, () => {
   test("rejects a hidden package when the listing gates its own children", async () => {
     const gp = await createTestListing({ name: "Gate Parent" });
     const gc = await createTestListing({ name: "Gate Child" });
-    await setChildIds(gp.id, [gc.id]);
+    await listingChildren.setIds(gp.id, [gc.id]);
     const hidden = await createTestGroup({
       isPackage: true,
       name: "Hidden Pkg",
@@ -393,7 +393,7 @@ describeWithEnv("validateListingInput edge rules", { db: true }, () => {
   test("allows a visible package member that gates its own children", async () => {
     const member = await createTestListing({ name: "Vis Member" });
     const child = await createTestListing({ name: "Vis Child" });
-    await setChildIds(member.id, [child.id]);
+    await listingChildren.setIds(member.id, [child.id]);
     const pkg = await createTestGroup({ isPackage: true, name: "Visible Pkg" });
 
     // A VISIBLE package renders a member's child selector like any parent row,

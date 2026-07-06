@@ -313,7 +313,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
 
   test("the package page drops day counts no member's required child can serve", async () => {
     const { createFlexPackage } = await import("#test-utils/packages.ts");
-    const { setChildIds } = await import("#shared/db/listing-parents.ts");
+    const { listingChildren } = await import("#shared/db/listing-parents.ts");
     const { boat, group } = await createFlexPackage("Gated Flex", "gated-flex");
     // The boat's only add-on is a fixed 2-day daily child: a 1-day bundle could
     // never fold, so the shared selector must not offer it even without JS.
@@ -325,7 +325,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       name: "Gated Addon",
       unitPrice: 200,
     });
-    await setChildIds(boat.id, [child.id]);
+    await listingChildren.setIds(boat.id, [child.id]);
 
     const body = await (
       await handleRequest(mockRequest(`/ticket/${group.slug}`))

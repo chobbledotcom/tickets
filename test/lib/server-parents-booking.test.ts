@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
 import type { Listing } from "#shared/types.ts";
 import {
@@ -1128,7 +1128,7 @@ describeWithEnv(
         name: "Sold-out add-on",
       });
       await createTestAttendee(child.id, child.slug, "Buyer", "b@x.com");
-      await setChildIds(parent.id, [child.id]);
+      await listingChildren.setIds(parent.id, [child.id]);
       const { handleRequest } = await import("#routes");
       const listings = await handleRequest(
         new Request("http://localhost/listings", {
@@ -1170,7 +1170,7 @@ describeWithEnv(
         name: "Sold-out add-on",
       });
       await createTestAttendee(child.id, child.slug, "Buyer", "b@x.com");
-      await setChildIds(parent.id, [child.id]);
+      await listingChildren.setIds(parent.id, [child.id]);
       const { handleRequest } = await import("#routes");
       const res = await handleRequest(
         new Request(`http://localhost/ticket/${group.slug}/qr`, {
@@ -1215,13 +1215,13 @@ describeWithEnv(
           maxQuantity: 10,
           name: "stage-b-parentA",
         });
-        await setChildIds(parentA.id, [child.id]);
+        await listingChildren.setIds(parentA.id, [child.id]);
         const parentB = await createTestListing({
           maxAttendees: 10,
           maxQuantity: 10,
           name: "stage-b-parentB",
         });
-        await setChildIds(parentB.id, [child.id]);
+        await listingChildren.setIds(parentB.id, [child.id]);
 
         const slugs = `${parentA.slug}+${parentB.slug}`;
         const res = await postBooking(slugs, {

@@ -5,13 +5,13 @@ import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
   getAllModifiers,
   getModifier,
   getModifierAnswerIds,
-  getModifierGroupIds,
-  getModifierListingIds,
+  modifierGroups,
+  modifierListings,
   modifiersTable,
   updateModifierAggregateValues,
 } from "#shared/db/modifiers.ts";
@@ -788,7 +788,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       await adminFormPost(`/admin/modifiers/${id}/links`, {
         listing_ids: String(listing.id),
       });
-      expect(await getModifierListingIds(id)).toEqual([listing.id]);
+      expect(await modifierListings.getIds(id)).toEqual([listing.id]);
     });
 
     test("links groups via the scope form", async () => {
@@ -798,7 +798,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       );
       const { id } = await lastModifier();
       await adminFormPost(`/admin/modifiers/${id}/links`, { group_ids: "42" });
-      expect(await getModifierGroupIds(id)).toEqual([42]);
+      expect(await modifierGroups.getIds(id)).toEqual([42]);
     });
 
     test("drops a non-positive id from the scope form", async () => {
@@ -811,7 +811,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       // > 0, so it must be dropped — the filter is `isInteger(n) && n > 0`,
       // not `||` (which would let -1 through and store it).
       await adminFormPost(`/admin/modifiers/${id}/links`, { group_ids: "-1" });
-      expect(await getModifierGroupIds(id)).toEqual([]);
+      expect(await modifierGroups.getIds(id)).toEqual([]);
     });
 
     test("the scope form is a no-op for a whole-order modifier", async () => {
@@ -1063,7 +1063,7 @@ describeWithEnv(
         t("modifiers.err_child_only_addon", { name: "Child-only extra" }),
         false,
       )(response);
-      expect(await getModifierListingIds(modifier.id)).toEqual([]);
+      expect(await modifierListings.getIds(modifier.id)).toEqual([]);
     });
 
     test("ALLOWS scoping an opt-in add-on to only a bookable_alone child", async () => {
@@ -1078,7 +1078,7 @@ describeWithEnv(
         listing_ids: String(child.id),
       });
       // The link stuck — no child-only dead-end block fired.
-      expect(await getModifierListingIds(modifier.id)).toEqual([child.id]);
+      expect(await modifierListings.getIds(modifier.id)).toEqual([child.id]);
     });
 
     test("clearing bookable_alone re-blocks when it orphans the child's add-on", async () => {
@@ -1193,7 +1193,7 @@ describeWithEnv(
         groupId: group.id,
         name: "Add-on",
       });
-      await setChildIds(parent.id, [child.id]);
+      await listingChildren.setIds(parent.id, [child.id]);
       const modifier = await insertModifier({ name: "Group child extra" });
       await patchModifier(modifier.id, {
         active: 1,
@@ -1209,7 +1209,7 @@ describeWithEnv(
         t("modifiers.err_child_only_addon", { name: "Group child extra" }),
         false,
       )(response);
-      expect(await getModifierGroupIds(modifier.id)).toEqual([]);
+      expect(await modifierGroups.getIds(modifier.id)).toEqual([]);
     });
 
     test("allows scoping a non-opt-in modifier to only a child (not an add-on)", async () => {
@@ -1227,7 +1227,7 @@ describeWithEnv(
         "Scope updated",
         true,
       )(response);
-      expect(await getModifierListingIds(modifier.id)).toEqual([child.id]);
+      expect(await modifierListings.getIds(modifier.id)).toEqual([child.id]);
     });
 
     test("allows an inactive child-scoped opt-in add-on (never loads on a page)", async () => {
@@ -1249,7 +1249,7 @@ describeWithEnv(
         "Scope updated",
         true,
       )(response);
-      expect(await getModifierListingIds(modifier.id)).toEqual([child.id]);
+      expect(await modifierListings.getIds(modifier.id)).toEqual([child.id]);
     });
 
     /** POST the scope-links form with repeated `listing_ids` values
@@ -1283,7 +1283,7 @@ describeWithEnv(
       const child = await createTestListing({ name: "Add-on" });
       const inactive = await createTestListing({ name: "Hidden extra page" });
       await deactivateTestListing(inactive.id);
-      await setChildIds(parent.id, [child.id]);
+      await listingChildren.setIds(parent.id, [child.id]);
       const modifier = await optInAddOn("Stranded extra");
       const response = await postListingLinks(modifier.id, [
         child.id,
@@ -1294,7 +1294,7 @@ describeWithEnv(
         t("modifiers.err_child_only_addon", { name: "Stranded extra" }),
         false,
       )(response);
-      expect(await getModifierListingIds(modifier.id)).toEqual([]);
+      expect(await modifierListings.getIds(modifier.id)).toEqual([]);
     });
 
     test("allows scoping an opt-in add-on to {child, active non-child}", async () => {
@@ -1303,7 +1303,7 @@ describeWithEnv(
       const parent = await createTestListing({ name: "Base unit" });
       const child = await createTestListing({ name: "Add-on" });
       const reachable = await createTestListing({ name: "Live extra page" });
-      await setChildIds(parent.id, [child.id]);
+      await listingChildren.setIds(parent.id, [child.id]);
       const modifier = await optInAddOn("Reachable extra");
       const response = await postListingLinks(modifier.id, [
         child.id,
@@ -1314,7 +1314,7 @@ describeWithEnv(
         "Scope updated",
         true,
       )(response);
-      expect(await getModifierListingIds(modifier.id)).toEqual(
+      expect(await modifierListings.getIds(modifier.id)).toEqual(
         [child.id, reachable.id].sort((a, b) => a - b),
       );
     });

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import {
   adminFormPost,
@@ -115,7 +115,7 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
       });
       const parent = await createTestListing({ name: "Base unit" });
       const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      await listingChildren.setIds(parent.id, [child.id]);
       await optInAddOnForListings("Child-scoped extra", [
         child.id,
         rescuingPage.id,

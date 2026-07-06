@@ -208,15 +208,22 @@ export const resetModifierAggregateFields = async (
   await resetAggregates("modifiers", modifierId, fields, aggregateResetSql);
 };
 
-const listingLinks = linkTableSide(
+/** The listings a "listings"-scoped modifier is charged on, keyed by modifier
+ * id: `getIds` reads them (the admin scope editor), `setIds` replaces the set
+ * on save (deduped, idempotent). */
+export const modifierListings = linkTableSide(
   "modifier_listings",
   "modifier_id",
   "listing_id",
 );
-const groupLinks = linkTableSide("modifier_groups", "modifier_id", "group_id");
 
-/** Listing ids a modifier is directly linked to (scope = "listings"). */
-export const getModifierListingIds = listingLinks.getIds;
+/** The groups a "groups"-scoped modifier is charged on, keyed by modifier id —
+ * same shape as {@link modifierListings}. */
+export const modifierGroups = linkTableSide(
+  "modifier_groups",
+  "modifier_id",
+  "group_id",
+);
 
 type ModifierListingLinkRow = { listing_id: number; modifier_id: number };
 
@@ -264,9 +271,6 @@ export const getModifierGroupListingIdsByModifierId =
        WHERE modifierGroup.modifier_id IN (${placeholders})`,
   );
 
-/** Group ids a modifier is linked to (for the admin scope editor). */
-export const getModifierGroupIds = groupLinks.getIds;
-
 /** Group ids linked to each group-scoped modifier id (batched), so a caller can
  * resolve a modifier's group scope against *in-memory* listings (e.g. a listing
  * save's would-be `group_id`) instead of the live join. Seeds an entry for every
@@ -281,12 +285,6 @@ export const getModifierGroupIdsByModifierId = modifierScopeListingIdsLookup(
  * editor) — i.e. the answers whose modifier_id points at this modifier. */
 export const getModifierAnswerIds = (modifierId: number): Promise<number[]> =>
   queryIdColumn("SELECT id FROM answers WHERE modifier_id = ?", [modifierId]);
-
-/** Set the listings a "listings"-scoped modifier is charged on. */
-export const setModifierListings = listingLinks.setIds;
-
-/** Set the groups a "groups"-scoped modifier is charged on. */
-export const setModifierGroups = groupLinks.setIds;
 
 /** Point the given answers at an "answer"-triggered modifier (and clear any
  * answers previously pointing at it), so saving the editor is idempotent and

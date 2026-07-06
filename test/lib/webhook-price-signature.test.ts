@@ -7,7 +7,7 @@ import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
 import { execute } from "#shared/db/client.ts";
 import { groupsTable, setGroupPackageMembers } from "#shared/db/groups.ts";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import { deleteListing, listingsTable } from "#shared/db/listings.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
@@ -450,10 +450,10 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       unitPrice: 1000,
     });
     const child = await createTestListing({ maxAttendees: 50, unitPrice: 0 });
-    await setChildIds(parentA.id, [child.id]);
-    await setChildIds(parentB.id, [child.id]);
+    await listingChildren.setIds(parentA.id, [child.id]);
+    await listingChildren.setIds(parentB.id, [child.id]);
     const metadata = signedParentChild(parentA.id, child.id);
-    await setChildIds(parentA.id, []);
+    await listingChildren.setIds(parentA.id, []);
     await runWebhook({ id: "cs_edge_swap", metadata }, () =>
       expectStoredRefund(parentA.id),
     );
@@ -466,7 +466,7 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       unitPrice: 1000,
     });
     const child = await createTestListing({ maxAttendees: 50, unitPrice: 0 });
-    await setChildIds(parent.id, [child.id]);
+    await listingChildren.setIds(parent.id, [child.id]);
     const metadata = signedParentChild(parent.id, child.id);
     await runWebhook({ id: "cs_edge_intact", metadata }, () =>
       expectProcessed(parent.id),
@@ -1138,7 +1138,7 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       name: "Solo Widget",
       unitPrice: 1000,
     });
-    await setChildIds(parent.id, [child.id]);
+    await listingChildren.setIds(parent.id, [child.id]);
     await listingsTable.update(child.id, { bookableAlone: false });
     await runWebhook(
       {
@@ -1164,7 +1164,7 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       name: "Solo Widget",
       unitPrice: 1000,
     });
-    await setChildIds(parent.id, [child.id]);
+    await listingChildren.setIds(parent.id, [child.id]);
     await runWebhook(
       {
         amount_total: 1000,
@@ -1196,7 +1196,7 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       name: "Solo Widget",
       unitPrice: 0,
     });
-    await setChildIds(parent.id, [child.id]);
+    await listingChildren.setIds(parent.id, [child.id]);
     await listingsTable.update(child.id, { bookableAlone: false });
     const metadata = signMeta(
       webhookMeta({
@@ -1236,7 +1236,7 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       name: "Solo Widget",
       unitPrice: 0,
     });
-    await setChildIds(parent.id, [child.id]);
+    await listingChildren.setIds(parent.id, [child.id]);
     await listingsTable.update(child.id, { bookableAlone: false });
     const metadata = signMeta(
       webhookMeta({

@@ -40,17 +40,15 @@ import {
   getModifier,
   getModifierAggregateRecalculation,
   getModifierAnswerIds,
-  getModifierGroupIds,
-  getModifierListingIds,
   MODIFIER_AGGREGATE_FIELDS,
   type ModifierAggregateValues,
   type ModifierInput,
   type ModifierRow,
+  modifierGroups,
+  modifierListings,
   modifiersTable,
   resetModifierAggregateFields,
   setModifierAnswers,
-  setModifierGroups,
-  setModifierListings,
   updateModifierAggregateValues,
 } from "#shared/db/modifiers.ts";
 import { getAllQuestionsWithAnswers } from "#shared/db/questions.ts";
@@ -208,8 +206,8 @@ const childAddOnInputError = async (
   // Resolve from the stored links (an edit doesn't change them; a create has
   // none). `resolveAddOnScope` keeps only the set matching the input's scope.
   const [listingIds, groupIds] = await Promise.all([
-    id === undefined ? [] : getModifierListingIds(id),
-    id === undefined ? [] : getModifierGroupIds(id),
+    id === undefined ? [] : modifierListings.getIds(id),
+    id === undefined ? [] : modifierGroups.getIds(id),
   ]);
   return childAddOnSaveError({
     active: true,
@@ -315,7 +313,7 @@ const scopeLinksFor = async (
     return {
       kind: "listings",
       options: listings.map((l) => ({ id: l.id, name: l.name })),
-      selected: await getModifierListingIds(modifier.id),
+      selected: await modifierListings.getIds(modifier.id),
     };
   }
   if (modifier.scope === "groups") {
@@ -323,7 +321,7 @@ const scopeLinksFor = async (
     return {
       kind: "groups",
       options: groups.map((g) => ({ id: g.id, name: g.name })),
-      selected: await getModifierGroupIds(modifier.id),
+      selected: await modifierGroups.getIds(modifier.id),
     };
   }
   return null;
@@ -511,10 +509,13 @@ const writeScopeLinks = (
   form: FormParams,
 ): Promise<unknown> => {
   if (modifier.scope === "listings") {
-    return setModifierListings(modifier.id, selectedIds(form, "listing_ids"));
+    return modifierListings.setIds(
+      modifier.id,
+      selectedIds(form, "listing_ids"),
+    );
   }
   if (modifier.scope === "groups") {
-    return setModifierGroups(modifier.id, selectedIds(form, "group_ids"));
+    return modifierGroups.setIds(modifier.id, selectedIds(form, "group_ids"));
   }
   return Promise.resolve();
 };

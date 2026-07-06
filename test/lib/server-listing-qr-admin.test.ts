@@ -39,7 +39,7 @@ const extractAndVerifyToken = async (html: string, slug: string) => {
 /** Parent with a Monday-only child: computes bookable start dates for each.
  * Shared by two tests that exercise the child-date-constrained QR flow. */
 const setupParentWithMondayChild = async () => {
-  const { setChildIds } = await import("#shared/db/listing-parents.ts");
+  const { listingChildren } = await import("#shared/db/listing-parents.ts");
   const { getBookableStartDates } = await import("#shared/dates.ts");
   const { getActiveHolidays } = await import("#shared/db/holidays.ts");
   const { getListingWithCount } = await import("#shared/db/listings.ts");
@@ -48,7 +48,7 @@ const setupParentWithMondayChild = async () => {
     bookableDays: ["Monday"],
     unitPrice: 500,
   });
-  await setChildIds(parent.id, [child.id]);
+  await listingChildren.setIds(parent.id, [child.id]);
   const holidays = await getActiveHolidays();
   const parentDates = getBookableStartDates(
     (await getListingWithCount(parent.id))!,

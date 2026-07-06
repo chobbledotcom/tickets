@@ -4,7 +4,7 @@ import { spy } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { orderWidgetBody } from "#routes/assets.ts";
 import { groupsTable } from "#shared/db/groups.ts";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -250,7 +250,7 @@ describeWithEnv("order.js handler", { db: true, triggers: true }, () => {
       name: "Required Child",
       useDefaults: true,
     });
-    await setChildIds(parent.id, [child.id]);
+    await listingChildren.setIds(parent.id, [child.id]);
 
     const body = await (await orderJs()).text();
     expect(body).toContain("const CATALOG");

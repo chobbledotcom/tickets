@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import { addPageItem, getItemsForPage } from "#shared/db/site-page-items.ts";
 import {
   computeSitePageSlugIndex,
@@ -395,7 +395,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       // its parent still is.
       const parent = await createTestListing({ name: "Parent Listing" });
       const child = await createTestListing({ name: "Child Listing" });
-      await setChildIds(parent.id, [child.id]);
+      await listingChildren.setIds(parent.id, [child.id]);
       const html3 = await expectHtmlResponse(
         await adminGet(`${BASE}/${page.id}/edit`),
         200,

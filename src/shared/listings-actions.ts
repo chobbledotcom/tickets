@@ -20,7 +20,7 @@ import {
   firstTouchingEdgeError,
   getChildListingIds,
   getNonStandaloneChildIds,
-  getParentIds,
+  listingParents,
 } from "#shared/db/listing-parents.ts";
 import {
   computeSlugIndex,
@@ -338,7 +338,7 @@ const strippedPageOrphanedAddOn = async (
   const existing = mayStripPage ? await getListingWithCount(existingId) : null;
   const flaggedChildWithParents =
     existing?.bookable_alone === true &&
-    (await getParentIds(existingId)).length > 0;
+    (await listingParents.getIds(existingId)).length > 0;
   if (!deactivating && !(clearingFlag && flaggedChildWithParents)) return null;
   // Both listing-save entry points always resolve groupIds to an array — the
   // form via parseGroupIds, the JSON API via `groups.input ?? existingGroupIds` —

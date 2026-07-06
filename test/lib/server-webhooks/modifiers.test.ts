@@ -2,9 +2,9 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import {
+  modifierGroups,
+  modifierListings,
   modifiersTable,
-  setModifierGroups,
-  setModifierListings,
 } from "#shared/db/modifiers.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
@@ -99,7 +99,7 @@ describeWithEnv("server webhooks > modifiers", { db: true }, () => {
     await setupStripe();
     const [listing1, listing2] = await createTwoListings();
     const modifier = await createScopedModifier("Listing fee", "listings");
-    await setModifierListings(modifier.id, [listing1.id]);
+    await modifierListings.setIds(modifier.id, [listing1.id]);
 
     await expectWebhookProcessed(
       checkoutSessionEvent({
@@ -133,7 +133,7 @@ describeWithEnv("server webhooks > modifiers", { db: true }, () => {
       groupId: group.id,
     });
     const modifier = await createScopedModifier("Group fee", "groups");
-    await setModifierGroups(modifier.id, [group.id]);
+    await modifierGroups.setIds(modifier.id, [group.id]);
 
     await expectWebhookProcessed(
       checkoutSessionEvent({

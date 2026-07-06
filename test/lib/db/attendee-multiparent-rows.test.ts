@@ -4,7 +4,7 @@ import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import { createAttendeeAtomic, updateCheckedIn } from "#shared/db/attendees.ts";
 import { queryAll } from "#shared/db/client.ts";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 import { postListingSale } from "#test-utils/ledger.ts";
 
@@ -31,8 +31,8 @@ describeWithEnv(
         maxQuantity: 10,
         name: "Shared add-on",
       });
-      await setChildIds(parentA.id, [child.id]);
-      await setChildIds(parentB.id, [child.id]);
+      await listingChildren.setIds(parentA.id, [child.id]);
+      await listingChildren.setIds(parentB.id, [child.id]);
 
       const bookings = expandChildAllocations(
         [

@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { groupsTable } from "#shared/db/groups.ts";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import { addPageItem } from "#shared/db/site-page-items.ts";
 import {
   assertPublicHtml,
@@ -72,12 +72,12 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       await deactivateTestListing(dead.id);
       const parent = await createTestListing({ name: "Parent Listing" });
       const child = await createTestListing({ name: "Child Listing" });
-      await setChildIds(parent.id, [child.id]);
+      await listingChildren.setIds(parent.id, [child.id]);
       // A parent whose only child is unavailable is projected sold out —
       // discovery hides its booking CTA, so the nav must not link it either.
       const soldOutParent = await createTestListing({ name: "Starved Parent" });
       const starvedChild = await createTestListing({ name: "Starved Child" });
-      await setChildIds(soldOutParent.id, [starvedChild.id]);
+      await listingChildren.setIds(soldOutParent.id, [starvedChild.id]);
       await deactivateTestListing(starvedChild.id);
       // A renewal tier bought via a normal public link would take payment
       // without extending the site, so it must never be linked.
@@ -216,7 +216,7 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
         groupId: grp.id,
         name: "Child Member",
       });
-      await setChildIds(parent.id, [childMember.id]);
+      await listingChildren.setIds(parent.id, [childMember.id]);
       await addPageItem(page.id, "group", grp.id);
       const html = await assertPublicHtml("/page/mixed-group");
       expect(html).toContain('href="/ticket/mg"');

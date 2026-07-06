@@ -2,13 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   getModifierAnswerIds,
-  getModifierGroupIds,
-  getModifierListingIds,
   getModifierListingIdsByModifierId,
+  modifierGroups,
   modifierIdsByAnswerId,
+  modifierListings,
   setModifierAnswers,
-  setModifierGroups,
-  setModifierListings,
 } from "#shared/db/modifiers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { addAnswer, createQuestion } from "../questions/helpers.ts";
@@ -16,42 +14,42 @@ import { addAnswer, createQuestion } from "../questions/helpers.ts";
 describeWithEnv("db modifier links", { db: true }, () => {
   describe("setModifierListings / getModifierListingIds", () => {
     test("returns [] when the modifier has no listing links", async () => {
-      expect(await getModifierListingIds(42)).toEqual([]);
+      expect(await modifierListings.getIds(42)).toEqual([]);
     });
 
     test("persists the listing links, ascending", async () => {
-      await setModifierListings(1, [3, 1, 2]);
-      expect(await getModifierListingIds(1)).toEqual([1, 2, 3]);
+      await modifierListings.setIds(1, [3, 1, 2]);
+      expect(await modifierListings.getIds(1)).toEqual([1, 2, 3]);
     });
 
     test("dedupes repeated listing ids", async () => {
-      await setModifierListings(1, [5, 5, 7]);
-      expect(await getModifierListingIds(1)).toEqual([5, 7]);
+      await modifierListings.setIds(1, [5, 5, 7]);
+      expect(await modifierListings.getIds(1)).toEqual([5, 7]);
     });
 
     test("replaces the previous set", async () => {
-      await setModifierListings(1, [1, 2, 3]);
-      await setModifierListings(1, [9]);
-      expect(await getModifierListingIds(1)).toEqual([9]);
+      await modifierListings.setIds(1, [1, 2, 3]);
+      await modifierListings.setIds(1, [9]);
+      expect(await modifierListings.getIds(1)).toEqual([9]);
     });
 
     test("an empty set clears all listing links", async () => {
-      await setModifierListings(1, [1, 2]);
-      await setModifierListings(1, []);
-      expect(await getModifierListingIds(1)).toEqual([]);
+      await modifierListings.setIds(1, [1, 2]);
+      await modifierListings.setIds(1, []);
+      expect(await modifierListings.getIds(1)).toEqual([]);
     });
 
     test("links are scoped per modifier", async () => {
-      await setModifierListings(1, [1, 2]);
-      await setModifierListings(2, [2, 3]);
-      expect(await getModifierListingIds(1)).toEqual([1, 2]);
-      expect(await getModifierListingIds(2)).toEqual([2, 3]);
+      await modifierListings.setIds(1, [1, 2]);
+      await modifierListings.setIds(2, [2, 3]);
+      expect(await modifierListings.getIds(1)).toEqual([1, 2]);
+      expect(await modifierListings.getIds(2)).toEqual([2, 3]);
     });
   });
 
   describe("getModifierListingIdsByModifierId (batched scope lookup)", () => {
     test("buckets listing links by modifier id, seeding [] for unlinked ids", async () => {
-      await setModifierListings(1, [4, 6]);
+      await modifierListings.setIds(1, [4, 6]);
       expect(await getModifierListingIdsByModifierId([1, 2])).toEqual(
         new Map([
           [1, [4, 6]],
@@ -62,7 +60,7 @@ describeWithEnv("db modifier links", { db: true }, () => {
 
     test("a single-id lookup returns that modifier's links", async () => {
       // One id is not the empty case: the query must still run for it.
-      await setModifierListings(3, [5]);
+      await modifierListings.setIds(3, [5]);
       expect(await getModifierListingIdsByModifierId([3])).toEqual(
         new Map([[3, [5]]]),
       );
@@ -75,16 +73,16 @@ describeWithEnv("db modifier links", { db: true }, () => {
 
   describe("setModifierGroups / getModifierGroupIds", () => {
     test("persists the group links, ascending and deduped", async () => {
-      await setModifierGroups(1, [4, 2, 4]);
-      expect(await getModifierGroupIds(1)).toEqual([2, 4]);
+      await modifierGroups.setIds(1, [4, 2, 4]);
+      expect(await modifierGroups.getIds(1)).toEqual([2, 4]);
     });
 
     test("replaces the previous set, and an empty set clears it", async () => {
-      await setModifierGroups(1, [1, 2]);
-      await setModifierGroups(1, [8]);
-      expect(await getModifierGroupIds(1)).toEqual([8]);
-      await setModifierGroups(1, []);
-      expect(await getModifierGroupIds(1)).toEqual([]);
+      await modifierGroups.setIds(1, [1, 2]);
+      await modifierGroups.setIds(1, [8]);
+      expect(await modifierGroups.getIds(1)).toEqual([8]);
+      await modifierGroups.setIds(1, []);
+      expect(await modifierGroups.getIds(1)).toEqual([]);
     });
   });
 

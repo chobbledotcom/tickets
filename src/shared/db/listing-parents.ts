@@ -21,12 +21,22 @@ import {
 } from "#shared/listing-parents-rules.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
-const byParent = linkTableSide(
+/** A parent's chooseable children, keyed by parent id (relationship only):
+ * `getIds` reads them ascending; `setIds`/`setIdsTx` replace the set (the
+ * admin edit-on-parent save — the Tx form runs on the caller's transaction so
+ * the edges commit atomically with the listing row write). */
+export const listingChildren = linkTableSide(
   "listing_parents",
   "parent_listing_id",
   "child_listing_id",
 );
-const byChild = linkTableSide(
+
+/** The parents a child is offered under, keyed by child id — the reverse
+ * side. `addIdsTx` is the catalog-import writer for a freshly-created listing
+ * that is a child of already-existing parents: additive (never a group-wide
+ * delete), so it can't disturb a parent's other children the way a
+ * `listingChildren.setIdsTx` replace would. */
+export const listingParents = linkTableSide(
   "listing_parents",
   "child_listing_id",
   "parent_listing_id",
@@ -86,30 +96,6 @@ export const getNonStandaloneChildIds = (
 export const anyNonStandaloneChild = async (
   ids: readonly number[],
 ): Promise<boolean> => (await getNonStandaloneChildIds(ids)).size > 0;
-
-/** Child listing ids that must be chosen under `parentId` (relationship only). */
-export const getChildIds = byParent.getIds;
-
-/** Parent listing ids that `childId` is offered under (relationship only). */
-export const getParentIds = byChild.getIds;
-
-/** Replace the set of children required under `parentId` (admin edit-on-parent):
- * clear the parent's edges, then insert one per supplied child id. */
-export const setChildIds = byParent.setIds;
-
-/** Add `childId` as a child under each of `parentIds` inside an existing write
- * transaction — the catalog-import writer for a freshly-created listing that is
- * a child of already-existing parents. Additive (never a group-wide delete), so
- * it can't disturb a parent's other children the way {@link setChildIdsTx}'s
- * replace would. One batched multi-row INSERT regardless of parent count, so a
- * many-parent import stays within the interactive-transaction round-trip cap. */
-export const addParentEdgesTx = byChild.addIdsTx;
-
-/** Replace a parent's child edges inside an existing write transaction, so the
- * edge replacement commits atomically with the listing row write (the admin API
- * create/update path). Mirrors {@link setChildIds} but runs on the caller's
- * `tx` rather than its own batch. */
-export const setChildIdsTx = byParent.setIdsTx;
 
 type EdgeColumn = "child_listing_id" | "parent_listing_id";
 
@@ -174,7 +160,7 @@ export const getParentsForChildren = (
 export const getParentsOf = async (
   childId: number,
 ): Promise<ListingWithCount[]> => {
-  const ids = await getParentIds(childId);
+  const ids = await listingParents.getIds(childId);
   if (ids.length === 0) return [];
   const byId = await getListingsById();
   return mapNotNullish((id: number) => byId.get(id))(ids);

@@ -279,8 +279,8 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
       thankYouUrl: "",
       unitPrice: 300,
     });
-    const { setChildIds } = await import("#shared/db/listing-parents.ts");
-    await setChildIds(parent.id, [addon.id]);
+    const { listingChildren } = await import("#shared/db/listing-parents.ts");
+    await listingChildren.setIds(parent.id, [addon.id]);
     const { mockRefund, mockVerify } = await paidSession(
       "legit_surplus",
       1900,
@@ -354,8 +354,8 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
       thankYouUrl: "",
       unitPrice: 300,
     });
-    const { setChildIds } = await import("#shared/db/listing-parents.ts");
-    await setChildIds(parent.id, [addon.id]);
+    const { listingChildren } = await import("#shared/db/listing-parents.ts");
+    await listingChildren.setIds(parent.id, [addon.id]);
     await setGroupPackageMembers(group.id, [
       { listingId: parent.id, price: 1000 },
     ]);
