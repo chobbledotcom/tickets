@@ -137,10 +137,23 @@ const returnToMerchant = async (page: Page): Promise<void> => {
     .or(page.getByRole("button", { name: namePattern }))
     .first();
 
+  // SumUp serves its hosted checkout from more than one host — the docs return
+  // checkout.sumup.com, but pay.sumup.com is also used (the app's CSP allows
+  // both). Match any *.sumup.com origin so a pay.sumup.com checkout still gets
+  // the "Back to merchant website" click rather than being mistaken for a
+  // redirect that already happened.
+  const onSumUp = (): boolean => {
+    try {
+      return new URL(page.url()).hostname.endsWith(".sumup.com");
+    } catch {
+      return false;
+    }
+  };
+
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     // Already redirected away from SumUp's checkout — nothing to click.
-    if (!page.url().includes("checkout.sumup.com")) return;
+    if (!onSumUp()) return;
     try {
       if (await link.isVisible({ timeout: 500 })) {
         await link.click({ timeout: 5_000 });
