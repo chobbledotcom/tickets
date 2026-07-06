@@ -38,6 +38,7 @@ import {
   expectOnlyChildBooked,
   firstBookableDate,
   fixedThreeDayParentWithCustomChild,
+  parentChildRoomySharedTightPrivate,
   selectOptions,
   twoChildParent,
   twoParentsSharingChild,

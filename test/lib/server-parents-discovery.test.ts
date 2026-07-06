@@ -24,6 +24,7 @@ import {
   publicBody,
   ticketPageStatus,
 } from "#test-utils";
+import { parentChildRoomySharedTightPrivate } from "#test-utils/parent-booking-scenarios.ts";
 
 /** Fetch the gallery body with the public site + order page enabled. */
 const galleryBody = async (): Promise<string> => {
@@ -289,25 +290,7 @@ describeWithEnv(
         // (B = 1): one parent+child order needs two of A's ten spots, so it fits and
         // the parent keeps its Book link. The pre-fix code took the child's
         // per-listing minimum (1) and marked the parent sold out.
-        const groupA = await createTestGroup({
-          maxAttendees: 10,
-          name: "Shared",
-        });
-        const groupB = await createTestGroup({
-          maxAttendees: 1,
-          name: "Tighter",
-        });
-        const parent = await createTestListing({
-          groupIds: [groupA.id],
-          maxAttendees: 100,
-          name: "Base unit",
-        });
-        const child = await createTestListing({
-          groupIds: [groupA.id, groupB.id],
-          maxAttendees: 100,
-          name: "Add-on",
-        });
-        await setChildIds(parent.id, [child.id]);
+        const { parent } = await parentChildRoomySharedTightPrivate();
         await assertBookable(parent.slug);
       });
 
