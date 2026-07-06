@@ -13,13 +13,13 @@
  * can type or correct the address at any point.
  */
 
+// Type-only: erased at bundle time, so the server module never ships to the
+// browser — the client just shares the endpoint's AddressMatch shape.
+import type { AddressMatch } from "#shared/address-lookup/types.ts";
 import { renderAddressDiff } from "./address-diff.ts";
 import { findPinInputs } from "./pin-inputs.ts";
 
 const ENDPOINT = "/address-lookup";
-
-/** One matching address with the provider's coordinates ("" = unlocated). */
-type AddressMatch = { line: string; lat: string; lng: string };
 
 type LookupResponse = {
   addresses?: string[];

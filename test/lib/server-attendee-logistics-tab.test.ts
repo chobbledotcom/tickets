@@ -277,13 +277,18 @@ describeWithEnv(
       expect(html).not.toContain(`/admin/attendees/${elsewhere}/logistics`);
     });
 
-    test("shows the overlapping bookings' leg times", async () => {
+    test("shows the overlapping bookings' leg times and quantity", async () => {
       const daily = await createDailyTestListing({ maxQuantity: 5 });
       const current = await makeAttendee("Times Current", [
         { date: "2030-01-10", durationDays: 1, listingId: daily.id },
       ]);
       const other = await makeAttendee("Times Other", [
-        { date: "2030-01-10", durationDays: 1, listingId: daily.id },
+        {
+          date: "2030-01-10",
+          durationDays: 1,
+          listingId: daily.id,
+          quantity: 2,
+        },
       ]);
       await setLogisticsAssignments(
         other,
@@ -304,6 +309,8 @@ describeWithEnv(
       const html = await logisticsTabHtml(current);
       expect(html).toContain("10:45");
       expect(html).toContain("15:30");
+      // A multi-unit booking shows its quantity beside the listing name.
+      expect(html).toContain("×2");
     });
 
     test("the section is hidden when nothing overlaps", async () => {

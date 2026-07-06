@@ -91,6 +91,17 @@ describe("renderAddressDiff", () => {
     installFakeDom([]);
     expect(() => renderAddressDiff("a", "b")).not.toThrow();
   });
+
+  test("a notice missing its heading copy falls back to blank text", () => {
+    // The server always renders data-diff-heading; a stripped element still
+    // shows the marked words rather than the string "undefined".
+    const bare = diffSpec();
+    bare.data = { addressDiff: "" };
+    const [output] = installFakeDom([bare]);
+    renderAddressDiff("1 Old Road", "1 New Road");
+    expect(output!.hidden).toBe(false);
+    expect(output!.children[0]!.textContent).toBe(" ");
+  });
 });
 
 describe("address lookup fills the pin inputs", () => {
