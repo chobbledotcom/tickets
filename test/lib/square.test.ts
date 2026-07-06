@@ -32,7 +32,10 @@ import {
   withMockSquareClient,
   withSquareClient,
 } from "#test-utils/square-checkout.ts";
-import { hmacBase64 } from "#test-utils/webhook-signing.ts";
+import {
+  expectSignatureError,
+  hmacBase64,
+} from "#test-utils/webhook-signing.ts";
 
 /** A live, ACTIVE Square location the connection tests match against. */
 const TEST_STORE = { id: "L_test_123", name: "Test Store", status: "ACTIVE" };
@@ -85,6 +88,14 @@ const expectTokenRejected = (
   expect(result.ok).toBe(false);
   expect(result.accessToken.valid).toBe(false);
   expect(result.accessToken.error).toContain(fragment);
+};
+
+/** Assert the token validated but the overall connection check still failed. */
+const expectValidTokenFailure = (
+  result: Awaited<ReturnType<typeof testSquareConnection>>,
+): void => {
+  expect(result.ok).toBe(false);
+  expect(result.accessToken.valid).toBe(true);
 };
 
 /** Assert `createPaymentLink` returned null for `intent`. */
@@ -263,8 +274,7 @@ describe("square", () => {
         webhookKey: "sig_key_test",
       });
       await checkConnection({ locations: [TEST_STORE] }, (result) => {
-        expect(result.ok).toBe(false);
-        expect(result.accessToken.valid).toBe(true);
+        expectValidTokenFailure(result);
         expect(result.location.configured).toBe(false);
         expect(result.location.error).toContain(
           "Location ID not found in account",
@@ -306,8 +316,7 @@ describe("square", () => {
         token: "EAAAl_test_123",
       });
       await checkConnection({ locations: [TEST_STORE] }, (result) => {
-        expect(result.ok).toBe(false);
-        expect(result.accessToken.valid).toBe(true);
+        expectValidTokenFailure(result);
         expect(result.location.configured).toBe(true);
         expect(result.webhook.configured).toBe(false);
         expect(result.webhook.error).toContain(
@@ -1023,10 +1032,7 @@ describe("square", () => {
         TEST_NOTIFICATION_URL,
         toBytes(payload),
       );
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Invalid JSON payload");
-      }
+      expectSignatureError(result, "Invalid JSON payload");
     });
 
     test("verifies valid signature successfully", async () => {

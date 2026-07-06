@@ -5,11 +5,7 @@ import { handleRequest } from "#routes";
 import { attendeesApi } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
-import {
-  answersTable,
-  questionsTable,
-  setListingQuestions,
-} from "#shared/db/questions.ts";
+import { setListingQuestions } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import {
@@ -50,11 +46,22 @@ import {
   orphanAttendee,
   seedListingAttendee,
 } from "#test-utils/attendee-fixtures.ts";
-import { addQuestion, addListingQuestion } from "#test-utils/custom-questions.ts";
+import {
+  addListingQuestion,
+  addQuestion,
+} from "#test-utils/custom-questions.ts";
 
 describeWithEnv("server (admin attendees)", { db: true }, () => {
   const deleteAction = adminAttendeeAction("delete");
   const checkinAction = adminAttendeeAction("checkin", "listing");
+
+  // Same as seedListingAttendee but resolves to nothing — for testRequiresAuth
+  // setup callbacks, whose setup must resolve to void.
+  const seedForAuth = async (
+    overrides?: Parameters<typeof seedListingAttendee>[0],
+  ): Promise<void> => {
+    await seedListingAttendee(overrides);
+  };
 
   // Sends a signed-in admin's form POST: takes their login cookie and CSRF
   // token once, then posts any url with any fields and hands back the response.
@@ -76,7 +83,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     session: { cookie: string; csrfToken: string },
     listingId: number,
     fields: Record<string, string>,
-  ): Promise<{ response: Response; attendees: Awaited<ReturnType<typeof getAttendeesRaw>> }> => {
+  ): Promise<{
+    response: Response;
+    attendees: Awaited<ReturnType<typeof getAttendeesRaw>>;
+  }> => {
     const response = await postAs(session)(
       `/admin/listing/${listingId}/attendee`,
       fields,
@@ -151,9 +161,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     return result.attendees[0]!;
   };
 
-  // Posts the attendee edit form for `attendeeId` with the given fields and
-  // checks it saved (a redirect back). Returns the response for any extra checks.
-  const saveAttendeeEdit = async (
+  // Builds and posts the attendee edit form for `attendeeId`, returning the raw
+  // response (no status assertion — the caller decides what to expect).
+  const postAttendeeEdit = async (
     attendeeId: number,
     fields: Parameters<typeof buildAttendeeEditForm>[1],
   ): Promise<Response> => {
@@ -162,8 +172,48 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       `/admin/attendees/${attendeeId}`,
       form,
     );
+    return response;
+  };
+
+  // Posts the attendee edit form and checks it saved (a redirect back).
+  // Returns the response for any extra checks.
+  const saveAttendeeEdit = async (
+    attendeeId: number,
+    fields: Parameters<typeof buildAttendeeEditForm>[1],
+  ): Promise<Response> => {
+    const response = await postAttendeeEdit(attendeeId, fields);
     expect(response.status).toBe(302);
     return response;
+  };
+
+  // Books "John Doe" with every contact field filled in — the fully-populated
+  // attendee the edit-form tests read back and then change.
+  const bookFullAttendee = (
+    listing: Parameters<typeof bookAttendee>[0],
+    specialInstructions = "VIP guest",
+  ) =>
+    bookOne(listing, {
+      address: "123 Main St",
+      email: "john@example.com",
+      name: "John Doe",
+      phone: "555-1234",
+      quantity: 1,
+      special_instructions: specialInstructions,
+    });
+
+  // Edits the attendee choosing the given answer value for a question, then
+  // returns the answer ids now saved.
+  const editAnswerAndRead = async (
+    attendeeId: number,
+    questionId: number,
+    answerValue: string,
+  ): Promise<number[]> => {
+    await saveAttendeeEdit(attendeeId, {
+      email: "john@example.com",
+      extra: { [`question_${questionId}`]: answerValue },
+      name: "John Doe",
+    });
+    return savedAnswerIds(attendeeId);
   };
 
   // The answer ids an attendee currently has saved (no answer text loaded).
@@ -238,7 +288,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   // Opens the merge Actions tab for a target attendee, searching the given
   // source ticket token, and returns the page response.
-  const mergeSearch = (targetId: number, sourceToken: string): Promise<Response> =>
+  const mergeSearch = (
+    targetId: number,
+    sourceToken: string,
+  ): Promise<Response> =>
     adminGet(
       `/admin/attendees/${targetId}/actions?token=${encodeURIComponent(
         sourceToken,
@@ -288,6 +341,35 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     return { source, sourceToken, target };
   };
 
+  // A merge target and source both booked on one fresh 10-seat listing — the
+  // same-listing conflict starting point.
+  const seedSameListingMerge = async () => {
+    const listing = await createTestListing({ maxAttendees: 10 });
+    const { target, sourceToken } = await seedMergePair(listing.id, listing.id);
+    return { listing, sourceToken, target };
+  };
+
+  // Sets up a same-listing merge and submits it with the given decision for the
+  // single conflicting booking, returning the response.
+  const mergeSameListingBooking = async (choice: string): Promise<Response> => {
+    const { listing, target, sourceToken } = await seedSameListingMerge();
+    return submitMerge(target.id, sourceToken, {
+      [`booking_${listing.id}:null:0`]: choice,
+    });
+  };
+
+  // Submits a merge with the given decisions, expects the redirect, and returns
+  // the target's saved answers (keyed by question) to check the outcome.
+  const mergeAndReadAnswers = async (
+    targetId: number,
+    sourceToken: string,
+    decisions: Record<string, string> = {},
+  ) => {
+    const response = await submitMerge(targetId, sourceToken, decisions);
+    expect(response.status).toBe(302);
+    return answersAfterMerge(targetId);
+  };
+
   // Two 10-seat listings a merge can move bookings between; the second is "E2".
   const twoMergeListings = async () => ({
     first: await createTestListing({ maxAttendees: 10 }),
@@ -321,10 +403,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
   // and source booked across them — the shared arrange step for the answer-merge
   // tests. Returns the question, its answers, and the pair (answers not yet
   // saved to anyone).
-  const seedMergeWithQuestion = async (
-    text: string,
-    answerTexts: string[],
-  ) => {
+  const seedMergeWithQuestion = async (text: string, answerTexts: string[]) => {
     const { first, second } = await twoMergeListings();
     const { q, a1, a2 } = await addMergeQuestion(
       [first.id, second.id],
@@ -358,7 +437,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
   describe("GET /admin/listing/:listingId/attendee/:attendeeId/delete", () => {
     testRequiresAuth("/admin/attendees/1/delete", {
       setup: () =>
-        seedListingAttendee({
+        seedForAuth({
           maxAttendees: 100,
           thankYouUrl: "https://example.com",
         }),
@@ -431,7 +510,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       },
       method: "POST",
       setup: () =>
-        seedListingAttendee({
+        seedForAuth({
           maxAttendees: 100,
           thankYouUrl: "https://example.com",
         }),
@@ -744,7 +823,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       body: {},
       method: "POST",
       setup: () =>
-        seedListingAttendee({
+        seedForAuth({
           maxAttendees: 100,
           thankYouUrl: "https://example.com",
         }),
@@ -801,17 +880,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("redirects to the out-filtered roster when return_filter is out", async () => {
       // Check in first, then check out with return_filter=out
-      const { listing, attendee, cookie, csrfToken } = await checkinAction(
-        {},
-      )();
+      const ctx = await checkinAction({})();
 
-      const response = await postAs({ cookie, csrfToken })(
-        `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        { return_filter: "out" },
-      );
+      const response = await toggleCheckin(ctx, { return_filter: "out" });
       expectRedirect(
         response,
-        `/admin/listing/${listing.id}/attendees?filter=out`,
+        `/admin/listing/${ctx.listing.id}/attendees?filter=out`,
       );
     });
 
@@ -841,14 +915,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("checks out an already checked-in attendee", async () => {
       // First check in via the curried helper
-      const { listing, attendee, cookie, csrfToken } = await checkinAction(
-        {},
-      )();
+      const ctx = await checkinAction({})();
 
       // Then check out
-      const response = await postAs({ cookie, csrfToken })(
-        `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-      );
+      const response = await toggleCheckin(ctx);
       expectFlash(response, expect.stringContaining("Checked John Doe out"));
     });
 
@@ -1237,7 +1307,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("GET /admin/attendees/:attendeeId", () => {
     testRequiresAuth("/admin/attendees/1", {
-      setup: () => seedListingAttendee(),
+      setup: () => seedForAuth(),
     });
 
     test("returns 404 for non-existent attendee", async () => {
@@ -1247,14 +1317,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("shows edit form with prefilled attendee data", async () => {
       const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await bookOne(listing, {
-        address: "123 Main St",
-        email: "john@example.com",
-        name: "John Doe",
-        phone: "555-1234",
-        quantity: 1,
-        special_instructions: "VIP guest",
-      });
+      const attendee = await bookFullAttendee(listing);
 
       const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
       await expectHtmlResponse(
@@ -1383,7 +1446,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         special_instructions: "",
       },
       method: "POST",
-      setup: () => seedListingAttendee(),
+      setup: () => seedForAuth(),
     });
 
     test("returns 404 for non-existent attendee", async () => {
@@ -1424,11 +1487,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("rejects empty name", async () => {
       const { attendee } = await seedListingAttendee();
-      const form = await buildAttendeeEditForm(attendee.id, { name: "" });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        form,
-      );
+      const response = await postAttendeeEdit(attendee.id, { name: "" });
       // Validation failure re-renders the form (200) with the error inline.
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -1439,14 +1498,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { attendee } = await seedListingAttendee();
       const returnUrl = "/admin/calendar#attendees";
 
-      const form = await buildAttendeeEditForm(attendee.id, {
+      const response = await postAttendeeEdit(attendee.id, {
         name: "",
         returnUrl,
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        form,
-      );
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Name is required");
@@ -1455,11 +1510,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("rejects whitespace-only name", async () => {
       const { attendee } = await seedListingAttendee();
-      const form = await buildAttendeeEditForm(attendee.id, { name: "   " });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        form,
-      );
+      const response = await postAttendeeEdit(attendee.id, { name: "   " });
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Name is required");
@@ -1467,18 +1518,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("updates attendee with new data", async () => {
       const { attendee } = await seedListingAttendee();
-      const form = await buildAttendeeEditForm(attendee.id, {
+      const response = await saveAttendeeEdit(attendee.id, {
         address: "456 Oak Ave",
         email: "jane@example.com",
         name: "Jane Doe",
         phone: "555-9999",
         special_instructions: "Wheelchair access",
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        form,
-      );
-      expect(response.status).toBe(302);
       await expectFlashRedirect(
         `/admin/attendees/${attendee.id}/edit?form=attendee-form#attendee-form`,
         "Updated Jane Doe",
@@ -1501,15 +1547,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { attendee } = await seedListingAttendee();
       const returnUrl = "/admin/calendar?date=2026-03-15#attendees";
 
-      const form = await buildAttendeeEditForm(attendee.id, {
+      const response = await saveAttendeeEdit(attendee.id, {
         email: "john@example.com",
         name: "John Doe",
         returnUrl,
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        form,
-      );
       // Save returns to the same form (anchored), carrying return_url through
       // so a later save still round-trips the caller's origin.
       expectRedirect(
@@ -1526,15 +1568,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 100,
         name: "Listing 1",
       });
-      const form = await buildAttendeeEditForm(attendee.id, {
+      const response = await saveAttendeeEdit(attendee.id, {
         email: "jane@example.com",
         name: "Jane Smith",
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        form,
-      );
-      expect(response.status).toBe(302);
       await expectFlashRedirect(
         `/admin/attendees/${attendee.id}/edit?form=attendee-form#attendee-form`,
         "Updated Jane Smith",
@@ -1552,15 +1589,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
         3,
       );
-      const form = await buildAttendeeEditForm(attendee.id, {
+      await saveAttendeeEdit(attendee.id, {
         email: "jane@example.com",
         name: "Jane Doe",
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        form,
-      );
-      expect(response.status).toBe(302);
 
       const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
       const updated = await getAttendeeRaw(attendee.id);
@@ -1662,40 +1694,23 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         quantity: 1,
       });
 
-      const form = await buildAttendeeEditForm(attendee.id, {
+      await saveAttendeeEdit(attendee.id, {
         email: "",
         name: "John Doe",
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        form,
-      );
-      expect(response.status).toBe(302);
     });
 
     test("updates attendee with all non-empty fields", async () => {
       const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await bookOne(listing, {
-        address: "123 Main St",
-        email: "john@example.com",
-        name: "John Doe",
-        phone: "555-1234",
-        quantity: 1,
-        special_instructions: "VIP",
-      });
+      const attendee = await bookFullAttendee(listing, "VIP");
 
-      const form = await buildAttendeeEditForm(attendee.id, {
+      const response = await saveAttendeeEdit(attendee.id, {
         address: "456 Oak Ave",
         email: "jane@example.com",
         name: "Jane Smith",
         phone: "555-9999",
         special_instructions: "Special access needed",
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        form,
-      );
-      expect(response.status).toBe(302);
       await expectFlashRedirect(
         `/admin/attendees/${attendee.id}/edit?form=attendee-form#attendee-form`,
         "Updated Jane Smith",
@@ -1714,7 +1729,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("GET /admin/listing/:listingId/attendee/:attendeeId/resend-notification", () => {
     testRequiresAuth("/admin/attendees/1/resend-notification", {
-      setup: () => seedListingAttendee(),
+      setup: () => seedForAuth(),
     });
 
     test("returns 404 for non-existent listing", async () => {
@@ -1812,7 +1827,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         confirm_identifier: "John Doe",
       },
       method: "POST",
-      setup: () => seedListingAttendee(),
+      setup: () => seedForAuth(),
     });
 
     test("returns 404 for non-existent listing", async () => {
@@ -2051,9 +2066,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         attendeeId: attendee.id,
         listingId: listing.id,
       });
-      const response = await adminGet(
-        `/admin/attendees/${result.attendees[0]!.id}`,
-      );
+      const response = await adminGet(`/admin/attendees/${attendee.id}`);
       const html = await response.text();
       expect(response.status).toBe(200);
       // Both badges render, separated by the space between them.
@@ -2092,7 +2105,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     testRequiresAuth("/admin/attendees/1/refresh-payment", {
       body: {},
       method: "POST",
-      setup: () => seedListingAttendee(),
+      setup: () => seedForAuth(),
     });
 
     test("redirects to edit page when attendee has no payment", async () => {
@@ -2144,16 +2157,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("marks as refunded when Stripe reports refund", async () => {
       const { attendee } = await seedPaidAttendee("pi_refresh_refund");
-      await refreshPaymentWithRefund(attendee.id, true)(
-        (response, askedAbout) => {
-          expect(response.status).toBe(302);
-          expect(response.headers.get("location")).toContain(
-            `/admin/attendees/${attendee.id}`,
-          );
-          expectFlash(response, expect.stringContaining("refunded"));
-          expect(askedAbout[0]).toEqual(["pi_refresh_refund"]);
-        },
-      );
+      await refreshPaymentWithRefund(
+        attendee.id,
+        true,
+      )((response, askedAbout) => {
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toContain(
+          `/admin/attendees/${attendee.id}`,
+        );
+        expectFlash(response, expect.stringContaining("refunded"));
+        expect(askedAbout[0]).toEqual(["pi_refresh_refund"]);
+      });
     });
 
     test("surfaces a Stripe refund the ledger could not record", async () => {
@@ -2171,7 +2185,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
         "pi_refresh_unrecorded",
       );
-      await refreshPaymentWithRefund(attendee.id, true)((response) => {
+      await refreshPaymentWithRefund(
+        attendee.id,
+        true,
+      )((response) => {
         expect(response.status).toBe(302);
         expectFlash(
           response,
@@ -2183,7 +2200,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("redirects without marking refunded when payment is not refunded", async () => {
       const { attendee } = await seedPaidAttendee("pi_refresh_ok");
-      await refreshPaymentWithRefund(attendee.id, false)((response) => {
+      await refreshPaymentWithRefund(
+        attendee.id,
+        false,
+      )((response) => {
         expect(response.status).toBe(302);
         expect(response.headers.get("location")).toContain(
           `/admin/attendees/${attendee.id}`,
@@ -2243,12 +2263,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("saves selected answer on edit", async () => {
       const { attendee, q, a2 } = await setupQuestionAndAttendee();
-      await saveAttendeeEdit(attendee.id, {
-        email: "john@example.com",
-        extra: { [`question_${q.id}`]: String(a2.id) },
-        name: "John Doe",
-      });
-      expect(await savedAnswerIds(attendee.id)).toEqual([a2.id]);
+      const saved = await editAnswerAndRead(attendee.id, q.id, String(a2.id));
+      expect(saved).toEqual([a2.id]);
     });
 
     test("updates answer from one option to another", async () => {
@@ -2256,12 +2272,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { saveAttendeeAnswers } = await import("#shared/db/questions.ts");
       await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
-      await saveAttendeeEdit(attendee.id, {
-        email: "john@example.com",
-        extra: { [`question_${q.id}`]: String(a2.id) },
-        name: "John Doe",
-      });
-      expect(await savedAnswerIds(attendee.id)).toEqual([a2.id]);
+      const saved = await editAnswerAndRead(attendee.id, q.id, String(a2.id));
+      expect(saved).toEqual([a2.id]);
     });
 
     test("clears answers when no question field submitted", async () => {
@@ -2278,19 +2290,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("ignores invalid answer ID for question", async () => {
       const { attendee, q } = await setupQuestionAndAttendee();
-
-      await saveAttendeeEdit(attendee.id, {
-        email: "john@example.com",
-        extra: { [`question_${q.id}`]: "99999" },
-        name: "John Doe",
-      });
-      expect((await savedAnswerIds(attendee.id)).length).toBe(0);
+      const saved = await editAnswerAndRead(attendee.id, q.id, "99999");
+      expect(saved.length).toBe(0);
     });
   });
 
   describe("merge panel on the Actions tab", () => {
     testRequiresAuth("/admin/attendees/1/actions", {
-      setup: () => seedListingAttendee({ maxAttendees: 10 }),
+      setup: () => seedForAuth({ maxAttendees: 10 }),
     });
 
     test("returns 404 for non-existent attendee", async () => {
@@ -2337,11 +2344,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("shows merge preview when valid source token provided", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const { target, sourceToken } = await seedMergePair(
-        listing.id,
-        listing.id,
-      );
+      const { target, sourceToken } = await seedSameListingMerge();
       const response = await mergeSearch(target.id, sourceToken);
       await expectHtmlResponse(
         response,
@@ -2721,13 +2724,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("shows duplicate booking status when same listing with identical metadata", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-
-      const { target, sourceToken } = await seedMergePair(
-        listing.id,
-        listing.id,
-      );
-
+      const { target, sourceToken } = await seedSameListingMerge();
       const response = await mergeSearch(target.id, sourceToken);
       // Same listing, same qty/price/checked_in/refunded — classified as "duplicate"
       await expectHtmlResponse(response, 200, "Duplicate");
@@ -2771,16 +2768,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("POST merge reports skipped bookings in flash", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const { target, sourceToken } = await seedMergePair(
-        listing.id,
-        listing.id,
-      );
-
-      const bookingKey = `${listing.id}:null:0`;
-      const response = await submitMerge(target.id, sourceToken, {
-        [`booking_${bookingKey}`]: "skip_source",
-      });
+      const response = await mergeSameListingBooking("skip_source");
       expect(response.status).toBe(302);
       expectFlash(
         response,
@@ -2799,10 +2787,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       // Submit with wrong version — bounced back to the Actions tab's merge
       // panel with the validation error flashed and the search re-armed.
       const { response } = await postMerge(target.id, {
-          merge_version: "stale-version",
-          source_token: sourceToken,
-        },
-      );
+        merge_version: "stale-version",
+        source_token: sourceToken,
+      });
       expectRedirect(
         response,
         `/admin/attendees/${target.id}/actions`,
@@ -2818,12 +2805,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       await saveMergeAnswers(target.id, sourceToken, [a1.id], [a2.id]);
 
-      const response = await submitMerge(target.id, sourceToken, {
+      const finalAnswers = await mergeAndReadAnswers(target.id, sourceToken, {
         [`answer_${q.id}`]: "clear",
       });
-      expect(response.status).toBe(302);
-
-      const finalAnswers = await answersAfterMerge(target.id);
       expect(finalAnswers.has(q.id)).toBe(false);
     });
 
@@ -2834,12 +2818,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       await saveMergeAnswers(target.id, sourceToken, [a1.id], [a2.id]);
 
-      const response = await submitMerge(target.id, sourceToken, {
+      const finalAnswers = await mergeAndReadAnswers(target.id, sourceToken, {
         [`answer_${q.id}`]: "target",
       });
-      expect(response.status).toBe(302);
-
-      const finalAnswers = await answersAfterMerge(target.id);
       expect(finalAnswers.get(q.id)?.answerId).toBe(a1.id);
     });
 
@@ -2851,10 +2832,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       // Only source has an answer — no conflict
       await saveMergeAnswers(target.id, sourceToken, [], [a1.id]);
 
-      const response = await submitMerge(target.id, sourceToken);
-      expect(response.status).toBe(302);
-
-      const finalAnswers = await answersAfterMerge(target.id);
+      const finalAnswers = await mergeAndReadAnswers(target.id, sourceToken);
       expect(finalAnswers.get(q.id)?.answerId).toBe(a1.id);
     });
 
@@ -2866,24 +2844,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       // Only target has an answer — no conflict
       await saveMergeAnswers(target.id, sourceToken, [a1.id], []);
 
-      const response = await submitMerge(target.id, sourceToken);
-      expect(response.status).toBe(302);
-
-      const finalAnswers = await answersAfterMerge(target.id);
+      const finalAnswers = await mergeAndReadAnswers(target.id, sourceToken);
       expect(finalAnswers.get(q.id)?.answerId).toBe(a1.id);
     });
 
     test("POST merge with take_source replaces target booking", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const { target, sourceToken } = await seedMergePair(
-        listing.id,
-        listing.id,
-      );
-
-      const bookingKey = `${listing.id}:null:0`;
-      const response = await submitMerge(target.id, sourceToken, {
-        [`booking_${bookingKey}`]: "take_source",
-      });
+      const response = await mergeSameListingBooking("take_source");
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Merged"), true);
     });

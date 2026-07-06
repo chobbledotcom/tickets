@@ -22,7 +22,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers.ts";
-import { apiGet, makeParent, postBooking } from "#test-utils/parents.ts";
+import { apiBook, apiGet, makeParent, postBooking } from "#test-utils/parents.ts";
 
 // ---------------------------------------------------------------------------
 // Bookable-date lookups (holiday-aware)
@@ -76,6 +76,18 @@ export const expectListingDetailBookable = async (
   expect(body.listing.maxPurchasable).toBeGreaterThan(0);
 };
 
+/** POST a JSON-API booking of one unit of `child` under `parent`. Extra body
+ * fields (a date, a quantity, …) merge in. */
+export const apiBookOneChild = (
+  parent: Listing,
+  child: Listing,
+  extra: Record<string, unknown> = {},
+): Promise<Response> =>
+  apiBook(parent.slug, {
+    children: [{ quantity: 1, slug: child.slug }],
+    ...extra,
+  });
+
 /** The `GET /api/listings` collection row whose slug matches `slug`. */
 export const apiListingRow = async <T extends { slug: string }>(
   slug: string,
@@ -125,6 +137,23 @@ export const expectBookingRejected = async (
   expect(res.status).toBe(302);
   expectFlash(res, flash, false);
   expect((await getAttendeesRaw(emptyListingId)).length).toBe(0);
+};
+
+/** Assert the parent's availability endpoint reports the given per-child
+ * availabilities (order-independent). Each pair is `[child, isAvailable]`. */
+export const expectChildAvailability = async (
+  parentSlug: string,
+  expected: [Listing, boolean][],
+  suffix = "/availability",
+): Promise<void> => {
+  const body = await apiListingBody<{
+    children?: { slug: string; available: boolean }[];
+  }>(parentSlug, suffix);
+  expect(body.children).toEqual(
+    expect.arrayContaining(
+      expected.map(([child, available]) => ({ available, slug: child.slug })),
+    ),
+  );
 };
 
 /** Assert the newest attendee line for `child` has the given quantity. */
@@ -191,6 +220,52 @@ export const expectEachChildQtyOne = async (
 // ---------------------------------------------------------------------------
 // Repeated arrange blocks
 // ---------------------------------------------------------------------------
+
+/** A daily parent (default name "Daily base") plus its bookable start dates —
+ * the standard starting point for the daily date-selector render tests. */
+export const dailyBaseWithDates = async (
+  overrides: Parameters<typeof createDailyTestListing>[0] = {
+    name: "Daily base",
+  },
+): Promise<{ parent: Listing; parentDates: string[] }> => {
+  const parent = await createDailyTestListing(overrides);
+  return { parent, parentDates: await bookableDatesFor(parent.id) };
+};
+
+/** A parent with two plain children, returned as `childA`/`childB`. Extra parent
+ * overrides (e.g. `{ maxQuantity: 5 }`) merge onto the default. */
+export const twoChildParent = async (
+  parentOverrides: Parameters<typeof createTestListing>[0] = {},
+): Promise<{ parent: Listing; childA: Listing; childB: Listing }> => {
+  const { parent, children } = await makeParent({
+    children: [{}, {}],
+    parent: parentOverrides,
+  });
+  return { childA: children[0]!, childB: children[1]!, parent };
+};
+
+/** A daily parent whose only child is a daily add-on with a single spot
+ * (`maxAttendees: 1`). Extra parent overrides merge onto `{ daily: true }`. */
+export const dailyParentWithOneCapChild = (
+  parentOverrides: Parameters<typeof createTestListing>[0] = {},
+): ReturnType<typeof makeParent> =>
+  makeParent({
+    children: [{ daily: true, maxAttendees: 1 }],
+    parent: { daily: true, ...parentOverrides },
+  });
+
+/** A pay-what-you-want parent (unit £10, up to £50) whose only child is free —
+ * so a submitted custom price lands wholly on the parent line. */
+export const payMoreParentWithFreeChild = (): ReturnType<typeof makeParent> =>
+  makeParent({
+    children: [{ maxAttendees: 50, unitPrice: 0 }],
+    parent: {
+      canPayMore: true,
+      maxAttendees: 50,
+      maxPrice: 5000,
+      unitPrice: 1000,
+    },
+  });
 
 /** A FIXED 3-day daily parent whose only child is customisable (priced £10 for
  * 1 day, £30 for 3) — so the child inherits and must be priced for the parent's

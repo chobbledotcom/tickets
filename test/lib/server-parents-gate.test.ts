@@ -28,8 +28,10 @@ import {
   addRadioQuestion,
   bookableDatesFor,
   bookOne,
+  dailyBaseWithDates,
   dailyPairSharingPoolWithFiller,
   dailyParentWithChildOffParentDay,
+  dailyParentWithOneCapChild,
   expectBookingRejected,
   expectChildQuantity,
   expectEachChildQtyOne,
@@ -37,6 +39,7 @@ import {
   firstBookableDate,
   fixedThreeDayParentWithCustomChild,
   selectOptions,
+  twoChildParent,
   twoParentsSharingChild,
   weekdayOf,
 } from "#test-utils/parent-booking-scenarios.ts";
@@ -141,8 +144,7 @@ describeWithEnv(
     });
 
     test("a multi-child parent accepts the chosen child and folds only it", async () => {
-      const { parent, children } = await makeParent({ children: [{}, {}] });
-      const [childA, childB] = [children[0]!, children[1]!];
+      const { parent, childA, childB } = await twoChildParent();
 
       const res = await bookOne(parent, 1, {
         [`child_qty_${parent.id}_${childB.id}`]: "1",
@@ -156,8 +158,7 @@ describeWithEnv(
     test("parent qty 1 requires exactly one child unit (a sum of 1)", async () => {
       // With two bookable children and parent quantity 1, the buyer must choose
       // exactly one child unit in total; choosing none rejects, choosing one folds.
-      const { parent, children } = await makeParent({ children: [{}, {}] });
-      const [childA, childB] = [children[0]!, children[1]!];
+      const { parent, childA, childB } = await twoChildParent();
 
       const res = await bookOne(parent, 1, {
         [`child_qty_${parent.id}_${childA.id}`]: "1",
@@ -186,11 +187,9 @@ describeWithEnv(
     test("parent qty 2 accepts one of each child (two folded lines)", async () => {
       // Per-unit model: a mix of 1 of child A + 1 of child B also satisfies a
       // parent quantity of 2, folding TWO distinct attendee lines (one each).
-      const { parent, children } = await makeParent({
-        children: [{}, {}],
-        parent: { maxQuantity: 5 },
+      const { parent, childA, childB } = await twoChildParent({
+        maxQuantity: 5,
       });
-      const [childA, childB] = [children[0]!, children[1]!];
 
       const res = await bookOne(parent, 2, {
         [`child_qty_${parent.id}_${childA.id}`]: "1",
@@ -636,8 +635,7 @@ describeWithEnv(
     });
 
     test("a question shared by sibling children renders once; a page question stays required", async () => {
-      const { parent, children } = await makeParent({ children: [{}, {}] });
-      const [childA, childB] = [children[0]!, children[1]!];
+      const { parent, childA, childB } = await twoChildParent();
 
       // A page-level question on the parent (renders required in the main block),
       // plus a question assigned to BOTH children (renders once, non-required).
@@ -702,11 +700,9 @@ describeWithEnv(
       );
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.terms("You must accept the rules.");
-      const { parent, children } = await makeParent({
-        children: [{}, {}],
-        parent: { maxQuantity: 5 },
+      const { parent, childA, childB } = await twoChildParent({
+        maxQuantity: 5,
       });
-      const [childA, childB] = [children[0]!, children[1]!];
 
       // Choose 1 of childB with valid contact, but don't agree to terms →
       // rejected with the form stashed; the follow-up GET must re-fill childB's
@@ -792,19 +788,16 @@ describeWithEnv(
       // Deactivating the only child leaves the parent with no bookable child.
       await deactivateTestListing(child.id);
 
-      const res = await postBooking(parent.slug, {
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
-      });
-      expect(res.status).toBe(302);
-      expectFlash(res, "Base unit has no available options right now.", false);
-      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+      const res = await bookOne(parent, 1);
+      await expectBookingRejected(
+        res,
+        "Base unit has no available options right now.",
+        parent.id,
+      );
     });
 
     test("an inactive child is skipped, leaving an active sibling to fold", async () => {
-      const { parent, children } = await makeParent({ children: [{}, {}] });
-      const [dead, live] = [children[0]!, children[1]!];
+      const { parent, childA: dead, childB: live } = await twoChildParent();
       await deactivateTestListing(dead.id);
 
       // With the inactive child skipped, the live sibling is the sole bookable
@@ -870,10 +863,7 @@ describeWithEnv(
       // still rejected, by the folded per-date availability check.
       const { bookAttendee } = await import("#test-utils");
 
-      const { parent, child } = await makeParent({
-        children: [{ daily: true, maxAttendees: 1 }],
-        parent: { daily: true },
-      });
+      const { parent, child } = await dailyParentWithOneCapChild();
 
       const dates = await bookableDatesFor(child.id);
       const [dayA, dayB] = [dates[0]!, dates[1]!];
@@ -914,9 +904,8 @@ describeWithEnv(
       // still offers a bookable quantity and the child a per-unit select.
       const { bookAttendee } = await import("#test-utils");
 
-      const { parent, child } = await makeParent({
-        children: [{ daily: true, maxAttendees: 1 }],
-        parent: { daily: true, maxQuantity: 5 },
+      const { parent, child } = await dailyParentWithOneCapChild({
+        maxQuantity: 5,
       });
 
       // Fill the child's single spot on its first bookable date.
@@ -1208,18 +1197,12 @@ describeWithEnv(
         parent: { name: "Standard base" },
       });
 
-      const res = await postBooking(parent.slug, {
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
-      });
-      expect(res.status).toBe(302);
-      expectFlash(
+      const res = await bookOne(parent, 1);
+      await expectBookingRejected(
         res,
         "Standard base has no available options right now.",
-        false,
+        parent.id,
       );
-      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
     });
 
     test("a customisable daily child validates its inherited span against its calendar", async () => {
@@ -1353,8 +1336,8 @@ describeWithEnv(
       // leaving the lone active child as the sole bookable option — which, being
       // the only bookable child, renders informational (auto-filled by the fold)
       // and posts NO quantity field of its own.
-      const { parent, children } = await makeParent({ children: [{}, {}] });
-      const [liveChild, deadChild] = [children[0]!, children[1]!];
+      const { parent, childA: liveChild, childB: deadChild } =
+        await twoChildParent();
       await deactivateTestListing(deadChild.id);
 
       const html = await bookingPageHtml(parent.slug);
@@ -1530,19 +1513,8 @@ describeWithEnv(
       // bookable on a single weekday. The rendered date selector must offer only
       // the child's dates (parentDates ∩ child union), never a parent-only date
       // the submit fold would reject.
-      const { DAY_NAMES, getBookableStartDates } = await import(
-        "#shared/dates.ts"
-      );
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-
-      const parent = await createDailyTestListing({ name: "Daily base" });
-      const parentRow = (await getListingWithCount(parent.id))!;
-      const holidays = await getActiveHolidays();
-      const parentDates = getBookableStartDates(parentRow, holidays);
-      const childDate = parentDates[0]!;
-      const childDay =
-        DAY_NAMES[new Date(`${childDate}T00:00:00Z`).getUTCDay()]!;
+      const { parent, parentDates } = await dailyBaseWithDates();
+      const childDay = await weekdayOf(parentDates[0]!);
       // A daily child bookable only on the first parent date's weekday.
       const child = await createDailyTestListing({
         bookableDays: [childDay],
@@ -1550,8 +1522,7 @@ describeWithEnv(
       });
       await setChildIds(parent.id, [child.id]);
 
-      const childRow = (await getListingWithCount(child.id))!;
-      const childDates = getBookableStartDates(childRow, holidays);
+      const childDates = await bookableDatesFor(child.id);
       const otherDate = parentDates.find((d) => !childDates.includes(d))!;
 
       const html = await bookingPageHtml(parent.slug);
@@ -1565,17 +1536,8 @@ describeWithEnv(
     test("a daily parent with a dateless child keeps all its dates", async () => {
       // A STANDARD (dateless) child imposes no date constraint, so the parent
       // keeps every one of its own bookable dates.
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-
       const { parent } = await makeParent({ parent: { daily: true } });
-
-      const parentRow = (await getListingWithCount(parent.id))!;
-      const parentDates = getBookableStartDates(
-        parentRow,
-        await getActiveHolidays(),
-      );
+      const parentDates = await bookableDatesFor(parent.id);
 
       const html = await bookingPageHtml(parent.slug);
       for (const d of parentDates) {
@@ -1716,22 +1678,11 @@ describeWithEnv(
       // ACTIVE child bookable only Monday, INACTIVE child bookable only Tuesday.
       // The inactive child must contribute NOTHING to the union, so only Monday
       // is offered — its Tuesday must never become selectable.
-      const { DAY_NAMES, getBookableStartDates } = await import(
-        "#shared/dates.ts"
-      );
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-
-      const parent = await createDailyTestListing({ name: "Daily base" });
-      const parentRow = (await getListingWithCount(parent.id))!;
-      const holidays = await getActiveHolidays();
-      const parentDates = getBookableStartDates(parentRow, holidays);
+      const { parent, parentDates } = await dailyBaseWithDates();
       const mondayDate = parentDates[0]!;
       const tuesdayDate = parentDates.find((d) => d !== mondayDate)!;
-      const mondayName =
-        DAY_NAMES[new Date(`${mondayDate}T00:00:00Z`).getUTCDay()]!;
-      const tuesdayName =
-        DAY_NAMES[new Date(`${tuesdayDate}T00:00:00Z`).getUTCDay()]!;
+      const mondayName = await weekdayOf(mondayDate);
+      const tuesdayName = await weekdayOf(tuesdayDate);
 
       const activeChild = await createDailyTestListing({
         bookableDays: [mondayName],
@@ -1756,22 +1707,12 @@ describeWithEnv(
       // all bookable for the child, which it is not, so Monday must NOT be offered
       // (the union validates the inherited fixed span with
       // isBookingRangeValid, not single-day starts).
-      const { DAY_NAMES, getBookableStartDates } = await import(
-        "#shared/dates.ts"
-      );
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-
-      const parent = await createDailyTestListing({
+      const { parent, parentDates } = await dailyBaseWithDates({
         durationDays: 3,
         name: "Fixed 3-day base",
       });
-      const parentRow = (await getListingWithCount(parent.id))!;
-      const holidays = await getActiveHolidays();
-      const parentDates = getBookableStartDates(parentRow, holidays);
       const mondayDate = parentDates[0]!;
-      const mondayName =
-        DAY_NAMES[new Date(`${mondayDate}T00:00:00Z`).getUTCDay()]!;
+      const mondayName = await weekdayOf(mondayDate);
 
       const child = await createDailyTestListing({
         bookableDays: [mondayName],
@@ -1799,11 +1740,7 @@ describeWithEnv(
       // Monday only; swapping to the fixed-span branch (which, with no fixed span,
       // degrades to a single-day validity filter) would also offer Tuesday — so the
       // branch swap is caught by Tuesday's absence.
-      const { DAY_NAMES, getBookableStartDates } = await import(
-        "#shared/dates.ts"
-      );
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      const { DAY_NAMES } = await import("#shared/dates.ts");
 
       // A FIXED 3-day daily child bookable only on Mon/Tue/Wed: only a Monday
       // start fits a whole 3-day Mon-Tue-Wed span.
@@ -1822,9 +1759,7 @@ describeWithEnv(
           durationDays: 3,
         },
       });
-      const parentRow = (await getListingWithCount(parent.id))!;
-      const holidays = await getActiveHolidays();
-      const parentDates = getBookableStartDates(parentRow, holidays);
+      const parentDates = await bookableDatesFor(parent.id);
       const monIdx = DAY_NAMES.indexOf("Monday");
       const tueIdx = DAY_NAMES.indexOf("Tuesday");
       // A Monday in the parent's dates and the Tuesday in the parent's dates that
@@ -1884,20 +1819,10 @@ describeWithEnv(
       // instead of rendering a disabled control. (See the render test above
       // for the parent-quantity-not-clamped-to-0 outcome.)
       const { bookAttendee } = await import("#test-utils");
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
 
-      const { parent, child } = await makeParent({
-        children: [{ daily: true, maxAttendees: 1 }],
-        parent: { daily: true },
-      });
+      const { parent, child } = await dailyParentWithOneCapChild();
 
-      const childRow = (await getListingWithCount(child.id))!;
-      const dayA = getBookableStartDates(
-        childRow,
-        await getActiveHolidays(),
-      )[0]!;
+      const dayA = await firstBookableDate(child.id);
       const booked = await bookAttendee(child, { date: dayA });
       expect(booked.success).toBe(true);
 
@@ -2285,42 +2210,27 @@ describeWithEnv(
     });
 
     test("a daily parent's daily child carries its serveable dates as data-child-dates", async () => {
-      const { DAY_NAMES, getBookableStartDates } = await import(
-        "#shared/dates.ts"
-      );
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-
       // Two daily children so the per-child selectors render (no sole-child
       // auto-select): child A serves every day, child B only one weekday — so the
       // client compatibility script can tell them apart by their date sets.
       const parent = await createDailyTestListing({ name: "Daily base" });
       const childA = await createDailyTestListing({ name: "Daily add-on A" });
-      const parentRow = (await getListingWithCount(parent.id))!;
-      const holidays = await getActiveHolidays();
-      const parentDate = getBookableStartDates(parentRow, holidays)[0]!;
-      const parentDay =
-        DAY_NAMES[new Date(`${parentDate}T00:00:00Z`).getUTCDay()]!;
+      const parentDay = await weekdayOf((await bookableDatesFor(parent.id))[0]!);
       const childB = await createDailyTestListing({
         bookableDays: [parentDay],
         name: "Daily add-on B",
       });
       await setChildIds(parent.id, [childA.id, childB.id]);
 
-      const childBRow = (await getListingWithCount(childB.id))!;
       // Mark an active holiday on one of child B's serveable starts. The server's
       // child-date set must be HOLIDAY-AWARE: it computes the dates with the
       // active holidays, so this date is excluded from `data-child-dates`. (If the
       // render path dropped the holidays it would re-appear — this pins the fetch.)
-      const childBStarts = getBookableStartDates(childBRow, holidays);
+      const childBStarts = await bookableDatesFor(childB.id);
       const holidayDate = childBStarts[1]!;
       await createTestHoliday({ endDate: holidayDate, startDate: holidayDate });
 
-      const refreshedHolidays = await getActiveHolidays();
-      const childBDates = getBookableStartDates(
-        childBRow,
-        refreshedHolidays,
-      ).join(",");
+      const childBDates = (await bookableDatesFor(childB.id)).join(",");
 
       const html = await bookingPageHtml(parent.slug);
       // Child B's control advertises exactly its own (single-weekday) serveable

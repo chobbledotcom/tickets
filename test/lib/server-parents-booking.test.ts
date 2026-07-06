@@ -8,7 +8,6 @@ import {
   apiGet,
   apiListingSlugs,
   createDailyTestListing,
-  createTestAttendee,
   createTestGroup,
   createTestListing,
   describeWithEnv,
@@ -19,10 +18,13 @@ import {
 } from "#test-utils";
 import { captureCheckoutIntent } from "#test-utils/checkout-intent.ts";
 import {
+  apiBookOneChild,
   apiListingBody,
   apiListingRow,
   bookableDatesFor,
+  dailyParentWithOneCapChild,
   enablePublicApi,
+  expectChildAvailability,
   expectChildQuantity,
   expectGroupCtaSuppressed,
   expectListingDetailBookable,
@@ -32,6 +34,7 @@ import {
   groupWithChildOnlyMember,
   groupWithSoldOutParentMember,
   parentWithBlockedSecondChild,
+  payMoreParentWithFreeChild,
   twoChildrenInCappedPool,
 } from "#test-utils/parent-booking-scenarios.ts";
 
@@ -380,9 +383,7 @@ describeWithEnv(
         children: [{ daily: true }],
         parent: { daily: true },
       });
-      const res = await apiBook(parent.slug, {
-        children: [{ quantity: 1, slug: child.slug }],
-      });
+      const res = await apiBookOneChild(parent, child);
       expect(res.status).toBe(400);
     });
 
@@ -394,9 +395,7 @@ describeWithEnv(
         children: [{ fields: "phone" }],
         parent: { fields: "" },
       });
-      const res = await apiBook(parent.slug, {
-        children: [{ quantity: 1, slug: child.slug }],
-      });
+      const res = await apiBookOneChild(parent, child);
       expect(res.status).toBe(400);
     });
 
@@ -405,10 +404,7 @@ describeWithEnv(
       const { bookAttendee } = await import("#test-utils");
       // A 1-capacity daily child passes the date-less fold but fails the atomic
       // date-specific capacity check, so the all-or-nothing save reports 409.
-      const { parent, child } = await makeParent({
-        children: [{ daily: true, maxAttendees: 1 }],
-        parent: { daily: true },
-      });
+      const { parent, child } = await dailyParentWithOneCapChild();
       const date = await firstBookableDate(parent.id);
       // Fill the child's only spot on that date.
       await bookAttendee(child, { date, quantity: 1 });
@@ -436,15 +432,7 @@ describeWithEnv(
       const { setupStripe } = await import("#test-utils");
       await setupStripe();
 
-      const { parent } = await makeParent({
-        children: [{ maxAttendees: 50, unitPrice: 0 }],
-        parent: {
-          canPayMore: true,
-          maxAttendees: 50,
-          maxPrice: 5000,
-          unitPrice: 1000,
-        },
-      });
+      const { parent } = await payMoreParentWithFreeChild();
 
       const capture = captureCheckoutIntent("cs_parent_custom_price");
       try {
@@ -464,15 +452,7 @@ describeWithEnv(
       // The pay-more parent's submitted price exceeds its max_price, so the
       // parent custom-price parse fails and the booking is rejected with a 400 —
       // never silently falling back to the unit price.
-      const { parent } = await makeParent({
-        children: [{ maxAttendees: 50, unitPrice: 0 }],
-        parent: {
-          canPayMore: true,
-          maxAttendees: 50,
-          maxPrice: 5000,
-          unitPrice: 1000,
-        },
-      });
+      const { parent } = await payMoreParentWithFreeChild();
       const res = await apiBook(parent.slug, { customPrice: "100.00" });
       expect(res.status).toBe(400);
     });
@@ -644,15 +624,10 @@ describeWithEnv(
       });
       const okChild = children[0]!;
       const fullChild = children[1]!;
-      const body = await apiListingBody<{
-        children?: { slug: string; available: boolean }[];
-      }>(parent.slug, "/availability");
-      expect(body.children).toEqual(
-        expect.arrayContaining([
-          { available: true, slug: okChild.slug },
-          { available: false, slug: fullChild.slug },
-        ]),
-      );
+      await expectChildAvailability(parent.slug, [
+        [okChild, true],
+        [fullChild, false],
+      ]);
     });
 
     test("API availability reports an inactive child unavailable", async () => {
@@ -663,15 +638,10 @@ describeWithEnv(
       // `available: false` rather than advertising spots the booking POST refuses.
       const { parent, okChild, blockedChild } =
         await parentWithBlockedSecondChild("inactive");
-      const body = await apiListingBody<{
-        children?: { slug: string; available: boolean }[];
-      }>(parent.slug, "/availability");
-      expect(body.children).toEqual(
-        expect.arrayContaining([
-          { available: true, slug: okChild.slug },
-          { available: false, slug: blockedChild.slug },
-        ]),
-      );
+      await expectChildAvailability(parent.slug, [
+        [okChild, true],
+        [blockedChild, false],
+      ]);
     });
 
     test("API availability reports a registration-closed child unavailable", async () => {
@@ -681,15 +651,10 @@ describeWithEnv(
       // (childOpen), so it must report `available: false`.
       const { parent, okChild, blockedChild } =
         await parentWithBlockedSecondChild("closed");
-      const body = await apiListingBody<{
-        children?: { slug: string; available: boolean }[];
-      }>(parent.slug, "/availability");
-      expect(body.children).toEqual(
-        expect.arrayContaining([
-          { available: true, slug: okChild.slug },
-          { available: false, slug: blockedChild.slug },
-        ]),
-      );
+      await expectChildAvailability(parent.slug, [
+        [okChild, true],
+        [blockedChild, false],
+      ]);
     });
 
     test("API availability of a daily parent with no date reports per-child availability", async () => {

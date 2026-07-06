@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
 import { extractSessionMetadata } from "#shared/payment-helpers.ts";
@@ -73,6 +73,62 @@ const listingB = (quantity: number) =>
     slug: "listing-b",
     unitPrice: 2000,
   });
+
+/** Assert a connection result rejected the API key. */
+const expectApiKeyInvalid = (
+  result: Awaited<ReturnType<typeof testStripeConnection>>,
+): void => {
+  expect(result.ok).toBe(false);
+  expect(result.apiKey.valid).toBe(false);
+};
+
+/** Create a checkout session for `intent` and assert stripe-mock accepted it. */
+const expectSessionCreated = async (
+  intent: ReturnType<typeof checkoutIntent>,
+): Promise<void> => {
+  const session = await createCheckoutSession(intent, "http://localhost:3000");
+  expect(session).not.toBeNull();
+  expect(session?.id).toBeDefined();
+};
+
+/** Boot a Stripe client under the given mock env and assert it is created. */
+const expectClientBoots = async (
+  env: Record<string, string | undefined>,
+): Promise<void> => {
+  const restore = setTestEnv(env);
+  try {
+    resetStripeClient();
+    await settings.update.stripe.secretKey("sk_test_123");
+    expect(await getStripeClient()).not.toBeNull();
+  } finally {
+    restore();
+    resetStripeClient();
+  }
+};
+
+/** Assert setupWebhookEndpoint failed with a non-empty string error. */
+const expectWebhookSetupError = (result: {
+  success: boolean;
+  error?: string | undefined;
+}): void => {
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    // Stripe SDK wraps thrown values, so the message comes from its wrapper.
+    expect(typeof result.error).toBe("string");
+    expect(result.error!.length > 0).toBe(true);
+  }
+};
+
+/** Build a single-listing intent, run it through the provider, expect null. */
+const expectProviderNull = async (): Promise<void> => {
+  const listing = testListing({ unit_price: 1000 });
+  const intent = checkoutIntent({ items: [listingItem(listing)] });
+  const result = await stripePaymentProvider.createCheckoutSession(
+    intent,
+    "http://localhost:3000",
+  );
+  expect(result).toBeNull();
+};
 
 describeWithEnv("stripe", STRIPE_MOCK_ENV, () => {
   resetStripeBetweenTests();
@@ -483,8 +539,7 @@ describeWithEnv("stripe", STRIPE_MOCK_ENV, () => {
   describe("testStripeConnection", () => {
     test("returns error when no API key configured", async () => {
       const result = await testStripeConnection();
-      expect(result.ok).toBe(false);
-      expect(result.apiKey.valid).toBe(false);
+      expectApiKeyInvalid(result);
       expect(result.apiKey.error).toContain("No Stripe secret key configured");
     });
 
@@ -496,8 +551,7 @@ describeWithEnv("stripe", STRIPE_MOCK_ENV, () => {
         { balanceRejects: new Error("Invalid API Key provided") },
         async () => {
           const result = await testStripeConnection();
-          expect(result.ok).toBe(false);
-          expect(result.apiKey.valid).toBe(false);
+          expectApiKeyInvalid(result);
           expect(result.apiKey.error).toContain("Invalid API Key provided");
         },
       );
@@ -714,20 +768,13 @@ describeWithEnv("stripe", STRIPE_MOCK_ENV, () => {
       await settings.update.stripe.secretKey("sk_test_mock");
 
       const listing = testListing({ unit_price: 1000 });
-      const intent = checkoutIntent({
-        items: [listingItem(listing)],
-        name: "John Doe",
-        phone: "+44 7700 900000",
-      });
-
-      const session = await createCheckoutSession(
-        intent,
-        "http://localhost:3000",
+      await expectSessionCreated(
+        checkoutIntent({
+          items: [listingItem(listing)],
+          name: "John Doe",
+          phone: "+44 7700 900000",
+        }),
       );
-
-      // stripe-mock creates session successfully
-      expect(session).not.toBeNull();
-      expect(session?.id).toBeDefined();
     });
   });
 
@@ -736,21 +783,14 @@ describeWithEnv("stripe", STRIPE_MOCK_ENV, () => {
       await settings.update.stripe.secretKey("sk_test_mock");
 
       const listing = testListing({ unit_price: 1000 });
-      const intent = checkoutIntent({
-        email: "",
-        items: [listingItem(listing)],
-        name: "No Email User",
-        phone: "+44 7700 900000",
-      });
-
-      const session = await createCheckoutSession(
-        intent,
-        "http://localhost:3000",
+      await expectSessionCreated(
+        checkoutIntent({
+          email: "",
+          items: [listingItem(listing)],
+          name: "No Email User",
+          phone: "+44 7700 900000",
+        }),
       );
-
-      // stripe-mock creates session successfully (email is empty, so customer_email is omitted)
-      expect(session).not.toBeNull();
-      expect(session?.id).toBeDefined();
     });
   });
 
@@ -758,20 +798,14 @@ describeWithEnv("stripe", STRIPE_MOCK_ENV, () => {
     test("creates multi-checkout session with phone metadata", async () => {
       await settings.update.stripe.secretKey("sk_test_mock");
 
-      const intent = checkoutIntent({
-        email: "jane@example.com",
-        items: [listingA(2), listingB(1)],
-        name: "Jane Doe",
-        phone: "+44 7700 900001",
-      });
-
-      const session = await createCheckoutSession(
-        intent,
-        "http://localhost:3000",
+      await expectSessionCreated(
+        checkoutIntent({
+          email: "jane@example.com",
+          items: [listingA(2), listingB(1)],
+          name: "Jane Doe",
+          phone: "+44 7700 900001",
+        }),
       );
-
-      expect(session).not.toBeNull();
-      expect(session?.id).toBeDefined();
     });
 
     test("returns null when stripe key not set", async () => {
@@ -791,21 +825,14 @@ describeWithEnv("stripe", STRIPE_MOCK_ENV, () => {
     test("creates multi-checkout session without customer_email when email is empty", async () => {
       await settings.update.stripe.secretKey("sk_test_mock");
 
-      const intent = checkoutIntent({
-        email: "",
-        items: [listingA(1), listingB(2)],
-        name: "No Email Multi",
-        phone: "+44 7700 900002",
-      });
-
-      const session = await createCheckoutSession(
-        intent,
-        "http://localhost:3000",
+      await expectSessionCreated(
+        checkoutIntent({
+          email: "",
+          items: [listingA(1), listingB(2)],
+          name: "No Email Multi",
+          phone: "+44 7700 900002",
+        }),
       );
-
-      // stripe-mock creates session successfully (email is empty, so customer_email is omitted)
-      expect(session).not.toBeNull();
-      expect(session?.id).toBeDefined();
     });
   });
 
@@ -836,8 +863,7 @@ describeWithEnv("stripe", STRIPE_MOCK_ENV, () => {
         { balanceRejects: "string error" },
         async () => {
           const result = await testStripeConnection();
-          expect(result.ok).toBe(false);
-          expect(result.apiKey.valid).toBe(false);
+          expectApiKeyInvalid(result);
           expect(result.apiKey.error).toBe("Unknown error");
         },
       );
@@ -938,40 +964,21 @@ describeWithEnv("stripe", STRIPE_MOCK_ENV, () => {
 
   describe("getMockConfig", () => {
     test("returns undefined when STRIPE_MOCK_HOST not set", async () => {
-      const restore = setTestEnv({
+      // Without mock config, a real Stripe client is created (no mock server)
+      await expectClientBoots({
         STRIPE_MOCK_HOST: undefined,
         STRIPE_MOCK_PORT: undefined,
       });
-      try {
-        resetStripeClient();
-
-        // Without mock config, a real Stripe client is created (no mock server)
-        await settings.update.stripe.secretKey("sk_test_123");
-        const client = await getStripeClient();
-        expect(client).not.toBeNull();
-      } finally {
-        restore();
-        resetStripeClient();
-      }
     });
   });
 
   describe("getMockConfig with default port", () => {
     test("uses default port 12111 when STRIPE_MOCK_PORT not set", async () => {
-      const restore = setTestEnv({
+      // With STRIPE_MOCK_HOST set but no PORT, should use default 12111
+      await expectClientBoots({
         STRIPE_MOCK_HOST: "localhost",
         STRIPE_MOCK_PORT: undefined,
       });
-      try {
-        resetStripeClient();
-        await settings.update.stripe.secretKey("sk_test_123");
-        // With STRIPE_MOCK_HOST set but no PORT, should use default 12111
-        const client = await getStripeClient();
-        expect(client).not.toBeNull();
-      } finally {
-        restore();
-        resetStripeClient();
-      }
     });
   });
 
@@ -1039,12 +1046,7 @@ describeWithEnv("stripe", STRIPE_MOCK_ENV, () => {
           "https://example.com/webhook/error-test",
         );
 
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          // Stripe SDK wraps connection errors with retry info
-          expect(typeof result.error).toBe("string");
-          expect(result.error!.length > 0).toBe(true);
-        }
+        expectWebhookSetupError(result);
       });
     });
 
@@ -1085,12 +1087,7 @@ describeWithEnv("stripe", STRIPE_MOCK_ENV, () => {
           "https://example.com/webhook/non-error-throw",
         );
 
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          // Stripe SDK wraps thrown values, so error message comes from SDK wrapper
-          expect(typeof result.error).toBe("string");
-          expect(result.error!.length > 0).toBe(true);
-        }
+        expectWebhookSetupError(result);
       });
     });
   });
@@ -1272,18 +1269,8 @@ describeWithEnv("stripe-provider", STRIPE_MOCK_ENV, () => {
       await withCheckoutCreate(
         client,
         checkoutSession("cs_no_url", null),
-        async () => {
-          const listing = testListing({ unit_price: 1000 });
-          const intent = checkoutIntent({ items: [listingItem(listing)] });
-
-          // Use stripePaymentProvider which wraps via toCheckoutResult
-          const result = await stripePaymentProvider.createCheckoutSession(
-            intent,
-            "http://localhost:3000",
-          );
-
-          expect(result).toBeNull();
-        },
+        // Use stripePaymentProvider which wraps via toCheckoutResult
+        expectProviderNull,
       );
     });
 
@@ -1294,17 +1281,7 @@ describeWithEnv("stripe-provider", STRIPE_MOCK_ENV, () => {
         client,
         "create",
         () => Promise.reject(new Error("API error")),
-        async () => {
-          const listing = testListing({ unit_price: 1000 });
-          const intent = checkoutIntent({ items: [listingItem(listing)] });
-
-          const result = await stripePaymentProvider.createCheckoutSession(
-            intent,
-            "http://localhost:3000",
-          );
-
-          expect(result).toBeNull();
-        },
+        expectProviderNull,
       );
     });
   });
