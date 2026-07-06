@@ -754,6 +754,13 @@ textarea {
   max-width: var(--width-card-wide);
 }
 
+/* Selects never overflow their container — max-width caps them at the row and
+   box-sizing keeps the border/padding inside that cap. */
+select {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
 input[type="checkbox"],
 input[type="radio"] {
   display: inline-block;
@@ -1588,9 +1595,41 @@ body.iframe form {
   padding-left: 0;
 }
 
+/* A fieldset groups form controls, so by default it stacks like the innards of
+   a form: a flex column with the standard gap and no border or padding of its
+   own. `.inset` opts into a visually grouped box — a little padding inside a
+   deliberately low-contrast border. Row-based groups (.checkboxes/.radios) and
+   grids (.order-grid) set their own display and so opt out of the column. */
 fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-m);
   border: 0;
-  padding: 0 1rem;
+  padding: 0;
+  min-width: 0;
+}
+
+fieldset.inset {
+  border: 1px solid var(--color-bg-secondary);
+  border-radius: var(--border-radius);
+  padding: var(--space-m);
+}
+
+/* Postcode search row: the label (with its input) and the Find button sit on
+   one line. The button stays a sibling of the label — not a child — so it never
+   pollutes the input's accessible name. */
+.address-lookup-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-s);
+}
+
+/* The input only needs room for a postcode, so cap it and let the button
+   follow on the same row. */
+.address-lookup-search label > input[type="text"] {
+  flex: 0 0 auto;
+  width: 8rem;
 }
 
 .ticket-listings {
@@ -1637,6 +1676,7 @@ fieldset {
 .radios {
   border: 0;
   display: flex;
+  flex-direction: row;
   flex-wrap: wrap;
   gap: var(--space-m);
   margin: 0;

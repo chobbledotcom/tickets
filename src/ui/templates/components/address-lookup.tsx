@@ -27,7 +27,7 @@ export const renderAddressLookupPanel = (mode: AddressLookupMode): string => {
   if (!provider) return "";
   const definition = ADDRESS_LOOKUP_PROVIDERS[provider];
   return String(
-    <div
+    <fieldset
       class="address-lookup"
       data-address-lookup={mode}
       data-error={t("address_lookup.failed")}
@@ -36,18 +36,20 @@ export const renderAddressLookupPanel = (mode: AddressLookupMode): string => {
       data-searching={t("address_lookup.searching")}
       hidden
     >
-      <label>
-        {t(definition.searchLabelKey)}
-        <input
-          autocomplete="off"
-          data-address-search={true}
-          placeholder={t(definition.searchPlaceholderKey)}
-          type="text"
-        />
-      </label>
-      <button data-address-find={true} type="button">
-        {t("address_lookup.find")}
-      </button>
+      <div class="address-lookup-search">
+        <label>
+          {t(definition.searchLabelKey)}
+          <input
+            autocomplete="off"
+            data-address-search={true}
+            placeholder={t(definition.searchPlaceholderKey)}
+            type="text"
+          />
+        </label>
+        <button data-address-find={true} type="button">
+          {t("address_lookup.find")}
+        </button>
+      </div>
       <label data-address-results-label={true} hidden>
         {t("address_lookup.choose")}
         <select data-address-results={true}></select>
@@ -58,6 +60,6 @@ export const renderAddressLookupPanel = (mode: AddressLookupMode): string => {
           {t("address_lookup.edit")}
         </button>
       )}
-    </div>,
+    </fieldset>,
   );
 };
