@@ -39,7 +39,8 @@ describeWithEnv("server (public news)", { db: true }, () => {
   describe("/news list", () => {
     useSetting({ show_public_site: true });
 
-    test("lists posts newest first as linked cards with name, snippet, and first image", async () => {
+    test("lists posts newest first as linked cards with name, snippet, and first image", () =>
+      withSetting({ website_title: "Acme Site" }, async () => {
       await newsPostsTable.insert({
         created: "2026-07-01T10:00:00.000Z",
         name: "Older Post",
@@ -57,6 +58,7 @@ describeWithEnv("server (public news)", { db: true }, () => {
       });
 
       const html = await assertPublicHtml("/news");
+      expect(html).toContain("<title>News - Acme Site</title>");
       // Both cards, newest first, each a link wrapping the shared card markup.
       expect(html).toContain(`href="/news/${newer.id}"`);
       expect(html).toContain('class="card news-card"');
@@ -67,7 +69,7 @@ describeWithEnv("server (public news)", { db: true }, () => {
       expect(html).toContain('class="card-name"');
       // The first image renders as the card thumbnail.
       expect(html).toContain("news hero-thumb.webp");
-    });
+    }));
 
     test("the nav shows a News link on other public pages once a post exists", async () => {
       let html = await assertPublicHtml("/");
@@ -75,6 +77,8 @@ describeWithEnv("server (public news)", { db: true }, () => {
       await createTestNewsPost("Nav-worthy");
       html = await assertPublicHtml("/");
       expect(html).toContain('<a href="/news">News</a>');
+      // Without a website title the list page's <title> is just "News".
+      expect(await assertPublicHtml("/news")).toContain("<title>News</title>");
     });
 
     test("every public page advertises the news RSS feed", async () => {
