@@ -87,9 +87,7 @@ const expectProviderCheckout = async (
  *  `locationsResponse`, then hand the result to `check`. */
 const checkConnection = (
   locationsResponse: unknown,
-  check: (
-    result: Awaited<ReturnType<typeof testSquareConnection>>,
-  ) => void,
+  check: (result: Awaited<ReturnType<typeof testSquareConnection>>) => void,
 ): Promise<void> =>
   withMockSquareClient(
     { locationsList: () => Promise.resolve(locationsResponse) },
@@ -211,7 +209,11 @@ describe("square", () => {
       await settings.update.square.sandbox(false);
       await settings.update.square.locationId("L_live_123");
       await settings.update.square.webhookSignatureKey("sig_key_live");
-      const liveStore = { id: "L_live_123", name: "Live Store", status: "ACTIVE" };
+      const liveStore = {
+        id: "L_live_123",
+        name: "Live Store",
+        status: "ACTIVE",
+      };
       await checkConnection({ locations: [liveStore] }, (result) => {
         expect(result.ok).toBe(true);
         expect(result.accessToken.valid).toBe(true);
@@ -321,49 +323,48 @@ describe("square", () => {
         });
 
         const result = await squareApi.createPaymentLink(
-            intent,
-            "https://tickets.example.com",
-          );
+          intent,
+          "https://tickets.example.com",
+        );
 
-          expect(result).not.toBeNull();
-          expect(result!.orderId).toBe("order_abc");
-          expect(result!.url).toBe("https://square.link/abc");
+        expect(result).not.toBeNull();
+        expect(result!.orderId).toBe("order_abc");
+        expect(result!.url).toBe("https://square.link/abc");
 
-          // Verify SDK was called with correctly constructed order
-          const args = checkoutCreate.calls[0]
-            ?.args[0] as CreatePaymentLinkInput;
-          expect(args.order.locationId).toBe("L_loc_456");
-          expect(args.order.lineItems).toHaveLength(1);
-          expect(args.order.lineItems[0]!.name).toBe("Ticket: Concert");
-          expect(args.order.lineItems[0]!.quantity).toBe("3");
-          expect(args.order.lineItems[0]!.basePriceMoney.amount).toBe(
-            BigInt(2500),
-          );
-          expect(args.order.lineItems[0]!.note).toBe("3 Tickets");
+        // Verify SDK was called with correctly constructed order
+        const args = checkoutCreate.calls[0]?.args[0] as CreatePaymentLinkInput;
+        expect(args.order.locationId).toBe("L_loc_456");
+        expect(args.order.lineItems).toHaveLength(1);
+        expect(args.order.lineItems[0]!.name).toBe("Ticket: Concert");
+        expect(args.order.lineItems[0]!.quantity).toBe("3");
+        expect(args.order.lineItems[0]!.basePriceMoney.amount).toBe(
+          BigInt(2500),
+        );
+        expect(args.order.lineItems[0]!.note).toBe("3 Tickets");
 
-          // Verify metadata includes intent fields. Small fields (phone, …) are
-          // packed into `b` on the wire, so decode the way the webhook does.
-          const metadata = extractSessionMetadata(
-            args.order.metadata as unknown as SessionMetadata,
-          );
-          expect(metadata.name).toBe("Jane Smith");
-          expect(metadata.email).toBe("jane@example.com");
-          expect(metadata.phone).toBe("555-9876");
-          const items = JSON.parse(metadata.items);
-          expect(items).toEqual([{ e: 7, p: 7500, q: 3 }]);
+        // Verify metadata includes intent fields. Small fields (phone, …) are
+        // packed into `b` on the wire, so decode the way the webhook does.
+        const metadata = extractSessionMetadata(
+          args.order.metadata as unknown as SessionMetadata,
+        );
+        expect(metadata.name).toBe("Jane Smith");
+        expect(metadata.email).toBe("jane@example.com");
+        expect(metadata.phone).toBe("555-9876");
+        const items = JSON.parse(metadata.items);
+        expect(items).toEqual([{ e: 7, p: 7500, q: 3 }]);
 
-          // Verify checkout options
-          expect(args.checkoutOptions.redirectUrl).toBe(
-            "https://tickets.example.com/payment/success",
-          );
+        // Verify checkout options
+        expect(args.checkoutOptions.redirectUrl).toBe(
+          "https://tickets.example.com/payment/success",
+        );
 
-          // Verify pre-populated data (phone is normalized: stripped + prefixed)
-          expect(args.prePopulatedData.buyerEmail).toBe("jane@example.com");
-          expect(args.prePopulatedData.buyerPhoneNumber).toBe("+5559876");
+        // Verify pre-populated data (phone is normalized: stripped + prefixed)
+        expect(args.prePopulatedData.buyerEmail).toBe("jane@example.com");
+        expect(args.prePopulatedData.buyerPhoneNumber).toBe("+5559876");
 
-          // Verify idempotency key is present
-          expect(typeof args.idempotencyKey).toBe("string");
-          expect(args.idempotencyKey.length).toBeGreaterThan(0);
+        // Verify idempotency key is present
+        expect(typeof args.idempotencyKey).toBe("string");
+        expect(args.idempotencyKey.length).toBeGreaterThan(0);
       });
     });
 
@@ -378,35 +379,33 @@ describe("square", () => {
       });
 
       await withMocks(useSquareClient(client), async () => {
-          const listing = testListing({ unit_price: 1000 });
-          const intent = checkoutIntent({
-            email: "jane@example.com",
-            items: [
-              checkoutItem({
-                listingId: listing.id,
-                name: listing.name,
-                quantity: 2,
-                slug: listing.slug,
-                unitPrice: listing.unit_price,
-              }),
-            ],
-            name: "Jane",
-          });
+        const listing = testListing({ unit_price: 1000 });
+        const intent = checkoutIntent({
+          email: "jane@example.com",
+          items: [
+            checkoutItem({
+              listingId: listing.id,
+              name: listing.name,
+              quantity: 2,
+              slug: listing.slug,
+              unitPrice: listing.unit_price,
+            }),
+          ],
+          name: "Jane",
+        });
 
-          await squareApi.createPaymentLink(
-            intent,
-            "https://tickets.example.com",
-          );
+        await squareApi.createPaymentLink(
+          intent,
+          "https://tickets.example.com",
+        );
 
-          const args = checkoutCreate.calls[0]
-            ?.args[0] as CreatePaymentLinkInput;
-          expect(args.order.lineItems).toHaveLength(2);
-          const feeItem = args.order.lineItems[1]!;
-          expect(feeItem.name).toBe("Booking fee");
-          // 2.5% of 2000 (2 × 1000) = 50
-          expect(feeItem.basePriceMoney.amount).toBe(BigInt(50));
-        },
-      );
+        const args = checkoutCreate.calls[0]?.args[0] as CreatePaymentLinkInput;
+        expect(args.order.lineItems).toHaveLength(2);
+        const feeItem = args.order.lineItems[1]!;
+        expect(feeItem.name).toBe("Booking fee");
+        // 2.5% of 2000 (2 × 1000) = 50
+        expect(feeItem.basePriceMoney.amount).toBe(BigInt(50));
+      });
     });
 
     test("omits phone from pre-populated data when empty", async () => {
@@ -418,17 +417,15 @@ describe("square", () => {
       });
 
       await withMocks(useSquareClient(client), async () => {
-          const intent = checkoutIntent();
+        const intent = checkoutIntent();
 
-          await squareApi.createPaymentLink(intent, "http://localhost");
+        await squareApi.createPaymentLink(intent, "http://localhost");
 
-          const args = checkoutCreate.calls[0]
-            ?.args[0] as CreatePaymentLinkInput;
-          expect(args.prePopulatedData.buyerPhoneNumber).toBeUndefined();
-          expect(args.order.metadata.phone).toBeUndefined();
-          expect(args.order.lineItems[0]!.note).toBe("Ticket");
-        },
-      );
+        const args = checkoutCreate.calls[0]?.args[0] as CreatePaymentLinkInput;
+        expect(args.prePopulatedData.buyerPhoneNumber).toBeUndefined();
+        expect(args.order.metadata.phone).toBeUndefined();
+        expect(args.order.lineItems[0]!.note).toBe("Ticket");
+      });
     });
 
     test("returns null when SDK response missing orderId", async () => {
@@ -439,15 +436,14 @@ describe("square", () => {
       });
 
       await withMocks(useSquareClient(client), async () => {
-          const intent = checkoutIntent();
+        const intent = checkoutIntent();
 
-          const result = await squareApi.createPaymentLink(
-            intent,
-            "http://localhost",
-          );
-          expect(result).toBeNull();
-        },
-      );
+        const result = await squareApi.createPaymentLink(
+          intent,
+          "http://localhost",
+        );
+        expect(result).toBeNull();
+      });
     });
   });
 
@@ -494,19 +490,18 @@ describe("square", () => {
       });
 
       await withMocks(useSquareClient(client), async () => {
-          const intent = checkoutIntent({
-            email: "bob@example.com",
-            items: [checkoutItem({ name: "Listing 1", slug: "listing-1" })],
-            name: "Bob Missing",
-          });
+        const intent = checkoutIntent({
+          email: "bob@example.com",
+          items: [checkoutItem({ name: "Listing 1", slug: "listing-1" })],
+          name: "Bob Missing",
+        });
 
-          const result = await squareApi.createPaymentLink(
-            intent,
-            "http://localhost",
-          );
-          expect(result).toBeNull();
-        },
-      );
+        const result = await squareApi.createPaymentLink(
+          intent,
+          "http://localhost",
+        );
+        expect(result).toBeNull();
+      });
     });
 
     test("constructs correct SDK call with multiple line items", async () => {
@@ -518,76 +513,74 @@ describe("square", () => {
       });
 
       await withMocks(useSquareClient(client), async () => {
-          const intent = checkoutIntent({
-            email: "alice@example.com",
-            items: [
-              checkoutItem({
-                listingId: 10,
-                name: "Workshop A",
-                quantity: 2,
-                slug: "workshop-a",
-                unitPrice: 1500,
-              }),
-              checkoutItem({
-                listingId: 20,
-                name: "Gala Dinner",
-                slug: "gala-dinner",
-                unitPrice: 3000,
-              }),
-            ],
-            name: "Alice Wonder",
-            phone: "555-1111",
-          });
+        const intent = checkoutIntent({
+          email: "alice@example.com",
+          items: [
+            checkoutItem({
+              listingId: 10,
+              name: "Workshop A",
+              quantity: 2,
+              slug: "workshop-a",
+              unitPrice: 1500,
+            }),
+            checkoutItem({
+              listingId: 20,
+              name: "Gala Dinner",
+              slug: "gala-dinner",
+              unitPrice: 3000,
+            }),
+          ],
+          name: "Alice Wonder",
+          phone: "555-1111",
+        });
 
-          const result = await squareApi.createPaymentLink(
-            intent,
-            "https://tickets.example.com",
-          );
+        const result = await squareApi.createPaymentLink(
+          intent,
+          "https://tickets.example.com",
+        );
 
-          expect(result).not.toBeNull();
-          expect(result!.orderId).toBe("order_multi");
-          expect(result!.url).toBe("https://square.link/multi");
+        expect(result).not.toBeNull();
+        expect(result!.orderId).toBe("order_multi");
+        expect(result!.url).toBe("https://square.link/multi");
 
-          const args = checkoutCreate.calls[0]
-            ?.args[0] as CreatePaymentLinkInput;
+        const args = checkoutCreate.calls[0]?.args[0] as CreatePaymentLinkInput;
 
-          // Verify multiple line items
-          expect(args.order.lineItems).toHaveLength(2);
-          expect(args.order.lineItems[0]!.name).toBe("Ticket: Workshop A");
-          expect(args.order.lineItems[0]!.quantity).toBe("2");
-          expect(args.order.lineItems[0]!.basePriceMoney.amount).toBe(
-            BigInt(1500),
-          );
-          expect(args.order.lineItems[0]!.note).toBe("2 Tickets");
+        // Verify multiple line items
+        expect(args.order.lineItems).toHaveLength(2);
+        expect(args.order.lineItems[0]!.name).toBe("Ticket: Workshop A");
+        expect(args.order.lineItems[0]!.quantity).toBe("2");
+        expect(args.order.lineItems[0]!.basePriceMoney.amount).toBe(
+          BigInt(1500),
+        );
+        expect(args.order.lineItems[0]!.note).toBe("2 Tickets");
 
-          expect(args.order.lineItems[1]!.name).toBe("Ticket: Gala Dinner");
-          expect(args.order.lineItems[1]!.quantity).toBe("1");
-          expect(args.order.lineItems[1]!.basePriceMoney.amount).toBe(
-            BigInt(3000),
-          );
-          expect(args.order.lineItems[1]!.note).toBe("Ticket");
+        expect(args.order.lineItems[1]!.name).toBe("Ticket: Gala Dinner");
+        expect(args.order.lineItems[1]!.quantity).toBe("1");
+        expect(args.order.lineItems[1]!.basePriceMoney.amount).toBe(
+          BigInt(3000),
+        );
+        expect(args.order.lineItems[1]!.note).toBe("Ticket");
 
-          // Verify multi-intent metadata (small fields packed into `b`).
-          const metadata = extractSessionMetadata(
-            args.order.metadata as unknown as SessionMetadata,
-          );
-          expect(metadata.name).toBe("Alice Wonder");
-          expect(metadata.email).toBe("alice@example.com");
-          expect(metadata.phone).toBe("555-1111");
-          const items = JSON.parse(metadata.items);
-          expect(items).toHaveLength(2);
-          expect(items[0]).toEqual({ e: 10, p: 3000, q: 2 });
-          expect(items[1]).toEqual({ e: 20, p: 3000, q: 1 });
+        // Verify multi-intent metadata (small fields packed into `b`).
+        const metadata = extractSessionMetadata(
+          args.order.metadata as unknown as SessionMetadata,
+        );
+        expect(metadata.name).toBe("Alice Wonder");
+        expect(metadata.email).toBe("alice@example.com");
+        expect(metadata.phone).toBe("555-1111");
+        const items = JSON.parse(metadata.items);
+        expect(items).toHaveLength(2);
+        expect(items[0]).toEqual({ e: 10, p: 3000, q: 2 });
+        expect(items[1]).toEqual({ e: 20, p: 3000, q: 1 });
 
-          // Verify location and checkout options
-          expect(args.order.locationId).toBe("L_multi_loc");
-          expect(args.checkoutOptions.redirectUrl).toBe(
-            "https://tickets.example.com/payment/success",
-          );
-          expect(args.prePopulatedData.buyerEmail).toBe("alice@example.com");
-          expect(args.prePopulatedData.buyerPhoneNumber).toBe("+5551111");
-        },
-      );
+        // Verify location and checkout options
+        expect(args.order.locationId).toBe("L_multi_loc");
+        expect(args.checkoutOptions.redirectUrl).toBe(
+          "https://tickets.example.com/payment/success",
+        );
+        expect(args.prePopulatedData.buyerEmail).toBe("alice@example.com");
+        expect(args.prePopulatedData.buyerPhoneNumber).toBe("+5551111");
+      });
     });
 
     test("throws PaymentUserError when items metadata exceeds Square limit", async () => {
@@ -596,21 +589,20 @@ describe("square", () => {
       const { client, checkoutCreate } = createMockClient();
 
       await withMocks(useSquareClient(client), async () => {
-          // Generate enough items to exceed 255-char serialized metadata
-          const intent = checkoutIntent({
-            email: "alice@example.com",
-            items: numberedItems(30),
-            name: "Alice",
-          });
+        // Generate enough items to exceed 255-char serialized metadata
+        const intent = checkoutIntent({
+          email: "alice@example.com",
+          items: numberedItems(30),
+          name: "Alice",
+        });
 
-          await expect(
-            squareApi.createPaymentLink(intent, "https://tickets.example.com"),
-          ).rejects.toThrow(PaymentUserError);
+        await expect(
+          squareApi.createPaymentLink(intent, "https://tickets.example.com"),
+        ).rejects.toThrow(PaymentUserError);
 
-          // SDK should never have been called
-          expect(checkoutCreate.calls.length).toBe(0);
-        },
-      );
+        // SDK should never have been called
+        expect(checkoutCreate.calls.length).toBe(0);
+      });
     });
   });
 
@@ -635,10 +627,16 @@ describe("square", () => {
 
     /** Run the validation intent through a failing checkout client and expect a
      *  thrown PaymentUserError whose message mentions `fragment`. */
-    const expectValidationUserError = (client: SquareClient, fragment: string) =>
+    const expectValidationUserError = (
+      client: SquareClient,
+      fragment: string,
+    ) =>
       withSquareClient(client, async () => {
         try {
-          await squareApi.createPaymentLink(validationIntent, "http://localhost");
+          await squareApi.createPaymentLink(
+            validationIntent,
+            "http://localhost",
+          );
           expect(true).toBe(false); // should not reach here
         } catch (err) {
           expect(err instanceof PaymentUserError).toBe(true);
@@ -722,13 +720,12 @@ describe("square", () => {
       const { client, ordersGet } = orderClient(null);
 
       await withMocks(useSquareClient(client), async () => {
-          const result = await squareApi.retrieveOrder("order_missing");
-          expect(result).toBeNull();
-          expect(ordersGet.calls[0]!.args[0]).toEqual({
-            orderId: "order_missing",
-          });
-        },
-      );
+        const result = await squareApi.retrieveOrder("order_missing");
+        expect(result).toBeNull();
+        expect(ordersGet.calls[0]!.args[0]).toEqual({
+          orderId: "order_missing",
+        });
+      });
     });
 
     test("maps tender paymentId correctly", async () => {
@@ -748,65 +745,52 @@ describe("square", () => {
       });
 
       await withMocks(useSquareClient(client), async () => {
-          const result = await squareApi.retrieveOrder("order_tenders");
-          expect(result).not.toBeNull();
-          expect(result!.tenders).toHaveLength(2);
-          expect(result?.tenders?.[0]?.paymentId).toBe("pay_abc");
-          expect(result?.tenders?.[1]?.paymentId).toBeUndefined();
-        },
-      );
+        const result = await squareApi.retrieveOrder("order_tenders");
+        expect(result).not.toBeNull();
+        expect(result!.tenders).toHaveLength(2);
+        expect(result?.tenders?.[0]?.paymentId).toBe("pay_abc");
+        expect(result?.tenders?.[1]?.paymentId).toBeUndefined();
+      });
     });
 
     test("returns correct shape with state and id", async () => {
-      const { client } = createMockClient({
-        ordersGet: () =>
-          Promise.resolve({
-            order: {
-              id: "order_shape",
-              metadata: undefined,
-              state: "OPEN",
-              tenders: undefined,
-              totalMoney: { amount: BigInt(0), currency: "USD" },
-            },
-          }),
+      const { client } = orderClient({
+        id: "order_shape",
+        metadata: undefined,
+        state: "OPEN",
+        tenders: undefined,
+        totalMoney: { amount: BigInt(0), currency: "USD" },
       });
 
       await withMocks(useSquareClient(client), async () => {
-          const result = await squareApi.retrieveOrder("order_shape");
-          expect(result).not.toBeNull();
-          expect(result!.id).toBe("order_shape");
-          expect(result!.state).toBe("OPEN");
-          expect(result!.metadata).toBeUndefined();
-          expect(result!.tenders).toBeUndefined();
-        },
-      );
+        const result = await squareApi.retrieveOrder("order_shape");
+        expect(result).not.toBeNull();
+        expect(result!.id).toBe("order_shape");
+        expect(result!.state).toBe("OPEN");
+        expect(result!.metadata).toBeUndefined();
+        expect(result!.tenders).toBeUndefined();
+      });
     });
 
     test("maps totalMoney from order response", async () => {
-      const { client } = createMockClient({
-        ordersGet: () =>
-          Promise.resolve({
-            order: {
-              id: "order_with_total",
-              metadata: {
-                email: "john@example.com",
-                items: '[{"e":1,"q":1,"p":0}]',
-                name: "John",
-              },
-              state: "COMPLETED",
-              tenders: [{ id: "tender_1", paymentId: "pay_total" }],
-              totalMoney: { amount: BigInt(7500), currency: "GBP" },
-            },
-          }),
+      const { client } = orderClient({
+        id: "order_with_total",
+        metadata: {
+          email: "john@example.com",
+          items: '[{"e":1,"q":1,"p":0}]',
+          name: "John",
+        },
+        state: "COMPLETED",
+        tenders: [{ id: "tender_1", paymentId: "pay_total" }],
+        totalMoney: { amount: BigInt(7500), currency: "GBP" },
       });
 
       await withMocks(useSquareClient(client), async () => {
-          const result = await squareApi.retrieveOrder("order_with_total");
-          expect(result).not.toBeNull();
-          expect(result!.totalMoney.amount).toBe(BigInt(7500));
-          expect(result!.totalMoney.currency).toBe("GBP");
-        },
-      );
+        const result = await squareApi.retrieveOrder("order_with_total");
+        expect(result).not.toBeNull();
+        expect(result!.totalMoney.amount).toBe(BigInt(7500));
+        expect(result!.totalMoney.currency).toBe("GBP");
+      });
     });
   });
 
@@ -817,79 +801,64 @@ describe("square", () => {
     });
 
     test("returns null when SDK returns no payment", async () => {
-      const { client, paymentsGet } = createMockClient({
-        paymentsGet: () => Promise.resolve({ payment: null }),
-      });
+      const { client, paymentsGet } = paymentClient(null);
 
       await withMocks(useSquareClient(client), async () => {
-          const result = await squareApi.retrievePayment("pay_missing");
-          expect(result).toBeNull();
-          expect(paymentsGet.calls[0]!.args[0]).toEqual({
-            paymentId: "pay_missing",
-          });
-        },
-      );
+        const result = await squareApi.retrievePayment("pay_missing");
+        expect(result).toBeNull();
+        expect(paymentsGet.calls[0]!.args[0]).toEqual({
+          paymentId: "pay_missing",
+        });
+      });
     });
 
     test("maps payment fields correctly from SDK response", async () => {
-      const { client } = createMockClient({
-        paymentsGet: () =>
-          Promise.resolve({
-            payment: {
-              amountMoney: {
-                amount: BigInt(5000),
-                currency: "GBP",
-              },
-              id: "pay_full",
-              orderId: "order_999",
-              refundedMoney: {
-                amount: BigInt(5000),
-                currency: "GBP",
-              },
-              status: "COMPLETED",
-            },
-          }),
+      const { client } = paymentClient({
+        amountMoney: {
+          amount: BigInt(5000),
+          currency: "GBP",
+        },
+        id: "pay_full",
+        orderId: "order_999",
+        refundedMoney: {
+          amount: BigInt(5000),
+          currency: "GBP",
+        },
+        status: "COMPLETED",
       });
 
       await withMocks(useSquareClient(client), async () => {
-          const result = await squareApi.retrievePayment("pay_full");
-          expect(result).not.toBeNull();
-          expect(result!.id).toBe("pay_full");
-          expect(result!.status).toBe("COMPLETED");
-          expect(result!.orderId).toBe("order_999");
-          expect(result!.amountMoney!.amount).toBe(BigInt(5000));
-          expect(result!.amountMoney!.currency).toBe("GBP");
-          expect(result!.refundedMoney!.amount).toBe(BigInt(5000));
-          expect(result!.refundedMoney!.currency).toBe("GBP");
-        },
-      );
+        const result = await squareApi.retrievePayment("pay_full");
+        expect(result).not.toBeNull();
+        expect(result!.id).toBe("pay_full");
+        expect(result!.status).toBe("COMPLETED");
+        expect(result!.orderId).toBe("order_999");
+        expect(result!.amountMoney!.amount).toBe(BigInt(5000));
+        expect(result!.amountMoney!.currency).toBe("GBP");
+        expect(result!.refundedMoney!.amount).toBe(BigInt(5000));
+        expect(result!.refundedMoney!.currency).toBe("GBP");
+      });
     });
   });
 
   describe("retrievePayment wrapper export", () => {
     test("delegates to squareApi.retrievePayment", async () => {
-      const { client, paymentsGet } = createMockClient({
-        paymentsGet: () =>
-          Promise.resolve({
-            payment: {
-              amountMoney: { amount: BigInt(1000), currency: "USD" },
-              id: "pay_wrapper",
-              orderId: "order_wrapper",
-              status: "COMPLETED",
-            },
-          }),
+      const { client, paymentsGet } = paymentClient({
+        amountMoney: { amount: BigInt(1000), currency: "USD" },
+        id: "pay_wrapper",
+        orderId: "order_wrapper",
+        status: "COMPLETED",
       });
 
       await withMocks(useSquareClient(client), async () => {
-          const result = await retrievePayment("pay_wrapper");
-          expect(result).not.toBeNull();
-          expect(result!.id).toBe("pay_wrapper");
-          expect(result!.status).toBe("COMPLETED");
-          expect(paymentsGet.calls[0]!.args[0]).toEqual({
-            paymentId: "pay_wrapper",
-          });
-        },
-      );
+        const result = await retrievePayment("pay_wrapper");
+        expect(result).not.toBeNull();
+        expect(result!.id).toBe("pay_wrapper");
+        expect(result!.status).toBe("COMPLETED");
+        expect(paymentsGet.calls[0]!.args[0]).toEqual({
+          paymentId: "pay_wrapper",
+        });
+      });
     });
   });
 
@@ -927,24 +896,23 @@ describe("square", () => {
       });
 
       await withMocks(useSquareClient(client), async () => {
-          const result = await squareApi.refundPayment("pay_refund_me");
-          expect(result).toBe(true);
+        const result = await squareApi.refundPayment("pay_refund_me");
+        expect(result).toBe(true);
 
-          // Verify payments.get was called to fetch amount
-          expect(paymentsGet.calls[0]!.args[0]).toEqual({
-            paymentId: "pay_refund_me",
-          });
+        // Verify payments.get was called to fetch amount
+        expect(paymentsGet.calls[0]!.args[0]).toEqual({
+          paymentId: "pay_refund_me",
+        });
 
-          // Verify refund was called with correct amount and payment ID
-          const refundArgs = refundsRefundPayment.calls[0]
-            ?.args[0] as RefundPaymentInput;
-          expect(refundArgs.paymentId).toBe("pay_refund_me");
-          expect(refundArgs.amountMoney.amount).toBe(BigInt(4200));
-          expect(refundArgs.amountMoney.currency).toBe("USD");
-          expect(typeof refundArgs.idempotencyKey).toBe("string");
-          expect(refundArgs.idempotencyKey.length).toBeGreaterThan(0);
-        },
-      );
+        // Verify refund was called with correct amount and payment ID
+        const refundArgs = refundsRefundPayment.calls[0]
+          ?.args[0] as RefundPaymentInput;
+        expect(refundArgs.paymentId).toBe("pay_refund_me");
+        expect(refundArgs.amountMoney.amount).toBe(BigInt(4200));
+        expect(refundArgs.amountMoney.currency).toBe("USD");
+        expect(typeof refundArgs.idempotencyKey).toBe("string");
+        expect(refundArgs.idempotencyKey.length).toBeGreaterThan(0);
+      });
     });
 
     test("returns false when refund SDK call throws", async () => {
@@ -963,10 +931,9 @@ describe("square", () => {
       });
 
       await withMocks(useSquareClient(client), async () => {
-          const result = await squareApi.refundPayment("pay_fail");
-          expect(result).toBe(false);
-        },
-      );
+        const result = await squareApi.refundPayment("pay_fail");
+        expect(result).toBe(false);
+      });
     });
   });
 
@@ -1508,18 +1475,17 @@ describe("square", () => {
       );
 
       await withMocks(useSquareClient(client), async () => {
-          const result =
-            await squarePaymentProvider.retrieveSession("order_paid");
-          expect(result).not.toBeNull();
-          expect(result!.id).toBe("order_paid");
-          expect(result!.paymentStatus).toBe("paid");
-          expect(result!.paymentReference).toBe("pay_abc");
-          expect(result!.metadata.name).toBe("John Doe");
-          expect(result!.metadata.email).toBe("john@example.com");
-          expect(result!.metadata.phone).toBe("555-1234");
-          expect(result!.metadata.items).toBe('[{"e":1,"q":2,"p":0}]');
-        },
-      );
+        const result =
+          await squarePaymentProvider.retrieveSession("order_paid");
+        expect(result).not.toBeNull();
+        expect(result!.id).toBe("order_paid");
+        expect(result!.paymentStatus).toBe("paid");
+        expect(result!.paymentReference).toBe("pay_abc");
+        expect(result!.metadata.name).toBe("John Doe");
+        expect(result!.metadata.email).toBe("john@example.com");
+        expect(result!.metadata.phone).toBe("555-1234");
+        expect(result!.metadata.items).toBe('[{"e":1,"q":2,"p":0}]');
+      });
     });
 
     test("retrieveSession maps OPEN order to unpaid status", async () => {
@@ -1535,13 +1501,12 @@ describe("square", () => {
       });
 
       await withMocks(useSquareClient(client), async () => {
-          const result =
-            await squarePaymentProvider.retrieveSession("order_open");
-          expect(result).not.toBeNull();
-          expect(result!.paymentStatus).toBe("unpaid");
-          expect(result!.paymentReference).toBe("");
-        },
-      );
+        const result =
+          await squarePaymentProvider.retrieveSession("order_open");
+        expect(result).not.toBeNull();
+        expect(result!.paymentStatus).toBe("unpaid");
+        expect(result!.paymentReference).toBe("");
+      });
     });
 
     test("retrieveSession returns null for missing metadata", async () => {
@@ -1551,11 +1516,10 @@ describe("square", () => {
       });
 
       await withMocks(useSquareClient(client), async () => {
-          const result =
-            await squarePaymentProvider.retrieveSession("order_no_meta");
-          expect(result).toBeNull();
-        },
-      );
+        const result =
+          await squarePaymentProvider.retrieveSession("order_no_meta");
+        expect(result).toBeNull();
+      });
     });
 
     test("retrieveSession returns null for incomplete metadata", async () => {
@@ -1566,22 +1530,20 @@ describe("square", () => {
       });
 
       await withMocks(useSquareClient(client), async () => {
-          const result =
-            await squarePaymentProvider.retrieveSession("order_bad_meta");
-          expect(result).toBeNull();
-        },
-      );
+        const result =
+          await squarePaymentProvider.retrieveSession("order_bad_meta");
+        expect(result).toBeNull();
+      });
     });
 
     test("retrieveSession returns null when order not found", async () => {
       const { client } = orderClient(null);
 
       await withMocks(useSquareClient(client), async () => {
-          const result =
-            await squarePaymentProvider.retrieveSession("order_gone");
-          expect(result).toBeNull();
-        },
-      );
+        const result =
+          await squarePaymentProvider.retrieveSession("order_gone");
+        expect(result).toBeNull();
+      });
     });
 
     test("retrieveSession returns amountTotal from order totalMoney", async () => {
@@ -1601,14 +1563,13 @@ describe("square", () => {
       );
 
       await withMocks(useSquareClient(client), async () => {
-          const result =
-            await squarePaymentProvider.retrieveSession("order_with_amount");
-          expect(result).not.toBeNull();
-          expect(result!.amountTotal).toBe(6000);
-          expect(result!.paymentStatus).toBe("paid");
-          expect(result!.paymentReference).toBe("pay_total_123");
-        },
-      );
+        const result =
+          await squarePaymentProvider.retrieveSession("order_with_amount");
+        expect(result).not.toBeNull();
+        expect(result!.amountTotal).toBe(6000);
+        expect(result!.paymentStatus).toBe("paid");
+        expect(result!.paymentReference).toBe("pay_total_123");
+      });
     });
 
     test("retrieveSession handles multi-ticket order", async () => {
@@ -1632,13 +1593,12 @@ describe("square", () => {
       );
 
       await withMocks(useSquareClient(client), async () => {
-          const result =
-            await squarePaymentProvider.retrieveSession("order_multi");
-          expect(result).not.toBeNull();
-          expect(result!.paymentStatus).toBe("paid");
-          expect(result!.metadata.items).toBe(items);
-        },
-      );
+        const result =
+          await squarePaymentProvider.retrieveSession("order_multi");
+        expect(result).not.toBeNull();
+        expect(result!.paymentStatus).toBe("paid");
+        expect(result!.metadata.items).toBe(items);
+      });
     });
 
     test("createCheckoutSession passes through SDK results", async () => {
@@ -1675,11 +1635,10 @@ describe("square", () => {
       });
 
       await withMocks(useSquareClient(client), async () => {
-          const result =
-            await squarePaymentProvider.refundPayment("pay_prov_ref");
-          expect(result).toBe(true);
-        },
-      );
+        const result =
+          await squarePaymentProvider.refundPayment("pay_prov_ref");
+        expect(result).toBe(true);
+      });
     });
 
     test("verifyWebhookSignature delegates with notification URL", async () => {

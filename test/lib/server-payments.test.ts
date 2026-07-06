@@ -69,6 +69,22 @@ const submitJohnToNewListing = async (
   return { listing, response };
 };
 
+/** Stub retrieveCheckoutSession to an UNPAID session carrying the given raw
+ *  (unsigned) metadata — the shape every /payment/cancel test reads to build
+ *  its retry link. No amount or payment intent, because a cancelled checkout
+ *  never charged. */
+const stubUnpaidSession = (
+  sessionId: string,
+  metadata: Record<string, string>,
+) =>
+  stubRetrieveCheckoutSession({
+    amountTotal: 0,
+    metadata,
+    paymentIntent: null,
+    paymentStatus: "unpaid",
+    sessionId,
+  });
+
 /** Re-hit a handled-failure session and assert it replays the SAME stored
  *  terminal outcome: HTTP 200 with the saved-your-details message, never the
  *  transient "being processed" lock, and no second refund. Returns the page
@@ -423,20 +439,10 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     });
 
     test("a failed refund releases the reservation so the next retry re-attempts it", async () => {
-      const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#shared/stripe.ts");
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
       const { isSessionProcessed } = await import(
         "#shared/db/processed-payments.ts"
       );
-      await setupStripe();
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-        unitPrice: 1000,
-      });
+      const listing = await arrangePaidListing();
       await deactivateTestListing(listing.id);
 
       await withMocks(
@@ -449,24 +455,14 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           mockRefunded: stub(stripePaymentProvider, "isPaymentRefunded", () =>
             Promise.resolve(false),
           ),
-          mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve({
-              amount_total: 1000,
-              id: "cs_refund_failed",
-              metadata: signMeta(
-                {
-                  email: "john@example.com",
-                  items: singleItem(listing.id, 1, 1000),
-                  name: "John",
-                },
-                1000,
-              ),
-              payment_intent: "pi_refund_failed",
-              payment_status: "paid",
-            } as unknown as Awaited<
-              ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >),
-          ),
+          mockRetrieve: stubRetrieveCheckoutSession({
+            amountTotal: 1000,
+            email: "john@example.com",
+            items: singleItem(listing.id, 1, 1000),
+            name: "John",
+            paymentIntent: "pi_refund_failed",
+            sessionId: "cs_refund_failed",
+          }),
         }),
         async ({ mockRefund }) => {
           const response = await handleRequest(

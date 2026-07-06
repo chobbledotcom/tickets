@@ -62,7 +62,10 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
   /** Open an attendee's edit page, assert it renders OK, return its HTML. */
   const editFormHtmlOk = async (attendeeId: number): Promise<string> =>
-    expectHtmlResponse(await adminGet(`/admin/attendees/${attendeeId}/edit`), 200);
+    expectHtmlResponse(
+      await adminGet(`/admin/attendees/${attendeeId}/edit`),
+      200,
+    );
 
   /** Assert how many booking rows a listing currently has. */
   const expectBookingCount = async (
@@ -1302,9 +1305,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     };
 
     /** The answer ids currently saved for an attendee. */
-    const savedAnswerIds = async (
-      attendeeId: number,
-    ): Promise<Set<number>> =>
+    const savedAnswerIds = async (attendeeId: number): Promise<Set<number>> =>
       new Set(
         (await getAttendeeAnswersBatch([attendeeId], { texts: false })).get(
           attendeeId,

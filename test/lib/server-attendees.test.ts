@@ -826,22 +826,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 100,
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/attendee`,
-          {
-            csrf_token: csrfToken,
-            email: "jane@example.com",
-            name: "Jane Doe",
-            quantity: "1",
-          },
-          cookie,
-        ),
+      const { response, attendees } = await addAttendeeOk(
+        { cookie, csrfToken },
+        listing.id,
+        { email: "jane@example.com", name: "Jane Doe", quantity: "1" },
       );
       expectRedirect(response, `/admin/listing/${listing.id}`);
-      expectFlash(response, expect.stringContaining("Added"));
-
-      const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(1);
 
       // The manual add is recorded in the listing activity log, naming the
@@ -859,26 +849,22 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 100,
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/attendee`,
-          {
-            address: "9 Persistence Way",
-            csrf_token: csrfToken,
-            email: "persist@example.com",
-            name: "Persist Person",
-            phone: "555-7777",
-            quantity: "1",
-            special_instructions: "Aisle seat",
-          },
-          cookie,
-        ),
+      const { attendees } = await addAttendeeOk(
+        { cookie, csrfToken },
+        listing.id,
+        {
+          address: "9 Persistence Way",
+          email: "persist@example.com",
+          name: "Persist Person",
+          phone: "555-7777",
+          quantity: "1",
+          special_instructions: "Aisle seat",
+        },
       );
-      expect(response.status).toBe(302);
 
       // Each contact field round-trips to the edit form; a field dropped to ""
       // on the way in would be missing here.
-      const [added] = await getAttendeesRaw(listing.id);
+      const [added] = attendees;
       const edit = await adminGet(`/admin/attendees/${added!.id}/edit`);
       await expectHtmlResponse(
         edit,
@@ -900,19 +886,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 100,
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/attendee`,
-          {
-            csrf_token: csrfToken,
-            date: "2026-09-10",
-            day_count: "2",
-            email: "jane@example.com",
-            name: "Jane Doe",
-            quantity: "1",
-          },
-          cookie,
-        ),
+      const response = await postAs({ cookie, csrfToken })(
+        `/admin/listing/${listing.id}/attendee`,
+        {
+          date: "2026-09-10",
+          day_count: "2",
+          email: "jane@example.com",
+          name: "Jane Doe",
+          quantity: "1",
+        },
       );
       expectRedirect(response, `/admin/listing/${listing.id}`);
 
@@ -929,22 +911,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 100,
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/attendee`,
-          {
-            csrf_token: csrfToken,
-            name: "Phone User",
-            phone: "+1234567890",
-            quantity: "1",
-          },
-          cookie,
-        ),
+      const { attendees } = await addAttendeeOk(
+        { cookie, csrfToken },
+        listing.id,
+        { name: "Phone User", phone: "+1234567890", quantity: "1" },
       );
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Added"));
-
-      const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(1);
     });
 
@@ -954,23 +925,16 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 100,
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/attendee`,
-          {
-            csrf_token: csrfToken,
-            email: "both@example.com",
-            name: "Both User",
-            phone: "+1234567890",
-            quantity: "2",
-          },
-          cookie,
-        ),
+      const { attendees } = await addAttendeeOk(
+        { cookie, csrfToken },
+        listing.id,
+        {
+          email: "both@example.com",
+          name: "Both User",
+          phone: "+1234567890",
+          quantity: "2",
+        },
       );
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Added"));
-
-      const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(1);
       expect(attendees[0]!.quantity).toBe(2);
     });
@@ -980,17 +944,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 100,
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/attendee`,
-          {
-            csrf_token: csrfToken,
-            email: "",
-            name: "",
-            quantity: "1",
-          },
-          cookie,
-        ),
+      const response = await postAs({ cookie, csrfToken })(
+        `/admin/listing/${listing.id}/attendee`,
+        { email: "", name: "", quantity: "1" },
       );
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining(""), false);
@@ -1031,17 +987,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         async () => {
           const errorSpy = spy(console, "error");
           try {
-            const response = await handleRequest(
-              mockFormRequest(
-                `/admin/listing/${listing.id}/attendee`,
-                {
-                  csrf_token: csrfToken,
-                  email: "enc@example.com",
-                  name: "Enc Fail",
-                  quantity: "1",
-                },
-                cookie,
-              ),
+            const response = await postAs({ cookie, csrfToken })(
+              `/admin/listing/${listing.id}/attendee`,
+              { email: "enc@example.com", name: "Enc Fail", quantity: "1" },
             );
             expect(response.status).toBe(302);
             expectFlash(response, expect.stringContaining("Encryption"), false);
@@ -1077,23 +1025,16 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 100,
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/attendee`,
-          {
-            csrf_token: csrfToken,
-            date: futureDate,
-            email: "daily@example.com",
-            name: "Daily User",
-            quantity: "1",
-          },
-          cookie,
-        ),
+      const { attendees } = await addAttendeeOk(
+        { cookie, csrfToken },
+        listing.id,
+        {
+          date: futureDate,
+          email: "daily@example.com",
+          name: "Daily User",
+          quantity: "1",
+        },
       );
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Added"));
-
-      const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(1);
       expect(attendees[0]!.date).toBe(futureDate);
     });

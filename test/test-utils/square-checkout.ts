@@ -71,8 +71,7 @@ export const withSquareClient = (
   body: () => void | Promise<void>,
 ): Promise<void> =>
   withMocks(
-    () =>
-      stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
+    () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
     body,
   );
 

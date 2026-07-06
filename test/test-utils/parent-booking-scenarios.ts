@@ -21,7 +21,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers.ts";
-import { makeParent, postBooking } from "#test-utils/parents.ts";
+import { apiGet, makeParent, postBooking } from "#test-utils/parents.ts";
 
 // ---------------------------------------------------------------------------
 // Bookable-date lookups (holiday-aware)
@@ -48,6 +48,20 @@ export const weekdayOf = async (date: string): Promise<string> => {
   const { DAY_NAMES } = await import("#shared/dates.ts");
   return DAY_NAMES[new Date(`${date}T00:00:00Z`).getUTCDay()]!;
 };
+
+/** Turn the public JSON API on (so `/api/listings*` endpoints answer). */
+export const enablePublicApi = async (): Promise<void> => {
+  const { settings } = await import("#shared/db/settings.ts");
+  await settings.update.showPublicApi(true);
+};
+
+/** GET a public-API listing endpoint (`/api/listings/<slug><suffix>`) and return
+ * its parsed JSON body — the shared read behind the detail/availability tests. */
+export const apiListingBody = async <T>(
+  slug: string,
+  suffix = "",
+): Promise<T> =>
+  (await (await apiGet(`/api/listings/${slug}${suffix}`)).json()) as T;
 
 /** The `<option>` markup inside the first `<select name="{name}">` of `html` —
  * the shared "read what a dropdown offers" snip the render tests all do by
