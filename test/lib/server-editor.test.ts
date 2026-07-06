@@ -409,9 +409,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const html = await (await getAs("/admin/listings", cookie)).text();
 
       expect(html).toContain('href="/admin/listings"');
-      expect(html).toContain('href="/admin/listing/new"');
       expect(html).toContain('href="/admin/groups"');
-      expect(html).toContain('href="/admin/groups/new"');
       expect(html).toContain('href="/admin/site"');
       for (const forbidden of [
         '"/admin/users"',
@@ -424,6 +422,23 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       ]) {
         expect(html, `nav must not link ${forbidden}`).not.toContain(forbidden);
       }
+    });
+
+    test("each editor section shows its own create link only inside it", async () => {
+      const { cookie } = await createTestEditorSession();
+
+      // On the Listings section, Add Listing shows but Add Group does not —
+      // create links live in their own section's sub-nav, not on every page.
+      const listingsHtml = await (
+        await getAs("/admin/listings", cookie)
+      ).text();
+      expect(listingsHtml).toContain('href="/admin/listing/new"');
+      expect(listingsHtml).not.toContain('href="/admin/groups/new"');
+
+      // ...and the reverse on the Groups section.
+      const groupsHtml = await (await getAs("/admin/groups", cookie)).text();
+      expect(groupsHtml).toContain('href="/admin/groups/new"');
+      expect(groupsHtml).not.toContain('href="/admin/listing/new"');
     });
   });
 

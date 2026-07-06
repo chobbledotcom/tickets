@@ -167,10 +167,11 @@ export const agentDeliveriesPage = (
         <AgentHeader />
       ) : (
         <>
-          {/* Deliveries lives in the Calendar section, so highlight Calendar:
-              it gives the Calendar sub-nav a parent link to sit beneath in the
-              desktop sidebar. */}
-          <AdminNav active="/admin/calendar" session={session} />
+          {/* Deliveries lives in the Calendar section: passing its own route
+              highlights the Deliveries sub-nav link, while the Calendar section
+              (its topHref) stays highlighted on the top-level bar and gives the
+              sub-nav a parent link to sit beneath in the desktop sidebar. */}
+          <AdminNav active="/admin/deliveries" session={session} />
           <h1>{t("deliveries.title")}</h1>
         </>
       )}

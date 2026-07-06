@@ -186,7 +186,7 @@ export const adminListingDefaultsPage = (
   const fields = LISTING_DEFAULT_FIELDS.filter(
     (field) => field.field !== "uses_logistics" || hasLogistics,
   );
-  return flashAdminPage(t("listing_defaults.title"), "/admin/settings")(
+  return flashAdminPage(t("listing_defaults.title"), "/admin/listing-defaults")(
     session,
     error,
     success,

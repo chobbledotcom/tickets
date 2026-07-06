@@ -51,7 +51,7 @@ export const holidayToFieldValues = (
 
 const { deletePage, editPage, listPage, newPage } =
   defineAdminResourcePages<Holiday>({
-    active: "/admin/settings",
+    active: "/admin/holidays",
     basePath: "/admin/holidays",
     delete: {
       confirm: (holiday) => ({

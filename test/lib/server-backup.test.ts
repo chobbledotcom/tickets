@@ -46,6 +46,14 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
       );
     });
 
+    test("highlights the Backup sub-nav link on the backup page", async () => {
+      // Regression: the main /admin/backup page used the admin-page helper's
+      // default active route (/admin/settings), so the Backup sub-nav link
+      // never lit up on the page users actually land on.
+      const html = await (await adminGet("/admin/backup")).text();
+      expect(html).toContain('class="active" href="/admin/backup"');
+    });
+
     test("shows encryption key on page", async () => {
       const response = await adminGet("/admin/backup");
       const html = await response.text();

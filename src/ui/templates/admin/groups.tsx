@@ -128,7 +128,7 @@ export const adminGroupNewPage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  errorAdminPage(t("groups.add.heading"), "/admin/groups")(session, error)(
+  errorAdminPage(t("groups.add.heading"), "/admin/groups/new")(session, error)(
     <NewResourceForm
       action="/admin/groups"
       fieldsHtml={renderFields(getGroupCreateFields(), groupToFieldValues())}

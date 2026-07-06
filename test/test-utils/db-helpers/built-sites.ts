@@ -1,5 +1,19 @@
 import type { BuiltSite, BuiltSiteFormInput } from "#shared/db/built-sites.ts";
+import { setTestEnv } from "../env.ts";
 import { doAuthenticatedFormRequest } from "./request.ts";
+
+/** The built-sites admin routes 404 unless CAN_BUILD_SITES is on (the feature
+ * is hidden otherwise), so a helper that drives those routes to make test data
+ * enables the flag for the duration of its own request — mirroring the real
+ * precondition — then restores it. */
+const withBuilderEnabled = async <T>(run: () => Promise<T>): Promise<T> => {
+  const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
+  try {
+    return await run();
+  } finally {
+    restore();
+  }
+};
 
 /**
  * Provision a test built site for renewals: writes a fresh token + HMAC index
@@ -42,25 +56,27 @@ export const createTestBuiltSite = (
     ...(overrides.updates ? { updates: overrides.updates } : {}),
   };
 
-  return doAuthenticatedFormRequest(
-    "/admin/built-sites",
-    {
-      db_provider: dbProvider,
-      db_token: input.dbToken,
-      db_url: input.dbUrl,
-      hosting_id: input.hostingId,
-      hosting_provider: hostingProvider,
-      name: input.name,
-      site_url: input.siteUrl,
-      ...(input.assignable ? { assignable: "1" } : {}),
-      ...(input.updates ? { updates: input.updates } : {}),
-    },
-    async () => {
-      const { getAllBuiltSites } = await import("#shared/db/built-sites.ts");
-      const sites = await getAllBuiltSites();
-      return sites[sites.length - 1] as BuiltSite;
-    },
-    "create built site",
+  return withBuilderEnabled(() =>
+    doAuthenticatedFormRequest(
+      "/admin/built-sites",
+      {
+        db_provider: dbProvider,
+        db_token: input.dbToken,
+        db_url: input.dbUrl,
+        hosting_id: input.hostingId,
+        hosting_provider: hostingProvider,
+        name: input.name,
+        site_url: input.siteUrl,
+        ...(input.assignable ? { assignable: "1" } : {}),
+        ...(input.updates ? { updates: input.updates } : {}),
+      },
+      async () => {
+        const { getAllBuiltSites } = await import("#shared/db/built-sites.ts");
+        const sites = await getAllBuiltSites();
+        return sites[sites.length - 1] as BuiltSite;
+      },
+      "create built site",
+    ),
   );
 };
 
@@ -72,22 +88,24 @@ export const updateTestBuiltSite = async (
   const existing = (await builtSitesCrudTable.findById(siteId)) as BuiltSite;
 
   const assignable = updates.assignable ?? existing.assignable;
-  return doAuthenticatedFormRequest(
-    `/admin/built-sites/${siteId}/edit`,
-    {
-      db_token: updates.dbToken ?? existing.dbToken,
-      db_url: updates.dbUrl ?? existing.dbUrl,
-      hosting_id: updates.hostingId ?? existing.hostingId,
-      name: updates.name ?? existing.name,
-      site_url: updates.siteUrl ?? existing.siteUrl,
-      updates: updates.updates ?? existing.updates,
-      ...(assignable ? { assignable: "1" } : {}),
-    },
-    async () => {
-      const updated = await builtSitesCrudTable.findById(siteId);
-      return updated as BuiltSite;
-    },
-    "update built site",
+  return withBuilderEnabled(() =>
+    doAuthenticatedFormRequest(
+      `/admin/built-sites/${siteId}/edit`,
+      {
+        db_token: updates.dbToken ?? existing.dbToken,
+        db_url: updates.dbUrl ?? existing.dbUrl,
+        hosting_id: updates.hostingId ?? existing.hostingId,
+        name: updates.name ?? existing.name,
+        site_url: updates.siteUrl ?? existing.siteUrl,
+        updates: updates.updates ?? existing.updates,
+        ...(assignable ? { assignable: "1" } : {}),
+      },
+      async () => {
+        const updated = await builtSitesCrudTable.findById(siteId);
+        return updated as BuiltSite;
+      },
+      "update built site",
+    ),
   );
 };
 
@@ -95,10 +113,12 @@ export const deleteTestBuiltSite = async (siteId: number): Promise<void> => {
   const { builtSitesCrudTable } = await import("#shared/db/built-sites.ts");
   const existing = (await builtSitesCrudTable.findById(siteId)) as BuiltSite;
 
-  return doAuthenticatedFormRequest(
-    `/admin/built-sites/${siteId}/delete`,
-    { confirm_identifier: existing.name },
-    async () => {},
-    "delete built site",
+  return withBuilderEnabled(() =>
+    doAuthenticatedFormRequest(
+      `/admin/built-sites/${siteId}/delete`,
+      { confirm_identifier: existing.name },
+      async () => {},
+      "delete built site",
+    ),
   );
 };

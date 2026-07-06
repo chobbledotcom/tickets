@@ -69,7 +69,7 @@ export const adminApiKeysPage = (
 
   return String(
     <AdminPage
-      active="/admin/users"
+      active="/admin/api-keys"
       session={adminSession}
       title={t("api_keys.title")}
     >
@@ -125,7 +125,7 @@ export const adminApiKeyManagePage = (
 ): string =>
   String(
     <AdminPage
-      active="/admin/users"
+      active="/admin/api-keys"
       session={session}
       title={`${t("api_keys.title")}: ${apiKey.name}`}
     >
@@ -159,7 +159,7 @@ export const adminDeleteApiKeyPage = (
 ): string =>
   ConfirmPage({
     action: `/admin/api-keys/${apiKey.id}/delete`,
-    active: "/admin/users",
+    active: "/admin/api-keys",
     buttonText: t("api_keys.delete_submit"),
     children: (
       <>
@@ -248,7 +248,7 @@ export const adminApiDocsPage = (
 ): string =>
   String(
     <AdminPage
-      active="/admin/users"
+      active="/admin/api-keys"
       session={session}
       title={t("api_keys.docs_title")}
     >

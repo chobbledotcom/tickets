@@ -65,7 +65,11 @@ export const adminBackupPage = (
   error?: string,
   success?: string,
 ): string =>
-  flashAdminPage(t("backup.page_title"))(session, error, success)(
+  flashAdminPage(t("backup.page_title"), "/admin/backup")(
+    session,
+    error,
+    success,
+  )(
     <>
       <ProseHeading heading={t("backup.heading")}>
         <p class="actions">
@@ -185,7 +189,7 @@ export const adminRestoreConfirmPage = (
 ): string =>
   ConfirmPage({
     action: "/admin/backup/restore/confirm",
-    active: "/admin/settings",
+    active: "/admin/backup",
     buttonText: t("backup.restore_button"),
     children: (
       <>
