@@ -35,11 +35,6 @@ import {
 } from "#shared/db/contact-preferences.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
-import {
-  enableQueryLog,
-  getQueryLog,
-  runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
 import { todayInTz } from "#shared/timezone.ts";
@@ -48,6 +43,7 @@ import {
   createTestGroup,
   createTestListing,
   describeWithEnv,
+  runAndCountRoundTrips,
   testListingWithCount,
 } from "#test-utils";
 import { makeParent } from "#test-utils/parents.ts";
@@ -517,27 +513,24 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         total: 0,
       };
 
-      const { result, roundTrips } = await runWithQueryLogContext(async () => {
-        enableQueryLog();
-        const ticketListings = await Promise.all(
-          listings.map((l) => ticketListingFor(l.id)),
-        );
-        const r = await createFreeReservation({
-          contact,
-          date: null,
-          items: itemsFor(
-            ticketListings,
-            new Map(listings.map((l) => [l.id, 1])),
-          ),
-          ledgerOrder,
-          listings: ticketListings,
-          modifierUsages: [],
-        });
-        return {
-          result: r,
-          roundTrips: new Set(getQueryLog().map((q) => q.startedAtMs)).size,
-        };
-      });
+      const { value: result, roundTrips } = await runAndCountRoundTrips(
+        async () => {
+          const ticketListings = await Promise.all(
+            listings.map((l) => ticketListingFor(l.id)),
+          );
+          return createFreeReservation({
+            contact,
+            date: null,
+            items: itemsFor(
+              ticketListings,
+              new Map(listings.map((l) => [l.id, 1])),
+            ),
+            ledgerOrder,
+            listings: ticketListings,
+            modifierUsages: [],
+          });
+        },
+      );
 
       expect(result.success).toBe(true);
       // The N sale legs ride one batch, so the reservation's round-trips don't

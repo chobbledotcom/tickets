@@ -1,5 +1,4 @@
 import { expect } from "@std/expect";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import {
   answersTable,
   assignNextQuestionSortOrder,
@@ -10,24 +9,14 @@ import {
   type TextAnswer,
 } from "#shared/db/questions.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
-import { createTestListing } from "#test-utils";
+import { bookTestAttendee, createTestListing } from "#test-utils";
 
 /** Create a test attendee directly via the DB (bypasses routes). Shared by
  *  every questions test file that needs an attendee to hang answers off. */
-export const createAttendee = async (
+export const createAttendee = (
   listingId: number,
   name = "Alice",
-): Promise<Attendee> => {
-  const result = await createAttendeeAtomic({
-    bookings: [{ listingId }],
-    email: `${name.toLowerCase()}@test.com`,
-    name,
-  });
-  if (!result.success) {
-    throw new Error(`Failed to create attendee: ${result.reason}`);
-  }
-  return result.attendees[0]!;
-};
+): Promise<Attendee> => bookTestAttendee([listingId], name);
 
 /** Insert a radio question directly. `overrides` covers the rare non-radio
  *  or assign-all cases; every other question test wants the plain default. */

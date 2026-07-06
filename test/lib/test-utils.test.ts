@@ -7,6 +7,7 @@ import type { Field } from "#shared/forms.tsx";
 import {
   attendeeLineIndex,
   awaitTestRequest,
+  bookTestAttendee,
   buildAttendeeEditForm,
   buildMigrationContext,
   createTestAgentSession,
@@ -915,6 +916,28 @@ describe("test-utils", () => {
     test("creates an listing with maxPrice", async () => {
       const listing = await createTestListing({ maxPrice: 5000 });
       expect(listing.max_price).toBe(5000);
+    });
+  });
+
+  describe("bookTestAttendee", () => {
+    beforeEach(async () => {
+      await createTestDbWithSetup();
+    });
+
+    test("books one attendee onto every listing given", async () => {
+      const a = await createTestListing({ maxAttendees: 10 });
+      const b = await createTestListing({ maxAttendees: 10, name: "B" });
+      const attendee = await bookTestAttendee([a.id, b.id], "Multi");
+      expect(attendee.id).toBeGreaterThan(0);
+    });
+
+    test("fails loudly when a listing can't take the booking", async () => {
+      const open = await createTestListing({ maxAttendees: 10 });
+      const full = await createTestListing({ maxAttendees: 1, name: "Full" });
+      await bookTestAttendee([full.id], "Filler"); // uses the only spot
+      await expect(
+        bookTestAttendee([open.id, full.id], "Partial"),
+      ).rejects.toThrow("a listing was full or blocked");
     });
   });
 

@@ -83,7 +83,11 @@
   },
   "overrides": [
     {
-      "includes": ["test/**/*.js", "test/**/*.ts", "test/**/*.tsx"],
+      "includes": [
+        "test/**/*.js",
+        "test/**/*.ts",
+        "test/**/*.tsx"
+      ],
       "linter": {
         "rules": {
           "complexity": {
@@ -120,7 +124,9 @@
       }
     },
     {
-      "includes": ["scripts/**/*.ts"],
+      "includes": [
+        "scripts/**/*.ts"
+      ],
       "linter": {
         "rules": {
           "complexity": {
@@ -135,13 +141,18 @@
       }
     },
     {
-      "includes": ["src/ui/client/scanner.js", "src/ui/static/**"],
+      "includes": [
+        "src/ui/client/scanner.js",
+        "src/ui/static/**"
+      ],
       "linter": {
         "enabled": false
       }
     },
     {
-      "includes": ["test/lib/code-quality/**"],
+      "includes": [
+        "test/lib/code-quality/**"
+      ],
       "linter": {
         "rules": {
           "suspicious": {
@@ -161,7 +172,6 @@
         "src/ui/templates/public/reservations.tsx",
         "test/e2e/accounting.test.ts",
         "test/e2e/duration-days.test.ts",
-        "test/lib/attendee-merge.test.ts",
         "test/lib/server-attendee-form.test.ts",
         "test/lib/server-attendees.test.ts",
         "test/lib/server-groups.test.ts",
