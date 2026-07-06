@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  anyNonStandaloneChild,
   edgeIncompatibilityAfterChange,
+  firstTouchingEdgeError,
   getChildIds,
   getChildListingIds,
   getChildrenForParents,
@@ -9,6 +11,7 @@ import {
   getParentsForChildren,
   getParentsOf,
   setChildIds,
+  type TouchingEdge,
 } from "#shared/db/listing-parents.ts";
 import { deleteListing } from "#shared/db/listings.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
@@ -129,6 +132,44 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
     test("returns an empty set for an empty input (no query)", async () => {
       expect([...(await getChildListingIds([]))]).toEqual([]);
     });
+
+    test("finds a child from a single-id lookup", async () => {
+      const { parent, childA } = await threeListings();
+      await setChildIds(parent.id, [childA.id]);
+      expect([...(await getChildListingIds([childA.id]))]).toEqual([
+        childA.id,
+      ]);
+    });
+  });
+
+  describe("anyNonStandaloneChild", () => {
+    test("is true with exactly one plain (non-standalone) child", async () => {
+      const { parent, childA } = await threeListings();
+      await setChildIds(parent.id, [childA.id]);
+      expect(await anyNonStandaloneChild([childA.id])).toBe(true);
+    });
+  });
+
+  describe("firstTouchingEdgeError", () => {
+    test("walks child edges as parent, then parent edges as child", async () => {
+      // The traversal contract: the saved listing is fixed on one side of each
+      // edge, children first. Callers branch on `self`, so the labels and the
+      // order are the behavior.
+      const { parent, childA } = await threeListings();
+      const middle = await createTestListing({ name: "Middle" });
+      await setChildIds(middle.id, [childA.id]);
+      await setChildIds(parent.id, [middle.id]);
+      const seen: TouchingEdge[] = [];
+      const error = await firstTouchingEdgeError(middle.id, (edge) => {
+        seen.push(edge);
+        return null;
+      });
+      expect(error).toBeNull();
+      expect(seen).toEqual([
+        { otherId: childA.id, self: "parent" },
+        { otherId: parent.id, self: "child" },
+      ]);
+    });
   });
 
   describe("getChildrenForParents", () => {
@@ -224,6 +265,21 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
         edge(childA.id, { months_per_unit: 12 }),
       );
       expect(error).not.toBeNull();
+    });
+
+    test("keeps a parent-side edit on the parent side of the edge", async () => {
+      // A standard child under a daily parent is compatible ("a one-off fee or
+      // merch add-on under a multi-day base"), but a daily child under a
+      // standard parent is an error. Editing the PARENT to daily must stay
+      // compatible; were its edge evaluated on the child side instead, the
+      // standard child would read as the parent of a daily listing and a
+      // phantom error would appear.
+      const { parent, childA } = await threeListings();
+      await setChildIds(parent.id, [childA.id]);
+      const error = await edgeIncompatibilityAfterChange(
+        edge(parent.id, { listing_type: "daily", name: "Daily base" }),
+      );
+      expect(error).toBeNull();
     });
 
     test("validates the edited listing on its own side of the edge", async () => {

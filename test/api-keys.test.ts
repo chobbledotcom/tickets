@@ -676,6 +676,26 @@ describeWithEnv("API Keys", { db: true }, () => {
       );
     });
 
+    test("touchApiKeyLastUsed surfaces the test-override error to its caller", async () => {
+      // The fire-and-forget swallowing happens at the request layer; the
+      // function itself must still throw so that layer has something to catch.
+      const { setTouchOverride } = await import("#shared/test-overrides.ts");
+      const { touchApiKeyLastUsed } = await import("#shared/db/api-keys.ts");
+      setTouchOverride(new Error("touch failed"));
+      try {
+        await expect(touchApiKeyLastUsed(1)).rejects.toThrow("touch failed");
+      } finally {
+        setTouchOverride(null);
+      }
+    });
+
+    test("getApiKeyForUser throws a not-found error for an unknown key", async () => {
+      const { getApiKeyForUser } = await import("#shared/db/api-keys.ts");
+      await expect(getApiKeyForUser(999_999, 1)).rejects.toThrow(
+        "API key 999999 not found for user 1",
+      );
+    });
+
     test("request succeeds when touchApiKeyLastUsed fails (fire-and-forget)", async () => {
       await createTestListing({ name: "Touch Test" });
       const { apiKey } = await createTestApiKeyFull("Touch Test Key");

@@ -77,6 +77,9 @@ src/ui/templates/public/shared.tsx:318:41  ?? → ||   # span: null or a duratio
 # Parent/child per-unit render (reservations.tsx).
 src/ui/templates/public/reservations.tsx:1546:50  ?? → ||   # addOns?.some(...) is boolean|undefined; ?? and || agree on every boolean and on undefined
 
+# Attendee phone blind-index (attendee-phone-index.ts).
+src/shared/db/attendee-phone-index.ts:36:17  ?? → ||   # row?.id is undefined or an AUTOINCREMENT id (≥1, never 0), so ?? and || agree
+
 # Parent/child relationship DB (listing-parents.ts).
 src/shared/db/listing-parents.ts:144:21  ?? → ||   # result.get(key): ListingWithCount[]|undefined, arrays always truthy; ?? and || agree
 src/shared/db/listing-parents.ts:201:44  ?? → ||   # childrenByParent.get(id): ListingWithCount[]|undefined — an array is always truthy
