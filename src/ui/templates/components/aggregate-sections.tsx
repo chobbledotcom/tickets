@@ -65,6 +65,7 @@ export const CheckboxFieldset = ({
 export const CheckboxLabel = ({
   checked,
   children,
+  className,
   disabled,
   label,
   name,
@@ -72,12 +73,13 @@ export const CheckboxLabel = ({
 }: {
   checked: boolean | undefined;
   children?: Child;
+  className?: string | undefined;
   disabled?: boolean;
   label: Child;
   name: string;
   value?: string;
 }): JSX.Element => (
-  <label>
+  <label class={className}>
     <input
       checked={checked}
       disabled={disabled || undefined}

@@ -644,6 +644,14 @@ src/shared/url-safety.ts:22:65  1 → -1   # slice(1,1) empties h; same isDomain
 src/shared/url-safety.ts:23:18  : → ": mutated"   # h never contains this literal, so the colon-detection branch is skipped — falls to the regex, but the dotless-host isDomainHostname fallback still catches it
 src/shared/url-safety.ts:23:31  return true → return undefined   # !undefined behaves like !false downstream; same isDomainHostname fallback as above
 src/shared/url-safety.ts:23:31  true → false   # isIpLiteral wrongly says "not an IP literal", but the dotless-host isDomainHostname fallback still rejects it
+src/ui/templates/admin/images.tsx:78:28  ?? → ||   # alt_text ?? "" vs || "": identical for every string — "" falls through to "" either way
+src/ui/templates/admin/images.tsx:79:20  ?? → ||   # name ?? "" vs || "": identical for every string — "" falls through to "" either way
+src/features/admin/images.ts:133:25   → "mutated"   # itemType destructure default: split(":") always yields ≥1 part, so the default is unreachable
+src/features/admin/images.ts:133:38   → "mutated"   # itemId destructure default: Number("") is 0 and Number("mutated") is NaN — both rejected by the id guard
+src/features/admin/images.ts:56:5  applyFlash(request); → (removed)   # only records ?form= targeting; no form on the images pages has an id, so the flash renders at the Layout backstop either way
+src/features/admin/images.ts:65:5  applyFlash(request); → (removed)   # same as images.ts:56 — no id'd form on the page
+src/features/admin/images.ts:116:7  applyFlash(request); → (removed)   # same as images.ts:56 — no id'd form on the page
+src/features/admin/images.ts:172:7  applyFlash(request); → (removed)   # same as images.ts:56 — no id'd form on the page
 
 # Run-sheet leg building (logistics.ts): buildLeg's ONLY call site wraps both
 # calls in compact() from #fp, which drops null and undefined alike, so a
