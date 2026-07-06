@@ -36,18 +36,20 @@ export const renderAddressLookupPanel = (mode: AddressLookupMode): string => {
       data-searching={t("address_lookup.searching")}
       hidden
     >
-      <label>
-        {t(definition.searchLabelKey)}
-        <input
-          autocomplete="off"
-          data-address-search={true}
-          placeholder={t(definition.searchPlaceholderKey)}
-          type="text"
-        />
+      <div class="address-lookup-search">
+        <label>
+          {t(definition.searchLabelKey)}
+          <input
+            autocomplete="off"
+            data-address-search={true}
+            placeholder={t(definition.searchPlaceholderKey)}
+            type="text"
+          />
+        </label>
         <button data-address-find={true} type="button">
           {t("address_lookup.find")}
         </button>
-      </label>
+      </div>
       <label data-address-results-label={true} hidden>
         {t("address_lookup.choose")}
         <select data-address-results={true}></select>

@@ -1615,9 +1615,19 @@ fieldset.inset {
   padding: var(--space-m);
 }
 
-/* The postcode box and its Find button share one row inside the label; the
-   input only needs room for a postcode, so cap it and let the button follow. */
-.address-lookup label > input[type="text"] {
+/* Postcode search row: the label (with its input) and the Find button sit on
+   one line. The button stays a sibling of the label — not a child — so it never
+   pollutes the input's accessible name. */
+.address-lookup-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-s);
+}
+
+/* The input only needs room for a postcode, so cap it and let the button
+   follow on the same row. */
+.address-lookup-search label > input[type="text"] {
   flex: 0 0 auto;
   width: 8rem;
 }
