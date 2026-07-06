@@ -61,10 +61,12 @@ describe("db > client write-lock retry", () => {
         return Promise.reject(busyError());
       }),
     );
-    const outcome = execute("INSERT INTO t (x) VALUES (1)").then(
-      () => "resolved",
-      (error: unknown) => error,
-    );
+    // Attach the rejection expectation up front so the eventual failure is
+    // handled while the fake clock ticks (an unhandled rejection would blow
+    // up the test run before the final await).
+    const outcome = expect(
+      execute("INSERT INTO t (x) VALUES (1)"),
+    ).rejects.toThrow(DatabaseBusyError);
     await time.tickAsync(0);
     expect(attempts).toBe(1);
     await time.tickAsync(49);
@@ -79,6 +81,6 @@ describe("db > client write-lock retry", () => {
     expect(attempts).toBe(3); // third retry waits the full 350ms
     await time.tickAsync(1);
     expect(attempts).toBe(4); // one initial attempt + one per backoff entry
-    expect(await outcome).toBeInstanceOf(DatabaseBusyError);
+    await outcome;
   });
 });

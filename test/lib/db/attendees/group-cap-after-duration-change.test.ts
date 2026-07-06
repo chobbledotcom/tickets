@@ -37,11 +37,34 @@ const setGroupCap = async (groupId: number, cap: number): Promise<void> => {
   });
 };
 
+/** A capless group holding one daily listing. */
+const groupWithDaily = async () => {
+  const group = await createTestGroup({ maxAttendees: 0 });
+  const listing = await createDailyTestListing({ groupId: group.id });
+  return { group, listing };
+};
+
+/** A capless group holding two daily listings. */
+const groupWithDailyPair = async () => {
+  const { group, listing } = await groupWithDaily();
+  const sibling = await createDailyTestListing({ groupId: group.id });
+  return { group, listing, sibling };
+};
+
+/** A capless group holding one standard (non-daily) and one daily listing. */
+const groupWithStandardAndDaily = async () => {
+  const group = await createTestGroup({ maxAttendees: 0 });
+  const standard = await createTestListing({
+    groupId: group.id,
+    maxAttendees: 100,
+  });
+  const daily = await createDailyTestListing({ groupId: group.id });
+  return { daily, group, standard };
+};
+
 describeWithEnv("db > group cap after duration change", { db: true }, () => {
   test("reports the earliest over-capacity day after a duration change", async () => {
-    const group = await createTestGroup({ maxAttendees: 0 });
-    const listing = await createDailyTestListing({ groupId: group.id });
-    const sibling = await createDailyTestListing({ groupId: group.id });
+    const { group, listing, sibling } = await groupWithDailyPair();
     await bookAttendee(listing, { date: D1, quantity: 6 });
     await bookAttendee(sibling, { date: D2, quantity: 6 });
     await bookAttendee(sibling, { date: D3, quantity: 6 });
@@ -59,12 +82,7 @@ describeWithEnv("db > group cap after duration change", { db: true }, () => {
   test("returns null when every day fits exactly at the cap", async () => {
     // A non-daily sibling counts on EVERY day: base 4 + the daily 6 = 10, the
     // cap exactly — at the limit is not over it.
-    const group = await createTestGroup({ maxAttendees: 0 });
-    const standard = await createTestListing({
-      groupId: group.id,
-      maxAttendees: 100,
-    });
-    const daily = await createDailyTestListing({ groupId: group.id });
+    const { daily, group, standard } = await groupWithStandardAndDaily();
     await bookAttendee(standard, { quantity: 4 });
     await bookAttendee(daily, { date: D1, quantity: 6 });
     await setGroupCap(group.id, 10);
@@ -75,12 +93,7 @@ describeWithEnv("db > group cap after duration change", { db: true }, () => {
   });
 
   test("a non-daily sibling's quantity pushes a booked day over the cap", async () => {
-    const group = await createTestGroup({ maxAttendees: 0 });
-    const standard = await createTestListing({
-      groupId: group.id,
-      maxAttendees: 100,
-    });
-    const daily = await createDailyTestListing({ groupId: group.id });
+    const { daily, group, standard } = await groupWithStandardAndDaily();
     await bookAttendee(standard, { quantity: 6 });
     await bookAttendee(daily, { date: D1, quantity: 6 });
     await setGroupCap(group.id, 10);
@@ -91,8 +104,7 @@ describeWithEnv("db > group cap after duration change", { db: true }, () => {
   test("back-to-back bookings at the cap fit (occupancy falls when a range ends)", async () => {
     // [D1, D2) then [D2, D3): the first booking's quantity must stop counting
     // the day it ends, or the second day would falsely read 12.
-    const group = await createTestGroup({ maxAttendees: 0 });
-    const listing = await createDailyTestListing({ groupId: group.id });
+    const { group, listing } = await groupWithDaily();
     await bookAttendee(listing, { date: D1, quantity: 6 });
     await bookAttendee(listing, { date: D2, quantity: 6 });
     await setGroupCap(group.id, 6);
@@ -103,8 +115,7 @@ describeWithEnv("db > group cap after duration change", { db: true }, () => {
   });
 
   test("ignores legacy rows with a NULL range on a daily listing", async () => {
-    const group = await createTestGroup({ maxAttendees: 0 });
-    const listing = await createDailyTestListing({ groupId: group.id });
+    const { group, listing } = await groupWithDaily();
     await bookAttendee(listing, { date: D1, quantity: 6 });
     // Two pre-daily legacy shapes: a row with no range at all, and a
     // half-backfilled row that kept only its end. Neither may count (or
@@ -127,8 +138,7 @@ describeWithEnv("db > group cap after duration change", { db: true }, () => {
   });
 
   test("a group with no limit never reports an overflow", async () => {
-    const group = await createTestGroup({ maxAttendees: 0 });
-    const listing = await createDailyTestListing({ groupId: group.id });
+    const { group, listing } = await groupWithDaily();
     await bookAttendee(listing, { date: D1, quantity: 6 });
 
     expect(
@@ -137,8 +147,7 @@ describeWithEnv("db > group cap after duration change", { db: true }, () => {
   });
 
   test("a cap of one reports the over-booked day", async () => {
-    const group = await createTestGroup({ maxAttendees: 0 });
-    const listing = await createDailyTestListing({ groupId: group.id });
+    const { group, listing } = await groupWithDaily();
     await bookAttendee(listing, { date: D1, quantity: 2 });
     await setGroupCap(group.id, 1);
 
@@ -150,8 +159,7 @@ describeWithEnv("db > group cap after duration change", { db: true }, () => {
   test("an overflow on days this listing does not cover is not reported", async () => {
     // The sibling's day is heavily over the cap, but this listing's bookings
     // never touch it, so this listing's duration change cannot be blamed.
-    const group = await createTestGroup({ maxAttendees: 0 });
-    const listing = await createDailyTestListing({ groupId: group.id });
+    const { group, listing } = await groupWithDaily();
     const sibling = await createDailyTestListing({
       groupId: group.id,
       maxAttendees: 100,
@@ -170,9 +178,7 @@ describeWithEnv("db > group cap after duration change", { db: true }, () => {
     // after a 4-day recompute. The sibling's 09-06 booking overflows a day
     // covered only by the SECOND range — the sweep must keep extending the
     // "inside this listing's booked days" horizon range by range.
-    const group = await createTestGroup({ maxAttendees: 0 });
-    const listing = await createDailyTestListing({ groupId: group.id });
-    const sibling = await createDailyTestListing({ groupId: group.id });
+    const { group, listing, sibling } = await groupWithDailyPair();
     await bookAttendee(listing, { date: D1, quantity: 2 });
     await bookAttendee(listing, { date: "2026-09-05", quantity: 2 });
     await bookAttendee(sibling, { date: "2026-09-06", quantity: 9 });
