@@ -166,9 +166,9 @@ describe("packageBundleLimit", () => {
     // governed by the parent's capacity elsewhere — it must not also be
     // pooled here, so the bundle limit falls back to the package's own
     // quantity limit (floor(100/2)=50).
-    expect(
-      bundleLimitWithChildren([tl(2, 5, { listing_type: "daily" })]),
-    ).toBe(50);
+    expect(bundleLimitWithChildren([tl(2, 5, { listing_type: "daily" })])).toBe(
+      50,
+    );
   });
 
   test("does not apply single-child ticket pooling when a member has more than one child", () => {

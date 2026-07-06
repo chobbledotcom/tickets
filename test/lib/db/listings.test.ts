@@ -68,11 +68,33 @@ import {
   getTestPrivateKey,
   withTestSession,
 } from "#test-utils";
+import { decryptListingAttendees } from "#test-utils/db-helpers.ts";
 import {
   postAttendeeRefund,
   postListingSale,
   postWriteoffAdjustment,
 } from "#test-utils/ledger.ts";
+
+/** A standard 50-seat test listing with a thank-you URL. */
+const standardListing = () =>
+  createTestListing({ maxAttendees: 50, thankYouUrl: "https://example.com" });
+
+/** Delete a listing and confirm it can no longer be fetched. */
+const deleteAndExpectGone = async (listingId: number): Promise<void> => {
+  await deleteListing(listingId);
+  expect(await getListing(listingId)).toBeNull();
+};
+
+/** Encrypt `input` through `write`, decrypt it, and assert the plaintext value. */
+const expectDatetimeRoundTrips = async (
+  write: (value: string) => Promise<unknown>,
+  input: string,
+  expected: string,
+): Promise<void> => {
+  const { decrypt } = await import("#shared/crypto/encryption.ts");
+  const result = await write(input);
+  expect(await decrypt(result as string)).toBe(expected);
+};
 
 describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   describe("CRUD", () => {
@@ -282,15 +304,8 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
   describe("deleteListing", () => {
     test("removes listing", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-
-      await deleteListing(listing.id);
-
-      const fetched = await getListing(listing.id);
-      expect(fetched).toBeNull();
+      const listing = await standardListing();
+      await deleteAndExpectGone(listing.id);
     });
 
     test("removes all attendees for the listing", async () => {
@@ -313,9 +328,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
       await deleteListing(listing.id);
 
-      const privateKey = await getTestPrivateKey();
-      const raw = await getAttendeesRaw(listing.id);
-      const attendees = await decryptAttendees(raw, privateKey);
+      const attendees = await decryptListingAttendees(listing.id);
       expect(attendees).toEqual([]);
     });
 
@@ -366,15 +379,8 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     });
 
     test("works with no attendees", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-
-      await deleteListing(listing.id);
-
-      const fetched = await getListing(listing.id);
-      expect(fetched).toBeNull();
+      const listing = await standardListing();
+      await deleteAndExpectGone(listing.id);
     });
 
     // Book one attendee onto two listings, with distinct quantities so an

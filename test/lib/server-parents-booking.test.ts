@@ -424,20 +424,13 @@ describeWithEnv(
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
       const { bookAttendee } = await import("#test-utils");
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       // A 1-capacity daily child passes the date-less fold but fails the atomic
       // date-specific capacity check, so the all-or-nothing save reports 409.
       const { parent, child } = await makeParent({
         children: [{ daily: true, maxAttendees: 1 }],
         parent: { daily: true },
       });
-      const parentRow = (await getListingWithCount(parent.id))!;
-      const date = getBookableStartDates(
-        parentRow,
-        await getActiveHolidays(),
-      )[0]!;
+      const date = await firstBookableDate(parent.id);
       // Fill the child's only spot on that date.
       await bookAttendee(child, { date, quantity: 1 });
       const res = await apiBook(parent.slug, {
@@ -517,10 +510,6 @@ describeWithEnv(
       // child must be priced for the inherited 3-day span (£30) — without it the
       // webhook reprices the child at a 1-day span (£10) and refunds the gap.
       const { setupStripe } = await import("#test-utils");
-      const { stub } = await import("@std/testing/mock");
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
       await setupStripe();
 
       const { parent, child } = await makeParent({
@@ -536,42 +525,22 @@ describeWithEnv(
         parent: { daily: true, durationDays: 3 },
       });
 
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-      const date = getBookableStartDates(
-        (await getListingWithCount(parent.id))!,
-        await getActiveHolidays(),
-      )[0]!;
+      const date = await firstBookableDate(parent.id);
 
-      let capturedIntent:
-        | import("#shared/payments.ts").CheckoutIntent
-        | undefined;
-      const mockCreate = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        (intent: import("#shared/payments.ts").CheckoutIntent) => {
-          capturedIntent = intent;
-          return Promise.resolve({
-            checkoutUrl: "https://stripe.test/checkout",
-            sessionId: "cs_api_custom_child",
-          });
-        },
-      );
-
+      const capture = captureCheckoutIntent("cs_api_custom_child");
       try {
         const res = await apiBook(parent.slug, {
           children: [{ quantity: 1, slug: child.slug }],
           date,
         });
         expect(res.status).toBe(200);
-        expect(capturedIntent?.dayCount).toBe(3);
-        const childItem = capturedIntent?.items.find(
+        expect(capture.intent?.dayCount).toBe(3);
+        const childItem = capture.intent?.items.find(
           (i) => i.listingId === child.id,
         );
         expect(childItem?.unitPrice).toBe(3000);
       } finally {
-        mockCreate.restore();
+        capture.restore();
       }
     });
 
@@ -584,36 +553,17 @@ describeWithEnv(
       // full on the chosen date, so the date-aware preflight rejects it: the
       // booking must return 409 instead of handing back a checkout URL.
       const { setupStripe, bookAttendee } = await import("#test-utils");
-      const { stub } = await import("@std/testing/mock");
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
       await setupStripe();
 
       const { parent, child } = await makeParent({
         children: [{ daily: true, maxAttendees: 1, unitPrice: 1000 }],
         parent: { daily: true, unitPrice: 1000 },
       });
-      const date = getBookableStartDates(
-        (await getListingWithCount(parent.id))!,
-        await getActiveHolidays(),
-      )[0]!;
+      const date = await firstBookableDate(parent.id);
       // Fill the child's only spot on that date so the folded order is sold out.
       await bookAttendee(child, { date, quantity: 1 });
 
-      const mockCreate = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        () =>
-          Promise.resolve({
-            checkoutUrl: "https://stripe.test/checkout",
-            sessionId: "cs_should_not_be_reached",
-          }),
-      );
-
+      const capture = captureCheckoutIntent("cs_should_not_be_reached");
       try {
         const res = await apiBook(parent.slug, {
           children: [{ quantity: 1, slug: child.slug }],
@@ -621,9 +571,9 @@ describeWithEnv(
         });
         expect(res.status).toBe(409);
         // The preflight rejected before the provider was ever called.
-        expect(mockCreate.calls.length).toBe(0);
+        expect(capture.intent).toBeUndefined();
       } finally {
-        mockCreate.restore();
+        capture.restore();
       }
     });
 
@@ -849,17 +799,8 @@ describeWithEnv(
         parent: { daily: true },
       });
 
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-      const holidays = await getActiveHolidays();
-      const parentDates = getBookableStartDates(
-        (await getListingWithCount(parent.id))!,
-        holidays,
-      );
-      const childDates = new Set(
-        getBookableStartDates((await getListingWithCount(child.id))!, holidays),
-      );
+      const parentDates = await bookableDatesFor(parent.id);
+      const childDates = new Set(await bookableDatesFor(child.id));
       const servable = parentDates.find((d) => childDates.has(d))!;
       const unservable = parentDates.find((d) => !childDates.has(d))!;
 
@@ -892,20 +833,8 @@ describeWithEnv(
       });
       const [childA, childB] = children;
 
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
-      const holidays = await getActiveHolidays();
-      const parentDates = getBookableStartDates(
-        (await getListingWithCount(parent.id))!,
-        holidays,
-      );
-      const childBDates = new Set(
-        getBookableStartDates(
-          (await getListingWithCount(childB!.id))!,
-          holidays,
-        ),
-      );
+      const parentDates = await bookableDatesFor(parent.id);
+      const childBDates = new Set(await bookableDatesFor(childB!.id));
       // A date the parent and childA serve but childB does not (non-Monday).
       const nonMondayDate = parentDates.find((d) => !childBDates.has(d))!;
 

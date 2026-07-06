@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { handleRequest } from "#routes";
 import {
   attendeeStatusesTable,
   getPaidDefaultStatus,
@@ -36,7 +35,6 @@ import {
   getAttendeesRaw,
   getTestPrivateKey,
   hasSelectedOption,
-  mockFormRequest,
   testCookie,
   testRequiresAuth,
   withMocks,
@@ -1313,6 +1311,24 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         ) ?? [],
       );
 
+    /** Submit the valid answer for the first question and `qBValue` for the
+     *  second, expect the save to succeed, and return the saved answer ids. */
+    const submitBothAnswers = async (
+      setup: Awaited<ReturnType<typeof setupMultiEventQuestions>>,
+      qBValue: string,
+      name: string,
+    ): Promise<Set<number>> => {
+      const response = await submitAttendeeEdit(setup.attendeeId, {
+        extra: {
+          [`question_${setup.qA.id}`]: String(setup.aA.id),
+          [`question_${setup.qB.id}`]: qBValue,
+        },
+        name,
+      });
+      expect(response.status).toBe(302);
+      return savedAnswerIds(setup.attendeeId);
+    };
+
     test("edit page renders questions from every booked event", async () => {
       const { attendeeId } = await setupMultiEventQuestions();
       const response = await awaitTestRequest(
@@ -1327,41 +1343,29 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
 
     test("saving an edit preserves answers for every booked event", async () => {
-      const { aA, aB, attendeeId, qA, qB } = await setupMultiEventQuestions();
+      const setup = await setupMultiEventQuestions();
 
       // Submit both answers, as the rendered (pre-checked) form would.
-      const response = await submitAttendeeEdit(attendeeId, {
-        extra: {
-          [`question_${qA.id}`]: String(aA.id),
-          [`question_${qB.id}`]: String(aB.id),
-        },
-        name: "Multi Edited",
-      });
-      expect(response.status).toBe(302);
+      const saved = await submitBothAnswers(
+        setup,
+        String(setup.aB.id),
+        "Multi Edited",
+      );
 
       // Both answers survive — not just the first event's.
-      const saved = await savedAnswerIds(attendeeId);
-      expect(saved.has(aA.id)).toBe(true);
-      expect(saved.has(aB.id)).toBe(true);
+      expect(saved.has(setup.aA.id)).toBe(true);
+      expect(saved.has(setup.aB.id)).toBe(true);
     });
 
     test("never persists an answer id the admin didn't have as an option", async () => {
-      const { aA, attendeeId, qA, qB } = await setupMultiEventQuestions();
+      const setup = await setupMultiEventQuestions();
 
       // Valid answer for qA; a bogus id for qB that isn't one of its options.
-      const response = await submitAttendeeEdit(attendeeId, {
-        extra: {
-          [`question_${qA.id}`]: String(aA.id),
-          [`question_${qB.id}`]: "99999",
-        },
-        name: "Multi",
-      });
-      expect(response.status).toBe(302);
+      const saved = await submitBothAnswers(setup, "99999", "Multi");
 
-      const saved = await savedAnswerIds(attendeeId);
       // The bogus id is silently dropped (admin answers are optional), never
       // written — so the form can't inject an arbitrary answer row.
-      expect(saved.has(aA.id)).toBe(true);
+      expect(saved.has(setup.aA.id)).toBe(true);
       expect(saved.has(99999)).toBe(false);
     });
 

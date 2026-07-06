@@ -27,9 +27,9 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // Confirms each given name is visible on the current page.
 const expectVisible = (browser: TestBrowser, ...names: string[]): void => {
-  names.forEach((name) => {
+  for (const name of names) {
     expect(browser.containsText(name)).toBe(true);
-  });
+  }
 };
 
 // Saves the attendee with one listing's quantity box changed (the editor also

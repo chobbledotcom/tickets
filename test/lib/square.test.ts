@@ -56,6 +56,33 @@ const orderClient = (order: unknown, payment?: unknown) =>
       : { paymentsGet: () => Promise.resolve({ payment }) }),
   });
 
+/** A mock client whose payments.get resolves to `{ payment }`. */
+const paymentClient = (payment: unknown) =>
+  createMockClient({ paymentsGet: () => Promise.resolve({ payment }) });
+
+/** Configure credentials + a payment-link client returning `paymentLink`, run
+ *  the provider's createCheckoutSession for `intent`, and assert it surfaces
+ *  the resulting order id and URL. */
+const expectProviderCheckout = async (
+  paymentLink: { orderId: string; url: string },
+  intent: ReturnType<typeof checkoutIntent>,
+): Promise<void> => {
+  const { client } = paymentLinkClient(paymentLink);
+  await withSquareClient(client, async () => {
+    await settings.update.square.accessToken("EAAAl_test_123");
+    await settings.update.square.locationId("L_loc_prov");
+    const result = await squarePaymentProvider.createCheckoutSession(
+      intent,
+      "http://localhost",
+    );
+    expect(result).not.toBeNull();
+    expect(result).toHaveProperty("sessionId");
+    const success = result as { sessionId: string; checkoutUrl: string };
+    expect(success.sessionId).toBe(paymentLink.orderId);
+    expect(success.checkoutUrl).toBe(paymentLink.url);
+  });
+};
+
 /** Run testSquareConnection against a mock client whose location list returns
  *  `locationsResponse`, then hand the result to `check`. */
 const checkConnection = (
@@ -692,9 +719,7 @@ describe("square", () => {
     });
 
     test("returns null when SDK returns no order", async () => {
-      const { client, ordersGet } = createMockClient({
-        ordersGet: () => Promise.resolve({ order: null }),
-      });
+      const { client, ordersGet } = orderClient(null);
 
       await withMocks(useSquareClient(client), async () => {
           const result = await squareApi.retrieveOrder("order_missing");
@@ -707,24 +732,19 @@ describe("square", () => {
     });
 
     test("maps tender paymentId correctly", async () => {
-      const { client } = createMockClient({
-        ordersGet: () =>
-          Promise.resolve({
-            order: {
-              id: "order_tenders",
-              metadata: {
-                email: "john@example.com",
-                items: '[{"e":1,"q":1,"p":0}]',
-                name: "John",
-              },
-              state: "COMPLETED",
-              tenders: [
-                { id: "tender_1", paymentId: "pay_abc" },
-                { id: "tender_2", paymentId: null },
-              ],
-              totalMoney: { amount: BigInt(2000), currency: "USD" },
-            },
-          }),
+      const { client } = orderClient({
+        id: "order_tenders",
+        metadata: {
+          email: "john@example.com",
+          items: '[{"e":1,"q":1,"p":0}]',
+          name: "John",
+        },
+        state: "COMPLETED",
+        tenders: [
+          { id: "tender_1", paymentId: "pay_abc" },
+          { id: "tender_2", paymentId: null },
+        ],
+        totalMoney: { amount: BigInt(2000), currency: "USD" },
       });
 
       await withMocks(useSquareClient(client), async () => {
@@ -1596,26 +1616,20 @@ describe("square", () => {
         { e: 1, q: 2 },
         { e: 2, q: 1 },
       ]);
-      const { client } = createMockClient({
-        ordersGet: () =>
-          Promise.resolve({
-            order: {
-              id: "order_multi",
-              metadata: {
-                email: "john@example.com",
-                items,
-                name: "John",
-              },
-              state: "COMPLETED",
-              tenders: [{ id: "tender_1", paymentId: "pay_multi" }],
-              totalMoney: { amount: BigInt(3000), currency: "USD" },
-            },
-          }),
-        paymentsGet: () =>
-          Promise.resolve({
-            payment: { id: "pay_multi", status: "COMPLETED" },
-          }),
-      });
+      const { client } = orderClient(
+        {
+          id: "order_multi",
+          metadata: {
+            email: "john@example.com",
+            items,
+            name: "John",
+          },
+          state: "COMPLETED",
+          tenders: [{ id: "tender_1", paymentId: "pay_multi" }],
+          totalMoney: { amount: BigInt(3000), currency: "USD" },
+        },
+        completedPayment("pay_multi"),
+      );
 
       await withMocks(useSquareClient(client), async () => {
           const result =
@@ -1628,92 +1642,18 @@ describe("square", () => {
     });
 
     test("createCheckoutSession passes through SDK results", async () => {
-      const { client } = createMockClient({
-        checkoutCreate: () =>
-          Promise.resolve({
-            paymentLink: {
-              orderId: "order_prov",
-              url: "https://square.link/prov",
-            },
-          }),
-      });
-
-      await withMocks(useSquareClient(client), async () => {
-          await settings.update.square.accessToken("EAAAl_test_123");
-          await settings.update.square.locationId("L_loc_prov");
-          const intent = {
-            address: "",
-            date: null,
-            email: "john@example.com",
-            items: [
-              {
-                listingId: 1,
-                name: "Test",
-                quantity: 1,
-                slug: "test-listing",
-                unitPrice: 1000,
-              },
-            ],
-            name: "John",
-            phone: "",
-            special_instructions: "",
-          };
-
-          const result = await squarePaymentProvider.createCheckoutSession(
-            intent,
-            "http://localhost",
-          );
-          expect(result).not.toBeNull();
-          expect(result).toHaveProperty("sessionId");
-          const success = result as { sessionId: string; checkoutUrl: string };
-          expect(success.sessionId).toBe("order_prov");
-          expect(success.checkoutUrl).toBe("https://square.link/prov");
-        },
+      await expectProviderCheckout(
+        { orderId: "order_prov", url: "https://square.link/prov" },
+        checkoutIntent(),
       );
     });
 
-    test("createCheckoutSession passes through SDK results", async () => {
-      const { client } = createMockClient({
-        checkoutCreate: () =>
-          Promise.resolve({
-            paymentLink: {
-              orderId: "order_mprov",
-              url: "https://square.link/mprov",
-            },
-          }),
-      });
-
-      await withMocks(useSquareClient(client), async () => {
-          await settings.update.square.accessToken("EAAAl_test_123");
-          await settings.update.square.locationId("L_loc_prov");
-          const intent = {
-            address: "",
-            date: null,
-            email: "john@example.com",
-            items: [
-              {
-                listingId: 1,
-                name: "Listing 1",
-                quantity: 1,
-                slug: "listing-1",
-                unitPrice: 1000,
-              },
-            ],
-            name: "John",
-            phone: "",
-            special_instructions: "",
-          };
-
-          const result = await squarePaymentProvider.createCheckoutSession(
-            intent,
-            "http://localhost",
-          );
-          expect(result).not.toBeNull();
-          expect(result).toHaveProperty("sessionId");
-          const success = result as { sessionId: string; checkoutUrl: string };
-          expect(success.sessionId).toBe("order_mprov");
-          expect(success.checkoutUrl).toBe("https://square.link/mprov");
-        },
+    test("createCheckoutSession passes through SDK results (multi)", async () => {
+      await expectProviderCheckout(
+        { orderId: "order_mprov", url: "https://square.link/mprov" },
+        checkoutIntent({
+          items: [checkoutItem({ name: "Listing 1", slug: "listing-1" })],
+        }),
       );
     });
 

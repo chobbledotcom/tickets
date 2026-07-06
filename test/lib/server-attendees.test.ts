@@ -423,12 +423,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       // POST route exercises attendeeDeleteHandler which calls parseAttendeeIds.
       // The custom handler requires confirm_identifier to match the attendee name.
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/attendees/${attendee.id}/delete`,
-          { confirm_identifier: "Test User", csrf_token: csrfToken },
-          cookie,
-        ),
+      const response = await postAs({ cookie, csrfToken })(
+        `/admin/attendees/${attendee.id}/delete`,
+        { confirm_identifier: "Test User" },
       );
       // Should redirect after successful delete
       expect(response.status).toBe(302);
@@ -467,12 +464,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         1000,
       );
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+      const response = await postAs({ cookie, csrfToken })(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
       );
       await expectFlashRedirect(
         `/admin/listing/${listing.id}/attendees`,
@@ -510,12 +503,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         1000,
       );
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+      const response = await postAs({ cookie, csrfToken })(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
       );
       await expectFlashRedirect(
         `/admin/listing/${listing.id}/attendees`,
@@ -541,12 +530,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "admin@example.com",
       );
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+      const response = await postAs({ cookie, csrfToken })(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
       );
       await expectFlashRedirect(
         `/admin/listing/${listing.id}/attendees`,
@@ -573,12 +558,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         500,
       );
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+      const response = await postAs({ cookie, csrfToken })(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
       );
       await expectFlashRedirect(
         `/admin/listing/${listing.id}/attendees`,
@@ -596,12 +577,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/attendee/999/delete-incomplete`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+      const response = await postAs({ cookie, csrfToken })(
+        `/admin/listing/${listing.id}/attendee/999/delete-incomplete`,
       );
       expect(response.status).toBe(404);
     });
@@ -673,12 +650,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         {},
       )();
 
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-          { csrf_token: csrfToken, return_filter: "out" },
-          cookie,
-        ),
+      const response = await postAs({ cookie, csrfToken })(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+        { return_filter: "out" },
       );
       expectRedirect(
         response,
@@ -717,12 +691,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       )();
 
       // Then check out
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+      const response = await postAs({ cookie, csrfToken })(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
       );
       expectFlash(response, expect.stringContaining("Checked John Doe out"));
     });
