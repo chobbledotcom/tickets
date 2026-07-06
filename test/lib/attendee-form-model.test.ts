@@ -32,6 +32,7 @@ const line = (overrides: Partial<AttendeeFormLine> = {}): AttendeeFormLine => ({
   listingId: 1,
   noQuantity: false,
   packageGroupId: 0,
+  packagePrice: null,
   parentListingId: 0,
   quantity: 1,
   ...overrides,
@@ -193,7 +194,7 @@ describe("parseAttendeeForm", () => {
       }),
       new Map(),
       new Map(),
-      new Map([[3, new Set([7])]]),
+      new Map([[3, new Map([[7, null]])]]),
     );
     expect(
       parsed.lines.map((l) => [l.listingId, l.packageGroupId, l.quantity]),
@@ -231,7 +232,7 @@ describe("parseAttendeeForm", () => {
   });
 
   test("a blank line's package path only sticks for a real membership", () => {
-    const memberships = new Map([[4, new Set([7])]]);
+    const memberships = new Map([[4, new Map([[7, 250]])]]);
     const parsed = parseAttendeeForm(
       makeForm({
         line_listing_0: "4",
@@ -246,10 +247,15 @@ describe("parseAttendeeForm", () => {
       new Map(),
       memberships,
     );
-    // Line 0 books through its real package; line 1 named a package that
-    // does not contain listing 4 (or was deleted) and falls back to the
-    // listing's own row.
-    expect(parsed.lines.map((l) => l.packageGroupId)).toEqual([7, 0]);
+    // Line 0 books through its real package (carrying that path's price);
+    // line 1 named a package that does not contain listing 4 (or was
+    // deleted) and falls back to the listing's own row.
+    expect(parsed.lines.map((l) => [l.packageGroupId, l.packagePrice])).toEqual(
+      [
+        [7, 250],
+        [0, null],
+      ],
+    );
   });
 
   test("an existing row's path comes from the row, never line_package", () => {

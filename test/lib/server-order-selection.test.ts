@@ -257,6 +257,58 @@ describeWithEnv(
         });
       });
 
+      test("a shared group pool is judged across the selections' spans", async () => {
+        // Two 2-day barges share a group capped at 3. A one-day hire already
+        // loads the group's SECOND day with 2 units, so only 1 unit fits on
+        // every day a 2-day booking starting today occupies. Selecting one
+        // barge takes it — the other must read blocked, exactly as the form
+        // would refuse it, even though the START day still has room for both.
+        const group = await createTestGroup({ maxAttendees: 3, name: "Fleet" });
+        const bargeA = await createDailyTestListing({
+          durationDays: 2,
+          groupId: group.id,
+          maxAttendees: 10,
+          name: "Barge A",
+        });
+        const bargeB = await createDailyTestListing({
+          durationDays: 2,
+          groupId: group.id,
+          maxAttendees: 10,
+          name: "Barge B",
+        });
+        const dayBoat = await createDailyTestListing({
+          durationDays: 1,
+          groupId: group.id,
+          maxAttendees: 10,
+          maxQuantity: 5,
+          name: "Day Boat",
+        });
+        const start = orderDate();
+        const { createAttendeeAtomic } = await import(
+          "#shared/db/attendees.ts"
+        );
+        const fill = await createAttendeeAtomic({
+          bookings: [
+            { date: addDays(start, 1), listingId: dayBoat.id, quantity: 2 },
+          ],
+          email: "second-day@test.com",
+          name: "Second Day",
+        });
+        expect(fill.success).toBe(true);
+
+        const data = await fetchAvailability(
+          `start_date=${start}&select_${bargeA.id}=1`,
+        );
+        expect(data.states[`listing:${bargeA.id}`]).toEqual({
+          label: "",
+          state: "selected",
+        });
+        expect(data.states[`listing:${bargeB.id}`]).toEqual({
+          label: "Remove Barge A to add",
+          state: "blocked",
+        });
+      });
+
       test("a date the calendar cannot serve reads as sold out for that day", async () => {
         const daily = await createDailyTestListing({
           maximumDaysAfter: 1,

@@ -29,7 +29,7 @@
  * child pool read as available here and are refused at the form instead.
  */
 
-import { compact, unique, uniqueBy } from "#fp";
+import { compact, uniqueBy } from "#fp";
 import { t } from "#i18n";
 import {
   htmlResponse,
@@ -40,7 +40,7 @@ import {
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import type { TicketListing } from "#shared/booking/model.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
-import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity.ts";
+import { getGroupRemainingForSpan } from "#shared/db/attendees/capacity.ts";
 import { getListingRemainingForRange } from "#shared/db/attendees.ts";
 import {
   getGroupIdsByListingIds,
@@ -174,23 +174,66 @@ const bookingSpanDays = (listing: ListingWithCount): number =>
     ? Math.max(1, listing.duration_days)
     : 1;
 
-/** Each involved listing's remaining units for the chosen date, judged over
- * its own booking span — one range query per distinct span. */
-const remainingBySpan = async (
-  involved: ListingWithCount[],
-  date: string | null,
+/** Bucket values by their booking span and run one pool query per distinct
+ * span, merging the maps — the shared shell of the listing and group pool
+ * loaders below. */
+const poolBySpan = async <T>(
+  values: T[],
+  spanOf: (value: T) => number,
+  query: (bucket: T[], span: number) => Promise<Map<number, number>>,
 ): Promise<Map<number, number>> => {
-  const bySpan = new Map<number, ListingWithCount[]>();
-  for (const listing of involved) {
-    const span = date === null ? 1 : bookingSpanDays(listing);
-    bySpan.set(span, [...(bySpan.get(span) ?? []), listing]);
+  const bySpan = new Map<number, T[]>();
+  for (const value of values) {
+    const span = spanOf(value);
+    bySpan.set(span, [...(bySpan.get(span) ?? []), value]);
   }
   const maps = await Promise.all(
-    [...bySpan].map(([span, group]) =>
-      getListingRemainingForRange(group, date, span),
-    ),
+    [...bySpan].map(([span, bucket]) => query(bucket, span)),
   );
   return new Map(maps.flatMap((map) => [...map]));
+};
+
+/** Each involved listing's remaining units for the chosen date, judged over
+ * its own booking span — one range query per distinct span. */
+const remainingBySpan = (
+  involved: ListingWithCount[],
+  date: string | null,
+): Promise<Map<number, number>> =>
+  poolBySpan(
+    involved,
+    (listing) => (date === null ? 1 : bookingSpanDays(listing)),
+    (bucket, span) => getListingRemainingForRange(bucket, date, span),
+  );
+
+/** Each capped group's remaining, judged over the WIDEST booking span among
+ * its involved listings — the cap must hold on every day any of them would
+ * occupy, and the evaluator sums the selections sharing the pool against this
+ * one figure. */
+const groupRemainingBySpan = (
+  involved: ListingWithCount[],
+  groupIdsByListingId: Map<number, number[]>,
+  date: string | null,
+): Promise<Map<number, number>> => {
+  const spanByGroupId = new Map<number, number>();
+  for (const listing of involved) {
+    const span = date === null ? 1 : bookingSpanDays(listing);
+    for (const groupId of groupIdsByListingId.get(listing.id) ?? []) {
+      spanByGroupId.set(
+        groupId,
+        Math.max(span, spanByGroupId.get(groupId) ?? 1),
+      );
+    }
+  }
+  return poolBySpan(
+    [...spanByGroupId],
+    ([, span]) => span,
+    (bucket, span) =>
+      getGroupRemainingForSpan(
+        bucket.map(([groupId]) => groupId),
+        date,
+        span,
+      ),
+  );
 };
 
 /** The capacity pools the evaluator draws from, resolved for the chosen date
@@ -210,13 +253,10 @@ const loadOrderPools = async (
   const groupIdsByListingId = await getGroupIdsByListingIds(
     involved.map((listing) => listing.id),
   );
-  const groupIds = unique(
-    involved.flatMap((listing) => groupIdsByListingId.get(listing.id) ?? []),
-  );
   const [remainingByListingId, remainingByGroupId, holidays] =
     await Promise.all([
       remainingBySpan(involved, date),
-      getGroupRemainingByGroupId(groupIds, date),
+      groupRemainingBySpan(involved, groupIdsByListingId, date),
       date === null ? Promise.resolve([]) : getActiveHolidays(),
     ]);
   if (date !== null) {

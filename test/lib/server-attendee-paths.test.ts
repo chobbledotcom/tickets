@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
+import {
+  attendeeAccount,
+  revenueAccount,
+} from "#shared/accounting/accounts.ts";
 import { accountBalance } from "#shared/accounting/queries.ts";
 import {
   createAttendeeAtomic,
@@ -130,6 +133,24 @@ const createViaForm = async (
   return (await getAttendeesRaw(listingId))[0]!.id;
 };
 
+/** Create an attendee through the form booking the listing on BOTH paths —
+ * 2 through the package beside 1 standalone — and assert the stored rows. */
+const createDualPathViaForm = async (
+  name: string,
+  group: Group,
+  listing: Listing,
+): Promise<number> => {
+  const attendeeId = await createViaForm(name, listing.id, [
+    { eventId: listing.id, packageGroupId: group.id, quantity: 2 },
+    { eventId: listing.id, quantity: 1 },
+  ]);
+  await expectPaths(attendeeId, listing.id, [
+    [0, 1],
+    [group.id, 2],
+  ]);
+  return attendeeId;
+};
+
 describeWithEnv(
   "admin attendee editor — one line per path",
   { db: true },
@@ -246,14 +267,7 @@ describeWithEnv(
 
     test("creating an attendee can book a package path directly", async () => {
       const { group, listing } = await packageAndMember("Create Kit");
-      const attendeeId = await createViaForm("Path Creator", listing.id, [
-        { eventId: listing.id, packageGroupId: group.id, quantity: 2 },
-        { eventId: listing.id, quantity: 1 },
-      ]);
-      await expectPaths(attendeeId, listing.id, [
-        [0, 1],
-        [group.id, 2],
-      ]);
+      await createDualPathViaForm("Path Creator", group, listing);
     });
 
     test("a row tagged with a deleted package is labelled by its id", async () => {
@@ -411,6 +425,29 @@ describeWithEnv(
       );
       expect(cleared.response.status).toBe(302);
       expect((await accountBalance(attendeeAccount(attendeeId))) + 0).toBe(0);
+    });
+
+    test("an admin-created package row posts the package's price to the ledger", async () => {
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Price Kit",
+      });
+      const listing = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        maxQuantity: 5,
+        name: "Price Kit Tent",
+        unitPrice: 1000,
+      });
+      await setGroupPackageMembers(group.id, [
+        { listingId: listing.id, price: 400 },
+      ]);
+
+      await createDualPathViaForm("Package Pricer", group, listing);
+      // The manual add's sale legs price each path by ITS OWN rule: 2 × 400
+      // through the package beside 1 × 1000 standalone — never the listing's
+      // base price for the package units.
+      expect(await accountBalance(revenueAccount(listing.id))).toBe(1800);
     });
 
     test("a crafted package id that is not a real membership books standalone", async () => {

@@ -33,7 +33,12 @@ import {
   hashPhone,
   toContactHashParam,
 } from "#shared/db/contact-preferences.ts";
-import { getAllGroups, getListingsByGroupIds } from "#shared/db/groups.ts";
+import {
+  getAllGroups,
+  getGroupPackagePricesByGroupIds,
+  getListingsByGroupIds,
+  packageMemberMaps,
+} from "#shared/db/groups.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
@@ -86,12 +91,14 @@ export const getRenderListings = async (
   return [...active, ...inactiveBooked];
 };
 
-/** One package path an editor line can book through: the package and the
- * member listing it would book. Loaded once per form render. */
+/** One package path an editor line can book through: the package, the member
+ * listings it would book, and each member's per-unit price override (absent =
+ * no override — the listing's own price). Loaded once per form render. */
 export type PackagePath = {
   groupId: number;
   packageName: string;
   memberListingIds: number[];
+  memberPrices: Map<number, number>;
 };
 
 /** Every (package, member) path the editor offers blank lines for, in group
@@ -99,30 +106,37 @@ export type PackagePath = {
  * members offers nothing. */
 export const loadPackagePaths = async (): Promise<PackagePath[]> => {
   const packages = (await getAllGroups()).filter((group) => group.is_package);
-  const membersByGroupId = await getListingsByGroupIds(
-    packages.map((group) => group.id),
-  );
+  const packageIds = packages.map((group) => group.id);
+  const [membersByGroupId, priceRowsByGroupId] = await Promise.all([
+    getListingsByGroupIds(packageIds),
+    getGroupPackagePricesByGroupIds(packageIds),
+  ]);
   return packages.map((group) => ({
     groupId: group.id,
-    // The loader seeds every requested group id, so the lookup always hits
-    // (a memberless package maps to an empty array).
+    // The members loader seeds every requested group id, so that lookup
+    // always hits; the price loader returns only groups with membership
+    // rows, so a memberless package prices from an empty row set.
     memberListingIds: membersByGroupId
       .get(group.id)!
       .map((listing) => listing.id),
+    memberPrices: packageMemberMaps(priceRowsByGroupId.get(group.id) ?? [])
+      .prices,
     packageName: group.name,
   }));
 };
 
-/** The package ids each listing can book through — the membership map the
- * parser validates a blank line's chosen path against. */
+/** The packages each listing can book through, with each path's price
+ * override — the map the parser validates a blank line's chosen path against
+ * and prices the manual-add ledger from. */
 export const packagesByListingIdFrom = (
   paths: PackagePath[],
-): Map<number, Set<number>> => {
-  const byListing = new Map<number, Set<number>>();
+): Map<number, Map<number, number | null>> => {
+  const byListing = new Map<number, Map<number, number | null>>();
   for (const path of paths) {
     for (const listingId of path.memberListingIds) {
-      const groups = byListing.get(listingId) ?? new Set<number>();
-      groups.add(path.groupId);
+      const groups =
+        byListing.get(listingId) ?? new Map<number, number | null>();
+      groups.set(path.groupId, path.memberPrices.get(listingId) ?? null);
       byListing.set(listingId, groups);
     }
   }
@@ -133,6 +147,7 @@ export const packagesByListingIdFrom = (
 const lineForExistingRow = (
   existing: ExistingLine,
   listingsById: Map<number, ListingWithCount>,
+  packagePrice: number | null,
 ): AttendeeFormLine => ({
   error: null,
   existingBooking: existing.booking,
@@ -144,6 +159,7 @@ const lineForExistingRow = (
   // A stored quantity-0 line renders with the "no quantity" box ticked.
   noQuantity: existing.booking.quantity === 0,
   packageGroupId: existing.booking.package_group_id,
+  packagePrice,
   parentListingId: existing.booking.parent_listing_id,
   quantity: existing.booking.quantity,
 });
@@ -153,6 +169,7 @@ const lineForExistingRow = (
 const blankLine = (
   listing: ListingWithCount,
   packageGroupId: number,
+  packagePrice: number | null,
   quantity: number,
 ): AttendeeFormLine => ({
   error: null,
@@ -162,6 +179,7 @@ const blankLine = (
   listingId: listing.id,
   noQuantity: false,
   packageGroupId,
+  packagePrice,
   parentListingId: 0,
   quantity,
 });
@@ -178,7 +196,18 @@ const buildFormLines = (
   preselectedQty: Map<number, number>,
 ): AttendeeFormLine[] => {
   const listingsById = listingsByIdMap(renderListings);
-  const rowLines = existing.map((row) => lineForExistingRow(row, listingsById));
+  const pricesByListingId = packagesByListingIdFrom(packagePaths);
+  const priceOfPath = (listingId: number, groupId: number): number | null =>
+    groupId > 0
+      ? (pricesByListingId.get(listingId)?.get(groupId) ?? null)
+      : null;
+  const rowLines = existing.map((row) =>
+    lineForExistingRow(
+      row,
+      listingsById,
+      priceOfPath(row.booking.listing_id, row.booking.package_group_id),
+    ),
+  );
   const slotTaken = new Set(
     existing.map(
       (row) => `${row.booking.listing_id}|${row.booking.package_group_id}`,
@@ -187,14 +216,23 @@ const buildFormLines = (
   const standaloneBlanks = renderListings
     .filter((listing) => !slotTaken.has(`${listing.id}|0`))
     .map((listing) =>
-      blankLine(listing, 0, preselectedQty.get(listing.id) ?? 0),
+      blankLine(listing, 0, null, preselectedQty.get(listing.id) ?? 0),
     );
   const packageBlanks = packagePaths.flatMap((path) =>
     path.memberListingIds
       .filter((listingId) => !slotTaken.has(`${listingId}|${path.groupId}`))
       .flatMap((listingId) => {
         const listing = listingsById.get(listingId);
-        return listing ? [blankLine(listing, path.groupId, 0)] : [];
+        return listing
+          ? [
+              blankLine(
+                listing,
+                path.groupId,
+                priceOfPath(listingId, path.groupId),
+                0,
+              ),
+            ]
+          : [];
       }),
   );
   return [...rowLines, ...standaloneBlanks, ...packageBlanks];

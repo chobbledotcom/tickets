@@ -41,6 +41,7 @@ const bookedLine = (
   listingId: id,
   noQuantity: false,
   packageGroupId: 0,
+  packagePrice: null,
   parentListingId: 0,
   quantity,
 });

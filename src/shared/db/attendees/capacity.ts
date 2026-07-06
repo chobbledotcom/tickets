@@ -105,6 +105,26 @@ export const getGroupRemainingByGroupId = (
     );
   });
 
+/** Per-group remaining over a whole daily span: the tightest day in
+ * `[date, date + spanDays)`, because a booking must fit EVERY day it
+ * occupies. With no date this is the plain running-total remaining, and a
+ * one-day span matches the single-date figure. Uncapped groups are omitted. */
+export const getGroupRemainingForSpan = async (
+  groupIds: number[],
+  date: string | null,
+  spanDays = 1,
+): Promise<RemainingMap> => {
+  if (date === null) return getGroupRemainingByGroupId(groupIds, null);
+  const days = expandDailyRange(date, spanDays);
+  const perDay = await groupPerDayRemainingByGroup(groupIds, days);
+  return new Map(
+    [...perDay].map(([groupId, byDay]) => [
+      groupId,
+      Math.min(...days.map((day) => byDay.get(day)!)),
+    ]),
+  );
+};
+
 /** Date-less remaining for every capped group reachable from a NON-daily
  * listing in `members`. A daily listing's group remaining is a per-DATE fact —
  * a date-less cumulative count would misreport spots other dates still have —

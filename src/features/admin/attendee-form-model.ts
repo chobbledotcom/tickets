@@ -96,6 +96,10 @@ export type AttendeeFormLine = {
   /** The package this line books through (0 = the listing's own row). An
    * existing row's stored value; a blank line's chosen path. */
   packageGroupId: number;
+  /** The package's per-unit price override for this line's path (null = no
+   * override, so the listing's own price applies — always null on a
+   * standalone line). Prices the manual-add ledger legs. */
+  packagePrice: number | null;
   /** The parent an EXISTING row was folded under as an add-on (0 = none).
    * Display + slot identity only — the form never creates folded rows. */
   parentListingId: number;
@@ -319,6 +323,15 @@ const parseQuantity = (raw: string): number | null => {
   return parseNonNegativeInt(raw);
 };
 
+/** The packages each listing can book through, with each path's per-unit
+ * price override (null = no override — the listing's own price applies):
+ * membership validates a blank line's chosen path, the price feeds the
+ * manual-add ledger. */
+export type PackagePricesByListingId = ReadonlyMap<
+  number,
+  ReadonlyMap<number, number | null>
+>;
+
 /** The package a BLANK line books through: its submitted `line_package_<i>`,
  * accepted only when it names a real package containing this listing (the
  * caller's membership map). Anything else — including a package deleted while
@@ -327,7 +340,7 @@ const parseQuantity = (raw: string): number | null => {
 const resolveNewLinePackage = (
   raw: string,
   listingId: number,
-  packagesByListingId: ReadonlyMap<number, ReadonlySet<number>>,
+  packagesByListingId: PackagePricesByListingId,
 ): number => {
   const groupId = parsePositiveIntId(raw);
   return groupId !== null &&
@@ -348,7 +361,7 @@ const parseLines = (
     id: number,
     key: string,
   ) => Pick<AttendeeFormLine, "listing" | "existingBooking">,
-  packagesByListingId: ReadonlyMap<number, ReadonlySet<number>>,
+  packagesByListingId: PackagePricesByListingId,
 ): AttendeeFormLine[] => {
   const lines: AttendeeFormLine[] = [];
   const seen = new Set<number>();
@@ -363,18 +376,23 @@ const parseLines = (
     const key = form.getString(`${LINE_KEY_PREFIX}${index}`);
     const resolved = resolve(id, key);
     const noQuantity = form.getString(`${NO_QUANTITY_PREFIX}${index}`) !== "";
+    const packageGroupId =
+      resolved.existingBooking?.package_group_id ??
+      resolveNewLinePackage(
+        form.getString(`${LINE_PACKAGE_PREFIX}${index}`),
+        id,
+        packagesByListingId,
+      );
     lines.push({
       error: null,
       key,
       listingId: id,
       noQuantity,
-      packageGroupId:
-        resolved.existingBooking?.package_group_id ??
-        resolveNewLinePackage(
-          form.getString(`${LINE_PACKAGE_PREFIX}${index}`),
-          id,
-          packagesByListingId,
-        ),
+      packageGroupId,
+      packagePrice:
+        packageGroupId > 0
+          ? (packagesByListingId.get(id)?.get(packageGroupId) ?? null)
+          : null,
       parentListingId: resolved.existingBooking?.parent_listing_id ?? 0,
       quantity: noQuantity
         ? 0
@@ -389,7 +407,7 @@ export const parseAttendeeForm = (
   form: FormParams,
   listingsById: Map<number, ListingWithCount>,
   existingByKey: Map<string, ListingAttendeeRow> = new Map(),
-  packagesByListingId: ReadonlyMap<number, ReadonlySet<number>> = new Map(),
+  packagesByListingId: PackagePricesByListingId = new Map(),
 ): ParsedAttendeeForm => {
   const statusIdRaw = form.getOptionalInt(STATUS_FIELD);
   return {
@@ -551,8 +569,10 @@ export const toCreateInput = (
 
 /**
  * Build the gross priced order for a manual add's ledger legs: one line per
- * booked listing at its current list price × quantity. The add form captures no
- * amount paid and no booking fee, so this carries no extras and a zero total —
+ * booked path at its current list price × quantity — a package-path line at
+ * that package's per-unit override (an explicit 0 is a free member), any
+ * other line at the listing's own price. The add form captures no amount paid
+ * and no booking fee, so this carries no extras and a zero total —
  * `owedOrderForLedger`/`bookingFactsFromOrder` then recognise each line's gross
  * as a `sale` leg (income) with no `payment`/`fee` leg, and the manual-add poster
  * reconciles the owner-entered outstanding balance on top. A booked line always
@@ -563,14 +583,15 @@ export const toLedgerOrder = (parsed: ParsedAttendeeForm): PricedOrder => {
     .filter(isBookedLine)
     .map((line): PricedLine => {
       const listing = line.listing!;
+      const unitPrice = line.packagePrice ?? listing.unit_price;
       return {
-        chargedUnitAmount: listing.unit_price,
+        chargedUnitAmount: unitPrice,
         item: {
           listingId: line.listingId,
           name: listing.name,
           quantity: line.quantity!,
           slug: listing.slug,
-          unitPrice: listing.unit_price,
+          unitPrice,
         },
         quantity: line.quantity!,
       };
