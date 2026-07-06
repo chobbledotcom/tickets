@@ -1609,17 +1609,14 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
     const getEdit = async (id: number): Promise<string> => {
       const response = await adminGet(`/admin/attendees/${id}/edit`);
-      return expectHtmlResponse(response, 200, "Status &amp; Balance");
+      return expectHtmlResponse(response, 200);
     };
 
-    test("edit persists an updated status and outstanding balance", async () => {
+    test("edit persists an updated status; the balance is ledger-driven, not form-set", async () => {
       const reservation = await newReservation();
       const id = await seedAttendee(null, 0);
       const form = await buildAttendeeEditForm(id, {
-        extra: {
-          remaining_balance: "15.00",
-          status_id: String(reservation.id),
-        },
+        extra: { status_id: String(reservation.id) },
         name: "Reserver",
       });
       const { response } = await adminFormPost(`/admin/attendees/${id}`, form);
@@ -1627,8 +1624,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
       const state = await getAttendeeBalanceState(id);
       expect(state?.statusId).toBe(reservation.id);
-      // £15.00 in minor units (GBP).
-      expect(state?.remainingBalance).toBe(1500);
+      // The form no longer edits the balance — it stays whatever the ledger
+      // projects (0 here), adjusted only through the ledger itself.
+      expect(state?.remainingBalance).toBe(0);
     });
 
     test("edit coerces a blank status back to the public default, not null", async () => {
@@ -1639,14 +1637,15 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const publicDefault = await getPaidDefaultStatus(); // the seed is also public default
       const id = await seedAttendee(reservation.id, 1500);
       const form = await buildAttendeeEditForm(id, {
-        extra: { remaining_balance: "0", status_id: "" },
+        extra: { status_id: "" },
         name: "Reserver",
       });
       await adminFormPost(`/admin/attendees/${id}`, form);
 
       const state = await getAttendeeBalanceState(id);
       expect(state?.statusId).toBe(publicDefault!.id);
-      expect(state?.remainingBalance).toBe(0);
+      // The edit leaves the ledger balance untouched.
+      expect(state?.remainingBalance).toBe(1500);
     });
 
     test("edit page warns when a paid status still owes a balance", async () => {
@@ -1676,8 +1675,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const reservation = await newReservation();
       const id = await seedAttendee(reservation.id, 900);
       const html = await getEdit(id);
-      // Field pre-filled, but no notice — this is the normal mid-reservation state.
-      expect(html).toContain('value="9.00"');
+      // No notice — this is the normal mid-reservation state (balance owed, not
+      // yet paid). The balance itself is not shown as an editable field.
       expect(html).not.toContain("still unpaid");
       expect(html).not.toContain("consider moving");
     });
@@ -1685,17 +1684,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     test("edit page stays quiet when nothing is owed", async () => {
       const id = await seedAttendee(null, 0);
       const html = await getEdit(id);
-      expect(html).toContain('name="remaining_balance"');
       expect(html).not.toContain("still unpaid");
       expect(html).not.toContain("paid status but still owes");
-    });
-
-    test("the outstanding-balance field warns that edits post to the money ledger", async () => {
-      // Decision 14: changing the balance now posts a writeoff correction to the
-      // source-of-truth ledger, so the field carries a prominent warning.
-      const id = await seedAttendee(null, 0);
-      const html = await getEdit(id);
-      expect(html).toContain("correcting entry to the money ledger");
     });
 
     test("edit page shows the attendee's status as a heading when multiple statuses exist", async () => {

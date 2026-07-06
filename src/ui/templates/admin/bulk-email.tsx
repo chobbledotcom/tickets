@@ -17,7 +17,7 @@ import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
-import { ActionButton } from "#templates/components/actions.tsx";
+import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { ProsePanel } from "#templates/components/prose-panel.tsx";
 import { rawParagraph } from "#templates/components/raw-paragraph.tsx";
@@ -40,6 +40,9 @@ const bulkEmailPage = (
     <AdminPage active={NAV_ACTIVE} session={session} title={title}>
       <ProseHeading heading={title} />
       {body}
+      <GuideFooter href="/admin/guide#bulk-email">
+        {t("bulk_email.guide_link")}
+      </GuideFooter>
     </AdminPage>,
   );
 

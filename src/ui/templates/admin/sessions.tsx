@@ -8,7 +8,7 @@ import { formatDatetimeShort } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import type { AdminSession, Session } from "#shared/types.ts";
 import { successAdminPage } from "#templates/admin/admin-page.tsx";
-import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
+import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 
 const SessionRow = ({
@@ -54,10 +54,6 @@ export const adminSessionsPage = (
     success,
   )(
     <>
-      <p class="actions">
-        <GuideLink href="/admin/guide#login">Sessions guide</GuideLink>
-      </p>
-
       <DataTable
         columns={[
           { header: t("sessions.col.token") },
@@ -78,6 +74,8 @@ export const adminSessionsPage = (
           </CsrfForm>
         </>
       )}
+
+      <GuideFooter href="/admin/guide#login">Sessions guide</GuideFooter>
     </>,
   );
 };

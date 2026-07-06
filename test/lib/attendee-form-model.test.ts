@@ -65,7 +65,6 @@ const parsedBase = (
   lines: [],
   name: "Test",
   phone: "",
-  remainingBalance: 0,
   returnUrl: "",
   special_instructions: "",
   startDate: "",
@@ -338,16 +337,6 @@ describe("parseAttendeeForm", () => {
     ).toBeNull();
   });
 
-  test("treats blank, zero and negative balances as nothing owed", () => {
-    for (const value of ["", "0", "-5"]) {
-      const parsed = parseAttendeeForm(
-        makeForm({ name: "X", remaining_balance: value }),
-        new Map(),
-      );
-      expect(parsed.remainingBalance).toBe(0);
-    }
-  });
-
   test("attaches an existing booking row by key", () => {
     const booking = bookingRow({ listing_id: 5, quantity: 3 });
     const parsed = parseAttendeeForm(
@@ -552,12 +541,9 @@ describe("validateParsedForm", () => {
 });
 
 describe("toCreateInput", () => {
-  test("carries the status id and balance through", () => {
-    const input = toCreateInput(
-      parsedBase({ remainingBalance: 1500, statusId: 7 }),
-    );
+  test("carries the status id through", () => {
+    const input = toCreateInput(parsedBase({ statusId: 7 }));
     expect(input.statusId).toBe(7);
-    expect(input.remainingBalance).toBe(1500);
     expect(input.bookings).toHaveLength(0);
   });
 

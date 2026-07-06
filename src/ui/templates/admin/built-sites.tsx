@@ -26,6 +26,7 @@ import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { AdminListPage } from "#templates/admin/list-page.tsx";
 import {
   ActionButton,
+  GuideFooter,
   SaveChangesButton,
 } from "#templates/components/actions.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
@@ -46,11 +47,16 @@ export const adminBuiltSitesPage = (
     actions: <BuiltSitesListActions />,
     active: "/admin/built-sites",
     children: (
-      <BuiltSitesListBody
-        hostingIds={hostingIds}
-        renewalTiers={renewalTiers}
-        sites={sites}
-      />
+      <>
+        <BuiltSitesListBody
+          hostingIds={hostingIds}
+          renewalTiers={renewalTiers}
+          sites={sites}
+        />
+        <GuideFooter href="/admin/guide#built-sites">
+          {t("built_sites.guide_link")}
+        </GuideFooter>
+      </>
     ),
     session,
     successMessage,

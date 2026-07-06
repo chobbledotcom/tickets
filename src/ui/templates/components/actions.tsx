@@ -198,3 +198,21 @@ export const BackButton = iconLink("btn small", "arrow-left");
  * followed by the label in muted text.
  */
 export const GuideLink = iconLink("guide-link", "book-open");
+
+/**
+ * A page's guide link, placed at the very bottom of the body. Every admin page
+ * that maps to a guide section renders one of these as its last element, so the
+ * "…guide" affordance sits consistently in the same spot instead of competing
+ * with the page's primary actions at the top.
+ */
+export const GuideFooter = ({
+  href,
+  children,
+}: {
+  href: string;
+  children?: Child;
+}): SafeHtml => (
+  <p class="guide-footer">
+    <GuideLink href={href}>{children}</GuideLink>
+  </p>
+);

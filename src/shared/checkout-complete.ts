@@ -18,10 +18,7 @@ import {
 } from "#shared/checkout-ledger.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import type { LedgerPoster } from "#shared/db/attendees/create.ts";
-import {
-  type BookingBatchPlan,
-  reconcileLedgerBalanceTx,
-} from "#shared/db/attendees.ts";
+import type { BookingBatchPlan } from "#shared/db/attendees.ts";
 import { type TxScope, update } from "#shared/db/client.ts";
 import type { ModifierUsage } from "#shared/db/modifier-usage.ts";
 import { nowIso } from "#shared/now.ts";
@@ -84,22 +81,16 @@ export const postBookingLegsTx = async (
 /**
  * The {@link LedgerPoster} for an admin manual attendee add. The add form
  * captures per-listing quantities (so each line's GROSS is its listing price ×
- * quantity) and one order-level outstanding balance, but no amount-paid field —
- * so this records the same shape of legs a real booking does with nothing
- * collected: the gross `sale` legs (recognising income, exactly the live path's
- * {@link owedOrderForLedger}) and NO `payment`/`fee` leg, then reconciles the
- * attendee's owed balance to the operator-entered `remainingBalance`.
- *
- * Both steps run in the create transaction `tx` (the attendee, its sale legs and
- * its balance reconcile commit or roll back together). The reconcile recomputes
- * its delta from the freshly-read in-tx balance, so it is the difference between
- * the gross just posted and what the operator says is still owed — modelling the
- * already-paid portion as a `writeoff` adjustment (never phantom external cash),
- * leaving the attendee owing exactly `remainingBalance`. A zero-gross add (free
- * listings) still owes exactly `remainingBalance`.
+ * quantity) but no amount-paid or outstanding-balance field — so this records
+ * the same shape of legs a real booking does with nothing collected: the gross
+ * `sale` legs (recognising income, exactly the live path's
+ * {@link owedOrderForLedger}) and NO `payment`/`fee` leg. The attendee is left
+ * owing the full gross; an operator records any already-paid portion afterwards
+ * through the ledger (an auditable `writeoff`/`payment` correction), so the form
+ * never sets a balance. A zero-gross add (free listings) owes nothing.
  */
 export const manualAddLedgerPoster =
-  (order: PricedOrder, remainingBalance: number): LedgerPoster =>
+  (order: PricedOrder): LedgerPoster =>
   async (tx, attendeeId) => {
     const legs = await mapBooking(
       bookingFactsFromOrder(owedOrderForLedger(order), {
@@ -109,5 +100,4 @@ export const manualAddLedgerPoster =
       }),
     );
     await postBookingLegsTx(tx, attendeeId, legs);
-    await reconcileLedgerBalanceTx(tx, attendeeId, remainingBalance);
   };

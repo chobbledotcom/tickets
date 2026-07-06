@@ -4,22 +4,18 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { Raw, type SafeHtml } from "#jsx/jsx-runtime";
+import type { SafeHtml } from "#jsx/jsx-runtime";
 import { CsrfForm } from "#shared/forms.tsx";
 import { DomainPaymentWebhookWarning } from "#templates/admin/settings/domain-payment-warning.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { ProseIntro } from "#templates/components/prose-heading.tsx";
 import { SUBDOMAIN_INPUT_PATTERN } from "#templates/fields.ts";
 
 /* jscpd:ignore-end */
 
-const SubdomainIntroProse = (): SafeHtml => (
-  <div class="prose">
-    <p>
-      <Raw html={t("settings.subdomain.intro")} />
-    </p>
-  </div>
-);
+const SubdomainIntroProse = (): SafeHtml =>
+  ProseIntro({ html: t("settings.subdomain.intro") });
 
 const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
   if (s.bunnySubdomain) {

@@ -11,15 +11,14 @@ export const AdminListPage = ({
   title,
 }: {
   active: string;
-  actions: Child;
+  /** Optional top action row. Omit on pages whose only affordance is a guide
+   *  link (that now lives in a `GuideFooter` at the bottom of the body). The
+   *  action-row scaffold is owned by `AdminPage` (via the curried opener), so
+   *  we forward `actions` rather than re-authoring the `<p class="actions">`. */
+  actions?: Child;
   children: Child;
   session: AdminSession;
   successMessage?: string | undefined;
   title: string;
 }): string =>
-  successAdminPage(title, active)(session, successMessage)(
-    <>
-      <p class="actions">{actions}</p>
-      {children}
-    </>,
-  );
+  successAdminPage(title, active)(session, successMessage)(children, actions);

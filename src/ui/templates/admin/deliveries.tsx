@@ -172,7 +172,6 @@ export const agentDeliveriesPage = (
               (its topHref) stays highlighted on the top-level bar and gives the
               sub-nav a parent link to sit beneath in the desktop sidebar. */}
           <AdminNav active="/admin/deliveries" session={session} />
-          <h1>{t("deliveries.title")}</h1>
         </>
       )}
       <Flash {...flashProps(opts.error, opts.success)} />

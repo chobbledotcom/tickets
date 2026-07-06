@@ -18,7 +18,7 @@ import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
   ActionButton,
   DeleteSection,
-  GuideLink,
+  GuideFooter,
   SubmitButton,
 } from "#templates/components/actions.tsx";
 import {
@@ -107,12 +107,6 @@ export const adminUsersPage = (
     opts.success,
   )(
     <>
-      <p class="actions">
-        <GuideLink href="/admin/guide#user-classes">
-          {t("users.roles_link")}
-        </GuideLink>
-      </p>
-
       {opts.inviteLink && (
         <div class="success" role="alert">
           <p>{t("users.invite_link_label")}</p>
@@ -143,6 +137,10 @@ export const adminUsersPage = (
           userStatus(user),
         ])}
       />
+
+      <GuideFooter href="/admin/guide#user-classes">
+        {t("users.roles_link")}
+      </GuideFooter>
     </>,
   );
 

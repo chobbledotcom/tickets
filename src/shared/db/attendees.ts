@@ -101,8 +101,8 @@ export {
   incrementAttachmentDownloads,
   recomputeListingBookingRanges,
   reconcileLedgerBalanceTx,
-  updateAttendeeOrder,
   updateAttendeePII,
+  updateAttendeeStatus,
   updateCheckedIn,
 } from "#shared/db/attendees/update.ts";
 

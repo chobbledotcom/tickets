@@ -31,7 +31,6 @@ import {
   NO_QUANTITY_PREFIX,
   type ParsedAttendeeForm,
   QTY_PREFIX,
-  REMAINING_BALANCE_FIELD,
   resolveStatusId,
   SHOW_ALL_FIELD,
   SHOW_PACKAGE_PATHS_FIELD,
@@ -45,7 +44,6 @@ import {
   startAgentField,
   startTimeField,
 } from "#routes/admin/attendee-logistics.ts";
-import { toMajorUnits } from "#shared/currency.ts";
 import {
   addDays,
   formatDateLabel,
@@ -68,8 +66,7 @@ import {
 import { EditQuestions } from "#templates/admin/attendees.tsx";
 import { Icon } from "#templates/components/actions.tsx";
 import { renderAddressLookupPanel } from "#templates/components/address-lookup.tsx";
-import { ErrorAlert, ErrorNote } from "#templates/components/error.tsx";
-import { PriceInput } from "#templates/components/price-input.tsx";
+import { ErrorAlert } from "#templates/components/error.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import {
   SelectField,
@@ -515,19 +512,20 @@ const SharedDateFields = ({
 };
 
 /**
- * Status dropdown, outstanding-balance editor, and a status/balance mismatch
- * notice (precomputed by the route).
+ * The status dropdown and a status/balance mismatch notice (precomputed by the
+ * route). The outstanding balance itself is not editable here — it projects
+ * from the money ledger, and owners adjust it through the ledger (an auditable
+ * write-off correction) rather than a free-text field on this form.
  */
-const StatusAndBalanceFields = ({
+const StatusField = ({
   data,
 }: {
   data: AttendeeFormTemplateData;
 }): JSX.Element => {
-  const { statusId, remainingBalance } = data.parsed;
+  const { statusId } = data.parsed;
   const selectedId = resolveStatusId(statusId, data.statuses);
   return (
     <>
-      <h3>{t("attendee_form.status_balance_heading")}</h3>
       {data.balanceNotice && (
         <output class={data.balanceNotice.tone}>
           {data.balanceNotice.message}
@@ -549,17 +547,6 @@ const StatusAndBalanceFields = ({
           />
         </label>
       )}
-      <label for={REMAINING_BALANCE_FIELD}>
-        {t("attendee_form.outstanding_balance")}
-        <PriceInput
-          id={REMAINING_BALANCE_FIELD}
-          min="0"
-          name={REMAINING_BALANCE_FIELD}
-          value={toMajorUnits(remainingBalance)}
-        />
-        <small>{t("attendee_form.outstanding_balance_hint")}</small>
-      </label>
-      <ErrorNote>{t("attendee_form.balance_ledger_note")}</ErrorNote>
     </>
   );
 };
@@ -597,6 +584,11 @@ const AttendeeEditForm = ({
         <input name="return_url" type="hidden" value={data.returnUrl} />
       )}
 
+      {/* Create renders its own title inside the form (the standalone page has
+          no entity heading above it); edit gets its "Attendee: …" heading from
+          the entity page shell. */}
+      {!isEdit && <h1>{t("attendee_form.title_create")}</h1>}
+
       {!isEdit && <h3>{t("attendee_form.details_heading")}</h3>}
 
       <label for="name">
@@ -612,7 +604,7 @@ const AttendeeEditForm = ({
         />
       </label>
 
-      <StatusAndBalanceFields data={data} />
+      <StatusField data={data} />
 
       <label for="email">
         {t("common.email")}
@@ -765,11 +757,13 @@ export const attendeeFormPage = (
   session: AdminSession,
 ): string =>
   String(
-    <AttendeesPageLayout
+    // The title lives inside the form (see AttendeeEditForm), so the page shell
+    // carries no prose heading of its own — just the <title> for the tab.
+    <AdminPage
       active="/admin/attendees/new"
       session={session}
       title={t("attendee_form.title_create")}
     >
       <AttendeeFormPanel data={data} />
-    </AttendeesPageLayout>,
+    </AdminPage>,
   );

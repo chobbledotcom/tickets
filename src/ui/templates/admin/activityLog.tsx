@@ -11,32 +11,28 @@ import type { Child, SafeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { ErrorCode, errorCodeLabel } from "#shared/logger.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
-import { GuideLink } from "#templates/components/actions.tsx";
+import { GuideFooter } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 
-/** The "Activity log guide" action shown at the top of both activity-log
- *  pages, rendered as the page's action row by {@link AdminPage}. */
-const activityLogActions = (
-  <GuideLink href="/admin/guide#activity-log">
+/** The "Activity log guide" link shown at the bottom of both activity-log
+ *  pages. */
+const activityLogGuide = (
+  <GuideFooter href="/admin/guide#activity-log">
     {t("admin.log.guide_link")}
-  </GuideLink>
+  </GuideFooter>
 );
 
 /** Curried `String(<AdminPage active="/admin/log" session=session
- *  title={title} actions={activityLogActions}>{body})`. The two activity-log
- *  pages (per-listing and global) share this opener + guide action. */
+ *  title={title}>{body}{guide})`. The two activity-log pages (per-listing and
+ *  global) share this opener + guide footer. */
 const activityLogPage =
   (title: string) =>
   (session: AdminSession) =>
   (body: Child): string =>
     String(
-      <AdminPage
-        actions={activityLogActions}
-        active="/admin/log"
-        session={session}
-        title={title}
-      >
+      <AdminPage active="/admin/log" session={session} title={title}>
         {body}
+        {activityLogGuide}
       </AdminPage>,
     );
 

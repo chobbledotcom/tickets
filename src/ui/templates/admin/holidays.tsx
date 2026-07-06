@@ -13,7 +13,7 @@ import { entityToFieldValues, renderFields } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Holiday } from "#shared/types.ts";
 import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
-import { ActionButton, GuideLink } from "#templates/components/actions.tsx";
+import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import {
   type DataColumn,
   dataTable,
@@ -84,17 +84,17 @@ const { deletePage, editPage, listPage, newPage } =
     },
     list: {
       actions: (
-        <>
-          <ActionButton href="/admin/holidays/new" icon="plus">
-            {t("holidays.add_holiday")}
-          </ActionButton>
-          <GuideLink href="/admin/guide#holidays">
-            {t("holidays.guide_link")}
-          </GuideLink>
-        </>
+        <ActionButton href="/admin/holidays/new" icon="plus">
+          {t("holidays.add_holiday")}
+        </ActionButton>
       ),
       columns: holidayColumns,
       empty: <p>{t("holidays.no_holidays")}</p>,
+      guideFooter: (
+        <GuideFooter href="/admin/guide#holidays">
+          {t("holidays.guide_link")}
+        </GuideFooter>
+      ),
     },
     renderFields: (holiday) => (
       <Raw

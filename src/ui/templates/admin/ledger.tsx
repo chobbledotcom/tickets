@@ -46,7 +46,7 @@ import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import {
   ActionButton,
-  GuideLink,
+  GuideFooter,
   SubmitButton,
 } from "#templates/components/actions.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
@@ -824,11 +824,6 @@ export const adminLedgerPage = (
 ): string =>
   String(
     <AdminPage
-      actions={
-        <GuideLink href="/admin/guide#ledger">
-          {t("admin.ledger.guide")}
-        </GuideLink>
-      }
       active="/admin/ledger"
       session={session}
       title={t("admin.ledger.heading")}
@@ -859,6 +854,9 @@ export const adminLedgerPage = (
         )}
         {data.truncated && <p>{t("admin.ledger.recent")}</p>}
       </div>
+      <GuideFooter href="/admin/guide#ledger">
+        {t("admin.ledger.guide")}
+      </GuideFooter>
     </AdminPage>,
   );
 
