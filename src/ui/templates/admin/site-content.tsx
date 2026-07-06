@@ -61,6 +61,20 @@ export const collectionPage =
       </AdminPage>,
     );
 
+/** The Edit-tab panel for a Site content editor (Pages, News): a CsrfForm
+ * carrying the pre-filled fields and a save button. Unlike {@link EditForm} it
+ * renders no heading — the tabbed entity page draws the page title above the
+ * tab strip. */
+export const contentEditPanel = (
+  action: string,
+  fieldsHtml: string,
+): JSX.Element => (
+  <CsrfForm action={action}>
+    <Raw html={fieldsHtml} />
+    {SaveChangesButton()}
+  </CsrfForm>
+);
+
 /** The pre-filled edit form: heading, error flash, fields, save button. */
 export const EditForm = ({
   action,

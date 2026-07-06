@@ -134,6 +134,27 @@ describe("admin image templates", () => {
     expect(html).toContain('href="/admin/images/3/delete"');
   });
 
+  test("groups news and page targets under their own labelled rows", () => {
+    const html = withStorageEnabled(() =>
+      adminImageEditPage({
+        image: image(8, "Shared"),
+        options: [
+          { active: true, id: 1, label: "A post", type: "news" },
+          { active: true, id: 2, label: "A page", type: "page" },
+        ],
+        selected: new Set(["page:2"]),
+        session: SESSION,
+      }),
+    );
+
+    expect(html).toContain('<li class="checkboxes"><strong>News:</strong>');
+    expect(html).toContain('<li class="checkboxes"><strong>Pages:</strong>');
+    expect(html).toContain('value="news:1"');
+    expect(html).toContain(
+      'checked name="image_items" type="checkbox" value="page:2"',
+    );
+  });
+
   test("renders a listings-only image as a single linked-listings line", () => {
     const html = adminImageEditPage({
       image: image(6, "Solo"),

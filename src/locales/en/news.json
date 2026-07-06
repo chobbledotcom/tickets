@@ -16,7 +16,6 @@
   "news.updated": "News post updated",
   "news.deleted": "News post deleted",
   "news.field.name": "Post Name",
-  "news.field.slug_hint": "The address of this post under /news/. Changing it breaks any existing links to the post.",
   "news.error.slug_taken": "That permalink is already used by another news post.",
   "news.field.snippet": "Snippet",
   "news.field.snippet_hint": "Short plain-text summary shown on the news list and in the RSS feed (max 500 characters).",

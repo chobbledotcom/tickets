@@ -137,15 +137,67 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       expect((await adminGet(`${BASE}/9999/edit`)).status).toBe(404);
     });
 
-    test("edit renders the form and item manager", async () => {
+    test("the edit tab renders the form, editable slug, public link, and tab strip", async () => {
       await create("editme");
       const page = await findPage("editme");
       const html = await expectHtmlResponse(
         await adminGet(`${BASE}/${page.id}/edit`),
         200,
       );
-      expect(html).toContain("Edit Page");
+      // The page's own name is the heading; the form carries the editable slug.
+      expect(html).toContain(`<h1>${page.name}</h1>`);
+      expect(html).toContain('name="slug"');
+      expect(html).toContain(`value="${page.slug}"`);
+      // The public link sits under the slug field, opening in a new tab.
+      expect(html).toContain(
+        `Public link: <a href="/page/${page.slug}" rel="noopener" target="_blank">/page/${page.slug}</a>`,
+      );
+      // The tabbed strip carries Edit, Items and Actions (Images hidden while
+      // storage is off). The item manager lives on the Items tab, not here.
+      expect(html).toContain('class="entity-tabs"');
+      expect(html).toContain(`href="${BASE}/${page.id}/items"`);
+      expect(html).toContain(`href="${BASE}/${page.id}/actions"`);
+      expect(html).not.toContain("Add to this page");
+    });
+
+    test("the items tab renders the add-item manager when something can be added", async () => {
+      await create("itemtab");
+      const page = await findPage("itemtab");
+      await createTestListing({ name: "Addable" });
+      const html = await expectHtmlResponse(
+        await adminGet(`${BASE}/${page.id}/items`),
+        200,
+      );
       expect(html).toContain("Add to this page");
+      expect(html).toContain(">Addable<");
+    });
+
+    test("the items tab hides the add section (and any 'nothing available') when nothing can be added", async () => {
+      await create("emptytab");
+      const page = await findPage("emptytab");
+      const html = await expectHtmlResponse(
+        await adminGet(`${BASE}/${page.id}/items`),
+        200,
+      );
+      // No listings/groups/sub-pages to offer, so the whole add section — and
+      // the old confusing "nothing available" line — is gone.
+      expect(html).not.toContain("Add to this page");
+      expect(html).not.toContain("nothing available");
+      // The page still shows its empty-contents message.
+      expect(html).toContain(
+        "This page has no listings, groups, or sub-pages yet.",
+      );
+    });
+
+    test("a bare /:id lands on the edit tab", async () => {
+      await create("bare");
+      const page = await findPage("bare");
+      const html = await expectHtmlResponse(
+        await adminGet(`${BASE}/${page.id}`),
+        200,
+      );
+      expect(html).toContain(`<h1>${page.name}</h1>`);
+      expect(html).toContain('name="slug"');
     });
 
     test("updates a page's fields", async () => {
@@ -286,7 +338,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       await createTestGroup({ name: "KeptG", slug: "kg" });
       await addPageItem(page.id, "listing", added.id);
       const html = await expectHtmlResponse(
-        await adminGet(`${BASE}/${page.id}/edit`),
+        await adminGet(`${BASE}/${page.id}/items`),
         200,
       );
       // The un-added listing is still offered; the added one is not.
@@ -347,7 +399,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       // A dangling edge (its listing no longer exists) renders the fallback.
       await addPageItem(page.id, "listing", 999999);
       const html = await expectHtmlResponse(
-        await adminGet(`${BASE}/${page.id}/edit`),
+        await adminGet(`${BASE}/${page.id}/items`),
         200,
       );
       expect(html).toContain("Real Listing");
@@ -366,7 +418,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       const { deactivateTestListing } = await import("#test-utils");
       await deactivateTestListing(inactive.id);
       const html = await expectHtmlResponse(
-        await adminGet(`${BASE}/${page.id}/edit`),
+        await adminGet(`${BASE}/${page.id}/items`),
         200,
       );
       // The already-added inactive listing still labels its row...
@@ -382,7 +434,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         purchaseOnly: true,
       });
       const html2 = await expectHtmlResponse(
-        await adminGet(`${BASE}/${page.id}/edit`),
+        await adminGet(`${BASE}/${page.id}/items`),
         200,
       );
       expect(html2).not.toContain(`value="${tier.id}"`);
@@ -393,7 +445,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       const child = await createTestListing({ name: "Child Listing" });
       await listingChildren.setIds(parent.id, [child.id]);
       const html3 = await expectHtmlResponse(
-        await adminGet(`${BASE}/${page.id}/edit`),
+        await adminGet(`${BASE}/${page.id}/items`),
         200,
       );
       expect(html3).toContain(">Parent Listing<");

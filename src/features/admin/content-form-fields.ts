@@ -8,6 +8,7 @@
 import { t } from "#i18n";
 import type { FormParams } from "#shared/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { normalizeSlug, validateSlug } from "#shared/slug.ts";
 import { formattingHint } from "#templates/fields.ts";
 
 const MAX_NAME = 128;
@@ -22,6 +23,22 @@ export const contentNameField = (label: string) =>
     name: "name",
     required: true,
     type: "text",
+  }) as const;
+
+/** The editable slug field shared by the Site content editors (Pages, News):
+ * slug-format validation plus a "Public link" to the saved slug's public page
+ * (the caller supplies the path builder — `/page/<slug>` or `/news/<slug>`). */
+export const contentSlugField = (publicLinkPath: (slug: string) => string) =>
+  ({
+    hint: t("common.slug_public_hint"),
+    label: t("common.slug"),
+    name: "slug",
+    pattern: "[a-z0-9_\\-]+",
+    publicLinkPath,
+    required: true,
+    title: t("fields.listing.slug_title"),
+    type: "text",
+    validate: (value: string) => validateSlug(normalizeSlug(value)),
   }) as const;
 
 /** The optional SEO meta title + description pair. */

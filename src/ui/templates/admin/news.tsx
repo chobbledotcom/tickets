@@ -14,18 +14,15 @@ import {
   newsPostToValues,
 } from "#routes/admin/news-form.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
-import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, NewsPost, NewsPostSummary } from "#shared/types.ts";
 import { adminFormPage } from "#templates/admin/admin-page.tsx";
 import {
   collectionPage,
+  contentEditPanel,
   deleteConfirmPage,
 } from "#templates/admin/site-content.tsx";
-import {
-  SaveChangesButton,
-  SubmitButton,
-} from "#templates/components/actions.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 
 /* jscpd:ignore-end */
@@ -82,12 +79,11 @@ export const adminNewsNewPage = (
 /** The Edit tab's panel: the pre-filled fields form (name, the editable slug
  * with its public link, SEO meta, snippet, markdown body) posting to the update
  * route. */
-export const newsEditPanel = (post: NewsPost): JSX.Element => (
-  <CsrfForm action={`${LIST}/${post.id}/edit`}>
-    <Raw html={newsPostEditForm.renderFields(newsPostToValues(post))} />
-    {SaveChangesButton()}
-  </CsrfForm>
-);
+export const newsEditPanel = (post: NewsPost): JSX.Element =>
+  contentEditPanel(
+    `${LIST}/${post.id}/edit`,
+    newsPostEditForm.renderFields(newsPostToValues(post)),
+  );
 
 export const adminNewsDeletePage = (
   post: NewsPost,

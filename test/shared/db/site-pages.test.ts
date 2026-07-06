@@ -2,6 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { executeBatch, queryAll } from "#shared/db/client.ts";
 import { isGroupSlugTaken } from "#shared/db/groups.ts";
+import {
+  appendImageToItem,
+  getImageById,
+  getImagesForItem,
+} from "#shared/db/images.ts";
 import { getListingNamesByIds, isSlugTaken } from "#shared/db/listings.ts";
 import {
   addPageItem,
@@ -34,6 +39,7 @@ import {
   describeWithEnv,
   expectEncryptedAtRest,
 } from "#test-utils";
+import { makeImage } from "#test-utils/admin-images.ts";
 
 const makePage = async (
   slug: string,
@@ -363,6 +369,19 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       expect(
         edges.some((e) => e.item_type === "page" && e.item_id === child.id),
       ).toBe(false);
+    });
+
+    test("deleteSitePageWithEdges prunes the page's image uses but keeps the images", async () => {
+      const page = await makePage("with-image");
+      const image = await makeImage("Page hero");
+      await appendImageToItem(image.id, { itemId: page.id, itemType: "page" });
+      expect((await getImagesForItem("page", page.id)).length).toBe(1);
+
+      await deleteSitePageWithEdges(page.id);
+
+      // The link is gone, but the image itself stays in the library.
+      expect(await getImagesForItem("page", page.id)).toEqual([]);
+      expect(await getImageById(image.id)).not.toBeNull();
     });
 
     test("a page-item write clears the request-scoped edge cache", async () => {

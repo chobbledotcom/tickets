@@ -6,11 +6,11 @@
 
 import { t } from "#i18n";
 import { defineForm } from "#shared/forms.tsx";
-import { normalizeSlug, validateSlug } from "#shared/slug.ts";
 import type { NewsPost } from "#shared/types.ts";
 import {
   contentMetaValues,
   contentNameField,
+  contentSlugField,
   markdownContentField,
   seoMetaFields,
 } from "./content-form-fields.ts";
@@ -21,17 +21,7 @@ const nameField = contentNameField(t("news.field.name"));
 
 /** The editable `/news/:slug` permalink — edit-only (a new post's slug is
  * auto-generated). Shows the saved slug's public link beneath the input. */
-const slugField = {
-  hint: t("news.field.slug_hint"),
-  label: t("common.slug"),
-  name: "slug",
-  pattern: "[a-z0-9_\\-]+",
-  publicLinkPath: (slug: string) => `/news/${slug}`,
-  required: true,
-  title: t("fields.listing.slug_title"),
-  type: "text" as const,
-  validate: (value: string) => validateSlug(normalizeSlug(value)),
-} as const;
+const slugField = contentSlugField((slug) => `/news/${slug}`);
 
 /** The fields after the name, shared by the create and edit forms. */
 const trailingFields = [

@@ -58,22 +58,22 @@ const defaultHeading: LinkedItemsHeading = ({ count, type }) =>
     ? t("linked_items.heading", { count })
     : t("linked_items.heading_typed", { count, type });
 
-const activeFirst = (
-  options: readonly LinkedItemOption[],
-): LinkedItemOption[] => [
-  ...options.filter((option) => option.active),
-  ...options.filter((option) => !option.active),
-];
+/** Stable partition: options matching `keep` first, the rest after, each half
+ * in its original order. The one ordering primitive both sorts below share. */
+const matchingFirst =
+  (keep: (option: LinkedItemOption) => boolean) =>
+  (options: readonly LinkedItemOption[]): LinkedItemOption[] => [
+    ...options.filter(keep),
+    ...options.filter((option) => !keep(option)),
+  ];
 
-/** Move the already-linked (checked) options to the front, keeping every
- * option's relative order otherwise. Applied over {@link activeFirst}, so the
- * displayed order is: linked first, then within each half active-before-muted. */
-const selectedFirst = (
-  options: readonly LinkedItemOption[],
-): LinkedItemOption[] => [
-  ...options.filter((option) => option.checked),
-  ...options.filter((option) => !option.checked),
-];
+/** Deactivated options sort to the end of their row (rendered muted). */
+const activeFirst = matchingFirst((option) => option.active);
+
+/** The already-linked (checked) options lead, keeping every option's relative
+ * order otherwise. Applied over {@link activeFirst}, so the displayed order is:
+ * linked first, then within each half active-before-muted. */
+const selectedFirst = matchingFirst((option) => option.checked);
 
 const countLinked = (groups: readonly LinkedItemGroup[]): number =>
   groups.flatMap((group) => group.options).filter((option) => option.checked)

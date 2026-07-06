@@ -37,6 +37,7 @@
   "common.description": "Description",
   "common.formatting_help": "Formatting help",
   "common.slug": "Slug",
+  "common.slug_public_hint": "The address of this page under its section. Changing it breaks any existing links to it.",
   "common.public_link": "Public link",
   "common.quantity": "Quantity",
   "common.close": "Close",
