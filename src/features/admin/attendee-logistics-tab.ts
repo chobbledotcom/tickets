@@ -27,6 +27,7 @@ import {
   type OverlappingBooking,
 } from "#shared/db/attendees/overlap.ts";
 import { getAttendeeNamesByIds } from "#shared/db/attendees/queries.ts";
+import type { DayRange } from "#shared/db/capacity.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { AttendeeLogisticsPanel } from "#templates/admin/attendee-logistics-tab.tsx";
@@ -44,11 +45,8 @@ export const storedFormLines = async (entity: LoadedAttendee) => {
   ).parsed.lines;
 };
 
-/** One booked window as [startAt, endAt) timestamps. */
-export type BookedInterval = { startAt: string; endAt: string };
-
 /** The attendee's real dated booking windows (quantity > 0 only). */
-export const bookedIntervals = (entity: LoadedAttendee): BookedInterval[] =>
+export const bookedIntervals = (entity: LoadedAttendee): DayRange[] =>
   entity.existing
     .map(({ booking }) => booking)
     .filter((booking) => booking.quantity > 0 && booking.start_at !== null)
@@ -58,7 +56,7 @@ export const bookedIntervals = (entity: LoadedAttendee): BookedInterval[] =>
  * the same predicate the SQL uses, re-applied per window so a gap between two
  * bookings never counts as booked. */
 export const overlapsAnyInterval = (
-  intervals: BookedInterval[],
+  intervals: DayRange[],
   row: { start_at: string; end_at: string },
 ): boolean =>
   intervals.some(

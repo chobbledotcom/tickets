@@ -16,7 +16,9 @@ import { addDays } from "#shared/dates.ts";
 import type { SqlStatement } from "#shared/db/client.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
 
-type DayRange = { startAt: string; endAt: string };
+/** A half-open [startAt, endAt) window of whole days, as timestamps. Also
+ * the shape of an attendee's booked windows on the Logistics tab. */
+export type DayRange = { startAt: string; endAt: string };
 
 /** Convert a date string ("YYYY-MM-DD") to a half-open [start, end) pair.
  * `durationDays` is normalized (whole days in [1, MAX]) so `end_at` is always
