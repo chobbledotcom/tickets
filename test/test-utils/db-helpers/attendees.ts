@@ -1,13 +1,45 @@
 import { expect } from "@std/expect";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { decryptAttendees, getAttendeesRaw } from "#shared/db/attendees.ts";
+import {
+  createAttendeeAtomic,
+  decryptAttendees,
+  getAttendeesRaw,
+} from "#shared/db/attendees.ts";
 import type { ListingInput } from "#shared/db/listings.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { createDailyTestListing, createTestListing } from "./listings.ts";
 
 export { getAttendeesRaw };
+
+/** Book a test attendee onto the given listing(s) directly via the DB,
+ *  bypassing the booking routes. Shared by unit tests that just need an
+ *  attendee to hang bookings or answers off. */
+export const bookTestAttendee = async (
+  listingIds: number[],
+  name = "Alice",
+  email?: string,
+): Promise<Attendee> => {
+  const result = await createAttendeeAtomic({
+    bookings: listingIds.map((listingId) => ({ listingId })),
+    email: email ?? `${name.toLowerCase()}@test.com`,
+    name,
+  });
+  if (!result.success) {
+    throw new Error(`Failed to create attendee: ${result.reason}`);
+  }
+  // createAttendeeAtomic is greedy on the plain path: it reports success once
+  // any booking lands, so a full/blocked listing would silently yield an
+  // attendee booked onto fewer listings than asked for. Fail loudly instead —
+  // there's one result entry per booked listing.
+  if (result.attendees.length !== listingIds.length) {
+    throw new Error(
+      `Expected ${listingIds.length} booking(s) but only ${result.attendees.length} landed — a listing was full or blocked`,
+    );
+  }
+  return result.attendees[0]!;
+};
 
 export const createTestAttendee = async (
   listingId: number,
