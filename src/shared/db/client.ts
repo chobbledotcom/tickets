@@ -612,10 +612,8 @@ export const update = (
  * form for the single-statement call sites (batch and transactional callers
  * use {@link update} itself). */
 export const executeUpdate = (
-  table: string,
-  set: Record<string, InValue | RawSql>,
-  where: Record<string, InValue>,
+  ...parts: Parameters<typeof update>
 ): Promise<ResultSet> => {
-  const stmt = update(table, set, where);
+  const stmt = update(...parts);
   return execute(stmt.sql, stmt.args);
 };

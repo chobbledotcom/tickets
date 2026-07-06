@@ -24,14 +24,17 @@ import {
   type TxScope,
 } from "#shared/db/client.ts";
 
+/** A link write run on a caller's open write transaction. */
+type TxIdsWrite = (
+  tx: TxScope,
+  keyId: number,
+  ids: readonly number[],
+) => Promise<void>;
+
 export type LinkTableSide = {
   /** Add links for a key without touching its existing rows (one multi-row
    * INSERT), inside an existing write transaction. No-op for an empty list. */
-  addIdsTx: (
-    tx: TxScope,
-    keyId: number,
-    ids: readonly number[],
-  ) => Promise<void>;
+  addIdsTx: TxIdsWrite;
   /** Remove every row for this key (used before deleting the record). */
   clear: (keyId: number) => Promise<void>;
   /** The linked ids for a key, ascending. */
@@ -42,11 +45,7 @@ export type LinkTableSide = {
   setIds: (keyId: number, ids: readonly number[]) => Promise<void>;
   /** Like {@link LinkTableSide.setIds} but run on an existing write
    * transaction, so the links commit atomically with the caller's row write. */
-  setIdsTx: (
-    tx: TxScope,
-    keyId: number,
-    ids: readonly number[],
-  ) => Promise<void>;
+  setIdsTx: TxIdsWrite;
 };
 
 /** Build the helpers for one direction through a link table. */
