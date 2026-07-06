@@ -4,6 +4,8 @@ import {
   getModifierAnswerIds,
   getModifierGroupIds,
   getModifierListingIds,
+  getModifierListingIdsByModifierId,
+  modifierIdsByAnswerId,
   setModifierAnswers,
   setModifierGroups,
   setModifierListings,
@@ -44,6 +46,30 @@ describeWithEnv("db modifier links", { db: true }, () => {
       await setModifierListings(2, [2, 3]);
       expect(await getModifierListingIds(1)).toEqual([1, 2]);
       expect(await getModifierListingIds(2)).toEqual([2, 3]);
+    });
+  });
+
+  describe("getModifierListingIdsByModifierId (batched scope lookup)", () => {
+    test("buckets listing links by modifier id, seeding [] for unlinked ids", async () => {
+      await setModifierListings(1, [4, 6]);
+      expect(await getModifierListingIdsByModifierId([1, 2])).toEqual(
+        new Map([
+          [1, [4, 6]],
+          [2, []],
+        ]),
+      );
+    });
+
+    test("a single-id lookup returns that modifier's links", async () => {
+      // One id is not the empty case: the query must still run for it.
+      await setModifierListings(3, [5]);
+      expect(await getModifierListingIdsByModifierId([3])).toEqual(
+        new Map([[3, [5]]]),
+      );
+    });
+
+    test("no ids short-circuits to an empty map", async () => {
+      expect(await getModifierListingIdsByModifierId([])).toEqual(new Map());
     });
   });
 
@@ -107,6 +133,17 @@ describeWithEnv("db modifier links", { db: true }, () => {
       await setModifierAnswers(2, [b!]);
       expect(await getModifierAnswerIds(1)).toEqual([a]);
       expect(await getModifierAnswerIds(2)).toEqual([b]);
+    });
+
+    test("modifierIdsByAnswerId maps linked answers only, omitting unlinked ones", async () => {
+      // The reverse lookup resolve uses: each selected answer id → the single
+      // modifier it activates. An answer with no modifier link must be absent,
+      // never present with a null modifier.
+      const [a, b] = await threeAnswers();
+      await setModifierAnswers(7, [a!]);
+      expect(await modifierIdsByAnswerId([a!, b!])).toEqual(
+        new Map([[a!, [7]]]),
+      );
     });
   });
 });

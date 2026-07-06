@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { spy } from "@std/testing/mock";
+import { FakeTime } from "@std/testing/time";
 import { ENCRYPTION_PREFIX, encrypt } from "#shared/crypto/encryption.ts";
 import { HYBRID_PREFIX } from "#shared/crypto/keys.ts";
 import {
@@ -9,6 +11,8 @@ import {
 import { getAllActivityLog, logActivity } from "#shared/db/activityLog.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
+import { ACTIVITY_LOG_BACKFILL_INTERVAL_MS } from "#shared/limits.ts";
+import { setSuppressDebugLogs } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { describeWithEnv, withTestSession } from "#test-utils";
 
@@ -96,6 +100,53 @@ describeWithEnv("db > activity log backfill", { db: true }, () => {
     expect(settings.activityLogBackfillDone).not.toBe("true");
     // The run stamped a fresh, newer timestamp over the day-old one.
     expect(Number(settings.lastActivityLogBackfill)).toBeGreaterThan(dayAgo);
+  });
+
+  test("scheduler treats an unset last-run as never run (epoch 0), so the first interval is exactly due", async () => {
+    // Freeze the clock at exactly one interval past the epoch. With no stored
+    // last-run the fallback must be 0 — "never ran" — making the batch due on
+    // the >= boundary; any later fallback would still be inside the interval
+    // and silently delay the very first run.
+    const id = await insertLegacyRow("due at the exact boundary");
+    using _time = new FakeTime(ACTIVITY_LOG_BACKFILL_INTERVAL_MS);
+
+    await maybeBackfillActivityLog();
+
+    expect((await rawMessage(id)).startsWith(HYBRID_PREFIX)).toBe(true);
+  });
+
+  /** Run the scheduler with debug logs on, capturing every console.debug line. */
+  const debugLinesFromRun = async (): Promise<string[]> => {
+    setSuppressDebugLogs(false);
+    using debug = spy(console, "debug");
+    try {
+      await maybeBackfillActivityLog();
+    } finally {
+      setSuppressDebugLogs(null);
+    }
+    return debug.calls.map((call) => String(call.args[0]));
+  };
+
+  test("scheduler logs the converted row count under the Backfill category", async () => {
+    await insertLegacyRow("logged");
+
+    expect(await debugLinesFromRun()).toContain(
+      "[Backfill] activity_log: re-encrypted 1 rows",
+    );
+  });
+
+  test("scheduler logs a failed batch under the Backfill category", async () => {
+    // A corrupt env-key payload makes the batch throw; the swallowed failure
+    // must still surface as a categorised debug line for the operator.
+    await execute(
+      "INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (?, ?, NULL, NULL)",
+      [`${ENCRYPTION_PREFIX}AAAA:BBBB`, nowIso()],
+    );
+
+    const failureLine = (await debugLinesFromRun()).find((line) =>
+      line.includes("activity_log failed"),
+    );
+    expect(failureLine).toMatch(/^\[Backfill\] activity_log failed: /);
   });
 
   test("scheduler marks itself done once nothing remains", async () => {
