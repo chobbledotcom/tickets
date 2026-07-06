@@ -1714,7 +1714,18 @@ select[data-package-members] {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  gap: var(--space-m);
+  gap: var(--space-s) var(--space-m);
+  margin: 0;
+  padding: 0;
+}
+
+/* Linked-items list: one .checkboxes row per item type, the type name leading
+   each row. The rows carry their own flex layout, so the list chrome goes. */
+.linked-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+  list-style: none;
   margin: 0;
   padding: 0;
 }

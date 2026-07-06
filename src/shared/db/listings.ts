@@ -62,7 +62,7 @@ import {
   ticketCountPredicateFor,
   ticketCountSumExpr,
 } from "#shared/db/migrations/schema.ts";
-import { allNamesById, nameMapByIds } from "#shared/db/query.ts";
+import { nameMapByIds } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
 import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
@@ -737,11 +737,27 @@ export const getListingsById = async (): Promise<
   Map<number, ListingWithCount>
 > => new Map((await getAllListings()).map((l) => [l.id, l]));
 
-/** All listing names keyed by id: selects and decrypts only the name column. */
-export const getAllListingNames = (): Promise<Map<number, string>> =>
-  allNamesById("listings", "listing", "name", (raw: EnvKeyEncrypted) =>
-    decrypt(raw),
+/** The narrow projection an item picker needs: id, name, and active for every
+ * listing. Selects and decrypts only the name rather than warming the whole
+ * listings cache. Ordered by id for a stable list. */
+export type ListingOption = { active: boolean; id: number; name: string };
+
+type ListingOptionRow = {
+  active: number;
+  id: number;
+  name: EnvKeyEncrypted;
+};
+
+export const getAllListingOptions = async (): Promise<ListingOption[]> => {
+  const rows = await queryAll<ListingOptionRow>(
+    "SELECT listing.id, listing.name, listing.active FROM listings AS listing ORDER BY listing.id ASC",
   );
+  return mapParallel(async (row: ListingOptionRow) => ({
+    active: row.active === 1,
+    id: row.id,
+    name: await decrypt(row.name),
+  }))(rows);
+};
 
 /** Bounded id → name lookup for the given listings: selects and decrypts only
  * their names, rather than loading the whole listings cache like getAllListings.
