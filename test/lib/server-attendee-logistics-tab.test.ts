@@ -38,7 +38,7 @@ const makeAttendee = async (
   name: string,
   bookings: ListingBooking[],
 ): Promise<number> => {
-  const result = await createAttendeeAtomic({ bookings, name });
+  const result = await createAttendeeAtomic({ bookings, email: "", name });
   if (!result.success) throw new Error("test attendee creation failed");
   return result.attendees[0]!.id;
 };
