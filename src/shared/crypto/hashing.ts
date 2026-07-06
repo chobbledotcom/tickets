@@ -5,6 +5,7 @@
 import { createHash, createHmac } from "node:crypto";
 import { lazyRef } from "#fp";
 import { getEncryptionKeyBytes } from "./encryption.ts";
+import type { BlindIndex, PasswordHash, TokenHash } from "./sealed.ts";
 import { fromBase64, getRandomBytes, toBase64 } from "./utils.ts";
 
 /**
@@ -69,11 +70,15 @@ const derivePbkdf2Hash = async (
  * Hash a password using PBKDF2
  * Returns format: pbkdf2:iterations:$base64salt:$base64hash
  */
-export const hashPassword = async (password: string): Promise<string> => {
+export const hashPassword = async (
+  password: string,
+): Promise<PasswordHash> => {
   const salt = getRandomBytes(16);
   const iterations = getPbkdf2Iterations();
   const hash = await derivePbkdf2Hash(password, salt, iterations);
-  return `${PASSWORD_PREFIX}:${iterations}:${toBase64(salt)}:${toBase64(hash)}`;
+  return `${PASSWORD_PREFIX}:${iterations}:${toBase64(salt)}:${toBase64(
+    hash,
+  )}` as PasswordHash;
 };
 
 /**
@@ -122,10 +127,10 @@ export const verifyPassword = async (
  * Hash a session token using SHA-256
  * Used to store session lookups without exposing the actual token
  */
-export const hashSessionToken = async (token: string): Promise<string> => {
+export const hashSessionToken = async (token: string): Promise<TokenHash> => {
   const hash = createHash("sha256");
   hash.update(new TextEncoder().encode(token));
-  return toBase64(new Uint8Array(hash.digest()));
+  return toBase64(new Uint8Array(hash.digest())) as TokenHash;
 };
 
 /**
@@ -133,18 +138,18 @@ export const hashSessionToken = async (token: string): Promise<string> => {
  * Used for blind indexes and hashing limited keyspace values
  * Returns deterministic output for same input (unlike encrypt)
  */
-export const hmacHashSync = (value: string): string => {
+export const hmacHashSync = (value: string): BlindIndex => {
   const mac = createHmac("sha256", getEncryptionKeyBytes());
   mac.update(new TextEncoder().encode(value));
-  return toBase64(new Uint8Array(mac.digest()));
+  return toBase64(new Uint8Array(mac.digest())) as BlindIndex;
 };
 
-export const hmacHash = async (value: string): Promise<string> =>
+export const hmacHash = async (value: string): Promise<BlindIndex> =>
   hmacHashSync(value);
 
 /**
  * Compute ticket token index using HMAC for blind lookups
  * Similar to slug_index for listings - allows lookup without decrypting
  */
-export const computeTicketTokenIndex = (token: string): Promise<string> =>
+export const computeTicketTokenIndex = (token: string): Promise<BlindIndex> =>
   hmacHash(token);

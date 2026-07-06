@@ -5,6 +5,7 @@
 import { createCipheriv, createDecipheriv } from "node:crypto";
 import { lazyRef } from "#fp";
 import { getEnv } from "#shared/env.ts";
+import type { EnvKeyEncrypted, KeyEncrypted } from "./sealed.ts";
 import { fromBase64, getRandomBytes, toBase64 } from "./utils.ts";
 
 /**
@@ -232,12 +233,12 @@ export const formatPrefixed = (
 export const symmetricEncrypt = async (
   plaintext: string,
   key: CryptoKey,
-): Promise<string> => {
+): Promise<KeyEncrypted> => {
   const { iv, ciphertext } = await aesGcmEncryptRaw(
     new TextEncoder().encode(plaintext),
     key,
   );
-  return formatPrefixed(ENCRYPTION_PREFIX, iv, ciphertext);
+  return formatPrefixed(ENCRYPTION_PREFIX, iv, ciphertext) as KeyEncrypted;
 };
 
 /**
@@ -246,12 +247,12 @@ export const symmetricEncrypt = async (
  * Returns format: enc:1:$base64iv:$base64ciphertext
  * Note: ciphertext includes the GCM auth tag appended.
  */
-export const encrypt = async (plaintext: string): Promise<string> => {
+export const encrypt = async (plaintext: string): Promise<EnvKeyEncrypted> => {
   const { ciphertext, iv } = nodeAesGcmEncrypt(
     new TextEncoder().encode(plaintext),
     getEncryptionKeyBytes(),
   );
-  return formatPrefixed(ENCRYPTION_PREFIX, iv, ciphertext);
+  return formatPrefixed(ENCRYPTION_PREFIX, iv, ciphertext) as EnvKeyEncrypted;
 };
 
 /**
@@ -281,7 +282,7 @@ export const parseEncryptedPayload = (
  * Decrypt a prefixed AES-GCM payload with the given key.
  */
 export const symmetricDecrypt = async (
-  encrypted: string,
+  encrypted: KeyEncrypted,
   key: CryptoKey,
 ): Promise<string> => {
   const { iv, ciphertext } = parseEncryptedPayload(
@@ -297,7 +298,7 @@ export const symmetricDecrypt = async (
  * Decrypt a string value encrypted with encrypt()
  * Expects format: enc:1:$base64iv:$base64ciphertext
  */
-export const decrypt = async (encrypted: string): Promise<string> => {
+export const decrypt = async (encrypted: EnvKeyEncrypted): Promise<string> => {
   const { ciphertext, iv } = parseEncryptedPayload(
     encrypted,
     ENCRYPTION_PREFIX,
@@ -375,12 +376,12 @@ export const decryptBytes = async (
 export const encryptWithKey = (
   plaintext: string,
   key: CryptoKey,
-): Promise<string> => symmetricEncrypt(plaintext, key);
+): Promise<KeyEncrypted> => symmetricEncrypt(plaintext, key);
 
 /**
  * Decrypt data with a symmetric key
  */
 export const decryptWithKey = (
-  encrypted: string,
+  encrypted: KeyEncrypted,
   key: CryptoKey,
 ): Promise<string> => symmetricDecrypt(encrypted, key);
