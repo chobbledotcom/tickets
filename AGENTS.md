@@ -650,6 +650,18 @@ mutates each changed `src/` file against the changed `test/` files and demands a
 100% kill rate, so the cost stays bounded to what you actually changed.
 Known-equivalent survivors recorded in
 `scripts/mutation/equivalent-mutants.txt` are suppressed, as with a manual run.
+That file's header warns against recording `=== → ==`/`!== → !=` mutants
+because Biome's `noDoubleEquals` normally rejects `==`/`!=` and the runner
+counts a lint failure as killed before tests even run — **but this does not
+apply to comparisons against the `null` literal**: Biome's `noDoubleEquals`
+allows `== null`/`!= null` as the idiomatic null-or-undefined check, so a
+`=== null` → `== null` mutant on a value typed to exclude `undefined` is a
+real, lint-surviving equivalent and belongs in the file (there are several
+already, e.g. `logistics-filter.ts:41:45`, `sort-listings.ts:44:12`,
+`package-privacy.ts:44:10`). Verify either way by mutating the line by hand
+and running `deno run -A scripts/biome.ts check --error-on-warnings <file>` —
+exit 0 means the lint gate does not kill it, so a real survivor needs a test
+or a documented equivalent, not removal on the assumption that lint caught it.
 It is a deliberately mapping-free, best-effort check with three documented blind
 spots (see the header of `scripts/precommit/mutation-step.ts`): it scopes to the
 *committed* diff, so uncommitted work isn't checked until committed; it trusts
