@@ -251,11 +251,14 @@ const buildStats = async (
   range: LedgerRange,
   listingId: number | null,
   listings: ListingWithCount[],
-): Promise<{ rows: DetailRow[]; heading: string }> => {
+): Promise<{ rows: DetailRow[]; heading: string | null }> => {
   if (listingId === null) {
     const totals = await ledgerTotals(range);
+    // No heading for the whole-business view — the page is already titled
+    // "Ledger", so an "All listings" heading only repeats that. A listing-scoped
+    // view still names the listing (below) so the figures' scope stays clear.
     return {
-      heading: t("admin.ledger.stats.all_heading"),
+      heading: null,
       rows: [
         moneyRow("admin.ledger.stats.income", totals.income),
         moneyRow("admin.ledger.stats.due", totals.due),

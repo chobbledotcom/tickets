@@ -54,10 +54,12 @@ describe("adminDashboardPage", () => {
     expect(html).toContain("Listing Name");
   });
 
-  test("renders add listing link", () => {
+  test("renders the add-listing and add-attendee quick actions", () => {
     const html = adminDashboardPage([], TEST_SESSION);
     expect(html).toContain('href="/admin/listing/new"');
     expect(html).toContain("Add Listing");
+    expect(html).toContain('href="/admin/attendees/new"');
+    expect(html).toContain("Add Attendee");
   });
 
   test("includes logout link", () => {

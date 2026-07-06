@@ -627,8 +627,11 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     await seededSale("Summer Concert", 2500);
     const response = await adminGet("/admin/ledger?view=dual");
     const html = await response.text();
-    // The four business-wide totals, headed "All listings".
+    // The by-listing filter offers the whole-business "All listings" scope, and
+    // the four business-wide totals render beneath it (no scope heading — the
+    // page is already titled "Ledger").
     expect(html).toContain("All listings");
+    expect(html).not.toContain("<h2>All listings</h2>");
     expect(html).toContain("Total income");
     expect(html).toContain("Total due");
     expect(html).toContain("Total refunded");

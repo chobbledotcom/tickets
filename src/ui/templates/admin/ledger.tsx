@@ -673,7 +673,9 @@ export type LedgerPageData = {
   names: LedgerNames;
   truncated: boolean;
   stats: DetailRow[];
-  statsHeading: string;
+  /** Scope heading above the stats table — the listing name when scoped to one,
+   *  null for the whole-business view (which needs no heading). */
+  statsHeading: string | null;
   filters: LedgerFilterState;
   dates: DatePickerDate[];
   today: string;
@@ -800,11 +802,12 @@ const LedgerViewToggle = ({ data }: { data: LedgerPageData }): SafeHtml => (
   </p>
 );
 
-/** The range-scoped stats table: a heading naming the scope ("All listings" or
- *  one listing) above a key/value figure table. */
+/** The range-scoped stats table: a key/value figure table, headed by the
+ *  listing name when scoped to one listing (the whole-business view needs no
+ *  heading — the page title already says "Ledger"). */
 const LedgerStats = ({ data }: { data: LedgerPageData }): SafeHtml => (
   <>
-    <h2>{data.statsHeading}</h2>
+    {data.statsHeading && <h2>{data.statsHeading}</h2>}
     <DetailTable rows={data.stats} />
   </>
 );

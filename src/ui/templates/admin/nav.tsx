@@ -207,6 +207,10 @@ const modifiersSub = (): NavItem[] =>
     "/admin/modifiers/new",
   );
 
+/** Images sub-nav: an "Add" create link. */
+const imagesSub = (): NavItem[] =>
+  sectionWithAdd("/admin/images", t("terms.images"), "/admin/images/new");
+
 /** Users sub-nav: an "Invite" link, then sessions/API keys. */
 const usersSub = (): NavItem[] => [
   navItem("/admin/users", t("terms.users")),
@@ -266,12 +270,18 @@ const section = (
  * editor; everything else is owner-only, so their list omits it entirely. */
 const sectionsForRole = (adminLevel: AdminSession["adminLevel"]): Section[] => {
   const siteSection = section("/admin/site", t("nav.site"), siteSub());
+  // The Images section only exists while storage is on — that's the same
+  // condition under which its top-level link appears (see `topLevelItems`).
+  const imagesSection = isStorageEnabled()
+    ? section("/admin/images", t("terms.images"), imagesSub())
+    : null;
   if (adminLevel === "editor") {
-    return [
+    return compact([
       section("/admin/listings", t("terms.listings"), listingsSub()),
       section("/admin/groups", t("terms.groups"), groupsSub()),
+      imagesSection,
       siteSection,
-    ];
+    ]);
   }
   const calendar = calendarSub();
   return compact([
@@ -281,6 +291,7 @@ const sectionsForRole = (adminLevel: AdminSession["adminLevel"]): Section[] => {
     section("/admin/attendees", t("terms.attendees"), attendeesSub()),
     section("/admin/modifiers", t("terms.modifiers"), modifiersSub()),
     section("/admin/groups", t("terms.groups"), groupsSub()),
+    imagesSection,
     adminLevel === "owner"
       ? section("/admin/users", t("terms.users"), usersSub())
       : null,
