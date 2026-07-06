@@ -25,7 +25,7 @@ import type {
 import { successAdminPage } from "#templates/admin/admin-page.tsx";
 import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
 import { booleanSettingsSection } from "#templates/admin/settings/boolean-settings-section.tsx";
-import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
+import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import {
   CheckboxFieldset,
   CheckboxLabel,
@@ -87,13 +87,11 @@ export const adminLogisticsPage = (
     successMessage,
   )(
     <>
-      <p class="actions">
-        <GuideLink href="/admin/guide#logistics">
-          {t("logistics.guide_link")}
-        </GuideLink>
-      </p>
       {HasLogisticsForm(settings.hasLogistics)}
       {settings.hasLogistics && AgentsSection(agents)}
+      <GuideFooter href="/admin/guide#logistics">
+        {t("logistics.guide_link")}
+      </GuideFooter>
     </>,
   );
 

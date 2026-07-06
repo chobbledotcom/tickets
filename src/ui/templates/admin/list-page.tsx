@@ -11,7 +11,9 @@ export const AdminListPage = ({
   title,
 }: {
   active: string;
-  actions: Child;
+  /** Optional top action row. Omit on pages whose only affordance is a guide
+   *  link (that now lives in a `GuideFooter` at the bottom of the body). */
+  actions?: Child;
   children: Child;
   session: AdminSession;
   successMessage?: string | undefined;
@@ -19,7 +21,7 @@ export const AdminListPage = ({
 }): string =>
   successAdminPage(title, active)(session, successMessage)(
     <>
-      <p class="actions">{actions}</p>
+      {actions !== undefined && <p class="actions">{actions}</p>}
       {children}
     </>,
   );

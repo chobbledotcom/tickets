@@ -14,7 +14,7 @@ import type {
   ListingWithCount,
 } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 /* jscpd:ignore-end */
 
@@ -115,7 +115,6 @@ export const smsPage = (session: AdminSession, opts: SmsPageOptions): string =>
     opts.flash.success,
   )(
     <>
-      <h1>{t("sms.page.title")}</h1>
       <p>{t("sms.queue.awaiting", { count: opts.queueCount })}</p>
 
       {opts.target && (
@@ -128,5 +127,6 @@ export const smsPage = (session: AdminSession, opts: SmsPageOptions): string =>
           })}
         />
       )}
+      <GuideFooter href="/admin/guide#sms">{t("sms.guide_link")}</GuideFooter>
     </>,
   );

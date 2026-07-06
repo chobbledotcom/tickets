@@ -9,10 +9,9 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
-import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
+import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
-import { ProseHeading } from "#templates/components/prose-heading.tsx";
 /* jscpd:ignore-end */
 
 export type BackupEntry = {
@@ -71,14 +70,6 @@ export const adminBackupPage = (
     success,
   )(
     <>
-      <ProseHeading heading={t("backup.heading")}>
-        <p class="actions">
-          <GuideLink href="/admin/guide#backups">
-            {t("backup.guide_link")}
-          </GuideLink>
-        </p>
-      </ProseHeading>
-
       {!state.isRemote && (
         <p>
           <em>{t("backup.local_database_warning")}</em>
@@ -174,6 +165,9 @@ export const adminBackupPage = (
           </section>
         </>
       )}
+      <GuideFooter href="/admin/guide#backups">
+        {t("backup.guide_link")}
+      </GuideFooter>
     </>,
   );
 

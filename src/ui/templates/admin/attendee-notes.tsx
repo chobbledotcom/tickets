@@ -94,30 +94,42 @@ const NoteBox = ({ note }: { note: SystemNote }): JSX.Element => {
 };
 
 /**
- * The notes block on the attendee edit page: every note (oldest first) plus a
- * link to the add-note page. Returns to the attendee page after adding.
+ * The notes block on the attendee page: every note (oldest first). Renders
+ * nothing when the attendee has no notes, so the page carries no empty
+ * `.attendee-notes` section. The "Add a note" link lives beside the page
+ * heading (see {@link AddNoteLink}), not here.
  */
 export const AttendeeNotesSection = ({
-  attendeeId,
   notes,
 }: {
-  attendeeId: number;
   notes: SystemNote[];
+}): JSX.Element | null =>
+  notes.length === 0 ? null : (
+    <section class="attendee-notes">
+      {notes.map((note) => (
+        <NoteBox note={note} />
+      ))}
+    </section>
+  );
+
+/**
+ * The "Add a note" link shown next to the attendee's page heading. Returns to
+ * the attendee page after adding.
+ */
+export const AddNoteLink = ({
+  attendeeId,
+}: {
+  attendeeId: number;
 }): JSX.Element => (
-  <section class="attendee-notes">
-    {notes.map((note) => (
-      <NoteBox note={note} />
-    ))}
-    <p>
-      <a
-        href={`/admin/attendee/${attendeeId}/note?return_url=${encodeURIComponent(
-          attendeeUrl(attendeeId),
-        )}`}
-      >
-        {t("notes.add_link")}
-      </a>
-    </p>
-  </section>
+  <p>
+    <a
+      href={`/admin/attendee/${attendeeId}/note?return_url=${encodeURIComponent(
+        attendeeUrl(attendeeId),
+      )}`}
+    >
+      {t("notes.add_link")}
+    </a>
+  </p>
 );
 
 /**

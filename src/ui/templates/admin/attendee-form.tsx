@@ -68,7 +68,7 @@ import {
 import { EditQuestions } from "#templates/admin/attendees.tsx";
 import { Icon } from "#templates/components/actions.tsx";
 import { renderAddressLookupPanel } from "#templates/components/address-lookup.tsx";
-import { ErrorAlert, ErrorNote } from "#templates/components/error.tsx";
+import { ErrorAlert } from "#templates/components/error.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import {
@@ -559,7 +559,6 @@ const StatusAndBalanceFields = ({
         />
         <small>{t("attendee_form.outstanding_balance_hint")}</small>
       </label>
-      <ErrorNote>{t("attendee_form.balance_ledger_note")}</ErrorNote>
     </>
   );
 };
@@ -596,6 +595,11 @@ const AttendeeEditForm = ({
       {data.returnUrl && (
         <input name="return_url" type="hidden" value={data.returnUrl} />
       )}
+
+      {/* Create renders its own title inside the form (the standalone page has
+          no entity heading above it); edit gets its "Attendee: …" heading from
+          the entity page shell. */}
+      {!isEdit && <h1>{t("attendee_form.title_create")}</h1>}
 
       {!isEdit && <h3>{t("attendee_form.details_heading")}</h3>}
 
@@ -765,11 +769,13 @@ export const attendeeFormPage = (
   session: AdminSession,
 ): string =>
   String(
-    <AttendeesPageLayout
+    // The title lives inside the form (see AttendeeEditForm), so the page shell
+    // carries no prose heading of its own — just the <title> for the tab.
+    <AdminPage
       active="/admin/attendees/new"
       session={session}
       title={t("attendee_form.title_create")}
     >
       <AttendeeFormPanel data={data} />
-    </AttendeesPageLayout>,
+    </AdminPage>,
   );

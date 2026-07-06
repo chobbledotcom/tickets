@@ -244,7 +244,7 @@ export const attendeeBanner = ({
           </h2>
         </div>
       )}
-      <AttendeeNotesSection attendeeId={attendee.id} notes={notes} />
+      <AttendeeNotesSection notes={notes} />
     </>
   );
 };

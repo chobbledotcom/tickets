@@ -78,7 +78,11 @@ describe("adminCalendarPage", () => {
   test("renders Calendar title", () => {
     const html = calendarHtml();
     expect(html).toContain("Calendar");
-    expect(html).toContain("Attendees by Date");
+    // The redundant "Attendees by Date" heading was removed (you reached this
+    // page via the Calendar nav link); the #attendees anchor moves to the
+    // <article> so in-page links still resolve.
+    expect(html).not.toContain("Attendees by Date");
+    expect(html).toContain('id="attendees"');
   });
 
   test("renders date selector dropdown", () => {

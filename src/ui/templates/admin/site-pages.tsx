@@ -75,7 +75,6 @@ export const adminSitePagesListPage = (
 ): string =>
   String(
     <AdminPage active={ACTIVE} session={session} title={t("site.pages.title")}>
-      <h1>{t("site.pages.title")}</h1>
       <Flash success={successMessage} />
       <p class="actions">
         <ActionButton href={`${LIST}/new`} icon="plus">

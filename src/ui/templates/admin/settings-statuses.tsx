@@ -157,7 +157,6 @@ const { deletePage, editPage, listPage, newPage } =
       columns: statusColumns,
       intro: (
         <div class="prose">
-          <h1>{t("statuses.attendee_statuses_page_title")}</h1>
           <p>
             <Raw html={t("statuses.attendee_statuses_description")} />
           </p>

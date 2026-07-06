@@ -658,6 +658,14 @@ input[type="submit"],
   gap: var(--space-m);
 }
 
+/* A page's guide link, pinned to the bottom of the body and set apart from the
+   content above it with a top border and generous spacing. */
+.guide-footer {
+  border-top: 1px solid var(--color-bg-secondary);
+  margin-top: var(--space-l);
+  padding-top: var(--space-m);
+}
+
 article aside a {
   color: var(--color-secondary);
 }

@@ -7,7 +7,7 @@ import { SCANNER_JS_PATH } from "#shared/asset-paths.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
-import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
+import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /** Ticket option for the manual check-in autocomplete */
@@ -79,11 +79,6 @@ export const adminScannerPage = (
       <AdminNav active="/admin/" session={session} />
       <div class="prose">
         <h1>{t("admin.scanner.heading")}</h1>
-        <p class="actions">
-          <GuideLink href="/admin/guide#checkin">
-            {t("admin.scanner.help")}
-          </GuideLink>
-        </p>
       </div>
 
       <article>
@@ -202,6 +197,9 @@ export const adminScannerPage = (
           </SubmitButton>
         </form>
       </article>
+      <GuideFooter href="/admin/guide#checkin">
+        {t("admin.scanner.help")}
+      </GuideFooter>
     </Layout>,
   );
 };
