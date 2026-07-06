@@ -420,6 +420,10 @@ const applyEdit = async (
     buildPiiBlob({
       address: parsed.address,
       email: parsed.email,
+      // The Edit tab has no location inputs — the pin set on the Logistics
+      // tab survives an ordinary edit unchanged.
+      lat: attendee.lat,
+      lng: attendee.lng,
       name: parsed.name,
       payment_id: attendee.payment_id,
       phone: parsed.phone,

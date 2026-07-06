@@ -29,11 +29,14 @@ import type { Attendee, ContactInfo, PiiBlob } from "#shared/types.ts";
 /** Current PII blob schema version */
 export const PII_BLOB_VERSION = 1;
 
-/** Build a PII blob JSON from contact fields */
+/** Build a PII blob JSON from contact fields. An unpinned latitude/longitude
+ * ("") is left out of the JSON so blobs without a pin stay as small as before. */
 export const buildPiiBlob = (info: AttendeePii): string =>
   JSON.stringify({
     a: info.address,
     e: info.email,
+    la: info.lat || undefined,
+    lo: info.lng || undefined,
     n: info.name,
     p: info.phone,
     pi: info.payment_id,
@@ -66,6 +69,8 @@ export const decryptPiiBlob = async (
   return {
     address: blob.a,
     email: blob.e,
+    lat: blob.la ?? "",
+    lng: blob.lo ?? "",
     name: blob.n,
     payment_id: paidListing ? blob.pi : "",
     phone: blob.p,
@@ -126,8 +131,11 @@ export const encryptAttendeeFields = async (
   if (!publicKeyJwk) return null;
 
   const ticketToken = generateTicketToken();
+  // Bookings never carry a pinned location — lat/lng are admin-side only.
   const piiJson = buildPiiBlob({
     ...contactFields(input),
+    lat: "",
+    lng: "",
     payment_id: input.paymentId,
     ticket_token: ticketToken,
   });

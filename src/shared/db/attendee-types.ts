@@ -169,6 +169,10 @@ export type AttendeePii = ContactInfo & {
   payment_id: string;
   /** Decrypted ticket_token for PII blob rebuild (from existing attendee) */
   ticket_token: string;
+  /** Latitude pinned by an operator ("" = not pinned; never set at booking) */
+  lat: string;
+  /** Longitude pinned by an operator ("" = not pinned; never set at booking) */
+  lng: string;
 };
 
 /** Input for updating attendee PII (shared across listings) */

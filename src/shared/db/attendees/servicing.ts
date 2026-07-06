@@ -457,6 +457,8 @@ const servicingPiiBlob = (name: string, ticketToken: string): Promise<string> =>
     buildPiiBlob({
       address: "",
       email: "",
+      lat: "",
+      lng: "",
       name,
       payment_id: "",
       phone: "",
