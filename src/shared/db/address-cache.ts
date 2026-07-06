@@ -32,12 +32,10 @@ export const computeAddressSearchIndex = (
 const freshCutoffIso = (): string =>
   new Date(nowMs() - ADDRESS_CACHE_MS).toISOString();
 
-/** Rows cached before matches carried coordinates hold bare line strings;
- * read them back as matches with no location so one shape leaves this module. */
-const asMatch = (entry: string | AddressMatch): AddressMatch =>
-  typeof entry === "string" ? { lat: "", line: entry, lng: "" } : entry;
-
-/** Read a fresh cached result. Null on miss (absent or expired). */
+/** Read a fresh cached result. Null on miss (absent or expired). Rows cached
+ * before matches carried coordinates hold bare line strings; those read as a
+ * miss too, so the next lookup re-fetches the postcode WITH coordinates and
+ * overwrites the row instead of serving locationless results until expiry. */
 export const getCachedAddresses = async (
   searchIndex: BlindIndex,
 ): Promise<AddressMatch[] | null> => {
@@ -50,7 +48,8 @@ export const getCachedAddresses = async (
     | string
     | AddressMatch
   )[];
-  return entries.map(asMatch);
+  if (entries.some((entry) => typeof entry === "string")) return null;
+  return entries as AddressMatch[];
 };
 
 /** Cache a lookup result, replacing any previous row for the same search. */

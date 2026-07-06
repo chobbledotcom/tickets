@@ -75,15 +75,15 @@ describeWithEnv("address cache", { db: true }, () => {
     expect(row!.results).not.toContain("Downing");
   });
 
-  test("a row cached before coordinates existed reads back unlocated", async () => {
+  test("a row cached before coordinates existed reads as a miss", async () => {
+    // Old rows hold a JSON array of bare line strings; serving them would pin
+    // nothing for up to the whole cache window, so the next lookup re-fetches
+    // the postcode with coordinates and overwrites the row instead.
     const index = await computeAddressSearchIndex("easypostcodes", "SW1A 2AA");
-    // Old rows hold a JSON array of bare line strings — store one verbatim.
     await storeCachedAddresses(index, [
       "Legacy Address Line",
     ] as unknown as Parameters<typeof storeCachedAddresses>[1]);
-    expect(await getCachedAddresses(index)).toEqual([
-      { lat: "", line: "Legacy Address Line", lng: "" },
-    ]);
+    expect(await getCachedAddresses(index)).toBeNull();
   });
 
   test("re-storing a search replaces the previous row", async () => {

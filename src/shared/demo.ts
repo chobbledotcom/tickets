@@ -596,6 +596,15 @@ export const SITE_HOME_DEMO_FIELDS: DemoFieldMap = {
   website_title: DEMO_WEBSITE_TITLES,
 };
 
+/** Attendee Logistics tab fields: the address is masked like the attendee
+ * form's, and the pinned latitude/longitude are cleared outright — an exact
+ * real-world location is PII even beside a masked address. */
+export const LOGISTICS_DEMO_FIELDS: DemoFieldMap = {
+  address: DEMO_ADDRESSES,
+  lat: [""],
+  lng: [""],
+};
+
 /** Site contact page fields */
 export const SITE_CONTACT_DEMO_FIELDS: DemoFieldMap = {
   contact_page_text: DEMO_PAGE_TEXT,
