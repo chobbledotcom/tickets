@@ -6,7 +6,7 @@
   "images.delete.heading": "Delete {name}",
   "images.delete.link": "Delete image",
   "images.delete.mismatch": "Confirmation did not match the image name",
-  "images.delete.news_gated": "This image is used by a news post — only site editors can delete it.",
+  "images.news_gated": "This image is used by a news post — only site editors can manage it.",
   "images.delete.submit": "Delete image",
   "images.edit.heading": "Edit {name}",
   "images.empty": "No images yet.",

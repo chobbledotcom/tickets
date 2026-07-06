@@ -2,7 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { appendImageToItem, getImageUsesForImage } from "#shared/db/images.ts";
+import {
+  appendImageToItem,
+  getImageById,
+  getImageUsesForImage,
+} from "#shared/db/images.ts";
 import {
   createTestManagerSession,
   createTestNewsPost,
@@ -96,7 +100,10 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
   });
 
   describe("image library integration", () => {
-    test("a manager sees no news targets and cannot attach or detach them", async () => {
+    const NEWS_GATED =
+      "This image is used by a news post — only site editors can manage it.";
+
+    test("a manager sees no news targets and cannot edit a news-linked image", async () => {
       const post = await createTestNewsPost("Manager-proof post");
       const image = await makeImage("Managed image");
       await appendImageToItem(image.id, { itemId: post.id, itemType: "news" });
@@ -111,21 +118,28 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
       const html = await expectHtmlResponse(pageResponse, 200);
       expect(html).not.toContain(`value="news:${post.id}"`);
 
-      // A manager's save — even one smuggling a news target and omitting the
-      // existing link — leaves the post's image links exactly as they were.
+      // A manager's save is blocked outright — its name/alt_text show on the
+      // public news card, so metadata and links both stay put.
       const saveResponse = await handleRequest(
         formRequest(
           `/admin/images/${image.id}/edit`,
           [
             ["csrf_token", await signCsrfToken()],
-            ["name", "Managed image"],
-            ["alt_text", "alt"],
+            ["name", "Renamed by manager"],
+            ["alt_text", "changed alt"],
             ["image_items", "news:9999"],
           ],
           managerCookie,
         ),
       );
-      expect([302, 303]).toContain(saveResponse.status);
+      await expectFlashRedirect(
+        `/admin/images/${image.id}/edit`,
+        NEWS_GATED,
+        false,
+        managerCookie,
+      )(saveResponse);
+      // Metadata unchanged and the news use survives.
+      expect((await getImageById(image.id))?.name).toBe("Managed image");
       expect(await getImageUsesForImage(image.id)).toEqual([
         {
           image_id: image.id,
@@ -134,6 +148,35 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
           sort_order: 0,
         },
       ]);
+    });
+
+    test("a manager can edit a news-free image, but a smuggled news target is dropped", async () => {
+      const post = await createTestNewsPost("Off-limits post");
+      const image = await makeImage("Free image");
+      const managerCookie = await createTestManagerSession();
+
+      const response = await handleRequest(
+        formRequest(
+          `/admin/images/${image.id}/edit`,
+          [
+            ["csrf_token", await signCsrfToken()],
+            ["name", "Renamed freely"],
+            ["alt_text", "new alt"],
+            ["image_items", `news:${post.id}`],
+          ],
+          managerCookie,
+        ),
+      );
+      // The edit succeeds (no news use to protect)…
+      await expectFlashRedirect(
+        `/admin/images/${image.id}/edit`,
+        "Image updated",
+        true,
+        managerCookie,
+      )(response);
+      expect((await getImageById(image.id))?.name).toBe("Renamed freely");
+      // …but the smuggled news link was never applied.
+      expect(await imageNamesForItem("news", post.id)).toEqual([]);
     });
 
     test("a manager cannot delete an image that a news post uses", async () => {
@@ -155,7 +198,7 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
       // Blocked with an error flash; the image and its news use both survive.
       await expectFlashRedirect(
         `/admin/images/${image.id}/delete`,
-        "This image is used by a news post — only site editors can delete it.",
+        NEWS_GATED,
         false,
         managerCookie,
       )(response);

@@ -171,30 +171,48 @@ const withStorageImageForm = (
     ),
   );
 
-/** The targets a save may apply. News uses are Site-gated: a session outside
- * that gate (a manager) has any submitted news targets dropped and the image's
- * existing news links carried forward unchanged, so a manager's save can
- * neither attach nor detach an image from a news post. */
-const allowedImageTargets = async (
+/** Does this image sit on any news post? Its metadata (name/alt_text) and its
+ * presence render on the public news card/gallery, so changing or removing it
+ * is a Site-gated action a manager may not take. */
+const imageHasNewsUse = async (imageId: number): Promise<boolean> =>
+  (await getImageUsesForImage(imageId)).some((use) => use.item_type === "news");
+
+/** Block a non-Site session (a manager) from a save that would change an image
+ * a news post uses — its metadata and links both surface as public news
+ * content. Returns the bounce-back response, or null when the save may proceed.
+ * Shared by the edit and delete handlers. */
+const newsImageGate = async (
   adminLevel: AdminLevel,
   imageId: number,
+  redirectTo: string,
+): Promise<Response | null> =>
+  !isSiteRole(adminLevel) && (await imageHasNewsUse(imageId))
+    ? redirect(redirectTo, t("images.news_gated"), false)
+    : null;
+
+/** The link targets a save may apply. A non-Site session (manager) never
+ * attaches a news target — any submitted `news:<id>` is dropped. Editing an
+ * image that already HAS a news use is blocked outright by {@link
+ * newsImageGate}, so there are no existing news links to preserve here. */
+const allowedImageTargets = (
+  adminLevel: AdminLevel,
   submitted: ImageUseTarget[],
-): Promise<ImageUseTarget[]> => {
-  if (isSiteRole(adminLevel)) return submitted;
-  const keptNewsUses = (await getImageUsesForImage(imageId))
-    .filter((use) => use.item_type === "news")
-    .map((use) => ({ itemId: use.item_id, itemType: use.item_type }));
-  return [
-    ...submitted.filter((target) => target.itemType !== "news"),
-    ...keptNewsUses,
-  ];
-};
+): ImageUseTarget[] =>
+  isSiteRole(adminLevel)
+    ? submitted
+    : submitted.filter((target) => target.itemType !== "news");
 
 const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> = (
   request,
   { id },
 ) =>
   withStorageImageForm(request, id, async (image, form, adminLevel) => {
+    const blocked = await newsImageGate(
+      adminLevel,
+      image.id,
+      imagePath(image.id),
+    );
+    if (blocked) return blocked;
     const metadata = imageMetadataFromForm(form);
     if (!metadata.ok) {
       return redirect(imagePath(image.id), metadata.error, false);
@@ -202,7 +220,7 @@ const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> = (
     await imagesTable.update(image.id, metadata.value);
     await setItemsForImage(
       image.id,
-      await allowedImageTargets(adminLevel, image.id, parseImageTargets(form)),
+      allowedImageTargets(adminLevel, parseImageTargets(form)),
     );
     await logActivity(`Image '${metadata.value.name}' updated`);
     return redirect(imagePath(image.id), t("images.updated"), true);
@@ -225,29 +243,17 @@ const confirmDelete = (form: FormParams, image: Image): string | null =>
     ? null
     : t("images.delete.mismatch");
 
-/** Does this image sit on any news post? Deleting it would prune that use and
- * blank the public news card/gallery — a Site-gated action a manager can't do. */
-const imageHasNewsUse = async (imageId: number): Promise<boolean> =>
-  (await getImageUsesForImage(imageId)).some((use) => use.item_type === "news");
-
 const handleImageDeletePost: TypedRouteHandler<
   "POST /admin/images/:id/delete"
 > = (request, { id }) =>
   withStorageImageForm(request, id, async (image, form, adminLevel) => {
+    const deletePath = `/admin/images/${image.id}/delete`;
+    // deleteImageRecord prunes every use, including a news one, so a non-Site
+    // role may not delete an image a news post uses (public Site content).
+    const blocked = await newsImageGate(adminLevel, image.id, deletePath);
+    if (blocked) return blocked;
     const mismatch = confirmDelete(form, image);
-    if (mismatch) {
-      return redirect(`/admin/images/${image.id}/delete`, mismatch, false);
-    }
-    // A non-Site role (manager) may not delete an image a news post uses:
-    // deleteImageRecord prunes every use, including the news one, changing
-    // public Site content they can't otherwise edit.
-    if (!isSiteRole(adminLevel) && (await imageHasNewsUse(image.id))) {
-      return redirect(
-        `/admin/images/${image.id}/delete`,
-        t("images.delete.news_gated"),
-        false,
-      );
-    }
+    if (mismatch) return redirect(deletePath, mismatch, false);
     await deleteImageRecord(image.id);
     await deleteImageStorageFiles(image, "image deletion");
     await logActivity(`Image '${image.name}' deleted`);
