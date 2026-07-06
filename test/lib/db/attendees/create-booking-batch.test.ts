@@ -262,10 +262,15 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       lines: [line(listing.id, 0, 1)],
     });
     const result = await createBookingAtomic(
-      { bookings: [{ listingId: listing.id, quantity: 1 }], email: "o@o.o", name: "O" },
+      {
+        bookings: [{ listingId: listing.id, quantity: 1 }],
+        email: "o@o.o",
+        name: "O",
+      },
       plan,
     );
-    if (result === "sold-out" || !result.success) throw new Error("expected ok");
+    if (result === "sold-out" || !result.success)
+      throw new Error("expected ok");
     const attendeeId = result.attendees[0]!.id;
 
     const legs = await mapBooking({
@@ -291,10 +296,15 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       lines: [line(listing.id, 0, 1)],
     });
     const result = await createBookingAtomic(
-      { bookings: [{ listingId: listing.id, quantity: 1 }], email: "e@e.e", name: "E" },
+      {
+        bookings: [{ listingId: listing.id, quantity: 1 }],
+        email: "e@e.e",
+        name: "E",
+      },
       plan,
     );
-    if (result === "sold-out" || !result.success) throw new Error("expected ok");
+    if (result === "sold-out" || !result.success)
+      throw new Error("expected ok");
     const attendeeId = result.attendees[0]!.id;
     const transfersBefore = (await allTransfers()).length;
 

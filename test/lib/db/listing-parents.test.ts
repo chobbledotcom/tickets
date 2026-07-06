@@ -136,9 +136,7 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
     test("finds a child from a single-id lookup", async () => {
       const { parent, childA } = await threeListings();
       await setChildIds(parent.id, [childA.id]);
-      expect([...(await getChildListingIds([childA.id]))]).toEqual([
-        childA.id,
-      ]);
+      expect([...(await getChildListingIds([childA.id]))]).toEqual([childA.id]);
     });
   });
 
