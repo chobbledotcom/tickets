@@ -544,7 +544,7 @@ describe("adminLedgerPage", () => {
     names: names(),
     returnUrl: "/admin/ledger",
     stats: [{ key: "Total income", value: "£25.00" }],
-    statsHeading: "All listings",
+    statsHeading: null,
     today: "2026-06-23",
     transfers: [transfer()],
     truncated: false,
@@ -559,8 +559,9 @@ describe("adminLedgerPage", () => {
     expect(html).toContain("Plain-language log");
     expect(html).toContain("Double-entry view");
     expect(html).toContain("Transfer from");
-    // The stats table and its heading render.
-    expect(html).toContain("All listings");
+    // The stats table renders; the whole-business view carries no scope heading
+    // (the page is already titled "Ledger").
+    expect(html).not.toContain("<h2>All listings</h2>");
     expect(html).toContain("Total income");
     expect(html).toContain("£25.00");
     // Both range pickers render with unique anchor ids.
@@ -572,6 +573,14 @@ describe("adminLedgerPage", () => {
     expect(html).toContain(
       '<option selected value="/admin/ledger">All listings</option>',
     );
+  });
+
+  test("heads the stats with the listing name when scoped to one listing", () => {
+    const html = adminLedgerPage(
+      pageData({ statsHeading: "Summer Concert" }),
+      SESSION,
+    );
+    expect(html).toContain("<h2>Summer Concert</h2>");
   });
 
   test("can switch to the double-entry transfer list", () => {

@@ -2,7 +2,13 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { AdminLevel } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
-import { describeWithEnv, setTestEnv, withSetting } from "#test-utils";
+import {
+  describeWithEnv,
+  setTestEnv,
+  withSetting,
+  withStorageDisabled,
+  withStorageEnabled,
+} from "#test-utils";
 
 describeWithEnv("AdminNav", {}, () => {
   /** Assert every role in `adminLevels` sees a nav link to `href` labelled
@@ -399,6 +405,38 @@ describeWithEnv("AdminNav", {}, () => {
         }),
       );
       expect(html).not.toContain('href="/admin/site/contact"');
+    }));
+
+  test("the Images section sub-nav offers an Add link when storage is enabled", () =>
+    withStorageEnabled(() => {
+      const html = String(
+        AdminNav({ active: "/admin/images", session: { adminLevel: "owner" } }),
+      );
+      expect(html).toContain('href="/admin/images/new"');
+      const start = html.indexOf('class="admin-subnav"');
+      expect(start).toBeGreaterThan(-1);
+      const sub = html.slice(start, html.indexOf("</ul>", start));
+      expect(sub).toContain('href="/admin/images/new"');
+      expect(sub).toContain("Add");
+    }));
+
+  test("editors see the Images Add sub-nav link too when storage is enabled", () =>
+    withStorageEnabled(() => {
+      const html = String(
+        AdminNav({
+          active: "/admin/images",
+          session: { adminLevel: "editor" },
+        }),
+      );
+      expect(html).toContain('href="/admin/images/new"');
+    }));
+
+  test("the Images section is absent when storage is disabled", () =>
+    withStorageDisabled(() => {
+      const html = String(
+        AdminNav({ active: "/admin/images", session: { adminLevel: "owner" } }),
+      );
+      expect(html).not.toContain('href="/admin/images/new"');
     }));
 
   test("AdminNav uses SettingsNagBanner default (no items prop) when settingsNagItems is omitted", () => {

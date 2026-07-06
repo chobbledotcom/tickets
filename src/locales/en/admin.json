@@ -139,7 +139,6 @@
   "admin.ledger.filter.to": "To",
   "admin.ledger.filter.listing": "Listing",
   "admin.ledger.filter.all_listings": "All listings",
-  "admin.ledger.stats.all_heading": "All listings",
   "admin.ledger.stats.income": "Total income",
   "admin.ledger.stats.due": "Total due",
   "admin.ledger.stats.refunded": "Total refunded",

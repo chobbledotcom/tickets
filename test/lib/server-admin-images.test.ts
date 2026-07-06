@@ -33,7 +33,8 @@ describeWithEnv(
           await adminGet("/admin/images"),
           200,
           "No images yet.",
-          "Add Image",
+          // The create affordance now lives in the Images section sub-nav.
+          'href="/admin/images/new"',
         );
 
         await makeImage("Hero");
