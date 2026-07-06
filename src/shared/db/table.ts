@@ -457,11 +457,20 @@ export const col = {
     write: config.write as (v: App) => App,
   }),
 
-  /** Column with read/write transforms (e.g., for encryption) */
-  encrypted: <T>(
-    encrypt: ColumnTransform<T>,
-    decrypt: ColumnTransform<T>,
-  ): ColumnDef<T> => ({ read: decrypt, write: encrypt }),
+  /** Column whose stored form is a sealed (encrypted) string: `encrypt` seals
+   * the app value on write, `decrypt` opens the raw stored value on read. The
+   * `as Stored` cast is THE sanctioned read boundary for declaratively
+   * encrypted columns — the raw DB string re-enters the typed world here,
+   * asserted to be the sealed kind the column's declared `encrypt` produces
+   * (see src/shared/crypto/sealed.ts). */
+  encrypted: <T extends string, Stored extends string>(
+    encrypt: (v: T) => Promise<Stored> | Stored,
+    decrypt: (v: Stored) => Promise<T> | T,
+  ): ColumnDef<T> =>
+    ({
+      read: (raw: string) => decrypt(raw as Stored),
+      write: encrypt,
+    }) as unknown as ColumnDef<T>,
 
   /** Wrap an existing encrypted column def to pass through null values */
   encryptedNullable: <T>(def: ColumnDef<T>): ColumnDef<T | null> => ({
@@ -469,13 +478,14 @@ export const col = {
     write: def.write ? wrapNullable(def.write) : undefined,
   }),
 
-  /** Encrypted text column with empty-string default */
-  encryptedText: (
-    encrypt: ColumnTransform<string>,
-    decrypt: ColumnTransform<string>,
+  /** Encrypted text column with empty-string default. Same sanctioned read
+   * boundary as {@link col.encrypted}; "" passes through unsealed. */
+  encryptedText: <Stored extends string>(
+    encrypt: (v: string) => Promise<Stored> | Stored,
+    decrypt: (v: Stored) => Promise<string> | string,
   ): ColumnDef<string> => ({
     default: () => "",
-    read: (v: string) => (v === "" ? v : decrypt(v)),
+    read: (v: string) => (v === "" ? v : decrypt(v as Stored)),
     write: (v: string) => (v === "" ? v : encrypt(v)),
   }),
   /** Auto-generated column (like id) */

@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import type { TokenHash } from "#shared/crypto/sealed.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { Session } from "#shared/types.ts";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
@@ -10,7 +11,8 @@ const TEST_SESSION = { adminLevel: "owner" as const };
 const mkSession = (token: string): Session => ({
   csrf_token: "csrf",
   expires: Date.now() + 86400000,
-  token,
+  // Hand-crafted stored token hash — test fixture cast.
+  token: token as TokenHash,
   user_id: 1,
   wrapped_data_key: null,
 });
@@ -26,14 +28,16 @@ describe("adminSessionsPage", () => {
       {
         csrf_token: "csrf1",
         expires: Date.now() + 86400000,
-        token: "abcdefghijklmnop",
+        // Hand-crafted stored token hash — test fixture cast.
+        token: "abcdefghijklmnop" as TokenHash,
         user_id: 1,
         wrapped_data_key: null,
       },
       {
         csrf_token: "csrf2",
         expires: Date.now() + 86400000,
-        token: "qrstuvwxyz123456",
+        // Hand-crafted stored token hash — test fixture cast.
+        token: "qrstuvwxyz123456" as TokenHash,
         user_id: 2,
         wrapped_data_key: null,
       },

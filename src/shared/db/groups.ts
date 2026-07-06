@@ -2,9 +2,11 @@
  * Groups table operations
  */
 
+/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
+import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   execute,
   executeBatch,
@@ -42,6 +44,8 @@ import type {
   ListingWithCount,
 } from "#shared/types.ts";
 
+/* jscpd:ignore-end */
+
 /** Groups are few, so the cache loads the whole set and answers by-id / by-slug
  * reads from it — same isolate-level TTL as the listings cache. */
 const GROUPS_CACHE_TTL_MS = 30_000;
@@ -70,7 +74,7 @@ export type PackageMemberInput = {
 /** Group input fields for create/update (camelCase) */
 export type GroupInput = {
   slug: string;
-  slugIndex: string;
+  slugIndex: BlindIndex;
   name: string;
   description?: string;
   termsAndConditions?: string;
@@ -85,7 +89,7 @@ export type GroupInput = {
 };
 
 /** Compute slug index from slug for blind index lookup */
-export const computeGroupSlugIndex = (slug: string): Promise<string> =>
+export const computeGroupSlugIndex = (slug: string): Promise<BlindIndex> =>
   hmacHash(slug);
 
 /** Raw groups table with CRUD operations */
@@ -137,7 +141,9 @@ export const getGroupsById = async (): Promise<Map<number, Group>> =>
 /** Narrow id → name map for every group (selects + decrypts only the name), for
  * pickers/labels that must not load the whole groups cache. */
 export const getAllGroupNames = (): Promise<Map<number, string>> =>
-  allNamesById("groups", "groupRecord", "name", (raw: string) => decrypt(raw));
+  allNamesById("groups", "groupRecord", "name", (raw: EnvKeyEncrypted) =>
+    decrypt(raw),
+  );
 
 /**
  * Get a single group by slug_index (from cache)

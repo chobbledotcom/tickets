@@ -9,11 +9,14 @@
  * so an unpruned-but-expired row cannot come back stale.
  */
 
+/* jscpd:ignore-start */
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
+import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 import { ADDRESS_CACHE_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
+/* jscpd:ignore-end */
 
 /**
  * Compute the blind-index HMAC for a lookup. The provider is part of the
@@ -22,7 +25,7 @@ import { nowMs } from "#shared/now.ts";
 export const computeAddressSearchIndex = (
   provider: string,
   normalisedSearch: string,
-): Promise<string> => hmacHash(`${provider}:${normalisedSearch}`);
+): Promise<BlindIndex> => hmacHash(`${provider}:${normalisedSearch}`);
 
 /** The oldest `created` a cache row may have and still be served. */
 const freshCutoffIso = (): string =>
@@ -30,9 +33,9 @@ const freshCutoffIso = (): string =>
 
 /** Read a fresh cached result. Null on miss (absent or expired). */
 export const getCachedAddresses = async (
-  searchIndex: string,
+  searchIndex: BlindIndex,
 ): Promise<string[] | null> => {
-  const row = await queryOne<{ results: string }>(
+  const row = await queryOne<{ results: EnvKeyEncrypted }>(
     "SELECT results FROM address_cache WHERE search_index = ? AND created >= ? LIMIT 1",
     [searchIndex, freshCutoffIso()],
   );
@@ -42,7 +45,7 @@ export const getCachedAddresses = async (
 
 /** Cache a lookup result, replacing any previous row for the same search. */
 export const storeCachedAddresses = async (
-  searchIndex: string,
+  searchIndex: BlindIndex,
   addresses: string[],
 ): Promise<void> => {
   await execute(

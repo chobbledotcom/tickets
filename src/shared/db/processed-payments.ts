@@ -18,6 +18,7 @@
 import type { InValue } from "@libsql/client";
 import { attendeeOwedSubquery } from "#shared/accounting/projection-sql.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   execute,
   insert,
@@ -49,14 +50,15 @@ export type ProcessedPayment = {
   payment_session_id: string;
   attendee_id: number | null;
   processed_at: string;
-  ticket_tokens: string;
+  /** Encrypted "+"-joined ticket tokens; "" while none are stored. */
+  ticket_tokens: EnvKeyEncrypted | "";
   /** Encrypted JSON-encoded {@link StoredPaymentFailure} once a session reaches a
    * handled terminal failure (refund issued, sold out, price changed, …); "" while
    * a row is in-progress or finalized. Encrypted at rest (like ticket_tokens)
    * because the stored message can embed an encrypted-at-rest listing name. Lets a
    * later redirect/webhook replay the same outcome instead of re-running refund
    * logic. */
-  failure_data: string;
+  failure_data: EnvKeyEncrypted | "";
 };
 
 /**
@@ -196,8 +198,9 @@ export const reserveSession = async (
 };
 
 /** Encrypt a list of ticket tokens for storage, joining with "+". */
-const encryptTicketTokens = (ticketTokens: string[]): Promise<string> =>
-  encrypt(ticketTokens.join("+"));
+const encryptTicketTokens = (
+  ticketTokens: string[],
+): Promise<EnvKeyEncrypted> => encrypt(ticketTokens.join("+"));
 
 /**
  * Finalize a reserved session with the created attendee ID (second phase)
@@ -265,7 +268,7 @@ const CORRUPT_FAILURE: StoredPaymentFailure = {
  * still resolves instead of looping.
  */
 export const parseSessionFailure = async (
-  failureData: string,
+  failureData: EnvKeyEncrypted | "",
 ): Promise<StoredPaymentFailure | null> => {
   if (!failureData) return null;
   try {
@@ -352,7 +355,7 @@ export const setSessionTicketTokens = async (
  * Returns the plaintext token string (e.g. "tok1+tok2") or empty string.
  */
 export const decryptSessionTokens = async (
-  encryptedTokens: string,
+  encryptedTokens: EnvKeyEncrypted | "",
 ): Promise<string> => {
   if (!encryptedTokens) return "";
   return await decrypt(encryptedTokens);

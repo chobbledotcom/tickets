@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
+import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   deleteEmailTemplate,
@@ -28,12 +29,20 @@ const seedTemplate = async (subject: string, body: string) => {
   return insertEmailTemplate(encSubject, encBody);
 };
 
+/** Hand-crafted stand-in for an owner-key-encrypted stored value — the raw
+ * storage round-trips it opaquely, so a plain marker string suffices (test
+ * fixture cast). */
+const fakeSealed = (v: string): OwnerKeyEncrypted => v as OwnerKeyEncrypted;
+
 describeWithEnv("server bulk email > templates", { db: true }, () => {
   describe("raw template storage", () => {
-    // The module stores opaque TEXT (the routes encrypt before writing), so
-    // these direct tests can round-trip plain strings.
+    // The module stores opaque sealed TEXT (the routes encrypt before
+    // writing), so these direct tests can round-trip fixture strings.
     test("insert then getRawEmailTemplate returns the stored row", async () => {
-      const id = await insertEmailTemplate("enc-subject", "enc-body");
+      const id = await insertEmailTemplate(
+        fakeSealed("enc-subject"),
+        fakeSealed("enc-body"),
+      );
       expect(await getRawEmailTemplate(id)).toEqual({
         body: "enc-body",
         id,
@@ -46,10 +55,20 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
     });
 
     test("updateEmailTemplate persists the new subject and body for that row only", async () => {
-      const edited = await insertEmailTemplate("old-subject", "old-body");
-      const untouched = await insertEmailTemplate("keep-subject", "keep-body");
+      const edited = await insertEmailTemplate(
+        fakeSealed("old-subject"),
+        fakeSealed("old-body"),
+      );
+      const untouched = await insertEmailTemplate(
+        fakeSealed("keep-subject"),
+        fakeSealed("keep-body"),
+      );
 
-      await updateEmailTemplate(edited, "new-subject", "new-body");
+      await updateEmailTemplate(
+        edited,
+        fakeSealed("new-subject"),
+        fakeSealed("new-body"),
+      );
 
       expect(await getRawEmailTemplate(edited)).toEqual({
         body: "new-body",
@@ -64,8 +83,14 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
     });
 
     test("deleteEmailTemplate removes the row", async () => {
-      const doomed = await insertEmailTemplate("bye-subject", "bye-body");
-      const kept = await insertEmailTemplate("stay-subject", "stay-body");
+      const doomed = await insertEmailTemplate(
+        fakeSealed("bye-subject"),
+        fakeSealed("bye-body"),
+      );
+      const kept = await insertEmailTemplate(
+        fakeSealed("stay-subject"),
+        fakeSealed("stay-body"),
+      );
 
       await deleteEmailTemplate(doomed);
 
@@ -74,8 +99,14 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
     });
 
     test("getAllRawEmailTemplates lists every template newest-first", async () => {
-      const first = await insertEmailTemplate("first-subject", "first-body");
-      const second = await insertEmailTemplate("second-subject", "second-body");
+      const first = await insertEmailTemplate(
+        fakeSealed("first-subject"),
+        fakeSealed("first-body"),
+      );
+      const second = await insertEmailTemplate(
+        fakeSealed("second-subject"),
+        fakeSealed("second-body"),
+      );
       expect(
         (await getAllRawEmailTemplates()).map((template) => template.id),
       ).toEqual([second, first]);

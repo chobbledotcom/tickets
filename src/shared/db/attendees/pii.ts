@@ -6,12 +6,14 @@
  * - Decryption requires the private key (only available to authenticated sessions)
  */
 
+/* jscpd:ignore-start */
 import { map } from "#fp";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
 import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
 } from "#shared/crypto/keys.ts";
+import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { generateTicketToken } from "#shared/crypto/utils.ts";
 import type {
   AttendeePii,
@@ -22,6 +24,7 @@ import type {
 import { settings } from "#shared/db/settings.ts";
 import { nowIso } from "#shared/now.ts";
 import type { Attendee, ContactInfo, PiiBlob } from "#shared/types.ts";
+/* jscpd:ignore-end */
 
 /** Current PII blob schema version */
 export const PII_BLOB_VERSION = 1;
@@ -50,11 +53,11 @@ export const parsePiiBlob = (json: string): PiiBlob => {
 export const encryptPiiBlob = (
   blobJson: string,
   publicKeyJwk: string,
-): Promise<string> => encryptWithOwnerKey(blobJson, publicKeyJwk);
+): Promise<OwnerKeyEncrypted> => encryptWithOwnerKey(blobJson, publicKeyJwk);
 
 /** Decrypt a PII blob and extract all contact fields */
 export const decryptPiiBlob = async (
-  encrypted: string,
+  encrypted: OwnerKeyEncrypted,
   privateKey: CryptoKey,
   paidListing: boolean,
 ): Promise<UpdateAttendeePIIInput> => {
@@ -81,7 +84,14 @@ export const decryptAttendeeFields = async (
   privateKey: CryptoKey,
   paidListing = true,
 ): Promise<Attendee> => {
-  const pii = await decryptPiiBlob(row.pii_blob, privateKey, paidListing);
+  // Rows reaching here were read from the database, where pii_blob is always
+  // stored owner-key ciphertext; the "" sentinel exists only on just-created
+  // in-memory echoes, which are never decrypted.
+  const pii = await decryptPiiBlob(
+    row.pii_blob as OwnerKeyEncrypted,
+    privateKey,
+    paidListing,
+  );
   return {
     ...row,
     ...pii,

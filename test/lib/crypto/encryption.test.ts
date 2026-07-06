@@ -11,6 +11,7 @@ import {
   validateEncryptionKey,
 } from "#shared/crypto/encryption.ts";
 import { generateDataKey } from "#shared/crypto/keys.ts";
+import type { EnvKeyEncrypted, KeyEncrypted } from "#shared/crypto/sealed.ts";
 import { toBase64 } from "#shared/crypto/utils.ts";
 import {
   clearTestEncryptionKey,
@@ -101,13 +102,15 @@ describeWithEnv("encryption", { encryptionKey: true }, () => {
     });
 
     it("throws on invalid encrypted format", async () => {
-      await expect(decrypt("not encrypted")).rejects.toThrow(
+      // Hand-crafted invalid stored value — test fixture cast.
+      await expect(decrypt("not encrypted" as EnvKeyEncrypted)).rejects.toThrow(
         "Invalid encrypted data format",
       );
     });
 
     it("throws on malformed encrypted data (missing IV separator)", async () => {
-      await expect(decrypt("enc:1:nocol")).rejects.toThrow(
+      // Hand-crafted malformed stored value — test fixture cast.
+      await expect(decrypt("enc:1:nocol" as EnvKeyEncrypted)).rejects.toThrow(
         "Invalid encrypted data format: missing IV separator",
       );
     });
@@ -120,7 +123,8 @@ describeWithEnv("encryption", { encryptionKey: true }, () => {
       if (ciphertext) {
         parts[3] = `AAAA${ciphertext.slice(4)}`;
       }
-      const tampered = parts.join(":");
+      // Tampered ciphertext rebuilt by hand — test fixture cast.
+      const tampered = parts.join(":") as EnvKeyEncrypted;
       await expect(decrypt(tampered)).rejects.toThrow();
     });
   });
@@ -146,7 +150,9 @@ describeWithEnv("encryption", { encryptionKey: true }, () => {
           new TextEncoder().encode(plaintext),
         ),
       );
-      const legacy = `enc:1:${toBase64(iv)}:${toBase64(ciphertext)}`;
+      // Legacy-format ciphertext built with raw Web Crypto — test fixture cast.
+      const legacy =
+        `enc:1:${toBase64(iv)}:${toBase64(ciphertext)}` as EnvKeyEncrypted;
       expect(await decrypt(legacy)).toBe(plaintext);
     });
 
@@ -221,15 +227,17 @@ describe("encryptWithKey and decryptWithKey", () => {
 
   it("throws on invalid encrypted data format (missing prefix)", async () => {
     const key = await generateDataKey();
-    await expect(decryptWithKey("invalid-data", key)).rejects.toThrow(
-      "Invalid encrypted data format",
-    );
+    // Hand-crafted invalid stored value — test fixture cast.
+    await expect(
+      decryptWithKey("invalid-data" as KeyEncrypted, key),
+    ).rejects.toThrow("Invalid encrypted data format");
   });
 
   it("throws on invalid encrypted data format (missing IV separator)", async () => {
     const key = await generateDataKey();
-    await expect(decryptWithKey("enc:1:nodatahere", key)).rejects.toThrow(
-      "Invalid encrypted data format: missing IV separator",
-    );
+    // Hand-crafted malformed stored value — test fixture cast.
+    await expect(
+      decryptWithKey("enc:1:nodatahere" as KeyEncrypted, key),
+    ).rejects.toThrow("Invalid encrypted data format: missing IV separator");
   });
 });

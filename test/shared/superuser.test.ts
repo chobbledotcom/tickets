@@ -4,6 +4,7 @@ import { spy, stub } from "@std/testing/mock";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
 import { getPbkdf2Iterations, hashPassword } from "#shared/crypto/hashing.ts";
 import { generateDataKey } from "#shared/crypto/keys.ts";
+import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import {
   enableQueryLog,
   getQueryLog,
@@ -126,7 +127,7 @@ const withConfiguredAdminEmail =
   };
 
 const createOwnerUser =
-  (wrappedDataKey: string | null) =>
+  (wrappedDataKey: WrappedKey | null) =>
   async (password: string): Promise<void> => {
     await createUser(
       "admin",
@@ -357,7 +358,8 @@ describeWithEnv("getSuperuserState", { db: true }, () => {
 
   test("returns userExists:true, activated:true, choice:'enabled' when user has wrapped_data_key and choice persisted", async () => {
     setAdminEmail(ADMIN_EMAIL_ADDRESS);
-    await createOwnerUser("wrapped-key-bytes")("password123");
+    // Hand-crafted stored wrap — test fixture cast.
+    await createOwnerUser("wrapped-key-bytes" as WrappedKey)("password123");
     settings.setForTest({ superuser_choice: "enabled" });
     await expectAdminSuperuserState({
       activated: true,
@@ -426,7 +428,8 @@ describeWithEnv("getSuperuserState account lookup", { db: true }, () => {
 
       // Creating the account invalidates the users cache, which must clear the
       // derived superuser-account cache so the nag stops showing.
-      await createOwnerUser("wrapped")("pw");
+      // Hand-crafted stored wrap — test fixture cast.
+      await createOwnerUser("wrapped" as WrappedKey)("pw");
 
       await expectAdminSuperuserState({ activated: true, userExists: true });
     });

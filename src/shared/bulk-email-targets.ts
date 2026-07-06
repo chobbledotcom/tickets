@@ -12,6 +12,7 @@
 
 import * as v from "valibot";
 import { filter, firstMatch, map } from "#fp";
+import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   getAllAttendeePiiBlobs,
   getAttendeePiiBlobForToken,
@@ -165,7 +166,10 @@ type TargetSpec<T extends BulkEmailTarget> = {
   /** Heading + intro for the compose page. */
   readonly composeCopy: ComposeCopy;
   /** Encrypted PII blobs for this target's recipients. */
-  readonly loadPiiBlobs: (target: T, now: number) => Promise<string[]>;
+  readonly loadPiiBlobs: (
+    target: T,
+    now: number,
+  ) => Promise<OwnerKeyEncrypted[]>;
   /** Human label (+ optional description) for the compose/preview pages. */
   readonly describe: (
     target: T,
@@ -350,7 +354,7 @@ export const targetComposeCopy = (target: BulkEmailTarget): ComposeCopy =>
 export const loadTargetPiiBlobs = (
   target: BulkEmailTarget,
   now: number,
-): Promise<string[]> => specOf(target).loadPiiBlobs(target, now);
+): Promise<OwnerKeyEncrypted[]> => specOf(target).loadPiiBlobs(target, now);
 
 /** Human label (+ optional description) for a target, given its recipients. */
 export const describeTarget = (

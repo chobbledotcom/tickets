@@ -19,6 +19,7 @@ import { createAuthedFormRoute } from "#shared/app-forms.ts";
 /* jscpd:ignore-start */
 import { getEffectiveDomain } from "#shared/config.ts";
 import { unwrapKeyWithToken, wrapKeyWithToken } from "#shared/crypto/keys.ts";
+import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllLogisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -73,7 +74,7 @@ const loadAssignableAgents = (): Promise<LogisticsAgent[]> =>
 const wrapInviteDataKey = async (
   session: AuthSession,
   inviteCode: string,
-): Promise<string | Response> => {
+): Promise<WrappedKey | Response> => {
   if (!session.wrappedDataKey) {
     return errorRedirect("/admin/user/new", t("error.session_lacks_key"));
   }

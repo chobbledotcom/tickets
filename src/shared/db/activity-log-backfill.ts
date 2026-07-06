@@ -17,6 +17,7 @@
 
 import { decrypt, ENCRYPTION_PREFIX } from "#shared/crypto/encryption.ts";
 import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { executeBatch, queryAll, update } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -28,7 +29,9 @@ import { logDebug } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
 
 /** Legacy env-key row awaiting re-encryption. */
-type LegacyRow = { id: number; message: string };
+// The batch query filters on the env-key prefix, so every fetched message is
+// legacy env-key ciphertext.
+type LegacyRow = { id: number; message: EnvKeyEncrypted };
 
 /**
  * Re-encrypt one batch of legacy env-key rows to the owner key. Returns the

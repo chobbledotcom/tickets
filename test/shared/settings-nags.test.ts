@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   getSettingsNagItems,
@@ -182,7 +183,8 @@ describeWithEnv("getSettingsNagItemsForOwner", { db: true }, () => {
     const { createUser } = await import("#shared/db/users.ts");
     const { hashPassword } = await import("#shared/crypto/hashing.ts");
     const pw = await hashPassword("test");
-    await createUser("admin", pw, "some-wrapped-key", "owner");
+    // Hand-crafted stored wrap — test fixture cast.
+    await createUser("admin", pw, "some-wrapped-key" as WrappedKey, "owner");
     const items = await getSettingsNagItemsForOwner();
     expect(items.some((i) => i.id === "superuser")).toBe(false);
   });

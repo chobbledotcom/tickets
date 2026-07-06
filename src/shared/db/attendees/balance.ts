@@ -16,6 +16,7 @@ import { attendeeOwedSubquery } from "#shared/accounting/projection-sql.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import { guardedInsertStatement } from "#shared/accounting/rows.ts";
 import { decrypt } from "#shared/crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
@@ -92,7 +93,7 @@ type OrderRow = {
   listing_id: number;
   quantity: number;
   price_paid: number;
-  listing_name: string | null;
+  listing_name: EnvKeyEncrypted | null;
   listing_unit_price: number | null;
 };
 

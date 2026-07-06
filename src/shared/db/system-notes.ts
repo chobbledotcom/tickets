@@ -17,6 +17,10 @@ import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
 } from "#shared/crypto/keys.ts";
+import type {
+  EnvKeyEncrypted,
+  OwnerKeyEncrypted,
+} from "#shared/crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
   execute,
@@ -39,8 +43,14 @@ export type SystemNote = {
   created: string;
 };
 
-/** The raw row as stored — `note` still encrypted. */
-type SystemNoteRow = Omit<SystemNote, "note"> & { note: string };
+/** The raw row as stored — `note` still encrypted. The note's sealing scheme
+ * follows its type: owner notes are owner-key ciphertext, system notes env-key
+ * ciphertext, so the row is a discriminated union on `type`. */
+type SystemNoteRow = Omit<SystemNote, "note" | "type"> &
+  (
+    | { type: "owner"; note: OwnerKeyEncrypted }
+    | { type: "system"; note: EnvKeyEncrypted }
+  );
 
 const NOTE_COLUMNS = "id, attendee_id, type, note, created";
 
@@ -48,7 +58,7 @@ const NOTE_COLUMNS = "id, attendee_id, type, note, created";
 const insertNote = async (
   attendeeId: number,
   type: SystemNoteType,
-  encryptedNote: string,
+  encryptedNote: OwnerKeyEncrypted | EnvKeyEncrypted,
 ): Promise<void> => {
   const { sql, args } = insert("system_notes", {
     attendee_id: attendeeId,

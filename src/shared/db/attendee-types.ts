@@ -2,6 +2,7 @@
  * Types for attendee operations
  */
 
+import type { BlindIndex, OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import type { AttendeeKind } from "#shared/db/attendees/kind.ts";
 import type { BookingSource } from "#shared/db/contact-preferences.ts";
 import type { Attendee, ContactFields, ContactInfo } from "#shared/types.ts";
@@ -30,8 +31,8 @@ export type ActiveListingStats = {
 export type EncryptedAttendeeData = {
   created: string;
   ticketToken: string;
-  ticketTokenIndex: string;
-  encryptedPiiBlob: string;
+  ticketTokenIndex: BlindIndex;
+  encryptedPiiBlob: OwnerKeyEncrypted;
 };
 
 /** Input for encrypting attendee fields */
@@ -50,7 +51,7 @@ export type BuildAttendeeInput = ContactInfo & {
   quantity: number;
   pricePaid: number;
   ticketToken: string;
-  ticketTokenIndex: string;
+  ticketTokenIndex: BlindIndex;
   date: string | null;
   durationDays?: number;
   remainingBalance: number;
@@ -142,8 +143,8 @@ export type AttendeeWithBookings = {
   created: string;
   kind: string;
   ticket_token: string;
-  ticket_token_index: string;
-  pii_blob: string;
+  ticket_token_index: BlindIndex;
+  pii_blob: OwnerKeyEncrypted;
   /** Order-level remaining balance in minor units (plaintext). */
   remaining_balance: number;
   /** Owner-defined status id (plaintext); null for legacy/default. */

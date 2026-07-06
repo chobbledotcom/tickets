@@ -12,6 +12,7 @@ import {
   saleLegPredicate,
 } from "#shared/accounting/projection-sql.ts";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
+import type { BlindIndex, OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import type {
   AttendeeWithBookings,
   ListingAttendeeRow,
@@ -324,11 +325,13 @@ export const getAttendeesPage = async ({
  * Used to resolve bulk-email recipient lists, where only the email inside each
  * blob is needed. De-duplication of addresses happens after decryption.
  */
-export const getAllAttendeePiiBlobs = async (): Promise<string[]> => {
+export const getAllAttendeePiiBlobs = async (): Promise<
+  OwnerKeyEncrypted[]
+> => {
   // Restrict the "all attendees" bulk-email audience to attendees with ≥1 real
   // (quantity > 0) line, so a no-quantity-only attendee (an interested/cancelled
   // placeholder) isn't emailed — its ticket URL would 404.
-  const rows = await queryAll<{ pii_blob: string }>(
+  const rows = await queryAll<{ pii_blob: OwnerKeyEncrypted }>(
     `SELECT pii_blob FROM attendees
      WHERE kind = '${ATTENDEE_KIND}'
        AND EXISTS (
@@ -346,9 +349,9 @@ export const getAllAttendeePiiBlobs = async (): Promise<string[]> => {
  */
 export const getAttendeePiiBlobsForListings = async (
   listingIds: number[],
-): Promise<string[]> => {
+): Promise<OwnerKeyEncrypted[]> => {
   if (listingIds.length === 0) return [];
-  const rows = await queryAll<{ pii_blob: string }>(
+  const rows = await queryAll<{ pii_blob: OwnerKeyEncrypted }>(
     // quantity > 0: only attendees with a real line on these listings — a
     // no-quantity sentinel line doesn't make someone an "attendee of X".
     `SELECT pii_blob FROM attendees
@@ -371,12 +374,12 @@ export const getAttendeePiiBlobsForListings = async (
  */
 export const getAttendeePiiBlobForToken = async (
   token: string,
-): Promise<string | null> => {
+): Promise<OwnerKeyEncrypted | null> => {
   const tokenIndex = await computeTicketTokenIndex(token);
   // Apply the real-line guard: an all-ghost (no-quantity-only) attendee has no
   // valid ticket URL, so the single-attendee bulk-email target resolves to no
   // recipient (a genuine one-off transactional mail would be a separate path).
-  const row = await queryOne<{ pii_blob: string }>(
+  const row = await queryOne<{ pii_blob: OwnerKeyEncrypted }>(
     `SELECT pii_blob FROM attendees
      WHERE ticket_token_index = ?
        AND kind = '${ATTENDEE_KIND}'
@@ -507,7 +510,8 @@ export const getAttendeeNamesByIds = (
     "attendee",
     "pii_blob",
     ids,
-    async (raw: string) => (await decryptPiiBlob(raw, privateKey, false)).name,
+    async (raw: OwnerKeyEncrypted) =>
+      (await decryptPiiBlob(raw, privateKey, false)).name,
   );
 
 /** Bounded id → kind lookup for attendee-linked admin surfaces. Empty ids ⇒
@@ -556,8 +560,8 @@ export const getAttendeesByTokens = async (
     id: number;
     created: string;
     kind: string;
-    ticket_token_index: string;
-    pii_blob: string;
+    ticket_token_index: BlindIndex;
+    pii_blob: OwnerKeyEncrypted;
     status_id: number | null;
     remaining_balance: number;
   };
