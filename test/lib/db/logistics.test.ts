@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { queryAll } from "#shared/db/client.ts";
 import {
   bookingAssignmentKey,
   clearLogisticsAgentReferences,
@@ -7,7 +8,6 @@ import {
   getLogisticsAssignmentsForAttendees,
   setLogisticsAssignments,
 } from "#shared/db/logistics.ts";
-import { queryAll } from "#shared/db/client.ts";
 import {
   getAllLogisticsAgents,
   invalidateLogisticsAgentsCache,
@@ -82,10 +82,12 @@ describeWithEnv("db logistics assignments", { db: true }, () => {
   test("persists the split flag on the attendees row", async () => {
     const { attendeeId } = await setupDropoffAndCollection(true);
     const readFlag = async (): Promise<number> =>
-      (await queryAll<{ split_logistics_agents: number }>(
-        "SELECT split_logistics_agents FROM attendees WHERE id = ?",
-        [attendeeId],
-      ))[0]!.split_logistics_agents;
+      (
+        await queryAll<{ split_logistics_agents: number }>(
+          "SELECT split_logistics_agents FROM attendees WHERE id = ?",
+          [attendeeId],
+        )
+      )[0]!.split_logistics_agents;
     expect(await readFlag()).toBe(1);
 
     // Re-saving with split off (and no per-listing rows) flips the flag back.
