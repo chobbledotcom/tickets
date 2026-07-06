@@ -112,10 +112,10 @@ const selectionUrl = (catalog: Catalog, date: string): string => {
 
 /** Every stored booking row of the order, as comparable tuples:
  * [listing, package path, parent, quantity, date ("" when dateless)]. */
-const storedRows = (
+const storedRows = async (
   attendeeId: number,
-): Promise<[number, number, number, number, string][]> =>
-  queryAll<{
+): Promise<[number, number, number, number, string][]> => {
+  const rows = await queryAll<{
     listing_id: number;
     package_group_id: number;
     parent_listing_id: number;
@@ -126,17 +126,17 @@ const storedRows = (
             DATE(start_at) AS start_day
        FROM listing_attendees WHERE attendee_id = ?`,
     [attendeeId],
-  ).then((rows) =>
-    rows
-      .map((row): [number, number, number, number, string] => [
-        Number(row.listing_id),
-        Number(row.package_group_id),
-        Number(row.parent_listing_id),
-        Number(row.quantity),
-        row.start_day ?? "",
-      ])
-      .sort((a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2]),
   );
+  return rows
+    .map((row): [number, number, number, number, string] => [
+      Number(row.listing_id),
+      Number(row.package_group_id),
+      Number(row.parent_listing_id),
+      Number(row.quantity),
+      row.start_day ?? "",
+    ])
+    .sort((a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2]);
+};
 
 /** The value of the editor line's quantity box at `index`. */
 const lineQty = (html: string, index: string): string =>
