@@ -276,6 +276,24 @@ describe("initScrollToError", {
     expect(h.baseline()).toBe(JSON.stringify(["Elsewhere"]));
   });
 
+  test("a bfcache restore of a failed submit keeps the retry working", () => {
+    const h = setup(note);
+    initScrollToError(); // plain load: baseline = {standing note}
+    h.submit();
+    h.render(note + dateError + qtyError); // failed submit: two errors
+    initScrollToError(); // submit re-render — this load is a failed submit
+    h.pageshow(true); // follow a link, press Back → bfcache restore of THIS page
+    h.submit(); // operator fixed the date, resubmits
+    h.render(note + qtyError); // date gone, quantity error remains
+    initScrollToError();
+    // The bfcache restore must NOT have folded the date/quantity errors into
+    // the baseline, or the surviving quantity error would look standing.
+    expect(h.scrolled()).toEqual([
+      "A start date is required",
+      "Too many tickets",
+    ]);
+  });
+
   test("scrolls to the error when no baseline was ever recorded", () => {
     const h = setup(dateError);
     initScrollToError(); // arms the listener, baseline = {date error}

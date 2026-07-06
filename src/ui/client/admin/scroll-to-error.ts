@@ -36,6 +36,12 @@
 const SUBMITTED_KEY = "tickets:form-submitted";
 const BASELINE_KEY = "tickets:error-baseline";
 
+/** Marks the document (on `<html>`) when this load is a submit re-render. A
+ * bfcache restore keeps the frozen DOM, so the mark survives the round-trip and
+ * lets a persisted `pageshow` avoid folding a failed submit's validation errors
+ * into the standing-note baseline. */
+const SUBMIT_RERENDER_ATTR = "data-scroll-submit-rerender";
+
 /** Every error alert currently on the page. */
 const errorAlerts = (): HTMLElement[] =>
   Array.from(document.querySelectorAll<HTMLElement>('.error[role="alert"]'));
@@ -108,12 +114,19 @@ export const initScrollToError = (): void => {
   // the default (bubble) phase reliably catches every form send.
   document.addEventListener("submit", rememberSubmit);
   // A bfcache restore doesn't re-run this script, so refresh the baseline from
-  // the restored page before the operator submits from it.
+  // the restored page before the operator submits from it — but only if it was
+  // a plain page, not a failed-submit re-render (whose validation errors must
+  // not be folded into the standing-note baseline, or a retry would miss them).
   window.addEventListener("pageshow", (event) => {
-    if ((event as PageTransitionEvent).persisted) recordBaseline();
+    const wasSubmitReRender =
+      document.documentElement.hasAttribute(SUBMIT_RERENDER_ATTR);
+    if ((event as PageTransitionEvent).persisted && !wasSubmitReRender) {
+      recordBaseline();
+    }
   });
 
   const justSubmitted = safeRead(SUBMITTED_KEY) !== null;
+  document.documentElement.toggleAttribute(SUBMIT_RERENDER_ATTR, justSubmitted);
   safeWrite((store) => store.removeItem(SUBMITTED_KEY));
 
   if (!justSubmitted) {
