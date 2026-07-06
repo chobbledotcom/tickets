@@ -41,6 +41,14 @@ const navItem = (href: string, label: string): NavItem => ({ href, label });
 const imagesItem = (): NavItem => navItem("/admin/images", t("terms.images"));
 const siteItem = (): NavItem => navItem("/admin/site", t("nav.site"));
 
+/** True when `active` is any route in the Site section — the editor landing
+ * (/admin/site) or a sub-page (/admin/site/contact, /admin/site/pages, …). Used
+ * to keep the top-level Site parent present for an owner editing the site before
+ * it's public: the desktop sub-nav nests under the active parent, so without the
+ * parent the Contact/Order/Pages links would have nothing to hang from. */
+const isSiteSectionRoute = (active: string): boolean =>
+  active === "/admin/site" || active.startsWith("/admin/site/");
+
 /** The resolved menu for the active section: which top-level link to highlight,
  * an accessible name for its sub-nav, and its items. */
 interface Section {
@@ -121,11 +129,11 @@ const topLevelItems = (session: AdminSession, active: string): NavItem[] =>
           ? { href: "/admin/ledger", label: t("nav.ledger") }
           : null,
         // Site is a top-level section for owners once the public site is on —
-        // or whenever they're on the Site editor itself, so the section keeps a
+        // or whenever they're on any Site editor page, so the section keeps a
         // desktop parent even before enabling the public site. (Editors always
         // have it top-level; managers/agents never edit the site.)
         session.adminLevel === "owner" &&
-        (settings.showPublicSite || active === "/admin/site")
+        (settings.showPublicSite || isSiteSectionRoute(active))
           ? siteItem()
           : null,
         session.adminLevel === "owner"

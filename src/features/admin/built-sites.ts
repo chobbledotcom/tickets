@@ -2,6 +2,7 @@
  * Admin built site management routes - owner only
  */
 
+import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash, requireCsrfForm } from "#routes/csrf.ts";
@@ -11,7 +12,7 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
-import type { RouteParams } from "#routes/router.ts";
+import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { dbName, hasRecentBackup } from "#shared/db/backup.ts";
 import type { BuiltSite, BuiltSiteFormInput } from "#shared/db/built-sites.ts";
@@ -398,8 +399,27 @@ const handleBuiltSitesListGet = (request: Request) =>
     );
   });
 
-/** Built site routes */
-export const builtSitesRoutes = {
+/** The whole built-sites section is hidden from the nav when CAN_BUILD_SITES is
+ * off, so its routes must not be reachable either — we never serve a page for a
+ * disabled feature. Wrapping the route map keeps that gate in one place instead
+ * of a repeated check at the top of every handler. */
+const builderOnly =
+  (handler: RouteHandlerFn): RouteHandlerFn =>
+  (request, params, server) =>
+    isBuilderEnabled() ? handler(request, params, server) : notFoundResponse();
+
+const gateOnBuilder = (
+  routes: Record<string, RouteHandlerFn>,
+): Record<string, RouteHandlerFn> =>
+  Object.fromEntries(
+    Object.entries(routes).map(([route, handler]) => [
+      route,
+      builderOnly(handler),
+    ]),
+  );
+
+/** Built site routes (all gated on CAN_BUILD_SITES via gateOnBuilder). */
+export const builtSitesRoutes = gateOnBuilder({
   ...crud.routes,
   "GET /admin/built-sites": handleBuiltSitesListGet,
   // Override the CRUD-provided edit GET to pick up flash messages.
@@ -411,4 +431,4 @@ export const builtSitesRoutes = {
   "POST /admin/built-sites/:id/re-sync-deadline": handleReSyncDeadline,
   "POST /admin/built-sites/:id/rotate-renewal-token": handleRotateToken,
   "POST /admin/built-sites/:id/update": handleUpdateSite,
-};
+});

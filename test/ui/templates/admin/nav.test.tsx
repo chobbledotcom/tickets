@@ -327,6 +327,23 @@ describeWithEnv("AdminNav", {}, () => {
       expect(html).toContain('href="/admin/site/contact"');
     }));
 
+  // Regression (PR #1600 review): now that the Site sub-pages pass their own
+  // route, a Site *sub-page* (not just /admin/site) must also keep the top-level
+  // Site parent when the public site is off — otherwise the desktop sub-nav that
+  // nests under the active Site parent would have nothing to hang from.
+  test("owner keeps the Site parent on a Site sub-page when disabled", () =>
+    withSetting({ show_public_site: false }, () => {
+      for (const active of ["/admin/site/contact", "/admin/site/pages"]) {
+        const html = String(
+          AdminNav({ active, session: { adminLevel: "owner" } }),
+        );
+        expect(html, active).toContain('href="/admin/site"');
+        expect(html, active).toContain('href="/admin/site/contact"');
+        // The current sub-page is highlighted in the sub-nav.
+        expect(html, active).toContain(`class="active" href="${active}"`);
+      }
+    }));
+
   test("managers and agents never see the Site link", () =>
     withSetting({ show_public_site: true }, () => {
       for (const adminLevel of ["manager", "agent"] as const) {

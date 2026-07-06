@@ -63,473 +63,485 @@ const expectBumpClamps = async (
   );
 };
 
-describeWithEnv("admin built-sites actions", { db: true }, () => {
-  let secretStub: SecretStub;
+describeWithEnv(
+  "admin built-sites actions",
+  { db: true, env: { CAN_BUILD_SITES: "true" } },
+  () => {
+    let secretStub: SecretStub;
 
-  const installSecretStub = () =>
-    stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-      Promise.resolve({ ok: true as const }),
-    );
-
-  /** Restore and re-install the secret stub (clears its recorded calls). */
-  const resetSecretStub = () => {
-    secretStub.restore();
-    secretStub = installSecretStub();
-  };
-
-  beforeEach(() => {
-    secretStub = installSecretStub();
-  });
-
-  afterEach(() => {
-    if (!secretStub.restored) secretStub.restore();
-  });
-
-  /** Run `body` with the secret stub swapped for one that fails every push. */
-  const withFailingSecretStub = async (body: () => Promise<void>) => {
-    secretStub.restore();
-    const failStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-      Promise.resolve({ error: "edge push failed", ok: false as const }),
-    );
-    try {
-      await body();
-    } finally {
-      failStub.restore();
-    }
-  };
-
-  /** Assert override-deadline rejects `date` without changing state or pushing. */
-  const expectOverrideRejected = async (
-    scriptId: string,
-    siteName: string,
-    date: string,
-  ): Promise<void> => {
-    const site = await createTestBuiltSite({
-      hostingId: scriptId,
-      name: siteName,
-    });
-    await updateBuiltSiteRenewalState(site.id, {
-      readOnlyFrom: "2027-01-01T00:00:00Z",
-    });
-    const { response } = await siteAction(site, "override-deadline", { date });
-    await expectFlashRedirect(
-      `/admin/built-sites/${site.id}/edit`,
-      "Choose a valid deadline date",
-      false,
-    )(response);
-    const updated = await findSite(site.id);
-    expect(updated.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
-    expect(secretStub.calls.length).toBe(0);
-  };
-
-  describe("POST /admin/built-sites/:id/rotate-renewal-token", () => {
-    test("rotates token on a provisioned site and pushes new RENEWAL_URL", async () => {
-      const site = await createTestBuiltSite({
-        hostingId: "6001",
-        name: "Rotate Site",
-      });
-      const { token: oldToken } = await provisionTestBuiltSite(site.id);
-
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/rotate-renewal-token`,
+    const installSecretStub = () =>
+      stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
       );
-      await expectFlashRedirect(
-        `/admin/built-sites/${site.id}/edit`,
-        "Renewal token rotated",
-      )(response);
 
-      const updated = await findSite(site.id);
-      expect(updated.renewalToken).not.toBe(oldToken);
-      expect(updated.renewalToken).not.toBeNull();
-      expect(updated.renewalTokenIndex).not.toBeNull();
+    /** Restore and re-install the secret stub (clears its recorded calls). */
+    const resetSecretStub = () => {
+      secretStub.restore();
+      secretStub = installSecretStub();
+    };
 
-      // Rotate only re-pushes RENEWAL_URL, not READ_ONLY_FROM.
-      const secretNames = secretNamesOf(secretStub);
-      expect(secretNames).toContain("RENEWAL_URL");
-      expect(secretNames).not.toContain("READ_ONLY_FROM");
-
-      const logs = await getAllActivityLog();
-      expect(
-        logs.some((l) => l.message.includes("Rotated renewal token")),
-      ).toBe(true);
+    beforeEach(() => {
+      secretStub = installSecretStub();
     });
 
-    test("redirects on unprovisioned site (no-op)", async () => {
-      const site = await createTestBuiltSite({ name: "Unprovisioned Rotate" });
+    afterEach(() => {
+      if (!secretStub.restored) secretStub.restore();
+    });
 
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/rotate-renewal-token`,
+    /** Run `body` with the secret stub swapped for one that fails every push. */
+    const withFailingSecretStub = async (body: () => Promise<void>) => {
+      secretStub.restore();
+      const failStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ error: "edge push failed", ok: false as const }),
       );
-      await expectFlashRedirect(
-        `/admin/built-sites/${site.id}/edit`,
-        "Renewal is not provisioned for this site",
-        false,
-      )(response);
+      try {
+        await body();
+      } finally {
+        failStub.restore();
+      }
+    };
 
-      expect(secretStub.calls.length).toBe(0);
-    });
-  });
-
-  describe("POST /admin/built-sites/:id/bump-deadline", () => {
-    test("bumps from current deadline on future-dated site", async () => {
-      using _fakeTime = new FakeTime(NOW_MS);
+    /** Assert override-deadline rejects `date` without changing state or pushing. */
+    const expectOverrideRejected = async (
+      scriptId: string,
+      siteName: string,
+      date: string,
+    ): Promise<void> => {
       const site = await createTestBuiltSite({
-        hostingId: "6010",
-        name: "Bump Future",
-      });
-      await updateBuiltSiteRenewalState(site.id, {
-        readOnlyFrom: new Date(NOW_MS + 10 * 86400000).toISOString(),
-      });
-
-      await adminFormPost(`/admin/built-sites/${site.id}/bump-deadline`, {
-        months: "3",
-      });
-
-      const updated = await findSite(site.id);
-      const expectedBase = new Date(NOW_MS + 10 * 86400000).toISOString();
-      expect(updated.readOnlyFrom).toBe(addMonthsIso(expectedBase, 3));
-    });
-
-    test("bumps from now on expired site", async () => {
-      using _fakeTime = new FakeTime(NOW_MS);
-      const site = await createTestBuiltSite({
-        hostingId: "6011",
-        name: "Bump Expired",
-      });
-      await updateBuiltSiteRenewalState(site.id, {
-        readOnlyFrom: new Date(NOW_MS - 30 * 86400000).toISOString(),
-      });
-
-      await adminFormPost(`/admin/built-sites/${site.id}/bump-deadline`, {
-        months: "6",
-      });
-
-      const updated = await findSite(site.id);
-      const expected = addMonthsIso(new Date(NOW_MS).toISOString(), 6);
-      expect(updated.readOnlyFrom).toBe(expected);
-    });
-
-    test("bumps from now on deadline-less site", async () => {
-      using _fakeTime = new FakeTime(NOW_MS);
-      const site = await createTestBuiltSite({
-        hostingId: "6012",
-        name: "Bump No Deadline",
-      });
-
-      await adminFormPost(`/admin/built-sites/${site.id}/bump-deadline`, {
-        months: "2",
-      });
-
-      const updated = await findSite(site.id);
-      const expected = addMonthsIso(new Date(NOW_MS).toISOString(), 2);
-      expect(updated.readOnlyFrom).toBe(expected);
-    });
-
-    test("works without a renewal token (no RENEWAL_URL push)", async () => {
-      const site = await createTestBuiltSite({
-        hostingId: "6013",
-        name: "Bump No Token",
-      });
-      resetSecretStub();
-
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/bump-deadline`,
-        { months: "1" },
-      );
-      expect(response.status).toBe(302);
-
-      const secretNames = secretNamesOf(secretStub);
-      expect(secretNames).not.toContain("RENEWAL_URL");
-    });
-
-    test("clamps months <= 0 to 1", () =>
-      expectBumpClamps("6014", "Bump Zero", "0", 1));
-
-    test("clamps months > 120 to 120", () =>
-      expectBumpClamps("6015", "Bump Large", "999", 120));
-
-    test("returns error when CDN push fails", async () => {
-      const site = await createTestBuiltSite({
-        hostingId: "6016",
-        name: "Bump CDN Fail",
-      });
-      await withFailingSecretStub(async () => {
-        const { response } = await adminFormPost(
-          `/admin/built-sites/${site.id}/bump-deadline`,
-          { months: "1" },
-        );
-        await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/edit`,
-          expect.stringContaining("could not be pushed"),
-          false,
-        )(response);
-      });
-    });
-
-    test("clamps non-numeric months to 1", () =>
-      expectBumpClamps("6017", "Bump NaN", "abc", 1));
-  });
-
-  describe("POST /admin/built-sites/:id/override-deadline", () => {
-    test("accepts a future date and pushes it", async () => {
-      const site = await createTestBuiltSite({
-        hostingId: "6020",
-        name: "Override Site",
-      });
-
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/override-deadline`,
-        { date: "2027-06-15" },
-      );
-      expect(response.status).toBe(302);
-
-      const updated = await findSite(site.id);
-      expect(updated.readOnlyFrom).toBe("2027-06-15T23:59:59Z");
-    });
-
-    test("works without a renewal token", async () => {
-      const site = await createTestBuiltSite({
-        hostingId: "6021",
-        name: "Override No Token",
-      });
-
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/override-deadline`,
-        { date: "2027-12-01" },
-      );
-      expect(response.status).toBe(302);
-
-      const secretNames = secretNamesOf(secretStub);
-      expect(secretNames).not.toContain("RENEWAL_URL");
-    });
-
-    test("redirects when date is missing", async () => {
-      const site = await createTestBuiltSite({
-        hostingId: "6022",
-        name: "Override Empty",
+        hostingId: scriptId,
+        name: siteName,
       });
       await updateBuiltSiteRenewalState(site.id, {
         readOnlyFrom: "2027-01-01T00:00:00Z",
       });
-
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/override-deadline`,
-      );
+      const { response } = await siteAction(site, "override-deadline", {
+        date,
+      });
       await expectFlashRedirect(
         `/admin/built-sites/${site.id}/edit`,
-        "Choose a deadline date",
+        "Choose a valid deadline date",
         false,
       )(response);
-
       const updated = await findSite(site.id);
       expect(updated.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
-    });
-
-    test("rejects an invalid date without pushing", () =>
-      expectOverrideRejected("6023", "Override Invalid", "2027-02-31"));
-
-    test("rejects a non-date-format string without pushing", () =>
-      expectOverrideRejected("6024", "Override Not Date", "hello"));
-  });
-
-  describe("POST /admin/built-sites/:id/re-sync-deadline", () => {
-    test("re-pushes stored deadline and RENEWAL_URL when provisioned", async () => {
-      const site = await createTestBuiltSite({
-        hostingId: "6030",
-        name: "Resync Site",
-      });
-      await provisionTestBuiltSite(site.id);
-      await updateBuiltSiteRenewalState(site.id, {
-        readOnlyFrom: "2027-03-15T00:00:00Z",
-      });
-
-      resetSecretStub();
-
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/re-sync-deadline`,
-      );
-      await expectFlashRedirect(
-        `/admin/built-sites/${site.id}/edit`,
-        "Deadline re-synced",
-      )(response);
-
-      const secretNames = secretNamesOf(secretStub);
-      expect(secretNames).toContain("READ_ONLY_FROM");
-      expect(secretNames).toContain("RENEWAL_URL");
-    });
-
-    test("re-pushes deadline without RENEWAL_URL when unprovisioned", async () => {
-      const site = await createTestBuiltSite({
-        hostingId: "6031",
-        name: "Resync Unprovisioned",
-      });
-      await updateBuiltSiteRenewalState(site.id, {
-        readOnlyFrom: "2027-04-01T00:00:00Z",
-      });
-
-      resetSecretStub();
-
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/re-sync-deadline`,
-      );
-      expect(response.status).toBe(302);
-
-      const secretNames = secretNamesOf(secretStub);
-      expect(secretNames).toContain("READ_ONLY_FROM");
-      expect(secretNames).not.toContain("RENEWAL_URL");
-    });
-
-    test("redirects when deadline is empty", async () => {
-      const site = await createTestBuiltSite({
-        hostingId: "6032",
-        name: "Resync Empty",
-      });
-
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/re-sync-deadline`,
-      );
-      await expectFlashRedirect(
-        `/admin/built-sites/${site.id}/edit`,
-        "No deadline to re-sync",
-        false,
-      )(response);
-
       expect(secretStub.calls.length).toBe(0);
-    });
-  });
+    };
 
-  describe("POST /admin/built-sites/:id/provision-renewal", () => {
-    test("provisions an unprovisioned site with token and deadline (no tier id stored)", async () => {
-      // A qualifying tier must exist so the customer has something to pick at /renew.
-      await createTestListing({
-        hidden: true,
-        monthsPerUnit: 1,
-        purchaseOnly: true,
-        unitPrice: 500,
-      });
-      const site = await createTestBuiltSite({
-        hostingId: "6040",
-        name: "Provision Site",
-      });
+    describe("POST /admin/built-sites/:id/rotate-renewal-token", () => {
+      test("rotates token on a provisioned site and pushes new RENEWAL_URL", async () => {
+        const site = await createTestBuiltSite({
+          hostingId: "6001",
+          name: "Rotate Site",
+        });
+        const { token: oldToken } = await provisionTestBuiltSite(site.id);
 
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/provision-renewal`,
-        { months: "3" },
-      );
-      expect(response.status).toBe(302);
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/rotate-renewal-token`,
+        );
+        await expectFlashRedirect(
+          `/admin/built-sites/${site.id}/edit`,
+          "Renewal token rotated",
+        )(response);
 
-      const updated = await findSite(site.id);
-      expect(updated.renewalTokenIndex).not.toBeNull();
-      expect(updated.renewalToken).not.toBeNull();
-      expect(updated.readOnlyFrom).not.toBe("");
+        const updated = await findSite(site.id);
+        expect(updated.renewalToken).not.toBe(oldToken);
+        expect(updated.renewalToken).not.toBeNull();
+        expect(updated.renewalTokenIndex).not.toBeNull();
 
-      const renewResponse = await handleRequest(
-        mockRequest(`/renew/?t=${encodeURIComponent(updated.renewalToken!)}`),
-      );
-      expect(renewResponse.status).toBe(200);
-    });
+        // Rotate only re-pushes RENEWAL_URL, not READ_ONLY_FROM.
+        const secretNames = secretNamesOf(secretStub);
+        expect(secretNames).toContain("RENEWAL_URL");
+        expect(secretNames).not.toContain("READ_ONLY_FROM");
 
-    test("rejects when no qualifying tier listing exists", async () => {
-      const site = await createTestBuiltSite({
-        hostingId: "6041",
-        name: "No Tier Provision",
+        const logs = await getAllActivityLog();
+        expect(
+          logs.some((l) => l.message.includes("Rotated renewal token")),
+        ).toBe(true);
       });
 
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/provision-renewal`,
-        { months: "3" },
-      );
-      await expectFlashRedirect(
-        `/admin/built-sites/${site.id}/edit`,
-        "Create a qualifying renewal tier listing before provisioning",
-        false,
-      )(response);
+      test("redirects on unprovisioned site (no-op)", async () => {
+        const site = await createTestBuiltSite({
+          name: "Unprovisioned Rotate",
+        });
 
-      const updated = await findSite(site.id);
-      expect(updated.renewalTokenIndex).toBeNull();
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/rotate-renewal-token`,
+        );
+        await expectFlashRedirect(
+          `/admin/built-sites/${site.id}/edit`,
+          "Renewal is not provisioned for this site",
+          false,
+        )(response);
+
+        expect(secretStub.calls.length).toBe(0);
+      });
     });
 
-    test("redirects on already provisioned site", async () => {
-      await createTestListing({
-        hidden: true,
-        monthsPerUnit: 1,
-        purchaseOnly: true,
-        unitPrice: 500,
-      });
-      const site = await createTestBuiltSite({
-        hostingId: "6042",
-        name: "Already Provisioned",
-      });
-      await provisionTestBuiltSite(site.id);
+    describe("POST /admin/built-sites/:id/bump-deadline", () => {
+      test("bumps from current deadline on future-dated site", async () => {
+        using _fakeTime = new FakeTime(NOW_MS);
+        const site = await createTestBuiltSite({
+          hostingId: "6010",
+          name: "Bump Future",
+        });
+        await updateBuiltSiteRenewalState(site.id, {
+          readOnlyFrom: new Date(NOW_MS + 10 * 86400000).toISOString(),
+        });
 
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/provision-renewal`,
-        { months: "3" },
-      );
-      await expectFlashRedirect(
-        `/admin/built-sites/${site.id}/edit`,
-        "Renewal is already provisioned for this site",
-        false,
-      )(response);
+        await adminFormPost(`/admin/built-sites/${site.id}/bump-deadline`, {
+          months: "3",
+        });
+
+        const updated = await findSite(site.id);
+        const expectedBase = new Date(NOW_MS + 10 * 86400000).toISOString();
+        expect(updated.readOnlyFrom).toBe(addMonthsIso(expectedBase, 3));
+      });
+
+      test("bumps from now on expired site", async () => {
+        using _fakeTime = new FakeTime(NOW_MS);
+        const site = await createTestBuiltSite({
+          hostingId: "6011",
+          name: "Bump Expired",
+        });
+        await updateBuiltSiteRenewalState(site.id, {
+          readOnlyFrom: new Date(NOW_MS - 30 * 86400000).toISOString(),
+        });
+
+        await adminFormPost(`/admin/built-sites/${site.id}/bump-deadline`, {
+          months: "6",
+        });
+
+        const updated = await findSite(site.id);
+        const expected = addMonthsIso(new Date(NOW_MS).toISOString(), 6);
+        expect(updated.readOnlyFrom).toBe(expected);
+      });
+
+      test("bumps from now on deadline-less site", async () => {
+        using _fakeTime = new FakeTime(NOW_MS);
+        const site = await createTestBuiltSite({
+          hostingId: "6012",
+          name: "Bump No Deadline",
+        });
+
+        await adminFormPost(`/admin/built-sites/${site.id}/bump-deadline`, {
+          months: "2",
+        });
+
+        const updated = await findSite(site.id);
+        const expected = addMonthsIso(new Date(NOW_MS).toISOString(), 2);
+        expect(updated.readOnlyFrom).toBe(expected);
+      });
+
+      test("works without a renewal token (no RENEWAL_URL push)", async () => {
+        const site = await createTestBuiltSite({
+          hostingId: "6013",
+          name: "Bump No Token",
+        });
+        resetSecretStub();
+
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/bump-deadline`,
+          { months: "1" },
+        );
+        expect(response.status).toBe(302);
+
+        const secretNames = secretNamesOf(secretStub);
+        expect(secretNames).not.toContain("RENEWAL_URL");
+      });
+
+      test("clamps months <= 0 to 1", () =>
+        expectBumpClamps("6014", "Bump Zero", "0", 1));
+
+      test("clamps months > 120 to 120", () =>
+        expectBumpClamps("6015", "Bump Large", "999", 120));
+
+      test("returns error when CDN push fails", async () => {
+        const site = await createTestBuiltSite({
+          hostingId: "6016",
+          name: "Bump CDN Fail",
+        });
+        await withFailingSecretStub(async () => {
+          const { response } = await adminFormPost(
+            `/admin/built-sites/${site.id}/bump-deadline`,
+            { months: "1" },
+          );
+          await expectFlashRedirect(
+            `/admin/built-sites/${site.id}/edit`,
+            expect.stringContaining("could not be pushed"),
+            false,
+          )(response);
+        });
+      });
+
+      test("clamps non-numeric months to 1", () =>
+        expectBumpClamps("6017", "Bump NaN", "abc", 1));
     });
 
-    test("Bunny failure leaves renewal state unprovisioned", async () => {
-      await createTestListing({
-        hidden: true,
-        monthsPerUnit: 1,
-        purchaseOnly: true,
-        unitPrice: 500,
-      });
-      const site = await createTestBuiltSite({
-        hostingId: "6043",
-        name: "Provision Fail",
+    describe("POST /admin/built-sites/:id/override-deadline", () => {
+      test("accepts a future date and pushes it", async () => {
+        const site = await createTestBuiltSite({
+          hostingId: "6020",
+          name: "Override Site",
+        });
+
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/override-deadline`,
+          { date: "2027-06-15" },
+        );
+        expect(response.status).toBe(302);
+
+        const updated = await findSite(site.id);
+        expect(updated.readOnlyFrom).toBe("2027-06-15T23:59:59Z");
       });
 
-      await withFailingSecretStub(async () => {
+      test("works without a renewal token", async () => {
+        const site = await createTestBuiltSite({
+          hostingId: "6021",
+          name: "Override No Token",
+        });
+
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/override-deadline`,
+          { date: "2027-12-01" },
+        );
+        expect(response.status).toBe(302);
+
+        const secretNames = secretNamesOf(secretStub);
+        expect(secretNames).not.toContain("RENEWAL_URL");
+      });
+
+      test("redirects when date is missing", async () => {
+        const site = await createTestBuiltSite({
+          hostingId: "6022",
+          name: "Override Empty",
+        });
+        await updateBuiltSiteRenewalState(site.id, {
+          readOnlyFrom: "2027-01-01T00:00:00Z",
+        });
+
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/override-deadline`,
+        );
+        await expectFlashRedirect(
+          `/admin/built-sites/${site.id}/edit`,
+          "Choose a deadline date",
+          false,
+        )(response);
+
+        const updated = await findSite(site.id);
+        expect(updated.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
+      });
+
+      test("rejects an invalid date without pushing", () =>
+        expectOverrideRejected("6023", "Override Invalid", "2027-02-31"));
+
+      test("rejects a non-date-format string without pushing", () =>
+        expectOverrideRejected("6024", "Override Not Date", "hello"));
+    });
+
+    describe("POST /admin/built-sites/:id/re-sync-deadline", () => {
+      test("re-pushes stored deadline and RENEWAL_URL when provisioned", async () => {
+        const site = await createTestBuiltSite({
+          hostingId: "6030",
+          name: "Resync Site",
+        });
+        await provisionTestBuiltSite(site.id);
+        await updateBuiltSiteRenewalState(site.id, {
+          readOnlyFrom: "2027-03-15T00:00:00Z",
+        });
+
+        resetSecretStub();
+
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/re-sync-deadline`,
+        );
+        await expectFlashRedirect(
+          `/admin/built-sites/${site.id}/edit`,
+          "Deadline re-synced",
+        )(response);
+
+        const secretNames = secretNamesOf(secretStub);
+        expect(secretNames).toContain("READ_ONLY_FROM");
+        expect(secretNames).toContain("RENEWAL_URL");
+      });
+
+      test("re-pushes deadline without RENEWAL_URL when unprovisioned", async () => {
+        const site = await createTestBuiltSite({
+          hostingId: "6031",
+          name: "Resync Unprovisioned",
+        });
+        await updateBuiltSiteRenewalState(site.id, {
+          readOnlyFrom: "2027-04-01T00:00:00Z",
+        });
+
+        resetSecretStub();
+
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/re-sync-deadline`,
+        );
+        expect(response.status).toBe(302);
+
+        const secretNames = secretNamesOf(secretStub);
+        expect(secretNames).toContain("READ_ONLY_FROM");
+        expect(secretNames).not.toContain("RENEWAL_URL");
+      });
+
+      test("redirects when deadline is empty", async () => {
+        const site = await createTestBuiltSite({
+          hostingId: "6032",
+          name: "Resync Empty",
+        });
+
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/re-sync-deadline`,
+        );
+        await expectFlashRedirect(
+          `/admin/built-sites/${site.id}/edit`,
+          "No deadline to re-sync",
+          false,
+        )(response);
+
+        expect(secretStub.calls.length).toBe(0);
+      });
+    });
+
+    describe("POST /admin/built-sites/:id/provision-renewal", () => {
+      test("provisions an unprovisioned site with token and deadline (no tier id stored)", async () => {
+        // A qualifying tier must exist so the customer has something to pick at /renew.
+        await createTestListing({
+          hidden: true,
+          monthsPerUnit: 1,
+          purchaseOnly: true,
+          unitPrice: 500,
+        });
+        const site = await createTestBuiltSite({
+          hostingId: "6040",
+          name: "Provision Site",
+        });
+
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/provision-renewal`,
+          { months: "3" },
+        );
+        expect(response.status).toBe(302);
+
+        const updated = await findSite(site.id);
+        expect(updated.renewalTokenIndex).not.toBeNull();
+        expect(updated.renewalToken).not.toBeNull();
+        expect(updated.readOnlyFrom).not.toBe("");
+
+        const renewResponse = await handleRequest(
+          mockRequest(`/renew/?t=${encodeURIComponent(updated.renewalToken!)}`),
+        );
+        expect(renewResponse.status).toBe(200);
+      });
+
+      test("rejects when no qualifying tier listing exists", async () => {
+        const site = await createTestBuiltSite({
+          hostingId: "6041",
+          name: "No Tier Provision",
+        });
+
         const { response } = await adminFormPost(
           `/admin/built-sites/${site.id}/provision-renewal`,
           { months: "3" },
         );
         await expectFlashRedirect(
           `/admin/built-sites/${site.id}/edit`,
-          "Renewal could not be pushed to the site",
+          "Create a qualifying renewal tier listing before provisioning",
           false,
         )(response);
 
         const updated = await findSite(site.id);
         expect(updated.renewalTokenIndex).toBeNull();
-        expect(updated.readOnlyFrom).toBe("");
+      });
+
+      test("redirects on already provisioned site", async () => {
+        await createTestListing({
+          hidden: true,
+          monthsPerUnit: 1,
+          purchaseOnly: true,
+          unitPrice: 500,
+        });
+        const site = await createTestBuiltSite({
+          hostingId: "6042",
+          name: "Already Provisioned",
+        });
+        await provisionTestBuiltSite(site.id);
+
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/provision-renewal`,
+          { months: "3" },
+        );
+        await expectFlashRedirect(
+          `/admin/built-sites/${site.id}/edit`,
+          "Renewal is already provisioned for this site",
+          false,
+        )(response);
+      });
+
+      test("Bunny failure leaves renewal state unprovisioned", async () => {
+        await createTestListing({
+          hidden: true,
+          monthsPerUnit: 1,
+          purchaseOnly: true,
+          unitPrice: 500,
+        });
+        const site = await createTestBuiltSite({
+          hostingId: "6043",
+          name: "Provision Fail",
+        });
+
+        await withFailingSecretStub(async () => {
+          const { response } = await adminFormPost(
+            `/admin/built-sites/${site.id}/provision-renewal`,
+            { months: "3" },
+          );
+          await expectFlashRedirect(
+            `/admin/built-sites/${site.id}/edit`,
+            "Renewal could not be pushed to the site",
+            false,
+          )(response);
+
+          const updated = await findSite(site.id);
+          expect(updated.renewalTokenIndex).toBeNull();
+          expect(updated.readOnlyFrom).toBe("");
+        });
       });
     });
-  });
 
-  describe("CSRF validation", () => {
-    test("POST without CSRF token returns 403", async () => {
-      const site = await createTestBuiltSite({ name: "CSRF Test Site" });
-      const cookie = await testCookie();
-      const response = await handleRequest(
-        new Request(
-          `http://localhost/admin/built-sites/${site.id}/bump-deadline`,
-          {
-            body: new URLSearchParams({ months: "1" }).toString(),
-            headers: {
-              "content-type": "application/x-www-form-urlencoded",
-              cookie,
+    describe("CSRF validation", () => {
+      test("POST without CSRF token returns 403", async () => {
+        const site = await createTestBuiltSite({ name: "CSRF Test Site" });
+        const cookie = await testCookie();
+        const response = await handleRequest(
+          new Request(
+            `http://localhost/admin/built-sites/${site.id}/bump-deadline`,
+            {
+              body: new URLSearchParams({ months: "1" }).toString(),
+              headers: {
+                "content-type": "application/x-www-form-urlencoded",
+                cookie,
+              },
+              method: "POST",
             },
-            method: "POST",
-          },
-        ),
-      );
-      expect(response.status).toBe(403);
+          ),
+        );
+        expect(response.status).toBe(403);
+      });
     });
-  });
-});
+  },
+);
 
 describeWithEnv(
   "admin built-sites add-secrets",
   {
     db: true,
-    env: { BUNNY_API_KEY: "k", NTFY_URL: "https://ntfy.example.com/t" },
+    env: {
+      BUNNY_API_KEY: "k",
+      CAN_BUILD_SITES: "true",
+      NTFY_URL: "https://ntfy.example.com/t",
+    },
   },
   () => {
     /** Stub the live secret list + a recording setEdgeScriptSecret. */

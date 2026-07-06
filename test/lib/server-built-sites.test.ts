@@ -20,7 +20,11 @@ import {
   updateTestBuiltSite,
 } from "#test-utils";
 
-const builtSitesTestEnv = { db: true, triggers: true };
+const builtSitesTestEnv = {
+  db: true,
+  env: { CAN_BUILD_SITES: "true" },
+  triggers: true,
+};
 
 describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
   describe("GET /admin/built-sites", () => {
@@ -646,3 +650,38 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     });
   });
 });
+
+// The built-sites section is hidden from the nav when CAN_BUILD_SITES is off,
+// so none of its routes should be reachable either — a page for a disabled
+// feature must not serve.
+describeWithEnv(
+  "built-sites routes are hidden when CAN_BUILD_SITES is off",
+  { db: true, env: { CAN_BUILD_SITES: undefined } },
+  () => {
+    test("every built-sites route 404s while the feature is off", async () => {
+      // createTestBuiltSite flips the flag on only for its own request, so the
+      // site exists but the section is still off for the checks below.
+      const site = await createTestBuiltSite({ name: "Hidden" });
+      const getPaths = [
+        "/admin/built-sites",
+        "/admin/built-sites/new",
+        `/admin/built-sites/${site.id}/edit`,
+        `/admin/built-sites/${site.id}/delete`,
+      ];
+      for (const path of getPaths) {
+        expectStatus(404)(await adminGet(path));
+      }
+      // A POST action (create and a per-site action) is gated too.
+      const { response: created } = await adminFormPost("/admin/built-sites", {
+        name: "Nope",
+        site_url: "https://nope.b-cdn.net",
+      });
+      expectStatus(404)(created);
+      const { response: updated } = await adminFormPost(
+        `/admin/built-sites/${site.id}/update`,
+        {},
+      );
+      expectStatus(404)(updated);
+    });
+  },
+);
