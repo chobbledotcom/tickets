@@ -9,6 +9,7 @@
  * `/page/:slug` (or admin edit) view.
  */
 
+/* jscpd:ignore-start */
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
@@ -27,6 +28,7 @@ import { swapSortOrder } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { cachedTable, col } from "#shared/db/table.ts";
 import type { SitePage, SitePageNavRow } from "#shared/types.ts";
+/* jscpd:ignore-end */
 
 /** Create/update input (camelCase keys → snake_case columns). */
 export type SitePageInput = {

@@ -7,6 +7,7 @@
  * match after migration; SMS hashes are channel-namespaced before hashing.
  */
 
+/* jscpd:ignore-start */
 import * as v from "valibot";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
@@ -24,6 +25,7 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { normalizePhone } from "#shared/phone.ts";
+/* jscpd:ignore-end */
 
 export const ContactChannelSchema = v.picklist(["email", "sms"]);
 export type ContactChannel = v.InferOutput<typeof ContactChannelSchema>;

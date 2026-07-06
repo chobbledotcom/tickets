@@ -2,6 +2,7 @@
  * Groups table operations
  */
 
+/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
@@ -42,6 +43,8 @@ import type {
   ListingType,
   ListingWithCount,
 } from "#shared/types.ts";
+
+/* jscpd:ignore-end */
 
 /** Groups are few, so the cache loads the whole set and answers by-id / by-slug
  * reads from it — same isolate-level TTL as the listings cache. */

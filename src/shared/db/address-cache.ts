@@ -9,12 +9,14 @@
  * so an unpruned-but-expired row cannot come back stale.
  */
 
+/* jscpd:ignore-start */
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 import { ADDRESS_CACHE_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
+/* jscpd:ignore-end */
 
 /**
  * Compute the blind-index HMAC for a lookup. The provider is part of the

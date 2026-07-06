@@ -6,6 +6,7 @@
  * - Decryption requires the private key (only available to authenticated sessions)
  */
 
+/* jscpd:ignore-start */
 import { map } from "#fp";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
 import {
@@ -23,6 +24,7 @@ import type {
 import { settings } from "#shared/db/settings.ts";
 import { nowIso } from "#shared/now.ts";
 import type { Attendee, ContactInfo, PiiBlob } from "#shared/types.ts";
+/* jscpd:ignore-end */
 
 /** Current PII blob schema version */
 export const PII_BLOB_VERSION = 1;
