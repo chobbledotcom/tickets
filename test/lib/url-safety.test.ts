@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { isSafeServerFetchUrl } from "#shared/url-safety.ts";
+import {
+  isSafeServerFetchUrl,
+  validateSafeServerFetchUrl,
+} from "#shared/url-safety.ts";
 
 describe("url-safety", () => {
   describe("isSafeServerFetchUrl accepts public https domains", () => {
@@ -43,6 +46,7 @@ describe("url-safety", () => {
       "https://[fe80::1]/", // IPv6 link-local
       "https://[fc00::1]/", // IPv6 unique-local
       "https://[fd12::1]/", // IPv6 unique-local
+      "https://example.com./hook", // trailing dot: not a real public domain shape
     ];
     for (const url of unsafe) {
       test(url, () => expect(isSafeServerFetchUrl(url)).toBe(false));
@@ -62,5 +66,29 @@ describe("url-safety", () => {
     for (const [url, expected] of variants) {
       expect(isSafeServerFetchUrl(url)).toBe(expected);
     }
+  });
+
+  describe("validateSafeServerFetchUrl", () => {
+    const MESSAGE = "Webhook URL is not safe to fetch";
+
+    test("returns null when no URL was provided", () => {
+      expect(validateSafeServerFetchUrl(undefined, MESSAGE)).toBeNull();
+    });
+
+    test("returns null for a blank URL", () => {
+      expect(validateSafeServerFetchUrl("", MESSAGE)).toBeNull();
+    });
+
+    test("returns null for a safe URL", () => {
+      expect(
+        validateSafeServerFetchUrl("https://example.com/hook", MESSAGE),
+      ).toBeNull();
+    });
+
+    test("returns the given message for an unsafe URL", () => {
+      expect(
+        validateSafeServerFetchUrl("https://localhost/hook", MESSAGE),
+      ).toBe(MESSAGE);
+    });
   });
 });
