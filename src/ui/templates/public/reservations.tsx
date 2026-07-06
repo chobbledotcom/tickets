@@ -73,6 +73,7 @@ import {
   type ListingWithCount,
 } from "#shared/types.ts";
 import { Badge } from "#templates/components/badge.tsx";
+import { ErrorNote } from "#templates/components/error.tsx";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import {
   questionFieldset,
@@ -130,9 +131,7 @@ const renderDateSelector = (
   durationDays = 1,
 ): string =>
   dates.length === 0
-    ? `<div class="error" role="alert">${t(
-        "public.ticket.no_dates_available",
-      )}</div>`
+    ? `<div class="error">${t("public.ticket.no_dates_available")}</div>`
     : `<label for="date">${t("public.ticket.select_date")}${
         durationDays > 1
           ? ` <small>(${t("public.ticket.date_duration_hint", {
@@ -160,9 +159,7 @@ const renderDayCountSelector = (
   priceFor?: (days: number) => number | null,
 ): string => {
   if (counts.length === 0) {
-    return `<div class="error" role="alert">${t(
-      "public.ticket.no_booking_lengths",
-    )}</div>`;
+    return `<div class="error">${t("public.ticket.no_booking_lengths")}</div>`;
   }
   const selected = savedFormValue("day_count");
   return `<label for="day_count">${t("public.ticket.number_of_days")}</label>
@@ -1803,9 +1800,7 @@ export const ticketPage = ({
       <Flash error={error} />
 
       {allUnavailable || isReadOnly() ? (
-        <div class="error" role="alert">
-          {unavailableMessage(allClosed, isSingleListing)}
-        </div>
+        <ErrorNote>{unavailableMessage(allClosed, isSingleListing)}</ErrorNote>
       ) : (
         <TicketPageForm
           actionUrl={actionUrl}

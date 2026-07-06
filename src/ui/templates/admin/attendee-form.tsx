@@ -68,6 +68,7 @@ import {
 import { EditQuestions } from "#templates/admin/attendees.tsx";
 import { Icon } from "#templates/components/actions.tsx";
 import { renderAddressLookupPanel } from "#templates/components/address-lookup.tsx";
+import { ErrorAlert, ErrorNote } from "#templates/components/error.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import {
@@ -252,11 +253,7 @@ const ListingRow = ({
             )}
           </div>
         ) : null}
-        {line.error ? (
-          <div class="error" role="alert">
-            {line.error}
-          </div>
-        ) : null}
+        {line.error ? <ErrorAlert>{line.error}</ErrorAlert> : null}
         {warnings.map((w) => (
           <div class="warning small" role="alert">
             {w}
@@ -491,11 +488,7 @@ const SharedDateFields = ({
     <>
       <h3>{t("attendee_form.dates_heading")}</h3>
       <p class="small">{t("attendee_form.dates_hint")}</p>
-      {data.dateError && (
-        <output class="error" role="alert">
-          {data.dateError}
-        </output>
-      )}
+      {data.dateError && <ErrorAlert>{data.dateError}</ErrorAlert>}
       <label for={START_DATE_FIELD}>
         {t("attendee_form.start_date")}
         <input
@@ -566,12 +559,22 @@ const StatusAndBalanceFields = ({
         />
         <small>{t("attendee_form.outstanding_balance_hint")}</small>
       </label>
-      <div class="error" role="alert">
-        {t("attendee_form.balance_ledger_note")}
-      </div>
+      <ErrorNote>{t("attendee_form.balance_ledger_note")}</ErrorNote>
     </>
   );
 };
+
+/**
+ * True when the last submit left any error on the form — an attendee, date,
+ * form-wide, save, or per-line error. When it did, each error is an
+ * {@link ErrorAlert} (focusable), so the browser hands autofocus to the first
+ * one and scrolls straight to it; the name field then gives up its default
+ * autofocus so a failed submit lands on the problem, not the page top.
+ */
+const formHasError = (data: AttendeeFormTemplateData): boolean =>
+  Boolean(
+    data.saveError || data.formError || data.attendeeError || data.dateError,
+  ) || data.parsed.lines.some((line) => line.error !== null);
 
 /**
  * The editable attendee form: contact details, the shared date range, optional
@@ -600,7 +603,7 @@ const AttendeeEditForm = ({
         {t("common.name")}
         <input
           autocomplete="off"
-          autofocus
+          autofocus={!formHasError(data)}
           id="name"
           name="name"
           required
@@ -710,16 +713,8 @@ export const AttendeeFormPanel = ({
   data: AttendeeFormTemplateData;
 }): JSX.Element => (
   <>
-    {data.saveError && (
-      <output class="error" role="alert">
-        {data.saveError}
-      </output>
-    )}
-    {data.formError && (
-      <output class="error" role="alert">
-        {data.formError}
-      </output>
-    )}
+    {data.saveError && <ErrorAlert>{data.saveError}</ErrorAlert>}
+    {data.formError && <ErrorAlert>{data.formError}</ErrorAlert>}
     {data.topWarnings.length > 0 && (
       <output class="warning" role="alert">
         <strong>{t("attendee_form.double_check")}</strong>
@@ -730,11 +725,7 @@ export const AttendeeFormPanel = ({
         </ul>
       </output>
     )}
-    {data.attendeeError && (
-      <div class="error" role="alert">
-        {data.attendeeError}
-      </div>
-    )}
+    {data.attendeeError && <ErrorAlert>{data.attendeeError}</ErrorAlert>}
     <AttendeeEditForm data={data} />
   </>
 );

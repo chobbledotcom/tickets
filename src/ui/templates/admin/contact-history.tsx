@@ -15,6 +15,7 @@ import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AttendeesPageLayout } from "#templates/admin/attendee-form.tsx";
+import { ErrorAlert } from "#templates/components/error.tsx";
 import { formattingHint } from "#templates/fields.ts";
 /* jscpd:ignore-end */
 
@@ -68,11 +69,7 @@ export const contactHistoryPage = ({
     >
       <CsrfForm action={`/admin/history/${hmac}`} id="contact-history-form">
         <Flash error={flashError} success={flashSuccess} />
-        {formError && (
-          <div class="error" role="alert">
-            {formError}
-          </div>
-        )}
+        {formError && <ErrorAlert>{formError}</ErrorAlert>}
 
         <CountField
           label={t("contact_history.visits_label")}

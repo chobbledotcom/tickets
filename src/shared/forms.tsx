@@ -17,6 +17,7 @@ import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { createRequestScoped } from "#shared/request-scoped.ts";
 import { Icon } from "#templates/components/actions.tsx";
+import { ErrorAlert } from "#templates/components/error.tsx";
 
 export type FieldType =
   | "text"
@@ -534,11 +535,7 @@ export const Flash = ({
           {info}
         </div>
       ) : null}
-      {error ? (
-        <div class="error" role="alert">
-          {error}
-        </div>
-      ) : null}
+      {error ? <ErrorAlert>{error}</ErrorAlert> : null}
     </>
   );
 };

@@ -1299,6 +1299,7 @@ article {
 
 /* App-specific additions */
 .error {
+  --error-glow: rgba(204, 0, 0, 0.55);
   background: #ffeeee;
   border-left: 4px solid #cc0000;
   color: #cc0000;
@@ -1324,6 +1325,7 @@ output.success {
 }
 
 [data-theme="dark"] .error {
+  --error-glow: rgba(255, 85, 85, 0.5);
   background: #3c2020;
   color: #ff5555;
 }
@@ -1334,6 +1336,33 @@ output.success {
 [data-theme="dark"] .info {
   background: #1f2a3c;
   color: #8ab4ff;
+}
+
+/* A live error alert (the shared ErrorAlert component: role="alert", raised in
+   response to the operator's action) fades in with a brief glow that fades back
+   out, so it stands out from the form around it and is easy to spot. It is also
+   focusable (tabindex="-1" + autofocus), so the browser scrolls to the first
+   one on the page. Standing notes (the ErrorNote component) carry no
+   role="alert" and stay calm. Skipped entirely under reduced-motion. */
+@keyframes error-alert-in {
+  0% {
+    opacity: 0;
+    box-shadow: 0 0 0 0 transparent;
+  }
+  25% {
+    opacity: 1;
+    box-shadow: 0 0 16px 3px var(--error-glow);
+  }
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .error[role="alert"] {
+    animation: error-alert-in 0.9s ease-out;
+  }
 }
 
 /* Per-attendee operator/system notes */

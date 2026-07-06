@@ -14,6 +14,7 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { SaveButton } from "#templates/components/actions.tsx";
+import { ErrorNote } from "#templates/components/error.tsx";
 /* jscpd:ignore-end */
 
 /**
@@ -86,10 +87,10 @@ const ContactFormToggle = ({
         email address and a message, which is sent to your business email.
       </p>
       {!hasBusinessEmail && (
-        <p class="error" role="alert">
+        <ErrorNote>
           Set a business email on the Settings page to receive contact form
           messages.
-        </p>
+        </ErrorNote>
       )}
     </div>
     <SpamProtectionNote botpoisonEnabled={botpoisonEnabled} />
@@ -157,10 +158,10 @@ const OrderListingsNote = ({
   listingCount: number;
 }): JSX.Element =>
   listingCount === 0 ? (
-    <p class="error" role="alert">
+    <ErrorNote>
       You have no bookable listings yet. <a href="/admin/">Create a listing</a>{" "}
       for it to appear on the order page.
-    </p>
+    </ErrorNote>
   ) : (
     <p>
       <small>

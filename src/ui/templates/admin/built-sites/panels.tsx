@@ -14,7 +14,7 @@ import {
   type IconName,
   SubmitButton,
 } from "#templates/components/actions.tsx";
-import { ErrorAlert } from "#templates/components/error-alert.tsx";
+import { ErrorNote } from "#templates/components/error.tsx";
 import { ProsePanel } from "#templates/components/prose-panel.tsx";
 
 const SiteActionForm = ({
@@ -171,9 +171,9 @@ export const SecretsPanel = ({
   if (!view.ok) {
     return (
       <div class="prose">
-        <ErrorAlert
-          message={t("built_sites.secrets_error", { error: view.error })}
-        />
+        <ErrorNote>
+          {t("built_sites.secrets_error", { error: view.error })}
+        </ErrorNote>
       </div>
     );
   }

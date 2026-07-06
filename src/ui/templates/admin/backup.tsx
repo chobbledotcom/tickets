@@ -11,7 +11,7 @@ import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
-import { ErrorAlert } from "#templates/components/error-alert.tsx";
+import { ErrorNote } from "#templates/components/error.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 /* jscpd:ignore-end */
 
@@ -195,7 +195,9 @@ export const adminRestoreConfirmPage = (
       <>
         <h1>{t("backup.confirm_restore_heading")}</h1>
         {schemaMismatch && (
-          <ErrorAlert message={t("backup.schema_mismatch_warning")} />
+          <ErrorNote>
+            <Raw html={t("backup.schema_mismatch_warning")} />
+          </ErrorNote>
         )}
         <p>
           <Raw html={t("backup.restore_confirmation_intro", { lineCount })} />
