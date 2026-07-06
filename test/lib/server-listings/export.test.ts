@@ -15,6 +15,7 @@ import {
   createTestListing,
   describeWithEnv,
   expectCsvDownloadHeaders,
+  fetchListingExportCsv,
   setupListingAndLogin,
   testRequiresAuth,
 } from "#test-utils";
@@ -67,13 +68,7 @@ describeWithEnv("server listings > export", { db: true }, () => {
         "jane@example.com",
       );
 
-      const response = await awaitTestRequest(
-        `/admin/listing/${listing.id}/export`,
-        {
-          cookie: cookie,
-        },
-      );
-      const csv = await response.text();
+      const csv = await fetchListingExportCsv(listing.id, cookie);
       expect(csv).toContain(
         "Name,Email,Phone,Address,Special Instructions,Quantity,Registered",
       );
@@ -101,13 +96,7 @@ describeWithEnv("server listings > export", { db: true }, () => {
         {},
       );
 
-      const response = await awaitTestRequest(
-        `/admin/listing/${listing.id}/export`,
-        {
-          cookie: cookie,
-        },
-      );
-      const csv = await response.text();
+      const csv = await fetchListingExportCsv(listing.id, cookie);
       expect(csv).toContain(",Checked In");
       // John Doe is checked in
       expect(csv).toContain("John Doe");
@@ -161,11 +150,7 @@ describeWithEnv("server listings > export", { db: true }, () => {
       await setListingQuestions(listing.id, [q.id]);
       await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
-      const response = await awaitTestRequest(
-        `/admin/listing/${listing.id}/export`,
-        { cookie },
-      );
-      const csv = await response.text();
+      const csv = await fetchListingExportCsv(listing.id, cookie);
       expect(csv).toContain("Shirt Size");
       expect(csv).toContain("Small");
     });
