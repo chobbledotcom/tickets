@@ -459,9 +459,7 @@ describeWithEnv(
         [`quantity_${pageCustom.id}`]: "1",
         [`quantity_${parent.id}`]: "1",
       });
-      expect(res.status).toBe(302);
-      expectFlash(res, undefined, false);
-      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+      await expectBookingRejected(res, undefined, parent.id);
     });
 
     test("a pay-more child below its minimum price is rejected", async () => {
@@ -469,16 +467,11 @@ describeWithEnv(
         children: [{ canPayMore: true, maxPrice: 5000, unitPrice: 1000 }],
       });
 
-      const res = await postBooking(parent.slug, {
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
+      const res = await bookOne(parent, 1, {
         [`child_qty_${parent.id}_${child.id}`]: "1",
         [`child_price_${parent.id}_${child.id}`]: "1.00",
       });
-      expect(res.status).toBe(302);
-      expectFlash(res, undefined, false);
-      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+      await expectBookingRejected(res, undefined, parent.id);
     });
 
     test("a customisable child inherits the fixed daily parent's duration", async () => {
