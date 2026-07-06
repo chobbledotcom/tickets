@@ -21,6 +21,7 @@ export * from "./test-utils/internal.ts";
 export * from "./test-utils/migrations.ts";
 export * from "./test-utils/mocks.ts";
 export * from "./test-utils/modifiers.ts";
+export * from "./test-utils/order-journey.ts";
 export * from "./test-utils/packages.ts";
 export * from "./test-utils/parents.ts";
 export * from "./test-utils/random.ts";
