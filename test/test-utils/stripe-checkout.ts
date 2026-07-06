@@ -45,9 +45,9 @@ export const resetStripeBetweenTests = (): void => {
 /** Enable Stripe with the mock secret key and hand back its ready client. */
 export const enabledStripeClient = async (): Promise<StripeClient> => {
   await settings.update.stripe.secretKey("sk_test_mock");
-  const client = await getStripeClient();
-  if (!client) throw new Error("Expected client");
-  return client;
+  // The secret key was just set, so the client is always ready here — assert it
+  // rather than guard with an unreachable `if (!client) throw` branch.
+  return (await getStripeClient())!;
 };
 
 /** A checkout.session shape the SDK returns from create/retrieve. */

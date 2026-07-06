@@ -29,12 +29,15 @@ export const createMockClient = (
     locationsList?: MockFn;
   } = {},
 ) => {
-  const noop: MockFn = () => undefined;
-  const checkoutCreate = spy(impls.checkoutCreate ?? noop);
-  const ordersGet = spy(impls.ordersGet ?? noop);
-  const paymentsGet = spy(impls.paymentsGet ?? noop);
-  const refundsRefundPayment = spy(impls.refundsRefundPayment ?? noop);
-  const locationsList = spy(impls.locationsList ?? noop);
+  // A method the test supplied gets its spy; the rest get a bare `spy()` whose
+  // no-op has no body of ours to run (a shared `noop` arrow would count as an
+  // unreachable line for the methods the test never calls).
+  const spied = (fn?: MockFn) => (fn ? spy(fn) : spy());
+  const checkoutCreate = spied(impls.checkoutCreate);
+  const ordersGet = spied(impls.ordersGet);
+  const paymentsGet = spied(impls.paymentsGet);
+  const refundsRefundPayment = spied(impls.refundsRefundPayment);
+  const locationsList = spied(impls.locationsList);
 
   return {
     checkoutCreate,
