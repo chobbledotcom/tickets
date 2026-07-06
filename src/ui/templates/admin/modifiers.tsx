@@ -33,12 +33,15 @@ import {
   SubmitButton,
 } from "#templates/components/actions.tsx";
 import {
-  CheckboxesFieldset,
   type RunningTotalsConfig,
   RunningTotalsFieldset,
   recalculatePageRenderer,
 } from "#templates/components/aggregate-sections.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
+import {
+  LinkedItemsCheckboxes,
+  toLinkedItemOptions,
+} from "#templates/components/linked-items.tsx";
 import { modifierAggregateFields, modifierFields } from "#templates/fields.ts";
 
 /** Renders the static config bits of the modifier recalculate page (action,
@@ -59,10 +62,23 @@ const modifierRecalculateRenderer = (
     title: t("modifiers.recalculate.heading", { name: modifier.name }),
   });
 
-/** Candidate listings/groups and current links for the scope editor. */
+/** Each linkable scope kind → the form field its checkboxes post under and the
+ * term key for its plural type name. Adding a scope kind is one self-contained
+ * entry here; the ScopeLinkKind union and both the field name and heading follow
+ * from this table, so there are no per-kind ternaries to keep in sync. */
+export const SCOPE_LINK_KINDS = {
+  groups: { field: "group_ids", term: "terms.groups" },
+  listings: { field: "listing_ids", term: "terms.listings" },
+} as const satisfies Record<string, { field: string; term: string }>;
+
+export type ScopeLinkKind = keyof typeof SCOPE_LINK_KINDS;
+
+/** Candidate listings/groups and current links for the scope editor.
+ * Listings carry their active flag (a deactivated one renders muted); groups
+ * have no deactivated state, so they arrive already active. */
 export type ScopeLinks = {
-  kind: "listings" | "groups";
-  options: { id: number; name: string }[];
+  kind: ScopeLinkKind;
+  options: { id: number; name: string; active: boolean }[];
   selected: number[];
 };
 
@@ -88,27 +104,30 @@ const ScopeLinksForm = ({
   modifier: Modifier;
   links: ScopeLinks;
 }): JSX.Element => {
-  const field = links.kind === "listings" ? "listing_ids" : "group_ids";
-  const heading =
-    links.kind === "listings"
-      ? t("modifiers.scope.listings_heading")
-      : t("modifiers.scope.groups_heading");
+  const { field, term } = SCOPE_LINK_KINDS[links.kind];
   return (
     <CsrfForm action={`/admin/modifiers/${modifier.id}/links`}>
-      <h2>{heading}</h2>
-      <CheckboxesFieldset
-        fieldName={field}
-        noneMessage={t("modifiers.scope.none")}
-        options={links.options}
-        selected={links.selected}
-      />
+      {links.options.length === 0 ? (
+        <p>{t("modifiers.scope.none")}</p>
+      ) : (
+        <LinkedItemsCheckboxes
+          groups={[
+            {
+              label: t(term),
+              options: toLinkedItemOptions(links.options, links.selected),
+            },
+          ]}
+          name={field}
+        />
+      )}
       <SubmitButton icon="save">{t("modifiers.scope.save")}</SubmitButton>
     </CsrfForm>
   );
 };
 
 /** The answer link editor shown on the edit page for an "answer"-triggered
- *  modifier: tick the question answers that apply this modifier. */
+ *  modifier: tick the question answers that apply this modifier. Answers have
+ *  no deactivated state, so every option arrives active. */
 const AnswerLinksForm = ({
   modifier,
   answerLinks,
@@ -117,16 +136,28 @@ const AnswerLinksForm = ({
   answerLinks: AnswerLinks;
 }): JSX.Element => (
   <CsrfForm action={`/admin/modifiers/${modifier.id}/answers`}>
-    <h2>{t("modifiers.answers.heading")}</h2>
     <p>
       <small>{t("modifiers.answers.hint")}</small>
     </p>
-    <CheckboxesFieldset
-      fieldName="answer_ids"
-      noneMessage={t("modifiers.answers.none")}
-      options={answerLinks.options}
-      selected={answerLinks.selected}
-    />
+    {answerLinks.options.length === 0 ? (
+      <p>{t("modifiers.answers.none")}</p>
+    ) : (
+      <LinkedItemsCheckboxes
+        groups={[
+          {
+            label: t("terms.answers"),
+            options: toLinkedItemOptions(
+              answerLinks.options.map((option) => ({
+                ...option,
+                active: true,
+              })),
+              answerLinks.selected,
+            ),
+          },
+        ]}
+        name="answer_ids"
+      />
+    )}
     <SubmitButton icon="save">{t("modifiers.answers.save")}</SubmitButton>
   </CsrfForm>
 );

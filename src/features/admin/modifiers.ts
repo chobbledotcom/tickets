@@ -312,15 +312,20 @@ const scopeLinksFor = async (
     const listings = await getAllListings();
     return {
       kind: "listings",
-      options: listings.map((l) => ({ id: l.id, name: l.name })),
+      options: listings.map((l) => ({
+        active: l.active,
+        id: l.id,
+        name: l.name,
+      })),
       selected: await modifierListings.getIds(modifier.id),
     };
   }
   if (modifier.scope === "groups") {
     const groups = await getAllGroups();
+    // Groups have no deactivated state, so every group option is active.
     return {
       kind: "groups",
-      options: groups.map((g) => ({ id: g.id, name: g.name })),
+      options: groups.map((g) => ({ active: true, id: g.id, name: g.name })),
       selected: await modifierGroups.getIds(modifier.id),
     };
   }

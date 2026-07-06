@@ -714,7 +714,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       await expectHtmlResponse(
         response,
         200,
-        "Add Listings to Group",
+        "Add listings:",
         "Ungrouped Listing",
         `value="${ungrouped.id}"`,
       );
@@ -730,7 +730,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
-      expect(html).not.toContain("Add Listings to Group");
+      expect(html).not.toContain("Add listings:");
     });
 
     test("shows attendee count and checked-in stats", async () => {

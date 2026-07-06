@@ -66,9 +66,12 @@ import {
   SaveChangesButton,
   SubmitButton,
 } from "#templates/components/actions.tsx";
-import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 import { DataTable, textColumns } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
+import {
+  LinkedItemsCheckboxes,
+  toLinkedItemOptions,
+} from "#templates/components/linked-items.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import { getGroupCreateFields, getGroupFields } from "#templates/fields.ts";
 
@@ -539,24 +542,21 @@ export const GroupOverviewPanel = ({
       </div>
 
       {!isReadOnly() && ungroupedListings.length > 0 && (
-        <>
-          <h2>{t("groups.detail.add_listings")}</h2>
-          <CsrfForm action={`/admin/groups/${group.id}/add-listings`}>
-            <fieldset class="checkboxes">
-              {ungroupedListings.map((e) => (
-                <CheckboxLabel
-                  checked={undefined}
-                  label={` ${e.name}`}
-                  name="listing_ids"
-                  value={String(e.id)}
-                />
-              ))}
-            </fieldset>
-            <SubmitButton icon="plus">
-              {t("groups.detail.add_listings_submit")}
-            </SubmitButton>
-          </CsrfForm>
-        </>
+        <CsrfForm action={`/admin/groups/${group.id}/add-listings`}>
+          <LinkedItemsCheckboxes
+            groups={[
+              {
+                label: t("terms.listings"),
+                options: toLinkedItemOptions(ungroupedListings, []),
+              },
+            ]}
+            heading={({ type }) => t("linked_items.heading_add", { type })}
+            name="listing_ids"
+          />
+          <SubmitButton icon="plus">
+            {t("groups.detail.add_listings_submit")}
+          </SubmitButton>
+        </CsrfForm>
       )}
     </>
   );

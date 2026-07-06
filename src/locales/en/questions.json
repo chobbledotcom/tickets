@@ -58,5 +58,7 @@
   "questions.listing.heading": "Questions for {listing}",
   "questions.listing.no_questions": "No questions created yet. Create questions first.",
   "questions.listing.manage": "Manage Questions",
-  "questions.assign_to_listings": "Assign to Listings"
+  "questions.assign_to_listings": "Assign to Listings",
+  "questions.assign_all_listings": "Assign to all listings",
+  "questions.save_listings": "Save Listings"
 }
