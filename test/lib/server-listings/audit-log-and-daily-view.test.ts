@@ -11,6 +11,7 @@ import {
   createTestListing,
   describeWithEnv,
   expectHtmlResponse,
+  fetchListingExportCsv,
   getListingActivityLog,
   setupListingAndLogin,
   submitTicketForm,
@@ -262,11 +263,7 @@ describeWithEnv(
           "csv@test.com",
         );
 
-        const response = await awaitTestRequest(
-          `/admin/listing/${listing.id}/export`,
-          { cookie },
-        );
-        const csv = await response.text();
+        const csv = await fetchListingExportCsv(listing.id, cookie);
         expect(csv.startsWith("Name,Email")).toBe(true);
       });
 

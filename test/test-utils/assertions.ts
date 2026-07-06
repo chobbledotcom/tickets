@@ -41,6 +41,31 @@ export const expectActivityLogShows = async (
   expect(body).toContain(verb);
 };
 
+const listingActivityLogHasMessage = async (
+  listingId: number,
+  substring: string,
+): Promise<boolean> => {
+  const { getListingActivityLog } = await import("#test-utils/activity-log.ts");
+  const entries = await getListingActivityLog(listingId);
+  return entries.some((entry) => entry.message.includes(substring));
+};
+
+/** Assert the listing's activity log has an entry whose message includes `substring`. */
+export const expectListingActivityLogContains = async (
+  listingId: number,
+  substring: string,
+): Promise<void> => {
+  expect(await listingActivityLogHasMessage(listingId, substring)).toBe(true);
+};
+
+/** Assert the listing's activity log has no entry whose message includes `substring`. */
+export const expectListingActivityLogLacks = async (
+  listingId: number,
+  substring: string,
+): Promise<void> => {
+  expect(await listingActivityLogHasMessage(listingId, substring)).toBe(false);
+};
+
 export const expectTestAttendeeCsvColumns = (
   row: string | undefined,
   quantity = 1,

@@ -8,7 +8,8 @@ import {
   createDailyTestListing,
   describeWithEnv,
   expectFlashRedirect,
-  getListingActivityLog,
+  expectListingActivityLogContains,
+  expectListingActivityLogLacks,
   rawListingRange,
   setupListingAndLogin,
   updateTestListing,
@@ -119,16 +120,6 @@ describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
       thank_you_url: "https://example.com",
     });
 
-    /** Assert the listing's activity log records no duration-change reconciliation. */
-    const expectNoDurationChangeLogged = async (listingId: number) => {
-      const messages = (await getListingActivityLog(listingId)).map(
-        (l: { message: string }) => l.message,
-      );
-      expect(messages.some((m: string) => m.includes("duration changed"))).toBe(
-        false,
-      );
-    };
-
     test("changing duration via form updates listing and reconciles bookings", async () => {
       const listing = await createDailyTestListing({
         maxAttendees: 10,
@@ -165,13 +156,12 @@ describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
         "Listing updated Warning: group capacity exceeded on 2026-10-02",
       )(response);
 
-      const messages = (await getListingActivityLog(listingA.id)).map(
-        (l: { message: string }) => l.message,
-      );
-      expect(messages).toContain(
+      await expectListingActivityLogContains(
+        listingA.id,
         `Listing '${listingA.name}' duration changed to 2 day(s)`,
       );
-      expect(messages).toContain(
+      await expectListingActivityLogContains(
+        listingA.id,
         "Duration change caused group capacity overflow on 2026-10-02",
       );
     });
@@ -196,7 +186,7 @@ describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
 
       const after = await rawListingRange(listing.id);
       expect(after!.end_at).toBe(before!.end_at);
-      await expectNoDurationChangeLogged(listing.id);
+      await expectListingActivityLogLacks(listing.id, "duration changed");
     });
 
     test("editing a customisable listing's max duration leaves existing booking ranges untouched", async () => {
@@ -219,7 +209,7 @@ describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
       // customisable bookings are never rewritten from the listing duration.
       const after = await rawListingRange(listing.id);
       expect(after!.end_at).toBe(before!.end_at);
-      await expectNoDurationChangeLogged(listing.id);
+      await expectListingActivityLogLacks(listing.id, "duration changed");
     });
 
     test("changing duration on a standard listing does not reconcile or log a duration change", async () => {
@@ -244,7 +234,7 @@ describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
       // The value persists (inert until the listing becomes daily)…
       expect((await getListing(listing.id))?.duration_days).toBe(7);
       // …but no reconciliation activity is logged for a standard listing.
-      await expectNoDurationChangeLogged(listing.id);
+      await expectListingActivityLogLacks(listing.id, "duration changed");
     });
   });
 });
