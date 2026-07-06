@@ -293,6 +293,14 @@ export const adminQuestionPage = (
                 options: toLinkedItemOptions(allListings, assignedListingIds),
               },
             ]}
+            // assign_all applies the question to every listing regardless of the
+            // individually-ticked ids (which may be empty), so show "(all)"
+            // rather than a misleading count of the stored id set.
+            heading={
+              question.assign_all
+                ? ({ type }) => t("questions.linked_all_listings", { type })
+                : undefined
+            }
             leading={
               <CheckboxLabel
                 checked={question.assign_all || undefined}

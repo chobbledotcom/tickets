@@ -283,6 +283,21 @@ describe("adminQuestionPage", () => {
     expect(html).toContain("Assign to all listings");
   });
 
+  test("shows an '(all)' heading, not a stored-id count, when assign-all is set", () => {
+    // assign_all applies to every listing even with no individually-ticked ids,
+    // so the count must not read "(0)" next to a checked "Assign to all" toggle.
+    const html = adminQuestionPage(
+      { ...question, assign_all: true },
+      TEST_SESSION,
+      undefined,
+      undefined,
+      TEST_LISTINGS,
+      new Set(),
+    );
+    expect(html).toContain("<strong>Linked listings (all):</strong>");
+    expect(html).not.toContain("Linked listings (0):");
+  });
+
   test("sorts a deactivated listing last and renders it muted", () => {
     const html = adminQuestionPage(
       question,

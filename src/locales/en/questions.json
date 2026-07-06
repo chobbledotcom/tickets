@@ -60,5 +60,6 @@
   "questions.listing.manage": "Manage Questions",
   "questions.assign_to_listings": "Assign to Listings",
   "questions.assign_all_listings": "Assign to all listings",
+  "questions.linked_all_listings": "Linked {type} (all):",
   "questions.save_listings": "Save Listings"
 }

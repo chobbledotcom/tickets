@@ -90,10 +90,10 @@ export const LinkedItemsCheckboxes = ({
   /** The checkbox input name shared by every option. */
   name: string;
   /** Override the default "Linked …" heading wording. */
-  heading?: LinkedItemsHeading;
+  heading?: LinkedItemsHeading | undefined;
   /** Rendered inside a single-type list, before its checkboxes (e.g. a
    * "select all" toggle). */
-  leading?: Child;
+  leading?: Child | undefined;
 }): JSX.Element => {
   const withOptions = groups.filter((group) => group.options.length > 0);
   const checkboxes = optionCheckboxes(name);
