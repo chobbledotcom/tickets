@@ -1246,8 +1246,12 @@ td.cell-description {
   text-overflow: ellipsis;
 }
 
+/* The key column of a detail table sizes to its widest label rather than a
+   fixed width, so short labels don't leave a wide empty gutter and long ones
+   aren't clipped — the value column takes the rest, and the `.table-scroll`
+   wrapper handles any overflow on narrow screens. */
 .listing-details-table th {
-  width: 220px;
+  width: fit-content;
 }
 
 /* Income & ledger breakdown: a compact reconciliation table whose figures are
