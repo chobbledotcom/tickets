@@ -41,6 +41,54 @@ import {
   setupListingAndLogin,
   updateTestListing,
 } from "#test-utils";
+import { seedSaturdayComboGroup } from "#test-utils/db-helpers.ts";
+
+/** A 3-day listing (cap 2) whose middle day (the 13th) is already filled by a
+ *  1-day booking, ready for a spanning booking to be probed. */
+const listingWithFilledMiddleDay = async () => {
+  const listing = await createDailyTestListing({
+    durationDays: 3,
+    maxAttendees: 2,
+  });
+  await bookAttendee(listing, {
+    date: "2026-06-13",
+    durationDays: 1,
+    quantity: 2,
+  });
+  return listing;
+};
+
+/** A group (cap `groupCap`) with two daily listings A and B (each up to 60 days
+ *  out), booked to `quantity` on days `dateA` and `dateB`. Returns both. */
+const groupWithOverlappingBookings = async (opts: {
+  dateA: string;
+  dateB: string;
+  groupCap: number;
+  quantity: number;
+}) => {
+  const group = await createTestGroup({ maxAttendees: opts.groupCap });
+  const dailyListing = () =>
+    createDailyTestListing({
+      groupId: group.id,
+      maxAttendees: 100,
+      maximumDaysAfter: 60,
+    });
+  const listingA = await dailyListing();
+  const listingB = await dailyListing();
+  await bookAttendee(listingA, { date: opts.dateA, quantity: opts.quantity });
+  await bookAttendee(listingB, { date: opts.dateB, quantity: opts.quantity });
+  return { group, listingA, listingB };
+};
+
+/** Assert no "duration changed" reconciliation entry was logged for a listing. */
+const expectNoDurationChangeLog = async (listingId: number): Promise<void> => {
+  const messages = (await getListingActivityLog(listingId)).map(
+    (l: { message: string }) => l.message,
+  );
+  expect(messages.some((m: string) => m.includes("duration changed"))).toBe(
+    false,
+  );
+};
 
 describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
   describe("booking + stored range", () => {
@@ -67,17 +115,7 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
 
   describe("per-day capacity", () => {
     test("filling a middle day blocks a multi-day booking that spans it", async () => {
-      const listing = await createDailyTestListing({
-        durationDays: 3,
-        maxAttendees: 2,
-      });
-
-      // Fill day 2 with a 1-day booking at capacity.
-      await bookAttendee(listing, {
-        date: "2026-06-13",
-        durationDays: 1,
-        quantity: 2,
-      });
+      const listing = await listingWithFilledMiddleDay();
 
       // 3-day booking starting day 1 covers 12–14 → day 13 is full.
       expect(await hasAvailableSpots(listing.id, 1, "2026-06-12", 3)).toBe(
@@ -86,15 +124,7 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
     });
 
     test("single day within a blocked multi-day range is still bookable alone", async () => {
-      const listing = await createDailyTestListing({
-        durationDays: 3,
-        maxAttendees: 2,
-      });
-      await bookAttendee(listing, {
-        date: "2026-06-13",
-        durationDays: 1,
-        quantity: 2,
-      });
+      const listing = await listingWithFilledMiddleDay();
 
       // Day 1 alone (before the full day) is still available.
       expect(await hasAvailableSpots(listing.id, 1, "2026-06-12", 1)).toBe(
@@ -125,23 +155,10 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
 
   describe("group per-day capacity", () => {
     test("combo booking fills Saturday group cap across listings", async () => {
-      const group = await createTestGroup({ maxAttendees: 10 });
-      const sat = await createDailyTestListing({
-        groupId: group.id,
+      const { sat } = await seedSaturdayComboGroup({
+        fillQuantity: 5,
+        groupCap: 10,
         maxAttendees: 100,
-      });
-      const combo = await createDailyTestListing({
-        durationDays: 2,
-        groupId: group.id,
-        maxAttendees: 100,
-      });
-
-      // Fill Saturday: 5 via sat-only + 5 via combo (covers Sat+Sun).
-      await bookAttendee(sat, { date: "2026-05-02", quantity: 5 });
-      await bookAttendee(combo, {
-        date: "2026-05-02",
-        durationDays: 2,
-        quantity: 5,
       });
 
       // Saturday group-full → 1 more on sat-only must reject.
@@ -154,26 +171,10 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
     });
 
     test("Sunday still has room when only the combo spans both days", async () => {
-      const group = await createTestGroup({ maxAttendees: 10 });
-      const sat = await createDailyTestListing({
-        groupId: group.id,
+      const { sun } = await seedSaturdayComboGroup({
+        fillQuantity: 5,
+        groupCap: 10,
         maxAttendees: 100,
-      });
-      const combo = await createDailyTestListing({
-        durationDays: 2,
-        groupId: group.id,
-        maxAttendees: 100,
-      });
-      const sun = await createDailyTestListing({
-        groupId: group.id,
-        maxAttendees: 100,
-      });
-
-      await bookAttendee(sat, { date: "2026-05-02", quantity: 5 });
-      await bookAttendee(combo, {
-        date: "2026-05-02",
-        durationDays: 2,
-        quantity: 5,
       });
 
       // Sunday has 5 from combo only → 5 more fits.
@@ -642,19 +643,12 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       // Two listings in a group with cap 10. Each has 5 attendees on
       // separate days. Extending listing A's duration to span listing B's
       // day pushes the group total to 10 — at the limit but not over.
-      const group = await createTestGroup({ maxAttendees: 10 });
-      const listingA = await createDailyTestListing({
-        groupId: group.id,
-        maxAttendees: 100,
-        maximumDaysAfter: 60,
+      const { group, listingA } = await groupWithOverlappingBookings({
+        dateA: "2026-10-01",
+        dateB: "2026-10-02",
+        groupCap: 10,
+        quantity: 6,
       });
-      const listingB = await createDailyTestListing({
-        groupId: group.id,
-        maxAttendees: 100,
-        maximumDaysAfter: 60,
-      });
-      await bookAttendee(listingA, { date: "2026-10-01", quantity: 6 });
-      await bookAttendee(listingB, { date: "2026-10-02", quantity: 6 });
 
       // Before extending: no overlap, group fine.
       expect(
@@ -674,19 +668,12 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
     test("duration change that causes group overflow is detectable", async () => {
       // Use updateTestListing (full admin form) to change duration, then
       // verify checkGroupCapAfterDurationChange flags the overflow day.
-      const group = await createTestGroup({ maxAttendees: 5 });
-      const listingA = await createDailyTestListing({
-        groupId: group.id,
-        maxAttendees: 100,
-        maximumDaysAfter: 60,
+      const { group, listingA } = await groupWithOverlappingBookings({
+        dateA: "2026-11-01",
+        dateB: "2026-11-02",
+        groupCap: 5,
+        quantity: 3,
       });
-      const listingB = await createDailyTestListing({
-        groupId: group.id,
-        maxAttendees: 100,
-        maximumDaysAfter: 60,
-      });
-      await bookAttendee(listingA, { date: "2026-11-01", quantity: 3 });
-      await bookAttendee(listingB, { date: "2026-11-02", quantity: 3 });
 
       // Extend listingA to 2 days → day 2 has A(3) + B(3) = 6 > cap 5.
       await updateTestListing(listingA.id, { durationDays: 2 });
@@ -821,19 +808,12 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       // Same shape as the checkGroupCapAfterDurationChange unit test, but
       // through the real POST: extending listing A to span listing B's day pushes
       // the group total to 12 > cap 10 on day 2.
-      const group = await createTestGroup({ maxAttendees: 10 });
-      const listingA = await createDailyTestListing({
-        groupId: group.id,
-        maxAttendees: 100,
-        maximumDaysAfter: 60,
+      const { group, listingA } = await groupWithOverlappingBookings({
+        dateA: "2026-10-01",
+        dateB: "2026-10-02",
+        groupCap: 10,
+        quantity: 6,
       });
-      const listingB = await createDailyTestListing({
-        groupId: group.id,
-        maxAttendees: 100,
-        maximumDaysAfter: 60,
-      });
-      await bookAttendee(listingA, { date: "2026-10-01", quantity: 6 });
-      await bookAttendee(listingB, { date: "2026-10-02", quantity: 6 });
 
       const { response } = await adminFormPost(
         `/admin/listing/${listingA.id}/edit`,
@@ -875,12 +855,7 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
 
       const after = await rawListingRange(listing.id);
       expect(after!.end_at).toBe(before!.end_at);
-      const messages = (await getListingActivityLog(listing.id)).map(
-        (l: { message: string }) => l.message,
-      );
-      expect(messages.some((m: string) => m.includes("duration changed"))).toBe(
-        false,
-      );
+      await expectNoDurationChangeLog(listing.id);
     });
 
     test("editing a customisable listing's max duration leaves existing booking ranges untouched", async () => {
@@ -903,12 +878,7 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       // customisable bookings are never rewritten from the listing duration.
       const after = await rawListingRange(listing.id);
       expect(after!.end_at).toBe(before!.end_at);
-      const messages = (await getListingActivityLog(listing.id)).map(
-        (l: { message: string }) => l.message,
-      );
-      expect(messages.some((m: string) => m.includes("duration changed"))).toBe(
-        false,
-      );
+      await expectNoDurationChangeLog(listing.id);
     });
 
     test("changing duration on a standard listing does not reconcile or log a duration change", async () => {
@@ -933,12 +903,7 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
       // The value persists (inert until the listing becomes daily)…
       expect((await getListing(listing.id))?.duration_days).toBe(7);
       // …but no reconciliation activity is logged for a standard listing.
-      const messages = (await getListingActivityLog(listing.id)).map(
-        (l: { message: string }) => l.message,
-      );
-      expect(messages.some((m: string) => m.includes("duration changed"))).toBe(
-        false,
-      );
+      await expectNoDurationChangeLog(listing.id);
     });
   });
 

@@ -22,7 +22,9 @@ import {
   apiListingBody,
   bookableDatesFor,
   enablePublicApi,
+  expectListingDetailBookable,
   firstBookableDate,
+  parentWithBlockedSecondChild,
 } from "#test-utils/parent-booking-scenarios.ts";
 
 describeWithEnv(
@@ -246,16 +248,14 @@ describeWithEnv(
     });
 
     test("the JSON API rejects booking a child slug", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       const { child } = await makeParent();
       const res = await apiBook(child.slug);
       expect(res.status).toBe(400);
     });
 
     test("the JSON API books a free parent with its sole child auto-filled", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       const { parent, child } = await makeParent();
       // No `children` array: the sole bookable child is auto-filled.
       const res = await apiBook(parent.slug);
@@ -278,8 +278,7 @@ describeWithEnv(
     });
 
     test("the JSON API books a parent with an explicit per-unit child mix", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       const { parent, children } = await makeParent({
         children: [{}, {}],
         parent: { maxQuantity: 5 },
@@ -375,8 +374,7 @@ describeWithEnv(
     }
 
     test("the JSON API sums repeated child slugs to the parent quantity", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       const { parent, child } = await makeParent({
         children: [{ maxQuantity: 5 }],
         parent: { maxQuantity: 5 },
@@ -395,8 +393,7 @@ describeWithEnv(
     });
 
     test("the JSON API requires a date when booking a daily parent", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       const { parent, child } = await makeParent({
         children: [{ daily: true }],
         parent: { daily: true },
@@ -408,8 +405,7 @@ describeWithEnv(
     });
 
     test("the JSON API validates merged parent+child contact fields", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       // The child requires a phone the parent doesn't, so a body without one is
       // rejected against the MERGED field set (contact validation after the fold).
       const { parent, child } = await makeParent({
@@ -423,8 +419,7 @@ describeWithEnv(
     });
 
     test("the JSON API returns 409 when a child sells out before creation", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       const { bookAttendee } = await import("#test-utils");
       // A 1-capacity daily child passes the date-less fold but fails the atomic
       // date-specific capacity check, so the all-or-nothing save reports 409.
@@ -443,8 +438,7 @@ describeWithEnv(
     });
 
     test("the JSON API still books an ordinary listing", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       const listing = await createTestListing({ name: "Plain" });
       const res = await apiBook(listing.slug);
       expect(res.status).toBe(200);
@@ -453,8 +447,7 @@ describeWithEnv(
     });
 
     test("a paid API parent booking with a parent customPrice charges that price", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       // The PARENT is pay-more; the request's `customPrice` must be parsed and
       // folded onto the parent line, so the checkout item is charged at the
       // chosen £30, not its £10 unit price (which would undercharge).
@@ -485,8 +478,7 @@ describeWithEnv(
     });
 
     test("an API parent booking rejects an out-of-range parent customPrice", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       // The pay-more parent's submitted price exceeds its max_price, so the
       // parent custom-price parse fails and the booking is rejected with a 400 —
       // never silently falling back to the unit price.
@@ -504,8 +496,7 @@ describeWithEnv(
     });
 
     test("a paid API parent booking carries the folded dayCount for a customisable child", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       // The parent is a FIXED 3-day daily listing (not customisable, so bookable
       // through the API), and its child is customisable. Folding the child flips
       // the order to customisable, so the intent must carry dayCount=3 and the
@@ -547,8 +538,7 @@ describeWithEnv(
     });
 
     test("a paid API parent booking for a sold-out folded order returns 409", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       // The paid path must run the folded checkAvailability preflight before
       // creating the session. A 1-capacity daily child passes the date-LESS fold
       // (a daily child's date-less aggregate is judged per-date downstream) but is
@@ -580,8 +570,7 @@ describeWithEnv(
     });
 
     test("GET /api/listings omits a child listing", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       const { parent, child } = await makeParent();
       const slugs = await apiListingSlugs();
       expect(slugs).toContain(parent.slug);
@@ -589,37 +578,27 @@ describeWithEnv(
     });
 
     test("a child listing detail endpoint is not bookable (404)", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       const { child } = await makeParent();
       const res = await apiGet(`/api/listings/${child.slug}`);
       expect(res.status).toBe(404);
     });
 
     test("a child listing availability endpoint is not bookable (404)", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       const { child } = await makeParent();
       const res = await apiGet(`/api/listings/${child.slug}/availability`);
       expect(res.status).toBe(404);
     });
 
     test("an ordinary listing API detail is unaffected", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       const listing = await createTestListing({ name: "Plain" });
-      const res = await apiGet(`/api/listings/${listing.slug}`);
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as {
-        listing: { slug: string; maxPurchasable: number };
-      };
-      expect(body.listing.slug).toBe(listing.slug);
-      expect(body.listing.maxPurchasable).toBeGreaterThan(0);
+      await expectListingDetailBookable(listing.slug);
     });
 
     test("a parent with no bookable child reads sold out in API detail", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       // A child with no capacity is its parent's only child, so the parent has
       // no bookable child and is sold out.
       const { parent } = await makeParent({ children: [{ maxAttendees: 0 }] });
@@ -633,83 +612,72 @@ describeWithEnv(
     });
 
     test("a parent with no bookable child reports unavailable in API availability", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       const { parent } = await makeParent({ children: [{ maxAttendees: 0 }] });
-      const res = await apiGet(`/api/listings/${parent.slug}/availability`);
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as { available: boolean };
+      const body = await apiListingBody<{ available: boolean }>(
+        parent.slug,
+        "/availability",
+      );
       expect(body.available).toBe(false);
     });
 
     test("a parent with a bookable child stays available in API availability", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       const { parent } = await makeParent();
-      const res = await apiGet(`/api/listings/${parent.slug}/availability`);
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as { available: boolean };
+      const body = await apiListingBody<{ available: boolean }>(
+        parent.slug,
+        "/availability",
+      );
       expect(body.available).toBe(true);
     });
 
     test("API detail of a parent lists its required children with prices", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       const { parent, child } = await makeParent({
         children: [{ unitPrice: 1500 }],
       });
-      const res = await apiGet(`/api/listings/${parent.slug}`);
-      const body = (await res.json()) as {
+      const body = await apiListingBody<{
         listing: { children?: { slug: string; unitPrice: number }[] };
-      };
+      }>(parent.slug);
       expect(body.listing.children).toEqual([
         expect.objectContaining({ slug: child.slug, unitPrice: 1500 }),
       ]);
     });
 
     test("API detail of an ordinary listing has no children field", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       const listing = await createTestListing({ name: "Plain" });
-      const res = await apiGet(`/api/listings/${listing.slug}`);
-      const body = (await res.json()) as { listing: { children?: unknown } };
+      const body = await apiListingBody<{ listing: { children?: unknown } }>(
+        listing.slug,
+      );
       expect(body.listing.children).toBeUndefined();
     });
 
     test("API detail omits an inactive child from a parent's children", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       // An inactive child with spare capacity would, unfiltered, read
       // isClosed:false with a positive maxPurchasable while the booking fold
       // rejects it (childActive) — so the detail endpoint must not advertise it,
       // matching the availability endpoint that already reports it unavailable.
-      const { parent, children } = await makeParent({ children: [{}, {}] });
-      const okChild = children[0]!;
-      const inactiveChild = children[1]!;
-      const { execute } = await import("#shared/db/client.ts");
-      await execute("UPDATE listings SET active = 0 WHERE id = ?", [
-        inactiveChild.id,
-      ]);
-      const res = await apiGet(`/api/listings/${parent.slug}`);
-      const body = (await res.json()) as {
+      const { parent, okChild } =
+        await parentWithBlockedSecondChild("inactive");
+      const body = await apiListingBody<{
         listing: { children?: { slug: string }[] };
-      };
+      }>(parent.slug);
       const slugs = (body.listing.children ?? []).map((c) => c.slug);
       expect(slugs).toEqual([okChild.slug]);
     });
 
     test("API availability of a parent reports per-child availability", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       const { parent, children } = await makeParent({
         children: [{}, { maxAttendees: 0 }],
       });
       const okChild = children[0]!;
       const fullChild = children[1]!;
-      const res = await apiGet(`/api/listings/${parent.slug}/availability`);
-      const body = (await res.json()) as {
+      const body = await apiListingBody<{
         children?: { slug: string; available: boolean }[];
-      };
+      }>(parent.slug, "/availability");
       expect(body.children).toEqual(
         expect.arrayContaining([
           { available: true, slug: okChild.slug },
@@ -719,61 +687,44 @@ describeWithEnv(
     });
 
     test("API availability reports an inactive child unavailable", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       // A second active child keeps the parent itself bookable, so the response
       // carries the per-child availability array. The inactive child has spare
       // capacity but the booking fold rejects it (childActive), so it must report
       // `available: false` rather than advertising spots the booking POST refuses.
-      const { parent, children } = await makeParent({ children: [{}, {}] });
-      const okChild = children[0]!;
-      const inactiveChild = children[1]!;
-      const { execute } = await import("#shared/db/client.ts");
-      await execute("UPDATE listings SET active = 0 WHERE id = ?", [
-        inactiveChild.id,
-      ]);
-      const res = await apiGet(`/api/listings/${parent.slug}/availability`);
-      const body = (await res.json()) as {
+      const { parent, okChild, blockedChild } =
+        await parentWithBlockedSecondChild("inactive");
+      const body = await apiListingBody<{
         children?: { slug: string; available: boolean }[];
-      };
+      }>(parent.slug, "/availability");
       expect(body.children).toEqual(
         expect.arrayContaining([
           { available: true, slug: okChild.slug },
-          { available: false, slug: inactiveChild.slug },
+          { available: false, slug: blockedChild.slug },
         ]),
       );
     });
 
     test("API availability reports a registration-closed child unavailable", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       // The second child's registration has closed (closes_at in the past); like
       // the inactive case it has spare capacity but the fold rejects it
       // (childOpen), so it must report `available: false`.
-      const { parent, children } = await makeParent({ children: [{}, {}] });
-      const okChild = children[0]!;
-      const closedChild = children[1]!;
-      const { execute } = await import("#shared/db/client.ts");
-      const { writeClosesAt } = await import("#shared/db/listings.ts");
-      await execute("UPDATE listings SET closes_at = ? WHERE id = ?", [
-        await writeClosesAt("2000-01-01T00:00:00.000Z"),
-        closedChild.id,
-      ]);
-      const res = await apiGet(`/api/listings/${parent.slug}/availability`);
-      const body = (await res.json()) as {
+      const { parent, okChild, blockedChild } =
+        await parentWithBlockedSecondChild("closed");
+      const body = await apiListingBody<{
         children?: { slug: string; available: boolean }[];
-      };
+      }>(parent.slug, "/availability");
       expect(body.children).toEqual(
         expect.arrayContaining([
           { available: true, slug: okChild.slug },
-          { available: false, slug: closedChild.slug },
+          { available: false, slug: blockedChild.slug },
         ]),
       );
     });
 
     test("API availability of a daily parent with no date reports per-child availability", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       // No `date` query param: a daily child's availability is checked date-less
       // (its own cumulative capacity), so a client still sees which children
       // exist before choosing a date.
@@ -781,16 +732,14 @@ describeWithEnv(
         children: [{ daily: true }],
         parent: { daily: true },
       });
-      const res = await apiGet(`/api/listings/${parent.slug}/availability`);
-      const body = (await res.json()) as {
+      const body = await apiListingBody<{
         children?: { slug: string; available: boolean }[];
-      };
+      }>(parent.slug, "/availability");
       expect(body.children).toEqual([{ available: true, slug: child.slug }]);
     });
 
     test("a daily parent's availability is false for a date no child can serve", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       // The parent is bookable every weekday, but its only (daily) child is
       // bookable only on Mondays. A date the child cannot serve must report
       // `available: false` even though the parent's OWN row has capacity — the
@@ -822,8 +771,7 @@ describeWithEnv(
     });
 
     test("API availability reports a daily child unavailable when it can't serve the date", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       // Parent has two daily children: A serves all days, B serves only Monday.
       // When the buyer picks a non-Monday date, childA is available but childB
       // is not — even though the parent-level keepParentDailyDatesChildrenCanServe check
@@ -908,8 +856,7 @@ describeWithEnv(
     });
 
     test("GET /api/listings reports a no-bookable-child parent as sold out", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       // The parent's only child has no capacity, so the parent has no bookable
       // child and is sold out — the list response must project
       // that, matching the detail/availability endpoints, not advertise
@@ -928,8 +875,7 @@ describeWithEnv(
     });
 
     test("GET /api/listings keeps a parent with a bookable child bookable", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       const { parent } = await makeParent();
       const body = (await (await apiGet("/api/listings")).json()) as {
         listings: {
@@ -944,8 +890,7 @@ describeWithEnv(
     });
 
     test("API detail availableDates of a daily parent equal the child-constrained intersection", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       // The parent is bookable every weekday, but its only (daily) child is
       // bookable only on Mondays. The API detail must advertise only the dates a
       // child can serve — the intersection — so it never offers a date the web
@@ -981,8 +926,7 @@ describeWithEnv(
     test("a plain daily listing API detail keeps its full calendar", async () => {
       // A daily listing with no child edges is not a parent, so the child-date
       // constraint is a no-op: the API still advertises its own full calendar.
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
       const listing = await createDailyTestListing({ name: "Plain daily" });
       const { getAvailableDates } = await import("#shared/dates.ts");
       const { getActiveHolidays } = await import("#shared/db/holidays.ts");

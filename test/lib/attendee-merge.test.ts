@@ -241,6 +241,63 @@ const colourAnswerConflict = () => ({
   targetAnswerText: "Red",
 });
 
+/** A single same-listing booking conflict item (source #2 → target #1), listing
+ *  #5, with sensible defaults. Override just the columns a case cares about. */
+const bookingConflict = (
+  overrides: Partial<AttendeeMergeDiff["bookingItems"][number]> = {},
+): AttendeeMergeDiff["bookingItems"][number] => ({
+  conflictClass: "duplicate",
+  listingId: 5,
+  parentListingId: 0,
+  sourceBooking: mergeBookingRow(),
+  sourceSaleAmount: 0,
+  startAt: null,
+  targetBooking: null,
+  targetSaleAmount: 0,
+  ...overrides,
+});
+
+/** A diff whose only answer item is the "Colour?" conflict, with the given
+ *  booking items (none by default). */
+const answerConflictDiff = (
+  bookingItems: AttendeeMergeDiff["bookingItems"] = [],
+): AttendeeMergeDiff => ({
+  answerItems: [colourAnswerConflict()],
+  bookingItems,
+  piiFields: [],
+  sourceId: 2,
+  targetId: 1,
+  version: "v1",
+});
+
+/** A merge decision that starts from "take every default" and applies the given
+ *  overrides (stamped with the diff's version). */
+const decisionFor = (
+  diff: AttendeeMergeDiff,
+  overrides: Partial<AttendeeMergeDecisionInput> = {},
+): AttendeeMergeDecisionInput => ({
+  ...noChangeDecision(diff.version),
+  ...overrides,
+});
+
+/** Validate a decision that must be REJECTED, returning the error messages. */
+const rejectionErrors = (
+  diff: AttendeeMergeDiff,
+  decision: AttendeeMergeDecisionInput = noChangeDecision(diff.version),
+): string[] => {
+  const result = validateAttendeeMergeDecision(diff, decision);
+  expect(result.valid).toBe(false);
+  return result.valid ? [] : result.errors;
+};
+
+/** Assert a decision is accepted (valid). */
+const expectAccepted = (
+  diff: AttendeeMergeDiff,
+  decision: AttendeeMergeDecisionInput = noChangeDecision(diff.version),
+): void => {
+  expect(validateAttendeeMergeDecision(diff, decision).valid).toBe(true);
+};
+
 describeWithEnv("attendee merge service", { db: true }, () => {
   test("repoints the source's ledger rows onto the target", async () => {
     const listing1 = await createTestListing({ maxAttendees: 10 });
@@ -575,161 +632,98 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     });
 
     test("rejects missing answer decision for conflict", () => {
-      const diff: AttendeeMergeDiff = {
-        answerItems: [colourAnswerConflict()],
-        bookingItems: [],
-        piiFields: [],
-        sourceId: 2,
-        targetId: 1,
-        version: "v1",
-      };
-      const result = validateAttendeeMergeDecision(diff, noChangeDecision("v1"));
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.errors[0]).toContain("Colour?");
-      }
+      const errors = rejectionErrors(answerConflictDiff());
+      expect(errors[0]).toContain("Colour?");
     });
 
     test("rejects missing booking decision for conflict", () => {
-      const diff = oneBookingConflictDiff({
-        conflictClass: "conflicting_metadata",
-        listingId: 5,
-        parentListingId: 0,
-        sourceBooking: mergeBookingRow(),
-        sourceSaleAmount: 0,
-        startAt: null,
-        targetBooking: mergeBookingRow({ quantity: 2 }),
-        targetSaleAmount: 0,
-      });
-      const result = validateAttendeeMergeDecision(diff, noChangeDecision("v1"));
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.errors[0]).toContain("Listing #5");
-      }
+      const diff = oneBookingConflictDiff(
+        bookingConflict({
+          conflictClass: "conflicting_metadata",
+          targetBooking: mergeBookingRow({ quantity: 2 }),
+        }),
+      );
+      expect(rejectionErrors(diff)[0]).toContain("Listing #5");
     });
 
     test("rejects missing booking decision for daily listing conflict", () => {
-      const diff = oneBookingConflictDiff({
-        conflictClass: "duplicate",
-        listingId: 7,
-        parentListingId: 0,
-        sourceBooking: mergeBookingRow({
-          listing_id: 7,
-          start_at: "2026-06-15T10:00:00Z",
+      const diff = oneBookingConflictDiff(
+        bookingConflict({
+          listingId: 7,
+          sourceBooking: mergeBookingRow({
+            listing_id: 7,
+            start_at: "2026-06-15T10:00:00Z",
+          }),
+          startAt: "2026-06-15T10:00:00Z",
+          targetBooking: mergeBookingRow({
+            listing_id: 7,
+            quantity: 2,
+            start_at: "2026-06-15T10:00:00Z",
+          }),
         }),
-        sourceSaleAmount: 0,
-        startAt: "2026-06-15T10:00:00Z",
-        targetBooking: mergeBookingRow({
-          listing_id: 7,
-          quantity: 2,
-          start_at: "2026-06-15T10:00:00Z",
-        }),
-        targetSaleAmount: 0,
-      });
-      const result = validateAttendeeMergeDecision(diff, noChangeDecision("v1"));
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.errors[0]).toContain("2026-06-15");
-      }
+      );
+      expect(rejectionErrors(diff)[0]).toContain("2026-06-15");
     });
 
     test("rejects copying a no-quantity source line that still carries a payment", () => {
       // A quantity-0 line must have price_paid = 0; merging one that doesn't
       // would strand the charge behind the quantity-0 refund guards.
-      const diff = oneBookingConflictDiff({
-        conflictClass: "moveable",
-        listingId: 5,
-        parentListingId: 0,
-        sourceBooking: mergeBookingRow({ price_paid: 1500, quantity: 0 }),
-        sourceSaleAmount: 1500,
-        startAt: null,
-        targetBooking: null,
-        targetSaleAmount: 0,
-      });
-      const result = validateAttendeeMergeDecision(diff, noChangeDecision("v1"));
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(
-          result.errors.some((e) => e.includes("strand a recorded payment")),
-        ).toBe(true);
-      }
+      const diff = oneBookingConflictDiff(
+        bookingConflict({
+          conflictClass: "moveable",
+          sourceBooking: mergeBookingRow({ price_paid: 1500, quantity: 0 }),
+          sourceSaleAmount: 1500,
+        }),
+      );
+      expect(
+        rejectionErrors(diff).some((e) =>
+          e.includes("strand a recorded payment"),
+        ),
+      ).toBe(true);
     });
 
     test("rejects replacing an active paid target line with a no-quantity source", () => {
       // take_source would delete the paid target and insert the quantity-0
       // source, stranding the target's payment behind a ghost row.
-      const diff = oneBookingConflictDiff({
-        conflictClass: "conflicting_metadata",
-        listingId: 5,
-        parentListingId: 0,
-        sourceBooking: mergeBookingRow({ quantity: 0 }),
-        sourceSaleAmount: 0,
-        startAt: null,
-        targetBooking: mergeBookingRow({ price_paid: 1500, quantity: 2 }),
-        targetSaleAmount: 1500,
-      });
-      const decision: AttendeeMergeDecisionInput = {
-        answers: {},
-        bookings: { "5:null:0": "take_source" },
-        money: {},
-        pii: {},
-        version: "v1",
-      };
-      const result = validateAttendeeMergeDecision(diff, decision);
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(
-          result.errors.some((e) => e.includes("strand a recorded payment")),
-        ).toBe(true);
-      }
+      const diff = oneBookingConflictDiff(
+        bookingConflict({
+          conflictClass: "conflicting_metadata",
+          sourceBooking: mergeBookingRow({ quantity: 0 }),
+          targetBooking: mergeBookingRow({ price_paid: 1500, quantity: 2 }),
+          targetSaleAmount: 1500,
+        }),
+      );
+      const errors = rejectionErrors(
+        diff,
+        decisionFor(diff, { bookings: { "5:null:0": "take_source" } }),
+      );
+      expect(errors.some((e) => e.includes("strand a recorded payment"))).toBe(
+        true,
+      );
     });
 
     test("allows moving a no-quantity source line that carries no payment", () => {
       // A clean quantity-0 sentinel (no payment, no paid target) is moveable.
-      const diff = oneBookingConflictDiff({
-        conflictClass: "moveable",
-        listingId: 5,
-        parentListingId: 0,
-        sourceBooking: mergeBookingRow({ quantity: 0 }),
-        sourceSaleAmount: 0,
-        startAt: null,
-        targetBooking: null,
-        targetSaleAmount: 0,
-      });
-      expect(
-        validateAttendeeMergeDecision(diff, noChangeDecision("v1")).valid,
-      ).toBe(true);
+      const diff = oneBookingConflictDiff(
+        bookingConflict({
+          conflictClass: "moveable",
+          sourceBooking: mergeBookingRow({ quantity: 0 }),
+        }),
+      );
+      expectAccepted(diff);
     });
 
     test("accepts valid decisions", () => {
-      const diff: AttendeeMergeDiff = {
-        answerItems: [colourAnswerConflict()],
-        bookingItems: [
-          {
-            conflictClass: "duplicate",
-            listingId: 5,
-            parentListingId: 0,
-            sourceBooking: mergeBookingRow(),
-            sourceSaleAmount: 0,
-            startAt: null,
-            targetBooking: mergeBookingRow({ quantity: 2 }),
-            targetSaleAmount: 0,
-          },
-        ],
-        piiFields: [],
-        sourceId: 2,
-        targetId: 1,
-        version: "v1",
-      };
-      const decision: AttendeeMergeDecisionInput = {
+      const diff = answerConflictDiff([
+        bookingConflict({ targetBooking: mergeBookingRow({ quantity: 2 }) }),
+      ]);
+      expectAccepted(diff, {
         answers: { "10": "source" },
         bookings: { "5:null:0": "keep_target" },
         money: {},
         pii: { name: "target" },
         version: "v1",
-      };
-      const result = validateAttendeeMergeDecision(diff, decision);
-      expect(result.valid).toBe(true);
+      });
     });
 
     // --- Decision 17: a discarded booking that carries money needs a choice --- //
@@ -739,23 +733,20 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     const moneyConflictDiff = (
       sourceSaleAmount: number,
       targetSaleAmount: number,
-    ): AttendeeMergeDiff =>
-      oneBookingConflictDiff({
-        conflictClass: "duplicate",
-        listingId: 5,
-        parentListingId: 0,
-        sourceBooking: mergeBookingRow({
-          ledger_event_group: "grp",
-          price_paid: 5000,
-        }),
-        sourceSaleAmount,
-        startAt: null,
-        targetBooking: mergeBookingRow({
-          ledger_event_group: "grp",
-          price_paid: 5000,
-        }),
-        targetSaleAmount,
+    ): AttendeeMergeDiff => {
+      const paidRow = mergeBookingRow({
+        ledger_event_group: "grp",
+        price_paid: 5000,
       });
+      return oneBookingConflictDiff(
+        bookingConflict({
+          sourceBooking: paidRow,
+          sourceSaleAmount,
+          targetBooking: paidRow,
+          targetSaleAmount,
+        }),
+      );
+    };
 
     const decisionWith = (
       money: AttendeeMergeDecisionInput["money"],
@@ -771,44 +762,33 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     test("rejects a discarded paid booking with no money decision", () => {
       // keep_target discards the SOURCE booking (£50 of recognised sale), so the
       // operator must choose credit vs write-off — never a silent default.
-      const result = validateAttendeeMergeDecision(
+      const errors = rejectionErrors(
         moneyConflictDiff(5000, 5000),
         decisionWith({}),
       );
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.errors[0]).toContain("money decision");
-      }
+      expect(errors[0]).toContain("money decision");
     });
 
     test("accepts a discarded paid booking once a money choice is given", () => {
-      const result = validateAttendeeMergeDecision(
+      expectAccepted(
         moneyConflictDiff(5000, 5000),
         decisionWith({ "5:null:0": "credit" }),
       );
-      expect(result.valid).toBe(true);
     });
 
     test("needs no money decision when the discarded booking is free", () => {
       // A £0 conflict carries no money, so only the row choice is required.
-      const result = validateAttendeeMergeDecision(
-        moneyConflictDiff(0, 0),
-        decisionWith({}),
-      );
-      expect(result.valid).toBe(true);
+      expectAccepted(moneyConflictDiff(0, 0), decisionWith({}));
     });
 
     test("take_source weighs the TARGET amount it discards, not the source", () => {
       // Replacing with the source discards the TARGET booking; its £50 is what
       // needs a decision even though the source booking is free.
-      const result = validateAttendeeMergeDecision(
+      const errors = rejectionErrors(
         moneyConflictDiff(0, 5000),
         decisionWith({}, "take_source"),
       );
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.errors[0]).toContain("money decision");
-      }
+      expect(errors[0]).toContain("money decision");
     });
   });
 
@@ -867,15 +847,15 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         { ...question, answers },
       ]);
 
-      const decision: AttendeeMergeDecisionInput = {
-        answers: { [String(question.id)]: "source" },
-        bookings: {},
-        money: {},
-        pii: { email: "target", name: "source" },
-        version: diff.version,
-      };
-
-      const result = await applyMerge({ decision, diff, source, target });
+      const result = await applyMerge({
+        decision: decisionFor(diff, {
+          answers: { [String(question.id)]: "source" },
+          pii: { email: "target", name: "source" },
+        }),
+        diff,
+        source,
+        target,
+      });
 
       expect(result.success).toBe(true);
       expect(result.summary.piiFieldsFromSource).toEqual(["name"]);
@@ -972,18 +952,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       }
 
       const { result, roundTrips } = await countRoundTrips(() =>
-        applyMerge({
-          decision: {
-            answers: {},
-            bookings,
-            money,
-            pii: {},
-            version: diff.version,
-          },
-          diff,
-          source,
-          target,
-        }),
+        applyMerge({ decision: decisionFor(diff, { bookings, money }), diff, source, target }),
       );
 
       expect(result.success).toBe(true);
@@ -1093,13 +1062,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       ]);
 
       const result = await applyMerge({
-        decision: {
+        decision: decisionFor(diff, {
           answers: { [String(question.id)]: "clear" },
-          bookings: {},
-          money: {},
-          pii: {},
-          version: diff.version,
-        },
+        }),
         diff,
         source,
         target,
@@ -1149,13 +1114,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       const key = bookingKey(listing.id, null, 0);
       const result = await applyMerge({
-        decision: {
-          answers: {},
-          bookings: { [key]: "keep_target" },
-          money: {},
-          pii: {},
-          version: diff.version,
-        },
+        decision: decisionFor(diff, { bookings: { [key]: "keep_target" } }),
         diff,
         source,
         target,
@@ -1189,13 +1148,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       const key = bookingKey(listing.id, null, 0);
       const result = await applyMerge({
-        decision: {
-          answers: {},
-          bookings: { [key]: "take_source" },
-          money: {},
-          pii: {},
-          version: diff.version,
-        },
+        decision: decisionFor(diff, { bookings: { [key]: "take_source" } }),
         diff,
         source,
         target,
@@ -1234,13 +1187,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       expect(diff.bookingItems[0]!.conflictClass).toBe("moveable");
 
       const result = await applyMerge({
-        decision: {
-          answers: {},
-          bookings: {},
-          money: {},
-          pii: { name: "source" },
-          version: diff.version,
-        },
+        decision: decisionFor(diff, { pii: { name: "source" } }),
         diff,
         source,
         target,

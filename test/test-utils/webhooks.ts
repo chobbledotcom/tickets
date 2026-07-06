@@ -198,21 +198,18 @@ export const expectKeptAsQuantityZeroAndRefunded = async (
   mockRefund: { calls: unknown[] },
 ): Promise<void> => {
   const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-  const attendees = await getAttendeesRaw(listingId);
-  expect(attendees.length).toBe(1);
-  expect(attendees[0]!.quantity).toBe(0);
-  await expectRefundedWithNote(attendees[0]!.id, mockRefund);
-  await expectSessionFailed(sessionId);
+  // The placeholder is the ONLY attendee here (nothing booked before it).
+  expect((await getAttendeesRaw(listingId)).length).toBe(1);
+  await expectSoldOutPlaceholderRefunded(listingId, sessionId, mockRefund);
 };
 
 /**
- * Assert the standard "sold out after payment" aftermath on a listing that
- * ALREADY had a paying attendee: the late buyer is not dropped — a quantity-0
- * placeholder is kept alongside the original attendee, refunded exactly once
- * with a system note (see `expectRefundedWithNote`), and the session is filed
- * as a terminal failure (see `expectSessionFailed`). Unlike
- * `expectKeptAsQuantityZeroAndRefunded`, this finds the placeholder among
- * several attendees rather than requiring it to be the only one.
+ * Assert the standard "sold out after payment" aftermath: the late buyer is not
+ * dropped — a quantity-0 placeholder is kept (found among however many
+ * attendees the listing has), refunded exactly once with a system note (see
+ * `expectRefundedWithNote`), and the session is filed as a terminal failure
+ * (see `expectSessionFailed`). `expectKeptAsQuantityZeroAndRefunded` layers the
+ * extra "it is the only attendee" check on top of this.
  */
 export const expectSoldOutPlaceholderRefunded = async (
   listingId: number,
@@ -220,8 +217,9 @@ export const expectSoldOutPlaceholderRefunded = async (
   mockRefund: { calls: unknown[] },
 ): Promise<void> => {
   const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-  const attendees = await getAttendeesRaw(listingId);
-  const placeholder = attendees.find((a) => a.quantity === 0);
+  const placeholder = (await getAttendeesRaw(listingId)).find(
+    (a) => a.quantity === 0,
+  );
   expect(placeholder).toBeDefined();
   await expectRefundedWithNote(placeholder!.id, mockRefund);
   await expectSessionFailed(sessionId);

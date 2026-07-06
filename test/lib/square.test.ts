@@ -60,6 +60,41 @@ const orderClient = (order: unknown, payment?: unknown) =>
 const paymentClient = (payment: unknown) =>
   createMockClient({ paymentsGet: () => Promise.resolve({ payment }) });
 
+/** Apply whichever Square credentials a connection test needs, skipping any
+ *  left unset. */
+const configureSquare = async (opts: {
+  token?: string;
+  sandbox?: boolean;
+  locationId?: string;
+  webhookKey?: string;
+}): Promise<void> => {
+  if (opts.token) await settings.update.square.accessToken(opts.token);
+  if (opts.sandbox !== undefined)
+    await settings.update.square.sandbox(opts.sandbox);
+  if (opts.locationId) await settings.update.square.locationId(opts.locationId);
+  if (opts.webhookKey)
+    await settings.update.square.webhookSignatureKey(opts.webhookKey);
+};
+
+/** Assert a connection result rejected the access token, mentioning
+ *  `fragment` in the error. */
+const expectTokenRejected = (
+  result: Awaited<ReturnType<typeof testSquareConnection>>,
+  fragment: string,
+): void => {
+  expect(result.ok).toBe(false);
+  expect(result.accessToken.valid).toBe(false);
+  expect(result.accessToken.error).toContain(fragment);
+};
+
+/** Assert `createPaymentLink` returned null for `intent`. */
+const expectNoPaymentLink = async (
+  intent: ReturnType<typeof checkoutIntent>,
+): Promise<void> => {
+  const result = await squareApi.createPaymentLink(intent, "http://localhost");
+  expect(result).toBeNull();
+};
+
 /** Configure credentials + a payment-link client returning `paymentLink`, run
  *  the provider's createCheckoutSession for `intent`, and assert it surfaces
  *  the resulting order id and URL. */
@@ -165,34 +200,29 @@ describe("square", () => {
   describe("testSquareConnection", () => {
     test("returns error when no access token configured", async () => {
       const result = await testSquareConnection();
-      expect(result.ok).toBe(false);
-      expect(result.accessToken.valid).toBe(false);
-      expect(result.accessToken.error).toContain(
-        "No Square access token configured",
-      );
+      expectTokenRejected(result, "No Square access token configured");
     });
 
     test("returns error when locations list fails", async () => {
-      await settings.update.square.accessToken("EAAAl_test_123");
+      await configureSquare({ token: "EAAAl_test_123" });
       await withMockSquareClient(
         {
           locationsList: () =>
             Promise.reject(new Error("Invalid access token")),
         },
         async () => {
-          const result = await testSquareConnection();
-          expect(result.ok).toBe(false);
-          expect(result.accessToken.valid).toBe(false);
-          expect(result.accessToken.error).toContain("Invalid access token");
+          expectTokenRejected(await testSquareConnection(), "Invalid access token");
         },
       );
     });
 
     test("returns sandbox mode with valid token and all checks pass", async () => {
-      await settings.update.square.accessToken("EAAAl_test_123");
-      await settings.update.square.sandbox(true);
-      await settings.update.square.locationId("L_test_123");
-      await settings.update.square.webhookSignatureKey("sig_key_test");
+      await configureSquare({
+        locationId: "L_test_123",
+        sandbox: true,
+        token: "EAAAl_test_123",
+        webhookKey: "sig_key_test",
+      });
       await checkConnection({ locations: [TEST_STORE] }, (result) => {
         expect(result.ok).toBe(true);
         expect(result.accessToken.valid).toBe(true);
@@ -205,10 +235,12 @@ describe("square", () => {
     });
 
     test("returns production mode when sandbox disabled", async () => {
-      await settings.update.square.accessToken("EAAAl_live_123");
-      await settings.update.square.sandbox(false);
-      await settings.update.square.locationId("L_live_123");
-      await settings.update.square.webhookSignatureKey("sig_key_live");
+      await configureSquare({
+        locationId: "L_live_123",
+        sandbox: false,
+        token: "EAAAl_live_123",
+        webhookKey: "sig_key_live",
+      });
       const liveStore = {
         id: "L_live_123",
         name: "Live Store",
@@ -222,9 +254,11 @@ describe("square", () => {
     });
 
     test("returns location error when location ID not found", async () => {
-      await settings.update.square.accessToken("EAAAl_test_123");
-      await settings.update.square.locationId("L_wrong");
-      await settings.update.square.webhookSignatureKey("sig_key_test");
+      await configureSquare({
+        locationId: "L_wrong",
+        token: "EAAAl_test_123",
+        webhookKey: "sig_key_test",
+      });
       await checkConnection({ locations: [TEST_STORE] }, (result) => {
         expect(result.ok).toBe(false);
         expect(result.accessToken.valid).toBe(true);
@@ -236,8 +270,10 @@ describe("square", () => {
     });
 
     test("returns location error when no location ID configured", async () => {
-      await settings.update.square.accessToken("EAAAl_test_123");
-      await settings.update.square.webhookSignatureKey("sig_key_test");
+      await configureSquare({
+        token: "EAAAl_test_123",
+        webhookKey: "sig_key_test",
+      });
       await checkConnection({ locations: [{ id: "L_test_123" }] }, (result) => {
         expect(result.ok).toBe(false);
         expect(result.location.configured).toBe(false);
@@ -246,10 +282,12 @@ describe("square", () => {
     });
 
     test("handles empty locations response", async () => {
-      await settings.update.square.accessToken("EAAAl_test_123");
-      await settings.update.square.sandbox(true);
-      await settings.update.square.locationId("L_test_123");
-      await settings.update.square.webhookSignatureKey("sig_key_test");
+      await configureSquare({
+        locationId: "L_test_123",
+        sandbox: true,
+        token: "EAAAl_test_123",
+        webhookKey: "sig_key_test",
+      });
       await checkConnection({}, (result) => {
         expect(result.accessToken.valid).toBe(true);
         expect(result.location.configured).toBe(false);
@@ -260,8 +298,10 @@ describe("square", () => {
     });
 
     test("returns webhook error when no signature key configured", async () => {
-      await settings.update.square.accessToken("EAAAl_test_123");
-      await settings.update.square.locationId("L_test_123");
+      await configureSquare({
+        locationId: "L_test_123",
+        token: "EAAAl_test_123",
+      });
       await checkConnection({ locations: [TEST_STORE] }, (result) => {
         expect(result.ok).toBe(false);
         expect(result.accessToken.valid).toBe(true);
@@ -276,26 +316,18 @@ describe("square", () => {
 
   describe("createPaymentLink", () => {
     test("returns null when access token not set", async () => {
-      const intent = checkoutIntent({
-        items: [checkoutItem({ name: "Test Listing" })],
-        name: "John Doe",
-      });
-      const result = await squareApi.createPaymentLink(
-        intent,
-        "http://localhost",
+      await expectNoPaymentLink(
+        checkoutIntent({
+          items: [checkoutItem({ name: "Test Listing" })],
+          name: "John Doe",
+        }),
       );
-      expect(result).toBeNull();
     });
 
     test("returns null when location ID not configured", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
       // No location ID set
-      const intent = checkoutIntent();
-      const result = await squareApi.createPaymentLink(
-        intent,
-        "http://localhost",
-      );
-      expect(result).toBeNull();
+      await expectNoPaymentLink(checkoutIntent());
     });
 
     test("constructs correct SDK call for single-listing checkout", async () => {
@@ -449,37 +481,31 @@ describe("square", () => {
 
   describe("createPaymentLink", () => {
     test("returns null when access token not set", async () => {
-      const intent = checkoutIntent({
-        items: [
-          checkoutItem({ name: "Listing 1", slug: "listing-1" }),
-          checkoutItem({
-            listingId: 2,
-            name: "Listing 2",
-            quantity: 2,
-            slug: "listing-2",
-            unitPrice: 500,
-          }),
-        ],
-        name: "John Doe",
-      });
-      const result = await squareApi.createPaymentLink(
-        intent,
-        "http://localhost",
+      await expectNoPaymentLink(
+        checkoutIntent({
+          items: [
+            checkoutItem({ name: "Listing 1", slug: "listing-1" }),
+            checkoutItem({
+              listingId: 2,
+              name: "Listing 2",
+              quantity: 2,
+              slug: "listing-2",
+              unitPrice: 500,
+            }),
+          ],
+          name: "John Doe",
+        }),
       );
-      expect(result).toBeNull();
     });
 
     test("returns null when location ID not configured", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
-      const intent = checkoutIntent({
-        items: [checkoutItem({ name: "Listing 1", slug: "listing-1" })],
-        name: "John Doe",
-      });
-      const result = await squareApi.createPaymentLink(
-        intent,
-        "http://localhost",
+      await expectNoPaymentLink(
+        checkoutIntent({
+          items: [checkoutItem({ name: "Listing 1", slug: "listing-1" })],
+          name: "John Doe",
+        }),
       );
-      expect(result).toBeNull();
     });
 
     test("returns null when SDK response missing orderId", async () => {

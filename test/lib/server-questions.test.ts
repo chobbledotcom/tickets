@@ -77,7 +77,10 @@ const expectRejectedModifierEdit = async (
 };
 
 /** Assert a listing's question assignment saved, then return its question ids. */
-const expectQuestionsUpdated = async (listingId: number, response: Response) => {
+const expectQuestionsUpdated = async (
+  listingId: number,
+  response: Response,
+) => {
   await expectFlashRedirect(
     `/admin/listing/${listingId}/questions`,
     "Questions updated",

@@ -876,6 +876,33 @@ export const createTestGroup = async (
   return group;
 };
 
+/** Seed a group whose Saturday-only and 2-day combo listings are both filled to
+ * `fillQuantity` on Saturday 2026-05-02 (the combo also covering Sunday), plus a
+ * spare Sunday-only listing. Every listing holds `maxAttendees` seats. */
+export const seedSaturdayComboGroup = async (opts: {
+  fillQuantity: number;
+  groupCap: number;
+  maxAttendees: number;
+}) => {
+  const group = await createTestGroup({ maxAttendees: opts.groupCap });
+  const inGroup = (extra: TestListingOverrides = {}) =>
+    createDailyTestListing({
+      groupId: group.id,
+      maxAttendees: opts.maxAttendees,
+      ...extra,
+    });
+  const sat = await inGroup();
+  const sun = await inGroup();
+  const combo = await inGroup({ durationDays: 2 });
+  await bookAttendee(sat, { date: "2026-05-02", quantity: opts.fillQuantity });
+  await bookAttendee(combo, {
+    date: "2026-05-02",
+    durationDays: 2,
+    quantity: opts.fillQuantity,
+  });
+  return { combo, group, sat, sun };
+};
+
 export const updateTestGroup = async (
   groupId: number,
   updates: Partial<Omit<GroupInput, "slugIndex">>,

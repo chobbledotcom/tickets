@@ -14,6 +14,7 @@
  */
 
 import { expect } from "@std/expect";
+import { getAttendeesRaw } from "#shared/db/attendees.ts";
 import { setChildIds } from "#shared/db/listing-parents.ts";
 import type { Group, Listing } from "#shared/types.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
@@ -63,6 +64,18 @@ export const apiListingBody = async <T>(
 ): Promise<T> =>
   (await (await apiGet(`/api/listings/${slug}${suffix}`)).json()) as T;
 
+/** Assert the JSON API detail for `slug` describes a bookable listing: it echoes
+ * the slug and offers at least one purchasable spot. */
+export const expectListingDetailBookable = async (
+  slug: string,
+): Promise<void> => {
+  const body = await apiListingBody<{
+    listing: { slug: string; maxPurchasable: number };
+  }>(slug);
+  expect(body.listing.slug).toBe(slug);
+  expect(body.listing.maxPurchasable).toBeGreaterThan(0);
+};
+
 /** The `<option>` markup inside the first `<select name="{name}">` of `html` —
  * the shared "read what a dropdown offers" snip the render tests all do by
  * hand. */
@@ -99,10 +112,40 @@ export const expectBookingRejected = async (
   flash: string | any,
   emptyListingId: number,
 ): Promise<void> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
   expect(res.status).toBe(302);
   expectFlash(res, flash, false);
   expect((await getAttendeesRaw(emptyListingId)).length).toBe(0);
+};
+
+/** Assert exactly one attendee line of `quantity` was written for `booked`, and
+ * none at all for `notBooked` — the shared "only the chosen child folded" check. */
+export const expectOnlyChildBooked = async (
+  booked: Listing,
+  notBooked: Listing,
+  quantity = 1,
+): Promise<void> => {
+  const rows = await getAttendeesRaw(booked.id);
+  expect(rows.length).toBe(1);
+  expect(rows[0]?.quantity).toBe(quantity);
+  expect((await getAttendeesRaw(notBooked.id)).length).toBe(0);
+};
+
+/** Assert both children each got exactly one attendee line of quantity 1 — the
+ * "one of each child folded" persistence check. */
+export const expectEachChildQtyOne = async (
+  childA: Listing,
+  childB: Listing,
+): Promise<{
+  rowsA: Awaited<ReturnType<typeof getAttendeesRaw>>;
+  rowsB: Awaited<ReturnType<typeof getAttendeesRaw>>;
+}> => {
+  const rowsA = await getAttendeesRaw(childA.id);
+  const rowsB = await getAttendeesRaw(childB.id);
+  expect(rowsA.length).toBe(1);
+  expect(rowsA[0]?.quantity).toBe(1);
+  expect(rowsB.length).toBe(1);
+  expect(rowsB[0]?.quantity).toBe(1);
+  return { rowsA, rowsB };
 };
 
 // ---------------------------------------------------------------------------
@@ -149,6 +192,52 @@ export const twoParentsSharingChild = async (
   await setChildIds(parentA.id, [child.id]);
   await setChildIds(parentB.id, [child.id]);
   return { child, parentA, parentB };
+};
+
+/** Attach a single radio question (default "Size?" with one answer "Large") to a
+ * listing and return the created question + answer rows. The shared "give this
+ * listing a multiple-choice question" arrange. */
+export const addRadioQuestion = async (
+  listingId: number,
+  text = "Size?",
+  answerText = "Large",
+) => {
+  const { answersTable, questionsTable, setListingQuestions } = await import(
+    "#shared/db/questions.ts"
+  );
+  const question = await questionsTable.insert({ displayType: "radio", text });
+  const answer = await answersTable.insert({
+    questionId: question.id,
+    sortOrder: 0,
+    text: answerText,
+  });
+  await setListingQuestions(listingId, [question.id]);
+  return { answer, question };
+};
+
+/** A parent with two children where the second is blocked from booking — either
+ * deactivated (`"inactive"`) or with registration closed in the past
+ * (`"closed"`). Returns the parent, the still-bookable first child, and the
+ * blocked one. */
+export const parentWithBlockedSecondChild = async (
+  how: "inactive" | "closed",
+): Promise<{ parent: Listing; okChild: Listing; blockedChild: Listing }> => {
+  const { parent, children } = await makeParent({ children: [{}, {}] });
+  const okChild = children[0]!;
+  const blockedChild = children[1]!;
+  const { execute } = await import("#shared/db/client.ts");
+  if (how === "inactive") {
+    await execute("UPDATE listings SET active = 0 WHERE id = ?", [
+      blockedChild.id,
+    ]);
+  } else {
+    const { writeClosesAt } = await import("#shared/db/listings.ts");
+    await execute("UPDATE listings SET closes_at = ? WHERE id = ?", [
+      await writeClosesAt("2000-01-01T00:00:00.000Z"),
+      blockedChild.id,
+    ]);
+  }
+  return { blockedChild, okChild, parent };
 };
 
 /** A daily parent + daily child sharing one 2-spot capped "Pool", plus a daily

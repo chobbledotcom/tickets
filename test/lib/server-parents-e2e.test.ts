@@ -18,6 +18,11 @@ import {
   submitPackageBooking,
   ticketPageStatus,
 } from "#test-utils";
+import {
+  expectEachChildQtyOne,
+  expectOnlyChildBooked,
+  firstBookableDate,
+} from "#test-utils/parent-booking-scenarios.ts";
 
 /**
  * End-to-end journey for the parent/child (per-unit) booking flow: a daily
@@ -65,11 +70,7 @@ const setupParentWithTwoChildren = async (): Promise<{
   });
   const [childA, childB] = children;
 
-  const { getBookableStartDates } = await import("#shared/dates.ts");
-  const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-  const { getListingWithCount } = await import("#shared/db/listings.ts");
-  const parentRow = (await getListingWithCount(parent.id))!;
-  const date = getBookableStartDates(parentRow, await getActiveHolidays())[0]!;
+  const date = await firstBookableDate(parent.id);
 
   return { childA: childA!, childB: childB!, date, parent };
 };
@@ -149,14 +150,16 @@ const assertChoose1More = async (res: Response, parent: Listing) => {
 };
 
 /** Asserts one attendee row per child with qty 1; returns rows for extra checks. */
-const assertOneEachPersisted = async (childA: Listing, childB: Listing) => {
-  const rowsA = await getAttendeesRaw(childA.id);
-  const rowsB = await getAttendeesRaw(childB.id);
-  expect(rowsA.length).toBe(1);
-  expect(rowsA[0]?.quantity).toBe(1);
-  expect(rowsB.length).toBe(1);
-  expect(rowsB[0]?.quantity).toBe(1);
-  return { rowsA, rowsB };
+const assertOneEachPersisted = (childA: Listing, childB: Listing) =>
+  expectEachChildQtyOne(childA, childB);
+
+/** The admin attendee-detail page HTML for a listing's newest attendee. */
+const attendeeDetailHtml = async (listingId: number): Promise<string> => {
+  const { adminGet } = await import("#test-utils");
+  const attendeeId = (await getAttendeesRaw(listingId))[0]!.id;
+  const page = await adminGet(`/admin/attendees/${attendeeId}`);
+  expect(page.status).toBe(200);
+  return page.text();
 };
 
 /** Book 2 parents with 1 of each child (Ada Lovelace, asserts reserved). */
@@ -216,11 +219,7 @@ const setupStandalone = async (): Promise<{
     thankYouUrl: "",
     unitPrice: 0,
   });
-  const { getBookableStartDates } = await import("#shared/dates.ts");
-  const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-  const { getListingWithCount } = await import("#shared/db/listings.ts");
-  const row = (await getListingWithCount(standalone.id))!;
-  const date = getBookableStartDates(row, await getActiveHolidays())[0]!;
+  const date = await firstBookableDate(standalone.id);
   const res = await postBooking(standalone.slug, {
     date,
     email: "ada@example.com",
@@ -264,10 +263,7 @@ describeWithEnv(
         ...childField(parent, childA, "1"),
       });
       expectReserved(res);
-      const rowsA = await getAttendeesRaw(childA.id);
-      expect(rowsA.length).toBe(1);
-      expect(rowsA[0]?.quantity).toBe(1);
-      expect((await getAttendeesRaw(childB.id)).length).toBe(0);
+      await expectOnlyChildBooked(childA, childB);
     });
 
     test("parent qty 2 with two of one child is accepted and folds a single line", async () => {
@@ -275,11 +271,8 @@ describeWithEnv(
         await setupTwoChildrenBase();
       const res = await adaBook(parent, date, baseFields);
       expectReserved(res);
-      const rowsA = await getAttendeesRaw(childA.id);
-      expect(rowsA.length).toBe(1);
-      expect(rowsA[0]?.quantity).toBe(2);
       // The unchosen sibling gets no line at all.
-      expect((await getAttendeesRaw(childB.id)).length).toBe(0);
+      await expectOnlyChildBooked(childA, childB, 2);
     });
 
     test("parent qty 2 with one of each child is accepted and folds two lines", async () => {
@@ -365,10 +358,7 @@ describeWithEnv(
     test("a two-of-one booking persists child Alpha qty 2 and no child Beta line", async () => {
       const { childA, childB } = await setupAndBookTwoOfOne();
 
-      const rowsA = await getAttendeesRaw(childA.id);
-      expect(rowsA.length).toBe(1);
-      expect(rowsA[0]?.quantity).toBe(2);
-      expect((await getAttendeesRaw(childB.id)).length).toBe(0);
+      await expectOnlyChildBooked(childA, childB, 2);
     });
 
     test("admin attendee pages show the booking and each chosen child quantity", async () => {
@@ -447,14 +437,7 @@ describeWithEnv(
     test("the admin attendee detail page labels each child under its parent", async () => {
       const { parent } = await setupAndBookOneOfEach();
 
-      const { adminGet } = await import("#test-utils");
-      const { getAttendeesRaw: rawFor } = await import(
-        "#shared/db/attendees.ts"
-      );
-      const attendeeId = (await rawFor(parent.id))[0]!.id;
-      const page = await adminGet(`/admin/attendees/${attendeeId}`);
-      expect(page.status).toBe(200);
-      const html = await page.text();
+      const html = await attendeeDetailHtml(parent.id);
 
       // Both children are annotated as add-ons chosen under the parent; the
       // parent's own row carries no such annotation.
@@ -466,14 +449,7 @@ describeWithEnv(
     test("a standalone booking's attendee detail page shows no add-on annotation", async () => {
       const { standalone } = await setupStandalone();
 
-      const { adminGet } = await import("#test-utils");
-      const { getAttendeesRaw: rawFor } = await import(
-        "#shared/db/attendees.ts"
-      );
-      const attendeeId = (await rawFor(standalone.id))[0]!.id;
-      const page = await adminGet(`/admin/attendees/${attendeeId}`);
-      expect(page.status).toBe(200);
-      const html = await page.text();
+      const html = await attendeeDetailHtml(standalone.id);
       expect(html).not.toContain("Add-on chosen under");
     });
 

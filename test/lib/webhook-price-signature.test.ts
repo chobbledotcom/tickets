@@ -914,7 +914,10 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
   /** Signed metadata for a one-line package booking at `price` (the override).
    * The line carries its package edge (k:"p", r=group id), as the checkout emits. */
   const packageMetadata = (groupId: number, listingId: number, price: number) =>
-    signMeta(webhookMeta(packageWebhookFields(groupId, listingId, price)), price);
+    signMeta(
+      webhookMeta(packageWebhookFields(groupId, listingId, price)),
+      price,
+    );
 
   /** Drive a 1500 package session through the webhook and assert it was kept as
    * a refunded placeholder (the post-checkout change invalidated the price). */

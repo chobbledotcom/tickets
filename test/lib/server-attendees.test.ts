@@ -86,6 +86,115 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     return { attendees: await getAttendeesRaw(listingId), response };
   };
 
+  // Books one attendee onto `listing` through the public booking path and
+  // returns them, failing the test if the booking did not go through.
+  const bookOne = async (
+    listing: Parameters<typeof bookAttendee>[0],
+    details: Parameters<typeof bookAttendee>[1],
+  ) => {
+    const result = await bookAttendee(listing, details);
+    if (!result.success) throw new Error("Failed to create attendee");
+    return result.attendees[0]!;
+  };
+
+  // Posts the attendee edit form for `attendeeId` with the given fields and
+  // checks it saved (a redirect back). Returns the response for any extra checks.
+  const saveAttendeeEdit = async (
+    attendeeId: number,
+    fields: Parameters<typeof buildAttendeeEditForm>[1],
+  ): Promise<Response> => {
+    const form = await buildAttendeeEditForm(attendeeId, fields);
+    const { response } = await adminFormPost(
+      `/admin/attendees/${attendeeId}`,
+      form,
+    );
+    expect(response.status).toBe(302);
+    return response;
+  };
+
+  // The answer ids an attendee currently has saved (no answer text loaded).
+  const savedAnswerIds = async (attendeeId: number): Promise<number[]> => {
+    const { getAttendeeAnswersBatch } = await import("#shared/db/questions.ts");
+    const answers = await getAttendeeAnswersBatch([attendeeId], {
+      texts: false,
+    });
+    return answers.get(attendeeId) ?? [];
+  };
+
+  // A 500-cent paid listing with one "John Doe" attendee holding the given
+  // payment id — the starting point for the refresh-payment tests.
+  const seedPaidAttendee = async (paymentId: string) => {
+    const listing = await createTestListing({
+      maxAttendees: 100,
+      unitPrice: 500,
+    });
+    const attendee = await createPaidTestAttendee(
+      listing.id,
+      "John Doe",
+      "john@example.com",
+      paymentId,
+    );
+    return { attendee, listing };
+  };
+
+  // Runs the refresh-payment action with Stripe as the provider and its "has
+  // this payment been refunded?" check forced to `refunded`. Hands the response,
+  // plus the payment ids the check was asked about, to `check`, then tidies up.
+  const refreshPaymentWithRefund =
+    (attendeeId: number, refunded: boolean) =>
+    (
+      check: (
+        response: Response,
+        askedAbout: string[][],
+      ) => void | Promise<void>,
+    ) =>
+      withMocks(
+        () =>
+          stub(paymentsApi, "getConfiguredProvider", () =>
+            mockProviderType("stripe"),
+          ),
+        async () => {
+          const { stripePaymentProvider } = await import(
+            "#shared/stripe-provider.ts"
+          );
+          const askedAbout: string[][] = [];
+          const refundedStub = stub(
+            stripePaymentProvider,
+            "isPaymentRefunded",
+            (...args: [string]) => {
+              askedAbout.push(args);
+              return Promise.resolve(refunded);
+            },
+          );
+          try {
+            const { response } = await adminFormPost(
+              `/admin/attendees/${attendeeId}/refresh-payment`,
+            );
+            await check(response, askedAbout);
+          } finally {
+            refundedStub.restore();
+          }
+        },
+      );
+
+  // Books one "John Doe" attendee straight onto a listing (no public form),
+  // returning the attendee and its ticket token.
+  const seedDirectAttendee = (listingId: number) =>
+    createTestAttendeeDirect(listingId, "John Doe", "john@example.com");
+
+  // Opens the merge Actions tab for a target attendee, searching the given
+  // source ticket token, and returns the page response.
+  const mergeSearch = (targetId: number, sourceToken: string): Promise<Response> =>
+    adminGet(
+      `/admin/attendees/${targetId}/actions?token=${encodeURIComponent(
+        sourceToken,
+      )}`,
+    );
+
+  // Posts the merge form for a target attendee with the given fields.
+  const postMerge = (targetId: number, fields: Record<string, string>) =>
+    adminFormPost(`/admin/attendees/${targetId}/merge`, fields);
+
   // Books "Jane Doe" as the merge target on one listing and "John Smith" as the
   // merge source on another (pass the same id twice for the same-listing case).
   // Returns both people and the source's ticket token, which the merge search
@@ -135,6 +244,24 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       await setListingQuestions(id, [question.id]);
     }
     return { a1: answers[0]!, a2: answers[1]!, q: question };
+  };
+
+  // Two listings both asking one multiple-choice question, plus a merge target
+  // and source booked across them — the shared arrange step for the answer-merge
+  // tests. Returns the question, its answers, and the pair (answers not yet
+  // saved to anyone).
+  const seedMergeWithQuestion = async (
+    text: string,
+    answerTexts: string[],
+  ) => {
+    const { first, second } = await twoMergeListings();
+    const { q, a1, a2 } = await addMergeQuestion(
+      [first.id, second.id],
+      text,
+      answerTexts,
+    );
+    const { target, sourceToken } = await seedMergePair(first.id, second.id);
+    return { a1, a2, q, sourceToken, target };
   };
 
   // Gives the merge target and the merge source (found by its token) their own
@@ -1998,16 +2125,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("returns error when no payment provider configured", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 100,
-        unitPrice: 500,
-      });
-      const attendee = await createPaidTestAttendee(
-        listing.id,
-        "John Doe",
-        "john@example.com",
-        "pi_no_provider",
-      );
+      const { attendee } = await seedPaidAttendee("pi_no_provider");
       await withMocks(
         () => stub(paymentsApi, "getConfiguredProvider", () => null),
         async () => {
@@ -2025,43 +2143,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("marks as refunded when Stripe reports refund", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 100,
-        unitPrice: 500,
-      });
-      const attendee = await createPaidTestAttendee(
-        listing.id,
-        "John Doe",
-        "john@example.com",
-        "pi_refresh_refund",
-      );
-      await withMocks(
-        () =>
-          stub(paymentsApi, "getConfiguredProvider", () =>
-            mockProviderType("stripe"),
-          ),
-        async () => {
-          const { stripePaymentProvider } = await import(
-            "#shared/stripe-provider.ts"
+      const { attendee } = await seedPaidAttendee("pi_refresh_refund");
+      await refreshPaymentWithRefund(attendee.id, true)(
+        (response, askedAbout) => {
+          expect(response.status).toBe(302);
+          expect(response.headers.get("location")).toContain(
+            `/admin/attendees/${attendee.id}`,
           );
-          const mockRefunded = stub(
-            stripePaymentProvider,
-            "isPaymentRefunded",
-            () => Promise.resolve(true),
-          );
-          try {
-            const { response } = await adminFormPost(
-              `/admin/attendees/${attendee.id}/refresh-payment`,
-            );
-            expect(response.status).toBe(302);
-            expect(response.headers.get("location")).toContain(
-              `/admin/attendees/${attendee.id}`,
-            );
-            expectFlash(response, expect.stringContaining("refunded"));
-            expect(mockRefunded.calls[0]!.args).toEqual(["pi_refresh_refund"]);
-          } finally {
-            mockRefunded.restore();
-          }
+          expectFlash(response, expect.stringContaining("refunded"));
+          expect(askedAbout[0]).toEqual(["pi_refresh_refund"]);
         },
       );
     });
@@ -2081,76 +2171,25 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
         "pi_refresh_unrecorded",
       );
-      await withMocks(
-        () =>
-          stub(paymentsApi, "getConfiguredProvider", () =>
-            mockProviderType("stripe"),
-          ),
-        async () => {
-          const { stripePaymentProvider } = await import(
-            "#shared/stripe-provider.ts"
-          );
-          const mockRefunded = stub(
-            stripePaymentProvider,
-            "isPaymentRefunded",
-            () => Promise.resolve(true),
-          );
-          try {
-            const { response } = await adminFormPost(
-              `/admin/attendees/${attendee.id}/refresh-payment`,
-            );
-            expect(response.status).toBe(302);
-            expectFlash(
-              response,
-              expect.stringContaining("could not be recorded"),
-              false,
-            );
-          } finally {
-            mockRefunded.restore();
-          }
-        },
-      );
+      await refreshPaymentWithRefund(attendee.id, true)((response) => {
+        expect(response.status).toBe(302);
+        expectFlash(
+          response,
+          expect.stringContaining("could not be recorded"),
+          false,
+        );
+      });
     });
 
     test("redirects without marking refunded when payment is not refunded", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 100,
-        unitPrice: 500,
+      const { attendee } = await seedPaidAttendee("pi_refresh_ok");
+      await refreshPaymentWithRefund(attendee.id, false)((response) => {
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toContain(
+          `/admin/attendees/${attendee.id}`,
+        );
+        expectFlash(response, expect.stringContaining("up to date"));
       });
-      const attendee = await createPaidTestAttendee(
-        listing.id,
-        "John Doe",
-        "john@example.com",
-        "pi_refresh_ok",
-      );
-      await withMocks(
-        () =>
-          stub(paymentsApi, "getConfiguredProvider", () =>
-            mockProviderType("stripe"),
-          ),
-        async () => {
-          const { stripePaymentProvider } = await import(
-            "#shared/stripe-provider.ts"
-          );
-          const mockRefunded = stub(
-            stripePaymentProvider,
-            "isPaymentRefunded",
-            () => Promise.resolve(false),
-          );
-          try {
-            const { response } = await adminFormPost(
-              `/admin/attendees/${attendee.id}/refresh-payment`,
-            );
-            expect(response.status).toBe(302);
-            expect(response.headers.get("location")).toContain(
-              `/admin/attendees/${attendee.id}`,
-            );
-            expectFlash(response, expect.stringContaining("up to date"));
-          } finally {
-            mockRefunded.restore();
-          }
-        },
-      );
     });
   });
 
@@ -2204,96 +2243,48 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("saves selected answer on edit", async () => {
       const { attendee, q, a2 } = await setupQuestionAndAttendee();
-      const form = await buildAttendeeEditForm(attendee.id, {
+      await saveAttendeeEdit(attendee.id, {
         email: "john@example.com",
         extra: { [`question_${q.id}`]: String(a2.id) },
         name: "John Doe",
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        form,
-      );
-      expect(response.status).toBe(302);
-
-      const { getAttendeeAnswersBatch } = await import(
-        "#shared/db/questions.ts"
-      );
-      const answers = await getAttendeeAnswersBatch([attendee.id], {
-        texts: false,
-      });
-      expect(answers.get(attendee.id)).toEqual([a2.id]);
+      expect(await savedAnswerIds(attendee.id)).toEqual([a2.id]);
     });
 
     test("updates answer from one option to another", async () => {
       const { attendee, q, a1, a2 } = await setupQuestionAndAttendee();
-      const { saveAttendeeAnswers, getAttendeeAnswersBatch } = await import(
-        "#shared/db/questions.ts"
-      );
+      const { saveAttendeeAnswers } = await import("#shared/db/questions.ts");
       await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
-      const form = await buildAttendeeEditForm(attendee.id, {
+      await saveAttendeeEdit(attendee.id, {
         email: "john@example.com",
         extra: { [`question_${q.id}`]: String(a2.id) },
         name: "John Doe",
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        form,
-      );
-      expect(response.status).toBe(302);
-
-      const answers = await getAttendeeAnswersBatch([attendee.id], {
-        texts: false,
-      });
-      expect(answers.get(attendee.id)).toEqual([a2.id]);
+      expect(await savedAnswerIds(attendee.id)).toEqual([a2.id]);
     });
 
     test("clears answers when no question field submitted", async () => {
       const { attendee, a1 } = await setupQuestionAndAttendee();
-      const { saveAttendeeAnswers, getAttendeeAnswersBatch } = await import(
-        "#shared/db/questions.ts"
-      );
+      const { saveAttendeeAnswers } = await import("#shared/db/questions.ts");
       await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
-      const form = await buildAttendeeEditForm(attendee.id, {
+      await saveAttendeeEdit(attendee.id, {
         email: "john@example.com",
         name: "John Doe",
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        form,
-      );
-      expect(response.status).toBe(302);
-
-      const answers = await getAttendeeAnswersBatch([attendee.id], {
-        texts: false,
-      });
-      const attendeeAnswers = answers.get(attendee.id) ?? [];
-      expect(attendeeAnswers.length).toBe(0);
+      expect((await savedAnswerIds(attendee.id)).length).toBe(0);
     });
 
     test("ignores invalid answer ID for question", async () => {
       const { attendee, q } = await setupQuestionAndAttendee();
 
-      const form = await buildAttendeeEditForm(attendee.id, {
+      await saveAttendeeEdit(attendee.id, {
         email: "john@example.com",
         extra: { [`question_${q.id}`]: "99999" },
         name: "John Doe",
       });
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}`,
-        form,
-      );
-      expect(response.status).toBe(302);
-
-      const { getAttendeeAnswersBatch } = await import(
-        "#shared/db/questions.ts"
-      );
-      const answers = await getAttendeeAnswersBatch([attendee.id], {
-        texts: false,
-      });
-      const attendeeAnswers = answers.get(attendee.id) ?? [];
-      expect(attendeeAnswers.length).toBe(0);
+      expect((await savedAnswerIds(attendee.id)).length).toBe(0);
     });
   });
 
@@ -2309,11 +2300,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("shows the merge search form without a token param", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const { attendee } = await createTestAttendeeDirect(
-        listing.id,
-        "John Doe",
-        "john@example.com",
-      );
+      const { attendee } = await seedDirectAttendee(listing.id);
       const response = await adminGet(
         `/admin/attendees/${attendee.id}/actions`,
       );
@@ -2327,11 +2314,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("shows error when token not found", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const { attendee } = await createTestAttendeeDirect(
-        listing.id,
-        "John Doe",
-        "john@example.com",
-      );
+      const { attendee } = await seedDirectAttendee(listing.id);
       const response = await adminGet(
         `/admin/attendees/${attendee.id}/actions?token=invalid-token`,
       );
@@ -2340,11 +2323,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("shows error when token matches same attendee", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const { attendee, token } = await createTestAttendeeDirect(
-        listing.id,
-        "John Doe",
-        "john@example.com",
-      );
+      const { attendee, token } = await seedDirectAttendee(listing.id);
       const response = await adminGet(
         `/admin/attendees/${attendee.id}/actions?token=${encodeURIComponent(
           token,
@@ -2359,21 +2338,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("shows merge preview when valid source token provided", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const { attendee: target } = await createTestAttendeeDirect(
+      const { target, sourceToken } = await seedMergePair(
         listing.id,
-        "Jane Doe",
-        "jane@example.com",
-      );
-      const { token: sourceToken } = await createTestAttendeeDirect(
         listing.id,
-        "John Smith",
-        "john@example.com",
       );
-      const response = await adminGet(
-        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
-          sourceToken,
-        )}`,
-      );
+      const response = await mergeSearch(target.id, sourceToken);
       await expectHtmlResponse(
         response,
         200,
@@ -2386,15 +2355,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("the token search box focuses when idle and echoes the searched token", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const { attendee: target } = await createTestAttendeeDirect(
+      const { target, sourceToken } = await seedMergePair(
         listing.id,
-        "Jane Doe",
-        "jane@example.com",
-      );
-      const { token: sourceToken } = await createTestAttendeeDirect(
         listing.id,
-        "John Smith",
-        "john@example.com",
       );
       // Idle panel: the search box is the tab's one job, so it takes focus
       // and starts empty.
@@ -2424,11 +2387,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     targetId: number,
     sourceToken: string,
   ): Promise<string> => {
-    const page = await adminGet(
-      `/admin/attendees/${targetId}/actions?token=${encodeURIComponent(
-        sourceToken,
-      )}`,
-    );
+    const page = await mergeSearch(targetId, sourceToken);
     const html = await page.text();
     const value = extractInputValue(html, "merge_version");
     if (value === null) throw new Error("merge_version not found in page");
@@ -2460,45 +2419,28 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("rejects missing source_token", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const { attendee } = await createTestAttendeeDirect(
-        listing.id,
-        "John Doe",
-        "john@example.com",
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/merge`,
-        {},
-      );
+      const { attendee } = await seedDirectAttendee(listing.id);
+      const { response } = await postMerge(attendee.id, {});
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Source token"), false);
     });
 
     test("rejects invalid source token", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const { attendee } = await createTestAttendeeDirect(
-        listing.id,
-        "John Doe",
-        "john@example.com",
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/merge`,
-        { source_token: "nonexistent-token" },
-      );
+      const { attendee } = await seedDirectAttendee(listing.id);
+      const { response } = await postMerge(attendee.id, {
+        source_token: "nonexistent-token",
+      });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("not found"), false);
     });
 
     test("rejects self-merge", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const { attendee, token } = await createTestAttendeeDirect(
-        listing.id,
-        "John Doe",
-        "john@example.com",
-      );
-      const { response } = await adminFormPost(
-        `/admin/attendees/${attendee.id}/merge`,
-        { source_token: token },
-      );
+      const { attendee, token } = await seedDirectAttendee(listing.id);
+      const { response } = await postMerge(attendee.id, {
+        source_token: token,
+      });
       expect(response.status).toBe(302);
       expectFlash(
         response,
@@ -2517,22 +2459,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         name: "Listing Two",
       });
 
-      const { attendee: target } = await createTestAttendeeDirect(
+      const { target, sourceToken, source } = await seedMergePair(
         listing1.id,
-        "Jane Doe",
-        "jane@example.com",
+        listing2.id,
       );
-      const { token: sourceToken, attendee: source } =
-        await createTestAttendeeDirect(
-          listing2.id,
-          "John Smith",
-          "john@example.com",
-        );
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
-      const { response } = await adminFormPost(
-        `/admin/attendees/${target.id}/merge`,
-        { merge_version: mergeVersion, source_token: sourceToken },
+      const { response } = await postMerge(target.id, { merge_version: mergeVersion, source_token: sourceToken },
       );
 
       // The flash names both attendees, and with no PII chosen the kept name is
@@ -2594,9 +2527,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
       // Submit without choosing source for any field (all default to target)
-      const { response } = await adminFormPost(
-        `/admin/attendees/${target.id}/merge`,
-        { merge_version: mergeVersion, source_token: sourceToken },
+      const { response } = await postMerge(target.id, { merge_version: mergeVersion, source_token: sourceToken },
       );
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Merged"), true);
@@ -2629,9 +2560,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
       // Choose source for all PII fields
-      const { response } = await adminFormPost(
-        `/admin/attendees/${target.id}/merge`,
-        {
+      const { response } = await postMerge(target.id, {
           merge_version: mergeVersion,
           pii_address: "source",
           pii_email: "source",
@@ -2660,24 +2589,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const listing = await createTestListing({ maxAttendees: 10 });
 
       // Both attendees are registered for the same listing
-      const { attendee: target } = await createTestAttendeeDirect(
+      const { target, sourceToken, source } = await seedMergePair(
         listing.id,
-        "Jane Doe",
-        "jane@example.com",
+        listing.id,
       );
-      const { token: sourceToken, attendee: source } =
-        await createTestAttendeeDirect(
-          listing.id,
-          "John Smith",
-          "john@example.com",
-        );
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
       // Booking conflict: same listing, same start_at (null) — choose keep_target
       const bookingKey = `${listing.id}:null:0`;
-      const { response } = await adminFormPost(
-        `/admin/attendees/${target.id}/merge`,
-        {
+      const { response } = await postMerge(target.id, {
           merge_version: mergeVersion,
           source_token: sourceToken,
           [`booking_${bookingKey}`]: "keep_target",
@@ -2726,11 +2646,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "456 Oak Ave",
         "Gluten free",
       );
-      const response = await adminGet(
-        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
-          sourceToken,
-        )}`,
-      );
+      const response = await mergeSearch(target.id, sourceToken);
       // Multiline fields (address, special_instructions) differ — exercises renderFieldValue(val, true) with same=false
       await expectHtmlResponse(response, 200, "456 Oak Ave", "Gluten free");
     });
@@ -2754,11 +2670,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Smith",
         "john@example.com",
       );
-      const response = await adminGet(
-        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
-          sourceToken,
-        )}`,
-      );
+      const response = await mergeSearch(target.id, sourceToken);
       await expectHtmlResponse(response, 200, "Merge Preview");
     });
 
@@ -2779,11 +2691,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Smith",
         "",
       );
-      const response = await adminGet(
-        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
-          sourceToken,
-        )}`,
-      );
+      const response = await mergeSearch(target.id, sourceToken);
       await expectHtmlResponse(response, 200, "Merge Preview");
     });
 
@@ -2807,11 +2715,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       if (!result.success) throw new Error("createAttendeeAtomic failed");
       const sourceToken = result.attendees[0]!.ticket_token;
 
-      const response = await adminGet(
-        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
-          sourceToken,
-        )}`,
-      );
+      const response = await mergeSearch(target.id, sourceToken);
       // start_at is set for daily listings — exercises the b.start_at ? `— date` : "" branch
       await expectHtmlResponse(response, 200, "2026-05-01");
     });
@@ -2823,22 +2727,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         name: "E2",
       });
 
-      const { attendee: target } = await createTestAttendeeDirect(
+      const { target, sourceToken } = await seedMergePair(
         listing1.id,
-        "Jane Doe",
-        "jane@example.com",
-      );
-      const { token: sourceToken } = await createTestAttendeeDirect(
         listing2.id,
-        "John Smith",
-        "john@example.com",
       );
 
-      const response = await adminGet(
-        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
-          sourceToken,
-        )}`,
-      );
+      const response = await mergeSearch(target.id, sourceToken);
       // All bookings are moveable (different listings) — no Decision column rendered
       await expectHtmlResponse(response, 200, "Will be moved");
     });
@@ -2846,22 +2740,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("shows duplicate booking status when same listing with identical metadata", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
 
-      const { attendee: target } = await createTestAttendeeDirect(
+      const { target, sourceToken } = await seedMergePair(
         listing.id,
-        "Jane Doe",
-        "jane@example.com",
-      );
-      const { token: sourceToken } = await createTestAttendeeDirect(
         listing.id,
-        "John Smith",
-        "john@example.com",
       );
 
-      const response = await adminGet(
-        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
-          sourceToken,
-        )}`,
-      );
+      const response = await mergeSearch(target.id, sourceToken);
       // Same listing, same qty/price/checked_in/refunded — classified as "duplicate"
       await expectHtmlResponse(response, 200, "Duplicate");
     });
@@ -2869,23 +2753,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
   describe("merge with answer conflicts", () => {
     test("GET merge page renders answer decision table when conflicts exist", async () => {
-      const { first: listing, second: listing2 } = await twoMergeListings();
-      const { a1, a2 } = await addMergeQuestion(
-        [listing.id, listing2.id],
+      const { a1, a2, target, sourceToken } = await seedMergeWithQuestion(
         "Favourite colour?",
         ["Red", "Blue"],
       );
-      const { target, sourceToken } = await seedMergePair(
-        listing.id,
-        listing2.id,
-      );
       await saveMergeAnswers(target.id, sourceToken, [a1.id], [a2.id]);
 
-      const response = await adminGet(
-        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
-          sourceToken,
-        )}`,
-      );
+      const response = await mergeSearch(target.id, sourceToken);
       await expectHtmlResponse(
         response,
         200,
@@ -2895,23 +2769,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("POST merge applies selected answer winners", async () => {
-      const { first: listing, second: listing2 } = await twoMergeListings();
-      const { q, a1, a2 } = await addMergeQuestion(
-        [listing.id, listing2.id],
+      const { q, a1, a2, target, sourceToken } = await seedMergeWithQuestion(
         "Size?",
         ["Small", "Large"],
-      );
-      const { target, sourceToken } = await seedMergePair(
-        listing.id,
-        listing2.id,
       );
       await saveMergeAnswers(target.id, sourceToken, [a1.id], [a2.id]);
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
       // Submit choosing source answer
-      const { response } = await adminFormPost(
-        `/admin/attendees/${target.id}/merge`,
-        {
+      const { response } = await postMerge(target.id, {
           merge_version: mergeVersion,
           source_token: sourceToken,
           [`answer_${q.id}`]: "source",
@@ -2934,9 +2800,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
       const bookingKey = `${listing.id}:null:0`;
-      const { response } = await adminFormPost(
-        `/admin/attendees/${target.id}/merge`,
-        {
+      const { response } = await postMerge(target.id, {
           merge_version: mergeVersion,
           source_token: sourceToken,
           [`booking_${bookingKey}`]: "skip_source",
@@ -2959,9 +2823,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       // Submit with wrong version — bounced back to the Actions tab's merge
       // panel with the validation error flashed and the search re-armed.
-      const { response } = await adminFormPost(
-        `/admin/attendees/${target.id}/merge`,
-        {
+      const { response } = await postMerge(target.id, {
           merge_version: "stale-version",
           source_token: sourceToken,
         },
@@ -2975,22 +2837,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("POST merge with clear answer choice clears the answer", async () => {
-      const { first: listing, second: listing2 } = await twoMergeListings();
-      const { q, a1, a2 } = await addMergeQuestion(
-        [listing.id, listing2.id],
+      const { q, a1, a2, target, sourceToken } = await seedMergeWithQuestion(
         "Diet?",
         ["Vegan", "Keto"],
-      );
-      const { target, sourceToken } = await seedMergePair(
-        listing.id,
-        listing2.id,
       );
       await saveMergeAnswers(target.id, sourceToken, [a1.id], [a2.id]);
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
-      const { response } = await adminFormPost(
-        `/admin/attendees/${target.id}/merge`,
-        {
+      const { response } = await postMerge(target.id, {
           merge_version: mergeVersion,
           source_token: sourceToken,
           [`answer_${q.id}`]: "clear",
@@ -3003,22 +2857,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("POST merge with target answer choice keeps target answer", async () => {
-      const { first: listing, second: listing2 } = await twoMergeListings();
-      const { q, a1, a2 } = await addMergeQuestion(
-        [listing.id, listing2.id],
+      const { q, a1, a2, target, sourceToken } = await seedMergeWithQuestion(
         "Shirt?",
         ["M", "L"],
-      );
-      const { target, sourceToken } = await seedMergePair(
-        listing.id,
-        listing2.id,
       );
       await saveMergeAnswers(target.id, sourceToken, [a1.id], [a2.id]);
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
-      const { response } = await adminFormPost(
-        `/admin/attendees/${target.id}/merge`,
-        {
+      const { response } = await postMerge(target.id, {
           merge_version: mergeVersion,
           source_token: sourceToken,
           [`answer_${q.id}`]: "target",
@@ -3031,23 +2877,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("POST merge auto-adopts source-only non-conflicting answer", async () => {
-      const { first: listing1, second: listing2 } = await twoMergeListings();
-      const { q, a1 } = await addMergeQuestion(
-        [listing1.id, listing2.id],
+      const { q, a1, target, sourceToken } = await seedMergeWithQuestion(
         "Colour?",
         ["Green"],
-      );
-      const { target, sourceToken } = await seedMergePair(
-        listing1.id,
-        listing2.id,
       );
       // Only source has an answer — no conflict
       await saveMergeAnswers(target.id, sourceToken, [], [a1.id]);
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
-      const { response } = await adminFormPost(
-        `/admin/attendees/${target.id}/merge`,
-        {
+      const { response } = await postMerge(target.id, {
           merge_version: mergeVersion,
           source_token: sourceToken,
         },
@@ -3059,23 +2897,15 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     });
 
     test("POST merge keeps target-only non-conflicting answer", async () => {
-      const { first: listing1, second: listing2 } = await twoMergeListings();
-      const { q, a1 } = await addMergeQuestion(
-        [listing1.id, listing2.id],
+      const { q, a1, target, sourceToken } = await seedMergeWithQuestion(
         "Food?",
         ["Pizza"],
-      );
-      const { target, sourceToken } = await seedMergePair(
-        listing1.id,
-        listing2.id,
       );
       // Only target has an answer — no conflict
       await saveMergeAnswers(target.id, sourceToken, [a1.id], []);
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
-      const { response } = await adminFormPost(
-        `/admin/attendees/${target.id}/merge`,
-        {
+      const { response } = await postMerge(target.id, {
           merge_version: mergeVersion,
           source_token: sourceToken,
         },
@@ -3095,9 +2925,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
       const bookingKey = `${listing.id}:null:0`;
-      const { response } = await adminFormPost(
-        `/admin/attendees/${target.id}/merge`,
-        {
+      const { response } = await postMerge(target.id, {
           merge_version: mergeVersion,
           source_token: sourceToken,
           [`booking_${bookingKey}`]: "take_source",

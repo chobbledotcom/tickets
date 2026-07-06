@@ -10,10 +10,10 @@ import {
 import {
   bookAttendee,
   createDailyTestListing,
-  createTestGroup,
   createTestListing,
   describeWithEnv,
 } from "#test-utils";
+import { seedSaturdayComboGroup } from "#test-utils/db-helpers.ts";
 
 describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
   test("returns true for empty items", async () => {
@@ -98,25 +98,10 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
   });
 
   test("enforces group per-day cap across Saturday/Sunday/combo scenario", async () => {
-    const group = await createTestGroup({ maxAttendees: 100 });
-    const sat = await createDailyTestListing({
-      groupId: group.id,
+    const { sat, sun } = await seedSaturdayComboGroup({
+      fillQuantity: 50,
+      groupCap: 100,
       maxAttendees: 100,
-    });
-    const sun = await createDailyTestListing({
-      groupId: group.id,
-      maxAttendees: 100,
-    });
-    const combo = await createDailyTestListing({
-      durationDays: 2,
-      groupId: group.id,
-      maxAttendees: 100,
-    });
-    await bookAttendee(sat, { date: "2026-05-02", quantity: 50 });
-    await bookAttendee(combo, {
-      date: "2026-05-02",
-      durationDays: 2,
-      quantity: 50,
     });
     expect(
       await checkBatchAvailability(

@@ -25,11 +25,14 @@ import {
 } from "#test-utils";
 import { captureCheckoutIntent } from "#test-utils/checkout-intent.ts";
 import {
+  addRadioQuestion,
   bookableDatesFor,
   bookOne,
   dailyPairSharingPoolWithFiller,
   dailyParentWithChildOffParentDay,
   expectBookingRejected,
+  expectEachChildQtyOne,
+  expectOnlyChildBooked,
   firstBookableDate,
   selectOptions,
   twoParentsSharingChild,
@@ -158,10 +161,7 @@ describeWithEnv(
         [`child_qty_${parent.id}_${childA.id}`]: "1",
       });
       expectReserved(res);
-      const rowsA = await getAttendeesRaw(childA.id);
-      expect(rowsA.length).toBe(1);
-      expect(rowsA[0]?.quantity).toBe(1);
-      expect((await getAttendeesRaw(childB.id)).length).toBe(0);
+      await expectOnlyChildBooked(childA, childB);
     });
 
     test("parent qty 2 accepts two units of one child", async () => {
@@ -177,11 +177,8 @@ describeWithEnv(
         [`child_qty_${parent.id}_${childA.id}`]: "2",
       });
       expectReserved(res);
-      const rowsA = await getAttendeesRaw(childA.id);
       // One folded line of quantity 2, no line for the unchosen sibling.
-      expect(rowsA.length).toBe(1);
-      expect(rowsA[0]?.quantity).toBe(2);
-      expect((await getAttendeesRaw(childB.id)).length).toBe(0);
+      await expectOnlyChildBooked(childA, childB, 2);
     });
 
     test("parent qty 2 accepts one of each child (two folded lines)", async () => {
@@ -198,12 +195,7 @@ describeWithEnv(
         [`child_qty_${parent.id}_${childB.id}`]: "1",
       });
       expectReserved(res);
-      const rowsA = await getAttendeesRaw(childA.id);
-      const rowsB = await getAttendeesRaw(childB.id);
-      expect(rowsA.length).toBe(1);
-      expect(rowsA[0]?.quantity).toBe(1);
-      expect(rowsB.length).toBe(1);
-      expect(rowsB[0]?.quantity).toBe(1);
+      await expectEachChildQtyOne(childA, childB);
     });
 
     // Child-quantity validation rejections: each builds a 2-child parent named
@@ -632,16 +624,7 @@ describeWithEnv(
 
     test("a selected child's question is parsed and saved against its line", async () => {
       const { parent, child } = await makeParent();
-      const question = await questionsTable.insert({
-        displayType: "radio",
-        text: "Size?",
-      });
-      const answer = await answersTable.insert({
-        questionId: question.id,
-        sortOrder: 0,
-        text: "Large",
-      });
-      await setListingQuestions(child.id, [question.id]);
+      const { answer, question } = await addRadioQuestion(child.id);
 
       // The child question renders once, non-required, in the parent page.
       const html = await bookingPageHtml(parent.slug);
@@ -666,25 +649,10 @@ describeWithEnv(
 
     test("a required child question missing for the selected child rejects", async () => {
       const { parent, child } = await makeParent();
-      const question = await questionsTable.insert({
-        displayType: "radio",
-        text: "Size?",
-      });
-      await answersTable.insert({
-        questionId: question.id,
-        sortOrder: 0,
-        text: "Large",
-      });
-      await setListingQuestions(child.id, [question.id]);
+      await addRadioQuestion(child.id);
 
-      const res = await postBooking(parent.slug, {
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
-      });
-      expect(res.status).toBe(302);
-      expectFlash(res, undefined, false);
-      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+      const res = await bookOne(parent, 1);
+      await expectBookingRejected(res, undefined, parent.id);
     });
 
     test("a question shared by sibling children renders once; a page question stays required", async () => {

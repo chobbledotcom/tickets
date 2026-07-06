@@ -10,6 +10,7 @@ import {
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
+  expectAttendeeCounts,
   expectHtmlResponse,
   expectRedirect,
   followRedirect,
@@ -20,6 +21,42 @@ import {
   signMeta,
   singleItem,
 } from "#test-utils";
+import {
+  arrangeSoldOutListing,
+  createHiddenPackage,
+} from "#test-utils/payment-scenarios.ts";
+
+/** Assert each package member's most recent booking row landed on `date` and
+ *  carries `groupId` — the per-member check both dated-package success tests
+ *  share (they differ only in the members and the day count). */
+const expectMembersBookedOnDate = async (
+  members: { id: number }[],
+  date: string,
+  groupId: number,
+): Promise<void> => {
+  const { getDb } = await import("#shared/db/client.ts");
+  for (const member of members) {
+    const row = (
+      await getDb().execute({
+        args: [member.id],
+        sql: "SELECT start_at, package_group_id FROM listing_attendees WHERE listing_id = ? ORDER BY id DESC LIMIT 1",
+      })
+    ).rows[0]!;
+    expect(String(row.start_at).slice(0, 10)).toBe(date);
+    expect(Number(row.package_group_id)).toBe(groupId);
+  }
+};
+
+/** Follow a /payment/success redirect to its rendered success page, assert
+ *  HTTP 200, and return the page HTML — the "process → follow → read the page"
+ *  step several success and replay tests share. */
+const followToSuccessHtml = async (
+  redirectResponse: Response,
+): Promise<string> => {
+  const response = await followRedirect(redirectResponse, handleRequest);
+  expect(response.status).toBe(200);
+  return response.text();
+};
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("GET /payment/success (ticket)", () => {
@@ -79,12 +116,10 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
 
         // Verify attendees created for both listings
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(listing1.id);
-        const attendees2 = await getAttendeesRaw(listing2.id);
-        expect(attendees1.length).toBe(1);
-        expect(attendees2.length).toBe(1);
-        expect(attendees2[0]?.quantity).toBe(2);
+        await expectAttendeeCounts([
+          { count: 1, listingId: listing1.id },
+          { count: 1, listingId: listing2.id, quantity: 2 },
+        ]);
       } finally {
         mockRetrieve.restore();
       }
@@ -209,16 +244,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
         expectRedirect(redirectResponse, /^\/payment\/success\?tokens=.+$/);
 
-        for (const member of [boat, hut]) {
-          const row = (
-            await getDb().execute({
-              args: [member.id],
-              sql: "SELECT start_at, package_group_id FROM listing_attendees WHERE listing_id = ? ORDER BY id DESC LIMIT 1",
-            })
-          ).rows[0]!;
-          expect(String(row.start_at).slice(0, 10)).toBe(date);
-          expect(Number(row.package_group_id)).toBe(group.id);
-        }
+        await expectMembersBookedOnDate([boat, hut], date, group.id);
       } finally {
         mockRetrieve.restore();
       }
@@ -298,16 +324,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
         expectRedirect(redirectResponse, /^\/payment\/success\?tokens=.+$/);
 
-        for (const member of [boat, hut]) {
-          const row = (
-            await getDb().execute({
-              args: [member.id],
-              sql: "SELECT start_at, package_group_id FROM listing_attendees WHERE listing_id = ? ORDER BY id DESC LIMIT 1",
-            })
-          ).rows[0]!;
-          expect(String(row.start_at).slice(0, 10)).toBe(date);
-          expect(Number(row.package_group_id)).toBe(group.id);
-        }
+        await expectMembersBookedOnDate([boat, hut], date, group.id);
       } finally {
         mockRetrieve.restore();
       }
@@ -384,13 +401,10 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         name: "Open Add-On",
         unitPrice: 500,
       });
-      const group = await createTestGroup({ isPackage: true, name: "Bundle" });
-      await groupsTable.update(group.id, { hidePackageListings: true });
       // The standalone session was signed before this listing became a hidden
       // package member; it is then deactivated, so per-item validation fails on
       // it. The failure message must not expose the concealed member's name.
-      const member = await createTestListing({
-        groupId: group.id,
+      const { member } = await createHiddenPackage({
         name: "Concealed Member XYZ",
         unitPrice: 500,
       });
@@ -551,19 +565,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     });
 
     test("shows refund failure message when refund fails", async () => {
-      await setupStripe();
-
-      const listing = await createTestListing({
-        maxAttendees: 1,
-        unitPrice: 1000,
-      });
-
-      // Fill the listing
-      await bookAttendee(listing, {
-        email: "first@example.com",
-        name: "First",
-        paymentId: "pi_first",
-      });
+      const listing = await arrangeSoldOutListing();
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
@@ -790,9 +792,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           mockRequest("/payment/success?session_id=cs_hidden_pkg"),
         );
         expect(redirectResponse.status).toBe(302);
-        const response = await followRedirect(redirectResponse, handleRequest);
-        expect(response.status).toBe(200);
-        const html = await response.text();
+        const html = await followToSuccessHtml(redirectResponse);
         // The ticket link still shows, but the concealed member's thank-you URL
         // (which would meta-refresh to the listing the package hid) must not leak.
         expect(html).toContain("Click here to view your ticket");
@@ -1096,9 +1096,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         const location = expectRedirect(redirectResponse);
 
         // Follow redirect to verify tokens and render page
-        const response = await followRedirect(redirectResponse, handleRequest);
-        expect(response.status).toBe(200);
-        const html = await response.text();
+        const html = await followToSuccessHtml(redirectResponse);
 
         // Should have ticket link with verified token
         expect(html).toContain("Click here to view your ticket");

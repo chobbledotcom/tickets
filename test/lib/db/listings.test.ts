@@ -15,7 +15,6 @@ import {
 } from "#shared/db/activityLog.ts";
 import {
   createAttendeeAtomic,
-  decryptAttendees,
   getAttendeeNamesByIds,
   getAttendeeRaw,
   getAttendeesRaw,
@@ -965,6 +964,18 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       return Number(row.income);
     };
 
+    /** The breakdown's recognised income and net balance must equal the ledger's
+     * own projected income and revenue-account balance for the listing. */
+    const expectBreakdownMatchesLedger = async (
+      breakdown: { netBalance: number; recognisedIncome: number },
+      listingId: number,
+    ): Promise<void> => {
+      expect(breakdown.recognisedIncome).toBe(await projectedIncome(listingId));
+      expect(breakdown.netBalance).toBe(
+        await accountBalance(revenueAccount(listingId)),
+      );
+    };
+
     test("derives gross sales, a manual write-down, and refunds, and reconciles", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
       const buyer = await createTestAttendee(
@@ -1010,12 +1021,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
       // Reconciliation invariants: recognised income equals the existing income
       // projection, and the net balance equals the raw account balance.
-      expect(breakdown.recognisedIncome).toBe(
-        await projectedIncome(listing.id),
-      );
-      expect(breakdown.netBalance).toBe(
-        await accountBalance(revenueAccount(listing.id)),
-      );
+      await expectBreakdownMatchesLedger(breakdown, listing.id);
       // The breakdown reconciles on its own face, too.
       expect(breakdown.recognisedIncome).toBe(
         breakdown.grossSales +
@@ -1054,12 +1060,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       expect(breakdown.recognisedIncome).toBe(5500);
       expect(breakdown.refunds).toBe(0);
       expect(breakdown.netBalance).toBe(5500);
-      expect(breakdown.recognisedIncome).toBe(
-        await projectedIncome(listing.id),
-      );
-      expect(breakdown.netBalance).toBe(
-        await accountBalance(revenueAccount(listing.id)),
-      );
+      await expectBreakdownMatchesLedger(breakdown, listing.id);
     });
 
     test("includes owner-entered outside income and listing costs in the reconciliation", async () => {
@@ -1096,10 +1097,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       expect(breakdown.refunds).toBe(0);
       expect(breakdown.externalCosts).toBe(250);
       expect(breakdown.netBalance).toBe(350);
-      expect(breakdown.recognisedIncome).toBe(
-        await projectedIncome(listing.id),
-      );
-      expect(breakdown.netBalance).toBe(await accountBalance(revenue));
+      await expectBreakdownMatchesLedger(breakdown, listing.id);
     });
 
     test("is all-zero for a listing with no ledger activity", async () => {
@@ -1114,12 +1112,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         recognisedIncome: 0,
         refunds: 0,
       });
-      expect(breakdown.recognisedIncome).toBe(
-        await projectedIncome(listing.id),
-      );
-      expect(breakdown.netBalance).toBe(
-        await accountBalance(revenueAccount(listing.id)),
-      );
+      await expectBreakdownMatchesLedger(breakdown, listing.id);
     });
 
     test("an occurred-at range scopes the breakdown to that window", async () => {

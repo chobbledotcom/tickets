@@ -33,6 +33,7 @@ import {
   ticketPageStatus,
   updateTestListing,
 } from "#test-utils";
+import { expectListingDetailBookable } from "#test-utils/parent-booking-scenarios.ts";
 
 /** A parent with a single `bookable_alone` child (the headline shape). */
 const parentWithFlaggedChild = () =>
@@ -109,13 +110,7 @@ describeWithEnv(
         const { child } = await parentWithFlaggedChild();
         const slugs = await apiListingSlugs();
         expect(slugs).toContain(child.slug);
-        const res = await apiGet(`/api/listings/${child.slug}`);
-        expect(res.status).toBe(200);
-        const body = (await res.json()) as {
-          listing: { slug: string; maxPurchasable: number };
-        };
-        expect(body.listing.slug).toBe(child.slug);
-        expect(body.listing.maxPurchasable).toBeGreaterThan(0);
+        await expectListingDetailBookable(child.slug);
       });
 
       test("a bookable_alone child's availability endpoint is reachable (200)", async () => {

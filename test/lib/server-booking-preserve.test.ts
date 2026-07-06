@@ -2,11 +2,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
-import {
-  answersTable,
-  questionsTable,
-  setListingQuestions,
-} from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
@@ -16,6 +11,7 @@ import {
   followRedirectWithFlash,
   submitMultiTicketForm,
 } from "#test-utils";
+import { addRadioQuestion } from "#test-utils/parent-booking-scenarios.ts";
 
 const TERMS = "You must accept the rules.";
 
@@ -131,16 +127,7 @@ describeWithEnv("server (booking input preservation)", { db: true }, () => {
   test("re-fills a question answer", async () => {
     await settings.update.terms(TERMS);
     const listing = await createTestListing({ maxQuantity: 5, name: "Ticket" });
-    const question = await questionsTable.insert({
-      displayType: "radio",
-      text: "Size?",
-    });
-    const answer = await answersTable.insert({
-      questionId: question.id,
-      sortOrder: 0,
-      text: "Large",
-    });
-    await setListingQuestions(listing.id, [question.id]);
+    const { answer, question } = await addRadioQuestion(listing.id);
 
     const html = await submitAndRefill(listing.slug, {
       email: "jane@example.com",

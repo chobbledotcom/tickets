@@ -3,7 +3,9 @@ import { it as test } from "@std/testing/bdd";
 import { getGroupIdsByListingId } from "#shared/db/groups.ts";
 import { getChildIds } from "#shared/db/listing-parents.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
+import type { Listing } from "#shared/types.ts";
 import {
+  adminFormPost,
   apiRequest,
   assertJson,
   createTestGroup,
@@ -11,16 +13,15 @@ import {
   describeWithEnv,
   expectFlash,
   getListingActivityLog,
-  getTestSession,
-  insertModifier,
-  linkModifierGroup,
-  linkModifierListing,
   listingEditPageHtml,
   listingRosterPageHtml,
-  patchModifier,
   postChildren,
   updateTestListing,
 } from "#test-utils";
+import {
+  groupScopedAddOn,
+  optInAddOnForListings,
+} from "#test-utils/scoped-add-ons.ts";
 
 /** Create a listing through the admin JSON API, returning the created id. */
 const apiCreateListing = async (
@@ -37,17 +38,29 @@ const apiCreateListing = async (
   return id;
 };
 
-/** Insert an active opt-in add-on scoped to the given listing ids. */
-const optInAddOnForListings = async (
-  name: string,
-  listingIds: number[],
-): Promise<void> => {
-  const modifier = await insertModifier({ name });
-  await patchModifier(modifier.id, { scope: "listings", trigger: "optional" });
-  for (const listingId of listingIds) {
-    await linkModifierListing(modifier.id, listingId);
-  }
-};
+/** PUT the admin JSON API for a listing (edit/save). */
+const putListing = (id: number, body: Record<string, unknown>) =>
+  apiRequest(`/api/admin/listings/${id}`, { body, method: "PUT" });
+
+/** POST the admin JSON API deactivate toggle for a listing. */
+const apiDeactivate = (id: number) =>
+  apiRequest(`/api/admin/listings/${id}/deactivate`, { method: "POST" });
+
+/** DELETE a listing through the admin JSON API. */
+const apiDeleteListing = (id: number, body: Record<string, unknown> = {}) =>
+  apiRequest(`/api/admin/listings/${id}`, { body, method: "DELETE" });
+
+/** POST the HTML deactivate route for a listing, confirming its own name. */
+const postDeactivate = (listing: Listing) =>
+  adminFormPost(`/admin/listing/${listing.id}/deactivate`, {
+    confirm_identifier: listing.name,
+  });
+
+/** POST the HTML delete route for a listing, confirming its own name. */
+const postDelete = (listing: Listing) =>
+  adminFormPost(`/admin/listing/${listing.id}/delete`, {
+    confirm_identifier: listing.name,
+  });
 
 /** POST a listing edit (building the full update form from the existing row with
  * overrides), returning the raw response so a *rejected* save (status 400) can be
@@ -92,10 +105,118 @@ const makeRenewalTier = async (listingId: number): Promise<void> => {
   ]);
 };
 
+/** A "Base unit" parent and an "Add-on" child, with no edge between them yet.
+ * `childOverrides` tweak the child (e.g. make it daily or bookable-alone). */
+const parentAndChild = async (
+  childOverrides: Parameters<typeof createTestListing>[0] = {},
+): Promise<{ parent: Listing; child: Listing }> => {
+  const parent = await createTestListing({ name: "Base unit" });
+  const child = await createTestListing({ name: "Add-on", ...childOverrides });
+  return { child, parent };
+};
+
+/** A "Base unit" parent with the "Add-on" child already saved as its child. */
+const savedParentChild = async (
+  childOverrides: Parameters<typeof createTestListing>[0] = {},
+): Promise<{ parent: Listing; child: Listing }> => {
+  const { child, parent } = await parentAndChild(childOverrides);
+  await postChildren(parent.id, [child.id]);
+  return { child, parent };
+};
+
+/** A "Bundle" group holding both a "Base unit" parent and an "Add-on" child
+ * (no parent→child edge yet). */
+const groupedParentChild = async (): Promise<{
+  parent: Listing;
+  child: Listing;
+  group: Awaited<ReturnType<typeof createTestGroup>>;
+}> => {
+  const group = await createTestGroup({ name: "Bundle" });
+  const parent = await createTestListing({
+    groupId: group.id,
+    name: "Base unit",
+  });
+  const child = await createTestListing({ groupId: group.id, name: "Add-on" });
+  return { child, group, parent };
+};
+
+/** The "rescuing page" scenario: a suppressed child under a parent, plus a
+ * standalone page that is the ONLY non-child page selling a {child, thatPage}-
+ * scoped opt-in add-on. Taking `thatPage` offline orphans the add-on. */
+const rescuePageScenario = async (): Promise<{
+  parent: Listing;
+  child: Listing;
+  thatPage: Listing;
+}> => {
+  const { child, parent } = await savedParentChild();
+  const thatPage = await createTestListing({ name: "Rescuing page" });
+  await optInAddOnForListings("Child-scoped extra", [child.id, thatPage.id]);
+  return { child, parent, thatPage };
+};
+
+/** A bookable-alone "Solo Widget" child under a parent, selling a child-only
+ * opt-in add-on that only the child's own page can reach. */
+const bookableAloneChildScenario = async (): Promise<{
+  parent: Listing;
+  child: Listing;
+}> => {
+  const { child, parent } = await savedParentChild({
+    bookableAlone: true,
+    name: "Solo Widget",
+  });
+  await optInAddOnForListings("Child-only extra", [child.id]);
+  return { child, parent };
+};
+
+/** Create a child from `childSpec`, save it under the parent, and return the
+ * parent's resulting child-id list (plus the new child's id) so a test can
+ * assert the edge was accepted or rejected. */
+const saveChildUnder = async (
+  parentId: number,
+  childSpec: Parameters<typeof createTestListing>[0],
+): Promise<{ childId: number; childIds: number[] }> => {
+  const child = await createTestListing(childSpec);
+  await postChildren(parentId, [child.id]);
+  return { childId: child.id, childIds: await getChildIds(parentId) };
+};
+
+/** A fixed one-day daily add-on child, reused by the daily-span edge tests. */
+const oneDayDailyChild = {
+  durationDays: 1,
+  listingType: "daily" as const,
+  name: "1-day add-on",
+};
+
+/** A "Bundle" group holding a parent and child, with a group-scoped "Group
+ * extra" opt-in add-on already attached (no parent→child edge yet). */
+const groupScopedBundle = async () => {
+  const { child, group, parent } = await groupedParentChild();
+  await groupScopedAddOn("Group extra", [group.id]);
+  return { child, group, parent };
+};
+
+/** Assert an admin JSON API call is rejected (400) with the orphaned-add-on
+ * error message. */
+const expectOrphanGuard = (call: Parameters<typeof assertJson>[0]) =>
+  assertJson(call, 400, (json) => {
+    expect(json.error).toContain("opt-in add-on reachable only through");
+  });
+
+/** Assert a blocked HTML action flashed the child-only-add-on error. Drains the
+ * response body first. */
+const expectChildOnlyAddOnFlash = async (res: Response): Promise<void> => {
+  res.body?.cancel();
+  const { t } = await import("#i18n");
+  expectFlash(
+    res,
+    t("modifiers.err_child_only_addon", { name: "Child-scoped extra" }),
+    false,
+  );
+};
+
 describeWithEnv("server > listing parents", { db: true }, () => {
   test("saves the chosen children and redirects", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
+    const { child, parent } = await parentAndChild();
     const res = await postChildren(parent.id, [child.id]);
     expect(res.headers.get("location")).toContain(
       `/admin/listing/${parent.id}/edit`,
@@ -115,16 +236,13 @@ describeWithEnv("server > listing parents", { db: true }, () => {
   });
 
   test("drops self-edges and unknown ids", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
+    const { child, parent } = await parentAndChild();
     await postChildren(parent.id, [parent.id, child.id, parent.id + 9999]);
     expect(await getChildIds(parent.id)).toEqual([child.id]);
   });
 
   test("renders the section with the chosen child checked", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    await postChildren(parent.id, [child.id]);
+    const { child, parent } = await savedParentChild();
     const html = await listingEditPageHtml(parent.id);
     expect(html).toContain("Required child listings");
     expect(html).toContain(
@@ -143,10 +261,8 @@ describeWithEnv("server > listing parents", { db: true }, () => {
   });
 
   test("renders unticked siblings without the checked attribute", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
+    const { child, parent } = await savedParentChild();
     const other = await createTestListing({ name: "Unrelated" });
-    await postChildren(parent.id, [child.id]);
     const html = await listingEditPageHtml(parent.id);
     expect(html).toContain(
       `<input checked name="child_listing_ids" type="checkbox" value="${child.id}">`,
@@ -157,9 +273,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
   });
 
   test("shows what a child is offered under", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    await postChildren(parent.id, [child.id]);
+    const { child } = await savedParentChild();
     const html = await listingEditPageHtml(child.id);
     expect(html).toContain("This listing is itself offered under: Base unit");
   });
@@ -192,9 +306,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
   });
 
   test("a child listing's edit page shows the inherited-fields banner (usability #3)", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    await postChildren(parent.id, [child.id]);
+    const { child } = await savedParentChild();
     const html = await listingEditPageHtml(child.id);
     expect(html).toContain("This listing is offered as a child of Base unit");
     expect(html).toContain(
@@ -212,9 +324,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
   });
 
   test("a parent's detail page warns when manually adding an attendee (usability #2b)", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    await postChildren(parent.id, [child.id]);
+    const { parent } = await savedParentChild();
     const html = await listingRosterPageHtml(parent.id);
     expect(html).toContain("This listing requires a child listing (Add-on)");
   });
@@ -227,9 +337,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
 
   test("editing an attendee who booked only a parent warns its child is missing (usability #6)", async () => {
     const { bookAttendee, adminGet } = await import("#test-utils");
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    await postChildren(parent.id, [child.id]);
+    const { parent } = await savedParentChild();
     // bookAttendee writes through the atomic path (no gate), creating exactly the
     // lone-parent state an admin manual add would.
     const result = await bookAttendee(parent, { name: "Ada" });
@@ -245,9 +353,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
   test("editing an attendee who booked both parent and child shows no missing-child warning", async () => {
     const { adminGet } = await import("#test-utils");
     const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    await postChildren(parent.id, [child.id]);
+    const { child, parent } = await savedParentChild();
     // Both lines booked on the one attendee — the gate is satisfied.
     const result = await createAttendeeAtomic({
       bookings: [{ listingId: parent.id }, { listingId: child.id }],
@@ -268,8 +374,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
   });
 
   test("rejects a daily child under a non-daily parent", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({
+    const { child, parent } = await parentAndChild({
       listingType: "daily",
       name: "Daily add-on",
     });
@@ -300,14 +405,12 @@ describeWithEnv("server > listing parents", { db: true }, () => {
   test("rejects a renewal-tier parent", async () => {
     const parent = await createTestListing({ name: "Renewal" });
     await makeRenewalTier(parent.id);
-    const child = await createTestListing({ name: "Add-on" });
-    await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([]);
+    const { childIds } = await saveChildUnder(parent.id, { name: "Add-on" });
+    expect(childIds).toEqual([]);
   });
 
   test("rejects a renewal-tier child", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Renewal add-on" });
+    const { child, parent } = await parentAndChild({ name: "Renewal add-on" });
     await makeRenewalTier(child.id);
     await postChildren(parent.id, [child.id]);
     expect(await getChildIds(parent.id)).toEqual([]);
@@ -319,37 +422,30 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       listingType: "daily",
       name: "3-day base",
     });
-    const child = await createTestListing({
-      durationDays: 1,
-      listingType: "daily",
-      name: "1-day add-on",
-    });
-    await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([]);
+    const { childIds } = await saveChildUnder(parent.id, oneDayDailyChild);
+    expect(childIds).toEqual([]);
   });
 
   test("rejects a customisable child that can't price the parent's fixed span", async () => {
     const parent = await createTestListing({ name: "1-day base" });
-    const child = await createTestListing({
+    const { childIds } = await saveChildUnder(parent.id, {
       customisableDays: true,
       dayPrices: { 2: 200, 3: 300 },
       durationDays: 3,
       name: "Add-on (no 1-day price)",
     });
-    await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([]);
+    expect(childIds).toEqual([]);
   });
 
   test("accepts a customisable child that prices the parent's fixed span", async () => {
     const parent = await createTestListing({ name: "1-day base" });
-    const child = await createTestListing({
+    const { childId, childIds } = await saveChildUnder(parent.id, {
       customisableDays: true,
       dayPrices: { 1: 100, 2: 200 },
       durationDays: 2,
       name: "Add-on (prices 1 day)",
     });
-    await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(childIds).toEqual([childId]);
   });
 
   test("accepts overlapping customisable parent and child day ranges", async () => {
@@ -359,14 +455,13 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       durationDays: 3,
       name: "Flexible base",
     });
-    const child = await createTestListing({
+    const { childId, childIds } = await saveChildUnder(parent.id, {
       customisableDays: true,
       dayPrices: { 2: 20, 3: 30 },
       durationDays: 3,
       name: "Flexible add-on",
     });
-    await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(childIds).toEqual([childId]);
   });
 
   test("rejects non-overlapping customisable parent and child day ranges", async () => {
@@ -376,14 +471,13 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       durationDays: 1,
       name: "1-day flexible base",
     });
-    const child = await createTestListing({
+    const { childIds } = await saveChildUnder(parent.id, {
       customisableDays: true,
       dayPrices: { 2: 20, 3: 30 },
       durationDays: 3,
       name: "2-3 day add-on",
     });
-    await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([]);
+    expect(childIds).toEqual([]);
   });
 
   test("accepts a plain standard child under a multi-day daily parent", async () => {
@@ -394,9 +488,10 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       listingType: "daily",
       name: "3-day base",
     });
-    const child = await createTestListing({ name: "Booking fee" });
-    await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    const { childId, childIds } = await saveChildUnder(parent.id, {
+      name: "Booking fee",
+    });
+    expect(childIds).toEqual([childId]);
   });
 
   test("accepts a plain standard child under a parent with no 1-day span", async () => {
@@ -406,9 +501,10 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       durationDays: 3,
       name: "2-3 day flexible base",
     });
-    const child = await createTestListing({ name: "Merch add-on" });
-    await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    const { childId, childIds } = await saveChildUnder(parent.id, {
+      name: "Merch add-on",
+    });
+    expect(childIds).toEqual([childId]);
   });
 
   test("accepts a daily child whose span a customisable daily parent offers", async () => {
@@ -419,13 +515,12 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       listingType: "daily",
       name: "1-3 day base",
     });
-    const child = await createTestListing({
+    const { childId, childIds } = await saveChildUnder(parent.id, {
       durationDays: 2,
       listingType: "daily",
       name: "2-day add-on",
     });
-    await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([child.id]);
+    expect(childIds).toEqual([childId]);
   });
 
   test("rejects a daily child whose span a customisable daily parent can't offer", async () => {
@@ -436,13 +531,8 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       listingType: "daily",
       name: "2-3 day base",
     });
-    const child = await createTestListing({
-      durationDays: 1,
-      listingType: "daily",
-      name: "1-day add-on",
-    });
-    await postChildren(parent.id, [child.id]);
-    expect(await getChildIds(parent.id)).toEqual([]);
+    const { childIds } = await saveChildUnder(parent.id, oneDayDailyChild);
+    expect(childIds).toEqual([]);
   });
 
   test("blocks a listing edit that would break an existing edge", async () => {
@@ -466,9 +556,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
   });
 
   test("allows a compatible listing edit while edges exist", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    await postChildren(parent.id, [child.id]);
+    const { child, parent } = await savedParentChild();
     const after = await updateTestListing(parent.id, {
       name: "Renamed base",
     });
@@ -502,13 +590,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const first = await createTestListing({ name: "Add-on A" });
     const second = await createTestListing({ name: "Add-on B" });
     await postChildren(parent.id, [first.id]);
-    await assertJson(
-      apiRequest(`/api/admin/listings/${parent.id}`, {
-        body: { child_listing_ids: [second.id] },
-        method: "PUT",
-      }),
-      200,
-    );
+    await assertJson(putListing(parent.id, { child_listing_ids: [second.id] }), 200);
     expect(await getChildIds(parent.id)).toEqual([second.id]);
   });
 
@@ -516,14 +598,9 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // A JSON client sending a stringified id (e.g. `"oops"`, or `"7"`) must fail
     // closed with a 400 — never be silently filtered out, which could shrink the
     // array to empty and turn a gated parent into a standalone listing.
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    await postChildren(parent.id, [child.id]);
+    const { child, parent } = await savedParentChild();
     await assertJson(
-      apiRequest(`/api/admin/listings/${parent.id}`, {
-        body: { child_listing_ids: [child.id, "oops"] },
-        method: "PUT",
-      }),
+      putListing(parent.id, { child_listing_ids: [child.id, "oops"] }),
       400,
       (json) => {
         expect(json.error).toBe(
@@ -537,27 +614,18 @@ describeWithEnv("server > listing parents", { db: true }, () => {
   test("admin API keeps known ids and drops an unknown NUMERIC child id", async () => {
     // An unknown numeric id is still a positive integer, so the array is accepted
     // (200) and validateChildEdges drops the unknown id downstream.
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
+    const { child, parent } = await parentAndChild();
     await assertJson(
-      apiRequest(`/api/admin/listings/${parent.id}`, {
-        body: { child_listing_ids: [child.id, parent.id + 9999] },
-        method: "PUT",
-      }),
+      putListing(parent.id, { child_listing_ids: [child.id, parent.id + 9999] }),
       200,
     );
     expect(await getChildIds(parent.id)).toEqual([child.id]);
   });
 
   test("admin API rejects a string child_listing_ids without clearing edges", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    await postChildren(parent.id, [child.id]);
+    const { child, parent } = await savedParentChild();
     await assertJson(
-      apiRequest(`/api/admin/listings/${parent.id}`, {
-        body: { child_listing_ids: "not-an-array" },
-        method: "PUT",
-      }),
+      putListing(parent.id, { child_listing_ids: "not-an-array" }),
       400,
       (json) => {
         expect(json.error).toBe(
@@ -569,58 +637,33 @@ describeWithEnv("server > listing parents", { db: true }, () => {
   });
 
   test("admin API rejects an object child_listing_ids without clearing edges", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    await postChildren(parent.id, [child.id]);
+    const { child, parent } = await savedParentChild();
     await assertJson(
-      apiRequest(`/api/admin/listings/${parent.id}`, {
-        body: { child_listing_ids: { [child.id]: true } },
-        method: "PUT",
-      }),
+      putListing(parent.id, { child_listing_ids: { [child.id]: true } }),
       400,
     );
     expect(await getChildIds(parent.id)).toEqual([child.id]);
   });
 
   test("admin API leaves edges untouched when child_listing_ids is omitted", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    await postChildren(parent.id, [child.id]);
-    await assertJson(
-      apiRequest(`/api/admin/listings/${parent.id}`, {
-        body: { name: "Renamed base" },
-        method: "PUT",
-      }),
-      200,
-    );
+    const { child, parent } = await savedParentChild();
+    await assertJson(putListing(parent.id, { name: "Renamed base" }), 200);
     expect(await getChildIds(parent.id)).toEqual([child.id]);
   });
 
   test("admin API clears edges when child_listing_ids is an empty array", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    await postChildren(parent.id, [child.id]);
-    await assertJson(
-      apiRequest(`/api/admin/listings/${parent.id}`, {
-        body: { child_listing_ids: [] },
-        method: "PUT",
-      }),
-      200,
-    );
+    const { parent } = await savedParentChild();
+    await assertJson(putListing(parent.id, { child_listing_ids: [] }), 200);
     expect(await getChildIds(parent.id)).toEqual([]);
   });
 
   test("admin API rejects an invalid edge with no write", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({
+    const { child, parent } = await parentAndChild({
       listingType: "daily",
       name: "Daily add-on",
     });
     await assertJson(
-      apiRequest(`/api/admin/listings/${parent.id}`, {
-        body: { child_listing_ids: [child.id] },
-        method: "PUT",
-      }),
+      putListing(parent.id, { child_listing_ids: [child.id] }),
       400,
       (json) => {
         expect(typeof json.error).toBe("string");
@@ -630,22 +673,17 @@ describeWithEnv("server > listing parents", { db: true }, () => {
   });
 
   test("admin API blocks a child whose add-on only it can reach", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
+    const { child, parent } = await parentAndChild();
     await optInAddOnForListings("Child-only extra", [child.id]);
     await assertJson(
-      apiRequest(`/api/admin/listings/${parent.id}`, {
-        body: { child_listing_ids: [child.id] },
-        method: "PUT",
-      }),
+      putListing(parent.id, { child_listing_ids: [child.id] }),
       400,
     );
     expect(await getChildIds(parent.id)).toEqual([]);
   });
 
   test("blocks a child whose opt-in add-on only it can reach", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
+    const { child, parent } = await parentAndChild();
     await optInAddOnForListings("Child-only extra", [child.id]);
     await postChildren(parent.id, [child.id]);
     expect(await getChildIds(parent.id)).toEqual([]);
@@ -654,8 +692,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
   test("allows a bookable_alone child whose opt-in add-on only it can reach", async () => {
     // A child that can be booked by itself keeps its own booking page, so an
     // add-on scoped only to it is still reachable — the edge is not a dead end.
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({
+    const { child, parent } = await parentAndChild({
       bookableAlone: true,
       name: "Solo Widget",
     });
@@ -665,8 +702,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
   });
 
   test("allows a child whose add-on is also scoped to the parent", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
+    const { child, parent } = await parentAndChild();
     await optInAddOnForListings("Shared extra", [parent.id, child.id]);
     await postChildren(parent.id, [child.id]);
     expect(await getChildIds(parent.id)).toEqual([child.id]);
@@ -676,21 +712,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // The add-on is groups-scoped to a group holding both the parent and the
     // child, so it resolves to listing ids including the parent — still
     // reachable via the parent's page ids, so the edge is allowed.
-    const group = await createTestGroup({ name: "Bundle" });
-    const parent = await createTestListing({
-      groupId: group.id,
-      name: "Base unit",
-    });
-    const child = await createTestListing({
-      groupId: group.id,
-      name: "Add-on",
-    });
-    const modifier = await insertModifier({ name: "Group extra" });
-    await patchModifier(modifier.id, {
-      scope: "groups",
-      trigger: "optional",
-    });
-    await linkModifierGroup(modifier.id, group.id);
+    const { child, parent } = await groupScopedBundle();
     await postChildren(parent.id, [child.id]);
     expect(await getChildIds(parent.id)).toEqual([child.id]);
   });
@@ -722,21 +744,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // the suppressed child, which can't offer it. The listing save must be
     // rejected against the would-be group_id, leaving the parent in its
     // group.
-    const group = await createTestGroup({ name: "Bundle" });
-    const parent = await createTestListing({
-      groupId: group.id,
-      name: "Base unit",
-    });
-    const child = await createTestListing({
-      groupId: group.id,
-      name: "Add-on",
-    });
-    const modifier = await insertModifier({ name: "Group extra" });
-    await patchModifier(modifier.id, {
-      scope: "groups",
-      trigger: "optional",
-    });
-    await linkModifierGroup(modifier.id, group.id);
+    const { child, group, parent } = await groupScopedBundle();
     // The edge is valid while the parent is in the group.
     await postChildren(parent.id, [child.id]);
     expect(await getChildIds(parent.id)).toEqual([child.id]);
@@ -764,14 +772,8 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       groupId: fromGroup.id,
       name: "Add-on",
     });
-    const modifier = await insertModifier({ name: "Group extra" });
-    await patchModifier(modifier.id, {
-      scope: "groups",
-      trigger: "optional",
-    });
     // The add-on covers both groups, so it reaches the parent in either one.
-    await linkModifierGroup(modifier.id, fromGroup.id);
-    await linkModifierGroup(modifier.id, toGroup.id);
+    await groupScopedAddOn("Group extra", [fromGroup.id, toGroup.id]);
     await postChildren(parent.id, [child.id]);
 
     await updateTestListing(parent.id, { groupId: toGroup.id });
@@ -786,14 +788,8 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // the suppressed child C, never via P's page — the save must be rejected
     // (the child-role branch of the edge check).
     const group = await createTestGroup({ name: "Bundle" });
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    const modifier = await insertModifier({ name: "Group extra" });
-    await patchModifier(modifier.id, {
-      scope: "groups",
-      trigger: "optional",
-    });
-    await linkModifierGroup(modifier.id, group.id);
+    const { child, parent } = await parentAndChild();
+    await groupScopedAddOn("Group extra", [group.id]);
     // Edge is valid while the child is ungrouped (add-on doesn't reach it).
     await postChildren(parent.id, [child.id]);
     expect(await getChildIds(parent.id)).toEqual([child.id]);
@@ -813,21 +809,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       "#shared/listings-actions.ts"
     );
     const { listingsTable } = await import("#shared/db/listings.ts");
-    const group = await createTestGroup({ name: "Bundle" });
-    const parent = await createTestListing({
-      groupId: group.id,
-      name: "Base unit",
-    });
-    const child = await createTestListing({
-      groupId: group.id,
-      name: "Add-on",
-    });
-    const modifier = await insertModifier({ name: "Group extra" });
-    await patchModifier(modifier.id, {
-      scope: "groups",
-      trigger: "optional",
-    });
-    await linkModifierGroup(modifier.id, group.id);
+    const { child, parent } = await groupScopedBundle();
     await postChildren(parent.id, [child.id]);
 
     const row = (await getListingWithCount(parent.id))!;
@@ -843,16 +825,14 @@ describeWithEnv("server > listing parents", { db: true }, () => {
   test("admin API PUT rejecting an invalid child does NOT persist the rename", async () => {
     // The child-edge validation runs BEFORE the row write, so a rejected edge
     // leaves no partial change: the rename in the same PUT must not stick.
-    const parent = await createTestListing({ name: "Base unit" });
-    // A daily child under a standard parent is an invalid edge.
-    const child = await createTestListing({
+    const { child, parent } = await parentAndChild({
       listingType: "daily",
       name: "Daily add-on",
     });
     await assertJson(
-      apiRequest(`/api/admin/listings/${parent.id}`, {
-        body: { child_listing_ids: [child.id], name: "Renamed base" },
-        method: "PUT",
+      putListing(parent.id, {
+        child_listing_ids: [child.id],
+        name: "Renamed base",
       }),
       400,
     );
@@ -893,35 +873,11 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // its own — would leave the add-on reachable only via the suppressed child,
     // a dead end. The deactivation must be rejected, and the listing
     // must stay active.
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    const thatPage = await createTestListing({ name: "Rescuing page" });
-    await postChildren(parent.id, [child.id]);
-    await optInAddOnForListings("Child-scoped extra", [child.id, thatPage.id]);
+    const { thatPage } = await rescuePageScenario();
 
-    const { handleRequest } = await import("#routes");
-    const res = await handleRequest(
-      new Request(`http://localhost/admin/listing/${thatPage.id}/deactivate`, {
-        body: new URLSearchParams({
-          confirm_identifier: thatPage.name,
-          csrf_token: (await getTestSession()).csrfToken,
-        }),
-        headers: {
-          "content-type": "application/x-www-form-urlencoded",
-          cookie: (await getTestSession()).cookie,
-          host: "localhost",
-        },
-        method: "POST",
-      }),
-    );
-    res.body?.cancel();
+    const { response: res } = await postDeactivate(thatPage);
+    await expectChildOnlyAddOnFlash(res);
     expect(res.status).toBe(302);
-    const { t } = await import("#i18n");
-    expectFlash(
-      res,
-      t("modifiers.err_child_only_addon", { name: "Child-scoped extra" }),
-      false,
-    );
     expect((await getListingWithCount(thatPage.id))?.active).toBe(true);
   });
 
@@ -929,21 +885,8 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // The full edit-save path (validateListingInput → validateListingEdges)
     // must also block a deactivation that orphans a child-scoped add-on, not
     // only the dedicated /deactivate route. Set `active: false` via PUT.
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    const thatPage = await createTestListing({ name: "Rescuing page" });
-    await postChildren(parent.id, [child.id]);
-    await optInAddOnForListings("Child-scoped extra", [child.id, thatPage.id]);
-    await assertJson(
-      apiRequest(`/api/admin/listings/${thatPage.id}`, {
-        body: { active: false },
-        method: "PUT",
-      }),
-      400,
-      (json) => {
-        expect(json.error).toContain("opt-in add-on reachable only through");
-      },
-    );
+    const { thatPage } = await rescuePageScenario();
+    await expectOrphanGuard(putListing(thatPage.id, { active: false }));
     expect((await getListingWithCount(thatPage.id))?.active).toBe(true);
   });
 
@@ -954,21 +897,9 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // scoped opt-in add-on — would leave the add-on reachable only via the
     // suppressed child. The API must reject with a 400 and the listing must stay
     // active.
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    const thatPage = await createTestListing({ name: "Rescuing page" });
-    await postChildren(parent.id, [child.id]);
-    await optInAddOnForListings("Child-scoped extra", [child.id, thatPage.id]);
+    const { thatPage } = await rescuePageScenario();
 
-    await assertJson(
-      apiRequest(`/api/admin/listings/${thatPage.id}/deactivate`, {
-        method: "POST",
-      }),
-      400,
-      (json) => {
-        expect(json.error).toContain("opt-in add-on reachable only through");
-      },
-    );
+    await expectOrphanGuard(apiDeactivate(thatPage.id));
     expect((await getListingWithCount(thatPage.id))?.active).toBe(true);
   });
 
@@ -978,24 +909,9 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // getNonStandaloneChildIds excludes it from the suppressed set; the
     // deactivation guard must force the flagged child in by hand, or taking its
     // page offline silently orphans the add-on only it could sell.
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({
-      bookableAlone: true,
-      name: "Solo Widget",
-    });
-    await postChildren(parent.id, [child.id]);
-    await optInAddOnForListings("Child-only extra", [child.id]);
+    const { child } = await bookableAloneChildScenario();
 
-    await assertJson(
-      apiRequest(`/api/admin/listings/${child.id}`, {
-        body: { active: false },
-        method: "PUT",
-      }),
-      400,
-      (json) => {
-        expect(json.error).toContain("opt-in add-on reachable only through");
-      },
-    );
+    await expectOrphanGuard(putListing(child.id, { active: false }));
     expect((await getListingWithCount(child.id))?.active).toBe(true);
   });
 
@@ -1003,23 +919,9 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // The dedicated /deactivate route (deactivationOrphanedAddOnError) must apply
     // the same flagged-child suppression the edit-save path does — a bookable_alone
     // child taken offline here would otherwise silently orphan a child-only add-on.
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({
-      bookableAlone: true,
-      name: "Solo Widget",
-    });
-    await postChildren(parent.id, [child.id]);
-    await optInAddOnForListings("Child-only extra", [child.id]);
+    const { child } = await bookableAloneChildScenario();
 
-    await assertJson(
-      apiRequest(`/api/admin/listings/${child.id}/deactivate`, {
-        method: "POST",
-      }),
-      400,
-      (json) => {
-        expect(json.error).toContain("opt-in add-on reachable only through");
-      },
-    );
+    await expectOrphanGuard(apiDeactivate(child.id));
     expect((await getListingWithCount(child.id))?.active).toBe(true);
   });
 
@@ -1027,15 +929,9 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // The guard must not block an ordinary API deactivation: a plain listing
     // rescuing no child-scoped add-on toggles inactive normally.
     const plain = await createTestListing({ name: "Plain" });
-    await assertJson(
-      apiRequest(`/api/admin/listings/${plain.id}/deactivate`, {
-        method: "POST",
-      }),
-      200,
-      (json) => {
-        expect(json.listing.active).toBe(false);
-      },
-    );
+    await assertJson(apiDeactivate(plain.id), 200, (json) => {
+      expect(json.listing.active).toBe(false);
+    });
     expect((await getListingWithCount(plain.id))?.active).toBe(false);
   });
 
@@ -1043,22 +939,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // A plain listing not rescuing any child-scoped add-on deactivates normally
     // — the orphan guard must not block ordinary deactivations.
     const plain = await createTestListing({ name: "Plain" });
-    const { handleRequest } = await import("#routes");
-    const session = await getTestSession();
-    const res = await handleRequest(
-      new Request(`http://localhost/admin/listing/${plain.id}/deactivate`, {
-        body: new URLSearchParams({
-          confirm_identifier: plain.name,
-          csrf_token: session.csrfToken,
-        }),
-        headers: {
-          "content-type": "application/x-www-form-urlencoded",
-          cookie: session.cookie,
-          host: "localhost",
-        },
-        method: "POST",
-      }),
-    );
+    const { response: res } = await postDeactivate(plain);
     res.body?.cancel();
     expect((await getListingWithCount(plain.id))?.active).toBe(false);
   });
@@ -1068,11 +949,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // redirect to /deactivate (its own URL) in a loop instead of rendering. The
     // fix renders the page (200) WITH the error, and only the POST blocks. Here
     // `thatPage` is the sole rescuer of a {child, thatPage}-scoped add-on.
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    const thatPage = await createTestListing({ name: "Rescuing page" });
-    await postChildren(parent.id, [child.id]);
-    await optInAddOnForListings("Child-scoped extra", [child.id, thatPage.id]);
+    const { thatPage } = await rescuePageScenario();
 
     const { adminGet } = await import("#test-utils");
     const response = await adminGet(`/admin/listing/${thatPage.id}/deactivate`);
@@ -1094,35 +971,10 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // of a {child, thatPage}-scoped opt-in add-on) would leave the add-on
     // reachable only via the suppressed child. The HTML delete must block and
     // keep the listing.
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    const thatPage = await createTestListing({ name: "Rescuing page" });
-    await postChildren(parent.id, [child.id]);
-    await optInAddOnForListings("Child-scoped extra", [child.id, thatPage.id]);
+    const { thatPage } = await rescuePageScenario();
 
-    const { handleRequest } = await import("#routes");
-    const session = await getTestSession();
-    const res = await handleRequest(
-      new Request(`http://localhost/admin/listing/${thatPage.id}/delete`, {
-        body: new URLSearchParams({
-          confirm_identifier: thatPage.name,
-          csrf_token: session.csrfToken,
-        }),
-        headers: {
-          "content-type": "application/x-www-form-urlencoded",
-          cookie: session.cookie,
-          host: "localhost",
-        },
-        method: "POST",
-      }),
-    );
-    res.body?.cancel();
-    const { t } = await import("#i18n");
-    expectFlash(
-      res,
-      t("modifiers.err_child_only_addon", { name: "Child-scoped extra" }),
-      false,
-    );
+    const { response: res } = await postDelete(thatPage);
+    await expectChildOnlyAddOnFlash(res);
     // The listing is NOT deleted.
     expect(await getListingWithCount(thatPage.id)).not.toBe(null);
   });
@@ -1131,55 +983,22 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // The direct-delete branch (no typed-identifier confirmation) must run the
     // same guard as the confirmed path: it shares no code with the confirmed
     // handler, so it needs its own block.
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    const thatPage = await createTestListing({ name: "Rescuing page" });
-    await postChildren(parent.id, [child.id]);
-    await optInAddOnForListings("Child-scoped extra", [child.id, thatPage.id]);
+    const { thatPage } = await rescuePageScenario();
 
-    const { handleRequest } = await import("#routes");
-    const session = await getTestSession();
-    const res = await handleRequest(
-      new Request(
-        `http://localhost/admin/listing/${thatPage.id}/delete?verify_identifier=false`,
-        {
-          body: new URLSearchParams({ csrf_token: session.csrfToken }),
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            cookie: session.cookie,
-            host: "localhost",
-          },
-          method: "POST",
-        },
-      ),
+    const { response: res } = await adminFormPost(
+      `/admin/listing/${thatPage.id}/delete?verify_identifier=false`,
+      {},
     );
-    res.body?.cancel();
-    const { t } = await import("#i18n");
-    expectFlash(
-      res,
-      t("modifiers.err_child_only_addon", { name: "Child-scoped extra" }),
-      false,
-    );
+    await expectChildOnlyAddOnFlash(res);
     expect(await getListingWithCount(thatPage.id)).not.toBe(null);
   });
 
   test("API delete of the only rescuing page of a child add-on is blocked, leaving it", async () => {
     // The admin JSON API delete must run the same guard as the HTML delete.
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
-    const thatPage = await createTestListing({ name: "Rescuing page" });
-    await postChildren(parent.id, [child.id]);
-    await optInAddOnForListings("Child-scoped extra", [child.id, thatPage.id]);
+    const { thatPage } = await rescuePageScenario();
 
-    await assertJson(
-      apiRequest(`/api/admin/listings/${thatPage.id}`, {
-        body: { confirm_identifier: thatPage.name },
-        method: "DELETE",
-      }),
-      400,
-      (json) => {
-        expect(json.error).toContain("opt-in add-on reachable only through");
-      },
+    await expectOrphanGuard(
+      apiDeleteListing(thatPage.id, { confirm_identifier: thatPage.name }),
     );
     expect(await getListingWithCount(thatPage.id)).not.toBe(null);
   });
@@ -1188,10 +1007,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // The guard must not block an ordinary delete.
     const plain = await createTestListing({ name: "Disposable" });
     await assertJson(
-      apiRequest(`/api/admin/listings/${plain.id}`, {
-        body: { confirm_identifier: plain.name },
-        method: "DELETE",
-      }),
+      apiDeleteListing(plain.id, { confirm_identifier: plain.name }),
       200,
       (json) => {
         expect(json.status).toBe("ok");
@@ -1210,9 +1026,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       groupId: group.id,
       name: "Add-on",
     });
-    const modifier = await insertModifier({ name: "Group extra" });
-    await patchModifier(modifier.id, { scope: "groups", trigger: "optional" });
-    await linkModifierGroup(modifier.id, group.id);
+    await groupScopedAddOn("Group extra", [group.id]);
 
     const newId = await apiCreateListing({
       child_listing_ids: [child.id],
@@ -1230,25 +1044,14 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // group AND (re)sets the child edge must be judged against the would-be
     // group: after the move the add-on resolves to {child} only, a dead end —
     // so the update must be rejected and nothing persisted.
-    const group = await createTestGroup({ name: "Bundle" });
     const otherGroup = await createTestGroup({ name: "Elsewhere" });
-    const parent = await createTestListing({
-      groupId: group.id,
-      name: "Base unit",
-    });
-    const child = await createTestListing({
-      groupId: group.id,
-      name: "Add-on",
-    });
-    const modifier = await insertModifier({ name: "Group extra" });
-    await patchModifier(modifier.id, { scope: "groups", trigger: "optional" });
-    await linkModifierGroup(modifier.id, group.id);
+    const { child, group, parent } = await groupScopedBundle();
     await postChildren(parent.id, [child.id]);
 
     await assertJson(
-      apiRequest(`/api/admin/listings/${parent.id}`, {
-        body: { child_listing_ids: [child.id], group_ids: [otherGroup.id] },
-        method: "PUT",
+      putListing(parent.id, {
+        child_listing_ids: [child.id],
+        group_ids: [otherGroup.id],
       }),
       400,
       (json) => {
@@ -1266,13 +1069,9 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     // would make `setChildIds` insert two `(parent, child)` rows and violate the
     // unique index — and on the API side-effect path that happens after the row
     // write (a partial change). The cleaned set must be unique.
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
+    const { child, parent } = await parentAndChild();
     await assertJson(
-      apiRequest(`/api/admin/listings/${parent.id}`, {
-        body: { child_listing_ids: [child.id, child.id] },
-        method: "PUT",
-      }),
+      putListing(parent.id, { child_listing_ids: [child.id, child.id] }),
       200,
     );
     // Exactly one edge, no error, no partial write.
@@ -1281,8 +1080,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
 
   test("duplicate child_listing_ids in the HTML children form collapse to one edge", async () => {
     // The same dedupe applies to repeated form values.
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
+    const { child, parent } = await parentAndChild();
     const res = await postChildren(parent.id, [child.id, child.id]);
     res.body?.cancel();
     expectFlash(res, "Required children updated");
