@@ -1246,8 +1246,12 @@ td.cell-description {
   text-overflow: ellipsis;
 }
 
+/* The key column of a detail table sizes to its widest label rather than a
+   fixed width, so short labels don't leave a wide empty gutter and long ones
+   aren't clipped — the value column takes the rest, and the `.table-scroll`
+   wrapper handles any overflow on narrow screens. */
 .listing-details-table th {
-  width: 220px;
+  width: fit-content;
 }
 
 /* Income & ledger breakdown: a compact reconciliation table whose figures are
@@ -2799,12 +2803,18 @@ a.cal-day-selected:active {
   max-width: 15rem;
 }
 
-/* Stack a table with its controls/action rows, evenly spaced. */
+/* Stack a table with its controls/action rows, evenly spaced. Pinned to the
+   full container width: as a flex-column these groups would otherwise size to
+   their widest child, and a `.table-scroll` holding a `white-space: nowrap`
+   table reports that whole nowrap width as its content size — so without an
+   explicit width the group grows to the table's full width and pushes the page
+   sideways on mobile instead of letting the inner `.table-scroll` scroll. */
 .table-controls,
 .table-block {
   display: flex;
   flex-direction: column;
   gap: var(--space-m);
+  width: 100%;
 }
 
 /* Link/button rows attached to a table.
