@@ -18,11 +18,11 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { ADDRESS_LOOKUP_PROVIDERS } from "./providers.ts";
-import type { AddressLookupProvider } from "./types.ts";
+import type { AddressLookupProvider, AddressMatch } from "./types.ts";
 
 /** What a lookup reports back to the HTTP route. */
 export type AddressLookupOutcome =
-  | { ok: true; addresses: string[] }
+  | { ok: true; addresses: AddressMatch[] }
   | { ok: false; error: string };
 
 /** Look up the addresses for a raw search, serving from cache when fresh. */

@@ -48,5 +48,11 @@ export const handleAddressLookupGet: TypedRouteHandler<
   const search = new URL(request.url).searchParams.get("search") ?? "";
   const outcome = await lookupAddresses(provider, search);
   if (!outcome.ok) return jsonResponse({ error: outcome.error }, 400);
-  return jsonResponse({ addresses: outcome.addresses });
+  // `addresses` keeps the original lines-only shape; `matches` adds each
+  // line's coordinates. The public booking form only ever reads (and never
+  // stores) the lines — the admin Logistics tab uses the matches to pin a map.
+  return jsonResponse({
+    addresses: outcome.addresses.map((match) => match.line),
+    matches: outcome.addresses,
+  });
 };

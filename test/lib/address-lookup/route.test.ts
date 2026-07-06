@@ -20,8 +20,25 @@ import {
 import { setupFetchStub } from "#test-utils/fetch-stub.ts";
 
 const PROVIDER_BODY = JSON.stringify([
-  { envelopeAddress: { summaryLine: "10 Downing Street, LONDON, SW1A 2AA" } },
+  {
+    envelopeAddress: { summaryLine: "10 Downing Street, LONDON, SW1A 2AA" },
+    latitude: "51.503396",
+    longitude: "-0.127640",
+  },
 ]);
+
+/** The JSON body both lookup responses carry: the lines-only `addresses`
+ * (what the booking form reads) plus each line's located match. */
+const DOWNING_STREET_RESPONSE = {
+  addresses: ["10 Downing Street, LONDON, SW1A 2AA"],
+  matches: [
+    {
+      lat: "51.503396",
+      line: "10 Downing Street, LONDON, SW1A 2AA",
+      lng: "-0.127640",
+    },
+  ],
+};
 
 /** Turn the lookup on (writes settings like the admin form would). */
 const enableEasypostcodes = async (): Promise<void> => {
@@ -44,16 +61,14 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
     expect(response.status).toBe(404);
   });
 
-  test("returns the provider's addresses as JSON", async () => {
+  test("returns the provider's addresses and located matches as JSON", async () => {
     await enableEasypostcodes();
     stubFetch(() => Promise.resolve(new Response(PROVIDER_BODY)));
 
     const response = await lookupGet("sw1a2aa");
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      addresses: ["10 Downing Street, LONDON, SW1A 2AA"],
-    });
+    expect(await response.json()).toEqual(DOWNING_STREET_RESPONSE);
   });
 
   test("400s with the validation message for a malformed postcode", async () => {
@@ -114,9 +129,7 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
     );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      addresses: ["10 Downing Street, LONDON, SW1A 2AA"],
-    });
+    expect(await response.json()).toEqual(DOWNING_STREET_RESPONSE);
   });
 });
 

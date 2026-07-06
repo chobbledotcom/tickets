@@ -16,7 +16,14 @@ import { ADDRESS_CACHE_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils";
 
-const ADDRESSES = ["10 Downing Street, LONDON, SW1A 2AA", "11 Downing Street"];
+const ADDRESSES = [
+  {
+    lat: "51.503396",
+    line: "10 Downing Street, LONDON, SW1A 2AA",
+    lng: "-0.127640",
+  },
+  { lat: "", line: "11 Downing Street", lng: "" },
+];
 
 /** Backdate a cached row's created stamp by `ageMs`. */
 const backdateRow = async (searchIndex: string, ageMs: number) => {
@@ -68,9 +75,22 @@ describeWithEnv("address cache", { db: true }, () => {
     expect(row!.results).not.toContain("Downing");
   });
 
+  test("a row cached before coordinates existed reads back unlocated", async () => {
+    const index = await computeAddressSearchIndex("easypostcodes", "SW1A 2AA");
+    // Old rows hold a JSON array of bare line strings — store one verbatim.
+    await storeCachedAddresses(index, [
+      "Legacy Address Line",
+    ] as unknown as Parameters<typeof storeCachedAddresses>[1]);
+    expect(await getCachedAddresses(index)).toEqual([
+      { lat: "", line: "Legacy Address Line", lng: "" },
+    ]);
+  });
+
   test("re-storing a search replaces the previous row", async () => {
     const index = await computeAddressSearchIndex("easypostcodes", "SW1A 2AA");
-    await storeCachedAddresses(index, ["old line"]);
+    await storeCachedAddresses(index, [
+      { lat: "", line: "old line", lng: "" },
+    ]);
     await storeCachedAddresses(index, ADDRESSES);
     expect(await getCachedAddresses(index)).toEqual(ADDRESSES);
     const count = await queryOne<{ n: number }>(
@@ -96,7 +116,7 @@ describeWithEnv("address cache", { db: true }, () => {
   test("pruneAddressCache deletes only expired rows", async () => {
     const stale = await computeAddressSearchIndex("easypostcodes", "M1 1AE");
     const fresh = await computeAddressSearchIndex("easypostcodes", "SW1A 2AA");
-    await storeCachedAddresses(stale, ["old"]);
+    await storeCachedAddresses(stale, [{ lat: "", line: "old", lng: "" }]);
     await storeCachedAddresses(fresh, ADDRESSES);
     await backdateRow(stale, ADDRESS_CACHE_MS + 1000);
 
