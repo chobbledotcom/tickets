@@ -9,11 +9,13 @@
  * attach through the shared `image_uses` table with item_type 'news'.
  */
 
+// jscpd:ignore-start
 import { mapParallel } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { executeBatch, queryAll } from "#shared/db/client.ts";
+// jscpd:ignore-end
 import {
   defineIdTable,
   encryptedNameSchema,
