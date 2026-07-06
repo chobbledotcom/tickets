@@ -22,6 +22,7 @@ import {
 import {
   defineIdTable,
   encryptedNameSchema,
+  encryptedSeoContentSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
 import { swapSortOrder } from "#shared/db/query.ts";
@@ -48,10 +49,8 @@ export const computeSitePageSlugIndex = (slug: string): Promise<BlindIndex> =>
 /** Raw table with CRUD — all free text encrypted, `slug_index` is the HMAC. */
 const rawSitePagesTable = defineIdTable<SitePage, SitePageInput>("site_pages", {
   ...encryptedNameSchema(encrypt, decrypt),
+  ...encryptedSeoContentSchema(encrypt, decrypt),
   ...idAndEncryptedSlugSchema(encrypt, decrypt),
-  content: col.encryptedText(encrypt, decrypt),
-  meta_description: col.encryptedText(encrypt, decrypt),
-  meta_title: col.encryptedText(encrypt, decrypt),
   sort_order: col.simple<number>(),
 });
 

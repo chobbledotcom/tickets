@@ -57,14 +57,23 @@ export type AggregateRecalculation<F extends string> = Record<
 type EncryptFn = (v: string) => Promise<EnvKeyEncrypted>;
 type DecryptFn = (v: EnvKeyEncrypted) => Promise<string>;
 
-/** Shared columns for tables with encrypted `slug` + blind-index `slug_index`. */
+/** Encrypted `slug` + its plaintext blind-index `slug_index` (the permalink
+ * pair shared by pages and news posts). */
+export const encryptedSlugSchema = (
+  encrypt: EncryptFn,
+  decrypt: DecryptFn,
+) => ({
+  slug: col.encrypted(encrypt, decrypt),
+  slug_index: col.simple<BlindIndex>(),
+});
+
+/** Shared columns for tables with a generated id plus the encrypted slug pair. */
 export const idAndEncryptedSlugSchema = (
   encrypt: EncryptFn,
   decrypt: DecryptFn,
 ) => ({
   id: col.generated<number>(),
-  slug: col.encrypted(encrypt, decrypt),
-  slug_index: col.simple<BlindIndex>(),
+  ...encryptedSlugSchema(encrypt, decrypt),
 });
 
 /** Shared encrypted `name` column for tables that store a display name. */
@@ -73,4 +82,22 @@ export const encryptedNameSchema = (
   decrypt: DecryptFn,
 ) => ({
   name: col.encrypted(encrypt, decrypt),
+});
+
+/** Shared generated `id` + plaintext `created` stamp columns. `created` stays
+ * unencrypted so SQL can order and prune by time without decrypting. */
+export const idAndCreatedSchema = (now: () => string) => ({
+  created: col.withDefault(now),
+  id: col.generated<number>(),
+});
+
+/** Shared encrypted SEO/content columns for operator-authored pages
+ * (site pages, news posts): the markdown body plus the meta pair. */
+export const encryptedSeoContentSchema = (
+  encrypt: EncryptFn,
+  decrypt: DecryptFn,
+) => ({
+  content: col.encryptedText(encrypt, decrypt),
+  meta_description: col.encryptedText(encrypt, decrypt),
+  meta_title: col.encryptedText(encrypt, decrypt),
 });

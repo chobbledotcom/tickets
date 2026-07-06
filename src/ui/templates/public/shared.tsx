@@ -15,20 +15,23 @@ import {
 } from "#templates/components/nav.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
-/** Everything {@link PublicNav} renders: the settings-driven page flags plus
- * the site-pages tree (built per request by `publicNavProps`, site-nav.ts). */
+/** Everything {@link PublicNav} renders: the settings-driven page flags, the
+ * news flag (any post exists), plus the site-pages tree (built per request by
+ * `publicNavProps`, site-nav.ts). */
 export type PublicNavProps = {
   hasTerms: boolean;
   hasContact: boolean;
+  hasNews: boolean;
   hasOrder: boolean;
   pages: NavModel;
 };
 
 /** The fixed root links, with the root page nodes spliced between Listings and
- * the Order/Terms/Contact group ("between listings and contact"). Each page
- * `<li>` may carry extra children (the desktop nesting), supplied per node. */
+ * the Order/News/Terms/Contact group ("between listings and contact"). Each
+ * page `<li>` may carry extra children (the desktop nesting), supplied per
+ * node. */
 const rootItems = (
-  { hasTerms, hasContact, hasOrder, pages }: PublicNavProps,
+  { hasTerms, hasContact, hasNews, hasOrder, pages }: PublicNavProps,
   nested: (node: LeveledNavNode) => JSX.Element | null,
 ): JSX.Element[] => [
   <li>
@@ -42,6 +45,13 @@ const rootItems = (
     ? [
         <li>
           <a href="/order">{t("nav.public.order")}</a>
+        </li>,
+      ]
+    : []),
+  ...(hasNews
+    ? [
+        <li>
+          <a href="/news">{t("nav.public.news")}</a>
         </li>,
       ]
     : []),
@@ -111,13 +121,80 @@ export const MarkdownProse = ({
     </div>
   ) : null;
 
-export const RSS_DISCOVERY_TAG =
-  '<link rel="alternate" type="application/rss+xml" title="Listings" href="/feeds/listings.rss" />';
+/** One `<link rel="alternate">` feed-discovery tag for the shared head. */
+const feedDiscoveryTag = (
+  type: string,
+  titleKey: string,
+  href: string,
+): string => {
+  const attributes = [
+    ["rel", "alternate"],
+    ["type", type],
+    ["title", t(titleKey)],
+    ["href", href],
+  ]
+    .map(([name, value]) => `${name}="${value}"`)
+    .join(" ");
+  return `<link ${attributes} />`;
+};
 
-export const ICS_DISCOVERY_TAG =
-  '<link rel="alternate" type="text/calendar" title="Listings" href="/feeds/listings.ics" />';
+export const RSS_DISCOVERY_TAG = feedDiscoveryTag(
+  "application/rss+xml",
+  "terms.listings",
+  "/feeds/listings.rss",
+);
 
-export const FEED_DISCOVERY_TAGS = `${RSS_DISCOVERY_TAG}\n${ICS_DISCOVERY_TAG}`;
+export const NEWS_RSS_DISCOVERY_TAG = feedDiscoveryTag(
+  "application/rss+xml",
+  "nav.public.news",
+  "/feeds/news.rss",
+);
+
+export const ICS_DISCOVERY_TAG = feedDiscoveryTag(
+  "text/calendar",
+  "terms.listings",
+  "/feeds/listings.ics",
+);
+
+export const FEED_DISCOVERY_TAGS = `${RSS_DISCOVERY_TAG}\n${NEWS_RSS_DISCOVERY_TAG}\n${ICS_DISCOVERY_TAG}`;
+
+/** The `<title>` and head extras for an operator-authored page with SEO
+ * fields: the title prefers `meta_title` over the display name (suffixed with
+ * the website title), and a non-empty `meta_description` becomes an escaped
+ * description tag after the shared feed-discovery links. */
+const seoPageHead = (
+  page: { name: string; meta_title: string; meta_description: string },
+  websiteTitle: string,
+): { title: string; headExtra: string } => {
+  const base = page.meta_title || page.name;
+  const metaTag = page.meta_description
+    ? `\n<meta name="description" content="${escapeHtml(page.meta_description)}" />`
+    : "";
+  return {
+    headExtra: FEED_DISCOVERY_TAGS + metaTag,
+    title: websiteTitle ? `${base} - ${websiteTitle}` : base,
+  };
+};
+
+/** Curried shell for an operator-authored page with SEO fields (a site page,
+ * a news post): the SEO head, the public nav, and the page's own name as the
+ * `<h1>` — the caller supplies just the body under that heading. */
+export const publicSeoPage =
+  (
+    page: { name: string; meta_title: string; meta_description: string },
+    nav: PublicNavProps,
+    websiteTitle: string,
+  ) =>
+  (body: Child): string => {
+    const { title, headExtra } = seoPageHead(page, websiteTitle);
+    return String(
+      <Layout headExtra={headExtra} title={title}>
+        <PublicNav {...nav} />
+        <h1>{page.name}</h1>
+        {body}
+      </Layout>,
+    );
+  };
 
 export const compareGroupsByName = (a: Group, b: Group): number =>
   a.name.localeCompare(b.name);

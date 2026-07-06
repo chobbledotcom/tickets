@@ -52,3 +52,7 @@ export const getListingWithActivityLog = (
   limit?: number,
 ): Promise<ListingWithActivityLog | null> =>
   withTestSession(() => realGetListingWithActivityLog(listingId, limit));
+
+/** True when the activity log holds an entry whose message equals `message`. */
+export const wasActivityLogged = async (message: string): Promise<boolean> =>
+  (await getAllActivityLog()).some((entry) => entry.message === message);

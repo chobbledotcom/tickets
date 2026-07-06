@@ -589,6 +589,9 @@ export const isDeliveryRole = roleIn(DELIVERY_ADMIN_LEVELS);
 /** True for roles that may create/edit listings & groups (owner/manager/editor). */
 export const isContentRole = roleIn(CONTENT_ADMIN_LEVELS);
 
+/** True for roles that may edit public-site content (owner/editor). */
+export const isSiteRole = roleIn(SITE_ADMIN_LEVELS);
+
 /** Type guard: check if a string is a valid AdminLevel */
 export const isAdminLevel = (s: string): s is AdminLevel =>
   v.is(AdminLevelSchema, s);
@@ -669,7 +672,7 @@ export interface GroupListing {
 }
 
 /** Schema for the kind of item an image can be attached to. */
-export const ImageUseItemTypeSchema = v.picklist(["listing", "group"]);
+export const ImageUseItemTypeSchema = v.picklist(["listing", "group", "news"]);
 
 export type ImageUseItemType = v.InferOutput<typeof ImageUseItemTypeSchema>;
 
@@ -726,6 +729,38 @@ export interface SitePageItem {
   item_id: number;
   sort_order: number;
 }
+
+/** A news post shown on the public /news page. All free-text columns are
+ * stored encrypted; `created` stays plaintext (like listings) so the
+ * newest-first ordering and the RSS pubDate never need a scan-and-decrypt.
+ * `slug` is the `/news/:slug` permalink (auto-generated from the created date
+ * and the name at creation, then immutable); `slug_index` is its blind index. */
+export interface NewsPost {
+  id: number;
+  created: string;
+  slug: string;
+  slug_index: BlindIndex;
+  name: string;
+  meta_title: string;
+  meta_description: string;
+  snippet: string;
+  content: string;
+}
+
+/** The narrow list projection — id, created, slug, name, snippet — for readers
+ * that render no images (the RSS feed, the admin list). Never the large
+ * `content`/`meta_*` blobs (cold-start efficiency, like {@link SitePageNavRow}). */
+export interface NewsPostSummary {
+  id: number;
+  created: string;
+  slug: string;
+  name: string;
+  snippet: string;
+}
+
+/** The public /news list projection: a summary plus the post's first image
+ * (the shared {@link ItemImageProjection} columns). */
+export type NewsPostCard = NewsPostSummary & ItemImageProjection;
 
 /** An owner-defined price modifier (surcharge / discount / add-on). `calc_value`
  * is the positive magnitude the owner entered (a fixed amount in major currency

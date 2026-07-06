@@ -249,6 +249,7 @@ const siteSub = (): NavItem[] => [
   { href: "/admin/site/contact", label: t("site.sub_nav.contact") },
   { href: "/admin/site/order", label: t("site.sub_nav.order") },
   { href: "/admin/site/pages", label: t("nav.site.pages") },
+  { href: "/admin/site/news", label: t("nav.site.news") },
 ];
 
 const section = (

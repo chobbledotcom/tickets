@@ -167,6 +167,7 @@ export const getImageUsesForImage = (imageId: number): Promise<ImageUse[]> =>
 const itemTable: Record<ImageUseItemType, string> = {
   group: "groups",
   listing: "listings",
+  news: "news_posts",
 };
 
 const imageUseInsertStatement = (

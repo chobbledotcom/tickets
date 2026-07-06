@@ -545,3 +545,13 @@ export const attendeeLineIndex = (
   }
   return null;
 };
+
+/** Assert each stored column value is an `enc:` ciphertext envelope (encrypted
+ * at rest, never plaintext). */
+export const expectEncryptedAtRest = (
+  ...values: Array<string | undefined>
+): void => {
+  for (const value of values) {
+    expect(value?.startsWith("enc:")).toBe(true);
+  }
+};

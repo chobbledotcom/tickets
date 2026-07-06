@@ -81,21 +81,19 @@ export const adminGroupsPage = (
   successMessage?: string,
 ): string =>
   successAdminPage(t("terms.groups"), "/admin/groups")(session, successMessage)(
-    <>
-      {groups.length === 0 ? (
-        <p>{t("groups.no_groups")}</p>
-      ) : (
-        // Staff open the detail page; editors can't (it decrypts attendee PII),
-        // so they link straight to the edit form.
-        <DataTable
-          columns={[{ header: t("common.name") }, { header: t("common.slug") }]}
-          rows={groups.map((g) => [
-            <a href={groupReturnPath(session.adminLevel, g.id)}>{g.name}</a>,
-            g.slug,
-          ])}
-        />
-      )}
-    </>,
+    groups.length === 0 ? (
+      <p>{t("groups.no_groups")}</p>
+    ) : (
+      // Staff open the detail page; editors can't (it decrypts attendee PII),
+      // so they link straight to the edit form.
+      <DataTable
+        columns={[{ header: t("common.name") }, { header: t("common.slug") }]}
+        rows={groups.map((g) => [
+          <a href={groupReturnPath(session.adminLevel, g.id)}>{g.name}</a>,
+          g.slug,
+        ])}
+      />
+    ),
   );
 
 /**

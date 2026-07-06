@@ -15,6 +15,7 @@ import {
 } from "#shared/order-select.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
 import { Icon, type IconName } from "#templates/components/actions.tsx";
+import { CARD_GRID_CLASS, cardInner } from "#templates/components/card.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
 import {
   compareGroupsByName,
@@ -58,10 +59,10 @@ export type OrderGalleryPackage = {
   members: ListingWithCount[];
 };
 
-/** The card body a selectable order card wraps: hidden checkbox, image, name,
- * price/status line, live-state label, and the tick. One shape for listings
- * and packages so the CSS cart mechanics and the enhancement script treat
- * both identically. */
+/** The card body a selectable order card wraps: hidden checkbox, the shared
+ * {@link cardInner} (image, name, price/status line, live-state label), and
+ * the tick. One shape for listings and packages so the CSS cart mechanics and
+ * the enhancement script treat both identically. */
 const selectableCard = (parts: {
   fieldName: string;
   key: string;
@@ -70,20 +71,20 @@ const selectableCard = (parts: {
   detailHtml: string;
   stateLabel: string;
 }): string =>
-  `<label class="order-card" data-order-key="${escapeHtml(
+  `<label class="card order-card" data-order-key="${escapeHtml(
     parts.key,
   )}" for="${parts.fieldName}">
       <input class="order-select" id="${parts.fieldName}" name="${
         parts.fieldName
       }" type="checkbox" value="1" />
-      ${parts.imageHtml}
-      <span class="order-card-body">
-        <span class="order-card-name">${escapeHtml(parts.name)}</span>
-        ${parts.detailHtml}
+      ${cardInner({
+        detailHtml: `${parts.detailHtml}
         <span class="order-card-state" data-order-state-label>${escapeHtml(
           parts.stateLabel,
-        )}</span>
-      </span>
+        )}</span>`,
+        imageHtml: parts.imageHtml,
+        name: parts.name,
+      })}
       <span class="order-card-tick" aria-hidden="true"></span>
     </label>`;
 
@@ -92,12 +93,12 @@ const unavailableCard = (
   imageHtml: string,
   name: string,
   status: string,
-): string => `<div class="order-card order-card--unavailable">
-        ${imageHtml}
-        <span class="order-card-body">
-          <span class="order-card-name">${escapeHtml(name)}</span>
-          <span class="order-card-status">${status}</span>
-        </span>
+): string => `<div class="card order-card order-card--unavailable">
+        ${cardInner({
+          detailHtml: `<span class="order-card-status">${status}</span>`,
+          imageHtml,
+          name,
+        })}
       </div>`;
 
 /**
@@ -110,7 +111,7 @@ const renderOrderCard =
   (states: OrderGalleryStates) =>
   (info: TicketListing): string => {
     const { listing, isSoldOut, isClosed } = info;
-    const imageHtml = renderListingImage(listing, "order-card-image", {
+    const imageHtml = renderListingImage(listing, "card-image", {
       thumb: true,
     });
     const priceHtml =
@@ -231,14 +232,14 @@ export const orderGalleryPage = (
           <input name={ORDER_FIELD} type="hidden" value="" />
           {packages.length > 0 && (
             <PackagesSection groups={packages.map((pkg) => pkg.group)}>
-              <fieldset class="order-grid">
+              <fieldset class={`${CARD_GRID_CLASS} order-grid`}>
                 <legend class="visually-hidden">{t("public.packages")}</legend>
                 <Raw html={packageCards} />
               </fieldset>
             </PackagesSection>
           )}
           {listings.length > 0 && (
-            <fieldset class="order-grid">
+            <fieldset class={`${CARD_GRID_CLASS} order-grid`}>
               <legend class="visually-hidden">
                 {t("public.select_items_to_order")}
               </legend>

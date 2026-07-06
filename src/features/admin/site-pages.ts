@@ -12,13 +12,8 @@ import {
   type ConfirmedHandlers,
   createConfirmedHandlers,
 } from "#routes/admin/confirmation.ts";
-import { requireSiteOr, SITE_FORM, withAuth } from "#routes/auth.ts";
-import {
-  errorRedirect,
-  htmlResponse,
-  notFoundResponse,
-  redirect,
-} from "#routes/response.ts";
+import { SITE_FORM, withAuth } from "#routes/auth.ts";
+import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllGroupNames, groupExists } from "#shared/db/groups.ts";
@@ -74,6 +69,17 @@ import {
   type PickerOption,
   type ResolvedItem,
 } from "#templates/admin/site-pages.tsx";
+import { seoContentInput } from "./content-form-fields.ts";
+import {
+  savedContentResponse,
+  siteConfirmAuth,
+  siteContentGet,
+  siteContentPaths,
+  siteContentPost,
+  siteEntityGet,
+  siteEntityPost,
+  validateContentFormOr,
+} from "./site-content.ts";
 import { sitePageForm } from "./site-pages-form.ts";
 
 /** May this listing be placed on a page? Active (its public page must not
@@ -87,9 +93,9 @@ const offerableListing = (
   childIds: ReadonlySet<number>,
 ): boolean => row.active && !isQualifyingTierListing(row) && !childIds.has(id);
 
-const LIST_PATH = "/admin/site/pages";
-const newPath = `${LIST_PATH}/new`;
-const editPath = (id: number): string => `${LIST_PATH}/${id}/edit`;
+const paths = siteContentPaths("/admin/site/pages");
+const LIST_PATH = paths.list;
+const editPath = paths.edit;
 
 // ─── Loaders ────────────────────────────────────────────────────
 
@@ -193,10 +199,7 @@ const buildEditModel = async (page: SitePage): Promise<EditModel> => {
 
 /** The encrypted content columns shared by create and update. */
 const contentFields = (form: FormParams, name: string, slug: string) => ({
-  content: form.getString("content"),
-  metaDescription: form.getString("meta_description"),
-  metaTitle: form.getString("meta_title"),
-  name,
+  ...seoContentInput(form, name),
   slug,
 });
 
@@ -209,10 +212,8 @@ const validateFields = async (
 ): Promise<
   { ok: true; name: string; slug: string } | { ok: false; response: Response }
 > => {
-  const result = sitePageForm.validate(form);
-  if (!result.valid) {
-    return { ok: false, response: errorRedirect(errorPath, result.error) };
-  }
+  const result = validateContentFormOr(sitePageForm.validate(form), errorPath);
+  if (!result.ok) return result;
   // The slug field's own validator already ran `validateSlug(normalizeSlug())`
   // (so the format is known-good here); re-normalise for the reserved/uniqueness
   // checks and storage.
@@ -253,23 +254,6 @@ const idPost = (
     withAuth(request, SITE_FORM, (_session, form) => handler(id, form)),
   );
 
-/** POST handler that loads the `:id` page (or 404s) before mutating. */
-const pagePost = (
-  handler: (page: SitePage, form: FormParams) => Promise<Response>,
-) => idPost((id, form) => loadPageOr404(id, (page) => handler(page, form)));
-
-/** GET handler that loads the `:id` page (or 404s) before rendering. */
-const pageGet = (
-  render: (page: SitePage, session: AdminSession) => Promise<string> | string,
-): ReturnType<typeof idHandler> =>
-  idHandler((request, id) =>
-    requireSiteOr(request, (session) =>
-      loadPageOr404(id, async (page) =>
-        htmlResponse(await render(page, session)),
-      ),
-    ),
-  );
-
 /** SITE_FORM POST handler keyed on `(:id, :itemType, :itemId)`. The router's
  * numeric-param rule has already turned `:id`/`:itemId` into numbers; only the
  * `:itemType` segment needs validating here. */
@@ -289,47 +273,45 @@ const itemPost =
 
 // ─── Page CRUD ──────────────────────────────────────────────────
 
-const renderList = (request: Request): Promise<Response> =>
-  requireSiteOr(request, async (session) =>
-    htmlResponse(adminSitePagesListPage(await buildListModel(), session)),
-  );
+const renderList = siteContentGet(async (session) =>
+  adminSitePagesListPage(await buildListModel(), session),
+);
 
-const renderNew = (request: Request): Promise<Response> =>
-  requireSiteOr(request, (session) =>
-    htmlResponse(adminSitePageNewPage(session)),
-  );
+const renderNew = siteContentGet((session) => adminSitePageNewPage(session));
 
-const renderEdit = pageGet(async (page, session) =>
+const renderEdit = siteEntityGet(getSitePageById)(async (page, session) =>
   adminSitePageEditPage(await buildEditModel(page), session),
 );
 
-const handleCreate = (request: Request): Promise<Response> =>
-  withAuth(request, SITE_FORM, async (_session, form) => {
-    const fields = await validateFields(form, newPath);
-    if (!fields.ok) return fields.response;
-    const page = await createSitePage(
-      contentFields(form, fields.name, fields.slug),
-    );
-    await logActivity(`Page '${fields.name}' created`);
-    return redirect(editPath(page.id), t("site.pages.created"), true);
-  });
+const handleCreate = siteContentPost(async (form) => {
+  const fields = await validateFields(form, paths.newPage);
+  if (!fields.ok) return fields.response;
+  const page = await createSitePage(
+    contentFields(form, fields.name, fields.slug),
+  );
+  return savedContentResponse(
+    editPath(page.id),
+    `Page '${fields.name}' created`,
+    t("site.pages.created"),
+  );
+});
 
-const handleUpdate = pagePost(async (page, form) => {
+const handleUpdate = siteEntityPost(getSitePageById)(async (page, form) => {
   const fields = await validateFields(form, editPath(page.id), page.id);
   if (!fields.ok) return fields.response;
   await updateSitePage(page.id, contentFields(form, fields.name, fields.slug));
-  await logActivity(`Page '${fields.name}' updated`);
-  return redirect(editPath(page.id), t("site.pages.updated"), true);
+  return savedContentResponse(
+    editPath(page.id),
+    `Page '${fields.name}' updated`,
+    t("site.pages.updated"),
+  );
 });
 
 const pageDelete: ConfirmedHandlers = createConfirmedHandlers<
   SitePage,
   AdminSession
 >({
-  auth: {
-    requireSession: requireSiteOr,
-    withForm: (r, h) => withAuth(r, SITE_FORM, h),
-  },
+  auth: siteConfirmAuth,
   identifier: (p) => p.name,
   identifierLabel: t("site.pages.name_label"),
   load: (id) => getSitePageById(id),
@@ -392,7 +374,7 @@ const isEligibleTarget = async (
   );
 };
 
-const handleAddItem = pagePost(async (page, form) => {
+const handleAddItem = siteEntityPost(getSitePageById)(async (page, form) => {
   const type = form.getString("item_type");
   const itemId = form.getOptionalInt("item_id");
   if (!isSitePageItemType(type) || itemId === null) {
@@ -407,15 +389,21 @@ const handleAddItem = pagePost(async (page, form) => {
   if (!added) {
     return errorRedirect(editPath(page.id), t("site.pages.error.ineligible"));
   }
-  await logActivity(`Item added to page '${page.name}'`);
-  return redirect(editPath(page.id), t("site.pages.item_added"), true);
+  return savedContentResponse(
+    editPath(page.id),
+    `Item added to page '${page.name}'`,
+    t("site.pages.item_added"),
+  );
 });
 
 const handleRemoveItem = itemPost((ref, id) =>
   loadPageOr404(id, async (page) => {
     await removePageItem(id, ref.type, ref.id);
-    await logActivity(`Item removed from page '${page.name}'`);
-    return redirect(editPath(id), t("site.pages.item_removed"), true);
+    return savedContentResponse(
+      editPath(id),
+      `Item removed from page '${page.name}'`,
+      t("site.pages.item_removed"),
+    );
   }),
 );
 

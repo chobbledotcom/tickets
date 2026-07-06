@@ -52,6 +52,7 @@ const props = (live: boolean): PublicNavProps => {
   ]);
   return {
     hasContact: false,
+    hasNews: false,
     hasOrder: false,
     hasTerms: true,
     pages: buildNavModel(forest, targets, targetKey("listing", 7)),
@@ -104,6 +105,7 @@ describe("sitePagePage (nav-model race)", () => {
       gone,
       {
         hasContact: false,
+        hasNews: false,
         hasOrder: false,
         hasTerms: false,
         pages: model,

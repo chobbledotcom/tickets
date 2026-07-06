@@ -8,12 +8,10 @@
 import type { NavNode } from "#shared/site-pages/types.ts";
 import type { SitePage } from "#shared/types.ts";
 import { nodeLis } from "#templates/components/nav.tsx";
-import { escapeHtml, Layout } from "#templates/layout.tsx";
 import {
-  FEED_DISCOVERY_TAGS,
   MarkdownProse,
-  PublicNav,
   type PublicNavProps,
+  publicSeoPage,
 } from "./shared.tsx";
 
 export const sitePagePage = (
@@ -24,17 +22,14 @@ export const sitePagePage = (
   // The page's own items, straight off the model (empty when a concurrent
   // delete raced the nav reads and the page is no longer on the tree).
   const items: readonly NavNode[] = nav.pages.currentChildren;
-  const base = page.meta_title || page.name;
-  const title = websiteTitle ? `${base} - ${websiteTitle}` : base;
-  const metaTag = page.meta_description
-    ? `\n<meta name="description" content="${escapeHtml(page.meta_description)}" />`
-    : "";
-  return String(
-    <Layout headExtra={FEED_DISCOVERY_TAGS + metaTag} title={title}>
-      <PublicNav {...nav} />
-      <h1>{page.name}</h1>
+  return publicSeoPage(
+    page,
+    nav,
+    websiteTitle,
+  )(
+    <>
       <MarkdownProse markdown={page.content} />
       {items.length > 0 && <ul class="page-items">{nodeLis(items)}</ul>}
-    </Layout>,
+    </>,
   );
 };

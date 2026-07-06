@@ -119,6 +119,10 @@ const loadSitePageRoutes = lazyExport(
   () => import("#routes/public/site-page.ts"),
   "routeSitePage",
 );
+const loadNewsRoutes = lazyExport(
+  () => import("#routes/public/news.ts"),
+  "routeNews",
+);
 const loadOrderJs = lazyExport(
   () => import("#routes/public/order-js.ts"),
   "handleOrderJs",
@@ -278,6 +282,10 @@ const READ_ONLY_GET_PATTERNS = [
   /^\/admin\/groups\/\d+\/edit$/,
   /^\/admin\/site\/pages\/new$/,
   /^\/admin\/site\/pages\/\d+\/edit$/,
+  /^\/admin\/site\/pages\/\d+\/delete$/,
+  /^\/admin\/site\/news\/new$/,
+  /^\/admin\/site\/news\/\d+\/edit$/,
+  /^\/admin\/site\/news\/\d+\/delete$/,
   /^\/admin\/attendees\/new$/,
   /^\/admin\/ledger\/[^/]+\/[^/]+\/add$/,
   /^\/admin\/ledger\/entries\/\d+\/edit$/,
@@ -459,6 +467,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   image: lazyRoute(loadImageRoutes),
   instance: lazyRoute(loadInstanceRoutes),
   join: lazyRoute(loadJoinRoutes),
+  news: lazyRoute(loadNewsRoutes),
   order: lazyRoute(loadOrderRoutes),
   "order.js": orderJsPrefixHandler,
   page: lazyRoute(loadSitePageRoutes),

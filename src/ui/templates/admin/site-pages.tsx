@@ -3,9 +3,10 @@
  * page carrying the item manager), and the delete confirmation.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { pageToValues, sitePageForm } from "#routes/admin/site-pages-form.ts";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type {
   AdminSession,
@@ -14,15 +15,16 @@ import type {
   SitePageNavRow,
 } from "#shared/types.ts";
 import { AdminPage, adminFormPage } from "#templates/admin/admin-page.tsx";
-import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
-  ActionButton,
-  DeleteSection,
-  SaveChangesButton,
-  SubmitButton,
-} from "#templates/components/actions.tsx";
+  collectionPage,
+  deleteConfirmPage,
+  EditForm,
+} from "#templates/admin/site-content.tsx";
+import { DeleteSection, SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { ReorderArrows } from "#templates/components/reorder.tsx";
+
+/* jscpd:ignore-end */
 
 const LIST = "/admin/site/pages";
 const ACTIVE = LIST;
@@ -68,66 +70,74 @@ const DeleteLink = ({ id }: { id: number }): JSX.Element => (
   <a href={`${LIST}/${id}/delete`}>{t("common.delete")}</a>
 );
 
+/** A reorderable table: the order-arrow cell first, then the caller's cells,
+ * under (order, ...headers, actions) columns. Shared by the root-page list
+ * and the edit page's item manager. */
+const reorderableTable = <T,>(opts: {
+  headers: string[];
+  rows: T[];
+  base: (row: T) => string;
+  cells: (row: T) => (JSX.Element | string)[];
+}): JSX.Element => (
+  <DataTable
+    columns={[
+      { header: t("site.pages.order_column") },
+      ...opts.headers.map((header) => ({ header })),
+      { header: "" },
+    ]}
+    rows={opts.rows.map((row, index) => [
+      <Arrows base={opts.base(row)} count={opts.rows.length} index={index} />,
+      ...opts.cells(row),
+    ])}
+  />
+);
+
 export const adminSitePagesListPage = (
   model: ListModel,
   session: AdminSession,
   successMessage?: string,
 ): string =>
-  String(
-    <AdminPage active={ACTIVE} session={session} title={t("site.pages.title")}>
-      <Flash success={successMessage} />
-      <p class="actions">
-        <ActionButton href={`${LIST}/new`} icon="plus">
-          {t("site.pages.add")}
-        </ActionButton>
+  collectionPage("site.pages", LIST)(
+    session,
+    successMessage,
+    model.roots.length === 0 && model.nested.length === 0 ? (
+      <p>
+        <em>{t("site.pages.none")}</em>
       </p>
-      {model.roots.length === 0 && model.nested.length === 0 ? (
-        <p>
-          <em>{t("site.pages.none")}</em>
-        </p>
-      ) : (
-        <>
-          {/* A nested page always has a root ancestor, so reaching here (not the
+    ) : (
+      <>
+        {/* A nested page always has a root ancestor, so reaching here (not the
               all-empty case above) guarantees at least one root to list. */}
-          <h2>{t("site.pages.roots_heading")}</h2>
-          <DataTable
-            columns={[
-              { header: t("site.pages.order_column") },
-              { header: t("site.pages.name_column") },
-              { header: t("common.slug") },
-              { header: "" },
-            ]}
-            rows={model.roots.map((page, i) => [
-              <Arrows
-                base={`${LIST}/${page.id}`}
-                count={model.roots.length}
-                index={i}
-              />,
-              <a href={`${LIST}/${page.id}/edit`}>{page.name}</a>,
-              <code>/page/{page.slug}</code>,
-              <DeleteLink id={page.id} />,
-            ])}
-          />
-          {model.nested.length > 0 && (
-            <>
-              <h2>{t("site.pages.nested_heading")}</h2>
-              <DataTable
-                columns={[
-                  { header: t("site.pages.name_column") },
-                  { header: t("site.pages.parent_column") },
-                  { header: "" },
-                ]}
-                rows={model.nested.map(({ page, parentName }) => [
-                  <a href={`${LIST}/${page.id}/edit`}>{page.name}</a>,
-                  parentName,
-                  <DeleteLink id={page.id} />,
-                ])}
-              />
-            </>
-          )}
-        </>
-      )}
-    </AdminPage>,
+        <h2>{t("site.pages.roots_heading")}</h2>
+        {reorderableTable({
+          base: (page) => `${LIST}/${page.id}`,
+          cells: (page) => [
+            <a href={`${LIST}/${page.id}/edit`}>{page.name}</a>,
+            <code>/page/{page.slug}</code>,
+            <DeleteLink id={page.id} />,
+          ],
+          headers: [t("site.pages.name_column"), t("common.slug")],
+          rows: model.roots,
+        })}
+        {model.nested.length > 0 && (
+          <>
+            <h2>{t("site.pages.nested_heading")}</h2>
+            <DataTable
+              columns={[
+                { header: t("site.pages.name_column") },
+                { header: t("site.pages.parent_column") },
+                { header: "" },
+              ]}
+              rows={model.nested.map(({ page, parentName }) => [
+                <a href={`${LIST}/${page.id}/edit`}>{page.name}</a>,
+                parentName,
+                <DeleteLink id={page.id} />,
+              ])}
+            />
+          </>
+        )}
+      </>
+    ),
   );
 
 const sitePageFormShell = (
@@ -210,12 +220,12 @@ export const adminSitePageEditPage = (
       session={session}
       title={t("site.pages.edit_title")}
     >
-      <CsrfForm action={`${LIST}/${page.id}/edit`}>
-        <h1>{t("site.pages.edit_title")}</h1>
-        <Flash error={error} />
-        <Raw html={sitePageForm.renderFields(pageToValues(page))} />
-        {SaveChangesButton()}
-      </CsrfForm>
+      <EditForm
+        action={`${LIST}/${page.id}/edit`}
+        error={error}
+        fieldsHtml={sitePageForm.renderFields(pageToValues(page))}
+        title={t("site.pages.edit_title")}
+      />
 
       <h2>{t("site.pages.items_heading")}</h2>
       {items.length === 0 ? (
@@ -223,15 +233,9 @@ export const adminSitePageEditPage = (
           <em>{t("site.pages.no_items")}</em>
         </p>
       ) : (
-        <DataTable
-          columns={[
-            { header: t("site.pages.order_column") },
-            { header: t("site.pages.item_type_column") },
-            { header: t("site.pages.name_column") },
-            { header: "" },
-          ]}
-          rows={items.map((item, i) => [
-            <Arrows base={itemBase(item)} count={items.length} index={i} />,
+        reorderableTable({
+          base: itemBase,
+          cells: (item) => [
             t(`site.pages.type.${item.type}`),
             item.label,
             <CsrfForm action={`${itemBase(item)}/remove`} class="inline">
@@ -239,8 +243,13 @@ export const adminSitePageEditPage = (
                 {t("site.pages.remove")}
               </button>
             </CsrfForm>,
-          ])}
-        />
+          ],
+          headers: [
+            t("site.pages.item_type_column"),
+            t("site.pages.name_column"),
+          ],
+          rows: items,
+        })
       )}
 
       <h3>{t("site.pages.add_item_heading")}</h3>
@@ -278,19 +287,9 @@ export const adminSitePageDeletePage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  ConfirmPage({
-    action: `${LIST}/${page.id}/delete`,
-    active: ACTIVE,
-    buttonText: t("site.pages.delete_submit"),
-    children: (
-      <>
-        <h1>{t("site.pages.delete_title")}</h1>
-        <p>{t("site.pages.delete_prompt", { name: page.name })}</p>
-      </>
-    ),
-    error,
-    label: t("site.pages.name_label"),
-    name: page.name,
+  deleteConfirmPage("site.pages", ACTIVE)(
+    `${LIST}/${page.id}/delete`,
+    page.name,
     session,
-    title: t("site.pages.delete_title"),
-  });
+    error,
+  );

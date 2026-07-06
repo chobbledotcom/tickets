@@ -51,23 +51,43 @@ export type AttendeeListingRouteParams = {
   listingId: number;
 };
 
+/** An auth gate a `:id` route runs before touching its entity: it yields the
+ * gate's context (a session, a parsed form, …) to the inner handler. */
+type EntityGate<C> = (
+  request: Request,
+  handler: (ctx: C) => Response | Promise<Response>,
+) => Promise<Response>;
+
+/**
+ * Gated `:id` route factory — the one shape behind every "auth, load the
+ * entity, 404 when missing, then handle it" route. The gate decides who may
+ * pass and what context the handler sees.
+ */
+export const gatedEntityRoute =
+  <C>(gate: EntityGate<C>) =>
+  <T>(
+    load: (id: number) => Promise<T | null>,
+    use: (entity: T, ctx: C) => Response | Promise<Response>,
+  ): IdRouteHandler =>
+  (request, params) => {
+    const loadEntity = () => load(params.id);
+    return gate(request, (ctx) =>
+      withEntity<T>((entity) => use(entity, ctx))(loadEntity),
+    );
+  };
+
 /**
  * Owner GET-by-ID route handler factory.
  * Loads entity by ID, returns 404 if missing, renders with session context,
  * and requires the owner role.
  */
-export const ownerGetById =
-  <T>(
-    load: (id: number) => Promise<T | null>,
-    render: (entity: T, session: AuthSession) => Response | Promise<Response>,
-  ): IdRouteHandler =>
-  (request, { id }) =>
-    requireSessionOr(
-      request,
-      (session) =>
-        withEntity<T>((entity) => render(entity, session))(() => load(id)),
-      "owner",
-    );
+export const ownerGetById = <T>(
+  load: (id: number) => Promise<T | null>,
+  render: (entity: T, session: AuthSession) => Response | Promise<Response>,
+): IdRouteHandler =>
+  gatedEntityRoute<AuthSession>((request, handler) =>
+    requireSessionOr(request, handler, "owner"),
+  )(load, render);
 
 /** Owner POST-by-ID + CSRF */
 export const ownerFormById = (

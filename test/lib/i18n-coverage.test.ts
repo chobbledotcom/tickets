@@ -65,7 +65,6 @@ const LEFTOVER_ALLOWLIST = new Map<string, number>([
   ["ui/templates/admin/site.tsx", 2],
   ["ui/templates/email/defaults.ts", 12],
   ["ui/templates/fields.ts", 49],
-  ["ui/templates/public/shared.tsx", 2],
 ]);
 
 /** t("key") / t('key') / t(`key`) not preceded by an identifier char. */

@@ -111,6 +111,7 @@ export const listingsSections = (): GuideSection[] => [
       faq("edit_homepage_and_contact"),
       faq("what_are_site_pages"),
       faq("build_site_page"),
+      faq("news_posts"),
     ],
     titleKey: "public_site",
   },

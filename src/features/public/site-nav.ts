@@ -22,6 +22,7 @@
 import { filter, map, mapParallel, pipe, unique } from "#fp";
 import { getAllGroups, getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getListingsWithCountsByIds } from "#shared/db/listings.ts";
+import { hasNewsPosts } from "#shared/db/news-posts.ts";
 import { getAllPageItems } from "#shared/db/site-page-items.ts";
 import { getSitePageNavRows } from "#shared/db/site-pages.ts";
 import { isQualifyingTierListing } from "#shared/site-assignment.ts";
@@ -141,11 +142,14 @@ export const publicNavModel = async (
   return buildNavModel(buildForest(pages, items), targets, current);
 };
 
-/** The full prop set {@link PublicNav} renders: the settings-driven page flags
- * plus the site-pages tree — built once per request by each public handler. */
+/** The full prop set {@link PublicNav} renders: the settings-driven page
+ * flags, the news flag (one cached indexed existence read — see
+ * {@link hasNewsPosts}), and the site-pages tree — built once per request by
+ * each public handler. */
 export const publicNavProps = async (
   current: TargetKey | null,
 ): Promise<PublicNavProps> => ({
   ...navFlags(),
+  hasNews: await hasNewsPosts(),
   pages: await publicNavModel(current),
 });

@@ -25,9 +25,16 @@ import {
   setItemsForImage,
 } from "#shared/db/images.ts";
 import { getAllListingOptions } from "#shared/db/listings.ts";
+import { getNewsPostNames } from "#shared/db/news-posts.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { deleteImageStorageFiles, isStorageEnabled } from "#shared/storage.ts";
-import { type Image, isImageUseItemType } from "#shared/types.ts";
+import {
+  type AdminLevel,
+  type Image,
+  type ImageUseItemType,
+  isImageUseItemType,
+  isSiteRole,
+} from "#shared/types.ts";
 import {
   adminImageDeletePage,
   adminImageEditPage,
@@ -86,18 +93,29 @@ const listingImageItemOptions = async (): Promise<ImageItemOption[]> =>
     type: "listing" as const,
   }));
 
-// Groups have no deactivated state, so every group option is active.
-const groupImageItemOptions = async (): Promise<ImageItemOption[]> =>
-  (await getAllGroups()).map((group) => ({
-    active: true,
-    id: group.id,
-    label: group.name,
-    type: "group" as const,
-  }));
+/** Options of one always-active type from (id, label) pairs — groups and news
+ * posts have no deactivated state. */
+const activeOptionsOfType =
+  (type: ImageUseItemType) =>
+  (entries: Iterable<readonly [number, string]>): ImageItemOption[] =>
+    [...entries].map(([id, label]) => ({ active: true, id, label, type }));
 
-const imageItemOptions = async (): Promise<ImageItemOption[]> => [
+const groupImageItemOptions = async (): Promise<ImageItemOption[]> =>
+  activeOptionsOfType("group")(
+    (await getAllGroups()).map((group) => [group.id, group.name] as const),
+  );
+
+/** The link targets this session may manage. News posts are Site-gated
+ * (owner + editor): a manager never sees them here, matching the news image
+ * routes that exclude managers. */
+const imageItemOptions = async (
+  adminLevel: AdminLevel,
+): Promise<ImageItemOption[]> => [
   ...(await listingImageItemOptions()),
   ...(await groupImageItemOptions()),
+  ...(isSiteRole(adminLevel)
+    ? activeOptionsOfType("news")(await getNewsPostNames())
+    : []),
 ];
 
 const selectedUses = async (imageId: number): Promise<Set<string>> =>
@@ -116,7 +134,7 @@ const handleImageEditGet: TypedRouteHandler<"GET /admin/images/:id/edit"> = (
       applyFlash(request);
       return withStorageEnabled(async () => {
         const [options, selected] = await Promise.all([
-          imageItemOptions(),
+          imageItemOptions(session.adminLevel),
           selectedUses(image.id),
         ]);
         return htmlResponse(
@@ -141,25 +159,69 @@ const parseImageTargets = (form: FormParams): ImageUseTarget[] =>
 const withStorageImageForm = (
   request: Request,
   id: number,
-  action: (image: Image, form: FormParams) => Response | Promise<Response>,
+  action: (
+    image: Image,
+    form: FormParams,
+    adminLevel: AdminLevel,
+  ) => Response | Promise<Response>,
 ): Promise<Response> =>
-  withAuth(request, CONTENT_FORM, (_session, form) =>
+  withAuth(request, CONTENT_FORM, (session, form) =>
     withEntityFromParam(id, getImageById, (image) =>
-      withStorageEnabled(() => action(image, form)),
+      withStorageEnabled(() => action(image, form, session.adminLevel)),
     ),
   );
+
+/** Does this image sit on any news post? Its metadata (name/alt_text) and its
+ * presence render on the public news card/gallery, so changing or removing it
+ * is a Site-gated action a manager may not take. */
+const imageHasNewsUse = async (imageId: number): Promise<boolean> =>
+  (await getImageUsesForImage(imageId)).some((use) => use.item_type === "news");
+
+/** Block a non-Site session (a manager) from a save that would change an image
+ * a news post uses — its metadata and links both surface as public news
+ * content. Returns the bounce-back response, or null when the save may proceed.
+ * Shared by the edit and delete handlers. */
+const newsImageGate = async (
+  adminLevel: AdminLevel,
+  imageId: number,
+  redirectTo: string,
+): Promise<Response | null> =>
+  !isSiteRole(adminLevel) && (await imageHasNewsUse(imageId))
+    ? redirect(redirectTo, t("images.news_gated"), false)
+    : null;
+
+/** The link targets a save may apply. A non-Site session (manager) never
+ * attaches a news target — any submitted `news:<id>` is dropped. Editing an
+ * image that already HAS a news use is blocked outright by {@link
+ * newsImageGate}, so there are no existing news links to preserve here. */
+const allowedImageTargets = (
+  adminLevel: AdminLevel,
+  submitted: ImageUseTarget[],
+): ImageUseTarget[] =>
+  isSiteRole(adminLevel)
+    ? submitted
+    : submitted.filter((target) => target.itemType !== "news");
 
 const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> = (
   request,
   { id },
 ) =>
-  withStorageImageForm(request, id, async (image, form) => {
+  withStorageImageForm(request, id, async (image, form, adminLevel) => {
+    const blocked = await newsImageGate(
+      adminLevel,
+      image.id,
+      imagePath(image.id),
+    );
+    if (blocked) return blocked;
     const metadata = imageMetadataFromForm(form);
     if (!metadata.ok) {
       return redirect(imagePath(image.id), metadata.error, false);
     }
     await imagesTable.update(image.id, metadata.value);
-    await setItemsForImage(image.id, parseImageTargets(form));
+    await setItemsForImage(
+      image.id,
+      allowedImageTargets(adminLevel, parseImageTargets(form)),
+    );
     await logActivity(`Image '${metadata.value.name}' updated`);
     return redirect(imagePath(image.id), t("images.updated"), true);
   });
@@ -184,11 +246,14 @@ const confirmDelete = (form: FormParams, image: Image): string | null =>
 const handleImageDeletePost: TypedRouteHandler<
   "POST /admin/images/:id/delete"
 > = (request, { id }) =>
-  withStorageImageForm(request, id, async (image, form) => {
+  withStorageImageForm(request, id, async (image, form, adminLevel) => {
+    const deletePath = `/admin/images/${image.id}/delete`;
+    // deleteImageRecord prunes every use, including a news one, so a non-Site
+    // role may not delete an image a news post uses (public Site content).
+    const blocked = await newsImageGate(adminLevel, image.id, deletePath);
+    if (blocked) return blocked;
     const mismatch = confirmDelete(form, image);
-    if (mismatch) {
-      return redirect(`/admin/images/${image.id}/delete`, mismatch, false);
-    }
+    if (mismatch) return redirect(deletePath, mismatch, false);
     await deleteImageRecord(image.id);
     await deleteImageStorageFiles(image, "image deletion");
     await logActivity(`Image '${image.name}' deleted`);

@@ -20,13 +20,9 @@ import {
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
-  getAllActivityLog,
   testRequiresAuth,
+  wasActivityLogged as wasLogged,
 } from "#test-utils";
-
-/** True when the activity log holds an entry whose message equals `message`. */
-const wasLogged = async (message: string): Promise<boolean> =>
-  (await getAllActivityLog()).some((l) => l.message === message);
 
 const BASE = "/admin/site/pages";
 
@@ -494,6 +490,11 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       const page = await seedPage("refs");
       expect(
         (await adminFormPost(`${BASE}/${page.id}/items/bogus/1/remove`, {}))
+          .response.status,
+      ).toBe(404);
+      // Removing an item from a page that doesn't exist 404s too.
+      expect(
+        (await adminFormPost(`${BASE}/9999/items/listing/1/remove`, {}))
           .response.status,
       ).toBe(404);
       expect(

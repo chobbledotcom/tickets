@@ -1637,7 +1637,7 @@ body.iframe form {
    a form: a flex column with the standard gap and no border or padding of its
    own. `.inset` opts into a visually grouped box — a little padding inside a
    deliberately low-contrast border. Row-based groups (.checkboxes/.radios) and
-   grids (.order-grid) set their own display and so opt out of the column. */
+   grids (.card-grid) set their own display and so opt out of the column. */
 fieldset {
   display: flex;
   flex-direction: column;
@@ -2837,6 +2837,83 @@ a.cal-day-selected:active {
   margin: 1rem 0;
 }
 
+/* ── News ──────────────────────────────────────────────────────────────────
+   The /news list reuses the shared cards; a post page's images render as a
+   pure-CSS gallery. Each image contributes three adjacent siblings — a
+   visually-hidden radio, its full-size image, and its thumbnail label — so
+   the sibling selectors below show only the checked radio's full image (at
+   full content width) and highlight its thumb. The thumbs flex-wrap at up to
+   five per row; clicking one checks its radio and swaps the main image, with
+   no JavaScript anywhere. */
+
+.news-card-snippet,
+.news-post-date {
+  color: var(--color-text-secondary);
+}
+
+/* The gallery is a fieldset (for the visually-hidden legend), so the row
+   direction must be restated over the fieldset default's column stack. */
+.news-gallery {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-s);
+  margin-bottom: var(--space-m);
+  border: 0;
+  margin-top: 0;
+  padding: 0;
+}
+
+/* Visually hidden but still focusable so keyboard users can arrow between
+   images (mirrors .order-select). */
+.news-gallery-radio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+/* Every full-size image is pulled to the front of the flex order and spans
+   the full content width; only the checked radio's image is shown. */
+.news-gallery-full {
+  display: none;
+  order: -1;
+  flex: 0 0 100%;
+  width: 100%;
+  border-radius: var(--border-radius);
+}
+
+.news-gallery-radio:checked + .news-gallery-full {
+  display: block;
+}
+
+/* Thumbs: up to five per flex row, wrapping. */
+.news-gallery-thumb {
+  flex: 0 0 calc((100% - 4 * var(--space-s)) / 5);
+  margin: 0;
+  cursor: pointer;
+}
+
+.news-gallery-thumb img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 2px solid transparent;
+}
+
+/* The shown image's thumb is highlighted; a keyboard-focused radio outlines
+   it too. */
+.news-gallery-radio:checked + .news-gallery-full + .news-gallery-thumb img {
+  border-color: var(--color-secondary);
+}
+
+.news-gallery-radio:focus-visible + .news-gallery-full + .news-gallery-thumb img {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 2px;
+}
+
 /* ── Order gallery ──────────────────────────────────────────────────────
    The whole gallery is one form: each product card is a <label> wrapping a
    hidden checkbox, and the floating cart is the submit button. Selection
@@ -2860,16 +2937,19 @@ a.cal-day-selected:active {
   counter-reset: cart;
 }
 
-.order-grid {
-  border: 0;
-  margin: 0;
-  padding: 0;
+/* ── Cards ──────────────────────────────────────────────────────────────
+   The shared media-card layout: a grid of cards, each an image on top of a
+   body column with the item's name and detail lines. The order gallery wraps
+   a card in a selectable <label class="card order-card">; the news list in a
+   plain link (<a class="card news-card">). */
+
+.card-grid {
   display: grid;
   gap: var(--space-m);
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
 }
 
-.order-card {
+.card {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -2878,6 +2958,8 @@ a.cal-day-selected:active {
   margin: 0;
   padding: var(--space-m);
   font-weight: normal;
+  color: inherit;
+  text-decoration: none;
   cursor: pointer;
   border: 2px solid var(--color-bg-secondary);
   border-radius: var(--border-radius);
@@ -2885,8 +2967,32 @@ a.cal-day-selected:active {
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.order-card:hover {
+.card:hover {
   border-color: var(--color-secondary);
+}
+
+.card-image {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.card-name {
+  font-weight: bold;
+}
+
+/* The order grid is a fieldset, so it clears the fieldset chrome. */
+.order-grid {
+  border: 0;
+  margin: 0;
+  padding: 0;
 }
 
 /* Visually hidden but still focusable/checkable for keyboard + screen readers */
@@ -2895,23 +3001,6 @@ a.cal-day-selected:active {
   width: 1px;
   height: 1px;
   opacity: 0;
-}
-
-.order-card-image {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  border-radius: 4px;
-}
-
-.order-card-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.order-card-name {
-  font-weight: bold;
 }
 
 .order-card-price {

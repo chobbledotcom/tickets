@@ -6,6 +6,7 @@
 
 import { settings } from "#shared/db/settings.ts";
 import { getEnv, requireEnv } from "#shared/env.ts";
+import { slugify } from "#shared/slug.ts";
 
 /**
  * Check if payments are enabled (any provider configured with valid keys)
@@ -208,14 +209,8 @@ export const getTursoOrganization = (): string =>
 export const getTursoGroup = (): string => requireEnv("TURSO_GROUP");
 
 /**
- * Sanitize a site name into a valid provider resource slug.
- * Lowercase letters, numbers, hyphens only; no leading/trailing hyphens.
+ * Sanitize a site name into a valid provider resource slug: the shared
+ * {@link slugify}, capped at `maxLength` with any hyphen the cut left trimmed.
  */
 export const slugifyForProvider = (name: string, maxLength: number): string =>
-  name
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, maxLength)
-    .replace(/-+$/, "");
+  slugify(name).slice(0, maxLength).replace(/-+$/, "");

@@ -87,9 +87,12 @@ const thumbnail = (image: Image): JSX.Element => (
   />
 );
 
+/** Exhaustive per-type group headings — a new image target type is a compile
+ * error here rather than a silent fallthrough. */
 const imageItemTypeLabels = (): Record<ImageUseItemType, string> => ({
   group: t("terms.groups"),
   listing: t("terms.listings"),
+  news: t("nav.site.news"),
 });
 
 /** One LinkedItemGroup per linkable type, in the schema's type order. */

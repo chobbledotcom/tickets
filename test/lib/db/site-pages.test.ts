@@ -32,6 +32,7 @@ import {
   createTestGroup,
   createTestListing,
   describeWithEnv,
+  expectEncryptedAtRest,
 } from "#test-utils";
 
 const makePage = async (
@@ -63,9 +64,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
         created.id,
       ]);
       // At rest, everything is ciphertext (enc:… envelope), not plaintext.
-      expect(raw[0]?.name.startsWith("enc:")).toBe(true);
-      expect(raw[0]?.slug.startsWith("enc:")).toBe(true);
-      expect(raw[0]?.content.startsWith("enc:")).toBe(true);
+      expectEncryptedAtRest(raw[0]?.name, raw[0]?.slug, raw[0]?.content);
       expect(raw[0]?.name).not.toContain("Name about");
 
       const back = await getSitePageById(created.id);

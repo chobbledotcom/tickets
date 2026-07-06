@@ -203,6 +203,9 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   instance: [],
   join: [],
   listings: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.COUNTRY],
+  // --- Public news list + post pages (full public nav; country because the
+  // published-date display reads the timezone) ---
+  news: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.COUNTRY],
   order: [
     ...PUBLIC_NAV_SETTINGS,
     CONFIG_KEYS.ORDER_INTRO_TEXT,
