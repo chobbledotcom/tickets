@@ -94,9 +94,9 @@ import groupFlatPricesMigration from "./migrations/2026-07-02_group_flat_prices.
 import attendeeListingsTagMigration from "./migrations/2026-07-03_attendee_listings_tag.ts";
 import listingImageThumbMigration from "./migrations/2026-07-03_listing_image_thumb.ts";
 import addressCacheMigration from "./migrations/2026-07-05_address_cache.ts";
-import newsPostsMigration from "./migrations/2026-07-06_news_posts.ts";
 import firstClassImagesMigration from "./migrations/2026-07-05_first_class_images.ts";
 import packageSlotIdentityMigration from "./migrations/2026-07-05_package_slot_identity.ts";
+import newsPostsMigration from "./migrations/2026-07-06_news_posts.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,

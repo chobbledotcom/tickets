@@ -1,6 +1,6 @@
 import { handleRequest } from "#routes";
 import { getImagesForItem, imagesTable } from "#shared/db/images.ts";
-import type { Image } from "#shared/types.ts";
+import type { Image, ImageUseItemType } from "#shared/types.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { mockMultipartRequest, mockRequest } from "#test-utils/mocks.ts";
 import { testCookie } from "#test-utils/session.ts";
@@ -59,7 +59,7 @@ export const postImageUpload = async (
   handleRequest(await imageUploadRequest(path, cookie, csrfToken, name));
 
 export const imageNamesForItem = async (
-  itemType: "listing" | "group",
+  itemType: ImageUseItemType,
   itemId: number,
 ): Promise<string[]> =>
   (await getImagesForItem(itemType, itemId)).map((image) => image.name);

@@ -119,6 +119,10 @@ const loadSitePageRoutes = lazyExport(
   () => import("#routes/public/site-page.ts"),
   "routeSitePage",
 );
+const loadNewsRoutes = lazyExport(
+  () => import("#routes/public/news.ts"),
+  "routeNews",
+);
 const loadOrderJs = lazyExport(
   () => import("#routes/public/order-js.ts"),
   "handleOrderJs",
@@ -459,6 +463,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   image: lazyRoute(loadImageRoutes),
   instance: lazyRoute(loadInstanceRoutes),
   join: lazyRoute(loadJoinRoutes),
+  news: lazyRoute(loadNewsRoutes),
   order: lazyRoute(loadOrderRoutes),
   "order.js": orderJsPrefixHandler,
   page: lazyRoute(loadSitePageRoutes),

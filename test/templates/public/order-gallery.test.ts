@@ -8,6 +8,7 @@ import { getRealEnv, setTestEnv, testGroup } from "#test-utils";
 /** A nav with no operator pages and every optional link off. */
 const emptyNav: PublicNavProps = {
   hasContact: false,
+  hasNews: false,
   hasOrder: true,
   hasTerms: false,
   pages: {
@@ -58,6 +59,11 @@ describe("orderGalleryPage packages", () => {
     expect(html).toContain('data-order-key="package:1"');
     expect(html).toContain('class="order-select"');
     expect(html).toContain('class="order-gallery"');
+    // Order cards build on the shared Card markup (also used by /news).
+    expect(html).toContain('class="card order-card"');
+    expect(html).toContain('class="card-body"');
+    expect(html).toContain('class="card-name"');
+    expect(html).toContain('class="card-grid order-grid"');
     expect(html).not.toContain('href="/ticket/alpha"');
     expect(html).not.toContain('href="/ticket/zeta"');
     // Sorted by decrypted name: Alpha precedes Zeta.
@@ -88,7 +94,7 @@ describe("orderGalleryPage packages", () => {
         "",
       );
       expect(html).toContain("Frozen Bundle");
-      expect(html).toContain("order-card--unavailable");
+      expect(html).toContain('class="card order-card order-card--unavailable"');
       expect(html).toContain("Registration Closed");
       // No live booking affordance while the site is read-only: neither a
       // link nor a selectable checkbox.

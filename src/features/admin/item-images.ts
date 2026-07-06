@@ -95,21 +95,21 @@ export const createItemImageHandlers = <T>(
       request,
       config.auth?.multipart ?? CONTENT_MULTIPART,
       async (_session, formData) =>
-      withStorageBackedItem(id, config, async (item, itemId) => {
-        const result = await createImageFromUpload(formData);
-        if (!result.ok) {
-          return redirect(config.path(itemId), result.error, false);
-        }
-        await appendImageToItem(result.value.id, {
-          itemId,
-          itemType: config.itemType,
-        });
-        await logActivity(
-          `Image '${result.value.name}' uploaded for ${config.itemType} '${config.nameOf(
-            item,
-          )}'`,
-        );
-        return redirect(config.path(itemId), t("images.item.uploaded"), true);
-      }),
+        withStorageBackedItem(id, config, async (item, itemId) => {
+          const result = await createImageFromUpload(formData);
+          if (!result.ok) {
+            return redirect(config.path(itemId), result.error, false);
+          }
+          await appendImageToItem(result.value.id, {
+            itemId,
+            itemType: config.itemType,
+          });
+          await logActivity(
+            `Image '${result.value.name}' uploaded for ${config.itemType} '${config.nameOf(
+              item,
+            )}'`,
+          );
+          return redirect(config.path(itemId), t("images.item.uploaded"), true);
+        }),
     ),
 });

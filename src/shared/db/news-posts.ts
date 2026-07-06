@@ -9,8 +9,8 @@
  * attach through the shared `image_uses` table with item_type 'news'.
  */
 
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
+import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { executeBatch, queryAll } from "#shared/db/client.ts";
 import {
   defineIdTable,
@@ -25,9 +25,11 @@ import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import type { NewsPost, NewsPostCard } from "#shared/types.ts";
 
-/** Create/update input (camelCase keys → snake_case columns). `created` is
- * stamped here at insert time, never caller-supplied. */
+/** Create/update input (camelCase keys → snake_case columns). `created`
+ * defaults to now at insert time; the admin flow never supplies it (only
+ * restores and tests pin an explicit stamp). */
 export type NewsPostInput = {
+  created?: string;
   name: string;
   metaTitle?: string;
   metaDescription?: string;
@@ -52,7 +54,7 @@ export const newsPostsTable = defineIdTable<NewsPost, NewsPostInput>(
 
 /** A create/update provides every editable column (the forms post them all);
  * `created` is stamped by the column default and never editable. */
-export type NewsPostWriteInput = Required<NewsPostInput>;
+export type NewsPostWriteInput = Required<Omit<NewsPostInput, "created">>;
 
 // The existence probe every public page's nav runs: one indexed LIMIT 1 read,
 // nothing decrypted. Request-scoped and auto-cleared on any news_posts write.

@@ -36,10 +36,7 @@ import {
   adminNewsNewPage,
 } from "#templates/admin/news.tsx";
 import { withEntityFromParam } from "./entity-handlers.ts";
-import {
-  createItemImageHandlers,
-  loadItemImagesPanel,
-} from "./item-images.ts";
+import { createItemImageHandlers, loadItemImagesPanel } from "./item-images.ts";
 import { newsPostForm } from "./news-form.ts";
 
 const LIST_PATH = "/admin/site/news";
@@ -51,7 +48,9 @@ const editPath = (id: number): string => `${LIST_PATH}/${id}/edit`;
 const validateFields = (
   form: FormParams,
   errorPath: string,
-): { ok: true; input: NewsPostWriteInput } | { ok: false; response: Response } => {
+):
+  | { ok: true; input: NewsPostWriteInput }
+  | { ok: false; response: Response } => {
   const result = newsPostForm.validate(form);
   if (!result.valid) {
     return { ok: false, response: errorRedirect(errorPath, result.error) };
@@ -87,7 +86,7 @@ const renderEdit = (
       htmlResponse(
         adminNewsEditPage(
           post,
-          await loadItemImagesPanel("news", post.id, LIST_PATH + `/${post.id}`),
+          await loadItemImagesPanel("news", post.id, `${LIST_PATH}/${post.id}`),
           session,
         ),
       ),

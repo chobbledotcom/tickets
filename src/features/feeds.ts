@@ -27,6 +27,7 @@ import {
   bookingAssignmentKey,
   getLogisticsAssignmentsForAttendees,
 } from "#shared/db/logistics.ts";
+import { getNewsPostCards } from "#shared/db/news-posts.ts";
 import { settings } from "#shared/db/settings.ts";
 import { userAgents } from "#shared/db/user-agents.ts";
 import { getRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -34,7 +35,7 @@ import {
   type ListingWithCount,
   loadSortedListings,
 } from "#shared/sort-listings.ts";
-import type { Attendee, Group } from "#shared/types.ts";
+import type { Attendee, Group, NewsPostCard } from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 
 /** Escape text for ICS (RFC 5545): backslash-escape special characters */
@@ -193,37 +194,79 @@ const buildRssDescription = (item: FeedItem): string => {
   return parts.join("\n");
 };
 
+/** One `<item>` of any RSS channel — listings and news share this shape. */
+type RssItem = {
+  title: string;
+  link: string;
+  description: string;
+  /** RSS pubDate source; null omits the optional element. */
+  pubDate: string | null;
+};
+
 /** Build a single RSS item */
-const buildRssItem = (item: FeedItem, domain: string): string => {
-  const link = `https://${domain}/ticket/${item.slug}`;
-  return [
+const buildRssItem = (item: RssItem): string =>
+  [
     "    <item>",
-    `      <title>${escapeXml(item.name)}</title>`,
-    `      <link>${link}</link>`,
-    `      <guid isPermaLink="true">${link}</guid>`,
-    `      <description>${escapeXml(buildRssDescription(item))}</description>`,
-    ...(item.created
-      ? [`      <pubDate>${formatRfc822(item.created)}</pubDate>`]
+    `      <title>${escapeXml(item.title)}</title>`,
+    `      <link>${item.link}</link>`,
+    `      <guid isPermaLink="true">${item.link}</guid>`,
+    `      <description>${escapeXml(item.description)}</description>`,
+    ...(item.pubDate
+      ? [`      <pubDate>${formatRfc822(item.pubDate)}</pubDate>`]
       : []),
     "    </item>",
   ].join("\n");
-};
 
-/** Build the full RSS document */
-const buildRss = ({ items: feedItems, domain, title }: FeedData): string => {
-  const items = pipe(map((e: FeedItem) => buildRssItem(e, domain)))(feedItems);
-
-  return [
+/** Build a full RSS document from its channel header and items. */
+const buildRssDocument = (
+  channel: { title: string; link: string; description: string },
+  items: RssItem[],
+): string =>
+  [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<rss version="2.0">',
     "  <channel>",
-    `    <title>${escapeXml(title)}</title>`,
-    `    <link>https://${domain}/listings</link>`,
-    `    <description>Listings from ${escapeXml(title)}</description>`,
-    ...items,
+    `    <title>${escapeXml(channel.title)}</title>`,
+    `    <link>${channel.link}</link>`,
+    `    <description>${escapeXml(channel.description)}</description>`,
+    ...pipe(map(buildRssItem))(items),
     "  </channel>",
     "</rss>",
   ].join("\n");
+
+/** The listings RSS document: every syndicated listing/package as an item. */
+const buildRss = ({ items: feedItems, domain, title }: FeedData): string =>
+  buildRssDocument(
+    {
+      description: `Listings from ${title}`,
+      link: `https://${domain}/listings`,
+      title,
+    },
+    feedItems.map((item) => ({
+      description: buildRssDescription(item),
+      link: `https://${domain}/ticket/${item.slug}`,
+      pubDate: item.created,
+      title: item.name,
+    })),
+  );
+
+/** The news RSS document: every post, newest first, linking to `/news/:id`
+ * with the plain-text snippet as the description. */
+const buildNewsRss = (posts: NewsPostCard[], domain: string): string => {
+  const title = settings.websiteTitle || "News";
+  return buildRssDocument(
+    {
+      description: `News from ${title}`,
+      link: `https://${domain}/news`,
+      title,
+    },
+    posts.map((post) => ({
+      description: post.snippet,
+      link: `https://${domain}/news/${post.id}`,
+      pubDate: post.created,
+      title: post.name,
+    })),
+  );
 };
 
 const eventUrl = (domain: string, attendee: Attendee): string =>
@@ -349,11 +392,18 @@ const handleRss = (): Promise<Response> =>
     rssResponse(buildRss(await loadFeedData())),
   ) as Promise<Response>;
 
+/** Handle GET /feeds/news.rss */
+const handleNewsRss = (): Promise<Response> =>
+  requirePublicSite(async () =>
+    rssResponse(buildNewsRss(await getNewsPostCards(), getEffectiveDomain())),
+  ) as Promise<Response>;
+
 /** Feed routes */
 export const routeFeed = createRouter(
   defineRoutes({
     "GET /caldav/events.ics": buildCalendarFeed,
     "GET /feeds/listings.ics": handleIcs,
     "GET /feeds/listings.rss": handleRss,
+    "GET /feeds/news.rss": handleNewsRss,
   }),
 );

@@ -94,7 +94,10 @@ export const adminNewsEditPage = (
       <h2>{t("news.images_heading")}</h2>
       {imagesPanel}
 
-      <DeleteSection heading={t("common.delete")} href={`${LIST}/${post.id}/delete`}>
+      <DeleteSection
+        heading={t("common.delete")}
+        href={`${LIST}/${post.id}/delete`}
+      >
         {t("news.delete_submit")}
       </DeleteSection>
     </AdminPage>,

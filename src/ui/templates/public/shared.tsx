@@ -15,20 +15,23 @@ import {
 } from "#templates/components/nav.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
-/** Everything {@link PublicNav} renders: the settings-driven page flags plus
- * the site-pages tree (built per request by `publicNavProps`, site-nav.ts). */
+/** Everything {@link PublicNav} renders: the settings-driven page flags, the
+ * news flag (any post exists), plus the site-pages tree (built per request by
+ * `publicNavProps`, site-nav.ts). */
 export type PublicNavProps = {
   hasTerms: boolean;
   hasContact: boolean;
+  hasNews: boolean;
   hasOrder: boolean;
   pages: NavModel;
 };
 
 /** The fixed root links, with the root page nodes spliced between Listings and
- * the Order/Terms/Contact group ("between listings and contact"). Each page
- * `<li>` may carry extra children (the desktop nesting), supplied per node. */
+ * the Order/News/Terms/Contact group ("between listings and contact"). Each
+ * page `<li>` may carry extra children (the desktop nesting), supplied per
+ * node. */
 const rootItems = (
-  { hasTerms, hasContact, hasOrder, pages }: PublicNavProps,
+  { hasTerms, hasContact, hasNews, hasOrder, pages }: PublicNavProps,
   nested: (node: LeveledNavNode) => JSX.Element | null,
 ): JSX.Element[] => [
   <li>
@@ -42,6 +45,13 @@ const rootItems = (
     ? [
         <li>
           <a href="/order">{t("nav.public.order")}</a>
+        </li>,
+      ]
+    : []),
+  ...(hasNews
+    ? [
+        <li>
+          <a href="/news">{t("nav.public.news")}</a>
         </li>,
       ]
     : []),
@@ -114,10 +124,32 @@ export const MarkdownProse = ({
 export const RSS_DISCOVERY_TAG =
   '<link rel="alternate" type="application/rss+xml" title="Listings" href="/feeds/listings.rss" />';
 
+export const NEWS_RSS_DISCOVERY_TAG =
+  '<link rel="alternate" type="application/rss+xml" title="News" href="/feeds/news.rss" />';
+
 export const ICS_DISCOVERY_TAG =
   '<link rel="alternate" type="text/calendar" title="Listings" href="/feeds/listings.ics" />';
 
-export const FEED_DISCOVERY_TAGS = `${RSS_DISCOVERY_TAG}\n${ICS_DISCOVERY_TAG}`;
+export const FEED_DISCOVERY_TAGS = `${RSS_DISCOVERY_TAG}\n${NEWS_RSS_DISCOVERY_TAG}\n${ICS_DISCOVERY_TAG}`;
+
+/** The `<title>` and head extras for an operator-authored page with SEO
+ * fields: the title prefers `meta_title` over the display name (suffixed with
+ * the website title), and a non-empty `meta_description` becomes an escaped
+ * description tag after the shared feed-discovery links. Shared by the
+ * site-page and news-post views. */
+export const seoPageHead = (
+  page: { name: string; meta_title: string; meta_description: string },
+  websiteTitle: string,
+): { title: string; headExtra: string } => {
+  const base = page.meta_title || page.name;
+  const metaTag = page.meta_description
+    ? `\n<meta name="description" content="${escapeHtml(page.meta_description)}" />`
+    : "";
+  return {
+    headExtra: FEED_DISCOVERY_TAGS + metaTag,
+    title: websiteTitle ? `${base} - ${websiteTitle}` : base,
+  };
+};
 
 export const compareGroupsByName = (a: Group, b: Group): number =>
   a.name.localeCompare(b.name);

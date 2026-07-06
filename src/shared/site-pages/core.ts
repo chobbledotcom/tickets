@@ -208,6 +208,7 @@ const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "contact",
   "home",
   "listings",
+  "news",
   "order",
   "page",
   "terms",

@@ -16,6 +16,7 @@ export {
   type DailyDateFilter,
   homepagePage,
 } from "./public/homepage.tsx";
+export { newsListPage, newsPostPage } from "./public/news.tsx";
 export { orderGalleryPage } from "./public/order-gallery.tsx";
 export { orderSummary, orderSummaryMessage } from "./public/order-summary.tsx";
 export {

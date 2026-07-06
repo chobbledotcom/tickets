@@ -1,5 +1,6 @@
+import type { NewsPostWriteInput } from "#shared/db/news-posts.ts";
 import type { SitePageWriteInput } from "#shared/db/site-pages.ts";
-import type { SitePage } from "#shared/types.ts";
+import type { NewsPost, SitePage } from "#shared/types.ts";
 import { createTestListing } from "./listings.ts";
 
 export const createTestInvite = async (
@@ -84,5 +85,21 @@ export const createTestSitePage = async (
     metaTitle: extra.metaTitle ?? "",
     name: extra.name ?? `Page ${slug}`,
     slug,
+  });
+};
+
+/** Create a news post directly at the DB layer (the admin create flow has its
+ * own suite). `created` is stamped by the column default. */
+export const createTestNewsPost = async (
+  name: string,
+  extra: Partial<Omit<NewsPostWriteInput, "name">> = {},
+): Promise<NewsPost> => {
+  const { createNewsPost } = await import("#shared/db/news-posts.ts");
+  return createNewsPost({
+    content: extra.content ?? "",
+    metaDescription: extra.metaDescription ?? "",
+    metaTitle: extra.metaTitle ?? "",
+    name,
+    snippet: extra.snippet ?? "",
   });
 };
