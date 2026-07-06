@@ -168,7 +168,9 @@ export const withSubmittedPlan = (
 ): AttendeeLogisticsData => {
   const lines = data.lines.map((line) => ({
     ...line,
-    assignment: plan.perListing.get(line.listingId) ?? line.assignment,
+    // The plan is parsed over the same delivered lines these selectors
+    // render, so every rendered line has a submitted assignment.
+    assignment: plan.perListing.get(line.listingId)!,
   }));
   return { ...data, lines, single: lines[0]!.assignment, split: plan.split };
 };
