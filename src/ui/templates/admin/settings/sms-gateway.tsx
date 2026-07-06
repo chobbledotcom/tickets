@@ -7,6 +7,7 @@ import { MASK_SENTINEL } from "#shared/db/settings.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
+import { MaskedInput } from "#templates/components/masked-input.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
 
@@ -24,12 +25,11 @@ export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
       type="text"
       value={s.smsGatewayUsername}
     />
-    <TextField
+    <MaskedInput
+      configured={s.smsGatewayPasswordConfigured}
       label={t("sms.settings.password")}
       name="sms_gateway_password"
       placeholder={t("sms.settings.password_placeholder")}
-      type="password"
-      value={s.smsGatewayPasswordConfigured ? MASK_SENTINEL : undefined}
     />
     <label>
       {t("sms.settings.passphrase")}
@@ -50,12 +50,11 @@ export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
       type="url"
       value={s.smsGatewayBaseUrl}
     />
-    <TextField
+    <MaskedInput
+      configured={s.smsGatewayWebhookConfigured}
       label={t("sms.settings.webhook_secret")}
       name="sms_gateway_webhook_secret"
       placeholder={t("sms.settings.webhook_secret_placeholder")}
-      type="password"
-      value={s.smsGatewayWebhookConfigured ? MASK_SENTINEL : undefined}
     />
     <Raw html={t("sms.settings.webhook_note")} />
   </SettingsSection>

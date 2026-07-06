@@ -14,8 +14,18 @@
 #   <path>:<line>:<col>  <from> → <to>   # why it is equivalent
 #
 # Do NOT list a mutant whose output the linter rejects (e.g. `=== → ==` or
-# `!== → !=`, forbidden by Biome's noDoubleEquals): the runner lints each mutant
-# and counts a lint failure as killed, so those never survive to be recorded.
+# `!== → !=` comparing two non-null-literal operands, forbidden by Biome's
+# noDoubleEquals): the runner lints each mutant and counts a lint failure as
+# killed, so those never survive to be recorded.
+#
+# Exception: `x === null` → `x == null` (and `!==`/`!=`) is NOT rejected —
+# Biome's noDoubleEquals allows `== null`/`!= null` as the idiomatic
+# null-or-undefined check. So when `x` is typed to exclude `undefined`, this
+# mutant genuinely reaches the test stage and can be a real equivalent (===
+# and == agree on every value `x` can hold); it belongs here like any other
+# equivalent, not excluded by the rule above. Verify by hand if in doubt:
+# mutate the line, then `deno run -A scripts/biome.ts check --error-on-warnings
+# <file>` — exit 0 means lint did not kill it.
 
 # `x ?? F` vs `x || F` differ only when x is falsy-but-not-null; these are all
 # cases where x can't be such a value, or F equals the only one it can be.
@@ -538,3 +548,32 @@ src/shared/logistics-filter.ts:22:39   → "mutated"   # parsePositiveIntId's sc
 src/shared/logistics-filter.ts:23:11  !== → !=   # n: number|null (no undefined), so !== and != agree on null
 src/shared/logistics-filter.ts:41:45  === → ==   # startAgentId: number|null at every call site (no undefined), so === and == agree on null
 src/shared/logistics-filter.ts:41:68  === → ==   # endAgentId: number|null at every call site (no undefined), so === and == agree on null
+
+# address-lookup client: panelText's "" fallback matches the only falsy
+# dataset value, freshly created options start with empty value/text, and
+# collectParts' null result is only ever consumed by a falsy `!parts` check.
+src/ui/client/admin/address-lookup.ts:40:21  ?? → ||   # dataset[key]: string|undefined, only falsy string "" === fallback ""
+src/ui/client/admin/address-lookup.ts:45:15  = → +=   # a just-created <option>'s value is "", so append equals assign
+src/ui/client/admin/address-lookup.ts:46:21  = → +=   # a just-created <option>'s textContent is "", so append equals assign
+src/ui/client/admin/address-lookup.ts:140:12  return null → return undefined   # collectParts' result is only checked with falsy `!parts`
+src/ui/client/admin/address-lookup.ts:142:25  return null → return undefined   # collectParts' result is only checked with falsy `!parts`
+
+# renewal-helpers.ts's isProvisioned: BuiltSite.renewalTokenIndex is typed
+# string|null (no undefined case), so !== and != agree on null.
+src/shared/renewal-helpers.ts:10:25  !== → !=   # renewalTokenIndex: string|null (no undefined), so !== and != agree on null
+
+# renewal-helpers.ts's formatDeadlineLabel: `diffMs < 0` is only reached when
+# diffDays !== 0 (the line above already returns "today" otherwise), and
+# diffDays = Math.round(Math.abs(diffMs) / 86_400_000) is nonzero only when
+# Math.abs(diffMs) >= 43_200_000 (half a day — Math.round rounds a .5 up, so
+# anything below that rounds to 0 and returns earlier). So every diffMs that
+# reaches this line is already <= -43_200_000 or >= 43_200_000, nowhere near
+# 0, 1, or -1 — comparing it with `<` vs `<=`, or against 0 vs ±1, always
+# picks the same branch.
+src/shared/renewal-helpers.ts:20:13  < → <=   # diffMs here is always <= -43_200_000 or >= 43_200_000 (see block comment above); < and <= agree everywhere in that range
+src/shared/renewal-helpers.ts:20:16  0 → 1   # same reachability guarantee; diffMs is never in [0, 1)
+src/shared/renewal-helpers.ts:20:16  0 → -1   # same reachability guarantee; diffMs is never in [-1, 0)
+
+# package-privacy.ts's packagePrivacyOfDisplay: display is typed
+# PackageDisplay|null (no undefined case), so === and == agree on null.
+src/shared/package-privacy.ts:44:10  === → ==   # display: PackageDisplay|null (no undefined), so === and == agree on null

@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import {
+  ADDRESS_CACHE_DAYS,
+  ADDRESS_CACHE_MS,
+  ADDRESS_LOOKUP_LOCKOUT_MS,
   ATTACHMENT_URL_MAX_AGE_S,
   assertPaymentsRetentionSafe,
   FORM_STASH_MAX_BYTES,
@@ -12,6 +15,7 @@ import {
   formatSeconds,
   LIMIT_ENTRIES,
   LOGIN_LOCKOUT_MS,
+  MAX_ADDRESS_LOOKUPS,
   MAX_ATTACHMENT_SIZE,
   MAX_BACKUPS,
   MAX_EMAIL_TEMPLATES,
@@ -118,6 +122,13 @@ describe("limits", () => {
     });
   });
 
+  describe("ADDRESS_CACHE_DAYS", () => {
+    test("defaults to 90 days and derives the millisecond window", () => {
+      expect(ADDRESS_CACHE_DAYS).toBe(90);
+      expect(ADDRESS_CACHE_MS).toBe(ADDRESS_CACHE_DAYS * 24 * 60 * 60 * 1000);
+    });
+  });
+
   describe("LIMIT_ENTRIES", () => {
     /**
      * Keeps the debug-page display honest: every exported tunable limit must
@@ -142,6 +153,8 @@ describe("limits", () => {
         "TOKEN_LOCKOUT_MS",
         "MAX_BOOKING_ATTEMPTS",
         "BOOKING_LOCKOUT_MS",
+        "MAX_ADDRESS_LOOKUPS",
+        "ADDRESS_LOOKUP_LOCKOUT_MS",
         "MAX_APIKEY_ATTEMPTS",
         "APIKEY_LOCKOUT_MS",
         "PRUNE_PAYMENTS_RETENTION_DAYS",
@@ -151,6 +164,7 @@ describe("limits", () => {
         "PRUNE_SUMUP_RETENTION_HOURS",
         "PRUNE_UNUSED_STRINGS_RETENTION_DAYS",
         "PRUNE_CONTACTS_RETENTION_DAYS",
+        "ADDRESS_CACHE_DAYS",
         "PRUNE_INTERVAL_HOURS",
         "FORM_STASH_TTL_MS",
         "FORM_STASH_MAX_BYTES",
@@ -202,6 +216,11 @@ describe("limits", () => {
       );
       expect(currentByKey.get("PRUNE_CONTACTS_RETENTION_DAYS")).toBe(
         PRUNE_CONTACTS_RETENTION_DAYS,
+      );
+      expect(currentByKey.get("ADDRESS_CACHE_DAYS")).toBe(ADDRESS_CACHE_DAYS);
+      expect(currentByKey.get("MAX_ADDRESS_LOOKUPS")).toBe(MAX_ADDRESS_LOOKUPS);
+      expect(currentByKey.get("ADDRESS_LOOKUP_LOCKOUT_MS")).toBe(
+        ADDRESS_LOOKUP_LOCKOUT_MS,
       );
       expect(currentByKey.get("FORM_STASH_TTL_MS")).toBe(FORM_STASH_TTL_MS);
       expect(currentByKey.get("FORM_STASH_MAX_BYTES")).toBe(

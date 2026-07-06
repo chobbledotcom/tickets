@@ -20,6 +20,8 @@
  *   triggers maintain each row's reference count but never delete (a pending
  *   paid checkout can hold a `string_id` in its metadata before finalizing), so
  *   this age-based prune is the sole cleanup for unused rows.
+ * - address_cache: encrypted address-lookup results. Reads already ignore rows
+ *   older than ADDRESS_CACHE_DAYS, so this prune just reclaims the storage.
  * - attendees (orphaned only): rows with no surviving listing booking, older
  *   than the age chosen on the Privacy page. Opt-in — only scheduled while
  *   `auto_purge_orphans` is on (see PRUNE_TASKS).
@@ -39,6 +41,7 @@ import { RESOLVED_OUTCOME } from "#shared/db/processed-payments.ts";
 import { settings } from "#shared/db/settings.ts";
 import { pruneExpiredInvites } from "#shared/db/users.ts";
 import {
+  ADDRESS_CACHE_MS,
   PRUNE_CONTACTS_RETENTION_MS,
   PRUNE_INTERVAL_MS,
   PRUNE_LOGINS_RETENTION_MS,
@@ -92,6 +95,14 @@ export const pruneSumupCheckouts = isoAgePruner(
 export const pruneUnusedStrings = isoAgePruner(
   "DELETE FROM strings WHERE used_count = 0 AND created < ?",
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
+);
+
+/** Delete cached address-lookup results older than ADDRESS_CACHE_DAYS.
+ * Reads in address-cache.ts filter on the same cutoff, so this prune is pure
+ * housekeeping — an expired row is already unservable before it is deleted. */
+export const pruneAddressCache = isoAgePruner(
+  "DELETE FROM address_cache WHERE created < ?",
+  ADDRESS_CACHE_MS,
 );
 
 /**
@@ -214,6 +225,12 @@ const PRUNE_TASKS = (): PruneTask[] => [
     name: "contact_preferences",
     run: pruneContacts,
     writeLast: settings.update.lastPrunedContacts,
+  },
+  {
+    lastRaw: settings.lastPrunedAddresses,
+    name: "address_cache",
+    run: pruneAddressCache,
+    writeLast: settings.update.lastPrunedAddresses,
   },
   {
     lastRaw: settings.lastPrunedInvites,

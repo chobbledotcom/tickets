@@ -67,4 +67,15 @@ describe("fake-dom", () => {
     expect(marker).not.toBeNull();
     expect(marker!.getAttribute("data-child-spans")).toBe("1,2");
   });
+
+  test("query methods throw on an empty selector, like the real DOM", () => {
+    const [el] = installFakeDom([{ children: [{ tag: "span" }], tag: "div" }]);
+    expect(() => document.querySelectorAll("")).toThrow(SyntaxError);
+    expect(() => el!.querySelector("   ")).toThrow(SyntaxError);
+  });
+
+  test("createElement throws on an empty tag name, like the real DOM", () => {
+    installFakeDom([]);
+    expect(() => document.createElement("")).toThrow("invalid tag name");
+  });
 });

@@ -1,37 +1,25 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { type Stub, stub } from "@std/testing/mock";
 import { verifyBotpoisonSolution } from "#shared/botpoison.ts";
 import { setTestEnv } from "#test-utils";
+import { setupFetchStub } from "#test-utils/fetch-stub.ts";
 
 describe("verifyBotpoisonSolution", () => {
   let restoreEnv: () => void;
-  let fetchStub: Stub | undefined;
+  const { callCount, stubFetch } = setupFetchStub();
 
   beforeEach(() => {
     restoreEnv = setTestEnv({ BOTPOISON_SECRET_KEY: "sk_test_secret" });
   });
 
   afterEach(() => {
-    fetchStub?.restore();
-    fetchStub = undefined;
     restoreEnv();
   });
-
-  const stubFetch = (
-    impl: (url: string, init?: RequestInit) => Promise<Response>,
-  ): void => {
-    fetchStub = stub(
-      globalThis,
-      "fetch",
-      impl as unknown as typeof globalThis.fetch,
-    );
-  };
 
   test("returns false for an empty solution without calling the API", async () => {
     stubFetch(() => Promise.reject(new Error("should not be called")));
     expect(await verifyBotpoisonSolution("")).toBe(false);
-    expect(fetchStub?.calls.length).toBe(0);
+    expect(callCount()).toBe(0);
   });
 
   test("returns false when no secret key is configured", async () => {
@@ -39,7 +27,7 @@ describe("verifyBotpoisonSolution", () => {
     restoreEnv = setTestEnv({ BOTPOISON_SECRET_KEY: undefined });
     stubFetch(() => Promise.reject(new Error("should not be called")));
     expect(await verifyBotpoisonSolution("solution-123")).toBe(false);
-    expect(fetchStub?.calls.length).toBe(0);
+    expect(callCount()).toBe(0);
   });
 
   test("posts the secret key and solution to the verify endpoint", async () => {

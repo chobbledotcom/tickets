@@ -17,6 +17,7 @@
  */
 
 import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import type { BalanceNotice } from "#routes/admin/attendee-form-model.ts";
 import {
   ATTENDEE_FORM_ID,
@@ -66,6 +67,7 @@ import {
 } from "#templates/admin/attendee-detail.tsx";
 import { EditQuestions } from "#templates/admin/attendees.tsx";
 import { Icon } from "#templates/components/actions.tsx";
+import { renderAddressLookupPanel } from "#templates/components/address-lookup.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import {
@@ -633,6 +635,7 @@ const AttendeeEditForm = ({
         />
       </label>
 
+      <Raw html={renderAddressLookupPanel("editable")} />
       <label for="address">
         {t("common.address")}
         <textarea

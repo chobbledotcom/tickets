@@ -3,6 +3,7 @@
  * from the per-feature settings-*.ts modules into a single route table.
  */
 
+import { handleAddressLookupPost } from "#routes/admin/settings-address-lookup.ts";
 import {
   handleCustomDomainPost,
   handleCustomDomainValidatePost,
@@ -73,6 +74,7 @@ export const settingsRoutes = defineRoutes({
   "GET /admin/settings-advanced": handleAdminSettingsAdvancedGet,
   "POST /admin/listing-defaults": handleListingDefaultsPost,
   "POST /admin/settings": handleAdminSettingsPost,
+  "POST /admin/settings/address-lookup": handleAddressLookupPost,
   "POST /admin/settings/apple-wallet": handleAppleWalletPost,
   "POST /admin/settings/attendee-column-order": handleAttendeeColumnOrderPost,
   "POST /admin/settings/booking-fee": handleBookingFeePost,

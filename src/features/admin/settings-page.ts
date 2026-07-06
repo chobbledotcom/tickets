@@ -72,6 +72,8 @@ const getAdvancedSettingsPageState = async (
   const adminTemplates = settings.email.templateSet("admin");
   const cdnResult = bunnyCdnConfigured ? await getCdnHostname() : null;
   return {
+    addressLookupApiKeyConfigured: settings.addressLookup.hasKey,
+    addressLookupProvider: settings.addressLookup.provider,
     adminTemplates,
     appleWalletConfigured: settings.appleWallet.hasDbConfig,
     appleWalletPassTypeId: settings.appleWallet.passTypeId,
