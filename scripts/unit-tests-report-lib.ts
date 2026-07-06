@@ -134,34 +134,52 @@ export const mirrorPrefix = (
   return `${options.testRoot}/${withoutExt}`;
 };
 
-/** Whether a test file covers the source with this mirror prefix — either the
- *  single mirrored file, or one of several inside the source's directory. */
-export const testCoversPrefix = (prefix: string, testPath: string): boolean =>
-  testPath === `${prefix}.test.ts` ||
-  testPath === `${prefix}.test.tsx` ||
-  testPath.startsWith(`${prefix}/`);
+/**
+ * The mirror prefix of the source a test belongs to, or `null` when no source
+ * owns it. A test at `test/a/b/name.test.ts` is owned by the source whose
+ * mirror is the longest path-prefix of it that actually exists: its own direct
+ * mirror `test/a/b/name` when `src/a/b/name.ts` exists, otherwise the nearest
+ * ancestor directory that mirrors a source (the directory-suite convention).
+ *
+ * Picking the longest matching prefix is what stops a child's own mirror from
+ * being counted against its parent: given both `src/db/attendees.ts` and
+ * `src/db/attendees/kind.ts`, the test `test/db/attendees/kind.test.ts` matches
+ * the child prefix `test/db/attendees/kind` (longer) over the parent
+ * `test/db/attendees`, so it counts only for the child and never hides a
+ * missing parent test. The trailing-slash check keeps a sibling like
+ * `test/db/attendees-notes.test.ts` from matching the `test/db/attendees` prefix.
+ */
+export const owningSourcePrefix = (
+  testPath: string,
+  sourcePrefixes: Iterable<string>,
+): string | null => {
+  const base = testPath.replace(/\.test\.(?:ts|tsx)$/, "");
+  let best: string | null = null;
+  for (const prefix of sourcePrefixes) {
+    const owns = base === prefix || base.startsWith(`${prefix}/`);
+    if (owns && (best === null || prefix.length > best.length)) {
+      best = prefix;
+    }
+  }
+  return best;
+};
 
-/** Build the per-source view: the tests covering it and how thin they are. */
+/** Build the per-source view from the tests already assigned to it. */
 const describeSource = (
   source: FileLines,
-  tests: FileLines[],
-  options: ReportOptions,
+  ownedTests: FileLines[],
 ): SourceReport => {
-  const prefix = mirrorPrefix(source.path, options);
-  const covering = filter((test: FileLines) =>
-    testCoversPrefix(prefix, test.path),
-  )(tests);
-  const testLines = sumOf((test: FileLines) => test.lines)(covering);
+  const testLines = sumOf((test: FileLines) => test.lines)(ownedTests);
   return {
     lines: source.lines,
     path: source.path,
     ratio:
       testLines === 0 ? Number.POSITIVE_INFINITY : source.lines / testLines,
-    tested: covering.length > 0,
+    tested: ownedTests.length > 0,
     testFiles: pipe(
       map((test: FileLines) => test.path),
       sort((a: string, b: string) => a.localeCompare(b)),
-    )(covering),
+    )(ownedTests),
     testLines,
   };
 };
@@ -177,7 +195,9 @@ const byRatioDesc = (a: SourceReport, b: SourceReport): number =>
 /**
  * Fold the raw source and test file lists into the full report: which sources
  * are (un)tested, how thin the tested ones are, and which test files don't
- * mirror any source.
+ * mirror any source. Each non-exempt test is assigned to exactly one owning
+ * source (its nearest mirror), so a test is never double-counted or credited to
+ * a parent when it really covers a child.
  */
 export const buildReport = (
   allSources: FileLines[],
@@ -187,23 +207,27 @@ export const buildReport = (
   const sources = filter((s: FileLines) => isTestableSource(s.path, options))(
     allSources,
   );
-  const described = map((s: FileLines) => describeSource(s, allTests, options))(
-    sources,
+  // Pre-seed a bucket per source (keyed by its mirror prefix) so every owned
+  // test lands in an existing list and every source has one to describe from.
+  const prefixes = sources.map((s) => mirrorPrefix(s.path, options));
+  const ownedTests = new Map<string, FileLines[]>(prefixes.map((p) => [p, []]));
+
+  // Assign each non-exempt test to its owning source; the rest are orphans.
+  // Exempt trees (e2e, integration, …) sit outside the mirror system entirely.
+  const orphans: string[] = [];
+  for (const test of allTests) {
+    if (hasExemptPrefix(test.path, options.exemptTestPrefixes)) continue;
+    const owner = owningSourcePrefix(test.path, prefixes);
+    if (owner === null) orphans.push(test.path);
+    else ownedTests.get(owner)!.push(test);
+  }
+
+  const described = sources.map((s, i) =>
+    describeSource(s, ownedTests.get(prefixes[i]!)!),
   );
 
-  const covered = new Set(described.flatMap((s) => s.testFiles));
-  const orphanTests = pipe(
-    filter(
-      (test: FileLines) =>
-        !covered.has(test.path) &&
-        !hasExemptPrefix(test.path, options.exemptTestPrefixes),
-    ),
-    map((test: FileLines) => test.path),
-    sort((a: string, b: string) => a.localeCompare(b)),
-  )(allTests);
-
   return {
-    orphanTests,
+    orphanTests: sort((a: string, b: string) => a.localeCompare(b))(orphans),
     ranked: pipe(
       filter((s: SourceReport) => s.tested),
       sort(byRatioDesc),
@@ -222,6 +246,36 @@ export const buildReport = (
  *  is exempt (an empty tree). */
 export const suggestedTarget = (report: Report): SourceReport | null =>
   report.untested[0] ?? report.ranked[0] ?? null;
+
+/** A source entry shaped for JSON: `ratio` becomes `null` for untested files,
+ *  because JSON has no infinity. The untested signal is still carried by
+ *  `tested: false` and `testLines: 0`. */
+export type JsonSourceReport = Omit<SourceReport, "ratio"> & {
+  ratio: number | null;
+};
+
+/** The report shaped for JSON output. */
+export type JsonReport = Omit<Report, "ranked" | "untested"> & {
+  ranked: JsonSourceReport[];
+  untested: JsonSourceReport[];
+};
+
+const toJsonSource = (source: SourceReport): JsonSourceReport => ({
+  ...source,
+  ratio: Number.isFinite(source.ratio) ? source.ratio : null,
+});
+
+/**
+ * Convert a report to a JSON-safe shape. `JSON.stringify` turns the infinite
+ * ratio of untested files into `null` on its own, but doing it here keeps the
+ * numeric contract explicit (a `ratio` is a number or `null`, never a silently
+ * dropped `Infinity`) rather than relying on that quirk.
+ */
+export const toJsonReport = (report: Report): JsonReport => ({
+  ...report,
+  ranked: report.ranked.map(toJsonSource),
+  untested: report.untested.map(toJsonSource),
+});
 
 /* -------------------------------------------------------------------------- *
  * Formatting                                                                 *

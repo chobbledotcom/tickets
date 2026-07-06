@@ -23,6 +23,7 @@ import {
   formatReport,
   isSourcePath,
   isTestPath,
+  toJsonReport,
 } from "./unit-tests-report-lib.ts";
 
 async function* walkFiles(directory: string): AsyncGenerator<string> {
@@ -56,7 +57,7 @@ if (import.meta.main) {
   const report = buildReport(sources, tests, options);
 
   if (args.has("--json")) {
-    console.log(JSON.stringify(report, null, 2));
+    console.log(JSON.stringify(toJsonReport(report), null, 2));
   } else {
     const limit = args.has("--all") ? null : DEFAULT_LIMIT;
     console.log(formatReport(report, limit).join("\n"));
