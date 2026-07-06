@@ -12,7 +12,6 @@ import { t } from "#i18n";
 import { entityToFieldValues, renderFields } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Holiday } from "#shared/types.ts";
-import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import {
@@ -50,73 +49,69 @@ export const holidayToFieldValues = (
 ): Record<string, string | number | null> =>
   entityToFieldValues(holiday, getHolidayFields(), {});
 
-const { deletePage, editPage, newPage } = defineAdminResourcePages<Holiday>({
-  active: "/admin/holidays",
-  basePath: "/admin/holidays",
-  delete: {
-    confirm: (holiday) => ({
-      args: {
-        end: holiday.end_date,
-        name: escapeHtml(holiday.name),
-        start: holiday.start_date,
-      },
-      key: "holidays.delete.confirm",
-    }),
-    danger: false,
-    heading: t("holidays.delete.heading"),
-    label: t("holidays.delete.confirm_label"),
-    name: (holiday) => holiday.name,
-    prompt: (holiday) => ({
-      args: { name: holiday.name },
-      key: "holidays.delete.confirm_prompt",
-    }),
-  },
-  labels: {
-    addHeading: t("holidays.add.heading"),
-    addSubmit: t("holidays.add.submit"),
-    addTitle: t("holidays.add.title"),
-    deleteButton: t("holidays.delete.submit"),
-    deleteLabel: t("holidays.delete.confirm_label"),
-    deleteTitle: t("holidays.delete.heading"),
-    editHeading: t("holidays.edit.heading"),
-    editTitle: t("holidays.edit.title"),
-    listTitle: t("terms.holidays"),
-  },
-  renderFields: (holiday) => (
-    <Raw
-      html={renderFields(
-        getHolidayFields(),
-        holiday ? holidayToFieldValues(holiday) : {},
-      )}
-    />
-  ),
-});
+const { deletePage, editPage, listPage, newPage } =
+  defineAdminResourcePages<Holiday>({
+    active: "/admin/holidays",
+    basePath: "/admin/holidays",
+    delete: {
+      confirm: (holiday) => ({
+        args: {
+          end: holiday.end_date,
+          name: escapeHtml(holiday.name),
+          start: holiday.start_date,
+        },
+        key: "holidays.delete.confirm",
+      }),
+      danger: false,
+      heading: t("holidays.delete.heading"),
+      label: t("holidays.delete.confirm_label"),
+      name: (holiday) => holiday.name,
+      prompt: (holiday) => ({
+        args: { name: holiday.name },
+        key: "holidays.delete.confirm_prompt",
+      }),
+    },
+    labels: {
+      addHeading: t("holidays.add.heading"),
+      addSubmit: t("holidays.add.submit"),
+      addTitle: t("holidays.add.title"),
+      deleteButton: t("holidays.delete.submit"),
+      deleteLabel: t("holidays.delete.confirm_label"),
+      deleteTitle: t("holidays.delete.heading"),
+      editHeading: t("holidays.edit.heading"),
+      editTitle: t("holidays.edit.title"),
+      listTitle: t("terms.holidays"),
+    },
+    list: {
+      actions: (
+        <ActionButton href="/admin/holidays/new" icon="plus">
+          {t("holidays.add_holiday")}
+        </ActionButton>
+      ),
+      columns: holidayColumns,
+      empty: <p>{t("holidays.no_holidays")}</p>,
+      guideFooter: (
+        <GuideFooter href="/admin/guide#holidays">
+          {t("holidays.guide_link")}
+        </GuideFooter>
+      ),
+    },
+    renderFields: (holiday) => (
+      <Raw
+        html={renderFields(
+          getHolidayFields(),
+          holiday ? holidayToFieldValues(holiday) : {},
+        )}
+      />
+    ),
+  });
 
 /** Admin holidays list page. */
 export const adminHolidaysPage = (
   holidays: Holiday[],
   session: AdminSession,
   successMessage?: string,
-): string =>
-  flashAdminPage(t("terms.holidays"), "/admin/holidays")(
-    session,
-    undefined,
-    successMessage,
-  )(
-    <>
-      {holidays.length > 0 ? (
-        dataTable(holidayColumns)(holidays)
-      ) : (
-        <p>{t("holidays.no_holidays")}</p>
-      )}
-      <GuideFooter href="/admin/guide#holidays">
-        {t("holidays.guide_link")}
-      </GuideFooter>
-    </>,
-    <ActionButton href="/admin/holidays/new" icon="plus">
-      {t("holidays.add_holiday")}
-    </ActionButton>,
-  );
+): string => listPage(holidays, session, undefined, successMessage);
 
 /** Admin holiday create page. */
 export const adminHolidayNewPage = newPage;

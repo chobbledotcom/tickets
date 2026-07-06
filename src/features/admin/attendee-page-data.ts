@@ -253,7 +253,6 @@ export const buildCreateForm = (
   lines: buildFormLines(renderListings, [], packagePaths, preselectedQty),
   name: "",
   phone: "",
-  remainingBalance: 0,
   returnUrl: "",
   special_instructions: "",
   startDate,
@@ -278,7 +277,6 @@ export const buildEditFormFromAttendee = (
       lines: buildFormLines(renderListings, existing, packagePaths, new Map()),
       name: attendee.name,
       phone: attendee.phone || "",
-      remainingBalance: attendee.remaining_balance,
       returnUrl: "",
       special_instructions: attendee.special_instructions || "",
       startDate: shared.startDate,
@@ -480,7 +478,9 @@ export const buildTemplateData = async (
   const summary = attendee ? await getAttendeeOrderSummary(attendee.id) : null;
   const balanceNotice = attendeeBalanceNotice(
     statuses.find((s) => s.id === parsed.statusId) ?? null,
-    parsed.remainingBalance,
+    // The balance is ledger-projected (no form field) — read it from the saved
+    // attendee; create mode has no attendee yet, so it starts at 0.
+    attendee?.remaining_balance ?? 0,
     summary?.fullPrice ?? 0,
     summary?.depositPaid ?? 0,
     summary?.listedFullPrice ?? 0,

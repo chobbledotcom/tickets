@@ -65,7 +65,7 @@ const writeoffAdjustmentLeg = async (
  * Post a manual `adjustment` leg that moves `account`'s ledger balance by `delta`
  * (in "credit-the-account" terms) inside an already-open write transaction, so
  * the correction commits or rolls back together with whatever else the
- * transaction does — the status column write in {@link updateAttendeeOrder}, and
+ * transaction does — the status column write in {@link updateAttendeeStatus}, and
  * the in-transaction read of the current projection a correction recomputes its
  * delta against (which makes a re-submitted correction idempotent):
  *

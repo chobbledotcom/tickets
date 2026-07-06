@@ -24,7 +24,6 @@ import { t } from "#i18n";
 import {
   ATTENDEE_FORM_ID,
   type AttendeeFormLine,
-  isBookedLine,
   isNoQuantityLine,
   type ParsedAttendeeForm,
   parseAttendeeForm,
@@ -68,7 +67,7 @@ import {
   ensureAllBookings,
   hasPaidLine,
   type ListingAttendeeRow,
-  updateAttendeeOrder,
+  updateAttendeeStatus,
 } from "#shared/db/attendees.ts";
 import { hasAssignedBuiltSite } from "#shared/db/built-sites.ts";
 import { getAllListings } from "#shared/db/listings.ts";
@@ -344,27 +343,20 @@ const applyCreate = async (
   if (input.bookings.length === 0) {
     return { ok: false, saveError: t("attendee_form.error_no_lines") };
   }
-  // A no-quantity-only attendee has no real line to pay into, so never give it an
-  // unpayable balance (the public pay gate refuses such attendees).
-  const hasRealLine = parsed.lines.some(isBookedLine);
   // Admin manual add may deliberately overbook (a warning is shown, not blocked)
   // and is tagged as an "admin" booking so it counts separately from online
   // checkouts in the contact's booking history. The ledger poster records the
-  // booking's gross `sale` legs and reconciles the entered outstanding balance in
-  // the SAME create transaction, so the owed amount projects from the ledger
-  // (rather than silently reading back as £0) and lands atomically with the rows.
-  // A no-quantity-only add has no real line to pay into, so reconcile the balance
-  // to 0 rather than record a receivable the public pay gate could never settle.
+  // booking's gross `sale` legs in the SAME create transaction, so the owed
+  // amount projects from the ledger (rather than silently reading back as £0)
+  // and lands atomically with the rows. The attendee owes the full gross; an
+  // operator records any already-paid portion afterwards through the ledger.
   const createResult = await createAttendeeAtomic(
     {
       ...input,
       allowOverbook: true,
       source: "admin",
     },
-    manualAddLedgerPoster(
-      toLedgerOrder(parsed),
-      hasRealLine ? input.remainingBalance : 0,
-    ),
+    manualAddLedgerPoster(toLedgerOrder(parsed)),
   );
   const check = await ensureAllBookings(
     createResult,
@@ -452,18 +444,12 @@ const applyEdit = async (
     return { ok: false, saveError: t("attendee_form.error_capacity") };
   }
 
-  // When the save leaves no real line the public pay gate refuses payment, so
-  // reconcile the ledger balance to 0 rather than strand an unpayable receivable
-  // on a ghost; otherwise reconcile to the entered balance. The reconcile posts a
-  // writeoff leg, which is itself the audit record of the clear. Judged on the
-  // rows actually being SAVED, so it can never write off the balance while a
-  // real booking row survives.
+  // The edit form only writes the status; the outstanding balance projects from
+  // the ledger and is adjusted there, never from this form. The one exception is
+  // a save that leaves no payable line: its stranded receivable (which the
+  // public pay gate would refuse) is cleared to 0 alongside the status write.
   const hasRealLine = desired.some((line) => line.quantity > 0);
-  await updateAttendeeOrder(
-    attendeeId,
-    parsed.statusId,
-    hasRealLine ? parsed.remainingBalance : 0,
-  );
+  await updateAttendeeStatus(attendeeId, parsed.statusId, !hasRealLine);
 
   await applyLogisticsPlan(attendeeId, logisticsPlan);
 

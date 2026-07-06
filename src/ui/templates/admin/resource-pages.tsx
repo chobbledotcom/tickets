@@ -80,8 +80,10 @@ export type ResourceList<TEntity> = {
   empty?: Child;
   /** Optional intro markup rendered before the table (e.g. a prose heading). */
   intro?: Child;
-  /** Optional action-row contents (e.g. an "Add" button + guide link). */
+  /** Optional action-row contents (e.g. an "Add" button). */
   actions?: Child;
+  /** Optional guide link rendered at the very bottom of the list body. */
+  guideFooter?: Child;
 };
 
 export type AdminResourcePagesConfig<
@@ -138,6 +140,7 @@ export const defineAdminResourcePages = <
       <>
         {list.intro}
         {entities.length > 0 ? dataTable(list.columns)(entities) : list.empty}
+        {list.guideFooter}
       </>,
       list.actions,
     );
