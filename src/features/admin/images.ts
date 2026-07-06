@@ -29,9 +29,11 @@ import { getNewsPostNames } from "#shared/db/news-posts.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { deleteImageStorageFiles, isStorageEnabled } from "#shared/storage.ts";
 import {
+  type AdminLevel,
   type Image,
   type ImageUseItemType,
   isImageUseItemType,
+  isSiteRole,
 } from "#shared/types.ts";
 import {
   adminImageDeletePage,
@@ -96,10 +98,17 @@ const groupImageItemOptions = async (): Promise<ImageItemOption[]> =>
     type: "group" as const,
   }));
 
-const imageItemOptions = async (): Promise<ImageItemOption[]> => [
+/** The link targets this session may manage. News posts are Site-gated
+ * (owner + editor): a manager never sees them here, matching the news image
+ * routes that exclude managers. */
+const imageItemOptions = async (
+  adminLevel: AdminLevel,
+): Promise<ImageItemOption[]> => [
   ...optionsOfType("listing")(await getAllListingNames()),
   ...(await groupImageItemOptions()),
-  ...optionsOfType("news")(await getNewsPostNames()),
+  ...(isSiteRole(adminLevel)
+    ? optionsOfType("news")(await getNewsPostNames())
+    : []),
 ];
 
 const selectedUses = async (imageId: number): Promise<Set<string>> =>
@@ -118,7 +127,7 @@ const handleImageEditGet: TypedRouteHandler<"GET /admin/images/:id/edit"> = (
       applyFlash(request);
       return withStorageEnabled(async () => {
         const [options, selected] = await Promise.all([
-          imageItemOptions(),
+          imageItemOptions(session.adminLevel),
           selectedUses(image.id),
         ]);
         return htmlResponse(
@@ -143,25 +152,51 @@ const parseImageTargets = (form: FormParams): ImageUseTarget[] =>
 const withStorageImageForm = (
   request: Request,
   id: number,
-  action: (image: Image, form: FormParams) => Response | Promise<Response>,
+  action: (
+    image: Image,
+    form: FormParams,
+    adminLevel: AdminLevel,
+  ) => Response | Promise<Response>,
 ): Promise<Response> =>
-  withAuth(request, CONTENT_FORM, (_session, form) =>
+  withAuth(request, CONTENT_FORM, (session, form) =>
     withEntityFromParam(id, getImageById, (image) =>
-      withStorageEnabled(() => action(image, form)),
+      withStorageEnabled(() => action(image, form, session.adminLevel)),
     ),
   );
+
+/** The targets a save may apply. News uses are Site-gated: a session outside
+ * that gate (a manager) has any submitted news targets dropped and the image's
+ * existing news links carried forward unchanged, so a manager's save can
+ * neither attach nor detach an image from a news post. */
+const allowedImageTargets = async (
+  adminLevel: AdminLevel,
+  imageId: number,
+  submitted: ImageUseTarget[],
+): Promise<ImageUseTarget[]> => {
+  if (isSiteRole(adminLevel)) return submitted;
+  const keptNewsUses = (await getImageUsesForImage(imageId))
+    .filter((use) => use.item_type === "news")
+    .map((use) => ({ itemId: use.item_id, itemType: use.item_type }));
+  return [
+    ...submitted.filter((target) => target.itemType !== "news"),
+    ...keptNewsUses,
+  ];
+};
 
 const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> = (
   request,
   { id },
 ) =>
-  withStorageImageForm(request, id, async (image, form) => {
+  withStorageImageForm(request, id, async (image, form, adminLevel) => {
     const metadata = imageMetadataFromForm(form);
     if (!metadata.ok) {
       return redirect(imagePath(image.id), metadata.error, false);
     }
     await imagesTable.update(image.id, metadata.value);
-    await setItemsForImage(image.id, parseImageTargets(form));
+    await setItemsForImage(
+      image.id,
+      await allowedImageTargets(adminLevel, image.id, parseImageTargets(form)),
+    );
     await logActivity(`Image '${metadata.value.name}' updated`);
     return redirect(imagePath(image.id), t("images.updated"), true);
   });

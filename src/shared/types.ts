@@ -579,6 +579,9 @@ export const isDeliveryRole = roleIn(DELIVERY_ADMIN_LEVELS);
 /** True for roles that may create/edit listings & groups (owner/manager/editor). */
 export const isContentRole = roleIn(CONTENT_ADMIN_LEVELS);
 
+/** True for roles that may edit public-site content (owner/editor). */
+export const isSiteRole = roleIn(SITE_ADMIN_LEVELS);
+
 /** Type guard: check if a string is a valid AdminLevel */
 export const isAdminLevel = (s: string): s is AdminLevel =>
   v.is(AdminLevelSchema, s);

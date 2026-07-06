@@ -1,8 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { appendImageToItem } from "#shared/db/images.ts";
+import { appendImageToItem, imagesTable } from "#shared/db/images.ts";
 import { newsPostsTable } from "#shared/db/news-posts.ts";
+import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   assertPublicHtml,
   createTestNewsPost,
@@ -120,11 +121,18 @@ describeWithEnv("server (public news)", { db: true }, () => {
 
     test("a single image renders full-size with no thumbs or radios to swap", async () => {
       const post = await createTestNewsPost("One Image");
-      const image = await makeImage("Solo");
+      // No alt text stored: the full image's alt falls back to the image name.
+      const image = await imagesTable.insert({
+        altText: "",
+        filename: nonEmptyString("solo.webp"),
+        filenameThumb: nonEmptyString("solo-thumb.webp"),
+        name: "Solo",
+      });
       await appendImageToItem(image.id, { itemId: post.id, itemType: "news" });
       const html = await assertPublicHtml(`/news/${post.id}`);
       expect(html).toContain('class="news-gallery-full"');
       expect(html).toContain("solo.webp");
+      expect(html).toContain('alt="Solo"');
       expect(html).not.toContain("news-gallery-thumb");
     });
 

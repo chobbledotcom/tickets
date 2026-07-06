@@ -1,8 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { getImageUsesForImage } from "#shared/db/images.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
+import { appendImageToItem, getImageUsesForImage } from "#shared/db/images.ts";
 import {
+  createTestManagerSession,
   createTestNewsPost,
   describeWithEnv,
   expectFlashRedirect,
@@ -18,6 +20,7 @@ import {
   makeImage,
   postImageUpload,
 } from "#test-utils/admin-images.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 
 describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
   describe("POST /admin/site/news/:id/images", () => {
@@ -93,6 +96,46 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
   });
 
   describe("image library integration", () => {
+    test("a manager sees no news targets and cannot attach or detach them", async () => {
+      const post = await createTestNewsPost("Manager-proof post");
+      const image = await makeImage("Managed image");
+      await appendImageToItem(image.id, { itemId: post.id, itemType: "news" });
+      const managerCookie = await createTestManagerSession();
+
+      // The edit page offers no news checkboxes to a manager (Site-gated).
+      const pageResponse = await handleRequest(
+        mockRequest(`/admin/images/${image.id}/edit`, {
+          headers: { cookie: managerCookie },
+        }),
+      );
+      const html = await expectHtmlResponse(pageResponse, 200);
+      expect(html).not.toContain(`value="news:${post.id}"`);
+
+      // A manager's save — even one smuggling a news target and omitting the
+      // existing link — leaves the post's image links exactly as they were.
+      const saveResponse = await handleRequest(
+        formRequest(
+          `/admin/images/${image.id}/edit`,
+          [
+            ["csrf_token", await signCsrfToken()],
+            ["name", "Managed image"],
+            ["alt_text", "alt"],
+            ["image_items", "news:9999"],
+          ],
+          managerCookie,
+        ),
+      );
+      expect([302, 303]).toContain(saveResponse.status);
+      expect(await getImageUsesForImage(image.id)).toEqual([
+        {
+          image_id: image.id,
+          item_id: post.id,
+          item_type: "news",
+          sort_order: 0,
+        },
+      ]);
+    });
+
     test("the image edit page offers news posts as link targets", async () => {
       const post = await createTestNewsPost("Linkable post");
       const image = await makeImage("Library image");

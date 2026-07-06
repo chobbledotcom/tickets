@@ -149,6 +149,17 @@ describeWithEnv("server (admin news)", { db: true }, () => {
   });
 
   describe("delete", () => {
+    test("GET renders the type-the-name confirmation page", async () => {
+      const post = await createTestNewsPost("Confirm me");
+      const html = await expectHtmlResponse(
+        await adminGet(`${BASE}/${post.id}/delete`),
+        200,
+      );
+      expect(html).toContain("Delete News Post");
+      expect(html).toContain("to confirm deletion");
+      expect(html).toContain("Confirm me");
+    });
+
     test("requires the exact post name to confirm", async () => {
       const post = await createTestNewsPost("Keep me");
       const { response } = await adminFormPost(`${BASE}/${post.id}/delete`, {
