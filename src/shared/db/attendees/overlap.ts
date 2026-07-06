@@ -9,18 +9,14 @@
 
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import { queryAll } from "#shared/db/client.ts";
+import type { AssignmentRow } from "#shared/db/logistics.ts";
 
-/** One overlapping booking line: who, what, when, and its logistics legs. */
-export type OverlappingBooking = {
-  attendee_id: number;
-  listing_id: number;
+/** One overlapping booking line: the logistics leg columns plus when and
+ * how many. */
+export type OverlappingBooking = AssignmentRow & {
   start_at: string;
   end_at: string;
   quantity: number;
-  start_agent_id: number | null;
-  end_agent_id: number | null;
-  start_time: string;
-  end_time: string;
 };
 
 /**

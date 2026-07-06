@@ -63,7 +63,7 @@ import {
   InactiveNote,
 } from "#templates/admin/attendee-detail.tsx";
 import { EditQuestions } from "#templates/admin/attendees.tsx";
-import { Icon } from "#templates/components/actions.tsx";
+import { SaveActions } from "#templates/components/actions.tsx";
 import { AddressFieldWithLookup } from "#templates/components/address-field.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
@@ -669,14 +669,9 @@ const AttendeeEditForm = ({
 
       <hr />
 
-      <p class="form-actions">
-        <button class="primary" type="submit">
-          <Icon name="save" />
-          <span>
-            {isEdit ? t("attendee_form.save") : t("attendee_form.create")}
-          </span>
-        </button>
-      </p>
+      <SaveActions>
+        {isEdit ? t("attendee_form.save") : t("attendee_form.create")}
+      </SaveActions>
     </CsrfForm>
   );
 };

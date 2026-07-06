@@ -14,6 +14,7 @@
  */
 
 import { renderAddressDiff } from "./address-diff.ts";
+import { findPinInputs } from "./pin-inputs.ts";
 
 const ENDPOINT = "/address-lookup";
 
@@ -119,13 +120,10 @@ const fillInput = (input: HTMLInputElement, value: string): void => {
  * leave everything untouched. */
 const fillCoordinates = (match: AddressMatch | undefined): void => {
   if (!match || !match.lat || !match.lng) return;
-  const latInput =
-    document.querySelector<HTMLInputElement>('input[name="lat"]');
-  const lngInput =
-    document.querySelector<HTMLInputElement>('input[name="lng"]');
-  if (!latInput || !lngInput) return;
-  fillInput(latInput, match.lat);
-  fillInput(lngInput, match.lng);
+  const inputs = findPinInputs();
+  if (!inputs) return;
+  fillInput(inputs.latInput, match.lat);
+  fillInput(inputs.lngInput, match.lng);
 };
 
 /** Copy the chosen address into the textarea, hide the dropdown again, and

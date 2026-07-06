@@ -13,6 +13,7 @@ import {
   buildAttendeeLogisticsData,
   LAT_FIELD,
   LNG_FIELD,
+  type LogisticsFormErrors,
   type LogisticsFormValues,
   parseLogisticsPlan,
 } from "#routes/admin/attendee-logistics.ts";
@@ -41,7 +42,7 @@ const renderSubmittedLogistics = (
   session: AuthSession,
   attendeeId: number,
   values: LogisticsFormValues,
-  errors: { addressError: string | null; locationError: string | null },
+  errors: LogisticsFormErrors,
 ): Promise<Response> =>
   attendeePage.renderPage(session, attendeeId, "logistics", {
     sections: async (entity) => [

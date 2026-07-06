@@ -40,6 +40,12 @@ export type LogisticsFormValues = {
   lng: string;
 };
 
+/** The Logistics tab form's per-field errors (null = fine). */
+export type LogisticsFormErrors = {
+  addressError: string | null;
+  locationError: string | null;
+};
+
 /** One other attendee's overlapping booking line, ready to render. */
 export type OtherAttendeeLine = {
   attendeeId: number;

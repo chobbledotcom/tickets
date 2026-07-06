@@ -13,6 +13,7 @@ import { unique } from "#fp";
 import {
   type AttendeeLogisticsTabData,
   buildAttendeeLogisticsData,
+  type LogisticsFormErrors,
   type LogisticsFormValues,
 } from "#routes/admin/attendee-logistics.ts";
 import {
@@ -92,7 +93,7 @@ const loadOtherAttendees = async (
 export const buildLogisticsTabData = async (
   entity: LoadedAttendee,
   values: LogisticsFormValues,
-  errors: { addressError: string | null; locationError: string | null },
+  errors: LogisticsFormErrors,
 ): Promise<AttendeeLogisticsTabData> => ({
   attendee: entity.attendee,
   logistics: await buildAttendeeLogisticsData(

@@ -11,6 +11,8 @@
  * again.
  */
 
+import { findPinInputs } from "./pin-inputs.ts";
+
 /** A live map showing one pin. */
 export type LogisticsMap = {
   /** Move the pin (and the view) to a new spot. */
@@ -40,11 +42,9 @@ export const readMapPin = (
 /** Wire the page's logistics map container to its lat/lng inputs. */
 export const initLogisticsMap = (library: MapLibrary): void => {
   const container = document.querySelector<HTMLElement>("[data-logistics-map]");
-  const latInput =
-    document.querySelector<HTMLInputElement>('input[name="lat"]');
-  const lngInput =
-    document.querySelector<HTMLInputElement>('input[name="lng"]');
-  if (!container || !latInput || !lngInput) return;
+  const inputs = findPinInputs();
+  if (!container || !inputs) return;
+  const { latInput, lngInput } = inputs;
 
   let map: LogisticsMap | null = null;
   const update = (): void => {

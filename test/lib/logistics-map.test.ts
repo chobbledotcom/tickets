@@ -7,7 +7,6 @@
 
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { Window } from "happy-dom";
 import {
   initLogisticsMap,
   type LogisticsMap,
@@ -15,26 +14,11 @@ import {
   readMapPin,
 } from "#src/ui/client/admin/logistics-map.ts";
 import { initLogisticsMapLoader } from "#src/ui/client/admin/logistics-map-loader.ts";
-import { createGlobalStash } from "#test-utils/happy-dom.ts";
+import { createDomInstaller } from "#test-utils/happy-dom.ts";
 
-const stash = createGlobalStash();
-const openWindows: Window[] = [];
+const { installDom, cleanup } = createDomInstaller();
 
-/** Install a fresh happy-dom window (with the given body) onto the globals. */
-const installDom = (bodyHtml: string): Window => {
-  const window = new Window({ url: "https://admin.test/" });
-  window.document.body.innerHTML = bodyHtml;
-  stash.set("document", window.document);
-  stash.set("window", window);
-  openWindows.push(window);
-  return window;
-};
-
-afterEach(() => {
-  stash.restore();
-  for (const window of openWindows) window.close();
-  openWindows.length = 0;
-});
+afterEach(cleanup);
 
 describe("readMapPin", () => {
   test("parses a valid pair into numbers", () => {

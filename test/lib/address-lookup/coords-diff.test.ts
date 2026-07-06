@@ -120,14 +120,18 @@ describe("address lookup fills the pin inputs", () => {
     tag: "form",
   });
 
-  /** Install the page, run a search, and choose the first result. */
+  /** Install the page, run a search, and choose the first result. `typed`
+   * pre-fills the address textarea before searching. */
   const searchAndChoose = async (
     body: unknown,
+    page: ElementSpec = formSpec(),
+    typed = "",
   ): Promise<{ form: FakeElement; lat: FakeElement; lng: FakeElement }> => {
     stubFetch(() => Promise.resolve(new Response(JSON.stringify(body))));
-    const [form] = installFakeDom([formSpec()]);
+    const [form] = installFakeDom([page]);
     initAddressLookup();
     const one = (selector: string) => form!.querySelector(selector)!;
+    one("textarea").value = typed;
     one("[data-address-search]").value = "SW1A 2AA";
     one("[data-address-find]").dispatch("click");
     await flush();
@@ -173,37 +177,22 @@ describe("address lookup fills the pin inputs", () => {
   });
 
   test("a page without pin inputs still fills the textarea", async () => {
-    stubFetch(() => Promise.resolve(new Response(JSON.stringify(LOCATED))));
-    const [form] = installFakeDom([
-      {
-        children: [panelSpec(), { name: "address", tag: "textarea" }],
-        tag: "form",
-      },
-    ]);
-    initAddressLookup();
-    const one = (selector: string) => form!.querySelector(selector)!;
-    one("[data-address-search]").value = "SW1A 2AA";
-    one("[data-address-find]").dispatch("click");
-    await flush();
-    const select = one("[data-address-results]");
-    select.value = "10 Downing Street, LONDON";
-    select.dispatch("change");
-    expect(one("textarea").value).toBe("10 Downing Street, LONDON");
+    const { form } = await searchAndChoose(LOCATED, {
+      children: [panelSpec(), { name: "address", tag: "textarea" }],
+      tag: "form",
+    });
+    expect(form.querySelector("textarea")!.value).toBe(
+      "10 Downing Street, LONDON",
+    );
   });
 
   test("choosing a changed address shows the differences notice", async () => {
-    stubFetch(() => Promise.resolve(new Response(JSON.stringify(LOCATED))));
-    const [form] = installFakeDom([formSpec()]);
-    initAddressLookup();
-    const one = (selector: string) => form!.querySelector(selector)!;
-    one("textarea").value = "10 Downing Street";
-    one("[data-address-search]").value = "SW1A 2AA";
-    one("[data-address-find]").dispatch("click");
-    await flush();
-    const select = one("[data-address-results]");
-    select.value = "10 Downing Street, LONDON";
-    select.dispatch("change");
-    const output = one("[data-address-diff]");
+    const { form } = await searchAndChoose(
+      LOCATED,
+      formSpec(),
+      "10 Downing Street",
+    );
+    const output = form.querySelector("[data-address-diff]")!;
     expect(output.hidden).toBe(false);
     expect(output.children.filter((child) => child.tag === "mark").length).toBe(
       1,

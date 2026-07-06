@@ -21,7 +21,7 @@ import {
 import { formatDateRangeLabel } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import { LogisticsSection } from "#templates/admin/attendee-form.tsx";
-import { Icon } from "#templates/components/actions.tsx";
+import { SaveActions } from "#templates/components/actions.tsx";
 import { AddressFieldWithLookup } from "#templates/components/address-field.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 
@@ -163,12 +163,7 @@ export const AttendeeLogisticsPanel = ({
 
       <LogisticsSection logistics={data.logistics} />
 
-      <p class="form-actions">
-        <button class="primary" type="submit">
-          <Icon name="save" />
-          <span>{t("attendee_logistics.save")}</span>
-        </button>
-      </p>
+      <SaveActions>{t("attendee_logistics.save")}</SaveActions>
     </CsrfForm>
     <OtherAttendees others={data.others} />
   </>
