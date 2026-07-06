@@ -16,14 +16,13 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import type { Image, NewsPost, NewsPostCard } from "#shared/types.ts";
 import { CARD_GRID_CLASS, cardInner } from "#templates/components/card.tsx";
-import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { escapeHtml } from "#templates/layout.tsx";
 import {
   MarkdownProse,
-  PublicNav,
   type PublicNavProps,
   publicPage,
+  publicSeoPage,
   renderListingImage,
-  seoPageHead,
 } from "./shared.tsx";
 
 /** One post on the /news list: the shared Card wrapped in a link. */
@@ -113,15 +112,15 @@ export const newsPostPage = (
   images: readonly Image[],
   nav: PublicNavProps,
   websiteTitle: string,
-): string => {
-  const { title, headExtra } = seoPageHead(post, websiteTitle);
-  return String(
-    <Layout headExtra={headExtra} title={title}>
-      <PublicNav {...nav} />
-      <h1>{post.name}</h1>
+): string =>
+  publicSeoPage(
+    post,
+    nav,
+    websiteTitle,
+  )(
+    <>
       <p class="news-post-date">{formatDatetimeShort(post.created)}</p>
       <NewsGallery images={images} />
       <MarkdownProse markdown={post.content} />
-    </Layout>,
+    </>,
   );
-};

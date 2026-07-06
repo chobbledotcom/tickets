@@ -1,22 +1,17 @@
 /**
- * Admin CRUD for news posts, under Site → News. Owner + editor (SITE_FORM /
- * requireSiteOr, same gate as the rest of the Site tab). Posts are a flat
- * newest-first list — no slugs, no ordering controls — and each edit page
- * carries the shared images panel (image_uses with item_type 'news').
+ * Admin CRUD for news posts, under Site → News. Owner + editor (the shared
+ * Site-tab gates in `site-content.ts`). Posts are a flat newest-first list —
+ * no slugs, no ordering controls — and each edit page carries the shared
+ * images panel (image_uses with item_type 'news').
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   type ConfirmedHandlers,
   createConfirmedHandlers,
 } from "#routes/admin/confirmation.ts";
-import {
-  requireSiteOr,
-  SITE_FORM,
-  SITE_MULTIPART,
-  withAuth,
-} from "#routes/auth.ts";
-import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import { SITE_FORM, SITE_MULTIPART } from "#routes/auth.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
@@ -35,13 +30,23 @@ import {
   adminNewsListPage,
   adminNewsNewPage,
 } from "#templates/admin/news.tsx";
-import { withEntityFromParam } from "./entity-handlers.ts";
+import { seoContentInput } from "./content-form-fields.ts";
 import { createItemImageHandlers, loadItemImagesPanel } from "./item-images.ts";
 import { newsPostForm } from "./news-form.ts";
+import {
+  savedContentResponse,
+  siteConfirmAuth,
+  siteContentGet,
+  siteContentPaths,
+  siteContentPost,
+  siteEntityGet,
+  siteEntityPost,
+  validateContentFormOr,
+} from "./site-content.ts";
 
-const LIST_PATH = "/admin/site/news";
-const newPath = `${LIST_PATH}/new`;
-const editPath = (id: number): string => `${LIST_PATH}/${id}/edit`;
+/* jscpd:ignore-end */
+
+const paths = siteContentPaths("/admin/site/news");
 
 /** Validate the shared form fields and fold them into a write input, or
  * return the error redirect to bounce back to `errorPath`. */
@@ -51,16 +56,11 @@ const validateFields = (
 ):
   | { ok: true; input: NewsPostWriteInput }
   | { ok: false; response: Response } => {
-  const result = newsPostForm.validate(form);
-  if (!result.valid) {
-    return { ok: false, response: errorRedirect(errorPath, result.error) };
-  }
+  const result = validateContentFormOr(newsPostForm.validate(form), errorPath);
+  if (!result.ok) return result;
   return {
     input: {
-      content: form.getString("content"),
-      metaDescription: form.getString("meta_description"),
-      metaTitle: form.getString("meta_title"),
-      name: result.values.name,
+      ...seoContentInput(form, result.values.name),
       snippet: form.getString("snippet"),
     },
     ok: true,
@@ -69,61 +69,47 @@ const validateFields = (
 
 // ─── Page CRUD ──────────────────────────────────────────────────
 
-const renderList = (request: Request): Promise<Response> =>
-  requireSiteOr(request, async (session) =>
-    htmlResponse(adminNewsListPage(await getNewsPostCards(), session)),
+const renderList = siteContentGet(async (session) =>
+  adminNewsListPage(await getNewsPostCards(), session),
+);
+
+const renderNew = siteContentGet((session) => adminNewsNewPage(session));
+
+const renderEdit = siteEntityGet(getNewsPostById)(async (post, session) =>
+  adminNewsEditPage(
+    post,
+    await loadItemImagesPanel("news", post.id, `${paths.list}/${post.id}`),
+    session,
+  ),
+);
+
+const handleCreate = siteContentPost(async (form) => {
+  const fields = validateFields(form, paths.newPage);
+  if (!fields.ok) return fields.response;
+  const post = await createNewsPost(fields.input);
+  return savedContentResponse(
+    paths.edit(post.id),
+    `News post '${post.name}' created`,
+    t("news.created"),
   );
+});
 
-const renderNew = (request: Request): Promise<Response> =>
-  requireSiteOr(request, (session) => htmlResponse(adminNewsNewPage(session)));
-
-const renderEdit = (
-  request: Request,
-  { id }: { id: number },
-): Promise<Response> =>
-  requireSiteOr(request, (session) =>
-    withEntityFromParam(id, getNewsPostById, async (post) =>
-      htmlResponse(
-        adminNewsEditPage(
-          post,
-          await loadItemImagesPanel("news", post.id, `${LIST_PATH}/${post.id}`),
-          session,
-        ),
-      ),
-    ),
+const handleUpdate = siteEntityPost(getNewsPostById)(async (post, form) => {
+  const fields = validateFields(form, paths.edit(post.id));
+  if (!fields.ok) return fields.response;
+  await updateNewsPost(post.id, fields.input);
+  return savedContentResponse(
+    paths.edit(post.id),
+    `News post '${fields.input.name}' updated`,
+    t("news.updated"),
   );
-
-const handleCreate = (request: Request): Promise<Response> =>
-  withAuth(request, SITE_FORM, async (_session, form) => {
-    const fields = validateFields(form, newPath);
-    if (!fields.ok) return fields.response;
-    const post = await createNewsPost(fields.input);
-    await logActivity(`News post '${post.name}' created`);
-    return redirect(editPath(post.id), t("news.created"), true);
-  });
-
-const handleUpdate = (
-  request: Request,
-  { id }: { id: number },
-): Promise<Response> =>
-  withAuth(request, SITE_FORM, (_session, form) =>
-    withEntityFromParam(id, getNewsPostById, async (post) => {
-      const fields = validateFields(form, editPath(post.id));
-      if (!fields.ok) return fields.response;
-      await updateNewsPost(post.id, fields.input);
-      await logActivity(`News post '${fields.input.name}' updated`);
-      return redirect(editPath(post.id), t("news.updated"), true);
-    }),
-  );
+});
 
 const postDelete: ConfirmedHandlers = createConfirmedHandlers<
   NewsPost,
   AdminSession
 >({
-  auth: {
-    requireSession: requireSiteOr,
-    withForm: (r, h) => withAuth(r, SITE_FORM, h),
-  },
+  auth: siteConfirmAuth,
   identifier: (post) => post.name,
   identifierLabel: t("news.name_label"),
   load: (id) => getNewsPostById(id),
@@ -131,10 +117,10 @@ const postDelete: ConfirmedHandlers = createConfirmedHandlers<
     await deleteNewsPostWithImages(post.id);
     await logActivity(`News post '${post.name}' deleted`);
   },
-  path: `${LIST_PATH}/:id/delete`,
+  path: `${paths.list}/:id/delete`,
   render: (post, session, error) => adminNewsDeletePage(post, session, error),
   successMessage: t("news.deleted"),
-  successRedirect: LIST_PATH,
+  successRedirect: paths.list,
 });
 
 // ─── Images ─────────────────────────────────────────────────────
@@ -143,11 +129,11 @@ const postDelete: ConfirmedHandlers = createConfirmedHandlers<
  * editor) to match the pages that link to them. */
 const newsImageHandlers = createItemImageHandlers({
   auth: { form: SITE_FORM, multipart: SITE_MULTIPART },
-  disabledPath: editPath,
+  disabledPath: paths.edit,
   itemType: "news",
   load: getNewsPostById,
   nameOf: (post) => post.name,
-  path: editPath,
+  path: paths.edit,
 });
 
 // ─── Routes ─────────────────────────────────────────────────────

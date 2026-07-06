@@ -9,12 +9,15 @@
  * attach through the shared `image_uses` table with item_type 'news'.
  */
 
+import { mapParallel } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { executeBatch, queryAll } from "#shared/db/client.ts";
 import {
   defineIdTable,
   encryptedNameSchema,
+  encryptedSeoContentSchema,
+  idAndCreatedSchema,
 } from "#shared/db/common-schema.ts";
 import {
   clearImageUsesForItemStatement,
@@ -43,11 +46,8 @@ export const newsPostsTable = defineIdTable<NewsPost, NewsPostInput>(
   "news_posts",
   {
     ...encryptedNameSchema(encrypt, decrypt),
-    content: col.encryptedText(encrypt, decrypt),
-    created: col.withDefault(() => nowIso()),
-    id: col.generated<number>(),
-    meta_description: col.encryptedText(encrypt, decrypt),
-    meta_title: col.encryptedText(encrypt, decrypt),
+    ...encryptedSeoContentSchema(encrypt, decrypt),
+    ...idAndCreatedSchema(nowIso),
     snippet: col.encryptedText(encrypt, decrypt),
   },
 );
@@ -82,17 +82,15 @@ export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
        FROM news_posts AS news_post
       ORDER BY news_post.created DESC, news_post.id DESC`,
   );
-  return Promise.all(
-    rows.map(async (row) => ({
-      created: row.created,
-      id: row.id,
-      image_alt_text: await decryptText(row.image_alt_text),
-      image_thumb_url: await decryptText(row.image_thumb_url),
-      image_url: await decryptText(row.image_url),
-      name: await decrypt(row.name),
-      snippet: await decryptText(row.snippet),
-    })),
-  );
+  return mapParallel(async (row: NewsPostCard) => ({
+    created: row.created,
+    id: row.id,
+    image_alt_text: await decryptText(row.image_alt_text),
+    image_thumb_url: await decryptText(row.image_thumb_url),
+    image_url: await decryptText(row.image_url),
+    name: await decrypt(row.name),
+    snippet: await decryptText(row.snippet),
+  }))(rows);
 };
 
 /** id → decrypted name for every post, newest first — the image library's
@@ -101,9 +99,10 @@ export const getNewsPostNames = async (): Promise<Map<number, string>> => {
   const rows = await queryAll<{ id: number; name: string }>(
     "SELECT id, name FROM news_posts ORDER BY created DESC, id DESC",
   );
-  const entries = await Promise.all(
-    rows.map(async (row) => [row.id, await decrypt(row.name)] as const),
-  );
+  const entries = await mapParallel(
+    async (row: { id: number; name: string }) =>
+      [row.id, await decrypt(row.name)] as const,
+  )(rows);
   return new Map(entries);
 };
 

@@ -28,7 +28,11 @@ import { getAllListingNames } from "#shared/db/listings.ts";
 import { getNewsPostNames } from "#shared/db/news-posts.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { deleteImageStorageFiles, isStorageEnabled } from "#shared/storage.ts";
-import { type Image, isImageUseItemType } from "#shared/types.ts";
+import {
+  type Image,
+  type ImageUseItemType,
+  isImageUseItemType,
+} from "#shared/types.ts";
 import {
   adminImageDeletePage,
   adminImageEditPage,
@@ -79,12 +83,11 @@ const handleImageCreatePost: TypedRouteHandler<"POST /admin/images"> = (
     }),
   );
 
-const listingImageItemOptions = async (): Promise<ImageItemOption[]> =>
-  [...(await getAllListingNames()).entries()].map(([id, label]) => ({
-    id,
-    label,
-    type: "listing" as const,
-  }));
+/** Turn an id→name map into link-target options of one type. */
+const optionsOfType =
+  (type: ImageUseItemType) =>
+  (names: ReadonlyMap<number, string>): ImageItemOption[] =>
+    [...names.entries()].map(([id, label]) => ({ id, label, type }));
 
 const groupImageItemOptions = async (): Promise<ImageItemOption[]> =>
   (await getAllGroups()).map((group) => ({
@@ -93,17 +96,10 @@ const groupImageItemOptions = async (): Promise<ImageItemOption[]> =>
     type: "group" as const,
   }));
 
-const newsImageItemOptions = async (): Promise<ImageItemOption[]> =>
-  [...(await getNewsPostNames()).entries()].map(([id, label]) => ({
-    id,
-    label,
-    type: "news" as const,
-  }));
-
 const imageItemOptions = async (): Promise<ImageItemOption[]> => [
-  ...(await listingImageItemOptions()),
+  ...optionsOfType("listing")(await getAllListingNames()),
   ...(await groupImageItemOptions()),
-  ...(await newsImageItemOptions()),
+  ...optionsOfType("news")(await getNewsPostNames()),
 ];
 
 const selectedUses = async (imageId: number): Promise<Set<string>> =>

@@ -18,13 +18,8 @@
   "news.updated": "News post updated",
   "news.deleted": "News post deleted",
   "news.field.name": "Post Name",
-  "news.field.meta_title": "SEO Title",
-  "news.field.meta_title_hint": "Optional <title> for search engines (max 64 characters).",
-  "news.field.meta_description": "SEO Description",
-  "news.field.meta_description_hint": "Optional meta description for search engines (max 160 characters).",
   "news.field.snippet": "Snippet",
   "news.field.snippet_hint": "Short plain-text summary shown on the news list and in the RSS feed (max 500 characters).",
-  "news.field.content": "Content",
   "news.public.gallery_label": "Post images",
   "news.public.thumb_label": "Show image {number}"
 }

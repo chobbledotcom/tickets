@@ -1,0 +1,117 @@
+/**
+ * Shared template blocks for the Site tab's content editors (Pages, News):
+ * the list-page opener, the pre-filled edit form, and the type-the-name
+ * delete confirmation.
+ */
+
+/* jscpd:ignore-start */
+import { t } from "#i18n";
+import { CsrfForm, Flash } from "#shared/forms.tsx";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import type { AdminSession } from "#shared/types.ts";
+import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+import {
+  ActionButton,
+  SaveChangesButton,
+} from "#templates/components/actions.tsx";
+
+/* jscpd:ignore-end */
+
+/** List-page opener: heading, success flash, and the Add button. */
+const CollectionHeader = ({
+  title,
+  addHref,
+  addLabel,
+  success,
+}: {
+  title: string;
+  addHref: string;
+  addLabel: string;
+  success?: string | undefined;
+}): JSX.Element => (
+  <>
+    <h1>{title}</h1>
+    <Flash success={success} />
+    <p class="actions">
+      <ActionButton href={addHref} icon="plus">
+        {addLabel}
+      </ActionButton>
+    </p>
+  </>
+);
+
+/** Curried list page for a Site-tab collection at `base`: the AdminPage
+ * shell and the shared opener, with the caller supplying just the collection
+ * body. `messages` is the i18n prefix carrying `.title` and `.add`. */
+export const collectionPage =
+  (messages: string, base: string) =>
+  (
+    session: AdminSession,
+    successMessage: string | undefined,
+    body: Child,
+  ): string => {
+    const title = t(`${messages}.title`);
+    return String(
+      <AdminPage active={base} session={session} title={title}>
+        <CollectionHeader
+          addHref={`${base}/new`}
+          addLabel={t(`${messages}.add`)}
+          success={successMessage}
+          title={title}
+        />
+        {body}
+      </AdminPage>,
+    );
+  };
+
+/** The pre-filled edit form: heading, error flash, fields, save button. */
+export const EditForm = ({
+  action,
+  title,
+  error,
+  fieldsHtml,
+}: {
+  action: string;
+  title: string;
+  error?: string | undefined;
+  fieldsHtml: string;
+}): JSX.Element => (
+  <CsrfForm action={action}>
+    <h1>{title}</h1>
+    <Flash error={error} />
+    <Raw html={fieldsHtml} />
+    {SaveChangesButton()}
+  </CsrfForm>
+);
+
+/** Curried type-the-name delete confirmation page for a Site-tab entity.
+ * `messages` is the i18n prefix carrying `.delete_title`, `.delete_submit`,
+ * `.delete_prompt` (with a `{name}` slot), and `.name_label`. */
+export const deleteConfirmPage =
+  (messages: string, active: string) =>
+  (
+    action: string,
+    name: string,
+    session: AdminSession,
+    error?: string,
+  ): string => {
+    const title = t(`${messages}.delete_title`);
+    return ConfirmPage({
+      action,
+      active,
+      buttonText: t(`${messages}.delete_submit`),
+      children: (
+        <>
+          <h1>{title}</h1>
+          <p>{t(`${messages}.delete_prompt`, { name })}</p>
+        </>
+      ),
+      error,
+      label: t(`${messages}.name_label`),
+      name,
+      session,
+      title,
+    });
+  };

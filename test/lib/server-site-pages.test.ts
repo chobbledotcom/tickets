@@ -20,13 +20,9 @@ import {
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
-  getAllActivityLog,
   testRequiresAuth,
+  wasActivityLogged as wasLogged,
 } from "#test-utils";
-
-/** True when the activity log holds an entry whose message equals `message`. */
-const wasLogged = async (message: string): Promise<boolean> =>
-  (await getAllActivityLog()).some((l) => l.message === message);
 
 const BASE = "/admin/site/pages";
 

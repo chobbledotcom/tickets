@@ -73,3 +73,21 @@ export const encryptedNameSchema = (
 ) => ({
   name: col.encrypted<string>(encrypt, decrypt),
 });
+
+/** Shared generated `id` + plaintext `created` stamp columns. `created` stays
+ * unencrypted so SQL can order and prune by time without decrypting. */
+export const idAndCreatedSchema = (now: () => string) => ({
+  created: col.withDefault(now),
+  id: col.generated<number>(),
+});
+
+/** Shared encrypted SEO/content columns for operator-authored pages
+ * (site pages, news posts): the markdown body plus the meta pair. */
+export const encryptedSeoContentSchema = (
+  encrypt: EncryptFn,
+  decrypt: DecryptFn,
+) => ({
+  content: col.encryptedText(encrypt, decrypt),
+  meta_description: col.encryptedText(encrypt, decrypt),
+  meta_title: col.encryptedText(encrypt, decrypt),
+});

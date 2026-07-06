@@ -212,5 +212,10 @@
   "fields.validation.duration_min": "Booking Duration (days) must be at least 1",
   "fields.validation.duration_max": "Booking Duration (days) must be at most {max}",
   "fields.validation.url_https": "URL must use https://",
-  "fields.validation.url_format": "Invalid URL format"
+  "fields.validation.url_format": "Invalid URL format",
+  "fields.meta_title": "SEO Title",
+  "fields.meta_title_hint": "Optional <title> for search engines (max 64 characters).",
+  "fields.meta_description": "SEO Description",
+  "fields.meta_description_hint": "Optional meta description for search engines (max 160 characters).",
+  "fields.content": "Content"
 }

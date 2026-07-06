@@ -135,9 +135,8 @@ export const FEED_DISCOVERY_TAGS = `${RSS_DISCOVERY_TAG}\n${NEWS_RSS_DISCOVERY_T
 /** The `<title>` and head extras for an operator-authored page with SEO
  * fields: the title prefers `meta_title` over the display name (suffixed with
  * the website title), and a non-empty `meta_description` becomes an escaped
- * description tag after the shared feed-discovery links. Shared by the
- * site-page and news-post views. */
-export const seoPageHead = (
+ * description tag after the shared feed-discovery links. */
+const seoPageHead = (
   page: { name: string; meta_title: string; meta_description: string },
   websiteTitle: string,
 ): { title: string; headExtra: string } => {
@@ -150,6 +149,26 @@ export const seoPageHead = (
     title: websiteTitle ? `${base} - ${websiteTitle}` : base,
   };
 };
+
+/** Curried shell for an operator-authored page with SEO fields (a site page,
+ * a news post): the SEO head, the public nav, and the page's own name as the
+ * `<h1>` — the caller supplies just the body under that heading. */
+export const publicSeoPage =
+  (
+    page: { name: string; meta_title: string; meta_description: string },
+    nav: PublicNavProps,
+    websiteTitle: string,
+  ) =>
+  (body: Child): string => {
+    const { title, headExtra } = seoPageHead(page, websiteTitle);
+    return String(
+      <Layout headExtra={headExtra} title={title}>
+        <PublicNav {...nav} />
+        <h1>{page.name}</h1>
+        {body}
+      </Layout>,
+    );
+  };
 
 export const compareGroupsByName = (a: Group, b: Group): number =>
   a.name.localeCompare(b.name);

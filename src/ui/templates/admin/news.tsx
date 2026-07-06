@@ -4,21 +4,22 @@
  * confirmation.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { newsPostForm, newsPostToValues } from "#routes/admin/news-form.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, NewsPost, NewsPostCard } from "#shared/types.ts";
 import { AdminPage, adminFormPage } from "#templates/admin/admin-page.tsx";
-import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
-  ActionButton,
-  DeleteSection,
-  SaveChangesButton,
-  SubmitButton,
-} from "#templates/components/actions.tsx";
+  collectionPage,
+  deleteConfirmPage,
+  EditForm,
+} from "#templates/admin/site-content.tsx";
+import { DeleteSection, SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
+
+/* jscpd:ignore-end */
 
 const LIST = "/admin/site/news";
 const ACTIVE = LIST;
@@ -28,34 +29,27 @@ export const adminNewsListPage = (
   session: AdminSession,
   successMessage?: string,
 ): string =>
-  String(
-    <AdminPage active={ACTIVE} session={session} title={t("news.title")}>
-      <h1>{t("news.title")}</h1>
-      <Flash success={successMessage} />
-      <p class="actions">
-        <ActionButton href={`${LIST}/new`} icon="plus">
-          {t("news.add")}
-        </ActionButton>
+  collectionPage("news", LIST)(
+    session,
+    successMessage,
+    posts.length === 0 ? (
+      <p>
+        <em>{t("news.none")}</em>
       </p>
-      {posts.length === 0 ? (
-        <p>
-          <em>{t("news.none")}</em>
-        </p>
-      ) : (
-        <DataTable
-          columns={[
-            { header: t("news.name_column") },
-            { header: t("news.created_column") },
-            { header: "" },
-          ]}
-          rows={posts.map((post) => [
-            <a href={`${LIST}/${post.id}/edit`}>{post.name}</a>,
-            formatDatetimeShort(post.created),
-            <a href={`${LIST}/${post.id}/delete`}>{t("common.delete")}</a>,
-          ])}
-        />
-      )}
-    </AdminPage>,
+    ) : (
+      <DataTable
+        columns={[
+          { header: t("news.name_column") },
+          { header: t("news.created_column") },
+          { header: "" },
+        ]}
+        rows={posts.map((post) => [
+          <a href={`${LIST}/${post.id}/edit`}>{post.name}</a>,
+          formatDatetimeShort(post.created),
+          <a href={`${LIST}/${post.id}/delete`}>{t("common.delete")}</a>,
+        ])}
+      />
+    ),
   );
 
 export const adminNewsNewPage = (
@@ -84,12 +78,12 @@ export const adminNewsEditPage = (
 ): string =>
   String(
     <AdminPage active={ACTIVE} session={session} title={t("news.edit_title")}>
-      <CsrfForm action={`${LIST}/${post.id}/edit`}>
-        <h1>{t("news.edit_title")}</h1>
-        <Flash error={error} />
-        <Raw html={newsPostForm.renderFields(newsPostToValues(post))} />
-        {SaveChangesButton()}
-      </CsrfForm>
+      <EditForm
+        action={`${LIST}/${post.id}/edit`}
+        error={error}
+        fieldsHtml={newsPostForm.renderFields(newsPostToValues(post))}
+        title={t("news.edit_title")}
+      />
 
       <h2>{t("news.images_heading")}</h2>
       {imagesPanel}
@@ -108,19 +102,9 @@ export const adminNewsDeletePage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  ConfirmPage({
-    action: `${LIST}/${post.id}/delete`,
-    active: ACTIVE,
-    buttonText: t("news.delete_submit"),
-    children: (
-      <>
-        <h1>{t("news.delete_title")}</h1>
-        <p>{t("news.delete_prompt", { name: post.name })}</p>
-      </>
-    ),
-    error,
-    label: t("news.name_label"),
-    name: post.name,
+  deleteConfirmPage("news", ACTIVE)(
+    `${LIST}/${post.id}/delete`,
+    post.name,
     session,
-    title: t("news.delete_title"),
-  });
+    error,
+  );

@@ -12,7 +12,11 @@ import {
   updateNewsPost,
 } from "#shared/db/news-posts.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
-import { createTestNewsPost, describeWithEnv } from "#test-utils";
+import {
+  createTestNewsPost,
+  describeWithEnv,
+  expectEncryptedAtRest,
+} from "#test-utils";
 import { makeImage } from "#test-utils/admin-images.ts";
 
 describeWithEnv("db > news-posts", { db: true }, () => {
@@ -36,11 +40,13 @@ describeWithEnv("db > news-posts", { db: true }, () => {
         [created.id],
       );
       // At rest, everything is ciphertext (enc:… envelope), not plaintext.
-      expect(raw[0]?.name.startsWith("enc:")).toBe(true);
-      expect(raw[0]?.meta_title.startsWith("enc:")).toBe(true);
-      expect(raw[0]?.meta_description.startsWith("enc:")).toBe(true);
-      expect(raw[0]?.snippet.startsWith("enc:")).toBe(true);
-      expect(raw[0]?.content.startsWith("enc:")).toBe(true);
+      expectEncryptedAtRest(
+        raw[0]?.name,
+        raw[0]?.meta_title,
+        raw[0]?.meta_description,
+        raw[0]?.snippet,
+        raw[0]?.content,
+      );
       expect(raw[0]?.name).not.toContain("Launch day");
       // `created` stays plaintext ISO so SQL can order newest-first.
       expect(raw[0]?.created).toMatch(/^\d{4}-\d{2}-\d{2}T/);
