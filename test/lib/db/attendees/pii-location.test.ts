@@ -53,7 +53,11 @@ describeWithEnv("db > attendees > pii pinned location", { db: true }, () => {
       buildPiiBlob({ ...basePii, lat: "57.147740", lng: "-2.096323" }),
       settings.publicKey,
     );
-    const pii = await decryptPiiBlob(encrypted, await getTestPrivateKey(), true);
+    const pii = await decryptPiiBlob(
+      encrypted,
+      await getTestPrivateKey(),
+      true,
+    );
     expect(pii.lat).toBe("57.147740");
     expect(pii.lng).toBe("-2.096323");
     expect(pii.address).toBe(basePii.address);
@@ -64,7 +68,11 @@ describeWithEnv("db > attendees > pii pinned location", { db: true }, () => {
       buildPiiBlob(basePii),
       settings.publicKey,
     );
-    const pii = await decryptPiiBlob(encrypted, await getTestPrivateKey(), true);
+    const pii = await decryptPiiBlob(
+      encrypted,
+      await getTestPrivateKey(),
+      true,
+    );
     expect(pii.lat).toBe("");
     expect(pii.lng).toBe("");
   });

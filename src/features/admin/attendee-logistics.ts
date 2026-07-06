@@ -26,6 +26,44 @@ import { parsePositiveIntId } from "#shared/validation/number.ts";
 /** Checkbox field: when "1", each logistics listing carries its own agents. */
 export const SPLIT_AGENTS_FIELD = "split_logistics_agents";
 
+/** The Logistics tab's form id — its save flash targets (and scrolls to) it. */
+export const ATTENDEE_LOGISTICS_FORM_ID = "attendee-logistics-form";
+
+/** Latitude/longitude input names (also read by the map + lookup scripts). */
+export const LAT_FIELD = "lat";
+export const LNG_FIELD = "lng";
+
+/** What the Logistics tab form edits. */
+export type LogisticsFormValues = {
+  address: string;
+  lat: string;
+  lng: string;
+};
+
+/** One other attendee's overlapping booking line, ready to render. */
+export type OtherAttendeeLine = {
+  attendeeId: number;
+  name: string;
+  listingName: string;
+  quantity: number;
+  startAt: string;
+  endAt: string;
+  startTime: string;
+  endTime: string;
+};
+
+/** Everything the Logistics tab panel renders. */
+export type AttendeeLogisticsTabData = {
+  attendee: Attendee;
+  values: LogisticsFormValues;
+  addressError: string | null;
+  locationError: string | null;
+  /** Start/end selectors data, or undefined when logistics doesn't apply. */
+  logistics: AttendeeLogisticsData | undefined;
+  /** Other attendees booked on overlapping dates (empty ⇒ section hidden). */
+  others: OtherAttendeeLine[];
+};
+
 /** Suffix for the per-listing (split) field, or "" for the single shared field. */
 const suffix = (listingId?: number): string =>
   listingId === undefined ? "" : `_${listingId}`;

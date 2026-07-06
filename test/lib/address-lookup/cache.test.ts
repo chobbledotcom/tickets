@@ -88,9 +88,7 @@ describeWithEnv("address cache", { db: true }, () => {
 
   test("re-storing a search replaces the previous row", async () => {
     const index = await computeAddressSearchIndex("easypostcodes", "SW1A 2AA");
-    await storeCachedAddresses(index, [
-      { lat: "", line: "old line", lng: "" },
-    ]);
+    await storeCachedAddresses(index, [{ lat: "", line: "old line", lng: "" }]);
     await storeCachedAddresses(index, ADDRESSES);
     expect(await getCachedAddresses(index)).toEqual(ADDRESSES);
     const count = await queryOne<{ n: number }>(
