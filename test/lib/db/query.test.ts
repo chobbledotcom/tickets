@@ -4,8 +4,8 @@ import { execute, insert, queryOne } from "#shared/db/client.ts";
 import {
   allNamesById,
   columnMapByIds,
+  mapByIds,
   nameMapByIds,
-  rowsByIds,
   swapSortOrder,
 } from "#shared/db/query.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -68,30 +68,37 @@ describeWithEnv("db > query > swapSortOrder", { db: true }, () => {
 });
 
 describeWithEnv("db > query > id-keyed lookups", { db: true }, () => {
-  test("rowsByIds returns [] for empty ids without building a query", async () => {
+  test("mapByIds returns an empty map for empty ids without building a query", async () => {
     // The builder must not run at all on the empty short-circuit — a thrown
     // builder proves no SQL was even constructed.
-    const rows = await rowsByIds<{ id: number }>([], () => {
-      throw new Error("buildSql must not be called for empty ids");
-    });
-    expect(rows).toEqual([]);
+    const map = await mapByIds<{ id: number; sort_order: number }>(
+      [],
+      () => {
+        throw new Error("buildSql must not be called for empty ids");
+      },
+      (row) => [row.id, row.sort_order],
+    );
+    expect(map).toEqual(new Map());
   });
 
-  test("rowsByIds fetches exactly the requested rows", async () => {
+  test("mapByIds fetches and maps exactly the requested rows", async () => {
     const alpha = await insertStatus("Alpha", 1);
     const beta = await insertStatus("Beta", 2);
     await insertStatus("Gamma", 3); // not requested
 
-    const rows = await rowsByIds<{ id: number; name: string }>(
+    const map = await mapByIds<{ id: number; sort_order: number }>(
       [alpha, beta],
       (placeholders) =>
-        `SELECT status.id, status.name FROM attendee_statuses AS status WHERE status.id IN (${placeholders})`,
+        `SELECT status.id, status.sort_order FROM attendee_statuses AS status WHERE status.id IN (${placeholders})`,
+      (row) => [row.id, row.sort_order],
     );
 
-    expect(rows).toEqual([
-      { id: alpha, name: "Alpha" },
-      { id: beta, name: "Beta" },
-    ]);
+    expect(map).toEqual(
+      new Map([
+        [alpha, 1],
+        [beta, 2],
+      ]),
+    );
   });
 
   test("columnMapByIds maps id → column for the requested ids only", async () => {

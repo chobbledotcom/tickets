@@ -54,7 +54,7 @@ export const swapSortOrder = (
  * empty. `buildSql` receives the bound `?`-placeholder list for `ids`, so `ids`
  * are the only query args. The base skeleton for the id-map helpers below.
  */
-export const rowsByIds = async <Row>(
+const rowsByIds = async <Row>(
   ids: number[],
   buildSql: (placeholders: string) => string,
 ): Promise<Row[]> =>
