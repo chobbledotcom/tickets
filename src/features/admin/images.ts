@@ -25,6 +25,7 @@ import {
   setItemsForImage,
 } from "#shared/db/images.ts";
 import { getAllListingNames } from "#shared/db/listings.ts";
+import { getNewsPostNames } from "#shared/db/news-posts.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { deleteImageStorageFiles, isStorageEnabled } from "#shared/storage.ts";
 import { type Image, isImageUseItemType } from "#shared/types.ts";
@@ -92,9 +93,17 @@ const groupImageItemOptions = async (): Promise<ImageItemOption[]> =>
     type: "group" as const,
   }));
 
+const newsImageItemOptions = async (): Promise<ImageItemOption[]> =>
+  [...(await getNewsPostNames()).entries()].map(([id, label]) => ({
+    id,
+    label,
+    type: "news" as const,
+  }));
+
 const imageItemOptions = async (): Promise<ImageItemOption[]> => [
   ...(await listingImageItemOptions()),
   ...(await groupImageItemOptions()),
+  ...(await newsImageItemOptions()),
 ];
 
 const selectedUses = async (imageId: number): Promise<Set<string>> =>

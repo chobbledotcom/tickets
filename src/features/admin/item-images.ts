@@ -3,7 +3,12 @@
  */
 
 import { t } from "#i18n";
-import { CONTENT_FORM, CONTENT_MULTIPART, withAuth } from "#routes/auth.ts";
+import {
+  type AuthPolicy,
+  CONTENT_FORM,
+  CONTENT_MULTIPART,
+  withAuth,
+} from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -21,6 +26,9 @@ import { withEntityFromParam } from "./entity-handlers.ts";
 import { createImageFromUpload } from "./image-upload.ts";
 
 type ItemImageConfig<T> = {
+  /** Who may edit this entity's images. Defaults to the content gates; entities
+   * under the Site tab pass the site gates so managers stay excluded there. */
+  auth?: { form: AuthPolicy<"form">; multipart: AuthPolicy<"multipart"> };
   disabledPath: (id: number) => string;
   itemType: ImageUseItemType;
   load: (id: number) => Promise<T | null>;
@@ -73,7 +81,7 @@ export const createItemImageHandlers = <T>(
   upload: RouteHandlerFn;
 } => ({
   set: (request, { id }) =>
-    withAuth(request, CONTENT_FORM, (_session, form) =>
+    withAuth(request, config.auth?.form ?? CONTENT_FORM, (_session, form) =>
       withStorageBackedItem(id, config, async (item, itemId) => {
         await setImagesForItem(config.itemType, itemId, selectedImageIds(form));
         await logActivity(
@@ -83,7 +91,10 @@ export const createItemImageHandlers = <T>(
       }),
     ),
   upload: (request, { id }) =>
-    withAuth(request, CONTENT_MULTIPART, async (_session, formData) =>
+    withAuth(
+      request,
+      config.auth?.multipart ?? CONTENT_MULTIPART,
+      async (_session, formData) =>
       withStorageBackedItem(id, config, async (item, itemId) => {
         const result = await createImageFromUpload(formData);
         if (!result.ok) {

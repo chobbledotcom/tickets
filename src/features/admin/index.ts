@@ -37,6 +37,7 @@ import { privacyRoutes } from "#routes/admin/privacy.ts";
 import { questionsRoutes } from "#routes/admin/questions.ts";
 import { scannerRoutes } from "#routes/admin/scanner.ts";
 import { seedsRoutes } from "#routes/admin/seeds.ts";
+import { newsRoutes } from "#routes/admin/news.ts";
 import { servicingRoutes } from "#routes/admin/servicing.tsx";
 import { sessionsRoutes } from "#routes/admin/sessions.ts";
 import { settingsRoutes } from "#routes/admin/settings.ts";
@@ -66,6 +67,7 @@ const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   debugRoutes,
   siteRoutes,
   sitePagesRoutes,
+  newsRoutes,
   sessionsRoutes,
   servicingRoutes,
   calendarRoutes,

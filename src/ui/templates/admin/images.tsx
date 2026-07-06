@@ -75,10 +75,16 @@ const thumbnail = (image: Image): JSX.Element => (
   />
 );
 
+/** Exhaustive per-type prefixes — a new image target type is a compile error
+ * here rather than a silent fallthrough. */
+const linkedTypeLabel = (): Record<ImageUseItemType, string> => ({
+  group: t("terms.group"),
+  listing: t("terms.listing"),
+  news: t("nav.site.news"),
+});
+
 const linkedLabel = (option: ImageItemOption): string =>
-  `${
-    option.type === "listing" ? t("terms.listing") : t("terms.group")
-  }: ${option.label}`;
+  `${linkedTypeLabel()[option.type]}: ${option.label}`;
 
 const itemCheckboxes = (
   options: readonly ImageItemOption[],

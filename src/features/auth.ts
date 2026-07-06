@@ -279,6 +279,11 @@ export const SITE_FORM: AuthPolicy<"form"> = {
   body: "form",
   roles: SITE_ADMIN_LEVELS,
 };
+/** Public-site content multipart gate (news-post image uploads). */
+export const SITE_MULTIPART: AuthPolicy<"multipart"> = {
+  body: "multipart",
+  roles: SITE_ADMIN_LEVELS,
+};
 /** Delivery run-sheet form gate: staff + agent, but NOT editor. */
 export const DELIVERY_FORM: AuthPolicy<"form"> = {
   body: "form",

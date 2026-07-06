@@ -658,7 +658,7 @@ export interface GroupListing {
 }
 
 /** Schema for the kind of item an image can be attached to. */
-export const ImageUseItemTypeSchema = v.picklist(["listing", "group"]);
+export const ImageUseItemTypeSchema = v.picklist(["listing", "group", "news"]);
 
 export type ImageUseItemType = v.InferOutput<typeof ImageUseItemTypeSchema>;
 
@@ -714,6 +714,32 @@ export interface SitePageItem {
   item_type: SitePageItemType;
   item_id: number;
   sort_order: number;
+}
+
+/** A news post shown on the public /news page. All free-text columns are
+ * stored encrypted; `created` stays plaintext (like listings) so the
+ * newest-first ordering and the RSS pubDate never need a scan-and-decrypt. */
+export interface NewsPost {
+  id: number;
+  created: string;
+  name: string;
+  meta_title: string;
+  meta_description: string;
+  snippet: string;
+  content: string;
+}
+
+/** The narrow projection the public /news list and the RSS feed render: name,
+ * snippet, created, and the post's first image — never the large
+ * `content`/`meta_*` blobs (cold-start efficiency, like {@link SitePageNavRow}). */
+export interface NewsPostCard {
+  id: number;
+  created: string;
+  name: string;
+  snippet: string;
+  image_url: string;
+  image_thumb_url: string;
+  image_alt_text: string;
 }
 
 /** An owner-defined price modifier (surcharge / discount / add-on). `calc_value`
