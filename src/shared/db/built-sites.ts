@@ -235,7 +235,7 @@ const rawBuiltSiteSchema = {
   ...builtSitePlainSchema,
   created: createdCol,
   id: idCol,
-  site_data: col.encrypted<string>(encrypt, decrypt),
+  site_data: col.encrypted(encrypt, decrypt),
 } satisfies TableSchema<BuiltSiteRow>;
 
 const builtSiteSelectColumns = Object.keys(rawBuiltSiteSchema).join(", ");

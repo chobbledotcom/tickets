@@ -104,7 +104,7 @@ export type QuestionWithAnswers = Omit<Question, "assign_all"> & {
 
 /** Shared column defs for tables with an encrypted text column */
 const generatedId = col.generated<number>();
-const encryptedText = col.encrypted<string>(encrypt, decrypt);
+const encryptedText = col.encrypted(encrypt, decrypt);
 const questionIdAndSortOrder = {
   question_id: col.simple<number>(),
   sort_order: col.simple<number>(),

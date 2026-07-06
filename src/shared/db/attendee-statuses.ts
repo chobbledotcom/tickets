@@ -48,7 +48,7 @@ const rawAttendeeStatusesTable = defineTable<
     is_paid_default: col.boolean(false),
     is_public_default: col.boolean(false),
     is_reservation: col.boolean(false),
-    name: col.encrypted<string>(encrypt, decrypt),
+    name: col.encrypted(encrypt, decrypt),
     reservation_amount: col.simple<string>(),
     sort_order: col.simple<number>(),
   },

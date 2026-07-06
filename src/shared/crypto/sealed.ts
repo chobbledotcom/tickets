@@ -19,25 +19,40 @@
  */
 
 declare const sealedKind: unique symbol;
+declare const sealedPlain: unique symbol;
 
-/** A string produced by a crypto helper; `Kind` names which one. */
-export type Sealed<Kind extends string> = string & {
-  readonly [sealedKind]: Kind;
-};
+/** A string produced by a crypto helper; `Kind` names which one. Reversible
+ * kinds also carry `Plain` — the type the value opens back into — so a nested
+ * seal survives the round trip (e.g. `EnvKeyEncrypted<PasswordHash>` decrypts
+ * to a `PasswordHash`, not a bare string). */
+export type Sealed<Kind extends string, Plain extends string = string> =
+  string & {
+    readonly [sealedKind]: Kind;
+    readonly [sealedPlain]: Plain;
+  };
 
 /** Symmetric ciphertext under the env `DB_ENCRYPTION_KEY` (`enc:1:` values
- * from `encrypt()`); read back with `decrypt()`. */
-export type EnvKeyEncrypted = Sealed<"env-key">;
+ * from `encrypt()`); `decrypt()` opens it back into `Plain`. */
+export type EnvKeyEncrypted<Plain extends string = string> = Sealed<
+  "env-key",
+  Plain
+>;
 
 /** Symmetric ciphertext under a specific AES `CryptoKey` — a per-row data key
  * or the owner's DATA_KEY (`enc:1:` values from `encryptWithKey()`); read
  * back with `decryptWithKey()` and the same key. */
-export type KeyEncrypted = Sealed<"aes-key">;
+export type KeyEncrypted<Plain extends string = string> = Sealed<
+  "aes-key",
+  Plain
+>;
 
 /** Hybrid RSA+AES ciphertext under the site owner's public key (`hyb:1:`
  * values from `encryptWithOwnerKey()`); only the owner's private key reads it
  * back. Attendee PII, message bodies, and template blobs live in this form. */
-export type OwnerKeyEncrypted = Sealed<"owner-key">;
+export type OwnerKeyEncrypted<Plain extends string = string> = Sealed<
+  "owner-key",
+  Plain
+>;
 
 /** Wrapped (encrypted) key material (`wk:1:` values from `wrapKey()` and
  * friends); unwrapped back into a `CryptoKey`, never displayed. */

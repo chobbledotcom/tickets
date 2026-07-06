@@ -4,6 +4,13 @@
 
 import * as v from "valibot";
 import type {
+  BlindIndex,
+  EnvKeyEncrypted,
+  PasswordHash,
+  TokenHash,
+  WrappedKey,
+} from "#shared/crypto/sealed.ts";
+import type {
   CalcKind,
   ModifierDirection,
   ModifierScope,
@@ -511,9 +518,9 @@ export interface Settings {
 export interface Session {
   csrf_token: string;
   expires: number;
-  token: string; // Contains the hashed token for DB storage
+  token: TokenHash; // Contains the hashed token for DB storage
   user_id: number;
-  wrapped_data_key: string | null;
+  wrapped_data_key: WrappedKey | null;
 }
 
 /** Schema for admin role levels.
@@ -590,30 +597,31 @@ export type AdminSession = {
 };
 
 export interface User {
-  admin_level: string; // encrypted "owner", "manager", "agent" or "editor"
+  admin_level: EnvKeyEncrypted; // encrypted "owner", "manager", "agent" or "editor"
   id: number;
-  invite_code_hash: string | null; // encrypted SHA-256 of invite token, null after password set
-  invite_expiry: string | null; // encrypted ISO 8601, null after password set
+  invite_code_hash: EnvKeyEncrypted | null; // encrypted SHA-256 of invite token, null after password set
+  invite_expiry: EnvKeyEncrypted | null; // encrypted ISO 8601, null after password set
   // DATA_KEY wrapped under the invite code, set at invite time so the user can
   // self-activate at /join; null once activated (see users.acceptInvite).
-  invite_wrapped_data_key: string | null;
+  invite_wrapped_data_key: WrappedKey | null;
   // KEK scheme for wrapped_data_key: 1 = legacy (hash-derived), 2 = password-
   // bound. Legacy rows upgrade to 2 on their owner's next login.
   kek_version: number;
-  password_hash: string; // PBKDF2 hash encrypted at rest
-  username_hash: string; // encrypted at rest, decrypted to display
-  username_index: string; // HMAC hash for lookups
-  wrapped_data_key: string | null; // wrapped with user's KEK
+  // PBKDF2 hash encrypted at rest; "" for an invited user yet to set one.
+  password_hash: EnvKeyEncrypted<PasswordHash> | "";
+  username_hash: EnvKeyEncrypted; // encrypted at rest, decrypted to display
+  username_index: BlindIndex; // HMAC hash for lookups
+  wrapped_data_key: WrappedKey | null; // wrapped with user's KEK
 }
 
 export interface ApiKey {
   created: string;
   id: number;
-  key_index: string; // HMAC hash for lookup
+  key_index: BlindIndex; // HMAC hash for lookup
   last_used: string; // ISO 8601 or empty string
-  name: string; // encrypted label
+  name: EnvKeyEncrypted; // encrypted label
   user_id: number;
-  wrapped_data_key: string; // DATA_KEY wrapped with the API key token
+  wrapped_data_key: WrappedKey; // DATA_KEY wrapped with the API key token
 }
 
 export interface Holiday {

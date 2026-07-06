@@ -247,12 +247,18 @@ export const symmetricEncrypt = async (
  * Returns format: enc:1:$base64iv:$base64ciphertext
  * Note: ciphertext includes the GCM auth tag appended.
  */
-export const encrypt = async (plaintext: string): Promise<EnvKeyEncrypted> => {
+export const encrypt = async <Plain extends string>(
+  plaintext: Plain,
+): Promise<EnvKeyEncrypted<Plain>> => {
   const { ciphertext, iv } = nodeAesGcmEncrypt(
     new TextEncoder().encode(plaintext),
     getEncryptionKeyBytes(),
   );
-  return formatPrefixed(ENCRYPTION_PREFIX, iv, ciphertext) as EnvKeyEncrypted;
+  return formatPrefixed(
+    ENCRYPTION_PREFIX,
+    iv,
+    ciphertext,
+  ) as EnvKeyEncrypted<Plain>;
 };
 
 /**
@@ -298,14 +304,18 @@ export const symmetricDecrypt = async (
  * Decrypt a string value encrypted with encrypt()
  * Expects format: enc:1:$base64iv:$base64ciphertext
  */
-export const decrypt = async (encrypted: EnvKeyEncrypted): Promise<string> => {
+export const decrypt = async <Plain extends string = string>(
+  encrypted: EnvKeyEncrypted<Plain>,
+): Promise<Plain> => {
   const { ciphertext, iv } = parseEncryptedPayload(
     encrypted,
     ENCRYPTION_PREFIX,
     "encrypted data",
   );
   const plaintext = nodeAesGcmDecrypt(iv, ciphertext, getEncryptionKeyBytes());
-  return new TextDecoder().decode(plaintext);
+  // AES-GCM authenticates the payload, so what comes out is byte-identical to
+  // what `encrypt` sealed — the envelope's declared Plain type.
+  return new TextDecoder().decode(plaintext) as Plain;
 };
 
 /**

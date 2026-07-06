@@ -4,6 +4,10 @@ import {
   registerDependencies,
   registerTableInvalidation,
 } from "#shared/cache-registry.ts";
+import type {
+  BlindIndex,
+  EnvKeyEncrypted,
+} from "#shared/crypto/sealed.ts";
 import {
   createKeyedCache,
   type KeyedCache,
@@ -53,8 +57,8 @@ export type AggregateRecalculation<F extends string> = Record<
   { current: number; recalculated: number }
 >;
 
-type EncryptFn = (v: string) => Promise<string>;
-type DecryptFn = (v: string) => Promise<string>;
+type EncryptFn = (v: string) => Promise<EnvKeyEncrypted>;
+type DecryptFn = (v: EnvKeyEncrypted) => Promise<string>;
 
 /** Shared columns for tables with encrypted `slug` + blind-index `slug_index`. */
 export const idAndEncryptedSlugSchema = (
@@ -62,8 +66,8 @@ export const idAndEncryptedSlugSchema = (
   decrypt: DecryptFn,
 ) => ({
   id: col.generated<number>(),
-  slug: col.encrypted<string>(encrypt, decrypt),
-  slug_index: col.simple<string>(),
+  slug: col.encrypted(encrypt, decrypt),
+  slug_index: col.simple<BlindIndex>(),
 });
 
 /** Shared encrypted `name` column for tables that store a display name. */
@@ -71,5 +75,5 @@ export const encryptedNameSchema = (
   encrypt: EncryptFn,
   decrypt: DecryptFn,
 ) => ({
-  name: col.encrypted<string>(encrypt, decrypt),
+  name: col.encrypted(encrypt, decrypt),
 });

@@ -16,6 +16,10 @@
  */
 
 import { decrypt } from "#shared/crypto/encryption.ts";
+import type {
+  EnvKeyEncrypted,
+  OwnerKeyEncrypted,
+} from "#shared/crypto/sealed.ts";
 import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
@@ -33,20 +37,25 @@ import { nowIso } from "#shared/now.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
+/** A stored log message: owner-key ciphertext for rows written since the
+ * keypair existed, env-key ciphertext for legacy rows the backfill hasn't
+ * re-encrypted yet. The format prefix routes decryption at runtime. */
+export type StoredLogMessage = OwnerKeyEncrypted | EnvKeyEncrypted;
+
 /** Activity log entry */
 export interface ActivityLogEntry {
   created: string;
   listing_id: number | null;
   attendee_id: number | null;
   id: number;
-  message: string;
+  message: StoredLogMessage;
 }
 
 /** Activity log input for create */
 export type ActivityLogInput = {
   listingId?: number | null;
   attendeeId?: number | null;
-  message: string;
+  message: StoredLogMessage;
 };
 
 /**
@@ -66,7 +75,7 @@ export const activityLogTable = defineTable<ActivityLogEntry, ActivityLogInput>(
       created: col.withDefault(() => nowIso()),
       id: col.generated<number>(),
       listing_id: col.simple<number | null>(),
-      message: col.simple<string>(),
+      message: col.simple<StoredLogMessage>(),
     },
   },
 );
@@ -76,12 +85,14 @@ export const activityLogTable = defineTable<ActivityLogEntry, ActivityLogInput>(
  * rows need the session private key; legacy env-key rows decrypt without it.
  */
 const decryptLogMessage = (
-  message: string,
+  message: StoredLogMessage,
   privateKey: CryptoKey | null,
 ): Promise<string> =>
+  // The prefix is the runtime discriminator between the union's two kinds —
+  // the narrowing the type system can't see, asserted per branch.
   message.startsWith(HYBRID_PREFIX)
-    ? decryptWithOwnerKey(message, privateKey as CryptoKey)
-    : decrypt(message);
+    ? decryptWithOwnerKey(message as OwnerKeyEncrypted, privateKey as CryptoKey)
+    : decrypt(message as EnvKeyEncrypted);
 
 /**
  * The owner public key, loading it into the settings snapshot on demand if a
