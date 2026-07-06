@@ -35,6 +35,7 @@ import {
   expectEachChildQtyOne,
   expectOnlyChildBooked,
   firstBookableDate,
+  fixedThreeDayParentWithCustomChild,
   selectOptions,
   twoParentsSharingChild,
   weekdayOf,
@@ -484,18 +485,7 @@ describeWithEnv(
     test("a customisable child inherits the fixed daily parent's duration", async () => {
       // A fixed 3-day daily parent; its customisable child must be priced and
       // booked for 3 days (the parent's resolved duration), not the default 1.
-      const { parent } = await makeParent({
-        children: [
-          {
-            customisableDays: true,
-            dayPrices: { 1: 1000, 3: 3000 },
-            durationDays: 3,
-            maxPrice: 0,
-            unitPrice: 0,
-          },
-        ],
-        parent: { daily: true, durationDays: 3 },
-      });
+      const { parent } = await fixedThreeDayParentWithCustomChild();
 
       const date = await firstBookableDate(parent.id);
 
@@ -518,18 +508,7 @@ describeWithEnv(
       const { setupStripe } = await import("#test-utils");
       await setupStripe();
 
-      const { parent, child } = await makeParent({
-        children: [
-          {
-            customisableDays: true,
-            dayPrices: { 1: 1000, 3: 3000 },
-            durationDays: 3,
-            maxPrice: 0,
-            unitPrice: 0,
-          },
-        ],
-        parent: { daily: true, durationDays: 3 },
-      });
+      const { parent, child } = await fixedThreeDayParentWithCustomChild();
 
       const date = await firstBookableDate(parent.id);
 

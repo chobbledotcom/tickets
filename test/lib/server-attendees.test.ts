@@ -690,18 +690,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "admin@example.com",
       );
 
-      const response = await postAs({ cookie, csrfToken })(
-        `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
-      );
-      await expectFlashRedirect(
-        `/admin/listing/${listing.id}/attendees`,
-        undefined,
-        false,
-      )(response);
-
-      // Verify attendee was NOT deleted
-      const rows = await getAttendeesRaw(listing.id);
-      expect(rows.length).toBe(1);
+      await expectIncompleteRefused({ cookie, csrfToken }, listing, attendee);
     });
 
     test("deletes incomplete attendee on free can_pay_more listing", async () => {
@@ -718,17 +707,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         500,
       );
 
-      const response = await postAs({ cookie, csrfToken })(
-        `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
-      );
-      await expectFlashRedirect(
-        `/admin/listing/${listing.id}/attendees`,
-        "Incomplete registration removed",
-      )(response);
-
-      const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
-      const deleted = await getAttendeeRaw(attendee.id);
-      expect(deleted).toBeNull();
+      await expectIncompleteRemoved({ cookie, csrfToken }, listing, attendee);
     });
 
     test("returns 404 for non-existent attendee", async () => {

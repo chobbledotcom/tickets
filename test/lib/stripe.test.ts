@@ -423,10 +423,7 @@ describeWithEnv("stripe", STRIPE_MOCK_ENV, () => {
         payload,
         `t=${timestamp},v1=${sigHex}`,
       );
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Invalid JSON payload");
-      }
+      expectSignatureError(result, "Invalid JSON payload");
     });
 
     test("verifies valid signature successfully", async () => {

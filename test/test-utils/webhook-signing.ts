@@ -5,6 +5,18 @@
  * shared `hmacSign` does the signing and the two thin wrappers format it.
  */
 
+import { expect } from "@std/expect";
+
+/** Assert a webhook signature check failed with exactly `expectedError`. Both
+ *  providers return `{ valid: false, error }` on a bad signature/payload. */
+export const expectSignatureError = (
+  result: { valid: boolean; error?: string | undefined },
+  expectedError: string,
+): void => {
+  expect(result.valid).toBe(false);
+  expect(result.error).toBe(expectedError);
+};
+
 /** Sign the bytes with the secret and return the raw HMAC-SHA256 digest. */
 export const hmacSign = async (
   secret: string,

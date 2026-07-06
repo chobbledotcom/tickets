@@ -486,18 +486,7 @@ describeWithEnv(
       const { setupStripe } = await import("#test-utils");
       await setupStripe();
 
-      const { parent, child } = await makeParent({
-        children: [
-          {
-            customisableDays: true,
-            dayPrices: { 1: 1000, 3: 3000 },
-            durationDays: 3,
-            maxPrice: 0,
-            unitPrice: 0,
-          },
-        ],
-        parent: { daily: true, durationDays: 3 },
-      });
+      const { parent, child } = await fixedThreeDayParentWithCustomChild();
 
       const date = await firstBookableDate(parent.id);
 
