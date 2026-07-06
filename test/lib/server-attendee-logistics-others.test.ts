@@ -24,6 +24,8 @@ import {
 } from "#shared/db/logistics.ts";
 import { DEMO_ADDRESSES, setDemoModeForTest } from "#shared/demo.ts";
 import {
+  adminFormPost,
+  buildAttendeeEditForm,
   createDailyTestListing,
   createTestListing,
   describeWithEnv,
@@ -56,6 +58,39 @@ describeWithEnv("attendee Logistics tab — demo mode", { db: true }, () => {
     expect(DEMO_ADDRESSES).toContain(saved.address);
     expect(saved.lat).toBe("");
     expect(saved.lng).toBe("");
+  });
+});
+
+describeWithEnv("the Edit tab and the Logistics pin", { db: true }, () => {
+  /** Pin an attendee's address on the Logistics tab, then save the Edit tab
+   * form with the given address and return the stored coordinates. */
+  const editAfterPinning = async (editedAddress: string) => {
+    const listing = await createTestListing({ maxAttendees: 10 });
+    const id = await makeAttendee("Pin Person", [{ listingId: listing.id }]);
+    await postLogistics(id, {
+      address: "10 Downing Street, LONDON, SW1A 2AA",
+      lat: "51.503396",
+      lng: "-0.127640",
+    });
+
+    const form = await buildAttendeeEditForm(id, {
+      address: editedAddress,
+      name: "Pin Person",
+    });
+    const { response } = await adminFormPost(`/admin/attendees/${id}`, form);
+    expect(response.status).toBe(302);
+    const saved = (await getAttendee(id, await getTestPrivateKey()))!;
+    return { lat: saved.lat, lng: saved.lng };
+  };
+
+  test("an edit that keeps the address keeps the pin", async () => {
+    const pin = await editAfterPinning("10 Downing Street, LONDON, SW1A 2AA");
+    expect(pin).toEqual({ lat: "51.503396", lng: "-0.127640" });
+  });
+
+  test("an edit that changes the address clears the now-stale pin", async () => {
+    const pin = await editAfterPinning("11 Downing Street, LONDON, SW1A 2AB");
+    expect(pin).toEqual({ lat: "", lng: "" });
   });
 });
 
