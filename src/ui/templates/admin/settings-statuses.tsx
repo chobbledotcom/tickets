@@ -11,13 +11,13 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
 import { ActionButton } from "#templates/components/actions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import type { DataColumn } from "#templates/components/data-table.tsx";
+import { ProseIntro } from "#templates/components/prose-heading.tsx";
 import { ReorderArrows } from "#templates/components/reorder.tsx";
 
 /* jscpd:ignore-end */
@@ -155,13 +155,7 @@ const { deletePage, editPage, listPage, newPage } =
         </ActionButton>
       ),
       columns: statusColumns,
-      intro: (
-        <div class="prose">
-          <p>
-            <Raw html={t("statuses.attendee_statuses_description")} />
-          </p>
-        </div>
-      ),
+      intro: <ProseIntro html={t("statuses.attendee_statuses_description")} />,
     },
     renderFields: renderStatusFields,
   });
