@@ -19,20 +19,18 @@ import {
 
 /* jscpd:ignore-end */
 
-/** List-page opener: heading, success flash, and the Add button. */
+/** List-page opener: success flash and the Add button. The page title lives on
+ * the browser tab and the nav, so the body carries no redundant `<h1>`. */
 const CollectionHeader = ({
-  title,
   addHref,
   addLabel,
   success,
 }: {
-  title: string;
   addHref: string;
   addLabel: string;
   success?: string | undefined;
 }): JSX.Element => (
   <>
-    <h1>{title}</h1>
     <Flash success={success} />
     <p class="actions">
       <ActionButton href={addHref} icon="plus">
@@ -51,20 +49,17 @@ export const collectionPage =
     session: AdminSession,
     successMessage: string | undefined,
     body: Child,
-  ): string => {
-    const title = t(`${messages}.title`);
-    return String(
-      <AdminPage active={base} session={session} title={title}>
+  ): string =>
+    String(
+      <AdminPage active={base} session={session} title={t(`${messages}.title`)}>
         <CollectionHeader
           addHref={`${base}/new`}
           addLabel={t(`${messages}.add`)}
           success={successMessage}
-          title={title}
         />
         {body}
       </AdminPage>,
     );
-  };
 
 /** The pre-filled edit form: heading, error flash, fields, save button. */
 export const EditForm = ({

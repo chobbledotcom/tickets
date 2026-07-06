@@ -4,6 +4,7 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import type { SystemNote } from "#shared/db/system-notes.ts";
 import type { AdminSession } from "#shared/types.ts";
 import {
+  AddNoteLink,
   AttendeeNotesSection,
   AttendeeNotesSummary,
   adminAddNotePage,
@@ -29,9 +30,7 @@ beforeAll(async () => {
 
 describe("AttendeeNotesSection", () => {
   test("renders a system note as a red alert with its markdown link", () => {
-    const html = String(
-      <AttendeeNotesSection attendeeId={5} notes={[note()]} />,
-    );
+    const html = String(<AttendeeNotesSection notes={[note()]} />);
     expect(html).toContain("system-note-alert");
     expect(html).toContain('role="alert"');
     // The markdown body is rendered (the ledger link survives).
@@ -45,7 +44,6 @@ describe("AttendeeNotesSection", () => {
   test("renders an owner note without the alert styling", () => {
     const html = String(
       <AttendeeNotesSection
-        attendeeId={5}
         notes={[note({ note: "private reminder", type: "owner" })]}
       />,
     );
@@ -53,12 +51,20 @@ describe("AttendeeNotesSection", () => {
     expect(html).not.toContain("system-note-alert");
   });
 
-  test("always offers an add-note link, even with no notes", () => {
-    const html = String(<AttendeeNotesSection attendeeId={7} notes={[]} />);
+  test("renders nothing when there are no notes", () => {
+    // The empty section is dropped entirely (null renders as "" inside its
+    // parent fragment) — the "Add a note" affordance now lives beside the page
+    // heading (see AddNoteLink), not here.
+    expect(AttendeeNotesSection({ notes: [] })).toBeNull();
+  });
+});
+
+describe("AddNoteLink", () => {
+  test("links to the add-note page, returning to the attendee page", () => {
+    const html = String(<AddNoteLink attendeeId={7} />);
     expect(html).toContain(
       "/admin/attendee/7/note?return_url=%2Fadmin%2Fattendees%2F7",
     );
-    expect(html).not.toContain("system-note-alert");
   });
 });
 

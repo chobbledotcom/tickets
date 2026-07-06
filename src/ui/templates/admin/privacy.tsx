@@ -124,7 +124,6 @@ export const adminPrivacyPage = (
       title={t("privacy.title")}
     >
       <div class="prose">
-        <h1>{t("privacy.title")}</h1>
         <h2>{t("privacy.not_a_crm_heading")}</h2>
         <Raw html={t("privacy.not_a_crm_html")} />
         <h2>{t("privacy.aggregate_heading")}</h2>

@@ -27,7 +27,7 @@ import {
 } from "#templates/admin/recalculate.tsx";
 import {
   BackButton,
-  GuideLink,
+  GuideFooter,
   SubmitButton,
 } from "#templates/components/actions.tsx";
 import {
@@ -165,8 +165,9 @@ export const adminQuestionsPage = (
           ))}
         </ReorderTable>
       )}
+
+      <GuideFooter href="/admin/guide#questions">Questions guide</GuideFooter>
     </>,
-    <GuideLink href="/admin/guide#questions">Questions guide</GuideLink>,
   );
 
 /** Single question detail / edit page */

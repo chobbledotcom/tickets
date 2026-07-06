@@ -28,7 +28,7 @@ import { AdminListPage } from "#templates/admin/list-page.tsx";
 import { MoneyAdjustSection } from "#templates/admin/money-adjust-section.tsx";
 import type { RecalculateRow } from "#templates/admin/recalculate.tsx";
 import {
-  GuideLink,
+  GuideFooter,
   SaveChangesButton,
   SubmitButton,
 } from "#templates/components/actions.tsx";
@@ -73,15 +73,11 @@ export type AnswerLinks = {
   selected: number[];
 };
 
-const modifierFormHeader = (title: string): JSX.Element => (
-  <>
-    <h1>{title}</h1>
-    <p class="actions">
-      <GuideLink href="/admin/guide#modifiers">
-        {t("modifiers.guide_link")}
-      </GuideLink>
-    </p>
-  </>
+/** The modifier guide link, rendered at the bottom of every modifier page. */
+const ModifiersGuideFooter = (): JSX.Element => (
+  <GuideFooter href="/admin/guide#modifiers">
+    {t("modifiers.guide_link")}
+  </GuideFooter>
 );
 
 /** The listing/group link editor shown on the edit page for a scoped modifier. */
@@ -265,11 +261,6 @@ export const adminModifiersPage = (
   successMessage?: string,
 ): string =>
   AdminListPage({
-    actions: (
-      <GuideLink href="/admin/guide#modifiers">
-        {t("modifiers.guide_link")}
-      </GuideLink>
-    ),
     active: "/admin/modifiers",
     children: (
       <>
@@ -293,6 +284,7 @@ export const adminModifiersPage = (
             ])}
           />
         )}
+        <ModifiersGuideFooter />
       </>
     ),
     session,
@@ -309,11 +301,14 @@ export const adminModifierNewPage = (
     session,
     error,
   )(
-    <CsrfForm action="/admin/modifiers">
-      {modifierFormHeader(t("modifiers.add.heading"))}
-      <Raw html={renderFields(modifierFields, modifierToFieldValues())} />
-      <SubmitButton icon="plus">{t("modifiers.add.submit")}</SubmitButton>
-    </CsrfForm>,
+    <>
+      <CsrfForm action="/admin/modifiers">
+        <h1>{t("modifiers.add.heading")}</h1>
+        <Raw html={renderFields(modifierFields, modifierToFieldValues())} />
+        <SubmitButton icon="plus">{t("modifiers.add.submit")}</SubmitButton>
+      </CsrfForm>
+      <ModifiersGuideFooter />
+    </>,
   );
 
 /** Admin modifier edit page. `links` carries the scope editor for a
@@ -337,7 +332,7 @@ export const adminModifierEditPage = (
       title={t("modifiers.edit.heading")}
     >
       <CsrfForm action={`/admin/modifiers/${modifier.id}/edit`}>
-        {modifierFormHeader(t("modifiers.edit.heading"))}
+        <h1>{t("modifiers.edit.heading")}</h1>
         <Flash error={error} success={success} />
         <Raw
           html={renderFields(modifierFields, modifierToFieldValues(modifier))}
@@ -356,6 +351,7 @@ export const adminModifierEditPage = (
           {t("modifiers.delete.submit")}
         </a>
       </p>
+      <ModifiersGuideFooter />
     </AdminPage>,
   );
 

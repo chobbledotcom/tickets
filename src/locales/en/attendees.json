@@ -97,7 +97,6 @@
   "attendee_form.status_balance_heading": "Status & Balance",
   "attendee_form.outstanding_balance": "Outstanding balance",
   "attendee_form.outstanding_balance_hint": "What the attendee still owes. Set to 0 when fully paid; the public payment link clears it automatically when they pay.",
-  "attendee_form.balance_ledger_note": "Changing the outstanding balance posts a correcting entry to the money ledger — the source of truth for what is owed. Corrections are appended, never destructive: only the difference from the current figure is recorded as a write-off adjustment.",
   "attendee_form.phone_title": "Phone number (digits, spaces, hyphens, parentheses, optional leading +)",
   "attendee_form.custom_questions": "Custom Questions",
   "attendee_form.dates_heading": "Dates",

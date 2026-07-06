@@ -113,5 +113,60 @@ export const sumup: PaymentProvider = {
       'button:has-text("Pay")',
       'button[type="submit"]',
     ]);
+
+    await returnToMerchant(page);
   },
+};
+
+/**
+ * SumUp's sandbox checkout does NOT auto-redirect after a successful payment: it
+ * parks on a "Payment successful" confirmation page (still on checkout.sumup.com)
+ * with a "Back to merchant website" button the customer must click to return to
+ * the app's return URL. Click it so the browser heads home — without it the run
+ * stalls on the SumUp page and dies as a misleading "did not land on a success
+ * page" timeout even though the payment (and its webhook) already succeeded.
+ *
+ * Best-effort and non-fatal: if a future SumUp variant auto-redirects, the
+ * button never appears (or the browser has already left the SumUp origin) and we
+ * simply return, letting the caller's return-URL wait confirm the landing.
+ */
+const returnToMerchant = async (page: Page): Promise<void> => {
+  const namePattern = /back to merchant|return to merchant|merchant website/i;
+  const link = page
+    .getByRole("link", { name: namePattern })
+    .or(page.getByRole("button", { name: namePattern }))
+    .first();
+
+  // SumUp serves its hosted checkout from more than one host — the docs return
+  // checkout.sumup.com, but pay.sumup.com is also used (the app's CSP allows
+  // both). Match any *.sumup.com origin so a pay.sumup.com checkout still gets
+  // the "Back to merchant website" click rather than being mistaken for a
+  // redirect that already happened.
+  const onSumUp = (): boolean => {
+    try {
+      return new URL(page.url()).hostname.endsWith(".sumup.com");
+    } catch {
+      return false;
+    }
+  };
+
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    // Already redirected away from SumUp's checkout — nothing to click.
+    if (!onSumUp()) return;
+    try {
+      if (await link.isVisible({ timeout: 500 })) {
+        await link.click({ timeout: 5_000 });
+        log("  clicked SumUp's 'Back to merchant website' to return to the app");
+        return;
+      }
+    } catch {
+      // Page navigating or the node detached mid-check; re-evaluate next loop.
+    }
+    await page.waitForTimeout(500);
+  }
+  warn(
+    "  SumUp: no 'Back to merchant website' button appeared after paying — " +
+      "relying on an auto-redirect that may not happen.",
+  );
 };

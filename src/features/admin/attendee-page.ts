@@ -51,6 +51,7 @@ import {
   AttendeeBookingsTable,
 } from "#templates/admin/attendee-detail.tsx";
 import { AttendeeFormPanel } from "#templates/admin/attendee-form.tsx";
+import { AddNoteLink } from "#templates/admin/attendee-notes.tsx";
 import {
   attendeeBanner,
   attendeeSummaryRows,
@@ -212,6 +213,8 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
   guard: requireSessionOr,
   load: (id) => loadAttendeeForEdit(id),
   navActive: "/admin/attendees",
+  proseExtra: ({ attendee }) =>
+    Promise.resolve(AddNoteLink({ attendeeId: attendee.id })),
   tabs: [
     overviewTab,
     {

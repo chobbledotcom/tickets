@@ -130,6 +130,9 @@ export interface EntityPageDef<E, Id extends EntityId = number> {
   load: (id: Id, session: AuthSession) => Promise<E | null>;
   /** Always-visible region above the tab strip (alerts, notes, status). */
   banner?: (entity: E, ctx: PageCtx) => Promise<JSX.Element | null>;
+  /** Extra content rendered inside the prose block beside the page `<h1>`
+   *  (e.g. the attendee page's "Add a note" link). */
+  proseExtra?: (entity: E, ctx: PageCtx) => Promise<JSX.Element | null>;
   tabs: readonly TabDef<E>[];
 }
 
@@ -257,6 +260,7 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
       entityPageView({
         banner: def.banner ? await def.banner(entity, ctx) : null,
         navActive: def.navActive,
+        proseExtra: def.proseExtra ? await def.proseExtra(entity, ctx) : null,
         sections,
         session,
         tabs: tabLinks(tabStates, def.basePath(id), activeSlug),

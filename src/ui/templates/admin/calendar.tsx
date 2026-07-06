@@ -24,7 +24,7 @@ import {
   type AttendeeTableRow,
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
-import { GuideLink } from "#templates/components/actions.tsx";
+import { GuideFooter } from "#templates/components/actions.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
 
@@ -97,15 +97,11 @@ export const adminCalendarPage = (
 
   return String(
     <AdminPage
-      actions={
-        <GuideLink href="/admin/guide#calendar">Calendar guide</GuideLink>
-      }
       active="/admin/calendar"
       session={session}
       title={t("admin.calendar.title")}
     >
-      <article>
-        <h2 id="attendees">{t("admin.calendar.attendees_by_date")}</h2>
+      <article id="attendees">
         <DatePicker
           ariaLabel="Select a date"
           clearHref="/admin/calendar#attendees"
@@ -150,6 +146,7 @@ export const adminCalendarPage = (
           </div>
         )}
       </article>
+      <GuideFooter href="/admin/guide#calendar">Calendar guide</GuideFooter>
     </AdminPage>,
   );
 };

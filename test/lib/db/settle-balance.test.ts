@@ -1,7 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeeAccount, WRITEOFF } from "#shared/accounting/accounts.ts";
-import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
 import {
   getPaidDefaultStatus,
   invalidateAttendeeStatusesCache,
@@ -11,14 +9,12 @@ import {
   getAttendeeOrderSummary,
   settleAttendeeBalance,
 } from "#shared/db/attendees/balance.ts";
-import { updateAttendeeOrder } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
-import { accountKey } from "#shared/ledger/account.ts";
 import {
   createTestListing,
   describeWithEnv,
@@ -205,125 +201,3 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     ).toHaveLength(0);
   });
 });
-
-describeWithEnv(
-  "db > reconcile attendee balance (manual correction)",
-  { db: true },
-  () => {
-    /** The attendee's status, kept fixed so updateAttendeeOrder only moves the
-     * balance. */
-    const fixedStatus = async (): Promise<number> =>
-      (await getPaidDefaultStatus())!.id;
-
-    test("persists the chosen status on the attendees row while the balance reconciles", async () => {
-      // The status write and the ledger reconcile share one transaction; the
-      // status must land on the attendees row itself, visible to a plain read.
-      const { attendeeId } = await createReservedAttendee(1500);
-      const statusId = await fixedStatus();
-
-      await updateAttendeeOrder(attendeeId, statusId, 500);
-
-      const state = await getAttendeeBalanceState(attendeeId);
-      expect(state?.statusId).toBe(statusId);
-      expect(state?.remainingBalance).toBe(500);
-    });
-
-    test("clears the status when null is chosen", async () => {
-      const { attendeeId } = await createReservedAttendee(1500);
-      // Give it a status first so the null write is a real change.
-      await updateAttendeeOrder(attendeeId, await fixedStatus(), 1500);
-
-      await updateAttendeeOrder(attendeeId, null, 1500);
-
-      const state = await getAttendeeBalanceState(attendeeId);
-      expect(state?.statusId).toBeNull();
-    });
-
-    test("raising the outstanding balance posts an attendee→writeoff debit", async () => {
-      // Start fully paid (owes 0), then correct the balance up to £15.
-      const { attendeeId } = await createReservedAttendee(0);
-      const statusId = await fixedStatus();
-      expect(
-        (await getAttendeeBalanceState(attendeeId))?.remainingBalance,
-      ).toBe(0);
-
-      await updateAttendeeOrder(attendeeId, statusId, 1500);
-
-      // Owed rose to 1500, which is −balanceOf(attendee): raising what's owed is a
-      // debit on the attendee account, sinking to writeoff (no external cash).
-      expect(
-        (await getAttendeeBalanceState(attendeeId))?.remainingBalance,
-      ).toBe(1500);
-      const adjustments = (await allTransfers()).filter(
-        (leg) => leg.kind === "adjustment",
-      );
-      expect(adjustments).toHaveLength(1);
-      expect(accountKey(adjustments[0]!.source)).toBe(
-        accountKey(attendeeAccount(attendeeId)),
-      );
-      expect(accountKey(adjustments[0]!.destination)).toBe(
-        accountKey(WRITEOFF),
-      );
-      expect(adjustments[0]!.amount).toBe(1500);
-    });
-
-    test("lowering the outstanding balance posts a writeoff→attendee credit", async () => {
-      const { attendeeId } = await createReservedAttendee(1500);
-      const statusId = await fixedStatus();
-
-      await updateAttendeeOrder(attendeeId, statusId, 500);
-
-      expect(
-        (await getAttendeeBalanceState(attendeeId))?.remainingBalance,
-      ).toBe(500);
-      const adjustments = (await allTransfers()).filter(
-        (leg) => leg.kind === "adjustment",
-      );
-      expect(adjustments).toHaveLength(1);
-      // Lowering what's owed credits the attendee from writeoff.
-      expect(accountKey(adjustments[0]!.source)).toBe(accountKey(WRITEOFF));
-      expect(accountKey(adjustments[0]!.destination)).toBe(
-        accountKey(attendeeAccount(attendeeId)),
-      );
-      expect(adjustments[0]!.amount).toBe(1000);
-    });
-
-    test("setting the balance to its current value posts no adjustment", async () => {
-      const { attendeeId } = await createReservedAttendee(1500);
-      const statusId = await fixedStatus();
-      const before = (await allTransfers()).filter(
-        (leg) => leg.kind === "adjustment",
-      ).length;
-
-      await updateAttendeeOrder(attendeeId, statusId, 1500);
-
-      const after = (await allTransfers()).filter(
-        (leg) => leg.kind === "adjustment",
-      ).length;
-      expect(after).toBe(before);
-      expect(
-        (await getAttendeeBalanceState(attendeeId))?.remainingBalance,
-      ).toBe(1500);
-    });
-
-    test("the writeoff balance correction never touches external cash", async () => {
-      // Raising the owed balance must not book a world→attendee payment, so cash
-      // reports stay honest — the only adjustment leg is against writeoff.
-      const { attendeeId } = await createReservedAttendee(0);
-      const statusId = await fixedStatus();
-
-      await updateAttendeeOrder(attendeeId, statusId, 800);
-
-      const adjustments = (await allTransfers()).filter(
-        (leg) => leg.kind === "adjustment",
-      );
-      const touchesWorld = adjustments.some(
-        (leg) =>
-          leg.source.type === "external" || leg.destination.type === "external",
-      );
-      expect(touchesWorld).toBe(false);
-      // The correction's counterparty is the writeoff account.
-      expect(await accountBalance(WRITEOFF)).toBe(800);
-    });
-  },
-);

@@ -19,7 +19,7 @@
 import { mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
-import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type {
   DesiredListingLine,
@@ -77,7 +77,6 @@ export const SHOW_ALL_FIELD = "show_all";
  * parsed) — one line per (package, member) path the attendee could book. */
 export const SHOW_PACKAGE_PATHS_FIELD = "show_package_paths";
 export const STATUS_FIELD = "status_id";
-export const REMAINING_BALANCE_FIELD = "remaining_balance";
 export { START_DATE_FIELD };
 
 /** DOM id of the add/edit form, also the post-save scroll anchor. */
@@ -143,8 +142,6 @@ export type AttendeeBooking = {
 export type ParsedAttendeeForm = ContactInfo & {
   /** Selected attendee status id, or null for "no status". */
   statusId: number | null;
-  /** Outstanding balance in minor units (order-level, plaintext). */
-  remainingBalance: number;
   /** Shared start date (YYYY-MM-DD) for every daily listing; "" when unset. */
   startDate: string;
   /** Shared range length in days (≥ 1) for every daily listing. */
@@ -260,12 +257,6 @@ export const attendeeBookingsFromLines = (
 /** Clamp a submitted day count to the valid range; blank defaults to 1. */
 const clampDayCount = (raw: number | null): number =>
   normalizeDurationDays(raw ?? 1);
-
-/** Parse a money field (major units) to clamped minor units; blank/invalid → 0. */
-const parseMoneyMinor = (raw: string): number => {
-  const parsed = Number.parseFloat(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? toMinorUnits(parsed) : 0;
-};
 
 /**
  * The status an attendee resolves to: their submitted choice, or the public
@@ -424,7 +415,6 @@ export const parseAttendeeForm = (
     ),
     name: form.getString("name"),
     phone: form.getString("phone"),
-    remainingBalance: parseMoneyMinor(form.getString(REMAINING_BALANCE_FIELD)),
     returnUrl: form.getString("return_url"),
     special_instructions: form.getString("special_instructions"),
     startDate: form.getString(START_DATE_FIELD),
@@ -539,7 +529,6 @@ export const toCreateInput = (
   parsed: ParsedAttendeeForm,
 ): ContactInfo & {
   bookings: ListingBooking[];
-  remainingBalance: number;
   statusId: number | null;
 } => ({
   address: parsed.address,
@@ -562,7 +551,6 @@ export const toCreateInput = (
   email: parsed.email,
   name: parsed.name,
   phone: parsed.phone,
-  remainingBalance: parsed.remainingBalance,
   special_instructions: parsed.special_instructions,
   statusId: parsed.statusId,
 });

@@ -212,6 +212,19 @@ describe("entityPageView", () => {
     expect(html.indexOf("note")).toBeLessThan(html.indexOf("entity-tabs"));
   });
 
+  test("renders proseExtra inside the prose block, right after the h1", () => {
+    const html = entityPageView({
+      ...view,
+      proseExtra: Raw({ html: '<p><a href="/add-note">Add a note</a></p>' }),
+    });
+    // The extra content sits inside the same prose <div> as the heading.
+    const proseStart = html.indexOf('<div class="prose">');
+    const proseEnd = html.indexOf("</div>", proseStart);
+    const prose = html.slice(proseStart, proseEnd);
+    expect(prose).toContain("<h1>Attendee: Jane</h1>");
+    expect(prose).toContain('<a href="/add-note">Add a note</a>');
+  });
+
   test("marks only the active tab with aria-current=page", () => {
     const html = entityPageView(view);
     expect(html).toContain(

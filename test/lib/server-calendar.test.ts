@@ -105,12 +105,7 @@ describeWithEnv(
 
       test("renders calendar page when authenticated", async () => {
         const response = await fetchCalendarResponse();
-        await expectHtmlResponse(
-          response,
-          200,
-          "Calendar",
-          "Attendees by Date",
-        );
+        await expectHtmlResponse(response, 200, "Calendar", 'id="attendees"');
       });
 
       test("shows empty dropdown when no daily listings exist", async () => {

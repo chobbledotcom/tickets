@@ -211,6 +211,9 @@ export interface EntityPageView {
   title: string;
   navActive: string;
   session: AdminSession;
+  /** Optional extra content rendered inside the prose block, right after the
+   *  `<h1>` (e.g. the attendee page's "Add a note" link). */
+  proseExtra?: JSX.Element | null;
   banner: JSX.Element | null;
   tabs: TabLink[];
   sections: LoadedSection[];
@@ -228,6 +231,7 @@ export const entityPageView = (view: EntityPageView): string =>
       <AdminNav active={view.navActive} session={view.session} />
       <div class="prose">
         <h1>{view.title}</h1>
+        {view.proseExtra}
       </div>
       {view.banner}
       <TabStrip tabs={view.tabs} />

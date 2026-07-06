@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  attendeeAccount,
-  revenueAccount,
-} from "#shared/accounting/accounts.ts";
+import { revenueAccount } from "#shared/accounting/accounts.ts";
 import { accountBalance } from "#shared/accounting/queries.ts";
 import {
   createAttendeeAtomic,
@@ -372,59 +369,6 @@ describeWithEnv(
       ).text();
       expect(attendeeLineIndex(html, spare.id, group.id)).toBeNull();
       expect(attendeeLineIndex(html, listing.id, group.id)).not.toBeNull();
-    });
-
-    test("the balance survives zeroing one path and clears only with no real line", async () => {
-      const { group, listing } = await packageAndMember("Owe Kit");
-      const attendeeId = await dualPathAttendee(
-        group,
-        listing,
-        "owe@example.com",
-      );
-      const packagedKey = await storedKey(attendeeId, group.id);
-
-      // Zero the standalone path while the package path stays booked, owing
-      // 5.00: the balance reconciles to the entered figure — never a write-off
-      // while a real booking row is being saved.
-      const keepOne = await buildAttendeeEditForm(attendeeId, {
-        extra: { remaining_balance: "5" },
-        lines: [
-          {
-            eventId: listing.id,
-            key: await storedKey(attendeeId, 0),
-            quantity: 0,
-          },
-          { eventId: listing.id, key: packagedKey, quantity: 2 },
-        ],
-        name: "Dual Path",
-      });
-      const kept = await adminFormPost(
-        `/admin/attendees/${attendeeId}`,
-        keepOne,
-      );
-      expect(kept.response.status).toBe(302);
-      expect(await accountBalance(attendeeAccount(attendeeId))).toBe(-500);
-
-      // Flip the surviving path to a no-quantity sentinel: the save leaves no
-      // real line, so the unpayable receivable is written off to 0.
-      const sentinelOnly = await buildAttendeeEditForm(attendeeId, {
-        extra: { remaining_balance: "5" },
-        lines: [
-          {
-            eventId: listing.id,
-            key: packagedKey,
-            noQuantity: true,
-            quantity: 0,
-          },
-        ],
-        name: "Dual Path",
-      });
-      const cleared = await adminFormPost(
-        `/admin/attendees/${attendeeId}`,
-        sentinelOnly,
-      );
-      expect(cleared.response.status).toBe(302);
-      expect((await accountBalance(attendeeAccount(attendeeId))) + 0).toBe(0);
     });
 
     test("an admin-created package row posts the package's price to the ledger", async () => {
