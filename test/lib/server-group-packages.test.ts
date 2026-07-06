@@ -49,10 +49,9 @@ const sellPackageTicket = async (
   groupId: number,
 ): Promise<string> => {
   const result = await createAttendeeAtomic({
-    bookings: [{ listingId, quantity: 1 }],
+    bookings: [{ listingId, packageGroupId: groupId, quantity: 1 }],
     email: "buyer@test.com",
     name: "Buyer",
-    packageGroupId: groupId,
   });
   if (!result.success) throw new Error("package booking failed");
   return result.attendees[0]!.ticket_token;

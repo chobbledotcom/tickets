@@ -2,12 +2,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { groupsTable } from "#shared/db/groups.ts";
 import {
+  concealLineNames,
   concealMemberNames,
   memberStandInName,
   namesConcealed,
   packagePrivacy,
-  packagePrivacyOfCtx,
   packagePrivacyOfDisplay,
+  packageStandIns,
   resolveNamesConcealed,
 } from "#shared/package-privacy.ts";
 import { createTestGroup, describeWithEnv } from "#test-utils";
@@ -42,21 +43,6 @@ describe("package privacy (pure)", () => {
     ).toEqual({ kind: "hidden", packageName: "Box" });
   });
 
-  test("the booking ctx carries its privacy alongside the package id", () => {
-    expect(
-      packagePrivacyOfCtx({ groupName: "Box", hidePackageListings: true }),
-    ).toEqual({ kind: "hidden", packageName: "Box" });
-    expect(packagePrivacyOfCtx({ groupName: "Plain Group" })).toEqual({
-      kind: "visible",
-    });
-  });
-
-  test("does not report hidden when hidePackageListings is true but there is no group name", () => {
-    expect(packagePrivacyOfCtx({ hidePackageListings: true })).toEqual({
-      kind: "visible",
-    });
-  });
-
   test("concealMemberNames renames every line, keeping ids and prices", () => {
     const items = [
       { listingId: 1, name: "Secret A", unitPrice: 500 },
@@ -75,18 +61,122 @@ describe("package privacy (pure)", () => {
   });
 });
 
+describe("per-path stand-in names (several bundles per page)", () => {
+  const packages = [
+    {
+      groupId: 7,
+      hideListings: true,
+      memberListingIds: [1, 2],
+      name: "Secret Box",
+    },
+    {
+      groupId: 8,
+      hideListings: false,
+      memberListingIds: [3],
+      name: "Open Kit",
+    },
+  ];
+  const childIds = (memberId: number): number[] => (memberId === 2 ? [9] : []);
+
+  test("covers a hidden package's members AND their required children", () => {
+    const standIns = packageStandIns(packages, childIds);
+    expect(standIns.byListingId.get(1)).toBe("Secret Box");
+    expect(standIns.byListingId.get(2)).toBe("Secret Box");
+    // Member 2's required child books as part of the hidden bundle.
+    expect(standIns.byListingId.get(9)).toBe("Secret Box");
+    expect(standIns.byGroupId.get(7)).toBe("Secret Box");
+  });
+
+  test("a visible package's members are never concealed", () => {
+    const standIns = packageStandIns(packages, childIds);
+    expect(standIns.byListingId.has(3)).toBe(false);
+    expect(standIns.byListingId.size).toBe(3);
+    expect(standIns.byGroupId.has(8)).toBe(false);
+  });
+
+  test("concealLineNames renames the hidden package's own tagged lines", () => {
+    const standIns = packageStandIns(packages, childIds);
+    const items = [
+      { listingId: 1, name: "Secret A", packageGroupId: 7, unitPrice: 500 },
+      { listingId: 3, name: "Open Thing", packageGroupId: 8, unitPrice: 700 },
+    ];
+    const result = concealLineNames(items, standIns);
+    expect(result.map((i) => i.name)).toEqual(["Secret Box", "Open Thing"]);
+    expect(result.map((i) => i.unitPrice)).toEqual([500, 700]);
+  });
+
+  test("a listing shared with a hidden package keeps its name on its OTHER paths", () => {
+    // Listing 1 is a hidden package's member, but this order books it through
+    // the VISIBLE package and its own standalone row — neither line belongs
+    // to the hidden bundle, so renaming them would mislabel what each line
+    // charges for (and the hidden bundle isn't even in this order).
+    const standIns = packageStandIns(
+      [packages[0]!, { ...packages[1]!, memberListingIds: [1] }],
+      () => [],
+    );
+    const items = [
+      { listingId: 1, name: "Secret A", packageGroupId: 8, unitPrice: 500 },
+      { listingId: 1, name: "Secret A", unitPrice: 500 },
+    ];
+    // The untagged line is concealed by listing id (fail-safe: a folded child
+    // of a hidden member rides an untagged line); the visible package's
+    // tagged line keeps its real name.
+    expect(concealLineNames(items, standIns).map((i) => i.name)).toEqual([
+      "Secret A",
+      "Secret Box",
+    ]);
+  });
+
+  test("two hidden packages sharing a listing each name their OWN line", () => {
+    const standIns = packageStandIns(
+      [
+        packages[0]!,
+        {
+          groupId: 8,
+          hideListings: true,
+          memberListingIds: [1],
+          name: "Mystery Kit",
+        },
+      ],
+      () => [],
+    );
+    const items = [
+      { listingId: 1, name: "Secret A", packageGroupId: 7 },
+      { listingId: 1, name: "Secret A", packageGroupId: 8 },
+    ];
+    expect(concealLineNames(items, standIns).map((i) => i.name)).toEqual([
+      "Secret Box",
+      "Mystery Kit",
+    ]);
+  });
+
+  test("concealLineNames is a no-op when nothing is concealed", () => {
+    const items = [{ listingId: 3, name: "Open Thing" }];
+    expect(
+      concealLineNames(items, { byGroupId: new Map(), byListingId: new Map() }),
+    ).toBe(items);
+  });
+});
+
 describeWithEnv("resolveNamesConcealed (fail-safe)", { db: true }, () => {
-  test("a non-package order never conceals", async () => {
-    expect(await resolveNamesConcealed(undefined)).toBe(false);
+  test("an order booking no packages never conceals", async () => {
+    expect(await resolveNamesConcealed([])).toBe(false);
   });
 
   test("a live package resolves its own hide flag", async () => {
     const shown = await createTestGroup({ isPackage: true, name: "Open Kit" });
-    expect(await resolveNamesConcealed(shown.id)).toBe(false);
+    expect(await resolveNamesConcealed([shown.id])).toBe(false);
 
     const hidden = await createTestGroup({ isPackage: true, name: "Box Kit" });
     await groupsTable.update(hidden.id, { hidePackageListings: true });
-    expect(await resolveNamesConcealed(hidden.id)).toBe(true);
+    expect(await resolveNamesConcealed([hidden.id])).toBe(true);
+  });
+
+  test("hidden when ANY of several booked packages hides its listings", async () => {
+    const shown = await createTestGroup({ isPackage: true, name: "Kit A" });
+    const hidden = await createTestGroup({ isPackage: true, name: "Kit B" });
+    await groupsTable.update(hidden.id, { hidePackageListings: true });
+    expect(await resolveNamesConcealed([shown.id, hidden.id])).toBe(true);
   });
 
   test("a package id that no longer resolves fails SAFE as hidden", async () => {
@@ -94,6 +184,6 @@ describeWithEnv("resolveNamesConcealed (fail-safe)", { db: true }, () => {
     // members either way.
     const gone = await createTestGroup({ isPackage: true, name: "Gone Kit" });
     await groupsTable.deleteById(gone.id);
-    expect(await resolveNamesConcealed(gone.id)).toBe(true);
+    expect(await resolveNamesConcealed([gone.id])).toBe(true);
   });
 });

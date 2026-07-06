@@ -1,3 +1,4 @@
+import { mapNotNullish } from "#fp";
 import {
   type BookingNode,
   type BookingTree,
@@ -36,6 +37,15 @@ export const signedEdgeFor = (
   packageGroupId !== undefined && !isFoldedChild
     ? { k: "p", r: packageGroupId }
     : {};
+
+/** The package a signed line was booked through, from its edge tag, or
+ * undefined for a standalone/child line. */
+export const lineGroupId = (line: BookingItem): number | undefined =>
+  line.k === "p" ? line.r : undefined;
+
+/** The distinct package group ids an order's lines were booked through. */
+export const lineGroupIds = (items: readonly BookingItem[]): Set<number> =>
+  new Set(mapNotNullish(lineGroupId)([...items]));
 
 /** Reconstruct a top-level line's canonical `nodeKey` from its compact edge tag.
  * A package/group member needs its group id (`r`); a line missing that ref (or

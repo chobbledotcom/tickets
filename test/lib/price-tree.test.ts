@@ -9,6 +9,7 @@ import {
 import type { PriceRule } from "#shared/booking/tree.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { treePackage } from "./package-cap-fixtures.ts";
 
 /** A raw listing (id 7 by default) for direct effectivePrice calls. */
 const listing = (over: Partial<ListingWithCount> = {}): ListingWithCount =>
@@ -148,8 +149,7 @@ describe("priceRuleByListingId", () => {
     const tree = buildBookingTree({
       childrenByParentId: new Map([[6, [resolved({ id: 5 })]]]),
       listings: [resolved({ id: 5 }), resolved({ id: 6 })],
-      packagePrices: new Map([[5, 1200]]),
-      root: { groupId: 3, kind: "package" },
+      packages: [treePackage(3, [5, 6], { prices: new Map([[5, 1200]]) })],
       slugs: ["pkg"],
     });
     expect(priceRuleByListingId(tree).get(5)).toEqual({
@@ -169,8 +169,11 @@ describe("priceRuleByListingId", () => {
           listing_type: "daily",
         }),
       ],
-      packageDayPrices: new Map([[5, new Map([[2, 1500]])]]),
-      root: { groupId: 3, kind: "package" },
+      packages: [
+        treePackage(3, [5], {
+          dayPrices: new Map([[5, new Map([[2, 1500]])]]),
+        }),
+      ],
       slugs: ["pkg"],
     });
     expect(priceRuleByListingId(tree).get(5)).toEqual({

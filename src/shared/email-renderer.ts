@@ -11,13 +11,12 @@ import { lazyRef, map, sumOf } from "#fp";
 import { createBaseLiquidEngine } from "#shared/currency.ts";
 import { bookedRangeLabel, widestDatedEntry } from "#shared/dates.ts";
 import {
-  getPackageDisplayForBookings,
   type PackageDisplay,
+  packageDisplaysForRows,
 } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { packagePrivacyOfDisplay } from "#shared/package-privacy.ts";
 import {
   type ContactInfo,
   type EmailTemplateFormat,
@@ -27,7 +26,7 @@ import {
 } from "#shared/types.ts";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
-import { listingNames } from "#templates/email/shared.ts";
+import { nameList } from "#templates/email/shared.ts";
 
 /** Create a configured Liquid engine with custom filters */
 const createEngine = (): Liquid => {
@@ -140,12 +139,74 @@ export const collapsedPackageSummary = (
   widestDated: widestDatedEntry(entries),
 });
 
-/** The package display for an order's entries (keyed by their persisted
- * package_group_id), or null when the order is not a single package. */
-export const getPackageDisplayForEntries = (
+/** One buyer-facing row group: a HIDDEN package's rows gather behind its name;
+ * every other row stands alone. */
+export type BuyerEntryGroup = {
+  entries: EmailEntry[];
+  hiddenPackageName?: string;
+};
+
+/** One walked group: a collapsed package's rows carry its display; a row that
+ * stands alone carries none. */
+type EntryGroup = { entries: EmailEntry[]; display?: PackageDisplay };
+
+/** Walk an order's entries once, gathering every package that `collapses` into
+ * one group sitting where its first row was; every other row stands alone. The
+ * one place the entry→display walk lives — the buyer grouping and the heading
+ * names below are both maps over it. */
+const entryGroupsBy = (
   entries: EmailEntry[],
-): Promise<PackageDisplay | null> =>
-  getPackageDisplayForBookings(entries.map((e) => e.attendee.package_group_id));
+  displays: ReadonlyMap<number, PackageDisplay>,
+  collapses: (display: PackageDisplay) => boolean,
+): EntryGroup[] => {
+  const groups: EntryGroup[] = [];
+  const collapsedByGroupId = new Map<number, EntryGroup>();
+  for (const entry of entries) {
+    const display = displays.get(entry.attendee.package_group_id);
+    if (display === undefined || !collapses(display)) {
+      groups.push({ entries: [entry] });
+      continue;
+    }
+    const started = collapsedByGroupId.get(entry.attendee.package_group_id);
+    if (started) {
+      started.entries.push(entry);
+      continue;
+    }
+    const group = { display, entries: [entry] };
+    collapsedByGroupId.set(entry.attendee.package_group_id, group);
+    groups.push(group);
+  }
+  return groups;
+};
+
+/** Group an order's entries for buyer-facing rendering (the confirmation body
+ * and its SVG tickets): each hidden package's rows collapse into one group
+ * sitting where its first row was, so a mixed order conceals every hidden
+ * bundle while its other rows render normally. */
+export const buyerEntryGroups = (
+  entries: EmailEntry[],
+  displays: ReadonlyMap<number, PackageDisplay>,
+): BuyerEntryGroup[] =>
+  map(
+    (group: EntryGroup): BuyerEntryGroup =>
+      group.display === undefined
+        ? { entries: group.entries }
+        : { entries: group.entries, hiddenPackageName: group.display.name },
+  )(entryGroupsBy(entries, displays, (display) => display.hideListings));
+
+/** The names heading the email: each package once (by its display name, in
+ * first-booked order — hidden or not) beside the plain rows' listing names. */
+const orderDisplayNames = (
+  entries: EmailEntry[],
+  displays: ReadonlyMap<number, PackageDisplay>,
+): string =>
+  nameList(
+    map((group: EntryGroup) =>
+      group.display === undefined
+        ? group.entries[0]!.listing.name
+        : group.display.name,
+    )(entryGroupsBy(entries, displays, () => true)),
+  );
 
 /** A single row standing in for a hidden package's members: the package name,
  * the buyer's contact, and the bundle's summed quantity/price — so the buyer's
@@ -176,11 +237,12 @@ const collapsedPackageEntry = (
 };
 
 /**
- * Build the data object exposed to Liquid templates. When every booking in the
- * order carries the same persisted package group id, the package name heads the
- * email (`listing_names`) instead of the member list. `hidePackageMembers` (set for the
- * buyer's confirmation, not the admin notification) collapses a HIDDEN package's
- * member rows into one package row so members aren't revealed.
+ * Build the data object exposed to Liquid templates. Rows booked through a
+ * package head the email by the package's name (`listing_names`); an order may
+ * carry several bundles beside plain rows. `hidePackageMembers` (set for the
+ * buyer's confirmation, not the admin notification) collapses each HIDDEN
+ * package's member rows into one package row so members aren't revealed —
+ * whatever else the order carries beside them.
  */
 export const buildTemplateData = async (
   entries: EmailEntry[],
@@ -188,14 +250,16 @@ export const buildTemplateData = async (
   ticketUrl: string,
   options: { hidePackageMembers?: boolean } = {},
 ): Promise<TemplateData> => {
-  const pkg = await getPackageDisplayForEntries(entries);
-  // The buyer's confirmation (hidePackageMembers) collapses a hidden package's
+  const displays = await packageDisplaysForRows(entries);
+  // The buyer's confirmation (hidePackageMembers) collapses hidden packages'
   // rows; the admin notification keeps them.
-  const privacy = packagePrivacyOfDisplay(pkg);
-  const templateEntries: TemplateEntry[] =
-    privacy.kind === "hidden" && options.hidePackageMembers
-      ? [collapsedPackageEntry(entries, privacy.packageName)]
-      : map(toTemplateEntry)(entries);
+  const templateEntries: TemplateEntry[] = options.hidePackageMembers
+    ? buyerEntryGroups(entries, displays).map((group) =>
+        group.hiddenPackageName === undefined
+          ? toTemplateEntry(group.entries[0]!)
+          : collapsedPackageEntry(group.entries, group.hiddenPackageName),
+      )
+    : map(toTemplateEntry)(entries);
 
   return {
     // remaining_balance is order-level (identical on every entry), so read it
@@ -204,7 +268,7 @@ export const buildTemplateData = async (
     attendee: templateEntries[0]!.attendee,
     currency,
     entries: templateEntries,
-    listing_names: pkg ? pkg.name : listingNames(entries),
+    listing_names: orderDisplayNames(entries, displays),
     ticket_url: ticketUrl,
   };
 };

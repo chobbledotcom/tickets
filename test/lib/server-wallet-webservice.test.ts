@@ -171,10 +171,11 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
         name: "Secret Member",
       });
       const result = await createAttendeeAtomic({
-        bookings: [{ listingId: member.id, quantity: 1 }],
+        bookings: [
+          { listingId: member.id, packageGroupId: group.id, quantity: 1 },
+        ],
         email: "buyer@test.com",
         name: "Buyer",
-        packageGroupId: group.id,
       });
       if (!result.success) throw new Error("setup failed");
       const token = result.attendees[0]!.ticket_token;
@@ -204,12 +205,11 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
       });
       const result = await createAttendeeAtomic({
         bookings: [
-          { listingId: standalone.id, quantity: 1 },
-          { listingId: member.id, quantity: 1 },
+          { listingId: standalone.id, packageGroupId: group.id, quantity: 1 },
+          { listingId: member.id, packageGroupId: group.id, quantity: 1 },
         ],
         email: "buyer2@test.com",
         name: "Buyer Two",
-        packageGroupId: group.id,
       });
       if (!result.success) throw new Error("setup failed");
       // The standalone row isn't part of the package — clear its package id so

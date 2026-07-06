@@ -8,6 +8,7 @@ import {
 } from "#shared/booking/model.ts";
 import type { BookingNode, BookingTree } from "#shared/booking/tree.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { treePackage } from "./package-cap-fixtures.ts";
 
 /** A resolved package-member line for buildBookingTree inputs. */
 const resolved = (id: number): TicketListing =>
@@ -26,8 +27,9 @@ const packageTree = (
 ): BookingTree =>
   buildBookingTree({
     listings: [...qtyById.keys()].map(resolved),
-    packageQuantities: qtyById,
-    root: { groupId, kind: "package" },
+    packages: [
+      treePackage(groupId, [...qtyById.keys()], { quantities: qtyById }),
+    ],
     slugs: ["pkg"],
   });
 

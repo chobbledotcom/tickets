@@ -78,9 +78,10 @@ export type ListingBooking = {
   /** The parent listing this row was folded under when it is a chosen child
    * (defaults to 0 — not a folded child). */
   parentListingId?: number;
-  /** The package group this booking row belongs to (defaults to 0 — not a
-   * package order). Set once per create from the order-level value, the same on
-   * every row, so tickets/emails group the order under the package by this id. */
+  /** The package this row was booked through (defaults to 0 — not part of any
+   * package). Stamped per row by the caller (`stampBookingPackages`) — an order
+   * can carry several packages — so tickets/emails group each line under the
+   * right bundle by this id. */
   packageGroupId?: number | undefined;
 };
 
@@ -112,10 +113,6 @@ export type AttendeeInput = ContactFields & {
    * checkout path can never be silently left uncounted; the admin manual-add
    * paths pass "admin" explicitly. */
   source?: BookingSource;
-  /** When the order is a package checkout, the package group's id (stamped on
-   * every booking row so the ticket view / confirmation email group the lines
-   * under the package). 0 / absent for a non-package order. */
-  packageGroupId?: number;
 };
 
 /** Row from listing_attendees — per-listing booking data */
@@ -184,8 +181,8 @@ export type UpdateAttendeePIIInput = AttendeePii;
  */
 export type DesiredListingLine = {
   /** Stable identity of the existing row
-   * (`${listingId}|${startAt}|${parentListingId}`). Empty string for
-   * newly-added lines. */
+   * (`${listingId}|${startAt}|${parentListingId}|${packageGroupId}`). Empty
+   * string for newly-added lines. */
   key: string;
   listingId: number;
   quantity: number;
@@ -195,4 +192,14 @@ export type DesiredListingLine = {
   durationDays: number;
   /** True when the line carries an existing listing_attendees identity. */
   exists: boolean;
+  /** The package path this row belongs to (0/absent = none) — part of the
+   * row's slot identity, so an edit targets the right row when the same
+   * listing was booked through two packages. */
+  packageGroupId?: number;
+  /** The parent this row was folded under as an add-on (0/absent = none) —
+   * the last slot-identity dimension, so a child booked under a parent and
+   * the same listing's own standalone row never read as one duplicate slot.
+   * Only an EXISTING row carries a parent; the admin form never creates
+   * folded-child rows. */
+  parentListingId?: number;
 };

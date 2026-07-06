@@ -112,10 +112,10 @@ describe("child selection helpers", () => {
   });
 
   test("selectedListingIds includes every package member when a package is selected", () => {
-    // A package page renders only the `package_quantity` selector, so each member
-    // is active purely because a package is chosen (the submit path derives their
-    // quantities from the package count).
-    installFakeDom([packageSelector(["201", "202"], "2")]);
+    // A package page renders only the `package_quantity_<groupId>` selector, so
+    // each member is active purely because a package is chosen (the submit path
+    // derives their quantities from the package count).
+    installFakeDom([packageSelector(["201:1", "202:1"], "2")]);
 
     expect([...selectedListingIds()].sort()).toEqual(["201", "202"]);
   });
@@ -133,7 +133,7 @@ describe("child selection helpers", () => {
   });
 
   test("selectedListingIds tolerates a package selector missing its members attribute", () => {
-    installFakeDom([{ name: "package_quantity", tag: "select", value: "1" }]);
+    installFakeDom([{ name: "package_quantity_3", tag: "select", value: "1" }]);
 
     expect([...selectedListingIds()]).toEqual([]);
   });
@@ -150,8 +150,8 @@ describe("child selection helpers", () => {
     // parent's booked units come from its fixed per-package quantity × the
     // chosen package count — and its chosen children join the active set.
     installFakeDom([
-      packageSelector(["101"], "3"),
-      childSelector("101", 2),
+      packageSelector(["101:2"], "3"),
+      childSelector("101"),
       childQty("101", "202", "6"),
     ]);
 
@@ -162,8 +162,8 @@ describe("child selection helpers", () => {
 
   test("a package member parent's sole child activates with the package", () => {
     installFakeDom([
-      packageSelector(["101"], "1"),
-      childSelector("101", 1),
+      packageSelector(["101:1"], "1"),
+      childSelector("101"),
       soleChild("101", "202"),
     ]);
 
@@ -176,10 +176,22 @@ describe("child selection helpers", () => {
     expect(parentUnits("999")).toBe(0);
   });
 
+  test("parentUnits totals a parent's own control plus every package that books it", () => {
+    // A dual-path parent: its own standalone row (2 units) plus two bundles —
+    // one booking ×2 per package at count 1, another ×1 at count 3.
+    installFakeDom([
+      quantity("101", "2"),
+      packageSelector(["101:2", "555:1"], "1", "3"),
+      packageSelector(["101"], "3", "4"),
+    ]);
+
+    expect(parentUnits("101")).toBe(2 + 2 * 1 + 1 * 3);
+  });
+
   test("a package member parent leaves the cart when no package is selected", () => {
     installFakeDom([
-      packageSelector(["101"], "0"),
-      childSelector("101", 2),
+      packageSelector(["101:2"], "0"),
+      childSelector("101"),
       childQty("101", "202", "2"),
     ]);
 

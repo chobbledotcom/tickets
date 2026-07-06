@@ -41,44 +41,51 @@ const dayListing = (
 
 /** The checkout's non-customisable default: day count 1, no day pricing. */
 const price = (
-  p: PackagePricing | null,
-  isPackage: boolean,
+  p: PackagePricing | undefined,
+  lineGroupId: number | undefined,
   folded: Set<number>,
   line: { e: number; p: number; q: number },
   base: number,
 ) =>
-  expectedItemPrice(p, isPackage, folded, line, fixedListing(line.e, base), 1);
+  expectedItemPrice(
+    p,
+    lineGroupId,
+    folded,
+    line,
+    fixedListing(line.e, base),
+    1,
+  );
 
 describe("expectedItemPrice (package revalidation)", () => {
   test("a non-package booking uses the base price", () => {
-    expect(price(null, false, new Set(), item(1), 5000)).toBe(5000);
+    expect(price(undefined, undefined, new Set(), item(1), 5000)).toBe(5000);
   });
 
   test("a folded child keeps the base price even when it's a member", () => {
-    expect(price(pkg, true, new Set([1]), item(1), 5000)).toBe(5000);
+    expect(price(pkg, 3, new Set([1]), item(1), 5000)).toBe(5000);
   });
 
   test("a member with a non-zero override is priced at override × qty", () => {
-    expect(price(pkg, true, new Set(), item(1, 3), 5000)).toBe(4500);
+    expect(price(pkg, 3, new Set(), item(1, 3), 5000)).toBe(4500);
   });
 
   test("a member with no override falls back to the base price", () => {
-    expect(price(pkg, true, new Set(), item(2), 5000)).toBe(5000);
+    expect(price(pkg, 3, new Set(), item(2), 5000)).toBe(5000);
   });
 
   test("a package line that is no longer a member fails closed", () => {
-    expect(price(pkg, true, new Set(), item(9), 5000)).toBeNull();
+    expect(price(pkg, 3, new Set(), item(9), 5000)).toBeNull();
   });
 
   test("a package whose group was deleted/unflagged fails closed", () => {
-    expect(price(null, true, new Set(), item(1), 5000)).toBeNull();
+    expect(price(undefined, 3, new Set(), item(1), 5000)).toBeNull();
   });
 
   test("a customisable member's per-day override prices override × qty", () => {
     expect(
       expectedItemPrice(
         pkg,
-        true,
+        3,
         new Set(),
         item(2, 3),
         dayListing(2, { 2: 5000 }),
@@ -94,7 +101,7 @@ describe("expectedItemPrice (package revalidation)", () => {
     expect(
       expectedItemPrice(
         pkg,
-        true,
+        3,
         new Set(),
         item(2),
         dayListing(2, { 3: 5000 }),
@@ -111,7 +118,7 @@ describe("expectedItemPrice (package revalidation)", () => {
     expect(
       expectedItemPrice(
         flatAndDay,
-        true,
+        3,
         new Set(),
         item(1),
         dayListing(1, { 2: 5000 }),
@@ -122,14 +129,7 @@ describe("expectedItemPrice (package revalidation)", () => {
 
   test("a day override never applies to a non-customisable member", () => {
     expect(
-      expectedItemPrice(
-        pkg,
-        true,
-        new Set(),
-        item(2),
-        fixedListing(2, 5000),
-        2,
-      ),
+      expectedItemPrice(pkg, 3, new Set(), item(2), fixedListing(2, 5000), 2),
     ).toBe(5000);
   });
 });
@@ -148,55 +148,42 @@ describe("packageBundleMismatch (order-level revalidation)", () => {
 
   test("a matching bundle (one common package count) is not a mismatch", () => {
     // 2 packages → member 1 ×2, member 2 ×4: both imply count 2.
-    expect(
-      packageBundleMismatch(bundle, [item(1, 2), item(2, 4)], new Set()),
-    ).toBe(false);
+    expect(packageBundleMismatch(bundle, [item(1, 2), item(2, 4)])).toBe(false);
   });
 
   test("a missing member (one added since checkout) is a mismatch", () => {
-    expect(packageBundleMismatch(bundle, [item(1, 1)], new Set())).toBe(true);
+    expect(packageBundleMismatch(bundle, [item(1, 1)])).toBe(true);
   });
 
   test("an extra non-member line is a mismatch", () => {
     expect(
-      packageBundleMismatch(
-        bundle,
-        [item(1, 1), item(2, 2), item(9, 1)],
-        new Set(),
-      ),
+      packageBundleMismatch(bundle, [item(1, 1), item(2, 2), item(9, 1)]),
     ).toBe(true);
   });
 
   test("a non-member line substituted for a member is a mismatch", () => {
     // Same line count as the bundle, but listing 9 stands in for member 2.
-    expect(
-      packageBundleMismatch(bundle, [item(1, 1), item(9, 2)], new Set()),
-    ).toBe(true);
+    expect(packageBundleMismatch(bundle, [item(1, 1), item(9, 2)])).toBe(true);
   });
 
   test("a member whose quantity is no longer a whole package count is a mismatch", () => {
     // Member 2 needs ×2 per package, but q=3 is not a multiple of 2.
-    expect(
-      packageBundleMismatch(bundle, [item(1, 1), item(2, 3)], new Set()),
-    ).toBe(true);
+    expect(packageBundleMismatch(bundle, [item(1, 1), item(2, 3)])).toBe(true);
   });
 
   test("members implying different package counts is a mismatch", () => {
     // Member 1 ×1 → count 1; member 2 ×4 → count 2.
-    expect(
-      packageBundleMismatch(bundle, [item(1, 1), item(2, 4)], new Set()),
-    ).toBe(true);
+    expect(packageBundleMismatch(bundle, [item(1, 1), item(2, 4)])).toBe(true);
   });
 
   test("folded children are excluded from the bundle comparison", () => {
-    // The folded child (id 9) is ignored; the remaining lines match the bundle.
-    expect(
-      packageBundleMismatch(
-        bundle,
-        [item(1, 1), item(2, 2), item(9, 5)],
-        new Set([9]),
-      ),
-    ).toBe(false);
+    // The caller passes only the package's top-level lines: it pre-filters
+    // folded children (id 9) out, so the remaining lines match the bundle.
+    const foldedChildIds = new Set([9]);
+    const packageLines = [item(1, 1), item(2, 2), item(9, 5)].filter(
+      (line) => !foldedChildIds.has(line.e),
+    );
+    expect(packageBundleMismatch(bundle, packageLines)).toBe(false);
   });
 
   test("a member missing from the quantity map defaults to 1 per package", () => {
@@ -207,7 +194,7 @@ describe("packageBundleMismatch (order-level revalidation)", () => {
       quantityMap: new Map(),
     };
     // Default ×1, q=2 → count 2 (a whole number), so a lone member matches.
-    expect(packageBundleMismatch(noQty, [item(1, 2)], new Set())).toBe(false);
+    expect(packageBundleMismatch(noQty, [item(1, 2)])).toBe(false);
   });
 
   test("a zero-quantity line is a mismatch", () => {
@@ -217,6 +204,6 @@ describe("packageBundleMismatch (order-level revalidation)", () => {
       priceMap: new Map(),
       quantityMap: new Map([[1, 1]]),
     };
-    expect(packageBundleMismatch(solo, [item(1, 0)], new Set())).toBe(true);
+    expect(packageBundleMismatch(solo, [item(1, 0)])).toBe(true);
   });
 });

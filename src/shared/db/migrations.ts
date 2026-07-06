@@ -95,6 +95,7 @@ import attendeeListingsTagMigration from "./migrations/2026-07-03_attendee_listi
 import listingImageThumbMigration from "./migrations/2026-07-03_listing_image_thumb.ts";
 import addressCacheMigration from "./migrations/2026-07-05_address_cache.ts";
 import firstClassImagesMigration from "./migrations/2026-07-05_first_class_images.ts";
+import packageSlotIdentityMigration from "./migrations/2026-07-05_package_slot_identity.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -303,6 +304,9 @@ export const MIGRATIONS: Migration[] = [
   attendeeListingsTagMigration,
   // Historical no-op: image thumbnails now live on first-class image records.
   listingImageThumbMigration,
+  // Widen the unique booking-slot index with package_group_id so overlapping
+  // package paths keep one row each.
+  packageSlotIdentityMigration,
   // Create reusable image records plus ordered item uses.
   firstClassImagesMigration,
   // Create the encrypted address-lookup result cache.

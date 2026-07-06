@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { buildTicketListing } from "#shared/booking/model.ts";
+import type { PagePackage } from "#shared/booking/page-packages.ts";
 import { getCurrentCsrfToken, signCsrfToken } from "#shared/csrf.ts";
 import { addDays } from "#shared/dates.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -21,6 +22,7 @@ import {
   ticketPage,
 } from "#templates/public.tsx";
 import { ticketViewPage } from "#templates/tickets.tsx";
+import { pagePackage as sharedPagePackage } from "#test/lib/package-cap-fixtures.ts";
 import {
   describeWithEnv,
   hasInputWithValue,
@@ -33,6 +35,21 @@ beforeAll(async () => {
   setupTestEncryptionKey();
   await signCsrfToken();
 });
+
+/** This suite's package pages share one slug so each test's `slugs` array can
+ * name the package page. Delegates to the shared fixture; only the stable
+ * display defaults differ. */
+const PKG_SLUG = "pkg-slug";
+const pagePackage = (
+  groupId: number,
+  memberListingIds: number[],
+  overrides: Partial<PagePackage> = {},
+): PagePackage =>
+  sharedPagePackage(groupId, memberListingIds, {
+    name: "Package",
+    slug: PKG_SLUG,
+    ...overrides,
+  });
 
 afterEach(() => {
   detectIframeMode("https://example.com/");
@@ -131,8 +148,10 @@ describe("ticketPage (single listing)", () => {
         ticketPage({
           dates: [],
           listings: [buildTicketListing(free, false, undefined)],
-          packagePrices,
-          slugs: ["free991"],
+          ...(packagePrices
+            ? { packages: [pagePackage(5, [991], { prices: packagePrices })] }
+            : {}),
+          slugs: [PKG_SLUG],
         });
       expect(render()).not.toContain('name="email"');
       expect(render(new Map([[991, 1500]]))).toContain('name="email"');
@@ -521,12 +540,11 @@ describe("ticketPage", () => {
     const html = ticketPage({
       groupName: "Camp Kit",
       listings,
-      packageGroupId: 5,
       // Only listing 2 has a quantity row; listing 1 falls back to ×1.
-      packageQuantities: new Map([[2, 4]]),
-      slugs: ["tent1", "chr12"],
+      packages: [pagePackage(5, [1, 2], { quantities: new Map([[2, 4]]) })],
+      slugs: [PKG_SLUG],
     });
-    expect(html).toContain('name="package_quantity"');
+    expect(html).toContain('name="package_quantity_5"');
     expect(html).toContain("Number of packages");
     expect(html).toContain("Tent");
     expect(html).toContain("&times;1");
@@ -537,7 +555,7 @@ describe("ticketPage", () => {
   });
 
   test("restores the submitted package quantity after a validation error", () => {
-    setSavedFormData(new FormParams({ package_quantity: "3" }));
+    setSavedFormData(new FormParams({ package_quantity_5: "3" }));
     try {
       const listings = [
         buildTicketListing(
@@ -556,9 +574,8 @@ describe("ticketPage", () => {
       const html = ticketPage({
         groupName: "Camp Kit",
         listings,
-        packageGroupId: 5,
-        packageQuantities: new Map([[1, 1]]),
-        slugs: ["tent1"],
+        packages: [pagePackage(5, [1], { quantities: new Map([[1, 1]]) })],
+        slugs: [PKG_SLUG],
       });
       // The selector pre-selects the just-submitted count, not a reset 1.
       expect(html).toContain('value="3" selected');
@@ -597,7 +614,6 @@ describe("ticketPage", () => {
     const html = ticketPage({
       groupName: "Pool Pkg",
       listings,
-      packageGroupId: 7,
       // Both members sit in the capped package group 7 (pool of 4). Member 1 is
       // also in group 8, which is uncapped (absent from the remaining map) and so
       // contributes no constraint.
@@ -608,10 +624,10 @@ describe("ticketPage", () => {
       ]),
       // Listing 1 takes 2 per package; listing 2 is omitted → defaults to 1, so
       // one package consumes 3 of the pool of 4 → floor(4 / 3) = 1 package fits.
-      packageQuantities: new Map([[1, 2]]),
-      slugs: ["big01", "sml01"],
+      packages: [pagePackage(7, [1, 2], { quantities: new Map([[1, 2]]) })],
+      slugs: [PKG_SLUG],
     });
-    expect(html).toContain('name="package_quantity"');
+    expect(html).toContain('name="package_quantity_7"');
     expect(html).toContain('<option value="1"');
     // The shared pool caps the count at 1, so no "2 packages" option is offered.
     expect(html).not.toContain('<option value="2"');
@@ -648,19 +664,23 @@ describe("ticketPage", () => {
     const html = ticketPage({
       groupName: "Drained Pkg",
       listings,
-      packageGroupId: 7,
       packageGroupRemainingByGroupId: new Map([[7, 1]]),
       packageMemberGroupIds: new Map([
         [1, [7]],
         [2, [7]],
       ]),
-      packageQuantities: new Map([
-        [1, 1],
-        [2, 1],
-      ]),
-      slugs: ["big01", "sml01"],
+      packages: [
+        pagePackage(7, [1, 2], {
+          quantities: new Map([
+            [1, 1],
+            [2, 1],
+          ]),
+        }),
+      ],
+      slugs: [PKG_SLUG],
     });
-    expect(html).not.toContain('name="package_quantity"');
+    // No count selector for any package on the page.
+    expect(html).not.toContain('name="package_quantity');
     expect(html).toContain("Sorry, all listings are sold out.");
   });
 
@@ -698,7 +718,6 @@ describe("ticketPage", () => {
     const html = ticketPage({
       groupName: "Shared Pool Pkg",
       listings,
-      packageGroupId: 7,
       packageGroupRemainingByGroupId: new Map([
         [7, 10],
         [9, 2],
@@ -707,13 +726,17 @@ describe("ticketPage", () => {
         [1, [7, 9]],
         [2, [7, 9]],
       ]),
-      packageQuantities: new Map([
-        [1, 1],
-        [2, 1],
-      ]),
-      slugs: ["big01", "sml01"],
+      packages: [
+        pagePackage(7, [1, 2], {
+          quantities: new Map([
+            [1, 1],
+            [2, 1],
+          ]),
+        }),
+      ],
+      slugs: [PKG_SLUG],
     });
-    expect(html).toContain('name="package_quantity"');
+    expect(html).toContain('name="package_quantity_7"');
     expect(html).toContain('<option value="1"');
     expect(html).not.toContain('<option value="2"');
   });
@@ -732,15 +755,14 @@ describe("ticketPage", () => {
         undefined,
       ),
     ];
-    // packageQuantities omitted exercises the defensive empty-map fallback.
+    // quantities left empty exercises the defensive ×1 fallback.
     const html = ticketPage({
       groupName: "Hidden Bundle",
-      hidePackageListings: true,
       listings,
-      packageGroupId: 5,
-      slugs: ["sec12"],
+      packages: [pagePackage(5, [1], { hideListings: true })],
+      slugs: [PKG_SLUG],
     });
-    expect(html).toContain('name="package_quantity"');
+    expect(html).toContain('name="package_quantity_5"');
     expect(html).toContain("Hidden Bundle");
     expect(html).not.toContain("SecretItem");
   });

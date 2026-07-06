@@ -369,7 +369,8 @@ describe("priceCheckout", () => {
       expect(order.total).toBe(100);
 
       const breakdown = ticketPaymentBreakdown(intent);
-      expect(breakdown.paidByListingId).toEqual(new Map([[1, 50]]));
+      expect(breakdown.paidByItem.size).toBe(1);
+      expect(breakdown.paidByItem.get(intent.items[0]!)).toBe(50);
       expect(breakdown.remainingBalance).toBe(450);
     },
   );
@@ -397,15 +398,13 @@ describe("priceCheckout", () => {
       ]);
       expect(order.total).toBe(300);
 
-      const breakdown = ticketPaymentBreakdown(
-        intentWith([item()], {
-          modifiers: [
-            modifier({ kind: "fixed", name: "Programme", value: 500 }),
-          ],
-          reservationAmount: "10%",
-        }),
-      );
-      expect(breakdown.paidByListingId).toEqual(new Map([[1, 150]]));
+      const intent = intentWith([item()], {
+        modifiers: [modifier({ kind: "fixed", name: "Programme", value: 500 })],
+        reservationAmount: "10%",
+      });
+      const breakdown = ticketPaymentBreakdown(intent);
+      expect(breakdown.paidByItem.size).toBe(1);
+      expect(breakdown.paidByItem.get(intent.items[0]!)).toBe(150);
       expect(breakdown.remainingBalance).toBe(1350);
     },
   );

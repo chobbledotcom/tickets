@@ -169,6 +169,33 @@ const buildLeg = (
   };
 };
 
+/** Collapse the identical legs a multi-path booking yields (a listing booked
+ * through a package beside its standalone or second-package row is several
+ * `listing_attendees` rows) into ONE run-sheet entry: the agents, dates and
+ * times are written per listing and {@link setLegDone} completes every path
+ * row together, so the paths are one physical drop-off/collection. A collapsed
+ * leg reads done only when EVERY path row is done — a path added after the
+ * run was ticked resurfaces as outstanding. */
+const collapseDuplicateLegs = (legs: AgentRunLeg[]): AgentRunLeg[] => {
+  const byIdentity = new Map<string, AgentRunLeg>();
+  for (const leg of legs) {
+    const key = [
+      leg.attendeeId,
+      leg.listingId,
+      leg.kind,
+      leg.agentId,
+      leg.date,
+      leg.time,
+    ].join("|");
+    const seen = byIdentity.get(key);
+    byIdentity.set(
+      key,
+      seen === undefined ? leg : { ...seen, done: seen.done && leg.done },
+    );
+  }
+  return [...byIdentity.values()];
+};
+
 /**
  * Load the run-sheet legs for a set of logistics agents on the given calendar
  * dates. A booking contributes a `start` leg when its drop-off agent is one of
@@ -205,12 +232,14 @@ export const getAgentRunSheet = async (
   const agentSet = new Set(agentIds);
   const dateSet = new Set(dates);
   // Each booking row can yield a drop-off leg, a collection leg, or both.
-  return flatMap((row: RunSheetRow) =>
-    compact([
-      buildLeg(row, "start", agentSet, dateSet),
-      buildLeg(row, "end", agentSet, dateSet),
-    ]),
-  )(rows);
+  return collapseDuplicateLegs(
+    flatMap((row: RunSheetRow) =>
+      compact([
+        buildLeg(row, "start", agentSet, dateSet),
+        buildLeg(row, "end", agentSet, dateSet),
+      ]),
+    )(rows),
+  );
 };
 
 /**

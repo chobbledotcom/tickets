@@ -1023,12 +1023,12 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
           {
             date: addDays(todayInTz("UTC"), 2),
             listingId: member.id,
+            packageGroupId: group.id,
             quantity: 1,
           },
         ],
         email: "daybuyer@test.com",
         name: "Buyer",
-        packageGroupId: group.id,
       });
       if (!booked.success) throw new Error("day-override booking failed");
 

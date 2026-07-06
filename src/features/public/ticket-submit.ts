@@ -1,8 +1,5 @@
 /**
- * Booking-page framework shell: render a booking page on GET, price a quote in
- * calculate mode, or submit it. The parse/price/complete pipeline lives in
- * `ticket-process.ts` and the pricing in `ticket-pricing.ts`; this module owns
- * the request routing, the rendering context, and the CSRF/quote wrappers.
+ * Core ticket submission orchestrator
  */
 
 import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
@@ -13,6 +10,11 @@ import {
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import type { TicketListing } from "#shared/booking/model.ts";
+import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
+import {
+  priceCheckout,
+  ticketPaymentBreakdown,
+} from "#shared/checkout-pricing.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
@@ -25,6 +27,7 @@ import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type { CheckoutIntent } from "#shared/payments.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import {
@@ -37,7 +40,11 @@ import {
   applyBookingPageParentSoldOut,
   childCapacityInfo,
 } from "./discovery.ts";
-import { ticketResponse } from "./ticket-form.ts";
+import {
+  extractContact,
+  ticketFormErrorResponse,
+  ticketResponse,
+} from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import {
   checkAvailability,
@@ -45,17 +52,153 @@ import {
   getTicketContext,
   withActiveListings,
 } from "./ticket-payment.ts";
+import { validateTicketFields } from "./ticket-submit/parse.ts";
+import {
+  handleFreePath,
+  handlePaidPath,
+  TICKETS_UNAVAILABLE_MESSAGE,
+} from "./ticket-submit/paths.ts";
+import {
+  prepareOrder,
+  singleListingThankYouUrl,
+} from "./ticket-submit/prepare.ts";
 import {
   checkSoldOutTiers,
-  TICKETS_UNAVAILABLE_MESSAGE,
-} from "./ticket-pricing.ts";
-import { prepareOrder, processSubmission } from "./ticket-process.ts";
+  priceSubmissionWithContact,
+  validatePaymentUpgrade,
+} from "./ticket-submit/pricing.ts";
 import {
   applyHiddenNoindex,
   type TicketContextProvider,
   type TicketCtx,
   type TicketSharedContext,
 } from "./types.ts";
+
+/** Process submitted form after CSRF and demo overrides. */
+const processSubmission = async (
+  request: Request,
+  ctx: TicketCtx,
+  form: FormParams,
+): Promise<Response> => {
+  const errorResponse = ticketFormErrorResponse(ctx);
+
+  const prepared = await prepareOrder(ctx, form);
+  if (!prepared.ok) return errorResponse(prepared.error);
+  const { pricingParams, pricedOrder } = prepared;
+  const { allocations } = prepared;
+  const { date, dayCount, hasCustomisable, info, quantities } = pricingParams;
+  // The folded ctx carries the page listings plus the selected children, so it
+  // drives contact-field requirements, availability, and reservation creation.
+  // The original page ctx still determines the thank-you redirect so folding a
+  // child doesn't drop a single parent's configured URL.
+  const foldedCtx = pricingParams.ctx;
+  const thankYouUrl = singleListingThankYouUrl(ctx);
+
+  const paymentsEnabled = isPaymentsEnabled();
+  const requiresPaidFields = pricedOrder.total > 0;
+  const validated = validateTicketFields(form, foldedCtx, requiresPaidFields);
+  if (validated instanceof Response) return validated;
+  let contact = extractContact(validated);
+  let {
+    intent,
+    pricedOrder: finalPricedOrder,
+    visits,
+  } = await priceSubmissionWithContact(contact, pricingParams);
+  const paidUpgradeValidation = validatePaymentUpgrade(
+    form,
+    foldedCtx,
+    requiresPaidFields,
+    finalPricedOrder.total > 0,
+  );
+  if (paidUpgradeValidation instanceof Response) return paidUpgradeValidation;
+  if (paidUpgradeValidation) {
+    contact = extractContact(paidUpgradeValidation);
+    ({
+      intent,
+      pricedOrder: finalPricedOrder,
+      visits,
+    } = await priceSubmissionWithContact(contact, pricingParams));
+  }
+
+  // Run the sold-out check at the buyer's real visit count (now known), so a
+  // tier that wouldn't apply — cart below its minimum, or too few visits — isn't
+  // reported sold out.
+  const soldOut = await checkSoldOutTiers(pricingParams, visits);
+  if (soldOut) return errorResponse(soldOut);
+
+  const finalRequiresPaidFields = finalPricedOrder.total > 0;
+  const finalRequiresPayment = paymentsEnabled && finalRequiresPaidFields;
+
+  if (finalRequiresPayment) {
+    // Carry a single parent's configured thank-you URL through the paid round-trip.
+    // Folding a required child makes the booking multi-listing, so the webhook's
+    // single-unique-listing-id derivation would otherwise drop the parent's URL.
+    // Setting it explicitly on the
+    // intent lets the success page prefer it over that derivation. Only needed
+    // once a child was actually folded (the order gained a listing); a genuine
+    // single-listing order still resolves the same URL by the default rule.
+    if (thankYouUrl && foldedCtx.listings.length > ctx.listings.length) {
+      intent.thankYouUrl = thankYouUrl;
+    }
+    if (allocations.length > 0) {
+      intent.allocations = allocations;
+    }
+    return handlePaidPath(request, {
+      ctx: foldedCtx,
+      date,
+      dayCount,
+      info,
+      intent,
+      quantities,
+    });
+  }
+  // With no payment provider configured we still accept bookings for paid items.
+  // The order is recorded exactly like a zero-deposit reservation: nothing is
+  // collected up front and the full value of the booking becomes the amount
+  // owed. Forcing reservationAmount to "0" charges every line zero while the
+  // remaining balance captures the full order value — regardless of any
+  // reservation amount the public-default status configures, since no deposit
+  // can be taken without a provider.
+  const breakdownIntent: CheckoutIntent = paymentsEnabled
+    ? intent
+    : { ...intent, reservationAmount: "0" };
+  // The ledger order for a provider-less booking is the breakdown order with the
+  // booking fee removed up front (`feeSubtotal: 0` — payments-off charges no fee)
+  // and then recast as an OWED order: nothing was collected and no fee is booked,
+  // so `owedOrderForLedger` drops every extra and zeroes the total. That posts the
+  // gross `sale`/owed legs (and any surcharge add-on as its own `modifier` leg)
+  // with NO `fee` and NO `payment` leg — the breakdown intent (kept fee-bearing)
+  // still drives the displayed remaining balance below.
+  const ledgerOrder = paymentsEnabled
+    ? finalPricedOrder
+    : owedOrderForLedger(priceCheckout({ ...breakdownIntent, feeSubtotal: 0 }));
+  return handleFreePath({
+    allocations,
+    contact,
+    ctx: foldedCtx,
+    date,
+    dayCount,
+    hasCustomisable,
+    info,
+    items: pricingParams.items,
+    // Always dual-write the ledger — outstanding balance is projected from it,
+    // so an owed booking must record its legs at creation. A paid or enabled
+    // zero-total checkout (fully discounted, zero-deposit reservation) posts
+    // `finalPricedOrder`; a provider-less booking posts the OWED order built
+    // above, whose gross sale legs leave the full value owed with no fee/payment.
+    ledgerOrder,
+    // Record modifier usage (and consume stock) on every completion, including
+    // bookings taken with no payment provider, so a stock-limited answer tier is
+    // capped across all bookings — not just the paid ones the webhook would have
+    // consumed. The applied amounts are the real per-modifier impact: a
+    // provider-less booking owes the full order value (modifiers included), so
+    // its modifiers count exactly as a zero-deposit reservation's would.
+    modifierUsages: finalPricedOrder.modifierApplications,
+    paymentBreakdown: ticketPaymentBreakdown(breakdownIntent),
+    quantities,
+    thankYouUrl,
+  });
+};
 
 const withTicketCsrfForm = (
   request: Request,
@@ -84,7 +227,7 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
  * - a sold-out answer tier is rejected (as submit would), run at zero visits
  *   since a quote strips the PII needed to look the buyer's count up;
  * - with no payment provider configured the booking is taken without charging,
- *   but a paid order still owes its full value (see the free path), so
+ *   but a paid order still owes its full value (see {@link handleFreePath}), so
  *   the quote surfaces that amount owed rather than implying the order is free.
  *
  * A returning buyer's `min_visits` modifiers are not reflected — that needs the
@@ -253,9 +396,10 @@ export const handleTicket = async (args: BookingRequest): Promise<Response> => {
  * `?q_<id>=n` (the order page redirects into `/ticket/<slugs>?q_<id>=1…` to
  * land the visitor with their chosen items selected) and the date selector
  * from `?date=YYYY-MM-DD` (the /listings date filter carries the searched
- * date into a daily listing's Book CTA, #51).
+ * date into a daily listing's Book CTA, #51). A package needs no count
+ * pre-fill — its selector already defaults to one bundle.
  */
-const parseQuantityPrefill = (
+export const parseQuantityPrefill = (
   request: Request,
   listings: TicketListing[],
 ): BookingPrefill | undefined => {
@@ -342,7 +486,9 @@ export const renderTicketFlow =
       }),
       listings: activeListings,
       mode: options.mode,
-      prefill: options.prefill,
+      // A caller-supplied pre-fill wins; otherwise read the query pre-fill so
+      // e.g. the order cart's chosen date carries onto a package page.
+      prefill: options.prefill ?? parseQuantityPrefill(request, activeListings),
       request,
       slugs,
     });

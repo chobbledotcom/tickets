@@ -12,6 +12,7 @@ import type { BookingTree } from "#shared/booking/tree.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import type { BookingItem } from "#shared/payments.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { treePackage } from "./package-cap-fixtures.ts";
 
 const resolved = (id: number) =>
   buildTicketListing(testListingWithCount({ id }), false, undefined);
@@ -22,8 +23,7 @@ const packageWithChild = (): BookingTree =>
   buildBookingTree({
     childrenByParentId: new Map([[5, [resolved(9)]]]),
     listings: [resolved(5)],
-    packageQuantities: new Map([[5, 1]]),
-    root: { groupId: 3, kind: "package" },
+    packages: [treePackage(3, [5], { quantities: new Map([[5, 1]]) })],
     slugs: ["pkg"],
   });
 
@@ -102,7 +102,7 @@ describe("edgeDrifted", () => {
     // Member 5 was removed from the package mid-checkout.
     const tree = buildBookingTree({
       listings: [],
-      root: { groupId: 3, kind: "package" },
+      packages: [treePackage(3, [5])],
       slugs: ["pkg"],
     });
     expect(edgeDrifted(tree, [memberLine], [])).toBe(true);
@@ -112,8 +112,7 @@ describe("edgeDrifted", () => {
     // The parent stays a member but its required-child edge was removed.
     const tree = buildBookingTree({
       listings: [resolved(5)],
-      packageQuantities: new Map([[5, 1]]),
-      root: { groupId: 3, kind: "package" },
+      packages: [treePackage(3, [5], { quantities: new Map([[5, 1]]) })],
       slugs: ["pkg"],
     });
     expect(edgeDrifted(tree, [memberLine, childLine], [childAlloc])).toBe(true);

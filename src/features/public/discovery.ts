@@ -397,11 +397,20 @@ export const packageGroupBookable = async (
   const childrenByParentId = await loadChildrenByParentId(ticketListings);
   const { groupIdsByListingId, groupRemainingByGroupId: remaining } =
     await loadPackageLimitGroupMaps(ticketListings, childrenByParentId);
+  const maps = packageMemberMaps(rows);
   const tree = buildBookingTree({
     childrenByParentId,
     listings: ticketListings,
-    packageQuantities: packageMemberMaps(rows).quantities,
-    root: { groupId, kind: "package" },
+    packages: [
+      {
+        dayPrices: new Map(),
+        groupId,
+        hideListings: false,
+        memberListingIds: members.map((m) => m.id),
+        prices: maps.prices,
+        quantities: maps.quantities,
+      },
+    ],
     slugs: members.map((m) => m.slug),
   });
   return (

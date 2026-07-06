@@ -376,11 +376,11 @@ describeWithEnv("AdminNav", {}, () => {
       expect(html).not.toContain('href="/admin/site/contact"');
     }));
 
-  test("AdminNav uses SettingsNagBanner default (no items prop) when settingsNagItems is undefined", () => {
+  test("AdminNav uses SettingsNagBanner default (no items prop) when settingsNagItems is omitted", () => {
     const html = String(
       AdminNav({
         active: "/admin/",
-        session: { adminLevel: "owner", settingsNagItems: undefined },
+        session: { adminLevel: "owner" },
       }),
     );
     // SettingsNagBanner receives items=undefined and falls back to base nags.

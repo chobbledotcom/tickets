@@ -86,10 +86,6 @@ export const lineTotalsByListingId = (
 export const lineListPrice = (line: PricedLine): number =>
   line.item.unitPrice * line.quantity;
 
-export const ticketLineTotalsByListingId = (
-  order: Pick<PricedOrder, "lines">,
-): Map<number, number> => lineTotalsByListingId(order.lines, lineCharge);
-
 /** The booking-fee extra line for a subtotal, or [] when the fee is zero. */
 const feeExtras = (fullSubtotal: number): ExtraLine[] => {
   const amount = getBookingFeeAmount(fullSubtotal);
@@ -357,7 +353,10 @@ export const priceCheckout = (intent: CheckoutIntent): PricedOrder => {
 };
 
 export type TicketPaymentBreakdown = {
-  paidByListingId: Map<number, number>;
+  /** Each intent item's charged total, keyed by the item OBJECT — a listing
+   * booked through two paths is two items, each with its own amount, so each
+   * path's booking row records what its own line was charged. */
+  paidByItem: Map<CheckoutItem, number>;
   remainingBalance: number;
 };
 
@@ -365,14 +364,20 @@ export const ticketPaymentBreakdown = (
   intent: CheckoutIntent,
 ): TicketPaymentBreakdown => {
   const paid = priceCheckout(intent);
-  const paidByListingId = ticketLineTotalsByListingId(paid);
+  const paidByItem = new Map<CheckoutItem, number>();
+  for (const line of paid.lines) {
+    paidByItem.set(
+      line.item,
+      (paidByItem.get(line.item) ?? 0) + lineCharge(line),
+    );
+  }
   if (!intent.reservationAmount) {
-    return { paidByListingId, remainingBalance: 0 };
+    return { paidByItem, remainingBalance: 0 };
   }
 
   const remainingBalance = Math.max(
     0,
     paid.fullSubtotal - ticketLineTotal(paid),
   );
-  return { paidByListingId, remainingBalance };
+  return { paidByItem, remainingBalance };
 };

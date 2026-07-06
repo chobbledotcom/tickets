@@ -11,6 +11,7 @@ import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { resetSessionCache } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
+import { attendeeLineIndex } from "#test-utils/assertions.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import {
   clearTestEncryptionKey,
@@ -135,6 +136,21 @@ export const openAttendeeEditor = async (
     /\/admin\/attendees\/\d+\/edit$/.test(l.href),
   )!;
   await browser.visit(editTab.href);
+};
+
+/** The attendee editor's line index for a listing on the CURRENT page — the
+ * row-per-path editor names its per-line fields (`qty_<i>`, `noqty_<i>`) by
+ * line position, not listing id, so drivers resolve the index from the
+ * rendered form before each submit (a save re-orders the lines). */
+export const lineIndexOnPage = (
+  browser: TestBrowser,
+  listingId: string | number,
+): string => {
+  const index = attendeeLineIndex(browser.currentHtml, Number(listingId));
+  if (index === null) {
+    throw new Error(`no editor line for listing ${listingId} on this page`);
+  }
+  return index;
 };
 
 /** The first customer `/t` ticket token linked on the current page. */

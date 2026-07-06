@@ -4,23 +4,21 @@
  */
 
 import * as v from "valibot";
-import { chunk, lazyRef, map } from "#fp";
+import { chunk, lazyRef } from "#fp";
 import { t } from "#i18n";
 import { toBase64 } from "#shared/crypto/utils.ts";
+import { packageDisplaysForRows } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
+  type BuyerEntryGroup,
   buildTemplateData,
+  buyerEntryGroups,
   collapsedPackageSummary,
-  getPackageDisplayForEntries,
   renderEmailContent,
 } from "#shared/email-renderer.ts";
 import { getEnv } from "#shared/env.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import {
-  type PackagePrivacy,
-  packagePrivacyOfDisplay,
-} from "#shared/package-privacy.ts";
 import { generateSvgTicket, type SvgTicketData } from "#shared/svg-ticket.ts";
 import { buildCheckinUrl, buildTicketUrl } from "#shared/ticket-url.ts";
 import {
@@ -360,20 +358,24 @@ const collapsedSvgTicketData = (
   };
 };
 
-/** Generate SVG ticket attachments for all entries. A HIDDEN package collapses
- * to a single package-level SVG so the buyer's attachments don't reveal the
- * member listings the email body hides. */
+/** Generate SVG ticket attachments for the buyer's row groups: each HIDDEN
+ * package collapses to a single package-level SVG so the attachments don't
+ * reveal the member listings the email body hides — whatever else the order
+ * carries beside the bundle. Callers without package rows pass one group per
+ * entry ({@link buyerEntryGroups} builds the real thing). */
 export const buildTicketAttachments = async (
-  entries: EmailEntry[],
+  groups: readonly BuyerEntryGroup[],
   currency: string,
-  privacy: PackagePrivacy = { kind: "visible" },
 ): Promise<EmailAttachment[]> => {
-  const ticketDataList =
-    privacy.kind === "hidden"
-      ? [collapsedSvgTicketData(entries, currency, privacy.packageName)]
-      : map((entry: EmailEntry) => buildSvgTicketData(entry, currency))(
-          entries,
-        );
+  const ticketDataList = groups.map((group) =>
+    group.hiddenPackageName === undefined
+      ? buildSvgTicketData(group.entries[0]!, currency)
+      : collapsedSvgTicketData(
+          group.entries,
+          currency,
+          group.hiddenPackageName,
+        ),
+  );
   const svgs = await Promise.all(
     ticketDataList.map((data) => generateSvgTicket(data)),
   );
@@ -406,18 +408,19 @@ export const sendRegistrationEmails = async (
 
   if (attendeeEmail) {
     const replyTo = businessEmail || undefined;
-    // The buyer's confirmation hides a hidden package's member listings — both
-    // in the email body and in the attached ticket SVGs — via the one
-    // package-privacy chokepoint.
-    const privacy = packagePrivacyOfDisplay(
-      await getPackageDisplayForEntries(entries),
+    // The buyer's confirmation hides every hidden package's member listings —
+    // both in the email body and in the attached ticket SVGs — via the one
+    // buyer-grouping chokepoint (a mixed order conceals each bundle it holds).
+    const groups = buyerEntryGroups(
+      entries,
+      await packageDisplaysForRows(entries),
     );
     const data = await buildTemplateData(entries, currency, ticketUrl, {
       hidePackageMembers: true,
     });
     const [confirmation, attachments] = await Promise.all([
       renderEmailContent("confirmation", data),
-      buildTicketAttachments(entries, currency, privacy),
+      buildTicketAttachments(groups, currency),
     ]);
     promises.push(
       sendEmail(config, {

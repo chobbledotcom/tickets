@@ -49,18 +49,22 @@ generalized passes: render, fold, price, capacity, revalidate.
   `classifySession`).
 - A package member may itself be a parent: `isPackageableMember`
   (`src/shared/.../groups.ts`, ~line 115) now permits it.
+- **Row-level admin identity + per-path bookings (multi-package orders).** The
+  same listing id may now legitimately book through more than one path in a
+  single order (a package member beside its own standalone row; the model also
+  supports two overlapping packages). One `CheckoutItem`/booking row per path,
+  each tagged `packageGroupId`; the booking-slot unique index and the
+  merge/check-in row keys are widened with `package_group_id`
+  (`2026-07-05_package_slot_identity` migration, `bookingKey`,
+  `bookingSlotKey`). `PagePackage` + `buildBookingTree` build one node per
+  path, and `/order` sells packages alongside listings via the pure
+  `#shared/order` evaluator (`options.ts`/`evaluate.ts`). The admin attendee
+  editor matches: one editable line per stored booking row (labelled with its
+  path), plus blank per-(package, member) lines behind a pure-CSS toggle, so
+  an operator can view, edit, and create every path combination a public
+  buyer could — JS-free (`attendee-form-model.ts`, `attendee-page-data.ts`).
 
 **Remaining:**
-
-- **Row-level admin identity — do this BEFORE phase 3.** Attendee-merge's
-  `bookingKey` (`src/shared/merge/attendee-merge.ts`, ~lines 70–79) and the
-  check-in targeting key are both `listingId:startAt:parentListingId`. Once
-  phase 3 allows the *same* listing id to appear via more than one path (as a
-  parent's child AND as a package member), those keys collide and merge/check-in
-  target the wrong row. They must additionally key on `package_group_id` /
-  `nodeKey`. Write the persistence tests (merge conflict-keying, check-in
-  targeting for a listing reachable two ways) FIRST, then extend the key. Not a
-  live defect today because phase 3 hasn't introduced duplicate ids yet.
 
 - **Phase 3 — unified edge store (optional; one-way door).** Collapse
   `listing_parents` and `group_listings` into a single edge table (or make one a
@@ -71,6 +75,32 @@ generalized passes: render, fold, price, capacity, revalidate.
 - **Phase 4 — buyer-choice children inside a package (optional).** Let a package
   member offer a buyer-selected child (the parent/child choice UI, nested under a
   package). Build on demand when a real booking requires it.
+
+- **`/order` live availability: fold required-child demand into options.** The
+  order gallery's evaluator (`#shared/order`) judges an option by its direct
+  listings' units; the children the booking form auto-folds under a parent (a
+  sole bookable child fills to the parent quantity) are not part of the demand,
+  so two selections contending for a shared child pool read as available on the
+  gallery and are refused at the form. Advisory-only today (the form is the
+  authority — documented in `src/features/public/order.ts`); fixing it means
+  loading each option's children in `loadOrderCatalog` and adding the
+  guaranteed folded units (and their group pools) to `unitsByListingId`.
+
+- **Per-path sale amounts in the ledger projection.** A booking posts ONE
+  `sale` leg per listing (`bookingFactsFromOrder` sums the order's lines by
+  listing id; the leg reference is `["sale", listingId]`), and
+  `pricePaidFromLedger` splits that total across the listing's sibling rows in
+  quantity proportion. When one listing books through two paths at DIFFERENT
+  prices in one order (package override beside its own standalone row), the
+  per-row `price_paid` readback is therefore quantity-averaged — e.g. 4×400
+  package units + 1×500 standalone reads back 1680/420 instead of 1600/500.
+  Order totals, revenue sums, and refunds are exact (the shares telescope);
+  only per-row display/merge granularity blurs, and only when per-path prices
+  differ. Fixing it needs a SQL-queryable per-path discriminator on sale legs
+  (a transfers schema addition — `reference` is a hash, `kind`/`dest_id` feed
+  reports) or re-storing the per-row amount, plus a fallback for pre-upgrade
+  rows whose legs are untagged. Do it when per-row money display matters more
+  than the schema stability of the append-only ledger.
 
 - **Confirm the v1 drain bridge is genuinely unnecessary.** The original plan
   called for a bounded-window read-only parser for pre-cutover (v1) signed

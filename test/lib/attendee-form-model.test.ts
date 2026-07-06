@@ -31,6 +31,9 @@ const line = (overrides: Partial<AttendeeFormLine> = {}): AttendeeFormLine => ({
   listing: testListingWithCount({ id: 1, max_quantity: 5 }),
   listingId: 1,
   noQuantity: false,
+  packageGroupId: 0,
+  packagePrice: null,
+  parentListingId: 0,
   quantity: 1,
   ...overrides,
 });
@@ -140,16 +143,17 @@ describe("attendeeBookingsFromLines", () => {
 });
 
 describe("parseAttendeeForm", () => {
-  test("reads attendee fields, the shared range, and one qty line", () => {
+  test("reads attendee fields, the shared range, and one editor line", () => {
     const parsed = parseAttendeeForm(
       makeForm({
         address: "1 St",
         day_count: "3",
         email: "a@b.com",
-        line_key_5: "5|",
+        line_key_0: "5|||0",
+        line_listing_0: "5",
         name: "Jane",
         phone: "555",
-        qty_5: "2",
+        qty_0: "2",
         special_instructions: "VIP",
         start_date: "2026-03-02",
       }),
@@ -164,43 +168,122 @@ describe("parseAttendeeForm", () => {
     expect(parsed.lines).toHaveLength(1);
     expect(parsed.lines[0]!.listingId).toBe(5);
     expect(parsed.lines[0]!.quantity).toBe(2);
-    expect(parsed.lines[0]!.key).toBe("5|");
+    expect(parsed.lines[0]!.key).toBe("5|||0");
   });
 
-  test("reads one line per qty_<id> field, de-duplicated", () => {
+  test("reads one line per line_listing_<i>, de-duplicated by index", () => {
     const parsed = parseAttendeeForm(
-      makeForm({ name: "X", qty_3: "1", qty_7: "0" }),
+      new FormParams(
+        "name=X&line_listing_0=3&qty_0=1&line_listing_1=7&qty_1=0&line_listing_1=9",
+      ),
       new Map(),
     );
+    // The duplicate index 1 is ignored; two lines, even for the same listing.
     expect(parsed.lines.map((l) => l.listingId)).toEqual([3, 7]);
+  });
+
+  test("two lines may target the SAME listing — one per booking path", () => {
+    const parsed = parseAttendeeForm(
+      makeForm({
+        line_listing_0: "3",
+        line_listing_1: "3",
+        line_package_1: "7",
+        name: "X",
+        qty_0: "1",
+        qty_1: "2",
+      }),
+      new Map(),
+      new Map(),
+      new Map([[3, new Map([[7, null]])]]),
+    );
+    expect(
+      parsed.lines.map((l) => [l.listingId, l.packageGroupId, l.quantity]),
+    ).toEqual([
+      [3, 0, 1],
+      [3, 7, 2],
+    ]);
   });
 
   test("resolves listing references against the provided map", () => {
     const listing = testListingWithCount({ id: 7, name: "Resolved" });
     const parsed = parseAttendeeForm(
-      makeForm({ name: "X", qty_7: "1" }),
+      makeForm({ line_listing_0: "7", name: "X", qty_0: "1" }),
       new Map([[7, listing]]),
     );
     expect(parsed.lines[0]!.listing?.name).toBe("Resolved");
   });
 
-  test("ignores non-positive, partly-numeric and non-numeric listing ids", () => {
+  test("ignores lines whose listing value is not a positive id", () => {
     const parsed = parseAttendeeForm(
       makeForm({
+        line_listing_0: "0",
+        line_listing_1: "4",
+        line_listing_2: "5abc",
+        line_listing_3: "abc",
         name: "X",
         qty_0: "1",
-        qty_4: "1",
-        qty_5abc: "1",
-        qty_abc: "1",
+        qty_1: "1",
+        qty_2: "1",
+        qty_3: "1",
       }),
       new Map(),
     );
     expect(parsed.lines.map((l) => l.listingId)).toEqual([4]);
   });
 
+  test("a blank line's package path only sticks for a real membership", () => {
+    const memberships = new Map([[4, new Map([[7, 250]])]]);
+    const parsed = parseAttendeeForm(
+      makeForm({
+        line_listing_0: "4",
+        line_listing_1: "4",
+        line_package_0: "7",
+        line_package_1: "8",
+        name: "X",
+        qty_0: "1",
+        qty_1: "1",
+      }),
+      new Map(),
+      new Map(),
+      memberships,
+    );
+    // Line 0 books through its real package (carrying that path's price);
+    // line 1 named a package that does not contain listing 4 (or was
+    // deleted) and falls back to the listing's own row.
+    expect(parsed.lines.map((l) => [l.packageGroupId, l.packagePrice])).toEqual(
+      [
+        [7, 250],
+        [0, null],
+      ],
+    );
+  });
+
+  test("an existing row's path comes from the row, never line_package", () => {
+    const row = bookingRow({ listing_id: 4, package_group_id: 7 });
+    const parsed = parseAttendeeForm(
+      makeForm({
+        line_key_0: "4|||7",
+        line_listing_0: "4",
+        line_package_0: "9",
+        name: "X",
+        qty_0: "1",
+      }),
+      new Map(),
+      new Map([["4|||7", row]]),
+    );
+    expect(parsed.lines[0]!.packageGroupId).toBe(7);
+    expect(parsed.lines[0]!.existingBooking).toBe(row);
+  });
+
   test("treats empty and non-numeric quantity as null", () => {
     const parsed = parseAttendeeForm(
-      makeForm({ name: "X", qty_1: "", qty_2: "abc" }),
+      makeForm({
+        line_listing_0: "1",
+        line_listing_1: "2",
+        name: "X",
+        qty_0: "",
+        qty_1: "abc",
+      }),
       new Map(),
     );
     expect(parsed.lines[0]!.quantity).toBeNull();
@@ -210,8 +293,9 @@ describe("parseAttendeeForm", () => {
   test("rejects malformed quantity values instead of parsing their prefix", () => {
     const parsed = parseAttendeeForm(
       makeForm({
+        line_listing_0: "1",
         name: "X",
-        qty_1: "2x",
+        qty_0: "2x",
       }),
       new Map(),
     );
@@ -267,9 +351,14 @@ describe("parseAttendeeForm", () => {
   test("attaches an existing booking row by key", () => {
     const booking = bookingRow({ listing_id: 5, quantity: 3 });
     const parsed = parseAttendeeForm(
-      makeForm({ line_key_5: "5|", name: "X", qty_5: "3" }),
+      makeForm({
+        line_key_0: "5|||0",
+        line_listing_0: "5",
+        name: "X",
+        qty_0: "3",
+      }),
       new Map(),
-      new Map([["5|", booking]]),
+      new Map([["5|||0", booking]]),
     );
     expect(parsed.lines[0]!.existingBooking).toEqual(booking);
   });
@@ -278,7 +367,7 @@ describe("parseAttendeeForm", () => {
     const parsed = parseAttendeeForm(
       // The qty input is CSS-hidden but a stale value can still be submitted;
       // it must be ignored in favour of the sentinel 0.
-      makeForm({ name: "X", noqty_5: "1", qty_5: "9" }),
+      makeForm({ line_listing_0: "5", name: "X", noqty_0: "1", qty_0: "9" }),
       new Map(),
     );
     expect(parsed.lines[0]!.noQuantity).toBe(true);
@@ -287,7 +376,7 @@ describe("parseAttendeeForm", () => {
 
   test("an unticked no-quantity box keeps the entered quantity", () => {
     const parsed = parseAttendeeForm(
-      makeForm({ name: "X", qty_5: "2" }),
+      makeForm({ line_listing_0: "5", name: "X", qty_0: "2" }),
       new Map(),
     );
     expect(parsed.lines[0]!.noQuantity).toBe(false);
@@ -497,12 +586,14 @@ describe("toCreateInput", () => {
       date: "2026-03-02",
       durationDays: 3,
       listingId: 1,
+      packageGroupId: 0,
       quantity: 2,
     });
     expect(input.bookings[1]).toEqual({
       date: null,
       durationDays: undefined,
       listingId: 2,
+      packageGroupId: 0,
       quantity: 1,
     });
   });
@@ -530,13 +621,17 @@ describe("toDesiredLines", () => {
         startDate: "2026-03-05",
       }),
     );
-    // The existing line keeps its old key (so the date move is an UPDATE)…
+    // The existing line keeps its old key (so the date move is an UPDATE)
+    // and carries its booking's package path (0 = a plain line) so the
+    // update pins the right row when a listing books through several paths.
     expect(desired[0]).toEqual({
       date: "2026-03-05",
       durationDays: 2,
       exists: true,
       key: "1|2026-03-01T00:00:00Z",
       listingId: 1,
+      packageGroupId: 0,
+      parentListingId: 0,
       quantity: 1,
     });
     // …the new line is an INSERT.
@@ -567,6 +662,96 @@ describe("toDesiredLines", () => {
     expect(desired).toHaveLength(1);
     expect(desired[0]).toMatchObject({ exists: true, quantity: 0 });
   });
+
+  test("each line books its own path — two rows of one listing stay two", () => {
+    // The editor renders one line per stored ROW, so a dual-path attendee
+    // (package 7 beside the listing's own row) round-trips as two desired
+    // lines, each on its own key and path.
+    const packageRow = bookingRow({
+      end_at: "2026-03-03T00:00:00Z",
+      listing_id: 1,
+      package_group_id: 7,
+      quantity: 2,
+      start_at: "2026-03-01T00:00:00Z",
+    });
+    const desired = toDesiredLines(
+      parsedBase({
+        lines: [
+          line({
+            existingBooking: bookingRow({ listing_id: 1 }),
+            key: "1|||0",
+            listingId: 1,
+            quantity: 3,
+          }),
+          line({
+            existingBooking: packageRow,
+            key: "1|2026-03-01T00:00:00Z|0|7",
+            listingId: 1,
+            packageGroupId: 7,
+            quantity: 2,
+          }),
+        ],
+      }),
+    );
+    expect(desired).toEqual([
+      {
+        date: null,
+        durationDays: 1,
+        exists: true,
+        key: "1|||0",
+        listingId: 1,
+        packageGroupId: 0,
+        parentListingId: 0,
+        quantity: 3,
+      },
+      {
+        date: null,
+        durationDays: 1,
+        exists: true,
+        key: "1|2026-03-01T00:00:00Z|0|7",
+        listingId: 1,
+        packageGroupId: 7,
+        parentListingId: 0,
+        quantity: 2,
+      },
+    ]);
+  });
+
+  test("a blank package line given a quantity inserts on that path", () => {
+    const desired = toDesiredLines(
+      parsedBase({
+        lines: [line({ listingId: 1, packageGroupId: 7, quantity: 2 })],
+      }),
+    );
+    expect(desired).toEqual([
+      {
+        date: null,
+        durationDays: 1,
+        exists: false,
+        key: "",
+        listingId: 1,
+        packageGroupId: 7,
+        parentListingId: 0,
+        quantity: 2,
+      },
+    ]);
+  });
+
+  test("a zeroed line's row falls out and is deleted", () => {
+    const desired = toDesiredLines(
+      parsedBase({
+        lines: [
+          line({
+            existingBooking: bookingRow({ listing_id: 1 }),
+            key: "1|||0",
+            listingId: 1,
+            quantity: 0,
+          }),
+        ],
+      }),
+    );
+    expect(desired).toEqual([]);
+  });
 });
 
 describe("no-quantity persistence + paid-line guard", () => {
@@ -584,7 +769,13 @@ describe("no-quantity persistence + paid-line guard", () => {
       }),
     );
     expect(input.bookings).toEqual([
-      { date: null, durationDays: undefined, listingId: 1, quantity: 0 },
+      {
+        date: null,
+        durationDays: undefined,
+        listingId: 1,
+        packageGroupId: 0,
+        quantity: 0,
+      },
     ]);
   });
 

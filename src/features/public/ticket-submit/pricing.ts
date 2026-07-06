@@ -1,11 +1,9 @@
 /**
- * Pricing and quote helpers for a ticket submission.
- *
- * Pure-ish computation shared by the submission pipeline (`ticket-process.ts`)
- * and the `/calculate` quote: it turns a validated cart into a `CheckoutIntent`,
- * prices it through the shared checkout engine, resolves the eligible
- * modifiers, and answers the sold-out / paid-field questions. It never writes
- * to the database — the callers decide whether to charge or save.
+ * Pricing a submitted order: build the checkout intent, resolve every modifier
+ * (automatic, code, add-on, answer) in one pass, and price it — before contact
+ * details (for quotes) or with the buyer's real visit count (for the submit).
+ * The sold-out answer-tier check shares the same eligibility options so both
+ * passes judge modifiers identically.
  */
 
 import { priceCheckout } from "#shared/checkout-pricing.ts";
@@ -15,88 +13,17 @@ import {
   type ResolveOptions,
   resolveModifiers,
 } from "#shared/db/modifier-resolve.ts";
-import { getOrCreateStringIds, type TextAnswer } from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
+import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
+import type { TicketFormValues } from "#templates/fields.ts";
+import type { extractContact } from "../ticket-form.ts";
+import type { TicketCtx } from "../types.ts";
 import {
-  type TicketFormValues,
-  tryValidateTicketFields,
-} from "#templates/fields.ts";
-import {
-  buildListingAnswerMap,
-  buildListingTextAnswerMap,
-  type extractContact,
-  getTicketFieldsSetting,
-  ticketFormErrorResponse,
-} from "./ticket-form.ts";
-import type { buildRegistrationItems } from "./ticket-payment.ts";
-import type { TicketCtx } from "./types.ts";
-
-/** Validate contact fields once the final priced checkout says whether it is paid. */
-export const validateTicketFields = (
-  form: FormParams,
-  ctx: TicketCtx,
-  requiresPayment: boolean,
-): Response | TicketFormValues =>
-  tryValidateTicketFields(
-    form,
-    getTicketFieldsSetting(ctx.listings),
-    ticketFormErrorResponse(ctx),
-    requiresPayment,
-  );
-
-export type AnswerInfo = {
-  activeQuestions: TicketCtx["questions"];
-  answerIds: number[];
-  textAnswers: TextAnswer[];
-  selectedListingIds: Set<number>;
-};
-
-/** Compute listing-answer map if answers exist */
-
-export const computeListingTextAnswerIdMap = async (
-  ctx: TicketCtx,
-  info: AnswerInfo,
-): Promise<CheckoutIntent["listingTextAnswerIds"]> => {
-  if (info.textAnswers.length === 0) return undefined;
-  const stringIds = await getOrCreateStringIds(
-    info.textAnswers.map((answer) => answer.text),
-  );
-  return Object.fromEntries(
-    Object.entries(
-      buildListingTextAnswerMap(
-        info.textAnswers,
-        ctx.questionListingMap,
-        info.selectedListingIds,
-      ),
-    ).map(([listingId, answers]) => [
-      listingId,
-      // These answers are a subset of the texts handed to getOrCreateStringIds,
-      // which returns an id for every input text or throws — so `s` is always a
-      // real id here, never the undefined that JSON.stringify would silently
-      // drop from the signed metadata.
-      answers.map((answer) => ({
-        q: answer.questionId,
-        s: stringIds.get(answer.text)!,
-      })),
-    ]),
-  );
-};
-
-export const computeListingAnswerMap = (
-  ctx: TicketCtx,
-  info: AnswerInfo,
-): Record<string, number[]> | undefined =>
-  info.answerIds.length > 0
-    ? buildListingAnswerMap(
-        info.activeQuestions,
-        info.answerIds,
-        ctx.questionListingMap,
-        info.selectedListingIds,
-      )
-    : undefined;
-
-const emptyContact = {
+  type AnswerInfo,
+  computeListingAnswerMap,
+  validateTicketFields,
+} from "./parse.ts";
+export const emptyContact = {
   address: "",
   email: "",
   name: "",
@@ -104,18 +31,18 @@ const emptyContact = {
   special_instructions: "",
 };
 
-type CheckoutIntentParams = {
+export type CheckoutIntentParams = {
   ctx: TicketCtx;
   date: string | null;
   dayCount: number;
   hasCustomisable: boolean;
   info: AnswerInfo;
-  items: ReturnType<typeof buildRegistrationItems>;
+  items: CheckoutItem[];
   modifiers: CheckoutIntent["modifiers"];
   reservationAmount?: string | undefined;
 };
 
-const checkoutIntentForSubmission = (
+export const checkoutIntentForSubmission = (
   contact: ReturnType<typeof extractContact>,
   params: CheckoutIntentParams,
 ): CheckoutIntent => {
@@ -142,13 +69,8 @@ const checkoutIntentForSubmission = (
     ...(ctx.siteToken ? { siteToken: ctx.siteToken } : {}),
     ...(reservationAmount ? { reservationAmount } : {}),
     ...(modifiers && modifiers.length > 0 ? { modifiers } : {}),
-    ...(ctx.packageGroupId ? { packageGroupId: ctx.packageGroupId } : {}),
   };
 };
-
-/** Shown when a cart's tickets sell out between page load and submission. */
-export const TICKETS_UNAVAILABLE_MESSAGE =
-  "Sorry, some tickets are no longer available";
 
 export type SubmissionPricingParams = Omit<
   CheckoutIntentParams,
@@ -160,7 +82,7 @@ export type SubmissionPricingParams = Omit<
   quantities: Map<number, number>;
 };
 
-const priceSubmission = (
+export const priceSubmission = (
   contact: ReturnType<typeof extractContact>,
   params: SubmissionPricingParams,
   modifiers: CheckoutIntent["modifiers"],

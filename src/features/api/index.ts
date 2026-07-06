@@ -22,9 +22,9 @@ import { loadBookablePackageBySlug } from "#routes/public/groups.ts";
 import { listingsWithQuantity } from "#routes/public/ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "#routes/public/ticket-listings.ts";
 import {
-  buildRegistrationItems,
   checkAvailability,
   createFreeReservation,
+  ctxStandInNames,
   ctxToBuildTreeInput,
   foldSelectedChildren,
   getTicketContext,
@@ -46,6 +46,10 @@ import {
   packageDayCountsChildrenSupport,
   type TicketListing,
 } from "#shared/booking/model.ts";
+import {
+  buildOrderLines,
+  nodeQuantitiesFor,
+} from "#shared/booking/order-lines.ts";
 import {
   packageBundleLimit,
   packageLimitInfo,
@@ -81,10 +85,8 @@ import {
 } from "#shared/db/listings.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
-  concealMemberNames,
-  memberStandInName,
+  concealLineNames,
   namesConcealed,
-  type PackagePrivacy,
   packagePrivacy,
 } from "#shared/package-privacy.ts";
 import {
@@ -764,7 +766,7 @@ const foldedIntent = (
   date: string | null,
   fold: Extract<FoldChildrenResult, { ok: true }>,
   items: CheckoutItem[],
-  opts: { parentThankYouUrl?: string; packageGroupId?: number },
+  opts: { parentThankYouUrl?: string },
 ): CheckoutIntent => ({
   ...contact,
   // Carry the per-(child,parent) allocations so the paid session signs them and
@@ -772,6 +774,8 @@ const foldedIntent = (
   // removed/re-parented mid-payment; buildMetadata omits an empty array.
   allocations: fold.allocations,
   date,
+  // Each package member line already carries its group id, signed per line as
+  // the item's edge tag.
   items,
   ...(fold.hasCustomisable ? { dayCount: fold.dayCount } : {}),
   // Carry the parent's thank-you URL only once a child was actually folded in
@@ -781,7 +785,6 @@ const foldedIntent = (
   ...(opts.parentThankYouUrl && fold.listings.length > 1
     ? { thankYouUrl: opts.parentThankYouUrl }
     : {}),
-  ...(opts.packageGroupId ? { packageGroupId: opts.packageGroupId } : {}),
 });
 
 /** Charge or create a folded parent+children order. Paid (with a provider): a
@@ -796,32 +799,19 @@ const foldedIntent = (
  * (`ticket-submit.ts`), which sets `intent.thankYouUrl` only once a child was
  * actually folded in.
  *
- * A PACKAGE order sets `packageGroupId` so the id is stamped onto every booking
- * row and signed into the paid metadata (driving the webhook's package
- * revalidation); the order's {@link PackagePrivacy} conceals a HIDDEN
- * package's member names on the hosted checkout's line items so the provider
- * page never reveals them. */
+ * A PACKAGE order's member lines carry their group id (stamped onto each row
+ * and edge-tagged in the signed metadata, driving the webhook's package
+ * revalidation); the caller builds — and, for a HIDDEN package, conceals — the
+ * per-path `items`, so the hosted checkout's line items never reveal a
+ * concealed member's name. */
 const completeFoldedBooking = async (
   request: Request,
   contact: ContactInfo,
   date: string | null,
   fold: Extract<FoldChildrenResult, { ok: true }>,
-  opts: {
-    parentThankYouUrl?: string;
-    packageGroupId?: number;
-    privacy?: PackagePrivacy;
-  },
+  items: CheckoutItem[],
+  opts: { parentThankYouUrl?: string },
 ): Promise<Response> => {
-  const items = concealMemberNames(
-    buildRegistrationItems(
-      fold.listings,
-      fold.quantities,
-      fold.customPrices,
-      fold.priceRuleByListingId,
-      fold.dayCount,
-    ),
-    opts.privacy ?? packagePrivacy(false, ""),
-  );
   const total = foldedOrderTotal(items);
   const intent = foldedIntent(contact, date, fold, items, opts);
   if (isPaymentsEnabled() && total > 0) {
@@ -859,14 +849,13 @@ const completeFoldedBooking = async (
     contact,
     date,
     dayCount: fold.dayCount,
+    items,
     ledgerOrder:
       remainingBalance > 0
         ? owedOrderForLedger(priceCheckout({ ...intent, feeSubtotal: 0 }))
         : null,
     listings: fold.listings,
     modifierUsages: [],
-    ...(opts.packageGroupId ? { packageGroupId: opts.packageGroupId } : {}),
-    quantities: fold.quantities,
     remainingBalance,
   });
   if (!reservation.success) {
@@ -956,13 +945,19 @@ const processParentApiBooking = async (
     customPrices.set(listing.id, parentCustomPrice);
   }
 
-  const fold = await foldSelectedChildren(ctx, form, {
-    customPrices,
-    date,
-    dayCount: 1,
-    hasCustomisable: false,
-    quantities: new Map([[listing.id, quantity]]),
-  });
+  const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
+  const fold = await foldSelectedChildren(
+    ctx,
+    form,
+    {
+      customPrices,
+      date,
+      dayCount: 1,
+      hasCustomisable: false,
+      quantities: new Map([[listing.id, quantity]]),
+    },
+    tree,
+  );
   if (!fold.ok) return apiResponse({ error: fold.error }, 400);
 
   // Validate contact fields against the MERGED parent+child requirements and the
@@ -974,11 +969,25 @@ const processParentApiBooking = async (
     fold.listings.some((e) => isPaidListing(e.listing)),
   );
   if (valResult instanceof Response) return valResult;
-  return completeFoldedBooking(request, extractContact(valResult), date, fold, {
-    // The fold always starts from this single parent, so its configured
-    // thank-you URL is the one a folded order would otherwise drop.
-    parentThankYouUrl: listing.thank_you_url,
-  });
+  const items = buildOrderLines(
+    tree,
+    nodeQuantitiesFor(tree, new Map([[listing.id, quantity]]), new Map()),
+    fold.quantities,
+    fold.customPrices,
+    fold.dayCount,
+  );
+  return completeFoldedBooking(
+    request,
+    extractContact(valResult),
+    date,
+    fold,
+    items,
+    {
+      // The fold always starts from this single parent, so its configured
+      // thank-you URL is the one a folded order would otherwise drop.
+      parentThankYouUrl: listing.thank_you_url,
+    },
+  );
 };
 
 /** POST /api/listings/:slug/book — create a booking */
@@ -1214,13 +1223,14 @@ const resolvePackageOrder = async (
   ctx: TicketCtx,
   tree: BookingTree,
   limit: number,
-  hiddenName: string | undefined,
+  standIns: ReadonlyMap<number, string>,
 ): Promise<
   | Response
   | {
       date: string | null;
       dayCount: number;
       form: FormParams;
+      packageQty: number;
       quantities: Map<number, number>;
     }
 > => {
@@ -1253,12 +1263,12 @@ const resolvePackageOrder = async (
     listingsWithQuantity(ctx.listings, quantities),
     form,
     date,
-    hiddenName,
+    standIns,
   );
   if ("error" in dayResult) {
     return apiResponse({ error: dayResult.error }, 400);
   }
-  return { date, dayCount: dayResult.dayCount, form, quantities };
+  return { date, dayCount: dayResult.dayCount, form, packageQty, quantities };
 };
 
 /** POST /api/packages/:slug/book — book whole bundles. The body carries the
@@ -1282,16 +1292,16 @@ const handleBookPackage = async (
   if (bodyOrError instanceof Response) return bodyOrError;
   const body = bodyOrError;
 
-  const privacy = packagePrivacy(group.hide_package_listings, group.name);
+  const standIns = ctxStandInNames(ctx);
   const order = await resolvePackageOrder(
     body,
     ctx,
     tree,
     limit,
-    memberStandInName(privacy),
+    standIns.byListingId,
   );
   if (order instanceof Response) return order;
-  const { date, dayCount, form, quantities } = order;
+  const { date, dayCount, form, packageQty, quantities } = order;
 
   const selections = parseApiChildSelections(body, PackageChildrenSchema);
   if (selections === null) {
@@ -1320,26 +1330,36 @@ const handleBookPackage = async (
   );
   if (!fold.ok) return apiResponse({ error: fold.error }, 400);
 
-  // Paid-ness must come from the tree's price rules, not `isPaidListing`: a
-  // package override can make a free member paid (and a paid member free).
-  const paid = buildRegistrationItems(
-    fold.listings,
-    fold.quantities,
-    fold.customPrices,
-    fold.priceRuleByListingId,
-    fold.dayCount,
-  ).some((item) => item.unitPrice > 0);
+  // Per-path lines from the tree: each member line carries its group id and
+  // its override price; a HIDDEN package's member names are concealed before
+  // the lines reach the provider. Paid-ness must come from these lines, not
+  // `isPaidListing`: a package override can make a free member paid (and a
+  // paid member free).
+  const items = concealLineNames(
+    buildOrderLines(
+      tree,
+      nodeQuantitiesFor(tree, new Map(), new Map([[group.id, packageQty]])),
+      fold.quantities,
+      fold.customPrices,
+      fold.dayCount,
+    ),
+    standIns,
+  );
   const valResult = tryValidateTicketFields(
     form,
     mergeListingFields(fold.listings.map((e) => e.listing.fields)),
     (msg) => apiResponse({ error: msg }, 400),
-    paid,
+    items.some((item) => item.unitPrice > 0),
   );
   if (valResult instanceof Response) return valResult;
-  return completeFoldedBooking(request, extractContact(valResult), date, fold, {
-    packageGroupId: group.id,
-    privacy,
-  });
+  return completeFoldedBooking(
+    request,
+    extractContact(valResult),
+    date,
+    fold,
+    items,
+    {},
+  );
 };
 
 // =============================================================================

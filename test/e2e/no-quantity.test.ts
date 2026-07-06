@@ -15,6 +15,7 @@ import {
   addAttendee,
   createListing,
   gotoListing,
+  lineIndexOnPage,
   openAttendeeEditor,
   setupAndLogin,
   ticketTokenOnPage,
@@ -41,7 +42,10 @@ const markNoQuantity = (
   browser: TestBrowser,
   listingId: string,
 ): Promise<void> =>
-  browser.submitForm({ [`noqty_${listingId}`]: "on" }, "Save Attendee");
+  browser.submitForm(
+    { [`noqty_${lineIndexOnPage(browser, listingId)}`]: "on" },
+    "Save Attendee",
+  );
 
 /** Restore the attendee's line for `listingId` to a real quantity (un-ticks the
  * no-quantity box by submitting it empty). */
@@ -49,11 +53,13 @@ const restoreQuantity = (
   browser: TestBrowser,
   listingId: string,
   quantity: number,
-): Promise<void> =>
-  browser.submitForm(
-    { [`noqty_${listingId}`]: "", [`qty_${listingId}`]: String(quantity) },
+): Promise<void> => {
+  const index = lineIndexOnPage(browser, listingId);
+  return browser.submitForm(
+    { [`noqty_${index}`]: "", [`qty_${index}`]: String(quantity) },
     "Save Attendee",
   );
+};
 
 /** Status code of the customer ticket page for a token. */
 const ticketStatus = async (token: string): Promise<number> =>

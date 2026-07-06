@@ -151,9 +151,10 @@ export const createWithClient =
   };
 
 /** Convert registration line items to compact, edge-tagged booking items (v2).
- * A package order's top-level lines carry their package edge (`k:"p"`, `r`=group
- * id) so the webhook can revalidate each line's `nodeKey`; folded children (in
- * `allocations`) and standalone lines stay untagged. See signed-metadata.ts. */
+ * Each package member line carries ITS OWN package edge (`k:"p"`, `r`=its group
+ * id) so the webhook can revalidate each line's `nodeKey` — an order can book
+ * several packages, so the edge is per line, never order-wide; folded children
+ * (in `allocations`) and standalone lines stay untagged. See signed-metadata.ts. */
 export const toBookingItems = (intent: CheckoutIntent): BookingItem[] => {
   const foldedChildIds = new Set(
     (intent.allocations ?? []).map((a) => a.childId),
@@ -163,7 +164,7 @@ export const toBookingItems = (intent: CheckoutIntent): BookingItem[] => {
       e: i.listingId,
       p: i.unitPrice * i.quantity,
       q: i.quantity,
-      ...signedEdgeFor(intent.packageGroupId, foldedChildIds.has(i.listingId)),
+      ...signedEdgeFor(i.packageGroupId, foldedChildIds.has(i.listingId)),
     }),
   )(intent.items);
 };
@@ -339,7 +340,6 @@ type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
       | "modifiers"
       | "thankYouUrl"
       | "allocations"
-      | "packageGroupId"
     >
   >;
 
@@ -369,9 +369,6 @@ export const buildMetadata = (
   ...(intent.thankYouUrl ? { thank_you_url: intent.thankYouUrl } : {}),
   ...(intent.allocations?.length
     ? { allocations: JSON.stringify(intent.allocations) }
-    : {}),
-  ...(intent.packageGroupId
-    ? { package_group_id: String(intent.packageGroupId) }
     : {}),
 });
 
@@ -440,7 +437,6 @@ const PACKED_KEYS = [
   "reservation_amount",
   "balance_attendee_id",
   "site_token_index",
-  "package_group_id",
 ] as const;
 
 /** The single metadata key the packed small fields are stored under. */
@@ -592,7 +588,6 @@ export const extractSessionMetadata = (
     items: get("items"),
     modifiers: get("modifiers"),
     name: metadata.name,
-    package_group_id: get("package_group_id"),
     phone: get("phone"),
     price_proof: get("price_proof"),
     reservation_amount: get("reservation_amount"),

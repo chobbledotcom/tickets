@@ -468,31 +468,14 @@ export const getPackageDisplaysByIds = async (
   return result;
 };
 
-/** The single package id every booking in an order shares, or null. Returns the
- * id only when the list is non-empty and every entry carries the SAME non-zero
- * `package_group_id`; a mixed set (some 0, or differing ids) is not one package
- * order, so it returns null. The shared check the ticket view and the email use
- * before {@link getPackageDisplayById}. */
-export const sharedPackageGroupId = (
-  packageGroupIds: readonly number[],
-): number | null => {
-  const first = packageGroupIds[0];
-  if (first === undefined || first <= 0) return null;
-  return packageGroupIds.every((id) => id === first) ? first : null;
-};
-
-/** The package display for a set of bookings' persisted `package_group_id`s: the
- * group only when every booking shares the same non-zero id, else null. Combines
- * {@link sharedPackageGroupId} with {@link getPackageDisplayById} so the ticket
- * view and the confirmation email resolve the package the same way. */
-export const getPackageDisplayForBookings = (
-  packageGroupIds: readonly number[],
-): Promise<PackageDisplay | null> => {
-  const shared = sharedPackageGroupId(packageGroupIds);
-  return shared === null
-    ? Promise.resolve(null)
-    : getPackageDisplayById(shared);
-};
+/** The package displays behind a set of booked rows — each row's attendee names
+ * its persisted `package_group_id` (0 on a plain row, matching no package).
+ * Shared by the ticket view, the wallet lookup, and the email renderer, which
+ * all carry `{ attendee, listing }` row shapes. */
+export const packageDisplaysForRows = (
+  rows: ReadonlyArray<{ attendee: { package_group_id: number } }>,
+): Promise<Map<number, PackageDisplay>> =>
+  getPackageDisplaysByIds(rows.map((row) => row.attendee.package_group_id));
 
 /** The listing ids that are members of a group, ascending. */
 export const getGroupListingIds = async (
@@ -591,7 +574,9 @@ const listingGroupDiffStatements = (
   if (toRemove.length > 0) {
     statements.push({
       args: [listingId, ...toRemove],
-      sql: `DELETE FROM group_listings WHERE listing_id = ? AND group_id IN (${inPlaceholders(toRemove)})`,
+      sql: `DELETE FROM group_listings WHERE listing_id = ? AND group_id IN (${inPlaceholders(
+        toRemove,
+      )})`,
     });
     // Drop the listing's package price overrides for the groups it is leaving —
     // they live in listing_prices, not on the membership row, so they'd otherwise
@@ -602,7 +587,9 @@ const listingGroupDiffStatements = (
   if (toAdd.length > 0) {
     statements.push({
       args: toAdd.flatMap((groupId) => [groupId, listingId]),
-      sql: `INSERT OR IGNORE INTO group_listings (group_id, listing_id) VALUES ${toAdd.map(() => "(?, ?)").join(", ")}`,
+      sql: `INSERT OR IGNORE INTO group_listings (group_id, listing_id) VALUES ${toAdd
+        .map(() => "(?, ?)")
+        .join(", ")}`,
     });
   }
   return statements;
@@ -824,8 +811,9 @@ const memberQuantityStatement = (
 ) => {
   const qtyCases = valid.map(() => "WHEN ? THEN ?").join(" ");
   const args: number[] = [];
-  for (const { listingId, quantity } of valid)
+  for (const { listingId, quantity } of valid) {
     args.push(listingId, quantity ?? 1);
+  }
   args.push(groupId);
   return {
     args,
@@ -873,10 +861,12 @@ const applyPackageMembers = async (
     priceMembers: PackageMemberInput[],
   ): Promise<void> => {
     await run(quantityStmt);
-    for (const stmt of groupFlatPriceStatements(groupId, priceMembers))
+    for (const stmt of groupFlatPriceStatements(groupId, priceMembers)) {
       await run(stmt);
-    for (const stmt of groupDayPriceStatements(groupId, priceMembers))
+    }
+    for (const stmt of groupDayPriceStatements(groupId, priceMembers)) {
       await run(stmt);
+    }
   };
   if (members.length === 0) {
     await applyMembers(clearMembersStatement(groupId), []);

@@ -6,8 +6,14 @@ import { formatCurrency } from "#shared/currency.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
-import { SELECT_PREFIX } from "#shared/order-select.ts";
-import type { Group } from "#shared/types.ts";
+import { listingOptionKey, packageOptionKey } from "#shared/order/options.ts";
+import {
+  ORDER_FIELD,
+  PACKAGE_SELECT_PREFIX,
+  SELECT_PREFIX,
+  START_DATE_FIELD,
+} from "#shared/order-select.ts";
+import type { Group, ListingWithCount } from "#shared/types.ts";
 import { Icon, type IconName } from "#templates/components/actions.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
 import {
@@ -38,93 +44,166 @@ export const OrderCartButtonBody = ({
   </>
 );
 
+/** What the gallery needs to render each card's live availability: whether any
+ * option needs a date (so the date field renders), and each option key's
+ * server-evaluated status label ("" = plainly selectable). */
+export type OrderGalleryStates = {
+  anyNeedsDate: boolean;
+  labelFor: (key: string) => string;
+};
+
+/** A package offered on the order gallery. */
+export type OrderGalleryPackage = {
+  group: Group;
+  members: ListingWithCount[];
+};
+
+/** The card body a selectable order card wraps: hidden checkbox, image, name,
+ * price/status line, live-state label, and the tick. One shape for listings
+ * and packages so the CSS cart mechanics and the enhancement script treat
+ * both identically. */
+const selectableCard = (parts: {
+  fieldName: string;
+  key: string;
+  imageHtml: string;
+  name: string;
+  detailHtml: string;
+  stateLabel: string;
+}): string =>
+  `<label class="order-card" data-order-key="${escapeHtml(
+    parts.key,
+  )}" for="${parts.fieldName}">
+      <input class="order-select" id="${parts.fieldName}" name="${
+        parts.fieldName
+      }" type="checkbox" value="1" />
+      ${parts.imageHtml}
+      <span class="order-card-body">
+        <span class="order-card-name">${escapeHtml(parts.name)}</span>
+        ${parts.detailHtml}
+        <span class="order-card-state" data-order-state-label>${escapeHtml(
+          parts.stateLabel,
+        )}</span>
+      </span>
+      <span class="order-card-tick" aria-hidden="true"></span>
+    </label>`;
+
+/** A dimmed, non-selectable card (sold out / closed / read-only). */
+const unavailableCard = (
+  imageHtml: string,
+  name: string,
+  status: string,
+): string => `<div class="order-card order-card--unavailable">
+        ${imageHtml}
+        <span class="order-card-body">
+          <span class="order-card-name">${escapeHtml(name)}</span>
+          <span class="order-card-status">${status}</span>
+        </span>
+      </div>`;
+
 /**
  * One listing card in the order gallery. A `<label>` wraps a hidden checkbox so
  * the whole card toggles selection with no JavaScript; CSS highlights the card
  * via `:checked`. Sold-out / closed / read-only listings render a dimmed,
  * non-selectable card so they can't be added to an order.
  */
-const renderOrderCard = (info: TicketListing): string => {
-  const { listing, isSoldOut, isClosed } = info;
-  const imageHtml = renderListingImage(listing, "order-card-image", {
-    thumb: true,
-  });
-  const priceHtml =
-    listing.unit_price > 0
-      ? `<span class="order-card-price">${
-          listing.can_pay_more ? t("availability.from_prefix") : ""
-        }${escapeHtml(formatCurrency(listing.unit_price))}</span>`
-      : "";
+const renderOrderCard =
+  (states: OrderGalleryStates) =>
+  (info: TicketListing): string => {
+    const { listing, isSoldOut, isClosed } = info;
+    const imageHtml = renderListingImage(listing, "order-card-image", {
+      thumb: true,
+    });
+    const priceHtml =
+      listing.unit_price > 0
+        ? `<span class="order-card-price">${
+            listing.can_pay_more ? t("availability.from_prefix") : ""
+          }${escapeHtml(formatCurrency(listing.unit_price))}</span>`
+        : "";
 
-  if (isSoldOut || isClosed || isReadOnly()) {
-    const status =
-      isSoldOut && !isClosed ? t("public.sold_out") : t("public.unavailable");
-    return `<div class="order-card order-card--unavailable">
-        ${imageHtml}
-        <span class="order-card-body">
-          <span class="order-card-name">${escapeHtml(listing.name)}</span>
-          <span class="order-card-status">${status}</span>
-        </span>
-      </div>`;
-  }
+    if (isSoldOut || isClosed || isReadOnly()) {
+      const status =
+        isSoldOut && !isClosed ? t("public.sold_out") : t("public.unavailable");
+      return unavailableCard(imageHtml, listing.name, status);
+    }
 
-  const fieldName = `${SELECT_PREFIX}${listing.id}`;
-  return `<label class="order-card" for="${fieldName}">
-      <input class="order-select" id="${fieldName}" name="${fieldName}" type="checkbox" value="1" />
-      ${imageHtml}
-      <span class="order-card-body">
-        <span class="order-card-name">${escapeHtml(listing.name)}</span>
-        ${priceHtml}
-      </span>
-      <span class="order-card-tick" aria-hidden="true"></span>
-    </label>`;
-};
+    const key = listingOptionKey(listing.id);
+    return selectableCard({
+      detailHtml: priceHtml,
+      fieldName: `${SELECT_PREFIX}${listing.id}`,
+      imageHtml,
+      key,
+      name: listing.name,
+      stateLabel: states.labelFor(key),
+    });
+  };
 
 /**
- * A package card in the order gallery. A package is bought as a whole bundle via
- * its own `/ticket/<group>` page, so it can't join the cart's multi-listing
- * selection — it renders as a direct book link (mirroring the `/listings` group
- * cards), not a selectable checkbox.
+ * A package card in the order gallery — selectable exactly like a listing
+ * card, so packages join the same cart as everything else. The whole-bundle
+ * gate already excluded unbookable packages, so a rendered card is selectable
+ * unless the site is read-only.
  */
-const renderOrderPackageCard = (group: Group): string => {
-  const body = `<span class="order-card-body">
-        <span class="order-card-name">${escapeHtml(group.name)}</span>
-        <span class="order-card-status">${
-          isReadOnly() ? t("public.registration_closed") : t("public.book_now")
-        }</span>
-      </span>`;
-  return isReadOnly()
-    ? `<div class="order-card order-card--unavailable">${body}</div>`
-    : `<a class="order-card order-card--package" href="/ticket/${escapeHtml(
-        group.slug,
-      )}">${body}</a>`;
-};
+const renderOrderPackageCard =
+  (states: OrderGalleryStates) =>
+  (pkg: OrderGalleryPackage): string => {
+    if (isReadOnly()) {
+      return unavailableCard(
+        "",
+        pkg.group.name,
+        t("public.registration_closed"),
+      );
+    }
+    const key = packageOptionKey(pkg.group.id);
+    return selectableCard({
+      detailHtml: "",
+      fieldName: `${PACKAGE_SELECT_PREFIX}${pkg.group.id}`,
+      imageHtml: "",
+      key,
+      name: pkg.group.name,
+      stateLabel: states.labelFor(key),
+    });
+  };
+
+/** The optional date field: shown whenever anything on the page needs a date
+ * to be judged (daily listings, packages with daily members), so the visitor
+ * can pick one up front and see live availability for it. */
+const renderDateField = (): string =>
+  `<div class="order-date" data-order-date>
+      <label>${escapeHtml(t("public.order.date_label"))}
+        <input name="${START_DATE_FIELD}" type="date" />
+      </label>
+      <span class="order-date-hint" data-order-date-hint>${escapeHtml(
+        t("public.order.date_needed"),
+      )}</span>
+    </div>`;
 
 /**
- * Order gallery page — a grid of bookable listings the visitor selects to start
- * an order. The whole page is one GET form: each card is a checkbox and the
- * floating cart is the submit button, so submitting navigates to `/order` with
- * the selection, which redirects into the pre-filled multi-listing booking page.
- * Selection styling and the live item count are pure CSS (`:checked`, a counter,
- * and `:has()`), so the page needs no JavaScript. The cart button is placed last
- * in the DOM so its CSS counter sees every checkbox.
- *
- * Packages lead the page under their own heading as direct book links — they're
- * sold as a whole bundle through `/ticket/<group>`, not added to the cart.
+ * Order gallery page — a grid of bookable listings and packages the visitor
+ * selects to start an order. The whole page is one GET form: each card is a
+ * checkbox and the floating cart is the submit button, so submitting navigates
+ * to `/order` with the selection, which redirects into the pre-filled booking
+ * page. Selection styling and the live item count are pure CSS (`:checked`, a
+ * counter, and `:has()`), so the page needs no JavaScript; the enhancement
+ * script only adds live availability and keeps the order-added field fresh.
+ * The cart button is placed last in the DOM so its CSS counter sees every
+ * checkbox.
  */
 export const orderGalleryPage = (
   listings: TicketListing[],
-  packageGroups: Group[],
+  packages: OrderGalleryPackage[],
+  states: OrderGalleryStates,
   nav: PublicNavProps,
   websiteTitle: string,
   introText?: string | null,
 ): string => {
   const orderTitle = t("nav.public.order");
   const title = websiteTitle ? `${orderTitle} - ${websiteTitle}` : orderTitle;
-  const cards = pipe(map(renderOrderCard), (rows) => rows.join(""))(listings);
-  const packageCards = pipe(map(renderOrderPackageCard), (rows) =>
+  const cards = pipe(map(renderOrderCard(states)), (rows) => rows.join(""))(
+    listings,
+  );
+  const packageCards = pipe(map(renderOrderPackageCard(states)), (rows) =>
     rows.join(""),
-  )(packageGroups.toSorted(compareGroupsByName));
+  )(packages.toSorted((a, b) => compareGroupsByName(a.group, b.group)));
 
   return publicPage(
     title,
@@ -137,37 +216,45 @@ export const orderGalleryPage = (
           <Raw html={renderMarkdown(introText)} />
         </div>
       )}
-      {listings.length === 0 && packageGroups.length === 0 ? (
+      {listings.length === 0 && packages.length === 0 ? (
         <p>
           <em>{t("public.order.empty")}</em>
         </p>
       ) : (
-        <>
-          <PackagesSection groups={packageGroups}>
-            <div class="order-grid">
-              <Raw html={packageCards} />
-            </div>
-          </PackagesSection>
-          {listings.length > 0 && (
-            <form action="/order" class="order-gallery" method="get">
+        <form
+          action="/order"
+          class="order-gallery"
+          data-order-gallery
+          method="get"
+        >
+          {states.anyNeedsDate && <Raw html={renderDateField()} />}
+          <input name={ORDER_FIELD} type="hidden" value="" />
+          {packages.length > 0 && (
+            <PackagesSection groups={packages.map((pkg) => pkg.group)}>
               <fieldset class="order-grid">
-                <legend class="visually-hidden">
-                  {t("public.select_items_to_order")}
-                </legend>
-                <Raw html={cards} />
+                <legend class="visually-hidden">{t("public.packages")}</legend>
+                <Raw html={packageCards} />
               </fieldset>
-              <button class="order-continue" type="submit">
-                {t("public.order.continue")}
-              </button>
-              <button class="order-cart" type="submit">
-                <OrderCartButtonBody
-                  icon="shopping-cart"
-                  label={t("public.order.view_order")}
-                />
-              </button>
-            </form>
+            </PackagesSection>
           )}
-        </>
+          {listings.length > 0 && (
+            <fieldset class="order-grid">
+              <legend class="visually-hidden">
+                {t("public.select_items_to_order")}
+              </legend>
+              <Raw html={cards} />
+            </fieldset>
+          )}
+          <button class="order-continue" type="submit">
+            {t("public.order.continue")}
+          </button>
+          <button class="order-cart" type="submit">
+            <OrderCartButtonBody
+              icon="shopping-cart"
+              label={t("public.order.view_order")}
+            />
+          </button>
+        </form>
       )}
     </>,
   );

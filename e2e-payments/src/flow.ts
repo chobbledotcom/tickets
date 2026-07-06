@@ -54,11 +54,11 @@ export const login = async (session: BrowserSession): Promise<void> => {
  */
 export const createListing = async (
   session: BrowserSession,
-  { priceMinor }: { priceMinor: number },
+  { priceMinor, name = LISTING_NAME }: { priceMinor: number; name?: string },
 ): Promise<string> => {
-  step(`Creating listing (price=${priceMinor} minor units)`);
+  step(`Creating listing "${name}" (price=${priceMinor} minor units)`);
   await session.goto("/admin/listing/new?template=custom");
-  await session.fill("name", LISTING_NAME);
+  await session.fill("name", name);
   await session.fill("description", "End-to-end payment test listing");
   await session.fill("max_attendees", "100");
   await session.fill("max_quantity", "5");
@@ -69,7 +69,7 @@ export const createListing = async (
 
   // Open the new listing and read its public booking link.
   await session.goto("/admin/");
-  await session.clickLink(LISTING_NAME);
+  await session.clickLink(name);
   const href = await session.page
     .locator('a[href*="/ticket/"]')
     .first()
@@ -78,6 +78,36 @@ export const createListing = async (
   const path = href.startsWith("http") ? new URL(href).pathname : href;
   log(`  public booking path: ${path}`);
   return path;
+};
+
+/** Wait for the browser to come back onto an app page whose URL or body
+ * matches `success` (a hosted checkout hands control back via the return
+ * URL). Throws with a page dump when the deadline passes. */
+export const waitForAppReturn = async (
+  session: BrowserSession,
+  success: RegExp,
+  dumpLabel: string,
+): Promise<void> => {
+  const { page } = session;
+  const deadline = Date.now() + config.paymentConfirmTimeoutMs;
+  while (Date.now() < deadline) {
+    const here = page.url().startsWith(session.baseUrl);
+    if (here && success.test(page.url() + (await session.bodyText()))) return;
+    await page.waitForTimeout(1_000);
+  }
+  await session.dumpPage(dumpLabel);
+  throw new Error(
+    `did not land on a page matching ${success} (at ${page.url()})`,
+  );
+};
+
+/** The listing income ledger's text on the CURRENT admin listing page, or
+ * null when no income was recognised (the section does not render). */
+export const incomeLedgerText = async (
+  session: BrowserSession,
+): Promise<string | null> => {
+  const ledger = session.page.locator("#income-ledger");
+  return (await ledger.count()) === 0 ? null : await ledger.innerText();
 };
 
 /**
@@ -202,27 +232,22 @@ export const assertPaidBookingConfirmed = async (
   step("Confirming the paid booking");
   const { page } = session;
 
-  // 1. Wait for the browser to arrive back on the app's return URL.
-  const deadline = Date.now() + config.paymentConfirmTimeoutMs;
-  while (Date.now() < deadline) {
-    const url = page.url();
-    if (url.startsWith(session.baseUrl) && /payment\/success|\/t\/|thank/i.test(url + (await session.bodyText()))) {
-      break;
-    }
-    await page.waitForTimeout(1_000);
-  }
-  const successBody = await session.bodyText();
-  if (!/thank you|your ticket|payment (received|successful)|success/i.test(successBody)) {
-    await session.screenshot("paid-return-page");
+  // 1. Wait for the browser to arrive back on the app's return URL. On a
+  // timeout, scrape the hosted checkout's own inline errors — the page body
+  // is mostly a huge country <select> that buries the real message.
+  try {
+    await waitForAppReturn(
+      session,
+      /payment\/success|\/t\/|thank you|your ticket|payment (received|successful)/i,
+      "paid-return-page",
+    );
+  } catch {
     const hostedError = await collectHostedErrors(session);
     throw new Error(
       `did not land on a success page after checkout.\nURL: ${page.url()}\n` +
-        // Prefer the scraped inline error; only fall back to the raw body when
-        // no error node was found (the body is mostly a huge country <select>
-        // that buries the real message and floods the CI log).
         (hostedError
           ? `Checkout page error(s): ${hostedError}`
-          : successBody.slice(0, 400)),
+          : (await session.bodyText()).slice(0, 400)),
     );
   }
   log(`  ✔ customer saw the success page (${page.url()})`);
@@ -241,15 +266,14 @@ export const assertPaidBookingConfirmed = async (
   // (price_paid = 0) records no income and the ledger section does not render.
   // Do NOT fall back to scanning the whole page: the listing detail also shows
   // the configured ticket price, which would give a false pass with no payment.
-  const ledger = session.page.locator("#income-ledger");
-  if ((await ledger.count()) === 0) {
+  const paidRegion = await incomeLedgerText(session);
+  if (paidRegion === null) {
     await session.screenshot("paid-admin-no-income-ledger");
     throw new Error(
       "the listing's income ledger (#income-ledger) did not render — no recognised " +
         "income was recorded for the paid booking (lost/failed payment?)",
     );
   }
-  const paidRegion = await ledger.innerText();
 
   // Match the app's rendering: formatCurrency uses `trailingZeroDisplay:
   // "stripIfInteger"`, so a whole amount renders "£1" (no decimals) while a

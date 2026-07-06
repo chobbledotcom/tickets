@@ -1,14 +1,20 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { getDb, queryAll } from "#shared/db/client.ts";
+import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import {
   type DeliveryLegKind,
   getAgentRunSheet,
+  type LogisticsAssignment,
   setLegDone,
+  setLogisticsAssignments,
 } from "#shared/db/logistics.ts";
 import { logisticsAgentsTable } from "#shared/db/logistics-agents.ts";
 import {
   createListingWithAttendeeAndLogistics,
+  createTestGroup,
+  createTestListing,
   describeWithEnv,
 } from "#test-utils";
 
@@ -67,6 +73,61 @@ const insertVanAndOther = async (): Promise<{
   other: (await logisticsAgentsTable.insert({ name: "Other" })).id,
   van: (await logisticsAgentsTable.insert({ name: "Van" })).id,
 });
+
+/** The one van pair every dual-path fixture stamps on its booking rows. */
+const vanAssignment = (van: number): LogisticsAssignment => ({
+  endAgentId: van,
+  endTime: "17:00",
+  startAgentId: van,
+  startTime: "09:00",
+});
+
+/** Stamp an attendee's logistics (agents + the D1..D2 window) on every booking
+ * row of a listing, exactly as the admin logistics form writes them. */
+const stampLogistics = async (
+  attendeeId: number,
+  listingId: number,
+  van: number,
+): Promise<void> => {
+  await setLogisticsAssignments(
+    attendeeId,
+    false,
+    new Map([[listingId, vanAssignment(van)]]),
+  );
+  await getDb().execute({
+    args: [`${D1}T00:00:00Z`, `${D2}T00:00:00Z`, attendeeId, listingId],
+    sql: "UPDATE listing_attendees SET start_at = ?, end_at = ? WHERE attendee_id = ? AND listing_id = ?",
+  });
+};
+
+/** A dual-path booking — the listing booked through its package AND its own
+ * standalone row in one order — with the same van/dates on both rows: the
+ * shape a multi-package checkout stores. */
+const makeDualPathBooking = async (
+  van: number,
+): Promise<{ attendeeId: number; listingId: number }> => {
+  const group = await createTestGroup({ isPackage: true, name: "Run Kit" });
+  const listing = await createTestListing({
+    groupId: group.id,
+    maxAttendees: 100,
+    name: "Run Kit Tent",
+  });
+  await setGroupPackageMembers(group.id, [
+    { listingId: listing.id, price: 500 },
+  ]);
+  const made = await createAttendeeAtomic({
+    bookings: [
+      { listingId: listing.id, packageGroupId: group.id, quantity: 2 },
+      { listingId: listing.id, quantity: 1 },
+    ],
+    email: "run@example.com",
+    name: "Dual Path",
+  });
+  const attendeeId = (made as Extract<typeof made, { success: true }>)
+    .attendees[0]!.id;
+  await stampLogistics(attendeeId, listing.id, van);
+  return { attendeeId, listingId: listing.id };
+};
 
 describeWithEnv("db logistics run-sheet", { db: true }, () => {
   let van: number;
@@ -192,6 +253,54 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
       const end = legs.find((l) => l.kind === "end");
       expect(start?.done).toBe(true);
       expect(end?.done).toBe(false);
+    });
+
+    test("a dual-path booking is ONE drop-off and ONE collection, not one per row", async () => {
+      const { attendeeId, listingId } = await makeDualPathBooking(van);
+      // A second attendee's delivery on the same listing/van/window stays its
+      // own legs — only the SAME booking's path rows collapse.
+      const made = await createAttendeeAtomic({
+        bookings: [{ listingId, quantity: 1 }],
+        email: "solo@example.com",
+        name: "Solo",
+      });
+      const soloId = (made as Extract<typeof made, { success: true }>)
+        .attendees[0]!.id;
+      await stampLogistics(soloId, listingId, van);
+
+      const legs = await getAgentRunSheet([van], [D1]);
+      // end_at = D2 (exclusive) puts both collections on D1 too.
+      expect(legs.map((leg) => [leg.attendeeId, leg.kind]).sort()).toEqual(
+        [
+          [attendeeId, "start"],
+          [attendeeId, "end"],
+          [soloId, "start"],
+          [soloId, "end"],
+        ].sort(),
+      );
+    });
+
+    test("a collapsed leg is done only when EVERY path row is done", async () => {
+      const { attendeeId, listingId } = await makeDualPathBooking(van);
+      // One path ticked (say a stray direct write): the delivery is still
+      // outstanding, whichever order the rows arrive in.
+      await getDb().execute({
+        args: [attendeeId, listingId],
+        sql: `UPDATE listing_attendees SET start_done = 1
+              WHERE attendee_id = ? AND listing_id = ? AND package_group_id > 0`,
+      });
+      const before = await getAgentRunSheet([van], [D1]);
+      expect(before.find((l) => l.kind === "start")?.done).toBe(false);
+
+      // Ticking the run-sheet leg completes every path row together.
+      await setLegDone(attendeeId, listingId, "start", true, [van]);
+      const after = await getAgentRunSheet([van], [D1]);
+      expect(after.find((l) => l.kind === "start")?.done).toBe(true);
+      const rows = await queryAll<{ start_done: number }>(
+        "SELECT start_done FROM listing_attendees WHERE attendee_id = ?",
+        [attendeeId],
+      );
+      expect(rows.map((row) => row.start_done)).toEqual([1, 1]);
     });
   });
 

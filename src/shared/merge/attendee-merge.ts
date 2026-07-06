@@ -68,16 +68,26 @@ const PII_FIELDS: {
 /** Attendee answer map: questionId -> { answerId, answerText } */
 type AnswerMap = Map<number, { answerId: number; answerText: string }>;
 
-/** Unique key for a booking: "listingId:startAt:parentListingId" */
+/** Unique key for a booking:
+ * "listingId:startAt:parentListingId:packageGroupId" — the full row slot, so
+ * the same listing booked through two packages (or a package plus its own
+ * standalone row) keys as two rows, never colliding in the diff. */
 export const bookingKey = (
   listingId: number,
   startAt: string | null,
   parentListingId: number,
-): string => `${listingId}:${startAt ?? "null"}:${parentListingId}`;
+  packageGroupId: number,
+): string =>
+  `${listingId}:${startAt ?? "null"}:${parentListingId}:${packageGroupId}`;
 
 /** Booking key for a diff item */
 const itemBookingKey = (item: AttendeeMergeDiffBookingItem): string =>
-  bookingKey(item.listingId, item.startAt, item.parentListingId);
+  bookingKey(
+    item.listingId,
+    item.startAt,
+    item.parentListingId,
+    item.packageGroupId,
+  );
 
 /** The NON-moveable conflict booking items paired with their decision key
  *  ("listingId:startAt") — the rows the operator must decide on. The single place
@@ -126,7 +136,7 @@ const joinAnswerEntries = joinMapped(
 );
 
 const joinBookingKeys = joinMapped((b: ListingAttendeeRow) =>
-  bookingKey(b.listing_id, b.start_at, b.parent_listing_id),
+  bookingKey(b.listing_id, b.start_at, b.parent_listing_id, b.package_group_id),
 );
 
 /** Compute a simple version string from diff inputs for stale-preview detection */
@@ -309,7 +319,15 @@ const buildBookingDiffItems = (
   const targetByKey = new Map(
     map(
       (b: ListingAttendeeRow) =>
-        [bookingKey(b.listing_id, b.start_at, b.parent_listing_id), b] as const,
+        [
+          bookingKey(
+            b.listing_id,
+            b.start_at,
+            b.parent_listing_id,
+            b.package_group_id,
+          ),
+          b,
+        ] as const,
     )(targetBookings),
   );
 
@@ -317,7 +335,12 @@ const buildBookingDiffItems = (
     async (sb: ListingAttendeeRow): Promise<AttendeeMergeDiffBookingItem> => {
       const tb =
         targetByKey.get(
-          bookingKey(sb.listing_id, sb.start_at, sb.parent_listing_id),
+          bookingKey(
+            sb.listing_id,
+            sb.start_at,
+            sb.parent_listing_id,
+            sb.package_group_id,
+          ),
         ) ?? null;
       const conflictClass = classifyBooking(sb, tb);
       // A moveable booking moves with its own money (no decision, no
@@ -341,6 +364,7 @@ const buildBookingDiffItems = (
       return {
         conflictClass,
         listingId: sb.listing_id,
+        packageGroupId: sb.package_group_id,
         parentListingId: sb.parent_listing_id,
         sourceBooking: sb,
         sourceSaleAmount,
@@ -614,7 +638,9 @@ const applyBookingDecisions = (
       );
       bookingsMoved++;
     } else if (choice === "take_source" && item.targetBooking) {
-      // Replace target booking with source booking
+      // Replace the target booking with the source booking — only the one
+      // slot the decision names: a listing booked through several paths keeps
+      // its other package/standalone rows.
       deleteTargetBookingStatements.push({
         args: [
           targetId,
@@ -622,11 +648,13 @@ const applyBookingDecisions = (
           item.startAt,
           item.startAt,
           item.parentListingId,
+          item.packageGroupId,
         ],
         sql: `DELETE FROM listing_attendees
               WHERE attendee_id = ? AND listing_id = ?
               AND (start_at IS ? OR start_at = ?)
-              AND parent_listing_id = ?`,
+              AND parent_listing_id = ?
+              AND package_group_id = ?`,
       });
       insertStatements.push(
         bookingInsertStatement(targetId, item.sourceBooking),

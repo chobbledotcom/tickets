@@ -2924,6 +2924,46 @@ a.cal-day-selected:active {
   opacity: 0.55;
 }
 
+/* Live availability (enhancement script): a card the current selection has
+   squeezed out — or that is sold out for the chosen date — dims like an
+   unavailable card while its state label explains why; the label is empty
+   (and hidden) for plainly selectable cards. */
+.order-card-state {
+  color: var(--color-secondary);
+  font-size: 0.85em;
+}
+
+.order-card-state:empty {
+  display: none;
+}
+
+.order-card[data-order-state="blocked"],
+.order-card[data-order-state="unavailable"] {
+  cursor: not-allowed;
+  border-style: dashed;
+  opacity: 0.55;
+}
+
+/* The optional date field above the grid; highlighted when a selected item
+   needs a date before availability can be judged. */
+.order-date {
+  margin-bottom: var(--space-m);
+}
+
+.order-date-hint {
+  display: none;
+  color: var(--color-secondary);
+  font-size: 0.9em;
+}
+
+.order-date--needed .order-date-hint {
+  display: inline;
+}
+
+.order-date--needed input[type="date"] {
+  outline: 2px solid var(--color-link);
+}
+
 /* Floating cart — fixed bottom-left, last in the DOM so its CSS counter has
    seen every checkbox. Hidden until at least one product is selected. */
 .order-cart {
@@ -3066,6 +3106,13 @@ a.cal-day-selected:active {
 
 .listing-editor:not(.show-all-listings):not(:has(.show-all-toggle:checked))
   .attendee-line-empty {
+  display: none;
+}
+
+/* Blank package-path lines (book a listing through a package) stay tucked
+   behind their own toggle — same trick as the not-booked rows above. */
+.listing-editor:not(:has(.package-paths-toggle:checked))
+  .attendee-line-package-blank {
   display: none;
 }
 

@@ -450,11 +450,15 @@ describeWithEnv(
 
     /** Drive the public free-checkout submit for a package group (quantity 1). */
     const submitFreePackageBooking = async (
-      slug: string,
+      group: { id: number; slug: string },
       contact: { email: string; name: string },
     ): Promise<Response> => {
       const { submitPackageBooking } = await import("#test-utils");
-      return submitPackageBooking(slug, { ...contact, package_quantity: "1" });
+      // The count selector is per group now: package_quantity_<groupId>.
+      return submitPackageBooking(group.slug, {
+        ...contact,
+        [`package_quantity_${group.id}`]: "1",
+      });
     };
 
     test("a standalone booking of a hidden package's listing is NOT collapsed/hidden", async () => {
@@ -478,10 +482,11 @@ describeWithEnv(
     test("the same listing booked as the package IS collapsed under the package name", async () => {
       const { group, widget } = await hiddenOneMemberPackage();
       const result = await createAttendeeAtomic({
-        bookings: [{ listingId: widget.id, quantity: 1 }],
+        bookings: [
+          { listingId: widget.id, packageGroupId: group.id, quantity: 1 },
+        ],
         email: "pkg@test.com",
         name: "Packaged",
-        packageGroupId: group.id,
       });
       if (!result.success) throw new Error("package booking failed");
       const token = result.attendees[0]!.ticket_token;
@@ -500,10 +505,9 @@ describeWithEnv(
       quantity: number,
     ): Promise<string> => {
       const result = await createAttendeeAtomic({
-        bookings: [{ listingId, quantity }],
+        bookings: [{ listingId, packageGroupId: groupId, quantity }],
         email: "pkgbook@test.com",
         name: "Package Buyer",
-        packageGroupId: groupId,
       });
       if (!result.success) throw new Error("package booking failed");
       return fetchTicketBody(result.attendees[0]!.ticket_token);
@@ -535,10 +539,11 @@ describeWithEnv(
         attachmentUrl: "handbook.pdf",
       });
       const result = await createAttendeeAtomic({
-        bookings: [{ listingId: member.id, quantity: 1 }],
+        bookings: [
+          { listingId: member.id, packageGroupId: group.id, quantity: 1 },
+        ],
         email: "pkg@test.com",
         name: "Buyer",
-        packageGroupId: group.id,
       });
       if (!result.success) throw new Error("package booking failed");
 
@@ -581,15 +586,25 @@ describeWithEnv(
       // REPLACE a narrower card and KEEP the widest over a later narrower one.
       const result = await createAttendeeAtomic({
         bookings: [
-          { date, listingId: oneDay.id, quantity: 1 },
+          { date, listingId: oneDay.id, packageGroupId: group.id, quantity: 1 },
           // The real booking flow stores a fixed daily member's duration
           // (bookingDateFields), so the stored range reflects the 2-day stay.
-          { date, durationDays: 2, listingId: twoDay.id, quantity: 1 },
-          { date, listingId: oneDayB.id, quantity: 1 },
+          {
+            date,
+            durationDays: 2,
+            listingId: twoDay.id,
+            packageGroupId: group.id,
+            quantity: 1,
+          },
+          {
+            date,
+            listingId: oneDayB.id,
+            packageGroupId: group.id,
+            quantity: 1,
+          },
         ],
         email: "trip@test.com",
         name: "Tripper",
-        packageGroupId: group.id,
       });
       if (!result.success) throw new Error("package booking failed");
 
@@ -632,12 +647,17 @@ describeWithEnv(
       const date = addDays(todayInTz("UTC"), 2);
       const result = await createAttendeeAtomic({
         bookings: [
-          { date, durationDays: 3, listingId: flex.id, quantity: 1 },
-          { date, listingId: fixed.id, quantity: 1 },
+          {
+            date,
+            durationDays: 3,
+            listingId: flex.id,
+            packageGroupId: group.id,
+            quantity: 1,
+          },
+          { date, listingId: fixed.id, packageGroupId: group.id, quantity: 1 },
         ],
         email: "flex@test.com",
         name: "Flexer",
-        packageGroupId: group.id,
       });
       if (!result.success) throw new Error("package booking failed");
 
@@ -661,10 +681,11 @@ describeWithEnv(
       const { group, widget } = await hiddenOneMemberPackage();
       const book = async (email: string) => {
         const result = await createAttendeeAtomic({
-          bookings: [{ listingId: widget.id, quantity: 1 }],
+          bookings: [
+            { listingId: widget.id, packageGroupId: group.id, quantity: 1 },
+          ],
           email,
           name: email,
-          packageGroupId: group.id,
         });
         if (!result.success) throw new Error("package booking failed");
         return result.attendees[0]!.ticket_token;
@@ -690,12 +711,11 @@ describeWithEnv(
       const standalone = await createTestListing({ name: "Standalone Ticket" });
       const result = await createAttendeeAtomic({
         bookings: [
-          { listingId: widget.id, quantity: 1 },
-          { listingId: standalone.id, quantity: 1 },
+          { listingId: widget.id, packageGroupId: group.id, quantity: 1 },
+          { listingId: standalone.id, packageGroupId: group.id, quantity: 1 },
         ],
         email: "merged@test.com",
         name: "Merged",
-        packageGroupId: group.id,
       });
       if (!result.success) throw new Error("booking failed");
       // The widget row is a package member; null the standalone row's package id.
@@ -730,7 +750,7 @@ describeWithEnv(
         unitPrice: 0,
       });
 
-      const submit = await submitFreePackageBooking(group.slug, {
+      const submit = await submitFreePackageBooking(group, {
         email: "freepkg@test.com",
         name: "Free Buyer",
       });
@@ -765,7 +785,7 @@ describeWithEnv(
         unitPrice: 0,
       });
 
-      const submit = await submitFreePackageBooking(group.slug, {
+      const submit = await submitFreePackageBooking(group, {
         email: "secret@test.com",
         name: "Secret Buyer",
       });

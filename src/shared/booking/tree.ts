@@ -158,13 +158,35 @@ export const childPriceFieldName = (
   childId: number,
 ): string => `child_price_${parentId}_${childId}`;
 
-/** The single "number of packages" control on a package page. */
-export const PACKAGE_QUANTITY_FIELD = "package_quantity";
+/** One package's "number of packages" control (`package_quantity_<groupId>`).
+ * Per group, so a page selling several bundles posts one count each. */
+export const packageQuantityFieldName = (groupId: number): string =>
+  `package_quantity_${groupId}`;
 
 /** A node's per-package fixed quantity: a `FIXED` (package member) node carries
  * it; any other rule contributes 1 (a buyer-chosen node counts once per unit). */
 export const nodeFixedQuantity = (node: BookingNode): number =>
   node.quantityRule.kind === "FIXED" ? node.quantityRule.qty : 1;
+
+/** Whether a top-level node is one package's member: a `FIXED` node hanging off
+ * that group. Regular group members share the edge kind but are `BUYER_CHOICE`. */
+export const isMemberNodeOf =
+  (groupId: number) =>
+  (node: BookingNode): boolean =>
+    node.edgeRef.kind === "group_member" &&
+    node.edgeRef.groupId === groupId &&
+    node.quantityRule.kind === "FIXED";
+
+/** One package's member nodes as their own tree, so per-package walks (the
+ * bundle capacity limit, the bundle price total) see just that bundle on a page
+ * selling several alongside other listings. */
+export const packageSubTree = (
+  tree: BookingTree,
+  groupId: number,
+): BookingTree => ({
+  nodes: tree.nodes.filter(isMemberNodeOf(groupId)),
+  rootRef: { groupId, kind: "package" },
+});
 
 /** Each top-level node's fixed per-package quantity keyed by listing id — the
  * tree-derived member quantity map, so consumers holding a tree never re-read
@@ -175,9 +197,9 @@ export const fixedQuantitiesByListingId = (
   new Map(tree.nodes.map((node) => [node.listingId, nodeFixedQuantity(node)]));
 
 /** The quantity form field a node's control posts, or `null` when the node has
- * no buyer-chosen quantity of its own (a package member — its quantity is the
- * package count × its fixed per-package quantity, submitted via
- * {@link PACKAGE_QUANTITY_FIELD}). This is the "stable nodeKey → field name"
+ * no buyer-chosen quantity of its own (a package member — its quantity is its
+ * package's count × its fixed per-package quantity, submitted via
+ * {@link packageQuantityFieldName}). This is the "stable nodeKey → field name"
  * projection: render emits it and submit parses it, from one place. */
 export const nodeQuantityFieldName = (node: BookingNode): string | null => {
   switch (node.edgeRef.kind) {

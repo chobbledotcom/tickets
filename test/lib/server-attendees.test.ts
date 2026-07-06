@@ -1442,6 +1442,55 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(html).toContain("Wheelchair access");
     });
 
+    test("editing an unrelated field keeps every path of a dual-path booking", async () => {
+      // The attendee books the listing through a package AND its own row.
+      // The editor renders one line per ROW, so a rename must round-trip
+      // both lines and keep each path's quantity untouched.
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 5,
+      });
+      const { createTestGroup } = await import("#test-utils");
+      const group = await createTestGroup({ isPackage: true, name: "EditKit" });
+      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+      const made = await createAttendeeAtomic({
+        bookings: [
+          { listingId: listing.id, packageGroupId: group.id, quantity: 2 },
+          { listingId: listing.id, quantity: 1 },
+        ],
+        email: "dual-edit@example.com",
+        name: "Dual Edit",
+      });
+      expect(made.success).toBe(true);
+      const attendee = (made as Extract<typeof made, { success: true }>)
+        .attendees[0]!;
+
+      const form = await buildAttendeeEditForm(attendee.id, {
+        name: "Dual Edit Renamed",
+      });
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        form,
+      );
+      expect(response.status).toBe(302);
+
+      const { queryAll } = await import("#shared/db/client.ts");
+      const rows = await queryAll<{
+        package_group_id: number;
+        quantity: number;
+      }>(
+        `SELECT package_group_id, quantity FROM listing_attendees
+          WHERE attendee_id = ? ORDER BY package_group_id ASC`,
+        [attendee.id],
+      );
+      expect(
+        rows.map((row) => [Number(row.package_group_id), row.quantity]),
+      ).toEqual([
+        [0, 1],
+        [group.id, 2],
+      ]);
+    });
+
     test("returns to the edit form after edit, preserving return_url", async () => {
       const listing = await createTestListing({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
@@ -1916,12 +1965,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       });
       const result = await createAttendeeAtomic({
         bookings: [
-          { listingId: memberA.id, quantity: 1 },
-          { listingId: memberB.id, quantity: 2 },
+          { listingId: memberA.id, packageGroupId: group.id, quantity: 1 },
+          { listingId: memberB.id, packageGroupId: group.id, quantity: 2 },
         ],
         email: "duo@example.com",
         name: "Duo Buyer",
-        packageGroupId: group.id,
       });
       if (!result.success) throw new Error("package booking failed");
 
@@ -2869,7 +2917,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
       // Booking conflict: same listing, same start_at (null) — choose keep_target
-      const bookingKey = `${listing.id}:null:0`;
+      const bookingKey = `${listing.id}:null:0:0`;
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
@@ -3210,7 +3258,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const html = await previewPage.text();
       const mergeVersion = extractInputValue(html, "merge_version")!;
 
-      const bookingKey = `${listing.id}:null:0`;
+      const bookingKey = `${listing.id}:null:0:0`;
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
@@ -3476,6 +3524,61 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(finalAnswers.get(q.id)?.answerId).toBe(a1.id);
     });
 
+    test("take_source on one path leaves the target's other package path alone", async () => {
+      // The target booked the same listing twice — through package 7 and on
+      // its own row. Taking the source for the STANDALONE conflict must
+      // replace only that slot; the package row survives untouched.
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const { createTestGroup } = await import("#test-utils");
+      const group = await createTestGroup({ isPackage: true, name: "KeepKit" });
+      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+      const made = await createAttendeeAtomic({
+        bookings: [
+          { listingId: listing.id, packageGroupId: group.id, quantity: 2 },
+          { listingId: listing.id, quantity: 1 },
+        ],
+        email: "dual-target@example.com",
+        name: "Dual Target",
+      });
+      expect(made.success).toBe(true);
+      const target = (made as Extract<typeof made, { success: true }>)
+        .attendees[0]!;
+      const { token: sourceToken } = await createTestAttendeeDirect(
+        listing.id,
+        "John Smith",
+        "john@example.com",
+        3,
+      );
+
+      const mergeVersion = await getMergeVersion(target.id, sourceToken);
+      const bookingKey = `${listing.id}:null:0:0`;
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        {
+          merge_version: mergeVersion,
+          source_token: sourceToken,
+          [`booking_${bookingKey}`]: "take_source",
+        },
+      );
+      expect(response.status).toBe(302);
+
+      const { queryAll } = await import("#shared/db/client.ts");
+      const rows = await queryAll<{
+        package_group_id: number;
+        quantity: number;
+      }>(
+        `SELECT package_group_id, quantity FROM listing_attendees
+          WHERE attendee_id = ? ORDER BY package_group_id ASC`,
+        [target.id],
+      );
+      expect(
+        rows.map((row) => [Number(row.package_group_id), row.quantity]),
+      ).toEqual([
+        [0, 3],
+        [group.id, 2],
+      ]);
+    });
+
     test("POST merge with take_source replaces target booking", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
 
@@ -3484,15 +3587,17 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "Jane Doe",
         "jane@example.com",
       );
+      // The source booked 3 — taking it must carry that quantity across.
       const { token: sourceToken } = await createTestAttendeeDirect(
         listing.id,
         "John Smith",
         "john@example.com",
+        3,
       );
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
 
-      const bookingKey = `${listing.id}:null:0`;
+      const bookingKey = `${listing.id}:null:0:0`;
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
@@ -3503,6 +3608,13 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Merged"), true);
+
+      const { queryAll } = await import("#shared/db/client.ts");
+      const rows = await queryAll<{ quantity: number }>(
+        "SELECT quantity FROM listing_attendees WHERE attendee_id = ?",
+        [target.id],
+      );
+      expect(rows.map((row) => row.quantity)).toEqual([3]);
     });
   });
 });

@@ -33,6 +33,12 @@ import {
   hashPhone,
   toContactHashParam,
 } from "#shared/db/contact-preferences.ts";
+import {
+  getAllGroups,
+  getGroupPackagePricesByGroupIds,
+  getListingsByGroupIds,
+  packageMemberMaps,
+} from "#shared/db/groups.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
@@ -85,54 +91,166 @@ export const getRenderListings = async (
   return [...active, ...inactiveBooked];
 };
 
-/** First (earliest) existing booking per listing. A legacy attendee with two
- * bookings of the same listing binds the row to the earliest; the rest fall out
- * of the desired set on save, normalising onto the one shared range. */
-const firstExistingByListingId = (
-  existing: ExistingLine[],
-): Map<number, ExistingLine> => {
-  const map = new Map<number, ExistingLine>();
-  for (const e of existing) {
-    if (!map.has(e.booking.listing_id)) map.set(e.booking.listing_id, e);
-  }
-  return map;
+/** One package path an editor line can book through: the package, the member
+ * listings it would book, and each member's per-unit price override (absent =
+ * no override — the listing's own price). Loaded once per form render. */
+export type PackagePath = {
+  groupId: number;
+  packageName: string;
+  memberListingIds: number[];
+  memberPrices: Map<number, number>;
 };
 
-/** Build one editor line per rendered listing: the existing booking's quantity
- * and key when present, otherwise the pre-selected quantity (0 = not booked). */
+/** Every (package, member) path the editor offers blank lines for, in group
+ * order. Members are the package's CURRENT listings; a package with no
+ * members offers nothing. */
+export const loadPackagePaths = async (): Promise<PackagePath[]> => {
+  const packages = (await getAllGroups()).filter((group) => group.is_package);
+  const packageIds = packages.map((group) => group.id);
+  const [membersByGroupId, priceRowsByGroupId] = await Promise.all([
+    getListingsByGroupIds(packageIds),
+    getGroupPackagePricesByGroupIds(packageIds),
+  ]);
+  return packages.map((group) => ({
+    groupId: group.id,
+    // The members loader seeds every requested group id, so that lookup
+    // always hits; the price loader returns only groups with membership
+    // rows, so a memberless package prices from an empty row set.
+    memberListingIds: membersByGroupId
+      .get(group.id)!
+      .map((listing) => listing.id),
+    memberPrices: packageMemberMaps(priceRowsByGroupId.get(group.id) ?? [])
+      .prices,
+    packageName: group.name,
+  }));
+};
+
+/** The packages each listing can book through, with each path's price
+ * override — the map the parser validates a blank line's chosen path against
+ * and prices the manual-add ledger from. */
+export const packagesByListingIdFrom = (
+  paths: PackagePath[],
+): Map<number, Map<number, number | null>> => {
+  const byListing = new Map<number, Map<number, number | null>>();
+  for (const path of paths) {
+    for (const listingId of path.memberListingIds) {
+      const groups =
+        byListing.get(listingId) ?? new Map<number, number | null>();
+      groups.set(path.groupId, path.memberPrices.get(listingId) ?? null);
+      byListing.set(listingId, groups);
+    }
+  }
+  return byListing;
+};
+
+/** An editor line for one EXISTING booking row, on that row's own path. */
+const lineForExistingRow = (
+  existing: ExistingLine,
+  listingsById: Map<number, ListingWithCount>,
+  packagePrice: number | null,
+): AttendeeFormLine => ({
+  error: null,
+  existingBooking: existing.booking,
+  key: existing.key,
+  // A stored row's listing always renders: booked inactive listings are in the
+  // render set, and deleting a listing deletes its rows.
+  listing: listingsById.get(existing.booking.listing_id)!,
+  listingId: existing.booking.listing_id,
+  // A stored quantity-0 line renders with the "no quantity" box ticked.
+  noQuantity: existing.booking.quantity === 0,
+  packageGroupId: existing.booking.package_group_id,
+  packagePrice,
+  parentListingId: existing.booking.parent_listing_id,
+  quantity: existing.booking.quantity,
+});
+
+/** A blank editor line: give it a quantity to book `listing` through
+ * `packageGroupId` (0 = the listing's own standalone row). */
+const blankLine = (
+  listing: ListingWithCount,
+  packageGroupId: number,
+  packagePrice: number | null,
+  quantity: number,
+): AttendeeFormLine => ({
+  error: null,
+  existingBooking: null,
+  key: "",
+  listing,
+  listingId: listing.id,
+  noQuantity: false,
+  packageGroupId,
+  packagePrice,
+  parentListingId: 0,
+  quantity,
+});
+
+/** Build the editor's lines: one per EXISTING row (in stored order), then a
+ * blank standalone line for every rendered listing without a standalone row,
+ * then a blank line per unbooked (package, member) path — so every booking
+ * path a public buyer could take is one quantity box away, with the blank
+ * lines tucked behind the pure-CSS toggles. */
 const buildFormLines = (
   renderListings: ListingWithCount[],
-  existingByListingId: Map<number, ExistingLine>,
+  existing: ExistingLine[],
+  packagePaths: PackagePath[],
   preselectedQty: Map<number, number>,
-): AttendeeFormLine[] =>
-  renderListings.map((listing) => {
-    const existing = existingByListingId.get(listing.id);
-    const quantity = existing
-      ? existing.booking.quantity
-      : (preselectedQty.get(listing.id) ?? 0);
-    return {
-      error: null,
-      existingBooking: existing?.booking ?? null,
-      key: existing?.key ?? "",
-      listing,
-      listingId: listing.id,
-      // A stored quantity-0 line renders with the "no quantity" box ticked.
-      noQuantity: Boolean(existing) && quantity === 0,
-      quantity,
-    };
-  });
+): AttendeeFormLine[] => {
+  const listingsById = listingsByIdMap(renderListings);
+  const pricesByListingId = packagesByListingIdFrom(packagePaths);
+  const priceOfPath = (listingId: number, groupId: number): number | null =>
+    groupId > 0
+      ? (pricesByListingId.get(listingId)?.get(groupId) ?? null)
+      : null;
+  const rowLines = existing.map((row) =>
+    lineForExistingRow(
+      row,
+      listingsById,
+      priceOfPath(row.booking.listing_id, row.booking.package_group_id),
+    ),
+  );
+  const slotTaken = new Set(
+    existing.map(
+      (row) => `${row.booking.listing_id}|${row.booking.package_group_id}`,
+    ),
+  );
+  const standaloneBlanks = renderListings
+    .filter((listing) => !slotTaken.has(`${listing.id}|0`))
+    .map((listing) =>
+      blankLine(listing, 0, null, preselectedQty.get(listing.id) ?? 0),
+    );
+  const packageBlanks = packagePaths.flatMap((path) =>
+    path.memberListingIds
+      .filter((listingId) => !slotTaken.has(`${listingId}|${path.groupId}`))
+      .flatMap((listingId) => {
+        const listing = listingsById.get(listingId);
+        return listing
+          ? [
+              blankLine(
+                listing,
+                path.groupId,
+                priceOfPath(listingId, path.groupId),
+                0,
+              ),
+            ]
+          : [];
+      }),
+  );
+  return [...rowLines, ...standaloneBlanks, ...packageBlanks];
+};
 
-/** Build a create-mode form: a line per active listing (quantity from any
- * pre-selection) and the shared start date from the deep link. */
+/** Build a create-mode form: a blank standalone line per active listing
+ * (quantity from any pre-selection), a blank line per package path, and the
+ * shared start date from the deep link. */
 export const buildCreateForm = (
   renderListings: ListingWithCount[],
+  packagePaths: PackagePath[],
   preselectedQty: Map<number, number>,
   startDate: string,
 ): ParsedAttendeeForm => ({
   address: "",
   dayCount: 1,
   email: "",
-  lines: buildFormLines(renderListings, new Map(), preselectedQty),
+  lines: buildFormLines(renderListings, [], packagePaths, preselectedQty),
   name: "",
   phone: "",
   remainingBalance: 0,
@@ -148,6 +266,7 @@ export const buildEditFormFromAttendee = (
   attendee: Attendee,
   existing: ExistingLine[],
   renderListings: ListingWithCount[],
+  packagePaths: PackagePath[],
 ): { parsed: ParsedAttendeeForm; hasMixedTimings: boolean } => {
   const shared = resolveSharedDates(existing.map((e) => e.booking));
   return {
@@ -156,11 +275,7 @@ export const buildEditFormFromAttendee = (
       address: attendee.address || "",
       dayCount: shared.dayCount,
       email: attendee.email || "",
-      lines: buildFormLines(
-        renderListings,
-        firstExistingByListingId(existing),
-        new Map(),
-      ),
+      lines: buildFormLines(renderListings, existing, packagePaths, new Map()),
       name: attendee.name,
       phone: attendee.phone || "",
       remainingBalance: attendee.remaining_balance,
@@ -207,21 +322,28 @@ const overDurationWarning = (
   });
 };
 
-/** The capacity-check booking shape for a booked line on the shared range
- * (daily) or no date (standard). */
-const lineBookingFor = (line: AttendeeFormLine, parsed: ParsedAttendeeForm) => {
+/** The capacity-check booking shape for one listing's TOTAL booked quantity
+ * on the shared range (daily) or no date (standard). A listing booked through
+ * two paths demands the SUM of its lines, so the overbook warning judges the
+ * whole demand, not each path alone. */
+const listingBookingFor = (
+  line: AttendeeFormLine,
+  quantity: number,
+  parsed: ParsedAttendeeForm,
+) => {
   const isDaily = line.listing!.listing_type === "daily";
   return {
     date: isDaily ? parsed.startDate : null,
     durationDays: isDaily ? parsed.dayCount : 1,
     listingId: line.listingId,
-    quantity: line.quantity!,
+    quantity,
   };
 };
 
 /** The set of booked listing ids that overbook capacity, judged with one
- * batched self-excluding check (the same one the save uses). A daily line with
- * no valid shared date is skipped — the date error already blocks saving. */
+ * batched self-excluding check (the same one the save uses) over each
+ * listing's summed lines. A daily listing with no valid shared date is
+ * skipped — the date error already blocks saving. */
 const overbookedListingIds = async (
   booked: AttendeeFormLine[],
   parsed: ParsedAttendeeForm,
@@ -231,12 +353,26 @@ const overbookedListingIds = async (
     (line) =>
       line.listing!.listing_type !== "daily" || isIsoDate(parsed.startDate),
   );
+  const firstLineByListing = new Map<number, AttendeeFormLine>();
+  const totalByListing = new Map<number, number>();
+  for (const line of checkable) {
+    if (!firstLineByListing.has(line.listingId)) {
+      firstLineByListing.set(line.listingId, line);
+    }
+    totalByListing.set(
+      line.listingId,
+      (totalByListing.get(line.listingId) ?? 0) + line.quantity!,
+    );
+  }
+  const perListing = [...firstLineByListing.values()];
   const fits = await checkLinesCapacity(
-    checkable.map((line) => lineBookingFor(line, parsed)),
+    perListing.map((line) =>
+      listingBookingFor(line, totalByListing.get(line.listingId)!, parsed),
+    ),
     excludeAttendeeId,
   );
   const overbooked = new Set<number>();
-  for (const [i, line] of checkable.entries()) {
+  for (const [i, line] of perListing.entries()) {
     if (!fits[i]) overbooked.add(line.listingId);
   }
   return overbooked;
@@ -274,10 +410,10 @@ const incompleteParentWarnings = async (
   return warnings;
 };
 
-/** Overbooking message for a booked line. */
-const overbookMessage = (line: AttendeeFormLine): string =>
+/** Overbooking message for one listing's summed booked lines. */
+const overbookMessage = (line: AttendeeFormLine, quantity: number): string =>
   t("attendee_form.warn_overbooked", {
-    quantity: line.quantity,
+    quantity,
     title: line.listing!.name,
   });
 
@@ -298,10 +434,18 @@ const computeWarnings = async (
   ]);
   const byListing = new Map<number, string[]>();
   const top: string[] = [];
+  // One warning set per LISTING (its lines share capacity and the date
+  // range), attached to its first booked line and shown on each of its rows.
+  const seenListings = new Set<number>();
   for (const line of booked) {
+    if (seenListings.has(line.listingId)) continue;
+    seenListings.add(line.listingId);
+    const total = booked
+      .filter((other) => other.listingId === line.listingId)
+      .reduce((sum, other) => sum + other.quantity!, 0);
     const warns = compact([
       overDurationWarning(line, parsed.dayCount),
-      overbooked.has(line.listingId) ? overbookMessage(line) : null,
+      overbooked.has(line.listingId) ? overbookMessage(line, total) : null,
       incompleteParents.get(line.listingId) ?? null,
     ]);
     if (warns.length > 0) {
@@ -343,6 +487,22 @@ export const buildTemplateData = async (
   );
   const warnings = await computeWarnings(parsed, attendee?.id);
   const logistics = await buildAttendeeLogisticsData(parsed.lines, attendee);
+  // Path labels: package names for "via <package>" (a row tagged with a
+  // since-deleted package falls back to its id in the template), parent
+  // names for "add-on under <parent>".
+  const packageNamesById = new Map(
+    (await loadPackagePaths()).map((path) => [path.groupId, path.packageName]),
+  );
+  const parentIds = new Set(
+    parsed.lines.map((line) => line.parentListingId).filter((id) => id > 0),
+  );
+  const parentNamesById = new Map(
+    parentIds.size === 0
+      ? []
+      : (await getAllListings())
+          .filter((listing) => parentIds.has(listing.id))
+          .map((listing) => [listing.id, listing.name] as const),
+  );
   return {
     attendee,
     attendeeError: opts.attendeeError ?? null,
@@ -359,6 +519,8 @@ export const buildTemplateData = async (
     lineWarnings: warnings.byListing,
     logistics,
     mode,
+    packageNamesById,
+    parentNamesById,
     parsed,
     questions: opts.questions ?? [],
     returnUrl: opts.returnUrl,

@@ -86,7 +86,6 @@ const packageChildSession = (
           { e: ids.child, p: 300, q: 1 },
         ]),
         name: "Kit Payer",
-        package_group_id: String(ids.group),
       },
       1800,
     ),
@@ -135,11 +134,13 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
     expect(body).toContain(`name="child_qty_${parent.id}_${child.id}"`);
     expect(body).toContain(`name="child_qty_${parent.id}_${childB.id}"`);
     expect(body).toContain("Kit Addon");
-    expect(body).toContain('name="package_quantity"');
-    // The member has no quantity control, so its fieldset carries the fixed
-    // per-package quantity the client scripts derive its booked units from.
-    expect(body).toContain(
-      `data-parent-id="${parent.id}" data-package-fixed-qty="1"`,
+    expect(body).toContain(`name="package_quantity_${group.id}"`);
+    expect(body).toContain(`data-parent-id="${parent.id}"`);
+    // The member has no quantity control, so the package selector carries each
+    // member's fixed per-package quantity ("<listingId>:<qty>" pairs) the
+    // client scripts derive its booked units from.
+    expect(body).toMatch(
+      new RegExp(`data-package-members="[^"]*${parent.id}:1`),
     );
   });
 
@@ -180,7 +181,7 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
       [`child_qty_${parent.id}_${childB.id}`]: "1",
       email: "clamp@test.com",
       name: "Clamp Buyer",
-      package_quantity: "9",
+      [`package_quantity_${group.id}`]: "9",
     });
     await expectPackageBookingAccepted(submit);
     // Clamped to 3 whole bundles, never 9.
@@ -226,7 +227,7 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
       [`child_qty_${parent.id}_${child.id}`]: "1",
       email: "kids@test.com",
       name: "Kit Buyer",
-      package_quantity: "1",
+      [`package_quantity_${group.id}`]: "1",
     });
     await expectPackageBookingAccepted(submit);
 
@@ -254,7 +255,7 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
     const fragment = await postCalculate(group.slug, {
       [`child_qty_${parent.id}_${child.id}`]: "1",
       [`child_qty_${parent.id}_${childB.id}`]: "1",
-      package_quantity: "2",
+      [`package_quantity_${group.id}`]: "2",
     });
     expect(fragment).toContain("£37");
   });
@@ -379,7 +380,6 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
               { e: member.id, k: "p", p: 1000, q: 1, r: group.id },
             ]),
             name: "Grown Buyer",
-            package_group_id: String(group.id),
           },
           1000,
         ),

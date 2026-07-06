@@ -6,6 +6,7 @@ import type {
   ChildDatesByDayCount,
   TicketListing,
 } from "#shared/booking/model.ts";
+import type { PagePackage } from "#shared/booking/page-packages.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type {
   QuestionListingMap,
@@ -39,34 +40,21 @@ export type TicketSharedContext = {
   groupName?: string;
   groupDescription?: string;
   groupImage?: ItemImageProjection;
-  /** Set when the booking page is a package group: the group's id (for signed
-   * metadata) and listing-id → override price map (only members with a flat
-   * `group` override in listing_prices). `null`/absent for non-package pages. */
-  packageGroupId?: number | null;
-  packagePrices?: ReadonlyMap<number, number> | null;
-  /** Set on a package page: each customisable member's per-day overrides
-   * (listing id → day count → per-unit minor price), consulted by the price
-   * walk before the listing's own day price. `null`/absent otherwise. */
-  packageDayPrices?: ReadonlyMap<number, ReadonlyMap<number, number>> | null;
-  /** Set on a package page: listing-id → how many of that listing one package
-   * unit includes (every member, default 1). The buyer chooses a single package
-   * quantity and each member's booked quantity is `fixedQty × packageQty`.
-   * `null`/absent for non-package pages. */
-  packageQuantities?: ReadonlyMap<number, number> | null;
-  /** Set on a package page: whether the member listings are hidden from buyers,
-   * tickets, and confirmation emails. */
-  hidePackageListings?: boolean;
-  /** Set on a package page: every CAPPED group the members OR their required
-   * children belong to → its remaining spots, and each of those listings → its
-   * group ids. One package consumes the SUM of its members' fixed quantities
-   * (plus one child unit per booked parent unit) from each such group, so the
-   * package count is bounded by `floor(remaining / demand)` per group — the
-   * package's own group AND any other capped pool members or children share.
-   * Empty for non-package pages or when nothing is capped. Carried on the
-   * SHARED context so the page render, the submit clamp, and the API all use
-   * ONE ceiling ({@link packageBundleLimit}). Always set by
-   * {@link getTicketContext} (empty Maps for a non-package page), so callers
-   * read them without a fallback. */
+  /** The package bundles sold on this page, in page order — each carrying its
+   * own member ids, per-package quantities, price overrides, and hide flag. A
+   * single-package page is an array of one; a plain listing page is empty. */
+  packages: PagePackage[];
+  /** Every CAPPED group the packages' members OR their required children belong
+   * to → its remaining spots, and each of those listings → its group ids. One
+   * package consumes the SUM of its members' fixed quantities (plus one child
+   * unit per booked parent unit) from each such group, so a package's count is
+   * bounded by `floor(remaining / demand)` per group — the package's own group
+   * AND any other capped pool members or children share. Empty for pages with
+   * no packages or when nothing is capped. Carried on the SHARED context so the
+   * page render, the submit clamp, and the API all use ONE ceiling
+   * ({@link packageBundleLimit}). Always set by {@link getTicketContext}
+   * (empty Maps for a package-less page), so callers read them without a
+   * fallback. */
   packageGroupRemainingByGroupId: ReadonlyMap<number, number>;
   packageMemberGroupIds: ReadonlyMap<number, number[]>;
   actionUrl?: string;

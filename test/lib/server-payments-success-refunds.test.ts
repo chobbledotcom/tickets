@@ -146,11 +146,10 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
             {
               email: "stale-pkg@example.com",
               items: JSON.stringify([
-                { e: keeper.id, p: 500, q: 1 },
-                { e: vanished.id, p: 500, q: 1 },
+                { e: keeper.id, k: "p", p: 500, q: 1, r: group.id },
+                { e: vanished.id, k: "p", p: 500, q: 1, r: group.id },
               ]),
               name: "Stale Package Buyer",
-              package_group_id: String(group.id),
             },
             1000,
           ),

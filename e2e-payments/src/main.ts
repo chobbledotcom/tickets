@@ -26,6 +26,7 @@ import {
   runSetup,
   submitBooking,
 } from "./flow.ts";
+import { runComplexOrderJourney } from "./order-flow.ts";
 import { buildStaticAssets, startAppServer } from "./server.ts";
 import { noTunnel, startTunnel } from "./tunnel.ts";
 import { notifyFailure } from "./notify.ts";
@@ -118,6 +119,29 @@ const run = async (): Promise<void> => {
       });
       await assertPaidBookingConfirmed(session, ticketPath);
     }
+
+    // The second journey on the same server: a COMPLEX order — a package, one
+    // member also on its own row, and a plain listing, all booked through the
+    // /order gallery in one checkout, then verified path-by-path in admin.
+    const activeSession = session;
+    const activeTunnel = tunnel;
+    const activeServer = server;
+    await runComplexOrderJourney(activeSession, {
+      paid: provider !== null,
+      ...(provider
+        ? {
+            payHostedCheckout: async () => {
+              step(`Paying the complex order on the ${provider.name} hosted checkout`);
+              await assertRedirectedToCheckout(activeSession);
+              await provider.payHostedCheckout(activeSession.page, {
+                baseUrl: activeTunnel.publicBaseUrl,
+                secrets: secrets!,
+                serverLogPath: activeServer.logPath,
+              });
+            },
+          }
+        : {}),
+    });
 
     step(`PASS — ${target} end-to-end booking completed`);
   } catch (err) {

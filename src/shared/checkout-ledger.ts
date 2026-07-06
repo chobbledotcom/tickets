@@ -10,6 +10,13 @@
  * rest owed on the attendee account, so revenue is recognised gross at sale.
  * `amountPaid` is the cash actually taken now (`order.total` — a deposit or the
  * full amount).
+ *
+ * Lines are summed BY LISTING, so a listing bought through two paths in one
+ * order (a package member beside its own standalone row) posts one combined
+ * sale leg; the per-row readback then splits it by quantity, which averages
+ * the rows when the paths priced differently. Totals stay exact — see the
+ * per-path TODO entry and {@link file://../db/attendees/queries.ts}
+ * `pricePaidFromLedger`.
  */
 
 import type { BookingFacts } from "#shared/accounting/mappers.ts";

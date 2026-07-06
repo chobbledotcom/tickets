@@ -21,12 +21,10 @@ import {
   getGroupPackagePrices,
   getGroupPackagePricesByGroupIds,
   getPackageDisplayById,
-  getPackageDisplayForBookings,
   groupsTable,
   isGroupSlugTaken,
   resetGroupListings,
   setGroupPackageMembers,
-  sharedPackageGroupId,
 } from "#shared/db/groups.ts";
 import { updateListingAggregateValues } from "#shared/db/listings.ts";
 import {
@@ -689,51 +687,6 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
 
     test("returns null for a group id that no longer exists", async () => {
       expect(await getPackageDisplayById(987654)).toBeNull();
-    });
-  });
-
-  describe("sharedPackageGroupId", () => {
-    test("returns the id when every booking shares the same non-zero id", () => {
-      expect(sharedPackageGroupId([7, 7, 7])).toBe(7);
-    });
-
-    test("returns null for an empty list", () => {
-      expect(sharedPackageGroupId([])).toBeNull();
-    });
-
-    test("returns null when any booking is not a package (id 0)", () => {
-      expect(sharedPackageGroupId([7, 0, 7])).toBeNull();
-      expect(sharedPackageGroupId([0])).toBeNull();
-    });
-
-    test("returns null when bookings carry differing package ids", () => {
-      expect(sharedPackageGroupId([7, 8])).toBeNull();
-    });
-  });
-
-  describe("getPackageDisplayForBookings", () => {
-    test("resolves the package when every booking shares its id", async () => {
-      const pkg = await createTestGroup({
-        isPackage: true,
-        name: "Combo",
-        slug: "combo-disp",
-      });
-      expect(await getPackageDisplayForBookings([pkg.id, pkg.id])).toEqual({
-        hideListings: false,
-        name: "Combo",
-      });
-    });
-
-    test("returns null when the bookings are not one package order", async () => {
-      const pkg = await createTestGroup({
-        isPackage: true,
-        name: "Combo2",
-        slug: "combo2-disp",
-      });
-      // A standalone order (id 0) of the same listings is never the package.
-      expect(await getPackageDisplayForBookings([0, 0])).toBeNull();
-      // A mixed/partial set is not one package order.
-      expect(await getPackageDisplayForBookings([pkg.id, 0])).toBeNull();
     });
   });
 

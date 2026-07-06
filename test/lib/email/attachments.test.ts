@@ -1,7 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { EmailEntry } from "#shared/email.ts";
 import { buildSvgTicketData, buildTicketAttachments } from "#shared/email.ts";
 import { describeWithEnv, makeTestEntry as makeEntry } from "#test-utils";
+
+/** One group per entry — the shape a package-less order renders as. */
+const soloGroups = (entries: EmailEntry[]) =>
+  entries.map((entry) => ({ entries: [entry] }));
 
 const decodeAttachmentContent = (attachment: { content: string }): string => {
   const binary = atob(attachment.content);
@@ -58,7 +63,10 @@ describe("buildTicketAttachments", () => {
       makeEntry({}, { ticket_token: "tok1" }),
       makeEntry({}, { ticket_token: "tok2" }),
     ];
-    const attachments = await buildTicketAttachments(entries, "GBP");
+    const attachments = await buildTicketAttachments(
+      soloGroups(entries),
+      "GBP",
+    );
 
     expect(attachments.length).toBe(2);
     expect(attachments[0]!.filename).toBe("ticket-1.svg");
@@ -67,14 +75,20 @@ describe("buildTicketAttachments", () => {
   });
 
   test("uses 'ticket.svg' filename for single entry", async () => {
-    const attachments = await buildTicketAttachments([makeEntry()], "GBP");
+    const attachments = await buildTicketAttachments(
+      soloGroups([makeEntry()]),
+      "GBP",
+    );
 
     expect(attachments.length).toBe(1);
     expect(attachments[0]!.filename).toBe("ticket.svg");
   });
 
   test("attachment content is base64-encoded UTF-8 SVG", async () => {
-    const attachments = await buildTicketAttachments([makeEntry()], "GBP");
+    const attachments = await buildTicketAttachments(
+      soloGroups([makeEntry()]),
+      "GBP",
+    );
 
     const decoded = decodeAttachmentContent(attachments[0]!);
     expect(decoded).toContain("<?xml");
@@ -84,7 +98,7 @@ describe("buildTicketAttachments", () => {
 
   test("attachment preserves non-ASCII characters via UTF-8 encoding", async () => {
     const attachments = await buildTicketAttachments(
-      [makeEntry({ location: "Zurich", name: "Cafe Musik" })],
+      soloGroups([makeEntry({ location: "Zurich", name: "Cafe Musik" })]),
       "GBP",
     );
 
@@ -104,10 +118,10 @@ describe("buildTicketAttachments", () => {
         { price_paid: "500", quantity: 1, ticket_token: "pkgtok" },
       ),
     ];
-    const attachments = await buildTicketAttachments(entries, "GBP", {
-      kind: "hidden",
-      packageName: "Weekend Bundle",
-    });
+    const attachments = await buildTicketAttachments(
+      [{ entries, hiddenPackageName: "Weekend Bundle" }],
+      "GBP",
+    );
 
     expect(attachments.length).toBe(1);
     expect(attachments[0]!.filename).toBe("ticket.svg");
@@ -132,14 +146,34 @@ describe("buildTicketAttachments", () => {
         },
       ),
     ];
-    const attachments = await buildTicketAttachments(entries, "GBP", {
-      kind: "hidden",
-      packageName: "Dated Bundle",
-    });
+    const attachments = await buildTicketAttachments(
+      [{ entries, hiddenPackageName: "Dated Bundle" }],
+      "GBP",
+    );
     const decoded = decodeAttachmentContent(attachments[0]!);
     expect(decoded).toContain("Dated Bundle");
     expect(decoded).not.toContain("Secret Cabin");
     // Hiding the members must not lose the buyer's booked date.
     expect(decoded).toContain("1 August 2026");
+  });
+
+  test("a mixed order conceals its hidden bundle beside a normal ticket", async () => {
+    const attachments = await buildTicketAttachments(
+      [
+        {
+          entries: [makeEntry({ name: "Secret Member" }, { quantity: 2 })],
+          hiddenPackageName: "Mystery Box",
+        },
+        { entries: [makeEntry({ name: "Lantern" })] },
+      ],
+      "GBP",
+    );
+
+    expect(attachments.length).toBe(2);
+    const first = decodeAttachmentContent(attachments[0]!);
+    const second = decodeAttachmentContent(attachments[1]!);
+    expect(first).toContain("Mystery Box");
+    expect(first).not.toContain("Secret Member");
+    expect(second).toContain("Lantern");
   });
 });
