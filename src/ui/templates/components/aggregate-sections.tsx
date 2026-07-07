@@ -27,12 +27,13 @@ export const SectionFieldset = ({
  * One section of a form: a heading (rendered as the fieldset's <legend>) and
  * the fields that belong under it. This is the ONLY shape a form section takes
  * — model a form as a `FormSection[]` and render it with {@link FormSections},
- * so a section header can never drift back into a hand-rolled <h3>. A section
- * whose `children` are absent (e.g. a conditional block that yielded nothing)
- * is dropped, so callers can build the list with `compact`.
+ * so a section header can never drift back into a hand-rolled <h3>. Build the
+ * list with `compact` to drop sections that don't apply (see the attendee
+ * form's `editFormSections`).
  *
- * Every section uses the shared "listing-section" legend styling by default;
- * pass `className` only to add to it (the logistics agents fieldset does).
+ * A blank or absent `className` falls back to the shared "listing-section"
+ * legend styling; pass a `className` to override it — include "listing-section"
+ * plus any modifier, as the listing form's daily section does.
  */
 export type FormSection = {
   legend: string;
@@ -49,7 +50,7 @@ export const FormSections = ({
   <>
     {sections.map((section) => (
       <SectionFieldset
-        className={section.className ?? "listing-section"}
+        className={section.className || "listing-section"}
         legend={section.legend}
       >
         {section.children}

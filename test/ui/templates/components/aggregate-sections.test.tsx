@@ -53,6 +53,17 @@ describe("FormSections", () => {
       '<fieldset class="listing-section extra"><legend>L</legend>x</fieldset>',
     );
   });
+
+  test("falls back to listing-section for a blank className", () => {
+    const html = String(
+      FormSections({
+        sections: [{ children: "x", className: "", legend: "L" }],
+      }),
+    );
+    expect(html).toBe(
+      '<fieldset class="listing-section"><legend>L</legend>x</fieldset>',
+    );
+  });
 });
 
 describe("StackDetails", () => {
