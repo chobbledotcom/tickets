@@ -26,6 +26,7 @@ import type {
   OwnerKeyEncrypted,
 } from "#shared/crypto/sealed.ts";
 import { queryAll, queryBatch, resultRows } from "#shared/db/client.ts";
+import { idAndCreatedSchema } from "#shared/db/common-schema.ts";
 import {
   decryptListingWithCount,
   LISTING_COUNT_GROUP_BY,
@@ -79,9 +80,8 @@ export const activityLogTable = defineTable<
   name: "activity_log",
   primaryKey: "id",
   schema: {
+    ...idAndCreatedSchema(nowIso),
     attendee_id: col.simple<number | null>(),
-    created: col.withDefault(() => nowIso()),
-    id: col.generated<number>(),
     listing_id: col.simple<number | null>(),
     message: col.simple<StoredLogMessage>(),
   },

@@ -100,6 +100,9 @@ export const createSession = async (
   cacheSession(tokenHash, session);
 };
 
+/** The sessions columns selected by the by-token and list reads. */
+const SESSION_COLUMNS = "token, csrf_token, expires, wrapped_data_key, user_id";
+
 /**
  * Get a session by token (with 10s TTL cache)
  * Token is hashed for database lookup
@@ -113,7 +116,7 @@ export const getSession = async (token: string): Promise<Session | null> => {
 
   // Query DB and cache result (token column contains the hash)
   const session = await queryOne<Session>(
-    "SELECT token, csrf_token, expires, wrapped_data_key, user_id FROM sessions WHERE token = ?",
+    `SELECT ${SESSION_COLUMNS} FROM sessions WHERE token = ?`,
     [tokenHash],
   );
   cacheSession(tokenHash, session);
@@ -143,7 +146,7 @@ export const deleteAllSessions = async (): Promise<void> => {
  */
 export const getAllSessions = (): Promise<Session[]> =>
   queryAll<Session>(
-    "SELECT token, csrf_token, expires, wrapped_data_key, user_id FROM sessions ORDER BY expires DESC",
+    `SELECT ${SESSION_COLUMNS} FROM sessions ORDER BY expires DESC`,
   );
 
 /**
