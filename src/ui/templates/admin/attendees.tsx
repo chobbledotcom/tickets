@@ -293,7 +293,7 @@ export const PaymentDetails = ({
   showBalanceLink,
 }: {
   attendee: Attendee;
-  /** The balance link targets the owner-only Balance tab, so callers gate it
+  /** The balance link targets the owner-only Ledger tab, so callers gate it
    * on the viewer's role (never render a forbidden link). */
   showBalanceLink: boolean;
 }): string => {
@@ -331,8 +331,8 @@ export const PaymentDetails = ({
             {showBalanceLink && (
               <>
                 {" — "}
-                <a href={`/admin/attendees/${attendee.id}/balance`}>
-                  view balance &amp; payment link
+                <a href={`/admin/attendees/${attendee.id}/ledger`}>
+                  view ledger &amp; payment link
                 </a>
               </>
             )}

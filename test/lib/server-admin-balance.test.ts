@@ -64,72 +64,83 @@ const reservedAttendee = async () => {
   return owedAttendee(listing.id, reservation.id, 1500);
 };
 
-describeWithEnv("server (admin attendee balance)", { db: true }, () => {
-  testRequiresAuth("/admin/attendees/1/balance");
+describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
+  testRequiresAuth("/admin/attendees/1/ledger");
 
-  test("shows the deposit breakdown, payment link and history", async () => {
+  test("shows the order summary, statement, payment link and history", async () => {
     // A provider must be configured for the customer pay link to function.
     await setupStripe();
     const attendeeId = await reservedAttendee();
     await logActivity("Deposit received", null, attendeeId);
 
-    const response = await adminGet(`/admin/attendees/${attendeeId}/balance`);
+    const response = await adminGet(`/admin/attendees/${attendeeId}/ledger`);
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain("Reservation balance");
     expect(html).toContain("Reservation deposit");
     expect(html).toContain("Balance outstanding");
+    // The account statement (the "bits already there") renders alongside, with
+    // its running-balance table's counterparty column.
+    expect(html).toContain("<th>Counterparty</th>");
     // The signed customer link points at the public pay page.
     expect(html).toContain("/pay/bal1.");
     // The attendee's history is listed.
     expect(html).toContain("Deposit received");
   });
 
-  test("withholds the payment link for a reservation when no provider is configured", async () => {
+  test("explains why the payment link is missing for a reservation with no provider", async () => {
     // A reservation status, but no payment provider — the /pay POST would
-    // dead-end, so the customer link must not be offered.
+    // dead-end, so the customer link must not be offered and the reason (no
+    // provider) is spelled out, not the not-a-reservation one.
     const attendeeId = await reservedAttendee();
-    await expectHtml(await adminGet(`/admin/attendees/${attendeeId}/balance`), {
+    await expectHtml(await adminGet(`/admin/attendees/${attendeeId}/ledger`), {
       contains: [
         "Balance outstanding",
-        "collect the balance directly from the customer",
+        "Collect this balance directly",
+        "no payment provider is connected",
       ],
-      notContains: ["/pay/"],
+      notContains: [
+        "/pay/",
+        "only reservations can take a balance payment online",
+      ],
     });
   });
 
   test("returns 404 for a missing attendee", async () => {
-    const response = await adminGet("/admin/attendees/9999/balance");
+    const response = await adminGet("/admin/attendees/9999/ledger");
     expect(response.status).toBe(404);
   });
 
   test("shows a fully-paid state once the balance is settled", async () => {
     const attendeeId = await reservedAttendee();
     await settleAttendeeBalance(attendeeId, 1500, settle());
-    const response = await adminGet(`/admin/attendees/${attendeeId}/balance`);
+    const response = await adminGet(`/admin/attendees/${attendeeId}/ledger`);
     const html = await response.text();
     expect(html).toContain("This booking is fully paid");
     // No payment link when nothing is outstanding.
     expect(html).not.toContain("/pay/bal1.");
   });
 
-  test("handles an attendee with no status and a non-reservation balance", async () => {
+  test("explains both reasons for a no-status, non-reservation balance", async () => {
     const listing = await createTestListing({
       maxAttendees: 10,
       thankYouUrl: "https://example.com",
     });
     const attendeeId = await owedAttendee(listing.id, null, 1500);
-    await expectHtml(await adminGet(`/admin/attendees/${attendeeId}/balance`), {
+    // No reservation status AND no provider — both reasons are listed.
+    await expectHtml(await adminGet(`/admin/attendees/${attendeeId}/ledger`), {
       contains: [
         "Balance outstanding",
-        "collect the balance directly from the customer",
+        "Collect this balance directly",
+        "only reservations can take a balance payment online",
+        "no payment provider is connected",
       ],
       notContains: ["Reservation deposit", "/pay/"],
       status: 200,
     });
   });
 
-  test("withholds the payment link for a non-reservation status with a balance", async () => {
+  test("explains the not-a-reservation reason for a named non-reservation status", async () => {
     const listing = await createTestListing({
       maxAttendees: 10,
       thankYouUrl: "https://example.com",
@@ -143,16 +154,17 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
     });
     // A provider-less owed booking: full value owed, nothing paid up front.
     const attendeeId = await owedAttendee(listing.id, confirmed.id, 1500, 0);
-    await expectHtml(await adminGet(`/admin/attendees/${attendeeId}/balance`), {
+    await expectHtml(await adminGet(`/admin/attendees/${attendeeId}/ledger`), {
       contains: [
         "Balance outstanding",
-        "collect the balance directly from the customer",
+        "Collect this balance directly",
+        "only reservations can take a balance payment online",
       ],
       notContains: ["/pay/"],
     });
   });
 
-  test("the attendee page links to the balance panel when a balance is due", async () => {
+  test("the attendee page links to the ledger panel when a balance is due", async () => {
     // A linked payment id makes the read-only payment-details panel (which hosts
     // the "Balance outstanding" link) render; the deposit + sale legs leave £15
     // owed in the ledger so the outstanding-balance block shows.
@@ -162,14 +174,14 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
     const response = await adminGet(`/admin/attendees/${attendeeId}`);
     const html = await response.text();
     expect(html).toContain("Balance outstanding");
-    expect(html).toContain(`/admin/attendees/${attendeeId}/balance`);
+    expect(html).toContain(`/admin/attendees/${attendeeId}/ledger`);
     // The tab strip alone also carries that href, so pin the payment-details
     // link itself by its anchor text — it must render for owners.
-    expect(html).toContain("view balance &amp; payment link");
+    expect(html).toContain("view ledger &amp; payment link");
   });
 
-  test("a manager's overview shows the balance owed but never the owner-only balance link", async () => {
-    // The Balance tab is owner-only, so its link must never render for a
+  test("a manager's overview shows the balance owed but never the owner-only ledger link", async () => {
+    // The Ledger tab is owner-only, so its link must never render for a
     // manager (never render a forbidden link) — neither in the payment-details
     // panel nor in the tab strip.
     const { attendeeId } = await createReservedAttendee(1500, {
@@ -180,7 +192,7 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
     });
     const html = await expectHtmlResponse(overview, 200);
     expect(html).toContain("Balance outstanding");
-    expect(html).not.toContain(`/admin/attendees/${attendeeId}/balance`);
-    expect(html).not.toContain("view balance &amp; payment link");
+    expect(html).not.toContain(`/admin/attendees/${attendeeId}/ledger`);
+    expect(html).not.toContain("view ledger &amp; payment link");
   });
 });

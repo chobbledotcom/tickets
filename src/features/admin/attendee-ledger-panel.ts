@@ -1,10 +1,13 @@
 /**
- * Loader for the attendee Balance tab: the deposit/balance breakdown, the
- * secure customer payment link, and the payment history. Rendered by the
- * attendee entity page (attendee-page.ts); the tab is owner-only, matching
- * the money-exposing Ledger tab.
+ * Loader for the attendee Ledger tab: the plain-language order summary, the
+ * shared account statement (the source of truth), how to collect any balance
+ * (customer pay link or offline guidance), and a short activity history.
+ * Rendered by the attendee entity page (attendee-page.ts); the tab is
+ * owner-only, matching the money-exposing standalone /admin/ledger routes.
  */
 
+import { loadAccountLedger } from "#routes/admin/ledger.ts";
+import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { getAttendeeActivityLog } from "#shared/db/activityLog.ts";
@@ -14,21 +17,24 @@ import {
   getAttendeeOrderSummary,
 } from "#shared/db/attendees/balance.ts";
 import { computeReservationDeposit } from "#shared/reservation-amount.ts";
-import { AttendeeBalancePanel } from "#templates/admin/attendee-balance.tsx";
+import { AttendeeLedgerPanel } from "#templates/admin/attendee-ledger-panel.tsx";
 
-/** Build the Balance tab's panel for an already-loaded attendee. */
-export const loadAttendeeBalancePanel = async (
+/** Build the Ledger tab's merged panel for an already-loaded attendee. */
+export const loadAttendeeLedgerPanel = async (
   attendeeId: number,
   baseUrl: string,
+  returnUrl: string,
 ): Promise<JSX.Element> => {
+  const account = attendeeAccount(attendeeId);
   // The entity page already loaded this attendee, so its balance state exists.
   const state = (await getAttendeeBalanceState(attendeeId))!;
 
-  const [status, summary, history, token] = await Promise.all([
+  const [status, summary, history, token, ledger] = await Promise.all([
     state.statusId ? getAttendeeStatus(state.statusId) : Promise.resolve(null),
     getAttendeeOrderSummary(attendeeId),
     getAttendeeActivityLog(attendeeId),
     signBalanceToken(attendeeId),
+    loadAccountLedger(account),
   ]);
 
   const deposit = status?.is_reservation
@@ -39,14 +45,17 @@ export const loadAttendeeBalancePanel = async (
       )
     : 0;
 
-  return AttendeeBalancePanel({
+  return AttendeeLedgerPanel({
     deposit,
+    fullLedgerHref: `/admin/ledger/${account.type}/${account.id}`,
     history,
+    ledger,
     link: `${baseUrl}/pay/${token}`,
     // The customer pay link only works when a provider can take the payment;
     // without one, the /pay POST dead-ends, so the template withholds it.
     paymentsEnabled: isPaymentsEnabled(),
     remainingBalance: state.remainingBalance,
+    returnUrl,
     status,
     summary,
   });

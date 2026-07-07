@@ -160,7 +160,7 @@ const assertRenderedIncome = async (
 
 /**
  * Assert an attendee's outstanding balance, on BOTH the per-account ledger
- * statement (`Balance: £X`, where owed = −running) and the admin balance page
+ * statement (`Balance: £X`, where owed = −running) and the admin ledger page
  * (`Balance outstanding:` label followed by the formatted figure).
  */
 const assertRenderedOwed = async (
@@ -169,7 +169,7 @@ const assertRenderedOwed = async (
 ): Promise<void> => {
   const formatted = formatCurrency(minor);
   const balancePage = await adminPageHtml(
-    `/admin/attendees/${attendeeId}/balance`,
+    `/admin/attendees/${attendeeId}/ledger`,
   );
   expect(balancePage).toContain("Balance outstanding:");
   expect(balancePage).toContain(formatted);
@@ -533,7 +533,7 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
       listingId: listing.id,
     });
 
-    // Ledger + admin balance page agree: £50 outstanding.
+    // Ledger + admin ledger page agree: £50 outstanding.
     expect(await owedBy(attendee.id)).toBe(5000);
     await assertRenderedOwed(attendee.id, 5000);
 
@@ -545,7 +545,7 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
     expect(result.settled).toBe(true);
     expect(await owedBy(attendee.id)).toBe(0);
     const settledPage = await adminPageHtml(
-      `/admin/attendees/${attendee.id}/balance`,
+      `/admin/attendees/${attendee.id}/ledger`,
     );
     expect(settledPage).toContain("This booking is fully paid");
   });
@@ -765,7 +765,7 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
     await assertEditPageIncome(listing.id, 4500);
     // The admin attendee balance page shows the booking fully settled.
     const balancePage = await adminPageHtml(
-      `/admin/attendees/${attendeeId}/balance`,
+      `/admin/attendees/${attendeeId}/ledger`,
     );
     expect(balancePage).toContain("This booking is fully paid");
   });
@@ -1290,7 +1290,7 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
 
     // Transparency: the money event shows on the attendee's balance-page history.
     const balancePage = await adminPageHtml(
-      `/admin/attendees/${attendeeId}/balance`,
+      `/admin/attendees/${attendeeId}/ledger`,
     );
     expect(balancePage).toContain("Refund issued for attendee 'Logged Guest'");
 
@@ -1346,9 +1346,9 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
     expect(norm(await accountBalance(attendeeAccount(sourceId)))).toBe(0);
     expect(await sumOfAllBalances()).toBe(0);
 
-    // Transparency: the survivor's balance page renders the £50 credit figure.
+    // Transparency: the survivor's ledger page renders the £50 credit figure.
     const balancePage = await adminPageHtml(
-      `/admin/attendees/${targetId}/balance`,
+      `/admin/attendees/${targetId}/ledger`,
     );
     expect(balancePage).toContain(formatCurrency(-5000));
   });
