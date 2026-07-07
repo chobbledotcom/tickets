@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import type { AuthSession } from "#routes/auth.ts";
 import {
   requireAgentOr,
   requireContentOr,
@@ -7,6 +8,7 @@ import {
   requireOwnerOr,
   requireSessionOr,
   requireSiteOr,
+  withSession,
 } from "#routes/auth.ts";
 import {
   createTestAgentSession,
@@ -16,9 +18,21 @@ import {
   testCookie,
 } from "#test-utils";
 
-/** A session guard: authenticates, checks role, and either runs the handler or
- *  returns an auth-failure response. */
-type Guard = (request: Request, handler: () => Response) => Promise<Response>;
+/** A session guard: authenticates, checks role, and either runs the handler
+ *  with the session or returns an auth-failure response. */
+type Guard = (
+  request: Request,
+  handler: (session: AuthSession) => Response,
+) => Promise<Response>;
+
+const EVERY_GUARD: Guard[] = [
+  requireOwnerOr,
+  requireAgentOr,
+  requireSessionOr,
+  requireContentOr,
+  requireSiteOr,
+  requireDeliveryOr,
+];
 
 /** A live, authenticated cookie for each admin level. */
 const roleCookies = async (): Promise<Record<string, string>> => ({
@@ -28,25 +42,28 @@ const roleCookies = async (): Promise<Record<string, string>> => ({
   owner: await testCookie(),
 });
 
-/** Run a guard for a cookie and report the status: 200 when the handler ran
- *  (allowed), 403 when the role was rejected. Every cookie is a valid session,
- *  so a rejection is always "forbidden", never the not-authenticated redirect. */
-const guardStatus = async (guard: Guard, cookie: string): Promise<number> => {
-  const request = new Request("http://localhost/admin/x", {
-    headers: { cookie },
-  });
-  const response = await guard(request, () => new Response("OK"));
-  return response.status;
-};
+/** Run a guard and return its response. The handler only fires when the guard
+ *  admits the request, and returns 200 only when handed a real session (so a
+ *  guard that forwarded `undefined` is caught, not silently accepted). */
+const runGuard = (guard: Guard, cookie?: string): Promise<Response> =>
+  guard(
+    new Request(
+      "http://localhost/admin/x",
+      cookie ? { headers: { cookie } } : undefined,
+    ),
+    (session) => new Response("OK", { status: session ? 200 : 500 }),
+  );
 
-/** Assert a guard admits exactly `allowed` and forbids every other role. */
+/** Assert a guard admits exactly `allowed` and forbids every other role. Every
+ *  cookie is a valid session, so a rejection is a 403 forbidden, never the
+ *  not-authenticated redirect. */
 const expectAdmits = async (
   guard: Guard,
   cookies: Record<string, string>,
   allowed: string[],
 ): Promise<void> => {
   for (const [role, cookie] of Object.entries(cookies)) {
-    expect(await guardStatus(guard, cookie)).toBe(
+    expect((await runGuard(guard, cookie)).status).toBe(
       allowed.includes(role) ? 200 : 403,
     );
   }
@@ -86,5 +103,30 @@ describeWithEnv("auth authorization matrix", { db: true }, () => {
       "manager",
       "agent",
     ]);
+  });
+
+  test("every guard redirects an unauthenticated request instead of running the handler", async () => {
+    for (const guard of EVERY_GUARD) {
+      const response = await runGuard(guard); // no cookie
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin");
+    }
+  });
+
+  test("withSession runs the handler with the session, or the fallback when absent", async () => {
+    const cookie = await testCookie();
+    const authed = await withSession(
+      new Request("http://localhost/admin/x", { headers: { cookie } }),
+      (session) => new Response(session.adminLevel),
+      () => new Response("no-session"),
+    );
+    expect(await authed.text()).toBe("owner");
+
+    const anonymous = await withSession(
+      new Request("http://localhost/admin/x"),
+      () => new Response("session"),
+      () => new Response("no-session"),
+    );
+    expect(await anonymous.text()).toBe("no-session");
   });
 });
