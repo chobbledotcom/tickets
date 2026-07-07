@@ -2070,18 +2070,6 @@ form.listing-form--templated.listing-form--no-daily:not(
   cursor: not-allowed;
 }
 
-/* Customise toggle in listing forms */
-.listing-customise-toggle {
-  display: block;
-  margin-block: var(--space-m);
-}
-
-/* "Use defaults" toggle in listing forms */
-.listing-use-defaults-toggle {
-  display: block;
-  margin-block: var(--space-m);
-}
-
 /* Header image */
 .header-image {
   max-width: 100%;
