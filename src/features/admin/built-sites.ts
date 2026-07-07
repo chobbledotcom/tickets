@@ -95,7 +95,7 @@ const builtSitesResource = defineNamedResource({
 });
 
 const crud = createOwnerCrudHandlers({
-  getAll: () => builtSites.getAll(),
+  getAll: builtSites.getAll,
   getName: (s) => s.name,
   listPath: "/admin/built-sites",
   renderDelete: adminBuiltSiteDeletePage,
