@@ -14,7 +14,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getAllGroups } from "#shared/db/groups.ts";
+import { groups } from "#shared/db/groups.ts";
 import {
   deleteImageRecord,
   getAllImages,
@@ -26,7 +26,7 @@ import {
 } from "#shared/db/images.ts";
 import { getAllListingOptions } from "#shared/db/listings.ts";
 import { getNewsPostNames } from "#shared/db/news-posts.ts";
-import { getSitePageNavRows } from "#shared/db/site-pages.ts";
+import { sitePages } from "#shared/db/site-pages.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { deleteImageStorageFiles, isStorageEnabled } from "#shared/storage.ts";
 import {
@@ -103,7 +103,9 @@ const activeOptionsOfType =
 
 const groupImageItemOptions = async (): Promise<ImageItemOption[]> =>
   activeOptionsOfType("group")(
-    (await getAllGroups()).map((group) => [group.id, group.name] as const),
+    (await groups.cache.getAll()).map(
+      (group) => [group.id, group.name] as const,
+    ),
   );
 
 /** News + page options — the Site-gated content types, shown only to a Site
@@ -111,7 +113,7 @@ const groupImageItemOptions = async (): Promise<ImageItemOption[]> =>
 const siteContentImageOptions = async (): Promise<ImageItemOption[]> => [
   ...activeOptionsOfType("news")(await getNewsPostNames()),
   ...activeOptionsOfType("page")(
-    (await getSitePageNavRows()).map((page) => [page.id, page.name] as const),
+    (await sitePages.getAll()).map((page) => [page.id, page.name] as const),
   ),
 ];
 

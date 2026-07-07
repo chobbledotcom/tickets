@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
+  attendeeStatuses,
   getPaidDefaultStatus,
-  invalidateAttendeeStatusesCache,
 } from "#shared/db/attendee-statuses.ts";
 import {
   getAttendeeBalanceState,
@@ -85,7 +85,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
   test("settles even when no paid-default status is configured", async () => {
     const { attendeeId } = await createReservedAttendee(1500);
     await getDb().execute("UPDATE attendee_statuses SET is_paid_default = 0");
-    invalidateAttendeeStatusesCache();
+    attendeeStatuses.invalidate();
     const result = await settleAttendeeBalance(attendeeId, 1500, settle());
     expect(result.settled).toBe(true);
     // No paid default: COALESCE keeps the existing status.

@@ -18,9 +18,8 @@ import {
   assignListingsToGroup,
   computeGroupSlugIndex,
   type GroupInput,
-  getAllGroups,
   getListingsByGroupId,
-  groupsTable,
+  groups,
   hasPackageBookings,
   isGroupSlugTaken,
   type PackageMemberInput,
@@ -148,7 +147,7 @@ const validatePackageCompatibility = async (
 export const soldHiddenPackageError = async (
   id: number,
 ): Promise<string | null> => {
-  const group = await groupsTable.findById(id);
+  const group = await groups.table.findById(id);
   if (!group?.is_package || !group.hide_package_listings) return null;
   return (await hasPackageBookings(id)) ? t("error.sold_hidden_package") : null;
 };
@@ -284,7 +283,7 @@ const extractGroupEditInput = async (
 
 /** Delete a group and reset its listings to ungrouped */
 export const deleteGroup = async (
-  id: Parameters<typeof groupsTable.findById>[0],
+  id: Parameters<typeof groups.table.findById>[0],
 ) => {
   const groupId = Number(id);
   await resetGroupListings(groupId);
@@ -306,7 +305,7 @@ export const deleteGroup = async (
  * successful save never bounces them to a forbidden page. */
 const crudConfig = {
   deleteGuard: (_group: Group, id: number) => soldHiddenPackageError(id),
-  getAll: getAllGroups,
+  getAll: () => groups.cache.getAll(),
   getName: (g: Group) => g.name,
   getRowPath: (g: Group, session: AdminSession) =>
     groupReturnPath(session.adminLevel, g.id),
@@ -325,7 +324,7 @@ const groupsCreateResource = defineNamedResource({
   fields: getGroupCreateFields(),
   nameField: "name",
   onDelete: deleteGroup,
-  table: groupsTable,
+  table: groups.table,
   toInput: extractGroupCreateInput,
   validate: validateGroupWithPackage,
 });
@@ -354,7 +353,7 @@ const groupsResource = defineNamedResource({
   fields: getGroupFields(),
   nameField: "name",
   onDelete: deleteGroup,
-  table: groupsTable,
+  table: groups.table,
   toInput: extractGroupEditInput,
   validate: validateGroupWithPackage,
 });
@@ -376,7 +375,7 @@ const staffCrud = createCrudHandlers({
 });
 
 /** Look up group by id, return 404 if not found */
-export const withGroup = withEntityLoader(groupsTable.findById);
+export const withGroup = withEntityLoader(groups.table.findById);
 
 /**
  * POST handler factory: CSRF-validated form + loaded group.
@@ -388,7 +387,7 @@ export const groupFormPost = (
 ): TypedRouteHandler<"POST /admin/groups/:id"> =>
   createAuthedHandler<{ id: number }, Group>({
     handle: ({ context, form }) => handler(context, form),
-    loadContext: ({ id }) => groupsTable.findById(id),
+    loadContext: ({ id }) => groups.table.findById(id),
   });
 
 /** Validate that all listing types match the group; returns error message or
@@ -444,7 +443,7 @@ const handleAddListingsToGroup = groupFormPost(async (group, form) => {
 const groupImageHandlers = createItemImageHandlers({
   disabledPath: (id) => `/admin/groups/${id}/edit`,
   itemType: "group",
-  load: groupsTable.findById,
+  load: groups.table.findById,
   nameOf: (group) => group.name,
   path: (id) => `/admin/groups/${id}/images`,
 });

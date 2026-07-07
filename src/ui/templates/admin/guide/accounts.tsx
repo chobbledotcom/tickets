@@ -42,6 +42,7 @@ export const accountsSections = (): GuideSection[] => [
       faq("export_attendee_data"),
       faq("reset_database"),
     ],
+    id: "data-privacy",
     titleKey: "data_and_privacy",
   },
   {

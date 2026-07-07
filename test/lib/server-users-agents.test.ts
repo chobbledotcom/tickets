@@ -2,10 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
-import {
-  getAllLogisticsAgents,
-  logisticsAgentsTable,
-} from "#shared/db/logistics-agents.ts";
+import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { userAgents } from "#shared/db/user-agents.ts";
 import { deleteUser, getUserByUsername } from "#shared/db/users.ts";
@@ -28,7 +25,7 @@ const inviteAgent = (username: string, agentId?: string) =>
 
 const enableLogisticsWithVan = async () => {
   await settings.update.hasLogistics(true);
-  return await logisticsAgentsTable.insert({ name: "Van 1" });
+  return await logisticsAgents.table.insert({ name: "Van 1" });
 };
 
 const vanWithAssignedAgent = async (token: string, username: string) => {
@@ -136,7 +133,7 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
     await deleteUser(userId);
 
     expect(await userAgents.getIds(userId)).toEqual([]);
-    const agents = await getAllLogisticsAgents();
+    const agents = await logisticsAgents.getAll();
     expect(agents.some((a) => a.id === van.id)).toBe(true);
   });
 

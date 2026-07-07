@@ -32,7 +32,7 @@ import {
   getGroupBySlugIndex,
   getGroupPackagePrices,
   getListingsByGroupId,
-  groupsTable,
+  groups,
   setGroupListingsActive,
 } from "#shared/db/groups.ts";
 import {
@@ -103,7 +103,7 @@ const groupTogglePost = (opts: { active: boolean; action: string }) =>
     actionLabel: `${opts.action}ion`,
     identifier: (group) => group.name,
     identifierLabel: "Group name",
-    loadContext: ({ id }) => groupsTable.findById(id),
+    loadContext: ({ id }) => groups.table.findById(id),
     mismatchRedirect: (group) =>
       `/admin/groups/${group.id}/bulk-actions/${opts.action}`,
     onConfirm: async ({ context: group }) => {
@@ -223,7 +223,7 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   // group has. Memberships resolve the new group and clone by the slug_index each
   // was just inserted with, so no per-row id read is needed. Parent/child edges
   // are remapped after the batch commits, since they read the new clone rows.
-  const groupInsert = await groupsTable.insertStatement!({
+  const groupInsert = await groups.table.insertStatement!({
     description: group.description,
     hidden: group.hidden,
     hidePackageListings: group.hide_package_listings,

@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
-import { groupsTable } from "#shared/db/groups.ts";
+import { groups } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
   getListing,
@@ -256,7 +256,7 @@ describeWithEnv("validateListingInput package membership", { db: true }, () => {
       isPackage: true,
       name: "Hidden Pkg",
     });
-    await groupsTable.update(hidden.id, { hidePackageListings: true });
+    await groups.table.update(hidden.id, { hidePackageListings: true });
 
     // A hidden package collapses members to the package name, so a member that
     // gates children (would render a child selector) leaks them.

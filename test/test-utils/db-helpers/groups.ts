@@ -25,9 +25,9 @@ export const createTestGroup = async (
       ...(input.isPackage ? { is_package: "1" } : {}),
     },
     async () => {
-      const { getAllGroups } = await import("#shared/db/groups.ts");
-      const groups = await getAllGroups();
-      return groups[groups.length - 1] as Group;
+      const { groups } = await import("#shared/db/groups.ts");
+      const all = await groups.cache.getAll();
+      return all[all.length - 1] as Group;
     },
     "create group",
   );
@@ -46,12 +46,24 @@ export const createTestGroup = async (
   return group;
 };
 
+/** Create a package group and hide its member listings — the "hidden package"
+ * setup the buyer-privacy tests share (the members must never surface publicly;
+ * only the package itself is a product). Returns the created group. */
+export const createHiddenPackageGroup = async (
+  name = "Bundle",
+): Promise<Group> => {
+  const group = await createTestGroup({ isPackage: true, name });
+  const { groups } = await import("#shared/db/groups.ts");
+  await groups.table.update(group.id, { hidePackageListings: true });
+  return group;
+};
+
 export const updateTestGroup = async (
   groupId: number,
   updates: Partial<Omit<GroupInput, "slugIndex">>,
 ): Promise<Group> => {
-  const { groupsTable } = await import("#shared/db/groups.ts");
-  const existing = (await groupsTable.findById(groupId)) as Group;
+  const { groups } = await import("#shared/db/groups.ts");
+  const existing = (await groups.table.findById(groupId)) as Group;
 
   const hidden = updates.hidden ?? existing.hidden;
   const isPackage = updates.isPackage ?? existing.is_package;
@@ -68,7 +80,7 @@ export const updateTestGroup = async (
       ...(isPackage ? { is_package: "1" } : {}),
     },
     async () => {
-      const updated = await groupsTable.findById(groupId);
+      const updated = await groups.table.findById(groupId);
       return updated as Group;
     },
     "update group",
@@ -76,8 +88,8 @@ export const updateTestGroup = async (
 };
 
 export const deleteTestGroup = async (groupId: number): Promise<void> => {
-  const { groupsTable } = await import("#shared/db/groups.ts");
-  const existing = (await groupsTable.findById(groupId)) as Group;
+  const { groups } = await import("#shared/db/groups.ts");
+  const existing = (await groups.table.findById(groupId)) as Group;
 
   return doAuthenticatedFormRequest(
     `/admin/groups/${groupId}/delete`,

@@ -7,7 +7,7 @@ import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import {
-  getAllBuiltSites,
+  builtSites,
   updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
 import { expectedSiteSecrets } from "#shared/site-secrets.ts";
@@ -28,7 +28,7 @@ const NOW_MS = 1_700_000_000_000;
 const findSite = async (
   siteId: number,
 ): Promise<import("#shared/db/built-sites.ts").BuiltSite> =>
-  (await getAllBuiltSites()).find((s) => s.id === siteId)!;
+  (await builtSites.getAll()).find((s) => s.id === siteId)!;
 
 type SecretStub = any;
 

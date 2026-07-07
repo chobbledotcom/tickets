@@ -376,8 +376,8 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       await deleteTestHoliday(holiday.id);
 
       // Verify it's gone
-      const { holidaysTable } = await import("#shared/db/holidays.ts");
-      const found = await holidaysTable.findById(holiday.id);
+      const { holidays } = await import("#shared/db/holidays.ts");
+      const found = await holidays.table.findById(holiday.id);
       expect(found).toBeNull();
     });
 
@@ -397,8 +397,8 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       );
 
       // Verify holiday still exists
-      const { holidaysTable } = await import("#shared/db/holidays.ts");
-      const found = await holidaysTable.findById(holiday.id);
+      const { holidays } = await import("#shared/db/holidays.ts");
+      const found = await holidays.table.findById(holiday.id);
       expect(found).not.toBeNull();
     });
 

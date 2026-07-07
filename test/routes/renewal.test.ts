@@ -4,7 +4,7 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
-import { getAllBuiltSites, insertBuiltSite } from "#shared/db/built-sites.ts";
+import { builtSites, insertBuiltSite } from "#shared/db/built-sites.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
@@ -28,7 +28,7 @@ const setupRenewalSite = async () => {
     false,
     "7101",
   );
-  const sites = await getAllBuiltSites();
+  const sites = await builtSites.getAll();
   const site = sites.find((s) => s.name === "Renewal Test Site")!;
   const { token } = await provisionTestBuiltSite(site.id, {
     readOnlyFrom: "2026-09-01T00:00:00Z",
@@ -129,7 +129,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       // A provisioned site whose readOnlyFrom was never populated (e.g. CDN
       // push failed during initial provisioning) still renders a usable picker.
       await insertBuiltSite("No Deadline Site", "nd.b-cdn.net");
-      const sites = await getAllBuiltSites();
+      const sites = await builtSites.getAll();
       const site = sites.find((s) => s.name === "No Deadline Site")!;
       const { token } = await provisionTestBuiltSite(site.id);
 
@@ -363,7 +363,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         );
         expect(response.status).toBe(302);
 
-        const updated = (await getAllBuiltSites()).find(
+        const updated = (await builtSites.getAll()).find(
           (s) => s.id === site.id,
         )!;
         expect(updated.readOnlyFrom).toBe(

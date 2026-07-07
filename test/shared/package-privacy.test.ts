@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { groupsTable } from "#shared/db/groups.ts";
+import { groups } from "#shared/db/groups.ts";
 import {
   concealLineNames,
   concealMemberNames,
@@ -168,14 +168,14 @@ describeWithEnv("resolveNamesConcealed (fail-safe)", { db: true }, () => {
     expect(await resolveNamesConcealed([shown.id])).toBe(false);
 
     const hidden = await createTestGroup({ isPackage: true, name: "Box Kit" });
-    await groupsTable.update(hidden.id, { hidePackageListings: true });
+    await groups.table.update(hidden.id, { hidePackageListings: true });
     expect(await resolveNamesConcealed([hidden.id])).toBe(true);
   });
 
   test("hidden when ANY of several booked packages hides its listings", async () => {
     const shown = await createTestGroup({ isPackage: true, name: "Kit A" });
     const hidden = await createTestGroup({ isPackage: true, name: "Kit B" });
-    await groupsTable.update(hidden.id, { hidePackageListings: true });
+    await groups.table.update(hidden.id, { hidePackageListings: true });
     expect(await resolveNamesConcealed([shown.id, hidden.id])).toBe(true);
   });
 
@@ -183,7 +183,7 @@ describeWithEnv("resolveNamesConcealed (fail-safe)", { db: true }, () => {
     // The stale group may have been hidden; the refund path must not name its
     // members either way.
     const gone = await createTestGroup({ isPackage: true, name: "Gone Kit" });
-    await groupsTable.deleteById(gone.id);
+    await groups.table.deleteById(gone.id);
     expect(await resolveNamesConcealed([gone.id])).toBe(true);
   });
 });

@@ -44,6 +44,7 @@ import {
   planReorder,
   targetKey,
 } from "#shared/site-pages/core.ts";
+import { loadPageForest } from "#shared/site-pages/load.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import {
   type AdminSession,
@@ -68,11 +69,7 @@ import {
   siteEntityPost,
   validateContentFormOr,
 } from "./site-content.ts";
-import {
-  buildListModel,
-  loadForest,
-  offerableListing,
-} from "./site-pages-data.ts";
+import { buildListModel, offerableListing } from "./site-pages-data.ts";
 import { sitePageForm } from "./site-pages-form.ts";
 import { sitePageEntityPage } from "./site-pages-page.ts";
 
@@ -220,7 +217,7 @@ const pageDelete: ConfirmedHandlers = createConfirmedHandlers<
  * among the *root* pages (nested pages are ordered by their edge, not here). */
 const moveRoot = (dir: "up" | "down") =>
   idPost(async (id) => {
-    const keys = (await loadForest()).forest.rootIds.map((rid) =>
+    const keys = (await loadPageForest()).forest.rootIds.map((rid) =>
       targetKey("page", rid),
     );
     const swap = planReorder(keys, targetKey("page", id), dir);
@@ -254,7 +251,7 @@ const isEligibleTarget = async (
     return flags !== undefined && offerableListing(itemId, flags, childIds);
   }
   if (type === "group") return groupExists(itemId);
-  return eligibleChildPages((await loadForest()).forest, pageId).some(
+  return eligibleChildPages((await loadPageForest()).forest, pageId).some(
     (p) => p.id === itemId,
   );
 };

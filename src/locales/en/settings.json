@@ -1,5 +1,6 @@
 {
   "settings.title": "Settings",
+  "settings.guide_link": "Settings guide",
   "settings.header_image": "Header Image",
   "settings.header_image_hint": "An optional image displayed at the top of every page. JPEG, PNG, GIF, or WebP — max {size}.",
   "settings.replace_image": "Replace Image",

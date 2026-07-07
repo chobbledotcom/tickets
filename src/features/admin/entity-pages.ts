@@ -23,7 +23,6 @@
  * {@link EntityPage.path} as everywhere else.
  */
 
-import { loadAccountLedger } from "#routes/admin/ledger.ts";
 import type { AuthSession, SessionGuard } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
@@ -36,7 +35,6 @@ import {
   tabLinks,
   tabPath,
 } from "#shared/entity-pages/core.ts";
-import type { AccountRef } from "#shared/ledger/types.ts";
 import {
   entityPageView,
   type LoadedSection,
@@ -86,7 +84,6 @@ export type Section<E> =
       kind: "summary";
       rows: (entity: E, ctx: PageCtx) => Promise<SummaryRow[]>;
     }
-  | { kind: "ledger"; account: (entity: E) => AccountRef }
   | {
       kind: "activity";
       load: (entity: E) => Promise<ActivityLogEntry[]>;
@@ -166,12 +163,6 @@ const loadSection = async <E>(
   switch (section.kind) {
     case "summary":
       return { kind: "summary", rows: await section.rows(entity, ctx) };
-    case "ledger":
-      return {
-        kind: "ledger",
-        ledger: await loadAccountLedger(section.account(entity)),
-        returnUrl: ctx.returnUrl,
-      };
     case "activity":
       return {
         entries: await section.load(entity),

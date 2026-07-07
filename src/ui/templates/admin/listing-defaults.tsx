@@ -20,7 +20,7 @@ import {
 } from "#shared/listing-defaults.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
@@ -189,15 +189,21 @@ export const adminListingDefaultsPage = (
     error,
     success,
   )(
-    <CsrfForm action="/admin/listing-defaults" id="listing-defaults">
-      <div class="prose">
-        <h2>{t("listing_defaults.title")}</h2>
-        <p>{t("listing_defaults.intro")}</p>
-      </div>
-      {fields.map((field) => (
-        <DefaultControl defaults={defaults} field={field} />
-      ))}
-      <SubmitButton icon="save">{t("listing_defaults.save")}</SubmitButton>
-    </CsrfForm>,
+    <>
+      <CsrfForm action="/admin/listing-defaults" id="listing-defaults">
+        <div class="prose">
+          <h2>{t("listing_defaults.title")}</h2>
+          <p>{t("listing_defaults.intro")}</p>
+        </div>
+        {fields.map((field) => (
+          <DefaultControl defaults={defaults} field={field} />
+        ))}
+        <SubmitButton icon="save">{t("listing_defaults.save")}</SubmitButton>
+      </CsrfForm>
+
+      <GuideFooter href="/admin/guide#listings">
+        {t("listing_defaults.guide_link")}
+      </GuideFooter>
+    </>,
   );
 };

@@ -3,11 +3,12 @@ import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { orderWidgetBody } from "#routes/assets.ts";
-import { groupsTable } from "#shared/db/groups.ts";
+import { groups } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
+  createHiddenPackageGroup,
   createTestGroup,
   createTestListing,
   deactivateTestListing,
@@ -59,8 +60,7 @@ describeWithEnv("order.js handler", { db: true, triggers: true }, () => {
 
   test("excludes a hidden package's members from the catalog", async () => {
     await settings.update.externalOrderEnabled(true);
-    const group = await createTestGroup({ isPackage: true, name: "Bundle" });
-    await groupsTable.update(group.id, { hidePackageListings: true });
+    const group = await createHiddenPackageGroup("Bundle");
     await createTestListing({ groupId: group.id, name: "Hidden Member" });
     await createTestListing({ name: "Standalone" });
     const memberSlug = await slugByName("Hidden Member");
@@ -95,7 +95,7 @@ describeWithEnv("order.js handler", { db: true, triggers: true }, () => {
       name: "Secret Bundle",
       slug: "secret-bundle",
     });
-    await groupsTable.update(group.id, { hidePackageListings: true });
+    await groups.table.update(group.id, { hidePackageListings: true });
     const member = await createTestListing({
       groupId: group.id,
       name: "Concealed",

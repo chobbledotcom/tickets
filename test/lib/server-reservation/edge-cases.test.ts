@@ -3,7 +3,7 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
-import { invalidateAttendeeStatusesCache } from "#shared/db/attendee-statuses.ts";
+import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
@@ -137,7 +137,7 @@ describeWithEnv(
       await getDb().execute(
         "UPDATE attendee_statuses SET is_public_default = 0",
       );
-      invalidateAttendeeStatusesCache();
+      attendeeStatuses.invalidate();
       const captured = await captureCheckoutIntent(listing);
       expect(captured?.reservationAmount).toBeUndefined();
     });
