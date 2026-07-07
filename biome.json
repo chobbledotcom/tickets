@@ -177,8 +177,7 @@
         "test/lib/server-parents-gate.test.ts",
         "test/lib/server-payments.test.ts",
         "test/lib/square.test.ts",
-        "test/lib/stripe.test.ts",
-        "test/routes/api.test.ts"
+        "test/lib/stripe.test.ts"
       ],
       "linter": {
         "rules": {
