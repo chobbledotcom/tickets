@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { jsx } from "#jsx/jsx-runtime.ts";
 import { ICONS_PATH } from "#shared/asset-paths.ts";
+import type { AdminLevel } from "#shared/types.ts";
 import {
   ActionButton,
   BackButton,
@@ -117,13 +119,14 @@ describe("GuideLink", () => {
 });
 
 describe("GuideFooter", () => {
+  const guideFooterProps = (adminLevel?: AdminLevel) => ({
+    children: "Listings guide",
+    href: "/admin/guide#listings",
+    ...(adminLevel === undefined ? {} : { adminLevel }),
+  });
+
   test("renders the bottom-of-page guide link when no role is given", () => {
-    const html = String(
-      GuideFooter({
-        children: "Listings guide",
-        href: "/admin/guide#listings",
-      }),
-    );
+    const html = String(GuideFooter(guideFooterProps()));
     expect(html).toContain('class="guide-footer"');
     expect(html).toContain('href="/admin/guide#listings"');
     expect(html).toContain("<span>Listings guide</span>");
@@ -131,28 +134,23 @@ describe("GuideFooter", () => {
 
   test("renders for staff roles (owner/manager) when a role is given", () => {
     for (const adminLevel of ["owner", "manager"] as const) {
-      const html = String(
-        GuideFooter({
-          adminLevel,
-          children: "Listings guide",
-          href: "/admin/guide#listings",
-        }),
-      );
+      const html = String(GuideFooter(guideFooterProps(adminLevel)));
       expect(html).toContain('class="guide-footer"');
     }
   });
 
   test("renders nothing for non-staff roles (the guide is staff-only, 403s them)", () => {
     for (const adminLevel of ["editor", "agent"] as const) {
-      const html = String(
-        GuideFooter({
-          adminLevel,
-          children: "Listings guide",
-          href: "/admin/guide#listings",
-        }),
-      );
-      expect(html).not.toContain("guide-footer");
-      expect(html).not.toContain("/admin/guide#listings");
+      expect(String(GuideFooter(guideFooterProps(adminLevel)))).toBe("");
     }
+  });
+
+  test("renders empty HTML for hidden footers used as JSX components", () => {
+    const html = String(
+      jsx("div", {
+        children: jsx(() => GuideFooter(guideFooterProps("editor")), null),
+      }),
+    );
+    expect(html).toBe("<div></div>");
   });
 });

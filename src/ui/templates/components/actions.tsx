@@ -8,7 +8,7 @@
  */
 
 import { t } from "#i18n";
-import type { Child, SafeHtml } from "#jsx/jsx-runtime.ts";
+import { type Child, SafeHtml } from "#jsx/jsx-runtime.ts";
 import { ICONS_PATH } from "#shared/asset-paths.ts";
 import { type AdminLevel, isStaffRole } from "#shared/types.ts";
 
@@ -231,7 +231,7 @@ export const GuideFooter = ({
   children?: Child;
 }): SafeHtml =>
   adminLevel !== undefined && !isStaffRole(adminLevel) ? (
-    <></>
+    new SafeHtml("")
   ) : (
     <p class="guide-footer">
       <GuideLink href={href}>{children}</GuideLink>

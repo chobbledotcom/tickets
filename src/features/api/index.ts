@@ -141,7 +141,13 @@ export type PublicListing = {
   description: string;
   date: string | null;
   location: string | null;
-  imageUrl: string;
+  /** Filename of the listing's primary image, or `null` when it has none. Like
+   * `date`/`location`, the model's empty-string convention is normalised to
+   * `null` at this API boundary so clients can branch on absence uniformly. */
+  imageUrl: string | null;
+  /** Operator-provided alt text for `imageUrl`, or `null` when unset. Lets
+   * API-driven storefronts render the image accessibly. */
+  imageAltText: string | null;
   unitPrice: number;
   canPayMore: boolean;
   maxPrice: number;
@@ -195,7 +201,8 @@ export const resolvedToPublicListing = (
     date: listing.date || null,
     description: listing.description,
     fields: listing.fields,
-    imageUrl: listing.image_url,
+    imageAltText: listing.image_alt_text || null,
+    imageUrl: listing.image_url || null,
     isClosed: closed,
     isSoldOut,
     listingType: listing.listing_type,

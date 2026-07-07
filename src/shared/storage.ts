@@ -257,6 +257,33 @@ export const deleteImageStorageFiles = async (
   await tryDeleteFile(image.filename_thumb, image.id, reason);
 };
 
+/** True for a "the file is already gone" deletion error from either backend, so
+ * a retried delete treats an already-removed file as success. */
+const isAlreadyDeleted = (err: unknown): boolean =>
+  err instanceof Error &&
+  (err.message.startsWith("File not found:") || err.name === "NotFound");
+
+/**
+ * Delete an image's storage files, throwing if any file could not be removed
+ * (a file that is already gone counts as success, so retries are safe). Unlike
+ * {@link deleteImageStorageFiles}, this surfaces failures so the caller can
+ * keep the image's DB record for a later retry instead of orphaning the stored
+ * files under a deleted record.
+ */
+export const deleteImageStorageFilesStrict = async (
+  image: ImageWithStorage,
+): Promise<void> => {
+  const results = await Promise.allSettled([
+    deleteFile(image.filename),
+    deleteFile(image.filename_thumb),
+  ]);
+  const failure = results
+    .filter((r): r is PromiseRejectedResult => r.status === "rejected")
+    .map((r) => r.reason)
+    .find((reason) => !isAlreadyDeleted(reason));
+  if (failure) throw failure;
+};
+
 /** Delete all first-class image files. */
 export const deleteAllImageStorageFiles = async (
   images: ReadonlyArray<ImageWithStorage>,

@@ -39,8 +39,8 @@ import type { HostedCheckoutContext, PaymentProvider } from "./types.ts";
  */
 
 const SQUARE_API = {
-  sandbox: "https://connect.squareupsandbox.com",
   production: "https://connect.squareup.com",
+  sandbox: "https://connect.squareupsandbox.com",
 } as const;
 
 // Match the app's Square-Version so request/response shapes agree.
@@ -55,6 +55,15 @@ type SquareMoney = { amount: number; currency: string };
 
 /** Options for a single Square REST call. */
 type SquareRequest = { method?: string; body?: unknown };
+
+const squareHeaders = (token: string): Record<string, string> => ({
+  Authorization: `Bearer ${token}`,
+  "Content-Type": "application/json",
+  "Square-Version": SQUARE_API_VERSION,
+});
+
+const squareBody = (body: unknown): { body: string } | Record<never, never> =>
+  body == null ? {} : { body: JSON.stringify(body) };
 
 /** Recover the Square order id the app created for this booking from its server
  * log (it is logged as `[Square] Payment link created orderId=…`). Polled
@@ -88,13 +97,9 @@ const squareFetch = async (
   init?: SquareRequest,
 ): Promise<unknown> => {
   const res = await fetch(`${base}${path}`, {
+    headers: squareHeaders(token),
     method: init?.method ?? "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      "Square-Version": SQUARE_API_VERSION,
-    },
-    ...(init?.body != null ? { body: JSON.stringify(init.body) } : {}),
+    ...squareBody(init?.body),
   });
   const text = await res.text();
   if (!res.ok) {
@@ -116,7 +121,9 @@ const completeViaSandboxApi = async (
   const token = ctx.secrets.token;
 
   const orderId = await readOrderId(ctx.serverLogPath);
-  log(`Square sandbox has no hosted card page; completing order ${orderId} via the Payments API…`);
+  log(
+    `Square sandbox has no hosted card page; completing order ${orderId} via the Payments API…`,
+  );
 
   // Read the order back to pay the exact amount/currency it was created for
   // (matching the app's signed total — a mismatch would be refused).
@@ -138,7 +145,9 @@ const completeViaSandboxApi = async (
   const locationId = order?.location_id ?? ctx.secrets.locationId;
   if (!amountMoney || !locationId) {
     throw new Error(
-      `Square: order ${orderId} missing total/location (got ${JSON.stringify(order)})`,
+      `Square: order ${orderId} missing total/location (got ${
+        JSON.stringify(order)
+      })`,
     );
   }
   log(
@@ -149,13 +158,22 @@ const completeViaSandboxApi = async (
   // taken against an OPEN order ("The order must be OPEN to be paid" → the
   // authorised payment is otherwise voided). Transition DRAFT → OPEN first.
   if (order?.state && order.state !== "OPEN") {
-    await squareFetch(base, token, `/v2/orders/${encodeURIComponent(orderId)}`, {
-      method: "PUT",
-      body: {
-        idempotency_key: crypto.randomUUID(),
-        order: { location_id: locationId, version: order.version, state: "OPEN" },
+    await squareFetch(
+      base,
+      token,
+      `/v2/orders/${encodeURIComponent(orderId)}`,
+      {
+        body: {
+          idempotency_key: crypto.randomUUID(),
+          order: {
+            location_id: locationId,
+            state: "OPEN",
+            version: order.version,
+          },
+        },
+        method: "PUT",
       },
-    });
+    );
     log(`  transitioned order ${orderId} ${order.state} → OPEN`);
   }
 
@@ -163,15 +181,15 @@ const completeViaSandboxApi = async (
   // auto-completed → the order gains a COMPLETED card tender, which is exactly
   // what the app's retrieveSession treats as "paid".
   const payResp = (await squareFetch(base, token, "/v2/payments", {
-    method: "POST",
     body: {
-      source_id: SANDBOX_CARD_NONCE,
-      idempotency_key: crypto.randomUUID(),
       amount_money: amountMoney,
-      order_id: orderId,
-      location_id: locationId,
       autocomplete: true,
+      idempotency_key: crypto.randomUUID(),
+      location_id: locationId,
+      order_id: orderId,
+      source_id: SANDBOX_CARD_NONCE,
     },
+    method: "POST",
   })) as { payment?: { id?: string; status?: string } };
   log(`  payment ${payResp.payment?.id} status=${payResp.payment?.status}`);
   if (payResp.payment?.status !== "COMPLETED") {
@@ -182,26 +200,21 @@ const completeViaSandboxApi = async (
 
   // Drive the browser to the app's real return URL, exactly as Square would on
   // a live redirect (the app reads orderId → validates the now-paid order).
-  const returnUrl = `${ctx.baseUrl}/payment/success?orderId=${encodeURIComponent(orderId)}`;
+  const returnUrl = `${ctx.baseUrl}/payment/success?orderId=${
+    encodeURIComponent(orderId)
+  }`;
   log(`  navigating the browser to the app return URL: ${returnUrl}`);
   await page.goto(returnUrl, { waitUntil: "domcontentloaded" });
 };
 
 export const square: PaymentProvider = {
-  name: "square",
-  // The Square sandbox account/location has a FIXED currency and rejects a
-  // payment link whose amount is in any other currency ("This business can only
-  // process payments in GBP but amount was provided in USD"). This sandbox is
-  // GBP, so set the site up as GB. Override with SETUP_COUNTRY to match a
-  // differently-configured Square sandbox location.
-  setupCountry: "GB",
-
   configure: configureProvider("square", async (session, secrets) => {
     await session.fill("square_access_token", secrets.token);
     await session.fill("square_location_id", secrets.locationId);
     if (secrets.sandbox === "true") await session.check("square_sandbox");
     await session.clickButton("Update Square Credentials");
   }),
+  name: "square",
 
   payHostedCheckout: async (
     page: Page,
@@ -210,4 +223,10 @@ export const square: PaymentProvider = {
     await page.waitForLoadState("domcontentloaded");
     await completeViaSandboxApi(page, ctx);
   },
+  // The Square sandbox account/location has a FIXED currency and rejects a
+  // payment link whose amount is in any other currency ("This business can only
+  // process payments in GBP but amount was provided in USD"). This sandbox is
+  // GBP, so set the site up as GB. Override with SETUP_COUNTRY to match a
+  // differently-configured Square sandbox location.
+  setupCountry: "GB",
 };
