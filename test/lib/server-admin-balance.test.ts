@@ -4,6 +4,7 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { attendeeStatusesTable } from "#shared/db/attendee-statuses.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
 import {
   adminGet,
   awaitTestRequest,
@@ -81,8 +82,25 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
     expect(html).toContain("Balance outstanding");
     // The signed customer link points at the public pay page.
     expect(html).toContain("/pay/bal1.");
+    // The owner is told only quantity > 0 lines are charged (the mixed case).
+    expect(html).toContain("Only items with a quantity");
     // The attendee's history is listed.
     expect(html).toContain("Deposit received");
+  });
+
+  test("warns instead of linking when a reservation has no bookable line", async () => {
+    // A provider is configured and a balance is owed, but every line is
+    // no-quantity: the pay link would dead-end, so the owner is warned instead.
+    await setupStripe();
+    const attendeeId = await reservedAttendee();
+    await getDb().execute({
+      args: [attendeeId],
+      sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
+    });
+    await expectHtml(await adminGet(`/admin/attendees/${attendeeId}/balance`), {
+      contains: ["Balance outstanding", "no bookable ticket"],
+      notContains: ["/pay/"],
+    });
   });
 
   test("withholds the payment link for a reservation when no provider is configured", async () => {
