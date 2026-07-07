@@ -2,7 +2,7 @@
  * Admin attendee refund routes (single + bulk)
  */
 
-import { chunk, filter } from "#fp";
+import { chunk, filter, unique } from "#fp";
 import { t } from "#i18n";
 import {
   withDecryptedAttendees,
@@ -15,6 +15,10 @@ import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { hasActiveBookingLine } from "#shared/db/attendees.ts";
+import {
+  getRefundPaymentReferences,
+  hasRefundPaymentReference,
+} from "#shared/db/processed-payments.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
@@ -43,6 +47,15 @@ import {
 /** Max refunds per request to stay within Bunny Edge fetch limits */
 const REFUND_BATCH_LIMIT = 30;
 
+type PaymentProvider = NonNullable<
+  Awaited<ReturnType<typeof getActivePaymentProvider>>
+>;
+
+type RefundCandidate = {
+  attendee: Attendee;
+  references: string[];
+};
+
 /** Render refund error redirect for a single attendee, keeping the caller's
  * return_url threaded through so a retry still lands back where it started. */
 const refundError = (
@@ -67,14 +80,14 @@ const handleAdminAttendeeRefundGet = attendeeActionPage(
     // The no-payment branch also covers a no-quantity ghost home line: the
     // guard runs against the exact (attendee, home listing) row, so a refund
     // can't fire for a non-booking.
-    if (
-      !data.attendee.payment_id ||
-      !(await hasActiveBookingLine(data.attendee.id, data.listing.id))
-    ) {
+    if (!(await hasActiveBookingLine(data.attendee.id, data.listing.id))) {
       return t("error.no_payment_to_refund");
     }
     if (data.attendee.refunded) {
       return t("error.already_refunded");
+    }
+    if (!(await hasRefundPaymentReference(data.attendee))) {
+      return t("error.no_payment_to_refund");
     }
     return null;
   },
@@ -98,15 +111,18 @@ const handleAttendeeRefund = verifiedAttendeeAction(
         returnUrl,
       );
     }
-    if (!data.attendee.payment_id) {
+    if (data.attendee.refunded) {
+      return refundError(attendeeId, t("error.already_refunded"), returnUrl);
+    }
+    const references = (await getRefundPaymentReferences([data.attendee])).get(
+      attendeeId,
+    )!;
+    if (references.length === 0) {
       return refundError(
         attendeeId,
         t("error.no_payment_to_refund"),
         returnUrl,
       );
-    }
-    if (data.attendee.refunded) {
-      return refundError(attendeeId, t("error.already_refunded"), returnUrl);
     }
 
     const provider = await getActivePaymentProvider();
@@ -114,13 +130,12 @@ const handleAttendeeRefund = verifiedAttendeeAction(
       return refundError(attendeeId, NO_PROVIDER_ERROR, returnUrl);
     }
 
-    const refunded = await provider.refundPayment(data.attendee.payment_id);
-    if (!refunded) {
-      logError({
-        code: ErrorCode.PAYMENT_REFUND,
-        detail: `Admin refund failed for attendee ${attendeeId}, payment ${data.attendee.payment_id}`,
-        listingId,
-      });
+    const refunded = await refundAtProvider(
+      provider,
+      { attendee: data.attendee, references },
+      listingId,
+    );
+    if (refunded.outcome !== "refunded") {
       return refundError(attendeeId, t("error.refund_failed"), returnUrl);
     }
 
@@ -147,21 +162,34 @@ const handleAttendeeRefund = verifiedAttendeeAction(
   },
 );
 
-/** Filter attendees refundable on this listing: a payment, not yet refunded, and
- * a real ticket line — a no-quantity ghost row on this listing isn't refundable
- * (its roster row carries this listing's quantity). */
-const getRefundable = filter(
-  (a: Attendee) => a.payment_id !== "" && !a.refunded && hasTicketQuantity(a),
-);
+/** Attendees refundable on this listing: at least one recorded charge reference,
+ * not yet refunded, and a real ticket line — a no-quantity ghost row on this
+ * listing isn't refundable (its roster row carries this listing's quantity). */
+const getRefundCandidates = async (
+  attendees: Attendee[],
+): Promise<RefundCandidate[]> => {
+  const referencesByAttendee = await getRefundPaymentReferences(attendees);
+  return filter(
+    (candidate: RefundCandidate) =>
+      candidate.references.length > 0 &&
+      !candidate.attendee.refunded &&
+      hasTicketQuantity(candidate.attendee),
+  )(
+    attendees.map((attendee) => ({
+      attendee,
+      references: referencesByAttendee.get(attendee.id)!,
+    })),
+  );
+};
 
 /** Handle GET /admin/listing/:id/refund-all */
 const handleAdminRefundAllGet = (
   request: Request,
   { id }: ListingRouteParams,
 ): Promise<Response> =>
-  withListingAttendeesAuth(request, id, (listing, attendees, session) => {
+  withListingAttendeesAuth(request, id, async (listing, attendees, session) => {
     const flash = applyFlash(request);
-    const count = getRefundable(attendees).length;
+    const count = (await getRefundCandidates(attendees)).length;
     return count === 0
       ? htmlResponse(
           adminRefundAllAttendeesPage(
@@ -191,29 +219,87 @@ type RefundCounts = {
  * `refund_cash` ledger leg, which {@link processRefundBatch} posts serially via
  * {@link recordAttendeeRefund} to avoid concurrent write-transaction contention.
  */
-const refundAtProvider = async (
-  provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
-  attendee: Attendee,
+const refundReferenceAtProvider = async (
+  provider: PaymentProvider,
+  candidate: RefundCandidate,
   listingId: number,
-): Promise<{ attendee: Attendee; outcome: RefundOutcome }> => {
+  reference: string,
+): Promise<RefundOutcome> => {
+  const attendeeId = candidate.attendee.id;
   try {
-    const refunded = await provider.refundPayment(attendee.payment_id);
-    if (!refunded) {
-      logError({
-        code: ErrorCode.PAYMENT_REFUND,
-        detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
-        listingId,
-      });
-      return { attendee, outcome: "failed" };
-    }
-    return { attendee, outcome: "refunded" };
+    if (await provider.refundPayment(reference)) return "refunded";
+    if (await provider.isPaymentRefunded(reference)) return "refunded";
+    logError({
+      code: ErrorCode.PAYMENT_REFUND,
+      detail: `Admin refund failed for attendee ${attendeeId}, payment ${reference}`,
+      listingId,
+    });
+    return "failed";
   } catch (err) {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
-      detail: `Admin bulk refund errored for attendee ${attendee.id}, payment ${attendee.payment_id}: ${String(err)}`,
+      detail: `Admin refund errored for attendee ${attendeeId}, payment ${reference}: ${String(err)}`,
       listingId,
     });
-    return { attendee, outcome: "errored" };
+    return "errored";
+  }
+};
+
+const combineRefundOutcomes = (outcomes: RefundOutcome[]): RefundOutcome => {
+  if (outcomes.includes("errored")) return "errored";
+  if (outcomes.includes("failed")) return "failed";
+  return "refunded";
+};
+
+const refundAtProvider = async (
+  provider: PaymentProvider,
+  candidate: RefundCandidate,
+  listingId: number,
+): Promise<{ candidate: RefundCandidate; outcome: RefundOutcome }> => {
+  const outcomes = await Promise.all(
+    unique(candidate.references).map((reference) =>
+      refundReferenceAtProvider(provider, candidate, listingId, reference),
+    ),
+  );
+  const outcome = combineRefundOutcomes(outcomes);
+  if (outcome !== "refunded" && candidate.references.length > 1) {
+    logError({
+      code: ErrorCode.PAYMENT_REFUND,
+      detail: `Admin refund did not complete every payment for attendee ${candidate.attendee.id}`,
+      listingId,
+    });
+  }
+  return { candidate, outcome };
+};
+
+const logBulkRefundProblem = (
+  outcome: Exclude<RefundOutcome, "refunded">,
+  candidate: RefundCandidate,
+  listingId: number,
+): void => {
+  const refs = candidate.references.join(", ");
+  logError({
+    code: ErrorCode.PAYMENT_REFUND,
+    detail: `Admin bulk refund ${outcome} for attendee ${candidate.attendee.id}, payments ${refs}`,
+    listingId,
+  });
+};
+
+const tallyProviderRefund = (
+  counts: RefundCounts,
+  candidate: RefundCandidate,
+  outcome: RefundOutcome,
+  listingId: number,
+  refundedIds: number[],
+): void => {
+  if (outcome === "errored") {
+    counts.errorCount++;
+    logBulkRefundProblem(outcome, candidate, listingId);
+  } else if (outcome === "failed") {
+    counts.failedCount++;
+    logBulkRefundProblem(outcome, candidate, listingId);
+  } else {
+    refundedIds.push(candidate.attendee.id);
   }
 };
 
@@ -230,8 +316,8 @@ const refundAtProvider = async (
  * Never 500s — neither helper throws.
  */
 const processRefundBatch = async (
-  provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
-  batch: Attendee[],
+  provider: PaymentProvider,
+  batch: RefundCandidate[],
   listingId: number,
 ): Promise<RefundCounts> => {
   const REFUND_CHUNK_SIZE = 5;
@@ -242,13 +328,19 @@ const processRefundBatch = async (
   };
   for (const group of chunk(REFUND_CHUNK_SIZE)(batch)) {
     const results = await Promise.all(
-      group.map((attendee) => refundAtProvider(provider, attendee, listingId)),
+      group.map((candidate) =>
+        refundAtProvider(provider, candidate, listingId),
+      ),
     );
     const chunkRefundedIds: number[] = [];
-    for (const { attendee, outcome } of results) {
-      if (outcome === "errored") counts.errorCount++;
-      else if (outcome === "failed") counts.failedCount++;
-      else chunkRefundedIds.push(attendee.id);
+    for (const { candidate, outcome } of results) {
+      tallyProviderRefund(
+        counts,
+        candidate,
+        outcome,
+        listingId,
+        chunkRefundedIds,
+      );
     }
     // Record this chunk's ledger reversals before moving on to the next chunk's
     // provider refunds, narrowing the window where a completed provider refund
@@ -334,7 +426,7 @@ const processRefundAll = async (
   form: FormParams,
 ): Promise<Response> => {
   const refundAllUrl = `/admin/listing/${listing.id}/refund-all`;
-  const refundable = getRefundable(attendees);
+  const refundable = await getRefundCandidates(attendees);
   const error = verifyOrRedirect(
     form,
     listing.name,

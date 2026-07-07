@@ -34,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Add idx_listing_attendees_end_start so the Logistics tab's cross-listing overlap query stays bounded.";
+  "Store provider payment references on processed_payments so every captured charge can be refunded.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -490,6 +490,7 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["processed_at", "TEXT NOT NULL"],
         ["ticket_tokens", "TEXT NOT NULL DEFAULT ''"],
         ["failure_data", "TEXT NOT NULL DEFAULT ''"],
+        ["payment_reference", "TEXT NOT NULL DEFAULT ''"],
       ],
       // FK declarations removed — libsql's FK enforcement breaks table
       // recreation migrations (PRAGMA foreign_keys is connection-scoped and

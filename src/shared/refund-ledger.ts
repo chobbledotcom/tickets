@@ -1,13 +1,11 @@
 /**
  * Ledger wiring for an admin full refund.
  *
- * The provider refund is a full refund of the booking payment (decision 9), so
- * the ledger mirrors it by reversing exactly the booking order's stored legs
- * (see {@link mapRefund}). It only auto-reverses when the refund maps cleanly:
- * the attendee's ledger is exactly one revenue-recognising booking group (see
- * {@link soleBookingOrder}) that is **paid in full**. Pre-ledger, balance-settled,
- * merged, or still-owing accounts are left for a manual adjustment rather than
- * half- or over-reversed.
+ * The provider refund is a full refund of every charge recorded for the account,
+ * so the ledger mirrors it by reversing every non-refund event group already
+ * stored for that attendee (see {@link mapRefund}). It only auto-reverses when
+ * the attendee's account is **paid in full**. Pre-ledger, still-owing, or credit
+ * accounts are left for a manual adjustment rather than half- or over-reversed.
  *
  * Posting never throws: the provider refund has already committed by the time we
  * get here, so a ledger write must not turn a completed refund into a 500. But
@@ -29,30 +27,20 @@ import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 
-/** A revenue-recognising leg marks a group as a real booking order: a free
- *  listing with a paid surcharge has a `modifier`/`fee` leg but no `sale`, while
- *  a balance settlement posts only a `payment` leg. */
-const recognisesRevenue = (kind: string | undefined): boolean =>
-  kind === KIND.sale || kind === KIND.fee || kind === KIND.modifier;
+const isRefundLeg = (kind: string | undefined): boolean =>
+  kind?.startsWith("refund_") ?? false;
 
 /**
- * The booking legs to reverse when — and only when — a full provider refund of
- * the original payment maps cleanly onto the ledger: the account holds exactly
- * one event group and that group recognises revenue. Returns `null` for
- * everything else, so those go to a manual ledger adjustment instead of being
- * mis-reversed:
- * - no legs at all — a booking that predates ledger dual-write (backfill's job);
- * - a group with only a `payment` leg — a later `balance` settlement, whose cash
- *   this refund doesn't return, so reversing the booking alone would strand it;
- * - more than one group — a settled reservation (booking + balance) or a merge's
- *   several orders, where one payment refund can't be attributed to one order.
+ * The account event groups to reverse for a full-account refund. Prior refund
+ * groups are ignored; the caller separately treats any refund_cash as already
+ * refunded, so a normal re-submit never reaches this mapper.
  */
-export const soleBookingOrder = (legs: Transfer[]): Transfer[] | null => {
-  const groups = groupBy(legs, (leg) => leg.eventGroup);
-  if (groups.size !== 1) return null;
-  const order = [...groups.values()][0]!;
-  return order.some((leg) => recognisesRevenue(leg.kind)) ? order : null;
-};
+export const accountRefundGroups = (legs: Transfer[]): Transfer[][] => [
+  ...groupBy(
+    legs.filter((leg) => !isRefundLeg(leg.kind)),
+    (leg) => leg.eventGroup,
+  ).values(),
+];
 
 /**
  * Compute one attendee's refund reversal without posting it: the ledger legs to
@@ -64,29 +52,33 @@ export const soleBookingOrder = (legs: Transfer[]): Transfer[] | null => {
 const computeAttendeeRefund = async (
   attendeeId: number,
   memo?: string,
-): Promise<{ posted: boolean; legs: TransferInput[] }> => {
+): Promise<{ posted: boolean; groups: TransferInput[][] }> => {
   const account = attendeeAccount(attendeeId);
   const legs = await transfersByAccount(account);
   // Already refunded (e.g. an idempotent re-submit): the `refund_cash` leg is the
   // durable refund record, so report success without re-posting — and without
   // rebuilding legs under a fresh `nowIso()`.
   if (legs.some((leg) => leg.kind === KIND.refundCash)) {
-    return { legs: [], posted: true };
+    return { groups: [], posted: true };
   }
-  const order = soleBookingOrder(legs);
-  if (order === null) return { legs: [], posted: false };
-  // Only auto-reverse a fully-paid booking. If the attendee still owes (an unpaid
-  // reservation) or holds credit, this single full provider refund can't map
-  // cleanly onto the ledger: reversing the sale while the balance stays payable
-  // would let a later balance payment post against it. Such cases go to a manual
-  // adjustment instead.
-  if (balanceOf(account)(legs) !== 0) return { legs: [], posted: false };
+  const orders = accountRefundGroups(legs);
+  if (orders.length === 0) return { groups: [], posted: false };
+  // Only auto-reverse a fully-paid account. If the attendee still owes (an
+  // unpaid reservation) or holds credit, a full provider refund can't map cleanly
+  // onto the ledger: reversing the account while a balance remains would strand
+  // receivables or over-refund it. Such cases go to a manual adjustment instead.
+  if (balanceOf(account)(legs) !== 0) return { groups: [], posted: false };
+  const occurredAt = nowIso();
   return {
-    legs: await mapRefund({
-      memo,
-      occurredAt: nowIso(),
-      orderLegs: order,
-    }),
+    groups: await Promise.all(
+      orders.map((order) =>
+        mapRefund({
+          memo,
+          occurredAt,
+          orderLegs: order,
+        }),
+      ),
+    ),
     posted: true,
   };
 };
@@ -103,8 +95,8 @@ export const recordAttendeeRefund = async (
   memo?: string,
 ): Promise<{ posted: boolean }> => {
   try {
-    const { posted, legs } = await computeAttendeeRefund(attendeeId, memo);
-    if (legs.length > 0) await postTransfers(legs);
+    const { posted, groups } = await computeAttendeeRefund(attendeeId, memo);
+    if (groups.length > 0) await postTransferGroups(groups);
     return { posted };
   } catch (error) {
     logError({
@@ -144,9 +136,7 @@ export const recordAttendeeRefundsBatch = async (
         ...(await computeAttendeeRefund(id)),
       })),
     );
-    const groups = computed
-      .map((entry) => entry.legs)
-      .filter((legs) => legs.length > 0);
+    const groups = computed.flatMap((entry) => entry.groups);
     if (groups.length > 0) await postTransferGroups(groups);
     return new Map(computed.map((entry) => [entry.id, entry.posted]));
   } catch (error) {

@@ -24,6 +24,7 @@ import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import {
   checkLinesCapacity,
   type ExistingLine,
+  hasActiveBookingLine,
   loadExistingLines,
 } from "#shared/db/attendees.ts";
 import {
@@ -41,6 +42,7 @@ import {
 } from "#shared/db/groups.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings.ts";
+import { hasRefundPaymentReference } from "#shared/db/processed-payments.ts";
 import {
   getAttendeeTextAnswers,
   loadAttendeeQuestionData,
@@ -59,16 +61,28 @@ import type {
 
 /** An attendee plus its listing_attendees rows — the entity the whole page
  * loads once and every tab shares. */
-export type LoadedAttendee = { attendee: Attendee; existing: ExistingLine[] };
+export type LoadedAttendee = {
+  attendee: Attendee;
+  canRefund: boolean;
+  existing: ExistingLine[];
+};
+
+const canRefundAttendee = async (attendee: Attendee): Promise<boolean> =>
+  !attendee.refunded &&
+  (await hasActiveBookingLine(attendee.id, attendee.listing_id)) &&
+  (await hasRefundPaymentReference(attendee));
 
 /** Load an attendee + all its lines, or null (→ 404) when it doesn't exist. */
 export const loadAttendeeForEdit: (
   attendeeId: number,
 ) => Promise<LoadedAttendee | null> = withDecryptedAttendee(
-  async (attendee) => ({
-    attendee,
-    existing: await loadExistingLines(attendee.id),
-  }),
+  async (attendee) => {
+    const [canRefund, existing] = await Promise.all([
+      canRefundAttendee(attendee),
+      loadExistingLines(attendee.id),
+    ]);
+    return { attendee, canRefund, existing };
+  },
 );
 
 /** Index listings by id. */

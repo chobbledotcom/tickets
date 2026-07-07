@@ -1,9 +1,8 @@
 # Plan: balance payments for any status, and refundability of balance-settled accounts
 
-Status: **draft for review**. Part 1 (remove the reservation restriction) is
-already implemented and pushed on this branch (PR #1655). Part 2 (the refund
-rework) is the subject of this plan and is **not yet implemented** — this doc is
-here so the design can be reviewed before the shared money code is touched.
+Status: **approved for implementation**. Part 1 (remove the reservation
+restriction) is already implemented and pushed on this branch (PR #1655). Part 2
+(the refund rework) is now being built with the decisions recorded below.
 
 ## 1. What already shipped in this PR
 
@@ -114,9 +113,9 @@ admin re-opens a balance), so a single `attendees.payment_id` cannot hold them
 all. `attendee.payment_id` stays as-is for backward compatibility and the display
 path; the refund path stops depending on it.
 
-> **Decision needed (5.1):** confirm `processed_payments.payment_reference` as the
-> store, vs. an alternative (e.g. a dedicated `attendee_charges` table). I
-> recommend the column — smallest change, reuses an existing per-charge record.
+Decision: use `processed_payments.payment_reference`. This keeps the charge
+reference with the already-existing per-session idempotency row instead of
+adding a second charge table.
 
 ### 5.2 Refund every charge for the account
 
@@ -178,17 +177,9 @@ the PR description and covered by tests.
 non-reservation attendee in an **owner-defined status** is silently moved off it
 when they pay — losing the status the admin set.
 
-Two defensible behaviours:
-
-- **(A) Always move to the paid default** (current): reflects "now fully paid"
-  regardless of prior status.
-- **(B) Only auto-transition reservations**: leave any other status untouched
-  (the cleared balance is already reflected by `remaining_balance = 0`). This is
-  the reviewer's suggestion and the more conservative "don't overwrite the
-  operator's intentional data" choice.
-
-**Recommendation: (B).** For reservations the paid-default move is the designed
-lifecycle; for an arbitrary admin-set status the operator's choice should win.
+Decision: **only auto-transition reservations**. For reservations the
+paid-default move is the designed lifecycle; for an arbitrary admin-set status
+the operator's choice should win.
 
 **Subtlety that makes this non-trivial:** that `UPDATE … SET status_id …`
 statement is *also* the settle's **verdict** — `results[0].rowsAffected === 0`
@@ -200,8 +191,9 @@ fires when `owed === expectedAmount` (even setting status to itself), and a
 *separate* paid-default move gated on the current status being a reservation.
 Both stay in the settle batch under the owed-guard.
 
-> **Decision needed (6.1):** confirm behaviour (B), and that the verdict/status
-> split is acceptable in the settle path.
+Decision: split the settle verdict from the status move. The verdict statement
+must still fire for every successful balance settle; the paid-default status
+move only runs when the current status is a reservation.
 
 ## 7. Idempotency, edge cases, safety
 
@@ -214,12 +206,11 @@ Both stay in the settle batch under the owed-guard.
 - **Bulk refund** (`refund-all`) uses the same `getRefundable` filter and
   `recordAttendeeRefundsBatch`; both must be updated for the multi-reference /
   multi-group shape and re-tested for the SQLITE_BUSY batching behaviour.
-- **Historical settlements:** balance charges settled *before* §5.1 ships have no
-  stored `payment_reference` (the `pi_` was discarded), so their balance charge
-  can't be auto-refunded — those remain manual. A backfill can populate booking
-  references from `attendee.payment_id` but cannot recover lost balance
-  references. Flag this; likely moot if no live site has taken balance payments
-  yet.
+- **Historical settlements:** acceptable because there are no existing balance
+  settlements. Balance charges settled *before* §5.1 ships would have no stored
+  `payment_reference` (the `pi_` was discarded), so their balance charge could
+  not be auto-refunded. A backfill can populate booking references from
+  `attendee.payment_id` but cannot recover lost balance references.
 
 ## 8. Out of scope (track separately)
 
@@ -258,12 +249,10 @@ Both stay in the settle batch under the owed-guard.
 
 ## 11. Rollout
 
-Implement in this PR (per the decision), commit incrementally:
+Implement in this PR:
 
 1. Migration: `processed_payments.payment_reference`.
 2. Persist the reference on booking finalize and balance settle.
 3. Refund handler: refund all references; update the "refundable" guard/filter.
 4. Ledger: whole-account reversal in `computeAttendeeRefund` + batch path.
 5. Tests (§9) + targeted mutation; update the PR title/description.
-
-Await review of this plan before starting step 1.

@@ -21,7 +21,9 @@ import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   execute,
+  inPlaceholders,
   insert,
+  queryAll,
   queryOne,
   type SqlStatement,
 } from "#shared/db/client.ts";
@@ -59,6 +61,8 @@ export type ProcessedPayment = {
    * later redirect/webhook replay the same outcome instead of re-running refund
    * logic. */
   failure_data: EnvKeyEncrypted | "";
+  /** Provider-specific refundable payment reference (e.g. Stripe pi_...). */
+  payment_reference: string;
 };
 
 /**
@@ -90,7 +94,7 @@ export const isSessionProcessed = (
   sessionId: string,
 ): Promise<ProcessedPayment | null> =>
   queryOne<ProcessedPayment>(
-    "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data FROM processed_payments WHERE payment_session_id = ?",
+    "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference FROM processed_payments WHERE payment_session_id = ?",
     [sessionId],
   );
 
@@ -209,10 +213,16 @@ export const finalizeSession = async (
   sessionId: string,
   attendeeId: number,
   ticketTokens: string[],
+  paymentReference: string,
 ): Promise<void> => {
   await execute(
-    "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = ? WHERE payment_session_id = ?",
-    [attendeeId, await encryptTicketTokens(ticketTokens), sessionId],
+    "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = ?, payment_reference = ? WHERE payment_session_id = ?",
+    [
+      attendeeId,
+      await encryptTicketTokens(ticketTokens),
+      paymentReference,
+      sessionId,
+    ],
   );
 };
 
@@ -282,11 +292,12 @@ export const parseSessionFailure = async (
 const buildFinalizeStatement = (
   attendeeId: number,
   sessionId: string,
+  paymentReference: string,
   guard: string,
   extraArgs: InValue[] = [],
 ): SqlStatement => ({
-  args: [attendeeId, sessionId, ...extraArgs],
-  sql: `UPDATE processed_payments SET attendee_id = ?, ticket_tokens = '' WHERE payment_session_id = ? AND ${guard}`,
+  args: [attendeeId, paymentReference, sessionId, ...extraArgs],
+  sql: `UPDATE processed_payments SET attendee_id = ?, ticket_tokens = '', payment_reference = ? WHERE payment_session_id = ? AND ${guard}`,
 });
 
 /**
@@ -303,9 +314,10 @@ export const batchFinalizeStatement = (
   attendeeIdSql: string,
   attendeeIdArg: InValue,
   guard: SqlStatement,
+  paymentReference: string,
 ): SqlStatement => ({
-  args: [attendeeIdArg, sessionId, ...guard.args],
-  sql: `UPDATE processed_payments SET attendee_id = ${attendeeIdSql}, ticket_tokens = ''
+  args: [attendeeIdArg, paymentReference, sessionId, ...guard.args],
+  sql: `UPDATE processed_payments SET attendee_id = ${attendeeIdSql}, ticket_tokens = '', payment_reference = ?
         WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION} AND ${guard.sql}`,
 });
 
@@ -321,6 +333,7 @@ export const balanceFinalizeStatement = (
   sessionId: string,
   attendeeId: number,
   expectedAmount: number,
+  paymentReference: string,
 ): SqlStatement =>
   // Guarded on the ledger-projected outstanding balance (no stored column).
   // Runs in the settle batch before the balance-payment leg, so it still sees
@@ -330,9 +343,63 @@ export const balanceFinalizeStatement = (
   buildFinalizeStatement(
     attendeeId,
     sessionId,
+    paymentReference,
     `${attendeeOwedSubquery(String(attendeeId))} = ?`,
     [expectedAmount],
   );
+
+export type RefundPaymentReferenceSource = {
+  id: number;
+  payment_id: string;
+};
+
+type PaymentReferenceRow = {
+  attendee_id: number;
+  payment_reference: string;
+};
+
+const paymentReferencesForIds = (attendeeIds: readonly number[]) =>
+  attendeeIds.length === 0
+    ? Promise.resolve([])
+    : queryAll<PaymentReferenceRow>(
+        `SELECT attendee_id, payment_reference
+           FROM processed_payments
+          WHERE attendee_id IN (${inPlaceholders(attendeeIds)})
+            AND payment_reference != ''
+          GROUP BY attendee_id, payment_reference
+          ORDER BY attendee_id, MIN(processed_at), MIN(payment_session_id)`,
+        [...attendeeIds],
+      );
+
+/**
+ * Refundable provider references for each attendee. New processed_payments rows
+ * are the source of truth; old single-charge bookings fall back to attendees'
+ * legacy payment_id when no per-session reference was recorded.
+ */
+export const getRefundPaymentReferences = async (
+  attendees: readonly RefundPaymentReferenceSource[],
+): Promise<Map<number, string[]>> => {
+  const byAttendee = new Map(
+    attendees.map((attendee) => [attendee.id, [] as string[]]),
+  );
+  for (const row of await paymentReferencesForIds(
+    attendees.map((attendee) => attendee.id),
+  )) {
+    byAttendee.get(Number(row.attendee_id))?.push(row.payment_reference);
+  }
+  for (const attendee of attendees) {
+    const references = byAttendee.get(attendee.id)!;
+    if (references.length === 0 && attendee.payment_id !== "") {
+      references.push(attendee.payment_id);
+    }
+  }
+  return byAttendee;
+};
+
+export const hasRefundPaymentReference = async (
+  attendee: RefundPaymentReferenceSource,
+): Promise<boolean> =>
+  (await getRefundPaymentReferences([attendee])).get(attendee.id)!.length > 0;
 
 /**
  * Store encrypted ticket tokens on an already-finalized session so later

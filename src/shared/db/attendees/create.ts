@@ -516,12 +516,12 @@ export const createAttendeeAtomicImpl = (
  * a chatty interactive transaction. `legs` are the booking's ledger legs (built
  * by mapBooking with a placeholder attendee id; their references/event group are
  * attendee-id-independent, and the real id is spliced in by subquery at write
- * time). `finalizeSessionId`, when set, finalizes that payment session in the
- * same batch as the attendee INSERT. */
+ * time). `finalize`, when set, finalizes that payment session in the same batch
+ * as the attendee INSERT. */
 export type BookingBatchPlan = {
   usages: ModifierUsage[];
   legs: TransferInput[];
-  finalizeSessionId?: string;
+  finalize?: { paymentReference: string; sessionId: string };
 };
 
 /**
@@ -565,13 +565,14 @@ const writeAsLedgerBatch = async (
           },
         ]
       : [];
-  const finalizeStatements: SqlStatement[] = plan.finalizeSessionId
+  const finalizeStatements: SqlStatement[] = plan.finalize
     ? [
         batchFinalizeStatement(
-          plan.finalizeSessionId,
+          plan.finalize.sessionId,
           ATTENDEE_BY_TOKEN_SQL,
           tokenIndex,
           guard,
+          plan.finalize.paymentReference,
         ),
       ]
     : [];

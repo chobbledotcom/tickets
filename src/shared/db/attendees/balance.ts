@@ -164,8 +164,8 @@ export type SettleBalanceResult =
     };
 
 /**
- * Mark a reserved attendee as paid for an exact, verified amount: clear the
- * remaining balance, move them to the paid-default status, and log the payment.
+ * Mark an attendee as paid for an exact, verified amount: clear the remaining
+ * balance, move reservations to the paid-default status, and log the payment.
  * The amount paid is no longer folded into a column — a booking row's amount
  * paid projects from its ledger sale leg, and the paying checkout posts its own
  * payment leg, so the balance settle only has to clear the receivable.
@@ -176,8 +176,8 @@ export type SettleBalanceResult =
  * already settled by a racing/stale checkout) after this checkout was created no
  * longer matches and we refuse rather than settle the wrong amount.
  *
- * `extraStatements` are committed in the SAME transaction, between the status
- * move and the payment leg — used to finalize the payment session atomically with
+ * `extraStatements` are committed in the SAME transaction, after the verdict and
+ * before the payment leg — used to finalize the payment session atomically with
  * the settle (see balanceFinalizeStatement) so a crash between the two can't
  * leave a paid-but-unfinalized row. Each must carry its own balance guard so it
  * no-ops on a mismatch, exactly like the settle writes.
@@ -201,11 +201,23 @@ export const settleAttendeeBalance = async (
   const owed = attendeeOwedSubquery(String(attendeeId));
   const results = await executeBatchWithResults([
     {
-      // Verdict (first statement): move to the paid status while they still owe
+      // Verdict (first statement): a harmless self-update while they still owe
       // the expected amount. A mismatched or already-settled balance matches 0
       // rows, exactly like the old column guard.
+      args: [attendeeId, expectedAmount],
+      sql: `UPDATE attendees SET status_id = status_id WHERE id = ? AND ${owed} = ?`,
+    },
+    {
+      // Lifecycle move: only reservations advance to the paid default. Other
+      // statuses are operator-owned and stay put once their balance is cleared.
       args: [paid?.id ?? null, attendeeId, expectedAmount],
-      sql: `UPDATE attendees SET status_id = COALESCE(?, status_id) WHERE id = ? AND ${owed} = ?`,
+      sql: `UPDATE attendees SET status_id = COALESCE(?, status_id)
+             WHERE id = ?
+               AND status_id IN (
+                 SELECT status.id FROM attendee_statuses AS status
+                  WHERE status.is_reservation = 1
+               )
+               AND ${owed} = ?`,
     },
     ...extraStatements,
     // The balance payment: world funds the attendee, zeroing what they owed.

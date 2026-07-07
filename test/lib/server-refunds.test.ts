@@ -1,10 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { type Stub, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import type { ListingInput } from "#shared/db/listings.ts";
 import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
-import { paymentsApi } from "#shared/payments.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import {
   adminGet,
@@ -18,37 +16,21 @@ import {
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
+  expectSingleRefundIssued,
   getListingActivityLog,
   mockFormRequest,
-  mockProviderType,
+  postRefundAll,
+  refundAllUrl,
+  refundUrl,
   setupListingAndLogin,
+  submitRefund,
+  submitRefundAll,
   testCookie,
   testCsrfToken,
   testRequiresAuth,
-  withMocks,
+  withRefundMock,
 } from "#test-utils";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
-
-// -- URL builders --------------------------------------------------------- //
-
-const refundUrl = (attendeeId: number) =>
-  `/admin/attendees/${attendeeId}/refund`;
-
-const refundAllUrl = (listingId: number) =>
-  `/admin/listing/${listingId}/refund-all`;
-
-/** POST the refund-all confirmation form for a listing as the owner. */
-const postRefundAll = async (listing: {
-  id: number;
-  name: string;
-}): Promise<Response> =>
-  handleRequest(
-    mockFormRequest(
-      refundAllUrl(listing.id),
-      { confirm_identifier: listing.name, csrf_token: await testCsrfToken() },
-      await testCookie(),
-    ),
-  );
 
 /** Seed `count` paid attendees with payment-intent ids `${piPrefix}<i>`. */
 const seedBatchAttendees = async (
@@ -109,32 +91,6 @@ const setupRefundTest = async (paymentId: string): Promise<RefundCtx> => {
   };
 };
 
-/** POST the single-attendee refund form. Defaults to John Doe + ctx csrf. */
-const submitRefund = (
-  { attendee, csrfToken, cookie }: RefundCtx,
-  overrides: Record<string, string> = {},
-) =>
-  handleRequest(
-    mockFormRequest(
-      refundUrl(attendee.id),
-      { confirm_identifier: "John Doe", csrf_token: csrfToken, ...overrides },
-      cookie,
-    ),
-  );
-
-/** POST the refund-all form. Defaults to listing name + ctx csrf. */
-const submitRefundAll = (
-  { listing, csrfToken, cookie }: RefundCtx,
-  overrides: Record<string, string> = {},
-) =>
-  handleRequest(
-    mockFormRequest(
-      refundAllUrl(listing.id),
-      { confirm_identifier: listing.name, csrf_token: csrfToken, ...overrides },
-      cookie,
-    ),
-  );
-
 /**
  * Make a `createPaidTestAttendee` "refunded" the production way: reverse their
  * sole paid booking order in the ledger, which posts the `refund_cash` leg the
@@ -144,36 +100,6 @@ const submitRefundAll = (
 const markAsRefunded = async (attendeeId: number, _listingId: number) => {
   const { recordAttendeeRefund } = await import("#shared/refund-ledger.ts");
   await recordAttendeeRefund(attendeeId);
-};
-
-// -- Mock provider helper ------------------------------------------------- //
-
-const withRefundMock = async (
-  refundBehavior: boolean | (() => Promise<boolean>),
-  fn: (mockRefund: Stub) => Promise<void>,
-) => {
-  await withMocks(
-    () =>
-      stub(paymentsApi, "getConfiguredProvider", () =>
-        mockProviderType("stripe"),
-      ),
-    async () => {
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockRefund =
-        typeof refundBehavior === "function"
-          ? stub(stripePaymentProvider, "refundPayment", refundBehavior)
-          : stub(stripePaymentProvider, "refundPayment", () =>
-              Promise.resolve(refundBehavior),
-            );
-      try {
-        await fn(mockRefund);
-      } finally {
-        mockRefund.restore();
-      }
-    },
-  );
 };
 
 // -- Tests ---------------------------------------------------------------- //
@@ -247,6 +173,21 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         "type their name",
         "£5",
       );
+    });
+
+    test("shows no-payment error when the attendee has no active booking line", async () => {
+      const ctx = await setupRefundTest("pi_no_quantity_get");
+      const { getDb } = await import("#shared/db/client.ts");
+      await getDb().execute(
+        "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ? AND listing_id = ?",
+        [ctx.attendee.id, ctx.listing.id],
+      );
+
+      const response = await awaitTestRequest(refundUrl(ctx.attendee.id), {
+        cookie: ctx.cookie,
+      });
+
+      await expectHtmlResponse(response, 400, "no payment to refund");
     });
 
     test("includes return_url as hidden field when provided", async () => {
@@ -332,14 +273,24 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
     test("successfully refunds attendee payment", async () => {
       const ctx = await setupRefundTest("pi_test_success");
 
-      await withRefundMock(true, async (mockRefund) => {
-        const response = await submitRefund(ctx);
-        await expectFlashRedirect(
-          `/admin/attendees/${ctx.attendee.id}/actions`,
-          "Refund issued",
-        )(response);
-        expect(mockRefund.calls.length).toBeGreaterThan(0);
-      });
+      await expectSingleRefundIssued(ctx);
+    });
+
+    test("treats an already-refunded provider charge as success", async () => {
+      const ctx = await setupRefundTest("pi_test_provider_done");
+
+      await withRefundMock(
+        false,
+        async (mockRefund) => {
+          const response = await submitRefund(ctx);
+          await expectFlashRedirect(
+            `/admin/attendees/${ctx.attendee.id}/actions`,
+            "Refund issued",
+          )(response);
+          expect(mockRefund.calls.length).toBe(1);
+        },
+        { alreadyRefunded: true },
+      );
     });
 
     test("a refund success honors the form's return_url (e.g. the Actions tab)", async () => {

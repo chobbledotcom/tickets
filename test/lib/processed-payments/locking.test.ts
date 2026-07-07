@@ -4,7 +4,7 @@ import { getDb, insert } from "#shared/db/client.ts";
 import {
   clearSessionTokens,
   decryptSessionTokens,
-  finalizeSession,
+  finalizeSession as finalizePaymentSession,
   getProcessedAttendeeId,
   isSessionProcessed,
   reserveSession,
@@ -16,6 +16,18 @@ import {
   describeWithEnv,
   useProcessedPaymentsAttendee,
 } from "#test-utils";
+
+const finalizeSession = (
+  sessionId: string,
+  attendeeId: number,
+  ticketTokens: string[],
+) =>
+  finalizePaymentSession(
+    sessionId,
+    attendeeId,
+    ticketTokens,
+    `pi_${sessionId}`,
+  );
 
 /** Perform the full two-phase reserve+finalize as production code does */
 const processSession = async (
@@ -43,6 +55,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       const result = await isSessionProcessed("cs_processed_123");
       expect(result?.payment_session_id).toBe("cs_processed_123");
       expect(result?.attendee_id).toBe(ctx.attendeeId);
+      expect(result?.payment_reference).toBe("pi_cs_processed_123");
       expect(result?.processed_at).toBeDefined();
     });
 

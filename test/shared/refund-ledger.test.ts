@@ -22,10 +22,10 @@ import {
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import {
+  accountRefundGroups,
   recordAttendeeRefund,
   recordAttendeeRefundsBatch,
   recordPlaceholderRefund,
-  soleBookingOrder,
 } from "#shared/refund-ledger.ts";
 import { describeWithEnv } from "#test-utils";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -62,7 +62,22 @@ const expectSingleRefundCash = async (amount: number): Promise<Transfer> => {
   return cash[0]!;
 };
 
-// -- soleBookingOrder (pure) --------------------------------------------- //
+const refundCashAmounts = async (attendeeId = ATTENDEE): Promise<number[]> =>
+  refundLegsOf(await transfersByAccount(attendeeAccount(attendeeId)))
+    .filter((leg) => leg.kind === "refund_cash")
+    .map((leg) => leg.amount)
+    .sort((a, b) => a - b);
+
+const expectRecordedRefundClearsAttendeeAndRevenue = async (
+  attendeeId = ATTENDEE,
+  listingId = 1,
+): Promise<void> => {
+  expect(await recordAttendeeRefund(attendeeId)).toEqual({ posted: true });
+  expect(await accountBalance(attendeeAccount(attendeeId))).toBe(0);
+  expect(await accountBalance(revenueAccount(listingId))).toBe(0);
+};
+
+// -- accountRefundGroups (pure) ------------------------------------------ //
 
 const leg = (overrides: Partial<Transfer>): Transfer => ({
   amount: 5000,
@@ -77,31 +92,30 @@ const leg = (overrides: Partial<Transfer>): Transfer => ({
   ...overrides,
 });
 
-describe("refund-ledger > soleBookingOrder", () => {
+describe("refund-ledger > accountRefundGroups", () => {
   test("returns the single booking group's legs", () => {
     const sale = leg({ kind: "sale", reference: "sale" });
     const pay = leg({ kind: "payment", reference: "pay", source: WORLD });
-    expect(soleBookingOrder([sale, pay])).toEqual([sale, pay]);
+    expect(accountRefundGroups([sale, pay])).toEqual([[sale, pay]]);
   });
 
   test("returns a sale-less paid order (surcharge, no sale leg)", () => {
     // A free listing with a paid surcharge: modifier + payment, no sale leg.
     const mod = leg({ kind: "modifier", reference: "mod" });
     const pay = leg({ kind: "payment", reference: "pay", source: WORLD });
-    expect(soleBookingOrder([mod, pay])).toEqual([mod, pay]);
+    expect(accountRefundGroups([mod, pay])).toEqual([[mod, pay]]);
   });
 
-  test("returns null for a payment-only group (no recognised revenue)", () => {
-    expect(soleBookingOrder([leg({ kind: "payment", source: WORLD })])).toBe(
-      null,
-    );
+  test("returns a payment-only balance group", () => {
+    const pay = leg({ kind: "payment", source: WORLD });
+    expect(accountRefundGroups([pay])).toEqual([[pay]]);
   });
 
-  test("returns null for an empty account", () => {
-    expect(soleBookingOrder([])).toBe(null);
+  test("returns no groups for an empty account", () => {
+    expect(accountRefundGroups([])).toEqual([]);
   });
 
-  test("returns null when a balance settlement accompanies the booking", () => {
+  test("returns booking and balance groups together", () => {
     const sale = leg({ eventGroup: "book", kind: "sale", reference: "sale" });
     const deposit = leg({
       eventGroup: "book",
@@ -115,13 +129,32 @@ describe("refund-ledger > soleBookingOrder", () => {
       reference: "bal",
       source: WORLD,
     });
-    expect(soleBookingOrder([sale, deposit, balance])).toBe(null);
+    expect(accountRefundGroups([sale, deposit, balance])).toEqual([
+      [sale, deposit],
+      [balance],
+    ]);
   });
 
-  test("returns null when two booking orders share the attendee (a merge)", () => {
+  test("returns each booking order when two share the attendee", () => {
     const first = leg({ eventGroup: "g1", reference: "s1" });
     const second = leg({ eventGroup: "g2", reference: "s2" });
-    expect(soleBookingOrder([first, second])).toBe(null);
+    expect(accountRefundGroups([first, second])).toEqual([[first], [second]]);
+  });
+
+  test("ignores existing refund groups", () => {
+    const sale = leg({ eventGroup: "book", kind: "sale", reference: "sale" });
+    const refund = leg({
+      eventGroup: "refund-book",
+      kind: "refund_sale",
+      reference: "refund-sale",
+    });
+    expect(accountRefundGroups([sale, refund])).toEqual([[sale]]);
+  });
+
+  test("keeps legacy legs whose kind is missing", () => {
+    const base = leg({ reference: "legacy" });
+    const { kind: _kind, ...legacy } = base;
+    expect(accountRefundGroups([legacy])).toEqual([[legacy]]);
   });
 });
 
@@ -135,10 +168,8 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
       amountPaid: 5000,
       lines: [{ gross: 5000, listingId: 1 }],
     });
-    expect(await recordAttendeeRefund(ATTENDEE)).toEqual({ posted: true });
+    await expectRecordedRefundClearsAttendeeAndRevenue();
 
-    expect(await accountBalance(attendeeAccount(ATTENDEE))).toBe(0);
-    expect(await accountBalance(revenueAccount(1))).toBe(0);
     const cash = await expectSingleRefundCash(5000);
     expect(cash.destination).toEqual(WORLD);
   });
@@ -181,7 +212,7 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     await expectSingleRefundCash(500);
   });
 
-  test("skips a balance-settled reservation (booking plus a balance payment)", async () => {
+  test("reverses a balance-settled reservation as one whole account", async () => {
     await postBooking({
       amountPaid: 2000,
       lines: [{ gross: 10000, listingId: 1 }],
@@ -198,10 +229,8 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
         source: WORLD,
       },
     ]);
-    await recordAttendeeRefund(ATTENDEE);
-    expect(
-      refundLegsOf(await transfersByAccount(attendeeAccount(ATTENDEE))).length,
-    ).toBe(0);
+    await expectRecordedRefundClearsAttendeeAndRevenue();
+    expect(await refundCashAmounts()).toEqual([2000, 8000]);
   });
 
   test("skips a reservation that is not paid in full", async () => {
@@ -235,13 +264,12 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     expect((await allTransfers()).length).toBe(0);
   });
 
-  test("skips an attendee carrying more than one booking order", async () => {
+  test("reverses an attendee carrying more than one fully-paid booking order", async () => {
     await postBooking({ eventId: "sess-1" });
     await postBooking({ eventId: "sess-2" });
-    await recordAttendeeRefund(ATTENDEE);
-    expect(
-      refundLegsOf(await transfersByAccount(attendeeAccount(ATTENDEE))).length,
-    ).toBe(0);
+    expect(await recordAttendeeRefund(ATTENDEE)).toEqual({ posted: true });
+    expect(await accountBalance(attendeeAccount(ATTENDEE))).toBe(0);
+    expect(await refundCashAmounts()).toEqual([5000, 5000]);
   });
 
   test("logs and does not throw when the refund post conflicts", async () => {
@@ -429,6 +457,32 @@ describeWithEnv(
         logged.some((message) => message.includes("bulk refund batch failed")),
       ).toBe(true);
       expect(errors.lastMessage()).toContain("E_LEDGER_POST");
+    });
+
+    test("posts all refund groups for a balance-settled attendee in a bulk batch", async () => {
+      await postBooking({
+        amountPaid: 1000,
+        attendeeId: 19,
+        eventId: "sess-19",
+        lines: [{ gross: 3000, listingId: 1 }],
+      });
+      await postTransfers([
+        {
+          amount: 2000,
+          destination: attendeeAccount(19),
+          eventGroup: "balance-19",
+          kind: "payment",
+          occurredAt: BOOKING_AT,
+          reference: "balance-pay-19",
+          source: WORLD,
+        },
+      ]);
+
+      const posted = await recordAttendeeRefundsBatch([19]);
+
+      expect(posted).toEqual(new Map([[19, true]]));
+      expect(await accountBalance(attendeeAccount(19))).toBe(0);
+      expect(await refundCashAmounts(19)).toEqual([1000, 2000]);
     });
 
     test("treats an empty attendee list as a no-op", async () => {

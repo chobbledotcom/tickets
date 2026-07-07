@@ -1436,7 +1436,7 @@ const createAttendeeForSession = async (
       occurredAt: businessTime(session),
       pricedOrder,
     },
-    session.id,
+    { paymentReference: session.paymentReference, sessionId: session.id },
   );
 
   const result = await createBookingAtomic(
@@ -1524,7 +1524,14 @@ const settleBalanceSession = async (
     attendeeId,
     expectedAmount,
     { id: sessionId, occurredAt: businessTime(session) },
-    [balanceFinalizeStatement(sessionId, attendeeId, expectedAmount)],
+    [
+      balanceFinalizeStatement(
+        sessionId,
+        attendeeId,
+        expectedAmount,
+        session.paymentReference,
+      ),
+    ],
   );
   if (!settled.settled) {
     return refundAndFail(
