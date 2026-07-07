@@ -217,6 +217,10 @@ export interface EntityPageView {
   banner: JSX.Element | null;
   tabs: TabLink[];
   sections: LoadedSection[];
+  /** Optional guide link rendered at the very bottom of the body, matching the
+   *  `GuideFooter` every other admin page uses (e.g. the Site content editors'
+   *  "Guide: pages, news & images" link). */
+  guideFooter?: JSX.Element | null;
 }
 
 /** The whole entity page: title → banner → tab strip → active tab's
@@ -240,5 +244,6 @@ export const entityPageView = (view: EntityPageView): string =>
           <div class="table-controls">{section}</div>
         ))}
       </section>
+      {view.guideFooter}
     </Layout>,
   );

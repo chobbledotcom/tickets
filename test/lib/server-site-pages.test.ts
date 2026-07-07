@@ -156,7 +156,8 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       expect(html).toContain(
         `Public link: <a href="/page/${page.slug}" rel="noopener" target="_blank">/page/${page.slug}</a>`,
       );
-      // A guide link sits beside the page title.
+      // A guide footer sits at the bottom of the body.
+      expect(html).toContain('class="guide-footer"');
       expect(html).toContain('href="/admin/guide#public-site"');
       // The tabbed strip carries Edit, Items and Actions (Images hidden while
       // storage is off). The item manager lives on the Items tab, not here.

@@ -14,6 +14,7 @@ import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
   ActionButton,
+  GuideFooter,
   SaveChangesButton,
 } from "#templates/components/actions.tsx";
 
@@ -75,14 +76,13 @@ export const contentEditPanel = (
   </CsrfForm>
 );
 
-/** The "Guide: …" help link shown beside a Site content page's title, jumping
- * to the given guide section anchor. */
-export const contentGuideLink = (anchor: string): JSX.Element => (
-  <p class="prose guide-link">
-    <a href={`/admin/guide#${anchor}`}>
-      <Raw html={t("common.guide_website_content")} />
-    </a>
-  </p>
+/** The "Guide: …" help link for a Site content page, rendered as a
+ * `GuideFooter` at the bottom of the body (matching every other admin page)
+ * and jumping to the given guide section anchor. */
+export const contentGuideFooter = (anchor: string): JSX.Element => (
+  <GuideFooter href={`/admin/guide#${anchor}`}>
+    <Raw html={t("common.guide_website_content")} />
+  </GuideFooter>
 );
 
 /** Curried type-the-name delete confirmation page for a Site-tab entity.

@@ -115,7 +115,8 @@ describeWithEnv("server (admin news)", { db: true }, () => {
       expect(html).toContain(
         `Public link: <a href="/news/${post.slug}" rel="noopener" target="_blank">/news/${post.slug}</a>`,
       );
-      // A guide link sits beside the page title.
+      // A guide footer sits at the bottom of the body.
+      expect(html).toContain('class="guide-footer"');
       expect(html).toContain('href="/admin/guide#public-site"');
       // The shared tabbed strip carries Edit and Actions (Images is hidden
       // while storage is off — the live panel is covered in the news image

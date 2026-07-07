@@ -15,7 +15,7 @@ import { requireSiteOr } from "#routes/auth.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import type { ImageUseItemType } from "#shared/types.ts";
-import { contentGuideLink } from "#templates/admin/site-content.tsx";
+import { contentGuideFooter } from "#templates/admin/site-content.tsx";
 import { loadItemImagesPanel } from "./item-images.ts";
 
 /** The Edit (and Items) tabs mutate the entity, so they hide in read-only mode
@@ -39,8 +39,8 @@ export interface SiteContentPageDef<E extends { id: number }> {
   editPanel: (entity: E) => JSX.Element;
   /** The locale key for the delete action on the Actions tab. */
   deleteLabelKey: string;
-  /** A guide section anchor (e.g. "public-site") linked beside the page title,
-   * so the operator can jump to the relevant help. */
+  /** A guide section anchor (e.g. "public-site") linked in the page's guide
+   * footer, so the operator can jump to the relevant help. */
   guideAnchor: string;
   extraTabs?: readonly TabDef<E>[];
 }
@@ -95,9 +95,9 @@ export const defineSiteContentPage = <E extends { id: number }>(
   return defineEntityPage({
     basePath: def.basePath,
     guard: requireSiteOr,
+    guideFooter: () => Promise.resolve(contentGuideFooter(def.guideAnchor)),
     load: def.load,
     navActive: def.navActive,
-    proseExtra: () => Promise.resolve(contentGuideLink(def.guideAnchor)),
     tabs: [editTab, ...(def.extraTabs ?? []), imagesTab, actionsTab],
     titleOf: def.titleOf,
   });

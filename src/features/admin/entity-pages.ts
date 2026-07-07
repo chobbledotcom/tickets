@@ -133,6 +133,9 @@ export interface EntityPageDef<E, Id extends EntityId = number> {
   /** Extra content rendered inside the prose block beside the page `<h1>`
    *  (e.g. the attendee page's "Add a note" link). */
   proseExtra?: (entity: E, ctx: PageCtx) => Promise<JSX.Element | null>;
+  /** A guide link rendered at the very bottom of the body via `GuideFooter`,
+   *  matching every other admin page (e.g. the Site content editors). */
+  guideFooter?: (entity: E, ctx: PageCtx) => Promise<JSX.Element | null>;
   tabs: readonly TabDef<E>[];
 }
 
@@ -219,6 +222,17 @@ export interface EntityPage<E, Id extends EntityId = number> {
   path: (id: Id, slug?: string) => string;
 }
 
+/** Resolve one of the page's optional element slots (banner, guide footer,
+ * prose extra): run its loader when present, else null. */
+const resolveSlot = <E>(
+  loader:
+    | ((entity: E, ctx: PageCtx) => Promise<JSX.Element | null>)
+    | undefined,
+  entity: E,
+  ctx: PageCtx,
+): Promise<JSX.Element | null> =>
+  loader ? loader(entity, ctx) : Promise.resolve(null);
+
 /** Turn one page definition into its handlers + path helper. */
 export const defineEntityPage = <E, Id extends EntityId = number>(
   def: EntityPageDef<E, Id>,
@@ -256,11 +270,17 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
         sections.push(await loadSection(section, entity, ctx));
       }
     }
+    const [banner, guideFooter, proseExtra] = await Promise.all([
+      resolveSlot(def.banner, entity, ctx),
+      resolveSlot(def.guideFooter, entity, ctx),
+      resolveSlot(def.proseExtra, entity, ctx),
+    ]);
     return htmlResponse(
       entityPageView({
-        banner: def.banner ? await def.banner(entity, ctx) : null,
+        banner,
+        guideFooter,
         navActive: def.navActive,
-        proseExtra: def.proseExtra ? await def.proseExtra(entity, ctx) : null,
+        proseExtra,
         sections,
         session,
         tabs: tabLinks(tabStates, def.basePath(id), activeSlug),
