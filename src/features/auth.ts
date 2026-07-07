@@ -381,9 +381,6 @@ const requireRoleOr =
 /** Require owner session — shorthand for requireSessionOr with owner role */
 export const requireOwnerOr = requireRoleOr("owner");
 
-/** Require agent session — shorthand for requireSessionOr with agent role */
-export const requireAgentOr = requireRoleOr("agent");
-
 /** Build a session guard that admits any of the given roles. */
 const requireRolesOr =
   (roles: readonly AdminLevel[]) =>
@@ -443,9 +440,6 @@ export const sitePage = authPage(requireSiteOr);
 /** Delivery-run-sheet GET page (staff or agent): authenticate, apply flash,
  * render HTML. */
 export const deliveryPage = authPage(requireDeliveryOr);
-
-/** Agent-only GET page: authenticate, apply flash, render HTML */
-export const agentPage = authPage(requireAgentOr);
 
 /** Require any authenticated user (owner, manager or agent). Used for pages
  * that staff and delivery agents alike must reach, like the deliveries run

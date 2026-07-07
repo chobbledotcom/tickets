@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { AuthSession } from "#routes/auth.ts";
 import {
-  requireAgentOr,
   requireContentOr,
   requireDeliveryOr,
   requireOwnerOr,
@@ -27,7 +26,6 @@ type Guard = (
 
 const EVERY_GUARD: Guard[] = [
   requireOwnerOr,
-  requireAgentOr,
   requireSessionOr,
   requireContentOr,
   requireSiteOr,
@@ -72,10 +70,6 @@ const expectAdmits = async (
 describeWithEnv("auth authorization matrix", { db: true }, () => {
   test("requireOwnerOr admits only the owner", async () => {
     await expectAdmits(requireOwnerOr, await roleCookies(), ["owner"]);
-  });
-
-  test("requireAgentOr admits only a delivery agent", async () => {
-    await expectAdmits(requireAgentOr, await roleCookies(), ["agent"]);
   });
 
   test("requireSessionOr (no role) admits only staff (owner, manager)", async () => {
