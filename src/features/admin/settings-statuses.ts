@@ -38,9 +38,9 @@ import type { FormParams } from "#shared/form-data.ts";
 import { validateReservationAmount } from "#shared/reservation-amount.ts";
 import type { AdminSession } from "#shared/types.ts";
 import {
-  adminAttendeeStatusDeletePage,
   adminAttendeeStatusesPage,
   adminAttendeeStatusFormPage,
+  statusPages,
 } from "#templates/admin/settings-statuses.tsx";
 
 const LIST_PATH = "/admin/settings/statuses";
@@ -181,7 +181,7 @@ const editPost = ownerFormById(async (id, _session, form) => {
 });
 
 const deleteGet = ownerStatusPage((status, session) =>
-  adminAttendeeStatusDeletePage(status, session, getFlash().error),
+  statusPages.deletePage(status, session, getFlash().error),
 );
 
 const deletePost = ownerFormById(async (id, _session, form) => {

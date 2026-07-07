@@ -7,7 +7,7 @@
 import type { GoogleWalletCredentials } from "#shared/google-wallet.ts";
 import { createWalletSettingsKit } from "#shared/wallets/wallet-settings-types.ts";
 
-const kit = createWalletSettingsKit<
+export const googleWallet = createWalletSettingsKit<
   GoogleWalletCredentials,
   "issuerId" | "serviceAccountEmail" | "serviceAccountKey"
 >({
@@ -34,7 +34,3 @@ const kit = createWalletSettingsKit<
     },
   },
 });
-
-export const getHostGoogleWalletConfig = kit.getHostConfig;
-export const createGoogleWalletReadSettings = kit.createReadSettings;
-export const createGoogleWalletUpdateSettings = kit.createUpdateSettings;

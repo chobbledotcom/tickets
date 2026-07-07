@@ -48,18 +48,11 @@ import {
 import { handleAdminSettingsPost } from "#routes/admin/settings-password.ts";
 import { handleSmsGatewayPost } from "#routes/admin/settings-sms.ts";
 import {
-  handleAdminSquarePost,
   handleAdminSquareWebhookPost,
-  handleSquareTestPost,
+  squareRoutes,
 } from "#routes/admin/settings-square.ts";
-import {
-  handleAdminStripePost,
-  handleStripeTestPost,
-} from "#routes/admin/settings-stripe.ts";
-import {
-  handleAdminSumupPost,
-  handleSumupTestPost,
-} from "#routes/admin/settings-sumup.ts";
+import { stripeRoutes } from "#routes/admin/settings-stripe.ts";
+import { sumupRoutes } from "#routes/admin/settings-sumup.ts";
 import { handleSuperuserPost } from "#routes/admin/settings-superuser.ts";
 import {
   handleAppleWalletPost,
@@ -103,13 +96,13 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/show-public-api": handleShowPublicApiPost,
   "POST /admin/settings/show-public-site": handleShowPublicSitePost,
   "POST /admin/settings/sms-gateway": handleSmsGatewayPost,
-  "POST /admin/settings/square": handleAdminSquarePost,
+  "POST /admin/settings/square": squareRoutes.save,
   "POST /admin/settings/square-webhook": handleAdminSquareWebhookPost,
-  "POST /admin/settings/square/test": handleSquareTestPost,
-  "POST /admin/settings/stripe": handleAdminStripePost,
-  "POST /admin/settings/stripe/test": handleStripeTestPost,
-  "POST /admin/settings/sumup": handleAdminSumupPost,
-  "POST /admin/settings/sumup/test": handleSumupTestPost,
+  "POST /admin/settings/square/test": squareRoutes.test,
+  "POST /admin/settings/stripe": stripeRoutes.save,
+  "POST /admin/settings/stripe/test": stripeRoutes.test,
+  "POST /admin/settings/sumup": sumupRoutes.save,
+  "POST /admin/settings/sumup/test": sumupRoutes.test,
   "POST /admin/settings/superuser": handleSuperuserPost,
   "POST /admin/settings/terms": handleTermsPost,
   "POST /admin/settings/theme": handleThemePost,

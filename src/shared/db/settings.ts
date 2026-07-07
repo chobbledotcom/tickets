@@ -92,14 +92,8 @@ import {
   isPaymentProviderSetting,
   isSuperuserChoice,
 } from "#shared/types.ts";
-import {
-  createAppleWalletReadSettings,
-  createAppleWalletUpdateSettings,
-} from "#shared/wallets/apple-wallet-settings.ts";
-import {
-  createGoogleWalletReadSettings,
-  createGoogleWalletUpdateSettings,
-} from "#shared/wallets/google-wallet-settings.ts";
+import { appleWallet } from "#shared/wallets/apple-wallet-settings.ts";
+import { googleWallet } from "#shared/wallets/google-wallet-settings.ts";
 import type { EncryptedUpdateFn } from "#shared/wallets/wallet-settings-types.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
 
@@ -899,7 +893,7 @@ const settingsBase = {
     },
   },
   // --- Apple Wallet ---
-  appleWallet: createAppleWalletReadSettings(snap as (k: string) => string),
+  appleWallet: appleWallet.createReadSettings(snap as (k: string) => string),
   get autoPurgeOrphans(): boolean {
     return snap("auto_purge_orphans");
   },
@@ -977,7 +971,7 @@ const settingsBase = {
   getCachedRaw: getRawCached,
 
   // --- Google Wallet ---
-  googleWallet: createGoogleWalletReadSettings(snap as (k: string) => string),
+  googleWallet: googleWallet.createReadSettings(snap as (k: string) => string),
 
   get hasLogistics(): boolean {
     return snap("has_logistics");
@@ -1125,7 +1119,7 @@ const settingsBase = {
       ) => Promise<void>,
     },
     // --- Apple Wallet writes ---
-    appleWallet: createAppleWalletUpdateSettings(encryptedUpdate),
+    appleWallet: appleWallet.createUpdateSettings(encryptedUpdate),
     autoPurgeOrphans: boolUpdate(
       CONFIG_KEYS.AUTO_PURGE_ORPHANS,
       "auto_purge_orphans",
@@ -1176,7 +1170,7 @@ const settingsBase = {
       "external_order_enabled",
     ),
     // --- Google Wallet writes ---
-    googleWallet: createGoogleWalletUpdateSettings(encryptedUpdate),
+    googleWallet: googleWallet.createUpdateSettings(encryptedUpdate),
     hasLogistics: boolUpdate(CONFIG_KEYS.HAS_LOGISTICS, "has_logistics"),
     listingDefaults: async (v: ListingDefaults): Promise<void> => {
       const json = serializeListingDefaults(v);
