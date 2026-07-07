@@ -23,7 +23,7 @@ import { isStorageEnabled } from "#shared/storage.ts";
 import type { ImageUseItemType } from "#shared/types.ts";
 import { ItemImagesPanel } from "#templates/admin/images.tsx";
 import { withEntityFromParam } from "./entity-handlers.ts";
-import { createImageFromUpload } from "./image-upload.ts";
+import { withUploadedImage } from "./image-upload.ts";
 
 type ItemImageConfig<T> = {
   /** Who may edit this entity's images. Defaults to the content gates; entities
@@ -81,14 +81,21 @@ export const createItemImageHandlers = <T>(
   upload: RouteHandlerFn;
 } => ({
   set: (request, { id }) =>
-    withAuth(request, config.auth?.form ?? CONTENT_FORM, (_session, form) =>
-      withStorageBackedItem(id, config, async (item, itemId) => {
-        await setImagesForItem(config.itemType, itemId, selectedImageIds(form));
-        await logActivity(
-          `Images updated for ${config.itemType} '${config.nameOf(item)}'`,
-        );
-        return redirect(config.path(itemId), t("images.item.saved"), true);
-      }),
+    withAuth(
+      request,
+      config.auth?.form ?? CONTENT_FORM,
+      (_session, form) =>
+        withStorageBackedItem(id, config, async (item, itemId) => {
+          await setImagesForItem(
+            config.itemType,
+            itemId,
+            selectedImageIds(form),
+          );
+          await logActivity(
+            `Images updated for ${config.itemType} '${config.nameOf(item)}'`,
+          );
+          return redirect(config.path(itemId), t("images.item.saved"), true);
+        }),
     ),
   upload: (request, { id }) =>
     withAuth(
@@ -96,20 +103,21 @@ export const createItemImageHandlers = <T>(
       config.auth?.multipart ?? CONTENT_MULTIPART,
       async (_session, formData) =>
         withStorageBackedItem(id, config, async (item, itemId) => {
-          const result = await createImageFromUpload(formData);
-          if (!result.ok) {
-            return redirect(config.path(itemId), result.error, false);
-          }
-          await appendImageToItem(result.value.id, {
-            itemId,
-            itemType: config.itemType,
+          const itemPath = config.path(itemId);
+          return withUploadedImage(formData, itemPath, async (image) => {
+            await appendImageToItem(image.id, {
+              itemId,
+              itemType: config.itemType,
+            });
+            await logActivity(
+              `Image '${image.name}' uploaded for ${config.itemType} '${
+                config.nameOf(
+                  item,
+                )
+              }'`,
+            );
+            return redirect(itemPath, t("images.item.uploaded"), true);
           });
-          await logActivity(
-            `Image '${result.value.name}' uploaded for ${config.itemType} '${config.nameOf(
-              item,
-            )}'`,
-          );
-          return redirect(config.path(itemId), t("images.item.uploaded"), true);
         }),
     ),
 });

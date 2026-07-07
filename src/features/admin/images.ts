@@ -20,15 +20,18 @@ import {
   getAllImages,
   getImageById,
   getImageUsesForImage,
-  type ImageUseTarget,
   imagesTable,
+  type ImageUseTarget,
   setItemsForImage,
 } from "#shared/db/images.ts";
 import { getAllListingOptions } from "#shared/db/listings.ts";
 import { getNewsPostNames } from "#shared/db/news-posts.ts";
 import { sitePages } from "#shared/db/site-pages.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { deleteImageStorageFiles, isStorageEnabled } from "#shared/storage.ts";
+import {
+  deleteImageStorageFilesStrict,
+  isStorageEnabled,
+} from "#shared/storage.ts";
 import {
   type AdminLevel,
   type Image,
@@ -44,10 +47,7 @@ import {
   type ImageItemOption,
 } from "#templates/admin/images.tsx";
 import { withEntityFromParam } from "./entity-handlers.ts";
-import {
-  createImageFromUpload,
-  imageMetadataFromForm,
-} from "./image-upload.ts";
+import { imageMetadataFromForm, withUploadedImage } from "./image-upload.ts";
 
 // jscpd:ignore-end
 
@@ -77,13 +77,16 @@ const handleImageNewGet: TypedRouteHandler<"GET /admin/images/new"> = (
 const handleImageCreatePost: TypedRouteHandler<"POST /admin/images"> = (
   request,
 ) =>
-  withAuth(request, CONTENT_MULTIPART, (_session, formData) =>
-    withStorageEnabled(async () => {
-      const result = await createImageFromUpload(formData);
-      if (!result.ok) return redirect("/admin/images/new", result.error, false);
-      await logActivity(`Image '${result.value.name}' uploaded`);
-      return redirect(imagePath(result.value.id), t("images.created"), true);
-    }),
+  withAuth(
+    request,
+    CONTENT_MULTIPART,
+    (_session, formData) =>
+      withStorageEnabled(() =>
+        withUploadedImage(formData, "/admin/images/new", async (image) => {
+          await logActivity(`Image '${image.name}' uploaded`);
+          return redirect(imagePath(image.id), t("images.created"), true);
+        })
+      ),
   );
 
 const listingImageItemOptions = async (): Promise<ImageItemOption[]> =>
@@ -139,19 +142,21 @@ const handleImageEditGet: TypedRouteHandler<"GET /admin/images/:id/edit"> = (
   request,
   { id },
 ) =>
-  requireContentOr(request, (session) =>
-    withEntityFromParam(id, getImageById, async (image) => {
-      applyFlash(request);
-      return withStorageEnabled(async () => {
-        const [options, selected] = await Promise.all([
-          imageItemOptions(session.adminLevel),
-          selectedUses(image.id),
-        ]);
-        return htmlResponse(
-          adminImageEditPage({ image, options, selected, session }),
-        );
-      });
-    }),
+  requireContentOr(
+    request,
+    (session) =>
+      withEntityFromParam(id, getImageById, async (image) => {
+        applyFlash(request);
+        return withStorageEnabled(async () => {
+          const [options, selected] = await Promise.all([
+            imageItemOptions(session.adminLevel),
+            selectedUses(image.id),
+          ]);
+          return htmlResponse(
+            adminImageEditPage({ image, options, selected, session }),
+          );
+        });
+      }),
   );
 
 const parseImageTargets = (form: FormParams): ImageUseTarget[] =>
@@ -175,10 +180,14 @@ const withStorageImageForm = (
     adminLevel: AdminLevel,
   ) => Response | Promise<Response>,
 ): Promise<Response> =>
-  withAuth(request, CONTENT_FORM, (session, form) =>
-    withEntityFromParam(id, getImageById, (image) =>
-      withStorageEnabled(() => action(image, form, session.adminLevel)),
-    ),
+  withAuth(
+    request,
+    CONTENT_FORM,
+    (session, form) =>
+      withEntityFromParam(id, getImageById, (image) =>
+        withStorageEnabled(() =>
+          action(image, form, session.adminLevel)
+        )),
   );
 
 /** The image-use item types that are public Site content (owner + editor):
@@ -192,7 +201,7 @@ const isSiteContentImageType = (type: ImageUseItemType): boolean =>
  * changing or removing it is a Site-gated action a manager may not take. */
 const imageHasSiteContentUse = async (imageId: number): Promise<boolean> =>
   (await getImageUsesForImage(imageId)).some((use) =>
-    isSiteContentImageType(use.item_type),
+    isSiteContentImageType(use.item_type)
   );
 
 /** Block a non-Site session (a manager) from a save that would change an image
@@ -248,13 +257,15 @@ const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> = (
 const handleImageDeleteGet: TypedRouteHandler<
   "GET /admin/images/:id/delete"
 > = (request, { id }) =>
-  requireContentOr(request, (session) =>
-    withEntityFromParam(id, getImageById, (image) => {
-      applyFlash(request);
-      return withStorageEnabled(() =>
-        htmlResponse(adminImageDeletePage(image, session)),
-      );
-    }),
+  requireContentOr(
+    request,
+    (session) =>
+      withEntityFromParam(id, getImageById, (image) => {
+        applyFlash(request);
+        return withStorageEnabled(() =>
+          htmlResponse(adminImageDeletePage(image, session))
+        );
+      }),
   );
 
 const confirmDelete = (form: FormParams, image: Image): string | null =>
@@ -277,8 +288,19 @@ const handleImageDeletePost: TypedRouteHandler<
     if (blocked) return blocked;
     const mismatch = confirmDelete(form, image);
     if (mismatch) return redirect(deletePath, mismatch, false);
+    // Delete the stored files first: if storage cleanup fails, keep the DB
+    // record so the admin can retry, rather than orphaning the files under a
+    // deleted record with no library entry to delete them from.
+    try {
+      await deleteImageStorageFilesStrict(image);
+    } catch {
+      return redirect(
+        deletePath,
+        t("images.delete.storage_failed"),
+        false,
+      );
+    }
     await deleteImageRecord(image.id);
-    await deleteImageStorageFiles(image, "image deletion");
     await logActivity(`Image '${image.name}' deleted`);
     return redirect("/admin/images", t("images.deleted"), true);
   });
