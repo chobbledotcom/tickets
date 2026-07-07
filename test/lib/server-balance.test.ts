@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { routeBalance } from "#routes/public/balance.ts";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import {
   accountBalance,
@@ -18,6 +19,7 @@ import {
 } from "#shared/db/attendees/balance.ts";
 import { execute, getDb } from "#shared/db/client.ts";
 import { prunePayments } from "#shared/db/prune.ts";
+import type { CheckoutIntent } from "#shared/payments.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
@@ -29,7 +31,10 @@ import {
   testCsrfToken,
   webhookMeta,
 } from "#test-utils";
-import { createReservedAttendee } from "#test-utils/balance.ts";
+import {
+  createNonReservationAttendee,
+  createReservedAttendee,
+} from "#test-utils/balance.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
 /** A settle identity (session id + business time) for settleAttendeeBalance. */
@@ -80,6 +85,31 @@ const createReserved = async (remainingBalance: number): Promise<number> =>
       quantity: 2,
     })
   ).attendeeId;
+
+/** Create a non-reservation attendee owing a balance on a real booking line. */
+const createNonReservation = async (
+  remainingBalance: number,
+): Promise<number> =>
+  (
+    await createNonReservationAttendee(remainingBalance, {
+      listingName: "Workshop Ticket",
+    })
+  ).attendeeId;
+
+/** Assert the pay page rendered the recap: title, listing name and amount due. */
+const expectRecap = (html: string): void => {
+  expect(html).toContain("Pay your balance");
+  expect(html).toContain("Workshop Ticket");
+  expect(html).toContain("Balance due");
+};
+
+/** GET /pay for an attendee's signed token; assert 200 and return the html. */
+const getPayPage = async (attendeeId: number): Promise<string> => {
+  const token = await signBalanceToken(attendeeId);
+  const response = await handleRequest(mockRequest(`/pay/${token}`));
+  expect(response.status).toBe(200);
+  return response.text();
+};
 
 /**
  * A signed Stripe balance-payment checkout session for `attendeeId`.
@@ -151,14 +181,8 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
   afterEach(() => resetStripeClient());
 
   test("GET shows the recap and balance due for a reserved attendee", async () => {
-    const attendeeId = await createReserved(1500);
-    const token = await signBalanceToken(attendeeId);
-    const response = await handleRequest(mockRequest(`/pay/${token}`));
-    expect(response.status).toBe(200);
-    const html = await response.text();
-    expect(html).toContain("Pay your balance");
-    expect(html).toContain("Workshop Ticket");
-    expect(html).toContain("Balance due");
+    const html = await getPayPage(await createReserved(1500));
+    expectRecap(html);
     // No PII (the booker's name) is shown.
     expect(html).not.toContain("Guest");
   });
@@ -166,10 +190,7 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
   test("GET shows a settled message once the balance is cleared", async () => {
     const attendeeId = await createReserved(1500);
     await settleAttendeeBalance(attendeeId, 1500, settle());
-    const token = await signBalanceToken(attendeeId);
-    const response = await handleRequest(mockRequest(`/pay/${token}`));
-    const html = await response.text();
-    expect(html).toContain("Nothing to pay");
+    expect(await getPayPage(attendeeId)).toContain("Nothing to pay");
   });
 
   test("GET rejects an invalid token", async () => {
@@ -182,17 +203,23 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     // The token verifies, but no attendee row matches, so the balance state is
     // null. The handler must short-circuit to the not-valid page rather than
     // dereference the absent state.
-    const token = await signBalanceToken(999_999);
-    const response = await handleRequest(mockRequest(`/pay/${token}`));
-    expect(response.status).toBe(200);
-    expect(await response.text()).toContain("not valid");
+    expect(await getPayPage(999_999)).toContain("not valid");
   });
 
-  test("GET treats a balance with no status as settled", async () => {
-    const attendeeId = await insertBareAttendee(null, 1500);
-    const token = await signBalanceToken(attendeeId);
-    const response = await handleRequest(mockRequest(`/pay/${token}`));
-    expect(await response.text()).toContain("Nothing to pay");
+  test("GET shows the recap for a non-reservation attendee with an outstanding balance", async () => {
+    // Removing the reservation-only restriction: any attendee who still owes
+    // money can pay it online, whatever status the booking sits in.
+    const html = await getPayPage(await createNonReservation(1500));
+    expectRecap(html);
+    expect(html).not.toContain("Nothing to pay");
+  });
+
+  test("GET shows the recap when just 1 is still owed", async () => {
+    // Boundary guard: only a non-positive balance is 'settled', so a single
+    // penny still outstanding shows the pay page rather than "Nothing to pay".
+    const html = await getPayPage(await createNonReservation(1));
+    expectRecap(html);
+    expect(html).not.toContain("Nothing to pay");
   });
 
   test("GET refuses a reserved balance whose only line is no-quantity", async () => {
@@ -202,10 +229,8 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
       args: [attendeeId],
       sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
     });
-    const token = await signBalanceToken(attendeeId);
-    const response = await handleRequest(mockRequest(`/pay/${token}`));
     // An honest "no tickets to pay for" message, not a misleading "link invalid".
-    expect(await response.text()).toContain("no tickets to pay for");
+    expect(await getPayPage(attendeeId)).toContain("no tickets to pay for");
   });
 
   test("POST refuses a reservation with no real booking line", async () => {
@@ -247,6 +272,51 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     // Redirects to the hosted checkout (302/303) on success.
     expect([302, 303]).toContain(response.status);
     expect(response.headers.get("location")).toContain("http");
+  });
+
+  test("POST builds a fee-free balance checkout intent for the outstanding amount", async () => {
+    await setupStripe();
+    const { attendeeId, listingId } = await createReservedAttendee(1500, {
+      listingName: "Workshop Ticket",
+      quantity: 2,
+    });
+    const token = await signBalanceToken(attendeeId);
+    // Capture the intent the balance POST hands the provider, then stop the flow.
+    let captured: CheckoutIntent | undefined;
+    const checkoutStub = stub(
+      stripePaymentProvider,
+      "createCheckoutSession",
+      (intent) => {
+        captured = intent;
+        return Promise.resolve({ error: "captured" });
+      },
+    );
+    try {
+      await postPay(token);
+    } finally {
+      checkoutStub.restore();
+    }
+    // A single "Remaining balance" line at the outstanding amount, no booking
+    // fee, no PII — the exact contract the customer is charged against.
+    expect(captured).toEqual({
+      address: "",
+      balanceAttendeeId: attendeeId,
+      date: null,
+      email: "",
+      feeSubtotal: 0,
+      items: [
+        {
+          listingId,
+          name: "Remaining balance",
+          quantity: 1,
+          slug: "balance",
+          unitPrice: 1500,
+        },
+      ],
+      name: "Balance payment",
+      phone: "",
+      special_instructions: "",
+    });
   });
 
   test("POST rejects an invalid CSRF token before checkout", async () => {
@@ -527,5 +597,13 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
       new Request("http://localhost/pay/bal1.x.y", { method: "DELETE" }),
     );
     expect(del.status).not.toBe(200);
+  });
+
+  test("routeBalance delegates (returns null) for a non-/pay path or unsupported method", async () => {
+    // The dispatcher must return exactly null (not undefined) to delegate: a
+    // path outside /pay/, and an unsupported method on a /pay/ path.
+    const request = mockRequest("/pay/bal1.x.y");
+    expect(await routeBalance(request, "/other", "GET")).toBe(null);
+    expect(await routeBalance(request, "/pay/bal1.x.y", "DELETE")).toBe(null);
   });
 });

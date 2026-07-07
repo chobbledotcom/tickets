@@ -89,7 +89,7 @@ const OrderSummaryList = ({ view }: ViewProps): JSX.Element => {
 };
 
 /** The secure customer payment link — shown only when an online payment can
- * actually be taken (outstanding balance, reservation status, provider set). */
+ * actually be taken (outstanding balance, provider set, a real line to pay). */
 const PaymentLink = ({ link }: { link: string }): JSX.Element => (
   <article>
     <div class="prose">
@@ -106,13 +106,10 @@ const PaymentLink = ({ link }: { link: string }): JSX.Element => (
 );
 
 /** Why no online payment link is offered — each blocking reason spelled out, so
- * an owner knows whether to change the status, connect a provider, or just
- * collect the balance by hand. */
+ * an owner knows whether to connect a provider or just collect the balance by
+ * hand. */
 const OfflineCollection = ({ view }: ViewProps): JSX.Element => {
   const reasonKeys: string[] = [];
-  if (!view.status?.is_reservation) {
-    reasonKeys.push("attendee_balance.offline_reason_not_reservation");
-  }
   if (!view.paymentsEnabled) {
     reasonKeys.push("attendee_balance.offline_reason_no_provider");
   }
@@ -142,16 +139,13 @@ const OfflineCollection = ({ view }: ViewProps): JSX.Element => {
 /** How to collect the outstanding balance: the online link, the offline
  * explanation, or a fully-paid note. */
 const CollectBalance = ({ view }: ViewProps): JSX.Element => {
-  const { status, summary, remainingBalance, paymentsEnabled, link } = view;
+  const { summary, remainingBalance, paymentsEnabled, link } = view;
   const outstanding = remainingBalance > 0;
-  // The online /pay link only works for a reservation status with a provider
-  // that can take the payment AND at least one real (quantity > 0) line to pay
-  // into; otherwise it dead-ends exactly as the public /pay page refuses it.
+  // The online /pay link only works with a provider that can take the payment
+  // AND at least one real (quantity > 0) line to pay into; otherwise it
+  // dead-ends exactly as the public /pay page refuses it.
   const showPayLink =
-    outstanding &&
-    !!status?.is_reservation &&
-    paymentsEnabled &&
-    summary.lines.length > 0;
+    outstanding && paymentsEnabled && summary.lines.length > 0;
   if (!outstanding) {
     return (
       <div class="prose">
