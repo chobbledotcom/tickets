@@ -14,7 +14,7 @@ import { describeWithEnv } from "#test-utils";
  * one field per case to probe a single boundary in isolation. Each line is
  * validated through BookingItemsSchema (the array wrapper production parses
  * against), so a single-element array exercises the per-line rules directly. */
-const validItem: BookingItem = { e: 1, p: 0, q: 0 };
+const validItem: BookingItem = { e: 1, p: 0, q: 1 };
 const accepts = (item: Record<string, unknown>) =>
   expect(v.is(BookingItemsSchema, [item])).toBe(true);
 const rejects = (item: Record<string, unknown>) =>
@@ -43,6 +43,12 @@ describe("booking line validation", () => {
     accepts({ ...validItem, k: "g", r: 2 });
   });
 
+  test("the edge tag is a pair: k and r are both present or both absent", () => {
+    accepts(validItem); // neither
+    rejects({ ...validItem, k: "p" }); // k without r
+    rejects({ ...validItem, r: 1 }); // r without k
+  });
+
   test("the listing id (e) must be a positive integer", () => {
     accepts({ ...validItem, e: 1 });
     rejects({ ...validItem, e: 0 });
@@ -50,29 +56,34 @@ describe("booking line validation", () => {
     rejects({ ...validItem, e: 1.5 });
   });
 
-  test("the quantity (q) must be a non-negative integer", () => {
-    accepts({ ...validItem, q: 0 });
+  test("the quantity (q) must be a positive integer", () => {
+    // A signed line always books at least one; q:0 would divide by zero when
+    // the intent recovers unitPrice as p / q.
+    accepts({ ...validItem, q: 1 });
+    rejects({ ...validItem, q: 0 });
     rejects({ ...validItem, q: -1 });
     rejects({ ...validItem, q: 1.5 });
   });
 
-  test("the unit price (p) may be signed but must be finite", () => {
+  test("the line total (p) is a signed integer of minor units", () => {
     accepts({ ...validItem, p: -250 });
-    accepts({ ...validItem, p: 12.5 });
+    accepts({ ...validItem, p: 0 });
+    // p is unitPrice * quantity, both integer minor units — a fraction is corrupt.
+    rejects({ ...validItem, p: 12.5 });
     rejects({ ...validItem, p: Number.POSITIVE_INFINITY });
     rejects({ ...validItem, p: Number.NaN });
   });
 
   test("the edge kind (k) only accepts the two literals", () => {
-    accepts({ ...validItem, k: "p" });
-    accepts({ ...validItem, k: "g" });
-    rejects({ ...validItem, k: "x" });
+    accepts({ ...validItem, k: "p", r: 1 });
+    accepts({ ...validItem, k: "g", r: 1 });
+    rejects({ ...validItem, k: "x", r: 1 });
   });
 
   test("the group id (r) must be a positive integer when present", () => {
-    accepts({ ...validItem, r: 1 });
-    rejects({ ...validItem, r: 0 });
-    rejects({ ...validItem, r: 1.5 });
+    accepts({ ...validItem, k: "p", r: 1 });
+    rejects({ ...validItem, k: "p", r: 0 });
+    rejects({ ...validItem, k: "p", r: 1.5 });
   });
 });
 
