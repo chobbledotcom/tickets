@@ -10,7 +10,6 @@ import { loadAccountLedger } from "#routes/admin/ledger.ts";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
-import { getAttendeeActivityLog } from "#shared/db/activityLog.ts";
 import { getAttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import {
   getAttendeeBalanceState,
@@ -24,15 +23,15 @@ export const loadAttendeeLedgerPanel = async (
   attendeeId: number,
   baseUrl: string,
   returnUrl: string,
+  activityHref: string,
 ): Promise<JSX.Element> => {
   const account = attendeeAccount(attendeeId);
   // The entity page already loaded this attendee, so its balance state exists.
   const state = (await getAttendeeBalanceState(attendeeId))!;
 
-  const [status, summary, history, token, ledger] = await Promise.all([
+  const [status, summary, token, ledger] = await Promise.all([
     state.statusId ? getAttendeeStatus(state.statusId) : Promise.resolve(null),
     getAttendeeOrderSummary(attendeeId),
-    getAttendeeActivityLog(attendeeId),
     signBalanceToken(attendeeId),
     loadAccountLedger(account),
   ]);
@@ -46,9 +45,9 @@ export const loadAttendeeLedgerPanel = async (
     : 0;
 
   return AttendeeLedgerPanel({
+    activityHref,
     deposit,
     fullLedgerHref: `/admin/ledger/${account.type}/${account.id}`,
-    history,
     ledger,
     link: `${baseUrl}/pay/${token}`,
     // The customer pay link only works when a provider can take the payment;

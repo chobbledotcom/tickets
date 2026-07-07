@@ -1288,11 +1288,11 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
     );
     expect(refundCash.length).toBe(1);
 
-    // Transparency: the money event shows on the attendee's balance-page history.
-    const balancePage = await adminPageHtml(
-      `/admin/attendees/${attendeeId}/ledger`,
+    // Transparency: the money event shows in the attendee's activity log.
+    const activityPage = await adminPageHtml(
+      `/admin/attendees/${attendeeId}/activity`,
     );
-    expect(balancePage).toContain("Refund issued for attendee 'Logged Guest'");
+    expect(activityPage).toContain("Refund issued for attendee 'Logged Guest'");
 
     // Idempotency: a second refund is refused (already refunded) without calling
     // the provider, and no second reversal is posted.

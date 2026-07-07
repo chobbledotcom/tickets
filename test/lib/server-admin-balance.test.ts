@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { logActivity } from "#shared/db/activityLog.ts";
 import { attendeeStatusesTable } from "#shared/db/attendee-statuses.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
 import {
   adminGet,
   awaitTestRequest,
@@ -67,11 +67,10 @@ const reservedAttendee = async () => {
 describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
   testRequiresAuth("/admin/attendees/1/ledger");
 
-  test("shows the order summary, statement, payment link and history", async () => {
+  test("shows the order summary, statement, payment link and activity pointer", async () => {
     // A provider must be configured for the customer pay link to function.
     await setupStripe();
     const attendeeId = await reservedAttendee();
-    await logActivity("Deposit received", null, attendeeId);
 
     const response = await adminGet(`/admin/attendees/${attendeeId}/ledger`);
     expect(response.status).toBe(200);
@@ -84,8 +83,11 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
     expect(html).toContain("<th>Counterparty</th>");
     // The signed customer link points at the public pay page.
     expect(html).toContain("/pay/bal1.");
-    // The attendee's history is listed.
-    expect(html).toContain("Deposit received");
+    // The history section is just a pointer to the Activity tab (no log list).
+    expect(html).toContain(
+      "See the full plain-English log on the Activity tab",
+    );
+    expect(html).toContain(`/admin/attendees/${attendeeId}/activity`);
   });
 
   test("explains why the payment link is missing for a reservation with no provider", async () => {
@@ -137,6 +139,29 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
       ],
       notContains: ["Reservation deposit", "/pay/"],
       status: 200,
+    });
+  });
+
+  test("withholds the pay link (real-line reason) for a no-quantity-only reservation", async () => {
+    // A reservation with a provider and an outstanding balance, but its only
+    // line is no-quantity — the public /pay page refuses this, so the admin
+    // panel must not offer a dead-end link and must say why.
+    await setupStripe();
+    const attendeeId = await reservedAttendee();
+    await getDb().execute({
+      args: [attendeeId],
+      sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
+    });
+    await expectHtml(await adminGet(`/admin/attendees/${attendeeId}/ledger`), {
+      contains: [
+        "Collect this balance directly",
+        "the order has no payable lines",
+      ],
+      notContains: [
+        "/pay/",
+        "only reservations can take a balance payment online",
+        "no payment provider is connected",
+      ],
     });
   });
 

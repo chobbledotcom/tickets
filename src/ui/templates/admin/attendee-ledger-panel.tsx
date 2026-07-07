@@ -11,7 +11,6 @@
 
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
-import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { OrderSummary } from "#shared/db/attendees/balance.ts";
 import {
@@ -28,7 +27,6 @@ export type AttendeeLedgerView = {
   /** Whether a payment provider is configured — the customer pay link only
    * functions when one is, so the template hides it (and says why) otherwise. */
   paymentsEnabled: boolean;
-  history: ActivityLogEntry[];
   /** The attendee account's full statement + name lookup, rendered by the same
    * shared component the standalone /admin/ledger statement uses. */
   ledger: AccountLedgerData;
@@ -36,6 +34,8 @@ export type AttendeeLedgerView = {
   returnUrl: string;
   /** The standalone full-ledger statement for this account. */
   fullLedgerHref: string;
+  /** The attendee's Activity tab — where the full plain-English log lives. */
+  activityHref: string;
 };
 
 /** The shared prop shape for the sections that read the whole view model. */
@@ -113,6 +113,11 @@ const OfflineCollection = ({ view }: ViewProps): JSX.Element => {
   if (!view.paymentsEnabled) {
     reasonKeys.push("attendee_balance.offline_reason_no_provider");
   }
+  // A no-quantity-only order has nothing to pay into, so the public /pay page
+  // refuses it — don't offer a link that would dead-end.
+  if (view.summary.lines.length === 0) {
+    reasonKeys.push("attendee_balance.offline_reason_no_lines");
+  }
   return (
     <div class="prose">
       <h3>{t("attendee_balance.collect_offline_heading")}</h3>
@@ -134,12 +139,16 @@ const OfflineCollection = ({ view }: ViewProps): JSX.Element => {
 /** How to collect the outstanding balance: the online link, the offline
  * explanation, or a fully-paid note. */
 const CollectBalance = ({ view }: ViewProps): JSX.Element => {
-  const { status, remainingBalance, paymentsEnabled, link } = view;
+  const { status, summary, remainingBalance, paymentsEnabled, link } = view;
   const outstanding = remainingBalance > 0;
   // The online /pay link only works for a reservation status with a provider
-  // that can take the payment; otherwise it dead-ends.
+  // that can take the payment AND at least one real (quantity > 0) line to pay
+  // into; otherwise it dead-ends exactly as the public /pay page refuses it.
   const showPayLink =
-    outstanding && !!status?.is_reservation && paymentsEnabled;
+    outstanding &&
+    !!status?.is_reservation &&
+    paymentsEnabled &&
+    summary.lines.length > 0;
   if (!outstanding) {
     return (
       <div class="prose">
@@ -154,27 +163,19 @@ const CollectBalance = ({ view }: ViewProps): JSX.Element => {
   );
 };
 
-/** The plain-English activity log for the booking. The statement above is the
- * authoritative money record; this is a convenience copy of what's happened. */
+/** A short note that the statement above is the authoritative money record,
+ * pointing to the Activity tab for the full plain-English log. */
 const LedgerHistory = ({
-  history,
+  activityHref,
 }: {
-  history: ActivityLogEntry[];
+  activityHref: string;
 }): JSX.Element => (
   <div class="prose">
     <h3>{t("attendee_balance.history_heading")}</h3>
     <p>{t("attendee_balance.history_intro")}</p>
-    {history.length === 0 ? (
-      <p>{t("attendee_balance.no_history_message")}</p>
-    ) : (
-      <ul>
-        {history.map((entry) => (
-          <li>
-            {entry.created.slice(0, 10)} — {entry.message}
-          </li>
-        ))}
-      </ul>
-    )}
+    <p>
+      <a href={activityHref}>{t("attendee_balance.history_activity_link")}</a>
+    </p>
   </div>
 );
 
@@ -195,6 +196,6 @@ export const AttendeeLedgerPanel = (view: AttendeeLedgerView): JSX.Element => (
 
     <CollectBalance view={view} />
 
-    <LedgerHistory history={view.history} />
+    <LedgerHistory activityHref={view.activityHref} />
   </>
 );

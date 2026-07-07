@@ -234,7 +234,12 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
         {
           kind: "custom",
           load: ({ attendee }, ctx) =>
-            loadAttendeeLedgerPanel(attendee.id, ctx.baseUrl, ctx.returnUrl),
+            loadAttendeeLedgerPanel(
+              attendee.id,
+              ctx.baseUrl,
+              ctx.returnUrl,
+              ctx.tabHref("activity"),
+            ),
         },
       ],
       slug: "ledger",
