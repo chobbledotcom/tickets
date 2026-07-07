@@ -170,6 +170,39 @@ the deposit and the balance charge and reverses the whole account. This is the
 intended improvement the "full rework" option accepts. It must be called out in
 the PR description and covered by tests.
 
+## 6.1 Status transition on balance settle (new Codex finding)
+
+`settleAttendeeBalance` (`balance.ts:207-208`) always moves the attendee to
+`getPaidDefaultStatus()` on settle. For a reservation that is the intended
+"reserved → paid" lifecycle. But now that any status can pay online, a
+non-reservation attendee in an **owner-defined status** is silently moved off it
+when they pay — losing the status the admin set.
+
+Two defensible behaviours:
+
+- **(A) Always move to the paid default** (current): reflects "now fully paid"
+  regardless of prior status.
+- **(B) Only auto-transition reservations**: leave any other status untouched
+  (the cleared balance is already reflected by `remaining_balance = 0`). This is
+  the reviewer's suggestion and the more conservative "don't overwrite the
+  operator's intentional data" choice.
+
+**Recommendation: (B).** For reservations the paid-default move is the designed
+lifecycle; for an arbitrary admin-set status the operator's choice should win.
+
+**Subtlety that makes this non-trivial:** that `UPDATE … SET status_id …`
+statement is *also* the settle's **verdict** — `results[0].rowsAffected === 0`
+is how `settleAttendeeBalance` detects an amount mismatch (balance changed
+mid-checkout) and refunds. So we can't just skip it for non-reservations, or
+every non-reservation settle would report `amount_mismatch` and refund a valid
+payment. The fix must split the two concerns: a verdict statement that always
+fires when `owed === expectedAmount` (even setting status to itself), and a
+*separate* paid-default move gated on the current status being a reservation.
+Both stay in the settle batch under the owed-guard.
+
+> **Decision needed (6.1):** confirm behaviour (B), and that the verdict/status
+> split is acceptable in the settle path.
+
 ## 7. Idempotency, edge cases, safety
 
 - **Already refunded:** `refund_cash` present ⇒ ledger no-op; each provider
