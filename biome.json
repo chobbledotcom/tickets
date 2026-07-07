@@ -178,7 +178,6 @@
         "test/lib/server-payments.test.ts",
         "test/lib/square.test.ts",
         "test/lib/stripe.test.ts",
-        "test/lib/test-utils.test.ts",
         "test/lib/webhook-price-signature.test.ts",
         "test/routes/api.test.ts",
         "test/templates/admin/listings.test.ts",
