@@ -12,7 +12,11 @@ import type {
   QuestionListingMap,
   QuestionWithAnswers,
 } from "#shared/db/questions.ts";
-import type { ItemImageProjection, ListingWithCount } from "#shared/types.ts";
+import type {
+  Image,
+  ItemImageProjection,
+  ListingWithCount,
+} from "#shared/types.ts";
 import type { BookingPrefill } from "#templates/public.tsx";
 
 /** Parent listing id → its bookable-child candidates, each hydrated to a
@@ -40,6 +44,11 @@ export type TicketSharedContext = {
   groupName?: string;
   groupDescription?: string;
   groupImage?: ItemImageProjection;
+  /** Every image linked to the page's header entity (the group on a group page,
+   * or the sole listing on a single-listing page), rendered as the shared
+   * CSS gallery above the form. Empty for a multi-listing combo (no single
+   * header entity) or when the header entity has no images. */
+  galleryImages: readonly Image[];
   /** The package bundles sold on this page, in page order — each carrying its
    * own member ids, per-package quantities, price overrides, and hide flag. A
    * single-package page is an array of one; a plain listing page is empty. */

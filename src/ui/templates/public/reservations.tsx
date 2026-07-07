@@ -67,6 +67,7 @@ import { getImageProxyUrl } from "#shared/storage.ts";
 import {
   availableDayCounts,
   dayPriceFor,
+  type Image,
   type ItemImageProjection,
   isPaidListing,
   type ListingFields,
@@ -81,7 +82,7 @@ import {
 } from "#templates/components/question-text.tsx";
 import { getTicketFields, mergeListingFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
-import { renderListingImage } from "./shared.tsx";
+import { PublicImageGallery, renderListingImage } from "./shared.tsx";
 /** OpenGraph meta tags for a public listing page. */
 export const buildOgTags = (
   listing: {
@@ -1008,6 +1009,9 @@ export type TicketPageOptions = {
   groupName?: string;
   groupDescription?: string;
   groupImage?: ItemImageProjection;
+  /** The header entity's images, shown as the shared CSS gallery above the
+   * form (empty ⇒ falls back to the single header image). */
+  galleryImages?: readonly Image[];
   prefill?: BookingPrefill | undefined;
   /** Override the <form action="…"> URL. Defaults to `/ticket/<slugs>`. */
   actionUrl?: string;
@@ -1049,17 +1053,26 @@ const TicketPageHeader = ({
   headerName,
   headerDescription,
   headerImage,
+  galleryImages,
   singleListing,
   pastDays,
 }: {
   headerName: string;
   headerDescription: string | null | undefined;
   headerImage: ItemImageProjection | null;
+  galleryImages: readonly Image[];
   singleListing: ListingWithCount | null;
   pastDays: number | null;
 }): JSX.Element => (
   <>
-    {headerImage && <Raw html={renderListingImage(headerImage)} />}
+    {/* The full CSS gallery when the header entity has images; otherwise the
+        single header-image projection (a listing whose only picture is its
+        stored `image_url` with no image_uses rows). */}
+    {galleryImages.length > 0 ? (
+      <PublicImageGallery images={galleryImages} />
+    ) : (
+      headerImage && <Raw html={renderListingImage(headerImage)} />
+    )}
     <div class="prose">
       <h1>{headerName}</h1>
       {headerDescription && (
@@ -1662,6 +1675,7 @@ export const ticketPage = ({
   groupName,
   groupDescription,
   groupImage,
+  galleryImages = [],
   prefill,
   actionUrl,
   addOns,
@@ -1790,6 +1804,7 @@ export const ticketPage = ({
     >
       {headerName && !inIframe && (
         <TicketPageHeader
+          galleryImages={galleryImages}
           headerDescription={headerDescription}
           headerImage={headerImage}
           headerName={headerName}

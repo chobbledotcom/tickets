@@ -63,7 +63,10 @@ import {
   loadPackageMemberPricing,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getImageFilenamesForItem } from "#shared/db/images.ts";
+import {
+  getImageFilenamesForItem,
+  getImagesForItem,
+} from "#shared/db/images.ts";
 import {
   anyNonStandaloneChild,
   getChildListingIds,
@@ -804,6 +807,7 @@ export const getTicketContext = async (
     promoCodesEnabled,
     addOns,
     groupImage,
+    galleryImages,
   ] = await Promise.all([
     computeSharedDates(activeListings),
     Promise.resolve(settings.terms),
@@ -811,6 +815,14 @@ export const getTicketContext = async (
     hasPromoCodeModifiers(),
     getOptionalAddOns(listingIds),
     group ? getImageFilenamesForItem("group", group.id) : undefined,
+    // The header entity's full gallery: the group on a group page, or the sole
+    // listing on a single-listing page. A multi-listing combo has no single
+    // header, so it shows no gallery.
+    group
+      ? getImagesForItem("group", group.id)
+      : activeListings.length === 1
+        ? getImagesForItem("listing", activeListings[0]!.listing.id)
+        : Promise.resolve([]),
   ]);
   // A daily parent's offered dates must intersect the union of its children's
   // bookable dates; the client compatibility script also needs each
@@ -863,6 +875,7 @@ export const getTicketContext = async (
     childDatesById,
     childrenByParentId,
     dates,
+    galleryImages,
     packageGroupRemainingByGroupId: packageCapMaps.groupRemainingByGroupId,
     packageMemberGroupIds: packageCapMaps.groupIdsByListingId,
     packages,
