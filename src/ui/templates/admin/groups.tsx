@@ -63,6 +63,7 @@ import type {
   TableQuestionData,
 } from "#templates/attendee-table.tsx";
 import {
+  GuideFooter,
   SaveChangesButton,
   SubmitButton,
 } from "#templates/components/actions.tsx";
@@ -84,19 +85,25 @@ export const adminGroupsPage = (
   successMessage?: string,
 ): string =>
   successAdminPage(t("terms.groups"), "/admin/groups")(session, successMessage)(
-    groups.length === 0 ? (
-      <p>{t("groups.no_groups")}</p>
-    ) : (
-      // Staff open the detail page; editors can't (it decrypts attendee PII),
-      // so they link straight to the edit form.
-      <DataTable
-        columns={[{ header: t("common.name") }, { header: t("common.slug") }]}
-        rows={groups.map((g) => [
-          <a href={groupReturnPath(session.adminLevel, g.id)}>{g.name}</a>,
-          g.slug,
-        ])}
-      />
-    ),
+    <>
+      {groups.length === 0 ? (
+        <p>{t("groups.no_groups")}</p>
+      ) : (
+        // Staff open the detail page; editors can't (it decrypts attendee PII),
+        // so they link straight to the edit form.
+        <DataTable
+          columns={[{ header: t("common.name") }, { header: t("common.slug") }]}
+          rows={groups.map((g) => [
+            <a href={groupReturnPath(session.adminLevel, g.id)}>{g.name}</a>,
+            g.slug,
+          ])}
+        />
+      )}
+
+      <GuideFooter adminLevel={session.adminLevel} href="/admin/guide#packages">
+        {t("groups.guide_link")}
+      </GuideFooter>
+    </>,
   );
 
 /**

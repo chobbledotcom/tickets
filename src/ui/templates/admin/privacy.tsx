@@ -17,6 +17,7 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { ORPHAN_RETENTION_OPTIONS } from "#shared/orphan-retention.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { GuideFooter } from "#templates/components/actions.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 /* jscpd:ignore-end */
 
@@ -141,5 +142,9 @@ export const adminPrivacyPage = (
       />
 
       <EraseForm />
+
+      <GuideFooter href="/admin/guide#data-privacy">
+        {t("privacy.guide_link")}
+      </GuideFooter>
     </AdminPage>,
   );

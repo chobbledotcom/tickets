@@ -10,6 +10,7 @@
 import { t } from "#i18n";
 import type { Child, SafeHtml } from "#jsx/jsx-runtime.ts";
 import { ICONS_PATH } from "#shared/asset-paths.ts";
+import { type AdminLevel, isStaffRole } from "#shared/types.ts";
 
 /**
  * Icon ids available in the sprite (src/ui/static/icons.svg).
@@ -214,15 +215,25 @@ export const GuideLink = iconLink("guide-link", "book-open");
  * that maps to a guide section renders one of these as its last element, so the
  * "…guide" affordance sits consistently in the same spot instead of competing
  * with the page's primary actions at the top.
+ *
+ * `/admin/guide` is staff-only (owner/manager), so on pages an editor or agent
+ * can also reach (the listings/groups indexes, the site editors) pass
+ * `adminLevel` — the footer then renders nothing for non-staff rather than a
+ * link that would 403. Staff-only pages can omit it and always render the link.
  */
 export const GuideFooter = ({
   href,
+  adminLevel,
   children,
 }: {
   href: string;
+  adminLevel?: AdminLevel;
   children?: Child;
-}): SafeHtml => (
-  <p class="guide-footer">
-    <GuideLink href={href}>{children}</GuideLink>
-  </p>
-);
+}): SafeHtml =>
+  adminLevel !== undefined && !isStaffRole(adminLevel) ? (
+    <></>
+  ) : (
+    <p class="guide-footer">
+      <GuideLink href={href}>{children}</GuideLink>
+    </p>
+  );

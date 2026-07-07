@@ -8,6 +8,7 @@ import { formatLimitValue, type LIMIT_ENTRIES } from "#shared/limits.ts";
 import type { RuntimeInfo } from "#shared/runtime.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { themedAdminPage } from "#templates/admin/admin-page.tsx";
+import { SettingsGuideFooter } from "#templates/admin/settings/guide-footer.tsx";
 import { Badge, statusBadge } from "#templates/components/badge.tsx";
 
 export type DebugPageState = {
@@ -549,5 +550,7 @@ export const adminDebugPage = (
       <DatabaseDomainSection database={s.database} domain={s.domain} />
       <LimitsSection limits={s.limits} />
       <PruneSection prune={s.prune} />
+
+      <SettingsGuideFooter />
     </>,
   );

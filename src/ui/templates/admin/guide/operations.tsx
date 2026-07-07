@@ -54,6 +54,7 @@ export const operationsSections = (): GuideSection[] => [
       faq("how_do_i_install_an_update"),
       faq("where_can_i_read_the_release_notes"),
     ],
+    id: "software-updates",
     titleKey: "software_updates",
   },
   {

@@ -52,6 +52,7 @@ export const domainsSections = (hostConfig?: GuideHostConfig): GuideSection[] =>
         faq("what_is_debug_page"),
         faq("what_is_the_debug_footer"),
       ],
+      id: "settings",
       titleKey: "settings_overview",
     },
     hostConfig?.builderEnabled

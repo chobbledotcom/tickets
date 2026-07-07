@@ -66,6 +66,7 @@ export const listingsSections = (): GuideSection[] => [
       faq("how_do_i_resend_a_confirmation_email"),
       faq("add_terms_and_conditions"),
     ],
+    id: "listings",
     titleKey: "listings",
   },
   {

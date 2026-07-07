@@ -9,7 +9,7 @@ import { t } from "#i18n";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession } from "#shared/types.ts";
+import type { AdminLevel, AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
@@ -78,9 +78,14 @@ export const contentEditPanel = (
 
 /** The "Guide: …" help link for a Site content page, rendered as a
  * `GuideFooter` at the bottom of the body (matching every other admin page)
- * and jumping to the given guide section anchor. */
-export const contentGuideFooter = (anchor: string): JSX.Element => (
-  <GuideFooter href={`/admin/guide#${anchor}`}>
+ * and jumping to the given guide section anchor. The site editors are
+ * owner+editor but `/admin/guide` is staff-only, so it's role-gated — editors
+ * see no footer rather than a link that 403s. */
+export const contentGuideFooter = (
+  anchor: string,
+  adminLevel: AdminLevel,
+): JSX.Element => (
+  <GuideFooter adminLevel={adminLevel} href={`/admin/guide#${anchor}`}>
     <Raw html={t("common.guide_website_content")} />
   </GuideFooter>
 );

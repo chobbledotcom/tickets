@@ -9,7 +9,7 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { GITHUB_RELEASES_URL } from "#shared/update.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 /* jscpd:ignore-end */
 
@@ -116,5 +116,9 @@ export const adminUpdatePage = (
       <p>
         <a href={GITHUB_RELEASES_URL}>{t("update.release_notes_link")}</a>
       </p>
+
+      <GuideFooter href="/admin/guide#software-updates">
+        {t("update.guide_link")}
+      </GuideFooter>
     </>,
   );
