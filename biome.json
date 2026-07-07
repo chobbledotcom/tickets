@@ -170,7 +170,6 @@
         "src/shared/db/settings.ts",
         "src/ui/templates/fields.ts",
         "src/ui/templates/public/reservations.tsx",
-        "test/e2e/accounting.test.ts",
         "test/lib/server-attendees.test.ts",
         "test/lib/server-listing-parents.test.ts",
         "test/lib/server-parents-booking.test.ts",
