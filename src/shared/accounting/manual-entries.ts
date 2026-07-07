@@ -19,6 +19,7 @@ import type {
   TransferInput,
 } from "#shared/ledger/types.ts";
 import { assertValidTransfer } from "#shared/ledger/validate.ts";
+import { guardFor } from "#shared/validation/guard.ts";
 import { instantToEpochMs } from "#shared/validation/timestamp.ts";
 
 export const MANUAL_ATTENDEE_PAYMENT = "manual_attendee_payment";
@@ -52,9 +53,7 @@ export type ManualLedgerEntryType = v.InferOutput<
 
 const MANUAL_LEDGER_ENTRY_TYPES = ManualLedgerEntryTypeSchema.options;
 
-export const isManualLedgerEntryType = (
-  value: string,
-): value is ManualLedgerEntryType => v.is(ManualLedgerEntryTypeSchema, value);
+export const isManualLedgerEntryType = guardFor(ManualLedgerEntryTypeSchema);
 
 export type ManualLedgerEntryOption = {
   readonly type: ManualLedgerEntryType;

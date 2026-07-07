@@ -542,6 +542,15 @@ const applyCountryDerived = (info: CountryInfo): void => {
   data.phone_prefix = info.phonePrefix;
 };
 
+/** Applier for a boolean snapshot field: on ⇔ the raw value is exactly "true"
+ * (an absent/garbled value reads as off), mirroring how {@link boolUpdate}
+ * writes the flag. */
+const boolApply =
+  (field: BoolSettingKey) =>
+  (raw: string | undefined): void => {
+    data[field] = raw === "true";
+  };
+
 /**
  * Per-key resolvers for the non-string snapshot fields. A config key may drive
  * more than one snapshot field (COUNTRY → currency/timezone/phone_prefix;
@@ -557,31 +566,17 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
   [CONFIG_KEYS.THEME]: (raw) => {
     data.theme = raw === "dark" ? "dark" : "light";
   },
-  [CONFIG_KEYS.UNDERLINE_LINKS]: (raw) => {
-    data.underline_links = raw === "true";
-  },
-  [CONFIG_KEYS.SHOW_PUBLIC_SITE]: (raw) => {
-    data.show_public_site = raw === "true";
-  },
-  [CONFIG_KEYS.SHOW_PUBLIC_API]: (raw) => {
-    data.show_public_api = raw === "true";
-  },
-  [CONFIG_KEYS.EXTERNAL_ORDER_ENABLED]: (raw) => {
-    data.external_order_enabled = raw === "true";
-  },
-  [CONFIG_KEYS.CALENDAR_FEEDS_ENABLED]: (raw) => {
-    data.calendar_feeds_enabled = raw === "true";
-  },
+  [CONFIG_KEYS.UNDERLINE_LINKS]: boolApply("underline_links"),
+  [CONFIG_KEYS.SHOW_PUBLIC_SITE]: boolApply("show_public_site"),
+  [CONFIG_KEYS.SHOW_PUBLIC_API]: boolApply("show_public_api"),
+  [CONFIG_KEYS.EXTERNAL_ORDER_ENABLED]: boolApply("external_order_enabled"),
+  [CONFIG_KEYS.CALENDAR_FEEDS_ENABLED]: boolApply("calendar_feeds_enabled"),
   [CONFIG_KEYS.CALENDAR_FEEDS_GROUP_BY]: (raw) => {
     data.calendar_feeds_group_by =
       raw === "listings" ? "listings" : "attendees";
   },
-  [CONFIG_KEYS.CONTACT_FORM_ENABLED]: (raw) => {
-    data.contact_form_enabled = raw === "true";
-  },
-  [CONFIG_KEYS.ORDER_ENABLED]: (raw) => {
-    data.order_enabled = raw === "true";
-  },
+  [CONFIG_KEYS.CONTACT_FORM_ENABLED]: boolApply("contact_form_enabled"),
+  [CONFIG_KEYS.ORDER_ENABLED]: boolApply("order_enabled"),
   // Defaults ON: only an explicit "false" disows automatic orphan purging.
   [CONFIG_KEYS.AUTO_PURGE_ORPHANS]: (raw) => {
     data.auto_purge_orphans = raw !== "false";
@@ -592,9 +587,7 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
     data.orphan_purge_retention =
       raw && isOrphanRetentionValue(raw) ? raw : DEFAULT_ORPHAN_RETENTION;
   },
-  [CONFIG_KEYS.HAS_LOGISTICS]: (raw) => {
-    data.has_logistics = raw === "true";
-  },
+  [CONFIG_KEYS.HAS_LOGISTICS]: boolApply("has_logistics"),
   [CONFIG_KEYS.PAYMENT_PROVIDER]: (raw) => {
     data.payment_provider = raw && isPaymentProvider(raw) ? raw : null;
     data.payment_provider_setting =
@@ -603,9 +596,7 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
   [CONFIG_KEYS.BOOKING_FEE]: (raw) => {
     data.booking_fee = raw ?? "0";
   },
-  [CONFIG_KEYS.SQUARE_SANDBOX]: (raw) => {
-    data.square_sandbox = raw === "true";
-  },
+  [CONFIG_KEYS.SQUARE_SANDBOX]: boolApply("square_sandbox"),
 };
 
 const PLAINTEXT_KEY_SET = new Set<string>(PLAINTEXT_KEYS);

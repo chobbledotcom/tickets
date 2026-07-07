@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { guardFor } from "#shared/validation/guard.ts";
 
 /**
  * Shared string value types.
@@ -17,8 +18,7 @@ export const NonEmptyStringSchema = v.pipe(
 export type NonEmptyString = v.InferOutput<typeof NonEmptyStringSchema>;
 type NonEmptyLiteral<T extends string> = T extends "" ? never : T;
 
-export const isNonEmptyString = (value: string): value is NonEmptyString =>
-  v.is(NonEmptyStringSchema, value);
+export const isNonEmptyString = guardFor(NonEmptyStringSchema);
 
 export const parseNonEmptyString = (value: string): NonEmptyString | null => {
   const result = v.safeParse(NonEmptyStringSchema, value);

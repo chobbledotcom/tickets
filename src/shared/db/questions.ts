@@ -38,6 +38,7 @@ import { settings } from "#shared/db/settings.ts";
 import { col, defineTable } from "#shared/db/table.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { nowIso } from "#shared/now.ts";
+import { guardFor } from "#shared/validation/guard.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -50,9 +51,7 @@ export type QuestionDisplayType = v.InferOutput<
   typeof QuestionDisplayTypeSchema
 >;
 
-export const isQuestionDisplayType = (
-  value: string,
-): value is QuestionDisplayType => v.is(QuestionDisplayTypeSchema, value);
+export const isQuestionDisplayType = guardFor(QuestionDisplayTypeSchema);
 
 export const questionDisplayTypeError =
   "Display as must be radio buttons, a select box, or free text";
@@ -219,16 +218,8 @@ const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
 
   const entries = [...questionMap.entries()];
   return Promise.all(
-    map(
-      ([id, { assignAll, displayType, text, answers }]: [
-        number,
-        {
-          assignAll: boolean;
-          displayType: QuestionDisplayType;
-          text: string;
-          answers: Answer[];
-        },
-      ]) => decryptQuestion(id, assignAll, displayType, text, answers),
+    map(([id, { assignAll, displayType, text, answers }]: [number, Group]) =>
+      decryptQuestion(id, assignAll, displayType, text, answers),
     )(entries),
   );
 };

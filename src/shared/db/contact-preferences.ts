@@ -25,14 +25,14 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { normalizePhone } from "#shared/phone.ts";
+import { guardFor } from "#shared/validation/guard.ts";
 /* jscpd:ignore-end */
 
 export const ContactChannelSchema = v.picklist(["email", "sms"]);
 export type ContactChannel = v.InferOutput<typeof ContactChannelSchema>;
 
 /** Type guard: narrows an arbitrary string to a {@link ContactChannel}. */
-export const isContactChannel = (s: string): s is ContactChannel =>
-  v.is(ContactChannelSchema, s);
+export const isContactChannel = guardFor(ContactChannelSchema);
 
 const normalizeFor = (channel: ContactChannel, id: string): string =>
   channel === "email"

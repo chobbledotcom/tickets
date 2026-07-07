@@ -7,6 +7,7 @@
 import * as v from "valibot";
 import { account } from "#shared/ledger/account.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
+import { guardFor } from "#shared/validation/guard.ts";
 
 /** The account `type` for an attendee's receivable/clearing account. Exported so
  *  the batch booking writer can tell which side of a leg is the attendee account
@@ -34,8 +35,7 @@ export const RowAccountTypeSchema = v.picklist([
   REVENUE,
 ]);
 export type RowAccountType = v.InferOutput<typeof RowAccountTypeSchema>;
-export const isRowAccountType = (s: string): s is RowAccountType =>
-  v.is(RowAccountTypeSchema, s);
+export const isRowAccountType = guardFor(RowAccountTypeSchema);
 
 /** The singleton account types — one fixed account per type (see
  *  {@link SINGLETON_ACCOUNTS}). Same picklist pattern as the row-backed types. */
@@ -47,8 +47,7 @@ export const SingletonAccountTypeSchema = v.picklist([
 export type SingletonAccountType = v.InferOutput<
   typeof SingletonAccountTypeSchema
 >;
-export const isSingletonAccountType = (s: string): s is SingletonAccountType =>
-  v.is(SingletonAccountTypeSchema, s);
+export const isSingletonAccountType = guardFor(SingletonAccountTypeSchema);
 
 /** The outside world — cash in via cards/bank, the source of every payment. */
 export const WORLD: AccountRef = account(EXTERNAL, "world");

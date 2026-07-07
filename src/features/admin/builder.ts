@@ -178,7 +178,7 @@ const builderPost = createAuthedFormRoute({
       buildResult.defaultHostname,
       buildResult.dbUrl,
       buildResult.dbToken,
-      form.getString("assignable") === "1",
+      form.getFlag("assignable"),
       buildResult.hostingId,
       undefined,
       buildResult.hostingProvider,

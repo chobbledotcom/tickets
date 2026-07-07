@@ -15,6 +15,13 @@ export class FormParams extends URLSearchParams {
     return this.get(key)?.trim() ?? "";
   }
 
+  /** A checkbox/flag field: true only when the value is exactly "1" (how the
+   * forms submit a ticked box). One home for the "1" convention instead of
+   * `getString(key) === "1"` at every call site. */
+  getFlag(key: string): boolean {
+    return this.getString(key) === "1";
+  }
+
   /** A single field parsed as a strict non-negative integer, or null when blank/invalid. */
   getOptionalInt(key: string): number | null {
     const raw = this.getString(key);
