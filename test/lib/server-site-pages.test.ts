@@ -206,6 +206,16 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       expect(html).toContain('name="slug"');
     });
 
+    test("an image POST with storage disabled bounces to the edit tab, not the hidden images tab", async () => {
+      await create("storage-off");
+      const page = await findPage("storage-off");
+      const { response } = await adminFormPost(`${BASE}/${page.id}/images`, {
+        image_ids: "1",
+      });
+      expectRedirect(response, new RegExp(`^${BASE}/${page.id}/edit`));
+      expectFlash(response, "File storage is not configured.", false);
+    });
+
     test("updates a page's fields", async () => {
       await create("orig");
       const page = await findPage("orig");

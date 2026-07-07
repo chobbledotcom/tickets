@@ -143,6 +143,20 @@ describeWithEnv("server (admin news)", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
+    test("an image POST with storage disabled bounces to the edit tab, not the hidden images tab", async () => {
+      const post = await createTestNewsPost("Storage off post");
+      const { response } = await adminFormPost(`${BASE}/${post.id}/images`, {
+        image_ids: "1",
+      });
+      // The images tab is hidden with storage off, so the disabled-storage
+      // message must land on the (visible) edit tab.
+      expectRedirectWithFlash(
+        `${BASE}/${post.id}/edit`,
+        "File storage is not configured.",
+        false,
+      )(response);
+    });
+
     test("the actions tab links to the delete confirmation", async () => {
       const post = await createTestNewsPost("With actions");
       const html = await expectHtmlResponse(

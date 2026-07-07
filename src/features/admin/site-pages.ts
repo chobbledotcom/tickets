@@ -313,10 +313,13 @@ const moveItem = (dir: "up" | "down") =>
 // ─── Images ─────────────────────────────────────────────────────
 
 /** The shared per-entity image handlers, gated at the Site level (owner +
- * editor) to match the pages themselves. */
+ * editor) to match the pages themselves. A successful save stays on the Images
+ * tab, but a storage-disabled bounce redirects to the Edit tab: the Images tab
+ * is hidden when storage is off, so a redirect there would 404 and swallow the
+ * "storage not configured" message. */
 const pageImageHandlers = createItemImageHandlers({
   auth: { form: SITE_FORM, multipart: SITE_MULTIPART },
-  disabledPath: imagesPath,
+  disabledPath: editPath,
   itemType: "page",
   load: getSitePageById,
   nameOf: (page) => page.name,

@@ -142,10 +142,13 @@ const postDelete: ConfirmedHandlers = createConfirmedHandlers<
 const imagesPath = (id: number): string => `${paths.list}/${id}/images`;
 
 /** The shared per-entity image handlers, gated at the Site level (owner +
- * editor) to match the pages that link to them. */
+ * editor) to match the pages that link to them. A successful save stays on the
+ * Images tab, but a storage-disabled bounce redirects to the Edit tab: the
+ * Images tab is hidden when storage is off, so a redirect there would 404 and
+ * swallow the "storage not configured" message. */
 const newsImageHandlers = createItemImageHandlers({
   auth: { form: SITE_FORM, multipart: SITE_MULTIPART },
-  disabledPath: imagesPath,
+  disabledPath: paths.edit,
   itemType: "news",
   load: getNewsPostById,
   nameOf: (post) => post.name,
