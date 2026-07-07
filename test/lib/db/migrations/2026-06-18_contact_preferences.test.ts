@@ -160,6 +160,7 @@ describeWithEnv(
           "public_booking_count",
           "admin_booking_count",
           "stats_blob",
+          "attendee_tokens_blob",
           "last_activity",
         ]);
       });
