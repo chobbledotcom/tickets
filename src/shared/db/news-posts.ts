@@ -37,7 +37,12 @@ import { col } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import { slugify, uniqueSlugFromBase } from "#shared/slug.ts";
-import type { NewsPost, NewsPostCard, NewsPostSummary } from "#shared/types.ts";
+import type {
+  ItemImageProjection,
+  NewsPost,
+  NewsPostCard,
+  NewsPostSummary,
+} from "#shared/types.ts";
 
 /** Create/update input (camelCase keys → snake_case columns). `created`, `slug`,
  * and `slugIndex` are computed in {@link createNewsPost}, never posted by the
@@ -120,9 +125,7 @@ type SealedSummaryRow = Omit<NewsPostSummary, "slug" | "name" | "snippet"> & {
 
 /** A card row as stored: the sealed summary plus sealed image projections. */
 type SealedCardRow = SealedSummaryRow & {
-  image_alt_text: EnvKeyEncrypted | "";
-  image_thumb_url: EnvKeyEncrypted | "";
-  image_url: EnvKeyEncrypted | "";
+  [K in keyof ItemImageProjection]: EnvKeyEncrypted | "";
 };
 
 /** Decrypt one summary row (slug, name, and snippet). */

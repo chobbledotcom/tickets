@@ -228,7 +228,7 @@ const handleDeliveriesMark = (request: Request): Promise<Response> =>
     const attendeeId = form.getOptionalInt("attendee_id");
     const listingId = form.getOptionalInt("listing_id");
     const kind = form.getString("kind");
-    const done = form.getString("done") === "1";
+    const done = form.getFlag("done");
     if (attendeeId === null || listingId === null) {
       return errorRedirect(
         "/admin/deliveries",

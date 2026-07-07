@@ -7,7 +7,7 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { NavModel } from "#shared/site-pages/types.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
-import type { Group } from "#shared/types.ts";
+import type { Group, ItemImageProjection } from "#shared/types.ts";
 import {
   type LeveledNavNode,
   leveledNav,
@@ -290,10 +290,8 @@ export const simplePublicPage =
  * when one is stored, falling back to the full image for records without a
  * thumbnail filename. */
 export const renderListingImage = (
-  listing: {
+  listing: Pick<ItemImageProjection, "image_url" | "image_thumb_url"> & {
     image_alt_text?: string | undefined;
-    image_url: string;
-    image_thumb_url: string;
   },
   className = "listing-image",
   options: { thumb?: boolean } = {},

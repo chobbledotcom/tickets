@@ -170,7 +170,7 @@ const extractCommonFields = (
   const closesAt = normalizeOptionalDatetime(values.closes_at, "closes_at");
   return {
     assignBuiltSite: isBuilderEnabled() && values.assign_built_site === "1",
-    bookableAlone: form.getString("bookable_alone") === "1",
+    bookableAlone: form.getFlag("bookable_alone"),
     bookableDays,
     canPayMore: values.can_pay_more === "1",
     closesAt,
@@ -196,9 +196,8 @@ const extractCommonFields = (
     purchaseOnly: values.purchase_only === "1",
     thankYouUrl: values.thank_you_url || "",
     unitPrice,
-    useDefaults: form.getString("use_defaults") === "1",
-    usesLogistics:
-      settings.hasLogistics && form.getString("uses_logistics") === "1",
+    useDefaults: form.getFlag("use_defaults"),
+    usesLogistics: settings.hasLogistics && form.getFlag("uses_logistics"),
     webhookUrl,
   };
 };

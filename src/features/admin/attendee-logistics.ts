@@ -133,7 +133,7 @@ export const parseLogisticsPlan = (
   lines: AttendeeFormLine[],
   agentIds: Set<number>,
 ): { split: boolean; perListing: Map<number, LogisticsAssignment> } => {
-  const split = form.get(SPLIT_AGENTS_FIELD) === "1";
+  const split = form.getFlag(SPLIT_AGENTS_FIELD);
   const valid = (raw: string): number | null => {
     const n = parsePositiveIntId(raw);
     return n !== null && agentIds.has(n) ? n : null;
