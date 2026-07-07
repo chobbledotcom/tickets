@@ -273,7 +273,7 @@ export const adminGroupDeletePage = (
 ): string =>
   ConfirmPage({
     action: `/admin/groups/${group.id}/delete`,
-    active: "/admin/groups",
+    active: { section: "/admin/groups" },
     buttonText: t("groups.delete.submit"),
     children: (
       <>

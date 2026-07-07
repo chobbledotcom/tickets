@@ -14,6 +14,7 @@ import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
+import type { NavActive } from "#templates/admin/nav.tsx";
 
 /* jscpd:ignore-end */
 
@@ -22,7 +23,7 @@ export type TCall = { key: string; args?: Record<string, unknown> };
 
 export type ConfirmPageProps = {
   title: string;
-  active: string;
+  active: NavActive;
   session: AdminSession;
   error?: string | undefined;
   /** Optional content rendered between AdminPage's header and the Flash/error

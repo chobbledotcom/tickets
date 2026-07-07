@@ -31,6 +31,40 @@ import {
   nodeLis,
 } from "#templates/components/nav.tsx";
 
+/**
+ * What the admin nav should mark active for the current page.
+ *
+ * - A plain route string — the page *is* this route: a section's landing page
+ *   (`/admin/attendees`), an "Add X" create page (`/admin/attendees/new`), or a
+ *   settings/site sub-page (`/admin/privacy`). The nav highlights the matching
+ *   link and, when the route is a section's landing route or one of its sub-nav
+ *   items, opens that section's sub-nav (current sub-page highlighted).
+ * - `{ section }` — the page merely lives *within* a section: a detail or child
+ *   view of one item (one attendee, one listing, the add-note form). The nav
+ *   highlights the section's top-level link but never opens its sub-nav.
+ *
+ * The `{ section }` form is the *only* way to highlight a section without also
+ * surfacing its sub-nav. It exists because a single-item page is not the
+ * section's landing page, so the section's "Add" create link has no business
+ * appearing beside it — and the sub-nav resolves purely from the active route,
+ * so a detail page that reuses the section's landing route as a bare `active`
+ * string (to get the top link highlighted) would silently re-trigger that "Add"
+ * affordance. Naming the section explicitly makes that impossible to do by
+ * accident: a section a page is *in* can never be mistaken for the section's
+ * landing route the page is *on*.
+ */
+export type NavActive = string | { readonly section: string };
+
+/** The route to resolve highlighting from, for either `NavActive` shape. */
+const activeRoute = (active: NavActive): string =>
+  typeof active === "string" ? active : active.section;
+
+/** True when a page is merely *within* a section (a single-item detail/child
+ * page) rather than on a real section route — so it highlights the section's
+ * top link but shows no sub-nav. */
+const isWithinSection = (active: NavActive): boolean =>
+  typeof active !== "string";
+
 /** One navigation link. */
 interface NavItem {
   href: string;
@@ -374,7 +408,7 @@ const sectionLevels = (
 };
 
 interface AdminNavProps {
-  active: string;
+  active: NavActive;
   session: AdminSession;
 }
 
@@ -387,9 +421,16 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => {
   // Flag this render as an admin page so the Layout emits the admin footer
   // (Chobble link, optional debug menu, and the logout button).
   markAdminFooter(session.adminLevel);
-  const activeSection = resolveSection(active, session.adminLevel);
-  const highlight = activeSection?.topHref ?? active;
-  const rootNodes = toNodes(topLevelItems(session, active), highlight);
+  const route = activeRoute(active);
+  const activeSection = resolveSection(route, session.adminLevel);
+  const highlight = activeSection?.topHref ?? route;
+  const rootNodes = toNodes(topLevelItems(session, route), highlight);
+  // A page merely *within* a section highlights its top link but shows no
+  // sub-nav — the section's "Add" create link is not an affordance for a
+  // single-item detail page.
+  const levels = isWithinSection(active)
+    ? []
+    : sectionLevels(activeSection, route);
   return (
     <>
       {renderReadOnlyBanner(
@@ -408,7 +449,7 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => {
       {leveledNav({
         id: "main-nav",
         label: t("nav.admin"),
-        levels: sectionLevels(activeSection, active),
+        levels,
         rootLis: (nested) => nodeLis(rootNodes, nested),
       })}
     </>

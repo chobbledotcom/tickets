@@ -1153,6 +1153,27 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
+    // Regression: looking at one attendee wrongly rendered the Attendees
+    // section's "Add" sub-nav (the page passed the section landing route as its
+    // nav-active value, which re-opened the create sub-nav). A single-attendee
+    // page must highlight the Attendees top-level link but show no "Add"
+    // sub-nav beside it.
+    test("the attendee page highlights Attendees but shows no Add sub-nav", async () => {
+      const listing = await createTestListing({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "John Doe",
+        "john@example.com",
+      );
+      const response = await adminGet(`/admin/attendees/${attendee.id}`);
+      const html = await response.text();
+      expect(response.status).toBe(200);
+      expect(html).toContain('class="active" href="/admin/attendees"');
+      expect(html).not.toContain('href="/admin/attendees/new"');
+      expect(html).not.toContain("admin-subnav");
+    });
+
     test("shows edit form with prefilled attendee data", async () => {
       const listing = await createTestListing({ maxAttendees: 100 });
       const result = await bookAttendee(listing, {

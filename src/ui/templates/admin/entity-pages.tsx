@@ -17,7 +17,7 @@ import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { TabLink } from "#shared/entity-pages/core.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { ActivityLogTable } from "#templates/admin/activityLog.tsx";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminNav, type NavActive } from "#templates/admin/nav.tsx";
 import { ActionButton, type IconName } from "#templates/components/actions.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -187,7 +187,7 @@ const TabStrip = ({ tabs }: { tabs: TabLink[] }): JSX.Element => (
 /** Everything the page shell needs, all IO already done. */
 export interface EntityPageView {
   title: string;
-  navActive: string;
+  navActive: NavActive;
   session: AdminSession;
   /** Optional extra content rendered inside the prose block, right after the
    *  `<h1>` (e.g. the attendee page's "Add a note" link). */

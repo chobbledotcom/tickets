@@ -144,7 +144,11 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
   // an editor's page resolves to just the Edit tab.
   guard: requireContentOr,
   load: (id) => loadListingForPage(id),
-  navActive: "/admin/",
+  // A single listing is a page *within* the Listings section — highlight the
+  // top link, no "Add"/"Import" sub-nav. (This previously pointed at the Home
+  // route purely to dodge the sub-nav; `{ section }` now expresses the intent
+  // directly and highlights the correct section.)
+  navActive: { section: "/admin/listings" },
   tabs: [
     overviewTab,
     {

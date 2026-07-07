@@ -83,7 +83,7 @@ export const adminBulkActionsPage = (
   const allDeactivated = listings.length > 0 && !hasActive;
   return String(
     <AdminPage
-      active="/admin/groups"
+      active={{ section: "/admin/groups" }}
       session={session}
       title={t("bulk_actions.title_bulk", { name: group.name })}
     >
@@ -306,7 +306,7 @@ const bulkConfirmPage = (
   const count = listings.filter(config.countPredicate).length;
   return ConfirmPage({
     action: config.action,
-    active: "/admin/groups",
+    active: { section: "/admin/groups" },
     buttonText: config.buttonText,
     children: config.children(count, group),
     danger: config.danger,

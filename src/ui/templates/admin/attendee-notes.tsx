@@ -183,7 +183,7 @@ export const adminAddNotePage = ({
 }): string =>
   String(
     <AdminPage
-      active="/admin/attendees"
+      active={{ section: "/admin/attendees" }}
       flash={<Flash error={error} />}
       session={session}
       title={t("notes.add_title")}
@@ -231,7 +231,7 @@ export const adminDeleteNotePage = ({
 }): string =>
   ConfirmPage({
     action: `/admin/attendee/${note.attendee_id}/note/${note.id}/delete`,
-    active: "/admin/attendees",
+    active: { section: "/admin/attendees" },
     buttonText: t("notes.delete_submit"),
     children: (
       <>

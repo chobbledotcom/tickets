@@ -182,7 +182,7 @@ const renderServicingPage = ({
     : "/admin/servicing/new";
   return String(
     <AdminPage
-      active={event ? "/admin/servicing" : "/admin/servicing/new"}
+      active={event ? { section: "/admin/servicing" } : "/admin/servicing/new"}
       session={session}
       title={title}
     >

@@ -41,6 +41,7 @@ import {
   type ResolvedAction,
   type SummaryRow,
 } from "#templates/admin/entity-pages.tsx";
+import type { NavActive } from "#templates/admin/nav.tsx";
 import type { IconName } from "#templates/components/actions.tsx";
 
 /** Entity row key: numeric ids for ordinary tables, strings for blind-index
@@ -120,8 +121,11 @@ export interface EntityPageDef<E, Id extends EntityId = number> {
   /** Concrete base URL for an id — URL minting only, never a route pattern. */
   basePath: (id: Id) => string;
   titleOf: (entity: E) => string;
-  /** Section highlighted in the admin nav. */
-  navActive: string;
+  /** What the admin nav marks active. A single-item entity page passes
+   * `{ section }` so the section's top link highlights without re-opening its
+   * "Add" sub-nav; a page that IS a real section route (e.g. the Site content
+   * editors, whose route is itself a sub-nav item) passes a plain route string. */
+  navActive: NavActive;
   /** The GET auth floor — the weakest role that may see any tab. */
   guard: SessionGuard<AuthSession>;
   load: (id: Id, session: AuthSession) => Promise<E | null>;
