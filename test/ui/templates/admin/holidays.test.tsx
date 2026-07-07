@@ -2,12 +2,7 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { AdminSession, Holiday } from "#shared/types.ts";
-import {
-  adminHolidayDeletePage,
-  adminHolidayEditPage,
-  adminHolidayNewPage,
-  adminHolidaysPage,
-} from "#templates/admin/holidays.tsx";
+import { adminHolidaysPage, holidayPages } from "#templates/admin/holidays.tsx";
 import { setupTestEncryptionKey } from "#test-utils";
 
 const session: AdminSession = { adminLevel: "owner" };
@@ -54,9 +49,9 @@ describe("adminHolidaysPage (resource factory list page)", () => {
   });
 });
 
-describe("adminHolidayNewPage (resource factory new page)", () => {
+describe("holidayPages.newPage (resource factory new page)", () => {
   test("renders the create form posting to the base path with the add fields", () => {
-    const html = adminHolidayNewPage(session);
+    const html = holidayPages.newPage(session);
     expect(html).toContain('action="/admin/holidays"');
     expect(html).toContain('name="name"');
     expect(html).toContain('name="start_date"');
@@ -66,14 +61,14 @@ describe("adminHolidayNewPage (resource factory new page)", () => {
   });
 
   test("renders the error flash when an error is passed", () => {
-    const html = adminHolidayNewPage(session, "Start Date is required");
+    const html = holidayPages.newPage(session, "Start Date is required");
     expect(html).toContain("Start Date is required");
   });
 });
 
-describe("adminHolidayEditPage (resource factory edit page)", () => {
+describe("holidayPages.editPage (resource factory edit page)", () => {
   test("renders the edit form posting to the edit path with prefilled values", () => {
-    const html = adminHolidayEditPage(holiday, session);
+    const html = holidayPages.editPage(holiday, session);
     expect(html).toContain('action="/admin/holidays/42/edit"');
     expect(html).toContain("Christmas");
     expect(html).toContain("2026-12-25");
@@ -81,15 +76,15 @@ describe("adminHolidayEditPage (resource factory edit page)", () => {
   });
 
   test("renders the delete section linking to the delete confirmation page", () => {
-    const html = adminHolidayEditPage(holiday, session);
+    const html = holidayPages.editPage(holiday, session);
     expect(html).toContain('href="/admin/holidays/42/delete"');
     expect(html).toContain("Delete");
   });
 });
 
-describe("adminHolidayDeletePage (resource factory delete confirmation)", () => {
+describe("holidayPages.deletePage (resource factory delete confirmation)", () => {
   test("renders the type-the-name confirmation form posting to the delete path", () => {
-    const html = adminHolidayDeletePage(holiday, session);
+    const html = holidayPages.deletePage(holiday, session);
     expect(html).toContain('action="/admin/holidays/42/delete"');
     expect(html).toContain('name="confirm_identifier"');
     // The name to type is shown as the confirm target.
@@ -98,7 +93,7 @@ describe("adminHolidayDeletePage (resource factory delete confirmation)", () => 
   });
 
   test("renders the error flash when an error is passed", () => {
-    const html = adminHolidayDeletePage(
+    const html = holidayPages.deletePage(
       holiday,
       session,
       "Holiday name does not match",

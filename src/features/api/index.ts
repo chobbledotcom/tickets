@@ -69,10 +69,7 @@ import {
   getGroupRemainingForListing,
 } from "#shared/db/attendees/capacity.ts";
 import { hasAvailableSpots } from "#shared/db/attendees.ts";
-import {
-  isBookingRateLimited,
-  recordBookingAttempt,
-} from "#shared/db/booking-attempts.ts";
+import { bookingLimiter } from "#shared/db/booking-attempts.ts";
 import { isHiddenPackageMember } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
@@ -606,13 +603,13 @@ const checkBookingRateLimit = async (
   server?: ServerContext,
 ): Promise<Response | null> => {
   const ip = getClientIp(request, server);
-  if (await isBookingRateLimited(ip)) {
+  if (await bookingLimiter.isLimited(ip)) {
     return apiResponse(
       { error: "Too many booking attempts. Please try again later." },
       429,
     );
   }
-  await recordBookingAttempt(ip);
+  await bookingLimiter.record(ip);
   return null;
 };
 

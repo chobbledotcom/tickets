@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import en from "#locales/en/index.ts";
+import { walkSourceFiles as walk } from "#test-utils/walk-src.ts";
 
 /**
  * Codebase-level i18n coverage, verified in both directions:
@@ -90,19 +91,6 @@ const isCommentLine = (line: string): boolean => {
 /** Prose needing translation has a lowercase letter; bare numbers/symbols
  * (placeholder="0", "ID", "£") are locale-independent and don't count. */
 const wordy = (s: string): boolean => /[a-z]/.test(s);
-
-const walk = (dir: string, exts: string[]): string[] => {
-  const out: string[] = [];
-  const recurse = (d: string) => {
-    for (const e of Deno.readDirSync(d)) {
-      const p = `${d}/${e.name}`;
-      if (e.isDirectory) recurse(p);
-      else if (exts.some((x) => p.endsWith(x))) out.push(p);
-    }
-  };
-  recurse(dir);
-  return out;
-};
 
 /** The files the backward scan covers: every .ts/.tsx under templates plus the
  * explicit extra copy-bearing modules. */

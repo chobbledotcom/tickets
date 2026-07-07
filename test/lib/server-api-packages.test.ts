@@ -182,8 +182,8 @@ describeWithEnv("public API packages", { db: true }, () => {
     expect(parentMember.children).toHaveLength(1);
     expect(parentMember.children[0].name).toBe("Kit Addon");
 
-    const { groupsTable } = await import("#shared/db/groups.ts");
-    await groupsTable.update(group.id, { hidePackageListings: true });
+    const { groups } = await import("#shared/db/groups.ts");
+    await groups.table.update(group.id, { hidePackageListings: true });
     const { package: hidden } = await (
       await apiGet(`/api/packages/${group.slug}`)
     ).json();
@@ -238,8 +238,8 @@ describeWithEnv("public API packages", { db: true }, () => {
       unitPrice: 0,
     });
     await listingChildren.setIds(a.id, [child.id]);
-    const { groupsTable } = await import("#shared/db/groups.ts");
-    await groupsTable.update(group.id, { hidePackageListings: true });
+    const { groups } = await import("#shared/db/groups.ts");
+    await groups.table.update(group.id, { hidePackageListings: true });
 
     const { package: pkg } = await (
       await apiGet(`/api/packages/${group.slug}`)
@@ -601,8 +601,8 @@ describeWithEnv("public API packages", { db: true }, () => {
 
     const { group } = await fixedPackage("Paid Kit", "paid-kit");
     const hidden = await fixedPackage("Secret Kit", "secret-kit");
-    const { groupsTable } = await import("#shared/db/groups.ts");
-    await groupsTable.update(hidden.group.id, { hidePackageListings: true });
+    const { groups } = await import("#shared/db/groups.ts");
+    await groups.table.update(hidden.group.id, { hidePackageListings: true });
 
     const intents: import("#shared/payments.ts").CheckoutIntent[] = [];
     const mockCreate = stub(

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { groupsTable } from "#shared/db/groups.ts";
+import { groups } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import { createTestGroup, createTestListing, jsonRequest } from "#test-utils";
 
@@ -127,7 +127,7 @@ describePublicApi(() => {
         isPackage: true,
         name: "Hidden Bundle",
       });
-      await groupsTable.update(group.id, { hidePackageListings: true });
+      await groups.table.update(group.id, { hidePackageListings: true });
       return createTestListing({ groupId: group.id, name: "Secret Member" });
     };
 

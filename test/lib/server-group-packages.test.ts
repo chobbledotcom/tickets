@@ -8,9 +8,8 @@ import { it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import {
   assignListingsToGroup,
-  getAllGroups,
   getGroupPackagePrices,
-  groupsTable,
+  groups,
 } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
@@ -61,7 +60,7 @@ const sellPackageTicket = async (
  * group id — the state whose deletion must un-group rather than destroy. */
 const hiddenPackageWithBooking = async (name: string, slug: string) => {
   const group = await createTestGroup({ isPackage: true, name, slug });
-  await groupsTable.update(group.id, { hidePackageListings: true });
+  await groups.table.update(group.id, { hidePackageListings: true });
   const memberListing = await member(group, `${name} Member`);
   const token = await sellPackageTicket(memberListing.id, group.id);
   return { group, memberListing, token };
@@ -91,7 +90,7 @@ const expectPackageRejected = async (group: {
     expect.stringContaining("Packages cannot contain"),
     false,
   )(response);
-  expect((await groupsTable.findById(group.id))!.is_package).toBe(false);
+  expect((await groups.table.findById(group.id))!.is_package).toBe(false);
 };
 
 /** POST the edit form with is_package ticked and assert it saved. */
@@ -102,7 +101,7 @@ const expectPackageAccepted = async (group: {
 }): Promise<void> => {
   const { response } = await postIsPackage(group);
   expect(response.status).toBe(302);
-  expect((await groupsTable.findById(group.id))!.is_package).toBe(true);
+  expect((await groups.table.findById(group.id))!.is_package).toBe(true);
 };
 
 /** POST add-listings with `listingId` to a package group and assert the package
@@ -132,8 +131,8 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       terms_and_conditions: "",
     });
     expect(response.status).toBe(302);
-    const groups = await getAllGroups();
-    expect(groups[groups.length - 1]!.is_package).toBe(true);
+    const allGroups = await groups.cache.getAll();
+    expect(allGroups[allGroups.length - 1]!.is_package).toBe(true);
   });
 
   test("edit POST saves is_package, per-listing prices and quantities", async () => {
@@ -155,7 +154,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       true,
     )(response);
 
-    const saved = (await groupsTable.findById(group.id))!;
+    const saved = (await groups.table.findById(group.id))!;
     expect(saved.is_package).toBe(true);
     const prices = await getTestPackagePrices(group.id);
     expect(prices.get(a.id)).toBe(1250);
@@ -250,7 +249,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       hide_package_listings: "1",
       is_package: "1",
     });
-    expect((await groupsTable.findById(group.id))!.hide_package_listings).toBe(
+    expect((await groups.table.findById(group.id))!.hide_package_listings).toBe(
       true,
     );
   });
@@ -263,7 +262,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       name: "HiddenPage",
       slug: "hidden-page",
     });
-    await groupsTable.update(group.id, { hidePackageListings: true });
+    await groups.table.update(group.id, { hidePackageListings: true });
     await member(group, "SecretMember", { location: "SecretVenue" });
 
     const body = await (
@@ -284,7 +283,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       name: "DirectHide",
       slug: "direct-hide",
     });
-    await groupsTable.update(group.id, { hidePackageListings: true });
+    await groups.table.update(group.id, { hidePackageListings: true });
     const listing = await member(group, "DirectMember");
 
     // Only the package (group slug) is public; the member's own slug must not
@@ -301,7 +300,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       name: "QrHide",
       slug: "qr-hide",
     });
-    await groupsTable.update(group.id, { hidePackageListings: true });
+    await groups.table.update(group.id, { hidePackageListings: true });
     const listing = await member(group, "QrMember");
 
     const qr = await handleRequest(mockRequest(`/ticket/${listing.slug}/qr`));
@@ -331,7 +330,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       name: "HidePkg",
       slug: "hide-pkg",
     });
-    await groupsTable.update(pkg.id, { hidePackageListings: true });
+    await groups.table.update(pkg.id, { hidePackageListings: true });
     const regular = await createTestGroup({ name: "Regular", slug: "regular" });
     // A listing shared between the hidden package and a regular public group.
     await createTestListing({
@@ -399,7 +398,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       expect.stringContaining("Packages cannot contain"),
       false,
     )(response);
-    expect((await groupsTable.findById(group.id))!.hide_package_listings).toBe(
+    expect((await groups.table.findById(group.id))!.hide_package_listings).toBe(
       false,
     );
   });
@@ -527,7 +526,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       name: "HiddenApiPkg",
       slug: "hidden-api-pkg",
     });
-    await groupsTable.update(hidden.id, { hidePackageListings: true });
+    await groups.table.update(hidden.id, { hidePackageListings: true });
     await assertJson(
       apiRequest(`/api/admin/listings/${parent.id}`, {
         body: { group_ids: [hidden.id] },
@@ -583,7 +582,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       name: "HiddenEdgePkg",
       slug: "hidden-edge-pkg",
     });
-    await groupsTable.update(hidden.id, { hidePackageListings: true });
+    await groups.table.update(hidden.id, { hidePackageListings: true });
     await assertJson(
       apiRequest("/api/admin/listings", {
         body: {
@@ -666,7 +665,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     await listingChildren.setIds(memberListing.id, []);
 
     // Hidden package: the same edge would leak the collapsed member.
-    await groupsTable.update(group.id, { hidePackageListings: true });
+    await groups.table.update(group.id, { hidePackageListings: true });
     const { response } = await adminFormPost(
       `/admin/listing/${memberListing.id}/children`,
       { child_listing_ids: String(child.id) },
@@ -688,14 +687,14 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       is_package: "1",
       [`package_price_${a.id}`]: "9.00",
     });
-    expect((await groupsTable.findById(group.id))!.is_package).toBe(true);
+    expect((await groups.table.findById(group.id))!.is_package).toBe(true);
 
     // Re-submit without the checkbox: flag clears and overrides reset to 0.
     await adminFormPost(`/admin/groups/${group.id}/edit`, {
       ...editFields("Clr", "clr"),
       [`package_price_${a.id}`]: "9.00",
     });
-    const saved = (await groupsTable.findById(group.id))!;
+    const saved = (await groups.table.findById(group.id))!;
     expect(saved.is_package).toBe(false);
     expect((await getTestPackagePrices(group.id)).size).toBe(0);
   });
@@ -810,7 +809,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
   /** A hidden package with one member listing, returning the member. */
   const hiddenPackageMember = async (name: string) => {
     const group = await createTestGroup({ isPackage: true, name });
-    await groupsTable.update(group.id, { hidePackageListings: true });
+    await groups.table.update(group.id, { hidePackageListings: true });
     return member(group, `${name} member`);
   };
 
@@ -855,7 +854,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     // /ticket/<regular> drops the hidden member, leaving an empty visible set, so
     // it 404s — the admin detail must not advertise that dead link.
     const pkg = await createTestGroup({ isPackage: true, name: "HideOnly" });
-    await groupsTable.update(pkg.id, { hidePackageListings: true });
+    await groups.table.update(pkg.id, { hidePackageListings: true });
     const shared = await member(pkg, "Hidden Shared Member");
     const regular = await createTestGroup({
       name: "RegularEmpty",
@@ -880,7 +879,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       confirm_identifier: "Sold Kit",
     });
     expect(blocked.response.status).toBe(302);
-    expect(await groupsTable.findById(group.id)).not.toBeNull();
+    expect(await groups.table.findById(group.id)).not.toBeNull();
     // The block surfaces the un-hide-first guidance rather than deleting.
     expect(blocked.response.headers.get("location")).toContain("flash=");
 
@@ -891,13 +890,13 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     expect(kept).not.toContain("Sold Kit Member");
 
     // Clearing the hide flag is the explicit reveal; deletion then un-groups.
-    await groupsTable.update(group.id, { hidePackageListings: false });
+    await groups.table.update(group.id, { hidePackageListings: false });
     const { response } = await adminFormPost(
       `/admin/groups/${group.id}/delete`,
       { confirm_identifier: "Sold Kit" },
     );
     expect(response.status).toBe(302);
-    expect(await groupsTable.findById(group.id)).toBeNull();
+    expect(await groups.table.findById(group.id)).toBeNull();
 
     // The member listing survives, un-grouped, and the sold ticket renders as
     // the member's own card now that the package no longer resolves.
@@ -915,7 +914,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       ...editFields("Lock Kit", "lock-kit"),
     });
     expect(response.status).toBe(302);
-    const kept = (await groupsTable.findById(group.id))!;
+    const kept = (await groups.table.findById(group.id))!;
     expect(kept.is_package).toBe(true);
     expect(kept.hide_package_listings).toBe(true);
   });
@@ -926,14 +925,14 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       name: "Empty Kit",
       slug: "empty-kit",
     });
-    await groupsTable.update(group.id, { hidePackageListings: true });
+    await groups.table.update(group.id, { hidePackageListings: true });
     await member(group, "Empty Member");
     const { response } = await adminFormPost(
       `/admin/groups/${group.id}/delete`,
       { confirm_identifier: "Empty Kit" },
     );
     expect(response.status).toBe(302);
-    expect(await groupsTable.findById(group.id)).toBeNull();
+    expect(await groups.table.findById(group.id)).toBeNull();
   });
 
   test("allows un-packaging a NON-hidden package even with sold tickets", async () => {
@@ -950,7 +949,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       ...editFields("Open Kit", "open-kit"),
     });
     expect(response.status).toBe(302);
-    expect((await groupsTable.findById(group.id))!.is_package).toBe(false);
+    expect((await groups.table.findById(group.id))!.is_package).toBe(false);
   });
 
   test("the groups API blocks deleting a sold hidden package until un-hidden", async () => {
@@ -968,10 +967,10 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
         expect(String(body.error)).toContain("hidden package has sold tickets");
       },
     );
-    expect(await groupsTable.findById(group.id)).not.toBeNull();
+    expect(await groups.table.findById(group.id)).not.toBeNull();
 
     // After the explicit reveal, the API delete un-groups as before.
-    await groupsTable.update(group.id, { hidePackageListings: false });
+    await groups.table.update(group.id, { hidePackageListings: false });
     await assertJson(
       apiRequest(`/api/admin/groups/${group.id}`, {
         body: { confirm_identifier: "Api Kit" },
@@ -982,7 +981,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
         expect(body.status).toBe("ok");
       },
     );
-    expect(await groupsTable.findById(group.id)).toBeNull();
+    expect(await groups.table.findById(group.id)).toBeNull();
     const { getListing } = await import("#shared/db/listings.ts");
     expect(await getListing(memberListing.id)).not.toBeNull();
   });

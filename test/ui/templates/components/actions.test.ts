@@ -4,6 +4,7 @@ import { ICONS_PATH } from "#shared/asset-paths.ts";
 import {
   ActionButton,
   BackButton,
+  GuideFooter,
   GuideLink,
   Icon,
   SubmitButton,
@@ -112,5 +113,46 @@ describe("GuideLink", () => {
     expect(html).toContain('href="/admin/guide#holidays"');
     expect(html).toContain(`href="${ICONS_PATH}#book-open"`);
     expect(html).toContain("<span>Holidays guide</span>");
+  });
+});
+
+describe("GuideFooter", () => {
+  test("renders the bottom-of-page guide link when no role is given", () => {
+    const html = String(
+      GuideFooter({
+        children: "Listings guide",
+        href: "/admin/guide#listings",
+      }),
+    );
+    expect(html).toContain('class="guide-footer"');
+    expect(html).toContain('href="/admin/guide#listings"');
+    expect(html).toContain("<span>Listings guide</span>");
+  });
+
+  test("renders for staff roles (owner/manager) when a role is given", () => {
+    for (const adminLevel of ["owner", "manager"] as const) {
+      const html = String(
+        GuideFooter({
+          adminLevel,
+          children: "Listings guide",
+          href: "/admin/guide#listings",
+        }),
+      );
+      expect(html).toContain('class="guide-footer"');
+    }
+  });
+
+  test("renders nothing for non-staff roles (the guide is staff-only, 403s them)", () => {
+    for (const adminLevel of ["editor", "agent"] as const) {
+      const html = String(
+        GuideFooter({
+          adminLevel,
+          children: "Listings guide",
+          href: "/admin/guide#listings",
+        }),
+      );
+      expect(html).not.toContain("guide-footer");
+      expect(html).not.toContain("/admin/guide#listings");
+    }
   });
 });

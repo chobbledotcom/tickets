@@ -2,10 +2,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#shared/db/client.ts";
 import {
-  getAllGroups,
   getGroupIdsByListingId,
   getGroupPackagePrices,
   getListingsByGroupId,
+  groups,
 } from "#shared/db/groups.ts";
 import {
   getAllListings,
@@ -30,7 +30,7 @@ const expectDuplicateRejected = async (
   groupId: number,
   body: Record<string, string>,
 ): Promise<void> => {
-  const before = (await getAllGroups()).length;
+  const before = (await groups.cache.getAll()).length;
   const { response } = await adminFormPost(
     `/admin/groups/${groupId}/bulk-actions/duplicate`,
     body,
@@ -39,7 +39,7 @@ const expectDuplicateRejected = async (
   expect(response.headers.get("location")).toContain(
     `/admin/groups/${groupId}/bulk-actions/duplicate`,
   );
-  expect((await getAllGroups()).length).toBe(before);
+  expect((await groups.cache.getAll()).length).toBe(before);
 };
 
 describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
@@ -75,7 +75,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
         name: "Spring Workshop",
       });
 
-      const groupCountBefore = (await getAllGroups()).length;
+      const groupCountBefore = (await groups.cache.getAll()).length;
       const listingCountBefore = (await getAllListings()).length;
 
       const { response } = await adminFormPost(
@@ -91,7 +91,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
 
       expect(response.status).toBe(302);
 
-      const groupsAfter = await getAllGroups();
+      const groupsAfter = await groups.cache.getAll();
       expect(groupsAfter.length).toBe(groupCountBefore + 1);
       const newGroup = groupsAfter.find((g) => g.name === "Duplicated Source");
       expect(newGroup).toBeDefined();
@@ -145,7 +145,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const newGroup = (await getAllGroups()).find(
+      const newGroup = (await groups.cache.getAll()).find(
         (g) => g.name === "Priced Copy",
       )!;
       const clone = (await getListingsByGroupId(newGroup.id))[0]!;
@@ -173,7 +173,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
         new_name: "Inherits copy",
       });
 
-      const newGroup = (await getAllGroups()).find(
+      const newGroup = (await groups.cache.getAll()).find(
         (g) => g.name === "Inherits copy",
       )!;
       const clone = (await getListingsByGroupId(newGroup.id))[0]!;
@@ -205,7 +205,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      const newGroup = (await getAllGroups()).find(
+      const newGroup = (await groups.cache.getAll()).find(
         (g) => g.name === "Verbatim Copy",
       );
       expect(newGroup).toBeDefined();
@@ -269,7 +269,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      const newGroup = (await getAllGroups()).find(
+      const newGroup = (await groups.cache.getAll()).find(
         (g) => g.name === "Big Copy",
       );
       expect(newGroup).toBeDefined();
@@ -280,7 +280,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       const group = await createTestGroup({ name: "Needs Name" });
       await createTestListing({ groupId: group.id, name: "E" });
 
-      const groupCountBefore = (await getAllGroups()).length;
+      const groupCountBefore = (await groups.cache.getAll()).length;
 
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/bulk-actions/duplicate`,
@@ -298,7 +298,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       expect(response.headers.get("location")).toContain(
         `/admin/groups/${group.id}/bulk-actions/duplicate`,
       );
-      expect((await getAllGroups()).length).toBe(groupCountBefore);
+      expect((await groups.cache.getAll()).length).toBe(groupCountBefore);
     });
 
     test("copies the package flag, hide option, and remapped member overrides", async () => {
@@ -343,7 +343,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const newGroup = (await getAllGroups()).find(
+      const newGroup = (await groups.cache.getAll()).find(
         (g) => g.name === "Pkg Copy",
       )!;
       expect(newGroup.is_package).toBe(true);

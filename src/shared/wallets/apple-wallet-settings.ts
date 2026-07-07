@@ -7,7 +7,7 @@
 import type { SigningCredentials } from "#shared/apple-wallet.ts";
 import { createWalletSettingsKit } from "#shared/wallets/wallet-settings-types.ts";
 
-const kit = createWalletSettingsKit<
+export const appleWallet = createWalletSettingsKit<
   SigningCredentials,
   "passTypeId" | "teamId" | "signingCert" | "signingKey" | "wwdrCert"
 >({
@@ -44,7 +44,3 @@ const kit = createWalletSettingsKit<
     },
   },
 });
-
-export const getHostAppleWalletConfig = kit.getHostConfig;
-export const createAppleWalletReadSettings = kit.createReadSettings;
-export const createAppleWalletUpdateSettings = kit.createUpdateSettings;

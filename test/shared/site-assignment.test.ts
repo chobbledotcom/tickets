@@ -6,7 +6,7 @@ import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import {
   type BuiltSite,
-  getAllBuiltSites,
+  builtSites,
   getAssignableBuiltSites,
   insertBuiltSite,
 } from "#shared/db/built-sites.ts";
@@ -117,7 +117,7 @@ describeWithEnv(
 
     const assignAndCollectThreeSites = async (): Promise<BuiltSite[]> => {
       await assignAndNotifyBuiltSites([siteEntry({ quantity: 3 })]);
-      const sites = await getAllBuiltSites();
+      const sites = await builtSites.getAll();
       const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
       expect(assigned).toHaveLength(3);
       return assigned;
@@ -127,7 +127,7 @@ describeWithEnv(
       site: string,
       expected: string,
     ): Promise<BuiltSite> => {
-      const all = await getAllBuiltSites();
+      const all = await builtSites.getAll();
       const found = all.find((s) => s.name === site)!;
       expect(found.renewalTokenIndex).not.toBeNull();
       expect(found.readOnlyFrom).toBeTruthy();
@@ -153,6 +153,13 @@ describeWithEnv(
       expect(body.html).toContain(`href="${setupUrl}"`);
       expect(body.text).toContain(setupUrl);
       return body;
+    };
+
+    /** Assert the first built site was assigned an attendee but no email fired. */
+    const expectAssignedNoEmail = async (): Promise<void> => {
+      const sites = await builtSites.getAll();
+      expect(sites[0]!.assignedAttendeeId).not.toBeNull();
+      expect(fetchStub.calls.length).toBe(0);
     };
 
     beforeEach(async () => {
@@ -187,7 +194,7 @@ describeWithEnv(
 
         await assignAndNotifyBuiltSites([siteEntry({ quantity: 2 })]);
 
-        const sites = await getAllBuiltSites();
+        const sites = await builtSites.getAll();
         const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
         expect(assigned).toHaveLength(2);
         expect(assigned.every((s) => !s.assignable)).toBe(true);
@@ -201,7 +208,7 @@ describeWithEnv(
           siteEntry({ assignBuiltSite: false }),
         ]);
 
-        const sites = await getAllBuiltSites();
+        const sites = await builtSites.getAll();
         expect(sites[0]!.assignable).toBe(true);
         expect(sites[0]!.assignedAttendeeId).toBeNull();
         expect(fetchStub.calls.length).toBe(0);
@@ -216,7 +223,7 @@ describeWithEnv(
           siteEntry({ attendeeId: 10, listingId: 2, listingName: "Listing 2" }),
         ]);
 
-        const sites = await getAllBuiltSites();
+        const sites = await builtSites.getAll();
         const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
         expect(assigned).toHaveLength(2);
         expect(assigned[0]!.assignedListingId).toBe(1);
@@ -229,7 +236,7 @@ describeWithEnv(
         try {
           await assignAndNotifyBuiltSites([siteEntry()]);
 
-          const sites = await getAllBuiltSites();
+          const sites = await builtSites.getAll();
           const existing = sites.find((s) => s.name === "Site A")!;
           expect(existing.assignedAttendeeId).toBeNull();
           expect(buildStub.calls.length).toBe(1);
@@ -249,7 +256,7 @@ describeWithEnv(
         try {
           await assignAndNotifyBuiltSites([siteEntry()]);
 
-          const sites = await getAllBuiltSites();
+          const sites = await builtSites.getAll();
           expect(sites).toHaveLength(1);
           expect(sites[0]!.siteUrl).toBe("auto-1.b-cdn.net");
           expect(sites[0]!.assignedAttendeeId).not.toBeNull();
@@ -350,18 +357,14 @@ describeWithEnv(
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
         await assignAndNotifyBuiltSites([siteEntry()]);
 
-        const sites = await getAllBuiltSites();
-        expect(sites[0]!.assignedAttendeeId).not.toBeNull();
-        expect(fetchStub.calls.length).toBe(0);
+        await expectAssignedNoEmail();
       });
 
       test("assigns the site but skips email when the attendee email is invalid", async () => {
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
         await assignAndNotifyBuiltSites([siteEntry({ email: "not-an-email" })]);
 
-        const sites = await getAllBuiltSites();
-        expect(sites[0]!.assignedAttendeeId).not.toBeNull();
-        expect(fetchStub.calls.length).toBe(0);
+        await expectAssignedNoEmail();
       });
     });
 
@@ -371,7 +374,7 @@ describeWithEnv(
         try {
           await insertBuiltSite("Site A", "a.test.net", "", "", true);
           await assignAndNotifyBuiltSites([siteEntry()]);
-          const sites = await getAllBuiltSites();
+          const sites = await builtSites.getAll();
           expect(sites[0]!.assignable).toBe(true);
           expect(sites[0]!.assignedAttendeeId).toBeNull();
         } finally {
@@ -432,7 +435,7 @@ describeWithEnv(
           restoreEnv();
         }
 
-        const sites = await getAllBuiltSites();
+        const sites = await builtSites.getAll();
         const site = sites.find((s) => s.name === "Site A")!;
         expect(site.assignedAttendeeId).toBeNull();
         expect(site.renewalTokenIndex).toBeNull();
@@ -461,7 +464,7 @@ describeWithEnv(
         try {
           await assignAndNotifyBuiltSites([siteEntry()]);
 
-          const sites = await getAllBuiltSites();
+          const sites = await builtSites.getAll();
           const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
           expect(assigned).toHaveLength(0);
           expect(secretStub.calls.length).toBe(0);
@@ -564,7 +567,7 @@ describeWithEnv(
         try {
           await assignAndNotifyBuiltSites([siteEntry({ quantity: 3 })]);
 
-          const allSites = await getAllBuiltSites();
+          const allSites = await builtSites.getAll();
           const assigned = allSites.filter(
             (s) => s.assignedAttendeeId !== null,
           );
@@ -611,7 +614,7 @@ describeWithEnv(
         try {
           await assignAndNotifyBuiltSites([siteEntry()]);
 
-          const sites = await getAllBuiltSites();
+          const sites = await builtSites.getAll();
           const assigned = sites.find((s) => s.name === "Site A")!;
           expect(assigned.assignedAttendeeId).not.toBeNull();
           expect(assigned.renewalTokenIndex).toBeNull();
@@ -636,7 +639,7 @@ describeWithEnv(
           false,
           "5001",
         );
-        const site = (await getAllBuiltSites()).find(
+        const site = (await builtSites.getAll()).find(
           (s) => s.name === "Sync A",
         )!;
 
@@ -660,7 +663,7 @@ describeWithEnv(
           false,
           "5002",
         );
-        const site = (await getAllBuiltSites()).find(
+        const site = (await builtSites.getAll()).find(
           (s) => s.name === "Sync B",
         )!;
 
@@ -750,7 +753,7 @@ describeWithEnv(
         "release",
         "deno",
       );
-      const site = (await getAllBuiltSites()).find(
+      const site = (await builtSites.getAll()).find(
         (s) => s.name === "Deno Sync",
       )!;
 
@@ -773,7 +776,7 @@ describeWithEnv(
         "release",
         "deno",
       );
-      const site = (await getAllBuiltSites()).find(
+      const site = (await builtSites.getAll()).find(
         (s) => s.name === "Deno Sync Both",
       )!;
 

@@ -7,8 +7,8 @@
  * Usage:
  *   const routes = defineCrudApi({
  *     name: "holidays",
- *     table: holidaysTable,
- *     getAll: getAllHolidays,
+ *     table: holidays.table,
+ *     getAll: holidays.getAll,
  *     fields: [...],
  *     toInput: (body) => ({ ... }),
  *     toUpdateInput: (body, existing) => ({ ... }),

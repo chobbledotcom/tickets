@@ -66,3 +66,11 @@ export const balanceInvalidPage = (): string =>
     t("public_balance.link_not_valid"),
     t("public_balance.payment_link_invalid"),
   )(<p>{t("public_balance.link_expired_or_mistyped")}</p>);
+
+/** Shown when the link is valid but the booking has no bookable (quantity > 0)
+ * line to pay into — an honest message rather than "link not valid". */
+export const balanceNoItemsPage = (): string =>
+  simplePublicPage(
+    t("public_balance.no_tickets_title"),
+    t("public_balance.no_tickets_heading"),
+  )(<p>{t("public_balance.no_tickets_message")}</p>);

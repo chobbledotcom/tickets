@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getLogisticsAssignments } from "#shared/db/logistics.ts";
-import {
-  getAllLogisticsAgents,
-  logisticsAgentsTable,
-} from "#shared/db/logistics-agents.ts";
+import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { agentUsers } from "#shared/db/user-agents.ts";
 import { getAllUsers } from "#shared/db/users.ts";
@@ -25,7 +22,7 @@ import {
 const createAgent = async (name: string): Promise<number> => {
   const { response } = await adminFormPost("/admin/logistics", { name });
   expect(response.status).toBe(302);
-  const agents = await getAllLogisticsAgents();
+  const agents = await logisticsAgents.getAll();
   return agents.find((a) => a.name === name)!.id;
 };
 
@@ -167,7 +164,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
         "/admin/logistics",
         "Logistics agent updated",
       )(response);
-      const agents = await getAllLogisticsAgents();
+      const agents = await logisticsAgents.getAll();
       expect(agents.find((a) => a.id === id)!.name).toBe("Van B");
     });
 
@@ -242,7 +239,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
         "/admin/logistics",
         "Logistics agent deleted",
       )(response);
-      expect(await logisticsAgentsTable.findById(id)).toBeNull();
+      expect(await logisticsAgents.table.findById(id)).toBeNull();
     });
 
     test("deleting an agent clears its booking references", async () => {
@@ -283,7 +280,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       expect(response.headers.get("location")).toContain(
         `/admin/logistics/${id}/edit`,
       );
-      const kept = (await getAllLogisticsAgents()).find((a) => a.id === id);
+      const kept = (await logisticsAgents.getAll()).find((a) => a.id === id);
       expect(kept!.name).toBe("Keep Me");
     });
   });

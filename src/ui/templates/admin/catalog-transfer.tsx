@@ -9,7 +9,7 @@ import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 /* jscpd:ignore-end */
 
@@ -49,6 +49,13 @@ export const adminCatalogImportPage = (
           {t("catalog_transfer.upload_button")}
         </SubmitButton>
       </CsrfForm>
+
+      <GuideFooter
+        adminLevel={session.adminLevel}
+        href="/admin/guide#import-export"
+      >
+        {t("catalog_transfer.guide_link")}
+      </GuideFooter>
     </>,
   );
 };

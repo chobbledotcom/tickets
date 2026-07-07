@@ -27,8 +27,8 @@ import {
 } from "#shared/db/attendees.ts";
 import {
   anyHiddenPackageGroup,
-  getAllGroups,
   getGroupIdsByListingId,
+  groups,
 } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
@@ -98,9 +98,9 @@ export const handleNewListingGet: TypedRouteHandler<
     if (template?.requiresLogistics && !settings.hasLogistics) {
       return htmlResponse(adminListingPickerPage(session));
     }
-    const groups = await getAllGroups();
+    const allGroups = await groups.cache.getAll();
     return htmlResponse(
-      adminListingNewPage(groups, session, {
+      adminListingNewPage(allGroups, session, {
         templateId: template?.id ?? "custom",
       }),
     );
@@ -182,9 +182,9 @@ const renderCreateListingError = async (
   error: string,
   templateId: string | null,
 ): Promise<Response> => {
-  const groups = await getAllGroups();
+  const allGroups = await groups.cache.getAll();
   return htmlResponse(
-    adminListingNewPage(groups, session, {
+    adminListingNewPage(allGroups, session, {
       customiseOpen: form.getFlag("customise"),
       error,
       // The group checkboxes the operator submitted, so a rejected create
@@ -300,18 +300,18 @@ export const getListingAndGroups = async (
   listing: ListingWithCount;
   selectedGroupIds: number[];
 } | null> => {
-  const [listing, groups, selectedGroupIds] = await Promise.all([
+  const [listing, allGroups, selectedGroupIds] = await Promise.all([
     // The edit form reads the listing's *stored* values, not the resolved view,
     // so editing an inheriting listing can't bake the current defaults into its
     // row (and the editor webhook lock below preserves the real stored URL).
     getStoredListingWithCount(listingId),
-    getAllGroups(),
+    groups.cache.getAll(),
     getGroupIdsByListingId(listingId),
   ]);
   return listing
     ? {
         aggregateRecalculation: await getListingAggregateRecalculation(listing),
-        groups,
+        groups: allGroups,
         listing,
         selectedGroupIds,
       }

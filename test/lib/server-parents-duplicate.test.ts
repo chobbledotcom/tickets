@@ -2,9 +2,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import {
-  getAllGroups,
   getGroupPackagePrices,
   getListingsByGroupId,
+  groups,
   setGroupPackageMembers,
 } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
@@ -105,7 +105,9 @@ const duplicateGroup = async (
     name_replace: nameReplace,
     new_name: newName,
   });
-  const newGroup = (await getAllGroups()).find((g) => g.name === newName);
+  const newGroup = (await groups.cache.getAll()).find(
+    (g) => g.name === newName,
+  );
   return getListingsByGroupId(newGroup!.id);
 };
 
@@ -341,7 +343,7 @@ describeWithEnv(
         "Cloned parent",
       );
 
-      const newGroup = (await getAllGroups()).find(
+      const newGroup = (await groups.cache.getAll()).find(
         (g) => g.name === "Stranded bundle copy",
       )!;
       const copies = await getListingsByGroupId(newGroup.id);
@@ -387,7 +389,7 @@ describeWithEnv(
         "Cloned",
       );
 
-      const newGroup = (await getAllGroups()).find(
+      const newGroup = (await groups.cache.getAll()).find(
         (g) => g.name === "Incoming bundle copy",
       )!;
       const childCopy = (await getListingsByGroupId(newGroup.id)).find(
@@ -513,7 +515,7 @@ describeWithEnv(
     });
 
     test("duplicating a parent into a package keeps children when visible, drops them when hidden", async () => {
-      const { groupsTable } = await import("#shared/db/groups.ts");
+      const { groups } = await import("#shared/db/groups.ts");
       const child = await createTestListing({ name: "Child" });
       const parent = await createTestListing({
         maxAttendees: 10,
@@ -543,7 +545,7 @@ describeWithEnv(
         isPackage: true,
         name: "Hidden Pkg",
       });
-      await groupsTable.update(hidden.id, { hidePackageListings: true });
+      await groups.table.update(hidden.id, { hidePackageListings: true });
       const { copy: hiddenCopy } = await duplicateListingResponse(
         parent.id,
         "Parent hidden copy",

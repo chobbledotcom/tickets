@@ -1,5 +1,6 @@
 {
   "listing_defaults.title": "Listing Defaults",
+  "listing_defaults.guide_link": "Listings guide",
   "listing_defaults.intro": "Set defaults here and new listings will inherit them. Each listing has a single \"Use defaults\" switch — while it is on, the fields you set a default for are hidden on that listing's form and follow the values below. Change a default here and every listing using defaults updates automatically. Leave a field as \"No default\" to keep deciding it per listing.",
   "listing_defaults.save": "Save listing defaults",
   "listing_defaults.saved": "Listing defaults saved",

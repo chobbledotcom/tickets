@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { getAllHolidays, holidaysTable } from "#shared/db/holidays.ts";
+import { holidays } from "#shared/db/holidays.ts";
 import {
   apiRequest,
   assertApiDeleteOk,
@@ -245,7 +245,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
 
       await assertApiDeleteOk(`/api/admin/holidays/${holiday.id}`, "To Delete");
 
-      const all = await getAllHolidays();
+      const all = await holidays.getAll();
       expect(all.find((h) => h.id === holiday.id)).toBeUndefined();
     });
 
@@ -264,7 +264,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
       );
 
       // Holiday should still exist
-      const row = await holidaysTable.findById(holiday.id);
+      const row = await holidays.table.findById(holiday.id);
       expect(row).toBeDefined();
     });
 
@@ -312,7 +312,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         }),
       );
       expect(res.status).toBe(403);
-      expect(await getAllHolidays()).toEqual([]);
+      expect(await holidays.getAll()).toEqual([]);
     });
 
     test("rejects a manager deleting a holiday with 403", async () => {
@@ -326,7 +326,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
       );
       expect(res.status).toBe(403);
       // The manager's delete was blocked, so the holiday still exists.
-      expect(await holidaysTable.findById(holiday.id)).toBeDefined();
+      expect(await holidays.table.findById(holiday.id)).toBeDefined();
     });
   });
 });

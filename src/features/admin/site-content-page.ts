@@ -95,7 +95,10 @@ export const defineSiteContentPage = <E extends { id: number }>(
   return defineEntityPage({
     basePath: def.basePath,
     guard: requireSiteOr,
-    guideFooter: () => Promise.resolve(contentGuideFooter(def.guideAnchor)),
+    guideFooter: (_entity, ctx) =>
+      Promise.resolve(
+        contentGuideFooter(def.guideAnchor, ctx.session.adminLevel),
+      ),
     load: def.load,
     navActive: def.navActive,
     tabs: [editTab, ...(def.extraTabs ?? []), imagesTab, actionsTab],

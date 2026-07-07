@@ -17,10 +17,6 @@ import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { TabLink } from "#shared/entity-pages/core.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { ActivityLogTable } from "#templates/admin/activityLog.tsx";
-import {
-  type AccountLedgerData,
-  AccountStatementSection,
-} from "#templates/admin/ledger.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { ActionButton, type IconName } from "#templates/components/actions.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
@@ -50,7 +46,6 @@ export interface ResolvedAction {
  * input contract, one arm per section kind. */
 export type LoadedSection =
   | { kind: "summary"; rows: SummaryRow[] }
-  | { kind: "ledger"; ledger: AccountLedgerData; returnUrl: string }
   | {
       kind: "activity";
       entries: ActivityLogEntry[];
@@ -92,22 +87,6 @@ const SummarySection = ({
       </tr>
     ))}
   </DetailTable>
-);
-
-/** The entity's ledger account statement — the same shared component the
- * standalone /admin/ledger pages render, scoped to this entity's account. */
-const LedgerSection = ({
-  section,
-}: {
-  section: Extract<LoadedSection, { kind: "ledger" }>;
-}): JSX.Element => (
-  <AccountStatementSection
-    account={section.ledger.account}
-    fullLedgerHref={`/admin/ledger/${section.ledger.account.type}/${section.ledger.account.id}`}
-    lines={section.ledger.lines}
-    names={section.ledger.names}
-    returnUrl={section.returnUrl}
-  />
 );
 
 /** The activity log (full, or a preview with a "view all" link into the
@@ -179,7 +158,6 @@ const SECTION_RENDERERS: {
   actions: (section) => ActionsSection({ section }),
   activity: (section) => ActivitySection({ section }),
   custom: (section) => section.html,
-  ledger: (section) => LedgerSection({ section }),
   summary: (section) => SummarySection({ section }),
 };
 

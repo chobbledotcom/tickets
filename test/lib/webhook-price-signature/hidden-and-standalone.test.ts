@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import { groupsTable } from "#shared/db/groups.ts";
+import { groups } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
@@ -78,7 +78,7 @@ describeWithEnv(
 
     test("a hidden package booking completes (member name never leaks in the flow)", async () => {
       const { group, listing } = await setupPackage();
-      await groupsTable.update(group.id, { hidePackageListings: true });
+      await groups.table.update(group.id, { hidePackageListings: true });
       // A normal hidden-package session: it processes, exercising the path that
       // suppresses member names in any failure message for hidden packages.
       await runWebhook(
@@ -96,7 +96,7 @@ describeWithEnv(
       // The buyer started a STANDALONE (non-package) checkout at the base price;
       // the operator then hid the package. Completing it would book a leaking
       // standalone ticket whose /ticket/<slug> 404s, so it must refund instead.
-      await groupsTable.update(group.id, { hidePackageListings: true });
+      await groups.table.update(group.id, { hidePackageListings: true });
       await runWebhook(
         {
           amount_total: 5000,

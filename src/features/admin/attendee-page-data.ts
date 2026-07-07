@@ -19,7 +19,7 @@ import {
 import { buildAttendeeLogisticsData } from "#routes/admin/attendee-logistics.ts";
 import { withDecryptedAttendee } from "#routes/admin/attendees-route-helpers.ts";
 import { getAttendeeActivityLog } from "#shared/db/activityLog.ts";
-import { getAllAttendeeStatuses } from "#shared/db/attendee-statuses.ts";
+import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import {
   checkLinesCapacity,
@@ -34,9 +34,9 @@ import {
   toContactHashParam,
 } from "#shared/db/contact-preferences.ts";
 import {
-  getAllGroups,
   getGroupPackagePricesByGroupIds,
   getListingsByGroupIds,
+  groups,
   packageMemberMaps,
 } from "#shared/db/groups.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
@@ -105,7 +105,9 @@ export type PackagePath = {
  * order. Members are the package's CURRENT listings; a package with no
  * members offers nothing. */
 export const loadPackagePaths = async (): Promise<PackagePath[]> => {
-  const packages = (await getAllGroups()).filter((group) => group.is_package);
+  const packages = (await groups.cache.getAll()).filter(
+    (group) => group.is_package,
+  );
   const packageIds = packages.map((group) => group.id);
   const [membersByGroupId, priceRowsByGroupId] = await Promise.all([
     getListingsByGroupIds(packageIds),
@@ -473,7 +475,7 @@ export const buildTemplateData = async (
     selectedTextAnswers?: Map<number, string> | undefined;
   } = {},
 ): Promise<AttendeeFormTemplateData> => {
-  const statuses = await getAllAttendeeStatuses();
+  const statuses = await attendeeStatuses.getAll();
   // The order totals come from the saved booking (edit only); create has none.
   const summary = attendee ? await getAttendeeOrderSummary(attendee.id) : null;
   const balanceNotice = attendeeBalanceNotice(

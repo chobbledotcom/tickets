@@ -2,15 +2,13 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
   assignNextAttendeeStatusSortOrder,
-  attendeeStatusesTable,
+  attendeeStatuses,
   DEFAULT_ATTENDEE_STATUS_NAME,
   ensureDefaultAttendeeStatus,
-  getAllAttendeeStatuses,
   getAttendeeStatus,
   getPaidDefaultStatus,
   getPublicDefaultStatus,
   getPublicStatusId,
-  invalidateAttendeeStatusesCache,
   swapAttendeeStatusOrder,
 } from "#shared/db/attendee-statuses.ts";
 import { createAttendeeAtomic, getAttendee } from "#shared/db/attendees.ts";
@@ -24,7 +22,7 @@ import { postListingSale } from "#test-utils/ledger.ts";
 
 describeWithEnv("db > attendee statuses", { db: true }, () => {
   test("the migration seeds a single non-reservation default status", async () => {
-    const statuses = await getAllAttendeeStatuses();
+    const statuses = await attendeeStatuses.getAll();
     expect(statuses).toHaveLength(1);
     const seed = statuses[0]!;
     expect(seed.name).toBe(DEFAULT_ATTENDEE_STATUS_NAME);
@@ -45,7 +43,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("getAttendeeStatus returns by id and null when missing", async () => {
-    const [seed] = await getAllAttendeeStatuses();
+    const [seed] = await attendeeStatuses.getAll();
     expect((await getAttendeeStatus(seed!.id))?.name).toBe(
       DEFAULT_ATTENDEE_STATUS_NAME,
     );
@@ -53,28 +51,28 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("getPublicStatusId returns the default id, or null when none is set", async () => {
-    const [seed] = await getAllAttendeeStatuses();
+    const [seed] = await attendeeStatuses.getAll();
     expect(await getPublicStatusId()).toBe(seed!.id);
     await getDb().execute("UPDATE attendee_statuses SET is_public_default = 0");
-    invalidateAttendeeStatusesCache();
+    attendeeStatuses.invalidate();
     expect(await getPublicStatusId()).toBeNull();
   });
 
   test("ensureDefaultAttendeeStatus is idempotent once a status exists", async () => {
     await ensureDefaultAttendeeStatus();
-    expect(await getAllAttendeeStatuses()).toHaveLength(1);
+    expect(await attendeeStatuses.getAll()).toHaveLength(1);
   });
 
   test("inserting statuses returns them ordered by sort_order then id", async () => {
-    const reserved = await attendeeStatusesTable.insert({
+    const reserved = await attendeeStatuses.table.insert({
       isReservation: true,
       name: "Reserved",
       reservationAmount: "10%",
       sortOrder: 2,
     });
-    await attendeeStatusesTable.insert({ name: "Waitlist", sortOrder: 1 });
+    await attendeeStatuses.table.insert({ name: "Waitlist", sortOrder: 1 });
 
-    const names = (await getAllAttendeeStatuses()).map((s) => s.name);
+    const names = (await attendeeStatuses.getAll()).map((s) => s.name);
     // seed (0), Waitlist (1), Reserved (2)
     expect(names).toEqual([
       DEFAULT_ATTENDEE_STATUS_NAME,
@@ -86,7 +84,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("assignNextAttendeeStatusSortOrder assigns max + 1", async () => {
-    const created = await attendeeStatusesTable.insert({ name: "New" });
+    const created = await attendeeStatuses.table.insert({ name: "New" });
     await assignNextAttendeeStatusSortOrder(created.id);
     const updated = await getAttendeeStatus(created.id);
     // Seed is sort_order 0, so the next value is 1.
@@ -94,16 +92,16 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("swapAttendeeStatusOrder swaps two statuses' sort_order", async () => {
-    const a = await attendeeStatusesTable.insert({ name: "A", sortOrder: 5 });
-    const b = await attendeeStatusesTable.insert({ name: "B", sortOrder: 6 });
+    const a = await attendeeStatuses.table.insert({ name: "A", sortOrder: 5 });
+    const b = await attendeeStatuses.table.insert({ name: "B", sortOrder: 6 });
     await swapAttendeeStatusOrder(a.id, b.id);
     expect((await getAttendeeStatus(a.id))?.sort_order).toBe(6);
     expect((await getAttendeeStatus(b.id))?.sort_order).toBe(5);
   });
 
   test("update changes fields and invalidates the cache", async () => {
-    const created = await attendeeStatusesTable.insert({ name: "Pending" });
-    await attendeeStatusesTable.update(created.id, {
+    const created = await attendeeStatuses.table.insert({ name: "Pending" });
+    await attendeeStatuses.table.update(created.id, {
       isReservation: true,
       reservationAmount: "25",
     });
@@ -113,13 +111,13 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("deleteById removes a status", async () => {
-    const created = await attendeeStatusesTable.insert({ name: "Temp" });
-    await attendeeStatusesTable.deleteById(created.id);
+    const created = await attendeeStatuses.table.insert({ name: "Temp" });
+    await attendeeStatuses.table.deleteById(created.id);
     expect(await getAttendeeStatus(created.id)).toBeNull();
   });
 
   test("status name is encrypted at rest", async () => {
-    const created = await attendeeStatusesTable.insert({ name: "VIP Guest" });
+    const created = await attendeeStatuses.table.insert({ name: "VIP Guest" });
     const raw = await getDb().execute({
       args: [created.id],
       sql: "SELECT name FROM attendee_statuses WHERE id = ?",
@@ -133,7 +131,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   test("ensureDefaultAttendeeStatus seeds and backfills null-status attendees", async () => {
     // Wipe the seed and insert an attendee with no status.
     await getDb().execute("DELETE FROM attendee_statuses");
-    invalidateAttendeeStatusesCache();
+    attendeeStatuses.invalidate();
     await getDb().execute({
       args: [],
       sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES ('2024-01-01T00:00:00Z', '', NULL)",
@@ -145,7 +143,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
 
     await ensureDefaultAttendeeStatus();
 
-    const statuses = await getAllAttendeeStatuses();
+    const statuses = await attendeeStatuses.getAll();
     expect(statuses).toHaveLength(1);
     const backfilled = await getDb().execute({
       args: [attendeeId],

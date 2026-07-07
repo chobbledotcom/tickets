@@ -11,7 +11,7 @@ import {
   setLegDone,
   setLogisticsAssignments,
 } from "#shared/db/logistics.ts";
-import { logisticsAgentsTable } from "#shared/db/logistics-agents.ts";
+import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import {
   enableQueryLog,
   getQueryLog,
@@ -76,8 +76,8 @@ const insertVanAndOther = async (): Promise<{
   van: number;
   other: number;
 }> => ({
-  other: (await logisticsAgentsTable.insert({ name: "Other" })).id,
-  van: (await logisticsAgentsTable.insert({ name: "Van" })).id,
+  other: (await logisticsAgents.table.insert({ name: "Other" })).id,
+  van: (await logisticsAgents.table.insert({ name: "Van" })).id,
 });
 
 /** The one van pair every dual-path fixture stamps on its booking rows. */

@@ -1,4 +1,4 @@
-import { attendeeStatusesTable } from "#shared/db/attendee-statuses.ts";
+import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
@@ -31,7 +31,7 @@ export const createReservedAttendee = async (
     ...(options.listingName ? { name: options.listingName } : {}),
     thankYouUrl: "https://example.com",
   });
-  const reservation = await attendeeStatusesTable.insert({
+  const reservation = await attendeeStatuses.table.insert({
     isReservation: true,
     name: "Reserved",
     reservationAmount: "10%",

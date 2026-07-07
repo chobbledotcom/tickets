@@ -12,10 +12,9 @@ import type { TxScope } from "#shared/db/client.ts";
 import {
   computeGroupSlugIndex,
   type GroupInput,
-  getAllGroups,
   getGroupPackagePrices,
   getGroupPackagePricesByGroupIds,
-  groupsTable,
+  groups,
   type PackageMemberInput,
   setGroupPackageMembers,
 } from "#shared/db/groups.ts";
@@ -195,7 +194,7 @@ const toMember = (
 
 export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
   afterWrite: writePackageMembers,
-  getAll: getAllGroups,
+  getAll: () => groups.cache.getAll(),
   // Hydrate a package group's member overrides onto every response so an API
   // client can read back the listing_id/price/quantity values it PUT and
   // round-trip the configuration. Non-package groups carry no members.
@@ -238,7 +237,7 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
   onDelete: deleteGroup,
   singular: "Group",
   stripKeys: STRIP_KEYS,
-  table: groupsTable,
+  table: groups.table,
 
   toCreateInput: async (body) => {
     const required = requireStrings(body, ["name"]);

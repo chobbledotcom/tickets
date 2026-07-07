@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
-import { groupsTable } from "#shared/db/groups.ts";
+import { groups } from "#shared/db/groups.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { clearTokenAttempts } from "#shared/db/token-attempts.ts";
 import { MAX_TOKEN_404S } from "#shared/limits.ts";
@@ -440,7 +440,7 @@ describeWithEnv(
     /** A HIDDEN one-member package group and its sole listing. */
     const hiddenOneMemberPackage = async () => {
       const group = await createTestGroup({ isPackage: true, name: "Kit Bag" });
-      await groupsTable.update(group.id, { hidePackageListings: true });
+      await groups.table.update(group.id, { hidePackageListings: true });
       const widget = await createTestListing({
         groupId: group.id,
         name: "Widget",
@@ -742,7 +742,7 @@ describeWithEnv(
         name: "Free Kit",
         slug: "free-kit",
       });
-      await groupsTable.update(group.id, { hidePackageListings: true });
+      await groups.table.update(group.id, { hidePackageListings: true });
       // A free member (unit price 0) so the order completes via the free path.
       const freebie = await createTestListing({
         groupId: group.id,
@@ -777,7 +777,7 @@ describeWithEnv(
         name: "Secret Kit",
         slug: "secret-kit",
       });
-      await groupsTable.update(group.id, { hidePackageListings: true });
+      await groups.table.update(group.id, { hidePackageListings: true });
       await createTestListing({
         groupId: group.id,
         name: "Concealed Freebie",

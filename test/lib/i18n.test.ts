@@ -9,6 +9,7 @@ import {
   runWithLocale,
   t,
 } from "#i18n";
+import en from "#locales/en/index.ts";
 import { setTestEnv } from "#test-utils";
 
 describe("i18n", () => {
@@ -62,6 +63,28 @@ describe("i18n", () => {
       expect(t("modifiers.err_child_only_addon", { name: "Retreat" })).toBe(
         "'Retreat' is an opt-in add-on reachable only through a required child listing, so no booking page would offer it — scope it to the parent (or another bookable listing), or remove it as a child, before saving.",
       );
+      // The logistics "saved" flash wraps the attendee name the same way; a
+      // single-quoted `'{value}'` would have shown the literal text `{value}`.
+      expect(t("attendee_logistics.saved", { value: "Retreat" })).toBe(
+        "Logistics saved for 'Retreat'",
+      );
+    });
+
+    test("no locale message single-quotes a whole placeholder (ICU escaping trap)", () => {
+      // In ICU MessageFormat a lone `'` immediately before `{` starts a quoted
+      // literal, so `'{value}'` renders the literal text `{value}` with the
+      // value never substituted (and the quote marks stripped). To wrap an
+      // interpolated value in literal single quotes the quotes must be doubled
+      // (`''{value}''`). This scans every locale string for the single-quote
+      // form so the bug can't be reintroduced in a new message. The doubled
+      // form is excluded by the lookarounds; deliberate brace escaping like
+      // `'{'` (settings.advanced.custom_css_placeholder) never matches because
+      // there is no `{identifier}` between the quotes.
+      const SINGLE_QUOTED_PLACEHOLDER = /(?<!')'\{[A-Za-z_$][\w$]*\}'(?!')/;
+      const offenders = Object.entries(en as Record<string, string>)
+        .filter(([, value]) => SINGLE_QUOTED_PLACEHOLDER.test(value))
+        .map(([key, value]) => `${key}: ${value}`);
+      expect(offenders).toEqual([]);
     });
 
     test("handles ICU plural format", () => {

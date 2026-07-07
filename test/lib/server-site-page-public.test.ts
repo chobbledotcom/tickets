@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { groupsTable } from "#shared/db/groups.ts";
+import { groups } from "#shared/db/groups.ts";
 import { appendImageToItem, imagesTable } from "#shared/db/images.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { addPageItem } from "#shared/db/site-page-items.ts";
@@ -301,7 +301,7 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       // name is public — so a nav leaf pointing at it must not render a live link.
       const page = await makePage("hidden-member");
       const group = await createTestGroup({ isPackage: true, name: "Bundle" });
-      await groupsTable.update(group.id, {
+      await groups.table.update(group.id, {
         hidePackageListings: true,
         isPackage: true,
       });

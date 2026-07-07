@@ -12,7 +12,7 @@ type SumupFields = {
   merchantCode: string;
 };
 
-const sumupRoutes = defineProviderCredentialsRoute<SumupFields>({
+export const sumupRoutes = defineProviderCredentialsRoute<SumupFields>({
   extraFields: (form) => ({
     merchantCode: form.getString("sumup_merchant_code"),
   }),
@@ -36,9 +36,3 @@ const sumupRoutes = defineProviderCredentialsRoute<SumupFields>({
     return null;
   },
 });
-
-/** Handle POST /admin/settings/sumup - owner only */
-export const handleAdminSumupPost = sumupRoutes.save;
-
-/** Handle POST /admin/settings/sumup/test - owner only */
-export const handleSumupTestPost = sumupRoutes.test;

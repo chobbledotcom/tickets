@@ -23,11 +23,9 @@ import {
   createSitePage,
   getSitePageById,
   getSitePageBySlugIndex,
-  getSitePageNavRows,
-  invalidateSitePagesCache,
   isSitePageSlugTaken,
   type SitePageInput,
-  sitePagesTable,
+  sitePages,
   swapSitePageOrder,
   updateSitePage,
 } from "#shared/db/site-pages.ts";
@@ -46,7 +44,7 @@ const makePage = async (
   extra: Partial<SitePageInput> = {},
 ): Promise<SitePage> => {
   const slugIndex = await computeSitePageSlugIndex(slug);
-  return sitePagesTable.insert({
+  return sitePages.table.insert({
     name: `Name ${slug}`,
     slug,
     slugIndex,
@@ -87,8 +85,8 @@ describeWithEnv("db > site-pages", { db: true }, () => {
     test("nav rows are decrypted, ordered, and carry no content", async () => {
       await makePage("b", { sortOrder: 5 });
       await makePage("a", { sortOrder: 1 });
-      invalidateSitePagesCache();
-      const rows = await getSitePageNavRows();
+      sitePages.invalidate();
+      const rows = await sitePages.getAll();
       expect(rows.map((r) => r.slug)).toEqual(["a", "b"]);
       expect(rows[0]).not.toHaveProperty("content");
     });
@@ -125,7 +123,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       // invalidate the cache, or this second read returns the stale projection
       // without the new page.
       runWithRequestCache(async () => {
-        await getSitePageNavRows(); // populate the cached projection
+        await sitePages.getAll(); // populate the cached projection
         const created = await createSitePage({
           content: "Body",
           metaDescription: "Desc",
@@ -133,7 +131,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
           name: "Fresh",
           slug: "fresh-cache",
         });
-        const slugs = (await getSitePageNavRows()).map((r) => r.slug);
+        const slugs = (await sitePages.getAll()).map((r) => r.slug);
         expect(slugs).toContain("fresh-cache");
         // The returned row is built from the input (no post-commit read-back),
         // and matches what a fresh read decrypts.
@@ -225,8 +223,8 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       const a = await makePage("first", { sortOrder: 0 });
       const b = await makePage("second", { sortOrder: 1 });
       await swapSitePageOrder(a.id, b.id);
-      invalidateSitePagesCache();
-      expect((await getSitePageNavRows()).map((r) => r.slug)).toEqual([
+      sitePages.invalidate();
+      expect((await sitePages.getAll()).map((r) => r.slug)).toEqual([
         "second",
         "first",
       ]);
@@ -238,10 +236,8 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       const a = await makePage("survivor", { sortOrder: 0 });
       await swapSitePageOrder(a.id, 9999);
       await swapSitePageOrder(9999, a.id);
-      invalidateSitePagesCache();
-      const row = (await getSitePageNavRows()).find(
-        (r) => r.slug === "survivor",
-      );
+      sitePages.invalidate();
+      const row = (await sitePages.getAll()).find((r) => r.slug === "survivor");
       expect(row?.sort_order).toBe(0);
     });
   });

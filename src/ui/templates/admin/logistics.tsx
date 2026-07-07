@@ -154,7 +154,7 @@ type AgentEditCtx = {
   selected: ReadonlySet<number>;
 };
 
-const { deletePage, editPage, newPage } = defineAdminResourcePages<
+export const logisticsAgentPages = defineAdminResourcePages<
   LogisticsAgent,
   AgentEditCtx
 >({
@@ -204,9 +204,6 @@ const { deletePage, editPage, newPage } = defineAdminResourcePages<
     ),
 });
 
-/** Admin logistics-agent create page (linked from the inline form fallback). */
-export const adminLogisticsAgentNewPage = newPage;
-
 /** Admin logistics-agent edit page. Grouped into fieldsets: the agent's details
  *  and the users assigned to drive it. */
 export const adminLogisticsAgentEditPage = (
@@ -216,10 +213,7 @@ export const adminLogisticsAgentEditPage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  editPage(agent, session, error, {
+  logisticsAgentPages.editPage(agent, session, error, {
     selected: selectedUserIds,
     users,
   });
-
-/** Admin logistics-agent delete confirmation page. */
-export const adminLogisticsAgentDeletePage = deletePage;

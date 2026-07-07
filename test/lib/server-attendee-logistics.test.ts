@@ -13,7 +13,7 @@ import {
 } from "#routes/admin/attendee-logistics.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { getLogisticsAssignments } from "#shared/db/logistics.ts";
-import { logisticsAgentsTable } from "#shared/db/logistics-agents.ts";
+import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
@@ -128,7 +128,7 @@ describeWithEnv("buildAttendeeLogisticsData", { db: true }, () => {
 
   test("undefined when no delivered listing is booked", async () => {
     settings.setForTest({ has_logistics: true });
-    await logisticsAgentsTable.insert({ name: "Van" });
+    await logisticsAgents.table.insert({ name: "Van" });
     expect(
       await buildAttendeeLogisticsData([bookedLine(1, false)], null),
     ).toBeUndefined();
@@ -143,7 +143,7 @@ describeWithEnv("buildAttendeeLogisticsData", { db: true }, () => {
 
   test("returns agents and an empty single pair for a create form", async () => {
     settings.setForTest({ has_logistics: true });
-    await logisticsAgentsTable.insert({ name: "Van" });
+    await logisticsAgents.table.insert({ name: "Van" });
     const data = await buildAttendeeLogisticsData([bookedLine(5, true)], null);
     expect(data!.agents.map((a) => a.name)).toEqual(["Van"]);
     expect(data!.split).toBe(false);
@@ -165,8 +165,8 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
       maxQuantity: 5,
     });
     await listingsTable.update(listing.id, { usesLogistics: true });
-    const drop = await logisticsAgentsTable.insert({ name: "Drop Van" });
-    const coll = await logisticsAgentsTable.insert({ name: "Coll Van" });
+    const drop = await logisticsAgents.table.insert({ name: "Drop Van" });
+    const coll = await logisticsAgents.table.insert({ name: "Coll Van" });
     return { coll, drop, listing };
   };
 
