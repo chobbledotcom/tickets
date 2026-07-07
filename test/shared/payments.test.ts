@@ -56,11 +56,11 @@ describe("booking line validation", () => {
     rejects({ ...validItem, e: 1.5 });
   });
 
-  test("the quantity (q) must be a positive integer", () => {
-    // A signed line always books at least one; q:0 would divide by zero when
-    // the intent recovers unitPrice as p / q.
+  test("the quantity (q) must be a non-negative integer", () => {
+    // A signed line may deliberately carry quantity 0 (an admin sentinel or a
+    // refunded/deleted-listing placeholder), preserved rather than coerced to 1.
     accepts({ ...validItem, q: 1 });
-    rejects({ ...validItem, q: 0 });
+    accepts({ ...validItem, q: 0 });
     rejects({ ...validItem, q: -1 });
     rejects({ ...validItem, q: 1.5 });
   });

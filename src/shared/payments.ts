@@ -72,18 +72,17 @@ export type ModifierSpec = {
  * tampered blob is a loud parse failure — never a silently-wrong nodeKey.
  *
  * `p` is an integer: it is `unitPrice * quantity`, both integer minor units, so
- * a fractional value is corruption. `q` is at least 1: a signed line always
- * books a positive quantity (quantity-0 rows live on the post-refund
- * placeholder path, never in signed metadata), and `checkoutIntentForSession`
- * divides `p / q` to recover the unit price, so a zero would yield Infinity/NaN
- * rather than failing loud. The edge tag is a pair — `k` and `r` are both
- * present (a package/group member) or both absent (a standalone line); a
- * half-present tag would let the reader fall back to a standalone nodeKey
- * instead of failing loud, so the schema rejects it. This schema is internal:
- * production always parses the array form (a single line is an array of one),
- * so only {@link BookingItemsSchema} and the {@link BookingItem} type are
- * exported. */
-/** A positive integer (≥ 1): a listing id, a booked quantity, or a group id. */
+ * a fractional value is corruption. `q` is a non-negative integer — a signed
+ * line may deliberately carry quantity 0 (an admin no-quantity sentinel or a
+ * refunded/deleted-listing placeholder), which downstream preserves rather than
+ * coercing to 1 and the success page then rejects as having no live ticket; see
+ * extractIntent. The edge tag is a pair — `k` and `r` are both present (a
+ * package/group member) or both absent (a standalone line); a half-present tag
+ * would let the reader fall back to a standalone nodeKey instead of failing
+ * loud, so the schema rejects it. This schema is internal: production always
+ * parses the array form (a single line is an array of one), so only
+ * {@link BookingItemsSchema} and the {@link BookingItem} type are exported. */
+/** A positive integer (≥ 1): a listing id or a group id. */
 const positiveInt = v.pipe(v.number(), v.integer(), v.minValue(1));
 
 const BookingItemSchema = v.pipe(
@@ -91,7 +90,7 @@ const BookingItemSchema = v.pipe(
     e: positiveInt,
     k: v.optional(v.union([v.literal("p"), v.literal("g")])),
     p: v.pipe(v.number(), v.integer()),
-    q: positiveInt,
+    q: v.pipe(v.number(), v.integer(), v.minValue(0)),
     r: v.optional(positiveInt),
   }),
   v.check(
