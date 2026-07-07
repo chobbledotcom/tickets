@@ -9,8 +9,9 @@ import { isStorageEnabled } from "#shared/storage.ts";
 import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
 import { ListingGroupSelect } from "#templates/admin/group-select.tsx";
 import {
+  type FormSection,
+  FormSections,
   StackDetails,
-  StackFieldset,
 } from "#templates/components/aggregate-sections.tsx";
 import {
   getAssignBuiltSiteField,
@@ -215,7 +216,7 @@ export const ListingFormSections = ({
       mapNotNullish((name: string) => fieldMap.get(name))(names),
       values,
     );
-  const sections = [
+  const sections: FormSection[] = [
     {
       children: (
         <>
@@ -296,14 +297,7 @@ export const ListingFormSections = ({
         <input name="use_defaults" type="hidden" value="1" />
       )}
 
-      {sections.map(({ children, className, legend }) => (
-        <StackFieldset
-          className={className ?? "listing-section"}
-          legend={legend}
-        >
-          {children}
-        </StackFieldset>
-      ))}
+      <FormSections sections={sections} />
 
       <StackDetails
         className="listing-advanced"

@@ -26,7 +26,9 @@ import type {
 } from "#shared/types.ts";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
 import { Badge } from "#templates/components/badge.tsx";
+import { DataTable } from "#templates/components/data-table.tsx";
 import {
   questionFieldset,
   questionWrapper,
@@ -56,10 +58,11 @@ const mergeRadioCell = ({
   </td>
 );
 
-/** A merge-decision table: an optional heading + a scroll-wrapped table whose
+/** A merge-decision table: an optional heading + a {@link DataTable} whose
  *  header row is the given column labels and whose body is the per-row decision
- *  markup. The PII-field, answer, and booking decision tables all share this
- *  shell. */
+ *  <tr>s. The PII-field, answer, and booking decision tables all share this
+ *  shell. A heading makes it a legend-led form section; without one it stays a
+ *  plain wrapper (the PII table leads the merge form, under its own heading). */
 const DecisionTable = ({
   heading,
   headers,
@@ -67,24 +70,22 @@ const DecisionTable = ({
 }: {
   heading?: string;
   headers: Child[];
-  children: Child;
-}): JSX.Element => (
-  <div>
-    {heading !== undefined && heading !== "" && <h4>{heading}</h4>}
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            {headers.map((h) => (
-              <th>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>{children}</tbody>
-      </table>
-    </div>
-  </div>
-);
+  children: JSX.Element[];
+}): JSX.Element => {
+  const table = (
+    <DataTable
+      columns={headers.map((header) => ({ header }))}
+      rows={children}
+    />
+  );
+  return heading ? (
+    <SectionFieldset className="listing-section" legend={heading}>
+      {table}
+    </SectionFieldset>
+  ) : (
+    <div>{table}</div>
+  );
+};
 
 /** The "Amount paid: £X" paragraph, rendered when the attendee paid > 0. */
 const amountPaidPara = (attendee: Attendee): JSX.Element | null =>

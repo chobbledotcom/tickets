@@ -5,8 +5,9 @@ import {
   CheckboxesFieldset,
   CheckboxForm,
   CheckboxLabel,
+  FormSections,
+  SectionFieldset,
   StackDetails,
-  StackFieldset,
 } from "#templates/components/aggregate-sections.tsx";
 import { setupTestEncryptionKey } from "#test-utils";
 
@@ -15,13 +16,41 @@ beforeAll(async () => {
   await signCsrfToken();
 });
 
-describe("StackFieldset", () => {
-  test("wraps its children in a stack inside a legend fieldset", () => {
+describe("SectionFieldset", () => {
+  test("puts its children directly in a legend fieldset", () => {
     const html = String(
-      StackFieldset({ children: "inner", legend: "Legend here" }),
+      SectionFieldset({ children: "inner", legend: "Legend here" }),
+    );
+    expect(html).toBe("<fieldset><legend>Legend here</legend>inner</fieldset>");
+  });
+});
+
+describe("FormSections", () => {
+  test("renders each section as a listing-section legend fieldset", () => {
+    const html = String(
+      FormSections({
+        sections: [
+          { children: "one", legend: "First" },
+          { children: "two", legend: "Second" },
+        ],
+      }),
     );
     expect(html).toBe(
-      '<fieldset><legend>Legend here</legend><div class="stack">inner</div></fieldset>',
+      '<fieldset class="listing-section"><legend>First</legend>one</fieldset>' +
+        '<fieldset class="listing-section"><legend>Second</legend>two</fieldset>',
+    );
+  });
+
+  test("keeps a section's own className when it supplies one", () => {
+    const html = String(
+      FormSections({
+        sections: [
+          { children: "x", className: "listing-section extra", legend: "L" },
+        ],
+      }),
+    );
+    expect(html).toBe(
+      '<fieldset class="listing-section extra"><legend>L</legend>x</fieldset>',
     );
   });
 });

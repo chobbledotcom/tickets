@@ -1776,8 +1776,8 @@ label.terms-agree {
 }
 
 /* Listing form sections: grouped <fieldset>s with a heading legend, and a
-   collapsible <details> for the technical/advanced fields. Field spacing inside
-   each section comes from the nested .stack; the form's gap spaces the sections
+   collapsible <details> for the technical/advanced fields. Each fieldset is a
+   flex column, so it spaces its own fields; the form's gap spaces the sections
    themselves. */
 .listing-section {
   margin: 0;
