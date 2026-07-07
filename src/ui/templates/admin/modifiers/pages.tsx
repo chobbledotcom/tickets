@@ -141,7 +141,7 @@ export const adminModifierEditPage = (
 ): string =>
   String(
     <AdminPage
-      active="/admin/modifiers"
+      active={{ section: "/admin/modifiers" }}
       session={session}
       title={t("modifiers.edit.heading")}
     >
@@ -179,7 +179,7 @@ export const adminModifierDeletePage = (
 ): string =>
   ConfirmPage({
     action: `/admin/modifiers/${modifier.id}/delete`,
-    active: "/admin/modifiers",
+    active: { section: "/admin/modifiers" },
     buttonText: t("modifiers.delete.submit"),
     children: (
       <>

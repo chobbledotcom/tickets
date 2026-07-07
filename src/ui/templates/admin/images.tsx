@@ -241,7 +241,7 @@ export const adminImageDeletePage = (
 ): string =>
   ConfirmPage({
     action: `/admin/images/${image.id}/delete`,
-    active: "/admin/images",
+    active: { section: "/admin/images" },
     buttonText: t("images.delete.submit"),
     danger: true,
     error,

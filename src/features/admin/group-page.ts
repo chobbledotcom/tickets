@@ -111,7 +111,9 @@ export const groupPage: EntityPage<Group> = defineEntityPage({
   // resolves to just the Edit tab.
   guard: requireContentOr,
   load: (id) => loadGroupForPage(id),
-  navActive: "/admin/groups",
+  // A single group is a page *within* the Groups section — highlight the top
+  // link, no "Add" sub-nav (see attendee-page.ts).
+  navActive: { section: "/admin/groups" },
   tabs: [
     panelTab("", "entity.tab.overview", loadGroupOverviewPanel, staffOnly),
     panelTab(

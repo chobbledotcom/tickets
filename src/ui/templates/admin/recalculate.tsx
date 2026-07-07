@@ -2,6 +2,7 @@
 import { RECALCULATE_FIELD_NAME } from "#shared/recalculate-fields.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { adminFormPage } from "#templates/admin/admin-page.tsx";
+import type { NavActive } from "#templates/admin/nav.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 /* jscpd:ignore-end */
@@ -27,7 +28,7 @@ export const adminRecalculatePage = ({
   title,
 }: {
   action: string;
-  active: string;
+  active: NavActive;
   currentLabel: string;
   description: string;
   error?: string | undefined;

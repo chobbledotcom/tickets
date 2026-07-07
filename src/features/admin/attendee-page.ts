@@ -213,7 +213,9 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
   basePath: (id) => `/admin/attendees/${id}`,
   guard: requireSessionOr,
   load: (id) => loadAttendeeForEdit(id),
-  navActive: "/admin/attendees",
+  // A single attendee is a page *within* the Attendees section: highlight the
+  // top-level link, but never re-open the section's "Add" sub-nav beside it.
+  navActive: { section: "/admin/attendees" },
   proseExtra: ({ attendee }) =>
     Promise.resolve(AddNoteLink({ attendeeId: attendee.id })),
   tabs: [
