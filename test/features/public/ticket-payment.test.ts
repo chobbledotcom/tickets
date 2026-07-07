@@ -753,6 +753,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       childDatesById: new Map(),
       childrenByParentId,
       dates: [],
+      galleryImages: [],
       listings,
       packageGroupRemainingByGroupId: new Map(),
       packageMemberGroupIds: new Map(),
