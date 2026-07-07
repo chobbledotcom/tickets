@@ -20,6 +20,10 @@ import {
   SCHEMA_HASH,
 } from "#shared/db/migrations.ts";
 import {
+  markCurrentSchemaMigrationPending,
+  markMigrationsForRerun,
+} from "#test/lib/db/migration-test-helpers.ts";
+import {
   assertSchemaEmpty,
   describeWithEnv,
   invalidateTestDbCache,
@@ -28,10 +32,6 @@ import {
   stubNtfyFetch,
   tableExists,
 } from "#test-utils";
-import {
-  markCurrentSchemaMigrationPending,
-  markMigrationsForRerun,
-} from "./migration-test-helpers.ts";
 
 describeWithEnv("db > migrations", { db: true }, () => {
   describe("initDb version check", () => {
