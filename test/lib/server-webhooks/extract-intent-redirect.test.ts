@@ -105,7 +105,7 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      const { insertBuiltSite, getAllBuiltSites } = await import(
+      const { insertBuiltSite, builtSites } = await import(
         "#shared/db/built-sites.ts"
       );
       const { provisionTestBuiltSite } = await import("#test-utils");
@@ -118,7 +118,7 @@ describeWithEnv(
         false,
         "9100",
       );
-      const seedSite = (await getAllBuiltSites()).find(
+      const seedSite = (await builtSites.getAll()).find(
         (s) => s.name === "Token Site",
       )!;
       const { tokenIndex } = await provisionTestBuiltSite(seedSite.id, {
@@ -225,7 +225,7 @@ describeWithEnv(
 
       const { addMonthsIso } = await import("#shared/dates.ts");
       const { getAllListings } = await import("#shared/db/listings.ts");
-      const { insertBuiltSite, getAllBuiltSites } = await import(
+      const { insertBuiltSite, builtSites } = await import(
         "#shared/db/built-sites.ts"
       );
       const { provisionTestBuiltSite } = await import("#test-utils");
@@ -247,7 +247,7 @@ describeWithEnv(
         false,
         "9101",
       );
-      const seedSite = (await getAllBuiltSites()).find(
+      const seedSite = (await builtSites.getAll()).find(
         (s) => s.name === "Multi Tier Renewal Site",
       )!;
       const { tokenIndex } = await provisionTestBuiltSite(seedSite.id, {
@@ -281,7 +281,7 @@ describeWithEnv(
         );
         expect(redirectResponse.status).toBe(302);
 
-        const updated = (await getAllBuiltSites()).find(
+        const updated = (await builtSites.getAll()).find(
           (s) => s.id === seedSite.id,
         )!;
         const expectedDeadline = addMonthsIso(initialDeadline, 14);

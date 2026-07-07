@@ -499,7 +499,7 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
     });
 
     test("restore clears all entity caches including holidays", async () => {
-      const { getAllHolidays } = await import("#shared/db/holidays.ts");
+      const { holidays } = await import("#shared/db/holidays.ts");
 
       // Snapshot before creating any holidays — backup has no holidays
       const zipData = await createBackupZip();
@@ -508,7 +508,7 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
       // Create a holiday after the backup so it exists in the cache but
       // will be absent from the restored DB
       await createTestHoliday({ name: "Cache Test Holiday" });
-      const before = await getAllHolidays();
+      const before = await holidays.getAll();
       expect(before.some((h) => h.name === "Cache Test Holiday")).toBe(true);
 
       // Restore from the pre-holiday snapshot
@@ -523,7 +523,7 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
 
       // The holidays cache must be cleared: the holiday is gone from the DB
       // and must not be served from a stale cache entry
-      const after = await getAllHolidays();
+      const after = await holidays.getAll();
       expect(after.some((h) => h.name === "Cache Test Holiday")).toBe(false);
     });
 

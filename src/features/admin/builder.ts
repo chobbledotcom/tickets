@@ -22,7 +22,7 @@ import {
   isTursoEnabled,
 } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getAllBuiltSites, insertBuiltSite } from "#shared/db/built-sites.ts";
+import { builtSites, insertBuiltSite } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
 import { defineForm } from "#shared/forms.tsx";
@@ -39,7 +39,7 @@ export const isBuilderEnabled = (): boolean =>
 
 /** Convert built sites to display format */
 const toDisplay = (
-  sites: Awaited<ReturnType<typeof getAllBuiltSites>>,
+  sites: Awaited<ReturnType<typeof builtSites.getAll>>,
 ): BuiltSiteDisplay[] =>
   sites.map((s) => ({
     created: new Date(s.created).toLocaleDateString("en-GB", {
@@ -57,7 +57,7 @@ const handleBuilderGet = (request: Request): Promise<Response> => {
 
   return requireOwnerOr(request, async (session) => {
     const { error, success } = applyFlash(request);
-    const sites = toDisplay(await getAllBuiltSites());
+    const sites = toDisplay(await builtSites.getAll());
     return htmlResponse(adminBuilderPage(session, sites, error, success));
   });
 };

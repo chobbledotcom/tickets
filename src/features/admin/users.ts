@@ -21,7 +21,7 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { unwrapKeyWithToken, wrapKeyWithToken } from "#shared/crypto/keys.ts";
 import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getAllLogisticsAgents } from "#shared/db/logistics-agents.ts";
+import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { userAgents } from "#shared/db/user-agents.ts";
 import {
@@ -65,7 +65,7 @@ const VALID_ADMIN_LEVELS = ["owner", "manager", "agent", "editor"] as const;
 
 /** The logistics agents an owner can assign — only when logistics is enabled. */
 const loadAssignableAgents = (): Promise<LogisticsAgent[]> =>
-  settings.hasLogistics ? getAllLogisticsAgents() : Promise.resolve([]);
+  settings.hasLogistics ? logisticsAgents.getAll() : Promise.resolve([]);
 
 /** Wrap the shared DATA_KEY under a new invitee's single-use invite code for the
  * keyed roles (owner/manager/agent). Returns an error Response when the inviting

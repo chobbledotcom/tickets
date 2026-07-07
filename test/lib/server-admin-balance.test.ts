@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { attendeeStatusesTable } from "#shared/db/attendee-statuses.ts";
+import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
@@ -57,7 +57,7 @@ const reservedAttendee = async () => {
     name: "Gala Ticket",
     thankYouUrl: "https://example.com",
   });
-  const reservation = await attendeeStatusesTable.insert({
+  const reservation = await attendeeStatuses.table.insert({
     isReservation: true,
     name: "Reserved",
     reservationAmount: "10%",
@@ -154,7 +154,7 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
     });
     // A named, non-reservation status (mirrors a provider-less booking sitting
     // in the seeded public/paid default) still carries an outstanding balance.
-    const confirmed = await attendeeStatusesTable.insert({
+    const confirmed = await attendeeStatuses.table.insert({
       isReservation: false,
       name: "Confirmed",
       reservationAmount: "0",

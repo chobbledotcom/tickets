@@ -17,8 +17,8 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { dbName, hasRecentBackup } from "#shared/db/backup.ts";
 import type { BuiltSite, BuiltSiteFormInput } from "#shared/db/built-sites.ts";
 import {
+  builtSites,
   builtSitesCrudTable,
-  getAllBuiltSites,
   isUpdateTier,
 } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -95,7 +95,7 @@ const builtSitesResource = defineNamedResource({
 });
 
 const crud = createOwnerCrudHandlers({
-  getAll: getAllBuiltSites,
+  getAll: builtSites.getAll,
   getName: (s) => s.name,
   listPath: "/admin/built-sites",
   renderDelete: adminBuiltSiteDeletePage,
@@ -391,7 +391,7 @@ const handleBuiltSitesListGet = (request: Request) =>
   requireOwnerOr(request, async (session) => {
     applyFlash(request);
     const [sites, tiers] = await Promise.all([
-      getAllBuiltSites(),
+      builtSites.getAll(),
       getQualifyingTierListings(),
     ]);
     return htmlResponse(

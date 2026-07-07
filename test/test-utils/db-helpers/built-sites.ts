@@ -71,8 +71,8 @@ export const createTestBuiltSite = (
         ...(input.updates ? { updates: input.updates } : {}),
       },
       async () => {
-        const { getAllBuiltSites } = await import("#shared/db/built-sites.ts");
-        const sites = await getAllBuiltSites();
+        const { builtSites } = await import("#shared/db/built-sites.ts");
+        const sites = await builtSites.getAll();
         return sites[sites.length - 1] as BuiltSite;
       },
       "create built site",

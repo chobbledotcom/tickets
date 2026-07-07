@@ -14,7 +14,7 @@ import { mapNotNullish } from "#fp";
 import {
   getAllGroupNames,
   getGroupPackagePrices,
-  groupsTable,
+  groups,
 } from "#shared/db/groups.ts";
 import { listingParents } from "#shared/db/listing-parents.ts";
 import {
@@ -156,7 +156,7 @@ export const exportListing = async (
 
   // Every membership row references an existing group (FK), and `groupNames`
   // covers all groups, so the name lookup always resolves.
-  const groups: ListingMembership[] = memberships.map((m) => ({
+  const groupMemberships: ListingMembership[] = memberships.map((m) => ({
     group: groupNames.get(m.group_id)!,
     ...overrideFields(
       m.package_price,
@@ -171,7 +171,7 @@ export const exportListing = async (
   )(parentIds);
 
   return {
-    groups,
+    groups: groupMemberships,
     kind: "listing",
     listing: listingData,
     parents,
@@ -187,12 +187,12 @@ export const exportListing = async (
 export const exportGroup = async (
   id: number,
 ): Promise<GroupTransfer | CatalogExportError | null> => {
-  const group = await groupsTable.findById(id);
+  const group = await groups.table.findById(id);
   if (!group) return null;
 
   const groupData = parseExport(
     GroupDataSchema,
-    groupsTable.rowToInput(group, GROUP_EXPORT_EXCLUDED),
+    groups.table.rowToInput(group, GROUP_EXPORT_EXCLUDED),
     "group",
   );
   if (groupData instanceof CatalogExportError) return groupData;

@@ -15,7 +15,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { groupsTable } from "#shared/db/groups.ts";
+import { groups } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -184,7 +184,7 @@ describeWithEnv(
         });
         // hide_package_listings isn't exposed by the create form helper, so set
         // it directly — the concealment predicate reads this column.
-        await groupsTable.update(group.id, {
+        await groups.table.update(group.id, {
           hidePackageListings: true,
           isPackage: true,
         });

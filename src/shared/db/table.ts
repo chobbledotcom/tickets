@@ -439,9 +439,9 @@ export const cachedTable = <Row, Input, Cached = Row>(config: {
  *
  * This folds the identical five-part wiring (table → decrypting query → cache →
  * getAll → invalidate) that every simple owner-maintained list table used to
- * repeat by hand. Callers keep their domain-named exports (`getAllHolidays`,
- * `invalidateHolidaysCache`, …) as one-line delegations to the returned
- * members, so the public surface is unchanged.
+ * repeat by hand. Callers export the returned cached object under a clean name
+ * (e.g. `holidays`) and reach its `table` / `getAll()` / `invalidate()` members
+ * directly, rather than re-wrapping each in a domain-named alias.
  */
 export const defineCachedListTable = <Row, Input>(
   config: TableDefinition<Row> & {

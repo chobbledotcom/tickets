@@ -17,7 +17,7 @@ import {
   getLogisticsAssignments,
   type LogisticsAssignment,
 } from "#shared/db/logistics.ts";
-import { getAllLogisticsAgents } from "#shared/db/logistics-agents.ts";
+import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Attendee, LogisticsAgent } from "#shared/types.ts";
@@ -188,7 +188,7 @@ export const buildAttendeeLogisticsData = async (
   if (!settings.hasLogistics) return undefined;
   const delivered = deliveredBookedLines(lines);
   if (delivered.length === 0) return undefined;
-  const agents = await getAllLogisticsAgents();
+  const agents = await logisticsAgents.getAll();
   if (agents.length === 0) return undefined;
 
   const existing = attendee

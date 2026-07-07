@@ -2,10 +2,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   assignBuiltSite,
+  builtSites,
   builtSitesCrudTable,
   claimNextBuiltSiteForPrune,
   DEFAULT_UPDATE_TIER,
-  getAllBuiltSites,
   getAssignableBuiltSites,
   getBuiltSiteByRenewalTokenIndex,
   insertBuiltSite,
@@ -188,7 +188,7 @@ describeWithEnv("built-sites", { db: true }, () => {
       "libsql://db.turso.io",
       "secret-token",
     );
-    const sites = await getAllBuiltSites();
+    const sites = await builtSites.getAll();
     const site = sites.find((s) => s.name === "DB Site")!;
     expect(site.dbUrl).toBe("libsql://db.turso.io");
     expect(site.dbToken).toBe("secret-token");
@@ -196,7 +196,7 @@ describeWithEnv("built-sites", { db: true }, () => {
 
   test("insertBuiltSite defaults db credentials to empty strings", async () => {
     await insertBuiltSite("No DB Site", "nodb.b-cdn.net");
-    const sites = await getAllBuiltSites();
+    const sites = await builtSites.getAll();
     const site = sites.find((s) => s.name === "No DB Site")!;
     expect(site.dbUrl).toBe("");
     expect(site.dbToken).toBe("");
@@ -211,14 +211,14 @@ describeWithEnv("built-sites", { db: true }, () => {
       false,
       "12345",
     );
-    const sites = await getAllBuiltSites();
+    const sites = await builtSites.getAll();
     const site = sites.find((s) => s.name === "Script Site")!;
     expect(site.hostingId).toBe("12345");
   });
 
   test("insertBuiltSite defaults bunny script id to empty string", async () => {
     await insertBuiltSite("No Script Site", "noscript.b-cdn.net");
-    const sites = await getAllBuiltSites();
+    const sites = await builtSites.getAll();
     const site = sites.find((s) => s.name === "No Script Site")!;
     expect(site.hostingId).toBe("");
   });
@@ -228,7 +228,7 @@ describeWithEnv("built-sites", { db: true }, () => {
     await insertBuiltSite("Alpha", "alpha.b-cdn.net");
     await insertBuiltSite("Bravo", "bravo.b-cdn.net");
 
-    const sites = await getAllBuiltSites();
+    const sites = await builtSites.getAll();
     expect(sites).toHaveLength(3);
     expect(sites[0]!.name).toBe("Alpha");
     expect(sites[0]!.siteUrl).toBe("alpha.b-cdn.net");
@@ -237,7 +237,7 @@ describeWithEnv("built-sites", { db: true }, () => {
   });
 
   test("getAllBuiltSites returns empty array when no sites exist", async () => {
-    const sites = await getAllBuiltSites();
+    const sites = await builtSites.getAll();
     expect(sites).toHaveLength(0);
   });
 
@@ -441,14 +441,14 @@ describeWithEnv("built-sites", { db: true }, () => {
   describe("assignable sites", () => {
     test("insertBuiltSite with assignable flag", async () => {
       await insertBuiltSite("Assignable Site", "a.b-cdn.net", "", "", true);
-      const sites = await getAllBuiltSites();
+      const sites = await builtSites.getAll();
       const site = sites.find((s) => s.name === "Assignable Site")!;
       expect(site.assignable).toBe(true);
     });
 
     test("insertBuiltSite defaults to not assignable", async () => {
       await insertBuiltSite("Default Site", "d.b-cdn.net");
-      const sites = await getAllBuiltSites();
+      const sites = await builtSites.getAll();
       const site = sites.find((s) => s.name === "Default Site")!;
       expect(site.assignable).toBe(false);
     });
@@ -464,7 +464,7 @@ describeWithEnv("built-sites", { db: true }, () => {
 
     test("assignBuiltSite marks site as not assignable and stores IDs in columns", async () => {
       await insertBuiltSite("To Assign", "assign.b-cdn.net", "", "", true);
-      const sites = await getAllBuiltSites();
+      const sites = await builtSites.getAll();
       const site = sites.find((s) => s.name === "To Assign")!;
 
       const updated = await assignBuiltSite(site.id, 42, 7);
@@ -481,7 +481,7 @@ describeWithEnv("built-sites", { db: true }, () => {
 
     test("unassigned sites have null attendee and listing IDs", async () => {
       await insertBuiltSite("Unassigned", "u.b-cdn.net", "", "", true);
-      const sites = await getAllBuiltSites();
+      const sites = await builtSites.getAll();
       const site = sites.find((s) => s.name === "Unassigned")!;
       expect(site.assignedAttendeeId).toBeNull();
       expect(site.assignedListingId).toBeNull();
@@ -491,7 +491,7 @@ describeWithEnv("built-sites", { db: true }, () => {
   describe("renewal columns", () => {
     test("new sites have empty readOnlyFrom and null renewal fields", async () => {
       await insertBuiltSite("Renewal Site", "renewal.b-cdn.net");
-      const sites = await getAllBuiltSites();
+      const sites = await builtSites.getAll();
       const site = sites.find((s) => s.name === "Renewal Site")!;
       expect(site.readOnlyFrom).toBe("");
       expect(site.renewalTokenIndex).toBeNull();
@@ -499,7 +499,7 @@ describeWithEnv("built-sites", { db: true }, () => {
 
     test("getBuiltSiteByRenewalTokenIndex returns matching site", async () => {
       await insertBuiltSite("Token Site", "token.b-cdn.net");
-      const sites = await getAllBuiltSites();
+      const sites = await builtSites.getAll();
       const site = sites.find((s) => s.name === "Token Site")!;
 
       await updateBuiltSiteRenewalState(site.id, {
@@ -522,7 +522,7 @@ describeWithEnv("built-sites", { db: true }, () => {
     test("multiple sites with null renewalTokenIndex are allowed", async () => {
       await insertBuiltSite("Site 1", "s1.b-cdn.net");
       await insertBuiltSite("Site 2", "s2.b-cdn.net");
-      const sites = await getAllBuiltSites();
+      const sites = await builtSites.getAll();
       const nullIndexSiteNames = sites
         .filter((s) => s.renewalTokenIndex === null)
         .map((s) => s.name)
@@ -569,13 +569,13 @@ describeWithEnv("built-sites", { db: true }, () => {
 
     test("updateBuiltSiteRenewalState updates individual fields", async () => {
       await insertBuiltSite("Renewal Update", "ru.b-cdn.net");
-      const sites = await getAllBuiltSites();
+      const sites = await builtSites.getAll();
       const site = sites.find((s) => s.name === "Renewal Update")!;
 
       await updateBuiltSiteRenewalState(site.id, {
         readOnlyFrom: "2027-01-01T00:00:00Z",
       });
-      const afterFirst = await getAllBuiltSites();
+      const afterFirst = await builtSites.getAll();
       const updatedAfterFirst = afterFirst.find((s) => s.id === site.id)!;
       expect(updatedAfterFirst.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
       expect(updatedAfterFirst.renewalTokenIndex).toBeNull();
@@ -607,7 +607,7 @@ describeWithEnv("built-sites", { db: true }, () => {
 
     test("insertBuiltSite defaults the channel to release", async () => {
       await insertBuiltSite("Defaulted", "defaulted.b-cdn.net");
-      const site = (await getAllBuiltSites()).find(
+      const site = (await builtSites.getAll()).find(
         (s) => s.name === "Defaulted",
       )!;
       expect(site.updates).toBe("release");
@@ -623,7 +623,7 @@ describeWithEnv("built-sites", { db: true }, () => {
         "",
         "alpha",
       );
-      const site = (await getAllBuiltSites()).find(
+      const site = (await builtSites.getAll()).find(
         (s) => s.name === "Alpha Chan",
       )!;
       expect(site.updates).toBe("alpha");
@@ -641,7 +641,7 @@ describeWithEnv("built-sites", { db: true }, () => {
         crudInput({ name: "Crud Beta", updates: "beta" }),
       );
       expect(site.updates).toBe("beta");
-      const reloaded = (await getAllBuiltSites()).find(
+      const reloaded = (await builtSites.getAll()).find(
         (s) => s.id === site.id,
       )!;
       expect(reloaded.updates).toBe("beta");
@@ -678,7 +678,7 @@ describeWithEnv("built-sites", { db: true }, () => {
         "",
         "beta",
       );
-      const site = (await getAllBuiltSites()).find(
+      const site = (await builtSites.getAll()).find(
         (s) => s.name === "Assign Chan",
       )!;
       const updated = await assignBuiltSite(site.id, 1, 2);
@@ -695,13 +695,13 @@ describeWithEnv("built-sites", { db: true }, () => {
         "",
         "alpha",
       );
-      const site = (await getAllBuiltSites()).find(
+      const site = (await builtSites.getAll()).find(
         (s) => s.name === "Renew Chan",
       )!;
       await updateBuiltSiteRenewalState(site.id, {
         readOnlyFrom: "2027-01-01T00:00:00Z",
       });
-      const reloaded = (await getAllBuiltSites()).find(
+      const reloaded = (await builtSites.getAll()).find(
         (s) => s.id === site.id,
       )!;
       expect(reloaded.updates).toBe("alpha");

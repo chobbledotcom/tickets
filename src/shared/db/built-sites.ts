@@ -440,7 +440,7 @@ const rowToBuiltSite = (row: BuiltSiteRow): BuiltSite => {
   };
 };
 
-const builtSitesCache = cachedTable({
+export const builtSites = cachedTable({
   fetchAll: () =>
     queryAndDecrypt(
       `SELECT ${builtSiteSelectColumns} FROM built_sites ORDER BY created DESC`,
@@ -460,17 +460,14 @@ const queryAndDecrypt = async (sql: string): Promise<BuiltSite[]> => {
   return sites;
 };
 
-/** Raw table with cache invalidation on writes */
-export const builtSitesTable = builtSitesCache.table;
-
 /**
  * CRUD-compatible table adapter that presents BuiltSite (with individual fields)
  * while storing data as an encrypted blob underneath.
  */
 export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
-  deleteById: (id: InValue): Promise<void> => builtSitesTable.deleteById(id),
+  deleteById: (id: InValue): Promise<void> => builtSites.table.deleteById(id),
 
-  findAll: (): Promise<BuiltSite[]> => builtSitesCache.getAll(),
+  findAll: (): Promise<BuiltSite[]> => builtSites.getAll(),
 
   findById: async (id: InValue): Promise<BuiltSite | null> => {
     // findById already decrypts via fromDb internally
@@ -487,7 +484,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
   inputKeyMap: builtSiteInputKeyMap,
 
   insert: async (input: BuiltSiteFormInput): Promise<BuiltSite> => {
-    const row = await builtSitesTable.insert(toRawInput(input));
+    const row = await builtSites.table.insert(toRawInput(input));
     return rowToBuiltSite(row);
   },
   name: "built_sites",
@@ -522,7 +519,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
   ): Promise<BuiltSite | null> => {
     const existing = await builtSitesCrudTable.findById(id);
     if (!existing) return null;
-    const row = (await builtSitesTable.update(
+    const row = (await builtSites.table.update(
       id,
       toRawInput({ ...existing, ...input }),
     )) as BuiltSiteRow;
@@ -585,7 +582,7 @@ export const insertBuiltSite = (
   hostingProvider: HostingProvider = "bunny",
   dbProvider: DbProvider = "bunny",
 ): Promise<BuiltSiteRow> =>
-  builtSitesTable.insert(
+  builtSites.table.insert(
     toRawInput({
       assignable,
       dbProvider,
@@ -599,13 +596,9 @@ export const insertBuiltSite = (
     }),
   );
 
-/** Get all built sites, decrypted and sorted by name */
-export const getAllBuiltSites = (): Promise<BuiltSite[]> =>
-  builtSitesCache.getAll();
-
 /** Get all assignable built sites */
 export const getAssignableBuiltSites = async (): Promise<BuiltSite[]> => {
-  const all = await getAllBuiltSites();
+  const all = await builtSites.getAll();
   return all.filter((s) => s.assignable);
 };
 
@@ -642,7 +635,7 @@ export const assignBuiltSite = (
   listingId: number,
 ): Promise<BuiltSite | null> => {
   return withBuiltSiteForUpdate(siteId, async () => {
-    const row = (await builtSitesTable.update(siteId, {
+    const row = (await builtSites.table.update(siteId, {
       assignable: 0,
       assignedAttendeeId: attendeeId,
       assignedListingId: listingId,
@@ -675,7 +668,7 @@ export const updateBuiltSiteRenewalState = (
 ): Promise<BuiltSite | null> => {
   return withBuiltSiteForUpdate(siteId, async (existing) => {
     const token = updates.renewalToken ?? existing.renewalToken ?? undefined;
-    const row = (await builtSitesTable.update(siteId, {
+    const row = (await builtSites.table.update(siteId, {
       siteData: buildSiteDataBlobFromInput({
         ...existing,
         renewalToken: token,

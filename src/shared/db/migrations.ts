@@ -15,10 +15,10 @@ import type { Client } from "@libsql/client";
 import { lazyRef } from "#fp";
 import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import { executeBatch, getDb } from "#shared/db/client.ts";
-import { invalidateGroupsCache } from "#shared/db/groups.ts";
-import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
+import { groups } from "#shared/db/groups.ts";
+import { holidays } from "#shared/db/holidays.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
-import { invalidateLogisticsAgentsCache } from "#shared/db/logistics-agents.ts";
+import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { resetSessionCache } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
@@ -742,9 +742,9 @@ export const clearAllCaches = (): void => {
   resetSessionCache();
   invalidateUsersCache();
   invalidateListingsCache();
-  invalidateHolidaysCache();
-  invalidateGroupsCache();
-  invalidateLogisticsAgentsCache();
+  holidays.invalidate();
+  groups.cache.invalidate();
+  logisticsAgents.invalidate();
 };
 
 /**

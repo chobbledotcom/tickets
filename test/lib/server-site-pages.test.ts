@@ -7,7 +7,7 @@ import {
   createSitePage,
   getSitePageById,
   getSitePageBySlugIndex,
-  getSitePageNavRows,
+  sitePages,
 } from "#shared/db/site-pages.ts";
 import type { SitePage } from "#shared/types.ts";
 import {
@@ -38,7 +38,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
   };
 
   const findPage = async (slug: string): Promise<SitePage> => {
-    const rows = await getSitePageNavRows();
+    const rows = await sitePages.getAll();
     const row = rows.find((r) => r.slug === slug);
     if (!row) throw new Error(`page ${slug} not found`);
     return (await getSitePageById(row.id))!;
@@ -67,7 +67,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       await create("a1");
       await create("a2");
       await create("a3");
-      const rows = await getSitePageNavRows();
+      const rows = await sitePages.getAll();
       const first = rows[0]!;
       const last = rows[2]!;
       const html = await expectHtmlResponse(await adminGet(BASE), 200);
@@ -109,21 +109,21 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
     test("rejects a missing name", async () => {
       const { response } = await adminFormPost(BASE, { slug: "no-name" });
       expectRedirect(response);
-      expect(
-        (await getSitePageNavRows()).some((r) => r.slug === "no-name"),
-      ).toBe(false);
+      expect((await sitePages.getAll()).some((r) => r.slug === "no-name")).toBe(
+        false,
+      );
     });
 
     test("rejects a missing slug", async () => {
       const { response } = await adminFormPost(BASE, { name: "No Slug" });
       expectRedirect(response);
-      expect((await getSitePageNavRows()).length).toBe(0);
+      expect((await sitePages.getAll()).length).toBe(0);
     });
 
     test("rejects a reserved slug", async () => {
       const response = await create("contact");
       expectRedirect(response);
-      expect((await getSitePageNavRows()).length).toBe(0);
+      expect((await sitePages.getAll()).length).toBe(0);
     });
 
     test("rejects a duplicate slug", async () => {
@@ -131,7 +131,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       const response = await create("dup");
       expectRedirect(response);
       expect(
-        (await getSitePageNavRows()).filter((r) => r.slug === "dup").length,
+        (await sitePages.getAll()).filter((r) => r.slug === "dup").length,
       ).toBe(1);
     });
   });
@@ -288,7 +288,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
 
   describe("root reorder", () => {
     const order = async (): Promise<string[]> =>
-      (await getSitePageNavRows()).map((r) => r.slug);
+      (await sitePages.getAll()).map((r) => r.slug);
 
     test("moves roots up and down; boundary is a no-op", async () => {
       await create("r1");
@@ -308,7 +308,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       expect(await order()).toEqual(["r2", "r3", "r1"]);
 
       // Moving the top page up is a no-op (boundary).
-      const top = (await getSitePageNavRows())[0]!;
+      const top = (await sitePages.getAll())[0]!;
       await adminFormPost(`${BASE}/${top.id}/move-up`, {});
       expect(await order()).toEqual(["r2", "r3", "r1"]);
     });

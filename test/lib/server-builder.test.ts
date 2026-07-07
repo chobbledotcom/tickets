@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { builderApi } from "#shared/builder.ts";
-import { getAllBuiltSites } from "#shared/db/built-sites.ts";
+import { builtSites } from "#shared/db/built-sites.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import {
   MOCK_DB_RESULT,
@@ -288,7 +288,7 @@ describeWithEnv(
         expectFlash(response, expect.stringContaining("created successfully"));
 
         // Verify site was recorded with db credentials from buildResult
-        const sites = await getAllBuiltSites();
+        const sites = await builtSites.getAll();
         expect(sites).toHaveLength(1);
         expect(sites[0]!.name).toBe("My Test Site");
         expect(sites[0]!.siteUrl).toBe("https://test-42.b-cdn.net");
@@ -309,7 +309,7 @@ describeWithEnv(
         expectRedirect(response, "/admin/builder");
         expectFlash(response, expect.stringContaining("created successfully"));
 
-        const sites = await getAllBuiltSites();
+        const sites = await builtSites.getAll();
         expect(sites).toHaveLength(1);
         expect(sites[0]!.name).toBe("Auto DB Site");
         expect(sites[0]!.dbUrl).toBe(MOCK_DB_RESULT.dbUrl);
@@ -327,7 +327,7 @@ describeWithEnv(
         });
 
         expectRedirect(response, "/admin/builder");
-        const sites = await getAllBuiltSites();
+        const sites = await builtSites.getAll();
         expect(sites).toHaveLength(1);
         expect(sites[0]!.assignable).toBe(true);
       });

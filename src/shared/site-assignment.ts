@@ -14,8 +14,8 @@ import { addMonthsIso } from "#shared/dates.ts";
 import {
   assignBuiltSite,
   type BuiltSite,
+  builtSites,
   builtSitesCrudTable,
-  getAllBuiltSites,
   getAssignableBuiltSites,
   siteBaseUrl,
   updateBuiltSiteRenewalState,
@@ -81,7 +81,7 @@ export type SiteAssignmentConfigValidation =
 
 /** Compute the next sequential site name based on total site count, zero-padded to 5 digits. */
 const nextSiteName = async (): Promise<string> =>
-  String((await getAllBuiltSites()).length + 1).padStart(5, "0");
+  String((await builtSites.getAll()).length + 1).padStart(5, "0");
 
 /** Build a new site on-demand and insert it as an assignable record. */
 const buildSiteForAssignment = async (): Promise<BuiltSite | null> => {

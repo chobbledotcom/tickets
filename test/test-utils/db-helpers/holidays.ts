@@ -19,9 +19,9 @@ export const createTestHoliday = (
       start_date: input.startDate,
     },
     async () => {
-      const { getAllHolidays } = await import("#shared/db/holidays.ts");
-      const holidays = await getAllHolidays();
-      return holidays[holidays.length - 1] as Holiday;
+      const { holidays } = await import("#shared/db/holidays.ts");
+      const all = await holidays.getAll();
+      return all[all.length - 1] as Holiday;
     },
     "create holiday",
   );
@@ -31,8 +31,8 @@ export const updateTestHoliday = async (
   holidayId: number,
   updates: Partial<HolidayInput>,
 ): Promise<Holiday> => {
-  const { holidaysTable } = await import("#shared/db/holidays.ts");
-  const existing = (await holidaysTable.findById(holidayId)) as Holiday;
+  const { holidays } = await import("#shared/db/holidays.ts");
+  const existing = (await holidays.table.findById(holidayId)) as Holiday;
 
   return doAuthenticatedFormRequest(
     `/admin/holidays/${holidayId}/edit`,
@@ -42,7 +42,7 @@ export const updateTestHoliday = async (
       start_date: updates.startDate ?? existing.start_date,
     },
     async () => {
-      const updated = await holidaysTable.findById(holidayId);
+      const updated = await holidays.table.findById(holidayId);
       return updated as Holiday;
     },
     "update holiday",
@@ -50,8 +50,8 @@ export const updateTestHoliday = async (
 };
 
 export const deleteTestHoliday = async (holidayId: number): Promise<void> => {
-  const { holidaysTable } = await import("#shared/db/holidays.ts");
-  const existing = (await holidaysTable.findById(holidayId)) as Holiday;
+  const { holidays } = await import("#shared/db/holidays.ts");
+  const existing = (await holidays.table.findById(holidayId)) as Holiday;
 
   return doAuthenticatedFormRequest(
     `/admin/holidays/${holidayId}/delete`,

@@ -10,7 +10,7 @@ import {
   resetCacheRegistry,
   type WriteVerb,
 } from "#shared/cache-registry.ts";
-import { getAllHolidays, holidaysTable } from "#shared/db/holidays.ts";
+import { holidays } from "#shared/db/holidays.ts";
 import { requestCache, runWithRequestCache } from "#shared/request-cache.ts";
 import { describeWithEnv } from "#test-utils";
 
@@ -343,7 +343,7 @@ describe("requestCache", () => {
 
 describeWithEnv("caching integration", { db: true }, () => {
   test("caches holidays within a request and serves fresh data across requests", async () => {
-    await holidaysTable.insert({
+    await holidays.table.insert({
       endDate: "2026-07-31",
       name: "Summer Break",
       startDate: "2026-07-01",
@@ -351,8 +351,8 @@ describeWithEnv("caching integration", { db: true }, () => {
 
     // Within a request, same data is returned (cached reference)
     await runWithRequestCache(async () => {
-      const first = await getAllHolidays();
-      const second = await getAllHolidays();
+      const first = await holidays.getAll();
+      const second = await holidays.getAll();
       expect(first).toBe(second); // same reference = cached
       expect(first).toHaveLength(1);
       expect(first[0]!.name).toBe("Summer Break");
@@ -360,16 +360,16 @@ describeWithEnv("caching integration", { db: true }, () => {
   });
 
   test("each request gets fresh data after writes", async () => {
-    const first = await runWithRequestCache(() => getAllHolidays());
+    const first = await runWithRequestCache(() => holidays.getAll());
     expect(first).toHaveLength(0);
 
-    await holidaysTable.insert({
+    await holidays.table.insert({
       endDate: "2026-12-31",
       name: "Winter Break",
       startDate: "2026-12-20",
     });
 
-    const second = await runWithRequestCache(() => getAllHolidays());
+    const second = await runWithRequestCache(() => holidays.getAll());
     expect(second).toHaveLength(1);
     expect(second[0]!.name).toBe("Winter Break");
   });

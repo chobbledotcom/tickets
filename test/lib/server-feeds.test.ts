@@ -6,9 +6,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { escapeIcs, escapeXml } from "#routes/feeds.ts";
-import { groupsTable } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
+  createHiddenPackageGroup,
   createTestGroup,
   createTestListing,
   deactivateTestListing,
@@ -80,8 +80,7 @@ const feedExclusionTests = (feedPath: string, emptyMarker: string) => {
 
   test("syndicates a hidden package's bundle, never its members", async () => {
     await settings.update.showPublicSite(true);
-    const group = await createTestGroup({ isPackage: true, name: "Bundle" });
-    await groupsTable.update(group.id, { hidePackageListings: true });
+    const group = await createHiddenPackageGroup("Bundle");
     await createTestListing({
       groupId: group.id,
       maxAttendees: 100,
@@ -606,9 +605,7 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
     const { createApiKey } = await import("#shared/db/api-keys.ts");
     const { createUser } = await import("#shared/db/users.ts");
     const { setLogisticsAssignments } = await import("#shared/db/logistics.ts");
-    const { logisticsAgentsTable } = await import(
-      "#shared/db/logistics-agents.ts"
-    );
+    const { logisticsAgents } = await import("#shared/db/logistics-agents.ts");
     const { userAgents } = await import("#shared/db/user-agents.ts");
     const { generateSecureToken } = await import("#shared/crypto/utils.ts");
     const { getTestDataKeyForApiKey, requestAsApiKey } = await import(
@@ -620,7 +617,7 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
     await settings.update.calendarFeedsEnabled(true);
     const dataKey = await getTestDataKeyForApiKey();
     const user = await createUser("feed-agent", "", null, "agent");
-    const agent = await logisticsAgentsTable.insert({ name: "Van 1" });
+    const agent = await logisticsAgents.table.insert({ name: "Van 1" });
     await userAgents.setIds(user.id, [agent.id]);
     const { apiKey } = await createApiKey(
       user.id,

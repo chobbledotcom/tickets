@@ -28,10 +28,8 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import {
   type AttendeeStatus,
   assignNextAttendeeStatusSortOrder,
-  attendeeStatusesTable,
-  getAllAttendeeStatuses,
+  attendeeStatuses,
   getAttendeeStatus,
-  invalidateAttendeeStatusesCache,
   swapAttendeeStatusOrder,
 } from "#shared/db/attendee-statuses.ts";
 import { execute } from "#shared/db/client.ts";
@@ -109,11 +107,11 @@ const clearOtherDefaults = async (
       [id],
     );
   }
-  invalidateAttendeeStatusesCache();
+  attendeeStatuses.invalidate();
 };
 
 const listGet = ownerPage(async (session) => {
-  const statuses = await getAllAttendeeStatuses();
+  const statuses = await attendeeStatuses.getAll();
   const flash = getFlash();
   return adminAttendeeStatusesPage(
     statuses,
@@ -149,7 +147,7 @@ const createPost = createAuthedHandler({
   handle: async ({ form }) => {
     const parsed = parseStatusForm(form);
     if (!parsed.ok) return errorRedirect(`${LIST_PATH}/new`, parsed.error);
-    const status = await attendeeStatusesTable.insert(parsed.data);
+    const status = await attendeeStatuses.table.insert(parsed.data);
     await assignNextAttendeeStatusSortOrder(status.id);
     await clearOtherDefaults(status.id, parsed.data);
     await logActivity(`Attendee status '${parsed.data.name}' created`);
@@ -176,7 +174,7 @@ const editPost = ownerFormById(async (id, _session, form) => {
     );
   }
 
-  await attendeeStatusesTable.update(id, parsed.data);
+  await attendeeStatuses.table.update(id, parsed.data);
   await clearOtherDefaults(id, parsed.data);
   await logActivity(`Attendee status '${parsed.data.name}' updated`);
   return redirect(LIST_PATH, "Status updated", true);
@@ -198,7 +196,7 @@ const deletePost = ownerFormById(async (id, _session, form) => {
     "deletion",
   );
   if (mismatch) return mismatch;
-  const all = await getAllAttendeeStatuses();
+  const all = await attendeeStatuses.getAll();
   if (all.length <= 1) {
     return errorRedirect(confirmPath, "You must keep at least one status");
   }
@@ -221,7 +219,7 @@ const deletePost = ownerFormById(async (id, _session, form) => {
   if (inUse.rows.length > 0) {
     return errorRedirect(confirmPath, "This status is in use by attendees");
   }
-  await attendeeStatusesTable.deleteById(id);
+  await attendeeStatuses.table.deleteById(id);
   await logActivity(`Attendee status '${status.name}' deleted`);
   return redirect(LIST_PATH, "Status deleted", true);
 });
@@ -229,7 +227,7 @@ const deletePost = ownerFormById(async (id, _session, form) => {
 /** Factory for move-up / move-down handlers (swap with the ordered neighbour). */
 const moveHandler = (direction: -1 | 1) =>
   ownerFormById(async (id) => {
-    const all = await getAllAttendeeStatuses();
+    const all = await attendeeStatuses.getAll();
     const idx = all.findIndex((s) => s.id === id);
     if (idx === -1) return notFoundResponse();
     const neighbor = all[idx + direction];

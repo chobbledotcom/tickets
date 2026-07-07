@@ -242,10 +242,10 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
 
       await deleteTestGroup(group.id);
 
-      const { groupsTable } = await import("#shared/db/groups.ts");
+      const { groups } = await import("#shared/db/groups.ts");
       const { getListing } = await import("#shared/db/listings.ts");
 
-      expect(await groupsTable.findById(group.id)).toBeNull();
+      expect(await groups.table.findById(group.id)).toBeNull();
       const existingListing = await getListing(listing.id);
       expect(existingListing).not.toBeNull();
       // Group delete prunes membership rows, leaving the listing ungrouped.
@@ -267,11 +267,11 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
-      const { groupsTable } = await import("#shared/db/groups.ts");
-      const original = groupsTable.findById.bind(groupsTable);
+      const { groups } = await import("#shared/db/groups.ts");
+      const original = groups.table.findById.bind(groups.table);
       let calls = 0;
       const findByIdStub = stub(
-        groupsTable,
+        groups.table,
         "findById",
         (...args: Parameters<typeof original>) => {
           calls++;

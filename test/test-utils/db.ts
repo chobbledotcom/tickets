@@ -4,14 +4,14 @@ import { once } from "#fp";
 import { resetEffectiveDomain } from "#shared/config.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
+  attendeeStatuses,
   ensureDefaultAttendeeStatus,
-  invalidateAttendeeStatusesCache,
 } from "#shared/db/attendee-statuses.ts";
 import { getDb, insert, queryOne, setDb } from "#shared/db/client.ts";
-import { invalidateGroupsCache } from "#shared/db/groups.ts";
-import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
+import { groups } from "#shared/db/groups.ts";
+import { holidays } from "#shared/db/holidays.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
-import { invalidateLogisticsAgentsCache } from "#shared/db/logistics-agents.ts";
+import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import {
   SCHEMA,
   SCHEMA_MIGRATIONS_TABLE,
@@ -120,10 +120,10 @@ const prepareTestClient = async (triggers = false): Promise<void> => {
   resetSessionCache();
   invalidateUsersCache();
   invalidateListingsCache();
-  invalidateHolidaysCache();
-  invalidateGroupsCache();
-  invalidateLogisticsAgentsCache();
-  invalidateAttendeeStatusesCache();
+  holidays.invalidate();
+  groups.cache.invalidate();
+  logisticsAgents.invalidate();
+  attendeeStatuses.invalidate();
 
   // A temp file, not ":memory:": interactive transactions (withTransaction) open
   // a second connection, and each ":memory:" connection is its own *separate*
@@ -327,10 +327,10 @@ export const resetDb = (): void => {
   settings.invalidateCache();
   invalidateUsersCache();
   invalidateListingsCache();
-  invalidateHolidaysCache();
-  invalidateGroupsCache();
-  invalidateLogisticsAgentsCache();
-  invalidateAttendeeStatusesCache();
+  holidays.invalidate();
+  groups.cache.invalidate();
+  logisticsAgents.invalidate();
+  attendeeStatuses.invalidate();
   resetSessionCache();
   setTestSession(null);
   setDemoModeForTest(false);

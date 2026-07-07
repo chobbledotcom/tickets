@@ -11,7 +11,7 @@ import { getDateFilter } from "#routes/admin/actions.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity.ts";
-import { getGroupIdsByListingId, groupsTable } from "#shared/db/groups.ts";
+import { getGroupIdsByListingId, groups } from "#shared/db/groups.ts";
 import {
   type AttendeeQuestionData,
   getAttendeeAnswersBatch,
@@ -124,7 +124,7 @@ export const loadGroupContext = async (
 ): Promise<GroupContext | undefined> => {
   let tightest: { ctx: GroupContext; remaining: number } | undefined;
   for (const groupId of await getGroupIdsByListingId(listing.id)) {
-    const group = await groupsTable.findById(groupId);
+    const group = await groups.table.findById(groupId);
     if (!group || group.max_attendees <= 0) continue;
     const remainingMap = await getGroupRemainingByGroupId(
       [group.id],
