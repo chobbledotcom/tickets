@@ -27,7 +27,7 @@
   "attendee_logistics.map_label": "Map of the pinned location",
   "attendee_logistics.diff_heading": "The chosen address differs from what's typed:",
   "attendee_logistics.save": "Save Logistics",
-  "attendee_logistics.saved": "Logistics saved for '{value}'",
+  "attendee_logistics.saved": "Logistics saved for ''{value}''",
   "attendee_logistics.others_heading": "Other Attendees",
   "attendee_logistics.others_hint": "Everyone else with a booking on the same dates. Open one to plan its times alongside this job.",
   "attendee_logistics.col_attendee": "Attendee",
