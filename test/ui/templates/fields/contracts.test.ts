@@ -17,6 +17,12 @@ import {
 import { byName, hasField } from "#test-utils/fields.ts";
 
 describe("fields contracts", () => {
+  describe("field lookup helpers", () => {
+    test("byName throws loudly when the named field is absent", () => {
+      expect(() => byName([], "missing")).toThrow('no "missing" field');
+    });
+  });
+
   describe("extractContact", () => {
     test("passes present contact values straight through", () => {
       const values: TicketFormValues = {
