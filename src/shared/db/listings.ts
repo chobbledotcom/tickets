@@ -74,6 +74,7 @@ import { nowIso } from "#shared/now.ts";
 import {
   type Attendee,
   type DayPrices,
+  type ItemImageProjection,
   type Listing,
   type ListingFields,
   type ListingType,
@@ -565,11 +566,7 @@ const listingsCache = listingsEntity.cache;
  * returned entity honest. `update` no-ops when the row is missing (returns null).
  */
 const rawTable = listingsEntity.table;
-type ListingImageProjection = Pick<
-  Listing,
-  "image_alt_text" | "image_thumb_url" | "image_url"
->;
-const EMPTY_LISTING_IMAGE: ListingImageProjection = {
+const EMPTY_LISTING_IMAGE: ItemImageProjection = {
   image_alt_text: "",
   image_thumb_url: "",
   image_url: "",
@@ -578,7 +575,7 @@ const EMPTY_LISTING_IMAGE: ListingImageProjection = {
 const withDayPrices = async (
   row: Listing,
   provided: DayPrices | undefined,
-  projectedImage?: ListingImageProjection,
+  projectedImage?: ItemImageProjection,
 ): Promise<Listing> => {
   const [day_prices, imageFilenames] = await Promise.all([
     provided ?? getListingDayPrices(row.id),
@@ -740,7 +737,7 @@ export const getListingsById = async (): Promise<
 /** The narrow projection an item picker needs: id, name, and active for every
  * listing. Selects and decrypts only the name rather than warming the whole
  * listings cache. Ordered by id for a stable list. */
-export type ListingOption = { active: boolean; id: number; name: string };
+export type ListingOption = Pick<Listing, "active" | "id" | "name">;
 
 type ListingOptionRow = {
   active: number;
@@ -771,12 +768,10 @@ export const getListingNamesByIds = (
 
 /** The flag columns that decide whether a listing may be offered on a site
  * page: active status plus the renewal-tier predicate shape. */
-export type ListingOfferFlags = {
-  active: boolean;
-  hidden: boolean;
-  months_per_unit: number;
-  purchase_only: boolean;
-};
+export type ListingOfferFlags = Pick<
+  Listing,
+  "active" | "hidden" | "months_per_unit" | "purchase_only"
+>;
 
 /** A listing's picker-relevant fields: the offer flags plus its name. */
 export type ListingPickerRow = ListingOfferFlags & { name: string };

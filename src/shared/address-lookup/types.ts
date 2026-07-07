@@ -15,6 +15,7 @@
 
 import * as v from "valibot";
 import type { ApiResult } from "#shared/fetch.ts";
+import { guardFor } from "#shared/validation/guard.ts";
 
 /** Schema for the stored provider setting ("none" disables lookups). */
 export const AddressLookupSettingSchema = v.picklist(["none", "easypostcodes"]);
@@ -28,8 +29,7 @@ export type AddressLookupSetting = v.InferOutput<
 export const ADDRESS_LOOKUP_SETTINGS = AddressLookupSettingSchema.options;
 
 /** Type guard: check if an arbitrary string is a valid provider setting. */
-export const isAddressLookupSetting = (s: string): s is AddressLookupSetting =>
-  v.is(AddressLookupSettingSchema, s);
+export const isAddressLookupSetting = guardFor(AddressLookupSettingSchema);
 
 /** A provider that can actually search — every setting except "none". */
 export type AddressLookupProvider = Exclude<AddressLookupSetting, "none">;

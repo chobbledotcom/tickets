@@ -32,15 +32,37 @@ export type DeleteBody = { confirm_identifier: string };
 
 /**
  * Parse a required non-empty string field from a JSON body.
- * Returns the trimmed string or null if missing/empty.
+ * Returns the trimmed string or null if missing/empty. Internal helper for
+ * {@link requireStrings}.
  */
-export const requireString = (
+const requireString = (
   body: Record<string, unknown>,
   key: string,
 ): string | null =>
   typeof body[key] === "string" && body[key].trim() !== ""
     ? body[key].trim()
     : null;
+
+/**
+ * Read several required non-empty string fields from a JSON body in one call.
+ * Returns the trimmed values keyed by field name, or a ready `{ ok: false }`
+ * rejection naming the first missing/empty field. Lets a create parser require
+ * all its mandatory fields at once instead of repeating a `requireString` +
+ * "<field> is required" pair per field (which the 0% duplication check flags as
+ * a cross-file clone).
+ */
+export const requireStrings = <K extends string>(
+  body: Record<string, unknown>,
+  keys: readonly K[],
+): { ok: true; values: Record<K, string> } | { ok: false; error: string } => {
+  const values = {} as Record<K, string>;
+  for (const key of keys) {
+    const value = requireString(body, key);
+    if (!value) return { error: `${key} is required`, ok: false };
+    values[key] = value;
+  }
+  return { ok: true, values };
+};
 
 /**
  * Read an optional typed scalar from a JSON body, falling back to `fallback`

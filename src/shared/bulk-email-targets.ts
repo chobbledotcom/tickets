@@ -21,6 +21,7 @@ import {
 import { getAllListings, getListingWithCount } from "#shared/db/listings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ListingWithCount } from "#shared/types.ts";
+import { guardFor } from "#shared/validation/guard.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
 
 // ── Audiences ───────────────────────────────────────────────────────
@@ -29,8 +30,7 @@ import { parsePositiveIntId } from "#shared/validation/number.ts";
 export const AUDIENCE_IDS = ["active", "upcoming", "all"] as const;
 export const AudienceIdSchema = v.picklist(AUDIENCE_IDS);
 export type AudienceId = v.InferOutput<typeof AudienceIdSchema>;
-export const isAudienceId = (s: string): s is AudienceId =>
-  v.is(AudienceIdSchema, s);
+export const isAudienceId = guardFor(AudienceIdSchema);
 
 export type Audience = {
   readonly id: AudienceId;

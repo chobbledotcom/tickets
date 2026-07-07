@@ -12,6 +12,7 @@ import { settings } from "#shared/db/settings.ts";
 import { logDebug } from "#shared/logger.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
+import { guardFor } from "#shared/validation/guard.ts";
 
 /** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
 export const paymentsApi = {
@@ -235,8 +236,7 @@ export const PaymentStatusSchema = v.picklist([
 export type PaymentStatus = v.InferOutput<typeof PaymentStatusSchema>;
 
 /** Type guard: check if a string is a valid PaymentStatus */
-export const isPaymentStatus = (s: string): s is PaymentStatus =>
-  v.is(PaymentStatusSchema, s);
+export const isPaymentStatus = guardFor(PaymentStatusSchema);
 
 /** A validated payment session returned after checkout completion */
 export type ValidatedPaymentSession = {

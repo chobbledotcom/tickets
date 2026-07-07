@@ -30,6 +30,7 @@ import {
 } from "#shared/db/client.ts";
 import { nameMapByIds } from "#shared/db/query.ts";
 import type { Attendee } from "#shared/types.ts";
+import { guardFor } from "#shared/validation/guard.ts";
 
 /**
  * Order-level refund status, projected from the transfers ledger rather than a
@@ -230,8 +231,7 @@ export const AttendeeSortSchema = v.picklist(["newest", "oldest"]);
 export type AttendeeSort = v.InferOutput<typeof AttendeeSortSchema>;
 
 /** Type guard: narrows an arbitrary string to an {@link AttendeeSort}. */
-export const isAttendeeSort = (s: string): s is AttendeeSort =>
-  v.is(AttendeeSortSchema, s);
+export const isAttendeeSort = guardFor(AttendeeSortSchema);
 
 /**
  * Attendees per page in the admin attendees browser. Fixed here so the
