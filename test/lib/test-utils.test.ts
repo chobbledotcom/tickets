@@ -944,6 +944,17 @@ describe("test-utils", () => {
       // attendee is left occupying capacity or skewing later assertions.
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       expect((await getAttendeesRaw(open.id)).length).toBe(0);
+
+      // Regression: the rollback must also reverse the contact-activity count
+      // that the greedy create recorded — under the same source — or the
+      // contact keeps a booking that no longer exists.
+      const { getContactCountFields, hashEmail } = await import(
+        "#shared/db/contact-preferences.ts"
+      );
+      const counts = await getContactCountFields(
+        await hashEmail("partial@test.com"),
+      );
+      expect(counts.publicBookingCount).toBe(0);
     });
   });
 

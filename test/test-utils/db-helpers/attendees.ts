@@ -22,20 +22,25 @@ export const bookTestAttendee = async (
   name = "Alice",
   email?: string,
 ): Promise<Attendee> => {
+  // Record the booking (and, on rollback, reverse its contact-activity count)
+  // under one source so the greedy create and the cleanup can't drift.
+  const source = "public";
   const result = await createAttendeeAtomic({
     bookings: listingIds.map((listingId) => ({ listingId })),
     email: email ?? `${name.toLowerCase()}@test.com`,
     name,
+    source,
   });
   if (!result.success) {
-    throw new Error(`Failed to create test attendee: ${result.reason}`);
+    throw new Error(`Failed to create attendee: ${result.reason}`);
   }
   // createAttendeeAtomic is greedy: it reports success once any booking lands,
   // so a full/blocked listing would silently leave the attendee booked onto
   // fewer listings than asked for. Reuse production's "no half-saved attendee"
-  // rule, which rolls the partial attendee back and reports failure, then fail
-  // the setup loudly rather than leaving stray bookings to skew the test.
-  const check = await ensureAllBookings(result, listingIds.length, "admin");
+  // rule, which rolls the partial attendee back (reversing the same source's
+  // booking count) and reports failure, then fail the setup loudly rather than
+  // leaving stray bookings to skew the test.
+  const check = await ensureAllBookings(result, listingIds.length, source);
   if (!check.ok) {
     throw new Error(
       `Failed to book test attendee onto all ${listingIds.length} listing(s): ${check.reason}`,
