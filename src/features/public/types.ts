@@ -12,7 +12,12 @@ import type {
   QuestionListingMap,
   QuestionWithAnswers,
 } from "#shared/db/questions.ts";
-import type { ItemImageProjection, ListingWithCount } from "#shared/types.ts";
+import type {
+  Image,
+  ImageUseItemType,
+  ItemImageProjection,
+  ListingWithCount,
+} from "#shared/types.ts";
 import type { BookingPrefill } from "#templates/public.tsx";
 
 /** Parent listing id → its bookable-child candidates, each hydrated to a
@@ -40,6 +45,15 @@ export type TicketSharedContext = {
   groupName?: string;
   groupDescription?: string;
   groupImage?: ItemImageProjection;
+  /** The header entity whose image gallery the public page renders (the group
+   * on a group page, or the sole listing on a single-listing page); null for a
+   * multi-listing combo. Just the reference — the images are read lazily on the
+   * render path only ({@link renderCtx}), so submit/quote/API flows pay no read. */
+  galleryTarget: { type: ImageUseItemType; id: number } | null;
+  /** The header entity's images, rendered as the shared CSS gallery above the
+   * form. Populated only when the page is actually rendered (renderCtx); it
+   * stays `[]` on the submit/quote/API paths that never show the gallery. */
+  galleryImages: readonly Image[];
   /** The package bundles sold on this page, in page order — each carrying its
    * own member ids, per-package quantities, price overrides, and hide flag. A
    * single-package page is an array of one; a plain listing page is empty. */

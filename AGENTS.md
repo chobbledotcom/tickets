@@ -120,6 +120,16 @@ mechanisms to copy:
   `FormValuesFor<>` value types; `createFormRoute`/`createAuthedFormRoute`
   (`src/shared/app-forms.ts`) wire that same schema to both the GET (render)
   and POST (validate) handlers.
+- **Form section headers are a `FormSection[]`, never a hand-rolled heading.**
+  A form's grouped sections are modelled as data — a `FormSection[]` (`legend`
+  + `children`) rendered by `FormSections`
+  (`src/ui/templates/components/aggregate-sections.tsx`), which turns each entry
+  into a legend-led `SectionFieldset`. A single section uses `SectionFieldset`
+  directly. Never head a form section with an `<h3>`/`<h4>` — a `<legend>` is
+  the section header, and routing every section through `FormSections`/
+  `SectionFieldset` keeps that so. The listing form (`listings/form-sections.tsx`)
+  and the attendee form (`admin/attendee-form.tsx`) both build a `FormSection[]`;
+  see them for conditional sections (`compact` drops the ones that don't apply).
 - **A data table plus one fold.** `LISTING_DEFAULT_FIELDS` +
   `resolveListingDefaults` (`src/shared/listing-defaults.ts`); the admin
   guide's `GuideSection[]` + `renderGuideSections`.

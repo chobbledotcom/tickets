@@ -9,7 +9,10 @@ type StackBaseProps = {
   className?: string | undefined;
 };
 
-const FieldsetBox = ({
+/** A form section: a bordered-off group of fields led by a <legend>. The
+ * fieldset is already a flex column with the standard gap, so its children
+ * stack on their own — no wrapper needed. */
+export const SectionFieldset = ({
   children,
   className,
   legend,
@@ -20,12 +23,40 @@ const FieldsetBox = ({
   </fieldset>
 );
 
-export const StackFieldset = (
-  props: StackBaseProps & { legend: string },
-): JSX.Element => (
-  <FieldsetBox className={props.className} legend={props.legend}>
-    <div class="stack">{props.children}</div>
-  </FieldsetBox>
+/**
+ * One section of a form: a heading (rendered as the fieldset's <legend>) and
+ * the fields that belong under it. This is the ONLY shape a form section takes
+ * — model a form as a `FormSection[]` and render it with {@link FormSections},
+ * so a section header can never drift back into a hand-rolled <h3>. Build the
+ * list with `compact` to drop sections that don't apply (see the attendee
+ * form's `editFormSections`).
+ *
+ * A blank or absent `className` falls back to the shared "listing-section"
+ * legend styling; pass a `className` to override it — include "listing-section"
+ * plus any modifier, as the listing form's daily section does.
+ */
+export type FormSection = {
+  legend: string;
+  className?: string | undefined;
+  children: Child;
+};
+
+/** Render a form's `FormSection[]` as a run of {@link SectionFieldset}s. */
+export const FormSections = ({
+  sections,
+}: {
+  sections: readonly FormSection[];
+}): JSX.Element => (
+  <>
+    {sections.map((section) => (
+      <SectionFieldset
+        className={section.className || "listing-section"}
+        legend={section.legend}
+      >
+        {section.children}
+      </SectionFieldset>
+    ))}
+  </>
 );
 
 export const StackDetails = ({
@@ -54,12 +85,12 @@ export const CheckboxFieldset = ({
   hint: string;
   legend: string;
 }): JSX.Element => (
-  <FieldsetBox className={className} legend={legend}>
+  <SectionFieldset className={className} legend={legend}>
     <p>
       <small>{hint}</small>
     </p>
     {children}
-  </FieldsetBox>
+  </SectionFieldset>
 );
 
 export const CheckboxLabel = ({
@@ -154,7 +185,7 @@ export const RunningTotalsFieldset = ({
   children?: JSX.Element;
   config: RunningTotalsConfig;
 }): JSX.Element => (
-  <StackFieldset className={config.className} legend={config.legend}>
+  <SectionFieldset className={config.className} legend={config.legend}>
     {children}
     <p>
       <small>{config.note}</small>
@@ -163,7 +194,7 @@ export const RunningTotalsFieldset = ({
     <p>
       <a href={config.recalculateHref}>{config.recalculateLabel}</a>
     </p>
-  </StackFieldset>
+  </SectionFieldset>
 );
 
 export const recalculatePageRenderer =

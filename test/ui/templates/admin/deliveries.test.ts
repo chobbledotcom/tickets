@@ -181,7 +181,9 @@ describe("agentDeliveriesPage", () => {
     expect(html).toContain("Marked done");
   });
 
-  test("agents never see the date picker even if one is somehow passed", () => {
+  test("no date picker renders when none is supplied (the agent's case)", () => {
+    // The route passes null for agents, so a driver stays pinned to today and
+    // tomorrow with no picker.
     const html = agentDeliveriesPage(
       [
         { bookings: [], heading: "Today" },
@@ -190,7 +192,7 @@ describe("agentDeliveriesPage", () => {
       "44",
       { noAgents: false },
       agentSession,
-      dateNav(),
+      null,
     );
     expect(html).not.toContain("date-picker");
   });

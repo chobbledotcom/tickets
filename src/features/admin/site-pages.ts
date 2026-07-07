@@ -3,7 +3,10 @@
  * (SITE_FORM / requireSiteOr), hand-wired because create must assign a root
  * sort_order, root reordering is bounded to roots, and the edit page carries an
  * item manager the CRUD factory doesn't model. All the tree logic (forest,
- * eligibility, reorder neighbour) flows through the pure `site-pages/core`.
+ * eligibility, reorder neighbour) flows through the pure `site-pages/core`; the
+ * read models live in `site-pages-data.ts`, and the edit page itself is the
+ * shared tabbed entity page (Edit / Items / Images / Actions) in
+ * `site-pages-page.ts`. This file owns the POST sub-actions and route wiring.
  */
 
 /* jscpd:ignore-start */
@@ -12,20 +15,15 @@ import {
   type ConfirmedHandlers,
   createConfirmedHandlers,
 } from "#routes/admin/confirmation.ts";
-import { SITE_FORM, withAuth } from "#routes/auth.ts";
+import { SITE_FORM, SITE_MULTIPART, withAuth } from "#routes/auth.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getAllGroupNames, groupExists } from "#shared/db/groups.ts";
+import { groupExists } from "#shared/db/groups.ts";
 import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
-import {
-  getListingOfferFlags,
-  getListingPickerNames,
-  type ListingOfferFlags,
-} from "#shared/db/listings.ts";
+import { getListingOfferFlags } from "#shared/db/listings.ts";
 import {
   addPageItem,
-  getAllPageItems,
   getItemsForPage,
   type ItemRef,
   removePageItem,
@@ -34,166 +32,57 @@ import {
 import {
   createSitePage,
   getSitePageById,
-  getSitePageNavRows,
   isSitePageSlugTaken,
   swapSitePageOrder,
   updateSitePage,
 } from "#shared/db/site-pages.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { isQualifyingTierListing } from "#shared/site-assignment.ts";
 import {
-  buildForest,
   eligibleChildPages,
   isReservedSlug,
   parseTargetKey,
   planReorder,
   targetKey,
 } from "#shared/site-pages/core.ts";
-import type { Forest } from "#shared/site-pages/types.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import {
   type AdminSession,
   isSitePageItemType,
   type SitePage,
   type SitePageItemType,
-  type SitePageNavRow,
 } from "#shared/types.ts";
 /* jscpd:ignore-end */
 import {
   adminSitePageDeletePage,
-  adminSitePageEditPage,
   adminSitePageNewPage,
   adminSitePagesListPage,
-  type EditModel,
-  type ListModel,
-  type PickerOption,
-  type ResolvedItem,
 } from "#templates/admin/site-pages.tsx";
 import { seoContentInput } from "./content-form-fields.ts";
+import { createItemImageHandlers } from "./item-images.ts";
 import {
   savedContentResponse,
   siteConfirmAuth,
   siteContentGet,
   siteContentPaths,
   siteContentPost,
-  siteEntityGet,
   siteEntityPost,
   validateContentFormOr,
 } from "./site-content.ts";
+import {
+  buildListModel,
+  loadForest,
+  offerableListing,
+} from "./site-pages-data.ts";
 import { sitePageForm } from "./site-pages-form.ts";
-
-/** May this listing be placed on a page? Active (its public page must not
- * 404), not a renewal tier ({@link isQualifyingTierListing} — the renewal
- * flow requires a site token the normal ticket flow never supplies), and not
- * a child listing (`childIds` — a booking can never start from a child,
- * so its `/ticket` page 404s too). */
-const offerableListing = (
-  id: number,
-  row: ListingOfferFlags,
-  childIds: ReadonlySet<number>,
-): boolean => row.active && !isQualifyingTierListing(row) && !childIds.has(id);
+import { sitePageEntityPage } from "./site-pages-page.ts";
 
 const paths = siteContentPaths("/admin/site/pages");
 const LIST_PATH = paths.list;
 const editPath = paths.edit;
-
-// ─── Loaders ────────────────────────────────────────────────────
-
-/** Load the nav rows + item edges once and fold them into the page forest. */
-const loadForest = async (): Promise<{
-  forest: Forest;
-  navRows: SitePageNavRow[];
-}> => {
-  const [navRows, items] = await Promise.all([
-    getSitePageNavRows(),
-    getAllPageItems(),
-  ]);
-  return { forest: buildForest(navRows, items), navRows };
-};
-
-// ─── Read models ────────────────────────────────────────────────
-
-/** Build the list-page model: root pages (reorderable) and nested pages (shown
- * with their parent, edited through the item manager). */
-const buildListModel = async (): Promise<ListModel> => {
-  const { forest, navRows } = await loadForest();
-  const roots = forest.rootIds.map((id) => forest.byId.get(id)!);
-  const nested = navRows
-    .filter((p) => forest.parentByChild.has(p.id))
-    .map((p) => ({
-      page: p,
-      // parentByChild only maps children whose parent is a real page in byId.
-      parentName: forest.byId.get(forest.parentByChild.get(p.id)!)!.name,
-    }));
-  return { nested, roots };
-};
-
-/** Resolve a page's items to display rows + the add-item picker options. */
-const buildEditModel = async (page: SitePage): Promise<EditModel> => {
-  // Pickers/labels need only id + name, so use the narrow name projections
-  // rather than the full listings/groups caches (no decrypting every column).
-  const [navRows, allItems, listingNames, groupNames] = await Promise.all([
-    getSitePageNavRows(),
-    getAllPageItems(),
-    getListingPickerNames(),
-    getAllGroupNames(),
-  ]);
-  // The page's own items are a filter over the already-loaded edge set (same
-  // (sort_order, item_id) ordering as the per-page query) — not a fifth read.
-  const pageItems = allItems.filter((i) => i.page_id === page.id);
-  const forest = buildForest(navRows, allItems);
-  const pageById = new Map(navRows.map((r) => [r.id, r.name]));
-  const label = (type: SitePageItemType, id: number): string => {
-    const lookup: Record<SitePageItemType, string | undefined> = {
-      group: groupNames.get(id),
-      listing: listingNames.get(id)?.name,
-      page: pageById.get(id),
-    };
-    return lookup[type] ?? t("site.pages.item_missing");
-  };
-  const items: ResolvedItem[] = pageItems.map((i) => ({
-    id: i.item_id,
-    label: label(i.item_type, i.item_id),
-    type: i.item_type,
-  }));
-  const opt = (id: number, name: string): PickerOption => ({
-    label: name,
-    value: String(id),
-  });
-  // A leaf may sit on a page only once (unique (page_id, item_type, item_id)),
-  // so drop targets already present from the pickers.
-  const present = new Set(
-    pageItems.map((i) => targetKey(i.item_type, i.item_id)),
-  );
-  const options = (
-    names: Map<number, string>,
-    type: SitePageItemType,
-  ): PickerOption[] =>
-    [...names]
-      .filter(([id]) => !present.has(targetKey(type, id)))
-      .map(([id, name]) => opt(id, name));
-  // The listing picker offers only OFFERABLE listings — active (an inactive
-  // listing's public page 404s), not a renewal tier (a tier bought through a
-  // normal public link would take payment without extending the site), and
-  // not a non-standalone child (its public page 404s by construction;
-  // a `bookable_alone` child keeps its page, so it stays
-  // offerable). Labels above still read the full map.
-  const childIds = await getNonStandaloneChildIds([...listingNames.keys()]);
-  const activeListingNames = new Map(
-    [...listingNames]
-      .filter(([id, l]) => offerableListing(id, l, childIds))
-      .map(([id, l]) => [id, l.name]),
-  );
-  return {
-    groupOptions: options(groupNames, "group"),
-    items,
-    listingOptions: options(activeListingNames, "listing"),
-    page,
-    pageOptions: eligibleChildPages(forest, page.id).map((p) =>
-      opt(p.id, p.name),
-    ),
-  };
-};
+/** The Items and Images tabs live under the entity page; their POST
+ * sub-actions bounce back to the relevant tab, not the Edit form. */
+const itemsPath = (id: number): string => `${LIST_PATH}/${id}/items`;
+const imagesPath = (id: number): string => `${LIST_PATH}/${id}/images`;
 
 // ─── Field validation ───────────────────────────────────────────
 
@@ -278,10 +167,6 @@ const renderList = siteContentGet(async (session) =>
 );
 
 const renderNew = siteContentGet((session) => adminSitePageNewPage(session));
-
-const renderEdit = siteEntityGet(getSitePageById)(async (page, session) =>
-  adminSitePageEditPage(await buildEditModel(page), session),
-);
 
 const handleCreate = siteContentPost(async (form) => {
   const fields = await validateFields(form, paths.newPage);
@@ -378,7 +263,10 @@ const handleAddItem = siteEntityPost(getSitePageById)(async (page, form) => {
   const type = form.getString("item_type");
   const itemId = form.getOptionalInt("item_id");
   if (!isSitePageItemType(type) || itemId === null) {
-    return errorRedirect(editPath(page.id), t("site.pages.error.invalid_item"));
+    return errorRedirect(
+      itemsPath(page.id),
+      t("site.pages.error.invalid_item"),
+    );
   }
   // Never trust the submitted select: re-check eligibility server-side, then let
   // addPageItem settle any concurrent-add conflict atomically. Either failing is
@@ -387,10 +275,10 @@ const handleAddItem = siteEntityPost(getSitePageById)(async (page, form) => {
   const eligible = await isEligibleTarget(page.id, type, itemId);
   const added = eligible && (await addPageItem(page.id, type, itemId));
   if (!added) {
-    return errorRedirect(editPath(page.id), t("site.pages.error.ineligible"));
+    return errorRedirect(itemsPath(page.id), t("site.pages.error.ineligible"));
   }
   return savedContentResponse(
-    editPath(page.id),
+    itemsPath(page.id),
     `Item added to page '${page.name}'`,
     t("site.pages.item_added"),
   );
@@ -400,7 +288,7 @@ const handleRemoveItem = itemPost((ref, id) =>
   loadPageOr404(id, async (page) => {
     await removePageItem(id, ref.type, ref.id);
     return savedContentResponse(
-      editPath(id),
+      itemsPath(id),
       `Item removed from page '${page.name}'`,
       t("site.pages.item_removed"),
     );
@@ -419,8 +307,24 @@ const moveItem = (dir: "up" | "down") =>
         parseTargetKey(swap[1]),
       );
     }
-    return redirect(editPath(id), t("site.pages.moved"), true);
+    return redirect(itemsPath(id), t("site.pages.moved"), true);
   });
+
+// ─── Images ─────────────────────────────────────────────────────
+
+/** The shared per-entity image handlers, gated at the Site level (owner +
+ * editor) to match the pages themselves. A successful save stays on the Images
+ * tab, but a storage-disabled bounce redirects to the Edit tab: the Images tab
+ * is hidden when storage is off, so a redirect there would 404 and swallow the
+ * "storage not configured" message. */
+const pageImageHandlers = createItemImageHandlers({
+  auth: { form: SITE_FORM, multipart: SITE_MULTIPART },
+  disabledPath: editPath,
+  itemType: "page",
+  load: getSitePageById,
+  nameOf: (page) => page.name,
+  path: imagesPath,
+});
 
 // ─── Routes ─────────────────────────────────────────────────────
 
@@ -428,10 +332,15 @@ export const sitePagesRoutes = {
   ...pageDelete.routes,
   ...defineRoutes({
     "GET /admin/site/pages": renderList,
-    "GET /admin/site/pages/:id/edit": renderEdit,
+    "GET /admin/site/pages/:id": (request, { id }) =>
+      sitePageEntityPage.renderTab(request, id, ""),
+    "GET /admin/site/pages/:id/:tab": (request, { id, tab }) =>
+      sitePageEntityPage.renderTab(request, id, tab),
     "GET /admin/site/pages/new": renderNew,
     "POST /admin/site/pages": handleCreate,
     "POST /admin/site/pages/:id/edit": handleUpdate,
+    "POST /admin/site/pages/:id/images": pageImageHandlers.set,
+    "POST /admin/site/pages/:id/images/upload": pageImageHandlers.upload,
     "POST /admin/site/pages/:id/items": handleAddItem,
     "POST /admin/site/pages/:id/items/:itemType/:itemId/move-down":
       moveItem("down"),

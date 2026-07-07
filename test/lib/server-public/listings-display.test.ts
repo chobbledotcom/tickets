@@ -2,7 +2,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { appendImageToItem, imagesTable } from "#shared/db/images.ts";
 import { settings } from "#shared/db/settings.ts";
+import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   assertPublicHtml,
   createTestGroup,
@@ -369,6 +371,53 @@ describeWithEnv(
           "Ungrouped Listing",
           "Grouped Listing",
         );
+      });
+    });
+
+    describe("public image galleries", () => {
+      const twoImages = async (
+        itemType: "listing" | "group",
+        itemId: number,
+      ): Promise<void> => {
+        const first = await imagesTable.insert({
+          altText: "First alt",
+          filename: nonEmptyString("gallery-one.webp"),
+          filenameThumb: nonEmptyString("gallery-one-thumb.webp"),
+          name: "One",
+        });
+        const second = await imagesTable.insert({
+          altText: "",
+          filename: nonEmptyString("gallery-two.webp"),
+          filenameThumb: nonEmptyString("gallery-two-thumb.webp"),
+          name: "Two",
+        });
+        await appendImageToItem(first.id, { itemId, itemType });
+        await appendImageToItem(second.id, { itemId, itemType });
+      };
+
+      test("a single listing's page shows its images as the shared gallery", async () => {
+        const listing = await createTestListing({ name: "Illustrated" });
+        await twoImages("listing", listing.id);
+        const html = await assertPublicHtml(`/ticket/${listing.slug}`);
+        expect(html).toContain('class="news-gallery"');
+        expect(html).toContain("gallery-one.webp");
+        expect(html).toContain('alt="First alt"');
+        expect(html).toContain(
+          '<label class="news-gallery-thumb" for="news-gallery-1">',
+        );
+      });
+
+      test("a group's page shows the group's images as the shared gallery", async () => {
+        const group = await createTestGroup({ name: "Bundle", slug: "bundle" });
+        await createTestListing({
+          groupId: group.id,
+          maxAttendees: 50,
+          name: "Member",
+        });
+        await twoImages("group", group.id);
+        const html = await assertPublicHtml(`/ticket/${group.slug}`);
+        expect(html).toContain('class="news-gallery"');
+        expect(html).toContain("gallery-one.webp");
       });
     });
   },

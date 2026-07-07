@@ -168,6 +168,7 @@ const itemTable: Record<ImageUseItemType, string> = {
   group: "groups",
   listing: "listings",
   news: "news_posts",
+  page: "site_pages",
 };
 
 const imageUseInsertStatement = (

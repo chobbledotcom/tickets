@@ -14,7 +14,6 @@
 import { t } from "#i18n";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
-import { isStaffRole } from "#shared/types.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
 import { markAdminFooter } from "#templates/admin/footer.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -217,10 +216,9 @@ export const agentDeliveriesPage = (
         </>
       )}
       <Flash {...flashProps(opts.error, opts.success)} />
-      {/* Only staff steer the date; the picker is absent for agents. */}
-      {isStaffRole(session.adminLevel) && dateNav && (
-        <DeliveriesDatePicker nav={dateNav} />
-      )}
+      {/* The route supplies a picker only for staff; agents get null and so
+          stay pinned to today and tomorrow. */}
+      {dateNav && <DeliveriesDatePicker nav={dateNav} />}
       {opts.noAgents ? (
         <p>
           <em>{t("deliveries.no_agents")}</em>

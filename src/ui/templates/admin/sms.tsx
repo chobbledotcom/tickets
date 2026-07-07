@@ -15,6 +15,7 @@ import type {
 } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
+import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 /* jscpd:ignore-end */
 
@@ -85,15 +86,19 @@ const ComposeForm = ({
         <CsrfForm action="/admin/sms">
           <input name="listing" type="hidden" value={String(listing.id)} />
           <input name="attendee" type="hidden" value={String(attendee.id)} />
-          <h3>{t("sms.contact.compose_heading")}</h3>
-          <label for="sms-message">{t("sms.contact.message_label")}</label>
-          <textarea
-            id="sms-message"
-            maxlength="1000"
-            name="message"
-            required
-            rows="4"
-          />
+          <SectionFieldset
+            className="listing-section"
+            legend={t("sms.contact.compose_heading")}
+          >
+            <label for="sms-message">{t("sms.contact.message_label")}</label>
+            <textarea
+              id="sms-message"
+              maxlength="1000"
+              name="message"
+              required
+              rows="4"
+            />
+          </SectionFieldset>
           <SubmitButton icon="check">{t("sms.contact.send")}</SubmitButton>
         </CsrfForm>
       )}

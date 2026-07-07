@@ -88,15 +88,24 @@ export const computeNewsSlugIndex = (slug: string): Promise<BlindIndex> =>
 export const newsSlugBase = (created: string, name: string): string =>
   slugify(`${created.slice(0, 10)}-${name}`);
 
-/** Is this exact slug already used by a news post? News slugs live under the
- * `/news/` prefix, a namespace of their own, so uniqueness is scoped to
- * news_posts (not the shared listing/group/page slug registry). */
-const isNewsSlugTaken = async (slug: string): Promise<boolean> => {
+/** Is this exact slug already used by a news post (other than `excludeId`, when
+ * given — an edit checks uniqueness against the OTHER posts)? News slugs live
+ * under the `/news/` prefix, a namespace of their own, so uniqueness is scoped
+ * to news_posts (not the shared listing/group/page slug registry). */
+export const isNewsSlugTaken = async (
+  slug: string,
+  excludeId?: number,
+): Promise<boolean> => {
   const slugIndex = await computeNewsSlugIndex(slug);
-  const result = await execute(
-    "SELECT 1 FROM news_posts WHERE slug_index = ? LIMIT 1",
-    [slugIndex],
-  );
+  const result =
+    excludeId === undefined
+      ? await execute("SELECT 1 FROM news_posts WHERE slug_index = ? LIMIT 1", [
+          slugIndex,
+        ])
+      : await execute(
+          "SELECT 1 FROM news_posts WHERE slug_index = ? AND id != ? LIMIT 1",
+          [slugIndex, excludeId],
+        );
   return result.rows.length > 0;
 };
 
@@ -221,10 +230,12 @@ export const createNewsPost = async (
 };
 
 /** Update a post's editable fields — every field, every time (the edit form
- * posts them all). `created` never changes. */
+ * posts them all), including the (now editable) slug and its blind index.
+ * `created` never changes. The caller normalises the slug and checks its
+ * cross-post uniqueness (via {@link isNewsSlugTaken}) before calling. */
 export const updateNewsPost = (
   id: number,
-  input: NewsPostWriteInput,
+  input: NewsPostWriteInput & { slug: string; slugIndex: BlindIndex },
 ): Promise<NewsPost | null> => newsPostsTable.update(id, input);
 
 /** Delete a post and its image links in one batch (images themselves stay in

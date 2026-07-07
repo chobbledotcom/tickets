@@ -2,8 +2,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { groupsTable } from "#shared/db/groups.ts";
+import { appendImageToItem, imagesTable } from "#shared/db/images.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { addPageItem } from "#shared/db/site-page-items.ts";
+import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   assertPublicHtml,
   createTestGroup,
@@ -64,6 +66,44 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
         expect(html).toContain("<title>Page plain - Acme Site</title>");
         expect(html).not.toContain('name="description"');
       }));
+
+    test("renders the page's linked images as the shared CSS gallery", async () => {
+      const page = await makePage("gallery-page");
+      const first = await imagesTable.insert({
+        altText: "First alt",
+        filename: nonEmptyString("one.webp"),
+        filenameThumb: nonEmptyString("one-thumb.webp"),
+        name: "One",
+      });
+      const second = await imagesTable.insert({
+        altText: "",
+        filename: nonEmptyString("two.webp"),
+        filenameThumb: nonEmptyString("two-thumb.webp"),
+        name: "Two",
+      });
+      await appendImageToItem(first.id, { itemId: page.id, itemType: "page" });
+      await appendImageToItem(second.id, { itemId: page.id, itemType: "page" });
+
+      const html = await assertPublicHtml("/page/gallery-page");
+      // The public page now shows the images an editor attached, as the same
+      // CSS-only gallery the news post page uses.
+      expect(html).toContain('class="news-gallery"');
+      expect(html).toContain("one.webp");
+      expect(html).toContain('alt="First alt"');
+      // Two images ⇒ a swappable thumbnail per image.
+      expect(html).toContain(
+        '<label class="news-gallery-thumb" for="news-gallery-0">',
+      );
+      expect(html).toContain(
+        '<label class="news-gallery-thumb" for="news-gallery-1">',
+      );
+    });
+
+    test("renders no gallery when the page has no images", async () => {
+      await makePage("imageless");
+      const html = await assertPublicHtml("/page/imageless");
+      expect(html).not.toContain("news-gallery");
+    });
 
     test("renders live items as links and dead items as text", async () => {
       const page = await makePage("catalogue");

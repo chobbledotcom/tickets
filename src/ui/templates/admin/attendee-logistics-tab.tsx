@@ -23,6 +23,7 @@ import { CsrfForm } from "#shared/forms.tsx";
 import { LogisticsSection } from "#templates/admin/attendee-form.tsx";
 import { SaveActions } from "#templates/components/actions.tsx";
 import { AddressFieldWithLookup } from "#templates/components/address-field.tsx";
+import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 
 /** One latitude/longitude input. The map script re-pins as these change. */
@@ -59,8 +60,10 @@ const PinnedLocation = ({
 }): JSX.Element => {
   const pinned = data.values.lat !== "" && data.values.lng !== "";
   return (
-    <>
-      <h3>{t("attendee_logistics.location_heading")}</h3>
+    <SectionFieldset
+      className="listing-section"
+      legend={t("attendee_logistics.location_heading")}
+    >
       <p class="small">{t("attendee_logistics.location_hint")}</p>
       {data.locationError && <ErrorAlert>{data.locationError}</ErrorAlert>}
       <div class="location-inputs">
@@ -82,7 +85,7 @@ const PinnedLocation = ({
         hidden={!pinned}
         role="img"
       ></div>
-    </>
+    </SectionFieldset>
   );
 };
 
@@ -149,15 +152,19 @@ export const AttendeeLogisticsPanel = ({
       action={`/admin/attendees/${data.attendee.id}/logistics`}
       id={ATTENDEE_LOGISTICS_FORM_ID}
     >
-      <h3>{t("attendee_logistics.address_heading")}</h3>
-      {data.addressError && <ErrorAlert>{data.addressError}</ErrorAlert>}
-      <AddressFieldWithLookup address={data.values.address} />
-      <output
-        class="warning"
-        data-address-diff
-        data-diff-heading={t("attendee_logistics.diff_heading")}
-        hidden
-      ></output>
+      <SectionFieldset
+        className="listing-section"
+        legend={t("attendee_logistics.address_heading")}
+      >
+        {data.addressError && <ErrorAlert>{data.addressError}</ErrorAlert>}
+        <AddressFieldWithLookup address={data.values.address} />
+        <output
+          class="warning"
+          data-address-diff
+          data-diff-heading={t("attendee_logistics.diff_heading")}
+          hidden
+        ></output>
+      </SectionFieldset>
 
       <PinnedLocation data={data} />
 

@@ -94,6 +94,35 @@ describe("renderField", () => {
     expect(html).toContain("<small");
   });
 
+  test("renders a public link under a slug field with a value", () => {
+    const html = rendered(
+      {
+        label: "Slug",
+        name: "slug",
+        publicLinkPath: (slug) => `/news/${slug}`,
+      },
+      "my-post",
+    );
+    expect(html).toContain(
+      '<small class="public-link">Public link: <a href="/news/my-post" rel="noopener" target="_blank">/news/my-post</a></small>',
+    );
+  });
+
+  test("renders no public link when the field has no value", () => {
+    const html = rendered({
+      label: "Slug",
+      name: "slug",
+      publicLinkPath: (slug) => `/news/${slug}`,
+    });
+    expect(html).not.toContain("public-link");
+    expect(html).not.toContain("Public link");
+  });
+
+  test("renders no public link when the field opts out", () => {
+    const html = rendered({ label: "Slug", name: "slug" }, "my-post");
+    expect(html).not.toContain("public-link");
+  });
+
   test("renders min attribute for number", () => {
     const html = rendered({
       label: "Quantity",

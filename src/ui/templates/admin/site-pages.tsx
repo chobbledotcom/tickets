@@ -5,7 +5,11 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { pageToValues, sitePageForm } from "#routes/admin/site-pages-form.ts";
+import {
+  pageToValues,
+  sitePageEditForm,
+  sitePageForm,
+} from "#routes/admin/site-pages-form.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type {
@@ -14,13 +18,13 @@ import type {
   SitePageItemType,
   SitePageNavRow,
 } from "#shared/types.ts";
-import { AdminPage, adminFormPage } from "#templates/admin/admin-page.tsx";
+import { adminFormPage } from "#templates/admin/admin-page.tsx";
 import {
   collectionPage,
+  contentEditPanel,
   deleteConfirmPage,
-  EditForm,
 } from "#templates/admin/site-content.tsx";
-import { DeleteSection, SubmitButton } from "#templates/components/actions.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { ReorderArrows } from "#templates/components/reorder.tsx";
 
@@ -175,7 +179,9 @@ export const adminSitePageNewPage = (
     <SubmitButton icon="plus">{t("site.pages.create_submit")}</SubmitButton>,
   );
 
-/** A single "add <type>" picker: a select of eligible targets + an Add button. */
+/** A single "add <type>" picker: a select of eligible targets + an Add button.
+ * Renders nothing when there is nothing to add (an empty picker only shows a
+ * confusing "nothing available" line otherwise). */
 const ItemPicker = ({
   pageId,
   type,
@@ -186,12 +192,8 @@ const ItemPicker = ({
   type: SitePageItemType;
   label: string;
   options: PickerOption[];
-}): JSX.Element =>
-  options.length === 0 ? (
-    <p class="hint">
-      {label}: {t("site.pages.no_targets")}
-    </p>
-  ) : (
+}): JSX.Element | null =>
+  options.length === 0 ? null : (
     <CsrfForm action={`${LIST}/${pageId}/items`} class="inline-add">
       <input name="item_type" type="hidden" value={type} />
       <label>
@@ -206,28 +208,27 @@ const ItemPicker = ({
     </CsrfForm>
   );
 
-export const adminSitePageEditPage = (
-  model: EditModel,
-  session: AdminSession,
-  error?: string,
-): string => {
+/** The Edit tab's panel: the page-fields form (name, editable slug + public
+ * link, SEO meta, markdown body) posting to the update route. */
+export const sitePageEditPanel = (page: SitePage): JSX.Element =>
+  contentEditPanel(
+    `${LIST}/${page.id}/edit`,
+    sitePageEditForm.renderFields(pageToValues(page)),
+  );
+
+/** The Items tab's panel: the page's current contents (reorderable, each
+ * removable) plus the add-item pickers. Pickers with nothing to offer are
+ * hidden, and the whole "Add" section disappears when nothing can be added. */
+export const sitePageItemsPanel = (model: EditModel): JSX.Element => {
   const { page, items } = model;
   const itemBase = (item: ResolvedItem): string =>
     `${LIST}/${page.id}/items/${item.type}/${item.id}`;
-  return String(
-    <AdminPage
-      active={ACTIVE}
-      session={session}
-      title={t("site.pages.edit_title")}
-    >
-      <EditForm
-        action={`${LIST}/${page.id}/edit`}
-        error={error}
-        fieldsHtml={sitePageForm.renderFields(pageToValues(page))}
-        title={t("site.pages.edit_title")}
-      />
-
-      <h2>{t("site.pages.items_heading")}</h2>
+  const anyOptions =
+    model.listingOptions.length > 0 ||
+    model.groupOptions.length > 0 ||
+    model.pageOptions.length > 0;
+  return (
+    <>
       {items.length === 0 ? (
         <p>
           <em>{t("site.pages.no_items")}</em>
@@ -252,33 +253,30 @@ export const adminSitePageEditPage = (
         })
       )}
 
-      <h3>{t("site.pages.add_item_heading")}</h3>
-      <ItemPicker
-        label={t("site.pages.type.listing")}
-        options={model.listingOptions}
-        pageId={page.id}
-        type="listing"
-      />
-      <ItemPicker
-        label={t("site.pages.type.group")}
-        options={model.groupOptions}
-        pageId={page.id}
-        type="group"
-      />
-      <ItemPicker
-        label={t("site.pages.type.page")}
-        options={model.pageOptions}
-        pageId={page.id}
-        type="page"
-      />
-
-      <DeleteSection
-        heading={t("common.delete")}
-        href={`${LIST}/${page.id}/delete`}
-      >
-        {t("site.pages.delete_submit")}
-      </DeleteSection>
-    </AdminPage>,
+      {anyOptions && (
+        <>
+          <h3>{t("site.pages.add_item_heading")}</h3>
+          <ItemPicker
+            label={t("site.pages.type.listing")}
+            options={model.listingOptions}
+            pageId={page.id}
+            type="listing"
+          />
+          <ItemPicker
+            label={t("site.pages.type.group")}
+            options={model.groupOptions}
+            pageId={page.id}
+            type="group"
+          />
+          <ItemPicker
+            label={t("site.pages.type.page")}
+            options={model.pageOptions}
+            pageId={page.id}
+            type="page"
+          />
+        </>
+      )}
+    </>
   );
 };
 

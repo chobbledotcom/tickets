@@ -812,6 +812,15 @@ export const getTicketContext = async (
     getOptionalAddOns(listingIds),
     group ? getImageFilenamesForItem("group", group.id) : undefined,
   ]);
+  // The header entity whose image gallery the page renders: the group on a
+  // group page, or the sole listing on a single-listing page (a multi-listing
+  // combo has no single header). Just the reference here — the images are read
+  // lazily on the render path only (renderCtx), so submit/quote/API pay nothing.
+  const galleryTarget: TicketSharedContext["galleryTarget"] = group
+    ? { id: group.id, type: "group" }
+    : activeListings.length === 1
+      ? { id: activeListings[0]!.listing.id, type: "listing" }
+      : null;
   // A daily parent's offered dates must intersect the union of its children's
   // bookable dates; the client compatibility script also needs each
   // daily child's serveable dates. Both are holiday-aware, so fetch
@@ -863,6 +872,8 @@ export const getTicketContext = async (
     childDatesById,
     childrenByParentId,
     dates,
+    galleryImages: [],
+    galleryTarget,
     packageGroupRemainingByGroupId: packageCapMaps.groupRemainingByGroupId,
     packageMemberGroupIds: packageCapMaps.groupIdsByListingId,
     packages,

@@ -48,7 +48,7 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
       );
 
       await expectFlashRedirect(
-        `/admin/site/news/${post.id}/edit`,
+        `/admin/site/news/${post.id}/images`,
         "Images updated",
         true,
         cookie,
@@ -87,7 +87,7 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
           "Fresh news image",
         );
         await expectFlashRedirect(
-          `/admin/site/news/${post.id}/edit`,
+          `/admin/site/news/${post.id}/images`,
           "Image uploaded",
           true,
           cookie,
@@ -101,7 +101,7 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
 
   describe("image library integration", () => {
     const NEWS_GATED =
-      "This image is used by a news post — only site editors can manage it.";
+      "This image is used by public site content — only site editors can manage it.";
 
     test("a manager sees no news targets and cannot edit a news-linked image", async () => {
       const post = await createTestNewsPost("Manager-proof post");

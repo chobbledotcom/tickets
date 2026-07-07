@@ -14,9 +14,8 @@
 import { unique } from "#fp";
 import { t } from "#i18n";
 import { getDateFilter, getMonthFilter } from "#routes/admin/actions.ts";
-import { DELIVERY_FORM, requireDeliveryOr, withAuth } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
-import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import { DELIVERY_FORM, deliveryPage, withAuth } from "#routes/auth.ts";
+import { errorRedirect, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { addDays, formatDateLabel } from "#shared/dates.ts";
 import { decryptAttendees, getAttendeesByIds } from "#shared/db/attendees.ts";
@@ -177,49 +176,43 @@ const buildDateNav = async (
  * their only page and are pinned to today and tomorrow; staff (owner/manager)
  * reach it from the Calendar submenu and may open any date via the calendar
  * picker, seeing that date and the day after it. */
-const handleDeliveriesGet = (request: Request): Promise<Response> =>
-  requireDeliveryOr(request, async (session) => {
-    applyFlash(request);
-    const flash = getFlash();
-    const staff = isStaffRole(session.adminLevel);
-    const agentIds = await userAgents.getIds(session.userId);
-    if (agentIds.length === 0) {
-      return htmlResponse(
-        agentDeliveriesPage(
-          [],
-          settings.phonePrefix,
-          { error: flash.error, noAgents: true, success: flash.success },
-          session,
-          null,
-        ),
-      );
-    }
-
-    const today = todayInTz(settings.timezone);
-    // Only staff may open a different date; an agent's date/month params are
-    // ignored so a driver always sees just today and tomorrow.
-    const selected = staff ? getDateFilter(request) : null;
-    const viewMonth = staff ? getMonthFilter(request) : null;
-    const baseDate = selected ?? today;
-    const tomorrow = addDays(baseDate, 1);
-    const legs = await getAgentRunSheet(agentIds, [baseDate, tomorrow]);
-
-    const privateKey = await requireRequestPrivateKey();
-    const lookups = await loadLegLookups(legs, privateKey);
-    const groups = buildGroups(legs, baseDate, tomorrow, today, lookups);
-    const dateNav = staff
-      ? await buildDateNav(agentIds, today, selected, viewMonth)
-      : null;
-    return htmlResponse(
-      agentDeliveriesPage(
-        groups,
-        settings.phonePrefix,
-        { error: flash.error, noAgents: false, success: flash.success },
-        session,
-        dateNav,
-      ),
+const handleDeliveriesGet = deliveryPage(async (session, request) => {
+  const flash = getFlash();
+  const staff = isStaffRole(session.adminLevel);
+  const agentIds = await userAgents.getIds(session.userId);
+  if (agentIds.length === 0) {
+    return agentDeliveriesPage(
+      [],
+      settings.phonePrefix,
+      { error: flash.error, noAgents: true, success: flash.success },
+      session,
+      null,
     );
-  });
+  }
+
+  const today = todayInTz(settings.timezone);
+  // Only staff may open a different date; an agent's date/month params are
+  // ignored so a driver always sees just today and tomorrow.
+  const selected = staff ? getDateFilter(request) : null;
+  const viewMonth = staff ? getMonthFilter(request) : null;
+  const baseDate = selected ?? today;
+  const tomorrow = addDays(baseDate, 1);
+  const legs = await getAgentRunSheet(agentIds, [baseDate, tomorrow]);
+
+  const privateKey = await requireRequestPrivateKey();
+  const lookups = await loadLegLookups(legs, privateKey);
+  const groups = buildGroups(legs, baseDate, tomorrow, today, lookups);
+  const dateNav = staff
+    ? await buildDateNav(agentIds, today, selected, viewMonth)
+    : null;
+  return agentDeliveriesPage(
+    groups,
+    settings.phonePrefix,
+    { error: flash.error, noAgents: false, success: flash.success },
+    session,
+    dateNav,
+  );
+});
 
 /** Handle POST /admin/deliveries/mark — toggle a leg done, scoped to the
  * agent's own logistics agents. */

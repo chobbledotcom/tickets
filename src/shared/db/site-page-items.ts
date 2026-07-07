@@ -19,6 +19,7 @@ import {
   update,
   withTransaction,
 } from "#shared/db/client.ts";
+import { clearImageUsesForItemStatement } from "#shared/db/images.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import {
   pageParentMapFromEdges,
@@ -189,9 +190,11 @@ const setOrderStatement = (
   );
 
 /**
- * Delete a page and every edge touching it — its own items and any edge naming
- * it as a child `page` — in one batch (single implicit transaction), so a
- * partial failure can never leave a dangling edge. Former children become roots.
+ * Delete a page and every edge touching it — its own items, any edge naming it
+ * as a child `page`, and its image links — in one batch (single implicit
+ * transaction), so a partial failure can never leave a dangling edge or image
+ * use. Former children become roots; the images themselves stay in the library
+ * (only the uses are pruned, as with listing/group/news deletion).
  */
 export const deleteSitePageWithEdges = (pageId: number): Promise<void> =>
   executeBatch([
@@ -200,6 +203,7 @@ export const deleteSitePageWithEdges = (pageId: number): Promise<void> =>
       args: [pageId],
       sql: "DELETE FROM site_page_items WHERE item_type = 'page' AND item_id = ?",
     },
+    clearImageUsesForItemStatement("page", pageId),
     { args: [pageId], sql: "DELETE FROM site_pages WHERE id = ?" },
   ]);
 
