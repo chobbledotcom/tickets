@@ -328,7 +328,7 @@ const setGoogleWalletEnvVars = async () => {
 };
 
 describeWithEnv(
-  "getHostGoogleWalletConfig",
+  "googleWallet.getHostConfig",
   {
     env: {
       GOOGLE_WALLET_ISSUER_ID: undefined,
