@@ -516,7 +516,7 @@ export const assertServicingId404sEverywhere = async (
   const actions = ["delete", "resend-notification", "checkin"];
   const paths = [
     `/admin/attendees/${id}`,
-    `/admin/attendees/${id}/balance`,
+    `/admin/attendees/${id}/ledger`,
     `/admin/attendees/${id}/merge`,
     `/admin/attendees/${id}/refresh-payment`,
     ...actions.map((a) => `/admin/listing/${listingId}/attendee/${id}/${a}`),

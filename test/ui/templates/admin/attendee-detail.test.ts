@@ -1,12 +1,9 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttendeeBooking } from "#routes/admin/attendee-form-model.ts";
-import { formatCurrency } from "#shared/currency.ts";
 import { formatDateRangeLabel } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
-import { account } from "#shared/ledger/account.ts";
-import { statementFor } from "#shared/ledger/project.ts";
 import {
   AttendeeAnswersTable,
   AttendeeBookingsTable,
@@ -14,7 +11,6 @@ import {
 } from "#templates/admin/attendee-detail.tsx";
 import { attendeeSummaryRows } from "#templates/admin/attendee-page.tsx";
 import { renderSection } from "#templates/admin/entity-pages.tsx";
-import { emptyLedgerNames } from "#templates/admin/ledger.tsx";
 import {
   expectListingRowQuantity,
   setupTestEncryptionKey,
@@ -355,75 +351,5 @@ describe("attendee activity section", () => {
       renderSection({ entries: [], kind: "activity", viewAllHref: null }),
     );
     expect(html).toContain("No activity recorded yet");
-  });
-});
-
-describe("attendee ledger section", () => {
-  const acct = account("attendee", 7);
-  const LEDGER_TAB = "/admin/attendees/7/ledger";
-  const renderLedger = (ledger: {
-    account: typeof acct;
-    lines: ReturnType<ReturnType<typeof statementFor>>;
-    names: ReturnType<typeof emptyLedgerNames>;
-  }): string =>
-    String(renderSection({ kind: "ledger", ledger, returnUrl: LEDGER_TAB }));
-
-  test("embeds the shared statement with the balance and a full-ledger action", () => {
-    // A single sale debits the attendee account, so the ledger holds -5000; the
-    // attendee view flips it to show the +5000 they owe as the balance.
-    const lines = statementFor(acct)([
-      {
-        amount: 5000,
-        destination: account("revenue", 1),
-        eventGroup: "evt",
-        id: 1,
-        kind: "sale",
-        occurredAt: "2026-06-21T10:00:00.000Z",
-        recordedAt: "2026-06-21T10:00:00.000Z",
-        reference: "sale-1",
-        source: acct,
-      },
-    ]);
-    const html = renderLedger({
-      account: acct,
-      lines,
-      names: emptyLedgerNames(),
-    });
-    // The statement controls group the balance, action row, and ledger table.
-    expect(html).toContain('class="table-controls"');
-    expect(html).toContain('class="table-action-btns"');
-    expect(html).toContain('href="/admin/ledger/attendee/7"');
-    expect(html).toContain("View full ledger");
-    // The counterparty (the listing, unnamed here) and the running balance both
-    // render; the reversed balance is the +5000 the attendee owes.
-    expect(html).toContain("Listing #1");
-    expect(html).toContain(`Balance: ${formatCurrency(5000)}`);
-    expect(html).not.toContain(`Balance: -${formatCurrency(5000)}`);
-    expect(html).toContain('<th class="col-amount">Balance</th>');
-  });
-
-  test("shows the empty state for an attendee with no transfers", () => {
-    const html = renderLedger({
-      account: acct,
-      lines: [],
-      names: emptyLedgerNames(),
-    });
-    expect(html).toContain("No transfers recorded yet");
-    expect(html).toContain(`Balance: ${formatCurrency(0)}`);
-  });
-
-  test("shows an add-entry action returning to the Ledger tab", () => {
-    const html = renderLedger({
-      account: acct,
-      lines: [],
-      names: {
-        ...emptyLedgerNames(),
-        attendees: new Map([[7, "Ada Lovelace"]]),
-      },
-    });
-    expect(html).toContain("Add entry");
-    expect(html).toContain(
-      'href="/admin/ledger/attendee/7/add?return_url=%2Fadmin%2Fattendees%2F7%2Fledger"',
-    );
   });
 });

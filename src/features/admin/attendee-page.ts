@@ -5,7 +5,8 @@
  *   Overview  — summary table, bookings, answers, payment details, a short
  *               activity preview, contact history
  *   Edit      — the attendee form (attendee-form.tsx), warnings and errors
- *   Ledger    — the attendee account statement (owner-only)
+ *   Ledger    — the order summary, account statement, balance collection and
+ *               activity history (owner-only)
  *   Activity  — the full activity log
  *   Actions   — refund / resend / send text / merge, danger zone: delete
  *
@@ -15,8 +16,8 @@
  */
 
 import { t } from "#i18n";
-import { loadAttendeeBalancePanel } from "#routes/admin/attendee-balance.ts";
 import { attendeeBookingsFromLines } from "#routes/admin/attendee-form-model.ts";
+import { loadAttendeeLedgerPanel } from "#routes/admin/attendee-ledger-panel.ts";
 import { loadLogisticsPanel } from "#routes/admin/attendee-logistics-tab.ts";
 import {
   buildEditFormFromAttendee,
@@ -39,7 +40,6 @@ import {
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
 import { requireSessionOr } from "#routes/auth.ts";
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -174,7 +174,7 @@ const overviewTab: TabDef<LoadedAttendee> = {
           Raw({
             html: PaymentDetails({
               attendee,
-              // The balance link targets the owner-only Balance tab, so it
+              // The balance link targets the owner-only Ledger tab, so it
               // must only render for owners (never render a forbidden link).
               showBalanceLink: ctx.session.adminLevel === "owner",
             }),
@@ -232,27 +232,19 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
       labelKey: "entity.tab.ledger",
       sections: [
         {
-          account: ({ attendee }) => attendeeAccount(attendee.id),
-          kind: "ledger",
+          kind: "custom",
+          load: ({ attendee }, ctx) =>
+            loadAttendeeLedgerPanel(
+              attendee.id,
+              ctx.baseUrl,
+              ctx.returnUrl,
+              ctx.tabHref("activity"),
+            ),
         },
       ],
       slug: "ledger",
-      // The ledger exposes money movements, so it is owner-only — matching
-      // the standalone /admin/ledger* routes.
-      visible: (_entity, session) => session.adminLevel === "owner",
-    },
-    {
-      labelKey: "entity.tab.balance",
-      sections: [
-        {
-          kind: "custom",
-          load: ({ attendee }, ctx) =>
-            loadAttendeeBalancePanel(attendee.id, ctx.baseUrl),
-        },
-      ],
-      slug: "balance",
-      // The balance panel exposes order money and the customer pay link, so
-      // it is owner-only like the Ledger tab (and the old /balance route).
+      // The ledger exposes money movements and the customer pay link, so it is
+      // owner-only — matching the standalone /admin/ledger* routes.
       visible: (_entity, session) => session.adminLevel === "owner",
     },
     {
