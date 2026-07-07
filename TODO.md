@@ -274,3 +274,46 @@ keeps the bundles honest by failing when a route reads a key it didn't declare.
   liveness reads beyond the shared member batch. Fully batching would mean
   computing bundle caps for several packages in one pass over shared capacity
   maps — worthwhile only if a page with many package links shows up hot.
+
+## Admin guide — sections still to write
+
+*Origin: the admin-guide-footer linking pass. Every substantive, non-transactional
+admin page now renders a `GuideFooter` (or, for embedded settings sub-forms, a
+small inline link) pointing at the relevant `/admin/guide#<anchor>` section. The
+gaps below are pages whose natural guide section **does not exist yet**, so they
+either link a placeholder anchor or currently render no footer. `guide-anchor-
+links.test.ts` guards that every referenced anchor resolves; the two dangling
+ones are whitelisted in its `PENDING_SECTIONS` set. Write the section, add it to
+the appropriate `src/ui/templates/admin/guide/*.tsx` module with a unique `id`,
+then remove it from `PENDING_SECTIONS` and wire up any page still missing a
+footer.*
+
+**Dangling anchors (a page already links here, section missing — in
+`PENDING_SECTIONS`):**
+
+- **`#ledger`** — the money ledger (`/admin/ledger`, `ledger.tsx`) links
+  `#ledger`. Needs a section covering the double-entry money ledger: what the
+  accounts/legs mean, how balances are projected, manual write-off entries, and
+  how refunds/booking-fees show up. (The existing `payments` overview and
+  `refunds` sections are adjacent but not a home for the ledger itself.)
+- **`#logistics`** — the logistics settings page (`/admin/logistics`,
+  `logistics.tsx`) and the delivery run sheet (`/admin/deliveries`) both want a
+  `#logistics` section: delivery/collection addresses, the run-sheet, agent
+  assignment, and the per-listing `uses_logistics` flag. Once written, add the
+  footer to `deliveries.tsx` too (currently omitted — it's a driver view and the
+  anchor was dangling).
+
+**Pages with no footer yet (no fitting section exists):**
+
+- **Attendees list** (`/admin/attendees`, `attendees-list.tsx`) — the `listings`
+  section already carries the per-attendee FAQs (add/remove/merge/delete), but
+  there's no attendee-management overview to anchor a footer to. Either add an
+  `attendees` section or split the attendee FAQs out of `listings`.
+- **Image library** (`/admin/images`, `images.tsx`) — needs an `images` section
+  (uploading, linking images to listings/items, storage requirements).
+- **Attendee statuses** (`/admin/settings/statuses`, `settings-statuses.tsx`) —
+  needs a section on custom statuses and the public/paid/reservation flags. The
+  page is wired through `defineAdminResourcePages`, which already exposes a
+  `guideFooter` slot — just pass one once the section exists.
+- **Support** (`/admin/support`) — borderline (it's a contact-the-host form);
+  give it a footer only if a support/troubleshooting section is written.

@@ -39,7 +39,7 @@ import type {
 import { AdminPage, flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { HolidayTable } from "#templates/admin/holidays.tsx";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
-import { ActionButton } from "#templates/components/actions.tsx";
+import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
 
 /** The dashboard's quick-create actions — shortcuts to add a listing or an
@@ -412,6 +412,10 @@ export const adminDashboardPage = (
       {newestAttendees.length > 0 && (
         <Raw html={newestAttendeesSection(newestAttendees, listings)} />
       )}
+
+      <GuideFooter href="/admin/guide#dashboard">
+        {t("admin.dashboard.guide_link")}
+      </GuideFooter>
     </>,
   );
 };
@@ -466,6 +470,10 @@ export const adminListingsPage = (
           />
         </>
       )}
+
+      <GuideFooter href="/admin/guide#listings">
+        {t("admin.listings.guide_link")}
+      </GuideFooter>
     </AdminPage>,
   );
 };

@@ -9,6 +9,7 @@ import type { AdminSession, Theme } from "#shared/types.ts";
 import { themedAdminPage } from "#templates/admin/admin-page.tsx";
 import { CalendarFeedsForm } from "#templates/admin/settings/calendar-feeds.tsx";
 import { ChangePasswordForm } from "#templates/admin/settings/change-password.tsx";
+import { SettingsGuideFooter } from "#templates/admin/settings/guide-footer.tsx";
 import { HeaderImageForm } from "#templates/admin/settings/header-image.tsx";
 import {
   BookingFeeForm,
@@ -86,5 +87,7 @@ export const adminSettingsPage = (
       <SuperuserForm superuser={s.superuser} />
       <ChangePasswordForm />
       {CalendarFeedsForm(s)}
+
+      <SettingsGuideFooter />
     </>,
   );

@@ -13,9 +13,18 @@ import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
-import { SaveButton } from "#templates/components/actions.tsx";
+import { GuideFooter, SaveButton } from "#templates/components/actions.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
+
 /* jscpd:ignore-end */
+
+/** The public-site guide footer shared by the home, contact and order editors
+ * (all three map to the guide's `#public-site` section). */
+const SiteGuideFooter = (): JSX.Element => (
+  <GuideFooter href="/admin/guide#public-site">
+    {t("site.guide_link")}
+  </GuideFooter>
+);
 
 /**
  * Homepage editor - website title + homepage text
@@ -40,6 +49,8 @@ export const adminSiteHomePage = (
         />
         {SaveButton()}
       </CsrfForm>
+
+      <SiteGuideFooter />
     </>,
   );
 
@@ -139,6 +150,8 @@ export const adminSiteContactPage = (
         enabled={contactForm.enabled}
         hasBusinessEmail={contactForm.hasBusinessEmail}
       />
+
+      <SiteGuideFooter />
     </>,
   );
 
@@ -215,5 +228,7 @@ export const adminSiteOrderPage = (
         <Raw html={siteOrderForm.render({ order_intro_text: introText })} />
         {SaveButton()}
       </CsrfForm>
+
+      <SiteGuideFooter />
     </>,
   );

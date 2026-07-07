@@ -13,7 +13,11 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
-import { DeleteSection, SubmitButton } from "#templates/components/actions.tsx";
+import {
+  DeleteSection,
+  GuideFooter,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
 import { DataTable, textColumns } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 
@@ -108,6 +112,10 @@ export const adminApiKeysPage = (
         <Raw html={apiKeyForm.render()} />
         <SubmitButton icon="plus">{t("api_keys.create_submit")}</SubmitButton>
       </CsrfForm>
+
+      <GuideFooter href="/admin/guide#api">
+        {t("api_keys.guide_link")}
+      </GuideFooter>
     </AdminPage>,
   );
 };

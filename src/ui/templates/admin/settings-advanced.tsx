@@ -19,6 +19,7 @@ import { EmailNotificationsForm } from "#templates/admin/settings/email.tsx";
 import { AdminEmailTemplateForm } from "#templates/admin/settings/email-tpl-admin.tsx";
 import { ConfirmationEmailTemplateForm } from "#templates/admin/settings/email-tpl-confirmation.tsx";
 import { GoogleWalletForm } from "#templates/admin/settings/google-wallet.tsx";
+import { SettingsGuideFooter } from "#templates/admin/settings/guide-footer.tsx";
 import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
 import { SmsGatewayForm } from "#templates/admin/settings/sms-gateway.tsx";
 import { HostSubdomainForm } from "#templates/admin/settings/subdomain.tsx";
@@ -99,5 +100,7 @@ export const adminAdvancedSettingsPage = (
         action="/admin/settings/reset-database"
         id="settings-reset-database"
       />
+
+      <SettingsGuideFooter />
     </>,
   );
