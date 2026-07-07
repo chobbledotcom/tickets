@@ -87,6 +87,10 @@ export const defineSiteContentPage = <E extends { id: number }>(
       },
     ],
     slug: "actions",
+    // Delete is the only action, and the delete confirmation GET is itself
+    // blocked in read-only mode (READ_ONLY_GET_PATTERNS) — so hide the whole
+    // tab rather than render a link that immediately bounces to /read-only.
+    visible: siteContentEditVisible,
   };
   return defineEntityPage({
     basePath: def.basePath,

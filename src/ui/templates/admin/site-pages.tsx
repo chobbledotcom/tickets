@@ -5,7 +5,11 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { pageToValues, sitePageForm } from "#routes/admin/site-pages-form.ts";
+import {
+  pageToValues,
+  sitePageEditForm,
+  sitePageForm,
+} from "#routes/admin/site-pages-form.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type {
@@ -209,7 +213,7 @@ const ItemPicker = ({
 export const sitePageEditPanel = (page: SitePage): JSX.Element =>
   contentEditPanel(
     `${LIST}/${page.id}/edit`,
-    sitePageForm.renderFields(pageToValues(page)),
+    sitePageEditForm.renderFields(pageToValues(page)),
   );
 
 /** The Items tab's panel: the page's current contents (reorderable, each

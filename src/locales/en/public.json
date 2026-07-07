@@ -3,6 +3,8 @@
   "public.terms_and_conditions": "Terms & Conditions",
   "public.contact": "Contact",
   "public.no_content": "No content.",
+  "public.gallery_label": "Images",
+  "public.gallery_thumb": "Show image {number}",
   "public.no_listings_listed": "No listings listed.",
   "public.all_bookable_listings": "All bookable listings",
   "public.packages": "Packages",

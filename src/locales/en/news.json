@@ -18,7 +18,5 @@
   "news.field.name": "Post Name",
   "news.error.slug_taken": "That permalink is already used by another news post.",
   "news.field.snippet": "Snippet",
-  "news.field.snippet_hint": "Short plain-text summary shown on the news list and in the RSS feed (max 500 characters).",
-  "news.public.gallery_label": "Post images",
-  "news.public.thumb_label": "Show image {number}"
+  "news.field.snippet_hint": "Short plain-text summary shown on the news list and in the RSS feed (max 500 characters)."
 }

@@ -85,26 +85,6 @@ export const contentGuideLink = (anchor: string): JSX.Element => (
   </p>
 );
 
-/** The pre-filled edit form: heading, error flash, fields, save button. */
-export const EditForm = ({
-  action,
-  title,
-  error,
-  fieldsHtml,
-}: {
-  action: string;
-  title: string;
-  error?: string | undefined;
-  fieldsHtml: string;
-}): JSX.Element => (
-  <CsrfForm action={action}>
-    <h1>{title}</h1>
-    <Flash error={error} />
-    <Raw html={fieldsHtml} />
-    {SaveChangesButton()}
-  </CsrfForm>
-);
-
 /** Curried type-the-name delete confirmation page for a Site-tab entity.
  * `messages` is the i18n prefix carrying `.delete_title`, `.delete_submit`,
  * `.delete_prompt` (with a `{name}` slot), and `.name_label`. */

@@ -103,6 +103,7 @@ describe("sitePagePage (nav-model race)", () => {
     );
     const html = sitePagePage(
       gone,
+      [],
       {
         hasContact: false,
         hasNews: false,

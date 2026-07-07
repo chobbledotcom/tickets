@@ -7,7 +7,7 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { NavModel } from "#shared/site-pages/types.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
-import type { Group } from "#shared/types.ts";
+import type { Group, Image } from "#shared/types.ts";
 import {
   type LeveledNavNode,
   leveledNav,
@@ -120,6 +120,56 @@ export const MarkdownProse = ({
       <Raw html={renderMarkdown(markdown)} />
     </div>
   ) : null;
+
+/** One gallery entry: the radio, its full-size image, and (when the collection
+ * has more than one image, so there is something to swap to) its thumbnail
+ * label. The three stay adjacent siblings — the stylesheet's `+` selectors
+ * depend on that order. */
+const galleryEntry = (
+  image: Image,
+  index: number,
+  withThumb: boolean,
+): JSX.Element => (
+  <>
+    <input
+      checked={index === 0}
+      class="news-gallery-radio"
+      id={`news-gallery-${index}`}
+      name="news-gallery"
+      type="radio"
+    />
+    <img
+      alt={image.alt_text || image.name}
+      class="news-gallery-full"
+      src={getImageProxyUrl(image.filename)}
+    />
+    {withThumb && (
+      <label class="news-gallery-thumb" for={`news-gallery-${index}`}>
+        <img
+          alt={t("public.gallery_thumb", { number: index + 1 })}
+          src={getImageProxyUrl(image.filename_thumb)}
+        />
+      </label>
+    )}
+  </>
+);
+
+/** A CSS-only image gallery shared by the public news post and content pages:
+ * nothing without images; with them, the first image shows full-width and the
+ * rest (if any) as thumbnails that swap it in via radio inputs — no script. */
+export const PublicImageGallery = ({
+  images,
+}: {
+  images: readonly Image[];
+}): JSX.Element | null =>
+  images.length === 0 ? null : (
+    <fieldset class="news-gallery">
+      <legend class="visually-hidden">{t("public.gallery_label")}</legend>
+      {images.map((image, index) =>
+        galleryEntry(image, index, images.length > 1),
+      )}
+    </fieldset>
+  );
 
 /** One `<link rel="alternate">` feed-discovery tag for the shared head. */
 const feedDiscoveryTag = (

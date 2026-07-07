@@ -14,16 +14,27 @@ import {
   seoMetaFields,
 } from "./content-form-fields.ts";
 
+const nameField = contentNameField(t("site.pages.field.name"));
+
+/** The fields after the slug, shared by the create and edit forms. */
+const trailingFields = [...seoMetaFields(), markdownContentField()] as const;
+
+/** The create form: the slug has no public link (the page has no live page
+ * yet, so a restored-after-error slug must not render a link that 404s). */
 export const sitePageForm = defineForm({
-  fields: [
-    contentNameField(t("site.pages.field.name")),
-    // The saved slug's public page (only shown once the page has a slug, so
-    // the "new" form renders no link until one is entered).
-    contentSlugField((slug) => `/page/${slug}`),
-    ...seoMetaFields(),
-    markdownContentField(),
-  ] as const,
+  fields: [nameField, contentSlugField(), ...trailingFields] as const,
   id: "sitePage",
+});
+
+/** The edit form: the same fields, but the slug shows the saved page's public
+ * link beneath it. */
+export const sitePageEditForm = defineForm({
+  fields: [
+    nameField,
+    contentSlugField((slug) => `/page/${slug}`),
+    ...trailingFields,
+  ] as const,
+  id: "sitePageEdit",
 });
 
 /** Snake-case field values for pre-filling the edit form. */

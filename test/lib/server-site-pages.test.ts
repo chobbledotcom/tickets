@@ -52,11 +52,15 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       expect(html).toContain("No pages yet");
     });
 
-    test("GET new renders the create form", async () => {
+    test("GET new renders the create form with a slug field but no public link", async () => {
       const html = await expectHtmlResponse(await adminGet(`${BASE}/new`), 200);
       expect(html).toContain("Create Page");
       // The content textarea is a markdown field (preview enabled).
       expect(html).toContain("data-markdown-preview");
+      // The slug is entered on create, but the page has no live page yet — so no
+      // "Public link" (which would 404 or point at a duplicate/reserved slug).
+      expect(html).toContain('name="slug"');
+      expect(html).not.toContain("Public link");
     });
 
     test("reorder arrows appear only where a move is possible", async () => {
