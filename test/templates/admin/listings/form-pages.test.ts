@@ -1,11 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { adminListingRecalculatePage } from "#templates/admin/listings/aggregates.tsx";
-import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
 import { adminListingNewPage } from "#templates/admin/listings/form-pages.tsx";
 import { testGroup, testListingWithCount } from "#test-utils";
 
-import { registerListingTemplateHooks, TEST_SESSION } from "./helpers.ts";
+import {
+  editPanelHtml,
+  registerListingTemplateHooks,
+  TEST_SESSION,
+} from "./helpers.ts";
 
 registerListingTemplateHooks();
 
@@ -167,9 +170,8 @@ describe("adminListingNewPage", () => {
 
 describe("adminListingPage edit form pre-fills date and location", () => {
   test("empty date shows no pre-filled value in edit form", () => {
-    const listing = testListingWithCount({ attendee_count: 0, date: "" });
-    const html = String(
-      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    const html = editPanelHtml(
+      testListingWithCount({ attendee_count: 0, date: "" }),
     );
     // The date field should render split date and time inputs
     expect(html).toContain('name="date_date"');
@@ -177,12 +179,11 @@ describe("adminListingPage edit form pre-fills date and location", () => {
   });
 
   test("non-empty date shows formatted split values in edit form", () => {
-    const listing = testListingWithCount({
-      attendee_count: 0,
-      date: "2026-06-15T14:00:00.000Z",
-    });
-    const html = String(
-      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    const html = editPanelHtml(
+      testListingWithCount({
+        attendee_count: 0,
+        date: "2026-06-15T14:00:00.000Z",
+      }),
     );
     // Should contain split date and time values converted to Europe/London (BST = UTC+1)
     expect(html).toContain('value="2026-06-15"');
@@ -190,40 +191,32 @@ describe("adminListingPage edit form pre-fills date and location", () => {
   });
 
   test("pre-fills location in edit form", () => {
-    const listing = testListingWithCount({
-      attendee_count: 0,
-      location: "Village Hall",
-    });
-    const html = String(
-      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+    const html = editPanelHtml(
+      testListingWithCount({ attendee_count: 0, location: "Village Hall" }),
     );
     expect(html).toContain('value="Village Hall"');
   });
 });
 
 describe("adminListingEditPage max_price field", () => {
-  test("renders max_price field with value when set", () => {
-    const listing = testListingWithCount({
-      attendee_count: 0,
-      can_pay_more: true,
-      max_price: 50000,
-    });
-    const html = String(
-      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+  // A can_pay_more listing rendered on the edit form for the given max_price.
+  const maxPriceEditHtml = (max_price: number) =>
+    editPanelHtml(
+      testListingWithCount({
+        attendee_count: 0,
+        can_pay_more: true,
+        max_price,
+      }),
     );
+
+  test("renders max_price field with value when set", () => {
+    const html = maxPriceEditHtml(50000);
     expect(html).toContain('name="max_price"');
     expect(html).toContain('value="500.00"');
   });
 
   test("renders max_price field with 0.00 when zero", () => {
-    const listing = testListingWithCount({
-      attendee_count: 0,
-      can_pay_more: true,
-      max_price: 0,
-    });
-    const html = String(
-      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
-    );
+    const html = maxPriceEditHtml(0);
     expect(html).toContain('name="max_price"');
     expect(html).toContain('value="0.00"');
   });
