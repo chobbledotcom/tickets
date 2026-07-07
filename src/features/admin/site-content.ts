@@ -35,15 +35,6 @@ export const siteContentPost =
   (request: Request): Promise<Response> =>
     withAuth(request, SITE_FORM, (_session, form) => handler(form));
 
-/** Curried GET `:id` route: Site gate, then load the entity (404 when
- * missing) and render it. */
-export const siteEntityGet =
-  <T>(load: (id: number) => Promise<T | null>) =>
-  (render: (item: T, session: AdminSession) => string | Promise<string>) =>
-    gatedEntityRoute<AdminSession>(requireSiteOr)(load, async (item, session) =>
-      htmlResponse(await render(item, session)),
-    );
-
 /** Curried POST `:id` route: Site form gate, then load the entity (404 when
  * missing) and hand it to the mutation. */
 export const siteEntityPost =

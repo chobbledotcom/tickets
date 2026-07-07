@@ -3,6 +3,7 @@
  */
 
 import { joinStrings, map, pipe } from "#fp";
+import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import {
@@ -56,6 +57,11 @@ export interface Field {
   parse?: (value: string) => string | number | null;
   pattern?: string;
   placeholder?: string;
+  /** When set, a value present, renders a "Public link: <path>" line under the
+   *  input, linking (in a new tab) to the public page this field's value maps
+   *  to — e.g. a slug field pointing at `/news/<slug>`. The path is derived
+   *  from the rendered value (the entity's saved slug on a normal edit view). */
+  publicLinkPath?: (value: string) => string;
   required?: boolean;
   title?: string;
   type: FieldType;
@@ -255,6 +261,22 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
   );
 };
 
+/** The "Public link: <path>" line under a slug-style field: rendered only when
+ *  the field opts in via {@link Field.publicLinkPath} and has a value, so a new
+ *  (unsaved) entity with no slug shows no link. Opens in a new tab. */
+const publicLinkHint = (field: Field, value: string): JSX.Element | null => {
+  if (!field.publicLinkPath || !value) return null;
+  const path = field.publicLinkPath(value);
+  return (
+    <small class="public-link">
+      {t("common.public_link")}:{" "}
+      <a href={path} rel="noopener" target="_blank">
+        {path}
+      </a>
+    </small>
+  );
+};
+
 export const renderField = (field: Field, value: string = ""): string =>
   (field.beforeHtml ?? "") +
   String(
@@ -267,6 +289,7 @@ export const renderField = (field: Field, value: string = ""): string =>
           <Raw html={field.hintHtml} />
         </small>
       )}
+      {publicLinkHint(field, value)}
     </label>,
   );
 

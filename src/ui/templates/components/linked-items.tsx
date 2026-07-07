@@ -2,8 +2,10 @@
  * "Linked items" checkbox lists: one checkbox per linkable item, grouped by
  * item type (Listings, Groups, …). With several types each type gets its own
  * labelled row in a list; with a single type the heading and checkboxes share
- * one wrapping line. The heading counts the items currently linked, and
- * deactivated items sort to the end of their row and render muted.
+ * one wrapping line. The heading counts the items currently linked. Within each
+ * row the already-linked (checked) items sort to the front so the current
+ * selection is visible at a glance; deactivated items sort to the end and
+ * render muted (checked deactivated items still lead, as any linked item does).
  *
  * The heading wording defaults to "Linked …" but is overridable per caller (an
  * "add these" picker reads "Add listings:", a read-back reads "Current …"),
@@ -56,12 +58,22 @@ const defaultHeading: LinkedItemsHeading = ({ count, type }) =>
     ? t("linked_items.heading", { count })
     : t("linked_items.heading_typed", { count, type });
 
-const activeFirst = (
-  options: readonly LinkedItemOption[],
-): LinkedItemOption[] => [
-  ...options.filter((option) => option.active),
-  ...options.filter((option) => !option.active),
-];
+/** Stable partition: options matching `keep` first, the rest after, each half
+ * in its original order. The one ordering primitive both sorts below share. */
+const matchingFirst =
+  (keep: (option: LinkedItemOption) => boolean) =>
+  (options: readonly LinkedItemOption[]): LinkedItemOption[] => [
+    ...options.filter(keep),
+    ...options.filter((option) => !keep(option)),
+  ];
+
+/** Deactivated options sort to the end of their row (rendered muted). */
+const activeFirst = matchingFirst((option) => option.active);
+
+/** The already-linked (checked) options lead, keeping every option's relative
+ * order otherwise. Applied over {@link activeFirst}, so the displayed order is:
+ * linked first, then within each half active-before-muted. */
+const selectedFirst = matchingFirst((option) => option.checked);
 
 const countLinked = (groups: readonly LinkedItemGroup[]): number =>
   groups.flatMap((group) => group.options).filter((option) => option.checked)
@@ -70,7 +82,7 @@ const countLinked = (groups: readonly LinkedItemGroup[]): number =>
 const optionCheckboxes =
   (name: string) =>
   (options: readonly LinkedItemOption[]): JSX.Element[] =>
-    activeFirst(options).map((option) => (
+    selectedFirst(activeFirst(options)).map((option) => (
       <CheckboxLabel
         checked={option.checked || undefined}
         className={option.active ? undefined : "muted"}

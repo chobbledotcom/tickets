@@ -9,9 +9,12 @@
  * so one pure computation feeds both the nav and the body item list.
  */
 
+// jscpd:ignore-start
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
+import { getImagesForItem } from "#shared/db/images.ts";
 import { settings } from "#shared/db/settings.ts";
+// jscpd:ignore-end
 import {
   computeSitePageSlugIndex,
   getSitePageBySlugIndex,
@@ -25,8 +28,11 @@ const handleSitePage = async (slug: string): Promise<Response> => {
   const slugIndex = await computeSitePageSlugIndex(slug);
   const page = await getSitePageBySlugIndex(slugIndex);
   if (!page) return notFoundResponse();
-  const nav = await publicNavProps(targetKey("page", page.id));
-  return htmlResponse(sitePagePage(page, nav, settings.websiteTitle));
+  const [images, nav] = await Promise.all([
+    getImagesForItem("page", page.id),
+    publicNavProps(targetKey("page", page.id)),
+  ]);
+  return htmlResponse(sitePagePage(page, images, nav, settings.websiteTitle));
 };
 
 /** Route `/page/*` requests (public-site gate first, then slug resolution). */

@@ -100,6 +100,48 @@ describe("LinkedItemsCheckboxes", () => {
     );
   });
 
+  test("sorts already-linked options to the front, keeping the rest in order", () => {
+    const html = render([
+      {
+        label: "Listings",
+        options: [
+          option("listing:1"),
+          option("listing:2", { checked: true }),
+          option("listing:3"),
+        ],
+      },
+    ]);
+
+    const second = html.indexOf('value="listing:2"');
+    const first = html.indexOf('value="listing:1"');
+    const third = html.indexOf('value="listing:3"');
+    // The checked option leads; the two unchecked keep their original order.
+    expect(second).toBeGreaterThan(-1);
+    expect(first).toBeGreaterThan(second);
+    expect(third).toBeGreaterThan(first);
+  });
+
+  test("a linked deactivated option still leads over an unlinked active one", () => {
+    const html = render([
+      {
+        label: "Listings",
+        options: [
+          option("listing:1", { label: "Live unlinked" }),
+          option("listing:2", {
+            active: false,
+            checked: true,
+            label: "Old linked",
+          }),
+        ],
+      },
+    ]);
+
+    const linkedOld = html.indexOf('value="listing:2"');
+    const unlinkedLive = html.indexOf('value="listing:1"');
+    expect(linkedOld).toBeGreaterThan(-1);
+    expect(unlinkedLive).toBeGreaterThan(linkedOld);
+  });
+
   test("counts only checked options, including deactivated ones", () => {
     const html = render([
       {

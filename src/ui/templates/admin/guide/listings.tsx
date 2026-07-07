@@ -113,6 +113,7 @@ export const listingsSections = (): GuideSection[] => [
       faq("build_site_page"),
       faq("news_posts"),
     ],
+    id: "public-site",
     titleKey: "public_site",
   },
   textFormattingSection,

@@ -61,24 +61,28 @@ export const collectionPage =
       </AdminPage>,
     );
 
-/** The pre-filled edit form: heading, error flash, fields, save button. */
-export const EditForm = ({
-  action,
-  title,
-  error,
-  fieldsHtml,
-}: {
-  action: string;
-  title: string;
-  error?: string | undefined;
-  fieldsHtml: string;
-}): JSX.Element => (
+/** The Edit-tab panel for a Site content editor (Pages, News): a CsrfForm
+ * carrying the pre-filled fields and a save button. Unlike {@link EditForm} it
+ * renders no heading — the tabbed entity page draws the page title above the
+ * tab strip. */
+export const contentEditPanel = (
+  action: string,
+  fieldsHtml: string,
+): JSX.Element => (
   <CsrfForm action={action}>
-    <h1>{title}</h1>
-    <Flash error={error} />
     <Raw html={fieldsHtml} />
     {SaveChangesButton()}
   </CsrfForm>
+);
+
+/** The "Guide: …" help link shown beside a Site content page's title, jumping
+ * to the given guide section anchor. */
+export const contentGuideLink = (anchor: string): JSX.Element => (
+  <p class="prose guide-link">
+    <a href={`/admin/guide#${anchor}`}>
+      <Raw html={t("common.guide_website_content")} />
+    </a>
+  </p>
 );
 
 /** Curried type-the-name delete confirmation page for a Site-tab entity.
