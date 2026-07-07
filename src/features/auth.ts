@@ -410,17 +410,20 @@ export type SessionGuard<TSession> = (
   handler: (session: TSession) => Response | Promise<Response>,
 ) => Promise<Response>;
 
-/** Factory for creating authenticated page handlers */
+/** Factory for creating authenticated page handlers. The render callback is
+ * given the request too, for pages that read query params (e.g. the deliveries
+ * run sheet's date picker); callers that only need the session simply ignore
+ * it. */
 export const authPage =
   <TSession>(requireSession: SessionGuard<TSession>) =>
   (
-    render: (session: TSession) => string | Promise<string>,
+    render: (session: TSession, request: Request) => string | Promise<string>,
   ): ((request: Request) => Promise<Response>) =>
   (request) =>
     requireSession(request, async (session) => {
       const { applyFlash } = await import("#routes/csrf.ts");
       applyFlash(request);
-      return htmlResponse(await render(session));
+      return htmlResponse(await render(session, request));
     });
 
 /** Owner-only GET page: authenticate, apply flash, render HTML */
