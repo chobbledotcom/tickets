@@ -1380,6 +1380,10 @@ output.success {
 /* Per-attendee operator/system notes */
 .attendee-notes {
   margin-bottom: var(--space-l);
+  /* The notes banner sits above the tab strip on every attendee tab, so pin it
+     too: switching tabs keeps the same alerts in place instead of re-fading
+     them in on each navigation. */
+  view-transition-name: attendee-notes;
 }
 .system-note {
   background: var(--color-surface-alt, #f4f4f4);
@@ -3373,6 +3377,10 @@ label:hover .embed-toggle-badge,
   /* The base `nav` rule centres its row; the tab strip reads left-to-right
      like the page content beneath it, so pin it to the start. */
   justify-content: flex-start;
+  /* Hold the tab strip still across cross-document navigations: moving between
+     an entity's tabs (Edit → Attendees → Actions) keeps the same strip in
+     place while only the panel beneath it transitions. */
+  view-transition-name: entity-tabs;
 
   ul {
     display: flex;
