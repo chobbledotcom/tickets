@@ -6,13 +6,13 @@
 
 /* jscpd:ignore-start */
 import { type ChildProcess, spawn } from "node:child_process";
-import { mkdirSync, rmSync } from "node:fs";
-import { createWriteStream } from "node:fs";
+import { createWriteStream, mkdirSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.ts";
 import { log, warn } from "./log.ts";
 import { sleep, stopChild } from "./util.ts";
+
 /* jscpd:ignore-end */
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -40,7 +40,9 @@ export const buildStaticAssets = async (): Promise<void> => {
     });
     child.on("error", reject);
     child.on("exit", (code) =>
-      code === 0 ? resolveP() : reject(new Error(`build:static exited ${code}`)),
+      code === 0
+        ? resolveP()
+        : reject(new Error(`build:static exited ${code}`)),
     );
   });
 };
@@ -51,7 +53,7 @@ export const startAppServer = async (): Promise<AppServer> => {
   mkdirSync(artifactsDir, { recursive: true });
 
   const dbDir = join(repoRoot, "e2e-payments", ".tmp");
-  rmSync(dbDir, { recursive: true, force: true });
+  rmSync(dbDir, { force: true, recursive: true });
   mkdirSync(dbDir, { recursive: true });
   const dbUrl = `file:${join(dbDir, "e2e.db")}`;
 
@@ -75,9 +77,9 @@ export const startAppServer = async (): Promise<AppServer> => {
       cwd: repoRoot,
       env: {
         ...process.env,
-        PORT: String(port),
-        DB_URL: dbUrl,
         DB_ENCRYPTION_KEY: config.dbEncryptionKey,
+        DB_URL: dbUrl,
+        PORT: String(port),
       },
     },
   );
@@ -97,8 +99,8 @@ export const startAppServer = async (): Promise<AppServer> => {
         log(`App server is up at ${localBaseUrl} (log: ${logPath})`);
         return {
           localBaseUrl,
-          port,
           logPath,
+          port,
           stop: stopChild(child),
         };
       }

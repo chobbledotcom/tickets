@@ -37,7 +37,7 @@ import { applyDemoOverrides, LOGISTICS_DEMO_FIELDS } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { parseCoordinatePair } from "#shared/validation/coordinates.ts";
 import { AttendeeLogisticsPanel } from "#templates/admin/attendee-logistics-tab.tsx";
-import { validateAddress } from "#templates/fields.ts";
+import { validateAddress } from "#templates/fields/validators.ts";
 
 /** Re-render the submitted form in place at 400 (validation failure). The
  * start/end selectors show the SUBMITTED choices, not the saved ones, so

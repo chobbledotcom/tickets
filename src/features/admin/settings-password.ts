@@ -13,10 +13,8 @@ import { getUserById, verifyUserPassword } from "#shared/db/users.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms.tsx";
 import { ok } from "#shared/response.ts";
-import {
-  type ChangePasswordFormValues,
-  getChangePasswordFields,
-} from "#templates/fields.ts";
+import { getChangePasswordFields } from "#templates/fields/admin.ts";
+import type { ChangePasswordFormValues } from "#templates/fields/types.ts";
 
 // jscpd:ignore-end
 

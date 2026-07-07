@@ -25,7 +25,7 @@ import type { AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
-import { formattingHint } from "#templates/fields.ts";
+import { formattingHint } from "#templates/components/formatting-hint.ts";
 
 /* jscpd:ignore-end */
 

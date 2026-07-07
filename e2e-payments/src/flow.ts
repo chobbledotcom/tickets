@@ -74,7 +74,8 @@ export const createListing = async (
     .locator('a[href*="/ticket/"]')
     .first()
     .getAttribute("href", { timeout: config.navTimeoutMs });
-  if (!href) throw new Error("no public /ticket/ link found on the listing page");
+  if (!href)
+    throw new Error("no public /ticket/ link found on the listing page");
   const path = href.startsWith("http") ? new URL(href).pathname : href;
   log(`  public booking path: ${path}`);
   return path;
@@ -127,7 +128,9 @@ export const submitBooking = async (
   await fillIfPresent(session, "name", BOOKER_NAME);
 
   // Quantity field name varies (single `quantity` vs per-listing `quantity_<id>`).
-  const qty = page.locator('input[name^="quantity"], select[name^="quantity"]').first();
+  const qty = page
+    .locator('input[name^="quantity"], select[name^="quantity"]')
+    .first();
   if (await qty.count()) {
     const tag = await qty.evaluate((el) => el.tagName.toLowerCase());
     if (tag === "select") await qty.selectOption("1");
@@ -227,7 +230,7 @@ const collectHostedErrors = async (
  */
 export const assertPaidBookingConfirmed = async (
   session: BrowserSession,
-  ticketPath: string,
+  _ticketPath: string,
 ): Promise<void> => {
   step("Confirming the paid booking");
   const { page } = session;

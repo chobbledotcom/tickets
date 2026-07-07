@@ -75,11 +75,8 @@ import {
   adminQuestionsPage,
   questionTextFlat,
 } from "#templates/admin/questions.tsx";
-import {
-  type AnswerAggregateFormValues,
-  answerAggregateFields,
-  formattingHint,
-} from "#templates/fields.ts";
+import { formattingHint } from "#templates/components/formatting-hint.ts";
+import { answerAggregateFields } from "#templates/fields/aggregate.ts";
 
 /* jscpd:ignore-end */
 
@@ -402,7 +399,7 @@ const handleEditAnswerGet = answerRoute(async (question, answer, session) => {
 
 /** Map the validated aggregate form values onto the stored aggregate columns. */
 const extractAnswerAggregateValues = (
-  values: AnswerAggregateFormValues,
+  values: AnswerAggregateValues,
 ): AnswerAggregateValues => ({
   times_selected: values.times_selected,
 });
@@ -433,7 +430,7 @@ const handleEditAnswerPost = createAuthedFormRoute<
       return errorRedirect(editAnswerPath(params), "Invalid modifier");
     }
     const aggregates = parseEditableAggregateForm<
-      AnswerAggregateFormValues,
+      AnswerAggregateValues,
       AnswerAggregateValues
     >(form, answerAggregateFields, extractAnswerAggregateValues);
     if (!aggregates.ok) {

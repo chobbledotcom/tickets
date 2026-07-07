@@ -41,19 +41,17 @@ import {
   parseDayPrices,
 } from "#shared/types.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
-import type {
-  ListingAggregateFormValues,
-  ListingEditFormValues,
-  ListingFormValues,
-} from "#templates/fields.ts";
 import {
   getAssignBuiltSiteField,
   getInitialSiteMonthsField,
   getListingFields,
   getMonthsPerUnitField,
-  getSlugField,
-  splitCsv,
-} from "#templates/fields.ts";
+} from "#templates/fields/listing.ts";
+import type {
+  ListingEditFormValues,
+  ListingFormValues,
+} from "#templates/fields/types.ts";
+import { getSlugField, splitCsv } from "#templates/fields/validators.ts";
 
 /* jscpd:ignore-end */
 
@@ -230,7 +228,7 @@ const extractListingUpdateInput = async (
 };
 
 export const extractListingAggregateValues = (
-  values: ListingAggregateFormValues,
+  values: ListingAggregateValues,
 ): ListingAggregateValues => ({
   booked_quantity: values.booked_quantity,
   tickets_count: values.tickets_count,

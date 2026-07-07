@@ -81,6 +81,7 @@ import {
   getListingWithCountBySlug,
 } from "#shared/db/listings.ts";
 import { FormParams } from "#shared/form-data.ts";
+import { mergeListingFields } from "#shared/listing-fields.ts";
 import {
   concealLineNames,
   namesConcealed,
@@ -103,9 +104,8 @@ import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import {
   extractContact,
-  mergeListingFields,
   tryValidateTicketFields,
-} from "#templates/fields.ts";
+} from "#templates/fields/ticket.ts";
 
 // =============================================================================
 // CORS

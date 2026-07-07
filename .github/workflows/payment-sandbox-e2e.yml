@@ -57,15 +57,6 @@ jobs:
         with:
           deno-version: v2.5.6
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          # No npm cache here: e2e-payments/package-lock.json is intentionally
-          # gitignored (the harness installs with `npm install`, not `npm ci`),
-          # so setup-node's cache-dependency-path would resolve to nothing and
-          # fail the job. The Playwright browser cache below is the real win.
-
       - name: Install cloudflared
         run: |
           set -euo pipefail
@@ -77,19 +68,19 @@ jobs:
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/bin/cloudflared" --version
 
+      - name: Cache Deno dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/deno
+          key: deno-${{ runner.os }}-${{ hashFiles('deno.lock', 'e2e-payments/deno.json') }}
+
       - name: Install Deno dependencies
         run: deno install --allow-scripts
 
-      - name: Install e2e harness dependencies
-        working-directory: e2e-payments
-        env:
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
-        run: npm install
-
       - name: Resolve Playwright version
         id: pw
-        working-directory: e2e-payments
-        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+        run: echo "version=1.49.1" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         id: pw-cache
@@ -103,16 +94,13 @@ jobs:
       # a miss, download the browser and its OS deps in one go.
       - name: Install Playwright Chromium (cache miss)
         if: steps.pw-cache.outputs.cache-hit != 'true'
-        working-directory: e2e-payments
-        run: npx playwright install --with-deps chromium
+        run: deno run -A npm:playwright@1.49.1 install --with-deps chromium
 
       - name: Install Playwright OS dependencies (cache hit)
         if: steps.pw-cache.outputs.cache-hit == 'true'
-        working-directory: e2e-payments
-        run: npx playwright install-deps chromium
+        run: deno run -A npm:playwright@1.49.1 install-deps chromium
 
       - name: Run ${{ matrix.target }} payment e2e
-        working-directory: e2e-payments
         env:
           # Throwaway key for the ephemeral local DB — not a real secret.
           DB_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
@@ -123,7 +111,7 @@ jobs:
           SUMUP_API_KEY: ${{ secrets.SUMUP_API_KEY }}
           SUMUP_MERCHANT_CODE: ${{ secrets.SUMUP_MERCHANT_CODE }}
           NTFY_URL: ${{ secrets.NTFY_URL }}
-        run: node --import tsx src/main.ts ${{ matrix.target }}
+        run: deno task e2e ${{ matrix.target }}
 
       - name: Upload run artifacts (screenshots, page HTML, server logs)
         if: always()

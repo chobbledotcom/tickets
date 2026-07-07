@@ -19,7 +19,7 @@ import {
   parseEmail,
   type ValidEmail,
 } from "#shared/validation/email.ts";
-import { validateUsername } from "#templates/fields.ts";
+import { validateUsername } from "#templates/fields/validators.ts";
 
 export type SuperuserState =
   | {

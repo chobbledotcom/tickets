@@ -47,7 +47,8 @@ import { fail, ok } from "#shared/response.ts";
 import { getSkipLoginDelay } from "#shared/test-overrides.ts";
 import type { AdminLevel } from "#shared/types.ts";
 import { adminLogoutPage } from "#templates/admin/logout.tsx";
-import { getLoginFields, type LoginFormValues } from "#templates/fields.ts";
+import { getLoginFields } from "#templates/fields/admin.ts";
+import type { LoginFormValues } from "#templates/fields/types.ts";
 
 /** Random delay between 100-200ms to prevent timing attacks */
 const randomDelay = (): Promise<void> =>

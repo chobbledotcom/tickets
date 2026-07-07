@@ -8,7 +8,7 @@ import { type HolidayInput, holidays } from "#shared/db/holidays.ts";
 import { HOLIDAY_DEMO_FIELDS, wrapResourceForDemo } from "#shared/demo.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import { adminHolidaysPage, holidayPages } from "#templates/admin/holidays.tsx";
-import { getHolidayFields } from "#templates/fields.ts";
+import { getHolidayFields } from "#templates/fields/admin.ts";
 
 /** Extract holiday input from validated form values */
 const extractHolidayInput = (

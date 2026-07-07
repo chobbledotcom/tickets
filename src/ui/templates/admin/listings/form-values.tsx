@@ -29,7 +29,7 @@ import {
   getListingFields,
   getMonthsPerUnitField,
   logisticsField,
-} from "#templates/fields.ts";
+} from "#templates/fields/listing.ts";
 import { formatBookableDays } from "./helpers.ts";
 
 const formatDatetimeLocal = (iso: string | null): string | null =>

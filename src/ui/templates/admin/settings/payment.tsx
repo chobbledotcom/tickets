@@ -18,7 +18,7 @@ import {
   getSquareWebhookFields,
   getStripeKeyFields,
   getSumupFields,
-} from "#templates/fields.ts";
+} from "#templates/fields/admin.ts";
 
 export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
   <CsrfForm

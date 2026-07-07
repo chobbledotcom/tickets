@@ -43,7 +43,7 @@ import {
   validateEmail,
   validatePhone,
   validateSpecialInstructions,
-} from "#templates/fields.ts";
+} from "#templates/fields/validators.ts";
 
 // ---------------------------------------------------------------------------
 // Field-name constants — single source of truth for template + parser

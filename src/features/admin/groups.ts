@@ -49,11 +49,13 @@ import {
   adminGroupsPage,
 } from "#templates/admin/groups.tsx";
 import {
-  type GroupCreateFormValues,
-  type GroupFormValues,
   getGroupCreateFields,
   getGroupFields,
-} from "#templates/fields.ts";
+} from "#templates/fields/group.ts";
+import type {
+  GroupCreateFormValues,
+  GroupFormValues,
+} from "#templates/fields/types.ts";
 import { withEntityLoader } from "./entity-handlers.ts";
 import { groupPage } from "./group-page.ts";
 import { createItemImageHandlers } from "./item-images.ts";

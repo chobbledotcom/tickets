@@ -23,7 +23,7 @@ import {
   SubmitButton,
 } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
-import { modifierFields } from "#templates/fields.ts";
+import { modifierFields } from "#templates/fields/modifier.ts";
 import { ModifierRunningTotalsSection } from "./aggregates.tsx";
 import {
   type AnswerLinks,

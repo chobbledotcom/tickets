@@ -30,7 +30,7 @@ import {
   SaveChangesButton,
 } from "#templates/components/actions.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
-import { getBuiltSiteFields } from "#templates/fields.ts";
+import { getBuiltSiteFields } from "#templates/fields/admin.ts";
 
 export const adminBuiltSitesPage = (
   sites: BuiltSite[],
