@@ -4,7 +4,6 @@ import * as v from "valibot";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import {
   type BookingItem,
-  BookingItemSchema,
   BookingItemsSchema,
   getActivePaymentProvider,
   isPaymentStatus,
@@ -12,12 +11,14 @@ import {
 import { describeWithEnv } from "#test-utils";
 
 /** A minimal booking line that satisfies every schema rule; spread and override
- * one field per case to probe a single boundary in isolation. */
+ * one field per case to probe a single boundary in isolation. Each line is
+ * validated through BookingItemsSchema (the array wrapper production parses
+ * against), so a single-element array exercises the per-line rules directly. */
 const validItem: BookingItem = { e: 1, p: 0, q: 0 };
 const accepts = (item: Record<string, unknown>) =>
-  expect(v.is(BookingItemSchema, item)).toBe(true);
+  expect(v.is(BookingItemsSchema, [item])).toBe(true);
 const rejects = (item: Record<string, unknown>) =>
-  expect(v.is(BookingItemSchema, item)).toBe(false);
+  expect(v.is(BookingItemsSchema, [item])).toBe(false);
 
 describe("isPaymentStatus", () => {
   for (const status of ["paid", "unpaid", "no_payment_required", "failed"]) {
@@ -32,7 +33,7 @@ describe("isPaymentStatus", () => {
   }
 });
 
-describe("BookingItemSchema", () => {
+describe("booking line validation", () => {
   test("accepts a minimal signed line", () => {
     accepts(validItem);
   });
