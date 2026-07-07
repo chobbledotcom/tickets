@@ -27,11 +27,18 @@ export const AttendeeBalancePanel = (
 ): JSX.Element => {
   const { status, summary, remainingBalance, deposit, link, history } = view;
   const outstanding = remainingBalance > 0;
+  // Only quantity > 0 lines can be paid into; the summary already excludes the
+  // no-quantity sentinels, so an empty list means there is nothing bookable.
+  const hasRealLine = summary.lines.length > 0;
   // The online /pay link only works for a reservation status with a provider
-  // that can take the payment; otherwise it dead-ends, so we show offline
-  // collection guidance instead.
-  const showPayLink =
+  // that can take the payment AND a real line to pay into; otherwise it
+  // dead-ends, so we show guidance instead.
+  const readyToPay =
     outstanding && !!status?.is_reservation && view.paymentsEnabled;
+  const showPayLink = readyToPay && hasRealLine;
+  // A reservation that could otherwise be paid online but whose every line is
+  // no-quantity: warn the owner rather than hand them a link that dead-ends.
+  const blockedNoLiveTicket = readyToPay && !hasRealLine;
   return (
     <>
       <div class="prose">
@@ -72,8 +79,11 @@ export const AttendeeBalancePanel = (
             <p>
               <input class="copyable" readonly type="text" value={link} />
             </p>
+            <p class="muted small">{t("attendee_balance.quantity_note")}</p>
           </div>
         </article>
+      ) : blockedNoLiveTicket ? (
+        <p>{t("attendee_balance.no_live_ticket_message")}</p>
       ) : (
         <p>{t("attendee_balance.offline_balance_message")}</p>
       )}
