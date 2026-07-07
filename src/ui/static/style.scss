@@ -1377,6 +1377,13 @@ output.success {
   }
 }
 
+/* The attendee's status heading, shown above the tab strip whenever more than
+   one status exists. Like the notes below it, the heading is identical on every
+   attendee tab, so pin it too — switching tabs holds it still. */
+.attendee-status {
+  view-transition-name: attendee-status;
+}
+
 /* Per-attendee operator/system notes */
 .attendee-notes {
   margin-bottom: var(--space-l);
@@ -3371,6 +3378,14 @@ label:hover .embed-toggle-badge,
 }
 
 /* ── Entity pages: the tabbed admin "edit X" framework ── */
+
+/* The page header above the tab strip — the entity's `<h1>` title and any
+   prose extra (e.g. the attendee page's "Add a note" link). Its content is the
+   same on every one of an entity's tabs, so pin it: switching Edit → Attendees
+   → Actions keeps the same heading in place instead of re-fading it in. */
+.entity-header {
+  view-transition-name: entity-header;
+}
 
 .entity-tabs {
   margin: 0;

@@ -211,7 +211,7 @@ export const entityPageView = (view: EntityPageView): string =>
   String(
     <Layout title={view.title}>
       <AdminNav active={view.navActive} session={view.session} />
-      <div class="prose">
+      <div class="prose entity-header">
         <h1>{view.title}</h1>
         {view.proseExtra}
       </div>

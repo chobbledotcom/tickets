@@ -236,7 +236,7 @@ export const attendeeBanner = ({
   return (
     <>
       {statuses.length > 1 && (
-        <div class="prose">
+        <div class="prose attendee-status">
           <h2>
             {t("attendee_form.status_heading", {
               value: status ? status.name : t("attendee_form.status_none"),
