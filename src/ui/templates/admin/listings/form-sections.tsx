@@ -9,8 +9,9 @@ import { isStorageEnabled } from "#shared/storage.ts";
 import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
 import { ListingGroupSelect } from "#templates/admin/group-select.tsx";
 import {
+  type FormSection,
+  FormSections,
   StackDetails,
-  StackFieldset,
 } from "#templates/components/aggregate-sections.tsx";
 import {
   getAssignBuiltSiteField,
@@ -215,7 +216,7 @@ export const ListingFormSections = ({
       mapNotNullish((name: string) => fieldMap.get(name))(names),
       values,
     );
-  const sections = [
+  const sections: FormSection[] = [
     {
       children: (
         <>
@@ -261,50 +262,42 @@ export const ListingFormSections = ({
   ];
   return (
     <>
-      {isTemplated && (
-        <fieldset class="checkboxes listing-customise-toggle">
-          <label>
-            <input
-              checked={customiseOpen}
-              id="customise-listing"
-              name="customise"
-              type="checkbox"
-              value="1"
-            />
-            {t("listings_table.customise")}{" "}
-            <small>{t("listings_table.customise_hint")}</small>
-          </label>
+      {(isTemplated || showUseDefaults) && (
+        <fieldset class="checkboxes">
+          {isTemplated && (
+            <label>
+              <input
+                checked={customiseOpen}
+                id="customise-listing"
+                name="customise"
+                type="checkbox"
+                value="1"
+              />
+              {t("listings_table.customise")}{" "}
+              <small>{t("listings_table.customise_hint")}</small>
+            </label>
+          )}
+          {showUseDefaults && (
+            <label>
+              <input
+                checked={useDefaultsChecked}
+                id="use-defaults"
+                name="use_defaults"
+                type="checkbox"
+                value="1"
+              />
+              {t("listing_defaults.use_defaults_toggle")}{" "}
+              <small>{t("listing_defaults.use_defaults_hint")}</small>
+            </label>
+          )}
         </fieldset>
       )}
 
-      {showUseDefaults ? (
-        <fieldset class="checkboxes listing-use-defaults-toggle">
-          <label>
-            <input
-              checked={useDefaultsChecked}
-              id="use-defaults"
-              name="use_defaults"
-              type="checkbox"
-              value="1"
-            />
-            {t("listing_defaults.use_defaults_toggle")}{" "}
-            <small>{t("listing_defaults.use_defaults_hint")}</small>
-          </label>
-        </fieldset>
-      ) : (
-        useDefaultsChecked && (
-          <input name="use_defaults" type="hidden" value="1" />
-        )
+      {!showUseDefaults && useDefaultsChecked && (
+        <input name="use_defaults" type="hidden" value="1" />
       )}
 
-      {sections.map(({ children, className, legend }) => (
-        <StackFieldset
-          className={className ?? "listing-section"}
-          legend={legend}
-        >
-          {children}
-        </StackFieldset>
-      ))}
+      <FormSections sections={sections} />
 
       <StackDetails
         className="listing-advanced"

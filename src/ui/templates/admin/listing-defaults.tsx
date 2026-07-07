@@ -126,16 +126,14 @@ const DaysControl = ({
       />
       {t("listing_defaults.days_enable")}
     </label>
-    <div class="stack">
-      {VALID_DAY_NAMES.map((day) => (
-        <CheckboxLabel
-          checked={value?.includes(day) ?? false}
-          label={day}
-          name={inputName(field)}
-          value={day}
-        />
-      ))}
-    </div>
+    {VALID_DAY_NAMES.map((day) => (
+      <CheckboxLabel
+        checked={value?.includes(day) ?? false}
+        label={day}
+        name={inputName(field)}
+        value={day}
+      />
+    ))}
     <small>{hintFor(field)}</small>
   </fieldset>
 );
@@ -196,11 +194,9 @@ export const adminListingDefaultsPage = (
         <h2>{t("listing_defaults.title")}</h2>
         <p>{t("listing_defaults.intro")}</p>
       </div>
-      <div class="stack">
-        {fields.map((field) => (
-          <DefaultControl defaults={defaults} field={field} />
-        ))}
-      </div>
+      {fields.map((field) => (
+        <DefaultControl defaults={defaults} field={field} />
+      ))}
       <SubmitButton icon="save">{t("listing_defaults.save")}</SubmitButton>
     </CsrfForm>,
   );

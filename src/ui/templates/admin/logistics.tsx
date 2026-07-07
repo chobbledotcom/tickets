@@ -29,6 +29,7 @@ import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import {
   CheckboxFieldset,
   CheckboxLabel,
+  SectionFieldset,
 } from "#templates/components/aggregate-sections.tsx";
 import {
   type DataColumn,
@@ -66,8 +67,12 @@ const AgentsSection = (agents: LogisticsAgent[]): JSX.Element => (
       dataTable(agentColumns)(agents)
     )}
     <CsrfForm action="/admin/logistics">
-      <h3>{t("logistics.add_agent")}</h3>
-      <Raw html={renderFields(logisticsAgentFields)} />
+      <SectionFieldset
+        className="listing-section"
+        legend={t("logistics.add_agent")}
+      >
+        <Raw html={renderFields(logisticsAgentFields)} />
+      </SectionFieldset>
       <SubmitButton icon="plus">{t("logistics.add_agent")}</SubmitButton>
     </CsrfForm>
   </article>

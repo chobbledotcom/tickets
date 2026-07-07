@@ -150,8 +150,8 @@ test/test-utils/test-browser.ts:249:27  ?? → ||  # button attribute capture fa
 test/test-utils/test-browser.ts:256:49  ?? → ||  # button value fallback is "", so empty value and absent value agree
 test/test-utils/test-browser.ts:351:58  ?? → ||  # RequestInit.method is omitted or a non-empty method string in every caller
 test/test-utils/test-browser.ts:414:28  ?? → ||  # forms[0] is a FormInfo object when present, otherwise undefined
-src/ui/templates/admin/listing-defaults.tsx:90:19  ?? → ||  # UrlControl value: string|undefined; the only falsy-non-null string is "" which equals the "" fallback, so ?? and || coincide
-src/ui/templates/admin/listing-defaults.tsx:119:42  ?? → ||  # value?.includes(day): boolean|undefined; for boolean b, b ?? false === b || false, and undefined ?? false === undefined || false
+src/ui/templates/admin/listing-defaults.tsx:105:19  ?? → ||  # UrlControl value: string|undefined; the only falsy-non-null string is "" which equals the "" fallback, so ?? and || coincide
+src/ui/templates/admin/listing-defaults.tsx:131:38  ?? → ||  # value?.includes(day): boolean|undefined; for boolean b, b ?? false === b || false, and undefined ?? false === undefined || false
 src/shared/booking/build-tree.ts:132:48  ?? → ||    # childrenByParentId.get(): readonly TicketListing[]|undefined — an array is always truthy
 src/shared/booking/build-tree.ts:172:62  ?? → ||    # packageQuantities.get(): a member's fixed per-package quantity is ≥1 (group_listings.quantity DEFAULT 1), never 0, so ?? and || coincide
 src/shared/booking/build-tree.ts:205:38  ?? → ||    # input.root: RootRef-minus-listing|undefined — an object literal is always truthy, so ?? and || coincide

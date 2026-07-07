@@ -16,6 +16,7 @@
  * attendee entity page's Edit tab embeds.
  */
 
+import { compact } from "#fp";
 import { t } from "#i18n";
 import type { BalanceNotice } from "#routes/admin/attendee-form-model.ts";
 import {
@@ -65,6 +66,10 @@ import {
 import { EditQuestions } from "#templates/admin/attendees.tsx";
 import { SaveActions } from "#templates/components/actions.tsx";
 import { AddressFieldWithLookup } from "#templates/components/address-field.tsx";
+import {
+  type FormSection,
+  FormSections,
+} from "#templates/components/aggregate-sections.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import {
@@ -475,14 +480,12 @@ const SharedDateFields = ({
   data,
 }: {
   data: AttendeeFormTemplateData;
-}): JSX.Element | null => {
-  if (!data.hasDailyListings) return null;
+}): JSX.Element => {
   // Shown when there's no saved/known date yet (a bare create form); the PE
   // re-shows it whenever the dates are dirtied so the operator re-saves.
   const noticeHidden = !(data.mode === "create" && !data.parsed.startDate);
   return (
     <>
-      <h3>{t("attendee_form.dates_heading")}</h3>
       <p class="small">{t("attendee_form.dates_hint")}</p>
       {data.dateError && <ErrorAlert>{data.dateError}</ErrorAlert>}
       <label for={START_DATE_FIELD}>
@@ -567,6 +570,113 @@ const formHasError = (data: AttendeeFormTemplateData): boolean =>
  * custom questions, and the listing editor — all inside one CsrfForm. The
  * CsrfForm renders the flash inline when a redirect targeted this form's id.
  */
+/** The attendee's own contact fields — name, status, and the optional email,
+ * phone, address, and special instructions. The form's first section. */
+const ContactDetailFields = ({
+  data,
+}: {
+  data: AttendeeFormTemplateData;
+}): JSX.Element => (
+  <>
+    <label for="name">
+      {t("common.name")}
+      <input
+        autocomplete="off"
+        autofocus={!formHasError(data)}
+        id="name"
+        name="name"
+        required
+        type="text"
+        value={data.parsed.name}
+      />
+    </label>
+
+    <StatusField data={data} />
+
+    <label for="email">
+      {t("common.email")}
+      <input
+        autocomplete="off"
+        id="email"
+        name="email"
+        type="email"
+        value={data.parsed.email || ""}
+      />
+    </label>
+
+    <label for="phone">
+      {t("common.phone")}
+      <input
+        autocomplete="off"
+        id="phone"
+        name="phone"
+        pattern={PHONE_INPUT_PATTERN}
+        title={t("attendee_form.phone_title")}
+        type="text"
+        value={data.parsed.phone || ""}
+      />
+    </label>
+
+    <AddressFieldWithLookup address={data.parsed.address || ""} />
+
+    <label for="special_instructions">
+      {t("common.special_instructions")}
+      <textarea
+        autocomplete="off"
+        id="special_instructions"
+        maxlength={250}
+        name="special_instructions"
+        rows={3}
+      >
+        {data.parsed.special_instructions || ""}
+      </textarea>
+    </label>
+  </>
+);
+
+/** The form's sections in order: contact details, then the custom questions
+ * and shared dates when they apply, then the listing registrations. Each is a
+ * legend-led {@link FormSection}, so a header can never regress to a bare
+ * heading. */
+const editFormSections = (data: AttendeeFormTemplateData): FormSection[] =>
+  compact([
+    {
+      children: <ContactDetailFields data={data} />,
+      legend: t("attendee_form.details_heading"),
+    },
+    data.questions.length > 0
+      ? {
+          children: (
+            <EditQuestions
+              questions={data.questions}
+              selectedAnswerIds={data.selectedAnswerIds}
+              selectedTextAnswers={data.selectedTextAnswers}
+            />
+          ),
+          legend: t("attendee_form.custom_questions"),
+        }
+      : undefined,
+    data.hasDailyListings
+      ? {
+          children: <SharedDateFields data={data} />,
+          legend: t("attendee_form.dates_heading"),
+        }
+      : undefined,
+    {
+      children: (
+        <>
+          {data.hasMixedTimings && (
+            <output class="warning">
+              {t("attendee_form.mixed_timings_warning")}
+            </output>
+          )}
+          <ListingEditor data={data} />
+        </>
+      ),
+      legend: t("attendee_form.registrations_heading"),
+    },
+  ]);
+
 const AttendeeEditForm = ({
   data,
 }: {
@@ -588,82 +698,7 @@ const AttendeeEditForm = ({
           the entity page shell. */}
       {!isEdit && <h1>{t("attendee_form.title_create")}</h1>}
 
-      {!isEdit && <h3>{t("attendee_form.details_heading")}</h3>}
-
-      <label for="name">
-        {t("common.name")}
-        <input
-          autocomplete="off"
-          autofocus={!formHasError(data)}
-          id="name"
-          name="name"
-          required
-          type="text"
-          value={data.parsed.name}
-        />
-      </label>
-
-      <StatusField data={data} />
-
-      <label for="email">
-        {t("common.email")}
-        <input
-          autocomplete="off"
-          id="email"
-          name="email"
-          type="email"
-          value={data.parsed.email || ""}
-        />
-      </label>
-
-      <label for="phone">
-        {t("common.phone")}
-        <input
-          autocomplete="off"
-          id="phone"
-          name="phone"
-          pattern={PHONE_INPUT_PATTERN}
-          title={t("attendee_form.phone_title")}
-          type="text"
-          value={data.parsed.phone || ""}
-        />
-      </label>
-
-      <AddressFieldWithLookup address={data.parsed.address || ""} />
-
-      <label for="special_instructions">
-        {t("common.special_instructions")}
-        <textarea
-          autocomplete="off"
-          id="special_instructions"
-          maxlength={250}
-          name="special_instructions"
-          rows={3}
-        >
-          {data.parsed.special_instructions || ""}
-        </textarea>
-      </label>
-
-      {data.questions.length > 0 && (
-        <>
-          <h3>{t("attendee_form.custom_questions")}</h3>
-          <EditQuestions
-            questions={data.questions}
-            selectedAnswerIds={data.selectedAnswerIds}
-            selectedTextAnswers={data.selectedTextAnswers}
-          />
-        </>
-      )}
-
-      <SharedDateFields data={data} />
-
-      <h3>{t("attendee_form.registrations_heading")}</h3>
-      {data.hasMixedTimings && (
-        <output class="warning">
-          {t("attendee_form.mixed_timings_warning")}
-        </output>
-      )}
-      <ListingEditor data={data} />
+      <FormSections sections={editFormSections(data)} />
 
       <LogisticsSection logistics={data.logistics} />
 
