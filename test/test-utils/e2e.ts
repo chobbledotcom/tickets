@@ -5,8 +5,8 @@
  */
 
 import { afterEach, beforeEach } from "@std/testing/bdd";
-import { invalidateGroupsCache } from "#shared/db/groups.ts";
-import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
+import { groups } from "#shared/db/groups.ts";
+import { holidays } from "#shared/db/holidays.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { resetSessionCache } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -25,8 +25,8 @@ export const invalidateAllCaches = (): void => {
   settings.setup.clearCache();
   invalidateUsersCache();
   invalidateListingsCache();
-  invalidateGroupsCache();
-  invalidateHolidaysCache();
+  groups.cache.invalidate();
+  holidays.invalidate();
   resetSessionCache();
 };
 

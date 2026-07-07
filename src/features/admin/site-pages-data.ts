@@ -14,20 +14,16 @@ import {
   type ListingOfferFlags,
 } from "#shared/db/listings.ts";
 import { getAllPageItems } from "#shared/db/site-page-items.ts";
-import { getSitePageNavRows } from "#shared/db/site-pages.ts";
+import { sitePages } from "#shared/db/site-pages.ts";
 import { isQualifyingTierListing } from "#shared/site-assignment.ts";
 import {
   buildForest,
   eligibleChildPages,
   targetKey,
 } from "#shared/site-pages/core.ts";
+import { loadPageForest } from "#shared/site-pages/load.ts";
 // jscpd:ignore-end
-import type { Forest } from "#shared/site-pages/types.ts";
-import type {
-  SitePage,
-  SitePageItemType,
-  SitePageNavRow,
-} from "#shared/types.ts";
+import type { SitePage, SitePageItemType } from "#shared/types.ts";
 import type {
   EditModel,
   ListModel,
@@ -46,22 +42,10 @@ export const offerableListing = (
   childIds: ReadonlySet<number>,
 ): boolean => row.active && !isQualifyingTierListing(row) && !childIds.has(id);
 
-/** Load the nav rows + item edges once and fold them into the page forest. */
-export const loadForest = async (): Promise<{
-  forest: Forest;
-  navRows: SitePageNavRow[];
-}> => {
-  const [navRows, items] = await Promise.all([
-    getSitePageNavRows(),
-    getAllPageItems(),
-  ]);
-  return { forest: buildForest(navRows, items), navRows };
-};
-
 /** Build the list-page model: root pages (reorderable) and nested pages (shown
  * with their parent, edited through the item manager). */
 export const buildListModel = async (): Promise<ListModel> => {
-  const { forest, navRows } = await loadForest();
+  const { forest, navRows } = await loadPageForest();
   const roots = forest.rootIds.map((id) => forest.byId.get(id)!);
   const nested = navRows
     .filter((p) => forest.parentByChild.has(p.id))
@@ -78,7 +62,7 @@ export const buildEditModel = async (page: SitePage): Promise<EditModel> => {
   // Pickers/labels need only id + name, so use the narrow name projections
   // rather than the full listings/groups caches (no decrypting every column).
   const [navRows, allItems, listingNames, groupNames] = await Promise.all([
-    getSitePageNavRows(),
+    sitePages.getAll(),
     getAllPageItems(),
     getListingPickerNames(),
     getAllGroupNames(),

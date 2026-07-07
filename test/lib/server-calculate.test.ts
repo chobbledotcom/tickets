@@ -4,7 +4,7 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import { invalidateAttendeeStatusesCache } from "#shared/db/attendee-statuses.ts";
+import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getDb } from "#shared/db/client.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import { modifiersTable, setModifierAnswers } from "#shared/db/modifiers.ts";
@@ -72,8 +72,8 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       name: "Mystery Box",
       slug: "mystery-box",
     });
-    const { groupsTable } = await import("#shared/db/groups.ts");
-    await groupsTable.update(group.id, { hidePackageListings: true });
+    const { groups } = await import("#shared/db/groups.ts");
+    await groups.table.update(group.id, { hidePackageListings: true });
     const member = await createTestListing({
       groupId: group.id,
       name: "Secret Contents",
@@ -552,7 +552,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       args: [amount],
       sql: "UPDATE attendee_statuses SET is_reservation = 1, reservation_amount = ? WHERE is_public_default = 1",
     });
-    invalidateAttendeeStatusesCache();
+    attendeeStatuses.invalidate();
   };
 
   test("shows the deposit charged now for a reservation, not the full list price", async () => {

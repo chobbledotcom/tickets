@@ -186,13 +186,13 @@ describeWithEnv("email-renderer", { db: true }, () => {
      * the email entries for booking 2 tents + 6 chairs. `hide` sets the group's
      * hide-listings flag. */
     const buildPackageEntries = async (hide: boolean) => {
-      const { groupsTable } = await import("#shared/db/groups.ts");
+      const { groups } = await import("#shared/db/groups.ts");
       const group = await createTestGroup({
         isPackage: true,
         name: "Camp Kit",
       });
       if (hide) {
-        await groupsTable.update(group.id, { hidePackageListings: true });
+        await groups.table.update(group.id, { hidePackageListings: true });
       }
       const tent = await createTestListing({
         groupId: group.id,
@@ -253,12 +253,12 @@ describeWithEnv("email-renderer", { db: true }, () => {
       // Every member's base listing is free, but a package override charged the
       // buyer, so the booking carries a positive price_paid. The collapsed row
       // must still render as paid even though no member isPaidListing.
-      const { groupsTable } = await import("#shared/db/groups.ts");
+      const { groups } = await import("#shared/db/groups.ts");
       const group = await createTestGroup({
         isPackage: true,
         name: "Free Kit",
       });
-      await groupsTable.update(group.id, { hidePackageListings: true });
+      await groups.table.update(group.id, { hidePackageListings: true });
       const memberA = await createTestListing({
         groupId: group.id,
         name: "A",
@@ -293,12 +293,12 @@ describeWithEnv("email-renderer", { db: true }, () => {
       // Members share the booked start date but carry different durations;
       // the collapsed row must keep the package-level date and the WIDEST
       // member's range label — hiding members must not lose the booked dates.
-      const { groupsTable } = await import("#shared/db/groups.ts");
+      const { groups } = await import("#shared/db/groups.ts");
       const group = await createTestGroup({
         isPackage: true,
         name: "Dated Kit",
       });
-      await groupsTable.update(group.id, { hidePackageListings: true });
+      await groups.table.update(group.id, { hidePackageListings: true });
       const spans: [name: string, endDate: string | null][] = [
         // A dated single-day member with no end_date sorts below any ranged stay.
         ["Day Only", null],
@@ -391,12 +391,12 @@ describeWithEnv("email-renderer", { db: true }, () => {
       // booking rows carry package_group_id 0) must render normally — never
       // renamed to or collapsed as the package — because grouping is by the
       // persisted id, not by membership equality.
-      const { groupsTable } = await import("#shared/db/groups.ts");
+      const { groups } = await import("#shared/db/groups.ts");
       const group = await createTestGroup({
         isPackage: true,
         name: "Solo Kit",
       });
-      await groupsTable.update(group.id, { hidePackageListings: true });
+      await groups.table.update(group.id, { hidePackageListings: true });
       const widget = await createTestListing({
         groupId: group.id,
         name: "Widget",

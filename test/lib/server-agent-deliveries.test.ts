@@ -5,7 +5,7 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import { addDays, formatDateLabel } from "#shared/dates.ts";
 import { getDb } from "#shared/db/client.ts";
 import { setLogisticsAssignments } from "#shared/db/logistics.ts";
-import { logisticsAgentsTable } from "#shared/db/logistics-agents.ts";
+import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { userAgents } from "#shared/db/user-agents.ts";
 import { getUserByUsername } from "#shared/db/users.ts";
@@ -43,7 +43,7 @@ const fetchDeliveriesForDate = async (date: string): Promise<string> => {
 
 /** Create a logistics agent and return its id. */
 const makeVan = async (name: string): Promise<number> =>
-  (await logisticsAgentsTable.insert({ name })).id;
+  (await logisticsAgents.table.insert({ name })).id;
 
 /** Create a booking dropped off on `startDate` with the given drop-off/
  * collection agents. `durationDays` is the hire length in whole days: `end_at`

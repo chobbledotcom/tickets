@@ -18,7 +18,7 @@ export type LogisticsAgentInput = {
 
 /** Cached logistics_agents table — name is encrypted, id is generated; writes
  * auto-invalidate the cache. */
-const logisticsAgents = defineCachedListTable<
+export const logisticsAgents = defineCachedListTable<
   LogisticsAgent,
   LogisticsAgentInput
 >({
@@ -30,18 +30,6 @@ const logisticsAgents = defineCachedListTable<
     ...encryptedNameSchema(encrypt, decrypt),
   },
 });
-
-/** Logistics agents table with CRUD operations — writes auto-invalidate the cache. */
-export const logisticsAgentsTable = logisticsAgents.table;
-
-/** Invalidate the logistics agents cache (for testing or after writes). */
-export const invalidateLogisticsAgentsCache = (): void => {
-  logisticsAgents.invalidate();
-};
-
-/** Get all logistics agents, decrypted, ordered by id (from cache). */
-export const getAllLogisticsAgents = (): Promise<LogisticsAgent[]> =>
-  logisticsAgents.getAll();
 
 /** A lookup from logistics-agent id to name, for run sheets and CSV exports. */
 export const agentNameMap = (

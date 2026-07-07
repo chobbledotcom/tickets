@@ -41,7 +41,7 @@ import {
 import { requireSessionOr } from "#routes/auth.ts";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { getAllAttendeeStatuses } from "#shared/db/attendee-statuses.ts";
+import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -208,7 +208,7 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
         attendee.id,
         await requireRequestPrivateKey(),
       ),
-      statuses: await getAllAttendeeStatuses(),
+      statuses: await attendeeStatuses.getAll(),
     }),
   basePath: (id) => `/admin/attendees/${id}`,
   guard: requireSessionOr,

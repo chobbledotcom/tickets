@@ -57,7 +57,7 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { manualAddLedgerPoster } from "#shared/checkout-complete.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getAllAttendeeStatuses } from "#shared/db/attendee-statuses.ts";
+import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import {
   applyAttendeeAtomicEdit,
   buildPiiBlob,
@@ -75,7 +75,7 @@ import {
   type LogisticsAssignment,
   setLogisticsAssignments,
 } from "#shared/db/logistics.ts";
-import { getAllLogisticsAgents } from "#shared/db/logistics-agents.ts";
+import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import {
   parseQuestionAnswers,
   type QuestionWithAnswers,
@@ -212,7 +212,7 @@ const handleSubmitInner = async (
   const listingsById = listingsByIdMap(await getAllListings());
   // Coerce a missing/blank status back to the public default (the form offers
   // no "no status" choice) — the same resolver the template pre-selects with.
-  const statuses = await getAllAttendeeStatuses();
+  const statuses = await attendeeStatuses.getAll();
   const rawParsed = parseAttendeeForm(
     form,
     listingsById,
@@ -249,7 +249,7 @@ const handleSubmitInner = async (
     ? parseLogisticsPlan(
         form,
         parsed.lines,
-        new Set((await getAllLogisticsAgents()).map((a) => a.id)),
+        new Set((await logisticsAgents.getAll()).map((a) => a.id)),
       )
     : null;
 

@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { setLogisticsAssignments } from "#shared/db/logistics.ts";
-import { logisticsAgentsTable } from "#shared/db/logistics-agents.ts";
+import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
@@ -38,8 +38,8 @@ describeWithEnv(
         email: "a@test.com",
         name: "Agent User",
       });
-      const assigned = await logisticsAgentsTable.insert({ name: "Mine" });
-      const other = await logisticsAgentsTable.insert({ name: "Other" });
+      const assigned = await logisticsAgents.table.insert({ name: "Mine" });
+      const other = await logisticsAgents.table.insert({ name: "Other" });
       const attendees = await getAttendeesRaw(listing.id);
       await setLogisticsAssignments(
         attendees[0]!.id,

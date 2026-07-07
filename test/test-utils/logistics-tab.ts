@@ -8,7 +8,7 @@ import { handleRequest } from "#routes";
 import type { ListingBooking } from "#shared/db/attendee-types.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { listingsTable } from "#shared/db/listings.ts";
-import { logisticsAgentsTable } from "#shared/db/logistics-agents.ts";
+import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
@@ -60,7 +60,7 @@ export const deliveredListingSetup = async (
   settings.setForTest({ has_logistics: true });
   const listing = await createTestListing({ maxAttendees: 10 });
   await listingsTable.update(listing.id, { usesLogistics: true });
-  const van = await logisticsAgentsTable.insert({ name: agentName });
+  const van = await logisticsAgents.table.insert({ name: agentName });
   const id = await makeAttendee(attendeeName, [{ listingId: listing.id }]);
   return { id, listing, van };
 };

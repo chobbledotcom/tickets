@@ -30,11 +30,11 @@ import {
 import {
   getActiveListingsByGroupId,
   getActiveListingsByGroupIds,
-  getAllGroups,
   getGroupIdsByListingIds,
   getGroupListingIds,
   getGroupPackagePrices,
   getHiddenPackageMemberIds,
+  groups,
   packageMemberMaps,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
@@ -104,10 +104,10 @@ export const getVisibleGroupMembers = async (
  * (A package's own whole-bundle cap is still judged per group in {@link
  * packageGroupBookable} — that is genuinely per-package work.) */
 export const getVisibleGroupMembersByGroupIds = async (
-  groups: readonly Group[],
+  groupList: readonly Group[],
 ): Promise<Map<number, ListingWithCount[]>> => {
   const membersByGroup = await getActiveListingsByGroupIds(
-    groups.map((group) => group.id),
+    groupList.map((group) => group.id),
   );
   const hidden = await getHiddenPackageMemberIds([
     ...new Set(
@@ -117,7 +117,7 @@ export const getVisibleGroupMembersByGroupIds = async (
     ),
   ]);
   return new Map(
-    groups.map((group) => {
+    groupList.map((group) => {
       // getActiveListingsByGroupIds seeds an entry for every id it is passed, so
       // this is always defined for a group we asked about.
       const members = membersByGroup.get(group.id)!;
@@ -445,11 +445,11 @@ export const groupBookable = (
  * by every public surface that lists groups (the `/listings` page and the
  * `/order` gallery). */
 export const loadPublicGroups = async (): Promise<Group[]> => {
-  const groups = (await getAllGroups()).filter((g) => !g.hidden);
+  const visibleGroups = (await groups.cache.getAll()).filter((g) => !g.hidden);
   const bookable = await mapParallel(async (g: Group) =>
     groupBookable(g, await getVisibleGroupMembers(g)),
-  )(groups);
-  return groups.filter((_, i) => bookable[i]);
+  )(visibleGroups);
+  return visibleGroups.filter((_, i) => bookable[i]);
 };
 
 /** Force a {@link TicketListing} into the sold-out state (no Book CTA, no

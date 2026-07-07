@@ -7,10 +7,9 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import {
-  getAllGroups,
   getGroupIdsByListingId,
   getGroupPackagePrices,
-  groupsTable,
+  groups,
 } from "#shared/db/groups.ts";
 import { getListing } from "#shared/db/listings.ts";
 import {
@@ -188,7 +187,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       // returning null and crashing on `row.id`. The read-back now uses the
       // primary-pinned `findByIdPrimary`. Stub the replica read (`findById`) to
       // miss the row — the create must still succeed.
-      const findByIdStub = stub(groupsTable, "findById", () =>
+      const findByIdStub = stub(groups.table, "findById", () =>
         Promise.resolve(null),
       );
       try {
@@ -485,7 +484,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
       await assertApiDeleteOk(`/api/admin/groups/${group.id}`, "To Delete");
 
-      const all = await getAllGroups();
+      const all = await groups.cache.getAll();
       expect(all.find((g) => g.id === group.id)).toBeUndefined();
     });
 
@@ -524,7 +523,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         },
       );
 
-      const row = await groupsTable.findById(group.id);
+      const row = await groups.table.findById(group.id);
       expect(row).toBeDefined();
     });
 

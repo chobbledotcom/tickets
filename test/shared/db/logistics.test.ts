@@ -8,11 +8,7 @@ import {
   getLogisticsAssignmentsForAttendees,
   setLogisticsAssignments,
 } from "#shared/db/logistics.ts";
-import {
-  getAllLogisticsAgents,
-  invalidateLogisticsAgentsCache,
-  logisticsAgentsTable,
-} from "#shared/db/logistics-agents.ts";
+import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { createTestAttendee, createTestListing } from "#test-utils";
 import { describeWithEnv } from "#test-utils/db.ts";
 
@@ -31,8 +27,8 @@ const newAttendee = async (): Promise<{
 };
 
 const setupDropoffAndCollection = async (split: boolean) => {
-  const drop = await logisticsAgentsTable.insert({ name: "Drop" });
-  const coll = await logisticsAgentsTable.insert({ name: "Coll" });
+  const drop = await logisticsAgents.table.insert({ name: "Drop" });
+  const coll = await logisticsAgents.table.insert({ name: "Coll" });
   const { attendeeId, listingId } = await newAttendee();
   const assignment = {
     endAgentId: coll.id,
@@ -54,18 +50,18 @@ describeWithEnv("db logistics agents", { db: true }, () => {
   });
 
   test("inserts and reads back logistics agents (decrypted)", async () => {
-    await logisticsAgentsTable.insert({ name: "Van 1" });
-    await logisticsAgentsTable.insert({ name: "Van 2" });
-    const agents = await getAllLogisticsAgents();
+    await logisticsAgents.table.insert({ name: "Van 1" });
+    await logisticsAgents.table.insert({ name: "Van 2" });
+    const agents = await logisticsAgents.getAll();
     expect(agents.map((a) => a.name)).toEqual(["Van 1", "Van 2"]);
   });
 
   test("invalidateLogisticsAgentsCache forces a re-read", async () => {
-    const agent = await logisticsAgentsTable.insert({ name: "Cached Van" });
-    await getAllLogisticsAgents();
-    await logisticsAgentsTable.deleteById(agent.id);
-    invalidateLogisticsAgentsCache();
-    const agents = await getAllLogisticsAgents();
+    const agent = await logisticsAgents.table.insert({ name: "Cached Van" });
+    await logisticsAgents.getAll();
+    await logisticsAgents.table.deleteById(agent.id);
+    logisticsAgents.invalidate();
+    const agents = await logisticsAgents.getAll();
     expect(agents.find((a) => a.id === agent.id)).toBeUndefined();
   });
 });
@@ -100,7 +96,7 @@ describeWithEnv("db logistics assignments", { db: true }, () => {
   });
 
   test("getLogisticsAssignmentsForAttendees returns one row per booking", async () => {
-    const drop = await logisticsAgentsTable.insert({ name: "Drop" });
+    const drop = await logisticsAgents.table.insert({ name: "Drop" });
     const { attendeeId, listingId } = await newAttendee();
     await setLogisticsAssignments(
       attendeeId,

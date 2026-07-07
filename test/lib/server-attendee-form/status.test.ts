@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  attendeeStatusesTable,
+  attendeeStatuses,
   getPaidDefaultStatus,
 } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
@@ -66,7 +66,7 @@ describeWithEnv(
       };
 
       const newReservation = () =>
-        attendeeStatusesTable.insert({
+        attendeeStatuses.table.insert({
           isReservation: true,
           name: "Reserved",
           reservationAmount: "10%",

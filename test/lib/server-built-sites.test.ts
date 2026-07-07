@@ -83,8 +83,8 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         "",
         true,
       );
-      const { getAllBuiltSites } = await import("#shared/db/built-sites.ts");
-      const sites = await getAllBuiltSites();
+      const { builtSites } = await import("#shared/db/built-sites.ts");
+      const sites = await builtSites.getAll();
       await assignBuiltSite(sites[0]!.id, 42, 7);
 
       const response = await adminGet("/admin/built-sites");

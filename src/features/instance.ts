@@ -35,8 +35,8 @@ import { defineRoutes } from "#routes/router.ts";
 import { getMainInstanceKey, isInstanceApiEnabled } from "#shared/config.ts";
 import { constantTimeEqual } from "#shared/crypto/utils.ts";
 import {
+  builtSites,
   DEFAULT_UPDATE_TIER,
-  getAllBuiltSites,
   isUpdateTier,
   siteAcceptsDeployTier,
 } from "#shared/db/built-sites.ts";
@@ -73,7 +73,7 @@ const handleSiteCredentials = async (request: Request): Promise<Response> => {
     return jsonResponse({ error: "invalid_tier" }, 400);
   }
 
-  const sites = await getAllBuiltSites();
+  const sites = await builtSites.getAll();
   const credentials: SiteCredentials[] = sites
     .filter(
       (site) =>

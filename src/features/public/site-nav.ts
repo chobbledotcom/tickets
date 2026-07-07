@@ -20,17 +20,12 @@
  */
 
 import { filter, map, mapParallel, pipe, unique } from "#fp";
-import { getAllGroups, getHiddenPackageMemberIds } from "#shared/db/groups.ts";
+import { getHiddenPackageMemberIds, groups } from "#shared/db/groups.ts";
 import { getListingsWithCountsByIds } from "#shared/db/listings.ts";
 import { hasNewsPosts } from "#shared/db/news-posts.ts";
-import { getAllPageItems } from "#shared/db/site-page-items.ts";
-import { getSitePageNavRows } from "#shared/db/site-pages.ts";
 import { isQualifyingTierListing } from "#shared/site-assignment.ts";
-import {
-  buildForest,
-  buildNavModel,
-  targetKey,
-} from "#shared/site-pages/core.ts";
+import { buildNavModel, targetKey } from "#shared/site-pages/core.ts";
+import { loadPageForest } from "#shared/site-pages/load.ts";
 import type {
   NavModel,
   ResolvedTarget,
@@ -64,9 +59,11 @@ const resolveTargets = async (
   const groupIds = leafIds(items, "group");
   const [referenced, allGroups] = await Promise.all([
     getListingsWithCountsByIds(listingIds),
-    getAllGroups(),
+    groups.cache.getAll(),
   ]);
-  const groups = allGroups.filter((group) => groupIds.includes(group.id));
+  const referencedGroups = allGroups.filter((group) =>
+    groupIds.includes(group.id),
+  );
   const targets = new Map<TargetKey, ResolvedTarget>();
   const setLeaf = (
     type: SitePageItemType,
@@ -115,12 +112,13 @@ const resolveTargets = async (
   // Members for every group are loaded in one batch so a page with many group
   // leaves does not run a member query per group (a package's own bundle-cap
   // read still runs per group inside groupBookable — that is per-package work).
-  const membersByGroup = await getVisibleGroupMembersByGroupIds(groups);
+  const membersByGroup =
+    await getVisibleGroupMembersByGroupIds(referencedGroups);
   // getVisibleGroupMembersByGroupIds returns an entry for every group passed.
   const groupLive = await mapParallel((group: Group) =>
     groupBookable(group, membersByGroup.get(group.id)!),
-  )(groups);
-  for (const [index, group] of groups.entries()) {
+  )(referencedGroups);
+  for (const [index, group] of referencedGroups.entries()) {
     setLeaf("group", group, groupLive[index]!);
   }
   return targets;
@@ -134,12 +132,9 @@ const resolveTargets = async (
 export const publicNavModel = async (
   current: TargetKey | null,
 ): Promise<NavModel> => {
-  const [pages, items] = await Promise.all([
-    getSitePageNavRows(),
-    getAllPageItems(),
-  ]);
+  const { forest, items } = await loadPageForest();
   const targets = current === null ? new Map() : await resolveTargets(items);
-  return buildNavModel(buildForest(pages, items), targets, current);
+  return buildNavModel(forest, targets, current);
 };
 
 /** The full prop set {@link PublicNav} renders: the settings-driven page

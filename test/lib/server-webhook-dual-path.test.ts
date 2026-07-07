@@ -197,8 +197,8 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
     // tagged line shares its listing id — saved and refunded (one quantity-0
     // placeholder per path), never a standalone ticket for a concealed
     // listing.
-    const { groupsTable } = await import("#shared/db/groups.ts");
-    await groupsTable.update(group.id, { hidePackageListings: true });
+    const { groups } = await import("#shared/db/groups.ts");
+    await groups.table.update(group.id, { hidePackageListings: true });
 
     await expectDualPathRefused(listing, group, stubs);
   });

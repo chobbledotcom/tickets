@@ -41,10 +41,7 @@ import {
   bookingAssignmentKey,
   getLogisticsAssignmentsForAttendees,
 } from "#shared/db/logistics.ts";
-import {
-  agentNameMap,
-  getAllLogisticsAgents,
-} from "#shared/db/logistics-agents.ts";
+import { agentNameMap, logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -151,7 +148,7 @@ const attendeeIds = (attendees: CalendarAttendeeRow[]): number[] =>
 const resolveAgentFilter = async (
   request: Request,
 ): Promise<{ agents: LogisticsAgent[]; agentFilter: AgentFilter }> => {
-  const agents = settings.hasLogistics ? await getAllLogisticsAgents() : [];
+  const agents = settings.hasLogistics ? await logisticsAgents.getAll() : [];
   const agentFilter = parseAgentFilter(
     getSearchParam(request, "agent"),
     new Set(agents.map((a) => a.id)),

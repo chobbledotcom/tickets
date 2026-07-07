@@ -99,7 +99,7 @@ import {
 import {
   getHiddenPackageMemberIds,
   getPackageGroupById,
-  groupsTable,
+  groups,
   loadPackageMemberPricing,
 } from "#shared/db/groups.ts";
 import {
@@ -239,7 +239,7 @@ const retryHrefFor = async (
       : `/ticket/${listing.slug}`;
   const groupIds = lineGroupIds(intent.items);
   for (const groupId of groupIds) {
-    const group = await groupsTable.findById(groupId);
+    const group = await groups.table.findById(groupId);
     const bundleServes =
       group !== null &&
       (await groupBookable(group, await getVisibleGroupMembers(group)));

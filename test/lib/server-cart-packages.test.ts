@@ -201,8 +201,8 @@ describeWithEnv(
         "mystery-box",
         "Secret Widget",
       );
-      const { groupsTable } = await import("#shared/db/groups.ts");
-      await groupsTable.update(group.id, { hidePackageListings: true });
+      const { groups } = await import("#shared/db/groups.ts");
+      await groups.table.update(group.id, { hidePackageListings: true });
       const solo = await createTestListing({ name: "Lantern", unitPrice: 0 });
 
       const html = await pageHtml(`${group.slug}+${member.slug}+${solo.slug}`);

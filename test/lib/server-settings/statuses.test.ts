@@ -1,8 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  attendeeStatusesTable,
-  getAllAttendeeStatuses,
+  attendeeStatuses,
   getAttendeeStatus,
   getPublicDefaultStatus,
 } from "#shared/db/attendee-statuses.ts";
@@ -20,7 +19,7 @@ import {
 const PATH = "/admin/settings/statuses";
 
 /** The seed status created by the migration (public + paid default). */
-const seedStatus = async () => (await getAllAttendeeStatuses())[0]!;
+const seedStatus = async () => (await attendeeStatuses.getAll())[0]!;
 
 describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
   describe("GET /admin/settings/statuses", () => {
@@ -38,7 +37,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     });
 
     test("renders flag badges and reorder controls", async () => {
-      await attendeeStatusesTable.insert({
+      await attendeeStatuses.table.insert({
         isReservation: true,
         name: "Reserved",
         reservationAmount: "10%",
@@ -72,7 +71,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       });
       await expectFlashRedirect(PATH, "Status created")(response);
 
-      const statuses = await getAllAttendeeStatuses();
+      const statuses = await attendeeStatuses.getAll();
       const created = statuses.find((s) => s.name === "Reserved")!;
       expect(created.is_reservation).toBe(true);
       expect(created.reservation_amount).toBe("10%");
@@ -145,7 +144,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
 
   describe("POST /admin/settings/statuses/:id/edit", () => {
     test("renames a status", async () => {
-      const created = await attendeeStatusesTable.insert({ name: "Old" });
+      const created = await attendeeStatuses.table.insert({ name: "Old" });
       const { response } = await adminFormPost(`${PATH}/${created.id}/edit`, {
         name: "Renamed",
       });
@@ -180,7 +179,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     });
 
     test("pre-fills a reservation status's fields when editing", async () => {
-      const reserved = await attendeeStatusesTable.insert({
+      const reserved = await attendeeStatuses.table.insert({
         isReservation: true,
         name: "Reserved",
         reservationAmount: "25%",
@@ -248,7 +247,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
 
   describe("POST /admin/settings/statuses/:id/delete", () => {
     test("rejects a mismatched confirmation name", async () => {
-      const spare = await attendeeStatusesTable.insert({ name: "Disposable" });
+      const spare = await attendeeStatuses.table.insert({ name: "Disposable" });
       const { response } = await adminFormPost(`${PATH}/${spare.id}/delete`, {
         confirm_identifier: "wrong",
       });
@@ -274,7 +273,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
 
     test("refuses to delete the public default", async () => {
       const seed = await seedStatus();
-      await attendeeStatusesTable.insert({ name: "Spare" });
+      await attendeeStatuses.table.insert({ name: "Spare" });
       const { response } = await adminFormPost(`${PATH}/${seed.id}/delete`, {
         confirm_identifier: seed.name,
       });
@@ -286,7 +285,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     });
 
     test("refuses to delete a status that is in use", async () => {
-      const inUse = await attendeeStatusesTable.insert({ name: "Active" });
+      const inUse = await attendeeStatuses.table.insert({ name: "Active" });
       // A current `created` keeps this booking-less attendee out of the
       // orphaned-record auto-purge so it still counts as "in use".
       await getDb().execute({
@@ -304,7 +303,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     });
 
     test("deletes a spare, unused status", async () => {
-      const spare = await attendeeStatusesTable.insert({ name: "Disposable" });
+      const spare = await attendeeStatuses.table.insert({ name: "Disposable" });
       const { response } = await adminFormPost(`${PATH}/${spare.id}/delete`, {
         confirm_identifier: "Disposable",
       });
@@ -322,7 +321,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     test("refuses to delete the paid default", async () => {
       // Move the paid default onto a new (non-public) status, then delete it.
       await adminFormPost(PATH, { is_paid_default: "1", name: "Settled" });
-      const settled = (await getAllAttendeeStatuses()).find(
+      const settled = (await attendeeStatuses.getAll()).find(
         (s) => s.name === "Settled",
       )!;
       const { response } = await adminFormPost(`${PATH}/${settled.id}/delete`, {
@@ -339,18 +338,18 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
   describe("POST /admin/settings/statuses/:id/move", () => {
     test("moves a status up past its neighbour", async () => {
       // Seed is sort_order 0; add two more at 1 and 2.
-      const first = await attendeeStatusesTable.insert({
+      const first = await attendeeStatuses.table.insert({
         name: "First",
         sortOrder: 1,
       });
-      const second = await attendeeStatusesTable.insert({
+      const second = await attendeeStatuses.table.insert({
         name: "Second",
         sortOrder: 2,
       });
       const { response } = await adminFormPost(`${PATH}/${second.id}/move-up`);
       await expectFlashRedirect(PATH, "Status moved")(response);
 
-      const order = (await getAllAttendeeStatuses()).map((s) => s.name);
+      const order = (await attendeeStatuses.getAll()).map((s) => s.name);
       const firstIdx = order.indexOf("First");
       const secondIdx = order.indexOf("Second");
       expect(secondIdx).toBeLessThan(firstIdx);

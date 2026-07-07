@@ -4,11 +4,7 @@
 
 import { t } from "#i18n";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
-import {
-  getAllHolidays,
-  type HolidayInput,
-  holidaysTable,
-} from "#shared/db/holidays.ts";
+import { type HolidayInput, holidays } from "#shared/db/holidays.ts";
 import { HOLIDAY_DEMO_FIELDS, wrapResourceForDemo } from "#shared/demo.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import {
@@ -40,13 +36,13 @@ export const validateDateRange = (
 const holidaysResource = defineNamedResource({
   fields: getHolidayFields(),
   nameField: "name",
-  table: holidaysTable,
+  table: holidays.table,
   toInput: extractHolidayInput,
   validate: validateDateRange,
 });
 
 const crud = createOwnerCrudHandlers({
-  getAll: getAllHolidays,
+  getAll: holidays.getAll,
   getName: (h) => h.name,
   listPath: "/admin/holidays",
   renderDelete: adminHolidayDeletePage,

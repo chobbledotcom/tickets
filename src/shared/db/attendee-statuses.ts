@@ -39,7 +39,10 @@ export type AttendeeStatusInput = {
 
 /** Cached attendee_statuses table — only `name` is encrypted; writes
  * auto-invalidate the cache. */
-const statuses = defineCachedListTable<AttendeeStatus, AttendeeStatusInput>({
+export const attendeeStatuses = defineCachedListTable<
+  AttendeeStatus,
+  AttendeeStatusInput
+>({
   name: "attendee_statuses",
   orderBy: "sort_order ASC, id ASC",
   primaryKey: "id",
@@ -54,23 +57,11 @@ const statuses = defineCachedListTable<AttendeeStatus, AttendeeStatusInput>({
   },
 });
 
-/** Attendee statuses table — writes auto-invalidate the cache. */
-export const attendeeStatusesTable = statuses.table;
-
-/** Invalidate the statuses cache (for testing or after writes). */
-export const invalidateAttendeeStatusesCache = (): void => {
-  statuses.invalidate();
-};
-
-/** Get all statuses, decrypted, ordered by sort_order then id (from cache). */
-export const getAllAttendeeStatuses = (): Promise<AttendeeStatus[]> =>
-  statuses.getAll();
-
 /** Find the first cached status matching a predicate (decrypted), or null. */
 const findStatus = async (
   pred: (s: AttendeeStatus) => boolean,
 ): Promise<AttendeeStatus | null> => {
-  const all = await statuses.getAll();
+  const all = await attendeeStatuses.getAll();
   return all.find(pred) ?? null;
 };
 
@@ -99,7 +90,7 @@ export const swapAttendeeStatusOrder = async (
   id2: number,
 ): Promise<void> => {
   await swapSortOrder("attendee_statuses", id1, id2);
-  invalidateAttendeeStatusesCache();
+  attendeeStatuses.invalidate();
 };
 
 /** Assign a freshly-created status the next sort_order (max + 1, always >= 1). */
@@ -116,7 +107,7 @@ export const assignNextAttendeeStatusSortOrder = async (
             WHERE id = ?`,
     },
   ]);
-  invalidateAttendeeStatusesCache();
+  attendeeStatuses.invalidate();
 };
 
 /**
@@ -131,7 +122,7 @@ export const ensureDefaultAttendeeStatus = async (): Promise<void> => {
     "SELECT id FROM attendee_statuses LIMIT 1",
   );
   if (existing.length > 0) return;
-  const status = await attendeeStatusesTable.insert({
+  const status = await attendeeStatuses.table.insert({
     isPaidDefault: true,
     isPublicDefault: true,
     isReservation: false,
@@ -142,5 +133,5 @@ export const ensureDefaultAttendeeStatus = async (): Promise<void> => {
   await execute("UPDATE attendees SET status_id = ? WHERE status_id IS NULL", [
     status.id,
   ]);
-  invalidateAttendeeStatusesCache();
+  attendeeStatuses.invalidate();
 };
