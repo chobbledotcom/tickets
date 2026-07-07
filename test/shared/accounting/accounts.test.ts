@@ -36,6 +36,8 @@ describe("accounting > accounts", () => {
 
   for (const [builderName, build, type] of builders) {
     test(`${builderName} builds a ${type} account from a valid id`, () => {
+      // 1 is the smallest accepted id — the boundary of the `id > 0` guard.
+      expect(build(1)).toEqual({ id: "1", type });
       expect(build(3)).toEqual({ id: "3", type });
     });
   }
