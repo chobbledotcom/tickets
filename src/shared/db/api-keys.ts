@@ -9,20 +9,60 @@
  * Keys inherit admin_level from their parent user.
  */
 
+import { mapParallel } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { wrapKeyWithToken } from "#shared/crypto/keys.ts";
+import type { BlindIndex, WrappedKey } from "#shared/crypto/sealed.ts";
 import {
   deleteByField,
   execute,
   executeUpdate,
-  insert,
   queryAll,
   queryOne,
 } from "#shared/db/client.ts";
+import { idAndCreatedSchema } from "#shared/db/common-schema.ts";
+import { defineIdTable } from "#shared/db/define-id-table.ts";
+import { col } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
 import { getTouchOverride } from "#shared/test-overrides.ts";
 import type { ApiKey } from "#shared/types.ts";
+
+/** A row with its `name` decrypted for display — the table's read shape. */
+type ApiKeyRow = {
+  id: number;
+  user_id: number;
+  key_index: BlindIndex;
+  wrapped_data_key: WrappedKey;
+  name: string;
+  created: string;
+  last_used: string;
+};
+
+/** Fields a caller supplies to create a key: `name` is plaintext (the table
+ * encrypts it), and `created`/`last_used` fall back to their column defaults. */
+type ApiKeyInput = {
+  userId: number;
+  keyIndex: BlindIndex;
+  wrappedDataKey: WrappedKey;
+  name: string;
+};
+
+/** Declarative api_keys table — `name` is encrypted at rest (decrypted on read),
+ * every other column is stored as-is. The single source of the column set and
+ * the encrypt/decrypt policy for this table. */
+const apiKeysTable = defineIdTable<ApiKeyRow, ApiKeyInput>("api_keys", {
+  ...idAndCreatedSchema(nowIso),
+  key_index: col.simple<BlindIndex>(),
+  last_used: col.withDefault(() => ""),
+  name: col.encrypted(encrypt, decrypt),
+  user_id: col.simple<number>(),
+  wrapped_data_key: col.simple<WrappedKey>(),
+});
+
+/** The api_keys columns, in one place, for the reads that select every column. */
+const API_KEY_COLUMNS =
+  "id, user_id, key_index, wrapped_data_key, name, created, last_used";
 
 /**
  * Create a new API key for a user.
@@ -38,31 +78,26 @@ export const createApiKey = async (
   const apiKey = generateToken();
   const keyIndex = await hmacHash(apiKey);
   const wrappedDataKey = await wrapKeyWithToken(dataKey, apiKey);
-  const encryptedName = await encrypt(name);
-
-  const { sql, args } = insert("api_keys", {
-    created: nowIso(),
-    key_index: keyIndex,
-    last_used: "",
-    name: encryptedName,
-    user_id: userId,
-    wrapped_data_key: wrappedDataKey,
+  const row = await apiKeysTable.insert({
+    keyIndex,
+    name,
+    userId,
+    wrappedDataKey,
   });
-  const result = await execute(sql, args);
-
-  return { apiKey, id: Number(result.lastInsertRowid) };
+  return { apiKey, id: row.id };
 };
 
 /**
  * Look up an API key by its plaintext token.
- * Returns the row if found (for auth), null otherwise.
+ * Returns the row (name still sealed — the auth path never reads it) if found,
+ * null otherwise.
  */
 export const getApiKeyByToken = async (
   token: string,
 ): Promise<ApiKey | null> => {
   const keyIndex = await hmacHash(token);
   return queryOne<ApiKey>(
-    "SELECT id, user_id, key_index, wrapped_data_key, name, created, last_used FROM api_keys WHERE key_index = ?",
+    `SELECT ${API_KEY_COLUMNS} FROM api_keys WHERE key_index = ?`,
     [keyIndex],
   );
 };
@@ -75,19 +110,17 @@ export const getApiKeysForUser = async (
 ): Promise<
   Array<{ id: number; name: string; created: string; lastUsed: string }>
 > => {
-  const rows = await queryAll<ApiKey>(
-    "SELECT id, user_id, key_index, wrapped_data_key, name, created, last_used FROM api_keys WHERE user_id = ? ORDER BY id ASC",
+  const rows = await queryAll<ApiKeyRow>(
+    `SELECT ${API_KEY_COLUMNS} FROM api_keys WHERE user_id = ? ORDER BY id ASC`,
     [userId],
   );
-
-  return Promise.all(
-    rows.map(async (row) => ({
-      created: row.created,
-      id: row.id,
-      lastUsed: row.last_used,
-      name: await decrypt(row.name),
-    })),
-  );
+  const decrypted = await mapParallel(apiKeysTable.fromDb)(rows);
+  return decrypted.map((row) => ({
+    created: row.created,
+    id: row.id,
+    lastUsed: row.last_used,
+    name: row.name,
+  }));
 };
 
 /**
@@ -97,12 +130,13 @@ export const getApiKeyForUser = async (
   id: number,
   userId: number,
 ): Promise<{ id: number; name: string }> => {
-  const row = await queryOne<ApiKey>(
-    "SELECT id, user_id, key_index, wrapped_data_key, name, created, last_used FROM api_keys WHERE id = ? AND user_id = ?",
+  const row = await queryOne<ApiKeyRow>(
+    `SELECT ${API_KEY_COLUMNS} FROM api_keys WHERE id = ? AND user_id = ?`,
     [id, userId],
   );
   if (!row) throw new Error(`API key ${id} not found for user ${userId}`);
-  return { id: row.id, name: await decrypt(row.name) };
+  const decrypted = await apiKeysTable.fromDb(row);
+  return { id: decrypted.id, name: decrypted.name };
 };
 
 /**
