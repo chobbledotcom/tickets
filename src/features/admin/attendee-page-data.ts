@@ -653,10 +653,17 @@ const previousBookingRow = async (
   };
 };
 
+/** Cap on the Previous bookings table: each row costs its own order-summary
+ * reads, so a repeat contact with a long history can't turn one attendee page
+ * into an unbounded number of edge subrequests. Newest first, so the cap keeps
+ * the most recent bookings. */
+const PREVIOUS_BOOKINGS_LIMIT = 20;
+
 /** Load the other bookings this contact (email and/or phone) has made, resolved
  * from its encrypted ticket-token list — newest first, this attendee's own
- * booking excluded. Empty when no contact value is on file, no linked tokens
- * remain, or every linked attendee has since been deleted. */
+ * booking excluded, capped at {@link PREVIOUS_BOOKINGS_LIMIT}. Empty when no
+ * contact value is on file, no linked tokens remain, or every linked attendee
+ * has since been deleted. */
 export const loadPreviousBookings = async (
   attendee: Attendee,
 ): Promise<PreviousBooking[]> => {
@@ -672,14 +679,18 @@ export const loadPreviousBookings = async (
     (token) => token !== attendee.ticket_token,
   );
   if (tokens.length === 0) return [];
-  const resolved = compact(await getAttendeesByTokens(tokens));
+  // Sort the resolved attendees newest first (created sorts lexically), then
+  // cap BEFORE the per-row summaries so the number of summary reads is bounded.
+  const recent = compact(await getAttendeesByTokens(tokens))
+    .sort((left, right) => right.created.localeCompare(left.created))
+    .slice(0, PREVIOUS_BOOKINGS_LIMIT);
   const statusNameById = new Map(
     (await attendeeStatuses.getAll()).map((status) => [status.id, status.name]),
   );
   const rows = await Promise.all(
-    resolved.map((booked) => previousBookingRow(booked, statusNameById)),
+    recent.map((booked) => previousBookingRow(booked, statusNameById)),
   );
-  // created is a sortable timestamp string, so a lexical compare orders newest
-  // first without a branch for coverage to mis-attribute.
-  return rows.sort((left, right) => right.created.localeCompare(left.created));
+  // Drop a booking that has since been edited down to no real lines — it no
+  // longer represents a booked ticket, so it neither counts nor renders.
+  return rows.filter((row) => row.items.length > 0);
 };

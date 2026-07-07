@@ -283,14 +283,14 @@ export const removeBookingToken = async (
   );
   const match = entries.find((entry) => entry.token === ticketToken);
   if (!match) return null;
-  const kept = entries.filter((entry) => entry !== match);
+  // Delete just this entry's ciphertext line in place: REPLACE operates on the
+  // column's CURRENT value at write time, so a booking appended by a concurrent
+  // keyless checkout after we read the blob is preserved rather than clobbered
+  // by a full rewrite. Each hybrid ciphertext is unique (random key + iv), so
+  // this removes exactly the one matching entry.
   await run(
-    "UPDATE contact_preferences SET attendee_tokens_blob = ?, last_activity = ? WHERE contact_hash = ?",
-    [
-      kept.length ? `${kept.map((entry) => entry.line).join("\n")}\n` : "",
-      nowMs(),
-      hash,
-    ],
+    "UPDATE contact_preferences SET attendee_tokens_blob = REPLACE(attendee_tokens_blob, ?, ''), last_activity = ? WHERE contact_hash = ?",
+    [`${match.line}\n`, nowMs(), hash],
   );
   return match.source;
 };

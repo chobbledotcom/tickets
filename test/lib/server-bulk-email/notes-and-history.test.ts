@@ -174,8 +174,9 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
         maxAttendees: 9,
         name: "Repeat",
       });
-      // Two bookings under one email: the second attendee's page should list the
-      // first as a previous booking, linking through to it.
+      // Three bookings under one email: the middle attendee's page should list
+      // the other two as previous bookings (a two-row table exercises the
+      // newest-first sort), linking through to each.
       const { attendee: first } = await createTestAttendeeDirect(
         listing.id,
         "Repeat One",
@@ -186,7 +187,12 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
         "Repeat Two",
         "repeat@example.com",
       );
-      // Give the earlier booking a status so its name shows in the table.
+      const { attendee: third } = await createTestAttendeeDirect(
+        listing.id,
+        "Repeat Three",
+        "repeat@example.com",
+      );
+      // Give the first booking a status so its name shows in the table.
       const status = await attendeeStatuses.table.insert({ name: "Confirmed" });
       const { updateAttendeeStatus } = await import("#shared/db/attendees.ts");
       await updateAttendeeStatus(first.id, status.id);
@@ -194,15 +200,56 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/attendees/${second.id}`)
       ).text();
-      // One previous booking on file, its date-cell linking to the other
-      // attendee, its status name and the booked listing named in the items
+      // Two previous bookings on file, each date-cell linking to its attendee,
+      // the first's status name and the booked listing named in the items
       // column.
-      expect(html).toContain("Previous bookings:</strong> 1");
+      expect(html).toContain("Previous bookings:</strong> 2");
       expect(html).toContain(`/admin/attendees/${first.id}`);
+      expect(html).toContain(`/admin/attendees/${third.id}`);
       expect(html).toContain("Confirmed");
       expect(html).toContain("Repeat");
       // The current attendee never links to itself in its own table.
       expect(html).not.toContain(`<a href="/admin/attendees/${second.id}">`);
+    });
+
+    test("a previous booking edited down to no real lines is not shown", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 9,
+        name: "Emptyable",
+      });
+      // Two real bookings share an email...
+      const { attendee: real } = await createTestAttendeeDirect(
+        listing.id,
+        "Still Real",
+        "empty@example.com",
+      );
+      const { attendee: emptied } = await createTestAttendeeDirect(
+        listing.id,
+        "Now Empty",
+        "empty@example.com",
+      );
+      // ...then one is edited down to a no-quantity line (its token stays on the
+      // contact, but it no longer represents a booked ticket).
+      const { loadExistingLines } = await import("#shared/db/attendees.ts");
+      const existing = await loadExistingLines(emptied.id);
+      const form = await buildAttendeeEditForm(emptied.id, {
+        email: "empty@example.com",
+        lines: [
+          {
+            eventId: listing.id,
+            key: existing[0]!.key,
+            noQuantity: true,
+            quantity: 0,
+          },
+        ],
+        name: "Now Empty",
+      });
+      await adminFormPost(`/admin/attendees/${emptied.id}`, form);
+
+      // Viewing the still-real booking, the emptied one neither counts nor links.
+      const html = await (await adminGet(`/admin/attendees/${real.id}`)).text();
+      expect(html).toContain("Previous bookings:</strong> 0");
+      expect(html).not.toContain(`/admin/attendees/${emptied.id}`);
     });
 
     test("changing an attendee's email moves its Previous bookings link", async () => {
