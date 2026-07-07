@@ -22,6 +22,7 @@ import {
   queryOne,
   queryOnePrimary,
 } from "#shared/db/client.ts";
+import { queryAndMap } from "#shared/db/query.ts";
 import { requestCache } from "#shared/request-cache.ts";
 
 /**
@@ -173,14 +174,19 @@ const buildUpdateSql = (
   return `UPDATE ${name} SET ${setClauses} WHERE ${primaryKey} = ? RETURNING *`;
 };
 
-/**
- * Define a table with CRUD operations
- */
-export const defineTable = <Row, Input = Row>(config: {
+/** The shape that defines a table: its name, primary key, and column schema. */
+export type TableDefinition<Row> = {
   name: string;
   primaryKey: keyof Row & string;
   schema: TableSchema<Row>;
-}): Table<Row, Input> => {
+};
+
+/**
+ * Define a table with CRUD operations
+ */
+export const defineTable = <Row, Input = Row>(
+  config: TableDefinition<Row>,
+): Table<Row, Input> => {
   const { name, primaryKey, schema } = config;
 
   // Build column lists
@@ -423,6 +429,36 @@ export const cachedTable = <Row, Input, Cached = Row>(config: {
   };
   registerDependencies(config.table.name, config.dependsOn ?? [], invalidate);
   return { getAll: () => cache.getAll(), invalidate, table: config.table };
+};
+
+/**
+ * Define a cached "list" table in one call: build the table with
+ * {@link defineTable}, then wrap it in {@link cachedTable} whose `fetchAll`
+ * selects and decrypts every row in `orderBy` sequence. Returns the cached
+ * table plus its `getAll`/`invalidate`.
+ *
+ * This folds the identical five-part wiring (table → decrypting query → cache →
+ * getAll → invalidate) that every simple owner-maintained list table used to
+ * repeat by hand. Callers keep their domain-named exports (`getAllHolidays`,
+ * `invalidateHolidaysCache`, …) as one-line delegations to the returned
+ * members, so the public surface is unchanged.
+ */
+export const defineCachedListTable = <Row, Input>(
+  config: TableDefinition<Row> & {
+    /** ORDER BY clause without the keyword, e.g. `"start_date ASC"`. */
+    orderBy: string;
+    dependsOn?: ReadonlyArray<DependsOnEntry>;
+  },
+) => {
+  const table = defineTable<Row, Input>(config);
+  const selectAll = queryAndMap<Row, Row>(table.fromDb);
+  return cachedTable<Row, Input>({
+    dependsOn: config.dependsOn ?? [],
+    fetchAll: () =>
+      selectAll(`SELECT * FROM ${config.name} ORDER BY ${config.orderBy}`),
+    name: config.name,
+    table,
+  });
 };
 
 /** Transform function type for column read/write */

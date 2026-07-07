@@ -4,9 +4,8 @@
 
 import { filter } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { queryAndMap } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
-import { cachedTable, col, defineTable } from "#shared/db/table.ts";
+import { col, defineCachedListTable } from "#shared/db/table.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { Holiday } from "#shared/types.ts";
 
@@ -17,9 +16,11 @@ export type HolidayInput = {
   endDate: string;
 };
 
-/** Raw holidays table with CRUD operations — name is encrypted, dates are plaintext */
-const rawHolidaysTable = defineTable<Holiday, HolidayInput>({
+/** Cached holidays table — name is encrypted, dates are plaintext; writes
+ * auto-invalidate the cache. */
+const holidays = defineCachedListTable<Holiday, HolidayInput>({
   name: "holidays",
+  orderBy: "start_date ASC",
   primaryKey: "id",
   schema: {
     end_date: col.simple<string>(),
@@ -29,30 +30,18 @@ const rawHolidaysTable = defineTable<Holiday, HolidayInput>({
   },
 });
 
-/** Execute a query and decrypt the resulting holiday rows */
-const queryHolidays = queryAndMap<Holiday, Holiday>((row) =>
-  rawHolidaysTable.fromDb(row),
-);
-
-const holidaysCache = cachedTable({
-  fetchAll: () =>
-    queryHolidays("SELECT * FROM holidays ORDER BY start_date ASC"),
-  name: "holidays",
-  table: rawHolidaysTable,
-});
-
 /** Holidays table with CRUD operations — writes auto-invalidate the cache */
-export const holidaysTable = holidaysCache.table;
+export const holidaysTable = holidays.table;
 
 /** Invalidate the holidays cache (for testing or after writes). */
 export const invalidateHolidaysCache = (): void => {
-  holidaysCache.invalidate();
+  holidays.invalidate();
 };
 
 /**
  * Get all holidays, decrypted, ordered by start_date (from cache)
  */
-export const getAllHolidays = (): Promise<Holiday[]> => holidaysCache.getAll();
+export const getAllHolidays = (): Promise<Holiday[]> => holidays.getAll();
 
 /**
  * Get active holidays (end_date >= today) for date computation (from cache).
@@ -60,6 +49,6 @@ export const getAllHolidays = (): Promise<Holiday[]> => holidaysCache.getAll();
  */
 export const getActiveHolidays = async (): Promise<Holiday[]> => {
   const today = todayInTz(settings.timezone);
-  const holidays = await holidaysCache.getAll();
-  return filter((h: Holiday) => h.end_date >= today)(holidays);
+  const all = await holidays.getAll();
+  return filter((h: Holiday) => h.end_date >= today)(all);
 };
