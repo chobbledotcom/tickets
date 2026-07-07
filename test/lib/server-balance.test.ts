@@ -9,7 +9,7 @@ import {
 } from "#shared/accounting/queries.ts";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import {
-  attendeeStatusesTable,
+  attendeeStatuses,
   getPaidDefaultStatus,
 } from "#shared/db/attendee-statuses.ts";
 import {
@@ -210,7 +210,7 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
 
   test("POST refuses a reservation with no real booking line", async () => {
     await setupStripe();
-    const reservation = await attendeeStatusesTable.insert({
+    const reservation = await attendeeStatuses.table.insert({
       isReservation: true,
       name: "Reserved",
       reservationAmount: "10%",

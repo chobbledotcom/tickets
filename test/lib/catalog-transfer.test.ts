@@ -592,8 +592,8 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
     await execute("UPDATE groups SET hide_package_listings = 1 WHERE id = ?", [
       pkg.id,
     ]);
-    const { invalidateGroupsCache } = await import("#shared/db/groups.ts");
-    invalidateGroupsCache();
+    const { groups } = await import("#shared/db/groups.ts");
+    groups.cache.invalidate();
     const parent = await createTestListing({ name: "Pkg Parent" });
     await assignListingsToGroup([parent.id], pkg.id);
     const result = await importCatalog({
@@ -645,13 +645,13 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
     // the groups directly (like the many-parents case) rather than via
     // createTestGroup, whose trailing getAllGroups() would itself trip the read
     // guard 30 times over in this one test context.
-    const { computeGroupSlugIndex, groupsTable } = await import(
+    const { computeGroupSlugIndex, groups } = await import(
       "#shared/db/groups.ts"
     );
     const groupNames = Array.from({ length: 30 }, (_, i) => `Group ${i}`);
     for (const name of groupNames) {
       const slug = name.toLowerCase().replace(/\s+/g, "-");
-      await groupsTable.insert({
+      await groups.table.insert({
         name,
         slug,
         slugIndex: await computeGroupSlugIndex(slug),

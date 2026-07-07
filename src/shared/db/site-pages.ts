@@ -4,7 +4,7 @@
  * Cold-start efficiency is deliberate here: the public nav only needs a **narrow
  * projection** (id, slug, name, sort_order) and must not decrypt the large
  * `content` / `meta_*` blobs on every request. So the cached read
- * ({@link getSitePageNavRows}) selects and decrypts only those four columns; the
+ * ({@link sitePages}.getAll) selects and decrypts only those four columns; the
  * full row (with content/meta) is loaded one at a time, only for a single
  * `/page/:slug` (or admin edit) view.
  */
@@ -79,21 +79,11 @@ const fetchNavRows = async (): Promise<SitePageNavRow[]> => {
 // Request-scoped cache over the projection: computed once per request, fresh on
 // the next request (no cross-isolate staleness), and auto-cleared on any write
 // to site_pages (cachedTable registers the dependency on the table name).
-const navCache = cachedTable({
+export const sitePages = cachedTable({
   fetchAll: fetchNavRows,
   name: "site_pages_nav",
   table: rawSitePagesTable,
 });
-
-/** Table with CRUD (insert/update/delete/findById) — writes invalidate the cache. */
-export const sitePagesTable = navCache.table;
-
-/** Invalidate the nav projection cache (writes do this automatically). */
-export const invalidateSitePagesCache = (): void => navCache.invalidate();
-
-/** The narrow nav projection for every page, ordered (cached per request). */
-export const getSitePageNavRows = (): Promise<SitePageNavRow[]> =>
-  navCache.getAll();
 
 /** Every {@link SitePage} column, listed explicitly (AGENTS.md) so a future
  * column can't silently widen what the single-page reads fetch and decrypt. */
@@ -186,7 +176,7 @@ export const updateSitePage = async (
   id: number,
   input: SitePageWriteInput,
 ): Promise<SitePage | null> =>
-  sitePagesTable.update(id, {
+  sitePages.table.update(id, {
     ...input,
     slugIndex: await computeSitePageSlugIndex(input.slug),
   });

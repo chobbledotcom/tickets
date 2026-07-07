@@ -4,7 +4,7 @@ import { stub } from "@std/testing/mock";
 import * as v from "valibot";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
-import { groupsTable } from "#shared/db/groups.ts";
+import { groups } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
 import { todayInTz } from "#shared/timezone.ts";
@@ -1280,7 +1280,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
         isPackage: true,
         name: "Hidden Bundle",
       });
-      await groupsTable.update(group.id, { hidePackageListings: true });
+      await groups.table.update(group.id, { hidePackageListings: true });
       return createTestListing({ groupId: group.id, name: "Secret Member" });
     };
 

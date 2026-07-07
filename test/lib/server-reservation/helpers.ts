@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import {
+  attendeeStatuses,
   getPublicDefaultStatus,
-  invalidateAttendeeStatusesCache,
 } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { pricePaidFromLedger } from "#shared/db/attendees/queries.ts";
@@ -25,7 +25,7 @@ export const setPublicReservation = async (amount: string): Promise<number> => {
     args: [amount],
     sql: "UPDATE attendee_statuses SET is_reservation = 1, reservation_amount = ? WHERE is_public_default = 1",
   });
-  invalidateAttendeeStatusesCache();
+  attendeeStatuses.invalidate();
   const status = await getPublicDefaultStatus();
   return status!.id;
 };

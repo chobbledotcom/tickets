@@ -25,9 +25,8 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { clearLogisticsAgentReferences } from "#shared/db/logistics.ts";
 import {
-  getAllLogisticsAgents,
   type LogisticsAgentInput,
-  logisticsAgentsTable,
+  logisticsAgents,
 } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { agentUsers } from "#shared/db/user-agents.ts";
@@ -92,14 +91,14 @@ const logisticsAgentsResource = defineNamedResource({
   onDelete: async (id: InValue): Promise<void> => {
     await clearLogisticsAgentReferences(Number(id));
     await agentUsers.clear(Number(id));
-    await logisticsAgentsTable.deleteById(id);
+    await logisticsAgents.table.deleteById(id);
   },
-  table: logisticsAgentsTable,
+  table: logisticsAgents.table,
   toInput: extractLogisticsAgentInput,
 });
 
 const crud = createOwnerCrudHandlers({
-  getAll: getAllLogisticsAgents,
+  getAll: logisticsAgents.getAll,
   getName: (a) => a.name,
   listPath: "/admin/logistics",
   renderDelete: adminLogisticsAgentDeletePage,
@@ -137,7 +136,7 @@ const parseAssignedUserIds = async (form: FormParams): Promise<number[]> => {
 const handleAgentEditGet: IdRouteHandler = (request, { id }) =>
   requireOwnerOr(request, async (session) => {
     applyFlash(request);
-    const agent = await logisticsAgentsTable.findById(id);
+    const agent = await logisticsAgents.table.findById(id);
     if (!agent) return notFoundResponse();
     const [users, selectedIds] = await Promise.all([
       loadAgentUserOptions(),

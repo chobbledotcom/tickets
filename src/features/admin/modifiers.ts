@@ -25,7 +25,7 @@ import { createAuthedHandler } from "#shared/app-forms.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getAllGroups, getGroupIdsByListingIds } from "#shared/db/groups.ts";
+import { getGroupIdsByListingIds, groups } from "#shared/db/groups.ts";
 import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
@@ -323,11 +323,11 @@ const scopeLinksFor = async (
     };
   }
   if (modifier.scope === "groups") {
-    const groups = await getAllGroups();
+    const allGroups = await groups.cache.getAll();
     // Groups have no deactivated state, so every group option is active.
     return {
       kind: "groups",
-      options: groups.map((g) => ({ active: true, id: g.id, name: g.name })),
+      options: allGroups.map((g) => ({ active: true, id: g.id, name: g.name })),
       selected: await modifierGroups.getIds(modifier.id),
     };
   }

@@ -11,6 +11,7 @@ export const gettingStartedSections = (): GuideSection[] => [
   },
   {
     entries: [faq("what_is_dashboard")],
+    id: "dashboard",
     titleKey: "dashboard",
   },
   {

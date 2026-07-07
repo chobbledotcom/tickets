@@ -10,7 +10,7 @@ import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 /* jscpd:ignore-end */
@@ -90,5 +90,9 @@ export const adminBuilderPage = (
         footer={<BuiltSitesTable sites={sites} />}
         title={t("builder.built_sites_title")}
       />
+
+      <GuideFooter href="/admin/guide#built-sites">
+        {t("built_sites.guide_link")}
+      </GuideFooter>
     </>,
   );

@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
 import { handleRequest } from "#routes";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
-import { groupsTable } from "#shared/db/groups.ts";
+import { groups } from "#shared/db/groups.ts";
 import {
   assertJson,
   createTestAttendeeWithToken,
@@ -164,7 +164,7 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
     test("404s a package booking's token (a single-member pass would leak/misrepresent the bundle)", async () => {
       await configureAppleWallet();
       const group = await createTestGroup({ isPackage: true, name: "Bundle" });
-      await groupsTable.update(group.id, { hidePackageListings: true });
+      await groups.table.update(group.id, { hidePackageListings: true });
       const member = await createTestListing({
         groupId: group.id,
         maxAttendees: 10,
@@ -193,7 +193,7 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
       // every booking, not just the first.
       await configureAppleWallet();
       const group = await createTestGroup({ isPackage: true, name: "Bundle2" });
-      await groupsTable.update(group.id, { hidePackageListings: true });
+      await groups.table.update(group.id, { hidePackageListings: true });
       const member = await createTestListing({
         groupId: group.id,
         maxAttendees: 10,

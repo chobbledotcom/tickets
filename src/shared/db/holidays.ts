@@ -18,7 +18,7 @@ export type HolidayInput = {
 
 /** Cached holidays table — name is encrypted, dates are plaintext; writes
  * auto-invalidate the cache. */
-const holidays = defineCachedListTable<Holiday, HolidayInput>({
+export const holidays = defineCachedListTable<Holiday, HolidayInput>({
   name: "holidays",
   orderBy: "start_date ASC",
   primaryKey: "id",
@@ -29,19 +29,6 @@ const holidays = defineCachedListTable<Holiday, HolidayInput>({
     start_date: col.simple<string>(),
   },
 });
-
-/** Holidays table with CRUD operations — writes auto-invalidate the cache */
-export const holidaysTable = holidays.table;
-
-/** Invalidate the holidays cache (for testing or after writes). */
-export const invalidateHolidaysCache = (): void => {
-  holidays.invalidate();
-};
-
-/**
- * Get all holidays, decrypted, ordered by start_date (from cache)
- */
-export const getAllHolidays = (): Promise<Holiday[]> => holidays.getAll();
 
 /**
  * Get active holidays (end_date >= today) for date computation (from cache).

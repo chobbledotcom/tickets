@@ -22,10 +22,9 @@ import {
 import { writeRowInTransaction } from "#shared/db/client.ts";
 import {
   type GroupInput,
-  getAllGroups,
   getGroupIdsByListingIds,
   getGroupsById,
-  groupsTable,
+  groups,
 } from "#shared/db/groups.ts";
 import {
   getChildListingIds,
@@ -262,7 +261,7 @@ const validateParentEdges = async (
     getListingsById(),
     getChildListingIds(parentIds),
     getGroupIdsByListingIds([...parentIds]),
-    getAllGroups(),
+    groups.cache.getAll(),
   ]);
   const hiddenPackageIds = new Set(
     allGroups
@@ -388,7 +387,7 @@ const importListing = async (
   // Package overrides only apply to a package group; clear them for any regular
   // group the listing joins (matching the normal group save).
   const packageGroupIds = new Set(
-    (await getAllGroups()).filter((g) => g.is_package).map((g) => g.id),
+    (await groups.cache.getAll()).filter((g) => g.is_package).map((g) => g.id),
   );
   // A package day-price override must target a day count this listing offers —
   // the new listing itself is the member here, so validate against its own spans.
@@ -512,7 +511,7 @@ const importGroup = async (transfer: GroupTransfer): Promise<ImportResult> => {
     listingId: memberResolve.ids[i]!,
   }));
   const id = await writeRowInTransaction(
-    await groupsTable.insertStatement!(input),
+    await groups.table.insertStatement!(input),
     null,
     (tx, newId) => writeMembershipsTx(tx, withNewId(specs, "groupId", newId)),
   );

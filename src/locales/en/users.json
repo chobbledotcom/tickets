@@ -1,4 +1,5 @@
 {
+  "api_keys.guide_link": "API guide",
   "users.sessions_link": "Click here to view your currently logged in sessions.",
   "users.roles_link": "User roles and permissions",
   "users.invite_link_label": "Invite link (share this with the new user):",

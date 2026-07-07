@@ -9,7 +9,7 @@
  *
  * Names are field-level encrypted with no blind index, so — unlike the slug
  * registry, which matches on the plaintext `slug_index` HMAC — this reads the
- * cached, already-decrypted listing/group sets (`getAllListings`/`getAllGroups`,
+ * cached, already-decrypted listing/group sets (`getAllListings`/`groups.cache.getAll`,
  * the very loads the admin collection pages already make) and matches in memory.
  * The catalog is a bounded, admin-scale set, so the scan is cheap and needs no
  * extra query or schema column.
@@ -18,7 +18,7 @@
  * are pure functions over the loaded rows.
  */
 
-import { getAllGroups } from "#shared/db/groups.ts";
+import { groups } from "#shared/db/groups.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import type { SitePageItemType } from "#shared/types.ts";
 
@@ -70,11 +70,11 @@ export type CatalogNameIndex = {
 
 /** Load the listing and group name indexes from the (cached) decrypted catalog. */
 export const loadCatalogNameIndex = async (): Promise<CatalogNameIndex> => {
-  const [listings, groups] = await Promise.all([
+  const [listings, allGroups] = await Promise.all([
     getAllListings(),
-    getAllGroups(),
+    groups.cache.getAll(),
   ]);
-  return { group: buildIndex(groups), listing: buildIndex(listings) };
+  return { group: buildIndex(allGroups), listing: buildIndex(listings) };
 };
 
 /** The result of resolving a single name against a {@link NameIndex}: the unique

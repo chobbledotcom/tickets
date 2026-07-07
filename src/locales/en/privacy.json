@@ -1,5 +1,6 @@
 {
   "privacy.title": "Privacy",
+  "privacy.guide_link": "Privacy guide",
   "privacy.not_a_crm_heading": "A ticketing system, not a CRM",
   "privacy.not_a_crm_html": "<p>Chobble Tickets is not a CRM (customer relationship manager), though you can connect it to one with webhooks if you want to. It is built to be as secure and private as is reasonably possible without making it awkward to use.</p><p>That means it deliberately avoids some things a proper CRM needs to do:</p><ul><li>Building a consistent profile of your customers</li><li>Storing their details unencrypted</li><li>Keeping more details than it strictly needs</li></ul><p>This does not make the system useless for recurring bookings. It can still tell you whether someone has booked before, when their last booking was, and how much they have spent with you. It just keeps that recognition data encrypted and separate from their live booking details.</p><p>That helps you as the site owner too: less stored data keeps server costs low, and reduces the risk if your login is ever leaked or hacked.</p>",
   "privacy.aggregate_heading": "What we keep, and why",

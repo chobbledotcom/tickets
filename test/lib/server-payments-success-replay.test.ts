@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { groupsTable } from "#shared/db/groups.ts";
+import { groups } from "#shared/db/groups.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
   createTestGroup,
@@ -76,7 +76,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         name: "Hidden Success Pkg",
         slug: "hidden-success-pkg",
       });
-      await groupsTable.update(group.id, { hidePackageListings: true });
+      await groups.table.update(group.id, { hidePackageListings: true });
       const listing = await createTestListing({
         groupId: group.id,
         maxAttendees: 50,
@@ -134,7 +134,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         name: "Hidden Replay Pkg",
         slug: "hidden-replay-pkg",
       });
-      await groupsTable.update(group.id, { hidePackageListings: true });
+      await groups.table.update(group.id, { hidePackageListings: true });
       const listing = await createTestListing({
         groupId: group.id,
         maxAttendees: 50,

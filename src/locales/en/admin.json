@@ -1,4 +1,6 @@
 {
+  "admin.dashboard.guide_link": "Dashboard guide",
+  "admin.listings.guide_link": "Listings guide",
   "admin.dashboard.add_listing": "Add Listing",
   "admin.dashboard.col.listing_name": "Listing Name",
   "admin.dashboard.no_listings": "No listings yet",

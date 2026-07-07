@@ -26,10 +26,7 @@ import {
   getAgentRunSheetDates,
   setLegDone,
 } from "#shared/db/logistics.ts";
-import {
-  agentNameMap,
-  getAllLogisticsAgents,
-} from "#shared/db/logistics-agents.ts";
+import { agentNameMap, logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { userAgents } from "#shared/db/user-agents.ts";
 import { getFlash } from "#shared/flash-context.ts";
@@ -140,7 +137,7 @@ const loadLegLookups = async (
   const [rawAttendees, listings, agents] = await Promise.all([
     getAttendeesByIds(attendeeIds),
     getAllListings(),
-    getAllLogisticsAgents(),
+    logisticsAgents.getAll(),
   ]);
   const decrypted = await decryptAttendees(rawAttendees, privateKey);
   const attendeeById = new Map<number, Attendee>();

@@ -15,13 +15,12 @@ import {
   computeGroupSlugIndex,
   getActiveListingsByGroupId,
   getActiveListingsByGroupIds,
-  getAllGroups,
   getGroupBySlugIndex,
   getGroupIdsByListingId,
   getGroupPackagePrices,
   getGroupPackagePricesByGroupIds,
   getPackageDisplayById,
-  groupsTable,
+  groups,
   isGroupSlugTaken,
   resetGroupListings,
   setGroupPackageMembers,
@@ -78,37 +77,37 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
     });
 
   describe("CRUD", () => {
-    test("groupsTable create, update, findById, deleteById", async () => {
+    test("groups.table create, update, findById, deleteById", async () => {
       const created = await createTestGroup({
         name: "DB Group",
         slug: "db-group",
       });
 
-      const fetched = await groupsTable.findById(created.id);
+      const fetched = await groups.table.findById(created.id);
       expect(fetched).not.toBeNull();
       expect(fetched?.name).toBe("DB Group");
       expect(fetched?.slug).toBe("db-group");
 
-      const updated = await groupsTable.update(created.id, {
+      const updated = await groups.table.update(created.id, {
         name: "DB Group Updated",
         termsAndConditions: "Terms",
       });
       expect(updated?.name).toBe("DB Group Updated");
       expect(updated?.terms_and_conditions).toBe("Terms");
 
-      await groupsTable.deleteById(created.id);
-      expect(await groupsTable.findById(created.id)).toBeNull();
+      await groups.table.deleteById(created.id);
+      expect(await groups.table.findById(created.id)).toBeNull();
     });
 
     test("getAllGroups returns decrypted groups ordered by id", async () => {
       const g1 = await createTestGroup({ name: "Group A", slug: "group-a" });
       const g2 = await createTestGroup({ name: "Group B", slug: "group-b" });
-      const groups = await getAllGroups();
-      expect(groups.length).toBe(2);
-      expect(groups[0]?.id).toBe(g1.id);
-      expect(groups[1]?.id).toBe(g2.id);
-      expect(groups[0]?.name).toBe("Group A");
-      expect(groups[1]?.name).toBe("Group B");
+      const allGroups = await groups.cache.getAll();
+      expect(allGroups.length).toBe(2);
+      expect(allGroups[0]?.id).toBe(g1.id);
+      expect(allGroups[1]?.id).toBe(g2.id);
+      expect(allGroups[0]?.name).toBe("Group A");
+      expect(allGroups[1]?.name).toBe("Group B");
     });
 
     test("getGroupBySlugIndex returns group or null", async () => {
@@ -371,7 +370,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         maxAttendees: 10,
         name: "orphan-listing",
       });
-      await groupsTable.deleteById(group.id);
+      await groups.table.deleteById(group.id);
 
       expect(await hasAvailableSpots(listing.id, 1)).toBe(true);
     });
@@ -668,7 +667,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         name: "Hidden Bundle",
         slug: "hidden-bundle-disp",
       });
-      await groupsTable.update(pkg.id, { hidePackageListings: true });
+      await groups.table.update(pkg.id, { hidePackageListings: true });
       expect(await getPackageDisplayById(pkg.id)).toEqual({
         hideListings: true,
         name: "Hidden Bundle",

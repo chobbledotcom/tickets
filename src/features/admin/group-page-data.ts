@@ -17,7 +17,7 @@ import {
   getGroupPackagePrices,
   getListingsByGroupId,
   getListingsNotInGroup,
-  groupsTable,
+  groups,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
@@ -43,7 +43,7 @@ import { loadItemImagesPanel } from "./item-images.ts";
  * remaining data is fetched by its own loader below, so a bare page frame never
  * decrypts a roster it isn't about to show. */
 export const loadGroupForPage = (id: number): Promise<Group | null> =>
-  groupsTable.findById(id);
+  groups.table.findById(id);
 
 /** Whether a group's roster has any paid attendee data to decrypt. A package
  * member can carry a `package_price` override while its own `unit_price` is 0,

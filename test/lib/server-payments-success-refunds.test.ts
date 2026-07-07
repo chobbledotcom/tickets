@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { groupsTable } from "#shared/db/groups.ts";
+import { groups } from "#shared/db/groups.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
   bookAttendee,
@@ -66,7 +66,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         unitPrice: 500,
       });
       const group = await createTestGroup({ isPackage: true, name: "Bundle" });
-      await groupsTable.update(group.id, { hidePackageListings: true });
+      await groups.table.update(group.id, { hidePackageListings: true });
       // The standalone session was signed before this listing became a hidden
       // package member; it is then deactivated, so per-item validation fails on
       // it. The failure message must not expose the concealed member's name.
@@ -136,7 +136,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         unitPrice: 500,
       });
       await deactivateTestListing(vanished.id);
-      await groupsTable.deleteById(group.id);
+      await groups.table.deleteById(group.id);
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({

@@ -6,7 +6,7 @@ import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import {
   type BuiltSite,
-  getAllBuiltSites,
+  builtSites,
   insertBuiltSite,
 } from "#shared/db/built-sites.ts";
 import type { Listing } from "#shared/types.ts";
@@ -31,7 +31,7 @@ const setupRenewalSite = async (readOnlyFrom: string) => {
     false,
     "5001",
   );
-  const sites = await getAllBuiltSites();
+  const sites = await builtSites.getAll();
   const site = sites.find((s) => s.name === "Renewal Site")!;
   // applyRenewalsForEntries takes the HMAC index (the same value that's stored
   // in Stripe metadata after the boundary hashing); the plain token is unused
@@ -82,7 +82,7 @@ const expectReadOnlyFrom = async (
   site: BuiltSite,
   expected: string,
 ): Promise<void> => {
-  const sites = await getAllBuiltSites();
+  const sites = await builtSites.getAll();
   const updated = sites.find((s) => s.id === site.id)!;
   expect(updated.readOnlyFrom).toBe(expected);
 };

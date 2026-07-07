@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { groupsTable } from "#shared/db/groups.ts";
+import { groups } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   assertPublicHtml,
@@ -204,7 +204,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         name: "Mystery Box",
         slug: "mystery-box",
       });
-      await groupsTable.update(group.id, { hidePackageListings: true });
+      await groups.table.update(group.id, { hidePackageListings: true });
       const secret = await createTestListing({
         groupId: group.id,
         name: "Secret Widget",
