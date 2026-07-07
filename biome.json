@@ -179,8 +179,7 @@
         "test/lib/square.test.ts",
         "test/lib/stripe.test.ts",
         "test/routes/api.test.ts",
-        "test/templates/admin/listings.test.ts",
-        "test/templates/public.test.ts"
+        "test/templates/admin/listings.test.ts"
       ],
       "linter": {
         "rules": {
