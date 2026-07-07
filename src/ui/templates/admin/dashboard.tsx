@@ -471,7 +471,7 @@ export const adminListingsPage = (
         </>
       )}
 
-      <GuideFooter href="/admin/guide#listings">
+      <GuideFooter adminLevel={session.adminLevel} href="/admin/guide#listings">
         {t("admin.listings.guide_link")}
       </GuideFooter>
     </AdminPage>,

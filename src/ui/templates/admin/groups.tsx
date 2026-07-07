@@ -100,7 +100,7 @@ export const adminGroupsPage = (
         />
       )}
 
-      <GuideFooter href="/admin/guide#packages">
+      <GuideFooter adminLevel={session.adminLevel} href="/admin/guide#packages">
         {t("groups.guide_link")}
       </GuideFooter>
     </>,

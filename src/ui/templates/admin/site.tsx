@@ -11,7 +11,7 @@ import {
 } from "#routes/admin/site.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession } from "#shared/types.ts";
+import type { AdminLevel, AdminSession } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter, SaveButton } from "#templates/components/actions.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
@@ -19,9 +19,15 @@ import { ErrorNote } from "#templates/components/error.tsx";
 /* jscpd:ignore-end */
 
 /** The public-site guide footer shared by the home, contact and order editors
- * (all three map to the guide's `#public-site` section). */
-const SiteGuideFooter = (): JSX.Element => (
-  <GuideFooter href="/admin/guide#public-site">
+ * (all three map to the guide's `#public-site` section). The site editors are
+ * owner+editor, but `/admin/guide` is staff-only, so it's role-gated: editors
+ * see no footer rather than a link that 403s. */
+const SiteGuideFooter = ({
+  adminLevel,
+}: {
+  adminLevel: AdminLevel;
+}): JSX.Element => (
+  <GuideFooter adminLevel={adminLevel} href="/admin/guide#public-site">
     {t("site.guide_link")}
   </GuideFooter>
 );
@@ -50,7 +56,7 @@ export const adminSiteHomePage = (
         {SaveButton()}
       </CsrfForm>
 
-      <SiteGuideFooter />
+      <SiteGuideFooter adminLevel={session.adminLevel} />
     </>,
   );
 
@@ -151,7 +157,7 @@ export const adminSiteContactPage = (
         hasBusinessEmail={contactForm.hasBusinessEmail}
       />
 
-      <SiteGuideFooter />
+      <SiteGuideFooter adminLevel={session.adminLevel} />
     </>,
   );
 
@@ -229,6 +235,6 @@ export const adminSiteOrderPage = (
         {SaveButton()}
       </CsrfForm>
 
-      <SiteGuideFooter />
+      <SiteGuideFooter adminLevel={session.adminLevel} />
     </>,
   );
