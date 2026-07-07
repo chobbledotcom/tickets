@@ -1,0 +1,304 @@
+import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
+import { account } from "#shared/ledger/account.ts";
+import { emptyLedgerNames } from "#templates/admin/ledger.tsx";
+import { nearCapacity } from "#templates/admin/listings/aggregates.tsx";
+import {
+  completePaymentAttendees,
+  isIncompletePayment,
+} from "#templates/admin/listings/attendees.tsx";
+import { overviewStatsFromDbStats } from "#templates/admin/listings/overview.tsx";
+import { getListingFields } from "#templates/fields.ts";
+import { testAttendee, testListingWithCount } from "#test-utils";
+
+import {
+  registerListingTemplateHooks,
+  renderListingDetail,
+} from "./helpers.ts";
+
+registerListingTemplateHooks();
+
+describe("adminListingPage income & ledger breakdown", () => {
+  const listing = testListingWithCount({ id: 7 });
+
+  test("omits the section entirely when no breakdown is supplied", () => {
+    const html = renderListingDetail({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+    });
+    expect(html).not.toContain("Income &amp; ledger");
+  });
+
+  test("renders the five figures, the explanatory line and the ledger link", () => {
+    const html = renderListingDetail({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      revenueBreakdown: {
+        externalCosts: 0,
+        externalIncome: 0,
+        grossSales: 10000,
+        manualAdjustments: -1000,
+        netBalance: 7000,
+        recognisedIncome: 9000,
+        refunds: 2000,
+      },
+    });
+    expect(html).toContain("Income &amp; ledger");
+    // Gross sales credited (+), manual write-down (−), then the two subtotals.
+    expect(html).toContain("Gross ticket sales");
+    expect(html).toContain("+£100");
+    expect(html).toContain("Manual adjustments");
+    expect(html).toContain("−£10");
+    expect(html).toContain("Recognised income");
+    expect(html).toContain("£90");
+    expect(html).toContain("Refunds");
+    expect(html).toContain("−£20");
+    expect(html).toContain("Net balance in ledger");
+    expect(html).toContain("£70");
+    // The plain-English reconciliation note and the button to the filtered
+    // ledger, preselected to this listing (no arrow glyph, button-styled).
+    expect(html).toContain("refund-agnostic");
+    expect(html).toContain('href="/admin/ledger?listing=7"');
+    expect(html).toContain("View full ledger");
+    expect(html).not.toContain("View full ledger →");
+  });
+
+  test("makes a refund-driven divergence between income and net balance visible", () => {
+    // Recognised income (£90) and the net ledger balance (£70) legitimately
+    // differ after a refund; both must render so the reconciliation is shown.
+    const html = renderListingDetail({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      revenueBreakdown: {
+        externalCosts: 0,
+        externalIncome: 0,
+        grossSales: 9000,
+        manualAdjustments: 0,
+        netBalance: 7000,
+        recognisedIncome: 9000,
+        refunds: 2000,
+      },
+    });
+    const recognisedIdx = html.indexOf("Recognised income");
+    const netIdx = html.indexOf("Net balance in ledger");
+    expect(recognisedIdx).toBeGreaterThan(-1);
+    expect(netIdx).toBeGreaterThan(netIdx === -1 ? 0 : recognisedIdx);
+    expect(html).toContain("£90");
+    expect(html).toContain("£70");
+    // The two figures differ exactly by the refunds line.
+    expect(html).toContain("−£20");
+  });
+
+  test("omits the manual-adjustments row when there are none", () => {
+    const html = renderListingDetail({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      revenueBreakdown: {
+        externalCosts: 0,
+        externalIncome: 0,
+        grossSales: 5000,
+        manualAdjustments: 0,
+        netBalance: 5000,
+        recognisedIncome: 5000,
+        refunds: 0,
+      },
+    });
+    expect(html).toContain("Income &amp; ledger");
+    expect(html).not.toContain("Manual adjustments");
+    // With no refunds either, recognised income and net balance coincide at £50.
+    expect(html).toContain("Recognised income");
+    expect(html).toContain("Net balance in ledger");
+    expect(html).toContain("£50");
+  });
+
+  test("shows a signed positive manual write-up", () => {
+    const html = renderListingDetail({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      revenueBreakdown: {
+        externalCosts: 0,
+        externalIncome: 0,
+        grossSales: 4000,
+        manualAdjustments: 1500,
+        netBalance: 5500,
+        recognisedIncome: 5500,
+        refunds: 0,
+      },
+    });
+    expect(html).toContain("Manual adjustments");
+    expect(html).toContain("+£15");
+  });
+
+  test("shows outside income and listing-specific costs when present", () => {
+    const html = renderListingDetail({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      revenueBreakdown: {
+        externalCosts: 300,
+        externalIncome: 1200,
+        grossSales: 4000,
+        manualAdjustments: 0,
+        netBalance: 4900,
+        recognisedIncome: 5200,
+        refunds: 0,
+      },
+    });
+    expect(html).toContain("Income received outside checkout");
+    expect(html).toContain("+£12");
+    expect(html).toContain("Costs paid outside checkout");
+    expect(html).toContain("−£3");
+  });
+
+  test("shows a listing ledger add-entry action when the account exists", () => {
+    const html = renderListingDetail({
+      allowedDomain: "localhost",
+      attendees: [],
+      ledger: {
+        account: account("revenue", 7),
+        lines: [],
+        names: {
+          ...emptyLedgerNames(),
+          listings: new Map([[7, listing.name]]),
+        },
+      },
+      listing,
+    });
+    expect(html).toContain('<section id="ledger">');
+    expect(html).toContain("Add entry");
+    expect(html).toContain(
+      'href="/admin/ledger/revenue/7/add?return_url=%2Fadmin%2Flisting%2F7"',
+    );
+  });
+});
+
+describe("nearCapacity", () => {
+  test("returns true when at 90% capacity", () => {
+    const listing = testListingWithCount({
+      attendee_count: 90,
+      max_attendees: 100,
+    });
+    expect(nearCapacity(listing)).toBe(true);
+  });
+
+  test("returns true when over 90% capacity", () => {
+    const listing = testListingWithCount({
+      attendee_count: 95,
+      max_attendees: 100,
+    });
+    expect(nearCapacity(listing)).toBe(true);
+  });
+
+  test("returns false when under 90% capacity", () => {
+    const listing = testListingWithCount({
+      attendee_count: 89,
+      max_attendees: 100,
+    });
+    expect(nearCapacity(listing)).toBe(false);
+  });
+
+  test("returns true when fully sold out", () => {
+    const listing = testListingWithCount({
+      attendee_count: 100,
+      max_attendees: 100,
+    });
+    expect(nearCapacity(listing)).toBe(true);
+  });
+});
+
+describe("overviewStatsFromDbStats", () => {
+  const dbStats = {
+    completeQuantitySum: 5,
+    incompleteQuantity: 2,
+    incompleteSales: 300,
+    rowsCheckedIn: 1,
+    rowsTotal: 3,
+    ticketsCheckedIn: 2,
+    ticketsTotal: 4,
+  };
+
+  test("subtracts incomplete count and unpaid sales for a paid listing", () => {
+    const view = overviewStatsFromDbStats(dbStats, 7, 2100, true);
+    expect(view.adjustedCount).toBe(5); // 7 booked − 2 incomplete
+    expect(view.completeQuantitySum).toBe(5);
+    expect(view.completeRevenue).toBe(1800); // 2100 gross − 300 unpaid
+    expect(view.checkedInStats).toEqual({
+      hasMultiQuantity: true, // ticketsTotal 4 ≠ rowsTotal 3
+      rowsCheckedIn: 1,
+      rowsTotal: 3,
+      ticketsCheckedIn: 2,
+      ticketsTotal: 4,
+    });
+  });
+
+  test("reports zero revenue for a free listing and flat multi-quantity", () => {
+    const flat = { ...dbStats, rowsTotal: 4, ticketsTotal: 4 };
+    const view = overviewStatsFromDbStats(flat, 6, 999, false);
+    expect(view.completeRevenue).toBe(0);
+    expect(view.checkedInStats.hasMultiQuantity).toBe(false);
+  });
+});
+
+describe("isIncompletePayment", () => {
+  test("returns true for paid listing attendee with no payment_id and price > 0", () => {
+    const attendee = testAttendee({ payment_id: "", price_paid: "1000" });
+    expect(isIncompletePayment(attendee, true)).toBe(true);
+  });
+
+  test("returns false for free listing", () => {
+    const attendee = testAttendee({ payment_id: "", price_paid: "0" });
+    expect(isIncompletePayment(attendee, false)).toBe(false);
+  });
+
+  test("returns false for admin-added attendee on paid listing (price_paid=0)", () => {
+    const attendee = testAttendee({ payment_id: "", price_paid: "0" });
+    expect(isIncompletePayment(attendee, true)).toBe(false);
+  });
+
+  test("returns false for completed payment attendee", () => {
+    const attendee = testAttendee({
+      payment_id: "pi_test_123",
+      price_paid: "1000",
+    });
+    expect(isIncompletePayment(attendee, true)).toBe(false);
+  });
+});
+
+describe("completePaymentAttendees", () => {
+  test("drops unresolved-payment rows on a paid listing", () => {
+    const listing = testListingWithCount({ unit_price: 1000 });
+    const paid = testAttendee({
+      id: 1,
+      payment_id: "pi_ok",
+      price_paid: "1000",
+    });
+    const failed = testAttendee({ id: 2, payment_id: "", price_paid: "1000" });
+    expect(completePaymentAttendees(listing, [paid, failed])).toEqual([paid]);
+  });
+
+  test("keeps every row on a free listing", () => {
+    const listing = testListingWithCount({ unit_price: 0 });
+    const a = testAttendee({ id: 1, payment_id: "", price_paid: "0" });
+    const b = testAttendee({ id: 2, payment_id: "", price_paid: "1000" });
+    expect(completePaymentAttendees(listing, [a, b])).toEqual([a, b]);
+  });
+});
+
+describe("datetime validation via getListingFields() date field", () => {
+  const dateField = getListingFields().find((f) => f.name === "date")!;
+
+  test("accepts valid datetime value", () => {
+    const result = dateField.validate?.("2026-06-15T14:00");
+    expect(result).toBeNull();
+  });
+
+  test("rejects invalid datetime value", () => {
+    const result = dateField.validate?.("not-a-date");
+    expect(result).toBe("Please enter a valid date and time");
+  });
+});

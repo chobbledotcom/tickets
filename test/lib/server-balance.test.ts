@@ -204,7 +204,8 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     });
     const token = await signBalanceToken(attendeeId);
     const response = await handleRequest(mockRequest(`/pay/${token}`));
-    expect(await response.text()).toContain("not valid");
+    // An honest "no tickets to pay for" message, not a misleading "link invalid".
+    expect(await response.text()).toContain("no tickets to pay for");
   });
 
   test("POST refuses a reservation with no real booking line", async () => {
@@ -220,7 +221,7 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     const token = await signBalanceToken(attendeeId);
     const response = await postPay(token);
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain("not valid");
+    expect(await response.text()).toContain("no tickets to pay for");
   });
 
   test("POST rejects an invalid csrf token", async () => {
