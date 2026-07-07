@@ -19,13 +19,11 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
         with:
           script: |
-            const command = (context.payload.comment?.body ?? "")
-              .trimStart()
-              .split(/\s+/, 1)[0] ?? "";
-            const isOpenCodeCommand = command === "/oc" || command === "/opencode";
+            const OPEN_CODE_COMMAND = /(^|\s)\/(?:oc|opencode)(?=\s|$)/;
+            const commentBody = context.payload.comment?.body ?? "";
 
-            if (!isOpenCodeCommand) {
-              core.info("No OpenCode command token found.");
+            if (!OPEN_CODE_COMMAND.test(commentBody)) {
+              core.info("No OpenCode command mention found.");
               core.setOutput("should_run", "false");
               return;
             }
@@ -41,21 +39,27 @@ jobs:
             const pullNumber = context.payload.issue?.pull_request
               ? context.payload.issue.number
               : context.payload.pull_request?.number;
-            if (!pullNumber) {
-              core.info("OpenCode commands only run on pull requests.");
-              core.setOutput("should_run", "false");
+
+            if (pullNumber) {
+              const { data: pull } = await github.rest.pulls.get({
+                ...context.repo,
+                pull_number: pullNumber,
+              });
+              const sameRepository =
+                pull.head.repo?.full_name === pull.base.repo?.full_name;
+
+              if (!sameRepository) {
+                core.info("OpenCode commands do not run on fork pull requests.");
+                core.setOutput("should_run", "false");
+                return;
+              }
+
+              core.setOutput("should_run", "true");
               return;
             }
 
-            const { data: pull } = await github.rest.pulls.get({
-              ...context.repo,
-              pull_number: pullNumber,
-            });
-            const sameRepository =
-              pull.head.repo?.full_name === pull.base.repo?.full_name;
-
-            if (!sameRepository) {
-              core.info("OpenCode commands do not run on fork pull requests.");
+            if (!context.payload.issue?.number) {
+              core.info("OpenCode commands only run on issues or pull requests.");
               core.setOutput("should_run", "false");
               return;
             }
