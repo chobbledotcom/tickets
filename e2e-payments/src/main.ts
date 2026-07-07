@@ -13,10 +13,8 @@
  */
 
 import { readFileSync } from "node:fs";
-import { config, needsTunnel, type Target, providerSecrets } from "./config.ts";
-import { fail, log, step, warn } from "./log.ts";
 import { launchBrowser } from "./browser.ts";
-import { providers } from "./providers/index.ts";
+import { config, needsTunnel, providerSecrets, type Target } from "./config.ts";
 import {
   assertFreeThankYou,
   assertPaidBookingConfirmed,
@@ -26,10 +24,12 @@ import {
   runSetup,
   submitBooking,
 } from "./flow.ts";
+import { fail, log, step, warn } from "./log.ts";
+import { notifyFailure } from "./notify.ts";
 import { runComplexOrderJourney } from "./order-flow.ts";
+import { providers } from "./providers/index.ts";
 import { buildStaticAssets, startAppServer } from "./server.ts";
 import { noTunnel, startTunnel } from "./tunnel.ts";
-import { notifyFailure } from "./notify.ts";
 
 /**
  * Print the tail of the app server's log to stdout. On CI the server log is
@@ -59,11 +59,22 @@ const dumpServerLog = (logPath: string, lines = 20): void => {
 };
 
 const parseTarget = (): Target => {
-  const raw = (process.argv[2] ?? process.env.E2E_PROVIDER ?? "free").toLowerCase();
-  if (raw === "free" || raw === "stripe" || raw === "square" || raw === "sumup") {
+  const raw = (
+    process.argv[2] ??
+      process.env.E2E_PROVIDER ??
+      "free"
+  ).toLowerCase();
+  if (
+    raw === "free" ||
+    raw === "stripe" ||
+    raw === "square" ||
+    raw === "sumup"
+  ) {
     return raw;
   }
-  throw new Error(`unknown target "${raw}" (expected stripe|square|sumup|free)`);
+  throw new Error(
+    `unknown target "${raw}" (expected stripe|square|sumup|free)`,
+  );
 };
 
 const run = async (): Promise<void> => {
@@ -77,8 +88,9 @@ const run = async (): Promise<void> => {
     return; // exit 0 — a missing-secret leg is a skip, not a failure
   }
 
-  const country =
-    process.env.SETUP_COUNTRY?.trim() || provider?.setupCountry || config.setupCountry;
+  const country = process.env.SETUP_COUNTRY?.trim() ||
+    provider?.setupCountry ||
+    config.setupCountry;
 
   // Resources are declared up front and acquired inside the try, so a failure
   // during startup (tunnel/browser) still tears down whatever was created —
@@ -130,16 +142,18 @@ const run = async (): Promise<void> => {
       paid: provider !== null,
       ...(provider
         ? {
-            payHostedCheckout: async () => {
-              step(`Paying the complex order on the ${provider.name} hosted checkout`);
-              await assertRedirectedToCheckout(activeSession);
-              await provider.payHostedCheckout(activeSession.page, {
-                baseUrl: activeTunnel.publicBaseUrl,
-                secrets: secrets!,
-                serverLogPath: activeServer.logPath,
-              });
-            },
-          }
+          payHostedCheckout: async () => {
+            step(
+              `Paying the complex order on the ${provider.name} hosted checkout`,
+            );
+            await assertRedirectedToCheckout(activeSession);
+            await provider.payHostedCheckout(activeSession.page, {
+              baseUrl: activeTunnel.publicBaseUrl,
+              secrets: secrets!,
+              serverLogPath: activeServer.logPath,
+            });
+          },
+        }
         : {}),
     });
 

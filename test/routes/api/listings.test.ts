@@ -2,7 +2,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import { addDays } from "#shared/dates.ts";
+import { imagesTable, setImagesForItem } from "#shared/db/images.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   bookAttendee,
   createDailyTestListing,
@@ -206,6 +208,29 @@ describePublicApi(() => {
       const { body } = await fetchListingBySlug(listing.slug);
       const apiListing = v.parse(PublicListingSchema, body.listing);
       expect(apiListing.availableDates).toBeUndefined();
+    });
+
+    test("returns null image fields for a listing with no image", async () => {
+      const listing = await createTestListing();
+      const { body } = await fetchListingBySlug(listing.slug);
+      const apiListing = v.parse(PublicListingSchema, body.listing);
+      expect(apiListing.imageUrl).toBeNull();
+      expect(apiListing.imageAltText).toBeNull();
+    });
+
+    test("exposes the primary image filename and alt text", async () => {
+      const listing = await createTestListing();
+      const image = await imagesTable.insert({
+        altText: "A watercolour workshop",
+        filename: nonEmptyString("primary.webp", "test filename"),
+        filenameThumb: nonEmptyString("primary-thumb.webp", "test thumb"),
+        name: "Primary",
+      });
+      await setImagesForItem("listing", listing.id, [image.id]);
+      const { body } = await fetchListingBySlug(listing.slug);
+      const apiListing = v.parse(PublicListingSchema, body.listing);
+      expect(apiListing.imageUrl).toBe("primary.webp");
+      expect(apiListing.imageAltText).toBe("A watercolour workshop");
     });
   });
 

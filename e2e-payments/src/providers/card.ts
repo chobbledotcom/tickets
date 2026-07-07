@@ -51,21 +51,31 @@ export const fillFirst = async (
   label: string,
   selectors: string[],
   value: string,
-  { required = true, type = false }: { required?: boolean; type?: boolean } = {},
+  {
+    required = true,
+    type = false,
+  }: { required?: boolean; type?: boolean } = {},
 ): Promise<boolean> => {
-  const filled = await withFirstVisible(page, selectors, async (loc, selector) => {
-    if (type) {
-      // Some hosted fields (Stripe's card iframe) track real keystrokes and
-      // ignore a programmatic .fill(), reporting the field as still "Required" —
-      // so click and type the value character by character.
-      await loc.click({ timeout: FILL_TIMEOUT });
-      await loc.pressSequentially(value, { delay: 25, timeout: FILL_TIMEOUT });
-    } else {
-      await loc.fill(value, { timeout: FILL_TIMEOUT });
-    }
-    log(`  filled ${label} via "${selector}"`);
-    return true;
-  });
+  const filled = await withFirstVisible(
+    page,
+    selectors,
+    async (loc, selector) => {
+      if (type) {
+        // Some hosted fields (Stripe's card iframe) track real keystrokes and
+        // ignore a programmatic .fill(), reporting the field as still "Required" —
+        // so click and type the value character by character.
+        await loc.click({ timeout: FILL_TIMEOUT });
+        await loc.pressSequentially(value, {
+          delay: 25,
+          timeout: FILL_TIMEOUT,
+        });
+      } else {
+        await loc.fill(value, { timeout: FILL_TIMEOUT });
+      }
+      log(`  filled ${label} via "${selector}"`);
+      return true;
+    },
+  );
   if (filled) return true;
   const msg = `could not locate field "${label}" on the hosted checkout page`;
   if (required) throw new Error(msg);
@@ -79,11 +89,15 @@ export const clickFirst = async (
   label: string,
   selectors: string[],
 ): Promise<void> => {
-  const clicked = await withFirstVisible(page, selectors, async (loc, selector) => {
-    await loc.click({ timeout: FILL_TIMEOUT });
-    log(`  clicked ${label} via "${selector}"`);
-    return true;
-  });
+  const clicked = await withFirstVisible(
+    page,
+    selectors,
+    async (loc, selector) => {
+      await loc.click({ timeout: FILL_TIMEOUT });
+      log(`  clicked ${label} via "${selector}"`);
+      return true;
+    },
+  );
   if (!clicked) {
     throw new Error(
       `could not locate "${label}" control on the hosted checkout page`,
@@ -139,17 +153,24 @@ export interface CardDetails {
  * fallbacks. fillFirst also searches child frames, covering SDK iframes.
  */
 const CARD_SELECTORS: Record<string, string[]> = {
-  number: [
-    'input[autocomplete="cc-number"]',
-    'input[name="cardnumber"]',
-    'input[name="cardNumber"]',
-    'input[name="number"]',
-    'input[id*="card-number" i]',
-    'input[id*="cardnumber" i]',
-    'input[name*="cardnumber" i]',
-    'input[placeholder*="card number" i]',
-    'input[aria-label*="card number" i]',
-    "#cardNumber",
+  cvc: [
+    'input[autocomplete="cc-csc"]',
+    'input[name="cvc"]',
+    'input[name="cvv"]',
+    'input[name="cvcNumber"]',
+    'input[name="securityCode"]',
+    'input[id*="cvc" i]',
+    'input[id*="cvv" i]',
+    'input[placeholder*="cvc" i]',
+    'input[placeholder*="cvv" i]',
+    'input[aria-label*="security code" i]',
+    "#cardCvc",
+  ],
+  email: [
+    'input[autocomplete="email"]',
+    'input[type="email"]',
+    'input[name="email"]',
+    "#email",
   ],
   expiry: [
     'input[autocomplete="cc-exp"]',
@@ -165,19 +186,6 @@ const CARD_SELECTORS: Record<string, string[]> = {
     'input[aria-label*="expir" i]',
     "#cardExpiry",
   ],
-  cvc: [
-    'input[autocomplete="cc-csc"]',
-    'input[name="cvc"]',
-    'input[name="cvv"]',
-    'input[name="cvcNumber"]',
-    'input[name="securityCode"]',
-    'input[id*="cvc" i]',
-    'input[id*="cvv" i]',
-    'input[placeholder*="cvc" i]',
-    'input[placeholder*="cvv" i]',
-    'input[aria-label*="security code" i]',
-    "#cardCvc",
-  ],
   name: [
     'input[autocomplete="cc-name"]',
     'input[name="cardholder-name"]',
@@ -189,6 +197,18 @@ const CARD_SELECTORS: Record<string, string[]> = {
     'input[aria-label*="cardholder" i]',
     "#billingName",
   ],
+  number: [
+    'input[autocomplete="cc-number"]',
+    'input[name="cardnumber"]',
+    'input[name="cardNumber"]',
+    'input[name="number"]',
+    'input[id*="card-number" i]',
+    'input[id*="cardnumber" i]',
+    'input[name*="cardnumber" i]',
+    'input[placeholder*="card number" i]',
+    'input[aria-label*="card number" i]',
+    "#cardNumber",
+  ],
   postal: [
     'input[autocomplete="postal-code"]',
     'input[autocomplete="billing postal-code"]',
@@ -199,12 +219,6 @@ const CARD_SELECTORS: Record<string, string[]> = {
     'input[id*="postal" i]',
     'input[id*="zip" i]',
     "#billingPostalCode",
-  ],
-  email: [
-    'input[autocomplete="email"]',
-    'input[type="email"]',
-    'input[name="email"]',
-    "#email",
   ],
 };
 

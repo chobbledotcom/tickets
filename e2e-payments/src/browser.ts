@@ -6,10 +6,10 @@
 
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { type Browser, type Locator, type Page, chromium } from "playwright";
+import { type Browser, chromium, type Locator, type Page } from "playwright";
 import { config } from "./config.ts";
-import { repoRoot } from "./server.ts";
 import { log } from "./log.ts";
+import { repoRoot } from "./server.ts";
 
 export interface BrowserSession {
   browser: Browser;
@@ -31,7 +31,9 @@ export interface BrowserSession {
   stop: () => Promise<void>;
 }
 
-export const launchBrowser = async (baseUrl: string): Promise<BrowserSession> => {
+export const launchBrowser = async (
+  baseUrl: string,
+): Promise<BrowserSession> => {
   log(`Launching Chromium (headless=${config.headless})…`);
   const browser = await chromium.launch({
     headless: config.headless,
@@ -65,7 +67,7 @@ export const launchBrowser = async (baseUrl: string): Promise<BrowserSession> =>
   const dumpPage = async (label: string): Promise<void> => {
     const png = join(artifactsDir, `${label}.png`);
     const html = join(artifactsDir, `${label}.html`);
-    await page.screenshot({ path: png, fullPage: true }).catch(() => {});
+    await page.screenshot({ fullPage: true, path: png }).catch(() => {});
     await page
       .content()
       .then((c) => writeFile(html, c))
@@ -107,28 +109,9 @@ export const launchBrowser = async (baseUrl: string): Promise<BrowserSession> =>
   };
 
   return {
-    browser,
-    page,
     baseUrl,
-    goto: async (path) => {
-      log(`  goto ${path}`);
-      await page.goto(path, { waitUntil: "domcontentloaded" });
-      await logWhere("goto");
-    },
-    // force: bypass the visible/enabled/stable actionability wait — the app's
-    // form controls are styled/validated in ways that make Playwright's default
-    // actionability hang in the CI Chromium. We assert real outcomes elsewhere.
-    fill: async (name, value) => {
-      log(`  fill ${name}`);
-      await page.locator(sel(name)).first().fill(value, { force: true, timeout: T });
-    },
-    select: async (name, value) => {
-      log(`  select ${name}=${value}`);
-      await page
-        .locator(sel(name))
-        .first()
-        .selectOption(value, { force: true, timeout: T });
-    },
+    bodyText: () => page.locator("body").innerText({ timeout: T }),
+    browser,
     check: async (name, value) => {
       const s = value ? `${sel(name)}[value="${value}"]` : sel(name);
       log(`  check ${name}${value ? `=${value}` : ""}`);
@@ -139,13 +122,12 @@ export const launchBrowser = async (baseUrl: string): Promise<BrowserSession> =>
     clickButton: async (text) => {
       log(`  submit "${text}"`);
       await robustSubmit(
-        page.getByRole("button", { name: text, exact: false }).first(),
+        page.getByRole("button", { exact: false, name: text }).first(),
       );
     },
-    submitLocator: (locator) => robustSubmit(locator),
     clickLink: async (text) => {
       log(`  link "${text}"`);
-      const link = page.getByRole("link", { name: text, exact: false }).first();
+      const link = page.getByRole("link", { exact: false, name: text }).first();
       await link.waitFor({ state: "attached", timeout: T });
       const href = await link.getAttribute("href");
       // Navigate by href when possible — avoids click-actionability entirely.
@@ -160,12 +142,35 @@ export const launchBrowser = async (baseUrl: string): Promise<BrowserSession> =>
       }
       await logWhere(`link "${text}"`);
     },
-    bodyText: () => page.locator("body").innerText({ timeout: T }),
-    screenshot: (label) => dumpPage(label),
     dumpPage,
+    // force: bypass the visible/enabled/stable actionability wait — the app's
+    // form controls are styled/validated in ways that make Playwright's default
+    // actionability hang in the CI Chromium. We assert real outcomes elsewhere.
+    fill: async (name, value) => {
+      log(`  fill ${name}`);
+      await page
+        .locator(sel(name))
+        .first()
+        .fill(value, { force: true, timeout: T });
+    },
+    goto: async (path) => {
+      log(`  goto ${path}`);
+      await page.goto(path, { waitUntil: "domcontentloaded" });
+      await logWhere("goto");
+    },
+    page,
+    screenshot: (label) => dumpPage(label),
+    select: async (name, value) => {
+      log(`  select ${name}=${value}`);
+      await page
+        .locator(sel(name))
+        .first()
+        .selectOption(value, { force: true, timeout: T });
+    },
     stop: async () => {
       await browser.close();
     },
+    submitLocator: (locator) => robustSubmit(locator),
   };
 };
 
