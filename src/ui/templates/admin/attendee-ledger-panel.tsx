@@ -98,6 +98,9 @@ const PaymentLink = ({ link }: { link: string }): JSX.Element => (
       <p>
         <input class="copyable" readonly type="text" value={link} />
       </p>
+      {/* Only quantity > 0 lines are charged, so a mixed booking (some real,
+          some no-quantity lines) collects less than the full balance online. */}
+      <p class="muted small">{t("attendee_balance.quantity_note")}</p>
     </div>
   </article>
 );

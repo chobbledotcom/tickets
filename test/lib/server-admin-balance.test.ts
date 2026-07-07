@@ -83,6 +83,9 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
     expect(html).toContain("<th>Counterparty</th>");
     // The signed customer link points at the public pay page.
     expect(html).toContain("/pay/bal1.");
+    // When the link IS shown, the owner is told only quantity > 0 lines are
+    // charged, so the mixed case (some real, some no-quantity lines) is clear.
+    expect(html).toContain("Only items with a quantity");
     // The history section is just a pointer to the Activity tab (no log list).
     expect(html).toContain(
       "See the full plain-English log on the Activity tab",

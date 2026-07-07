@@ -25,6 +25,7 @@ import {
 } from "#shared/payments.ts";
 import {
   balanceInvalidPage,
+  balanceNoItemsPage,
   balancePaymentPage,
   balanceSettledPage,
 } from "#templates/public/balance.tsx";
@@ -58,8 +59,9 @@ const withOutstanding = async (
   // Publicly payable only when the attendee has ≥1 real (quantity > 0) line to
   // pay into — a no-quantity-only attendee can't be paid into a ghost. (The
   // checkbox save / merge writer already clear such a balance; this guards stale
-  // links and is why the order summary excludes quantity-0 lines.)
-  if (summary.lines.length === 0) return htmlResponse(balanceInvalidPage());
+  // links and is why the order summary excludes quantity-0 lines.) Say so
+  // honestly rather than claiming the link is invalid.
+  if (summary.lines.length === 0) return htmlResponse(balanceNoItemsPage());
   return fn({ amount: state.remainingBalance, attendeeId: payload.a, summary });
 };
 
