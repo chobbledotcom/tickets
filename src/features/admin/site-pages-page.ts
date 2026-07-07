@@ -39,6 +39,7 @@ export const sitePageEntityPage: EntityPage<SitePage> =
     deleteLabelKey: "site.pages.delete_submit",
     editPanel: sitePageEditPanel,
     extraTabs: [itemsTab],
+    guideAnchor: "public-site",
     itemType: "page",
     load: (id) => getSitePageById(id),
     navActive: "/admin/site/pages",

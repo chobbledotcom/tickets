@@ -75,6 +75,16 @@ export const contentEditPanel = (
   </CsrfForm>
 );
 
+/** The "Guide: …" help link shown beside a Site content page's title, jumping
+ * to the given guide section anchor. */
+export const contentGuideLink = (anchor: string): JSX.Element => (
+  <p class="prose guide-link">
+    <a href={`/admin/guide#${anchor}`}>
+      <Raw html={t("common.guide_website_content")} />
+    </a>
+  </p>
+);
+
 /** The pre-filled edit form: heading, error flash, fields, save button. */
 export const EditForm = ({
   action,

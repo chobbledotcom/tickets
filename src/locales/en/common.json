@@ -39,6 +39,7 @@
   "common.slug": "Slug",
   "common.slug_public_hint": "The address of this page under its section. Changing it breaks any existing links to it.",
   "common.public_link": "Public link",
+  "common.guide_website_content": "Guide: pages, news &amp; images",
   "common.quantity": "Quantity",
   "common.close": "Close",
   "common.continue": "Continue",

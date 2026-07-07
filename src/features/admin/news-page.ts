@@ -17,6 +17,7 @@ export const newsPage: EntityPage<NewsPost> = defineSiteContentPage<NewsPost>({
   basePath: (id) => `/admin/site/news/${id}`,
   deleteLabelKey: "news.delete_submit",
   editPanel: newsEditPanel,
+  guideAnchor: "public-site",
   itemType: "news",
   load: (id) => getNewsPostById(id),
   navActive: "/admin/site/news",

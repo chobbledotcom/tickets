@@ -115,6 +115,8 @@ describeWithEnv("server (admin news)", { db: true }, () => {
       expect(html).toContain(
         `Public link: <a href="/news/${post.slug}" rel="noopener" target="_blank">/news/${post.slug}</a>`,
       );
+      // A guide link sits beside the page title.
+      expect(html).toContain('href="/admin/guide#public-site"');
       // The shared tabbed strip carries Edit and Actions (Images is hidden
       // while storage is off — the live panel is covered in the news image
       // routes suite). Delete lives on the Actions tab, not the Edit form.
