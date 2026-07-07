@@ -8,8 +8,11 @@ import {
   modifierListings,
   setModifierAnswers,
 } from "#shared/db/modifiers.ts";
+import {
+  addAnswer,
+  createQuestion,
+} from "#test/shared/db/questions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { addAnswer, createQuestion } from "../questions/helpers.ts";
 
 describeWithEnv("db modifier links", { db: true }, () => {
   describe("setModifierListings / getModifierListingIds", () => {
