@@ -219,6 +219,10 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/csrf.ts:isSignedCsrfToken",
   // Response cookie helper used by auth tests (production sets cookies directly)
   "features/utils.ts:withCookie",
+  // Role guard consumed in production only same-file (by deliveryPage, which
+  // deliveries.ts uses); the scan can't see same-file usage, but the
+  // authorization matrix test asserts it admits exactly its admin levels.
+  "features/auth.ts:requireDeliveryOr",
   // Reset cache registry between tests
   "shared/cache-registry.ts:resetCacheRegistry",
   // Reset cached effective domain between tests
