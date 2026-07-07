@@ -29,6 +29,7 @@ import {
   loadAttendeeForEdit,
   loadContactRecords,
   loadPackagePaths,
+  loadPreviousBookings,
   loadQuestionsForExisting,
 } from "#routes/admin/attendee-page-data.ts";
 import { loadMergePanel } from "#routes/admin/attendees-merge.ts";
@@ -193,6 +194,7 @@ const overviewTab: TabDef<LoadedAttendee> = {
           attendee,
           contactRecords: await loadContactRecords(attendee),
           isOwner: ctx.session.adminLevel === "owner",
+          previousBookings: await loadPreviousBookings(attendee),
         }),
     },
   ],

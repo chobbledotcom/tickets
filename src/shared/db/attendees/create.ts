@@ -157,29 +157,43 @@ const orderContactHashes = (
   return Promise.all(hashes);
 };
 
-/** Apply a visit + source-tagged booking change to every contact on an order.
- * Curried over the per-hash primitives so recording and its exact reverse share
- * one implementation. */
-const applyOrderActivity =
-  (
-    visitFn: (hash: string) => Promise<void>,
-    bookingFn: (hash: string, source: BookingSource) => Promise<void>,
-  ) =>
-  async (email: unknown, phone: unknown, source: BookingSource) => {
+/** Run one per-contact effect against every contact identity on an order, so
+ * recording and its exact reverse share one iteration. */
+const forEachOrderContact =
+  (perContact: (hash: string) => Promise<void>) =>
+  async (email: unknown, phone: unknown): Promise<void> => {
     for (const hash of await orderContactHashes(email, phone)) {
-      await visitFn(hash);
-      await bookingFn(hash, source);
+      await perContact(hash);
     }
   };
 
-const recordOrderActivity = applyOrderActivity(recordVisit, recordBooking);
+/** Record a visit + source-tagged booking (with the attendee's ticket token, so
+ * the contact's encrypted token list gains this booking) for every contact on
+ * an order. */
+const recordOrderActivity = (
+  email: unknown,
+  phone: unknown,
+  source: BookingSource,
+  ticketToken: string,
+): Promise<void> =>
+  forEachOrderContact(async (hash) => {
+    await recordVisit(hash);
+    await recordBooking(hash, source, ticketToken);
+  })(email, phone);
 
-/** Reverse {@link recordOrderActivity} when an order is rolled back after the
- * greedy create already recorded it (partial booking, post-payment refund). */
-export const reverseOrderActivity = applyOrderActivity(
-  unrecordVisit,
-  unrecordBooking,
-);
+/** Reverse {@link recordOrderActivity}'s counts when an order is rolled back
+ * after the greedy create already recorded it (partial booking, post-payment
+ * refund). The token entry is left for the read side to filter — the rolled-back
+ * attendee is deleted, so its token resolves to nothing. */
+export const reverseOrderActivity = (
+  email: unknown,
+  phone: unknown,
+  source: BookingSource,
+): Promise<void> =>
+  forEachOrderContact(async (hash) => {
+    await unrecordVisit(hash);
+    await unrecordBooking(hash, source);
+  })(email, phone);
 
 /** Per-booking success flags and the new attendee row id (always set in
  *  practice — an INSERT returns its rowid). */
@@ -454,7 +468,12 @@ const finishAttendeeWrite = async (
       : [],
   );
   if (successfulBookings.some((b) => b.quantity > 0)) {
-    await recordOrderActivity(contactInfo.email, contactInfo.phone, source);
+    await recordOrderActivity(
+      contactInfo.email,
+      contactInfo.phone,
+      source,
+      enc.ticketToken,
+    );
   }
   return { attendees: successfulBookings, success: true };
 };

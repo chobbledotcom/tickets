@@ -4,9 +4,11 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 import {
+  addBookingToken,
   contactHash,
   forgetContact,
   fromContactHashParam,
+  getBookingTokens,
   getContactCountFields,
   getContactCounts,
   getContactRecord,
@@ -15,9 +17,11 @@ import {
   hashEmail,
   hashPhone,
   isHashUnsubscribed,
+  moveAttendeeContactTokens,
   recordBooking,
   recordContacts,
   recordVisit,
+  removeBookingToken,
   resubscribeHash,
   saveContactRecord,
   toContactHashParam,
@@ -337,9 +341,9 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("bookings@example.com");
     await recordContacts([hash], "Newsletter", pk);
-    await recordBooking(hash, "public");
-    await recordBooking(hash, "public");
-    await recordBooking(hash, "admin");
+    await recordBooking(hash, "public", "tok-pub-1");
+    await recordBooking(hash, "public", "tok-pub-2");
+    await recordBooking(hash, "admin", "tok-adm-1");
 
     const record = await getContactRecord(hash, pk);
     expect(record.publicBookingCount).toBe(2);
@@ -353,16 +357,18 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
   test("recordBooking needs no owner key (plaintext column write)", async () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("keyless@example.com");
-    // No private key is passed — the public checkout/webhook paths rely on this.
-    await recordBooking(hash, "public");
+    // No private key is passed — the public checkout/webhook paths rely on this
+    // (the token is appended with the always-available public key, not the
+    // owner private key).
+    await recordBooking(hash, "public", "tok-keyless");
     expect((await getContactRecord(hash, pk)).publicBookingCount).toBe(1);
   });
 
   test("unrecordBooking reverses a recordBooking and clamps at zero", async () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("undo@example.com");
-    await recordBooking(hash, "public");
-    await recordBooking(hash, "public");
+    await recordBooking(hash, "public", "tok-undo-1");
+    await recordBooking(hash, "public", "tok-undo-2");
     await unrecordBooking(hash, "public");
     expect((await getContactRecord(hash, pk)).publicBookingCount).toBe(1);
     // Decrementing past zero never goes negative.
@@ -382,7 +388,7 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
   test("saveContactRecord overwrites the counts and the encrypted note", async () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("notes@example.com");
-    await recordBooking(hash, "public");
+    await recordBooking(hash, "public", "tok-notes");
     await saveContactRecord(hash, {
       adminBookingCount: 3,
       adminNotes: "**VIP** customer",
@@ -474,5 +480,172 @@ describeWithEnv("contact-preferences: booking seed", { db: true }, () => {
     );
     expect(record.adminBookingCount).toBe(1);
     expect(record.publicBookingCount).toBe(0);
+  });
+});
+
+describeWithEnv("contact-preferences: attendee tokens", { db: true }, () => {
+  test("recordBooking appends the booked token, tagged by source", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("tokens@example.com");
+    await recordBooking(hash, "public", "tok-online");
+    await recordBooking(hash, "admin", "tok-manual");
+    expect(await getBookingTokens(hash, pk)).toEqual([
+      { source: "public", token: "tok-online" },
+      { source: "admin", token: "tok-manual" },
+    ]);
+  });
+
+  test("getBookingTokens is empty for a contact with no bookings", async () => {
+    const pk = await getTestPrivateKey();
+    expect(
+      await getBookingTokens(await hashEmail("nobody@example.com"), pk),
+    ).toEqual([]);
+  });
+
+  test("addBookingToken appends a token without bumping any count", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("readd@example.com");
+    await recordBooking(hash, "public", "tok-first");
+    await addBookingToken(hash, "tok-moved", "admin");
+    expect(await getBookingTokens(hash, pk)).toEqual([
+      { source: "public", token: "tok-first" },
+      { source: "admin", token: "tok-moved" },
+    ]);
+    // Only the recordBooking bumped a count; addBookingToken left them alone.
+    const record = await getContactRecord(hash, pk);
+    expect(record.publicBookingCount).toBe(1);
+    expect(record.adminBookingCount).toBe(0);
+  });
+
+  test("removeBookingToken drops one entry and returns its source", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("remove@example.com");
+    await recordBooking(hash, "public", "tok-keep");
+    await recordBooking(hash, "admin", "tok-drop");
+    expect(await removeBookingToken(hash, "tok-drop", pk)).toBe("admin");
+    expect(await getBookingTokens(hash, pk)).toEqual([
+      { source: "public", token: "tok-keep" },
+    ]);
+  });
+
+  test("removeBookingToken clears the column when the last entry goes", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("last@example.com");
+    await recordBooking(hash, "public", "tok-only");
+    expect(await removeBookingToken(hash, "tok-only", pk)).toBe("public");
+    const row = await queryOne<{ attendee_tokens_blob: string }>(
+      "SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ?",
+      [hash],
+    );
+    expect(row?.attendee_tokens_blob).toBe("");
+  });
+
+  test("removeBookingToken returns null for an unknown token", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("unknown@example.com");
+    await recordBooking(hash, "public", "tok-real");
+    expect(await removeBookingToken(hash, "tok-missing", pk)).toBe(null);
+    // The real entry is untouched.
+    expect(await getBookingTokens(hash, pk)).toEqual([
+      { source: "public", token: "tok-real" },
+    ]);
+  });
+
+  test("removeBookingToken returns null for a contact with no row", async () => {
+    const pk = await getTestPrivateKey();
+    expect(
+      await removeBookingToken(await hashEmail("none@example.com"), "x", pk),
+    ).toBe(null);
+  });
+
+  test("moveAttendeeContactTokens re-homes a changed email, keeping source", async () => {
+    const pk = await getTestPrivateKey();
+    const oldHash = await hashEmail("old@example.com");
+    const newHash = await hashEmail("new@example.com");
+    await recordBooking(oldHash, "admin", "tok-move");
+    await moveAttendeeContactTokens(
+      "tok-move",
+      { email: "old@example.com", phone: "" },
+      { email: "new@example.com", phone: "" },
+      pk,
+    );
+    expect(await getBookingTokens(oldHash, pk)).toEqual([]);
+    expect(await getBookingTokens(newHash, pk)).toEqual([
+      { source: "admin", token: "tok-move" },
+    ]);
+  });
+
+  test("moveAttendeeContactTokens moves a changed phone too", async () => {
+    const pk = await getTestPrivateKey();
+    const oldHash = await hashPhone("07700 900001");
+    const newHash = await hashPhone("07700 900002");
+    await recordBooking(oldHash, "public", "tok-phone");
+    await moveAttendeeContactTokens(
+      "tok-phone",
+      { email: "", phone: "07700 900001" },
+      { email: "", phone: "07700 900002" },
+      pk,
+    );
+    expect(await getBookingTokens(oldHash, pk)).toEqual([]);
+    expect(await getBookingTokens(newHash, pk)).toEqual([
+      { source: "public", token: "tok-phone" },
+    ]);
+  });
+
+  test("moveAttendeeContactTokens leaves an unchanged channel alone", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("same@example.com");
+    await recordBooking(hash, "public", "tok-same");
+    await moveAttendeeContactTokens(
+      "tok-same",
+      { email: "same@example.com", phone: "" },
+      { email: "same@example.com", phone: "" },
+      pk,
+    );
+    expect(await getBookingTokens(hash, pk)).toEqual([
+      { source: "public", token: "tok-same" },
+    ]);
+  });
+
+  test("moveAttendeeContactTokens just drops the link when a field is cleared", async () => {
+    const pk = await getTestPrivateKey();
+    const oldHash = await hashEmail("cleared@example.com");
+    await recordBooking(oldHash, "admin", "tok-clear");
+    await moveAttendeeContactTokens(
+      "tok-clear",
+      { email: "cleared@example.com", phone: "" },
+      { email: "", phone: "" },
+      pk,
+    );
+    expect(await getBookingTokens(oldHash, pk)).toEqual([]);
+  });
+
+  test("moveAttendeeContactTokens is a no-op for a legacy contact with no token", async () => {
+    const pk = await getTestPrivateKey();
+    const newHash = await hashEmail("fresh@example.com");
+    // The old contact predates the feature: no token recorded, nothing to move.
+    await moveAttendeeContactTokens(
+      "tok-legacy",
+      { email: "legacy@example.com", phone: "" },
+      { email: "fresh@example.com", phone: "" },
+      pk,
+    );
+    expect(await getBookingTokens(newHash, pk)).toEqual([]);
+  });
+
+  test("a real create appends the new attendee's ticket token", async () => {
+    const pk = await getTestPrivateKey();
+    const listing = await createTestListing({ maxAttendees: 5, name: "Tok" });
+    const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+    const result = await createAttendeeAtomic({
+      bookings: [{ listingId: listing.id }],
+      email: "real-token@example.com",
+      name: "Real",
+    });
+    expect(result.success).toBe(true);
+    const token = result.success ? result.attendees[0]!.ticket_token : "";
+    expect(
+      await getBookingTokens(await hashEmail("real-token@example.com"), pk),
+    ).toEqual([{ source: "public", token }]);
   });
 });

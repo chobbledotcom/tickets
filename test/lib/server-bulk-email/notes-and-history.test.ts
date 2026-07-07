@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
+import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import {
   getContactRecord,
   hashEmail,
@@ -19,7 +20,10 @@ import {
   getTestPrivateKey,
   useFetchStub,
 } from "#test-utils";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import {
+  buildAttendeeEditForm,
+  createTestAttendeeDirect,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { seedDraft, seedListingWithAttendees, useResend } from "./helpers.ts";
 
@@ -141,8 +145,8 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
 
       // ...and we seed split booking counts plus a private markdown note on each
       // contact record (preserving the counts already recorded for the email).
-      await recordBooking(emailHash, "public");
-      await recordBooking(emailHash, "admin");
+      await recordBooking(emailHash, "public", "tok-bulk-pub");
+      await recordBooking(emailHash, "admin", "tok-bulk-adm");
       await saveContactRecord(emailHash, {
         ...(await getContactRecord(emailHash, pk)),
         adminNotes: "**Email VIP** customer",
@@ -153,15 +157,94 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       });
 
       const after = await attendeePage();
-      // Outreach + per-source booking counts surface for the email contact.
-      expect(after).toContain("Total messages:");
+      // The shared summary lists previous bookings and each channel's messages;
+      // the last-subject recap still surfaces the outreach send.
+      expect(after).toContain("Previous bookings:");
+      expect(after).toContain("Total email messages:");
+      expect(after).toContain("Total phone messages:");
       expect(after).toContain("Newsletter");
-      expect(after).toContain("Online bookings:");
-      expect(after).toContain("Admin bookings:");
       // The private notes render as MARKDOWN (bold), never raw asterisks.
       expect(after).toContain("<strong>Email VIP</strong> customer");
       expect(after).toContain("<strong>Phone VIP</strong> customer");
       expect(after).not.toContain("**Email VIP** customer");
+    });
+
+    test("the Previous bookings table lists other bookings by the same contact", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 9,
+        name: "Repeat",
+      });
+      // Two bookings under one email: the second attendee's page should list the
+      // first as a previous booking, linking through to it.
+      const { attendee: first } = await createTestAttendeeDirect(
+        listing.id,
+        "Repeat One",
+        "repeat@example.com",
+      );
+      const { attendee: second } = await createTestAttendeeDirect(
+        listing.id,
+        "Repeat Two",
+        "repeat@example.com",
+      );
+      // Give the earlier booking a status so its name shows in the table.
+      const status = await attendeeStatuses.table.insert({ name: "Confirmed" });
+      const { updateAttendeeStatus } = await import("#shared/db/attendees.ts");
+      await updateAttendeeStatus(first.id, status.id);
+
+      const html = await (
+        await adminGet(`/admin/attendees/${second.id}`)
+      ).text();
+      // One previous booking on file, its date-cell linking to the other
+      // attendee, its status name and the booked listing named in the items
+      // column.
+      expect(html).toContain("Previous bookings:</strong> 1");
+      expect(html).toContain(`/admin/attendees/${first.id}`);
+      expect(html).toContain("Confirmed");
+      expect(html).toContain("Repeat");
+      // The current attendee never links to itself in its own table.
+      expect(html).not.toContain(`<a href="/admin/attendees/${second.id}">`);
+    });
+
+    test("changing an attendee's email moves its Previous bookings link", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 9,
+        name: "Movable",
+      });
+      // Two attendees share an email, so each is the other's previous booking.
+      const { attendee: anchor } = await createTestAttendeeDirect(
+        listing.id,
+        "Anchor",
+        "shared@example.com",
+      );
+      const { attendee: mover } = await createTestAttendeeDirect(
+        listing.id,
+        "Mover",
+        "shared@example.com",
+      );
+      const anchorPage = async (): Promise<string> =>
+        (await adminGet(`/admin/attendees/${anchor.id}`)).text();
+
+      // The anchor initially sees the mover as a previous booking.
+      expect(await anchorPage()).toContain(`/admin/attendees/${mover.id}`);
+
+      // Move the mover to a different email via the edit form.
+      const form = await buildAttendeeEditForm(mover.id, {
+        email: "moved-away@example.com",
+        name: "Mover",
+      });
+      await adminFormPost(`/admin/attendees/${mover.id}`, form);
+
+      // The mover no longer shows against the shared email...
+      expect(await anchorPage()).not.toContain(`/admin/attendees/${mover.id}`);
+      // ...but does show against its new email's contact (via the new attendee).
+      const { attendee: newContact } = await createTestAttendeeDirect(
+        listing.id,
+        "New Contact",
+        "moved-away@example.com",
+      );
+      expect(
+        await (await adminGet(`/admin/attendees/${newContact.id}`)).text(),
+      ).toContain(`/admin/attendees/${mover.id}`);
     });
   });
 });

@@ -9,6 +9,7 @@
 import { compact } from "#fp";
 import { t } from "#i18n";
 import { targetQuery } from "#shared/bulk-email.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { ContactRecord } from "#shared/db/contact-preferences.ts";
@@ -19,8 +20,10 @@ import type { Attendee } from "#shared/types.ts";
 import { AttendeeNotesSection } from "#templates/admin/attendee-notes.tsx";
 import type { SummaryRow } from "#templates/admin/entity-pages.tsx";
 import { MaybeButtonLink } from "#templates/components/actions.tsx";
+import { dataTable } from "#templates/components/data-table.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
+import { quantityLabel } from "#templates/public/order-summary.tsx";
 
 /** One channel's contact record plus the URL-safe HMAC param that keys its
  * /admin/history editor link. Null when the attendee has no value for that
@@ -31,6 +34,19 @@ export type ContactChannelData = { hashParam: string; record: ContactRecord };
 export type ContactRecordsByChannel = {
   email: ContactChannelData | null;
   phone: ContactChannelData | null;
+};
+
+/** One booked listing on a previous booking (name + how many were taken). */
+export type PreviousBookingItem = { name: string; quantity: number };
+
+/** One row of the Previous bookings table: another booking made by the same
+ * contact (email or phone), resolved from the contact's encrypted token list. */
+export type PreviousBooking = {
+  attendeeId: number;
+  created: string;
+  statusName: string | null;
+  items: PreviousBookingItem[];
+  totalValue: number;
 };
 
 /** Preserve the author's line breaks for multi-line free text. */
@@ -110,8 +126,10 @@ export const attendeeSummaryRows = ({
     },
   ]);
 
-/** Render one channel's contact record: the per-source booking/message counts,
- * the markdown-rendered private note, and an Edit link to its history page. */
+/** Render one channel's outreach detail: the last-contact recap, the
+ * markdown-rendered private note, and an Edit link to its history page. The
+ * booking and message counts are shown once in the shared summary above, so
+ * this panel only carries the per-channel outreach fields. */
 const ContactRecordSection = ({
   channel,
   label,
@@ -124,32 +142,18 @@ const ContactRecordSection = ({
     <section>
       <div class="prose">
         <h4>{label}</h4>
-        <ul>
-          <li>
-            <strong>{t("attendee_form.online_bookings")}:</strong>{" "}
-            {record.publicBookingCount}
-          </li>
-          <li>
-            <strong>{t("attendee_form.admin_bookings")}:</strong>{" "}
-            {record.adminBookingCount}
-          </li>
-          <li>
-            <strong>{t("attendee_form.total_messages")}:</strong>{" "}
-            {record.contactCount}
-          </li>
-          {record.lastContact && (
-            <li>
-              <strong>{t("attendee_form.last_contacted")}:</strong>{" "}
-              {formatDatetimeShort(record.lastContact)}
-            </li>
-          )}
-          {record.lastSubject && (
-            <li>
-              <strong>{t("attendee_form.last_subject")}:</strong>{" "}
-              {record.lastSubject}
-            </li>
-          )}
-        </ul>
+        {record.lastContact && (
+          <p>
+            <strong>{t("attendee_form.last_contacted")}:</strong>{" "}
+            {formatDatetimeShort(record.lastContact)}
+          </p>
+        )}
+        {record.lastSubject && (
+          <p>
+            <strong>{t("attendee_form.last_subject")}:</strong>{" "}
+            {record.lastSubject}
+          </p>
+        )}
       </div>
       {record.adminNotes && (
         <div class="contact-notes">
@@ -165,26 +169,99 @@ const ContactRecordSection = ({
   );
 };
 
-/** Render contact history for each available channel. */
+/** The Previous bookings table: one row per other booking made by this contact,
+ * newest first, each row's date linking through to that attendee. */
+const PreviousBookingsTable = ({
+  bookings,
+}: {
+  bookings: PreviousBooking[];
+}): JSX.Element =>
+  dataTable<PreviousBooking>([
+    {
+      cell: (booking) => (
+        <a href={`/admin/attendees/${booking.attendeeId}`}>
+          {formatDatetimeShort(booking.created)}
+        </a>
+      ),
+      header: t("attendee_form.col_booking_date"),
+    },
+    {
+      cell: (booking) => booking.statusName ?? t("attendee_form.status_none"),
+      header: t("attendee_form.col_status"),
+    },
+    {
+      cell: (booking) =>
+        booking.items
+          .map((item) => quantityLabel(item.quantity, item.name))
+          .join(", "),
+      header: t("attendee_form.col_items"),
+    },
+    {
+      cell: (booking) => formatCurrency(booking.totalValue),
+      class: "amount",
+      header: t("attendee_form.col_value"),
+    },
+  ])(bookings);
+
+/** The shared summary line count above the tables: total previous bookings plus
+ * each channel's message total. */
+const ContactSummary = ({
+  contactRecords,
+  previousBookings,
+}: {
+  contactRecords: ContactRecordsByChannel;
+  previousBookings: PreviousBooking[];
+}): JSX.Element => (
+  <ul>
+    <li>
+      <strong>{t("attendee_form.previous_bookings")}:</strong>{" "}
+      {previousBookings.length}
+    </li>
+    {contactRecords.email && (
+      <li>
+        <strong>{t("attendee_form.total_email_messages")}:</strong>{" "}
+        {contactRecords.email.record.contactCount}
+      </li>
+    )}
+    {contactRecords.phone && (
+      <li>
+        <strong>{t("attendee_form.total_phone_messages")}:</strong>{" "}
+        {contactRecords.phone.record.contactCount}
+      </li>
+    )}
+  </ul>
+);
+
+/** Render contact history: a shared booking/message summary, the Previous
+ * bookings table, and each channel's outreach detail. */
 export const ContactHistory = ({
   attendee,
   contactRecords,
+  previousBookings,
   isOwner,
 }: {
   attendee: Attendee;
   contactRecords: ContactRecordsByChannel;
+  previousBookings: PreviousBooking[];
   isOwner: boolean;
 }): JSX.Element => {
   const hasEmail = Boolean(attendee.email);
   return (
     <article>
-      {/* Heading and any "no X on file" lines are one prose chunk; the record
-          panels (their own sections) follow. */}
+      {/* Heading, "no X on file" lines and the summary counts are one prose
+          chunk; the bookings table and record panels follow. */}
       <div class="prose">
         <h3>{t("attendee_form.contact_history")}</h3>
         {!contactRecords.email && <p>{t("attendee_form.no_email_on_file")}</p>}
         {!contactRecords.phone && <p>{t("attendee_form.no_phone_on_file")}</p>}
+        <ContactSummary
+          contactRecords={contactRecords}
+          previousBookings={previousBookings}
+        />
       </div>
+      {previousBookings.length > 0 && (
+        <PreviousBookingsTable bookings={previousBookings} />
+      )}
       {contactRecords.email && (
         <ContactRecordSection
           channel={contactRecords.email}

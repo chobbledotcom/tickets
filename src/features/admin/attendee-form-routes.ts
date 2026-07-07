@@ -70,6 +70,7 @@ import {
   updateAttendeeStatus,
 } from "#shared/db/attendees.ts";
 import { hasAssignedBuiltSite } from "#shared/db/built-sites.ts";
+import { moveAttendeeContactTokens } from "#shared/db/contact-preferences.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
   type LogisticsAssignment,
@@ -88,6 +89,7 @@ import {
   selectedListingQuantities,
   selectedStartDate,
 } from "#shared/order-select.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
 import {
   AttendeeFormPanel,
@@ -457,6 +459,18 @@ const applyEdit = async (
   // public pay gate would refuse) is cleared to 0 alongside the status write.
   const hasRealLine = desired.some((line) => line.quantity > 0);
   await updateAttendeeStatus(attendeeId, parsed.statusId, !hasRealLine);
+
+  // When the email or phone changed, move this attendee's booked ticket token
+  // from the old contact's encrypted list to the new one, so its Previous
+  // bookings link follows the contact it now belongs to.
+  if (parsed.email !== attendee.email || parsed.phone !== attendee.phone) {
+    await moveAttendeeContactTokens(
+      attendee.ticket_token,
+      { email: attendee.email, phone: attendee.phone },
+      { email: parsed.email, phone: parsed.phone },
+      await requireRequestPrivateKey(),
+    );
+  }
 
   await applyLogisticsPlan(attendeeId, logisticsPlan);
 

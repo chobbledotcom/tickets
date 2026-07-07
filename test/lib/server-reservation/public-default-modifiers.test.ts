@@ -168,7 +168,7 @@ describeWithEnv(
       // This contact already has one genuine public booking + visit on record.
       const emailHash = await hashEmail("buyer@example.com");
       await recordVisit(emailHash);
-      await recordBooking(emailHash, "public");
+      await recordBooking(emailHash, "public", "tok-earlier");
 
       const { listing } = await setupSoldOutModifierRace();
       const response = await submitBuyerOrder(listing);
