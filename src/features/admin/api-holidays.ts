@@ -13,7 +13,7 @@ import {
   type DeleteBody,
   defineCrudApi,
   parseUpdateName,
-  requireString,
+  requireStrings,
 } from "#shared/rest/crud-api.ts";
 import type { Holiday } from "#shared/types.ts";
 
@@ -41,12 +41,9 @@ export const holidayApiRoutes = defineCrudApi<Holiday, HolidayInput>({
   table: holidaysTable,
 
   toCreateInput: (body) => {
-    const name = requireString(body, "name");
-    if (!name) return { error: "name is required", ok: false };
-    const startDate = requireString(body, "start_date");
-    if (!startDate) return { error: "start_date is required", ok: false };
-    const endDate = requireString(body, "end_date");
-    if (!endDate) return { error: "end_date is required", ok: false };
+    const required = requireStrings(body, ["name", "start_date", "end_date"]);
+    if (!required.ok) return required;
+    const { end_date: endDate, name, start_date: startDate } = required.values;
     return { input: { endDate, name, startDate }, ok: true };
   },
 

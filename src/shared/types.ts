@@ -17,6 +17,7 @@ import type {
   ModifierScope,
   ModifierTrigger,
 } from "#shared/price-modifier.ts";
+import { guardFor } from "#shared/validation/guard.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 
 /** Type guard: a non-null, non-array object (a Record shape). */
@@ -53,8 +54,7 @@ export const SuperuserChoiceSchema = v.picklist([
 
 export type SuperuserChoice = v.InferOutput<typeof SuperuserChoiceSchema>;
 
-export const isSuperuserChoice = (s: string): s is SuperuserChoice =>
-  v.is(SuperuserChoiceSchema, s);
+export const isSuperuserChoice = guardFor(SuperuserChoiceSchema);
 
 /** Schema for an individual contact field name */
 export const ContactFieldSchema = v.picklist([
@@ -71,8 +71,7 @@ export type ContactField = v.InferOutput<typeof ContactFieldSchema>;
 export const CONTACT_FIELDS = ContactFieldSchema.options;
 
 /** Type guard: check if an arbitrary string is a valid ContactField */
-export const isContactField = (s: string): s is ContactField =>
-  v.is(ContactFieldSchema, s);
+export const isContactField = guardFor(ContactFieldSchema);
 
 /**
  * Contact fields setting for an listing (comma-separated ContactField names, or empty for name-only).
@@ -103,8 +102,7 @@ export const PaymentProviderSchema = v.picklist(["stripe", "square", "sumup"]);
 export type PaymentProviderType = v.InferOutput<typeof PaymentProviderSchema>;
 
 /** Type guard: check if a string is a valid PaymentProviderType */
-export const isPaymentProvider = (s: string): s is PaymentProviderType =>
-  v.is(PaymentProviderSchema, s);
+export const isPaymentProvider = guardFor(PaymentProviderSchema);
 
 /** Persisted payment-provider setting: an explicit provider, "none" (admin saved
  *  payments-disabled), or absent (never saved — drives the settings nag). */
@@ -118,9 +116,7 @@ export type PaymentProviderSetting = v.InferOutput<
 >;
 
 /** Type guard: check if a string is a valid PaymentProviderSetting */
-export const isPaymentProviderSetting = (
-  s: string,
-): s is PaymentProviderSetting => v.is(PaymentProviderSettingSchema, s);
+export const isPaymentProviderSetting = guardFor(PaymentProviderSettingSchema);
 
 /** Schema for a listing type: standard (one-time) or daily (date-based booking) */
 export const ListingTypeSchema = v.picklist(["standard", "daily"]);
@@ -129,8 +125,7 @@ export const ListingTypeSchema = v.picklist(["standard", "daily"]);
 export type ListingType = v.InferOutput<typeof ListingTypeSchema>;
 
 /** Type guard: check if an arbitrary string is a valid ListingType */
-export const isListingType = (s: string): s is ListingType =>
-  v.is(ListingTypeSchema, s);
+export const isListingType = guardFor(ListingTypeSchema);
 
 /** Schema for the persisted email template types: the attendee confirmation and
  *  the admin notification. The single source of truth for the template
@@ -141,8 +136,7 @@ export const EmailTemplateTypeSchema = v.picklist(["confirmation", "admin"]);
 export type EmailTemplateType = v.InferOutput<typeof EmailTemplateTypeSchema>;
 
 /** Type guard: check if a string is a valid EmailTemplateType */
-export const isEmailTemplateType = (s: string): s is EmailTemplateType =>
-  v.is(EmailTemplateTypeSchema, s);
+export const isEmailTemplateType = guardFor(EmailTemplateTypeSchema);
 
 /** Schema for the parts of an email template: the subject line, the html
  *  body, and the plain-text body. */
@@ -158,8 +152,7 @@ export type EmailTemplateFormat = v.InferOutput<
 >;
 
 /** Type guard: check if a string is a valid EmailTemplateFormat */
-export const isEmailTemplateFormat = (s: string): s is EmailTemplateFormat =>
-  v.is(EmailTemplateFormatSchema, s);
+export const isEmailTemplateFormat = guardFor(EmailTemplateFormatSchema);
 
 /** Whether an listing can accept payments: a flat price, pay-what-you-want, or
  * a customisable-days listing with at least one non-zero day-count price. */
@@ -600,8 +593,7 @@ export const isContentRole = roleIn(CONTENT_ADMIN_LEVELS);
 export const isSiteRole = roleIn(SITE_ADMIN_LEVELS);
 
 /** Type guard: check if a string is a valid AdminLevel */
-export const isAdminLevel = (s: string): s is AdminLevel =>
-  v.is(AdminLevelSchema, s);
+export const isAdminLevel = guardFor(AdminLevelSchema);
 
 /** Session data needed by admin page templates */
 export type AdminSession = {
@@ -688,8 +680,7 @@ export const ImageUseItemTypeSchema = v.picklist([
 
 export type ImageUseItemType = v.InferOutput<typeof ImageUseItemTypeSchema>;
 
-export const isImageUseItemType = (s: string): s is ImageUseItemType =>
-  v.is(ImageUseItemTypeSchema, s);
+export const isImageUseItemType = guardFor(ImageUseItemTypeSchema);
 
 export interface ImageUse {
   image_id: number;
@@ -706,8 +697,7 @@ export const SitePageItemTypeSchema = v.picklist(["listing", "group", "page"]);
 export type SitePageItemType = v.InferOutput<typeof SitePageItemTypeSchema>;
 
 /** Type guard: is this string a valid {@link SitePageItemType}? */
-export const isSitePageItemType = (s: string): s is SitePageItemType =>
-  v.is(SitePageItemTypeSchema, s);
+export const isSitePageItemType = guardFor(SitePageItemTypeSchema);
 
 /** A user-created content page. All free-text columns are stored encrypted;
  * `slug_index` is the plaintext HMAC blind index, `sort_order` positions the
@@ -726,12 +716,10 @@ export interface SitePage {
 /** The narrow projection used to build the public nav: enough to render a link
  * and order it, without decrypting the large `content`/`meta_*` blobs on every
  * public request (cold-start efficiency). */
-export interface SitePageNavRow {
-  id: number;
-  slug: string;
-  name: string;
-  sort_order: number;
-}
+export type SitePageNavRow = Pick<
+  SitePage,
+  "id" | "slug" | "name" | "sort_order"
+>;
 
 /** One ordered membership edge: `item` (of `item_type`) sits inside `page_id`
  * at `sort_order`. Keyed on the composite `(page_id, item_type, item_id)`. */
@@ -762,13 +750,10 @@ export interface NewsPost {
 /** The narrow list projection — id, created, slug, name, snippet — for readers
  * that render no images (the RSS feed, the admin list). Never the large
  * `content`/`meta_*` blobs (cold-start efficiency, like {@link SitePageNavRow}). */
-export interface NewsPostSummary {
-  id: number;
-  created: string;
-  slug: string;
-  name: string;
-  snippet: string;
-}
+export type NewsPostSummary = Pick<
+  NewsPost,
+  "id" | "created" | "slug" | "name" | "snippet"
+>;
 
 /** The public /news list projection: a summary plus the post's first image
  * (the shared {@link ItemImageProjection} columns). */

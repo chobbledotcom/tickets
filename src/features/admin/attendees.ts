@@ -88,7 +88,7 @@ const handleAttendeeDelete = verifiedAttendeeAction(
       `Attendee deleted from '${data.listing.name}'`,
       t("success.attendee_deleted"),
       { form },
-      form.get("release_bookings") === "1",
+      form.getFlag("release_bookings"),
     ),
 );
 

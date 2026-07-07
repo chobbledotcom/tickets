@@ -12,6 +12,7 @@ import { settings } from "#shared/db/settings.ts";
 import { logDebug } from "#shared/logger.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
+import { guardFor } from "#shared/validation/guard.ts";
 
 /** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
 export const paymentsApi = {
@@ -66,17 +67,38 @@ export type ModifierSpec = {
  * standalone line.
  */
 /** One signed booking line, schema-first: `e` listing id, `q` quantity, `p`
- * signed unit price, and the optional edge tag (`k` code + `r` group id) the
- * webhook's nodeKey revalidation reconstructs. The writer (signedEdgeFor) and
- * every reader parse against THIS schema, so a drifted or tampered blob is a
- * loud parse failure — never a silently-wrong nodeKey. */
-export const BookingItemSchema = v.object({
-  e: v.pipe(v.number(), v.integer(), v.minValue(1)),
-  k: v.optional(v.union([v.literal("p"), v.literal("g")])),
-  p: v.pipe(v.number(), v.finite()),
-  q: v.pipe(v.number(), v.integer(), v.minValue(0)),
-  r: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1))),
-});
+ * signed line total in minor units, and the optional edge tag (`k` code + `r`
+ * group id) the webhook's nodeKey revalidation reconstructs. The writer
+ * (signedEdgeFor) and every reader parse against THIS schema, so a drifted or
+ * tampered blob is a loud parse failure — never a silently-wrong nodeKey.
+ *
+ * `p` is an integer: it is `unitPrice * quantity`, both integer minor units, so
+ * a fractional value is corruption. `q` is a non-negative integer — a signed
+ * line may deliberately carry quantity 0 (an admin no-quantity sentinel or a
+ * refunded/deleted-listing placeholder), which downstream preserves rather than
+ * coercing to 1 and the success page then rejects as having no live ticket; see
+ * extractIntent. The edge tag is a pair — `k` and `r` are both present (a
+ * package/group member) or both absent (a standalone line); a half-present tag
+ * would let the reader fall back to a standalone nodeKey instead of failing
+ * loud, so the schema rejects it. This schema is internal: production always
+ * parses the array form (a single line is an array of one), so only
+ * {@link BookingItemsSchema} and the {@link BookingItem} type are exported. */
+/** A positive integer (≥ 1): a listing id or a group id. */
+const positiveInt = v.pipe(v.number(), v.integer(), v.minValue(1));
+
+const BookingItemSchema = v.pipe(
+  v.object({
+    e: positiveInt,
+    k: v.optional(v.union([v.literal("p"), v.literal("g")])),
+    p: v.pipe(v.number(), v.integer()),
+    q: v.pipe(v.number(), v.integer(), v.minValue(0)),
+    r: v.optional(positiveInt),
+  }),
+  v.check(
+    (item) => (item.k === undefined) === (item.r === undefined),
+    "edge tag k and r must both be present or both absent",
+  ),
+);
 
 export const BookingItemsSchema = v.pipe(
   v.array(BookingItemSchema),
@@ -235,8 +257,7 @@ export const PaymentStatusSchema = v.picklist([
 export type PaymentStatus = v.InferOutput<typeof PaymentStatusSchema>;
 
 /** Type guard: check if a string is a valid PaymentStatus */
-export const isPaymentStatus = (s: string): s is PaymentStatus =>
-  v.is(PaymentStatusSchema, s);
+export const isPaymentStatus = guardFor(PaymentStatusSchema);
 
 /** A validated payment session returned after checkout completion */
 export type ValidatedPaymentSession = {

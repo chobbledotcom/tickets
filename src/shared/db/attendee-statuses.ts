@@ -10,8 +10,8 @@
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { execute, executeBatch, queryAll } from "#shared/db/client.ts";
-import { queryAndMap, swapSortOrder } from "#shared/db/query.ts";
-import { cachedTable, col, defineTable } from "#shared/db/table.ts";
+import { swapSortOrder } from "#shared/db/query.ts";
+import { col, defineCachedListTable } from "#shared/db/table.ts";
 
 /** Name of the status seeded on first run so there is always at least one. */
 export const DEFAULT_ATTENDEE_STATUS_NAME = "Confirmed";
@@ -37,11 +37,11 @@ export type AttendeeStatusInput = {
   reservationAmount?: string;
 };
 
-const rawAttendeeStatusesTable = defineTable<
-  AttendeeStatus,
-  AttendeeStatusInput
->({
+/** Cached attendee_statuses table — only `name` is encrypted; writes
+ * auto-invalidate the cache. */
+const statuses = defineCachedListTable<AttendeeStatus, AttendeeStatusInput>({
   name: "attendee_statuses",
+  orderBy: "sort_order ASC, id ASC",
   primaryKey: "id",
   schema: {
     id: col.generated<number>(),
@@ -54,37 +54,23 @@ const rawAttendeeStatusesTable = defineTable<
   },
 });
 
-/** Execute a query and decrypt the resulting status rows. */
-const queryStatuses = queryAndMap<AttendeeStatus, AttendeeStatus>((row) =>
-  rawAttendeeStatusesTable.fromDb(row),
-);
-
-const statusesCache = cachedTable({
-  fetchAll: () =>
-    queryStatuses(
-      "SELECT * FROM attendee_statuses ORDER BY sort_order ASC, id ASC",
-    ),
-  name: "attendee_statuses",
-  table: rawAttendeeStatusesTable,
-});
-
 /** Attendee statuses table — writes auto-invalidate the cache. */
-export const attendeeStatusesTable = statusesCache.table;
+export const attendeeStatusesTable = statuses.table;
 
 /** Invalidate the statuses cache (for testing or after writes). */
 export const invalidateAttendeeStatusesCache = (): void => {
-  statusesCache.invalidate();
+  statuses.invalidate();
 };
 
 /** Get all statuses, decrypted, ordered by sort_order then id (from cache). */
 export const getAllAttendeeStatuses = (): Promise<AttendeeStatus[]> =>
-  statusesCache.getAll();
+  statuses.getAll();
 
 /** Find the first cached status matching a predicate (decrypted), or null. */
 const findStatus = async (
   pred: (s: AttendeeStatus) => boolean,
 ): Promise<AttendeeStatus | null> => {
-  const all = await statusesCache.getAll();
+  const all = await statuses.getAll();
   return all.find(pred) ?? null;
 };
 

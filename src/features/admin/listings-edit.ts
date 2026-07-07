@@ -112,8 +112,8 @@ const formToDimensionSource = (form: FormParams) => ({
   listing_type: isListingType(form.getString("listing_type"))
     ? (form.getString("listing_type") as "standard" | "daily")
     : ("standard" as const),
-  purchase_only: form.getString("purchase_only") === "1",
-  uses_logistics: form.getString("uses_logistics") === "1",
+  purchase_only: form.getFlag("purchase_only"),
+  uses_logistics: form.getFlag("uses_logistics"),
 });
 
 /**
@@ -185,7 +185,7 @@ const renderCreateListingError = async (
   const groups = await getAllGroups();
   return htmlResponse(
     adminListingNewPage(groups, session, {
-      customiseOpen: form.getString("customise") === "1",
+      customiseOpen: form.getFlag("customise"),
       error,
       // The group checkboxes the operator submitted, so a rejected create
       // re-renders their selection rather than dropping every group.

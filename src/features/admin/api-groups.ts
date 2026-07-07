@@ -34,6 +34,7 @@ import {
   parseOptionalArray,
   parseUpdateName,
   parseUpdateSlug,
+  requireStrings,
 } from "#shared/rest/crud-api.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import type { DayPrices, Group, GroupListing } from "#shared/types.ts";
@@ -240,8 +241,9 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
   table: groupsTable,
 
   toCreateInput: async (body) => {
-    const name = typeof body.name === "string" ? body.name.trim() : "";
-    if (!name) return { error: "name is required", ok: false };
+    const required = requireStrings(body, ["name"]);
+    if (!required.ok) return required;
+    const { name } = required.values;
 
     // A brand-new group has no `group_listings` rows yet, so member overrides
     // have nothing to attach to — `setGroupPackageMembers` would silently drop

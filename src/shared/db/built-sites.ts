@@ -17,6 +17,7 @@ import {
 import type { ColumnDef, Table, TableSchema } from "#shared/db/table.ts";
 import { cachedTable, col, defineTable } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
+import { guardFor } from "#shared/validation/guard.ts";
 /* jscpd:ignore-end */
 
 /**
@@ -36,8 +37,7 @@ export type UpdateTier = v.InferOutput<typeof UpdateTierSchema>;
 export const DEFAULT_UPDATE_TIER: UpdateTier = "release";
 
 /** Narrow an arbitrary string to an {@link UpdateTier}. */
-export const isUpdateTier = (value: string): value is UpdateTier =>
-  v.is(UpdateTierSchema, value);
+export const isUpdateTier = guardFor(UpdateTierSchema);
 
 /**
  * True when a site on `siteTier` should receive a deploy published at

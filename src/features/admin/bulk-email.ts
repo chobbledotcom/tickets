@@ -256,7 +256,7 @@ const validateFormBody = async (
   }
   const validation = validateDraftInput({
     body: form.getString("body"),
-    marketing: form.get("marketing") === "1",
+    marketing: form.getFlag("marketing"),
     subject: form.getString("subject"),
     target,
   });
@@ -394,7 +394,7 @@ const handleTemplateSavePost = (request: Request): Promise<Response> =>
     const { subject, body, target } = result;
     const encSubject = await encryptWithOwnerKey(subject, settings.publicKey);
     const encBody = await encryptWithOwnerKey(body, settings.publicKey);
-    const updateExisting = form.get("update_existing") === "1";
+    const updateExisting = form.getFlag("update_existing");
     const templateIdParam = form.get("template_id");
     const templateId = templateIdParam
       ? parsePositiveIntId(templateIdParam)

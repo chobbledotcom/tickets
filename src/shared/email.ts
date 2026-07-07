@@ -26,6 +26,7 @@ import {
   parseEmail,
   type ValidEmail,
 } from "#shared/validation/email.ts";
+import { guardFor } from "#shared/validation/guard.ts";
 import type { WebhookAttendee, WebhookListing } from "#shared/webhook.ts";
 
 /** Listing data needed for registration pipeline (extends webhook listing with display + assignment fields) */
@@ -252,8 +253,7 @@ export const EmailProviderSchema = v.picklist(
 export const VALID_EMAIL_PROVIDERS = EmailProviderSchema.options;
 
 /** Type guard: checks if a string is a valid EmailProvider */
-export const isEmailProvider = (value: string): value is EmailProvider =>
-  v.is(EmailProviderSchema, value);
+export const isEmailProvider = guardFor(EmailProviderSchema);
 
 /** Display labels for email providers — keys must match EmailProvider */
 export const EMAIL_PROVIDER_LABELS: Record<EmailProvider, string> = {

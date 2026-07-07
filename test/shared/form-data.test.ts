@@ -24,6 +24,20 @@ describe("FormParams.getString", () => {
   });
 });
 
+describe("FormParams.getFlag", () => {
+  test('is true only when the value is exactly "1"', () => {
+    const form = new FormParams({ off: "0", on: "1", other: "true" });
+    expect(form.getFlag("on")).toBe(true);
+    expect(form.getFlag("off")).toBe(false);
+    expect(form.getFlag("other")).toBe(false);
+  });
+
+  test("is false when the key is absent", () => {
+    const form = new FormParams();
+    expect(form.getFlag("missing")).toBe(false);
+  });
+});
+
 describe("FormParams.getOptionalInt", () => {
   test("parses trimmed non-negative decimal integers", () => {
     const form = new FormParams({ blank: "", count: " 12 ", zero: "0" });
