@@ -22,6 +22,7 @@ import { getAttendeeActivityLog } from "#shared/db/activityLog.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import {
+  type AttendeeWithBookings,
   checkLinesCapacity,
   type ExistingLine,
   getAttendeesByTokens,
@@ -632,38 +633,45 @@ const contactHashesFor = async (attendee: Attendee): Promise<string[]> =>
     ]),
   );
 
-/** Build one Previous bookings row from a resolved attendee: its date, status,
- * booked items and total order value. */
-const previousBookingRow = async (
-  booked: { id: number; created: string; status_id: number | null },
+/** Build one Previous bookings row from a resolved attendee and its already-
+ * loaded bookings: its date, status, booked items and total order value. Pure —
+ * it reads the bookings getAttendeesByTokens returned plus the two shared name
+ * maps, so it adds no per-row query. */
+const previousBookingRow = (
+  booked: AttendeeWithBookings,
   statusNameById: Map<number, string>,
-): Promise<PreviousBooking> => {
-  const summary = await getAttendeeOrderSummary(booked.id);
+  listingNameById: Map<number, string>,
+): PreviousBooking => {
+  // Real (quantity > 0) lines only — a no-quantity sentinel is not a booked
+  // item, mirroring the order summary.
+  const lines = booked.bookings.filter((line) => line.quantity > 0);
   return {
     attendeeId: booked.id,
     created: booked.created,
-    items: summary.lines.map((line) => ({
-      name: line.name,
+    // A live booking's listing always exists — deleteListing prunes its
+    // bookings too — so the name lookup always hits.
+    items: lines.map((line) => ({
+      name: listingNameById.get(line.listing_id)!,
       quantity: line.quantity,
     })),
     // A null status_id (no status) and a since-deleted status both resolve to
     // no name; -1 never matches a real status id, so one lookup covers both.
     statusName: statusNameById.get(booked.status_id ?? -1) ?? null,
-    totalValue: summary.fullPrice,
+    // Order value = paid on these lines + what's still outstanding, matching the
+    // order summary's fullPrice (depositPaid + remainingBalance).
+    totalValue:
+      lines.reduce((sum, line) => sum + line.price_paid, 0) +
+      booked.remaining_balance,
   };
 };
 
-/** Cap on the Previous bookings table: each row costs its own order-summary
- * reads, so a repeat contact with a long history can't turn one attendee page
- * into an unbounded number of edge subrequests. Newest first, so the cap keeps
- * the most recent bookings. */
-const PREVIOUS_BOOKINGS_LIMIT = 20;
-
 /** Load the other bookings this contact (email and/or phone) has made, resolved
  * from its encrypted ticket-token list — newest first, this attendee's own
- * booking excluded, capped at {@link PREVIOUS_BOOKINGS_LIMIT}. Empty when no
+ * booking excluded. Each row's items and total come from the bookings already
+ * loaded by getAttendeesByTokens plus the cached listings, so the table costs a
+ * bounded handful of reads however long the contact's history is. Empty when no
  * contact value is on file, no linked tokens remain, or every linked attendee
- * has since been deleted. */
+ * has since been deleted or emptied of real lines. */
 export const loadPreviousBookings = async (
   attendee: Attendee,
 ): Promise<PreviousBooking[]> => {
@@ -679,18 +687,22 @@ export const loadPreviousBookings = async (
     (token) => token !== attendee.ticket_token,
   );
   if (tokens.length === 0) return [];
-  // Sort the resolved attendees newest first (created sorts lexically), then
-  // cap BEFORE the per-row summaries so the number of summary reads is bounded.
-  const recent = compact(await getAttendeesByTokens(tokens))
-    .sort((left, right) => right.created.localeCompare(left.created))
-    .slice(0, PREVIOUS_BOOKINGS_LIMIT);
-  const statusNameById = new Map(
-    (await attendeeStatuses.getAll()).map((status) => [status.id, status.name]),
+  const [resolved, statuses, listings] = await Promise.all([
+    getAttendeesByTokens(tokens),
+    attendeeStatuses.getAll(),
+    getAllListings(),
+  ]);
+  const statusNameById = new Map(statuses.map((s) => [s.id, s.name]));
+  const listingNameById = new Map(listings.map((l) => [l.id, l.name]));
+  return (
+    compact(resolved)
+      .map((booked) =>
+        previousBookingRow(booked, statusNameById, listingNameById),
+      )
+      // Drop a booking edited down to no real lines — it no longer represents a
+      // booked ticket, so it neither counts nor renders.
+      .filter((row) => row.items.length > 0)
+      // created is a sortable timestamp string; lexical compare = newest first.
+      .sort((left, right) => right.created.localeCompare(left.created))
   );
-  const rows = await Promise.all(
-    recent.map((booked) => previousBookingRow(booked, statusNameById)),
-  );
-  // Drop a booking that has since been edited down to no real lines — it no
-  // longer represents a booked ticket, so it neither counts nor renders.
-  return rows.filter((row) => row.items.length > 0);
 };
