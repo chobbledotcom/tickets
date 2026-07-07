@@ -50,7 +50,10 @@ export const adminCatalogImportPage = (
         </SubmitButton>
       </CsrfForm>
 
-      <GuideFooter href="/admin/guide#import-export">
+      <GuideFooter
+        adminLevel={session.adminLevel}
+        href="/admin/guide#import-export"
+      >
         {t("catalog_transfer.guide_link")}
       </GuideFooter>
     </>,
