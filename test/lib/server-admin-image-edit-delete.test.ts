@@ -28,7 +28,6 @@ import {
   imageNamesForItem,
   makeImage,
 } from "#test-utils/admin-images.ts";
-import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 describeWithEnv(
   "admin image edit and delete routes",
@@ -230,8 +229,6 @@ describeWithEnv(
     });
 
     describe("POST /admin/images/:id/delete", () => {
-      const errors = setupErrorSpy();
-
       test("redirects away from delete confirmation when storage is disabled", async () => {
         const image = await makeImage("Disabled delete");
 

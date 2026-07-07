@@ -81,21 +81,14 @@ export const createItemImageHandlers = <T>(
   upload: RouteHandlerFn;
 } => ({
   set: (request, { id }) =>
-    withAuth(
-      request,
-      config.auth?.form ?? CONTENT_FORM,
-      (_session, form) =>
-        withStorageBackedItem(id, config, async (item, itemId) => {
-          await setImagesForItem(
-            config.itemType,
-            itemId,
-            selectedImageIds(form),
-          );
-          await logActivity(
-            `Images updated for ${config.itemType} '${config.nameOf(item)}'`,
-          );
-          return redirect(config.path(itemId), t("images.item.saved"), true);
-        }),
+    withAuth(request, config.auth?.form ?? CONTENT_FORM, (_session, form) =>
+      withStorageBackedItem(id, config, async (item, itemId) => {
+        await setImagesForItem(config.itemType, itemId, selectedImageIds(form));
+        await logActivity(
+          `Images updated for ${config.itemType} '${config.nameOf(item)}'`,
+        );
+        return redirect(config.path(itemId), t("images.item.saved"), true);
+      }),
     ),
   upload: (request, { id }) =>
     withAuth(
@@ -110,11 +103,9 @@ export const createItemImageHandlers = <T>(
               itemType: config.itemType,
             });
             await logActivity(
-              `Image '${image.name}' uploaded for ${config.itemType} '${
-                config.nameOf(
-                  item,
-                )
-              }'`,
+              `Image '${image.name}' uploaded for ${config.itemType} '${config.nameOf(
+                item,
+              )}'`,
             );
             return redirect(itemPath, t("images.item.uploaded"), true);
           });
