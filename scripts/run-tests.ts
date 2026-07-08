@@ -6,8 +6,8 @@
  * harness once the run completes.
  */
 
-import { join } from "node:path";
 import { projectRoot } from "./project-root.ts";
+import { COVERAGE_DIR } from "./test-coverage.ts";
 import { JUNIT_PATH, readSlowTestsReport } from "./test-durations.ts";
 import { runTests, withTestHarness } from "./test-harness.ts";
 
@@ -136,7 +136,12 @@ const checkRecord = (record: string): CoverageFailure | undefined => {
     "BRF",
     extractUncoveredBranchLines(record),
   );
-  return lines || branches ? { ...source, branches, lines } : undefined;
+  if (!lines && !branches) return undefined;
+  return {
+    ...source,
+    ...(branches ? { branches } : {}),
+    ...(lines ? { lines } : {}),
+  };
 };
 
 /** Parse lcov records and return coverage failures */
@@ -290,10 +295,9 @@ const reportCoverageFailures = async (
 /** Run coverage check: print table, parse lcov, enforce 100% */
 const checkCoverage = async (): Promise<void> => {
   console.log("\nChecking coverage...");
-  const coverageDir = join(projectRoot, "coverage");
 
   const tableCmd = new Deno.Command(Deno.execPath(), {
-    args: ["coverage", coverageDir],
+    args: ["coverage", COVERAGE_DIR],
     cwd: projectRoot,
     stderr: "inherit",
     stdin: "inherit",
@@ -302,7 +306,7 @@ const checkCoverage = async (): Promise<void> => {
   await tableCmd.output();
 
   const lcovCmd = new Deno.Command(Deno.execPath(), {
-    args: ["coverage", coverageDir, "--lcov"],
+    args: ["coverage", COVERAGE_DIR, "--lcov"],
     cwd: projectRoot,
     stderr: "inherit",
     stdout: "piped",
