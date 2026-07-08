@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  anyPackageBundleMismatch,
   expectedItemPrice,
   type PackagePricing,
   packageBundleMismatch,
@@ -205,5 +206,75 @@ describe("packageBundleMismatch (order-level revalidation)", () => {
       quantityMap: new Map([[1, 1]]),
     };
     expect(packageBundleMismatch(solo, [item(1, 0)])).toBe(true);
+  });
+});
+
+describe("anyPackageBundleMismatch (multi-group revalidation)", () => {
+  // Group 10 bundles members 1 & 2 (one each per package); group 20 bundles
+  // member 3. Each group is revalidated against only its own tagged lines.
+  const groupA: PackagePricing = {
+    dayPriceMap: new Map(),
+    memberIds: new Set([1, 2]),
+    priceMap: new Map(),
+    quantityMap: new Map([
+      [1, 1],
+      [2, 1],
+    ]),
+  };
+  const groupB: PackagePricing = {
+    dayPriceMap: new Map(),
+    memberIds: new Set([3]),
+    priceMap: new Map(),
+    quantityMap: new Map([[3, 1]]),
+  };
+  /** A signed line tagged as a package member of `groupId` (k:"p", r:groupId),
+   *  which is how lineGroupId assigns a line to its group. */
+  const line = (e: number, groupId: number, q = 1) =>
+    ({ e, k: "p", p: 0, q, r: groupId }) as const;
+
+  test("no packages means nothing can have drifted", () => {
+    expect(anyPackageBundleMismatch(new Map(), [])).toBe(false);
+  });
+
+  test("a single group whose lines still match is not a mismatch", () => {
+    expect(
+      anyPackageBundleMismatch(new Map([[10, groupA]]), [
+        line(1, 10),
+        line(2, 10),
+      ]),
+    ).toBe(false);
+  });
+
+  test("a single group missing a member is a mismatch", () => {
+    expect(
+      anyPackageBundleMismatch(new Map([[10, groupA]]), [line(1, 10)]),
+    ).toBe(true);
+  });
+
+  test("one drifted group among several fails the whole order", () => {
+    // Group 10's lines match, but group 20 has no lines at all → mismatch.
+    const pricing = new Map([
+      [10, groupA],
+      [20, groupB],
+    ]);
+    expect(anyPackageBundleMismatch(pricing, [line(1, 10), line(2, 10)])).toBe(
+      true,
+    );
+  });
+
+  test("each group is revalidated against only its OWN tagged lines", () => {
+    // Interleaved lines for both groups; filtered per group, both bundles match,
+    // so mixing another group's lines in must not trip a mismatch.
+    const pricing = new Map([
+      [10, groupA],
+      [20, groupB],
+    ]);
+    expect(
+      anyPackageBundleMismatch(pricing, [
+        line(1, 10),
+        line(2, 10),
+        line(3, 20),
+      ]),
+    ).toBe(false);
   });
 });
