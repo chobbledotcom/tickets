@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { MASK_SENTINEL, settings } from "#shared/db/settings.ts";
+import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   adminFormPost,
   adminGet,

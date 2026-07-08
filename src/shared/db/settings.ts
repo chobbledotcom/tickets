@@ -12,476 +12,98 @@
  *
  *   await settings.update.theme("dark");
  *   await settings.update.headerImageUrl(url);
+ *
+ * This entry file assembles the {@link settings} namespace over the helpers
+ * split across `./settings/`:
+ *   - `settings/cache.ts`        — raw-row cache + version stamp
+ *   - `settings/snapshot.ts`    — in-memory snapshot + `snap`/test overrides
+ *   - `settings/raw-writes.ts`   — DB writers + encrypted/plaintext factories
+ *   - `settings/accessors.ts`    — generated string getter/writer pairs
+ *   - `settings/apply.ts`        — per-key snapshot appliers + key lists
+ *   - `settings/load.ts`         — `loadKeys` + `invalidateCache`
+ *   - `settings/setup.ts`        — setup-complete gate + initial site ceremony
+ *   - `settings/password.ts`     — owner password re-wrap
+ *   - `settings/current-task.ts` — single-flight `current_task` lock
+ *   - `settings/mask.ts`         — `MASK_SENTINEL`/`isMaskSentinel`
+ *   - `settings/constants.ts`   — `MAX_*_LENGTH` limits + `keyModeOf`
  */
 
-import { lazyRef, unique } from "#fp";
+import type { AddressLookupSetting } from "#shared/address-lookup/types.ts";
+import { isAddressLookupSetting } from "#shared/address-lookup/types.ts";
+import { encrypt } from "#shared/crypto/encryption.ts";
 import {
-  type AddressLookupSetting,
-  isAddressLookupSetting,
-} from "#shared/address-lookup/types.ts";
+  boolUpdate,
+  rawUpdate,
+  stringAccessors,
+  timestampUpdate,
+} from "#shared/db/settings/accessors.ts";
 import {
-  registerCache,
-  registerTableInvalidation,
-} from "#shared/cache-registry.ts";
-import { DEFAULT_COUNTRY, getCountry } from "#shared/countries.ts";
-import { decrypt, encrypt, encryptWithKey } from "#shared/crypto/encryption.ts";
-import { hashPassword } from "#shared/crypto/hashing.ts";
+  ALL_SETTINGS_KEYS,
+  SNAPSHOT_KEYS,
+  TEMPLATE_KEYS,
+} from "#shared/db/settings/apply.ts";
 import {
-  deriveKEK,
-  deriveKEKFromPassword,
-  generateDataKey,
-  generateKeyPair,
-  unwrapKey,
-  wrapDataKeyForPassword,
-} from "#shared/crypto/keys.ts";
-import type {
-  EnvKeyEncrypted,
-  KeyEncrypted,
-  OwnerKeyEncrypted,
-  PasswordHash,
-  WrappedKey,
-} from "#shared/crypto/sealed.ts";
+  bumpSettingsVersion,
+  getCacheState,
+  getCurrentSettingsVersion,
+  prefetchVersion,
+} from "#shared/db/settings/cache.ts";
+import { keyModeOf } from "#shared/db/settings/constants.ts";
+import { withCurrentTask } from "#shared/db/settings/current-task.ts";
+import { invalidateCache, loadKeys } from "#shared/db/settings/load.ts";
+import { updateUserPassword } from "#shared/db/settings/password.ts";
 import {
-  execute,
-  executeBatch,
-  executeWithoutCacheInvalidation,
-  queryAll,
-} from "#shared/db/client.ts";
-import { deleteAllSessions } from "#shared/db/sessions.ts";
+  deleteRaw,
+  encryptedUpdate,
+  getRawCached,
+  plaintextUpdate,
+  writeEncrypted,
+  writeOrDelete,
+  writeRaw,
+} from "#shared/db/settings/raw-writes.ts";
 import {
-  recordSettingRead,
-  recordSettingsLoaded,
-} from "#shared/db/settings-audit.ts";
+  clearSetupCompleteCache,
+  completeSetup,
+  isSetupComplete,
+} from "#shared/db/settings/setup.ts";
 import {
-  buildCreateUserStatement,
-  invalidateUsersCache,
-} from "#shared/db/users.ts";
+  clearTestOverrides,
+  data,
+  getTestOverrides,
+  type SettingsData,
+  setSnapshotField,
+  snap,
+} from "#shared/db/settings/snapshot.ts";
 import {
   type ListingDefaults,
   parseListingDefaults,
   serializeListingDefaults,
 } from "#shared/listing-defaults.ts";
-import {
-  DEFAULT_ORPHAN_RETENTION,
-  isOrphanRetentionValue,
-} from "#shared/orphan-retention.ts";
-import { requestCache } from "#shared/request-cache.ts";
-import {
-  type AccessorSpec,
-  CONFIG_KEYS,
-  EMAIL_BODY_KEYS,
-  ENCRYPTED_KEYS,
-  PLAINTEXT_KEYS,
-  PRUNE_KEYS,
-  STRING_ACCESSORS,
-  type StringAccessors,
-  type StringSettingKey,
-} from "#shared/settings/registry.ts";
-import { DEFAULT_TIMEZONE } from "#shared/timezone.ts";
+import { CONFIG_KEYS } from "#shared/settings/keys.ts";
+import { EMAIL_BODY_KEYS, PRUNE_KEYS } from "#shared/settings/registry.ts";
 import type {
   EmailTemplateFormat,
   EmailTemplateType,
   PaymentProviderSetting,
   PaymentProviderType,
-  Settings,
   SuperuserChoice,
   Theme,
 } from "#shared/types.ts";
-import {
-  isPaymentProvider,
-  isPaymentProviderSetting,
-  isSuperuserChoice,
-} from "#shared/types.ts";
+import { isSuperuserChoice } from "#shared/types.ts";
 import { appleWallet } from "#shared/wallets/apple-wallet-settings.ts";
 import { googleWallet } from "#shared/wallets/google-wallet-settings.ts";
-import type { EncryptedUpdateFn } from "#shared/wallets/wallet-settings-types.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
 
-export type { StringSettingKey };
-export { CONFIG_KEYS, EMAIL_BODY_KEYS, PRUNE_KEYS };
-
-export const MASK_SENTINEL = "••••••••••••";
-export const isMaskSentinel = (value: string): boolean =>
-  value === MASK_SENTINEL;
-
-/** Classify an API secret by its `sk_test_` / `sk_live_` prefix (Stripe + SumUp
- * share this convention). Empty or unrecognized keys yield null. */
-const keyModeOf = (key: string): "test" | "live" | null =>
-  key.startsWith("sk_test_")
-    ? "test"
-    : key.startsWith("sk_live_")
-      ? "live"
-      : null;
-
-// ---------------------------------------------------------------------------
-// Raw cache — stores DB rows in memory, validated by a settings version stamp
-// ---------------------------------------------------------------------------
-
-/**
- * Raw-row cache. `values` holds the rows loaded so far (decrypted values still
- * live in the snapshot, not here). `loaded` records which keys have been
- * resolved — present *or* absent in the DB — so a partial `loadKeys` never
- * re-queries a key it has already fetched. `version` is the `settings_version`
- * counter the rows were loaded at; `-1` means never loaded.
- *
- * Freshness is decided by the version stamp, not a wall-clock TTL. Every
- * settings write bumps the shared `settings_version` counter in the DB
- * (`bumpSettingsVersion`), and each request probes that counter once
- * (`prefetchVersion` / the version probe). When the probed counter differs from
- * the cache's stamp, some isolate changed a setting and the cache reloads;
- * otherwise it is served as-is. This makes a change saved on one (warm) edge
- * isolate visible to every other isolate on its very next request — rather than
- * lingering until a TTL lapsed or the isolate restarted — while still skipping
- * the reload (and the decryption) entirely on the common no-change path.
- */
-type CacheState = {
-  values: Map<string, string>;
-  loaded: Set<string>;
-  version: number;
+export type { SettingsData };
+export {
+  ALL_SETTINGS_KEYS,
+  bumpSettingsVersion,
+  CONFIG_KEYS,
+  EMAIL_BODY_KEYS,
+  getCurrentSettingsVersion,
+  PRUNE_KEYS,
+  SNAPSHOT_KEYS,
 };
-const [getCacheState, setCacheState] = lazyRef<CacheState>(() => ({
-  loaded: new Set(),
-  values: new Map(),
-  version: -1,
-}));
-
-registerCache(() => ({
-  entries: getCacheState().values.size,
-  name: "settings",
-}));
-
-// ---------------------------------------------------------------------------
-// Settings version stamp — cross-isolate cache invalidation signal
-// ---------------------------------------------------------------------------
-
-/**
- * Read the current `settings_version` counter straight from the DB (bypassing
- * the snapshot and the read audit — it is cache machinery, not an app setting).
- * The row is an integer once any write has created it; before the first write
- * (a fresh database) it is absent, which reads as version 0.
- */
-export const getCurrentSettingsVersion = async (): Promise<number> => {
-  const rows = await queryAll<Settings>(
-    "SELECT value FROM settings WHERE key = ?",
-    [CONFIG_KEYS.SETTINGS_VERSION],
-  );
-  return Number.parseInt(rows[0]?.value ?? "0", 10);
-};
-
-/**
- * Per-request memoised probe of the version counter. Inside a request the first
- * read is shared by every later `loadKeys` (one tiny query per request); outside
- * a request (tests, boot, CLI) each call probes fresh. Kicking it off early
- * (`prefetchVersion`) lets it overlap the rest of request setup.
- */
-const versionProbe = requestCache<number>(async () => [
-  await getCurrentSettingsVersion(),
-]);
-
-/** The settings version this request should be validated against. */
-const currentVersion = async (): Promise<number> =>
-  (await versionProbe.getAll())[0]!;
-
-/** Start fetching the settings version as early as possible in a request, so
- *  the tiny query overlaps the rest of request setup; loadKeys awaits it. */
-const prefetchVersion = (): void => {
-  void versionProbe.getAll();
-};
-
-/**
- * Atomically increment the shared `settings_version` counter. Every settings
- * write calls this so other isolates notice the change on their next request.
- * It bypasses cache invalidation (the writer maintains its cache in-place) and,
- * crucially, does not recurse through `writeRaw`, so a bump never bumps again.
- */
-export const bumpSettingsVersion = async (): Promise<void> => {
-  await executeWithoutCacheInvalidation(
-    "INSERT INTO settings (key, value) VALUES (?, '1') " +
-      "ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1",
-    [CONFIG_KEYS.SETTINGS_VERSION],
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Snapshot — pre-resolved settings for sync access
-// ---------------------------------------------------------------------------
-
-/** Template type:format → config key */
-type TemplateKeyMap = `${EmailTemplateType}:${EmailTemplateFormat}`;
-const TEMPLATE_KEYS: Record<TemplateKeyMap, StringSettingKey> = {
-  "admin:html": "email_tpl_admin_html",
-  "admin:subject": "email_tpl_admin_subject",
-  "admin:text": "email_tpl_admin_text",
-  "confirmation:html": "email_tpl_confirmation_html",
-  "confirmation:subject": "email_tpl_confirmation_subject",
-  "confirmation:text": "email_tpl_confirmation_text",
-};
-
-/** Snapshot fields whose stored value is itself a sealed string (the snapshot
- * holds it verbatim, still sealed): the bulk-email draft is owner-key
- * ciphertext, and the owner private key is KeyEncrypted under the DATA_KEY.
- * Empty string still means "no value". The public key is a plain JWK string. */
-type SealedSettingFields = {
-  bulk_email_draft: OwnerKeyEncrypted | "";
-  wrapped_private_key: KeyEncrypted | "";
-};
-
-/** All string setting fields: empty string means "no value". Fields listed in
- * {@link SealedSettingFields} carry their sealed type; the rest are plain. */
-type StringSettingFields = {
-  [K in StringSettingKey]: K extends keyof SealedSettingFields
-    ? SealedSettingFields[K]
-    : string;
-};
-
-/** Generate empty-string defaults for every string setting field. */
-const stringSettingDefaults = Object.fromEntries(
-  [...PLAINTEXT_KEYS, ...ENCRYPTED_KEYS].map((k) => [k, ""]),
-) as StringSettingFields;
-
-// ---------------------------------------------------------------------------
-// Full snapshot type + initial data
-// ---------------------------------------------------------------------------
-
-/** Non-string snapshot fields that need explicit types. */
-type SpecificFields = {
-  country: string;
-  theme: Theme;
-  underline_links: boolean;
-  show_public_site: boolean;
-  show_public_api: boolean;
-  external_order_enabled: boolean;
-  calendar_feeds_enabled: boolean;
-  calendar_feeds_group_by: string;
-  contact_form_enabled: boolean;
-  order_enabled: boolean;
-  has_logistics: boolean;
-  payment_provider: PaymentProviderType | null;
-  payment_provider_setting: PaymentProviderSetting | null;
-  booking_fee: string;
-  square_sandbox: boolean;
-  superuser_choice: SuperuserChoice;
-  currency: string;
-  timezone: string;
-  phone_prefix: string;
-  auto_purge_orphans: boolean;
-  orphan_purge_retention: string;
-};
-
-/** Full settings snapshot type. */
-export type SettingsData = SpecificFields & StringSettingFields;
-
-/** Mutable snapshot of all settings. Populated by loadKeys(). */
-const data: SettingsData = {
-  auto_purge_orphans: true,
-  booking_fee: "0",
-  calendar_feeds_enabled: false,
-  calendar_feeds_group_by: "attendees",
-  contact_form_enabled: false,
-  country: DEFAULT_COUNTRY,
-  currency: "GBP",
-  external_order_enabled: false,
-  has_logistics: false,
-  order_enabled: false,
-  orphan_purge_retention: DEFAULT_ORPHAN_RETENTION,
-  payment_provider: null,
-  payment_provider_setting: null,
-  phone_prefix: "+44",
-  show_public_api: false,
-  show_public_site: false,
-  square_sandbox: false,
-  theme: "light",
-  timezone: DEFAULT_TIMEZONE,
-  underline_links: false,
-  ...stringSettingDefaults,
-  superuser_choice: "",
-};
-
-const defaults: Readonly<SettingsData> = { ...data };
-
-/** Type-safe setter for a single snapshot field. */
-const setSnapshotField = <K extends keyof SettingsData>(
-  key: K,
-  value: SettingsData[K],
-): void => {
-  data[key] = value;
-};
-
-/** Test overrides — survive invalidateCache(), cleared by clearTestOverrides(). */
-const [getTestOverrides, setTestOverrides] = lazyRef<Record<string, unknown>>(
-  () => ({}),
-);
-
-/**
- * Snapshot fields that derive from a different config key, for the read audit.
- * Country drives currency/timezone/phone_prefix; the payment-provider setting
- * shares PAYMENT_PROVIDER's row. Every other field's name equals its config key.
- */
-const AUDIT_KEY_OVERRIDES: Record<string, string> = {
-  currency: CONFIG_KEYS.COUNTRY,
-  payment_provider_setting: CONFIG_KEYS.PAYMENT_PROVIDER,
-  phone_prefix: CONFIG_KEYS.COUNTRY,
-  timezone: CONFIG_KEYS.COUNTRY,
-};
-
-/** Map a snapshot field name to the config key whose load satisfies it. */
-const auditKeyFor = (field: string): string =>
-  AUDIT_KEY_OVERRIDES[field] ?? field;
-
-/** Read a snapshot value, checking test overrides first. */
-const snap = <K extends keyof SettingsData>(key: K): SettingsData[K] => {
-  const overrides = getTestOverrides();
-  // A test override supplies the value directly, so the read doesn't depend on
-  // a declared load — skip the audit (production never has overrides).
-  if (key in overrides) return overrides[key] as SettingsData[K];
-  recordSettingRead(auditKeyFor(key as string));
-  return data[key];
-};
-
-// ---------------------------------------------------------------------------
-// Raw DB operations (internal)
-// ---------------------------------------------------------------------------
-
-/** Read a raw string from the cache. Returns null if missing or cache not loaded. */
-const getRawCached = (key: string): string | null => {
-  recordSettingRead(key);
-  return getCacheState().values.get(key) ?? null;
-};
-
-/**
- * Mutate the in-memory raw cache in place. The version stamp (not this write)
- * decides whether the cache is reused on the next load, so applying the value
- * we just wrote is always safe — it keeps the rest of this request's reads
- * consistent without forcing a reload.
- */
-const syncCache = (mutate: (state: CacheState) => void): void =>
-  mutate(getCacheState());
-
-/** Upsert a single settings key/value (latest write wins). */
-const SETTINGS_UPSERT_SQL =
-  "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)";
-
-/** Build a settings upsert as a batch statement. */
-const settingUpsert = (
-  key: string,
-  value: string,
-): { sql: string; args: string[] } => ({
-  args: [key, value],
-  sql: SETTINGS_UPSERT_SQL,
-});
-
-/** Write a setting to the DB, update the raw cache in-place, and bump the
- *  shared version so other isolates reload on their next request. */
-const writeRaw = async (key: string, value: string): Promise<void> => {
-  await executeWithoutCacheInvalidation(SETTINGS_UPSERT_SQL, [key, value]);
-  // A write makes the key's value known this request, so reading it back is
-  // safe in production too — record it as available for the read audit.
-  recordSettingsLoaded([key]);
-  syncCache((s) => {
-    s.values.set(key, value);
-    s.loaded.add(key);
-  });
-  await bumpSettingsVersion();
-};
-
-/** Delete a setting from the DB, drop it from the raw cache, and bump the
- *  shared version so other isolates reload on their next request. */
-const deleteRaw = async (key: string): Promise<void> => {
-  await executeWithoutCacheInvalidation("DELETE FROM settings WHERE key = ?", [
-    key,
-  ]);
-  recordSettingsLoaded([key]);
-  syncCache((s) => {
-    s.values.delete(key);
-    s.loaded.add(key);
-  });
-  await bumpSettingsVersion();
-};
-
-/** Write a setting or delete it if value is empty. */
-const writeOrDelete = (key: string, value: string): Promise<void> => {
-  if (value === "") return deleteRaw(key);
-  return writeRaw(key, value);
-};
-
-/** Encrypt then write (empty string deletes the key). */
-const writeEncrypted = async (key: string, value: string): Promise<void> => {
-  if (!value) return deleteRaw(key);
-  await writeRaw(key, await encrypt(value));
-};
-
-/**
- * Factory: run `writer` then mirror the value into the snapshot. Accepts any
- * string key so it satisfies `EncryptedUpdateFn` for wallet factories; callers
- * always pass a `CONFIG_KEYS.*` value that is a real snapshot field.
- */
-const stringUpdate =
-  (writer: (key: string, value: string) => Promise<void>) =>
-  (key: string) =>
-  async (v: string): Promise<void> => {
-    await writer(key, v);
-    setSnapshotField(key as StringSettingKey, v);
-  };
-
-const encryptedUpdate: EncryptedUpdateFn = stringUpdate(writeEncrypted);
-const plaintextUpdate: EncryptedUpdateFn = stringUpdate(writeOrDelete);
-
-// ---------------------------------------------------------------------------
-// Generated string accessors
-//
-// One registry entry creates both the sync getter (settings.<name>) and,
-// unless readOnly, the matching writer (settings.update.<name>). Whether the
-// writer encrypts is derived from the same registry entry's storage mode.
-// ---------------------------------------------------------------------------
-
-/** Sync getter per accessor entry, typed by the underlying snapshot field so
- * sealed settings (e.g. the bulk-email draft) keep their brand. */
-type GeneratedGetters = {
-  readonly [K in keyof StringAccessors]: SettingsData[StringAccessors[K]["key"]];
-};
-
-/** Writable accessor names (entries without readOnly). */
-type WritableAccessor = {
-  [K in keyof StringAccessors]: StringAccessors[K] extends { readOnly: true }
-    ? never
-    : K;
-}[keyof StringAccessors];
-
-/** Async writer per writable accessor entry, typed like its getter so a sealed
- * setting can only be written with a correctly-sealed value. */
-type GeneratedUpdaters = {
-  [K in WritableAccessor]: (
-    v: SettingsData[StringAccessors[K]["key"]],
-  ) => Promise<void>;
-};
-
-const ENCRYPTED_KEY_SET: ReadonlySet<string> = new Set(ENCRYPTED_KEYS);
-
-/** Build the generated getters and updaters in one pass over the registry. */
-const buildStringAccessors = (): {
-  getters: GeneratedGetters;
-  updaters: GeneratedUpdaters;
-} => {
-  const getters = {};
-  const updaters: Record<string, (v: string) => Promise<void>> = {};
-  for (const [name, spec] of Object.entries<AccessorSpec>(STRING_ACCESSORS)) {
-    Object.defineProperty(getters, name, {
-      enumerable: true,
-      get: () => snap(spec.key),
-    });
-    if ("readOnly" in spec && spec.readOnly) continue;
-    const update = ENCRYPTED_KEY_SET.has(spec.key)
-      ? encryptedUpdate
-      : plaintextUpdate;
-    updaters[name] = update(spec.key);
-  }
-  return {
-    getters: getters as GeneratedGetters,
-    updaters: updaters as GeneratedUpdaters,
-  };
-};
-
-const stringAccessors = buildStringAccessors();
 
 /**
  * Copy property descriptors (preserving getters) from `props` onto `target`.
@@ -494,389 +116,6 @@ const withProperties = <T extends object, P extends object>(
   Object.defineProperties(target, Object.getOwnPropertyDescriptors(props));
   return target as T & P;
 };
-
-/** Factory: write a raw string and mirror into a specific snapshot field. */
-const rawUpdate =
-  <K extends keyof SettingsData>(
-    configKey: string,
-    field: K,
-    serialize: (v: SettingsData[K]) => string = String,
-  ) =>
-  async (v: SettingsData[K]): Promise<void> => {
-    await writeRaw(configKey, serialize(v));
-    setSnapshotField(field, v);
-  };
-
-/** Factory: write a boolean as "true"/"false" and mirror into the snapshot. */
-const boolUpdate = <K extends BoolSettingKey>(configKey: string, field: K) =>
-  rawUpdate(configKey, field, (v) => (v ? "true" : "false"));
-
-/** Snapshot keys whose value is a boolean. */
-type BoolSettingKey = {
-  [K in keyof SettingsData]: SettingsData[K] extends boolean ? K : never;
-}[keyof SettingsData];
-
-/** Factory: write the current ISO timestamp to a config key and mirror into the snapshot. */
-const timestampUpdate =
-  <K extends keyof SettingsData>(configKey: string, field: K) =>
-  async (): Promise<void> => {
-    const ts = new Date().toISOString();
-    await writeRaw(configKey, ts);
-    setSnapshotField(field, ts as SettingsData[K]);
-  };
-
-// ---------------------------------------------------------------------------
-// Snapshot builder — called by loadKeys()
-// ---------------------------------------------------------------------------
-
-type CountryInfo = ReturnType<typeof getCountry>;
-const applyCountryDerived = (info: CountryInfo): void => {
-  data.currency = info.currency;
-  data.timezone = info.timezone;
-  data.phone_prefix = info.phonePrefix;
-};
-
-/** Applier for a boolean snapshot field: on ⇔ the raw value is exactly "true"
- * (an absent/garbled value reads as off), mirroring how {@link boolUpdate}
- * writes the flag. */
-const boolApply =
-  (field: BoolSettingKey) =>
-  (raw: string | undefined): void => {
-    data[field] = raw === "true";
-  };
-
-/**
- * Per-key resolvers for the non-string snapshot fields. A config key may drive
- * more than one snapshot field (COUNTRY → currency/timezone/phone_prefix;
- * PAYMENT_PROVIDER → provider + setting). `raw` is undefined when the key is
- * absent from the DB, in which case the default is applied.
- */
-const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
-  [CONFIG_KEYS.COUNTRY]: (raw) => {
-    const country = raw || DEFAULT_COUNTRY;
-    data.country = country;
-    applyCountryDerived(getCountry(country));
-  },
-  [CONFIG_KEYS.THEME]: (raw) => {
-    data.theme = raw === "dark" ? "dark" : "light";
-  },
-  [CONFIG_KEYS.UNDERLINE_LINKS]: boolApply("underline_links"),
-  [CONFIG_KEYS.SHOW_PUBLIC_SITE]: boolApply("show_public_site"),
-  [CONFIG_KEYS.SHOW_PUBLIC_API]: boolApply("show_public_api"),
-  [CONFIG_KEYS.EXTERNAL_ORDER_ENABLED]: boolApply("external_order_enabled"),
-  [CONFIG_KEYS.CALENDAR_FEEDS_ENABLED]: boolApply("calendar_feeds_enabled"),
-  [CONFIG_KEYS.CALENDAR_FEEDS_GROUP_BY]: (raw) => {
-    data.calendar_feeds_group_by =
-      raw === "listings" ? "listings" : "attendees";
-  },
-  [CONFIG_KEYS.CONTACT_FORM_ENABLED]: boolApply("contact_form_enabled"),
-  [CONFIG_KEYS.ORDER_ENABLED]: boolApply("order_enabled"),
-  // Defaults ON: only an explicit "false" disows automatic orphan purging.
-  [CONFIG_KEYS.AUTO_PURGE_ORPHANS]: (raw) => {
-    data.auto_purge_orphans = raw !== "false";
-  },
-  // Coerce an absent/garbled value back to the default age, so a bad row can
-  // never widen the purge window.
-  [CONFIG_KEYS.ORPHAN_PURGE_RETENTION]: (raw) => {
-    data.orphan_purge_retention =
-      raw && isOrphanRetentionValue(raw) ? raw : DEFAULT_ORPHAN_RETENTION;
-  },
-  [CONFIG_KEYS.HAS_LOGISTICS]: boolApply("has_logistics"),
-  [CONFIG_KEYS.PAYMENT_PROVIDER]: (raw) => {
-    data.payment_provider = raw && isPaymentProvider(raw) ? raw : null;
-    data.payment_provider_setting =
-      raw && isPaymentProviderSetting(raw) ? raw : null;
-  },
-  [CONFIG_KEYS.BOOKING_FEE]: (raw) => {
-    data.booking_fee = raw ?? "0";
-  },
-  [CONFIG_KEYS.SQUARE_SANDBOX]: boolApply("square_sandbox"),
-};
-
-const PLAINTEXT_KEY_SET = new Set<string>(PLAINTEXT_KEYS);
-
-/** Every config key that maps to a snapshot field, in load order. */
-export const SNAPSHOT_KEYS: readonly string[] = [
-  ...Object.keys(SPECIAL_APPLIERS),
-  ...PLAINTEXT_KEYS,
-  ...ENCRYPTED_KEYS,
-];
-
-/**
- * All keys that populate the snapshot plus the setup-complete flag. Equivalent
- * to the former `loadAll` SELECT * in terms of what affects request behaviour.
- * Use in tests and in pre-load bundles that need every setting.
- */
-export const ALL_SETTINGS_KEYS: readonly string[] = [
-  ...SNAPSHOT_KEYS,
-  CONFIG_KEYS.SETUP_COMPLETE,
-];
-
-/**
- * Resolve one config key from `values` into the snapshot. Encrypted keys are
- * decrypted (hence async); plaintext and special keys are synchronous. Keys
- * with no snapshot field (e.g. SETUP_COMPLETE) are no-ops — they live in the
- * raw cache only.
- */
-const applyKey = async (
-  key: string,
-  values: Map<string, string>,
-): Promise<void> => {
-  const special = SPECIAL_APPLIERS[key];
-  if (special) return special(values.get(key));
-  if (ENCRYPTED_KEY_SET.has(key)) {
-    const v = values.get(key);
-    // Raw settings row for a key the registry declares encrypted — the
-    // read-boundary assertion, mirroring col.encrypted's read transform.
-    setSnapshotField(
-      key as StringSettingKey,
-      v ? await decrypt(v as EnvKeyEncrypted) : "",
-    );
-    return;
-  }
-  if (PLAINTEXT_KEY_SET.has(key)) {
-    setSnapshotField(key as StringSettingKey, values.get(key) ?? "");
-  }
-};
-
-/** Resolve a batch of keys into the snapshot, decrypting in parallel. */
-const applyKeys = async (
-  keys: readonly string[],
-  values: Map<string, string>,
-): Promise<void> => {
-  await Promise.all(keys.map((key) => applyKey(key, values)));
-};
-
-// ---------------------------------------------------------------------------
-// loadKeys / invalidateCache
-// ---------------------------------------------------------------------------
-
-/** Reset the raw cache to a fresh, empty state stamped at `version`. */
-const resetCache = (version: number): CacheState => {
-  setCacheState(null);
-  const s = getCacheState();
-  s.version = version;
-  return s;
-};
-
-/**
- * Load only the given config keys, fetching just the ones not already resolved
- * at the current settings version (one `WHERE key IN (...)` query) and
- * decrypting only those. When the shared version has moved since the cache was
- * stamped, the whole cache is discarded and the requested keys are reloaded.
- */
-const loadKeys = async (keys: readonly string[]): Promise<void> => {
-  // Record everything declared this request, regardless of cache state, so the
-  // read audit compares against the full declared set (not just cache misses).
-  recordSettingsLoaded(keys);
-  const version = await currentVersion();
-  const cached = getCacheState();
-  const s = cached.version === version ? cached : resetCache(version);
-  const missing = unique([...keys]).filter((k) => !s.loaded.has(k));
-  if (missing.length === 0) return;
-  const rows = await queryAll<Settings>(
-    `SELECT key, value FROM settings WHERE key IN (${missing
-      .map(() => "?")
-      .join(", ")})`,
-    missing,
-  );
-  for (const row of rows) s.values.set(row.key, row.value);
-  await applyKeys(missing, s.values);
-  for (const key of missing) s.loaded.add(key);
-};
-
-/** Full invalidation — clears raw cache AND resets snapshot to defaults. */
-const invalidateCache = (): void => {
-  setCacheState(null);
-  for (const key of Object.keys(defaults) as (keyof SettingsData)[]) {
-    setSnapshotField(key, defaults[key]);
-  }
-};
-
-registerTableInvalidation(["settings"], invalidateCache);
-
-// ---------------------------------------------------------------------------
-// Setup-complete permanent cache
-// ---------------------------------------------------------------------------
-
-const [getSetupCompleteCache, setSetupCompleteCache] = lazyRef<boolean>(
-  () => false,
-);
-const [getSetupConfirmed, setSetupConfirmed] = lazyRef<boolean>(() => false);
-
-const isSetupComplete = async (): Promise<boolean> => {
-  const confirmed = getSetupConfirmed();
-  const cached = getSetupCompleteCache();
-  if (confirmed && cached) return true;
-  // Fetch only the one key we read; loadKeys serves it from the cache when the
-  // version is unchanged, so this is near-free on a warm isolate.
-  await loadKeys([CONFIG_KEYS.SETUP_COMPLETE]);
-  const isComplete = getRawCached(CONFIG_KEYS.SETUP_COMPLETE) === "true";
-  if (isComplete) {
-    setSetupCompleteCache(true);
-    setSetupConfirmed(true);
-  }
-  return isComplete;
-};
-
-const clearSetupCompleteCache = (): void => {
-  setSetupCompleteCache(null);
-  setSetupConfirmed(null);
-};
-
-// ---------------------------------------------------------------------------
-// Initial setup
-// ---------------------------------------------------------------------------
-
-const completeSetup = async (
-  username: string,
-  adminPassword: string,
-  country: string,
-): Promise<void> => {
-  const hashedPassword = await hashPassword(adminPassword);
-  const dataKey = await generateDataKey();
-  const { publicKey, privateKey } = await generateKeyPair();
-  // Bind the owner's wrapped DATA_KEY to the raw password (v2), so the DATA_KEY
-  // — and therefore all attendee PII — can't be unwrapped from a DB dump alone.
-  const wrappedDataKey = await wrapDataKeyForPassword(
-    dataKey,
-    adminPassword,
-    hashedPassword,
-  );
-  const encryptedPrivateKey = await encryptWithKey(privateKey, dataKey);
-
-  // The whole setup ceremony commits in one transaction: the owner account and
-  // every config key land together, so a mid-write failure can never leave a
-  // half-initialised site (an owner with no keypair, or setup_complete set
-  // before the owner row exists). All values are computed above, so this is a
-  // plain batch — no inter-statement logic — rather than an interactive
-  // transaction.
-  const ownerInsert = await buildCreateUserStatement(
-    username,
-    hashedPassword,
-    wrappedDataKey,
-    "owner",
-  );
-  await executeBatch([
-    ownerInsert,
-    settingUpsert(CONFIG_KEYS.WRAPPED_PRIVATE_KEY, encryptedPrivateKey),
-    settingUpsert(CONFIG_KEYS.PUBLIC_KEY, publicKey),
-    settingUpsert(CONFIG_KEYS.COUNTRY, country),
-    settingUpsert(CONFIG_KEYS.SETUP_COMPLETE, "true"),
-  ]);
-  // Setup's config lands via a batch (not writeRaw), so bump the version by hand
-  // to keep the cross-isolate signal consistent.
-  await bumpSettingsVersion();
-
-  // Setup flips the global routing gate. Drop any partially-loaded settings
-  // snapshot from pre-setup requests so the next request cannot keep serving
-  // stale defaults (notably a cached missing setup_complete row). Mark the
-  // permanent setup gate as confirmed so the immediate /setup/complete redirect
-  // succeeds without another DB round-trip.
-  invalidateCache();
-  setSetupCompleteCache(true);
-  setSetupConfirmed(true);
-};
-
-// ---------------------------------------------------------------------------
-// Password update
-// ---------------------------------------------------------------------------
-
-const updateUserPassword = async (
-  userId: number,
-  opts: {
-    oldPassword: string;
-    oldPasswordHash: PasswordHash;
-    oldWrappedDataKey: WrappedKey;
-    oldKekVersion: number;
-    newPassword: string;
-  },
-): Promise<boolean> => {
-  // Unwrap with the account's current scheme (v2 from the raw old password, v1
-  // from its stored hash), then always re-wrap under the v2 password-bound KEK.
-  const oldKek =
-    opts.oldKekVersion >= 2
-      ? await deriveKEKFromPassword(opts.oldPassword, opts.oldPasswordHash)
-      : await deriveKEK(opts.oldPasswordHash);
-  let dk: CryptoKey;
-  try {
-    dk = await unwrapKey(opts.oldWrappedDataKey, oldKek);
-  } catch {
-    return false;
-  }
-  const newHash = await hashPassword(opts.newPassword);
-  const encryptedNewHash = await encrypt(newHash);
-  const newWrappedDataKey = await wrapDataKeyForPassword(
-    dk,
-    opts.newPassword,
-    newHash,
-  );
-  await execute(
-    "UPDATE users SET password_hash = ?, wrapped_data_key = ?, kek_version = 2 WHERE id = ?",
-    [encryptedNewHash, newWrappedDataKey, userId],
-  );
-  invalidateUsersCache();
-  await deleteAllSessions();
-  return true;
-};
-
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
-// Current-task guard — prevents duplicate heavy operations
-// ---------------------------------------------------------------------------
-
-/**
- * Run `fn` while holding the `current_task` lock for `taskName`.
- * If a task is already in progress, returns `{ ok: false, error }`.
- * The lock is always cleared when `fn` completes (success or error).
- *
- * Uses an atomic UPDATE … WHERE value = '' to avoid race conditions
- * between concurrent requests on the same node.
- */
-const withCurrentTask = async <T>(
-  taskName: string,
-  fn: () => Promise<T>,
-): Promise<{ ok: true; value: T } | { ok: false; error: string }> => {
-  // Ensure the row exists (no-op if already present)
-  await executeWithoutCacheInvalidation(
-    "INSERT OR IGNORE INTO settings (key, value) VALUES (?, '')",
-    [CONFIG_KEYS.CURRENT_TASK],
-  );
-  // Atomic claim: only succeeds when no task is running
-  const claim = await executeWithoutCacheInvalidation(
-    "UPDATE settings SET value = ? WHERE key = ? AND value = ''",
-    [taskName, CONFIG_KEYS.CURRENT_TASK],
-  );
-  if (claim.rowsAffected === 0) {
-    return {
-      error: "Another task is already in progress",
-      ok: false,
-    };
-  }
-  syncCache((s) => {
-    s.values.set(CONFIG_KEYS.CURRENT_TASK, taskName);
-    s.loaded.add(CONFIG_KEYS.CURRENT_TASK);
-  });
-  setSnapshotField("current_task", taskName);
-  try {
-    const value = await fn();
-    return { ok: true, value };
-  } finally {
-    await writeOrDelete(CONFIG_KEYS.CURRENT_TASK, "");
-    setSnapshotField("current_task", "");
-  }
-};
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-export const MAX_WEBSITE_TITLE_LENGTH = 128;
-export const MAX_EMAIL_TEMPLATE_LENGTH = 51_200;
-
-// ---------------------------------------------------------------------------
-// The settings namespace
-// ---------------------------------------------------------------------------
 
 const settingsBase = {
   // --- Address lookup ---
@@ -922,9 +161,7 @@ const settingsBase = {
   },
 
   /** Clear all test overrides. */
-  clearTestOverrides(): void {
-    setTestOverrides(null);
-  },
+  clearTestOverrides,
 
   get contactFormEnabled(): boolean {
     return snap("contact_form_enabled");

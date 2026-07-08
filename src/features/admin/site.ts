@@ -13,7 +13,8 @@ import { htmlResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { isBotpoisonEnabled } from "#shared/config.ts";
 import { getAllListings } from "#shared/db/listings.ts";
-import { MAX_WEBSITE_TITLE_LENGTH, settings } from "#shared/db/settings.ts";
+import { MAX_WEBSITE_TITLE_LENGTH } from "#shared/db/settings/constants.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   applyDemoOverrides,
   SITE_CONTACT_DEMO_FIELDS,
