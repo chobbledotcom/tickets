@@ -16,15 +16,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-
-      - name: Setup Deno
-        uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.5.6
+      - name: Set up Deno
+        uses: ./.github/actions/setup-deno
 
       # stripe-mock is downloaded, started, and stopped by scripts/run-tests.ts
       # (invoked via the test:coverage step inside precommit). Caching .bin just
@@ -34,9 +27,6 @@ jobs:
         with:
           path: .bin
           key: stripe-mock-${{ env.STRIPE_MOCK_VERSION }}-linux-amd64
-
-      - name: Install dependencies
-        run: deno install --allow-scripts
 
       # Run each precommit check as a separate step so failures are attributed
       # individually in the Actions UI. The set of steps mirrors `getSteps()` in
