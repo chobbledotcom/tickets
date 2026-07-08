@@ -1143,7 +1143,6 @@ const PromoCodeField = (): JSX.Element => (
         value={savedFormValue("promo_code")}
       />
     </label>
-    <p class="hint">{t("public.promo.hint")}</p>
   </div>
 );
 
