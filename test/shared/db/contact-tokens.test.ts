@@ -37,6 +37,17 @@ const syncToken = (
 const readAllTokens = (hash: string, privateKey: CryptoKey) =>
   getRecentBookingTokens(hash, privateKey, Number.MAX_SAFE_INTEGER);
 
+const tokenBlobFor = async (hash: string): Promise<string> =>
+  (
+    await queryOne<{ attendee_tokens_blob: string }>(
+      "SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ?",
+      [hash],
+    )
+  )?.attendee_tokens_blob ?? "";
+
+const firstMarkerFrom = (blob: string): string =>
+  blob.split("\n")[0]!.split("\t")[0]!;
+
 describeWithEnv("contact-tokens", { db: true }, () => {
   test("recordBooking splits the count by source, leaving outreach stats intact", async () => {
     const pk = await getTestPrivateKey();
@@ -80,6 +91,24 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     expect(await readAllTokens(hash, pk)).toEqual([
       { source: "public", token: "tok-online" },
       { source: "admin", token: "tok-manual" },
+    ]);
+  });
+
+  test("recordBooking does not reuse one marker across contact rows", async () => {
+    const pk = await getTestPrivateKey();
+    const emailHash = await hashEmail("linked-token@example.com");
+    const phoneHash = await hashPhone("07700 900111");
+    await recordBooking(emailHash, "public", "tok-linked-contact");
+    await recordBooking(phoneHash, "public", "tok-linked-contact");
+
+    expect(firstMarkerFrom(await tokenBlobFor(emailHash))).not.toBe(
+      firstMarkerFrom(await tokenBlobFor(phoneHash)),
+    );
+    expect(await readAllTokens(emailHash, pk)).toEqual([
+      { source: "public", token: "tok-linked-contact" },
+    ]);
+    expect(await readAllTokens(phoneHash, pk)).toEqual([
+      { source: "public", token: "tok-linked-contact" },
     ]);
   });
 
@@ -163,11 +192,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     expect(await readAllTokens(newHash, pk)).toEqual([
       { source: "public", token: "tok-marker-move" },
     ]);
-    const oldRow = await queryOne<{ attendee_tokens_blob: string }>(
-      "SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ?",
-      [oldHash],
-    );
-    expect(oldRow?.attendee_tokens_blob).toBe("not-an-owner-key-token\n");
+    expect(await tokenBlobFor(oldHash)).toBe("not-an-owner-key-token\n");
   });
 
   test("syncAttendeeContactTokens moves a changed phone too", async () => {
@@ -235,11 +260,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
       pk,
     );
     expect(await readAllTokens(oldHash, pk)).toEqual([]);
-    const row = await queryOne<{ attendee_tokens_blob: string }>(
-      "SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ?",
-      [oldHash],
-    );
-    expect(row?.attendee_tokens_blob).toBe("");
+    expect(await tokenBlobFor(oldHash)).toBe("");
   });
 
   test("syncAttendeeContactTokens links a newly added contact field", async () => {
@@ -343,10 +364,6 @@ describeWithEnv("contact-tokens", { db: true }, () => {
       { email: "", phone: "" },
       pk,
     );
-    const row = await queryOne<{ attendee_tokens_blob: string }>(
-      "SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ?",
-      [hash],
-    );
-    expect(row?.attendee_tokens_blob).toBe("");
+    expect(await tokenBlobFor(hash)).toBe("");
   });
 });

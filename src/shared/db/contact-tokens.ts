@@ -50,8 +50,11 @@ const TAG_SOURCE: Record<string, BookingSource> = {
 
 const TOKEN_LINE_SEPARATOR = "\t";
 
-const tokenMarkerFor = (ticketToken: string): Promise<BlindIndex> =>
-  hmacHash(`contact-token:${ticketToken}`);
+const tokenMarkerFor = (
+  contactHash: string,
+  ticketToken: string,
+): Promise<BlindIndex> =>
+  hmacHash(`contact-token:${contactHash}:${ticketToken}`);
 
 type StoredTokenLine = {
   encrypted: OwnerKeyEncrypted;
@@ -62,14 +65,16 @@ type StoredTokenLine = {
 /**
  * Create one searchable token entry for the append-only tokens blob,
  * terminated by a newline so entries concatenate on the column without a
- * separator table. The marker is a blind index of the random ticket token; the
- * source and token stay owner-key-encrypted.
+ * separator table. The marker is scoped to this contact row, so two contact
+ * rows cannot be linked just because they share one booking token. The source
+ * and token stay owner-key-encrypted.
  */
 const encryptTokenEntry = async (
+  hash: string,
   source: BookingSource,
   token: string,
 ): Promise<string> => {
-  const marker = await tokenMarkerFor(token);
+  const marker = await tokenMarkerFor(hash, token);
   const encrypted = await encryptWithOwnerKey(
     `${SOURCE_TAG[source]}${token}`,
     settings.publicKey,
@@ -102,6 +107,32 @@ const parseTokenEntry = async (
   return { source: TAG_SOURCE[decoded[0]!]!, token: decoded.slice(1) };
 };
 
+/** The conflict update for appending one encrypted ticket token. */
+const tokenAppendUpdate = (column: BookingCountColumn | null): string =>
+  [
+    ...(column === null ? [] : [`${column} = ${column} + 1`]),
+    "last_activity = excluded.last_activity",
+    "attendee_tokens_blob = attendee_tokens_blob || excluded.attendee_tokens_blob",
+  ].join(",\n       ");
+
+/** Append one encrypted ticket token, optionally bumping a source count too. */
+const appendBookingToken = async (
+  hash: string,
+  source: BookingSource,
+  ticketToken: string,
+  column: BookingCountColumn | null,
+): Promise<void> => {
+  const countColumn = column === null ? "" : `, ${column}`;
+  const countValue = column === null ? "" : ", 1";
+  await execute(
+    `INSERT INTO contact_preferences (contact_hash, last_activity${countColumn}, attendee_tokens_blob)
+     VALUES (?, ?${countValue}, ?)
+     ON CONFLICT(contact_hash) DO UPDATE SET
+       ${tokenAppendUpdate(column)}`,
+    [hash, nowMs(), await encryptTokenEntry(hash, source, ticketToken)],
+  );
+};
+
 /**
  * Record one booking against a contact: bump its source's plaintext count and
  * append the booked ticket token to the encrypted, append-only token list.
@@ -111,16 +142,7 @@ export const recordBooking = async (
   source: BookingSource,
   ticketToken: string,
 ): Promise<void> => {
-  const column = BOOKING_COLUMN[source];
-  await execute(
-    `INSERT INTO contact_preferences (contact_hash, last_activity, ${column}, attendee_tokens_blob)
-     VALUES (?, ?, 1, ?)
-     ON CONFLICT(contact_hash) DO UPDATE SET
-       ${column} = ${column} + 1,
-       last_activity = excluded.last_activity,
-       attendee_tokens_blob = attendee_tokens_blob || excluded.attendee_tokens_blob`,
-    [hash, nowMs(), await encryptTokenEntry(source, ticketToken)],
-  );
+  await appendBookingToken(hash, source, ticketToken, BOOKING_COLUMN[source]);
 };
 
 /** Reverse a {@link recordBooking}'s count, e.g. when an order is rolled back.
@@ -143,14 +165,7 @@ const addBookingToken = async (
   ticketToken: string,
   source: BookingSource,
 ): Promise<void> => {
-  await execute(
-    `INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob)
-     VALUES (?, ?, ?)
-     ON CONFLICT(contact_hash) DO UPDATE SET
-       last_activity = excluded.last_activity,
-       attendee_tokens_blob = attendee_tokens_blob || excluded.attendee_tokens_blob`,
-    [hash, nowMs(), await encryptTokenEntry(source, ticketToken)],
-  );
+  await appendBookingToken(hash, source, ticketToken, null);
 };
 
 /** Load a contact's encrypted token blob, or null when no row exists. */
@@ -196,7 +211,7 @@ const removeBookingToken = async (
   ticketToken: string,
   privateKey: CryptoKey,
 ): Promise<BookingSource | null> => {
-  const marker = await tokenMarkerFor(ticketToken);
+  const marker = await tokenMarkerFor(hash, ticketToken);
   const match = (await loadTokenLines(hash)).find(
     (entry) => entry.marker === marker,
   );
@@ -221,7 +236,7 @@ const ensureBookingToken = async (
 ): Promise<void> => {
   const blob = await loadTokenBlob(hash);
   if (blob === null && !createMissingContact) return;
-  const marker = await tokenMarkerFor(ticketToken);
+  const marker = await tokenMarkerFor(hash, ticketToken);
   if (tokenLinesFrom(blob).some((entry) => entry.marker === marker)) return;
   await addBookingToken(hash, ticketToken, source);
 };
