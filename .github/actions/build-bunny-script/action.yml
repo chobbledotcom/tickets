@@ -7,19 +7,8 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Setup Node.js
-      uses: actions/setup-node@v6
-      with:
-        node-version: 24
-
-    - name: Setup Deno
-      uses: denoland/setup-deno@v2
-      with:
-        deno-version: v2.5.6
-
-    - name: Install dependencies
-      shell: bash
-      run: deno install --allow-scripts
+    - name: Set up Deno
+      uses: ./.github/actions/setup-deno
 
     - name: Build edge script
       shell: bash
