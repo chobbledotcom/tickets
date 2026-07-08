@@ -994,9 +994,6 @@ export type BookingPrefill = {
   token?: string;
 };
 
-/** Alias retained for the signed-QR booking flow, which always sets `token`. */
-export type QrPrefill = BookingPrefill;
-
 /** Options for the ticket page */
 export type TicketPageOptions = {
   listings: TicketListing[];

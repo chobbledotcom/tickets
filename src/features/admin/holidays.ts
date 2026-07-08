@@ -36,7 +36,7 @@ const holidaysResource = defineNamedResource({
   validate: validateDateRange,
 });
 
-const crud = createOwnerCrudHandlers({
+export const holidaysCrud = createOwnerCrudHandlers({
   getAll: holidays.getAll,
   getName: (h) => h.name,
   listPath: "/admin/holidays",
@@ -47,6 +47,3 @@ const crud = createOwnerCrudHandlers({
   resource: wrapResourceForDemo(holidaysResource, HOLIDAY_DEMO_FIELDS),
   singular: "Holiday",
 });
-
-/** Holiday routes */
-export const holidaysRoutes = crud.routes;

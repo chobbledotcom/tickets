@@ -100,7 +100,6 @@ export {
   checkGroupCapAfterDurationChange,
   incrementAttachmentDownloads,
   recomputeListingBookingRanges,
-  reconcileLedgerBalanceTx,
   updateAttendeePII,
   updateAttendeeStatus,
   updateCheckedIn,
