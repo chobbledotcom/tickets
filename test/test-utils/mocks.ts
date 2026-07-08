@@ -378,10 +378,6 @@ export const awaitTestRequest = async (
   return handleRequest(testRequest(path, tokenOrOptions));
 };
 
-export const successResponse =
-  (status: number, body?: string) => (): Response =>
-    new Response(body ?? null, { status });
-
 export const errorResponse =
   (status: number) =>
   (error: string): Response =>
