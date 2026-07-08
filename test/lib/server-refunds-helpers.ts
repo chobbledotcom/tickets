@@ -74,3 +74,15 @@ export const markAsRefunded = async (attendeeId: number): Promise<void> => {
   const { recordAttendeeRefund } = await import("#shared/refund-ledger.ts");
   await recordAttendeeRefund(attendeeId);
 };
+
+export const setBookingLineQuantity = async (
+  attendeeId: number,
+  listingId: number,
+  quantity: number,
+): Promise<void> => {
+  const { getDb } = await import("#shared/db/client.ts");
+  await getDb().execute(
+    "UPDATE listing_attendees SET quantity = ? WHERE attendee_id = ? AND listing_id = ?",
+    [quantity, attendeeId, listingId],
+  );
+};

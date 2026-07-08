@@ -97,6 +97,12 @@ src/shared/checkout-pricing.ts:177:16  - → /     # toUnits gives ascending lin
 src/features/admin/attendee-form-model.ts:320:53  ?? → ||   # existingByKey.get(key): ListingAttendeeRow|undefined — an object is always truthy
 src/features/admin/attendee-form-model.ts:321:36  ?? → ||   # listingsById.get(id): ListingWithCount|undefined — an object is always truthy
 src/features/admin/attendee-form-model.ts:373:66  ?? → ||   # (existingBooking?.price_paid ?? 0): a number; the only falsy number is 0, and 0 ?? 0 === 0 || 0
+src/features/admin/attendee-page-data.ts:141:69  ?? → ||   # priceRowsByGroupId.get(): PriceRow[]|undefined — an array is always truthy
+src/features/admin/attendee-page-data.ts:157:33  ?? → ||   # byListing.get(): Map<number,number|null>|undefined — a Map is always truthy
+src/features/admin/attendee-page-data.ts:238:65  ?? → ||   # preselectedQty.get(): number|undefined; the only falsy number is 0, and the fallback is also 0
+src/features/admin/attendee-page-data.ts:333:12  return null → return undefined   # compact removes both null and undefined warning slots
+src/features/admin/attendee-page-data.ts:354:47  1 → 0   # standard bookings pass date:null, so buildCapacityCondition ignores durationDays entirely
+src/features/admin/attendee-page-data.ts:381:42  ?? → ||   # totalByListing.get(): number|undefined; the only falsy number is 0, and the fallback is also 0
 src/features/tickets/token-utils.ts:222:44  ?? → ||   # (attendees[i]?.bookings ?? []): ListingAttendeeRow[]|undefined — an array is always truthy, undefined→[] either way
 
 # Ticket form parsing (ticket-form.ts): `?? → ||` where the operand is an array,

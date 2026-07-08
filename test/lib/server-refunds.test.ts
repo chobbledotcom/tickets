@@ -22,6 +22,7 @@ import {
 } from "#test-utils";
 import {
   createPaidListing,
+  setBookingLineQuantity,
   type RefundCtx,
   setupRefundTest,
 } from "./server-refunds-helpers.ts";
@@ -101,11 +102,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
 
     test("shows no-payment error when the attendee has no active booking line", async () => {
       const ctx = await setupRefundTest("pi_no_quantity_get");
-      const { getDb } = await import("#shared/db/client.ts");
-      await getDb().execute(
-        "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ? AND listing_id = ?",
-        [ctx.attendee.id, ctx.listing.id],
-      );
+      await setBookingLineQuantity(ctx.attendee.id, ctx.listing.id, 0);
 
       const response = await awaitTestRequest(refundUrl(ctx.attendee.id), {
         cookie: ctx.cookie,
