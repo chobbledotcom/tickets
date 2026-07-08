@@ -37,12 +37,12 @@ import {
   listingRevenueBreakdown,
 } from "#shared/db/listings.ts";
 import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
+import { getListingChoiceAnswerMap } from "#shared/db/questions/attendee-answers.ts";
 import {
   getAllQuestionsWithAnswers,
-  getListingChoiceAnswerMap,
   getListingQuestionIds,
   getQuestionsForListing,
-} from "#shared/db/questions.ts";
+} from "#shared/db/questions/queries.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   loadNotesForAttendees,

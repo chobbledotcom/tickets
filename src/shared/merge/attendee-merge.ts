@@ -18,12 +18,12 @@ import { transfersByEventGroup } from "#shared/accounting/queries.ts";
 import { repointAttendeeStatements } from "#shared/accounting/repoint.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { executeBatch, insert } from "#shared/db/client.ts";
-import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import {
   getAttendeeAnswersByQuestion,
   getAttendeeTextAnswers,
   saveAttendeeAnswers,
-} from "#shared/db/questions.ts";
+} from "#shared/db/questions/attendee-answers.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 import type {
   ApplyAttendeeMergeInput,

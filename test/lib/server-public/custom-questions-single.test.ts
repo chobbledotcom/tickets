@@ -7,12 +7,9 @@ import {
   modifiersTable,
   setModifierAnswers,
 } from "#shared/db/modifiers.ts";
-import {
-  answersTable,
-  getAttendeeAnswersBatch,
-  questionsTable,
-  setListingQuestions,
-} from "#shared/db/questions.ts";
+import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers.ts";
+import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
   createTestListing,

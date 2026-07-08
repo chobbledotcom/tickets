@@ -76,11 +76,9 @@ import {
   setLogisticsAssignments,
 } from "#shared/db/logistics.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import {
-  parseQuestionAnswers,
-  type QuestionWithAnswers,
-  saveAttendeeAnswers,
-} from "#shared/db/questions.ts";
+import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
+import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers.ts";
+import { parseQuestionAnswers } from "#shared/db/questions/parsing.ts";
 import { settings } from "#shared/db/settings.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -394,7 +392,7 @@ const applyEdit = async (
   parsed: ParsedAttendeeForm,
   attendee: Attendee,
   questions: QuestionWithAnswers[],
-  answers: import("#shared/db/questions.ts").AttendeeAnswerSet,
+  answers: import("#shared/db/questions/attendee-answers.ts").AttendeeAnswerSet,
   logisticsPlan: LogisticsPlan,
 ): Promise<SaveOutcome> => {
   // Block marking an assigned built-site line no-quantity (no release path here).

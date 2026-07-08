@@ -2,12 +2,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
-import {
-  answersTable,
-  getAttendeeAnswersBatch,
-  questionsTable,
-  setListingQuestions,
-} from "#shared/db/questions.ts";
+import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers.ts";
+import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import {
   bookingPageHtml,
   createDailyTestListing,

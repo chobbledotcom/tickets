@@ -51,7 +51,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "Listings updated",
       )(response);
 
-      const { getQuestionListingIds } = await import("#shared/db/questions.ts");
+      const { getQuestionListingIds } = await import(
+        "#shared/db/questions/queries.ts"
+      );
       expect(await getQuestionListingIds(qId)).toEqual([listing.id]);
     });
 
@@ -60,7 +62,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const qId = await createQuestion("Unassign me?");
 
       const { setQuestionListings, getQuestionListingIds } = await import(
-        "#shared/db/questions.ts"
+        "#shared/db/questions/queries.ts"
       );
       await setQuestionListings(qId, [listing.id]);
 
@@ -82,7 +84,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       });
 
       const { getQuestionWithAnswers } = await import(
-        "#shared/db/questions.ts"
+        "#shared/db/questions/queries.ts"
       );
       expect((await getQuestionWithAnswers(qId))!.assign_all).toBe(true);
 
@@ -164,7 +166,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const qId = await createQuestion("Shirt size?");
 
       // Assign the question to the listing
-      const { setListingQuestions } = await import("#shared/db/questions.ts");
+      const { setListingQuestions } = await import(
+        "#shared/db/questions/queries.ts"
+      );
       await setListingQuestions(listing.id, [qId]);
 
       const response = await adminGet(`/admin/listing/${listing.id}/questions`);
@@ -220,7 +224,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       )(response);
 
       // Verify the questions are assigned
-      const { getListingQuestionIds } = await import("#shared/db/questions.ts");
+      const { getListingQuestionIds } = await import(
+        "#shared/db/questions/queries.ts"
+      );
       const assigned = await getListingQuestionIds(listing.id);
       expect(assigned.length).toBe(1);
       expect(assigned[0]).toBe(q1);
@@ -237,7 +243,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "Questions updated",
       )(response);
 
-      const { getListingQuestionIds } = await import("#shared/db/questions.ts");
+      const { getListingQuestionIds } = await import(
+        "#shared/db/questions/queries.ts"
+      );
       const assigned = await getListingQuestionIds(listing.id);
       expect(assigned.length).toBe(0);
     });
@@ -249,7 +257,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       // Assign q1 first
       const { setListingQuestions, getListingQuestionIds } = await import(
-        "#shared/db/questions.ts"
+        "#shared/db/questions/queries.ts"
       );
       await setListingQuestions(listing.id, [q1]);
 

@@ -15,8 +15,8 @@ import { getGroupIdsByListingId, groups } from "#shared/db/groups.ts";
 import {
   type AttendeeQuestionData,
   getAttendeeAnswersBatch,
-  getQuestionsForListing,
-} from "#shared/db/questions.ts";
+} from "#shared/db/questions/attendee-answers.ts";
+import { getQuestionsForListing } from "#shared/db/questions/queries.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import type { GroupContext } from "#templates/admin/listings/types.ts";

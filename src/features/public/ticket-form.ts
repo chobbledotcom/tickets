@@ -8,12 +8,14 @@ import type { TicketListing } from "#shared/booking/model.ts";
 import { quantityFieldName } from "#shared/booking/tree.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type {
-  AttendeeAnswerSet,
-  AttendeeListingEntry,
-  QuestionListingMap,
   QuestionWithAnswers,
   TextAnswer,
-} from "#shared/db/questions.ts";
+} from "#shared/db/question-types.ts";
+import type {
+  AttendeeAnswerSet,
+  AttendeeListingEntry,
+} from "#shared/db/questions/attendee-answers.ts";
+import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { mergeListingFields } from "#shared/listing-fields.ts";
 import type { ListingFields } from "#shared/types.ts";

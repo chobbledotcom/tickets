@@ -4,13 +4,12 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import {
-  answersTable,
   getAttendeeAnswersBatch,
   getAttendeeTextAnswers,
-  getOrCreateStringIds,
-  questionsTable,
-  setListingQuestions,
-} from "#shared/db/questions.ts";
+} from "#shared/db/questions/attendee-answers.ts";
+import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
+import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
   checkoutSessionEvent,
@@ -88,12 +87,15 @@ describeWithEnv(
       });
 
       // Create a question and answer via DB
-      const {
-        questionsTable,
-        answersTable,
-        setListingQuestions,
-        getAttendeeAnswersBatch,
-      } = await import("#shared/db/questions.ts");
+      const { questionsTable, answersTable } = await import(
+        "#shared/db/questions/tables.ts"
+      );
+      const { setListingQuestions } = await import(
+        "#shared/db/questions/queries.ts"
+      );
+      const { getAttendeeAnswersBatch } = await import(
+        "#shared/db/questions/attendee-answers.ts"
+      );
       const q = await questionsTable.insert({
         displayType: "radio",
         text: "Size?",

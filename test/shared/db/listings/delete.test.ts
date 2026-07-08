@@ -22,12 +22,11 @@ import {
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import {
-  answersTable,
   getAttendeeAnswersBatch,
-  questionsTable,
   saveAttendeeAnswers,
-  setListingQuestions,
-} from "#shared/db/questions.ts";
+} from "#shared/db/questions/attendee-answers.ts";
+import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import {
   createTestAttendee,
   createTestListing,

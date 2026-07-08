@@ -2,12 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import {
-  answersTable,
   getAttendeeAnswersBatch,
-  questionsTable,
   saveAttendeeAnswers,
-  setListingQuestions,
-} from "#shared/db/questions.ts";
+} from "#shared/db/questions/attendee-answers.ts";
+import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import {
   adminFormPost,
   awaitTestRequest,

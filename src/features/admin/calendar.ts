@@ -42,7 +42,7 @@ import {
   getLogisticsAssignmentsForAttendees,
 } from "#shared/db/logistics.ts";
 import { agentNameMap, logisticsAgents } from "#shared/db/logistics-agents.ts";
-import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
+import { loadAttendeeQuestionData } from "#shared/db/questions/attendee-answers.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   type AgentFilter,

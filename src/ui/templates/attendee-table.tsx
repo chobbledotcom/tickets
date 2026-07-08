@@ -24,10 +24,8 @@ import {
   ATTENDEE_TABLE_COLUMNS,
 } from "#shared/columns/attendee-columns.ts";
 import { isServicing } from "#shared/db/attendees/kind.ts";
-import type {
-  AttendeeQuestionData,
-  QuestionWithAnswers,
-} from "#shared/db/questions.ts";
+import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
+import type { AttendeeQuestionData } from "#shared/db/questions/attendee-answers.ts";
 import { settings } from "#shared/db/settings.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import {

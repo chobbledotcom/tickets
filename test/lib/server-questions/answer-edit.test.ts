@@ -44,7 +44,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Invalid modifier"), false);
-      const { getAnswerModifierId } = await import("#shared/db/questions.ts");
+      const { getAnswerModifierId } = await import(
+        "#shared/db/questions/aggregates.ts"
+      );
       expect(await getAnswerModifierId(aId)).toBeNull();
     };
 
@@ -94,7 +96,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       )(response);
 
       const { getQuestionWithAnswers } = await import(
-        "#shared/db/questions.ts"
+        "#shared/db/questions/queries.ts"
       );
       const question = await getQuestionWithAnswers(qId);
       expect(question!.answers.find((a) => a.id === aId)!.text).toBe("After");
@@ -104,7 +106,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const qId = await createQuestion("Deactivate question");
       const aId = await addAnswer(qId, "Retired option");
       const { getQuestionWithAnswers } = await import(
-        "#shared/db/questions.ts"
+        "#shared/db/questions/queries.ts"
       );
       // New answers start active.
       const before = await getQuestionWithAnswers(qId);
@@ -139,7 +141,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const { getAnswerModifierId } = await import("#shared/db/questions.ts");
+      const { getAnswerModifierId } = await import(
+        "#shared/db/questions/aggregates.ts"
+      );
       expect(await getAnswerModifierId(aId)).toBe(modifierId);
     });
 
@@ -149,7 +153,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const modifierId = await createAnswerModifier("Removable");
 
       const { setAnswerModifier, getAnswerModifierId } = await import(
-        "#shared/db/questions.ts"
+        "#shared/db/questions/aggregates.ts"
       );
       await setAnswerModifier(aId, modifierId);
       expect(await getAnswerModifierId(aId)).toBe(modifierId);
@@ -236,7 +240,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(response.status).toBe(302);
 
       const { getAnswerSelectionTotals } = await import(
-        "#shared/db/questions.ts"
+        "#shared/db/questions/aggregates.ts"
       );
       expect((await getAnswerSelectionTotals(qId)).get(aId)).toBe(15);
     });
@@ -252,7 +256,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(response.status).toBe(302);
 
       const { getQuestionWithAnswers } = await import(
-        "#shared/db/questions.ts"
+        "#shared/db/questions/queries.ts"
       );
       const question = await getQuestionWithAnswers(qId);
       // The invalid aggregate aborts the whole edit, so the text is unchanged.
@@ -268,7 +272,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       answerId: number,
     ): Promise<void> => {
       const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
-      const { saveAttendeeAnswers } = await import("#shared/db/questions.ts");
+      const { saveAttendeeAnswers } = await import(
+        "#shared/db/questions/attendee-answers.ts"
+      );
       const result = await createAttendeeAtomic({
         bookings: [{ listingId }],
         email: "booker@test.com",
@@ -302,7 +308,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await bookAnswer(listing.id, aId);
 
       const { updateAnswerAggregateValues } = await import(
-        "#shared/db/questions.ts"
+        "#shared/db/questions/aggregates.ts"
       );
       await updateAnswerAggregateValues(aId, { times_selected: 8 });
 
@@ -339,7 +345,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await bookAnswer(listing.id, aId);
 
       const { updateAnswerAggregateValues, getAnswerSelectionTotals } =
-        await import("#shared/db/questions.ts");
+        await import("#shared/db/questions/aggregates.ts");
       await updateAnswerAggregateValues(aId, { times_selected: 99 });
 
       const { response } = await adminFormPost(

@@ -6,9 +6,9 @@ import {
   getAttendeeAnswersBatch,
   getAttendeeTextAnswers,
   getListingChoiceAnswerMap,
-  getOrCreateStringIds,
   saveAttendeeAnswers,
-} from "#shared/db/questions.ts";
+} from "#shared/db/questions/attendee-answers.ts";
+import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import { nowIso } from "#shared/now.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";

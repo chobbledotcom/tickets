@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { generateAttendeesCsv } from "#routes/admin/attendees-csv.ts";
-import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { testAttendee } from "#test-utils";
 
 /** Build a question with answers that each have a distinct numeric id. */

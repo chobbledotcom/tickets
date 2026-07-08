@@ -85,7 +85,7 @@ const attachTextAndChoiceQuestions = async (
   choiceAnswerId: number;
 }> => {
   const { answersTable, listingQuestionsTable, questionsTable } = await import(
-    "#shared/db/questions.ts"
+    "#shared/db/questions/tables.ts"
   );
   const textQuestion = await questionsTable.insert({
     assignAll: false,
@@ -131,7 +131,7 @@ describeWithEnv(
       const { textQuestionId, choiceAnswerId } =
         await attachTextAndChoiceQuestions(listing.id);
       const { saveAttendeeAnswers, getAttendeeTextAnswers } = await import(
-        "#shared/db/questions.ts"
+        "#shared/db/questions/attendee-answers.ts"
       );
       // Seed a free-text answer on the servicing event.
       await saveAttendeeAnswers(

@@ -51,7 +51,7 @@ import {
   setModifierAnswers,
   updateModifierAggregateValues,
 } from "#shared/db/modifiers.ts";
-import { getAllQuestionsWithAnswers } from "#shared/db/questions.ts";
+import { getAllQuestionsWithAnswers } from "#shared/db/questions/queries.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
