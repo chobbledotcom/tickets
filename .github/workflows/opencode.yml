@@ -5,6 +5,8 @@ on:
     types: [created]
   pull_request_review_comment:
     types: [created]
+  issues:
+    types: [opened]
 
 jobs:
   opencode:
@@ -20,7 +22,10 @@ jobs:
         with:
           script: |
             const OPEN_CODE_COMMAND = /(^|\s)\/(?:oc|opencode)(?=\s|$)/;
-            const commentBody = context.payload.comment?.body ?? "";
+            const commentBody =
+              context.payload.comment?.body ??
+              context.payload.issue?.body ??
+              "";
 
             if (!OPEN_CODE_COMMAND.test(commentBody)) {
               core.info("No OpenCode command mention found.");
@@ -29,7 +34,9 @@ jobs:
             }
 
             const trustedAuthors = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
-            const authorAssociation = context.payload.comment?.author_association;
+            const authorAssociation =
+              context.payload.comment?.author_association ??
+              context.payload.issue?.author_association;
             if (!trustedAuthors.has(authorAssociation)) {
               core.info(`Ignoring OpenCode command from ${authorAssociation ?? "unknown"} author.`);
               core.setOutput("should_run", "false");
