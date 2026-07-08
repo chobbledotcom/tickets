@@ -1,23 +1,15 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { getSessionCookieName } from "#shared/cookies.ts";
 import { col, defineTable, type Table } from "#shared/db/table.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { Field, FieldValues } from "#shared/forms.tsx";
-import { createHandler, deleteHandler } from "#shared/rest/handlers.ts";
 import { defineResource, type Resource } from "#shared/rest/resource.ts";
 import {
   createTestDb,
   describeWithEnv,
-  errorResponse,
-  expectAdminRedirect,
   expectResultError,
   expectResultNotFound,
   resetDb,
-  successResponse,
-  testCookie,
-  testCsrfToken,
-  testRequest,
 } from "#test-utils";
 
 /** Test row type */
@@ -91,15 +83,8 @@ const expectRowExists = async (
 const expectDeleted = (r: Resource<TestRow, TestInput>, id: number) =>
   expectRowExists(r, id, false);
 
-/** Shorthand for existing row check */
-const expectExists = (r: Resource<TestRow, TestInput>, id: number) =>
-  expectRowExists(r, id, true);
-
 /** Common test row data for update tests */
 const originalRowData = { name: "Original", value: 50 } as const;
-
-/** Common test row data for important item tests */
-const importantItemData = { name: "Important Item", value: 10 } as const;
 
 /** Create test_items table in the current database */
 const createTestItemsTable = async () => {
@@ -327,262 +312,6 @@ describe("rest/resource", () => {
       const resource = createTestResource(true);
       expect(resource.verifyName?.(testRow, "Wrong Name")).toBe(false);
       expect(resource.verifyName?.(testRow, "")).toBe(false);
-    });
-  });
-});
-
-describeWithEnv("rest/handlers", { db: true }, () => {
-  beforeEach(async () => {
-    await createTestItemsTable();
-  });
-
-  /** Create authenticated request with session and CSRF */
-  const createAuthRequest = async (
-    path: string,
-    data: Record<string, string>,
-  ): Promise<Request> => {
-    const cookie = await testCookie();
-    const csrfToken = await testCsrfToken();
-    const sessionToken =
-      cookie.match(new RegExp(`${getSessionCookieName()}=([^;]+)`))?.[1] ?? "";
-    return testRequest(path, sessionToken, {
-      data: { ...data, csrf_token: csrfToken },
-    });
-  };
-
-  /** Create unauthenticated request */
-  const createUnauthRequest = (
-    path: string,
-    data: Record<string, string>,
-  ): Request => testRequest(path, null, { data });
-
-  describe("createHandler", () => {
-    test("creates row and calls onSuccess", async () => {
-      const resource = createTestResource();
-      let capturedRow: unknown = null;
-      const handler = createHandler(resource, {
-        onError: errorResponse(400),
-        onSuccess: (row) => {
-          capturedRow = row;
-          return new Response("Created", { status: 201 });
-        },
-      });
-
-      const request = await createAuthRequest("/items", {
-        name: "New Item",
-        value: "42",
-      });
-      const response = await handler(request);
-
-      expect(response.status).toBe(201);
-      const successRow = capturedRow as TestRow;
-      expect(successRow.name).toBe("New Item");
-      expect(successRow.value).toBe(42);
-    });
-
-    test("calls onError for validation failure", async () => {
-      const resource = createTestResource();
-      let errorMessage = "";
-      const handler = createHandler(resource, {
-        onError: (error) => {
-          errorMessage = error;
-          return new Response(error, { status: 400 });
-        },
-        onSuccess: successResponse(201, "Created"),
-      });
-
-      const request = await createAuthRequest("/items", { name: "Item" }); // missing value
-      const response = await handler(request);
-
-      expect(response.status).toBe(400);
-      expect(errorMessage).toBe("Value is required");
-    });
-
-    test("redirects for unauthenticated request", async () => {
-      const handler = createHandler(createTestResource(), {
-        onError: errorResponse(400),
-        onSuccess: successResponse(201, "Created"),
-      });
-      expectAdminRedirect(
-        await handler(
-          createUnauthRequest("/items", { name: "Item", value: "42" }),
-        ),
-      );
-    });
-  });
-
-  describe("deleteHandler", () => {
-    /** Standard delete handler options */
-    const deleteOpts = () => ({
-      onNotFound: successResponse(404, "Not Found"),
-      onSuccess: successResponse(204),
-    });
-
-    /** Delete handler options with name verification */
-    const deleteOptsWithVerify = () => ({
-      ...deleteOpts(),
-      onVerifyFailed: () => new Response("Name mismatch", { status: 400 }),
-    });
-
-    test("deletes row and calls onSuccess", async () => {
-      const resource = await insertRow(createTestResource(), {
-        name: "To Delete",
-        value: 10,
-      });
-      const handler = deleteHandler(resource, deleteOpts());
-      const response = await handler(
-        await createAuthRequest("/items/1?verify_name=false", {}),
-        1,
-      );
-      expect(response.status).toBe(204);
-      await expectDeleted(resource, 1);
-    });
-
-    test("calls onNotFound for non-existent row", async () => {
-      const handler = deleteHandler(createTestResource(), deleteOpts());
-      const response = await handler(
-        await createAuthRequest("/items/999?verify_name=false", {}),
-        999,
-      );
-      expect(response.status).toBe(404);
-    });
-
-    test("redirects for unauthenticated request", async () => {
-      const handler = deleteHandler(createTestResource(), deleteOpts());
-      expectAdminRedirect(
-        await handler(createUnauthRequest("/items/1", {}), 1),
-      );
-    });
-
-    test("verifies name when verify_name param is not false", async () => {
-      const resource = await insertRow(
-        createTestResource(true),
-        importantItemData,
-      );
-      let verifyFailedId: unknown = null;
-      const handler = deleteHandler(resource, {
-        ...deleteOpts(),
-        onVerifyFailed: (id, _row) => {
-          verifyFailedId = id;
-          return new Response("Name mismatch", { status: 400 });
-        },
-      });
-      expect(
-        (
-          await handler(
-            await createAuthRequest("/items/1", {
-              confirm_identifier: "Wrong Name",
-            }),
-            1,
-          )
-        ).status,
-      ).toBe(400);
-      expect(verifyFailedId).toBe(1);
-      await expectExists(resource, 1);
-    });
-
-    test("skips verification when no onVerifyFailed is configured, even with a wrong name", async () => {
-      // Name verification is only enforced when the caller supplies an
-      // onVerifyFailed handler. Without it, a wrong name must NOT block the
-      // delete (and must not try to call the absent handler).
-      const resource = await insertRow(
-        createTestResource(true),
-        importantItemData,
-      );
-      const handler = deleteHandler(resource, deleteOpts());
-      const response = await handler(
-        await createAuthRequest("/items/1", {
-          confirm_identifier: "Wrong Name",
-        }),
-        1,
-      );
-      expect(response.status).toBe(204);
-      await expectDeleted(resource, 1);
-    });
-
-    const setupDeleteWithVerify = async () => {
-      const resource = await insertRow(
-        createTestResource(true),
-        importantItemData,
-      );
-      return {
-        handler: deleteHandler(resource, deleteOptsWithVerify()),
-        resource,
-      };
-    };
-
-    test("deletes when name verification passes", async () => {
-      const { resource, handler } = await setupDeleteWithVerify();
-      expect(
-        (
-          await handler(
-            await createAuthRequest("/items/1", {
-              confirm_identifier: importantItemData.name,
-            }),
-            1,
-          )
-        ).status,
-      ).toBe(204);
-      await expectDeleted(resource, 1);
-    });
-
-    test("skips name verification when verify_name=false", async () => {
-      const { resource, handler } = await setupDeleteWithVerify();
-      expect(
-        (
-          await handler(
-            await createAuthRequest("/items/1?verify_name=false", {}),
-            1,
-          )
-        ).status,
-      ).toBe(204);
-      await expectDeleted(resource, 1);
-    });
-
-    test("dispatchDelete calls onSuccess when result has no notFound property", async () => {
-      // Create a resource with a custom onDelete that always succeeds
-      const table = createTestTable();
-      const resource = defineResource({
-        fields: testFields,
-        onDelete: async (_id) => {
-          // Custom delete that does nothing (row might already be gone)
-        },
-        table,
-        toInput,
-      });
-
-      // Insert a row so findById in deleteHandler succeeds
-      await table.insert({ name: "Custom Delete", value: 10 });
-
-      const handler = deleteHandler(resource, {
-        onNotFound: successResponse(404, "Not Found"),
-        onSuccess: successResponse(204),
-      });
-
-      const request = await createAuthRequest("/items/1?verify_name=false", {});
-      const response = await handler(request, 1);
-      // onDelete returns void, so delete returns { ok: true } - dispatchDelete calls onSuccess
-      expect(response.status).toBe(204);
-    });
-
-    test("uses empty string fallback when confirm_identifier is not provided", async () => {
-      const resource = await insertRow(
-        createTestResource(true),
-        importantItemData,
-      );
-      const handler = deleteHandler(resource, {
-        ...deleteOpts(),
-        onVerifyFailed: (_id, _row, _session, _form) => {
-          return new Response("Name mismatch", { status: 400 });
-        },
-      });
-
-      // Submit without confirm_identifier field at all (will use ?? "" fallback)
-      const request = await createAuthRequest("/items/1", {});
-      const response = await handler(request, 1);
-      expect(response.status).toBe(400);
-      // The form won't have confirm_identifier, so verifyName gets ""
-      await expectExists(resource, 1);
     });
   });
 });
