@@ -988,8 +988,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
   });
 
   describe("ticket purchase with payments enabled", () => {
-    // These tests require stripe-mock running on localhost:12111
-    // STRIPE_MOCK_HOST/PORT are set in test/setup.ts
+    // These tests use the stripe-mock host and port chosen by the harness.
     // Stripe keys are now set via environment variables
 
     afterEach(() => {
