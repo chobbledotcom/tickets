@@ -1,6 +1,7 @@
 import { apiResponse } from "#routes/api/cors.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { getClientIp } from "#routes/url.ts";
+import { parseCustomPrice } from "#shared/booking/form.ts";
 import { bookingLimiter } from "#shared/db/booking-attempts.ts";
 import { isHiddenPackageMember } from "#shared/db/groups.ts";
 import { getListingWithCountBySlug } from "#shared/db/listings.ts";
@@ -22,6 +23,28 @@ export const resolvePositiveQuantity = (
     return apiResponse({ error: "Quantity must be at least 1" }, 400);
   }
   return parsedQuantity ?? 1;
+};
+
+/** Resolve a pay-more listing's submitted `customPrice` (from the JSON body's
+ * `customPrice` field): the validated price for a `can_pay_more` listing,
+ * `undefined` for a fixed-price one (nothing to parse), or a 400 response when
+ * the submitted price is out of range. Shared by the standalone booking path and
+ * the parent-booking path (which seeds the fold's customPrices with it) so
+ * the two never parse the pay-more price differently. */
+export const resolveCustomPrice = (
+  listing: ListingWithCount,
+  form: FormParams,
+): number | undefined | Response => {
+  if (!listing.can_pay_more) return undefined;
+  const priceResult = parseCustomPrice(
+    form,
+    "customPrice",
+    listing.unit_price,
+    listing.max_price,
+  );
+  return priceResult.ok
+    ? priceResult.price
+    : apiResponse({ error: priceResult.error }, 400);
 };
 
 /** Look up an active listing by slug, returning a 404 response if

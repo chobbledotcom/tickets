@@ -3,6 +3,7 @@ import { processParentApiBooking } from "#routes/api/folded-booking.ts";
 import {
   checkBookingRateLimit,
   parseApiJsonBody,
+  resolveCustomPrice,
   resolvePositiveQuantity,
   toFormParams,
   withActiveListing,
@@ -10,12 +11,10 @@ import {
 import { isRegistrationClosed } from "#routes/format.ts";
 import { parentRequiresChild } from "#routes/public/ticket-payment.ts";
 import { getBaseUrl } from "#routes/url.ts";
-import { parseCustomPrice } from "#shared/booking/form.ts";
 import { processBooking } from "#shared/booking.ts";
 import { getAvailableDates } from "#shared/dates.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { anyNonStandaloneChild } from "#shared/db/listing-parents.ts";
-import type { FormParams } from "#shared/form-data.ts";
 import { isPaidListing, type ListingWithCount } from "#shared/types.ts";
 import {
   extractContact,
@@ -83,28 +82,6 @@ const resolveQuantityAndDate = async (
   const clampedQuantity = Math.min(quantity, listing.max_quantity);
   const date = await resolveBookingDate(listing, body);
   return date instanceof Response ? date : { date, quantity: clampedQuantity };
-};
-
-/** Resolve a pay-more listing's submitted `customPrice` (from the JSON body's
- * `customPrice` field): the validated price for a `can_pay_more` listing,
- * `undefined` for a fixed-price one (nothing to parse), or a 400 response when
- * the submitted price is out of range. Shared by the standalone booking path and
- * the parent-booking path (which seeds the fold's customPrices with it) so
- * the two never parse the pay-more price differently. */
-export const resolveCustomPrice = (
-  listing: ListingWithCount,
-  form: FormParams,
-): number | undefined | Response => {
-  if (!listing.can_pay_more) return undefined;
-  const priceResult = parseCustomPrice(
-    form,
-    "customPrice",
-    listing.unit_price,
-    listing.max_price,
-  );
-  return priceResult.ok
-    ? priceResult.price
-    : apiResponse({ error: priceResult.error }, 400);
 };
 
 /** POST /api/listings/:slug/book — create a booking */

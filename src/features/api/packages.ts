@@ -111,16 +111,15 @@ const withPackageContext = withSlugLoaded<PackageContext>(
  * field). Published as one package-level value, so an API client — which cannot
  * see a hidden package's members through the listing API — knows what to submit
  * before POSTing. */
-const packageMergedFields = (ctx: TicketCtx): string => {
-  const settings: string[] = [];
-  for (const e of ctx.listings) {
-    settings.push(e.listing.fields);
-    for (const child of ctx.childrenByParentId.get(e.listing.id) ?? []) {
-      settings.push(child.listing.fields);
-    }
-  }
-  return mergeListingFields(settings);
-};
+const packageMergedFields = (ctx: TicketCtx): string =>
+  mergeListingFields(
+    ctx.listings.flatMap((e) => [
+      e.listing.fields,
+      ...(ctx.childrenByParentId.get(e.listing.id) ?? []).map(
+        (c) => c.listing.fields,
+      ),
+    ]),
+  );
 
 /** GET /api/packages/:slug — package bundle detail. A fixed-price bundle
  * reports one `priceMinor`; a customisable one reports each offered day count
@@ -193,12 +192,7 @@ const applyPackageChildSelections = (
   ctx: TicketCtx,
   selections: ApiChildSelection[],
 ): Response | null => {
-  const byParent = new Map<string, ApiChildSelection[]>();
-  for (const selection of selections) {
-    const list = byParent.get(selection.parent!) ?? [];
-    list.push(selection);
-    byParent.set(selection.parent!, list);
-  }
+  const byParent = Map.groupBy(selections, (s) => s.parent!);
   for (const [parentSlug, perParent] of byParent) {
     const member = ctx.listings.find((e) => e.listing.slug === parentSlug);
     if (!member) {
