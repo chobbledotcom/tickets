@@ -82,7 +82,7 @@ export const modifiersTable = defineIdTable<ModifierRow, ModifierInput>(
     // (generated), so insert/update never write them and the DB default / the
     // triggers keep them current. total_revenue is no longer a column: it is
     // projected from the transfers ledger by {@link modifierRevenueSubquery},
-    // which every loader selects alongside `modifiers.*`.
+    // which every loader selects alongside the stored modifier columns.
     total_uses: col.generated<number>(),
     trigger: col.withDefault<ModifierTrigger>(() => "automatic"),
     usage_count: col.generated<number>(),
@@ -97,47 +97,45 @@ export const modifiersTable = defineIdTable<ModifierRow, ModifierInput>(
  * effect on revenue. `idExpr` is the SQL for the modifier's id in the
  * surrounding query (always qualified — `modifiers.id` — because the correlated
  * subquery's FROM is `transfers`, which also has an `id`). Reused by every
- * `SELECT *` loader so revenue is read from the ledger in exactly one place,
+ * modifier loader so revenue is read from the ledger in exactly one place,
  * never off the now-dropped column. The trailing `AS total_revenue` names the
  * projected column.
  */
 export const modifierRevenueSubquery = (idExpr: string): string =>
   `${accountBalanceSubquery("modifier", idExpr)} AS total_revenue`;
+const MODIFIER_COLUMNS = modifiersTable.columns.join(", ");
 
 /** Decrypt a modifier row and merge the ledger-projected total_revenue its
- * loader selected alongside `modifiers.*`. The row carries `total_revenue` from
- * {@link modifierRevenueSubquery} (the column itself is gone), so it is always a
- * number. Mirrors `decryptListingWithCount`'s attach-the-projection step. */
+ * loader selected alongside the stored modifier columns. The row carries
+ * `total_revenue` from {@link modifierRevenueSubquery} (the column itself is
+ * gone), so it is always a number. Mirrors `decryptListingWithCount`'s
+ * attach-the-projection step. */
 const mapModifierRow = async (row: Modifier): Promise<Modifier> => ({
   ...(await modifiersTable.fromDb(row)),
   total_revenue: Number(row.total_revenue),
 });
 
 /** Execute a query and decrypt the resulting modifier rows, merging the
- * ledger-projected total_revenue every loader selects alongside `modifiers.*`. */
+ * ledger-projected total_revenue every loader selects. */
 const queryModifiers = queryAndMap<Modifier, Modifier>(mapModifierRow);
+
+const modifierSelect = (where = ""): string =>
+  `SELECT ${MODIFIER_COLUMNS}, ${modifierRevenueSubquery("modifiers.id")} FROM modifiers${where}`;
 
 /** Get all modifiers, decrypted, ordered by id. */
 export const getAllModifiers = (): Promise<Modifier[]> =>
-  queryModifiers(
-    `SELECT *, ${modifierRevenueSubquery("modifiers.id")} FROM modifiers ORDER BY id ASC`,
-  );
+  queryModifiers(`${modifierSelect()} ORDER BY id ASC`);
 
 /** Get the active modifiers, decrypted, ordered by id. */
 export const getActiveModifiers = (): Promise<Modifier[]> =>
-  queryModifiers(
-    `SELECT *, ${modifierRevenueSubquery("modifiers.id")} FROM modifiers WHERE active = 1 ORDER BY id ASC`,
-  );
+  queryModifiers(`${modifierSelect(" WHERE active = 1")} ORDER BY id ASC`);
 
 /** Get a single modifier by id, decrypted, with its ledger-projected
  * total_revenue — the single-row read the admin edit/recalculate pages use, so
  * they see the projected figure rather than the dropped column (the bare
  * `modifiersTable.findById` returns only the stored {@link ModifierRow}). */
 export const getModifier = async (id: number): Promise<Modifier | null> => {
-  const row = await queryOne<Modifier>(
-    `SELECT *, ${modifierRevenueSubquery("modifiers.id")} FROM modifiers WHERE id = ?`,
-    [id],
-  );
+  const row = await queryOne<Modifier>(modifierSelect(" WHERE id = ?"), [id]);
   return row ? mapModifierRow(row) : null;
 };
 

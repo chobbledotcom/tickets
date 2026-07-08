@@ -31,6 +31,8 @@ import { requestCache } from "#shared/request-cache.ts";
 export type ColumnDef<T = unknown> = {
   /** Whether this column is auto-generated (like id) */
   generated?: boolean | undefined;
+  /** Whether this value is projected by caller SQL, not stored on the table. */
+  projected?: boolean | undefined;
   /** Default value generator (for created timestamps etc) */
   default?: (() => T) | undefined;
   /** Transform value before writing to DB (e.g., encrypt) */
@@ -81,6 +83,9 @@ export const buildInputKeyMap = (columns: string[]): Record<string, string> =>
  * Table definition with CRUD operations
  */
 export interface Table<Row, Input> {
+  /** Physical DB columns declared for this table, in schema order. */
+  columns: readonly string[];
+
   /** Delete a row by primary key */
   deleteById: (id: InValue) => Promise<void>;
 
@@ -169,9 +174,10 @@ const buildUpdateSql = (
   name: string,
   columns: string[],
   primaryKey: string,
+  returningColumns: string,
 ): string => {
   const setClauses = columns.map((col) => `${col} = ?`).join(", ");
-  return `UPDATE ${name} SET ${setClauses} WHERE ${primaryKey} = ? RETURNING *`;
+  return `UPDATE ${name} SET ${setClauses} WHERE ${primaryKey} = ? RETURNING ${returningColumns}`;
 };
 
 /** The shape that defines a table: its name, primary key, and column schema. */
@@ -191,7 +197,9 @@ export const defineTable = <Row, Input = Row>(
 
   // Build column lists
   const allColumns = Object.keys(schema) as (keyof Row & string)[];
-  const inputColumns = allColumns.filter((col) => !schema[col].generated);
+  const physicalColumns = allColumns.filter((col) => !schema[col].projected);
+  const physicalColumnsSql = physicalColumns.join(", ");
+  const inputColumns = physicalColumns.filter((col) => !schema[col].generated);
   const inputKeyMap = buildInputKeyMap(inputColumns);
 
   // Get input value for a column (inputKeyMap always has entry for inputColumns)
@@ -314,11 +322,16 @@ export const defineTable = <Row, Input = Row>(
     const providedColumns = getProvidedColumns(input);
     return {
       args: [...providedColumns.map((col) => dbValues[col] as InValue), id],
-      sql: buildUpdateSql(name, providedColumns, primaryKey),
+      sql: buildUpdateSql(
+        name,
+        providedColumns,
+        primaryKey,
+        physicalColumnsSql,
+      ),
     };
   };
 
-  // Update implementation - uses RETURNING * to avoid a second round trip
+  // Update implementation - uses RETURNING to avoid a second round trip
   const update = async (
     id: InValue,
     input: Partial<Input>,
@@ -336,9 +349,10 @@ export const defineTable = <Row, Input = Row>(
     query: (sql: string, args: InValue[]) => Promise<Row | null>,
     id: InValue,
   ): Promise<Row | null> => {
-    const row = await query(`SELECT * FROM ${name} WHERE ${primaryKey} = ?`, [
-      id,
-    ]);
+    const row = await query(
+      `SELECT ${physicalColumnsSql} FROM ${name} WHERE ${primaryKey} = ?`,
+      [id],
+    );
     return row ? fromDb(row) : null;
   };
 
@@ -355,7 +369,9 @@ export const defineTable = <Row, Input = Row>(
 
   // Find all implementation
   const findAll = async (): Promise<Row[]> => {
-    const rows = await queryAll<Row>(`SELECT * FROM ${name}`);
+    const rows = await queryAll<Row>(
+      `SELECT ${physicalColumnsSql} FROM ${name}`,
+    );
     return mapParallel(fromDb)(rows);
   };
 
@@ -379,6 +395,7 @@ export const defineTable = <Row, Input = Row>(
   };
 
   return {
+    columns: physicalColumns,
     deleteById,
     findAll,
     findById,
@@ -452,10 +469,13 @@ export const defineCachedListTable = <Row, Input>(
 ) => {
   const table = defineTable<Row, Input>(config);
   const selectAll = queryAndMap<Row, Row>(table.fromDb);
+  const columns = table.columns.join(", ");
   return cachedTable<Row, Input>({
     dependsOn: config.dependsOn ?? [],
     fetchAll: () =>
-      selectAll(`SELECT * FROM ${config.name} ORDER BY ${config.orderBy}`),
+      selectAll(
+        `SELECT ${columns} FROM ${config.name} ORDER BY ${config.orderBy}`,
+      ),
     name: config.name,
     table,
   });
@@ -538,6 +558,7 @@ export const col = {
     read: (raw: InValue | undefined) => Promise<App> | App,
   ): ColumnDef<App> => ({
     generated: true,
+    projected: true,
     read: read as (v: App) => App,
   }),
 
