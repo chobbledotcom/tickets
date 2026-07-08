@@ -189,13 +189,18 @@ const overviewTab: TabDef<LoadedAttendee> = {
     },
     {
       kind: "custom",
-      load: async ({ attendee }, ctx) =>
-        ContactHistory({
+      load: async ({ attendee }, ctx) => {
+        const [contactRecords, previousBookings] = await Promise.all([
+          loadContactRecords(attendee),
+          loadPreviousBookings(attendee),
+        ]);
+        return ContactHistory({
           attendee,
-          contactRecords: await loadContactRecords(attendee),
+          contactRecords,
           isOwner: ctx.session.adminLevel === "owner",
-          previousBookings: await loadPreviousBookings(attendee),
-        }),
+          previousBookings,
+        });
+      },
     },
   ],
   slug: "",

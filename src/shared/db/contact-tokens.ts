@@ -6,11 +6,12 @@
  * contact's other bookings without decrypting every attendee.
  */
 
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
 } from "#shared/crypto/keys.ts";
-import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
+import type { BlindIndex, OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 import {
   type ContactChannel,
@@ -47,24 +48,50 @@ const TAG_SOURCE: Record<string, BookingSource> = {
   p: "public",
 };
 
+const TOKEN_LINE_SEPARATOR = "\t";
+
+const tokenMarkerFor = (ticketToken: string): Promise<BlindIndex> =>
+  hmacHash(`contact-token:${ticketToken}`);
+
+type StoredTokenLine = {
+  encrypted: OwnerKeyEncrypted;
+  marker: BlindIndex | null;
+  raw: string;
+};
+
 /**
- * Encrypt one "<tag><token>" entry for the append-only tokens blob, terminated
- * by a newline so entries concatenate on the column without a separator table.
- * Encryption needs only the public key, so the public checkout can append
- * without the owner private key.
+ * Create one searchable token entry for the append-only tokens blob,
+ * terminated by a newline so entries concatenate on the column without a
+ * separator table. The marker is a blind index of the random ticket token; the
+ * source and token stay owner-key-encrypted.
  */
 const encryptTokenEntry = async (
   source: BookingSource,
   token: string,
-): Promise<string> =>
-  `${await encryptWithOwnerKey(
+): Promise<string> => {
+  const marker = await tokenMarkerFor(token);
+  const encrypted = await encryptWithOwnerKey(
     `${SOURCE_TAG[source]}${token}`,
     settings.publicKey,
-  )}\n`;
+  );
+  return `${marker}${TOKEN_LINE_SEPARATOR}${encrypted}\n`;
+};
 
-/** Split a tokens blob into its per-entry ciphertext lines. */
-const splitTokenBlob = (blob: string): OwnerKeyEncrypted[] =>
-  blob.split("\n").filter(Boolean) as OwnerKeyEncrypted[];
+/** Split a tokens blob into its per-entry stored lines. */
+const splitTokenBlob = (blob: string): StoredTokenLine[] =>
+  blob
+    .split("\n")
+    .filter(Boolean)
+    .map((raw) => {
+      const separatorAt = raw.indexOf(TOKEN_LINE_SEPARATOR);
+      return separatorAt === -1
+        ? { encrypted: raw as OwnerKeyEncrypted, marker: null, raw }
+        : {
+            encrypted: raw.slice(separatorAt + 1) as OwnerKeyEncrypted,
+            marker: raw.slice(0, separatorAt) as BlindIndex,
+            raw,
+          };
+    });
 
 /** Decrypt one entry back to its source + ticket token. */
 const parseTokenEntry = async (
@@ -136,11 +163,11 @@ const loadTokenBlob = async (hash: string): Promise<string | null> => {
 };
 
 /** Split a loaded token blob, treating a missing or empty blob as no tokens. */
-const tokenLinesFrom = (blob: string | null): OwnerKeyEncrypted[] =>
+const tokenLinesFrom = (blob: string | null): StoredTokenLine[] =>
   blob ? splitTokenBlob(blob) : [];
 
-/** Load a contact's token entries as raw ciphertext lines. */
-const loadTokenLines = async (hash: string): Promise<OwnerKeyEncrypted[]> =>
+/** Load a contact's token entries as stored lines. */
+const loadTokenLines = async (hash: string): Promise<StoredTokenLine[]> =>
   tokenLinesFrom(await loadTokenBlob(hash));
 
 /** Decrypt loaded token lines into source + ticket token pairs. */
@@ -157,7 +184,9 @@ export const getRecentBookingTokens = async (
   limit: number,
 ): Promise<BookingToken[]> =>
   bookingTokensFrom(
-    (await loadTokenLines(hash)).slice(-Math.max(0, limit)),
+    (await loadTokenLines(hash))
+      .slice(-Math.max(0, limit))
+      .map((line) => line.encrypted),
     privateKey,
   );
 
@@ -167,22 +196,20 @@ const removeBookingToken = async (
   ticketToken: string,
   privateKey: CryptoKey,
 ): Promise<BookingSource | null> => {
-  const entries = await Promise.all(
-    (await loadTokenLines(hash)).map(async (line) => ({
-      line,
-      ...(await parseTokenEntry(line, privateKey)),
-    })),
+  const marker = await tokenMarkerFor(ticketToken);
+  const match = (await loadTokenLines(hash)).find(
+    (entry) => entry.marker === marker,
   );
-  const match = entries.find((entry) => entry.token === ticketToken);
   if (!match) return null;
+  const removed = await parseTokenEntry(match.encrypted, privateKey);
   // Delete just this entry's ciphertext line in place. REPLACE operates on the
   // column's current value at write time, so a keyless checkout append that
   // lands after our read is preserved instead of overwritten by a stale rewrite.
   await execute(
     "UPDATE contact_preferences SET attendee_tokens_blob = REPLACE(attendee_tokens_blob, ?, ''), last_activity = ? WHERE contact_hash = ?",
-    [`${match.line}\n`, nowMs(), hash],
+    [`${match.raw}\n`, nowMs(), hash],
   );
-  return match.source;
+  return removed.source;
 };
 
 /** Add the token when it is missing, preserving the existing list otherwise. */
@@ -190,13 +217,12 @@ const ensureBookingToken = async (
   hash: string,
   ticketToken: string,
   source: BookingSource,
-  privateKey: CryptoKey,
   createMissingContact: boolean,
 ): Promise<void> => {
   const blob = await loadTokenBlob(hash);
   if (blob === null && !createMissingContact) return;
-  const tokens = await bookingTokensFrom(tokenLinesFrom(blob), privateKey);
-  if (tokens.some((entry) => entry.token === ticketToken)) return;
+  const marker = await tokenMarkerFor(ticketToken);
+  if (tokenLinesFrom(blob).some((entry) => entry.marker === marker)) return;
   await addBookingToken(hash, ticketToken, source);
 };
 
@@ -241,7 +267,6 @@ const syncChannelToken = async (
     newHash,
     sync.ticketToken,
     removedSource ?? sync.source,
-    sync.privateKey,
     changed,
   );
 };

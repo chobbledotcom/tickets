@@ -141,6 +141,35 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     ]);
   });
 
+  test("syncAttendeeContactTokens removes a moved token without decrypting unrelated lines", async () => {
+    const pk = await getTestPrivateKey();
+    const oldEmail = "marker-old@example.com";
+    const newEmail = "marker-new@example.com";
+    const oldHash = await hashEmail(oldEmail);
+    const newHash = await hashEmail(newEmail);
+    await execute(
+      "INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob) VALUES (?, ?, ?)",
+      [oldHash, 1, "not-an-owner-key-token\n"],
+    );
+    await recordBooking(oldHash, "public", "tok-marker-move");
+
+    await syncToken(
+      "tok-marker-move",
+      { email: oldEmail, phone: "" },
+      { email: newEmail, phone: "" },
+      pk,
+    );
+
+    expect(await readAllTokens(newHash, pk)).toEqual([
+      { source: "public", token: "tok-marker-move" },
+    ]);
+    const oldRow = await queryOne<{ attendee_tokens_blob: string }>(
+      "SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ?",
+      [oldHash],
+    );
+    expect(oldRow?.attendee_tokens_blob).toBe("not-an-owner-key-token\n");
+  });
+
   test("syncAttendeeContactTokens moves a changed phone too", async () => {
     const pk = await getTestPrivateKey();
     const oldHash = await hashPhone("07700 900001");

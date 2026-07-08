@@ -164,9 +164,7 @@ const orderContactHashes = (
 const forEachOrderContact =
   (perContact: (hash: string) => Promise<void>) =>
   async (email: unknown, phone: unknown): Promise<void> => {
-    for (const hash of await orderContactHashes(email, phone)) {
-      await perContact(hash);
-    }
+    await Promise.all((await orderContactHashes(email, phone)).map(perContact));
   };
 
 /** Record a visit + source-tagged booking (with the attendee's ticket token, so
