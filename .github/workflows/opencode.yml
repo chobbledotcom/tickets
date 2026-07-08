@@ -8,22 +8,108 @@ on:
 
 jobs:
   opencode:
-    if: |
-      contains(github.event.comment.body, '/oc') ||
-      contains(github.event.comment.body, '/opencode')
     runs-on: ubicloud-standard-16
     permissions:
+      contents: read
       id-token: write
+      pull-requests: read
     steps:
+      - name: Check OpenCode request
+        id: gate
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
+        with:
+          script: |
+            const OPEN_CODE_COMMAND = /(^|\s)\/(?:oc|opencode)(?=\s|$)/;
+            const commentBody = context.payload.comment?.body ?? "";
+
+            if (!OPEN_CODE_COMMAND.test(commentBody)) {
+              core.info("No OpenCode command mention found.");
+              core.setOutput("should_run", "false");
+              return;
+            }
+
+            const trustedAuthors = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
+            const authorAssociation = context.payload.comment?.author_association;
+            if (!trustedAuthors.has(authorAssociation)) {
+              core.info(`Ignoring OpenCode command from ${authorAssociation ?? "unknown"} author.`);
+              core.setOutput("should_run", "false");
+              return;
+            }
+
+            const pullNumber = context.payload.issue?.pull_request
+              ? context.payload.issue.number
+              : context.payload.pull_request?.number;
+
+            if (pullNumber) {
+              const { data: pull } = await github.rest.pulls.get({
+                ...context.repo,
+                pull_number: pullNumber,
+              });
+              const sameRepository =
+                pull.head.repo?.full_name === pull.base.repo?.full_name;
+
+              if (!sameRepository) {
+                core.info("OpenCode commands do not run on fork pull requests.");
+                core.setOutput("should_run", "false");
+                return;
+              }
+
+              core.setOutput("should_run", "true");
+              return;
+            }
+
+            if (!context.payload.issue?.number) {
+              core.info("OpenCode commands only run on issues or pull requests.");
+              core.setOutput("should_run", "false");
+              return;
+            }
+
+            core.setOutput("should_run", "true");
+
       - name: Checkout repository
-        uses: actions/checkout@v6
+        if: steps.gate.outputs.should_run == 'true'
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Run OpenCode
-        uses: anomalyco/opencode/github@latest
+      - name: Install OpenCode
+        if: steps.gate.outputs.should_run == 'true'
         env:
+          OPENCODE_VERSION: 1.17.15
+        run: |
+          set -euo pipefail
+
+          arch="$(uname -m)"
+          case "$arch" in
+            x86_64) arch="x64" ;;
+            aarch64 | arm64) arch="arm64" ;;
+            *) echo "Unsupported architecture: $arch" >&2; exit 1 ;;
+          esac
+
+          target="linux-${arch}"
+          if [ "$arch" = "x64" ] && ! grep -qwi avx2 /proc/cpuinfo 2>/dev/null; then
+            target="${target}-baseline"
+          fi
+          if [ -f /etc/alpine-release ] || ldd --version 2>&1 | grep -qi musl; then
+            target="${target}-musl"
+          fi
+
+          file="opencode-${target}.tar.gz"
+          url="https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/${file}"
+          install_dir="${HOME}/.opencode/bin"
+          tmp_dir="$(mktemp -d)"
+          trap 'rm -rf "${tmp_dir}"' EXIT
+
+          mkdir -p "${install_dir}"
+          curl -fsSL "${url}" -o "${tmp_dir}/${file}"
+          tar -xzf "${tmp_dir}/${file}" -C "${tmp_dir}"
+          install -m 755 "${tmp_dir}/opencode" "${install_dir}/opencode"
+          echo "${install_dir}" >> "${GITHUB_PATH}"
+
+      - name: Run OpenCode
+        if: steps.gate.outputs.should_run == 'true'
+        env:
+          MODEL: neuralwatt/glm-5.2-flex
           NEURALWATT_API_KEY: ${{ secrets.NEURALWATT_API_KEY }}
-        with:
-          model: neuralwatt/glm-5.2-flex
+        run: opencode github run
