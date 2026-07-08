@@ -1,10 +1,10 @@
 import { join } from "node:path";
 import { projectRoot } from "./project-root.ts";
 
-export const COVERAGE_DIR = join(projectRoot, "coverage");
+export const COVERAGE_OUTPUT_DIR = join(projectRoot, "coverage");
 
-export const clearCoverageDir = async (
-  coverageDir = COVERAGE_DIR,
+export const removeOldCoverageOutput = async (
+  coverageDir = COVERAGE_OUTPUT_DIR,
 ): Promise<void> => {
   try {
     await Deno.remove(coverageDir, { recursive: true });

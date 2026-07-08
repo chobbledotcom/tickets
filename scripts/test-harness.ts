@@ -20,8 +20,11 @@ import {
   hasReporterArg,
   runCompactDenoTest,
 } from "./compact-test-reporter.ts";
+import {
+  COVERAGE_OUTPUT_DIR,
+  removeOldCoverageOutput,
+} from "./coverage-output.ts";
 import { projectRoot } from "./project-root.ts";
-import { COVERAGE_DIR, clearCoverageDir } from "./test-coverage.ts";
 
 const STRIPE_MOCK_VERSION = "0.188.0";
 export const STRIPE_MOCK_PORT = 12111;
@@ -183,7 +186,7 @@ const buildDenoTestArgs = (
     "--v8-flags=--expose-gc",
   ];
   if (reporter) args.push("--reporter", reporter);
-  if (useCoverage) args.push(`--coverage=${COVERAGE_DIR}`);
+  if (useCoverage) args.push(`--coverage=${COVERAGE_OUTPUT_DIR}`);
   if (junitPath) args.push("--junit-path", junitPath);
   args.push(...extraArgs);
   return args;
@@ -209,7 +212,7 @@ export const runTests = async (
     STRIPE_MOCK_PORT: String(STRIPE_MOCK_PORT),
   };
 
-  if (useCoverage) await clearCoverageDir();
+  if (useCoverage) await removeOldCoverageOutput();
 
   if (!hasReporterArg(extraArgs)) {
     const estimatedTotal = await estimateTapEventCount(projectRoot, extraArgs);

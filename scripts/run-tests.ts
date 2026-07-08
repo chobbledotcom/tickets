@@ -6,8 +6,8 @@
  * harness once the run completes.
  */
 
+import { COVERAGE_OUTPUT_DIR } from "./coverage-output.ts";
 import { projectRoot } from "./project-root.ts";
-import { COVERAGE_DIR } from "./test-coverage.ts";
 import { JUNIT_PATH, readSlowTestsReport } from "./test-durations.ts";
 import { runTests, withTestHarness } from "./test-harness.ts";
 
@@ -297,7 +297,7 @@ const checkCoverage = async (): Promise<void> => {
   console.log("\nChecking coverage...");
 
   const tableCmd = new Deno.Command(Deno.execPath(), {
-    args: ["coverage", COVERAGE_DIR],
+    args: ["coverage", COVERAGE_OUTPUT_DIR],
     cwd: projectRoot,
     stderr: "inherit",
     stdin: "inherit",
@@ -306,7 +306,7 @@ const checkCoverage = async (): Promise<void> => {
   await tableCmd.output();
 
   const lcovCmd = new Deno.Command(Deno.execPath(), {
-    args: ["coverage", COVERAGE_DIR, "--lcov"],
+    args: ["coverage", COVERAGE_OUTPUT_DIR, "--lcov"],
     cwd: projectRoot,
     stderr: "inherit",
     stdout: "piped",

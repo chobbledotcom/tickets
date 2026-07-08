@@ -1,18 +1,19 @@
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { clearCoverageDir } from "../../scripts/test-coverage.ts";
+import { bracket } from "#fp";
+import { removeOldCoverageOutput } from "../../scripts/coverage-output.ts";
 
-const withTempDir = async (
-  useDir: (path: string) => Promise<void>,
-): Promise<void> => {
-  const path = await Deno.makeTempDir();
-  try {
-    await useDir(path);
-  } finally {
-    await Deno.remove(path, { recursive: true }).catch(() => {});
-  }
-};
+const withTempCoverageDir = bracket(
+  async () => join(await Deno.makeTempDir(), "coverage"),
+  (coverageDir: string) =>
+    Deno.remove(dirname(coverageDir), { recursive: true }).catch(() => {}),
+);
+
+const withTempFile = bracket(
+  () => Deno.makeTempFile(),
+  (path: string) => Deno.remove(path).catch(() => {}),
+);
 
 const pathExists = async (path: string): Promise<boolean> => {
   try {
@@ -24,31 +25,32 @@ const pathExists = async (path: string): Promise<boolean> => {
   }
 };
 
-describe("clearCoverageDir", () => {
+describe("removeOldCoverageOutput", () => {
   test("removes stale coverage files before a coverage run", async () => {
-    await withTempDir(async (dir) => {
-      const coverageDir = join(dir, "coverage");
+    await withTempCoverageDir(async (coverageDir) => {
       const staleFile = join(coverageDir, "old.json");
       await Deno.mkdir(coverageDir);
       await Deno.writeTextFile(staleFile, "stale coverage");
 
-      await clearCoverageDir(coverageDir);
+      await removeOldCoverageOutput(coverageDir);
 
       expect(await pathExists(coverageDir)).toBe(false);
     });
   });
 
   test("allows a missing coverage directory on the first run", async () => {
-    await withTempDir(async (dir) => {
-      const coverageDir = join(dir, "coverage");
-
-      await clearCoverageDir(coverageDir);
+    await withTempCoverageDir(async (coverageDir) => {
+      await removeOldCoverageOutput(coverageDir);
 
       expect(await pathExists(coverageDir)).toBe(false);
     });
   });
 
-  test("fails if the coverage directory cannot be removed cleanly", async () => {
-    await expect(clearCoverageDir("\0")).rejects.toThrow();
+  test("surfaces filesystem errors other than missing coverage output", async () => {
+    await withTempFile(async (filePath) => {
+      await expect(
+        removeOldCoverageOutput(join(filePath, "coverage")),
+      ).rejects.toThrow(Deno.errors.NotADirectory);
+    });
   });
 });
