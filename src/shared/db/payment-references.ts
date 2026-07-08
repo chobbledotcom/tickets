@@ -13,7 +13,12 @@ import {
   HYBRID_PREFIX,
 } from "#shared/crypto/keys.ts";
 import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { execute, inPlaceholders, queryAll } from "#shared/db/client.ts";
+import {
+  execute,
+  inPlaceholders,
+  queryAll,
+  type SqlStatement,
+} from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowIso } from "#shared/now.ts";
 
@@ -38,6 +43,8 @@ type PaymentReferenceRow = {
 type PaymentReferenceAttendeeRow = {
   attendee_id: number;
 };
+
+const LEGACY_MERGE_SESSION_PREFIX = "legacy-merge:";
 
 export const encryptPaymentReference = async (
   reference: string,
@@ -101,19 +108,25 @@ const withLegacyReference = (
     ? [...references, legacyReference(legacyPaymentId)]
     : references;
 
+const realSessionIds = (row: PaymentReferenceRow): string[] =>
+  row.payment_session_id.startsWith(LEGACY_MERGE_SESSION_PREFIX)
+    ? []
+    : [row.payment_session_id];
+
 const addReference = (
   byReference: Map<string, { providerRefunded: boolean; sessionIds: string[] }>,
   row: PaymentReferenceRow,
   reference: string,
 ): void => {
+  const sessionIds = realSessionIds(row);
   const existing = byReference.get(reference);
   if (existing) {
-    existing.sessionIds.push(row.payment_session_id);
+    existing.sessionIds.push(...sessionIds);
     existing.providerRefunded ||= row.provider_refunded_at !== "";
   } else {
     byReference.set(reference, {
       providerRefunded: row.provider_refunded_at !== "",
-      sessionIds: [row.payment_session_id],
+      sessionIds,
     });
   }
 };
@@ -191,6 +204,25 @@ export const hasAnyPaymentReference = async (
   attendee: RefundPaymentReferenceSource,
 ): Promise<boolean> =>
   (await getAttendeeIdsWithPaymentReference([attendee])).has(attendee.id);
+
+export const legacyMergePaymentReferenceStatement = async (
+  targetId: number,
+  sourceId: number,
+  sourcePaymentId: string,
+): Promise<SqlStatement | null> =>
+  sourcePaymentId === ""
+    ? null
+    : {
+        args: [
+          `${LEGACY_MERGE_SESSION_PREFIX}${sourceId}`,
+          targetId,
+          nowIso(),
+          await encryptPaymentReference(sourcePaymentId),
+        ],
+        sql: `INSERT OR IGNORE INTO processed_payments
+              (payment_session_id, attendee_id, processed_at, payment_reference)
+              VALUES (?, ?, ?, ?)`,
+      };
 
 /**
  * Mark processed-payment rows whose provider refund has already happened. The

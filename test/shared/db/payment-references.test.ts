@@ -5,6 +5,7 @@ import {
   encryptPaymentReference,
   getRefundPaymentReferences,
   hasRefundPaymentReference,
+  legacyMergePaymentReferenceStatement,
   markPaymentReferencesProviderRefunded,
 } from "#shared/db/payment-references.ts";
 import {
@@ -95,6 +96,36 @@ describeWithEnv("db > payment references", { db: true }, () => {
     expect(references.get(attendeeId)?.map((entry) => entry.reference)).toEqual(
       ["pi_duplicate"],
     );
+  });
+
+  test("reads merged legacy payment IDs as session-less refund references", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const created = await bookAttendee(listing, {
+      email: "merged-legacy-ref@example.com",
+      name: "Merged Legacy Ref",
+    });
+    if (!created.success) throw new Error("setup failed");
+    const attendeeId = created.attendees[0]!.id;
+    const statement = await legacyMergePaymentReferenceStatement(
+      attendeeId,
+      12345,
+      "pi_merged_legacy",
+    );
+    if (!statement) throw new Error("setup failed");
+    await execute(statement.sql, statement.args);
+
+    const references = await getRefundPaymentReferences(
+      [{ id: attendeeId, payment_id: "" }],
+      await getTestPrivateKey(),
+    );
+
+    expect(references.get(attendeeId)).toEqual([
+      {
+        providerRefunded: false,
+        reference: "pi_merged_legacy",
+        sessionIds: [],
+      },
+    ]);
   });
 
   test("keeps legacy plaintext processed-payment references refundable", async () => {

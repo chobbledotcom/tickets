@@ -4,6 +4,7 @@ import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { queryAll } from "#shared/db/client.ts";
+import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
 import {
   finalizeSession,
   reserveSession,
@@ -12,6 +13,7 @@ import {
   createTestGroup,
   createTestListing,
   describeWithEnv,
+  getTestPrivateKey,
 } from "#test-utils";
 import {
   createAttendee,
@@ -78,6 +80,32 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     );
     expect(rows).toEqual([
       { attendee_id: target.id, payment_session_id: "source-paid-session" },
+    ]);
+  });
+
+  test("preserves the source's legacy payment ID on the target", async () => {
+    const { source, target } = await createMergePair();
+    const sourceWithLegacyPayment = {
+      ...source,
+      payment_id: "pi_source_legacy",
+    };
+
+    const { result } = await runMerge({
+      source: sourceWithLegacyPayment,
+      target,
+    });
+
+    expect(result.success).toBe(true);
+    const references = await getRefundPaymentReferences(
+      [{ id: target.id, payment_id: "" }],
+      await getTestPrivateKey(),
+    );
+    expect(references.get(target.id)).toEqual([
+      {
+        providerRefunded: false,
+        reference: "pi_source_legacy",
+        sessionIds: [],
+      },
     ]);
   });
 

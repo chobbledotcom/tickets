@@ -270,6 +270,15 @@ describe("isIncompletePayment", () => {
     const attendee = testAttendee({ payment_id: "", price_paid: "1000" });
     expect(isIncompletePayment(attendee, true, true)).toBe(false);
   });
+
+  test("returns false for refunded paid attendee with no surviving payment reference", () => {
+    const attendee = testAttendee({
+      payment_id: "",
+      price_paid: "1000",
+      refunded: true,
+    });
+    expect(isIncompletePayment(attendee, true, false)).toBe(false);
+  });
 });
 
 describe("completePaymentAttendees", () => {

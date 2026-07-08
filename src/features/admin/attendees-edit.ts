@@ -22,8 +22,16 @@ import {
 } from "#shared/db/attendees.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
+import {
+  getRefundPaymentReferences,
+  markPaymentReferencesProviderRefunded,
+  type RefundPaymentReference,
+} from "#shared/db/payment-references.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { getActivePaymentProvider } from "#shared/payments.ts";
+import {
+  getActivePaymentProvider,
+  type PaymentProvider,
+} from "#shared/payments.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
@@ -63,6 +71,27 @@ const loadRefreshContext = async (
   return { attendee, listing };
 };
 
+const refreshProviderRefunds = async (
+  provider: Pick<PaymentProvider, "isPaymentRefunded">,
+  references: readonly RefundPaymentReference[],
+): Promise<RefundPaymentReference[]> =>
+  Promise.all(
+    references.map(async (reference) =>
+      reference.providerRefunded
+        ? reference
+        : {
+            ...reference,
+            providerRefunded: await provider.isPaymentRefunded(
+              reference.reference,
+            ),
+          },
+    ),
+  );
+
+const hasProviderRefund = (
+  reference: Pick<RefundPaymentReference, "providerRefunded">,
+): boolean => reference.providerRefunded;
+
 /** Handle POST /admin/attendees/:attendeeId/refresh-payment */
 export const handleRefreshPayment: TypedRouteHandler<
   "POST /admin/attendees/:attendeeId/refresh-payment"
@@ -74,7 +103,13 @@ export const handleRefreshPayment: TypedRouteHandler<
     const { attendee, listing } = ctx;
     const form = _form as FormParams;
 
-    if (!attendee.payment_id) {
+    const references = (
+      await getRefundPaymentReferences(
+        [attendee],
+        await requireRequestPrivateKey(),
+      )
+    ).get(attendee.id)!;
+    if (references.length === 0) {
       return redirect(
         `/admin/attendees/${attendeeId}`,
         t("error.no_payment_to_refresh"),
@@ -88,11 +123,18 @@ export const handleRefreshPayment: TypedRouteHandler<
       return errorRedirect(`/admin/attendees/${attendeeId}`, NO_PROVIDER_ERROR);
     }
 
-    const isRefunded = await provider.isPaymentRefunded(attendee.payment_id);
-    if (isRefunded && !attendee.refunded) {
-      const { posted } = await recordAttendeeRefund(attendeeId, [
-        { sessionIds: [] },
-      ]);
+    const refreshedReferences = await refreshProviderRefunds(
+      provider,
+      references,
+    );
+    await markPaymentReferencesProviderRefunded(
+      refreshedReferences.filter(hasProviderRefund),
+    );
+    if (refreshedReferences.every(hasProviderRefund) && !attendee.refunded) {
+      const { posted } = await recordAttendeeRefund(
+        attendeeId,
+        refreshedReferences,
+      );
       await logActivity(
         `Payment marked as refunded for attendee '${attendee.name}'`,
         listing.id,

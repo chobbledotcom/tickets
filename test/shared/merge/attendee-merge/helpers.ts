@@ -165,6 +165,7 @@ export const applyMerge = async (args: {
     diff: args.diff,
     privateKey: await getTestPrivateKey(),
     sourceId: args.source.id,
+    sourcePaymentId: args.source.payment_id,
     sourcePii: args.sourcePii,
     targetId: args.target.id,
     targetPii: {
