@@ -46,13 +46,9 @@ export const STATIC_ASSET_OUTFILES = {
 /** Source SCSS stylesheet compiled to {@link STATIC_ASSET_OUTFILES.css}. */
 const CSS_ENTRY = `${STATIC_DIR}/style.scss`;
 
-/**
- * Compile the SCSS stylesheet to the served CSS file. Kept expanded (not
- * minified) for dev/serving parity with the previous hand-written CSS; the edge
- * build minifies it separately when inlining.
- */
+/** Compile the SCSS stylesheet to the served CSS file. */
 const buildCss = async (quiet = false): Promise<void> => {
-  const { css } = sass.compile(CSS_ENTRY, { style: "expanded" });
+  const { css } = sass.compile(CSS_ENTRY, { style: "compressed" });
   await Deno.writeTextFile(STATIC_ASSET_OUTFILES.css, css);
   if (!quiet) console.log(`CSS build complete: ${STATIC_ASSET_OUTFILES.css}`);
 };

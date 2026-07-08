@@ -757,6 +757,31 @@ const renderChildBlock = (
  *
  * An optional per-listing `prefill` pre-selects the quantity (clamped to the
  * available range) — used by multi-listing scenarios such as the order cart. */
+const listingControls = (
+  info: TicketListing,
+  node: BookingNode,
+  hideQuantity: boolean,
+  prefill: TicketPrefill | undefined,
+  childCtx: ChildRenderCtx | undefined,
+): { childBlock: string; priceHtml: string; quantityHtml: string } => {
+  const { listing } = info;
+  const maxPurchasable = childLimitedMax(info, childCtx);
+  const fieldName = nodeQuantityFieldName(node)!;
+  const priceFieldName = nodePriceFieldName(node)!;
+  return {
+    childBlock: childCtx ? renderChildBlock(info, childCtx) : "",
+    priceHtml: listing.can_pay_more
+      ? renderPayMoreInput(listing, priceFieldName, prefill?.customPriceMinor)
+      : "",
+    quantityHtml: hideQuantity
+      ? `<input type="hidden" name="${fieldName}" value="1" />`
+      : `<select name="${fieldName}">${quantityOptions(
+          maxPurchasable,
+          restoredQuantity(listing.id, prefill, maxPurchasable),
+        )}</select>`,
+  };
+};
+
 const renderListingRow = (
   info: TicketListing,
   node: BookingNode,
@@ -765,9 +790,6 @@ const renderListingRow = (
   childCtx?: ChildRenderCtx,
 ): string => {
   const { listing, isSoldOut, isClosed } = info;
-  const maxPurchasable = childLimitedMax(info, childCtx);
-  // A top-level booking node always carries a buyer-chosen quantity field.
-  const fieldName = nodeQuantityFieldName(node)!;
   const imageHtml = renderListingImage(listing);
 
   if (isClosed) {
@@ -791,31 +813,20 @@ const renderListingRow = (
     `;
   }
 
-  const quantityHtml = hideQuantity
-    ? `<input type="hidden" name="${fieldName}" value="1" />`
-    : `<select name="${fieldName}">${quantityOptions(
-        maxPurchasable,
-        restoredQuantity(listing.id, prefill, maxPurchasable),
-      )}</select>`;
-
-  const showPayMore = listing.can_pay_more;
-  const prefilledPrice = prefill ? prefill.customPriceMinor : undefined;
-  const childBlock = childCtx ? renderChildBlock(info, childCtx) : "";
+  const { childBlock, priceHtml, quantityHtml } = listingControls(
+    info,
+    node,
+    hideQuantity,
+    prefill,
+    childCtx,
+  );
 
   return `
     <div class="ticket-row">
       ${imageHtml}
       <label>${escapeHtml(listing.name)}${quantityHtml}</label>
       ${renderListingDescription(listing.description)}
-      ${
-        showPayMore
-          ? renderPayMoreInput(
-              listing,
-              nodePriceFieldName(node)!,
-              prefilledPrice,
-            )
-          : ""
-      }
+      ${priceHtml}
       ${childBlock}
     </div>
   `;
@@ -912,27 +923,17 @@ const renderSingleListingControls = (
   prefill?: TicketPrefill,
   childCtx?: ChildRenderCtx,
 ): string => {
-  const { listing } = info;
-  const maxPurchasable = childLimitedMax(info, childCtx);
-  // A top-level booking node always carries a buyer-chosen quantity field.
-  const fieldName = nodeQuantityFieldName(node)!;
-  const prefilledQty = restoredQuantity(listing.id, prefill, maxPurchasable);
-  const prefilledPrice = prefill ? prefill.customPriceMinor : undefined;
-  const quantityHtml = hideQuantity
-    ? `<input type="hidden" name="${fieldName}" value="1" />`
-    : `<label>${t(
-        "public.ticket.number_of_tickets",
-      )}<select name="${fieldName}">${quantityOptions(
-        maxPurchasable,
-        prefilledQty,
-      )}</select></label>`;
-  const showPayMore = listing.can_pay_more;
-  const childBlock = childCtx ? renderChildBlock(info, childCtx) : "";
-  return `${quantityHtml}${
-    showPayMore
-      ? renderPayMoreInput(listing, nodePriceFieldName(node)!, prefilledPrice)
-      : ""
-  }${childBlock}`;
+  const { childBlock, priceHtml, quantityHtml } = listingControls(
+    info,
+    node,
+    hideQuantity,
+    prefill,
+    childCtx,
+  );
+  const labelledQuantity = hideQuantity
+    ? quantityHtml
+    : `<label>${t("public.ticket.number_of_tickets")}${quantityHtml}</label>`;
+  return `${labelledQuantity}${priceHtml}${childBlock}`;
 };
 
 /** The merged fields setting across the selected listings. */
