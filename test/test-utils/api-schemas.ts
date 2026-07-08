@@ -30,8 +30,10 @@ export const PublicListingSchema = v.strictObject({
     ],
     v.boolean(),
   ),
-  imageUrl: v.string(),
-  ...v.entriesFromList(["date", "location"], v.nullable(v.string())),
+  ...v.entriesFromList(
+    ["date", "imageAltText", "imageUrl", "location"],
+    v.nullable(v.string()),
+  ),
   availableDates: v.optional(v.array(v.string())),
   dayPrices: v.optional(v.record(v.string(), v.number())),
 });

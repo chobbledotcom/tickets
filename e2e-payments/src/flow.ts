@@ -74,8 +74,9 @@ export const createListing = async (
     .locator('a[href*="/ticket/"]')
     .first()
     .getAttribute("href", { timeout: config.navTimeoutMs });
-  if (!href)
+  if (!href) {
     throw new Error("no public /ticket/ link found on the listing page");
+  }
   const path = href.startsWith("http") ? new URL(href).pathname : href;
   log(`  public booking path: ${path}`);
   return path;
@@ -246,11 +247,15 @@ export const assertPaidBookingConfirmed = async (
     );
   } catch {
     const hostedError = await collectHostedErrors(session);
+    const appBody = await session.bodyText();
     throw new Error(
       `did not land on a success page after checkout.\nURL: ${page.url()}\n` +
+        // Prefer the scraped inline error; only fall back to the raw body when
+        // no error node was found (the body is mostly a huge country <select>
+        // that buries the real message and floods the CI log).
         (hostedError
           ? `Checkout page error(s): ${hostedError}`
-          : (await session.bodyText()).slice(0, 400)),
+          : appBody.slice(0, 400)),
     );
   }
   log(`  ✔ customer saw the success page (${page.url()})`);

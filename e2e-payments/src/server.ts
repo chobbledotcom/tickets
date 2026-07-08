@@ -39,10 +39,12 @@ export const buildStaticAssets = async (): Promise<void> => {
       stdio: "inherit",
     });
     child.on("error", reject);
-    child.on("exit", (code) =>
-      code === 0
-        ? resolveP()
-        : reject(new Error(`build:static exited ${code}`)),
+    child.on(
+      "exit",
+      (code) =>
+        code === 0
+          ? resolveP()
+          : reject(new Error(`build:static exited ${code}`)),
     );
   });
 };

@@ -40,7 +40,7 @@ export const stripe: PaymentProvider = {
         data?: { id: string; url?: string }[];
       };
       const stale = (body.data ?? []).filter((e) =>
-        e.url?.includes("trycloudflare.com"),
+        e.url?.includes("trycloudflare.com")
       );
       for (const endpoint of stale) {
         await fetch(
@@ -49,8 +49,9 @@ export const stripe: PaymentProvider = {
         ).catch(() => {});
         log(`  deleted stale Stripe webhook endpoint ${endpoint.id}`);
       }
-      if (stale.length === 0)
+      if (stale.length === 0) {
         log("  no stale Stripe webhook endpoints to clean");
+      }
     } catch (err) {
       warn(`  Stripe webhook cleanup skipped: ${String(err)}`);
     }

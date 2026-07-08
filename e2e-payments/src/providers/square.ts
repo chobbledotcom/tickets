@@ -130,7 +130,9 @@ const completeViaSandboxApi = async (
   const locationId = order?.location_id ?? ctx.secrets.locationId;
   if (!amountMoney || !locationId) {
     throw new Error(
-      `Square: order ${orderId} missing total/location (got ${JSON.stringify(order)})`,
+      `Square: order ${orderId} missing total/location (got ${
+        JSON.stringify(order)
+      })`,
     );
   }
   log(
@@ -183,7 +185,9 @@ const completeViaSandboxApi = async (
 
   // Drive the browser to the app's real return URL, exactly as Square would on
   // a live redirect (the app reads orderId → validates the now-paid order).
-  const returnUrl = `${ctx.baseUrl}/payment/success?orderId=${encodeURIComponent(orderId)}`;
+  const returnUrl = `${ctx.baseUrl}/payment/success?orderId=${
+    encodeURIComponent(orderId)
+  }`;
   log(`  navigating the browser to the app return URL: ${returnUrl}`);
   await page.goto(returnUrl, { waitUntil: "domcontentloaded" });
 };

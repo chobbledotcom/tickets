@@ -28,7 +28,10 @@ import { getAllListingOptions } from "#shared/db/listings.ts";
 import { getNewsPostNames } from "#shared/db/news-posts.ts";
 import { sitePages } from "#shared/db/site-pages.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { deleteImageStorageFiles, isStorageEnabled } from "#shared/storage.ts";
+import {
+  deleteImageStorageFilesStrict,
+  isStorageEnabled,
+} from "#shared/storage.ts";
 import {
   type AdminLevel,
   type Image,
@@ -44,10 +47,7 @@ import {
   type ImageItemOption,
 } from "#templates/admin/images.tsx";
 import { withEntityFromParam } from "./entity-handlers.ts";
-import {
-  createImageFromUpload,
-  imageMetadataFromForm,
-} from "./image-upload.ts";
+import { imageMetadataFromForm, withUploadedImage } from "./image-upload.ts";
 
 // jscpd:ignore-end
 
@@ -78,12 +78,12 @@ const handleImageCreatePost: TypedRouteHandler<"POST /admin/images"> = (
   request,
 ) =>
   withAuth(request, CONTENT_MULTIPART, (_session, formData) =>
-    withStorageEnabled(async () => {
-      const result = await createImageFromUpload(formData);
-      if (!result.ok) return redirect("/admin/images/new", result.error, false);
-      await logActivity(`Image '${result.value.name}' uploaded`);
-      return redirect(imagePath(result.value.id), t("images.created"), true);
-    }),
+    withStorageEnabled(() =>
+      withUploadedImage(formData, "/admin/images/new", async (image) => {
+        await logActivity(`Image '${image.name}' uploaded`);
+        return redirect(imagePath(image.id), t("images.created"), true);
+      }),
+    ),
   );
 
 const listingImageItemOptions = async (): Promise<ImageItemOption[]> =>
@@ -277,8 +277,15 @@ const handleImageDeletePost: TypedRouteHandler<
     if (blocked) return blocked;
     const mismatch = confirmDelete(form, image);
     if (mismatch) return redirect(deletePath, mismatch, false);
+    // Delete the stored files first: if storage cleanup fails, keep the DB
+    // record so the admin can retry, rather than orphaning the files under a
+    // deleted record with no library entry to delete them from.
+    try {
+      await deleteImageStorageFilesStrict(image);
+    } catch {
+      return redirect(deletePath, t("images.delete.storage_failed"), false);
+    }
     await deleteImageRecord(image.id);
-    await deleteImageStorageFiles(image, "image deletion");
     await logActivity(`Image '${image.name}' deleted`);
     return redirect("/admin/images", t("images.deleted"), true);
   });
