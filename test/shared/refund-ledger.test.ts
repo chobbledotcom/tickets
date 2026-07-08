@@ -5,7 +5,9 @@ import {
   modifierAccount,
   revenueAccount,
   WORLD,
+  WRITEOFF,
 } from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
 import {
   accountBalance,
   allTransfers,
@@ -13,12 +15,14 @@ import {
 } from "#shared/accounting/queries.ts";
 import { legReference } from "#shared/accounting/refs.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
+import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
+import type { AccountRef } from "#shared/ledger/types.ts";
 import {
   recordAttendeeRefund,
   recordPlaceholderRefund,
@@ -30,15 +34,54 @@ import {
   BOOKING_AT,
   expectRecordedRefundClearsAttendeeAndRevenue,
   expectSingleRefundCash,
+  legacyReference,
   postBooking,
   refundCashAmounts,
   refundLegsOf,
+  sessionReference,
 } from "./refund-ledger-helpers.ts";
 
 // -- recordAttendeeRefund (integration) ---------------------------------- //
 
 describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
   const errors = setupErrorSpy();
+
+  const expectRefundNeedsManualAdjustment = async (
+    references = [sessionReference("sess-1")],
+  ): Promise<void> => {
+    expect(await recordAttendeeRefund(ATTENDEE, references)).toEqual({
+      posted: false,
+    });
+    expect(
+      refundLegsOf(await transfersByAccount(attendeeAccount(ATTENDEE))),
+    ).toEqual([]);
+  };
+
+  const postPartPaidBookingWithManualCredit = async ({
+    eventGroup,
+    kind,
+    source,
+  }: {
+    eventGroup: string;
+    kind: string;
+    source: AccountRef;
+  }): Promise<void> => {
+    await postBooking({
+      amountPaid: 2000,
+      lines: [{ gross: 5000, listingId: 1 }],
+    });
+    await postTransfers([
+      {
+        amount: 3000,
+        destination: attendeeAccount(ATTENDEE),
+        eventGroup,
+        kind,
+        occurredAt: BOOKING_AT,
+        reference: eventGroup,
+        source,
+      },
+    ]);
+  };
 
   test("reverses the booking so revenue and the attendee return to zero", async () => {
     await postBooking({
@@ -66,7 +109,9 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
 
     await runWithQueryLogContext(async () => {
       enableQueryLog();
-      const result = await recordAttendeeRefund(ATTENDEE);
+      const result = await recordAttendeeRefund(ATTENDEE, [
+        sessionReference("sess-1"),
+      ]);
       expect(result).toEqual({ posted: true });
       // Distinct round-trip start times: a prepared batch shares one window, while
       // a per-leg interactive transaction would show ~legs distinct round-trips
@@ -82,7 +127,7 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
       lines: [{ gross: 0, listingId: 1 }],
       modifiers: [{ delta: 500, modifierId: 7 }],
     });
-    await recordAttendeeRefund(ATTENDEE);
+    await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]);
 
     expect(await accountBalance(modifierAccount(7))).toBe(0);
     expect(await accountBalance(attendeeAccount(ATTENDEE))).toBe(0);
@@ -99,15 +144,42 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
       {
         amount: 8000,
         destination: attendeeAccount(ATTENDEE),
-        eventGroup: "balance-grp",
+        eventGroup: await balanceEventGroup("balance-session"),
         kind: "payment",
         occurredAt: BOOKING_AT,
         reference: "balance-pay",
         source: WORLD,
       },
     ]);
-    await expectRecordedRefundClearsAttendeeAndRevenue();
+    await expectRecordedRefundClearsAttendeeAndRevenue(ATTENDEE, 1, [
+      sessionReference("sess-1"),
+      sessionReference("balance-session"),
+    ]);
     expect(await refundCashAmounts()).toEqual([2000, 8000]);
+  });
+
+  test("reverses an owed booking plus a covered balance payment", async () => {
+    await postBooking({
+      amountPaid: 0,
+      eventId: "owed-booking",
+      lines: [{ gross: 5000, listingId: 1 }],
+    });
+    await postTransfers([
+      {
+        amount: 5000,
+        destination: attendeeAccount(ATTENDEE),
+        eventGroup: await balanceEventGroup("owed-balance-session"),
+        kind: KIND.payment,
+        occurredAt: BOOKING_AT,
+        reference: "owed-balance-pay",
+        source: WORLD,
+      },
+    ]);
+
+    await expectRecordedRefundClearsAttendeeAndRevenue(ATTENDEE, 1, [
+      sessionReference("owed-balance-session"),
+    ]);
+    expect(await refundCashAmounts()).toEqual([5000]);
   });
 
   test("skips a reservation that is not paid in full", async () => {
@@ -120,33 +192,75 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     // A guard-skip reports posted:false: the ledger does NOT record a refund, so
     // the caller must surface it (manual adjustment) rather than let the payment
     // read as refunded.
-    expect(await recordAttendeeRefund(ATTENDEE)).toEqual({ posted: false });
-    expect(
-      refundLegsOf(await transfersByAccount(attendeeAccount(ATTENDEE))).length,
-    ).toBe(0);
+    await expectRefundNeedsManualAdjustment();
   });
 
   test("is idempotent — a second refund writes nothing but still reports posted", async () => {
     await postBooking();
-    await recordAttendeeRefund(ATTENDEE);
+    await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]);
     const afterFirst = (await allTransfers()).length;
     // The refund_cash leg is the durable record, so a re-submit is a no-op
     // success — never a false that would prompt a needless manual adjustment.
-    expect(await recordAttendeeRefund(ATTENDEE)).toEqual({ posted: true });
+    expect(
+      await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]),
+    ).toEqual({ posted: true });
     expect((await allTransfers()).length).toBe(afterFirst);
   });
 
   test("skips a booking that predates the ledger (no legs to reverse)", async () => {
-    expect(await recordAttendeeRefund(ATTENDEE)).toEqual({ posted: false });
+    expect(
+      await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]),
+    ).toEqual({ posted: false });
     expect((await allTransfers()).length).toBe(0);
   });
 
   test("reverses an attendee carrying more than one fully-paid booking order", async () => {
     await postBooking({ eventId: "sess-1" });
     await postBooking({ eventId: "sess-2" });
-    expect(await recordAttendeeRefund(ATTENDEE)).toEqual({ posted: true });
+    expect(
+      await recordAttendeeRefund(ATTENDEE, [
+        sessionReference("sess-1"),
+        sessionReference("sess-2"),
+      ]),
+    ).toEqual({ posted: true });
     expect(await accountBalance(attendeeAccount(ATTENDEE))).toBe(0);
     expect(await refundCashAmounts()).toEqual([5000, 5000]);
+  });
+
+  test("lets one legacy payment reference cover one old unmatched payment group", async () => {
+    await postBooking({ eventId: "old-pruned-session" });
+
+    await expectRecordedRefundClearsAttendeeAndRevenue(ATTENDEE, 1, [
+      legacyReference("pi_legacy"),
+    ]);
+  });
+
+  test("fails closed when no reference covers the provider payment group", async () => {
+    await postBooking({ eventId: "recorded-session" });
+
+    await expectRefundNeedsManualAdjustment([
+      sessionReference("different-session"),
+    ]);
+  });
+
+  test("fails closed when a fully paid account includes manual payment", async () => {
+    await postPartPaidBookingWithManualCredit({
+      eventGroup: "manual-pay",
+      kind: "manual_attendee_payment",
+      source: WORLD,
+    });
+
+    await expectRefundNeedsManualAdjustment();
+  });
+
+  test("fails closed when a fully paid account includes a write-off correction", async () => {
+    await postPartPaidBookingWithManualCredit({
+      eventGroup: "manual-writeoff",
+      kind: KIND.adjustment,
+      source: WRITEOFF,
+    });
+
+    await expectRefundNeedsManualAdjustment();
   });
 
   test("logs and does not throw when the refund post conflicts", async () => {
@@ -175,10 +289,7 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     // Must not throw (the provider refund already committed), but must report
     // posted:false: with the refunded column gone, a swallowed post would leave
     // the payment reading as un-refunded and re-refundable. Fail loudly instead.
-    expect(await recordAttendeeRefund(ATTENDEE)).toEqual({ posted: false });
-    expect(
-      refundLegsOf(await transfersByAccount(attendeeAccount(ATTENDEE))).length,
-    ).toBe(0);
+    await expectRefundNeedsManualAdjustment();
     // "Logs" is part of the contract: the operator's only breadcrumb for a
     // stranded refund is the classified error.
     expect(errors.lastMessage()).toContain("E_LEDGER_POST");

@@ -125,7 +125,10 @@ const tallyProviderRefund = (
   candidate: RefundCandidate,
   outcome: RefundOutcome,
   listingId: number,
-  refundedIds: number[],
+  refundedAttendees: {
+    attendeeId: number;
+    references: readonly RefundPaymentReference[];
+  }[],
 ): void => {
   if (outcome === "errored") {
     counts.errorCount++;
@@ -134,7 +137,10 @@ const tallyProviderRefund = (
     counts.failedCount++;
     logBulkRefundProblem(outcome, candidate, listingId);
   } else {
-    refundedIds.push(candidate.attendee.id);
+    refundedAttendees.push({
+      attendeeId: candidate.attendee.id,
+      references: candidate.references,
+    });
   }
 };
 
@@ -157,17 +163,20 @@ export const processRefundBatch = async (
         refundCandidateAtProvider(provider, candidate, listingId),
       ),
     );
-    const chunkRefundedIds: number[] = [];
+    const chunkRefundedAttendees: {
+      attendeeId: number;
+      references: readonly RefundPaymentReference[];
+    }[] = [];
     for (const { candidate, outcome } of results) {
       tallyProviderRefund(
         counts,
         candidate,
         outcome,
         listingId,
-        chunkRefundedIds,
+        chunkRefundedAttendees,
       );
     }
-    const posted = await recordAttendeeRefundsBatch(chunkRefundedIds);
+    const posted = await recordAttendeeRefundsBatch(chunkRefundedAttendees);
     for (const ok of posted.values()) {
       if (ok) counts.refundedCount++;
       else counts.errorCount++;

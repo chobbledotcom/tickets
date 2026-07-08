@@ -32,7 +32,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
     ).toEqual(new Map());
   });
 
-  test("uses recorded processed-payment references before legacy payment_id", async () => {
+  test("includes legacy payment_id alongside processed-payment references", async () => {
     const listing = await createTestListing({ maxAttendees: 50 });
     const first = await bookAttendee(listing, {
       email: "refs1@example.com",
@@ -62,11 +62,39 @@ describeWithEnv("db > payment references", { db: true }, () => {
 
     expect(references.get(firstId)?.map((entry) => entry.reference)).toEqual([
       "pi_recorded",
+      "pi_legacy_ignored",
     ]);
     expect(references.get(secondId)?.map((entry) => entry.reference)).toEqual([
       "pi_legacy_used",
     ]);
     expect(references.get(9999)).toEqual([]);
+  });
+
+  test("does not duplicate legacy payment_id already recorded on processed payment", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const created = await bookAttendee(listing, {
+      email: "refs-duplicate@example.com",
+      name: "Refs Duplicate",
+    });
+    if (!created.success) throw new Error("setup failed");
+    const attendeeId = created.attendees[0]!.id;
+
+    await reserveSession("sess_refs_duplicate");
+    await finalizePaymentSession(
+      "sess_refs_duplicate",
+      attendeeId,
+      [],
+      "pi_duplicate",
+    );
+
+    const references = await getRefundPaymentReferences(
+      [{ id: attendeeId, payment_id: "pi_duplicate" }],
+      await getTestPrivateKey(),
+    );
+
+    expect(references.get(attendeeId)?.map((entry) => entry.reference)).toEqual(
+      ["pi_duplicate"],
+    );
   });
 
   test("keeps legacy plaintext processed-payment references refundable", async () => {

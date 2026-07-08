@@ -16,8 +16,10 @@ import {
   updateCheckedIn,
 } from "#shared/db/attendees.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
+import { hasAnyPaymentReference } from "#shared/db/payment-references.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import { validateForm } from "#shared/forms.tsx";
+import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
@@ -98,24 +100,17 @@ const handleAttendeeDelete = verifiedAttendeeAction(
  * Verifies the attendee is actually incomplete before deleting.
  */
 const handleDeleteIncomplete = attendeeFormAction(
-  (data, _session, _form, listingId, attendeeId) => {
-    const hasPaidListing = isPaidListing(data.listing);
-    // An "incomplete" registration is an abandoned paid checkout: a sale was
-    // recognised (price_paid > 0) and fully covered (nothing still owed), yet no
-    // payment id was ever linked. A provider-less booking owes its full value
-    // (remaining_balance > 0) even though price_paid now projects the gross sale
-    // leg, so it is a real registration — not an abandoned checkout — and must
-    // not be swept here. A free booking (price_paid 0) likewise isn't incomplete.
-    const isIncomplete =
-      hasPaidListing &&
-      !data.attendee.payment_id &&
-      Number.parseInt(data.attendee.price_paid, 10) > 0 &&
-      data.attendee.remaining_balance <= 0;
-
+  async (data, _session, _form, listingId, attendeeId) => {
     // The failed-payments delete form lives on the Attendees tab, so both
     // outcomes return there — keeping the operator on the table they are
     // clearing rather than bouncing them to Overview.
-    if (!isIncomplete) {
+    if (
+      !isIncompletePayment(
+        data.attendee,
+        isPaidListing(data.listing),
+        await hasAnyPaymentReference(data.attendee),
+      )
+    ) {
       return redirect(
         `/admin/listing/${listingId}/attendees`,
         t("error.attendee_no_incomplete_payment"),

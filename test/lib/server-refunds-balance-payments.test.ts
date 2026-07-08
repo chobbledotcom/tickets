@@ -129,6 +129,7 @@ const setupSettledReservationRefundTest = async (): Promise<RefundCtx> => {
   await postListingSale({
     amountPaid: 2000,
     attendeeId: attendee.id,
+    eventId: "reservation_deposit_session",
     gross: 10000,
     listingId: listing.id,
   });

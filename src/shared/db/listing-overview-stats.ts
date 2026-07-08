@@ -5,14 +5,12 @@
  *
  * The one figure that historically forced a full attendee scan was the
  * "incomplete payment" split: a booking that recognised a sale but never linked
- * a payment reference. That reference lives only inside the encrypted PII blob,
- * but the ledger already carries its shadow — an abandoned/failed checkout posts
- * its `sale` leg with NO `payment` leg, while every real booking (including a
- * deposit that still owes a balance) keeps its payment leg. So "incomplete" is
- * exactly *a recognised sale with no cash ever received*, which projects
- * straight off `transfers` with no decryption:
+ * any provider payment reference. Legacy paid checkouts carry the ledger shadow
+ * (`sale` plus `payment` in the booking group); balance-paid/provider-less
+ * checkouts carry a processed payment reference. So "incomplete" is a recognised
+ * sale with neither a booking-group payment nor a processed provider reference:
  *
- *   incomplete  ⇔  EXISTS(sale leg for this booking) AND NOT EXISTS(payment leg)
+ *   incomplete  ⇔  sale leg AND no booking payment AND no processed reference
  *
  * Everything the Overview shows is derived from that split plus the plain
  * quantity/check-in columns, matching the pre-existing template derivation
@@ -20,16 +18,20 @@
  * for row while reading only aggregates.
  */
 
+/* jscpd:ignore-start */
 import { ATTENDEE, REVENUE } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import {
   accountPredicate,
+  attendeeOwedSubquery,
   saleLegPredicate,
 } from "#shared/accounting/projection-sql.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import { queryOne } from "#shared/db/client.ts";
 import type { Listing } from "#shared/types.ts";
 import { isPaidListing } from "#shared/types.ts";
+
+/* jscpd:ignore-end */
 
 /**
  * The collated attendee numbers the Overview tab renders. All figures cover the
@@ -74,9 +76,20 @@ const incompleteRowPredicate = (paid: boolean): string => {
   )})`;
   const hasPayment =
     `EXISTS (SELECT 1 FROM transfers WHERE kind = '${KIND.payment}'` +
-    ` AND ${accountPredicate("dest", ATTENDEE, "listingAttendee.attendee_id")}` +
+    ` AND ${accountPredicate(
+      "dest",
+      ATTENDEE,
+      "listingAttendee.attendee_id",
+    )}` +
     " AND event_group = listingAttendee.ledger_event_group)";
-  return `(${hasSale} AND NOT ${hasPayment})`;
+  const hasProviderReference =
+    "EXISTS (SELECT 1 FROM processed_payments AS payment" +
+    " WHERE payment.attendee_id = listingAttendee.attendee_id" +
+    " AND payment.payment_reference != '')";
+  const nothingOwed = `${attendeeOwedSubquery(
+    "listingAttendee.attendee_id",
+  )} <= 0`;
+  return `(${hasSale} AND NOT ${hasPayment} AND NOT ${hasProviderReference} AND ${nothingOwed})`;
 };
 
 type OverviewCountsRow = {
@@ -101,10 +114,17 @@ const incompleteSales = async (listingId: number): Promise<number> => {
     `NOT EXISTS (SELECT 1 FROM transfers AS paymentLeg WHERE paymentLeg.kind = '${KIND.payment}'` +
     " AND paymentLeg.dest_type = 'attendee' AND paymentLeg.dest_id = saleLeg.source_id" +
     " AND paymentLeg.event_group = saleLeg.event_group)";
+  const noProviderReference =
+    "NOT EXISTS (SELECT 1 FROM processed_payments AS payment" +
+    " WHERE payment.attendee_id = CAST(saleLeg.source_id AS INTEGER)" +
+    " AND payment.payment_reference != '')";
+  const nothingOwed = `${attendeeOwedSubquery(
+    "CAST(saleLeg.source_id AS INTEGER)",
+  )} <= 0`;
   const row = (await queryOne<{ incomplete_sales: number | bigint }>(
     `SELECT COALESCE(SUM(saleLeg.amount), 0) AS incomplete_sales
        FROM transfers AS saleLeg
-      WHERE ${saleToRevenue} AND ${noPayment}`,
+      WHERE ${saleToRevenue} AND ${noPayment} AND ${noProviderReference} AND ${nothingOwed}`,
     [String(listingId)],
   ))!;
   return Number(row.incomplete_sales);

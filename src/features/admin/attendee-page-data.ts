@@ -305,10 +305,10 @@ export const buildEditFormFromAttendee = (
 };
 
 /** How many activity-log entries the full Activity tab shows. */
-export const ATTENDEE_LOG_LIMIT = 1000;
+const ATTENDEE_LOG_LIMIT = 1000;
 
 /** How many entries the Overview preview shows before "view all". */
-export const ATTENDEE_LOG_PREVIEW = 3;
+const ATTENDEE_LOG_PREVIEW = 3;
 
 /** Load the full activity log for the Activity tab. */
 export const loadAttendeeActivity = (

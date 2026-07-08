@@ -12,6 +12,7 @@ import {
 } from "#shared/accounting/queries.ts";
 import { legReference } from "#shared/accounting/refs.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
+import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import {
   recordAttendeeRefund,
   recordAttendeeRefundsBatch,
@@ -23,6 +24,9 @@ import {
   postBooking,
   refundCashAmounts,
   refundLegsOf,
+  refundReference,
+  refundTarget,
+  sessionReference,
 } from "./refund-ledger-helpers.ts";
 
 describeWithEnv(
@@ -35,7 +39,10 @@ describeWithEnv(
       await postBooking({ attendeeId: 11, eventId: "sess-11" });
       await postBooking({ attendeeId: 12, eventId: "sess-12" });
 
-      const posted = await recordAttendeeRefundsBatch([11, 12]);
+      const posted = await recordAttendeeRefundsBatch([
+        refundTarget(11, "sess-11"),
+        refundTarget(12, "sess-12"),
+      ]);
       expect(posted).toEqual(
         new Map([
           [11, true],
@@ -61,7 +68,10 @@ describeWithEnv(
       });
       const before = (await allTransfers()).length;
 
-      const posted = await recordAttendeeRefundsBatch([13, 14]);
+      const posted = await recordAttendeeRefundsBatch([
+        refundTarget(13, "sess-13"),
+        refundTarget(14, "sess-14"),
+      ]);
       expect(posted).toEqual(
         new Map([
           [13, false],
@@ -73,7 +83,7 @@ describeWithEnv(
 
     test("on a failed batch, keeps already-refunded true and an unrecoverable post false", async () => {
       await postBooking({ attendeeId: 15, eventId: "sess-15" });
-      await recordAttendeeRefund(15);
+      await recordAttendeeRefund(15, [sessionReference("sess-15")]);
       await postBooking({ attendeeId: 16, eventId: "sess-16" });
 
       const sale16 = (await transfersByAccount(attendeeAccount(16))).find(
@@ -96,7 +106,10 @@ describeWithEnv(
         },
       ]);
 
-      const posted = await recordAttendeeRefundsBatch([15, 16]);
+      const posted = await recordAttendeeRefundsBatch([
+        refundTarget(15, "sess-15"),
+        refundTarget(16, "sess-16"),
+      ]);
       expect(posted).toEqual(
         new Map([
           [15, true],
@@ -132,7 +145,10 @@ describeWithEnv(
         },
       ]);
 
-      const posted = await recordAttendeeRefundsBatch([17, 18]);
+      const posted = await recordAttendeeRefundsBatch([
+        refundTarget(17, "sess-17"),
+        refundTarget(18, "sess-18"),
+      ]);
       expect(posted).toEqual(
         new Map([
           [17, true],
@@ -165,7 +181,7 @@ describeWithEnv(
         {
           amount: 2000,
           destination: attendeeAccount(19),
-          eventGroup: "balance-19",
+          eventGroup: await balanceEventGroup("balance-19"),
           kind: "payment",
           occurredAt: BOOKING_AT,
           reference: "balance-pay-19",
@@ -173,7 +189,15 @@ describeWithEnv(
         },
       ]);
 
-      const posted = await recordAttendeeRefundsBatch([19]);
+      const posted = await recordAttendeeRefundsBatch([
+        {
+          attendeeId: 19,
+          references: [
+            sessionReference("sess-19"),
+            refundReference("pi-balance-19", ["balance-19"]),
+          ],
+        },
+      ]);
 
       expect(posted).toEqual(new Map([[19, true]]));
       expect(await accountBalance(attendeeAccount(19))).toBe(0);

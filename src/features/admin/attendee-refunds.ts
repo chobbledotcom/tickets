@@ -139,7 +139,7 @@ const handleAttendeeRefund = verifiedAttendeeAction(
       return refundError(attendeeId, t("error.refund_failed"), returnUrl);
     }
 
-    const { posted } = await recordAttendeeRefund(attendeeId);
+    const { posted } = await recordAttendeeRefund(attendeeId, references);
     await logActivity(
       `Refund issued for attendee '${data.attendee.name}'`,
       listingId,

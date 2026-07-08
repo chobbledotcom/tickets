@@ -35,6 +35,10 @@ type PaymentReferenceRow = {
   provider_refunded_at: string;
 };
 
+type PaymentReferenceAttendeeRow = {
+  attendee_id: number;
+};
+
 export const encryptPaymentReference = async (
   reference: string,
 ): Promise<OwnerKeyEncrypted | ""> =>
@@ -52,23 +56,50 @@ const decryptPaymentReference = (
   return stored;
 };
 
-const paymentReferencesForIds = (attendeeIds: readonly number[]) =>
+const queryProcessedReferences = <Row>(
+  attendeeIds: readonly number[],
+  select: string,
+  suffix = "",
+): Promise<Row[]> =>
   attendeeIds.length === 0
     ? Promise.resolve([])
-    : queryAll<PaymentReferenceRow>(
-        `SELECT attendee_id, payment_session_id, payment_reference, provider_refunded_at
+    : queryAll<Row>(
+        `SELECT ${select}
            FROM processed_payments
           WHERE attendee_id IN (${inPlaceholders(attendeeIds)})
             AND payment_reference != ''
-          ORDER BY attendee_id, processed_at, payment_session_id`,
+          ${suffix}`,
         [...attendeeIds],
       );
+
+const paymentReferencesForIds = (
+  attendeeIds: readonly number[],
+): Promise<PaymentReferenceRow[]> =>
+  queryProcessedReferences(
+    attendeeIds,
+    "attendee_id, payment_session_id, payment_reference, provider_refunded_at",
+    "ORDER BY attendee_id, processed_at, payment_session_id",
+  );
+
+const attendeeIdsWithProcessedReferences = (
+  attendeeIds: readonly number[],
+): Promise<PaymentReferenceAttendeeRow[]> =>
+  queryProcessedReferences(attendeeIds, "DISTINCT attendee_id");
 
 const legacyReference = (reference: string): RefundPaymentReference => ({
   providerRefunded: false,
   reference,
   sessionIds: [],
 });
+
+const withLegacyReference = (
+  references: RefundPaymentReference[],
+  legacyPaymentId: string,
+): RefundPaymentReference[] =>
+  legacyPaymentId !== "" &&
+  !references.some((entry) => entry.reference === legacyPaymentId)
+    ? [...references, legacyReference(legacyPaymentId)]
+    : references;
 
 const addReference = (
   byReference: Map<string, { providerRefunded: boolean; sessionIds: string[] }>,
@@ -98,8 +129,8 @@ const asRefundReferences = (
 
 /**
  * Refundable provider references for each attendee. New processed_payments rows
- * are the source of truth; old single-charge bookings fall back to attendees'
- * legacy payment_id when no per-session reference was recorded.
+ * carry per-session references; old single-charge bookings may still only have
+ * attendees' legacy payment_id, so include it when it is not already present.
  */
 export const getRefundPaymentReferences = async (
   attendees: readonly RefundPaymentReferenceSource[],
@@ -124,13 +155,11 @@ export const getRefundPaymentReferences = async (
   }
   return new Map(
     attendees.map((attendee) => {
-      const references = asRefundReferences(byAttendee.get(attendee.id)!);
-      return [
-        attendee.id,
-        references.length === 0 && attendee.payment_id !== ""
-          ? [legacyReference(attendee.payment_id)]
-          : references,
-      ];
+      const references = withLegacyReference(
+        asRefundReferences(byAttendee.get(attendee.id)!),
+        attendee.payment_id,
+      );
+      return [attendee.id, references];
     }),
   );
 };
@@ -141,6 +170,27 @@ export const hasRefundPaymentReference = async (
 ): Promise<boolean> =>
   (await getRefundPaymentReferences([attendee], privateKey)).get(attendee.id)!
     .length > 0;
+
+export const getAttendeeIdsWithPaymentReference = async (
+  attendees: readonly RefundPaymentReferenceSource[],
+): Promise<Set<number>> => {
+  const ids = new Set(
+    attendees
+      .filter((attendee) => attendee.payment_id !== "")
+      .map((attendee) => attendee.id),
+  );
+  for (const row of await attendeeIdsWithProcessedReferences(
+    attendees.map((attendee) => attendee.id),
+  )) {
+    ids.add(Number(row.attendee_id));
+  }
+  return ids;
+};
+
+export const hasAnyPaymentReference = async (
+  attendee: RefundPaymentReferenceSource,
+): Promise<boolean> =>
+  (await getAttendeeIdsWithPaymentReference([attendee])).has(attendee.id);
 
 /**
  * Mark processed-payment rows whose provider refund has already happened. The

@@ -1,8 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  ATTENDEE_LOG_LIMIT,
-  ATTENDEE_LOG_PREVIEW,
   buildCreateForm,
   buildEditFormFromAttendee,
   buildTemplateData,
@@ -16,9 +14,9 @@ import {
   adminGet,
   awaitTestRequest,
   bookAttendee,
+  createDailyTestListing,
   createPaidTestAttendee,
   createTestAttendee,
-  createDailyTestListing,
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
@@ -34,13 +32,13 @@ import {
   withRefundMock,
 } from "#test-utils";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { withTestSession } from "#test-utils/session.ts";
 import {
   createPaidListing,
   markAsRefunded,
   setBookingLineQuantity,
   setupRefundTest,
 } from "./server-refunds-helpers.ts";
-import { withTestSession } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin refund state and UI)", { db: true }, () => {
   describe("already-refunded guard", () => {
@@ -205,7 +203,7 @@ describeWithEnv("server (admin refund state and UI)", { db: true }, () => {
       await setBookingLineQuantity(ctx.attendee.id, ctx.listing.id, 0);
 
       const loaded = await withTestSession(() =>
-        loadAttendeeForEdit(ctx.attendee.id)
+        loadAttendeeForEdit(ctx.attendee.id),
       );
 
       expect(loaded?.canRefund).toBe(false);
@@ -216,7 +214,7 @@ describeWithEnv("server (admin refund state and UI)", { db: true }, () => {
       await markAsRefunded(ctx.attendee.id);
 
       const loaded = await withTestSession(() =>
-        loadAttendeeForEdit(ctx.attendee.id)
+        loadAttendeeForEdit(ctx.attendee.id),
       );
 
       expect(loaded?.canRefund).toBe(false);
@@ -296,15 +294,13 @@ describeWithEnv("server (admin refund state and UI)", { db: true }, () => {
         new Map([[listing.id, 2]]),
         "",
       );
-      const standalone = create.lines.find((line) =>
-        line.listingId === listing.id && line.packageGroupId === 0
+      const standalone = create.lines.find(
+        (line) => line.listingId === listing.id && line.packageGroupId === 0,
       );
-      const unselectedStandalone = create.lines.find((line) =>
-        line.listingId === unselected.id && line.packageGroupId === 0
+      const unselectedStandalone = create.lines.find(
+        (line) => line.listingId === unselected.id && line.packageGroupId === 0,
       );
-      const packaged = create.lines.find((line) =>
-        line.packageGroupId === 1
-      );
+      const packaged = create.lines.find((line) => line.packageGroupId === 1);
 
       expect(edit.parsed.address).toBe(attendee.address);
       expect(edit.parsed.email).toBe(attendee.email);
@@ -340,9 +336,6 @@ describeWithEnv("server (admin refund state and UI)", { db: true }, () => {
     });
 
     test("builds duration warnings only for over-duration daily lines", async () => {
-      expect(ATTENDEE_LOG_LIMIT).toBe(1000);
-      expect(ATTENDEE_LOG_PREVIEW).toBe(3);
-
       const daily = await createDailyTestListing({
         durationDays: 1,
         name: "Daily warning listing",
@@ -432,11 +425,7 @@ describeWithEnv("server (admin refund state and UI)", { db: true }, () => {
         nextDateParsed,
         null,
       );
-      const noDateData = await buildTemplateData(
-        "create",
-        noDateParsed,
-        null,
-      );
+      const noDateData = await buildTemplateData("create", noDateParsed, null);
       const spanData = await buildTemplateData("create", spanParsed, null);
 
       expect(nextDateData.topWarnings).toEqual([]);
@@ -456,8 +445,8 @@ describeWithEnv("server (admin refund state and UI)", { db: true }, () => {
       await deactivateTestListing(inactiveUnbooked.id);
       const existing = [existingLine(inactiveBooked.id)];
 
-      const names = (await getRenderListings(existing)).map((listing) =>
-        listing.name
+      const names = (await getRenderListings(existing)).map(
+        (listing) => listing.name,
       );
 
       expect(names).toContain(active.name);

@@ -1,10 +1,11 @@
 /**
  * Ledger wiring for an admin full refund.
  *
- * The provider refund is a full refund of every charge recorded for the account,
- * so the ledger mirrors it by reversing every non-refund event group already
- * stored for that attendee (see {@link mapRefund}). It only auto-reverses when
- * the attendee's account is **paid in full**. Pre-ledger, still-owing, or credit
+ * The provider refund is a full refund of every provider charge recorded for the
+ * account, so the ledger mirrors it by reversing every non-refund event group
+ * only when all provider-cash groups are covered by the refunded references (see
+ * {@link mapRefund}). It only auto-reverses when the attendee's account is
+ * **paid in full**. Pre-ledger, still-owing, mixed manual-money, or credit
  * accounts are left for a manual adjustment rather than half- or over-reversed.
  *
  * Posting never throws: the provider refund has already committed by the time we
@@ -17,18 +18,85 @@
  */
 
 import { groupBy } from "#fp";
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
+import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
-import { mapBooking, mapRefund } from "#shared/accounting/mappers.ts";
+import {
+  bookingEventGroup,
+  mapBooking,
+  mapRefund,
+} from "#shared/accounting/mappers.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
+import { eventGroup } from "#shared/accounting/refs.ts";
 import { postTransferGroups, postTransfers } from "#shared/accounting/store.ts";
+import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 
+type RefundReferences = readonly Pick<RefundPaymentReference, "sessionIds">[];
+type ComputedRefund = {
+  posted: boolean;
+  groups: TransferInput[][];
+};
+
 const isRefundLeg = (kind: string | undefined): boolean =>
   kind?.startsWith("refund_") ?? false;
+
+const sameAccount = (
+  left: Transfer["source"],
+  right: Transfer["source"],
+): boolean => left.type === right.type && left.id === right.id;
+
+const isProviderPaymentLeg = (leg: Transfer): boolean =>
+  leg.kind === KIND.payment && sameAccount(leg.source, WORLD);
+
+const isOperatorMoneyLeg = (leg: Transfer): boolean =>
+  leg.kind === KIND.adjustment || leg.kind?.startsWith("manual_") === true;
+
+const balancePaymentEventGroup = (sessionId: string): Promise<string> =>
+  eventGroup(["balance", sessionId]);
+
+const refundedSessionGroups = async (
+  references: RefundReferences,
+): Promise<Set<string>> =>
+  new Set(
+    (
+      await Promise.all(
+        references.flatMap((reference) =>
+          reference.sessionIds.flatMap((sessionId) => [
+            bookingEventGroup(sessionId),
+            balancePaymentEventGroup(sessionId),
+          ]),
+        ),
+      )
+    ).flat(),
+  );
+
+const legacyReferenceCount = (references: RefundReferences): number =>
+  references.filter((reference) => reference.sessionIds.length === 0).length;
+
+const hasProviderPayment = (group: Transfer[]): boolean =>
+  group.some(isProviderPaymentLeg);
+
+const hasOperatorMoney = (group: Transfer[]): boolean =>
+  group.some(isOperatorMoneyLeg);
+
+const coveredRefundGroups = async (
+  legs: Transfer[],
+  references: RefundReferences,
+): Promise<Transfer[][]> => {
+  const groups = accountRefundGroups(legs);
+  if (groups.some(hasOperatorMoney)) return [];
+  const coveredGroups = await refundedSessionGroups(references);
+  const uncoveredProviderGroups = groups.filter(
+    (group) =>
+      hasProviderPayment(group) && !coveredGroups.has(group[0]!.eventGroup),
+  );
+  return uncoveredProviderGroups.length <= legacyReferenceCount(references)
+    ? groups
+    : [];
+};
 
 /**
  * The account event groups to reverse for a full-account refund. Prior refund
@@ -51,8 +119,9 @@ export const accountRefundGroups = (legs: Transfer[]): Transfer[][] => [
  */
 const computeAttendeeRefund = async (
   attendeeId: number,
+  references: RefundReferences,
   memo?: string,
-): Promise<{ posted: boolean; groups: TransferInput[][] }> => {
+): Promise<ComputedRefund> => {
   const account = attendeeAccount(attendeeId);
   const legs = await transfersByAccount(account);
   // Already refunded (e.g. an idempotent re-submit): the `refund_cash` leg is the
@@ -61,7 +130,7 @@ const computeAttendeeRefund = async (
   if (legs.some((leg) => leg.kind === KIND.refundCash)) {
     return { groups: [], posted: true };
   }
-  const orders = accountRefundGroups(legs);
+  const orders = await coveredRefundGroups(legs, references);
   if (orders.length === 0) return { groups: [], posted: false };
   // Only auto-reverse a fully-paid account. If the attendee still owes (an
   // unpaid reservation) or holds credit, a full provider refund can't map cleanly
@@ -93,10 +162,15 @@ const computeAttendeeRefund = async (
  */
 export const recordAttendeeRefund = async (
   attendeeId: number,
+  references: RefundReferences,
   memo?: string,
 ): Promise<{ posted: boolean }> => {
   try {
-    const { posted, groups } = await computeAttendeeRefund(attendeeId, memo);
+    const { posted, groups } = await computeAttendeeRefund(
+      attendeeId,
+      references,
+      memo,
+    );
     if (groups.length > 0) await postTransferGroups(groups);
     return { posted };
   } catch (error) {
@@ -125,16 +199,22 @@ export const recordAttendeeRefund = async (
  * the genuinely failing attendees stay errored (`posted:false`). Never throws.
  */
 export const recordAttendeeRefundsBatch = async (
-  attendeeIds: number[],
+  attendees: readonly {
+    attendeeId: number;
+    references: RefundReferences;
+  }[],
 ): Promise<Map<number, boolean>> => {
   try {
     // Fast path: compute every reversal, then post them all in one batch. A
     // compute read here can throw; the whole thing is guarded so it degrades to
     // the resilient per-attendee fallback rather than 500ing the bulk request.
     const computed = await Promise.all(
-      attendeeIds.map(async (id) => ({
-        id,
-        ...(await computeAttendeeRefund(id)),
+      attendees.map(async (attendee) => ({
+        id: attendee.attendeeId,
+        ...(await computeAttendeeRefund(
+          attendee.attendeeId,
+          attendee.references,
+        )),
       })),
     );
     const groups = computed.flatMap((entry) => entry.groups);
@@ -143,14 +223,18 @@ export const recordAttendeeRefundsBatch = async (
   } catch (error) {
     logError({
       code: ErrorCode.LEDGER_POST,
-      detail: `bulk refund batch failed, falling back to per-attendee (${attendeeIds.length}): ${error}`,
+      detail: `bulk refund batch failed, falling back to per-attendee (${attendees.length}): ${error}`,
     });
     // Record each attendee independently so one failure never strands the rest:
     // recordAttendeeRefund opens its own transaction, is idempotent (an
     // already-posted refund replays as a no-op), and never throws.
     const result = new Map<number, boolean>();
-    for (const id of attendeeIds) {
-      result.set(id, (await recordAttendeeRefund(id)).posted);
+    for (const attendee of attendees) {
+      result.set(
+        attendee.attendeeId,
+        (await recordAttendeeRefund(attendee.attendeeId, attendee.references))
+          .posted,
+      );
     }
     return result;
   }

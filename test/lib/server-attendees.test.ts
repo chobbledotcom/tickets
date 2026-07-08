@@ -6,6 +6,10 @@ import { attendeesApi } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import {
+  finalizeSession,
+  reserveSession,
+} from "#shared/db/processed-payments.ts";
+import {
   answersTable,
   questionsTable,
   setListingQuestions,
@@ -448,6 +452,43 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       )(response);
 
       // Verify attendee was NOT deleted (still exists)
+      const rows = await getAttendeesRaw(listing.id);
+      expect(rows.length).toBe(1);
+    });
+
+    test("refuses to delete empty-payment-id attendee with processed payment reference", async () => {
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+        maxAttendees: 100,
+        unitPrice: 1000,
+      });
+      const attendee = await createPaidTestAttendee(
+        listing.id,
+        "Balance Paid",
+        "balance-paid@example.com",
+        "",
+        1000,
+      );
+      await reserveSession("balance_paid_delete_guard");
+      await finalizeSession(
+        "balance_paid_delete_guard",
+        attendee.id,
+        [],
+        "pi_balance_paid",
+      );
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      await expectFlashRedirect(
+        `/admin/listing/${listing.id}/attendees`,
+        undefined,
+        false,
+      )(response);
+
       const rows = await getAttendeesRaw(listing.id);
       expect(rows.length).toBe(1);
     });

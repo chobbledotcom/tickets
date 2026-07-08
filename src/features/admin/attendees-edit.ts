@@ -90,7 +90,9 @@ export const handleRefreshPayment: TypedRouteHandler<
 
     const isRefunded = await provider.isPaymentRefunded(attendee.payment_id);
     if (isRefunded && !attendee.refunded) {
-      const { posted } = await recordAttendeeRefund(attendeeId);
+      const { posted } = await recordAttendeeRefund(attendeeId, [
+        { sessionIds: [] },
+      ]);
       await logActivity(
         `Payment marked as refunded for attendee '${attendee.name}'`,
         listing.id,

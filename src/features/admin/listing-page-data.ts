@@ -36,6 +36,7 @@ import {
   getListingWithCount,
   listingRevenueBreakdown,
 } from "#shared/db/listings.ts";
+import { getAttendeeIdsWithPaymentReference } from "#shared/db/payment-references.ts";
 import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
 import {
   getAllQuestionsWithAnswers,
@@ -157,10 +158,10 @@ export const rosterFilterFromQuery = (
  *  exists, so there is no missing-listing case to guard here. */
 const loadDecryptedListingAttendees = async (
   listingId: number,
+  privateKey: CryptoKey,
 ): Promise<Attendee[]> => {
-  const pk = await requireRequestPrivateKey();
   const attendeesRaw = await getAttendeesByListingIds([listingId]);
-  return decryptAttendees(attendeesRaw, pk);
+  return decryptAttendees(attendeesRaw, privateKey);
 };
 
 /** Attendees filtered to a single date (daily listings), else the full set. */
@@ -268,25 +269,32 @@ export const loadListingRosterPanel = async (
     listing,
     ctx.query,
   );
-  const attendees = await loadDecryptedListingAttendees(listing.id);
+  const privateKey = await requireRequestPrivateKey();
+  const attendees = await loadDecryptedListingAttendees(listing.id, privateKey);
   const filteredByDate = filterByDate(attendees, dateFilter);
-  const [questionData, childrenByParent, groupContext, systemNotes] =
-    await Promise.all([
-      loadListingQuestionData(
-        listing.id,
-        filteredByDate.map((a) => a.id),
-      ),
-      getChildrenForParents([listing.id]),
-      // The date-scoped group cap for the per-date capacity summary; a no-op
-      // (null date) when no daily date is selected.
-      loadGroupContext(listing, dateFilter),
-      // The contact/history notes summary that used to sit above the roster on
-      // the combined page — for the on-screen (date-filtered) attendees.
-      loadNotesForAttendees(
-        filteredByDate.map((a) => a.id),
-        requireRequestPrivateKey,
-      ),
-    ]);
+  const [
+    questionData,
+    childrenByParent,
+    groupContext,
+    systemNotes,
+    paymentReferenceAttendeeIds,
+  ] = await Promise.all([
+    loadListingQuestionData(
+      listing.id,
+      filteredByDate.map((a) => a.id),
+    ),
+    getChildrenForParents([listing.id]),
+    // The date-scoped group cap for the per-date capacity summary; a no-op
+    // (null date) when no daily date is selected.
+    loadGroupContext(listing, dateFilter),
+    // The contact/history notes summary that used to sit above the roster on
+    // the combined page — for the on-screen (date-filtered) attendees.
+    loadNotesForAttendees(
+      filteredByDate.map((a) => a.id),
+      requireRequestPrivateKey,
+    ),
+    getAttendeeIdsWithPaymentReference(filteredByDate),
+  ]);
   return ListingRosterPanel({
     activeFilter,
     allowedDomain: getEffectiveDomain(),
@@ -298,6 +306,7 @@ export const loadListingRosterPanel = async (
     dateFilter,
     groupContext,
     listing,
+    paymentReferenceAttendeeIds,
     phonePrefix: settings.phonePrefix,
     questionData,
     systemNotes,

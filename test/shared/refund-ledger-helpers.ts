@@ -9,6 +9,7 @@ import {
   transfersByAccount,
 } from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
+import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 
@@ -31,6 +32,29 @@ export const postBooking = async (
 ): Promise<void> => {
   await postTransfers(await mapBooking(facts(overrides)));
 };
+
+export const refundReference = (
+  reference: string,
+  sessionIds: readonly string[],
+): RefundPaymentReference => ({
+  providerRefunded: true,
+  reference,
+  sessionIds,
+});
+
+export const sessionReference = (sessionId: string): RefundPaymentReference =>
+  refundReference(`pi-${sessionId}`, [sessionId]);
+
+export const legacyReference = (reference: string): RefundPaymentReference =>
+  refundReference(reference, []);
+
+export const refundTarget = (
+  attendeeId: number,
+  sessionId: string,
+): { attendeeId: number; references: RefundPaymentReference[] } => ({
+  attendeeId,
+  references: [sessionReference(sessionId)],
+});
 
 export const refundLegsOf = (legs: Transfer[]): Transfer[] =>
   legs.filter((leg) => leg.kind?.startsWith("refund_"));
@@ -57,8 +81,11 @@ export const refundCashAmounts = async (
 export const expectRecordedRefundClearsAttendeeAndRevenue = async (
   attendeeId = ATTENDEE,
   listingId = 1,
+  references: readonly RefundPaymentReference[] = [sessionReference("sess-1")],
 ): Promise<void> => {
-  expect(await recordAttendeeRefund(attendeeId)).toEqual({ posted: true });
+  expect(await recordAttendeeRefund(attendeeId, references)).toEqual({
+    posted: true,
+  });
   expect(await accountBalance(attendeeAccount(attendeeId))).toBe(0);
   expect(await accountBalance(revenueAccount(listingId))).toBe(0);
 };

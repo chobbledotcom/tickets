@@ -797,10 +797,12 @@ export const applyAttendeeMerge = async (
     ...deleteTargetBookingStatements,
     // Insert moved/replaced source bookings
     ...insertStatements,
-    // Clean up source attendee
+    // Move source-owned payment references before deleting the source attendee,
+    // so refunds on the merged person can return every charge whose ledger rows
+    // now live on the target account.
     {
-      args: [sourceId],
-      sql: "DELETE FROM processed_payments WHERE attendee_id = ?",
+      args: [targetId, sourceId],
+      sql: "UPDATE processed_payments SET attendee_id = ? WHERE attendee_id = ?",
     },
     {
       args: [sourceId],
