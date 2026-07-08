@@ -126,27 +126,29 @@ const addBookingToken = async (
   );
 };
 
-/** Load a contact's token entries as raw ciphertext lines. */
-const loadTokenLines = async (hash: string): Promise<OwnerKeyEncrypted[]> => {
+/** Load a contact's encrypted token blob, or null when no row exists. */
+const loadTokenBlob = async (hash: string): Promise<string | null> => {
   const row = await queryOne<{ attendee_tokens_blob: string }>(
     "SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ?",
     [hash],
   );
-  return row?.attendee_tokens_blob
-    ? splitTokenBlob(row.attendee_tokens_blob)
-    : [];
+  return row?.attendee_tokens_blob ?? null;
 };
 
-/** Read a contact's booked ticket tokens. Decrypting needs the owner key. */
-export const getBookingTokens = async (
-  hash: string,
+/** Split a loaded token blob, treating a missing or empty blob as no tokens. */
+const tokenLinesFrom = (blob: string | null): OwnerKeyEncrypted[] =>
+  blob ? splitTokenBlob(blob) : [];
+
+/** Load a contact's token entries as raw ciphertext lines. */
+const loadTokenLines = async (hash: string): Promise<OwnerKeyEncrypted[]> =>
+  tokenLinesFrom(await loadTokenBlob(hash));
+
+/** Decrypt loaded token lines into source + ticket token pairs. */
+const bookingTokensFrom = (
+  lines: OwnerKeyEncrypted[],
   privateKey: CryptoKey,
 ): Promise<BookingToken[]> =>
-  Promise.all(
-    (await loadTokenLines(hash)).map((line) =>
-      parseTokenEntry(line, privateKey),
-    ),
-  );
+  Promise.all(lines.map((line) => parseTokenEntry(line, privateKey)));
 
 /** Read only the newest booked ticket tokens, decrypting no older entries. */
 export const getRecentBookingTokens = async (
@@ -154,10 +156,9 @@ export const getRecentBookingTokens = async (
   privateKey: CryptoKey,
   limit: number,
 ): Promise<BookingToken[]> =>
-  Promise.all(
-    (await loadTokenLines(hash))
-      .slice(-Math.max(0, limit))
-      .map((line) => parseTokenEntry(line, privateKey)),
+  bookingTokensFrom(
+    (await loadTokenLines(hash)).slice(-Math.max(0, limit)),
+    privateKey,
   );
 
 /** Remove the first entry for `ticketToken` from a contact's encrypted list. */
@@ -190,8 +191,11 @@ const ensureBookingToken = async (
   ticketToken: string,
   source: BookingSource,
   privateKey: CryptoKey,
+  createMissingContact: boolean,
 ): Promise<void> => {
-  const tokens = await getBookingTokens(hash, privateKey);
+  const blob = await loadTokenBlob(hash);
+  if (blob === null && !createMissingContact) return;
+  const tokens = await bookingTokensFrom(tokenLinesFrom(blob), privateKey);
   if (tokens.some((entry) => entry.token === ticketToken)) return;
   await addBookingToken(hash, ticketToken, source);
 };
@@ -238,6 +242,7 @@ const syncChannelToken = async (
     sync.ticketToken,
     removedSource ?? sync.source,
     sync.privateKey,
+    changed,
   );
 };
 

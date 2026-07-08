@@ -2,13 +2,13 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#shared/db/client.ts";
 import {
+  forgetContact,
   getContactRecord,
   hashEmail,
   hashPhone,
   recordContacts,
 } from "#shared/db/contact-preferences.ts";
 import {
-  getBookingTokens,
   getRecentBookingTokens,
   recordBooking,
   syncAttendeeContactTokens,
@@ -33,6 +33,9 @@ const syncToken = (
     source: "admin",
     ticketToken,
   });
+
+const readAllTokens = (hash: string, privateKey: CryptoKey) =>
+  getRecentBookingTokens(hash, privateKey, Number.MAX_SAFE_INTEGER);
 
 describeWithEnv("contact-tokens", { db: true }, () => {
   test("recordBooking splits the count by source, leaving outreach stats intact", async () => {
@@ -74,16 +77,16 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     const hash = await hashEmail("tokens@example.com");
     await recordBooking(hash, "public", "tok-online");
     await recordBooking(hash, "admin", "tok-manual");
-    expect(await getBookingTokens(hash, pk)).toEqual([
+    expect(await readAllTokens(hash, pk)).toEqual([
       { source: "public", token: "tok-online" },
       { source: "admin", token: "tok-manual" },
     ]);
   });
 
-  test("getBookingTokens is empty for a contact with no bookings", async () => {
+  test("getRecentBookingTokens is empty for a contact with no bookings", async () => {
     const pk = await getTestPrivateKey();
     expect(
-      await getBookingTokens(await hashEmail("nobody@example.com"), pk),
+      await readAllTokens(await hashEmail("nobody@example.com"), pk),
     ).toEqual([]);
   });
 
@@ -112,7 +115,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
       { email: "readd@example.com", phone: "" },
       pk,
     );
-    expect(await getBookingTokens(hash, pk)).toEqual([
+    expect(await readAllTokens(hash, pk)).toEqual([
       { source: "public", token: "tok-first" },
       { source: "admin", token: "tok-moved" },
     ]);
@@ -132,8 +135,8 @@ describeWithEnv("contact-tokens", { db: true }, () => {
       { email: "new@example.com", phone: "" },
       pk,
     );
-    expect(await getBookingTokens(oldHash, pk)).toEqual([]);
-    expect(await getBookingTokens(newHash, pk)).toEqual([
+    expect(await readAllTokens(oldHash, pk)).toEqual([]);
+    expect(await readAllTokens(newHash, pk)).toEqual([
       { source: "admin", token: "tok-move" },
     ]);
   });
@@ -149,8 +152,8 @@ describeWithEnv("contact-tokens", { db: true }, () => {
       { email: "", phone: "07700 900002" },
       pk,
     );
-    expect(await getBookingTokens(oldHash, pk)).toEqual([]);
-    expect(await getBookingTokens(newHash, pk)).toEqual([
+    expect(await readAllTokens(oldHash, pk)).toEqual([]);
+    expect(await readAllTokens(newHash, pk)).toEqual([
       { source: "public", token: "tok-phone" },
     ]);
   });
@@ -165,9 +168,31 @@ describeWithEnv("contact-tokens", { db: true }, () => {
       { email: "same@example.com", phone: "" },
       pk,
     );
-    expect(await getBookingTokens(hash, pk)).toEqual([
+    expect(await readAllTokens(hash, pk)).toEqual([
       { source: "public", token: "tok-same" },
     ]);
+  });
+
+  test("syncAttendeeContactTokens does not recreate an erased unchanged contact", async () => {
+    const pk = await getTestPrivateKey();
+    const email = "erased-token@example.com";
+    const hash = await hashEmail(email);
+    await recordBooking(hash, "public", "tok-erased");
+    expect(await forgetContact(hash)).toBe(1);
+
+    await syncToken(
+      "tok-erased",
+      { email, phone: "" },
+      { email, phone: "" },
+      pk,
+    );
+
+    expect(
+      await queryOne<{ contact_hash: string }>(
+        "SELECT contact_hash FROM contact_preferences WHERE contact_hash = ?",
+        [hash],
+      ),
+    ).toBeNull();
   });
 
   test("syncAttendeeContactTokens drops the link when a field is cleared", async () => {
@@ -180,7 +205,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
       { email: "", phone: "" },
       pk,
     );
-    expect(await getBookingTokens(oldHash, pk)).toEqual([]);
+    expect(await readAllTokens(oldHash, pk)).toEqual([]);
     const row = await queryOne<{ attendee_tokens_blob: string }>(
       "SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ?",
       [oldHash],
@@ -197,7 +222,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
       { email: "fresh@example.com", phone: "" },
       pk,
     );
-    expect(await getBookingTokens(newHash, pk)).toEqual([
+    expect(await readAllTokens(newHash, pk)).toEqual([
       { source: "admin", token: "tok-fresh" },
     ]);
   });
@@ -211,7 +236,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
       { email: "legacy-fresh@example.com", phone: "" },
       pk,
     );
-    expect(await getBookingTokens(newHash, pk)).toEqual([
+    expect(await readAllTokens(newHash, pk)).toEqual([
       { source: "admin", token: "tok-legacy" },
     ]);
   });
@@ -226,7 +251,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
       pk,
       false,
     );
-    expect(await getBookingTokens(newHash, pk)).toEqual([]);
+    expect(await readAllTokens(newHash, pk)).toEqual([]);
   });
 
   test("syncAttendeeContactTokens keeps a concurrent append while moving a token", async () => {
@@ -241,10 +266,10 @@ describeWithEnv("contact-tokens", { db: true }, () => {
       { email: "race-new@example.com", phone: "" },
       pk,
     );
-    expect(await getBookingTokens(oldHash, pk)).toEqual([
+    expect(await readAllTokens(oldHash, pk)).toEqual([
       { source: "admin", token: "tok-stay" },
     ]);
-    expect(await getBookingTokens(newHash, pk)).toEqual([
+    expect(await readAllTokens(newHash, pk)).toEqual([
       { source: "public", token: "tok-move" },
     ]);
   });
@@ -261,7 +286,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     expect(result.success).toBe(true);
     const token = result.success ? result.attendees[0]!.ticket_token : "";
     expect(
-      await getBookingTokens(await hashEmail("real-token@example.com"), pk),
+      await readAllTokens(await hashEmail("real-token@example.com"), pk),
     ).toEqual([{ source: "public", token }]);
   });
 
@@ -275,7 +300,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
       0,
     );
     expect(
-      await getBookingTokens(await hashEmail("noqty-token@example.com"), pk),
+      await readAllTokens(await hashEmail("noqty-token@example.com"), pk),
     ).toEqual([]);
   });
 
