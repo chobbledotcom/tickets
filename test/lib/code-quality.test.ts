@@ -86,7 +86,6 @@ const LIBRARY_PATHS = [
   "shared/checkout-ledger.ts",
   "shared/accounting/store.ts",
   "shared/accounting/queries.ts",
-  "shared/accounting/projection.ts",
   "shared/accounting/mappers.ts",
   // The site-pages feature is being wired in incrementally,
   // foundation-first: the pure core + DB layer landed before the admin CRUD /
