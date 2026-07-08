@@ -35,14 +35,16 @@ import {
   listingHasEmailableAttendees,
   loadListingActivity,
   loadListingActivityPreview,
-  loadListingEditPanel,
   loadListingForPage,
-  loadListingImagesPanel,
   loadListingOverviewPanel,
-  loadListingQrPanel,
-  loadListingQuestionsPanel,
   loadListingRosterPanel,
 } from "./listing-page-data.ts";
+import {
+  loadListingEditPanel,
+  loadListingImagesPanel,
+  loadListingQrPanel,
+  loadListingQuestionsPanel,
+} from "./listing-page-management-panels.ts";
 
 /** Tab visibility for the staff-only surfaces (roster, money, actions): the
  *  content-only `editor` role may edit a listing but never saw its detail page,

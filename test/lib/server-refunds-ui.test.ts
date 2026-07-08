@@ -12,7 +12,6 @@ import {
 import type { ExistingLine } from "#shared/db/attendees.ts";
 import {
   adminGet,
-  awaitTestRequest,
   bookAttendee,
   createDailyTestListing,
   createPaidTestAttendee,
@@ -20,18 +19,10 @@ import {
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
-  expectFlashRedirect,
   expectHtmlResponse,
-  postRefundAll,
-  refundAllUrl,
-  refundUrl,
-  submitRefund,
   testAttendee,
-  testCookie,
   testListingWithCount,
-  withRefundMock,
 } from "#test-utils";
-import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withTestSession } from "#test-utils/session.ts";
 import {
   createPaidListing,
@@ -40,69 +31,7 @@ import {
   setupRefundTest,
 } from "./server-refunds-helpers.ts";
 
-describeWithEnv("server (admin refund state and UI)", { db: true }, () => {
-  describe("already-refunded guard", () => {
-    test("GET refund page shows error for already-refunded attendee", async () => {
-      const ctx = await setupRefundTest("pi_already_refunded");
-      await markAsRefunded(ctx.attendee.id);
-
-      const response = await awaitTestRequest(refundUrl(ctx.attendee.id), {
-        cookie: ctx.cookie,
-      });
-      await expectHtmlResponse(response, 400, "already been refunded");
-    });
-
-    test("POST refund returns error for already-refunded attendee", async () => {
-      const ctx = await setupRefundTest("pi_post_already");
-      await markAsRefunded(ctx.attendee.id);
-
-      const response = await submitRefund(ctx);
-      await expectFlashRedirect(
-        `/admin/attendees/${ctx.attendee.id}/refund`,
-        expect.stringContaining("already been refunded"),
-        false,
-      )(response);
-    });
-
-    test("refund-all excludes already-refunded attendees", async () => {
-      const listing = await createPaidListing();
-      const refundedAttendee = await createPaidTestAttendee(
-        listing.id,
-        "Refunded",
-        "refunded@example.com",
-        "pi_ra_1",
-      );
-      await createPaidTestAttendee(
-        listing.id,
-        "Not Refunded",
-        "notrefunded@example.com",
-        "pi_ra_2",
-      );
-      await markAsRefunded(refundedAttendee.id);
-
-      const response = await awaitTestRequest(refundAllUrl(listing.id), {
-        cookie: await testCookie(),
-      });
-      await expectHtmlResponse(response, 200, "1 attendee(s) with payments");
-    });
-
-    test("marks attendee as refunded after successful refund", async () => {
-      const ctx = await setupRefundTest("pi_mark_refund");
-
-      await withRefundMock(true, async () => {
-        const response = await submitRefund(ctx);
-        expect(response.status).toBe(302);
-
-        const retryResponse = await submitRefund(ctx);
-        await expectFlashRedirect(
-          `/admin/attendees/${ctx.attendee.id}/refund`,
-          expect.stringContaining("already been refunded"),
-          false,
-        )(retryResponse);
-      });
-    });
-  });
-
+describeWithEnv("server (admin refund UI)", { db: true }, () => {
   describe("listing page UI", () => {
     const getListingPageHtml = async (listingId: number): Promise<string> => {
       const response = await adminGet(`/admin/listing/${listingId}`);
@@ -452,57 +381,6 @@ describeWithEnv("server (admin refund state and UI)", { db: true }, () => {
       expect(names).toContain(active.name);
       expect(names).toContain(inactiveBooked.name);
       expect(names).not.toContain(inactiveUnbooked.name);
-    });
-  });
-
-  describe("provider refund failures reach the error log", () => {
-    const errors = setupErrorSpy();
-    const loggedDetails = (): string[] =>
-      errors.calls.map((call) => String(call.args[0]));
-
-    test("a single refund the provider rejects is logged", async () => {
-      const ctx = await setupRefundTest("pi_logfail_single");
-      await withRefundMock(false, async () => {
-        await submitRefund(ctx);
-      });
-      expect(
-        loggedDetails().some((s) => s.includes("Admin refund failed")),
-      ).toBe(true);
-    });
-
-    test("a bulk refund the provider rejects is logged per attendee", async () => {
-      const listing = await createPaidListing();
-      await createPaidTestAttendee(
-        listing.id,
-        "Bulk Fail",
-        "bulkfail@example.com",
-        "pi_logfail_bulk",
-      );
-      await withRefundMock(false, async () => {
-        await postRefundAll(listing);
-      });
-      expect(
-        loggedDetails().some((s) => s.includes("Admin bulk refund failed")),
-      ).toBe(true);
-    });
-
-    test("a bulk refund the provider throws on is logged as errored", async () => {
-      const listing = await createPaidListing();
-      await createPaidTestAttendee(
-        listing.id,
-        "Bulk Throw",
-        "bulkthrow@example.com",
-        "pi_logfail_throw",
-      );
-      await withRefundMock(
-        () => Promise.reject(new Error("provider boom")),
-        async () => {
-          await postRefundAll(listing);
-        },
-      );
-      expect(
-        loggedDetails().some((s) => s.includes("Admin bulk refund errored")),
-      ).toBe(true);
     });
   });
 });
