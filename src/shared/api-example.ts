@@ -6,7 +6,10 @@
  * output, so a shape change will break the test and force an update.
  */
 
-import { type PublicListing, toPublicListing } from "#routes/api/index.ts";
+import {
+  type PublicListing,
+  toPublicListing,
+} from "#routes/api/public-listing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { EXAMPLE_LISTING } from "#shared/webhook-example.ts";

@@ -28,6 +28,7 @@ import {
   resolveDayCount,
 } from "#routes/public/ticket-payment.ts";
 import type { TicketCtx } from "#routes/public/types.ts";
+import type { ServerContext } from "#routes/types.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import {
   bookableChildIds,
@@ -98,12 +99,21 @@ const loadPackageContext = async (
   return { ctx, group: loaded.group, limit, tree };
 };
 
+/** Load a bookable package context by slug, or respond with the
+ * package-not-found 404. Used by the GET detail handler via
+ * {@link withPackageContext}; the POST book handler loads directly so it can
+ * rate-limit BEFORE the expensive package load (the unauthenticated flood
+ * guard must reject a limited IP without building a package tree). */
+const loadPackageContextOr404 = async (
+  slug: string,
+): Promise<PackageContext | Response> =>
+  (await loadPackageContext(slug)) ?? apiResponse(PACKAGE_NOT_FOUND, 404);
+
 /** Load a bookable package by slug, or respond with the package-not-found 404 —
  * shared by the GET and POST package endpoints via {@link withSlugLoaded} so the
  * load-or-404 block never drifts between them. */
 const withPackageContext = withSlugLoaded<PackageContext>(
-  async (slug) =>
-    (await loadPackageContext(slug)) ?? apiResponse(PACKAGE_NOT_FOUND, 404),
+  loadPackageContextOr404,
 );
 
 /** The contact-field requirement a package booking can validate against: the
@@ -270,78 +280,88 @@ const resolvePackageOrder = async (
  * `{ parent, slug, quantity }` choosing each parent member's add-ons — all
  * driving the SAME context, clamp, fold, and pricing walk the web package page
  * submits through. */
-export const handleBookPackage = withPackageContext(
-  async (request, { ctx, group, limit, tree }, server) => {
-    const limited = await checkBookingRateLimit(request, server);
-    if (limited) return limited;
+export const handleBookPackage = async (
+  request: Request,
+  { slug }: { slug: string },
+  server?: ServerContext,
+): Promise<Response> => {
+  // Rate-limit BEFORE the package load: the booking endpoints are
+  // unauthenticated, so the flood guard must reject a limited IP without
+  // building a package tree. The standalone listing book path loads the listing
+  // first (its load is a single slug lookup), but a package load builds a full
+  // ctx/tree/limit graph, so guarding it behind the limiter matters more here.
+  const limited = await checkBookingRateLimit(request, server);
+  if (limited) return limited;
+  const pkg = await loadPackageContextOr404(slug);
+  if (pkg instanceof Response) return pkg;
+  const { ctx, group, limit, tree } = pkg;
 
-    const body = await parseApiJsonBody(request);
-    if (body instanceof Response) return body;
+  const body = await parseApiJsonBody(request);
+  if (body instanceof Response) return body;
 
-    const standIns = ctxStandInNames(ctx);
-    const order = await resolvePackageOrder(
-      body,
-      ctx,
-      tree,
-      limit,
-      standIns.byListingId,
-    );
-    if (order instanceof Response) return order;
-    const { date, dayCount, form, packageQty, quantities } = order;
+  const standIns = ctxStandInNames(ctx);
+  const order = await resolvePackageOrder(
+    body,
+    ctx,
+    tree,
+    limit,
+    standIns.byListingId,
+  );
+  if (order instanceof Response) return order;
+  const { date, dayCount, form, packageQty, quantities } = order;
 
-    const selections = parseApiChildSelections(body, PackageChildrenSchema);
-    if (selections === null) {
-      return apiResponse(
-        {
-          error:
-            "Provide a `children` array of { parent, slug, quantity } choosing each member's add-ons.",
-        },
-        400,
-      );
-    }
-    const selectionError = applyPackageChildSelections(form, ctx, selections);
-    if (selectionError) return selectionError;
-
-    const fold = await foldChildrenOrError(
-      ctx,
-      form,
+  const selections = parseApiChildSelections(body, PackageChildrenSchema);
+  if (selections === null) {
+    return apiResponse(
       {
-        customPrices: new Map(),
-        date,
-        dayCount,
-        hasCustomisable: ctx.listings.some((e) => e.listing.customisable_days),
-        quantities,
+        error:
+          "Provide a `children` array of { parent, slug, quantity } choosing each member's add-ons.",
       },
-      tree,
+      400,
     );
-    if (fold instanceof Response) return fold;
+  }
+  const selectionError = applyPackageChildSelections(form, ctx, selections);
+  if (selectionError) return selectionError;
 
-    // Per-path lines from the tree: each member line carries its group id and
-    // its override price; a HIDDEN package's member names are concealed before
-    // the lines reach the provider. Paid-ness must come from these lines, not
-    // `isPaidListing`: a package override can make a free member paid (and a
-    // paid member free).
-    const items = concealLineNames(
-      buildOrderLines(
-        tree,
-        nodeQuantitiesFor(tree, new Map(), new Map([[group.id, packageQty]])),
-        fold.quantities,
-        fold.customPrices,
-        fold.dayCount,
-      ),
-      standIns,
-    );
-    const valResult = validateFoldedFields(
-      form,
-      fold,
-      items.some((item) => item.unitPrice > 0),
-    );
-    if (valResult instanceof Response) return valResult;
-    return completeFoldedBooking(request, {
-      contact: extractContact(valResult),
+  const fold = await foldChildrenOrError(
+    ctx,
+    form,
+    {
+      customPrices: new Map(),
       date,
-      fold,
-      items,
-    });
-  },
-);
+      dayCount,
+      hasCustomisable: ctx.listings.some((e) => e.listing.customisable_days),
+      quantities,
+    },
+    tree,
+  );
+  if (fold instanceof Response) return fold;
+
+  // Per-path lines from the tree: each member line carries its group id and
+  // its override price; a HIDDEN package's member names are concealed before
+  // the lines reach the provider. Paid-ness must come from these lines, not
+  // `isPaidListing`: a package override can make a free member paid (and a
+  // paid member free).
+  const items = concealLineNames(
+    buildOrderLines(
+      tree,
+      nodeQuantitiesFor(tree, new Map(), new Map([[group.id, packageQty]])),
+      fold.quantities,
+      fold.customPrices,
+      fold.dayCount,
+    ),
+    standIns,
+  );
+  const valResult = validateFoldedFields(
+    form,
+    fold,
+    items.some((item) => item.unitPrice > 0),
+  );
+  if (valResult instanceof Response) return valResult;
+  return completeFoldedBooking(request, {
+    contact: extractContact(valResult),
+    date,
+    fold,
+    items,
+  });
+};
