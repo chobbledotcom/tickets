@@ -10,8 +10,8 @@ import {
   settleAttendeeBalance,
 } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
+import { balanceFinalizeStatement } from "#shared/db/payment-finalize.ts";
 import {
-  balanceFinalizeStatement,
   isSessionProcessed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
@@ -23,6 +23,7 @@ import {
 import {
   createTestListing,
   describeWithEnv,
+  expectRefundReferences,
   getAttendeeActivityLog,
 } from "#test-utils";
 import {
@@ -66,7 +67,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     await reserveSession("balance-ref-ok");
 
     await settleAttendeeBalance(attendeeId, 1500, settle("balance-ref-ok"), [
-      balanceFinalizeStatement(
+      await balanceFinalizeStatement(
         "balance-ref-ok",
         attendeeId,
         1500,
@@ -76,7 +77,8 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
 
     const row = await isSessionProcessed("balance-ref-ok");
     expect(row?.attendee_id).toBe(attendeeId);
-    expect(row?.payment_reference).toBe("pi_balance_ok");
+    expect(row?.payment_reference).not.toContain("pi_balance_ok");
+    await expectRefundReferences(attendeeId, ["pi_balance_ok"]);
   });
 
   test("does not finalize a balance session reference on amount mismatch", async () => {
@@ -88,7 +90,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
       1000,
       settle("balance-ref-mismatch"),
       [
-        balanceFinalizeStatement(
+        await balanceFinalizeStatement(
           "balance-ref-mismatch",
           attendeeId,
           1000,

@@ -87,8 +87,9 @@ const computeAttendeeRefund = async (
  * Post the ledger legs reversing one attendee's booking and report whether the
  * ledger records the refund. `{ posted: true }` when it posts the reversal — or
  * when the attendee is already refunded, so an idempotent re-submit is a no-op
- * success. `{ posted: false }` when the booking isn't a single fully-paid
- * ledgered order (→ manual adjustment) or the write fails. Never throws.
+ * success. `{ posted: false }` when the account is not fully paid, has no
+ * ledgered order to reverse (→ manual adjustment), or the write fails. Never
+ * throws.
  */
 export const recordAttendeeRefund = async (
   attendeeId: number,
@@ -180,10 +181,11 @@ export type PlaceholderRefundFacts = {
  * shows we still hold the customer's money until a manual refund reverses it —
  * `memo` (a PII-free reason code) is stamped on the refund leg.
  *
- * {@link recordAttendeeRefund} can't be reused here: {@link soleBookingOrder}
- * only reverses a revenue-recognising order, never a lone payment. Never throws —
- * the provider refund has already settled, so a ledger write must not turn it
- * into a 500; a failed post is logged and reported as `posted: false`.
+ * {@link recordAttendeeRefund} can't be reused here: this placeholder records a
+ * cash-only booking that was never honoured, so there is no sale leg or
+ * fully-paid account to reverse. Never throws — the provider refund has already
+ * settled, so a ledger write must not turn it into a 500; a failed post is
+ * logged and reported as `posted: false`.
  */
 export const recordPlaceholderRefund = async (
   facts: PlaceholderRefundFacts,

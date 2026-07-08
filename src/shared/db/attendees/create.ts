@@ -44,7 +44,7 @@ import {
   type ModifierUsage,
   usageInsert,
 } from "#shared/db/modifier-usage.ts";
-import { batchFinalizeStatement } from "#shared/db/processed-payments.ts";
+import { batchFinalizeStatement } from "#shared/db/payment-finalize.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { bestEffort } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
@@ -567,7 +567,7 @@ const writeAsLedgerBatch = async (
       : [];
   const finalizeStatements: SqlStatement[] = plan.finalize
     ? [
-        batchFinalizeStatement(
+        await batchFinalizeStatement(
           plan.finalize.sessionId,
           ATTENDEE_BY_TOKEN_SQL,
           tokenIndex,

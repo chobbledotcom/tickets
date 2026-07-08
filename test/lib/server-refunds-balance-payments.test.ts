@@ -3,8 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { balanceFinalizeStatement } from "#shared/db/payment-finalize.ts";
 import {
-  balanceFinalizeStatement,
   finalizeSession as finalizePaymentSession,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
@@ -31,6 +31,28 @@ type RefundCtx = {
   cookie: string;
   csrfToken: string;
   listing: Listing;
+};
+
+const SETTLED_RESERVATION_REFERENCES = [
+  "pi_reservation_balance",
+  "pi_reservation_deposit",
+];
+
+const expectSettledReservationRefundFailure = async (
+  ctx: RefundCtx,
+  refundBehavior: Parameters<typeof withRefundMock>[0],
+) => {
+  await withRefundMock(refundBehavior, async (mockRefund) => {
+    const response = await submitRefund(ctx);
+    await expectFlashRedirect(
+      `/admin/attendees/${ctx.attendee.id}/refund`,
+      expect.stringContaining("Refund failed"),
+      false,
+    )(response);
+    expect(mockRefund.calls.map((call) => call.args[0]).sort()).toEqual(
+      SETTLED_RESERVATION_REFERENCES,
+    );
+  });
 };
 
 const refundCtx = async (
@@ -73,7 +95,7 @@ const setupBalancePaidRefundTest = async (): Promise<RefundCtx> => {
     1500,
     settle("balance_refund_session"),
     [
-      balanceFinalizeStatement(
+      await balanceFinalizeStatement(
         "balance_refund_session",
         attendee.id,
         1500,
@@ -123,7 +145,7 @@ const setupSettledReservationRefundTest = async (): Promise<RefundCtx> => {
     8000,
     settle("reservation_balance_session"),
     [
-      balanceFinalizeStatement(
+      await balanceFinalizeStatement(
         "reservation_balance_session",
         attendee.id,
         8000,
@@ -152,28 +174,16 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
       const ctx = await setupSettledReservationRefundTest();
 
       await expectSingleRefundIssued(ctx, (mockRefund) => {
-        expect(mockRefund.calls.map((call) => call.args[0]).sort()).toEqual([
-          "pi_reservation_balance",
-          "pi_reservation_deposit",
-        ]);
+        expect(mockRefund.calls.map((call) => call.args[0]).sort()).toEqual(
+          SETTLED_RESERVATION_REFERENCES,
+        );
       });
     });
 
     test("logs when a settled reservation refund misses one of its charges", async () => {
       const ctx = await setupSettledReservationRefundTest();
 
-      await withRefundMock(false, async (mockRefund) => {
-        const response = await submitRefund(ctx);
-        await expectFlashRedirect(
-          `/admin/attendees/${ctx.attendee.id}/refund`,
-          expect.stringContaining("Refund failed"),
-          false,
-        )(response);
-        expect(mockRefund.calls.map((call) => call.args[0]).sort()).toEqual([
-          "pi_reservation_balance",
-          "pi_reservation_deposit",
-        ]);
-      });
+      await expectSettledReservationRefundFailure(ctx, false);
       expect(
         errors.calls
           .map((call) => String(call.args[0]))
@@ -181,6 +191,20 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
             message.includes("did not complete every payment"),
           ),
       ).toBe(true);
+    });
+
+    test("records a returned charge when the other charge fails", async () => {
+      const ctx = await setupSettledReservationRefundTest();
+
+      await expectSettledReservationRefundFailure(ctx, (reference) =>
+        Promise.resolve(reference === "pi_reservation_deposit"),
+      );
+
+      await expectSingleRefundIssued(ctx, (mockRefund) => {
+        expect(mockRefund.calls.map((call) => call.args[0])).toEqual([
+          "pi_reservation_balance",
+        ]);
+      });
     });
   });
 

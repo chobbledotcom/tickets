@@ -15,18 +15,13 @@
  *   - Fresh → return conflict error (still being processed)
  */
 
-import type { InValue } from "@libsql/client";
-import { attendeeOwedSubquery } from "#shared/accounting/projection-sql.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import {
-  execute,
-  inPlaceholders,
-  insert,
-  queryAll,
-  queryOne,
-  type SqlStatement,
-} from "#shared/db/client.ts";
+import type {
+  EnvKeyEncrypted,
+  OwnerKeyEncrypted,
+} from "#shared/crypto/sealed.ts";
+import { execute, insert, queryOne } from "#shared/db/client.ts";
+import { encryptPaymentReference } from "#shared/db/payment-references.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 
@@ -36,16 +31,12 @@ export { STALE_RESERVATION_MS };
  * A processed_payments row is in exactly one of three lifecycle states, encoded
  * across two columns: **reserved** (in-progress: attendee_id NULL, no
  * failure_data), **finalized** (success: attendee_id set), **failed** (terminal
- * handled failure: attendee_id NULL, failure_data set). These two predicates are
- * the single source of truth for that shape — every query/branch that
- * distinguishes the states derives from them (or {@link isUnresolvedReservation})
- * so the encoding can't drift between call sites.
+ * handled failure: attendee_id NULL, failure_data set). This predicate is the
+ * single source of truth for the unresolved shape, so the encoding can't drift
+ * between call sites.
  */
-const UNRESOLVED_RESERVATION = "attendee_id IS NULL AND failure_data = ''";
-/** Complement of {@link UNRESOLVED_RESERVATION}: a finalized success or a
- * recorded terminal failure. Exported for the pruner, which reaps resolved rows. */
-export const RESOLVED_OUTCOME =
-  "(attendee_id IS NOT NULL OR failure_data != '')";
+export const UNRESOLVED_RESERVATION =
+  "attendee_id IS NULL AND failure_data = ''";
 
 /** Processed payment record */
 export type ProcessedPayment = {
@@ -62,7 +53,9 @@ export type ProcessedPayment = {
    * logic. */
   failure_data: EnvKeyEncrypted | "";
   /** Provider-specific refundable payment reference (e.g. Stripe pi_...). */
-  payment_reference: string;
+  payment_reference: OwnerKeyEncrypted | "";
+  /** Non-empty once this charge has been returned at the provider. */
+  provider_refunded_at: string;
 };
 
 /**
@@ -94,7 +87,8 @@ export const isSessionProcessed = (
   sessionId: string,
 ): Promise<ProcessedPayment | null> =>
   queryOne<ProcessedPayment>(
-    "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference FROM processed_payments WHERE payment_session_id = ?",
+    "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference, provider_refunded_at " +
+      "FROM processed_payments WHERE payment_session_id = ?",
     [sessionId],
   );
 
@@ -220,7 +214,7 @@ export const finalizeSession = async (
     [
       attendeeId,
       await encryptTicketTokens(ticketTokens),
-      paymentReference,
+      await encryptPaymentReference(paymentReference),
       sessionId,
     ],
   );
@@ -287,119 +281,6 @@ export const parseSessionFailure = async (
     return CORRUPT_FAILURE;
   }
 };
-
-/** Shared UPDATE shape for the finalize statement builders. */
-const buildFinalizeStatement = (
-  attendeeId: number,
-  sessionId: string,
-  paymentReference: string,
-  guard: string,
-  extraArgs: InValue[] = [],
-): SqlStatement => ({
-  args: [attendeeId, paymentReference, sessionId, ...extraArgs],
-  sql: `UPDATE processed_payments SET attendee_id = ?, ticket_tokens = '', payment_reference = ? WHERE payment_session_id = ? AND ${guard}`,
-});
-
-/**
- * Build the finalize UPDATE for the single-batch booking path, where the
- * attendee row is inserted earlier in the SAME batch so its id isn't a literal
- * yet: `attendee_id` is set from `attendeeIdSql` (the in-batch `MAX(id)`
- * subquery), and the row is finalized only while still unresolved AND `guard`
- * confirms the whole booking landed. Keeping finalize in the booking batch
- * preserves the invariant that `attendee_id` is set atomically with the attendee
- * INSERT — closing the duplicate-attendee crash window a separate finalize would
- * reopen. ticket_tokens is '' (persisted afterwards by setSessionTicketTokens). */
-export const batchFinalizeStatement = (
-  sessionId: string,
-  attendeeIdSql: string,
-  attendeeIdArg: InValue,
-  guard: SqlStatement,
-  paymentReference: string,
-): SqlStatement => ({
-  args: [attendeeIdArg, paymentReference, sessionId, ...guard.args],
-  sql: `UPDATE processed_payments SET attendee_id = ${attendeeIdSql}, ticket_tokens = '', payment_reference = ?
-        WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION} AND ${guard.sql}`,
-});
-
-/**
- * Build the finalize UPDATE for a balance-payment session, guarded so it only
- * applies while the attendee's balance still equals the amount being settled.
- * Returned rather than executed so the caller can commit it in the SAME batch as
- * the balance settle — closing the crash window between settle and finalize that
- * would otherwise leave a paid-but-unfinalized row (which a stale-replay could
- * then wrongly refund). Balance sessions carry no ticket tokens.
- */
-export const balanceFinalizeStatement = (
-  sessionId: string,
-  attendeeId: number,
-  expectedAmount: number,
-  paymentReference: string,
-): SqlStatement =>
-  // Guarded on the ledger-projected outstanding balance (no stored column).
-  // Runs in the settle batch before the balance-payment leg, so it still sees
-  // the pre-payment balance — i.e. the attendee owing exactly expectedAmount. A
-  // no-real-line attendee owes 0 ≠ expectedAmount, so the finalize is skipped and
-  // the session stays unresolved for the failure log.
-  buildFinalizeStatement(
-    attendeeId,
-    sessionId,
-    paymentReference,
-    `${attendeeOwedSubquery(String(attendeeId))} = ?`,
-    [expectedAmount],
-  );
-
-export type RefundPaymentReferenceSource = {
-  id: number;
-  payment_id: string;
-};
-
-type PaymentReferenceRow = {
-  attendee_id: number;
-  payment_reference: string;
-};
-
-const paymentReferencesForIds = (attendeeIds: readonly number[]) =>
-  attendeeIds.length === 0
-    ? Promise.resolve([])
-    : queryAll<PaymentReferenceRow>(
-        `SELECT attendee_id, payment_reference
-           FROM processed_payments
-          WHERE attendee_id IN (${inPlaceholders(attendeeIds)})
-            AND payment_reference != ''
-          GROUP BY attendee_id, payment_reference
-          ORDER BY attendee_id, MIN(processed_at), MIN(payment_session_id)`,
-        [...attendeeIds],
-      );
-
-/**
- * Refundable provider references for each attendee. New processed_payments rows
- * are the source of truth; old single-charge bookings fall back to attendees'
- * legacy payment_id when no per-session reference was recorded.
- */
-export const getRefundPaymentReferences = async (
-  attendees: readonly RefundPaymentReferenceSource[],
-): Promise<Map<number, string[]>> => {
-  const byAttendee = new Map(
-    attendees.map((attendee) => [attendee.id, [] as string[]]),
-  );
-  for (const row of await paymentReferencesForIds(
-    attendees.map((attendee) => attendee.id),
-  )) {
-    byAttendee.get(Number(row.attendee_id))?.push(row.payment_reference);
-  }
-  for (const attendee of attendees) {
-    const references = byAttendee.get(attendee.id)!;
-    if (references.length === 0 && attendee.payment_id !== "") {
-      references.push(attendee.payment_id);
-    }
-  }
-  return byAttendee;
-};
-
-export const hasRefundPaymentReference = async (
-  attendee: RefundPaymentReferenceSource,
-): Promise<boolean> =>
-  (await getRefundPaymentReferences([attendee])).get(attendee.id)!.length > 0;
 
 /**
  * Store encrypted ticket tokens on an already-finalized session so later

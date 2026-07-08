@@ -109,8 +109,8 @@ import {
 } from "#shared/db/listing-parents.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
+import { balanceFinalizeStatement } from "#shared/db/payment-finalize.ts";
 import {
-  balanceFinalizeStatement,
   decryptSessionTokens,
   finalizeSessionIfUnresolved,
   markSessionFailed,
@@ -1525,7 +1525,7 @@ const settleBalanceSession = async (
     expectedAmount,
     { id: sessionId, occurredAt: businessTime(session) },
     [
-      balanceFinalizeStatement(
+      await balanceFinalizeStatement(
         sessionId,
         attendeeId,
         expectedAmount,

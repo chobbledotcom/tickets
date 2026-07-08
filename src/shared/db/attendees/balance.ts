@@ -55,7 +55,9 @@ export const getAttendeeBalanceState = async (
     status_id: number | null;
     remaining_balance: number;
   }>(
-    `SELECT status_id, ${remainingBalanceFromLedger("attendees.id")} FROM attendees WHERE id = ? AND kind = ?`,
+    `SELECT status_id, ${remainingBalanceFromLedger(
+      "attendees.id",
+    )} FROM attendees WHERE id = ? AND kind = ?`,
     [attendeeId, ATTENDEE_KIND],
   );
   return row
@@ -190,8 +192,9 @@ export const settleAttendeeBalance = async (
 ): Promise<SettleBalanceResult> => {
   const state = await getAttendeeBalanceState(attendeeId);
   if (!state) return { reason: "not_found", settled: false };
-  if (state.remainingBalance <= 0)
+  if (state.remainingBalance <= 0) {
     return { reason: "nothing_owed", settled: false };
+  }
 
   const paid = await getPaidDefaultStatus();
   // The attendee's outstanding balance, projected from the ledger, used as an
@@ -240,10 +243,11 @@ export const settleAttendeeBalance = async (
     ),
   ]);
 
-  // The status move is the verdict; 0 rows means a concurrent/stale callback
+  // The self-update is the verdict; 0 rows means a concurrent/stale callback
   // changed the balance between our read and this write, or the amount differs.
-  if (results[0]!.rowsAffected === 0)
+  if (results[0]!.rowsAffected === 0) {
     return { reason: "amount_mismatch", settled: false };
+  }
 
   // The logged-activity / returned listing is the attendee's first real line.
   // A settle implies an owed balance, which implies a sale leg, which can only

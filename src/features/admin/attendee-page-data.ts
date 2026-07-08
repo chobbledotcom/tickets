@@ -42,7 +42,7 @@ import {
 } from "#shared/db/groups.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings.ts";
-import { hasRefundPaymentReference } from "#shared/db/processed-payments.ts";
+import { hasRefundPaymentReference } from "#shared/db/payment-references.ts";
 import {
   getAttendeeTextAnswers,
   loadAttendeeQuestionData,
@@ -67,10 +67,13 @@ export type LoadedAttendee = {
   existing: ExistingLine[];
 };
 
-const canRefundAttendee = async (attendee: Attendee): Promise<boolean> =>
-  !attendee.refunded &&
-  (await hasActiveBookingLine(attendee.id, attendee.listing_id)) &&
-  (await hasRefundPaymentReference(attendee));
+const canRefundAttendee = async (attendee: Attendee): Promise<boolean> => {
+  if (attendee.refunded) return false;
+  if (!(await hasActiveBookingLine(attendee.id, attendee.listing_id))) {
+    return false;
+  }
+  return hasRefundPaymentReference(attendee, await requireRequestPrivateKey());
+};
 
 /** Load an attendee + all its lines, or null (→ 404) when it doesn't exist. */
 export const loadAttendeeForEdit: (
@@ -411,8 +414,9 @@ const incompleteParentWarnings = async (
   for (const line of booked) {
     // getChildrenForParents only returns listings that ARE parents (≥1 child).
     const children = childrenByParent.get(line.listingId);
-    if (!children || children.some((child) => bookedIds.has(child.id)))
+    if (!children || children.some((child) => bookedIds.has(child.id))) {
       continue;
+    }
     warnings.set(
       line.listingId,
       t("attendee_form.warn_incomplete_parent", {

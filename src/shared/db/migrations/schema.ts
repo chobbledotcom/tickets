@@ -34,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Store provider payment references on processed_payments so every captured charge can be refunded.";
+  "Store encrypted provider payment references on processed_payments so every captured charge can be refunded.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -491,6 +491,7 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["ticket_tokens", "TEXT NOT NULL DEFAULT ''"],
         ["failure_data", "TEXT NOT NULL DEFAULT ''"],
         ["payment_reference", "TEXT NOT NULL DEFAULT ''"],
+        ["provider_refunded_at", "TEXT NOT NULL DEFAULT ''"],
       ],
       // FK declarations removed — libsql's FK enforcement breaks table
       // recreation migrations (PRAGMA foreign_keys is connection-scoped and

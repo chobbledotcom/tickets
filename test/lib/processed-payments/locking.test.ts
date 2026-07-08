@@ -55,7 +55,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       const result = await isSessionProcessed("cs_processed_123");
       expect(result?.payment_session_id).toBe("cs_processed_123");
       expect(result?.attendee_id).toBe(ctx.attendeeId);
-      expect(result?.payment_reference).toBe("pi_cs_processed_123");
+      expect(result?.payment_reference).not.toContain("pi_cs_processed_123");
       expect(result?.processed_at).toBeDefined();
     });
 

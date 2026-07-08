@@ -2,13 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { getDb, insert } from "#shared/db/client.ts";
+import { batchFinalizeStatement } from "#shared/db/payment-finalize.ts";
 import {
-  batchFinalizeStatement,
   decryptSessionTokens,
   finalizeSession as finalizePaymentSession,
   finalizeSessionIfUnresolved,
-  getRefundPaymentReferences,
-  hasRefundPaymentReference,
   isSessionProcessed,
   markSessionFailed,
   parseSessionFailure,
@@ -17,7 +15,12 @@ import {
   setSessionTicketTokens,
 } from "#shared/db/processed-payments.ts";
 import { nowMs } from "#shared/now.ts";
-import { bookAttendee, createTestListing, describeWithEnv } from "#test-utils";
+import {
+  bookAttendee,
+  createTestListing,
+  describeWithEnv,
+  expectRefundReferences,
+} from "#test-utils";
 
 const finalizeSession = (
   sessionId: string,
@@ -204,6 +207,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
           ticket_tokens TEXT NOT NULL DEFAULT '',
           failure_data TEXT NOT NULL DEFAULT '',
           payment_reference TEXT NOT NULL DEFAULT '',
+          provider_refunded_at TEXT NOT NULL DEFAULT '',
           FOREIGN KEY (attendee_id) REFERENCES attendees(id)
         )
       `);
@@ -226,7 +230,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       const attendeeId = attendeeResult.attendees[0]!.id;
 
       await reserveSession("sess_fss");
-      const stmt = batchFinalizeStatement(
+      const stmt = await batchFinalizeStatement(
         "sess_fss",
         "?",
         attendeeId,
@@ -237,7 +241,8 @@ describeWithEnv("db > processed payments", { db: true }, () => {
 
       const row = await isSessionProcessed("sess_fss");
       expect(row!.attendee_id).toBe(attendeeId);
-      expect(row!.payment_reference).toBe("pi_fss");
+      expect(row!.payment_reference).not.toContain("pi_fss");
+      await expectRefundReferences(attendeeId, ["pi_fss"]);
       expect(row!.ticket_tokens).toBe("");
     });
 
@@ -254,7 +259,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       await finalizeSession("sess_fss2", attendeeId, ["tok-test"]);
 
       // A second finalize (different attendee id) must not overwrite
-      const stmt = batchFinalizeStatement(
+      const stmt = await batchFinalizeStatement(
         "sess_fss2",
         "?",
         attendeeId + 999,
@@ -265,7 +270,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
 
       const row = await isSessionProcessed("sess_fss2");
       expect(row!.attendee_id).toBe(attendeeId);
-      expect(row!.payment_reference).toBe("pi_sess_fss2");
+      await expectRefundReferences(attendeeId, ["pi_sess_fss2"]);
     });
 
     test("does not finalize when the all-bookings-landed guard fails", async () => {
@@ -280,7 +285,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       await reserveSession("sess_fss3");
       // A guard that never holds stands in for a partial cart (not every booking
       // landed): the session must stay unresolved so the caller can refund.
-      const stmt = batchFinalizeStatement(
+      const stmt = await batchFinalizeStatement(
         "sess_fss3",
         "?",
         attendeeId,
@@ -353,51 +358,6 @@ describeWithEnv("db > processed payments", { db: true }, () => {
 
     test("is a no-op if the session was pruned", async () => {
       await finalizeSessionIfUnresolved("sess_gone", 1);
-    });
-  });
-
-  describe("getRefundPaymentReferences", () => {
-    test("returns an empty map for no attendees", async () => {
-      expect(await getRefundPaymentReferences([])).toEqual(new Map());
-    });
-
-    test("uses recorded processed-payment references before legacy payment_id", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      const first = await bookAttendee(listing, {
-        email: "refs1@example.com",
-        name: "Refs One",
-      });
-      const second = await bookAttendee(listing, {
-        email: "refs2@example.com",
-        name: "Refs Two",
-      });
-      if (!first.success || !second.success) throw new Error("setup failed");
-      const firstId = first.attendees[0]!.id;
-      const secondId = second.attendees[0]!.id;
-
-      await reserveSession("sess_refs_a");
-      await finalizePaymentSession("sess_refs_a", firstId, [], "pi_recorded");
-      await reserveSession("sess_refs_b");
-      await finalizePaymentSession("sess_refs_b", firstId, [], "pi_recorded");
-
-      const references = await getRefundPaymentReferences([
-        { id: firstId, payment_id: "pi_legacy_ignored" },
-        { id: secondId, payment_id: "pi_legacy_used" },
-        { id: 9999, payment_id: "" },
-      ]);
-
-      expect(references.get(firstId)).toEqual(["pi_recorded"]);
-      expect(references.get(secondId)).toEqual(["pi_legacy_used"]);
-      expect(references.get(9999)).toEqual([]);
-    });
-
-    test("checks whether a single attendee has any refund reference", async () => {
-      expect(
-        await hasRefundPaymentReference({ id: 1234, payment_id: "pi_legacy" }),
-      ).toBe(true);
-      expect(
-        await hasRefundPaymentReference({ id: 5678, payment_id: "" }),
-      ).toBe(false);
     });
   });
 });

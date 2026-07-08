@@ -24,12 +24,14 @@ type RefundRouteCtx = {
 };
 
 type RefundCheck = (mockRefund: Stub) => Promise<void> | void;
-type RefundBehavior = boolean | (() => Promise<boolean>);
+type RefundBehavior = boolean | ((reference: string) => Promise<boolean>);
 type RefundMockOptions = {
   alreadyRefunded?: RefundBehavior;
 };
 
-const refundResult = (behavior: RefundBehavior): (() => Promise<boolean>) =>
+const refundResult = (
+  behavior: RefundBehavior,
+): ((reference: string) => Promise<boolean>) =>
   typeof behavior === "function" ? behavior : () => Promise.resolve(behavior);
 
 /** POST the refund-all confirmation form for a listing as the owner. */
