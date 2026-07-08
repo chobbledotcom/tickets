@@ -3,7 +3,7 @@
  */
 
 import * as v from "valibot";
-import { map, unique } from "#fp";
+import { groupBy, map, unique } from "#fp";
 import { ATTENDEE } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import {
@@ -250,8 +250,14 @@ export type AttendeeBookingRows = {
   id: number;
   created: string;
   status_id: number | null;
-  bookings: ListingAttendeeRow[];
+  bookings: PreviousBookingLine[];
 };
+
+/** The only booking-line fields the Previous bookings panel needs. */
+type PreviousBookingLine = Pick<
+  ListingAttendeeRow,
+  "listing_id" | "quantity" | "price_paid"
+>;
 
 /**
  * Collapse the one-extra-attendee overread into `hasNext`, dropping the extra
@@ -549,6 +555,7 @@ export const getAttendee = async (
 };
 
 type BookingRowWithAttendee = ListingAttendeeRow & { attendee_id: number };
+type RowWithAttendee<Row> = Row & { attendee_id: number };
 
 const bookingRowWithoutAttendee = (
   row: BookingRowWithAttendee,
@@ -567,27 +574,58 @@ const bookingRowWithoutAttendee = (
   start_at: row.start_at,
 });
 
+const rowsByAttendeeId = <Row extends { attendee_id: number }, Booking>(
+  rows: Row[],
+  withoutAttendee: (row: Row) => Booking,
+): Map<number, Booking[]> =>
+  new Map(
+    [...groupBy(rows, (row) => row.attendee_id)].map(([attendeeId, group]) => [
+      attendeeId,
+      group.map(withoutAttendee),
+    ]),
+  );
+
 const bookingRowsByAttendeeIds = async (
   attendeeIds: number[],
-  realLinesOnly: boolean,
 ): Promise<Map<number, ListingAttendeeRow[]>> => {
-  const realLineFilter = realLinesOnly ? " AND quantity > 0" : "";
+  const attendeePlaceholders = inPlaceholders(attendeeIds);
   const rows = await queryAll<BookingRowWithAttendee>(
     `SELECT attendee_id, ${LISTING_ATTENDEE_ROW_COLS}
-     FROM listing_attendees WHERE attendee_id IN (${inPlaceholders(
-       attendeeIds,
-     )})${realLineFilter}
+     FROM listing_attendees WHERE attendee_id IN (${attendeePlaceholders})
      ORDER BY start_at, listing_id`,
     attendeeIds,
   );
 
-  const bookingsByAttendee = new Map<number, ListingAttendeeRow[]>();
-  for (const row of rows) {
-    const list = bookingsByAttendee.get(row.attendee_id) ?? [];
-    list.push(bookingRowWithoutAttendee(row));
-    bookingsByAttendee.set(row.attendee_id, list);
-  }
-  return bookingsByAttendee;
+  return rowsByAttendeeId(rows, bookingRowWithoutAttendee);
+};
+
+const PREVIOUS_BOOKING_LINE_COLS = `listing_id, quantity, ${pricePaidFromLedger(
+  "listing_attendees.attendee_id",
+  "listing_attendees.listing_id",
+  "listing_attendees.ledger_event_group",
+  "listing_attendees.id",
+)}`;
+
+const previousBookingLineWithoutAttendee = (
+  row: RowWithAttendee<PreviousBookingLine>,
+): PreviousBookingLine => ({
+  listing_id: row.listing_id,
+  price_paid: row.price_paid,
+  quantity: row.quantity,
+});
+
+const previousBookingLinesByAttendeeIds = async (
+  attendeeIds: number[],
+): Promise<Map<number, PreviousBookingLine[]>> => {
+  const attendeePlaceholders = inPlaceholders(attendeeIds);
+  const rows = await queryAll<RowWithAttendee<PreviousBookingLine>>(
+    `SELECT attendee_id, ${PREVIOUS_BOOKING_LINE_COLS}
+     FROM listing_attendees WHERE attendee_id IN (${attendeePlaceholders}) AND quantity > 0
+     ORDER BY start_at, listing_id`,
+    attendeeIds,
+  );
+
+  return rowsByAttendeeId(rows, previousBookingLineWithoutAttendee);
 };
 
 type TokenIndexedRow = { ticket_token_index: BlindIndex };
@@ -632,12 +670,12 @@ const resultsInTokenOrder = <Result>(
   return tokens.map((token) => tokenToResult.get(token) ?? null);
 };
 
-type TokenBookingRow = Omit<AttendeeBookingRows, "bookings"> & TokenIndexedRow;
+type TokenResultRow = { id: number } & TokenIndexedRow;
 
-const tokenResultMap = <Row extends TokenBookingRow, Result>(
+const tokenResultMap = <Row extends TokenResultRow, Booking, Result>(
   rows: Row[],
-  bookingsByAttendee: Map<number, ListingAttendeeRow[]>,
-  build: (row: Row, bookings: ListingAttendeeRow[]) => Result,
+  bookingsByAttendee: Map<number, Booking[]>,
+  build: (row: Row, bookings: Booking[]) => Result,
 ): Map<string, Result> =>
   new Map(
     rows.map((row) => [
@@ -683,7 +721,7 @@ export const getAttendeesByTokens = async (
 
   // Query 2: Get all listing links for these attendees
   const attendeeIds = attendeeRows.map((row) => row.id);
-  const bookingsByAttendee = await bookingRowsByAttendeeIds(attendeeIds, false);
+  const bookingsByAttendee = await bookingRowsByAttendeeIds(attendeeIds);
 
   const byTokenIndex = tokenResultMap(
     attendeeRows,
@@ -714,7 +752,7 @@ export const getAttendeeBookingRowsByTokens = async (
   tokens: string[],
 ): Promise<(AttendeeBookingRows | null)[]> => {
   if (tokens.length === 0) return [];
-  type AttendeeRow = AttendeeBookingRows & { ticket_token_index: BlindIndex };
+  type AttendeeRow = Omit<AttendeeBookingRows, "bookings"> & TokenIndexedRow;
   const {
     rows: attendeeRows,
     tokenIndexes,
@@ -726,9 +764,8 @@ export const getAttendeeBookingRowsByTokens = async (
 
   if (attendeeRows.length === 0) return tokens.map(() => null);
 
-  const bookingsByAttendee = await bookingRowsByAttendeeIds(
+  const bookingsByAttendee = await previousBookingLinesByAttendeeIds(
     attendeeRows.map((row) => row.id),
-    true,
   );
   const byTokenIndex = tokenResultMap(
     attendeeRows,

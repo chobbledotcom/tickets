@@ -267,6 +267,7 @@ const handleSubmitInner = async (
           questions,
           parseQuestionAnswers({ optional: true })(form, questions),
           logisticsPlan,
+          existingByKey,
         );
   if (outcome.ok) return outcome.response;
   return renderSubmittedForm(
@@ -398,6 +399,7 @@ const applyEdit = async (
   questions: QuestionWithAnswers[],
   answers: import("#shared/db/questions.ts").AttendeeAnswerSet,
   logisticsPlan: LogisticsPlan,
+  existingByKey: Map<string, ListingAttendeeRow>,
 ): Promise<SaveOutcome> => {
   // Block marking an assigned built-site line no-quantity (no release path here).
   if (
@@ -460,17 +462,25 @@ const applyEdit = async (
   const hasRealLine = desired.some((line) => line.quantity > 0);
   await updateAttendeeStatus(attendeeId, parsed.statusId, !hasRealLine);
 
-  // Keep this attendee's ticket token attached to whichever contact owns it
-  // now. Running after every real-booking edit also links placeholders that
-  // have just gained their first bookable line.
-  await syncAttendeeContactTokens({
-    after: { email: parsed.email, phone: parsed.phone },
-    before: { email: attendee.email, phone: attendee.phone },
-    hasBooking: hasRealLine,
-    privateKey: await requireRequestPrivateKey(),
-    source: "admin",
-    ticketToken: attendee.ticket_token,
-  });
+  const hadRealLine = [...existingByKey.values()].some(
+    (line) => line.quantity > 0,
+  );
+  const contactChanged =
+    parsed.email !== attendee.email || parsed.phone !== attendee.phone;
+  const gainedFirstRealLine = hasRealLine && !hadRealLine;
+  if (contactChanged || gainedFirstRealLine) {
+    // Keep this attendee's ticket token attached to whichever contact owns it
+    // now. Running when the first real line appears links placeholders that
+    // have just become bookings.
+    await syncAttendeeContactTokens({
+      after: { email: parsed.email, phone: parsed.phone },
+      before: { email: attendee.email, phone: attendee.phone },
+      hasBooking: hasRealLine,
+      privateKey: await requireRequestPrivateKey(),
+      source: "admin",
+      ticketToken: attendee.ticket_token,
+    });
+  }
 
   await applyLogisticsPlan(attendeeId, logisticsPlan);
 

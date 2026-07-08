@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
+import { execute } from "#shared/db/client.ts";
 import {
   getContactRecord,
   hashEmail,
@@ -361,6 +362,32 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       expect(await watcherPage()).toContain(
         `/admin/attendees/${placeholder.id}`,
       );
+    });
+
+    test("editing unrelated attendee fields skips unchanged contact token repair", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 9,
+        name: "Plain Edit",
+      });
+      const { attendee } = await createTestAttendeeDirect(
+        listing.id,
+        "Plain Name",
+        "plain-edit@example.com",
+      );
+      await execute(
+        "UPDATE contact_preferences SET attendee_tokens_blob = ? || attendee_tokens_blob WHERE contact_hash = ?",
+        ["not-an-owner-key-token\n", await hashEmail("plain-edit@example.com")],
+      );
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        await buildAttendeeEditForm(attendee.id, {
+          email: "plain-edit@example.com",
+          name: "Changed Name",
+        }),
+      );
+
+      expectRedirect(response, `/admin/attendees/${attendee.id}/edit`);
     });
   });
 });

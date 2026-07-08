@@ -31,6 +31,11 @@ describeWithEnv(
       expect(rows[0]?.bookings.map((line) => line.listing_id)).toEqual([
         listing.id,
       ]);
+      expect(Object.keys(rows[0]!.bookings[0]!).sort()).toEqual([
+        "listing_id",
+        "price_paid",
+        "quantity",
+      ]);
       expect("pii_blob" in rows[0]!).toBe(false);
     });
 
