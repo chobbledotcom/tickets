@@ -1,9 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Field } from "#shared/forms.tsx";
+import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
 import {
-  extractContact,
-  getAddAttendeeFields,
   getChangePasswordFields,
   getInviteUserFields,
   getLoginFields,
@@ -12,8 +11,11 @@ import {
   getSquareWebhookFields,
   getStripeKeyFields,
   getSumupFields,
+} from "#templates/fields/admin.ts";
+import {
+  extractContact,
   type TicketFormValues,
-} from "#templates/fields.ts";
+} from "#templates/fields/ticket.ts";
 import { byName, hasField } from "#test-utils/fields.ts";
 
 describe("fields contracts", () => {

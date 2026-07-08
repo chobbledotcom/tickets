@@ -35,7 +35,7 @@ import {
   type DataColumn,
   dataTable,
 } from "#templates/components/data-table.tsx";
-import { logisticsAgentFields } from "#templates/fields.ts";
+import { logisticsAgentFields } from "#templates/fields/listing.ts";
 
 /** The has-logistics enable/disable toggle. */
 const HasLogisticsForm = booleanSettingsSection<boolean>({

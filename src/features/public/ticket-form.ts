@@ -15,9 +15,10 @@ import type {
   TextAnswer,
 } from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { mergeListingFields } from "#shared/listing-fields.ts";
 import type { ListingFields } from "#shared/types.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
-import { extractContact, mergeListingFields } from "#templates/fields.ts";
+import { extractContact } from "#templates/fields/ticket.ts";
 import { ticketPage } from "#templates/public.tsx";
 import type { ListingQty, TicketCtx } from "./types.ts";
 

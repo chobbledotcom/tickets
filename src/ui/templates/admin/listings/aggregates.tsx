@@ -17,7 +17,7 @@ import {
 import type { RecalculateRow } from "#templates/admin/recalculate.tsx";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 import { recalculatePageRenderer } from "#templates/components/aggregate-sections.tsx";
-import { listingAggregateFields } from "#templates/fields.ts";
+import { listingAggregateFields } from "#templates/fields/aggregate.ts";
 
 export {
   calculateTotalRevenue,

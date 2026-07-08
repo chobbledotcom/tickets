@@ -82,7 +82,7 @@ import {
   normalizeDurationDays,
   parseDayPrices,
 } from "#shared/types.ts";
-import { VALID_DAY_NAMES } from "#templates/fields.ts";
+import { VALID_DAY_NAMES } from "#templates/fields/validators.ts";
 
 /** Default bookable days (all days of the week) */
 export const DEFAULT_BOOKABLE_DAYS: string[] = [...VALID_DAY_NAMES];

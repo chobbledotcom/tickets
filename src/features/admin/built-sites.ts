@@ -51,7 +51,7 @@ import {
   adminBuiltSiteNewPage,
   adminBuiltSitesPage,
 } from "#templates/admin/built-sites.tsx";
-import { getBuiltSiteFields } from "#templates/fields.ts";
+import { getBuiltSiteFields } from "#templates/fields/admin.ts";
 
 /** Extract built site input from validated form values.
  *

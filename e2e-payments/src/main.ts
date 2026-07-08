@@ -61,7 +61,7 @@ const dumpServerLog = (logPath: string, lines = 20): void => {
 const parseTarget = (): Target => {
   const raw = (
     process.argv[2] ??
-      process.env.E2E_PROVIDER ??
+    process.env.E2E_PROVIDER ??
       "free"
   ).toLowerCase();
   if (

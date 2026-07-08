@@ -8,8 +8,8 @@
 import { t } from "#i18n";
 import type { FormParams } from "#shared/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import { normalizeSlug, validateSlug } from "#shared/slug.ts";
-import { formattingHint } from "#templates/fields.ts";
+import { formattingHint } from "#templates/components/formatting-hint.ts";
+import { slugFieldBase } from "#templates/fields/validators.ts";
 
 const MAX_NAME = 128;
 const MAX_META_TITLE = 64;
@@ -32,16 +32,10 @@ export const contentNameField = (label: string) =>
  * would otherwise render a link that 404s. */
 export const contentSlugField = (publicLinkPath?: (slug: string) => string) =>
   ({
+    ...slugFieldBase(),
     hint: t("common.slug_public_hint"),
-    label: t("common.slug"),
-    name: "slug",
-    pattern: "[a-z0-9_\\-]+",
     // Present only on edit forms — an absent path renders no public link.
     ...(publicLinkPath ? { publicLinkPath } : {}),
-    required: true,
-    title: t("fields.listing.slug_title"),
-    type: "text",
-    validate: (value: string) => validateSlug(normalizeSlug(value)),
   }) as const;
 
 /** The optional SEO meta title + description pair. */

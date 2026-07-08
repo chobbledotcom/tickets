@@ -16,7 +16,7 @@ import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AttendeesPageLayout } from "#templates/admin/attendee-form.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
-import { formattingHint } from "#templates/fields.ts";
+import { formattingHint } from "#templates/components/formatting-hint.ts";
 /* jscpd:ignore-end */
 
 export type ContactHistoryPageData = {

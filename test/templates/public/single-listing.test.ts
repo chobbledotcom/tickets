@@ -5,7 +5,7 @@ import { buildTicketListing } from "#shared/booking/model.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { fieldsApi } from "#templates/fields.ts";
+import { fieldsApi } from "#templates/fields/ticket.ts";
 import { ticketPage } from "#templates/public.tsx";
 import { hasInputWithValue, testListingWithCount } from "#test-utils";
 import {

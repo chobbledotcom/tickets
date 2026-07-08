@@ -18,7 +18,7 @@ import {
   type DataColumn,
   dataTable,
 } from "#templates/components/data-table.tsx";
-import { getHolidayFields } from "#templates/fields.ts";
+import { getHolidayFields } from "#templates/fields/admin.ts";
 
 /** Columns for the holidays table — declared once so the header order and
  *  cell order can't drift apart. */

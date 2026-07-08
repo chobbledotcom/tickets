@@ -76,7 +76,7 @@ import {
   SelectField,
   type SelectOption,
 } from "#templates/components/select-field.tsx";
-import { PHONE_INPUT_PATTERN } from "#templates/fields.ts";
+import { PHONE_INPUT_PATTERN } from "#templates/fields/ticket.ts";
 
 /** Template data for the attendee form: everything the editable form itself
  * renders. The other tabs' data (log, ledger, notes, contact history) lives

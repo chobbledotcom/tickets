@@ -60,17 +60,12 @@ secrets-free self-test of the harness and the app booking flow.
 ## Running locally
 
 ```bash
-cd e2e-payments
-npm install
-
-# Harness self-test — no secrets, no tunnel, no money:
-DENO_BIN=deno CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium \
-  node --import tsx src/main.ts free
+# From the repo root (builds static assets, boots the app):
+mise exec -- deno task e2e free
 
 # A real provider sandbox (example: Stripe):
 STRIPE_SECRET_KEY=sk_test_... \
-DENO_BIN=deno CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium \
-  node --import tsx src/main.ts stripe
+  mise exec -- deno task e2e stripe
 ```
 
 Watch it happen in a real window with `HEADLESS=false`.

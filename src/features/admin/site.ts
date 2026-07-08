@@ -26,7 +26,7 @@ import {
   adminSiteHomePage,
   adminSiteOrderPage,
 } from "#templates/admin/site.tsx";
-import { formattingHint } from "#templates/fields.ts";
+import { formattingHint } from "#templates/components/formatting-hint.ts";
 
 export const siteHomeForm = defineForm({
   fields: [

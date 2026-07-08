@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import type { Page } from "playwright";
 import { log } from "../log.ts";
 import { sleep } from "../util.ts";
+import { squareRequestInit } from "#shared/square.ts";
 import { configureProvider } from "./shared.ts";
 import type { HostedCheckoutContext, PaymentProvider } from "./types.ts";
 
@@ -43,9 +44,6 @@ const SQUARE_API = {
   sandbox: "https://connect.squareupsandbox.com",
 } as const;
 
-// Match the app's Square-Version so request/response shapes agree.
-const SQUARE_API_VERSION = "2025-01-23";
-
 // Square's universal sandbox "successful Visa" card nonce. Completing a payment
 // with this against the order marks it COMPLETED with a card tender.
 // Docs: https://developer.squareup.com/docs/devtools/sandbox/payments
@@ -55,15 +53,6 @@ type SquareMoney = { amount: number; currency: string };
 
 /** Options for a single Square REST call. */
 type SquareRequest = { method?: string; body?: unknown };
-
-const squareHeaders = (token: string): Record<string, string> => ({
-  Authorization: `Bearer ${token}`,
-  "Content-Type": "application/json",
-  "Square-Version": SQUARE_API_VERSION,
-});
-
-const squareBody = (body: unknown): { body: string } | Record<never, never> =>
-  body == null ? {} : { body: JSON.stringify(body) };
 
 /** Recover the Square order id the app created for this booking from its server
  * log (it is logged as `[Square] Payment link created orderId=…`). Polled
@@ -96,11 +85,7 @@ const squareFetch = async (
   path: string,
   init?: SquareRequest,
 ): Promise<unknown> => {
-  const res = await fetch(`${base}${path}`, {
-    headers: squareHeaders(token),
-    method: init?.method ?? "GET",
-    ...squareBody(init?.body),
-  });
+  const res = await fetch(`${base}${path}`, squareRequestInit(token, init));
   const text = await res.text();
   if (!res.ok) {
     throw new Error(`Square API ${path} → HTTP ${res.status}: ${text}`);

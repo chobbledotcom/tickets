@@ -74,7 +74,10 @@ import {
   toLinkedItemOptions,
 } from "#templates/components/linked-items.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
-import { getGroupCreateFields, getGroupFields } from "#templates/fields.ts";
+import {
+  getGroupCreateFields,
+  getGroupFields,
+} from "#templates/fields/group.ts";
 
 /**
  * Admin groups list page

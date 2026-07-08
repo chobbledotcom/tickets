@@ -16,7 +16,7 @@ import {
   RunningTotalsFieldset,
   recalculatePageRenderer,
 } from "#templates/components/aggregate-sections.tsx";
-import { modifierAggregateFields } from "#templates/fields.ts";
+import { modifierAggregateFields } from "#templates/fields/aggregate.ts";
 import { modifierAggregateToFieldValues } from "./values.ts";
 
 const modifierRunningTotalsConfig = (

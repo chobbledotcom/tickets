@@ -156,7 +156,7 @@ const enforceSquareMetadataLimits = (
   );
 
 /** Square API version for all requests */
-const SQUARE_API_VERSION = "2025-01-23";
+export const SQUARE_API_VERSION = "2025-01-23";
 
 /** Base URLs for Square environments */
 const SQUARE_BASE_URL = {
@@ -168,6 +168,22 @@ const SQUARE_BASE_URL = {
 const jsonStringify = (obj: unknown): string =>
   JSON.stringify(obj, (_, v) => (typeof v === "bigint" ? Number(v) : v));
 
+/** Build the request init (auth headers + method + body) for a Square REST call.
+ * Shared with the e2e payment harness, which drives the sandbox API against the
+ * same endpoints; the two callers layer their own fetch/error handling on top. */
+export const squareRequestInit = (
+  token: string,
+  options?: { method?: string; body?: unknown },
+): { headers: Record<string, string>; method: string; body?: string } => ({
+  headers: {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+    "Square-Version": SQUARE_API_VERSION,
+  },
+  method: options?.method ?? "GET",
+  ...(options?.body != null ? { body: jsonStringify(options.body) } : {}),
+});
+
 /** Make an authenticated request to the Square REST API */
 const squareFetch = async (
   token: string,
@@ -175,15 +191,10 @@ const squareFetch = async (
   path: string,
   options?: { method?: string; body?: unknown },
 ): Promise<unknown> => {
-  const response = await fetchText(`${baseUrl}${path}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      "Square-Version": SQUARE_API_VERSION,
-    },
-    method: options?.method ?? "GET",
-    ...(options?.body != null ? { body: jsonStringify(options.body) } : {}),
-  });
+  const response = await fetchText(
+    `${baseUrl}${path}`,
+    squareRequestInit(token, options),
+  );
 
   if (!response.ok) {
     throw new Error(`Status code: ${response.status} Body: ${response.text}`);

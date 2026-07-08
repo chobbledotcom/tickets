@@ -62,6 +62,7 @@ import {
 import { getIframeMode } from "#shared/iframe.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { mergeListingFields } from "#shared/listing-fields.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import {
@@ -80,7 +81,7 @@ import {
   questionFieldset,
   questionWrapper,
 } from "#templates/components/question-text.tsx";
-import { getTicketFields, mergeListingFields } from "#templates/fields.ts";
+import { getTicketFields } from "#templates/fields/ticket.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import { PublicImageGallery, renderListingImage } from "./shared.tsx";
 /** OpenGraph meta tags for a public listing page. */
