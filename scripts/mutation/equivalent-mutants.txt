@@ -725,3 +725,22 @@ src/features/admin/attendees-edit.ts:68:35  0 → 1   # the LIMIT 1 query always
 # from 1), so the LHS is either undefined (|| falls through to the RHS, same as
 # ?? for undefined) or a truthy positive number (both keep the LHS).
 src/features/admin/attendees-edit.ts:68:49  ?? → ||   # the LHS is undefined or a positive listing id — never a falsy non-null value, so ?? and || agree
+
+# Attendee merge service (attendee-merge.ts) — `?? → ||` between
+# `targetAnswers.get(qid)` (a `{answerId, answerText}` object or undefined) and
+# `null`. ?? and || only differ when the LHS is a falsy non-null value; the
+# value type here is "object" or undefined — an object is always truthy, and
+# undefined falls through to the RHS for both. (Source-side mirror at :245
+# holds the same type.)
+src/shared/merge/attendee-merge.ts:244:38  ?? → ||   # Map<number,object>.get returns undefined or a truthy object — ?? and || agree for both
+src/shared/merge/attendee-merge.ts:245:38  ?? → ||   # same as :244 — Map<number,object>.get returns undefined or a truthy object
+src/shared/merge/attendee-merge.ts:250:45  ?? → ||   # questionTextMap.get returns undefined or a truthy string; both ?? and || fall through for undefined, and a string only differs on ""  which an empty `get` never returns
+src/shared/merge/attendee-merge.ts:251:35  ?? → ||   # sa?.answerId is undefined|number; ?? vs || differ only on 0 (falsy non-null), and answer ids are positive
+src/shared/merge/attendee-merge.ts:252:39  ?? → ||   # sa?.answerText is undefined|string; differs only on "" — this code path is non-conflict (sa !== null), so answerText is a real choice's text, never ""
+src/shared/merge/attendee-merge.ts:253:35  ?? → ||   # ta?.answerId is undefined|number; positive ints only
+src/shared/merge/attendee-merge.ts:254:39  ?? → ||   # ta?.answerText same as :252 — real choice text, never ""
+
+# Attendee merge service (attendee-merge.ts) — targetByKey lookup
+# `targetByKey.get(bookingKey(...)) ?? null`. Map.get returns undefined or a
+# ListingAttendeeRow object (always truthy); ?? and || agree on both.
+src/shared/merge/attendee-merge.ts:344:10  ?? → ||   # Map<string, ListingAttendeeRow>.get: undefined or a truthy object

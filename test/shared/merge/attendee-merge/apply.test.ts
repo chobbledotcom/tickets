@@ -217,9 +217,74 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       expect(result.success).toBe(true);
       expect(result.summary.bookingsWrittenOff).toBe(N);
+      // No `credit` decisions here, so the credited counter stays at 0 — this
+      // distinguishes `let credited = 0` from `let credited = 1` (an off-by-one
+      // mutant the writtenOff assertion alone wouldn't catch).
+      expect(result.summary.bookingsCredited).toBe(0);
       // The N reversal legs land in one batch, so the merge's round-trips don't
       // scale with N (an interactive per-leg post would be ~3N and trip the guard).
       expect(roundTrips).toBeLessThanOrEqual(10);
+    });
+
+    test("credits the over-collected cash when a paid conflict is decided `credit`", async () => {
+      // One duplicate booking that's paid on the SOURCE side: keep_target
+      // discards the source's `sale`, and a `credit` money decision hands the
+      // over-collected cash back to the merged attendee instead of writing it
+      // off. This exercises moneyReversalLegs's `credit` arm: a second leg
+      // posted to the attendee account, the `credited++` counter, and the
+      // `delta: amount` sign — the kill for every line-specific mutant between
+      // `let credited = 0` and `credited++`.
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const target = await createAttendee(listing.id, "Alice", "a@test.com");
+      const source = await createAttendee(listing.id, "Bob", "b@test.com");
+      await postPaidSale({
+        attendeeId: source.id,
+        eventGroup: "credit-grp",
+        listingId: listing.id,
+      });
+      await getDb().execute({
+        args: ["credit-grp", source.id, listing.id],
+        sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ? AND listing_id = ?",
+      });
+
+      const sourcePii = pii("Bob", "b@test.com");
+      const targetPii = pii("Alice", "a@test.com");
+      const diff = await buildMergeDiff({ source, sourcePii, target, targetPii });
+      const key = bookingKey(listing.id, null, 0, 0);
+      const decision = {
+        answers: {},
+        bookings: { [key]: "keep_target" as const },
+        money: { [key]: "credit" as const },
+        pii: {},
+        version: diff.version,
+      };
+
+      const { result } = await runMerge({
+        decide: () => decision,
+        source,
+        sourcePii,
+        target,
+        targetPii,
+      });
+
+      expect(result.success).toBe(true);
+      // The credited counter increments once for the credit decision
+      // (distinguishes `let credited = 0` from `let credited = 1` on the
+      // no-money baseline above; distinguishes `credited++` from `--` here).
+      expect(result.summary.bookingsCredited).toBe(1);
+      expect(result.summary.bookingsWrittenOff).toBe(0);
+      // The two legs — a negative revenue (un-bill) and a positive attendee
+      // (credit) — both land under the merge-unbill / merge-credit key
+      // prefixes. Inspect the attendee balance: the post-merge `credit-grp`
+      // order reversed, leaving the merged attendee with cash parked as credit.
+      const { transfersByAccount } = await import(
+        "#shared/accounting/queries.ts"
+      );
+      const { attendeeAccount } = await import("#shared/accounting/accounts.ts");
+      const legs = await transfersByAccount(attendeeAccount(target.id));
+      // The credit leg is positive (cash handed back to the attendee).
+      expect(legs.some((leg) => leg.kind === "adjustment" && leg.amount > 0))
+        .toBe(true);
     });
 
     test("preserves the target's free-text answers through a merge", async () => {
