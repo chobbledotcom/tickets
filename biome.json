@@ -152,7 +152,6 @@
     },
     {
       "includes": [
-        "src/features/api/index.ts",
         "src/features/api/payment-processing.ts",
         "src/shared/db/migrations/schema.ts",
         "src/shared/db/questions.ts",

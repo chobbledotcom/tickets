@@ -9,7 +9,7 @@ import { isRegistrationClosed } from "#routes/format.ts";
 import {
   classifyForDiscovery,
   dropHiddenPackageMembers,
-  loadPublicGroups,
+  loadBookablePackages,
 } from "#routes/public/discovery.ts";
 import {
   icsResponse,
@@ -106,19 +106,17 @@ const loadFeedData = async (): Promise<FeedData> => {
   const listings = await dropHiddenPackageMembers(allListings);
   const { nonStandaloneChildIds, soldOutParentIds } =
     await classifyForDiscovery(listings);
-  const packages = (await loadPublicGroups())
-    .filter((g) => g.is_package)
-    .map(
-      (g: Group): FeedItem => ({
-        created: null,
-        date: null,
-        description: g.description,
-        location: "",
-        name: g.name,
-        slug: g.slug,
-        uid: `package-${g.id}`,
-      }),
-    );
+  const packages = (await loadBookablePackages()).map(
+    (g: Group): FeedItem => ({
+      created: null,
+      date: null,
+      description: g.description,
+      location: "",
+      name: g.name,
+      slug: g.slug,
+      uid: `package-${g.id}`,
+    }),
+  );
   return {
     domain: getEffectiveDomain(),
     items: [
