@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { queryOne } from "#shared/db/client.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
 import {
   getContactRecord,
   hashEmail,
@@ -9,6 +9,7 @@ import {
 } from "#shared/db/contact-preferences.ts";
 import {
   getBookingTokens,
+  getRecentBookingTokens,
   recordBooking,
   syncAttendeeContactTokens,
   unrecordBooking,
@@ -84,6 +85,21 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     expect(
       await getBookingTokens(await hashEmail("nobody@example.com"), pk),
     ).toEqual([]);
+  });
+
+  test("getRecentBookingTokens decrypts only the newest token lines", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("recent-window@example.com");
+    await execute(
+      "INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob) VALUES (?, ?, ?)",
+      [hash, 1, "not-an-owner-key-token\n"],
+    );
+    await recordBooking(hash, "public", "tok-newer");
+    await recordBooking(hash, "admin", "tok-newest");
+
+    expect(await getRecentBookingTokens(hash, pk, 1)).toEqual([
+      { source: "admin", token: "tok-newest" },
+    ]);
   });
 
   test("syncAttendeeContactTokens appends without bumping counts", async () => {

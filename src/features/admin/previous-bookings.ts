@@ -9,7 +9,7 @@ import {
   getAttendeeBookingRowsByTokens,
 } from "#shared/db/attendees.ts";
 import { hashEmail, hashPhone } from "#shared/db/contact-preferences.ts";
-import { getBookingTokens } from "#shared/db/contact-tokens.ts";
+import { getRecentBookingTokens } from "#shared/db/contact-tokens.ts";
 import { getListingNamesByIds } from "#shared/db/listings.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
@@ -67,9 +67,7 @@ const previousBookingRow = (
     quantity: line.quantity,
   })),
   statusName: statusNameById.get(booked.status_id ?? -1) ?? null,
-  totalValue:
-    booked.bookings.reduce((sum, line) => sum + line.price_paid, 0) +
-    booked.remaining_balance,
+  totalValue: booked.bookings.reduce((sum, line) => sum + line.price_paid, 0),
 });
 
 /**
@@ -87,7 +85,9 @@ export const loadPreviousBookings = async (
   if (hashes.length === 0) return [];
   const privateKey = await requireRequestPrivateKey();
   const tokenLists = await Promise.all(
-    hashes.map((hash) => getBookingTokens(hash, privateKey)),
+    hashes.map((hash) =>
+      getRecentBookingTokens(hash, privateKey, TOKENS_PER_CHANNEL_LIMIT),
+    ),
   );
   const tokens = cappedTokensFor(tokenLists, attendee.ticket_token);
   if (tokens.length === 0) return [];

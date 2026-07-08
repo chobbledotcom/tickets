@@ -249,7 +249,6 @@ export type AttendeesPage = {
 export type AttendeeBookingRows = {
   id: number;
   created: string;
-  remaining_balance: number;
   status_id: number | null;
   bookings: ListingAttendeeRow[];
 };
@@ -709,7 +708,7 @@ export const getAttendeesByTokens = async (
  * Look up attendees by plaintext tokens for the Previous bookings table.
  *
  * This deliberately does not select `pii_blob`: the panel needs only attendee
- * ids, created dates, statuses, balances and real booking rows.
+ * ids, created dates, statuses and real booking rows.
  */
 export const getAttendeeBookingRowsByTokens = async (
   tokens: string[],
@@ -722,7 +721,7 @@ export const getAttendeeBookingRowsByTokens = async (
     uniqueTokens,
   } = await attendeeRowsForTokens<AttendeeRow>(
     tokens,
-    `id, created, ticket_token_index, status_id, ${TOKEN_ATTENDEE_BALANCE}`,
+    "id, created, ticket_token_index, status_id",
   );
 
   if (attendeeRows.length === 0) return tokens.map(() => null);
@@ -738,7 +737,6 @@ export const getAttendeeBookingRowsByTokens = async (
       bookings,
       created: row.created,
       id: row.id,
-      remaining_balance: row.remaining_balance,
       status_id: row.status_id,
     }),
   );

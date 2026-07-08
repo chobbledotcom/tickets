@@ -148,6 +148,18 @@ export const getBookingTokens = async (
     ),
   );
 
+/** Read only the newest booked ticket tokens, decrypting no older entries. */
+export const getRecentBookingTokens = async (
+  hash: string,
+  privateKey: CryptoKey,
+  limit: number,
+): Promise<BookingToken[]> =>
+  Promise.all(
+    (await loadTokenLines(hash))
+      .slice(-Math.max(0, limit))
+      .map((line) => parseTokenEntry(line, privateKey)),
+  );
+
 /** Remove the first entry for `ticketToken` from a contact's encrypted list. */
 const removeBookingToken = async (
   hash: string,
