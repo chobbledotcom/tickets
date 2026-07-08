@@ -39,6 +39,7 @@
   "attendee_form.contact_history": "Contact History",
   "attendee_form.stats_for": "Stats / notes for {value}",
   "attendee_form.previous_bookings": "Previous bookings",
+  "attendee_form.previous_bookings_shown": "Previous bookings shown",
   "attendee_form.total_email_messages": "Total email messages",
   "attendee_form.total_phone_messages": "Total phone messages",
   "attendee_form.col_booking_date": "Date",

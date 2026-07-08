@@ -214,7 +214,7 @@ const ContactSummary = ({
 }): JSX.Element => (
   <ul>
     <li>
-      <strong>{t("attendee_form.previous_bookings")}:</strong>{" "}
+      <strong>{t("attendee_form.previous_bookings_shown")}:</strong>{" "}
       {previousBookings.length}
     </li>
     {contactRecords.email && (

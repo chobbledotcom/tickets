@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import {
-  hashEmail,
-  recordBooking,
-  recordVisit,
-} from "#shared/db/contact-preferences.ts";
+import { hashEmail, recordVisit } from "#shared/db/contact-preferences.ts";
+import { recordBooking } from "#shared/db/contact-tokens.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { resetStripeClient } from "#shared/stripe.ts";

@@ -245,6 +245,15 @@ export type AttendeesPage = {
   hasNext: boolean;
 };
 
+/** PII-free booking rows for a token-resolved attendee. */
+export type AttendeeBookingRows = {
+  id: number;
+  created: string;
+  remaining_balance: number;
+  status_id: number | null;
+  bookings: ListingAttendeeRow[];
+};
+
 /**
  * Collapse the one-extra-attendee overread into `hasNext`, dropping the extra
  * attendee's lines. Rows arrive grouped by attendee id (the outer ORDER BY),
@@ -540,6 +549,106 @@ export const getAttendee = async (
   return row ? decryptAttendeeFields(row, privateKey) : null;
 };
 
+type BookingRowWithAttendee = ListingAttendeeRow & { attendee_id: number };
+
+const bookingRowWithoutAttendee = (
+  row: BookingRowWithAttendee,
+): ListingAttendeeRow => ({
+  attachment_downloads: row.attachment_downloads,
+  checked_in: row.checked_in,
+  end_at: row.end_at,
+  ledger_event_group: row.ledger_event_group,
+  listing_id: row.listing_id,
+  order_token: row.order_token,
+  package_group_id: row.package_group_id,
+  parent_listing_id: row.parent_listing_id,
+  price_paid: row.price_paid,
+  quantity: row.quantity,
+  refunded: row.refunded,
+  start_at: row.start_at,
+});
+
+const bookingRowsByAttendeeIds = async (
+  attendeeIds: number[],
+  realLinesOnly: boolean,
+): Promise<Map<number, ListingAttendeeRow[]>> => {
+  const realLineFilter = realLinesOnly ? " AND quantity > 0" : "";
+  const rows = await queryAll<BookingRowWithAttendee>(
+    `SELECT attendee_id, ${LISTING_ATTENDEE_ROW_COLS}
+     FROM listing_attendees WHERE attendee_id IN (${inPlaceholders(
+       attendeeIds,
+     )})${realLineFilter}
+     ORDER BY start_at, listing_id`,
+    attendeeIds,
+  );
+
+  const bookingsByAttendee = new Map<number, ListingAttendeeRow[]>();
+  for (const row of rows) {
+    const list = bookingsByAttendee.get(row.attendee_id) ?? [];
+    list.push(bookingRowWithoutAttendee(row));
+    bookingsByAttendee.set(row.attendee_id, list);
+  }
+  return bookingsByAttendee;
+};
+
+type TokenIndexedRow = { ticket_token_index: BlindIndex };
+
+type TokenIndexedRows<Row extends TokenIndexedRow> = {
+  rows: Row[];
+  tokenIndexes: BlindIndex[];
+  uniqueTokens: string[];
+};
+
+const tokenIndexesFor = (tokens: string[]): Promise<BlindIndex[]> =>
+  Promise.all(map((token: string) => computeTicketTokenIndex(token))(tokens));
+
+const attendeeRowsForTokens = async <Row extends TokenIndexedRow>(
+  tokens: string[],
+  columns: string,
+): Promise<TokenIndexedRows<Row>> => {
+  const uniqueTokens = unique(tokens);
+  const tokenIndexes = await tokenIndexesFor(uniqueTokens);
+  const rows = await queryAll<Row>(
+    `SELECT ${columns}
+     FROM attendees WHERE ticket_token_index IN (${inPlaceholders(
+       tokenIndexes,
+     )}) AND kind = '${ATTENDEE_KIND}'`,
+    tokenIndexes,
+  );
+  return { rows, tokenIndexes, uniqueTokens };
+};
+
+const resultsInTokenOrder = <Result>(
+  tokens: string[],
+  uniqueTokens: string[],
+  tokenIndexes: BlindIndex[],
+  byTokenIndex: Map<string, Result>,
+): (Result | null)[] => {
+  const tokenToResult = new Map(
+    uniqueTokens.map((token, index) => [
+      token,
+      byTokenIndex.get(tokenIndexes[index]!) ?? null,
+    ]),
+  );
+  return tokens.map((token) => tokenToResult.get(token) ?? null);
+};
+
+type TokenBookingRow = Omit<AttendeeBookingRows, "bookings"> & TokenIndexedRow;
+
+const tokenResultMap = <Row extends TokenBookingRow, Result>(
+  rows: Row[],
+  bookingsByAttendee: Map<number, ListingAttendeeRow[]>,
+  build: (row: Row, bookings: ListingAttendeeRow[]) => Result,
+): Map<string, Result> =>
+  new Map(
+    rows.map((row) => [
+      row.ticket_token_index,
+      build(row, bookingsByAttendee.get(row.id) ?? []),
+    ]),
+  );
+
+const TOKEN_ATTENDEE_BALANCE = remainingBalanceFromLedger("attendees.id");
+
 /**
  * Look up attendees by plaintext tokens, returning full booking data.
  * Two queries: attendees by token index, then all listing_attendees for those attendees.
@@ -549,12 +658,7 @@ export const getAttendee = async (
 export const getAttendeesByTokens = async (
   tokens: string[],
 ): Promise<(AttendeeWithBookings | null)[]> => {
-  // Dedupe tokens to prevent double processing
-  const uniqueTokens = unique(tokens);
-  const tokenIndexes = await Promise.all(
-    map((t: string) => computeTicketTokenIndex(t))(uniqueTokens),
-  );
-
+  if (tokens.length === 0) return [];
   // Query 1: Get attendee base rows (no listing join)
   type AttendeeBase = {
     id: number;
@@ -565,14 +669,13 @@ export const getAttendeesByTokens = async (
     status_id: number | null;
     remaining_balance: number;
   };
-  const attendeeRows = await queryAll<AttendeeBase>(
-    `SELECT id, created, kind, ticket_token_index, pii_blob, status_id, ${remainingBalanceFromLedger(
-      "attendees.id",
-    )}
-     FROM attendees WHERE ticket_token_index IN (${inPlaceholders(
-       tokenIndexes,
-     )}) AND kind = '${ATTENDEE_KIND}'`,
+  const {
+    rows: attendeeRows,
     tokenIndexes,
+    uniqueTokens,
+  } = await attendeeRowsForTokens<AttendeeBase>(
+    tokens,
+    `id, created, kind, ticket_token_index, pii_blob, status_id, ${TOKEN_ATTENDEE_BALANCE}`,
   );
 
   if (attendeeRows.length === 0) {
@@ -581,43 +684,13 @@ export const getAttendeesByTokens = async (
 
   // Query 2: Get all listing links for these attendees
   const attendeeIds = attendeeRows.map((row) => row.id);
-  const bookingRows = await queryAll<
-    ListingAttendeeRow & { attendee_id: number }
-  >(
-    `SELECT attendee_id, ${LISTING_ATTENDEE_ROW_COLS}
-     FROM listing_attendees WHERE attendee_id IN (${inPlaceholders(
-       attendeeIds,
-     )})
-     ORDER BY start_at, listing_id`,
-    attendeeIds,
-  );
+  const bookingsByAttendee = await bookingRowsByAttendeeIds(attendeeIds, false);
 
-  // Group bookings by attendee_id
-  const bookingsByAttendee = new Map<number, ListingAttendeeRow[]>();
-  for (const row of bookingRows) {
-    const list = bookingsByAttendee.get(row.attendee_id) ?? [];
-    list.push({
-      attachment_downloads: row.attachment_downloads,
-      checked_in: row.checked_in,
-      end_at: row.end_at,
-      ledger_event_group: row.ledger_event_group,
-      listing_id: row.listing_id,
-      order_token: row.order_token,
-      package_group_id: row.package_group_id,
-      parent_listing_id: row.parent_listing_id,
-      price_paid: row.price_paid,
-      quantity: row.quantity,
-      refunded: row.refunded,
-      start_at: row.start_at,
-    });
-    bookingsByAttendee.set(row.attendee_id, list);
-  }
-
-  // Build AttendeeWithBookings map by token index
-  const byTokenIndex = new Map<string, AttendeeWithBookings>();
-  for (const row of attendeeRows) {
-    byTokenIndex.set(row.ticket_token_index, {
-      bookings: bookingsByAttendee.get(row.id) ?? [],
+  const byTokenIndex = tokenResultMap(
+    attendeeRows,
+    bookingsByAttendee,
+    (row, bookings): AttendeeWithBookings => ({
+      bookings,
       created: row.created,
       id: row.id,
       kind: row.kind,
@@ -626,12 +699,48 @@ export const getAttendeesByTokens = async (
       status_id: row.status_id,
       ticket_token: "", // populated after decryption by caller
       ticket_token_index: row.ticket_token_index,
-    });
-  }
-
-  // Return in original token order (before dedup) using the unique index mapping
-  const indexToResult = new Map(
-    uniqueTokens.map((t, i) => [t, byTokenIndex.get(tokenIndexes[i]!) ?? null]),
+    }),
   );
-  return tokens.map((t) => indexToResult.get(t) ?? null);
+
+  return resultsInTokenOrder(tokens, uniqueTokens, tokenIndexes, byTokenIndex);
+};
+
+/**
+ * Look up attendees by plaintext tokens for the Previous bookings table.
+ *
+ * This deliberately does not select `pii_blob`: the panel needs only attendee
+ * ids, created dates, statuses, balances and real booking rows.
+ */
+export const getAttendeeBookingRowsByTokens = async (
+  tokens: string[],
+): Promise<(AttendeeBookingRows | null)[]> => {
+  if (tokens.length === 0) return [];
+  type AttendeeRow = AttendeeBookingRows & { ticket_token_index: BlindIndex };
+  const {
+    rows: attendeeRows,
+    tokenIndexes,
+    uniqueTokens,
+  } = await attendeeRowsForTokens<AttendeeRow>(
+    tokens,
+    `id, created, ticket_token_index, status_id, ${TOKEN_ATTENDEE_BALANCE}`,
+  );
+
+  if (attendeeRows.length === 0) return tokens.map(() => null);
+
+  const bookingsByAttendee = await bookingRowsByAttendeeIds(
+    attendeeRows.map((row) => row.id),
+    true,
+  );
+  const byTokenIndex = tokenResultMap(
+    attendeeRows,
+    bookingsByAttendee,
+    (row, bookings): AttendeeBookingRows => ({
+      bookings,
+      created: row.created,
+      id: row.id,
+      remaining_balance: row.remaining_balance,
+      status_id: row.status_id,
+    }),
+  );
+  return resultsInTokenOrder(tokens, uniqueTokens, tokenIndexes, byTokenIndex);
 };

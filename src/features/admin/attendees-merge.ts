@@ -19,7 +19,7 @@ import {
   updateAttendeePII,
 } from "#shared/db/attendees.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
-import { moveAttendeeContactTokens } from "#shared/db/contact-preferences.ts";
+import { syncAttendeeContactTokens } from "#shared/db/contact-tokens.ts";
 import { getQuestionsWithListingIds } from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
@@ -206,17 +206,17 @@ const updateTargetPiiFromDecision = async (
     ticket_token: target.ticket_token,
   });
   // The target keeps its ticket token, but the merge may switch its kept email
-  // or phone to the source's value — re-home the token to whichever contact now
-  // owns it so its Previous bookings link follows. (The deleted source's own
-  // token is left stale and simply filtered out on read.)
-  if (email !== target.email || phone !== target.phone) {
-    await moveAttendeeContactTokens(
-      target.ticket_token,
-      { email: target.email, phone: target.phone },
-      { email, phone },
-      await requireRequestPrivateKey(),
-    );
-  }
+  // or phone to the source's value. Keep that token attached to whichever
+  // contact now owns it. The deleted source's token is left stale and simply
+  // filtered out on read.
+  await syncAttendeeContactTokens({
+    after: { email, phone },
+    before: { email: target.email, phone: target.phone },
+    hasBooking: true,
+    privateKey: await requireRequestPrivateKey(),
+    source: "admin",
+    ticketToken: target.ticket_token,
+  });
 };
 
 /** Build labeled count strings from summary fields, omitting zero-count entries */

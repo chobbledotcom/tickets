@@ -29,7 +29,6 @@ import {
   loadAttendeeForEdit,
   loadContactRecords,
   loadPackagePaths,
-  loadPreviousBookings,
   loadQuestionsForExisting,
 } from "#routes/admin/attendee-page-data.ts";
 import { loadMergePanel } from "#routes/admin/attendees-merge.ts";
@@ -40,6 +39,7 @@ import {
   type PageCtx,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
+import { loadPreviousBookings } from "#routes/admin/previous-bookings.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";

@@ -70,7 +70,7 @@ import {
   updateAttendeeStatus,
 } from "#shared/db/attendees.ts";
 import { hasAssignedBuiltSite } from "#shared/db/built-sites.ts";
-import { moveAttendeeContactTokens } from "#shared/db/contact-preferences.ts";
+import { syncAttendeeContactTokens } from "#shared/db/contact-tokens.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
   type LogisticsAssignment,
@@ -460,17 +460,17 @@ const applyEdit = async (
   const hasRealLine = desired.some((line) => line.quantity > 0);
   await updateAttendeeStatus(attendeeId, parsed.statusId, !hasRealLine);
 
-  // When the email or phone changed, move this attendee's booked ticket token
-  // from the old contact's encrypted list to the new one, so its Previous
-  // bookings link follows the contact it now belongs to.
-  if (parsed.email !== attendee.email || parsed.phone !== attendee.phone) {
-    await moveAttendeeContactTokens(
-      attendee.ticket_token,
-      { email: attendee.email, phone: attendee.phone },
-      { email: parsed.email, phone: parsed.phone },
-      await requireRequestPrivateKey(),
-    );
-  }
+  // Keep this attendee's ticket token attached to whichever contact owns it
+  // now. Running after every real-booking edit also links placeholders that
+  // have just gained their first bookable line.
+  await syncAttendeeContactTokens({
+    after: { email: parsed.email, phone: parsed.phone },
+    before: { email: attendee.email, phone: attendee.phone },
+    hasBooking: hasRealLine,
+    privateKey: await requireRequestPrivateKey(),
+    source: "admin",
+    ticketToken: attendee.ticket_token,
+  });
 
   await applyLogisticsPlan(attendeeId, logisticsPlan);
 

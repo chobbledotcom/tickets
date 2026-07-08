@@ -6,10 +6,10 @@ import {
   getContactRecord,
   hashEmail,
   hashPhone,
-  recordBooking,
   saveContactRecord,
   toContactHashParam,
 } from "#shared/db/contact-preferences.ts";
+import { recordBooking } from "#shared/db/contact-tokens.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   adminFormPost,
@@ -159,7 +159,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       const after = await attendeePage();
       // The shared summary lists previous bookings and each channel's messages;
       // the last-subject recap still surfaces the outreach send.
-      expect(after).toContain("Previous bookings:");
+      expect(after).toContain("Previous bookings shown:");
       expect(after).toContain("Total email messages:");
       expect(after).toContain("Total phone messages:");
       expect(after).toContain("Newsletter");
@@ -203,7 +203,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       // Two previous bookings on file, each date-cell linking to its attendee,
       // the first's status name and the booked listing named in the items
       // column.
-      expect(html).toContain("Previous bookings:</strong> 2");
+      expect(html).toContain("Previous bookings shown:</strong> 2");
       expect(html).toContain(`/admin/attendees/${first.id}`);
       expect(html).toContain(`/admin/attendees/${third.id}`);
       expect(html).toContain("Confirmed");
@@ -248,7 +248,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
 
       // Viewing the still-real booking, the emptied one neither counts nor links.
       const html = await (await adminGet(`/admin/attendees/${real.id}`)).text();
-      expect(html).toContain("Previous bookings:</strong> 0");
+      expect(html).toContain("Previous bookings shown:</strong> 0");
       expect(html).not.toContain(`/admin/attendees/${emptied.id}`);
     });
 
@@ -292,6 +292,75 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       expect(
         await (await adminGet(`/admin/attendees/${newContact.id}`)).text(),
       ).toContain(`/admin/attendees/${mover.id}`);
+    });
+
+    test("adding an email to an existing booking links it to that contact", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 9,
+        name: "Added Contact",
+      });
+      const { attendee: added } = await createTestAttendeeDirect(
+        listing.id,
+        "Added Later",
+        "",
+      );
+      const form = await buildAttendeeEditForm(added.id, {
+        email: "added-later@example.com",
+        name: "Added Later",
+      });
+      await adminFormPost(`/admin/attendees/${added.id}`, form);
+
+      const { attendee: watcher } = await createTestAttendeeDirect(
+        listing.id,
+        "Watcher",
+        "added-later@example.com",
+      );
+      const html = await (
+        await adminGet(`/admin/attendees/${watcher.id}`)
+      ).text();
+      expect(html).toContain(`/admin/attendees/${added.id}`);
+    });
+
+    test("editing a placeholder into a real booking links its token", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 9,
+        name: "First Real",
+      });
+      const { attendee: placeholder } = await createTestAttendeeDirect(
+        listing.id,
+        "Placeholder",
+        "first-real@example.com",
+        0,
+      );
+      const { attendee: watcher } = await createTestAttendeeDirect(
+        listing.id,
+        "Watcher",
+        "first-real@example.com",
+      );
+      const watcherPage = async (): Promise<string> =>
+        (await adminGet(`/admin/attendees/${watcher.id}`)).text();
+      expect(await watcherPage()).not.toContain(
+        `/admin/attendees/${placeholder.id}`,
+      );
+
+      const { loadExistingLines } = await import("#shared/db/attendees.ts");
+      const existing = await loadExistingLines(placeholder.id);
+      const form = await buildAttendeeEditForm(placeholder.id, {
+        email: "first-real@example.com",
+        lines: [
+          {
+            eventId: listing.id,
+            key: existing[0]!.key,
+            quantity: 1,
+          },
+        ],
+        name: "Placeholder",
+      });
+      await adminFormPost(`/admin/attendees/${placeholder.id}`, form);
+
+      expect(await watcherPage()).toContain(
+        `/admin/attendees/${placeholder.id}`,
+      );
     });
   });
 });

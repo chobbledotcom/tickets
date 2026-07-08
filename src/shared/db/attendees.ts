@@ -71,6 +71,7 @@ export {
   parsePiiBlob,
 } from "#shared/db/attendees/pii.ts";
 export type {
+  AttendeeBookingRows,
   AttendeeSort,
   AttendeesPage,
 } from "#shared/db/attendees/queries.ts";
@@ -81,6 +82,7 @@ export {
   attendeeIdByLedgerEventGroup,
   getAllAttendeePiiBlobs,
   getAttendee,
+  getAttendeeBookingRowsByTokens,
   getAttendeeKindsByIds,
   getAttendeeNamesByIds,
   getAttendeePackageRowsRaw,

@@ -5,6 +5,10 @@ import { getDb } from "#shared/db/client.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 
 describeWithEnv("db > attendees > getAttendeesByTokens", { db: true }, () => {
+  test("returns an empty list for no tokens", async () => {
+    expect(await getAttendeesByTokens([])).toEqual([]);
+  });
+
   test("returns attendees in token order", async () => {
     const listing = await createTestListing({ maxAttendees: 10 });
 

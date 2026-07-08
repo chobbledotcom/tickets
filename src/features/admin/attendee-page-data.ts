@@ -22,14 +22,11 @@ import { getAttendeeActivityLog } from "#shared/db/activityLog.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import {
-  type AttendeeWithBookings,
   checkLinesCapacity,
   type ExistingLine,
-  getAttendeesByTokens,
   loadExistingLines,
 } from "#shared/db/attendees.ts";
 import {
-  getBookingTokens,
   getContactRecord,
   getRepairFallbackRecord,
   hashEmail,
@@ -57,7 +54,6 @@ import type { AttendeeFormTemplateData } from "#templates/admin/attendee-form.ts
 import type {
   ContactChannelData,
   ContactRecordsByChannel,
-  PreviousBooking,
 } from "#templates/admin/attendee-page.tsx";
 /* jscpd:ignore-end */
 
@@ -401,8 +397,9 @@ const incompleteParentWarnings = async (
   for (const line of booked) {
     // getChildrenForParents only returns listings that ARE parents (≥1 child).
     const children = childrenByParent.get(line.listingId);
-    if (!children || children.some((child) => bookedIds.has(child.id)))
+    if (!children || children.some((child) => bookedIds.has(child.id))) {
       continue;
+    }
     warnings.set(
       line.listingId,
       t("attendee_form.warn_incomplete_parent", {
@@ -621,88 +618,4 @@ export const loadContactRecords = async (
     email: await loadChannelRecord(attendee.email, hashEmail, pk),
     phone: await loadChannelRecord(attendee.phone, hashPhone, pk),
   };
-};
-
-/** The contact hashes to gather previous bookings from — one per channel the
- * attendee has a value for. */
-const contactHashesFor = async (attendee: Attendee): Promise<string[]> =>
-  Promise.all(
-    compact([
-      attendee.email.trim() ? hashEmail(attendee.email) : null,
-      attendee.phone.trim() ? hashPhone(attendee.phone) : null,
-    ]),
-  );
-
-/** Build one Previous bookings row from a resolved attendee and its already-
- * loaded bookings: its date, status, booked items and total order value. Pure —
- * it reads the bookings getAttendeesByTokens returned plus the two shared name
- * maps, so it adds no per-row query. */
-const previousBookingRow = (
-  booked: AttendeeWithBookings,
-  statusNameById: Map<number, string>,
-  listingNameById: Map<number, string>,
-): PreviousBooking => {
-  // Real (quantity > 0) lines only — a no-quantity sentinel is not a booked
-  // item, mirroring the order summary.
-  const lines = booked.bookings.filter((line) => line.quantity > 0);
-  return {
-    attendeeId: booked.id,
-    created: booked.created,
-    // A live booking's listing always exists — deleteListing prunes its
-    // bookings too — so the name lookup always hits.
-    items: lines.map((line) => ({
-      name: listingNameById.get(line.listing_id)!,
-      quantity: line.quantity,
-    })),
-    // A null status_id (no status) and a since-deleted status both resolve to
-    // no name; -1 never matches a real status id, so one lookup covers both.
-    statusName: statusNameById.get(booked.status_id ?? -1) ?? null,
-    // Order value = paid on these lines + what's still outstanding, matching the
-    // order summary's fullPrice (depositPaid + remainingBalance).
-    totalValue:
-      lines.reduce((sum, line) => sum + line.price_paid, 0) +
-      booked.remaining_balance,
-  };
-};
-
-/** Load the other bookings this contact (email and/or phone) has made, resolved
- * from its encrypted ticket-token list — newest first, this attendee's own
- * booking excluded. Each row's items and total come from the bookings already
- * loaded by getAttendeesByTokens plus the cached listings, so the table costs a
- * bounded handful of reads however long the contact's history is. Empty when no
- * contact value is on file, no linked tokens remain, or every linked attendee
- * has since been deleted or emptied of real lines. */
-export const loadPreviousBookings = async (
-  attendee: Attendee,
-): Promise<PreviousBooking[]> => {
-  const hashes = await contactHashesFor(attendee);
-  if (hashes.length === 0) return [];
-  const privateKey = await requireRequestPrivateKey();
-  const tokenLists = await Promise.all(
-    hashes.map((hash) => getBookingTokens(hash, privateKey)),
-  );
-  // One row per distinct booked token across both channels, minus this
-  // attendee's own token — the panel lists the contact's OTHER bookings.
-  const tokens = unique(tokenLists.flat().map((entry) => entry.token)).filter(
-    (token) => token !== attendee.ticket_token,
-  );
-  if (tokens.length === 0) return [];
-  const [resolved, statuses, listings] = await Promise.all([
-    getAttendeesByTokens(tokens),
-    attendeeStatuses.getAll(),
-    getAllListings(),
-  ]);
-  const statusNameById = new Map(statuses.map((s) => [s.id, s.name]));
-  const listingNameById = new Map(listings.map((l) => [l.id, l.name]));
-  return (
-    compact(resolved)
-      .map((booked) =>
-        previousBookingRow(booked, statusNameById, listingNameById),
-      )
-      // Drop a booking edited down to no real lines — it no longer represents a
-      // booked ticket, so it neither counts nor renders.
-      .filter((row) => row.items.length > 0)
-      // created is a sortable timestamp string; lexical compare = newest first.
-      .sort((left, right) => right.created.localeCompare(left.created))
-  );
 };

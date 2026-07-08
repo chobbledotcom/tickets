@@ -30,14 +30,16 @@ import {
   withTransaction,
 } from "#shared/db/client.ts";
 import {
-  type BookingSource,
   hashEmail,
   hashPhone,
-  recordBooking,
   recordVisit,
-  unrecordBooking,
   unrecordVisit,
 } from "#shared/db/contact-preferences.ts";
+import {
+  type BookingSource,
+  recordBooking,
+  unrecordBooking,
+} from "#shared/db/contact-tokens.ts";
 import {
   allModifiersInStockCondition,
   anyModifierSoldOut,
