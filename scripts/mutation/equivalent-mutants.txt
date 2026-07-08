@@ -687,3 +687,41 @@ src/shared/db/client.ts:105:67  insert → ""   # unparseable-UPDATE fallback fi
 
 # DB client (client.ts) — rawSql sentinel symbol.
 src/shared/db/client.ts:509:24  raw-sql → ""   # Symbol("raw-sql") description is debug-only metadata; the symbol's identity (not its description) is what insert()/update() branch on, and RAW_SQL is module-private so no test can observe the description
+
+# Payment references (payment-references.ts) — `getRefundPaymentReferences`
+# consolidates rows for the same reference into a single entry by folding
+# sessionIds into one array and OR'ing providerRefunded with `||=`. The ORDER BY
+# pins the iteration order, but every consumer of `RefundPaymentReference.sessionIds`
+# today passes it through `unique(...)` and into `IN (...)` (refund-ledger's
+# `coveredRefundGroups` and `markPaymentReferencesProviderRefunded`), and the
+# `providerRefunded` flag is itself order-independent (`||=` is commutative). The
+# consolidator's final Set/Map is identical regardless of input row order, so the
+# ORDER BY is unobservable from any current test.
+src/shared/db/payment-references.ts:88:5  ORDER BY attendee_id, processed_at, payment_session_id → ""   # sessionIds dedupe or IN-match at every consumer; the merged Set/Map result is order-independent
+
+# Refresh-payment context (attendees-edit.ts) — `loadRefreshContext` returns null
+# when the attendee or its listing can't be loaded, and its sole consumer is
+# `if (!ctx) return htmlResponse("", 404)` (handleRefreshPayment line 100). null
+# and undefined are both falsy, so `!ctx` agrees on every input and the four
+# downstream branches (404, references, provider, redirect) all behave
+# identically.
+src/features/admin/attendees-edit.ts:59:28  return null → return undefined   # `!ctx` at the call site treats null and undefined the same way
+src/features/admin/attendees-edit.ts:70:24  return null → return undefined   # same as :59 — `!ctx` at the call site treats null and undefined the same way
+
+# Refresh-payment context (attendees-edit.ts) — `bookings[0]?.listing_id
+# ?? attendee.listing_id`. The query that produces `bookings` is `… ORDER BY
+# start_at, listing_id LIMIT 1`, so it returns at most one row in every case:
+# `bookings[1]` is therefore always undefined, falling back to
+# `attendee.listing_id` every time, identical to the unmutated line (which
+# also resolves to attendee.listing_id when the singleton row's listing_id
+# matches attendee.listing_id — the createAttendeeAtomic-created pair the
+# query loads).
+src/features/admin/attendees-edit.ts:68:35  0 → 1   # the LIMIT 1 query always returns at most one row, so bookings[1] is always undefined — falls back to attendee.listing_id either way
+
+# Refresh-payment context (attendees-edit.ts) — `?? → ||` between
+# `bookings[0]?.listing_id` (number|undefined) and `attendee.listing_id`
+# (number). ?? and || only differ when the LHS is a falsy non-null value; the
+# only falsy number is 0, and listing ids are positive integers (autoincrement
+# from 1), so the LHS is either undefined (|| falls through to the RHS, same as
+# ?? for undefined) or a truthy positive number (both keep the LHS).
+src/features/admin/attendees-edit.ts:68:49  ?? → ||   # the LHS is undefined or a positive listing id — never a falsy non-null value, so ?? and || agree

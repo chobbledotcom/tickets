@@ -3,7 +3,9 @@ import { it as test } from "@std/testing/bdd";
 import { execute } from "#shared/db/client.ts";
 import {
   encryptPaymentReference,
+  getAttendeeIdsWithPaymentReference,
   getRefundPaymentReferences,
+  hasAnyPaymentReference,
   hasRefundPaymentReference,
   legacyMergePaymentReferenceStatement,
   markPaymentReferencesProviderRefunded,
@@ -61,10 +63,18 @@ describeWithEnv("db > payment references", { db: true }, () => {
       await getTestPrivateKey(),
     );
 
-    expect(references.get(firstId)?.map((entry) => entry.reference)).toEqual([
+    const firstRefs = references.get(firstId)!;
+    expect(firstRefs.map((entry) => entry.reference)).toEqual([
       "pi_recorded",
       "pi_legacy_ignored",
     ]);
+    // The legacy payment_id falls through `legacyReference`, which sets
+    // providerRefunded:false — distinguish false from true on a legacy entry.
+    expect(firstRefs.at(-1)).toEqual({
+      providerRefunded: false,
+      reference: "pi_legacy_ignored",
+      sessionIds: [],
+    });
     expect(references.get(secondId)?.map((entry) => entry.reference)).toEqual([
       "pi_legacy_used",
     ]);
@@ -208,5 +218,138 @@ describeWithEnv("db > payment references", { db: true }, () => {
       )
     ).get(attendeeId)!;
     expect(after[0]!.providerRefunded).toBe(true);
+  });
+
+  test("legacyMergePaymentReferenceStatement returns null for empty source payment id", async () => {
+    expect(
+      await legacyMergePaymentReferenceStatement(1, 2, ""),
+    ).toBe(null);
+  });
+
+  test("getAttendeeIdsWithPaymentReference skips attendees with empty payment_id and no processed-payment row", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const created = await bookAttendee(listing, {
+      email: "hasref@example.com",
+      name: "Has Ref",
+    });
+    if (!created.success) throw new Error("setup failed");
+    const attendeeId = created.attendees[0]!.id;
+    await reserveSession("sess_has_ref");
+    await finalizePaymentSession("sess_has_ref", attendeeId, [], "pi_has_ref");
+
+    // An attendee with empty payment_id AND a processed_payments row still
+    // surfaces via the processed-payments lookup, since that path doesn't
+    // depend on the legacy payment_id filter and uses the default suffix
+    // branch of queryProcessedReferences.
+    const ids = await getAttendeeIdsWithPaymentReference([
+      { id: attendeeId, payment_id: "" },
+      { id: 9999, payment_id: "" },
+    ]);
+    expect(ids.has(attendeeId)).toBe(true);
+    expect(ids.has(9999)).toBe(false);
+    expect(ids).toBeInstanceOf(Set);
+  });
+
+  test("merges same-reference rows keeping every session id and the merged false refund flag", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const created = await bookAttendee(listing, {
+      email: "shared-ref@example.com",
+      name: "Shared Ref",
+    });
+    if (!created.success) throw new Error("setup failed");
+    const attendeeId = created.attendees[0]!.id;
+    await reserveSession("sess_shared_a");
+    await finalizePaymentSession(
+      "sess_shared_a",
+      attendeeId,
+      [],
+      "pi_shared",
+    );
+    await reserveSession("sess_shared_b");
+    await finalizePaymentSession(
+      "sess_shared_b",
+      attendeeId,
+      [],
+      "pi_shared",
+    );
+
+    const references = await getRefundPaymentReferences(
+      [{ id: attendeeId, payment_id: "" }],
+      await getTestPrivateKey(),
+    );
+
+    expect(references.get(attendeeId)).toEqual([
+      {
+        providerRefunded: false,
+        reference: "pi_shared",
+        sessionIds: ["sess_shared_a", "sess_shared_b"],
+      },
+    ]);
+  });
+
+  test("merges same-reference rows keeping the true refund flag from an earlier row", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const created = await bookAttendee(listing, {
+      email: "shared-refunded@example.com",
+      name: "Shared Refunded",
+    });
+    if (!created.success) throw new Error("setup failed");
+    const attendeeId = created.attendees[0]!.id;
+    await reserveSession("sess_refunded_a");
+    await finalizePaymentSession(
+      "sess_refunded_a",
+      attendeeId,
+      [],
+      "pi_shared_refunded",
+    );
+    await reserveSession("sess_refunded_b");
+    await finalizePaymentSession(
+      "sess_refunded_b",
+      attendeeId,
+      [],
+      "pi_shared_refunded",
+    );
+    await markPaymentReferencesProviderRefunded([
+      {
+        providerRefunded: false,
+        reference: "pi_shared_refunded",
+        sessionIds: ["sess_refunded_a"],
+      },
+    ]);
+
+    const references = await getRefundPaymentReferences(
+      [{ id: attendeeId, payment_id: "" }],
+      await getTestPrivateKey(),
+    );
+
+    expect(references.get(attendeeId)).toEqual([
+      {
+        providerRefunded: true,
+        reference: "pi_shared_refunded",
+        // Ordered by processed_at; both sessions carried this reference, so
+        // both session ids remain attached after the merge.
+        sessionIds: ["sess_refunded_a", "sess_refunded_b"],
+      },
+    ]);
+  });
+
+  test("hasAnyPaymentReference treats an attendee with empty payment_id and no processed-payment row as having no reference", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const created = await bookAttendee(listing, {
+      email: "norref@example.com",
+      name: "No Ref",
+    });
+    if (!created.success) throw new Error("setup failed");
+    const attendeeId = created.attendees[0]!.id;
+
+    expect(
+      await hasAnyPaymentReference({ id: attendeeId, payment_id: "" }),
+    ).toBe(false);
+    expect(
+      await hasAnyPaymentReference({
+        id: attendeeId,
+        payment_id: "pi_legacy_present",
+      }),
+    ).toBe(true);
   });
 });

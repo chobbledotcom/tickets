@@ -18,10 +18,12 @@ import {
   createPaidAttendeeWithoutLedger,
   createTestListing,
   describeWithEnv,
+  expectErrorFlash,
   expectFlash,
   mockProviderType,
   withMocks,
 } from "#test-utils";
+import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 
 const OCCURRED_AT = "2026-07-01T00:00:00.000Z";
 
@@ -70,10 +72,14 @@ const setupBalanceRefresh = async (
 /** Submits the refresh-payment route with a stubbed provider so each refund
  *  reference's provider status is whatever `refundedPredicate` returns.
  *  Returns the references the route actually asked the provider about, in
- *  call order, so a test asserts on which charges were checked. */
+ *  call order, and asserts on the expected flash + success flag so a mutant
+ *  that picks the wrong redirect or message is caught at the response. */
 const submitRefreshPayment = async (
   attendee: Attendee,
   refundedPredicate: (reference: string) => Promise<boolean>,
+  // deno-lint-ignore no-explicit-any
+  expectedFlash: string | any = expect.stringContaining("refunded"),
+  succeeded = true,
 ): Promise<string[]> => {
   const providerQueries: string[] = [];
   await withMocks(
@@ -97,8 +103,7 @@ const submitRefreshPayment = async (
         const { response } = await adminFormPost(
           `/admin/attendees/${attendee.id}/refresh-payment`,
         );
-        expect(response.status).toBe(302);
-        expectFlash(response, expect.stringContaining("refunded"));
+        expectFlash(response, expectedFlash, succeeded);
       } finally {
         mockRefunded.restore();
       }
@@ -144,6 +149,75 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
       );
 
       expect(queried).toEqual(["pi_refresh_deposit"]);
+    });
+
+    test("returns 404 with an empty body for a non-existent attendee", async () => {
+      const { response } = await adminFormPost(
+        `/admin/attendees/9999999/refresh-payment`,
+      );
+      expect(response.status).toBe(404);
+      expect(await response.text()).toBe("");
+    });
+
+    test("reports no payment to refresh for an attendee without payment references", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      const attendee = await bookTestAttendee(
+        [listing.id],
+        "No Refs",
+        "no-refs@example.com",
+      );
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/refresh-payment`,
+      );
+      expectErrorFlash(response, "No payment to refresh");
+    });
+
+    test("reports the status is current when a provider charge is not refunded", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 800,
+      });
+      const attendee = await createPaidAttendeeWithoutLedger(
+        listing.id,
+        "Not Refunded",
+        "not-refunded@example.com",
+        "pi_not_refunded",
+        500,
+      );
+
+      const queried = await submitRefreshPayment(
+        attendee,
+        () => Promise.resolve(false),
+        expect.stringContaining("up to date"),
+        true,
+      );
+
+      expect(queried).toEqual(["pi_not_refunded"]);
+    });
+
+    test("records a refund-not-recorded error when the ledger has no clean order to reverse", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 800,
+      });
+      const attendee = await createPaidAttendeeWithoutLedger(
+        listing.id,
+        "Refunded No Ledger",
+        "refunded-no-ledger@example.com",
+        "pi_refunded_no_ledger",
+        500,
+      );
+
+      await submitRefreshPayment(
+        attendee,
+        () => Promise.resolve(true),
+        expect.stringContaining("could not be recorded"),
+        false,
+      );
     });
   });
 });
