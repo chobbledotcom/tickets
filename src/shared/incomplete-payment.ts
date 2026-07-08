@@ -8,5 +8,5 @@ export const isIncompletePayment = (
   hasPaidListing &&
   !attendee.refunded &&
   !hasPaymentReference &&
-  Number.parseInt(attendee.price_paid, 10) > 0 &&
+  Number(attendee.price_paid) > 0 &&
   attendee.remaining_balance <= 0;

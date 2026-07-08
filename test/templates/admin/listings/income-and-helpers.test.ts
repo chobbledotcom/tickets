@@ -279,6 +279,23 @@ describe("isIncompletePayment", () => {
     });
     expect(isIncompletePayment(attendee, true, false)).toBe(false);
   });
+
+  test("returns true for a one-unit paid attendee with no payment reference", () => {
+    // Probes the boundary of `price_paid > 0`: distinguish > 0 from > 1.
+    const attendee = testAttendee({ payment_id: "", price_paid: "1" });
+    expect(isIncompletePayment(attendee, true, false)).toBe(true);
+  });
+
+  test("returns false when the attendee still owes money", () => {
+    // Probes the boundary of `remaining_balance <= 0`: distinguish <= 0 from
+    // <= 1. Someone who paid part but still owes is not an incomplete payment.
+    const attendee = testAttendee({
+      payment_id: "",
+      price_paid: "1000",
+      remaining_balance: 1,
+    });
+    expect(isIncompletePayment(attendee, true, false)).toBe(false);
+  });
 });
 
 describe("completePaymentAttendees", () => {
