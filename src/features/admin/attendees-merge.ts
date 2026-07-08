@@ -212,6 +212,7 @@ const updateTargetPiiFromDecision = async (
   await syncAttendeeContactTokens({
     after: { email, phone },
     before: { email: target.email, phone: target.phone },
+    firstRealBooking: false,
     hasBooking: true,
     privateKey: await requireRequestPrivateKey(),
     source: "admin",

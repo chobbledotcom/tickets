@@ -475,6 +475,7 @@ const applyEdit = async (
     await syncAttendeeContactTokens({
       after: { email: parsed.email, phone: parsed.phone },
       before: { email: attendee.email, phone: attendee.phone },
+      firstRealBooking: gainedFirstRealLine,
       hasBooking: hasRealLine,
       privateKey: await requireRequestPrivateKey(),
       source: "admin",

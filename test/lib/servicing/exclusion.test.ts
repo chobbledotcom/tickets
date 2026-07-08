@@ -22,11 +22,11 @@ import {
   getAllAttendeePiiBlobs,
   getAttendeeKindsByIds,
   getAttendeePiiBlobsForListings,
-  getAttendeesByTokens,
   getAttendeesPage,
   getAttendeesRaw,
   getNewestAttendeesRaw,
 } from "#shared/db/attendees/queries.ts";
+import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import { getListingWithAttendeesRaw } from "#shared/db/listings.ts";
 import {
   createServicingHold,

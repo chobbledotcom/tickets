@@ -197,13 +197,13 @@ export const getRecentBookingTokens = async (
   hash: string,
   privateKey: CryptoKey,
   limit: number,
-): Promise<BookingToken[]> =>
-  bookingTokensFrom(
-    (await loadTokenLines(hash))
-      .slice(-Math.max(0, limit))
-      .map((line) => line.encrypted),
+): Promise<BookingToken[]> => {
+  if (limit <= 0) return [];
+  return bookingTokensFrom(
+    (await loadTokenLines(hash)).slice(-limit).map((line) => line.encrypted),
     privateKey,
   );
+};
 
 /** Remove the first entry for `ticketToken` from a contact's encrypted list. */
 const removeBookingToken = async (
@@ -252,6 +252,11 @@ export type ContactTokenSync = {
   source: BookingSource;
   /** Only real bookings should be linked into Previous bookings. */
   hasBooking: boolean;
+  /** True when this sync is triggered by an attendee gaining its first real
+   * booking (a placeholder edited to a real quantity). A missing contact row is
+   * then created for an unchanged contact value so the booking links, rather
+   * than skipped the way a routine unchanged edit skips an erased row. */
+  firstRealBooking: boolean;
 };
 
 const hashForValue = (
@@ -282,7 +287,7 @@ const syncChannelToken = async (
     newHash,
     sync.ticketToken,
     removedSource ?? sync.source,
-    changed,
+    changed || sync.firstRealBooking,
   );
 };
 

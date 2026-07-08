@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import { execute } from "#shared/db/client.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
 import {
   getContactRecord,
   hashEmail,
@@ -68,6 +68,25 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
         subject: "Update",
       });
       return (await adminGet("/admin/emails/preview")).text();
+    };
+
+    /** Edit a no-quantity placeholder's single booking line up to one ticket,
+     * leaving its contact details unchanged. */
+    const editPlaceholderToRealBooking = async (
+      placeholderId: number,
+      listingId: number,
+      email: string,
+    ): Promise<void> => {
+      const { loadExistingLines } = await import("#shared/db/attendees.ts");
+      const existing = await loadExistingLines(placeholderId);
+      await adminFormPost(
+        `/admin/attendees/${placeholderId}`,
+        await buildAttendeeEditForm(placeholderId, {
+          email,
+          lines: [{ eventId: listingId, key: existing[0]!.key, quantity: 1 }],
+          name: "Placeholder",
+        }),
+      );
     };
 
     test("preview reports never-contacted recipients", async () => {
@@ -344,24 +363,57 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
         `/admin/attendees/${placeholder.id}`,
       );
 
-      const { loadExistingLines } = await import("#shared/db/attendees.ts");
-      const existing = await loadExistingLines(placeholder.id);
-      const form = await buildAttendeeEditForm(placeholder.id, {
-        email: "first-real@example.com",
-        lines: [
-          {
-            eventId: listing.id,
-            key: existing[0]!.key,
-            quantity: 1,
-          },
-        ],
-        name: "Placeholder",
-      });
-      await adminFormPost(`/admin/attendees/${placeholder.id}`, form);
+      await editPlaceholderToRealBooking(
+        placeholder.id,
+        listing.id,
+        "first-real@example.com",
+      );
 
       expect(await watcherPage()).toContain(
         `/admin/attendees/${placeholder.id}`,
       );
+    });
+
+    test("a placeholder edited to a real booking links its token when no contact row exists yet", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 9,
+        name: "Fresh Contact",
+      });
+      const { attendee: placeholder } = await createTestAttendeeDirect(
+        listing.id,
+        "Placeholder",
+        "fresh-contact@example.com",
+        0,
+      );
+      const hash = await hashEmail("fresh-contact@example.com");
+
+      // No booking has ever recorded this contact, so the contact row is absent
+      // at edit time (the gap the `firstRealBooking` flag closes).
+      const contactRow = async (): Promise<{ contact_hash: string } | null> =>
+        queryOne<{ contact_hash: string }>(
+          "SELECT contact_hash FROM contact_preferences WHERE contact_hash = ?",
+          [hash],
+        );
+      expect(await contactRow()).toBeNull();
+
+      await editPlaceholderToRealBooking(
+        placeholder.id,
+        listing.id,
+        "fresh-contact@example.com",
+      );
+
+      // The first-real edit created the contact row and recorded the token.
+      expect(await contactRow()).not.toBeNull();
+
+      // A later attendee sharing this contact sees the placeholder.
+      const { attendee: watcher } = await createTestAttendeeDirect(
+        listing.id,
+        "Watcher",
+        "fresh-contact@example.com",
+      );
+      expect(
+        await (await adminGet(`/admin/attendees/${watcher.id}`)).text(),
+      ).toContain(`/admin/attendees/${placeholder.id}`);
     });
 
     test("editing unrelated attendee fields skips unchanged contact token repair", async () => {

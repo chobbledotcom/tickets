@@ -24,10 +24,12 @@ const syncToken = (
   after: { email: string; phone: string },
   privateKey: CryptoKey,
   hasBooking = true,
+  firstRealBooking = false,
 ): Promise<void> =>
   syncAttendeeContactTokens({
     after,
     before,
+    firstRealBooking,
     hasBooking,
     privateKey,
     source: "admin",
@@ -134,6 +136,17 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     ]);
   });
 
+  test("getRecentBookingTokens decrypts nothing for a zero limit", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("zero-window@example.com");
+    await execute(
+      "INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob) VALUES (?, ?, ?)",
+      [hash, 1, "not-an-owner-key-token\n"],
+    );
+
+    expect(await getRecentBookingTokens(hash, pk, 0)).toEqual([]);
+  });
+
   test("syncAttendeeContactTokens appends without bumping counts", async () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("readd@example.com");
@@ -224,6 +237,25 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     );
     expect(await readAllTokens(hash, pk)).toEqual([
       { source: "public", token: "tok-same" },
+    ]);
+  });
+
+  test("syncAttendeeContactTokens does not reorder history on an unchanged edit", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("order@example.com");
+    await recordBooking(hash, "public", "tok-first");
+    await recordBooking(hash, "admin", "tok-second");
+    // Re-sync tok-first with the contact unchanged (before === after): the
+    // token must stay in place, not be removed-and-re-appended to the end.
+    await syncToken(
+      "tok-first",
+      { email: "order@example.com", phone: "" },
+      { email: "order@example.com", phone: "" },
+      pk,
+    );
+    expect(await readAllTokens(hash, pk)).toEqual([
+      { source: "public", token: "tok-first" },
+      { source: "admin", token: "tok-second" },
     ]);
   });
 
