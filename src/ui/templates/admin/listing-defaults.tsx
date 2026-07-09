@@ -23,7 +23,7 @@ import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
-import { VALID_DAY_NAMES } from "#templates/fields.ts";
+import { VALID_DAY_NAMES } from "#templates/fields/validators.ts";
 
 /* jscpd:ignore-end */
 

@@ -22,7 +22,7 @@ import type {
 } from "#templates/attendee-table.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
-import { getAddAttendeeFields } from "#templates/fields.ts";
+import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
 import type { AttendeeFilter, DateOption } from "./types.ts";
 
 /* jscpd:ignore-end */

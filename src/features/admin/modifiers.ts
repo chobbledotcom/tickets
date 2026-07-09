@@ -80,11 +80,11 @@ import {
   adminModifierNewPage,
   adminModifiersPage,
 } from "#templates/admin/modifiers/pages.tsx";
-import type {
-  ModifierAggregateFormValues,
-  ModifierFormValues,
-} from "#templates/fields.ts";
-import { modifierAggregateFields, modifierFields } from "#templates/fields.ts";
+import { modifierAggregateFields } from "#templates/fields/aggregate.ts";
+import {
+  type ModifierFormValues,
+  modifierFields,
+} from "#templates/fields/modifier.ts";
 import { withEntityLoader } from "./entity-handlers.ts";
 import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 
@@ -115,7 +115,7 @@ const extractModifierInput = async (
 };
 
 const extractModifierAggregateValues = (
-  values: ModifierAggregateFormValues,
+  values: ModifierAggregateValues,
 ): ModifierAggregateValues => ({
   total_uses: values.total_uses,
   usage_count: values.usage_count,
@@ -399,7 +399,7 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
     const modifier = await getModifier(id);
     if (!modifier) return notFoundResponse();
     const aggregates = parseEditableAggregateForm<
-      ModifierAggregateFormValues,
+      ModifierAggregateValues,
       ModifierAggregateValues
     >(form, modifierAggregateFields, extractModifierAggregateValues);
     if (!aggregates.ok) {

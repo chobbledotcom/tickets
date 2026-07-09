@@ -231,7 +231,7 @@ const collectHostedErrors = async (
  */
 export const assertPaidBookingConfirmed = async (
   session: BrowserSession,
-  ticketPath: string,
+  _ticketPath: string,
 ): Promise<void> => {
   step("Confirming the paid booking");
   const { page } = session;

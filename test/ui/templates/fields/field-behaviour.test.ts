@@ -2,18 +2,18 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Field } from "#shared/forms.tsx";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
+import { getBuiltSiteFields } from "#templates/fields/admin.ts";
+import { listingAggregateFields } from "#templates/fields/aggregate.ts";
+import { getGroupCreateFields } from "#templates/fields/group.ts";
 import {
-  getBuiltSiteFields,
-  getGroupCreateFields,
   getInitialSiteMonthsField,
   getListingFields,
   getMonthsPerUnitField,
-  getSlugField,
-  getTicketFields,
-  listingAggregateFields,
   logisticsAgentFields,
-  modifierFields,
-} from "#templates/fields.ts";
+} from "#templates/fields/listing.ts";
+import { modifierFields } from "#templates/fields/modifier.ts";
+import { getTicketFields } from "#templates/fields/ticket.ts";
+import { getSlugField } from "#templates/fields/validators.ts";
 import { byName } from "#test-utils/fields.ts";
 
 /** Run a field's `validate` (present on the fields under test here). */

@@ -123,8 +123,7 @@ const recordSettingMarker = async (
   key: string,
   value: string,
 ): Promise<void> => {
-  if (!value) return;
-  if ((await readSettingMarker(key)) === value) return;
+  if (!value || (await readSettingMarker(key)) === value) return;
   await execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [
     key,
     value,

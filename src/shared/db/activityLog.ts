@@ -86,6 +86,7 @@ export const activityLogTable = defineTable<
     message: col.simple<StoredLogMessage>(),
   },
 });
+const ACTIVITY_LOG_COLUMNS = activityLogTable.columns.join(", ");
 
 /**
  * Decrypt a stored log message, routing by format prefix: owner-key (hybrid)
@@ -175,7 +176,7 @@ const queryActivityLog = async (
   // without a sort over the unbounded log table.
   return decryptLogRows(
     await queryAll<StoredActivityLogEntry>(
-      `SELECT * FROM activity_log ${whereClause} ORDER BY id DESC LIMIT ?`,
+      `SELECT ${ACTIVITY_LOG_COLUMNS} FROM activity_log ${whereClause} ORDER BY id DESC LIMIT ?`,
       args,
     ),
   );
@@ -205,7 +206,7 @@ export const getAttendeeActivityLog = async (
 ): Promise<ActivityLogEntry[]> => {
   return decryptLogRows(
     await queryAll<StoredActivityLogEntry>(
-      "SELECT * FROM activity_log WHERE attendee_id = ? ORDER BY id DESC LIMIT ?",
+      `SELECT ${ACTIVITY_LOG_COLUMNS} FROM activity_log WHERE attendee_id = ? ORDER BY id DESC LIMIT ?`,
       [attendeeId, limit],
     ),
   );
@@ -232,7 +233,7 @@ export const getListingWithActivityLog = async (
     },
     {
       args: [listingId, limit],
-      sql: "SELECT * FROM activity_log WHERE listing_id = ? ORDER BY id DESC LIMIT ?",
+      sql: `SELECT ${ACTIVITY_LOG_COLUMNS} FROM activity_log WHERE listing_id = ? ORDER BY id DESC LIMIT ?`,
     },
   ]);
 

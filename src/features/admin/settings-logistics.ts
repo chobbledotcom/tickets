@@ -44,7 +44,7 @@ import {
   adminLogisticsPage,
   logisticsAgentPages,
 } from "#templates/admin/logistics.tsx";
-import { logisticsAgentFields } from "#templates/fields.ts";
+import { logisticsAgentFields } from "#templates/fields/listing.ts";
 
 /**
  * Disabling logistics also clears any saved logistics default, so a later

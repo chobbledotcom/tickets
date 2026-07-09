@@ -93,27 +93,35 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
   describe("fields.ts (username validation)", () => {
     test("validateUsername rejects short username", async () => {
-      const { validateUsername } = await import("#templates/fields.ts");
+      const { validateUsername } = await import(
+        "#templates/fields/validators.ts"
+      );
       expect(validateUsername("a")).toBe(
         "Username must be at least 2 characters",
       );
     });
 
     test("validateUsername rejects long username", async () => {
-      const { validateUsername } = await import("#templates/fields.ts");
+      const { validateUsername } = await import(
+        "#templates/fields/validators.ts"
+      );
       expect(validateUsername("a".repeat(33))).toBe(
         "Username must be 32 characters or fewer",
       );
     });
 
     test("validateUsername rejects special characters", async () => {
-      const { validateUsername } = await import("#templates/fields.ts");
+      const { validateUsername } = await import(
+        "#templates/fields/validators.ts"
+      );
       const result = validateUsername("user name");
       expect(result).toContain("letters, numbers");
     });
 
     test("validateUsername accepts valid username", async () => {
-      const { validateUsername } = await import("#templates/fields.ts");
+      const { validateUsername } = await import(
+        "#templates/fields/validators.ts"
+      );
       expect(validateUsername("valid_user-1")).toBeNull();
     });
   });

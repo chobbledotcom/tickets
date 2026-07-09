@@ -33,7 +33,7 @@ import {
 import {
   type AddAttendeeFormValues,
   getAddAttendeeFields,
-} from "#templates/fields.ts";
+} from "#templates/fields/add-attendee.ts";
 import {
   handleAttendeeEditPost,
   handleAttendeeNewGet,

@@ -715,7 +715,7 @@ export const recordServiceCost = async (
   if (priorId !== null) return priorId;
   // Post the cost leg AND its first-class `service_costs` record in one
   // transaction, so the per-event cost list can never miss a posted cost (a
-  // leg without a service_costs row would count in costOf but be unlistable).
+  // leg without a service_costs row would affect listing cost but be unlistable).
   // Use INSERT … SELECT to derive transfer_id by reference lookup rather than
   // last_insert_rowid(): if a concurrent request committed the same transfer
   // first, postTransfersTx returns early (no INSERT), leaving last_insert_rowid

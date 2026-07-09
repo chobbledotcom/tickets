@@ -29,7 +29,7 @@ import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import {
   type TicketFormValues,
   tryValidateTicketFields,
-} from "#templates/fields.ts";
+} from "#templates/fields/ticket.ts";
 import {
   buildListingAnswerMap,
   buildListingTextAnswerMap,

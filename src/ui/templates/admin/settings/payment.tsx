@@ -3,7 +3,7 @@
  */
 
 import { t } from "#i18n";
-import { MASK_SENTINEL } from "#shared/db/settings.ts";
+import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { CsrfForm, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
@@ -18,7 +18,7 @@ import {
   getSquareWebhookFields,
   getStripeKeyFields,
   getSumupFields,
-} from "#templates/fields.ts";
+} from "#templates/fields/admin.ts";
 
 export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
   <CsrfForm

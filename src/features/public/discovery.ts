@@ -452,6 +452,14 @@ export const loadPublicGroups = async (): Promise<Group[]> => {
   return visibleGroups.filter((_, i) => bookable[i]);
 };
 
+/** The packages a public surface can advertise — bookable groups that are
+ * bundles (`is_package`), so a hidden package stays discoverable by name even
+ * though its member listings are dropped. Shared by the `/listings` JSON API
+ * and the feeds, which both publish the bundle as a first-class product (booked
+ * whole at `/ticket/<group-slug>`) and map it to their own shape. */
+export const loadBookablePackages = async (): Promise<Group[]> =>
+  (await loadPublicGroups()).filter((g) => g.is_package);
+
 /** Force a {@link TicketListing} into the sold-out state (no Book CTA, no
  * purchasable quantity) — projecting a parent with no bookable child onto the
  * card/gallery state the booking gate will enforce. */

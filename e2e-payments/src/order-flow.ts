@@ -99,7 +99,9 @@ const enableOrderGallery = async (session: BrowserSession): Promise<void> => {
   await session.goto("/admin/site/order");
   await session.check("order_enabled");
   await session.submitLocator(
-    session.page.locator('form:has(input[name="order_enabled"]) button').first(),
+    session.page
+      .locator('form:has(input[name="order_enabled"]) button')
+      .first(),
   );
 };
 
@@ -147,7 +149,10 @@ const fillBookingPage = async (session: BrowserSession): Promise<void> => {
         timeout: config.actionTimeoutMs,
       });
     } else {
-      await control.fill(value, { force: true, timeout: config.actionTimeoutMs });
+      await control.fill(value, {
+        force: true,
+        timeout: config.actionTimeoutMs,
+      });
     }
   };
   await setRowQty(MEMBER_A, "1");
@@ -215,9 +220,7 @@ const assertPerPathEditor = async (
   });
   if (!href) throw new Error("no attendee link on the roster");
   await session.goto(href.startsWith("http") ? new URL(href).pathname : href);
-  const editTab = session.page
-    .locator('a[href$="/edit"]')
-    .first();
+  const editTab = session.page.locator('a[href$="/edit"]').first();
   const editHref = await editTab.getAttribute("href", {
     timeout: config.navTimeoutMs,
   });
@@ -261,7 +264,11 @@ export const runComplexOrderJourney = async (
     zeroed(PRICES.memberAOwn),
   );
   const memberBId = await createOrderListing(session, MEMBER_B, 0);
-  const plainId = await createOrderListing(session, PLAIN, zeroed(PRICES.plain));
+  const plainId = await createOrderListing(
+    session,
+    PLAIN,
+    zeroed(PRICES.plain),
+  );
   await createPackage(session, [
     { id: memberAId, priceMinor: zeroed(PRICES.kitMemberA) },
     { id: memberBId, priceMinor: zeroed(PRICES.kitMemberB) },

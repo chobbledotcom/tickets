@@ -44,7 +44,7 @@ import {
 } from "#templates/components/reorder.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
-import { answerAggregateFields } from "#templates/fields.ts";
+import { answerAggregateFields } from "#templates/fields/aggregate.ts";
 
 /** Render question text flat for admin display: line breaks are replaced with
  * " / " so the text fits on one line in tables, headings, and confirmation

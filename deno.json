@@ -2,6 +2,7 @@
   "name": "tickets",
   "version": "1.0.0",
   "exports": "./src/index.ts",
+  "workspace": ["e2e-payments"],
   "tasks": {
     "start": "deno task build:static && deno run --env-file --allow-net --allow-env --allow-read --allow-write --allow-sys --allow-ffi src/index.ts",
     "build:static": "deno run --allow-env --allow-read --allow-write --allow-run --allow-net scripts/build-static-assets.ts",
@@ -14,7 +15,7 @@
     "test:raw": "deno task build:static && deno test --no-check --allow-net --allow-env --allow-read --allow-write --allow-run --allow-sys --allow-ffi test/",
     "lint": "deno run -A scripts/biome.ts check --write --error-on-warnings src test scripts cli",
     "lint:ci": "deno run -A scripts/biome.ts check --error-on-warnings src test scripts cli",
-    "typecheck": "deno check src/**/*.ts src/**/*.tsx test/**/*.ts cli/**/*.ts",
+    "typecheck": "deno check src/**/*.ts src/**/*.tsx test/**/*.ts cli/**/*.ts && deno check --config=e2e-payments/deno.json e2e-payments/src/**/*.ts",
     "cpd": "deno run -A scripts/cpd.ts --config .jscpd.json && deno run -A scripts/cpd.ts --config .jscpd.test.json",
     "precommit": "deno run -A scripts/precommit.ts",
     "precommit:mutation": "deno run -A scripts/precommit-mutation.ts",
@@ -26,7 +27,8 @@
     "cli:tui": "deno run --allow-env --allow-read --allow-run cli/tui.ts",
     "cli:api": "deno run --allow-env --allow-read --allow-run cli/api.ts",
     "test:quality-audit": "deno run --allow-read scripts/test-quality-audit.ts",
-    "mutation": "deno run -A scripts/mutation.ts"
+    "mutation": "deno run -A scripts/mutation.ts",
+    "e2e": "deno run -A --config=e2e-payments/deno.json e2e-payments/src/main.ts"
   },
   "imports": {
     "#fp": "./src/fp.ts",

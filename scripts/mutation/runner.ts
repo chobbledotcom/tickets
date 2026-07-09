@@ -15,7 +15,8 @@
 import { dim, green, red, yellow } from "../precommit/colors.ts";
 import { write } from "../precommit/write.ts";
 import { projectRoot } from "../project-root.ts";
-import { STRIPE_MOCK_PORT, withTestHarness } from "../test-harness.ts";
+import { stripeMockEnv } from "../stripe-mock.ts";
+import { withTestHarness } from "../test-harness.ts";
 import { type AssetRebuilder, createAssetRebuilder } from "./assets.ts";
 import { batchTestFiles } from "./batch.ts";
 import { applyMutant, generateMutants, type Mutant } from "./generate.ts";
@@ -65,10 +66,7 @@ const defaultBatchJobs = (): number =>
 
 const testEnv = (): Record<string, string> => ({
   ...Deno.env.toObject(),
-  NO_PROXY: "localhost,127.0.0.1,::1",
-  no_proxy: "localhost,127.0.0.1,::1",
-  STRIPE_MOCK_HOST: "localhost",
-  STRIPE_MOCK_PORT: String(STRIPE_MOCK_PORT),
+  ...stripeMockEnv(),
 });
 
 /**

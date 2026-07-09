@@ -465,6 +465,7 @@ const queryAndDecrypt = async (sql: string): Promise<BuiltSite[]> => {
  * while storing data as an encrypted blob underneath.
  */
 export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
+  columns: rawBuiltSitesTable.columns,
   deleteById: (id: InValue): Promise<void> => builtSites.table.deleteById(id),
 
   findAll: (): Promise<BuiltSite[]> => builtSites.getAll(),

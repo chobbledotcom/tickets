@@ -3,7 +3,8 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { MASK_SENTINEL, settings } from "#shared/db/settings.ts";
+import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
+import { settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import {

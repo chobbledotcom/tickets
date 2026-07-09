@@ -8,7 +8,7 @@ import * as v from "valibot";
 
 /**
  * Shape of a public listing as returned by the JSON API (mirrors the production
- * `PublicListing` type from `#routes/api/index.ts`). `strictObject` rejects any
+ * `PublicListing` type from `#routes/api/public-listing.ts`). `strictObject` rejects any
  * unexpected key, so a leaked internal field (id, max_attendees, hidden, …)
  * fails the parse. JSON object keys are strings, so `dayPrices` is keyed by
  * string here. `entriesFromList` groups same-typed fields to keep it compact.

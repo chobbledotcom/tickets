@@ -7,7 +7,7 @@ import { COUNTRIES, DEFAULT_COUNTRY } from "#shared/countries.ts";
 import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { SuccessCompletePage } from "#templates/components/success-complete-page.tsx";
-import { getSetupFields } from "#templates/fields.ts";
+import { getSetupFields } from "#templates/fields/admin.ts";
 import { Layout } from "#templates/layout.tsx";
 
 /**

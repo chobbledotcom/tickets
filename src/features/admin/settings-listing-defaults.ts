@@ -28,7 +28,7 @@ import {
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { adminListingDefaultsPage } from "#templates/admin/listing-defaults.tsx";
-import { VALID_DAY_NAMES } from "#templates/fields.ts";
+import { VALID_DAY_NAMES } from "#templates/fields/validators.ts";
 
 /** One field's parse outcome: a value to set, an error, or neither (unset). */
 type FieldParse = { value?: unknown; error?: string };
