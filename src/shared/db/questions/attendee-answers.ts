@@ -8,7 +8,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { reduce } from "#fp";
+import { groupBy, mapParallel, unique } from "#fp";
 import { decryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
@@ -139,17 +139,17 @@ export const saveAttendeeAnswers = async (
           set.textAnswers.map((a) => a.text),
         ),
       ),
-      questionIdsByAnswerId([
-        ...new Set([...normalized.values()].flatMap((set) => set.answerIds)),
-      ]),
-      existingQuestionIds([
-        ...new Set(
+      questionIdsByAnswerId(
+        unique([...normalized.values()].flatMap((set) => set.answerIds)),
+      ),
+      existingQuestionIds(
+        unique(
           [...normalized.values()].flatMap((set) => [
             ...set.textAnswerIds.map((answer) => answer.questionId),
             ...set.textAnswers.map((answer) => answer.questionId),
           ]),
         ),
-      ]),
+      ),
     ]);
   const statements: { sql: string; args: InValue[] }[] = [];
   for (const [
@@ -229,18 +229,11 @@ export const groupListingAnswers = (
 const choiceAnswerMapFromRows = (
   rows: { attendee_id: number; answer_id: number }[],
 ): Map<number, number[]> =>
-  reduce(
-    (
-      acc: Map<number, number[]>,
-      { attendee_id, answer_id }: { attendee_id: number; answer_id: number },
-    ) => {
-      const list = acc.get(attendee_id) ?? [];
-      list.push(answer_id);
-      acc.set(attendee_id, list);
-      return acc;
-    },
-    new Map(),
-  )(rows);
+  new Map(
+    [...groupBy(rows, (r) => r.attendee_id)].map(
+      ([id, rs]) => [id, rs.map((r) => r.answer_id)] as const,
+    ),
+  );
 
 /** Load `attendee_answers` rows for a set of attendees, restricted to rows where
  * `column` is set (non-null). Returns an empty array for an empty attendee
@@ -298,36 +291,40 @@ export const getListingChoiceAnswerMap = async (
   return choiceAnswerMapFromRows(rows);
 };
 
+/** Row shape for a free-text answer joined onto its encrypted string. */
+type TextAnswerRow = {
+  attendee_id: number;
+  encrypted_text: OwnerKeyEncrypted;
+  question_id: number;
+};
+
 /** Decrypted free-text answers for several attendees: attendeeId → (questionId
  * → text). Needs the owner private key, so callers must opt in deliberately. */
 export const getAttendeeTextAnswersBatch = async (
   attendeeIds: number[],
   privateKey: CryptoKey,
 ): Promise<Map<number, Map<number, string>>> => {
-  const rows = await selectAttendeeAnswerRows<{
-    attendee_id: number;
-    question_id: number;
-    encrypted_text: OwnerKeyEncrypted;
-  }>(
+  const rows = await selectAttendeeAnswerRows<TextAnswerRow>(
     attendeeIds,
     "question_id",
     "attendee_answer.attendee_id, attendee_answer.question_id, string.encrypted_text",
     "JOIN strings AS string ON string.id = attendee_answer.string_id",
   );
-  const decrypted = await Promise.all(
-    rows.map(async (row) => ({
-      attendeeId: row.attendee_id,
-      questionId: row.question_id,
-      text: await decryptWithOwnerKey(row.encrypted_text, privateKey),
-    })),
+  // Decrypt in parallel, then group by attendee into questionId→text maps.
+  const decrypted = await mapParallel(async (row: TextAnswerRow) => ({
+    attendeeId: row.attendee_id,
+    questionId: row.question_id,
+    text: await decryptWithOwnerKey(row.encrypted_text, privateKey),
+  }))(rows);
+  return new Map(
+    [...groupBy(decrypted, (d) => d.attendeeId)].map(
+      ([attendeeId, group]) =>
+        [
+          attendeeId,
+          new Map(group.map((d) => [d.questionId, d.text] as const)),
+        ] as const,
+    ),
   );
-  const result = new Map<number, Map<number, string>>();
-  for (const { attendeeId, questionId, text } of decrypted) {
-    const inner = result.get(attendeeId) ?? new Map<number, string>();
-    inner.set(questionId, text);
-    result.set(attendeeId, inner);
-  }
-  return result;
 };
 
 /** Choice answer ids plus, when requested, decrypted free-text answers. */
@@ -415,36 +412,44 @@ export const getAttendeeTextAnswers = async (
     attendeeId,
   ) ?? new Map();
 
+/** Row shape for an attendee's chosen answer joined onto its decrypted text. */
+type ChoiceAnswerRow = {
+  answer_id: number;
+  answer_text: string;
+  question_id: number;
+};
+
 /** Get attendee answers mapped by question ID.
  * Returns Map<questionId, { answerId, answerText }> for a single attendee. */
 export const getAttendeeAnswersByQuestion = async (
   attendeeId: number,
 ): Promise<Map<number, { answerId: number; answerText: string }>> => {
-  const rows = await queryAll<{
-    question_id: number;
-    answer_id: number;
-    answer_text: string;
-  }>(
+  const rows = await queryAll<ChoiceAnswerRow>(
     `SELECT answer.question_id, attendeeAnswer.answer_id, answer.text AS answer_text
      FROM attendee_answers AS attendeeAnswer
      JOIN answers AS answer ON answer.id = attendeeAnswer.answer_id
      WHERE attendeeAnswer.answer_id IS NOT NULL AND attendeeAnswer.attendee_id = ?`,
     [attendeeId],
   );
-
-  const result = new Map<number, { answerId: number; answerText: string }>();
-  for (const row of rows) {
-    const decrypted = await answersTable.fromDb({
+  // Decrypt each chosen answer in parallel, then key by question id.
+  const decrypted = await mapParallel(async (row: ChoiceAnswerRow) => {
+    const answer = await answersTable.fromDb({
       active: true,
       id: row.answer_id,
       question_id: row.question_id,
       sort_order: 0,
       text: row.answer_text,
     });
-    result.set(row.question_id, {
+    return {
       answerId: row.answer_id,
-      answerText: decrypted.text,
-    });
-  }
-  return result;
+      answerText: answer.text,
+      questionId: row.question_id,
+    };
+  })(rows);
+  return new Map(
+    decrypted.map((d) => [
+      d.questionId,
+      { answerId: d.answerId, answerText: d.answerText },
+    ]),
+  );
 };

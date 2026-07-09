@@ -7,7 +7,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { filter, map, reduce } from "#fp";
+import { filter, groupBy, map, mapParallel, reduce } from "#fp";
 import {
   executeBatch,
   inPlaceholders,
@@ -58,40 +58,29 @@ const decryptQuestion = async (
 };
 
 /** Group flat joined rows into QuestionWithAnswers[], preserving row order.
- * Decrypts question and answer text in parallel. */
-const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
-  type Group = {
-    assignAll: boolean;
-    displayType: QuestionWithAnswers["display_type"];
-    text: string;
-    answers: Answer[];
-  };
-  const questionMap = reduce((acc: Map<number, Group>, row: JoinedRow) => {
-    const group = acc.get(row.q_id) ?? {
-      answers: [],
-      assignAll: row.q_assign_all,
-      displayType: row.q_display_type,
-      text: row.q_text,
-    };
-    if (row.a_id !== null) {
-      group.answers.push({
-        active: row.a_active!,
-        id: row.a_id,
-        question_id: row.a_question_id!,
-        sort_order: row.a_sort_order!,
-        text: row.a_text!,
-      });
-    }
-    return acc.set(row.q_id, group);
-  }, new Map<number, Group>())(rows);
-
-  const entries = [...questionMap.entries()];
-  return Promise.all(
-    map(([id, { assignAll, displayType, text, answers }]: [number, Group]) =>
-      decryptQuestion(id, assignAll, displayType, text, answers),
-    )(entries),
-  );
-};
+ * Decrypts question and answer text in parallel. The first row of each
+ * question group carries the question's fields; every row with an answer id
+ * contributes an answer (in row order). */
+const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> =>
+  mapParallel(([id, groupRows]: [number, JoinedRow[]]) => {
+    const first = groupRows[0]!;
+    const answers = groupRows
+      .filter((r) => r.a_id !== null)
+      .map((r) => ({
+        active: r.a_active!,
+        id: r.a_id!,
+        question_id: r.a_question_id!,
+        sort_order: r.a_sort_order!,
+        text: r.a_text!,
+      }));
+    return decryptQuestion(
+      id,
+      first.q_assign_all,
+      first.q_display_type,
+      first.q_text,
+      answers,
+    );
+  })([...groupBy(rows, (r) => r.q_id)]);
 
 /** Keep only questions that have at least one answer */
 const withAnswers = filter(
@@ -161,17 +150,11 @@ export const getAllQuestionListingIds = async (): Promise<
     `SELECT question_id, listing_id FROM listing_questions
      ORDER BY question_id, listing_id`,
   );
-  return reduce(
-    (
-      acc: Map<number, number[]>,
-      row: { question_id: number; listing_id: number },
-    ) => {
-      const ids = acc.get(row.question_id) ?? [];
-      ids.push(row.listing_id);
-      return acc.set(row.question_id, ids);
-    },
-    new Map<number, number[]>(),
-  )(rows);
+  return new Map(
+    [...groupBy(rows, (r) => r.question_id)].map(
+      ([qid, rs]) => [qid, rs.map((r) => r.listing_id)] as const,
+    ),
+  );
 };
 
 /** Get the IDs of the listings a question is assigned to */
