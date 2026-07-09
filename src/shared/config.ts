@@ -41,6 +41,25 @@ const DEFAULT_DOMAIN = "localhost";
  */
 const effectiveDomainState = { domain: DEFAULT_DOMAIN };
 
+const isIpv4Loopback = (domain: string): boolean => {
+  const parts = domain.split(".");
+  return (
+    parts.length === 4 &&
+    parts[0] === "127" &&
+    parts.every((part) => {
+      const value = Number(part);
+      return /^\d+$/.test(part) && value >= 0 && value <= 255;
+    })
+  );
+};
+
+const isLocalDevelopmentHost = (domain: string): boolean =>
+  domain === DEFAULT_DOMAIN ||
+  domain.endsWith(".localhost") ||
+  domain === "[::1]" ||
+  domain === "::1" ||
+  isIpv4Loopback(domain);
+
 /** Load the effective domain from DB, falling back to the request URL hostname. */
 export const loadEffectiveDomain = (requestUrl: string): string => {
   const custom = settings.customDomain;
@@ -78,7 +97,7 @@ export const getEffectiveDomain = (): string => effectiveDomainState.domain;
  * must stay off for local development on DEFAULT_DOMAIN.
  */
 export const isSecureMode = (): boolean =>
-  effectiveDomainState.domain !== DEFAULT_DOMAIN;
+  !isLocalDevelopmentHost(effectiveDomainState.domain);
 
 /** Reset effective domain cache back to the default (for testing). */
 export const resetEffectiveDomain = (): void => {

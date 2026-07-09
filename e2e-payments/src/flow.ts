@@ -45,6 +45,13 @@ export const login = async (session: BrowserSession): Promise<void> => {
   if ((await session.bodyText()).includes("Migration complete")) {
     await session.clickLink("Back to dashboard");
   }
+  const loginFields = await session.page
+    .locator('[name="username"], [name="password"]')
+    .count();
+  if (loginFields > 0) {
+    await session.dumpPage("login-did-not-stick");
+    throw new Error("admin login did not stick; still on the login page");
+  }
   log("  logged in");
 };
 
