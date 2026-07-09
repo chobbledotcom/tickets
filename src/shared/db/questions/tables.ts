@@ -25,6 +25,14 @@ type QuestionInput = {
   text: string;
 };
 
+// `questions` has a `sort_order` column in the schema (the global question
+// order the booking form and admin list render), but it is deliberately absent
+// from `questionsTable`'s `schema` here: writes to `sort_order` are managed
+// exclusively in `questions/sort-order.ts` (swap/next-order helpers) and reads
+// consume it via raw `ORDER BY question.sort_order` clauses in
+// `questions/queries.ts`, never through `questionsTable.fromDb`. Keeping it out
+// of the `defineTable` schema stops accidental writes through the generic
+// insert/update path that would bypass the swap helpers' ordering invariants.
 export const questionsTable = defineTable<Question, QuestionInput>({
   name: "questions",
   primaryKey: "id",

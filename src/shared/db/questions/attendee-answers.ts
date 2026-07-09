@@ -95,6 +95,33 @@ const existingQuestionIds = async (
  * per-listing grouping from `groupListingAnswers` — so callers build the map and
  * this builds the SQL. Repeated question answers collapse to the last value
  * before insert, matching the single-answer-per-question invariant.
+ *
+ * The DELETE runs in its own committed batch ahead of the INSERT (rather than
+ * both in one `withTransaction`), for two reasons:
+ *
+ * 1. `getOrCreateStringIds` between the two batches is itself a write-mode
+ *    `executeBatchWithResults` (insert-or-ignore + refresh `created` + a
+ *    read-your-own-writes SELECT). libsql's `batch()` always starts its own
+ *    implicit transaction, so it cannot share an outer interactive
+ *    transaction's `TxScope` — wrapping the whole flow in `withTransaction`
+ *    would not make the two batches atomic. Threading a `TxScope` through
+ *    `getOrCreateStringIds` (replacing its batch with per-statement `tx.execute`)
+ *    is the only way to get true atomicity, and is left as a follow-up: the
+ *    read-your-writes invariant the in-between SELECT relies on is subtle, and
+ *    reworking it belongs in a focused change rather than this module split.
+ * 2. The DELETE's trigger decrements `strings.used_count`; the subsequent
+ *    `getOrCreateStringIds` refreshes `created` on the strings it re-inserts so
+ *    the age-based pruner does not drop a string this save still references. The
+ *    delete must commit before that refresh so the pruner sees a consistent
+ *    `used_count` snapshot (a string now at 0 because this attendee was its last
+ *    user is then re-created or refreshed by the insert path). A future
+ *    transactional version must preserve this ordering inside the tx.
+ *
+ * The narrow gap: if the INSERT batch fails after the DELETE committed, the
+ * attendee is left with no answers until the next re-save. A genuine INSERT
+ * failure here means the database is already broken (the same write path every
+ * other write takes), so we let it throw rather than add a partial-rollback
+ * shim around an effectively-impossible branch.
  */
 export const saveAttendeeAnswers = async (
   answersByAttendee: Map<number, number[] | AttendeeAnswerSet>,
@@ -120,12 +147,11 @@ export const saveAttendeeAnswers = async (
   );
   if (normalized.size === 0) return;
   // Clear each attendee's existing answers FIRST, in its own committed batch.
-  // The delete fires the string-refcount trigger, which drops any free-text
-  // string this attendee was the last user of — so it has to run before we
-  // resolve/create the strings we re-insert. Resolving first (the old order)
-  // meant a re-saved unchanged answer pointed at a string the delete then
-  // dropped, silently losing the value. getOrCreateStringIds below re-creates
-  // any string the delete removed.
+  // The delete fires the string-refcount trigger (decrementing `used_count`),
+  // and must commit before getOrCreateStringIds below refreshes `created` on the
+  // strings we re-insert — see the doc comment on saveAttendeeAnswers for why
+  // the two batches stay split and why the in-between string interning needs the
+  // delete's effects visible.
   await executeBatch(
     [...normalized.keys()].map((attendeeId) => ({
       args: [attendeeId],
