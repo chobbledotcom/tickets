@@ -6,21 +6,23 @@
 
 import { setupTestEncryptionKey } from "#test-utils";
 import {
-  STRIPE_MOCK_PORT,
-  StripeMockManager,
-} from "#test-utils/stripe-mock.ts";
+  startStripeMock,
+  stripeMockEnv,
+  stripeMockPortFromEnv,
+} from "../scripts/stripe-mock.ts";
 
-const manager = new StripeMockManager();
+const port = stripeMockPortFromEnv();
 
 // Configure encryption key for tests
 setupTestEncryptionKey();
 
-// Configure stripe-mock env vars
-Deno.env.set("STRIPE_MOCK_HOST", "localhost");
-Deno.env.set("STRIPE_MOCK_PORT", String(STRIPE_MOCK_PORT));
+// Configure stripe-mock env vars.
+const mockEnv = stripeMockEnv(port);
+Deno.env.set("STRIPE_MOCK_HOST", mockEnv.STRIPE_MOCK_HOST);
+Deno.env.set("STRIPE_MOCK_PORT", mockEnv.STRIPE_MOCK_PORT);
 
 // Start stripe-mock before tests
-await manager.start();
+const stripeMock = await startStripeMock({ port });
 
-// Register cleanup on process exit
-globalThis.addEventListener("unload", () => manager.stop());
+// Register synchronous cleanup for raw `deno test --import ./test/setup.ts`.
+globalThis.addEventListener("unload", () => stripeMock.stopNow());

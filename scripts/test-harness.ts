@@ -25,106 +25,12 @@ import {
   removeOldCoverageOutput,
 } from "./coverage-output.ts";
 import { projectRoot } from "./project-root.ts";
+import { startStripeMock, stripeMockEnv } from "./stripe-mock.ts";
 
-const STRIPE_MOCK_VERSION = "0.188.0";
-export const STRIPE_MOCK_PORT = 12111;
-const BIN_DIR = join(projectRoot, ".bin");
-const STRIPE_MOCK_PATH = join(BIN_DIR, "stripe-mock");
 const verboseHarness = Deno.env.get("TICKETS_TEST_HARNESS_VERBOSE") === "1";
 
 const harnessLog = (...args: unknown[]): void => {
   if (verboseHarness) console.log(...args);
-};
-
-/** Check if stripe-mock is running */
-const isStripeMockRunning = async (): Promise<boolean> => {
-  try {
-    const conn = await Deno.connect({
-      hostname: "127.0.0.1",
-      port: STRIPE_MOCK_PORT,
-    });
-    conn.close();
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-/** Download stripe-mock if needed */
-const downloadStripeMock = async (): Promise<void> => {
-  try {
-    await Deno.stat(STRIPE_MOCK_PATH);
-    return;
-  } catch {
-    // Download needed
-  }
-
-  harnessLog("Downloading stripe-mock...");
-  await Deno.mkdir(BIN_DIR, { recursive: true });
-
-  const platform = Deno.build.os === "darwin" ? "darwin" : "linux";
-  const arch = Deno.build.arch === "aarch64" ? "arm64" : "amd64";
-  const url = `https://github.com/stripe/stripe-mock/releases/download/v${STRIPE_MOCK_VERSION}/stripe-mock_${STRIPE_MOCK_VERSION}_${platform}_${arch}.tar.gz`;
-
-  const curlCmd = new Deno.Command("curl", {
-    args: ["-sL", url, "-o", "-"],
-    stderr: "null",
-    stdout: "piped",
-  });
-  const curlResult = await curlCmd.output();
-  if (!curlResult.success) {
-    throw new Error("Failed to download stripe-mock");
-  }
-
-  const tarPath = join(BIN_DIR, "stripe-mock.tar.gz");
-  await Deno.writeFile(tarPath, curlResult.stdout);
-
-  await new Deno.Command("tar", {
-    args: ["-xzf", tarPath, "-C", BIN_DIR],
-  }).output();
-
-  await new Deno.Command("chmod", {
-    args: ["+x", STRIPE_MOCK_PATH],
-  }).output();
-
-  await Deno.remove(tarPath);
-  harnessLog("stripe-mock downloaded");
-};
-
-/** Start stripe-mock and return the process (null if one is already running) */
-const startStripeMock = async (): Promise<Deno.ChildProcess | null> => {
-  if (await isStripeMockRunning()) {
-    harnessLog("stripe-mock already running on port", STRIPE_MOCK_PORT);
-    return null;
-  }
-
-  await downloadStripeMock();
-
-  harnessLog("Starting stripe-mock on port", STRIPE_MOCK_PORT);
-  const cmd = new Deno.Command(STRIPE_MOCK_PATH, {
-    args: ["-http-port", String(STRIPE_MOCK_PORT)],
-    stderr: "null",
-    stdout: "null",
-  });
-  const process = cmd.spawn();
-
-  // Wait for it to be ready. On busy machines or immediately after a previous
-  // run shuts down, stripe-mock can take longer than a few seconds to bind.
-  for (let i = 0; i < 100; i++) {
-    if (await isStripeMockRunning()) {
-      harnessLog("stripe-mock started");
-      return process;
-    }
-    await new Promise((r) => setTimeout(r, 100));
-  }
-
-  try {
-    process.kill();
-  } catch {
-    // It may already have exited.
-  }
-  await process.status.catch(() => undefined);
-  throw new Error("stripe-mock failed to start");
 };
 
 /** True if a file exists on disk */
@@ -206,10 +112,7 @@ export const runTests = async (
 ): Promise<number> => {
   const env = {
     ...Deno.env.toObject(),
-    NO_PROXY: "localhost,127.0.0.1,::1",
-    no_proxy: "localhost,127.0.0.1,::1",
-    STRIPE_MOCK_HOST: "localhost",
-    STRIPE_MOCK_PORT: String(STRIPE_MOCK_PORT),
+    ...stripeMockEnv(),
   };
 
   if (useCoverage) await removeOldCoverageOutput();
@@ -249,22 +152,20 @@ export const withTestHarness = async <T>(
   task: () => Promise<T>,
 ): Promise<T> => {
   const cleanupStaticAssets = await setupStaticAssets();
-  const stripeMockProcess = await startStripeMock();
-
-  Deno.env.set("STRIPE_MOCK_HOST", "localhost");
-  Deno.env.set("STRIPE_MOCK_PORT", String(STRIPE_MOCK_PORT));
+  let stripeMockProcess: Awaited<ReturnType<typeof startStripeMock>> | null =
+    null;
 
   try {
+    stripeMockProcess = await startStripeMock();
+    const mockEnv = stripeMockEnv(stripeMockProcess.port);
+    harnessLog("stripe-mock running on port", mockEnv.STRIPE_MOCK_PORT);
+    Deno.env.set("STRIPE_MOCK_HOST", mockEnv.STRIPE_MOCK_HOST);
+    Deno.env.set("STRIPE_MOCK_PORT", mockEnv.STRIPE_MOCK_PORT);
     return await task();
   } finally {
     if (stripeMockProcess) {
       harnessLog("Stopping stripe-mock...");
-      try {
-        stripeMockProcess.kill();
-      } catch {
-        // It may already have exited.
-      }
-      await stripeMockProcess.status.catch(() => undefined);
+      await stripeMockProcess.stop();
     }
     await cleanupStaticAssets();
   }

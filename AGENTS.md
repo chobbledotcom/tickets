@@ -30,18 +30,21 @@ The `.tool-versions` file is kept in sync for asdf-compatible tooling.
 
 ## stripe-mock
 
-The test harness needs the `stripe-mock` binary at `.bin/stripe-mock` (any test
-that imports the app boots the harness, which starts it on port 12111). The
-harness normally downloads a prebuilt release from GitHub, but in sandboxes
-where GitHub release downloads are blocked you can build it from source with Go
-instead — the Go module proxy is usually reachable when GitHub isn't:
+The test harness needs the `stripe-mock` binary at `.bin/stripe-mock`. The
+standard runners (`deno task test`, `deno task test:files`, and `--harness`
+mutation runs) start one stripe-mock process on a free local port and export
+`STRIPE_MOCK_HOST/PORT` to their child test processes, so parallel suites do not
+fight over port 12111. The harness normally downloads a prebuilt release from
+GitHub, but in sandboxes where GitHub release downloads are blocked you can
+build it from source with Go instead — the Go module proxy is usually reachable
+when GitHub isn't:
 
 ```bash
 GOBIN="$PWD/.bin" go install github.com/stripe/stripe-mock@v0.188.0
 ```
 
 Pin the same version the harness expects (`STRIPE_MOCK_VERSION` in
-`scripts/test-harness.ts`). Once `.bin/stripe-mock` exists the harness uses it
+`scripts/stripe-mock/install.ts`). Once `.bin/stripe-mock` exists the harness uses it
 as-is and skips the download, so `deno task test`, `deno task test:files`, and
 `--harness` mutation runs all work offline from GitHub.
 
@@ -501,7 +504,7 @@ For a pure unit test that imports neither the app nor Stripe, you can skip the h
 deno test --no-check --allow-all test/lib/dates.test.ts
 ```
 
-To do this for a test that depends on stripe-mock (anything importing Stripe), start the mock first (`deno task test:files` or `deno task test` does this for you, or run `.bin/stripe-mock -http-port 12111` manually) and set the env vars:
+To do this for a test that depends on stripe-mock (anything importing Stripe), start the mock first (`deno task test:files` or `deno task test` does this for you, or run `.bin/stripe-mock -http-port 12111` manually) and set the env vars to the port you chose:
 
 ```bash
 STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-all test/lib/stripe-mock.test.ts
