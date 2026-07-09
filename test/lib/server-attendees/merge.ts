@@ -1,8 +1,11 @@
 import { expect } from "@std/expect";
+import { getAttendeesByTokens } from "#shared/db/attendees.ts";
 import type { Answer, Question } from "#shared/db/questions.ts";
 import {
   answersTable,
+  getAttendeeAnswersByQuestion,
   questionsTable,
+  saveAttendeeAnswers,
   setListingQuestions,
 } from "#shared/db/questions.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
@@ -146,14 +149,12 @@ export const assignMergeAnswers = async (
   sourceToken: string,
   assignments: { target?: number[]; source?: number[] },
 ): Promise<void> => {
-  const { saveAttendeeAnswers: save } = await import("#shared/db/questions.ts");
   if (assignments.target) {
-    await save(new Map([[targetId, assignments.target]]));
+    await saveAttendeeAnswers(new Map([[targetId, assignments.target]]));
   }
   if (assignments.source) {
-    const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
     const [source] = await getAttendeesByTokens([sourceToken]);
-    await save(new Map([[source!.id, assignments.source]]));
+    await saveAttendeeAnswers(new Map([[source!.id, assignments.source]]));
   }
 };
 
@@ -181,9 +182,6 @@ const expectMergeAnswer = async (
   questionId: number,
   expectedAnswerId: number | undefined,
 ): Promise<void> => {
-  const { getAttendeeAnswersByQuestion } = await import(
-    "#shared/db/questions.ts"
-  );
   const finalAnswers = await getAttendeeAnswersByQuestion(targetId);
   if (expectedAnswerId === undefined) {
     expect(finalAnswers.has(questionId)).toBe(false);

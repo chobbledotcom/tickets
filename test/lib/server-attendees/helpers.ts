@@ -3,7 +3,9 @@ import { handleRequest } from "#routes";
 import type { Answer, Question } from "#shared/db/questions.ts";
 import {
   answersTable,
+  getAttendeeAnswersBatch,
   questionsTable,
+  saveAttendeeAnswers,
   setListingQuestions,
 } from "#shared/db/questions.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
@@ -206,7 +208,6 @@ export const setupListingWithQuestion = async (
 export const attendeeAnswerIds = async (
   attendeeId: number,
 ): Promise<number[]> => {
-  const { getAttendeeAnswersBatch } = await import("#shared/db/questions.ts");
   const answers = await getAttendeeAnswersBatch([attendeeId], {
     texts: false,
   });
@@ -219,7 +220,6 @@ export const saveAttendeeAnswer = async (
   attendeeId: number,
   answerId: number,
 ): Promise<void> => {
-  const { saveAttendeeAnswers } = await import("#shared/db/questions.ts");
   await saveAttendeeAnswers(new Map([[attendeeId, [answerId]]]));
 };
 
