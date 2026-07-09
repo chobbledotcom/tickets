@@ -154,3 +154,19 @@ export const createDailyTestListing = (overrides: TestListingOverrides = {}) =>
     minimumDaysBefore: 0,
     ...overrides,
   });
+
+/** The bookable start dates for a listing, with holidays already loaded and the
+ *  listing row already fetched with its counts — the fix to the repeated
+ *  three-import + two-call dance that surfaced across the parents-,
+ *  parents-e2e, and listing-qr-admin suites. Returns sorted YYYY-MM-DD
+ *  strings (see {@link getBookableStartDates}). */
+export const bookableStartDates = async (
+  listingId: number,
+): Promise<string[]> => {
+  const { getBookableStartDates } = await import("#shared/dates.ts");
+  const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+  return getBookableStartDates(
+    (await getListingWithCount(listingId))!,
+    await getActiveHolidays(),
+  );
+};

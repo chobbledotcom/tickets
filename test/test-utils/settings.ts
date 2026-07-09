@@ -70,6 +70,24 @@ export const setupStripe = async (key = "sk_test_mock"): Promise<void> => {
   await s.update.paymentProvider("stripe");
 };
 
+/** Turn the public JSON API on for the current test DB. The single source of
+ *  the `showPublicApi(true)` toggle that opens nearly every `/api/listings`
+ *  test — hoisted so each test just states the precondition, not the import +
+ *  setter dance behind it. The suite-level `afterEach` in
+ *  {@link describeWithEnv} rolls the DB back, so the toggle never leaks. */
+export const enablePublicApi = async (): Promise<void> => {
+  const { settings: s } = await import("#shared/db/settings.ts");
+  await s.update.showPublicApi(true);
+};
+
+/** Turn the public site on for the current test DB — mirrors
+ *  {@link enablePublicApi} for the few tests that flip the site-visible
+ *  toggle (e.g. `/listings` CTA suppression). */
+export const enablePublicSite = async (): Promise<void> => {
+  const { settings: s } = await import("#shared/db/settings.ts");
+  await s.update.showPublicSite(true);
+};
+
 export const stubWebhookVerify = async (listingData: {
   id: string;
   type: string;
