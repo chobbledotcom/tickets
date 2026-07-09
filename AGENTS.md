@@ -677,6 +677,17 @@ already, e.g. `logistics-filter.ts:41:45`, `sort-listings.ts:44:12`,
 and running `deno run -A scripts/biome.ts check --error-on-warnings <file>` —
 exit 0 means the lint gate does not kill it, so a real survivor needs a test
 or a documented equivalent, not removal on the assumption that lint caught it.
+
+When a manual mutation run (or the precommit gate) surfaces survivors on a file
+you are touching — even on lines you did not change in this PR — they are yours
+to fix. Never determine whether a survivor "predates main" (no `git stash`, no
+diffing against the base to excuse it): the bar is 100%, and a survivor on a
+line in your changed file is a real gap in that file's tests that you are now
+the person best placed to close. Either write the assertion that kills it, or
+record the mutant in `scripts/mutation/equivalent-mutants.txt` with a proof that
+no input can distinguish it. "It was already there" is not a resolution; leaving
+it just guarantees the next person trips over the same survivor. This is the
+[Good citizen](#preferences) rule applied to mutation testing.
 It is a deliberately mapping-free, best-effort check with three documented blind
 spots (see the header of `scripts/precommit/mutation-step.ts`): it scopes to the
 *committed* diff, so uncommitted work isn't checked until committed; it trusts

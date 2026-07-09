@@ -2,6 +2,7 @@
   "version": "5",
   "specifiers": {
     "jsr:@luca/esbuild-deno-loader@~0.11.1": "0.11.1",
+    "jsr:@std/assert@0.226": "0.226.0",
     "jsr:@std/assert@^1.0.17": "1.0.19",
     "jsr:@std/assert@^1.0.19": "1.0.19",
     "jsr:@std/async@^1.1.0": "1.2.0",
@@ -24,6 +25,7 @@
     "jsr:@std/internal@^1.0.14": "1.0.14",
     "jsr:@std/media-types@^1.1.0": "1.1.0",
     "jsr:@std/net@^1.0.6": "1.0.6",
+    "jsr:@std/path@0.225.2": "0.225.2",
     "jsr:@std/path@^1.0.6": "1.1.5",
     "jsr:@std/path@^1.1.4": "1.1.5",
     "jsr:@std/path@^1.1.5": "1.1.5",
@@ -67,7 +69,7 @@
     "npm:marked@18": "18.0.2",
     "npm:node-forge@^1.4.0": "1.4.0",
     "npm:oxc-parser@0.132.0": "0.132.0",
-    "npm:playwright@1.49.1": "1.49.1",
+    "npm:playwright@1.61.1": "1.61.1",
     "npm:postmark@*": "4.0.7",
     "npm:prosemirror-commands@^1.7.0": "1.7.1",
     "npm:prosemirror-history@^1.4.1": "1.5.0",
@@ -98,6 +100,9 @@
         "jsr:@std/encoding@^1.0.5",
         "jsr:@std/path@^1.0.6"
       ]
+    },
+    "@std/assert@0.226.0": {
+      "integrity": "0dfb5f7c7723c18cec118e080fec76ce15b4c31154b15ad2bd74822603ef75b3"
     },
     "@std/assert@1.0.19": {
       "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
@@ -175,6 +180,12 @@
     },
     "@std/net@1.0.6": {
       "integrity": "110735f93e95bb9feb95790a8b1d1bf69ec0dc74f3f97a00a76ea5efea25500c"
+    },
+    "@std/path@0.225.2": {
+      "integrity": "0f2db41d36b50ef048dcb0399aac720a5348638dd3cb5bf80685bf2a745aa506",
+      "dependencies": [
+        "jsr:@std/assert@0.226"
+      ]
     },
     "@std/path@1.1.4": {
       "integrity": "1d2d43f39efb1b42f0b1882a25486647cb851481862dc7313390b2bb044314b5",
@@ -1767,12 +1778,12 @@
     "picomatch@4.0.4": {
       "integrity": "sha512-QP88BAKvMam/3NxH6vj2o21R6MjxZUAd6nlwAS/pnGvN9IVLocLHxGYIzFhg6fUQ+5th6P4dv4eW9jX3DSIj7A=="
     },
-    "playwright-core@1.49.1": {
-      "integrity": "sha512-BzmpVcs4kE2CH15rWfzpjzVGhWERJfmnXmniSyKeRZUs9Ws65m+RGIi7mjJK/euCegfn3i7jvqWeWyHe9y3Vgg==",
+    "playwright-core@1.61.1": {
+      "integrity": "sha512-h7Qlt6m4REp25qvIdvbDtVmD4LqVXfpRxhORv9L0jzETM05p4fuPJ3dKyuSXQxDSbXnmS79HAgi9589lGSpLkg==",
       "bin": true
     },
-    "playwright@1.49.1": {
-      "integrity": "sha512-VYL8zLoNTBxVOrJBbDuRgDWa3i+mfQgDTrL8Ah9QXZ7ax4Dsj0MSq5bYgytRnDVVe+njoKnfsYkH3HzqVj5UZA==",
+    "playwright@1.61.1": {
+      "integrity": "sha512-DWnY5o3YbLWK4GovuAVwpqL+1VwGNdUGrRr++8j8PtQQzvAVZUIMjKQ90fY689sEJZJBbZVw1rXaOKSTitkzPQ==",
       "dependencies": [
         "playwright-core"
       ],
@@ -2283,7 +2294,7 @@
     "members": {
       "e2e-payments": {
         "dependencies": [
-          "npm:playwright@1.49.1"
+          "npm:playwright@1.61.1"
         ]
       }
     }

@@ -68,7 +68,19 @@ jobs:
 
       - name: Resolve Playwright version
         id: pw
-        run: echo "version=1.49.1" >> "$GITHUB_OUTPUT"
+        run: |
+          version="$(
+            deno eval '
+          const config = JSON.parse(await Deno.readTextFile("e2e-payments/deno.json"));
+          const spec = config.imports?.playwright;
+          const version = spec?.match(/^npm:playwright@(.+)$/)?.[1];
+          if (!version) {
+            throw new Error(`Expected imports.playwright to be npm:playwright@<version>; got ${spec}`);
+          }
+          console.log(version);
+          '
+          )"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         id: pw-cache
@@ -82,11 +94,11 @@ jobs:
       # a miss, download the browser and its OS deps in one go.
       - name: Install Playwright Chromium (cache miss)
         if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: deno run -A npm:playwright@1.49.1 install --with-deps chromium
+        run: deno run -A npm:playwright@${{ steps.pw.outputs.version }} install --with-deps chromium
 
       - name: Install Playwright OS dependencies (cache hit)
         if: steps.pw-cache.outputs.cache-hit == 'true'
-        run: deno run -A npm:playwright@1.49.1 install-deps chromium
+        run: deno run -A npm:playwright@${{ steps.pw.outputs.version }} install-deps chromium
 
       - name: Run ${{ matrix.target }} payment e2e
         env:

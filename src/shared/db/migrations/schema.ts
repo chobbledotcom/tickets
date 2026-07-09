@@ -949,6 +949,7 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["public_booking_count", "INTEGER NOT NULL DEFAULT 0"],
         ["admin_booking_count", "INTEGER NOT NULL DEFAULT 0"],
         ["stats_blob", "TEXT NOT NULL DEFAULT ''"],
+        ["attendee_tokens_blob", "TEXT NOT NULL DEFAULT ''"],
         ["last_activity", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [

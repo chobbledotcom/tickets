@@ -7,7 +7,7 @@
     "e2e": "deno run -A src/main.ts"
   },
   "imports": {
-    "playwright": "npm:playwright@1.49.1"
+    "playwright": "npm:playwright@1.61.1"
   },
   "compilerOptions": {
     "strict": true,

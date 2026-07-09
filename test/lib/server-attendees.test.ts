@@ -2803,6 +2803,52 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
     });
 
+    test("a merge that adopts the source's email re-homes Previous bookings", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        name: "MergeTok",
+      });
+      const { attendee: target } = await createTestAttendeeDirect(
+        listing.id,
+        "Target",
+        "target@example.com",
+      );
+      const { attendee: source, token: sourceToken } =
+        await createTestAttendeeDirect(
+          listing.id,
+          "Source",
+          "shared@example.com",
+        );
+      // A third attendee shares the SOURCE's email, so it can observe the token
+      // move once the target adopts that email.
+      const { attendee: sibling } = await createTestAttendeeDirect(
+        listing.id,
+        "Sibling",
+        "shared@example.com",
+      );
+      const siblingPage = async (): Promise<string> =>
+        (await adminGet(`/admin/attendees/${sibling.id}`)).text();
+
+      // Before the merge the sibling lists the source, not the target.
+      const before = await siblingPage();
+      expect(before).toContain(`/admin/attendees/${source.id}`);
+      expect(before).not.toContain(`/admin/attendees/${target.id}`);
+
+      // Merge the source into the target, keeping the source's email.
+      const mergeVersion = await getMergeVersion(target.id, sourceToken);
+      await adminFormPost(`/admin/attendees/${target.id}/merge`, {
+        merge_version: mergeVersion,
+        pii_email: "source",
+        source_token: sourceToken,
+      });
+
+      // The target now carries the shared email, so the sibling lists it; the
+      // deleted source is gone from the table.
+      const after = await siblingPage();
+      expect(after).toContain(`/admin/attendees/${target.id}`);
+      expect(after).not.toContain(`/admin/attendees/${source.id}`);
+    });
+
     test("merges source listings into target and deletes source", async () => {
       const listing1 = await createTestListing({
         maxAttendees: 10,
