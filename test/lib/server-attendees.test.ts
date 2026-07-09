@@ -2865,8 +2865,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const mergeLog = (await getListingActivityLog(listing1.id)).find((l) =>
         l.message.includes("merged into"),
       );
-      expect(mergeLog?.message).toContain(
-        "Attendee 'John Smith' merged into 'Jane Doe'",
+      expect(mergeLog?.message).toBe(
+        "Attendee 'John Smith' merged into 'Jane Doe'. 1 booking(s) moved",
       );
 
       // Source attendee should be deleted
@@ -2959,6 +2959,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         },
       );
       expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Merged John Smith into John Smith"),
+        true,
+      );
 
       // Verify target now has source's PII
       const getPage = await adminGet(`/admin/attendees/${target.id}`);
@@ -2971,6 +2976,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "123 Source St",
         "Source instructions",
       );
+
+      const { getAttendee } = await import("#shared/db/attendees.ts");
+      const { getTestPrivateKey } = await import("#test-utils");
+      const stored = await getAttendee(target.id, await getTestPrivateKey());
+      expect(stored?.name).toBe("John Smith");
     });
 
     test("skips conflicting listing booking during merge", async () => {
@@ -3307,6 +3317,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       // Verify target now has source's answer (Large)
       const finalAnswers = await getAttendeeAnswersByQuestion(target.id);
       expect(finalAnswers.get(q.id)?.answerId).toBe(a2.id);
+
+      const { getListingActivityLog } = await import("#test-utils");
+      const answersLog = (await getListingActivityLog(listing.id)).find((l) =>
+        l.message.includes("merged into"),
+      );
+      expect(answersLog?.message).toBe(
+        "Attendee 'John Smith' merged into 'Jane Doe'. 1 booking(s) moved. 1 answer(s) from source",
+      );
     });
 
     test("POST merge reports skipped bookings in flash", async () => {
@@ -3344,7 +3362,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("1 booking(s) skipped"),
+        "Merged John Smith into Jane Doe. 1 booking(s) skipped",
         true,
       );
     });
@@ -3439,6 +3457,14 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       const finalAnswers = await getAttendeeAnswersByQuestion(target.id);
       expect(finalAnswers.has(q.id)).toBe(false);
+
+      const { getListingActivityLog } = await import("#test-utils");
+      const clearLog = (await getListingActivityLog(listing.id)).find((l) =>
+        l.message.includes("merged into"),
+      );
+      expect(clearLog?.message).toBe(
+        "Attendee 'John Smith' merged into 'Jane Doe'. 1 booking(s) moved. 1 answer(s) cleared",
+      );
     });
 
     test("POST merge with target answer choice keeps target answer", async () => {
@@ -3493,6 +3519,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         },
       );
       expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        "Merged John Smith into Jane Doe. 1 booking(s) moved",
+        true,
+      );
 
       const finalAnswers = await getAttendeeAnswersByQuestion(target.id);
       expect(finalAnswers.get(q.id)?.answerId).toBe(a1.id);
@@ -3689,6 +3720,171 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         [target.id],
       );
       expect(rows.map((row) => row.quantity)).toEqual([3]);
+
+      const { getListingActivityLog } = await import("#test-utils");
+      const replaceLog = (await getListingActivityLog(listing.id)).find((l) =>
+        l.message.includes("merged into"),
+      );
+      expect(replaceLog?.message).toBe(
+        "Attendee 'John Smith' merged into 'Jane Doe'. 1 booking(s) replaced",
+      );
+    });
+
+    test("POST merge credits a discarded paid conflict's money", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        unitPrice: 500,
+      });
+      const { attendee: target } = await createTestAttendeeDirect(
+        listing.id,
+        "Jane Doe",
+        "jane@example.com",
+        1,
+      );
+      const source = await createPaidTestAttendee(
+        listing.id,
+        "John Smith",
+        "john@example.com",
+        "pi_merge_credit",
+        500,
+        3,
+      );
+      const bookingKey = `${listing.id}:null:0:0`;
+      const mergeVersion = await getMergeVersion(
+        target.id,
+        source.ticket_token,
+      );
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        {
+          merge_version: mergeVersion,
+          source_token: source.ticket_token,
+          [`booking_${bookingKey}`]: "skip_source",
+          [`money_${bookingKey}`]: "credit",
+        },
+      );
+      expectFlash(
+        response,
+        "Merged John Smith into Jane Doe. 1 booking(s) skipped. 1 payment(s) credited",
+        true,
+      );
+      const { getListingActivityLog } = await import("#test-utils");
+      const creditLog = (await getListingActivityLog(listing.id)).find((l) =>
+        l.message.includes("merged into"),
+      );
+      expect(creditLog?.message).toBe(
+        "Attendee 'John Smith' merged into 'Jane Doe'. 1 booking(s) skipped. 1 payment(s) kept as credit",
+      );
+    });
+
+    test("POST merge writes off a discarded paid conflict's money", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        unitPrice: 500,
+      });
+      const { attendee: target } = await createTestAttendeeDirect(
+        listing.id,
+        "Jane Doe",
+        "jane@example.com",
+        1,
+      );
+      const source = await createPaidTestAttendee(
+        listing.id,
+        "John Smith",
+        "john@example.com",
+        "pi_merge_writeoff",
+        500,
+        3,
+      );
+      const bookingKey = `${listing.id}:null:0:0`;
+      const mergeVersion = await getMergeVersion(
+        target.id,
+        source.ticket_token,
+      );
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        {
+          merge_version: mergeVersion,
+          source_token: source.ticket_token,
+          [`booking_${bookingKey}`]: "skip_source",
+          [`money_${bookingKey}`]: "writeoff",
+        },
+      );
+      expectFlash(
+        response,
+        "Merged John Smith into Jane Doe. 1 booking(s) skipped. 1 payment(s) written off",
+        true,
+      );
+      const { getListingActivityLog } = await import("#test-utils");
+      const writeoffLog = (await getListingActivityLog(listing.id)).find((l) =>
+        l.message.includes("merged into"),
+      );
+      expect(writeoffLog?.message).toBe(
+        "Attendee 'John Smith' merged into 'Jane Doe'. 1 booking(s) skipped. 1 payment(s) written off",
+      );
+    });
+
+    test('POST merge joins multiple validation errors with "; "', async () => {
+      const listing1 = await createTestListing({
+        maxAttendees: 10,
+        name: "L1",
+        unitPrice: 500,
+      });
+      const listing2 = await createTestListing({
+        maxAttendees: 10,
+        name: "L2",
+        unitPrice: 500,
+      });
+      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+      const targetResult = await createAttendeeAtomic({
+        bookings: [
+          { listingId: listing1.id, quantity: 1 },
+          { listingId: listing2.id, quantity: 1 },
+        ],
+        email: "jane@example.com",
+        name: "Jane Doe",
+      });
+      const target = (
+        targetResult as Extract<typeof targetResult, { success: true }>
+      ).attendees[0]!;
+      const sourceResult = await createAttendeeAtomic({
+        bookings: [
+          { listingId: listing1.id, quantity: 3 },
+          { listingId: listing2.id, quantity: 3 },
+        ],
+        email: "john@example.com",
+        name: "John Smith",
+      });
+      const source = (
+        sourceResult as Extract<typeof sourceResult, { success: true }>
+      ).attendees[0]!;
+      const { postListingSale } = await import("#test-utils/ledger.ts");
+      await postListingSale({
+        attendeeId: source.id,
+        gross: 500,
+        listingId: listing1.id,
+      });
+      await postListingSale({
+        attendeeId: source.id,
+        gross: 500,
+        listingId: listing2.id,
+      });
+
+      const mergeVersion = await getMergeVersion(
+        target.id,
+        source.ticket_token,
+      );
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        { merge_version: mergeVersion, source_token: source.ticket_token },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Missing money decision"),
+        false,
+      );
+      expectFlash(response, expect.stringContaining("; "), false);
     });
   });
 });
