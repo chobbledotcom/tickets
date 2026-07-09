@@ -385,7 +385,7 @@ const parseConflictDecisions = <T>(
     const value = parse(key);
     if (value !== undefined) out[key] = value;
   }
-  return  undefined ;
+  return out;
 };
 
 /** Parse booking decisions from form (only non-moveable items) */

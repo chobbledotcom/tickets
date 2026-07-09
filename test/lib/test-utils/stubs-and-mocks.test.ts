@@ -25,6 +25,7 @@ import {
   testRequest,
   wait,
 } from "#test-utils";
+import { createTrackedTestDbFile } from "#test-utils/temp-db-files.ts";
 
 describe("test-utils — stubs, caches & request mocks", () => {
   afterEach(() => {
@@ -152,7 +153,7 @@ describe("test-utils — stubs, caches & request mocks", () => {
     });
 
     test("removes the temp database even when closing the client throws", async () => {
-      const path = await Deno.makeTempFile({ suffix: ".db" });
+      const path = await createTrackedTestDbFile(".db");
       const restoreEnv = setTestEnv({ DB_URL: `file:${path}` });
       const { setDb } = await import("#shared/db/client.ts");
       setDb({
@@ -179,6 +180,22 @@ describe("test-utils — stubs, caches & request mocks", () => {
         }
       }
       if (cleanupError) throw cleanupError;
+    });
+
+    test("removes SQLite sidecar files for the active temp database", async () => {
+      await createTestDb();
+      const url = Deno.env.get("DB_URL");
+      const path = url!.slice("file:".length);
+      const sidecars = [`${path}-journal`, `${path}-shm`, `${path}-wal`];
+      for (const sidecar of sidecars) {
+        Deno.writeTextFileSync(sidecar, "left");
+      }
+
+      resetDb();
+
+      for (const sidecar of sidecars) {
+        await expect(Deno.stat(sidecar)).rejects.toThrow(Deno.errors.NotFound);
+      }
     });
   });
 
