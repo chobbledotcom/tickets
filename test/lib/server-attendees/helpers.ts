@@ -45,9 +45,7 @@ export const getMergeVersion = async (
     )}`,
   );
   const html = await page.text();
-  const value = extractInputValue(html, "merge_version");
-  if (value === null) throw new Error("merge_version not found in page");
-  return value;
+  return extractInputValue(html, "merge_version")!;
 };
 
 /** A listing (100 spots by default) plus one attendee booked onto it ("John
@@ -313,7 +311,7 @@ export const refreshPaymentAsStripe = async (
         response = (
           await adminFormPost(`/admin/attendees/${attendeeId}/refresh-payment`)
         ).response;
-        refundCheckArgs = mockRefunded.calls[0]?.args ?? [];
+        refundCheckArgs = mockRefunded.calls[0]!.args;
       } finally {
         mockRefunded.restore();
       }

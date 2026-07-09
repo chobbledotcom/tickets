@@ -382,6 +382,12 @@ describeWithEnv(
         const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
         await expectHtmlResponse(response, 200, 'name="qty_');
       });
+
+      test("firstAttendee throws on a failed booking result", () => {
+        expect(() =>
+          firstAttendee({ reason: "encryption_error", success: false }),
+        ).toThrow("Failed to create attendee");
+      });
     });
   },
 );
