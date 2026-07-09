@@ -14,9 +14,26 @@ import {
   parentField,
   postCalculate,
 } from "#test-utils";
+import { expectCapturedItemPriced } from "../server-reservation/helpers.ts";
 import { firstBookableDate, stubCheckoutIntent } from "./helpers.ts";
 
 // jscpd:ignore-end
+
+/** A customisable daily parent offering 1 or 3 days, with a fixed 3-day daily
+ *  child — the shared setup behind the two "fixed-span child must match the
+ *  chosen duration" tests (the 1-day mismatch is rejected, the 3-day match
+ *  folds). */
+const makeFixedDailyChildParent = () =>
+  makeParent({
+    children: [{ daily: true, durationDays: 3 }],
+    parent: {
+      customisableDays: true,
+      daily: true,
+      dayPrices: { 1: 1000, 3: 3000 },
+      durationDays: 3,
+      name: "Daily base",
+    },
+  });
 
 describeWithEnv(
   "server > parents gate > customisable duration fold",
@@ -94,10 +111,7 @@ describeWithEnv(
         // intent (the webhook reprices the child for the inherited 3-day span).
         expect(getCaptured()?.dayCount).toBe(3);
         // The child is priced for the inherited 3 days (£30), never its 1-day £10.
-        const childItem = getCaptured()?.items.find(
-          (i) => i.listingId === child.id,
-        );
-        expect(childItem?.unitPrice).toBe(3000);
+        expectCapturedItemPriced(getCaptured(), child, 3000);
       } finally {
         checkout.restore();
       }
@@ -193,21 +207,11 @@ describeWithEnv(
       expect((await getAttendeesRaw(child.id)).length).toBe(1);
     });
 
-    test("a fixed daily child whose duration differs from the chosen span is rejected; the matching span folds", async () => {
+    test("a fixed daily child whose span differs from the chosen duration is rejected", async () => {
       // A customisable daily parent offering 1 or 3 days, with a fixed 3-day
       // daily child. A 1-day booking can't fold the 3-day child (its span would
-      // not match the parent's), so the parent is sold out; a 3-day booking
-      // folds the child fine.
-      const { parent, child } = await makeParent({
-        children: [{ daily: true, durationDays: 3 }],
-        parent: {
-          customisableDays: true,
-          daily: true,
-          dayPrices: { 1: 1000, 3: 3000 },
-          durationDays: 3,
-          name: "Daily base",
-        },
-      });
+      // not match the parent's), so the parent is sold out.
+      const { parent } = await makeFixedDailyChildParent();
 
       const date = await firstBookableDate(parent.id);
 
@@ -221,6 +225,14 @@ describeWithEnv(
         parent.id,
         "Daily base has no available options right now.",
       );
+    });
+
+    test("a fixed daily child whose span matches the chosen duration folds", async () => {
+      // The same parent + fixed 3-day child, booked for a 3-day span: the
+      // child's span matches the parent's chosen duration, so it folds fine.
+      const { parent, child } = await makeFixedDailyChildParent();
+
+      const date = await firstBookableDate(parent.id);
 
       const ok = await bookParent(parent.slug, {
         date,

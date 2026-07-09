@@ -12,13 +12,17 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { DAY_NAMES } from "#shared/dates.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
 import type { Listing } from "#shared/types.ts";
 import {
   bookAttendee,
   bookableStartDates,
   bookingPageHtml,
+  createDailyTestListing,
   makeParent,
 } from "#test-utils";
+import { weekdayOf } from "../booking-model-fixtures.ts";
 
 /** The first date a listing can be booked for — the common single-date need.
  *  Delegates to the shared {@link bookableStartDates} (from `#test-utils`) and
@@ -46,14 +50,58 @@ export const makeDailyChildFilledOnDayA = async (): Promise<{
   return { child, dayA, parent };
 };
 
+/** A daily child bookable on every weekday EXCEPT the parent's first bookable
+ *  date's weekday, wired as the parent's only child. Returns the parent date so
+ *  the caller can post it. Shared by the two "excluded date" rejection tests. */
+export const childExcludingParentDay = async (
+  parent: Listing,
+): Promise<{ child: Listing; parentDate: string }> => {
+  const parentDate = await firstBookableDate(parent.id);
+  const parentDay = weekdayOf(parentDate);
+  const child = await createDailyTestListing({
+    bookableDays: DAY_NAMES.filter((d) => d !== parentDay),
+    name: "Daily add-on",
+  });
+  await listingChildren.setIds(parent.id, [child.id]);
+  return { child, parentDate };
+};
+
+/** A daily parent + daily child sharing a 2-spot "Pool" group, plus a daily
+ *  filler that fills BOTH of the group's spots on day A — the shared setup
+ *  behind the two "group full on one date" tests (one books the free day B,
+ *  the other the full day A). */
+export const makeDailyGroupWithFiller = async (): Promise<{
+  child: Listing;
+  dayA: string;
+  dayB: string;
+  parent: Listing;
+}> => {
+  const { group, parent, child } = await makeParent({
+    children: [{ daily: true }],
+    group: { maxAttendees: 2, name: "Pool" },
+    parent: { daily: true },
+  });
+  const filler = await createDailyTestListing({
+    groupId: group!.id,
+    name: "Daily filler",
+    thankYouUrl: "",
+  });
+  const dates = await bookableStartDates(parent.id);
+  const [dayA, dayB] = [dates[0]!, dates[1]!];
+  const booked = await bookAttendee(filler, { date: dayA, quantity: 2 });
+  expect(booked.success).toBe(true);
+  return { child, dayA, dayB, parent };
+};
+
 /**
  * Stub the Stripe checkout provider and capture the intent handed to it,
- * after first configuring Stripe for the test isolate — the shared
- * "inspect what checkout would have charged" fixture for the parents-gate
- * suite. Returns the same shape as the shared {@link stubCheckout}
- * (`{ checkout, getCaptured }`) so the one mechanism keeps one vocabulary;
- * callers use `getCaptured()` / `checkout.restore()` directly. The
- * `setupStripe()` call is the only thing this wrapper adds on top.
+ *  after first configuring Stripe for the test isolate — the shared
+ *  "inspect what checkout would have charged" fixture for the parents-gate
+ *  suite. Returns the same shape as the shared {@link stubCheckout}
+ *  (`{ checkout, getCaptured, calls }`) so the one mechanism keeps one
+ *  vocabulary; callers use `getCaptured()` / `calls()` /
+ *  `checkout.restore()` directly. The `setupStripe()` call is the only thing
+ *  this wrapper adds on top.
  */
 export const stubCheckoutIntent = async (sessionId: string) => {
   const { setupStripe } = await import("#test-utils");
