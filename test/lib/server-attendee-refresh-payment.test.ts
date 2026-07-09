@@ -153,7 +153,7 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
 
     test("returns 404 with an empty body for a non-existent attendee", async () => {
       const { response } = await adminFormPost(
-        `/admin/attendees/9999999/refresh-payment`,
+        "/admin/attendees/9999999/refresh-payment",
       );
       expect(response.status).toBe(404);
       expect(await response.text()).toBe("");

@@ -123,7 +123,36 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         ),
         decision(),
       );
-      expectInvalidContaining(result, "Listing #5");
+      // Exact-match the label string. A no-date booking renders as
+      // `Listing #<id>` with no suffix — the empty-string fallback of the
+      // `item.startAt ? \`…\` : ""` ternary. Mutating that literal to any
+      // non-empty value would append it (e.g. `Listing #5mutated`) and slip
+      // past an `.includes("Listing #5")` check, so the array-membership
+      // assertion is what kills the literal mutation.
+      expectInvalidContaining(result, "Missing decision for booking");
+      if (!result.valid) {
+        expect(result.errors).toContain(
+          "Missing decision for booking: Listing #5",
+        );
+      }
+    });
+
+    test("rejects a missing booking decision with exactly one error even when the booking carries money", () => {
+      // A missing booking choice pushes `Missing decision for booking` and
+      // `continue`s to the next entry — one error. Removing that `continue`
+      // lets execution fall through to the money-decision check; a paid
+      // booking with no money choice then pushes a SECOND
+      // `Missing money decision` error, so the error count is what kills it.
+      const result = validateAttendeeMergeDecision(
+        moneyConflictDiff(5000, 5000),
+        decision(),
+      );
+      if (!result.valid) {
+        expect(result.errors.length).toBe(1);
+        expect(result.errors.some((e) => e.includes("Missing decision"))).toBe(
+          true,
+        );
+      }
     });
 
     test("rejects missing booking decision for daily listing conflict", () => {
@@ -268,6 +297,79 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         moneyDecision({}, "take_source"),
       );
       expectInvalidContaining(result, "money decision");
+    });
+
+    test("rejects a discarded booking whose sale is exactly one minor unit", () => {
+      // The money-decision guard is `discardedSaleAmount > 0`. Mutating the
+      // literal `0 → 1` makes it `> 1`, which would let a £0.01 discarded
+      // booking pass without a money choice. Asserting a single-minor-unit
+      // source sale still requires a money decision kills that mutant.
+      const result = validateAttendeeMergeDecision(
+        moneyConflictDiff(1, 0),
+        moneyDecision({}),
+      );
+      expectInvalidContaining(result, "money decision");
+    });
+
+    // --- Stranded-payment guards (a no-quantity line must have price_paid 0) --- //
+
+    test("allows replacing a paid target with a positive-quantity source line", () => {
+      // A `take_source` decision that copies a QUANTITY > 0 source booking
+      // never strands a payment: the line carries its own cash. The second
+      // guard (`item.sourceBooking.quantity !== 0`) returns false here, so
+      // mutating `false` to `true` would wrongly flag the merge as a strand
+      // risk and reject it.
+      const result = validateAttendeeMergeDecision(
+        oneBookingDiff(
+          bookingItem({
+            conflictClass: "conflicting_metadata",
+            sourceBooking: row({ price_paid: 0, quantity: 1 }),
+            sourceSaleAmount: 0,
+            targetBooking: row({ price_paid: 0, quantity: 2 }),
+            targetSaleAmount: 0,
+          }),
+        ),
+        decision({ bookings: { "5:null:0:0": "take_source" } }),
+      );
+      expect(result.valid).toBe(true);
+    });
+
+    test("rejects copying a no-quantity source line whose price is one minor unit", () => {
+      // Boundary: a £0.01 paid source being moved as a quantity-0 line
+      // strands a recorded payment. The guard is `source.price_paid > 0`;
+      // mutating `0 → 1` makes it `> 1`, letting the £0.01 case slip past.
+      const result = validateAttendeeMergeDecision(
+        oneBookingDiff(
+          bookingItem({
+            conflictClass: "moveable",
+            sourceBooking: row({ price_paid: 1, quantity: 0 }),
+            sourceSaleAmount: 1,
+            targetBooking: null,
+          }),
+        ),
+        decision(),
+      );
+      expectInvalidContaining(result, "strand a recorded payment");
+    });
+
+    test("rejects replacing a single-pence paid target with a no-quantity source", () => {
+      // Boundary on the target side: `target.price_paid > 0` mutated to
+      // `> 1` would let a £0.01 target payment strand behind the ghost.
+      // Source side set to £0 so the only way validation rejects is the
+      // target check — the mutation would pass, so the assertion kills it.
+      const result = validateAttendeeMergeDecision(
+        oneBookingDiff(
+          bookingItem({
+            conflictClass: "conflicting_metadata",
+            sourceBooking: row({ price_paid: 0, quantity: 0 }),
+            sourceSaleAmount: 0,
+            targetBooking: row({ price_paid: 1, quantity: 2 }),
+            targetSaleAmount: 1,
+          }),
+        ),
+        decision({ bookings: { "5:null:0:0": "take_source" } }),
+      );
+      expectInvalidContaining(result, "strand a recorded payment");
     });
   });
 });

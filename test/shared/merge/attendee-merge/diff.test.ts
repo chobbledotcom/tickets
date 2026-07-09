@@ -1,6 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  attendeeAccount,
+  revenueAccount,
+} from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
+import { postTransfers } from "#shared/accounting/store.ts";
+import { getDb } from "#shared/db/client.ts";
+import {
   answersTable,
   questionsTable,
   setListingQuestions,
@@ -174,13 +181,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       await saveChoice(target.id, answers[0]!.id);
       // Save the second choice alongside the first — `saveChoice` replaces the
       // attendee's full answer set, so re-save them together.
-      const { saveAttendeeAnswers } = await import(
-        "#shared/db/questions.ts"
-      );
+      const { saveAttendeeAnswers } = await import("#shared/db/questions.ts");
       await saveAttendeeAnswers(
-        new Map([
-          [target.id, [answers[0]!.id, second.answers[0]!.id]],
-        ]),
+        new Map([[target.id, [answers[0]!.id, second.answers[0]!.id]]]),
       );
 
       const diff = await buildMergeDiff({
@@ -212,6 +215,99 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       expect(taFragment).toContain(",");
       expect(taFragment.split(",").length).toBe(2);
       expect(diff.version.split("|").length).toBe(6);
+    });
+
+    test("bookingSaleAmount counts only `sale` legs of one event group", async () => {
+      // Source and target both sit on the same listing (a duplicate
+      // conflict), so its diff's `sourceSaleAmount` is loaded via the
+      // private `bookingSaleAmount` helper. The event group gets TWO legs:
+      //   - a real sale leg: `attendee:source → revenue:listing` (kind=sale)
+      //   - a phantom non-sale leg: `attendee:source → revenue:listing`
+      //     (kind=payment) — same source/dest, wrong kind.
+      // The filter rejects the phantom (its kind != KIND.sale), so the sale
+      // amount must equal exactly the sale leg's amount (5000) — not 6234
+      // (which it would be if any `&&` in the filter mutated to `||`) and
+      // not 5001 (which it would be if the reduce's initial `0` mutated to
+      // `1`). A single phantom covers all four `&& → ||` mutants because its
+      // source/dest both match the filter — every mutant that turns one
+      // `&&` into `||` lets it through.
+      const { listing, source, target } = await createMergePair({
+        sameListing: true,
+      });
+      const eventGroup = "evt-phantom-leg";
+      const attendee = attendeeAccount(source.id);
+      const revenue = revenueAccount(listing.id);
+      await postTransfers([
+        {
+          amount: 5000,
+          destination: revenue,
+          eventGroup,
+          kind: KIND.sale,
+          occurredAt: "2026-06-21T00:00:00.000Z",
+          reference: "phantom-sale",
+          source: attendee,
+        },
+        {
+          amount: 1234,
+          destination: revenue,
+          eventGroup,
+          kind: KIND.payment,
+          occurredAt: "2026-06-21T00:00:00.000Z",
+          reference: "phantom-non-sale",
+          source: attendee,
+        },
+      ]);
+      await getDb().execute({
+        args: [eventGroup, source.id, listing.id],
+        sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ? AND listing_id = ?",
+      });
+
+      const diff = await buildMergeDiff({ source, target });
+
+      // classifyBooking compares tb.price_paid vs sb.price_paid (both
+      // ledger-fed), so posting the source's sale leg shifts source's
+      // projected price_paid to 5000 while the target's stays 0 — that makes
+      // the conflict class `conflicting_metadata`. Either conflict class
+      // routes the booking through `bookingSaleAmount` (the moveable branch
+      // skips it), so the kill is independent of which one fires.
+      expect(diff.bookingItems[0]!.conflictClass).toBe("conflicting_metadata");
+      expect(diff.bookingItems[0]!.sourceSaleAmount).toBe(5000);
+    });
+
+    test("a moveable booking's sale amounts stay 0 even when the source has a posted sale", async () => {
+      // A moveable booking (target has no twin at the source's key) carries
+      // its own money — its sale amount is hardcoded to 0 (line 350) and the
+      // target's to 0 (line 358) since `tb` is null. To verify the moveable
+      // short-circuit actually fires (and isn't accidentally bypassed —
+      // e.g. by mutating the `moveable` literal to `""`, which would route
+      // the moveable booking through `bookingSaleAmount` instead), post a
+      // real sale leg onto a MOVEABLE source booking's event group: the diff
+      // must STILL report 0 for both amounts.
+      const { listing2, source, target } = await createMergePair();
+      const eventGroup = "evt-moveable-sale";
+      const attendee = attendeeAccount(source.id);
+      const revenue = revenueAccount(listing2.id);
+      await postTransfers([
+        {
+          amount: 5000,
+          destination: revenue,
+          eventGroup,
+          kind: KIND.sale,
+          occurredAt: "2026-06-21T00:00:00.000Z",
+          reference: "moveable-sale",
+          source: attendee,
+        },
+      ]);
+      await getDb().execute({
+        args: [eventGroup, source.id, listing2.id],
+        sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ? AND listing_id = ?",
+      });
+
+      const diff = await buildMergeDiff({ source, target });
+
+      expect(diff.bookingItems[0]!.conflictClass).toBe("moveable");
+      expect(diff.bookingItems[0]!.sourceSaleAmount).toBe(0);
+      expect(diff.bookingItems[0]!.targetSaleAmount).toBe(0);
     });
   });
 

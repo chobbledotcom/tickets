@@ -744,3 +744,38 @@ src/shared/merge/attendee-merge.ts:254:39  ?? → ||   # ta?.answerText same as 
 # `targetByKey.get(bookingKey(...)) ?? null`. Map.get returns undefined or a
 # ListingAttendeeRow object (always truthy); ?? and || agree on both.
 src/shared/merge/attendee-merge.ts:344:10  ?? → ||   # Map<string, ListingAttendeeRow>.get: undefined or a truthy object
+
+# Attendee merge service (attendee-merge.ts) — strandsPayment's two early
+# returns feed exactly one consumer, `strandedPaymentErrors`'s
+# `diff.bookingItems.filter(strandsPayment)`: Array.prototype.filter coerces
+# its predicate result with ToBoolean, so `false` and `undefined` both fall
+# out of the filtered set the same way. `strandsPayment` is module-private,
+# so no other caller can ever read the literal return value.
+src/shared/merge/attendee-merge.ts:462:52  return false → return undefined   # filter()'s predicate only checks truthiness; false and undefined agree
+src/shared/merge/attendee-merge.ts:463:49  return false → return undefined   # filter()'s predicate only checks truthiness; false and undefined agree
+
+# Attendee merge service (attendee-merge.ts) — `applyPiiDecisions` writes the
+# merged PII into `mergedPii` and returns it; `applyAttendeeMerge` is the sole
+# caller and it destructures ONLY `piiFieldsFromSource` from the return,
+# discarding `mergedPii`. The `mergedPii[field] = sourceValue` line is the
+# only site that touches the mergedPii object after the spread copy, so any
+# assignment-operator mutation (`= → +=`, `= → -=`, …) on `mergedPii[field]`
+# is unobservable: the field is computed but never read. (PII itself is
+# re-blobbed by the feature layer from `decision.pii` and `targetPii` raw —
+# not from `mergedPii` — so nothing downstream reads it either.)
+src/shared/merge/attendee-merge.ts:502:57  = → +=   # mergedPii is computed then discarded by applyAttendeeMerge; only piiFieldsFromSource is observed
+
+# Attendee merge service (attendee-merge.ts) — `moneyReversalLegs`'s keyParts
+# prefix strings ("merge-unbill", "merge-credit") are the FIRST element of an
+# array that feeds only `writeoffAdjustmentLeg`'s
+# `[...keyParts, delta, occurredAt]` tuple, which is HMAC'd by `eventGroup`
+# and `legReference` (refs.ts). The resulting `event_group`/`reference`
+# columns of the persisted `transfers` rows are HMAC digests — non-reversible
+# and not substring-matchable — so mutating either prefix changes only those
+# digests, never the leg's amount/source/destination/kind. The merge runs once
+# per request (writes adjustment legs once with `INSERT OR IGNORE`), so a
+# hash change can't surface via an idempotent-replay either; and no test or
+# production code queries the merged attendee's reversal legs by their
+# `event_group` value.
+src/shared/merge/attendee-merge.ts:715:18  merge-unbill → ""   # keyParts prefix feeds only the non-reversible event_group/reference hashes; never observed
+src/shared/merge/attendee-merge.ts:722:20  merge-credit → ""   # same as :715 — keyParts prefix feeds only the non-reversible hashes; never observed

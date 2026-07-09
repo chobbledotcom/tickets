@@ -221,9 +221,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
   });
 
   test("legacyMergePaymentReferenceStatement returns null for empty source payment id", async () => {
-    expect(
-      await legacyMergePaymentReferenceStatement(1, 2, ""),
-    ).toBe(null);
+    expect(await legacyMergePaymentReferenceStatement(1, 2, "")).toBe(null);
   });
 
   test("getAttendeeIdsWithPaymentReference skips attendees with empty payment_id and no processed-payment row", async () => {
@@ -259,19 +257,9 @@ describeWithEnv("db > payment references", { db: true }, () => {
     if (!created.success) throw new Error("setup failed");
     const attendeeId = created.attendees[0]!.id;
     await reserveSession("sess_shared_a");
-    await finalizePaymentSession(
-      "sess_shared_a",
-      attendeeId,
-      [],
-      "pi_shared",
-    );
+    await finalizePaymentSession("sess_shared_a", attendeeId, [], "pi_shared");
     await reserveSession("sess_shared_b");
-    await finalizePaymentSession(
-      "sess_shared_b",
-      attendeeId,
-      [],
-      "pi_shared",
-    );
+    await finalizePaymentSession("sess_shared_b", attendeeId, [], "pi_shared");
 
     const references = await getRefundPaymentReferences(
       [{ id: attendeeId, payment_id: "" }],

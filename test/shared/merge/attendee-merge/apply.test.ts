@@ -31,6 +31,10 @@ import {
 } from "./helpers.ts";
 
 type MergePair = Awaited<ReturnType<typeof createMergePair>>;
+/** A created question with its answer rows, as `createQuestionWithAnswers`
+ *  returns — lets the helper signatures below name those fields without
+ *  restating the helper's return shape. */
+type QuestionSetup = Awaited<ReturnType<typeof createQuestionWithAnswers>>;
 
 /** Merge `source` into `target` and assert the target ends up with `expected`
  *  as its free-text answer for `questionId`. */
@@ -47,6 +51,90 @@ const expectMergedTextAnswer = async (
     await getTestPrivateKey(),
   );
   expect(textAnswers.get(questionId)).toBe(expected);
+};
+
+/** A summary on which the merge kept exactly one answer from the target (no
+ *  take-source, no clear). The kept/taken/cleared counters shift under
+ *  mutation of `applyAnswerDecision`'s kept-target arm (`return { cleared: 0,
+ *  kept: 1, taken: 0 }` at line 538 or 546), `let answersKept = 0`, and the
+ *  `answersKept += delta.kept` accumulator; the final-answers check pins the
+ *  kept arm's value too. */
+const expectKeptTargetAnswer = async (
+  result: {
+    success: boolean;
+    summary: {
+      answersKept: number;
+      answersCleared: number;
+      answersTakenFromSource: number;
+    };
+  },
+  targetId: number,
+  questionId: number,
+  expectedAnswerId: number,
+) => {
+  expect(result.success).toBe(true);
+  expect(result.summary.answersKept).toBe(1);
+  expect(result.summary.answersCleared).toBe(0);
+  expect(result.summary.answersTakenFromSource).toBe(0);
+  const finalAnswers = await getAttendeeAnswersByQuestion(targetId);
+  expect(finalAnswers.get(questionId)?.answerId).toBe(expectedAnswerId);
+};
+
+/** Save a target-Red / source-Blue conflict for the question: target picks
+ *  answers[0], source picks answers[1]. Multiple apply tests set up the same
+ *  2-sided conflict and then resolve it differently — the shared saveChoice
+ *  pair lives here so the line-by-line duplication is hoisted out. */
+const saveConflictAnswerChoice = async (
+  target: MergePair["target"],
+  source: MergePair["source"],
+  answers: QuestionSetup["answers"],
+) => {
+  await saveChoice(target.id, answers[0]!.id);
+  await saveChoice(source.id, answers[1]!.id);
+};
+
+/** Run the standard moveable source→target merge (`pii("Bob"…),
+ *  pii("Alice"…)`) and return the booking row the source landed on the
+ *  target — what `bookingInsertStatement` wrote. Shared by the no-quantity
+ *  ghost test (cleared flag) and the real-quantity keep test (preserved
+ *  flag), which assert against the returned row. */
+const runMergeAndGetMovedBooking = async (
+  source: MergePair["source"],
+  target: MergePair["target"],
+  sourceListingId: number,
+) => {
+  const { result } = await runMerge({
+    source,
+    sourcePii: pii("Bob", "b@test.com"),
+    target,
+    targetPii: pii("Alice", "a@test.com"),
+  });
+  expect(result.success).toBe(true);
+  return (await getBookings(target.id)).find(
+    (booking) => booking.listing_id === sourceListingId,
+  )!;
+};
+
+/** Run a no-decisions merge (only the answer diff applies) and assert the
+ *  target's single existing answer survived the merge unchanged. */
+const mergeKeepingTargetAnswer = async (
+  source: MergePair["source"],
+  target: MergePair["target"],
+  question: QuestionSetup["question"],
+  answers: QuestionSetup["answers"],
+  expectedAnswerId: number,
+) => {
+  const { result } = await runMerge({
+    questions: oneQuestion(question, answers),
+    source,
+    target,
+  });
+  await expectKeptTargetAnswer(
+    result,
+    target.id,
+    question.id,
+    expectedAnswerId,
+  );
 };
 
 describeWithEnv("attendee merge service", { db: true }, () => {
@@ -68,17 +156,11 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         sql: "UPDATE listing_attendees SET quantity = 0, checked_in = 1 WHERE attendee_id = ?",
       });
 
-      const { result } = await runMerge({
+      const moved = await runMergeAndGetMovedBooking(
         source,
-        sourcePii: pii("Bob", "b@test.com"),
         target,
-        targetPii: pii("Alice", "a@test.com"),
-      });
-      expect(result.success).toBe(true);
-
-      const moved = (await getBookings(target.id)).find(
-        (b) => b.listing_id === listing2.id,
-      )!;
+        listing2.id,
+      );
       expect(moved.quantity).toBe(0);
       // The ghost line arrives with its check-in cleared.
       expect(moved.checked_in).toBe(0);
@@ -249,7 +331,12 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       const sourcePii = pii("Bob", "b@test.com");
       const targetPii = pii("Alice", "a@test.com");
-      const diff = await buildMergeDiff({ source, sourcePii, target, targetPii });
+      const diff = await buildMergeDiff({
+        source,
+        sourcePii,
+        target,
+        targetPii,
+      });
       const key = bookingKey(listing.id, null, 0, 0);
       const decision = {
         answers: {},
@@ -280,11 +367,26 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const { transfersByAccount } = await import(
         "#shared/accounting/queries.ts"
       );
-      const { attendeeAccount } = await import("#shared/accounting/accounts.ts");
+      const { attendeeAccount, revenueAccount } = await import(
+        "#shared/accounting/accounts.ts"
+      );
       const legs = await transfersByAccount(attendeeAccount(target.id));
       // The credit leg is positive (cash handed back to the attendee).
-      expect(legs.some((leg) => leg.kind === "adjustment" && leg.amount > 0))
-        .toBe(true);
+      expect(
+        legs.some((leg) => leg.kind === "adjustment" && leg.amount > 0),
+      ).toBe(true);
+      // The un-bill reversal leg must land on the listing's revenue account
+      // as source: `revenue → writeoff` (the original sale direction was
+      // attendee → revenue, so un-billing it sources from revenue back out).
+      // Removing the `legs.push` for the un-bill (line 712) leaves this leg
+      // absent; mutating `-amount` to `+amount` (line 714) flips source and
+      // destination (the writeoff→revenue credit doubles instead of un-bills).
+      const revenueLegs = await transfersByAccount(revenueAccount(listing.id));
+      const unbill = revenueLegs.find((leg) => leg.kind === "adjustment");
+      expect(unbill).toBeDefined();
+      expect(unbill!.source.type).toBe("revenue");
+      expect(unbill!.destination.type).toBe("writeoff");
+      expect(unbill!.amount).toBe(5000);
     });
 
     test("preserves the target's free-text answers through a merge", async () => {
@@ -319,8 +421,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         ["S", "L"],
       );
 
-      await saveChoice(target.id, answers[0]!.id);
-      await saveChoice(source.id, answers[1]!.id);
+      await saveConflictAnswerChoice(target, source, answers);
 
       const { result } = await runMerge({
         decide: () => ({
@@ -335,6 +436,11 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       });
 
       expect(result.summary.answersCleared).toBe(1);
+      // The `clear` branch returns `{cleared:1, kept:0, taken:0}` — bumping
+      // either 0 to 1 would slip past assertions on `answersCleared` alone,
+      // so the `kept` and `taken` counts at 0 are what kill those mutants.
+      expect(result.summary.answersKept).toBe(0);
+      expect(result.summary.answersTakenFromSource).toBe(0);
       const finalAnswers = await getAttendeeAnswersByQuestion(target.id);
       expect(finalAnswers.has(question.id)).toBe(false);
     });
@@ -357,6 +463,11 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       });
 
       expect(result.summary.answersTakenFromSource).toBe(1);
+      // takeSourceAnswer returns `{cleared:0, kept:0, taken:1}` — mutating
+      // its `cleared: 0` to `1` or `kept: 0` to `1` would bump these
+      // counters, so asserting them at 0 is what kills those mutants.
+      expect(result.summary.answersCleared).toBe(0);
+      expect(result.summary.answersKept).toBe(0);
       const finalAnswers = await getAttendeeAnswersByQuestion(target.id);
       expect(finalAnswers.get(question.id)?.answerId).toBe(answers[1]!.id);
     });
@@ -376,6 +487,13 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       expect(diff.bookingItems[0]!.conflictClass).toBe("duplicate");
       expect(result.summary.bookingsSkipped).toBe(1);
       expect(result.summary.bookingsMoved).toBe(0);
+      // The source booking carries no posted sale ledger, so moneyReversalLegs
+      // records nothing for it: both counters stay at 0. A mutation that
+      // bypasses the `if (!eventGroup) return 0` early-return (line 273) or
+      // removes the `if (amount <= 0) continue` guard (line 709) would post a
+      // bogus reversal leg here and bump one of the counters — catching it.
+      expect(result.summary.bookingsWrittenOff).toBe(0);
+      expect(result.summary.bookingsCredited).toBe(0);
 
       // Target still has exactly 1 booking
       const links = await queryAll<{ listing_id: number }>(
@@ -450,6 +568,164 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       expect(result.summary.bookingsMoved).toBe(1);
       expect(result.summary.bookingsSkipped).toBe(0);
       expect(result.summary.bookingsReplacedTarget).toBe(0);
+      // This test has no questions, so diff.answerItems is empty and the
+      // accumulator `let answersKept = 0` is never incremented — its final
+      // summary value must be 0. Mutating that init `0 → 1` shifts the
+      // summary counter; the assertion fails (and similarly taken/cleared).
+      expect(result.summary.answersKept).toBe(0);
+      expect(result.summary.answersTakenFromSource).toBe(0);
+      expect(result.summary.answersCleared).toBe(0);
+    });
+
+    test("writes off a discarded booking whose sale is exactly one minor unit", async () => {
+      // The reversal guard is `if (amount <= 0) continue`; mutating `0 → 1`
+      // makes it `amount <= 1`, which would silently skip a £0.01 (one
+      // minor-unit) discarded booking — posting no reversal leg and keeping
+      // the writtenOff counter at 0. A boundary-value £0.01 conflict is
+      // what distinguishes `<= 0` from `<= 1`.
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const target = await createAttendee(listing.id, "Alice", "a@test.com");
+      const source = await createAttendee(listing.id, "Bob", "b@test.com");
+      await postPaidSale({
+        amount: 1,
+        attendeeId: source.id,
+        eventGroup: "evt-1p",
+        listingId: listing.id,
+      });
+      await getDb().execute({
+        args: ["evt-1p", source.id, listing.id],
+        sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ? AND listing_id = ?",
+      });
+
+      const key = bookingKey(listing.id, null, 0, 0);
+      const { result } = await runMerge({
+        decide: () => ({
+          answers: {},
+          bookings: { [key]: "keep_target" },
+          money: { [key]: "writeoff" },
+          pii: {},
+        }),
+        source,
+        sourcePii: pii("Bob", "b@test.com"),
+        target,
+        targetPii: pii("Alice", "a@test.com"),
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.summary.bookingsWrittenOff).toBe(1);
+      expect(result.summary.bookingsCredited).toBe(0);
+    });
+
+    test("preserves check-in when copying a positive-quantity source line", async () => {
+      // bookingInsertStatement gates the copy's `checked_in` on
+      // `booking.quantity > 0` (keep) vs `: 0` (clear, for ghost quantity-0
+      // lines). Mutating `> 0` to `> 1` clears the flag on a quantity=1
+      // moved line — so setting source's checked_in=1 and asserting the
+      // moved booking keeps it is what kills the mutant.
+      const { listing2, source, target } = await createMergePair();
+      await getDb().execute({
+        args: [source.id],
+        sql: "UPDATE listing_attendees SET checked_in = 1 WHERE attendee_id = ?",
+      });
+
+      const moved = await runMergeAndGetMovedBooking(
+        source,
+        target,
+        listing2.id,
+      );
+      expect(moved.quantity).toBe(1);
+      // A real-quantity line keeps its check-in flag through the move.
+      expect(moved.checked_in).toBe(1);
+    });
+
+    test("keeps the target's answer when the conflict decision is target", async () => {
+      // Conflict question: target Red, source Blue. The default "target"
+      // branch (line 538) returns `{cleared:0, kept:1, taken:0}`. Hitting
+      // this branch kills every literal on that return value, AND
+      // `let answersKept = 0 → 1` (init shifts the summary up by 1), AND
+      // `answersKept += delta.kept → /= delta.kept` (mutated value 0/1=0
+      // vs original 0+1=1). All observable through asserting the summary
+      // kept-count ends at exactly 1.
+      const { listing, target, source } = await createMergePair({
+        sameListing: true,
+      });
+      const { question, answers } = await createQuestionWithAnswers(
+        listing.id,
+        "Colour?",
+        ["Red", "Blue"],
+      );
+      await saveConflictAnswerChoice(target, source, answers);
+
+      const { result } = await runMerge({
+        decide: () => ({
+          answers: { [String(question.id)]: "target" },
+          bookings: {},
+          money: {},
+          pii: {},
+        }),
+        questions: oneQuestion(question, answers),
+        source,
+        target,
+      });
+
+      await expectKeptTargetAnswer(
+        result,
+        target.id,
+        question.id,
+        answers[0]!.id,
+      );
+    });
+
+    test("keeps the target's answer when the source has none", async () => {
+      // Non-conflict question where ONLY the target has answered. Original
+      // logic skips the `sourceAnswerId !== null && targetAnswerId === null`
+      // branch (source has no answer) and falls to line 546, returning
+      // `{cleared:0, kept:1, taken:0}`. The kept-target arm at line 546 is
+      // the second return mutated in this family — every literal on it
+      // shifts a summary counter observable through the asserts.
+      const { listing, target, source } = await createMergePair();
+      const { question, answers } = await createQuestionWithAnswers(
+        listing.id,
+        "Snack?",
+        ["Crisps", "Fruit"],
+      );
+      // Only the target answers — source's answerId stays null.
+      await saveChoice(target.id, answers[0]!.id);
+      await mergeKeepingTargetAnswer(
+        source,
+        target,
+        question,
+        answers,
+        answers[0]!.id,
+      );
+    });
+
+    test("keeps an agreed-upon answer the same on both sides", async () => {
+      // Both target and source picked the SAME answer — so the diff item
+      // has `conflict: false` BUT both `sourceAnswerId` and
+      // `targetAnswerId` non-null. Line 540's guard
+      // `sourceAnswerId !== null && targetAnswerId === null` is false (the
+      // target side isn't null), so the original falls to line 546, returning
+      // kept=1. Mutating `&& → ||` lets the guard fire here — calling
+      // `takeSourceAnswer` instead and shifting kept:1 to taken:1. Asserting
+      // the kept counter ends at exactly 1 (and taken at 0) is what kills it.
+      const { listing, target, source } = await createMergePair({
+        sameListing: true,
+      });
+      const { question, answers } = await createQuestionWithAnswers(
+        listing.id,
+        "Tea?",
+        ["Yes", "No"],
+      );
+      await saveChoice(target.id, answers[0]!.id);
+      await saveChoice(source.id, answers[0]!.id); // Same answer — no conflict
+      await mergeKeepingTargetAnswer(
+        source,
+        target,
+        question,
+        answers,
+        answers[0]!.id,
+      );
     });
   });
 });
