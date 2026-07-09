@@ -14,7 +14,7 @@ describeWithEnv("server previous bookings", { db: true }, () => {
 
   test("the contact summary reports the capped number shown", async () => {
     const listing = await createTestListing({
-      maxAttendees: 30,
+      maxAttendees: 200,
       name: "Many Previous",
     });
     const { attendee: viewer } = await createTestAttendeeDirect(
@@ -23,7 +23,7 @@ describeWithEnv("server previous bookings", { db: true }, () => {
       "many-previous@example.com",
     );
     const previous = [];
-    for (let index = 0; index < 22; index += 1) {
+    for (let index = 0; index < 102; index += 1) {
       previous.push(
         await createTestAttendeeDirect(
           listing.id,
@@ -34,10 +34,12 @@ describeWithEnv("server previous bookings", { db: true }, () => {
     }
 
     const html = await (await adminGet(`/admin/attendees/${viewer.id}`)).text();
-    expect(html).toContain("Previous bookings shown:</strong> 20");
+    expect(html).toContain("Previous bookings shown:</strong> 100");
+    // The oldest booking falls outside the cap window and is not linked.
     expect(html).not.toContain(
       `href="/admin/attendees/${previous[0]!.attendee.id}"`,
     );
+    // The newest booking is inside the cap window and is linked.
     expect(html).toContain(
       `href="/admin/attendees/${previous[previous.length - 1]!.attendee.id}"`,
     );

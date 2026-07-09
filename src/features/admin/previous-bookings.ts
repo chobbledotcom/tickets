@@ -15,7 +15,7 @@ import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
 import type { PreviousBooking } from "#templates/admin/attendee-page.tsx";
 
-const PREVIOUS_BOOKINGS_LIMIT = 20;
+const PREVIOUS_BOOKINGS_LIMIT = 100;
 const TOKENS_PER_CHANNEL_LIMIT = PREVIOUS_BOOKINGS_LIMIT * 4;
 
 /** The contact hashes to gather previous bookings from. */
