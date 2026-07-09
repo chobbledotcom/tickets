@@ -103,7 +103,10 @@ describeWithEnv(
         ...childField(parent, child, "1"),
         [`child_price_${parent.id}_${child.id}`]: "30.00",
       });
+      // Tight match: the folded child adds £30 to the quote, but a regression
+      // that doubled it (e.g. £300) must not slip through as a substring hit.
       expect(html).toContain("£30");
+      expect(html).not.toContain("£300");
     });
 
     test("a shared pay-more child with mismatched prices is rejected", async () => {

@@ -145,7 +145,11 @@ export const selectOptionsFromHtml = (
   html: string,
   selectName: string,
 ): string => {
-  const select = html.slice(html.indexOf(`name="${selectName}"`));
+  const start = html.indexOf(`name="${selectName}"`);
+  if (start === -1) {
+    throw new Error(`No <select name="${selectName}"> found in HTML`);
+  }
+  const select = html.slice(start);
   return select.slice(0, select.indexOf("</select>"));
 };
 
