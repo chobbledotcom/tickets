@@ -1,0 +1,242 @@
+import { join } from "node:path";
+import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
+import { pathExists } from "#test-utils/files.ts";
+import {
+  copyMutationSnapshot,
+  createRunId,
+  formatRunList,
+  markFinished,
+  markInterrupted,
+  markRunning,
+  newRunRecord,
+  parseIsolationCommand,
+  readRunRecord,
+  readRunRecords,
+  rewriteMutationArgs,
+  selectedRuns,
+  shouldCopySnapshotPath,
+  statusForExitCode,
+  visibleStatus,
+  workRoot,
+  writeRunRecord,
+} from "../../scripts/mutation/isolation-state.ts";
+
+const withTempDir = async (
+  run: (dir: string) => Promise<void>,
+): Promise<void> => {
+  const dir = await Deno.makeTempDir({ prefix: "mutation-isolation-" });
+  try {
+    await run(dir);
+  } finally {
+    await Deno.remove(dir, { recursive: true }).catch(() => {});
+  }
+};
+
+describe("mutation isolation paths", () => {
+  test("copies source-like files and skips git, reports, secrets, dbs, and generated assets", async () => {
+    await withTempDir(async (dir) => {
+      const source = join(dir, "source");
+      const snapshot = join(dir, "snapshot");
+      await Deno.mkdir(join(source, "src", "ui", "static"), {
+        recursive: true,
+      });
+      await Deno.mkdir(join(source, ".bin"), { recursive: true });
+      await Deno.mkdir(join(source, ".git"), { recursive: true });
+      await Deno.mkdir(join(source, "coverage"), { recursive: true });
+      await Deno.writeTextFile(join(source, "src", "kept.ts"), "export {};\n");
+      await Deno.writeTextFile(join(source, ".bin", "stripe-mock"), "mock");
+      await Deno.writeTextFile(join(source, ".git", "config"), "git");
+      await Deno.writeTextFile(join(source, "coverage", "lcov.info"), "cov");
+      await Deno.writeTextFile(join(source, ".env"), "secret");
+      await Deno.writeTextFile(join(source, "tickets.db"), "db");
+      await Deno.writeTextFile(
+        join(source, "src", "ui", "static", "app.js"),
+        "js",
+      );
+      await Deno.writeTextFile(
+        join(source, "src", "ui", "static", "style.css"),
+        "css",
+      );
+
+      await copyMutationSnapshot(source, snapshot);
+
+      expect(await Deno.readTextFile(join(snapshot, "src", "kept.ts"))).toBe(
+        "export {};\n",
+      );
+      expect(
+        await Deno.readTextFile(join(snapshot, ".bin", "stripe-mock")),
+      ).toBe("mock");
+      expect(await pathExists(join(snapshot, ".git", "config"))).toBe(false);
+      expect(await pathExists(join(snapshot, "coverage", "lcov.info"))).toBe(
+        false,
+      );
+      expect(await pathExists(join(snapshot, ".env"))).toBe(false);
+      expect(await pathExists(join(snapshot, "tickets.db"))).toBe(false);
+      expect(
+        await pathExists(join(snapshot, "src", "ui", "static", "app.js")),
+      ).toBe(false);
+      expect(
+        await pathExists(join(snapshot, "src", "ui", "static", "style.css")),
+      ).toBe(false);
+    });
+  });
+
+  test("states which paths belong in a snapshot", () => {
+    expect(shouldCopySnapshotPath("")).toBe(true);
+    expect(shouldCopySnapshotPath("src/shared/dates.ts")).toBe(true);
+    expect(shouldCopySnapshotPath(".mutation-runs/run/work")).toBe(false);
+    expect(shouldCopySnapshotPath(".jscpd-report/index.html")).toBe(false);
+    expect(shouldCopySnapshotPath("coverage-test/lcov.info")).toBe(false);
+    expect(shouldCopySnapshotPath("local.db-wal")).toBe(false);
+    expect(shouldCopySnapshotPath("src/ui/static/order.js")).toBe(false);
+  });
+
+  test("rewrites only absolute project paths", () => {
+    const root = "/repo/tickets";
+    const snapshot = "/repo/tickets/.mutation-runs/run/work";
+
+    expect(
+      rewriteMutationArgs(root, snapshot, [
+        "--source",
+        "/repo/tickets",
+        "/repo/tickets/src/a.ts",
+        "test/a.test.ts",
+        "--harness",
+        "/tmp/outside.ts",
+      ]),
+    ).toEqual([
+      "--source",
+      "/repo/tickets/.mutation-runs/run/work",
+      "/repo/tickets/.mutation-runs/run/work/src/a.ts",
+      "test/a.test.ts",
+      "--harness",
+      "/tmp/outside.ts",
+    ]);
+    expect(rewriteMutationArgs("/", "/snapshot", ["/repo/tickets"])).toEqual([
+      "/snapshot/repo/tickets",
+    ]);
+  });
+});
+
+describe("mutation isolation run records", () => {
+  test("creates deterministic ids and records state transitions", () => {
+    const id = createRunId(new Date("2026-07-09T12:34:56.789Z"), "abc12345");
+    expect(id).toBe("mutation-20260709T123456Z-abc12345");
+
+    const record = newRunRecord(id, ["src/a.ts", "test/a.test.ts"], "/repo");
+    expect(record.status).toBe("copying");
+    expect(record.workRoot).toBe(workRoot(id, "/repo"));
+
+    const running = markRunning(record, 42, "2026-07-09T12:35:00.000Z");
+    expect(running).toMatchObject({ pid: 42, status: "running" });
+    expect(markFinished(running, 0)).toMatchObject({
+      exitCode: 0,
+      status: "passed",
+    });
+    expect(markFinished(running, 1)).toMatchObject({
+      exitCode: 1,
+      status: "failed",
+    });
+    expect(markInterrupted(running)).toMatchObject({
+      exitCode: 130,
+      status: "interrupted",
+    });
+  });
+
+  test("maps exit codes to run status", () => {
+    expect(statusForExitCode(0)).toBe("passed");
+    expect(statusForExitCode(130)).toBe("interrupted");
+    expect(statusForExitCode(2)).toBe("failed");
+  });
+
+  test("writes, reads, sorts, and ignores broken records", async () => {
+    await withTempDir(async (root) => {
+      expect(await readRunRecords(root)).toEqual([]);
+
+      const older = newRunRecord("older", [], root, "2026-07-09T10:00:00.000Z");
+      const newer = newRunRecord("newer", [], root, "2026-07-09T11:00:00.000Z");
+      await writeRunRecord(older);
+      await writeRunRecord(newer);
+      await Deno.mkdir(join(root, ".mutation-runs", "broken"), {
+        recursive: true,
+      });
+      await Deno.writeTextFile(join(root, ".mutation-runs", "not-a-dir"), "");
+      await Deno.writeTextFile(
+        join(root, ".mutation-runs", "broken", "run.json"),
+        "{not-json",
+      );
+
+      const records = await readRunRecords(root);
+      expect(records.map((record) => record.id)).toEqual(["newer", "older"]);
+      expect(await readRunRecord(join(root, "missing.json"))).toBeNull();
+    });
+  });
+
+  test("surfaces unreadable run directories", async () => {
+    await withTempDir(async (root) => {
+      const fileRoot = join(root, "file-root");
+      await Deno.writeTextFile(fileRoot, "");
+
+      await expect(readRunRecords(fileRoot)).rejects.toThrow(
+        Deno.errors.NotADirectory,
+      );
+    });
+  });
+});
+
+describe("mutation isolation commands", () => {
+  test("parses management commands and passes mutation args through", () => {
+    expect(parseIsolationCommand([])).toEqual({ kind: "help" });
+    expect(parseIsolationCommand(["--list"])).toEqual({ kind: "list" });
+    expect(parseIsolationCommand(["kill", "run-1", "--force"])).toEqual({
+      force: true,
+      kind: "kill",
+      target: "run-1",
+    });
+    expect(parseIsolationCommand(["--kill"])).toEqual({ kind: "help" });
+    expect(parseIsolationCommand(["clean", "finished"])).toEqual({
+      kind: "clean",
+      target: "finished",
+    });
+    expect(parseIsolationCommand(["clean"])).toEqual({ kind: "help" });
+    expect(parseIsolationCommand(["src/a.ts", "test/a.test.ts"])).toEqual({
+      args: ["src/a.ts", "test/a.test.ts"],
+      kind: "run",
+    });
+  });
+
+  test("selects records by target and formats list output", () => {
+    const running = markRunning(
+      newRunRecord("mutation-running", ["src/a.ts"], "/repo"),
+      10,
+    );
+    const passed = markFinished(
+      newRunRecord("mutation-passed", ["src/b.ts"], "/repo"),
+      0,
+    );
+    const records = [running, passed];
+
+    expect(selectedRuns(records, "all").map((record) => record.id)).toEqual([
+      "mutation-running",
+      "mutation-passed",
+    ]);
+    expect(
+      selectedRuns(records, "finished").map((record) => record.id),
+    ).toEqual(["mutation-passed"]);
+    expect(selectedRuns(records, "mutation-running")).toEqual([running]);
+    expect(selectedRuns(records, "mutation-runn")).toEqual([running]);
+    expect(selectedRuns(records, "mutation-")).toEqual([]);
+    expect(selectedRuns(records, "missing")).toEqual([]);
+    expect(visibleStatus(running, false)).toBe("stale");
+    expect(formatRunList([], new Set(), "/repo")).toEqual([
+      "No isolated mutation runs.",
+    ]);
+    expect(formatRunList(records, new Set([10]), "/repo").join("\n")).toContain(
+      "mutation-running running pid=10 exit=- work=.mutation-runs/mutation-running/work args=src/a.ts",
+    );
+    expect(
+      formatRunList([newRunRecord("empty", [], "/repo")], new Set(), "/repo"),
+    ).toEqual(["empty copying pid=- exit=- work=.mutation-runs/empty/work"]);
+  });
+});

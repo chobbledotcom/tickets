@@ -62,9 +62,11 @@ const releaseLockAfterWritingBinary = async (
   paths: TestStripeMockPaths,
   releaseLock: () => Promise<void>,
 ): Promise<void> => {
+  const pendingBinaryPath = `${paths.binaryPath}.pending`;
   await wait(30);
-  await Deno.writeTextFile(paths.binaryPath, "#!/bin/sh\nexit 0\n");
-  await makeExecutable(paths.binaryPath);
+  await Deno.writeTextFile(pendingBinaryPath, "#!/bin/sh\nexit 0\n");
+  await makeExecutable(pendingBinaryPath);
+  await Deno.rename(pendingBinaryPath, paths.binaryPath);
   await releaseLock();
 };
 

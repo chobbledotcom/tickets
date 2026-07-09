@@ -14,32 +14,30 @@
  * scripts/precommit.ts).
  */
 
-import { join } from "@std/path";
-import { runMutationTesting } from "./mutation/runner.ts";
+import { runMutationInSnapshot } from "./mutation/isolation.ts";
 import { runCommand } from "./precommit/merge-warning.ts";
 import { runMutationStep } from "./precommit/mutation-step.ts";
-import { projectRoot } from "./project-root.ts";
 
 /** Per-mutant timeout floor; mirrors `deno task mutation`'s default. */
 const MUTANT_TIMEOUT_MS = 10_000;
 
-/** git diff yields repo-relative paths; the runner's ignore-list matching needs
- *  the absolute form so its `rel()` recovers the repo-relative key. */
-const absolute = (paths: string[]): string[] =>
-  paths.map((path) => join(projectRoot, path));
+const flaggedPaths = (flag: "--source" | "--test", paths: string[]): string[] =>
+  paths.flatMap((path) => [flag, path]);
+
+const mutationArgs = (sources: string[], tests: string[]): string[] => [
+  ...flaggedPaths("--source", sources),
+  ...flaggedPaths("--test", tests),
+  "--timeout",
+  String(MUTANT_TIMEOUT_MS),
+  "--harness",
+];
 
 if (import.meta.main) {
   const code = await runMutationStep({
     log: (message) => console.log(message),
     run: runCommand,
     runMutation: ({ sources, tests }) =>
-      runMutationTesting({
-        exhaustive: false,
-        sourceFiles: absolute(sources),
-        testFiles: absolute(tests),
-        timeout: MUTANT_TIMEOUT_MS,
-        useHarness: true,
-      }),
+      runMutationInSnapshot(mutationArgs(sources, tests)),
   });
   Deno.exit(code);
 }

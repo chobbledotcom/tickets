@@ -2,20 +2,26 @@
 /**
  * In-house mutation tester — "tests for your tests".
  *
- * Mutates binary/logical/assignment operators in the given source file(s), runs the
+ * Copies the checkout into `.mutation-runs/<id>/work`, mutates
+ * binary/logical/assignment operators in the copied source file(s), runs the
  * mapped test file(s), and reports which mutants SURVIVED (were not caught by
  * any assertion). It is the real version of the heuristic in
  * `test-quality-audit.ts`: instead of guessing which assertions look weak, it
  * proves which code changes your tests fail to notice.
  *
  * The operator tables and AST walk are derived from Mutasaurus (MIT); the
- * execution model is our own — see scripts/mutation/LICENSE.mutasaurus.md.
+ * execution model is our own. The child process still mutates in place inside
+ * the copied checkout so import-map aliases bind to the mutant — see
+ * scripts/mutation/LICENSE.mutasaurus.md.
  *
  * Usage: deno task mutation <source-glob> <test-glob> [options]
  */
 
 import { globToRegExp, join, normalize, SEPARATOR } from "@std/path";
-import { runMutationTesting } from "./mutation/runner.ts";
+import {
+  MUTATION_SNAPSHOT_CHILD_ENV,
+  runIsolatedMutationCommand,
+} from "./mutation/isolation.ts";
 
 const DEFAULT_TIMEOUT = 10_000;
 
@@ -197,6 +203,7 @@ const main = async (): Promise<void> => {
     Deno.exit(1);
   }
 
+  const { runMutationTesting } = await import("./mutation/runner.ts");
   const code = await runMutationTesting({
     ...(args.batchJobs === undefined ? {} : { batchJobs: args.batchJobs }),
     exhaustive: args.exhaustive,
@@ -208,4 +215,10 @@ const main = async (): Promise<void> => {
   Deno.exit(code);
 };
 
-main();
+if (import.meta.main) {
+  if (Deno.env.get(MUTATION_SNAPSHOT_CHILD_ENV) === "1") {
+    await main();
+  } else {
+    Deno.exit(await runIsolatedMutationCommand(Deno.args));
+  }
+}

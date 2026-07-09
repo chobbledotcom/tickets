@@ -2,6 +2,7 @@ import { dirname, join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { bracket } from "#fp";
+import { pathExists } from "#test-utils/files.ts";
 import { removeOldCoverageOutput } from "../../scripts/coverage-output.ts";
 
 const withTempCoverageDir = bracket(
@@ -15,22 +16,13 @@ const withTempFile = bracket(
   (path: string) => Deno.remove(path).catch(() => {}),
 );
 
-const pathExists = async (path: string): Promise<boolean> => {
-  try {
-    await Deno.stat(path);
-    return true;
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) return false;
-    throw error;
-  }
-};
-
 describe("removeOldCoverageOutput", () => {
   test("removes stale coverage files before a coverage run", async () => {
     await withTempCoverageDir(async (coverageDir) => {
       const staleFile = join(coverageDir, "old.json");
       await Deno.mkdir(coverageDir);
       await Deno.writeTextFile(staleFile, "stale coverage");
+      expect(await pathExists(coverageDir)).toBe(true);
 
       await removeOldCoverageOutput(coverageDir);
 
@@ -48,6 +40,9 @@ describe("removeOldCoverageOutput", () => {
 
   test("surfaces filesystem errors other than missing coverage output", async () => {
     await withTempFile(async (filePath) => {
+      await expect(pathExists(join(filePath, "coverage"))).rejects.toThrow(
+        Deno.errors.NotADirectory,
+      );
       await expect(
         removeOldCoverageOutput(join(filePath, "coverage")),
       ).rejects.toThrow(Deno.errors.NotADirectory);
