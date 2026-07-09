@@ -1,0 +1,244 @@
+// jscpd:ignore-start
+import { expect } from "@std/expect";
+import { it as test } from "@std/testing/bdd";
+import { DAY_NAMES } from "#shared/dates.ts";
+import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { listingChildren } from "#shared/db/listing-parents.ts";
+import type { Listing } from "#shared/types.ts";
+import {
+  bookAttendee,
+  bookParent,
+  createDailyTestListing,
+  describeWithEnv,
+  expectFlash,
+  expectNoBooking,
+  expectRejectedBooking,
+  expectReserved,
+  makeParent,
+  parentField,
+} from "#test-utils";
+import { weekdayOf } from "../booking-model-fixtures.ts";
+import {
+  bookableDates,
+  firstBookableDate,
+  makeDailyChildFilledOnDayA,
+} from "./helpers.ts";
+
+// jscpd:ignore-end
+
+/** A daily child bookable on every weekday EXCEPT the parent's first bookable
+ *  date's weekday, wired as the parent's only child. Returns the parent date so
+ *  the caller can post it. Shared by the two "excluded date" rejection tests. */
+const childExcludingParentDay = async (
+  parent: Listing,
+): Promise<{ child: Listing; parentDate: string }> => {
+  const parentDate = await firstBookableDate(parent.id);
+  const parentDay = weekdayOf(parentDate);
+  const child = await createDailyTestListing({
+    bookableDays: DAY_NAMES.filter((d) => d !== parentDay),
+    name: "Daily add-on",
+  });
+  await listingChildren.setIds(parent.id, [child.id]);
+  return { child, parentDate };
+};
+
+/** A daily parent + daily child sharing a 2-spot "Pool" group, plus a daily
+ *  filler that fills BOTH of the group's spots on day A — the shared setup behind
+ *  the two "group full on one date" tests (one books the free day B, the other
+ *  the full day A). */
+const makeDailyGroupWithFiller = async (): Promise<{
+  child: Listing;
+  dayA: string;
+  dayB: string;
+  parent: Listing;
+}> => {
+  const { group, parent, child } = await makeParent({
+    children: [{ daily: true }],
+    group: { maxAttendees: 2, name: "Pool" },
+    parent: { daily: true },
+  });
+  const filler = await createDailyTestListing({
+    groupId: group!.id,
+    name: "Daily filler",
+    thankYouUrl: "",
+  });
+  const dates = await bookableDates(parent.id);
+  const [dayA, dayB] = [dates[0]!, dates[1]!];
+  const booked = await bookAttendee(filler, { date: dayA, quantity: 2 });
+  expect(booked.success).toBe(true);
+  return { child, dayA, dayB, parent };
+};
+
+describeWithEnv(
+  "server > parents gate > daily child fold",
+  { db: true, triggers: true },
+  () => {
+    test("a daily child whose calendar excludes the submitted date is rejected", async () => {
+      const parent = await createDailyTestListing({ name: "Daily base" });
+      const { parentDate } = await childExcludingParentDay(parent);
+
+      const res = await bookParent(parent.slug, {
+        date: parentDate,
+        ...parentField(parent, "1"),
+      });
+      await expectRejectedBooking(res, parent.id, "Please select a valid date");
+    });
+
+    test("the fold rejects a daily child's excluded date on a multi-listing page", async () => {
+      // On a multi-listing page the per-parent date-union constraint is NOT
+      // applied (it would wrongly strip dates a sibling page listing needs), so
+      // the child-excluded date IS offered and reaches the submit fold, which
+      // rejects it because the parent then has no bookable child for that date.
+      const parent = await createDailyTestListing({ name: "Daily base" });
+      const plain = await createDailyTestListing({ name: "Daily plain" });
+      const { parentDate } = await childExcludingParentDay(parent);
+
+      const res = await bookParent(`${parent.slug}+${plain.slug}`, {
+        date: parentDate,
+        ...parentField(parent, "1"),
+        ...parentField(plain, "0"),
+      });
+      await expectRejectedBooking(
+        res,
+        parent.id,
+        "Daily base has no available options right now.",
+      );
+    });
+
+    test("a daily child that allows the submitted date folds fine", async () => {
+      const { parent, child } = await makeParent({
+        children: [{ daily: true }],
+        parent: { daily: true },
+      });
+
+      const date = await firstBookableDate(parent.id);
+
+      const res = await bookParent(parent.slug, {
+        date,
+        ...parentField(parent, "1"),
+      });
+      expectReserved(res);
+      expect((await getAttendeesRaw(child.id)).length).toBe(1);
+    });
+
+    test("a daily child full on one date still folds for a parent booking on another", async () => {
+      // A 1-capacity daily child is fully booked on day A. Its date-less
+      // `isSoldOut` aggregate reads true, but a parent booking on day B (where
+      // the child still has capacity) must fold the child fine — the date-less
+      // flag must not block a daily child. A booking on day A is
+      // still rejected, by the folded per-date availability check.
+      const { parent, child, dayA } = await makeDailyChildFilledOnDayA();
+
+      // dayB is the child's second bookable date (day A is now full).
+      const dayB = (await bookableDates(child.id))[1]!;
+
+      // A parent booking on day B folds the child fine (it has day-B capacity).
+      const okRes = await bookParent(parent.slug, {
+        date: dayB,
+        ...parentField(parent, "1"),
+      });
+      expectReserved(okRes);
+      const childOnB = (await getAttendeesRaw(child.id)).filter(
+        (r) => r.date === dayB,
+      );
+      expect(childOnB.length).toBe(1);
+
+      // A parent booking on day A is rejected — the child is genuinely full there.
+      const fullRes = await bookParent(parent.slug, {
+        date: dayA,
+        email: "b@c.com",
+        name: "Bea",
+        ...parentField(parent, "1"),
+      });
+      expect(fullRes.status).toBe(302);
+      expectFlash(fullRes, undefined, false);
+      // The rejected day-A attempt added no parent row; only the day-B booking
+      // created one (its date confirms day A was never reserved for the parent).
+      const parentRows = await getAttendeesRaw(parent.id);
+      expect(parentRows.length).toBe(1);
+      expect(parentRows[0]?.date).toBe(dayB);
+    });
+
+    // Don't apply the date-less GROUP cap to a daily parent's children. A
+    // daily parent's group is type-homogeneous (group members share listing_type),
+    // so any co-grouped child is itself daily — and a daily listing is excluded
+    // from the date-less group aggregate (its cap is per-date), so it is never
+    // pre-marked sold out by another date's bookings. Its per-date group capacity
+    // is the date-aware checkBatchAvailability's job at submit. (A *standard*
+    // child can't share a daily parent's group at all — the homogeneity rule
+    // blocks it — so that date-less-clamp state is
+    // unreachable; these tests lock in the correct date-A/date-B behavior.)
+    test("a daily parent + daily child in a group full on one date still book on a free date", async () => {
+      const { parent, child, dayB } = await makeDailyGroupWithFiller();
+
+      // A parent booking on date B folds the daily child and reserves — date A's
+      // cumulative bookings do not clamp the child date-lessly.
+      const okRes = await bookParent(parent.slug, {
+        date: dayB,
+        ...parentField(parent, "1"),
+      });
+      expectReserved(okRes);
+      expect(
+        (await getAttendeesRaw(child.id)).filter((r) => r.date === dayB).length,
+      ).toBe(1);
+      expect(
+        (await getAttendeesRaw(parent.id)).filter((r) => r.date === dayB)
+          .length,
+      ).toBe(1);
+    });
+
+    test("a standard child folded under a daily parent is stored date-less", async () => {
+      // A standard (date-less) child has cumulative, date-independent capacity.
+      // When folded under a DAILY parent it must NOT inherit the parent's date —
+      // writing the date would switch its capacity guard to the date-overlap path
+      // and let the same add-on be oversold across different parent dates. The
+      // fold carries it as an ordinary line and `bookingDateFields` nulls its date
+      // by listing type, so the stored child row is date-less while the parent's
+      // row keeps the booked date.
+      const { parent, child } = await makeParent({ parent: { daily: true } });
+
+      const dayB = await firstBookableDate(parent.id);
+
+      const res = await bookParent(parent.slug, {
+        date: dayB,
+        ...parentField(parent, "1"),
+      });
+      expectReserved(res);
+      // Parent row keeps the booked date; the standard child row is date-less.
+      expect((await getAttendeesRaw(parent.id))[0]?.date).toBe(dayB);
+      expect((await getAttendeesRaw(child.id))[0]?.date).toBe(null);
+    });
+
+    test("a daily parent + daily child are still rejected on a genuinely full date", async () => {
+      // The date-aware checkBatchAvailability must still reject the parent+child
+      // on a date whose shared group is full, so deferring does not oversell.
+      const { parent, child, dayA } = await makeDailyGroupWithFiller();
+
+      const fullRes = await bookParent(parent.slug, {
+        date: dayA,
+        email: "b@c.com",
+        name: "Bea",
+        ...parentField(parent, "1"),
+      });
+      await expectRejectedBooking(fullRes, parent.id);
+      await expectNoBooking(child);
+    });
+
+    test("a daily child under a dateless (standard) parent is rejected", async () => {
+      // The standard parent produces no date, so a daily child can never be
+      // dated — the parent is treated as sold out (defensive: admin blocks this
+      // edge, but the gate must not fold a child onto a null date).
+      const { parent } = await makeParent({
+        children: [{ daily: true }],
+        parent: { name: "Standard base" },
+      });
+
+      const res = await bookParent(parent.slug, parentField(parent, "1"));
+      await expectRejectedBooking(
+        res,
+        parent.id,
+        "Standard base has no available options right now.",
+      );
+    });
+  },
+);

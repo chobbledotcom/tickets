@@ -1,0 +1,146 @@
+/**
+ * Shared helpers for the split `server-parents-gate/` suite.
+ *
+ * The single 2,700-line monolith repeatedly inlined the same date/calendar
+ * setup (load a listing row, fetch active holidays, read its bookable start
+ * dates), the same Stripe checkout-stub capture, and the same table-driven
+ * contains/notContains loop runner. The split would have surfaced each as a
+ * jscpd clone, so each lives here once. The booking-body and reject/fold
+ * assertion patterns are shared across the broader parents suite, so they live
+ * in `#test-utils` (parents.ts) instead.
+ */
+
+import { expect } from "@std/expect";
+import { it as test } from "@std/testing/bdd";
+import { getBookableStartDates } from "#shared/dates.ts";
+import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { getListingWithCount } from "#shared/db/listings.ts";
+import type { Listing } from "#shared/types.ts";
+import { bookAttendee, bookingPageHtml, makeParent } from "#test-utils";
+
+/**
+ * Every bookable start date for a listing, computed against the active
+ * holidays. The shared core of the daily/customisable tests, which otherwise
+ * each re-imported `getBookableStartDates` + `getActiveHolidays` +
+ * `getListingWithCount` and resolved the listing row inline.
+ */
+export const bookableDates = async (listingId: number): Promise<string[]> => {
+  const listing = (await getListingWithCount(listingId))!;
+  return getBookableStartDates(listing, await getActiveHolidays());
+};
+
+/** The first date a listing can be booked for — the common single-date need. */
+export const firstBookableDate = async (listingId: number): Promise<string> =>
+  (await bookableDates(listingId))[0]!;
+
+/** A daily parent + a 1-capacity daily child, with the child's single spot on
+ *  day A already filled — the shared "date-less sold-out aggregate reads true,
+ *  but the child still folds/renders on day B" setup behind one daily-fold test
+ *  and one render-dates test. Returns `dayA` so the caller can book or assert
+ *  against the full date. */
+export const makeDailyChildFilledOnDayA = async (): Promise<{
+  child: Listing;
+  dayA: string;
+  parent: Listing;
+}> => {
+  const { parent, child } = await makeParent({
+    children: [{ daily: true, maxAttendees: 1 }],
+    parent: { daily: true },
+  });
+  const dayA = await firstBookableDate(child.id);
+  const booked = await bookAttendee(child, { date: dayA });
+  expect(booked.success).toBe(true);
+  return { child, dayA, parent };
+};
+
+/**
+ * Stub the Stripe checkout provider and capture the intent handed to it,
+ * after first configuring Stripe for the test isolate — the shared
+ * "inspect what checkout would have charged" fixture for the parents-gate
+ * suite. Returns the same shape as the shared {@link stubCheckout}
+ * (`{ checkout, getCaptured }`) so the one mechanism keeps one vocabulary;
+ * callers use `getCaptured()` / `checkout.restore()` directly. The
+ * `setupStripe()` call is the only thing this wrapper adds on top.
+ */
+export const stubCheckoutIntent = async (sessionId: string) => {
+  const { setupStripe } = await import("#test-utils");
+  const { stubCheckout } = await import("../server-reservation/helpers.ts");
+  await setupStripe();
+  return stubCheckout(sessionId);
+};
+
+/** A table-driven booking-page render case: build the parent from `spec`,
+ *  fetch the page, and assert each `contains` / `notContains` substring. The
+ *  shape shared by the price-label and day-count-union case tables, so the two
+ *  loops don't each re-declare an identical runner. */
+export type ContainsCase = {
+  name: string;
+  spec: Parameters<typeof makeParent>[0];
+  contains: string[];
+  notContains: string[];
+};
+
+/** Run a list of {@link ContainsCase}s as one `test` each. */
+export const runContainsCases = (cases: readonly ContainsCase[]): void => {
+  for (const c of cases) {
+    test(c.name, async () => {
+      const { parent } = await makeParent(c.spec);
+      const html = await bookingPageHtml(parent.slug);
+      for (const needle of c.contains) expect(html).toContain(needle);
+      for (const needle of c.notContains) {
+        expect(html).not.toContain(needle);
+      }
+    });
+  }
+};
+
+/** The inner `<option>` HTML of the `<select name="…">` in `html`, sliced out
+ *  so a test can assert which options are/aren't offered. Replaces the per-test
+ *  `html.slice(html.indexOf(\`name="…"\`))` + `.slice(0, indexOf("</select>"))`
+ *  pair that recurred across the capacity/selector/render tests. Use
+ *  {@link selectOptionsHtml} when you need to fetch the page first; use this
+ *  directly when you already have the HTML (e.g. from a redirect-follow). */
+export const selectOptionsFromHtml = (
+  html: string,
+  selectName: string,
+): string => {
+  const select = html.slice(html.indexOf(`name="${selectName}"`));
+  return select.slice(0, select.indexOf("</select>"));
+};
+
+/** The inner `<option>` HTML of the `<select name="…">` rendered on `slug`'s
+ *  booking page — fetches the page then delegates to
+ *  {@link selectOptionsFromHtml}. */
+export const selectOptionsHtml = async (
+  slug: string,
+  selectName: string,
+): Promise<string> =>
+  selectOptionsFromHtml(await bookingPageHtml(slug), selectName);
+
+/** Assert the options of a rendered `<select>` include `available` and omit
+ *  `notAvailable` — the shared "the selector offers N but not N+1" check behind
+ *  every group-cap and separate-pool render test. */
+export const expectSelectOffers = async (
+  slug: string,
+  selectName: string,
+  available: string,
+  notAvailable: string,
+): Promise<void> => {
+  const options = await selectOptionsHtml(slug, selectName);
+  expect(options).toContain(available);
+  expect(options).not.toContain(notAvailable);
+};
+
+/** Assert a parent's booking page renders its sold-out message and emits no
+ *  quantity selector. Returns the page HTML so a caller can add further
+ *  "no child selector" assertions. The shared check behind every sold-out
+ *  projection render test. */
+export const expectRendersSoldOut = async (
+  slug: string,
+  parentId: number,
+): Promise<string> => {
+  const html = await bookingPageHtml(slug);
+  expect(html).toContain("Sorry, this listing is full.");
+  expect(html).not.toContain(`name="quantity_${parentId}"`);
+  return html;
+};

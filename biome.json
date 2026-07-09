@@ -158,7 +158,6 @@
         "src/ui/templates/public/reservations.tsx",
         "test/lib/server-attendees.test.ts",
         "test/lib/server-listing-parents.test.ts",
-        "test/lib/server-parents-gate.test.ts",
         "test/lib/server-payments.test.ts",
         "test/lib/square.test.ts",
         "test/lib/stripe.test.ts"

@@ -168,8 +168,9 @@ export const modifierRefs = (id: number, quantity = 1): string =>
 
 /** Stub the checkout-session provider and capture the intent it was called
  * with — the shared "inspect what checkout would have charged" fixture
- * behind every test that never actually completes a paid session. */
-export const stubCheckout = () => {
+ * behind every test that never actually completes a paid session. The optional
+ * `sessionId` labels the captured intent (defaults to `"cs_test"`). */
+export const stubCheckout = (sessionId = "cs_test") => {
   let captured: CheckoutIntent | undefined;
   const checkout = stub(
     stripePaymentProvider,
@@ -178,7 +179,7 @@ export const stubCheckout = () => {
       captured = intent;
       return Promise.resolve({
         checkoutUrl: "https://stripe.example/checkout",
-        sessionId: "cs_test",
+        sessionId,
       });
     },
   );
