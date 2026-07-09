@@ -16,11 +16,13 @@
 import { expect } from "@std/expect";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import type { Group, Listing } from "#shared/types.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestAttendee } from "./db-helpers/attendees.ts";
+import { createTestGroup } from "./db-helpers/groups.ts";
 import {
   createDailyTestListing,
   createTestListing,
-} from "#test-utils/db-helpers/listings.ts";
+} from "./db-helpers/listings.ts";
+import { enablePublicSite } from "./settings.ts";
 
 // ---------------------------------------------------------------------------
 // HTTP request helpers (one definition, shared by every parent suite)
@@ -92,11 +94,126 @@ export const apiGet = async (path: string): Promise<Response> => {
   );
 };
 
+/** GET `/api/listings` (the collection endpoint) and return the row whose slug
+ *  matches `slug` — the single shape behind the "this parent is/isn't sold-out
+ *  in the collection list" tests, which were spelling out the GET + JSON parse +
+ *  `find` row-by-slug dance verbatim. */
+export const apiListingRow = async (
+  slug: string,
+): Promise<{
+  isSoldOut: boolean;
+  maxPurchasable: number;
+  slug: string;
+}> => {
+  const body = (await (await apiGet("/api/listings")).json()) as {
+    listings: {
+      isSoldOut: boolean;
+      maxPurchasable: number;
+      slug: string;
+    }[];
+  };
+  const row = body.listings.find((l) => l.slug === slug);
+  if (!row) {
+    throw new Error(`apiListingRow: no listing with slug "${slug}" found`);
+  }
+  return row;
+};
+
+/** POST `/api/listings/<parent>/book` with a single child at qty 1 (the most
+ *  common folded-parent booking body), optionally spreading `extra` fields onto
+ *  the request (e.g. `date`). The shared shape behind the daily-parent-requires-
+ *  date, contact-fields, and sold-out-409 tests in the split. */
+export const bookParentChild = (
+  parent: { slug: string },
+  child: { slug: string },
+  extra: Record<string, unknown> = {},
+): Promise<Response> =>
+  apiBook(parent.slug, {
+    children: [{ quantity: 1, slug: child.slug }],
+    ...extra,
+  });
+
+/** Build a parent with two children and deactivate the second: the shared
+ *  "inactive child has spare capacity but the booking fold rejects it"
+ *  scenario. Returns the parent, the active child, and the deactivated child
+ *  so detail/availability assertions can name the bookable side. */
+export const makeParentWithDeactivatedChild = async (): Promise<{
+  inactiveChild: Listing;
+  okChild: Listing;
+  parent: Listing;
+}> => {
+  const { parent, children } = await makeParent({ children: [{}, {}] });
+  const okChild = children[0]!;
+  const inactiveChild = children[1]!;
+  const { execute } = await import("#shared/db/client.ts");
+  await execute("UPDATE listings SET active = 0 WHERE id = ?", [
+    inactiveChild.id,
+  ]);
+  return { inactiveChild, okChild, parent };
+};
+
+/** GET `/api/listings/<slug>` and parse the `{ listing: T }` body, asserting a
+ *  200. The single shape behind every "ordinary/parent listing API detail"
+ *  test: the GET + status + JSON parse + narrowing cast was repeated verbatim
+ *  across the parents-booking split and the bookable-alone suite, so it lives
+ *  once here. `T` defaults to the columns those suites actually read. */
+export const listingDetail = async <
+  T = { slug: string; maxPurchasable: number },
+>(
+  slug: string,
+): Promise<{ listing: T }> => {
+  const res = await apiGet(`/api/listings/${slug}`);
+  expect(res.status).toBe(200);
+  return (await res.json()) as { listing: T };
+};
+
+/** The shape returned by `/api/listings/<slug>/availability` — top-level
+ *  availability plus the per-child breakdown (present when a parent has more
+ *  than one child). */
+type AvailabilityBody = {
+  available: boolean;
+  children?: { slug: string; available: boolean }[];
+};
+
+/** GET `/api/listings/<slug>/availability` (optionally `?date=`) and parse the
+ *  `{ available, children? }` body, asserting a 200. Mirrors
+ *  {@link listingDetail} for the availability endpoint: the same GET + status +
+ *  JSON parse was repeated across the split's availability tests and the
+ *  bookable-alone suite. */
+export const availabilityJson = async (
+  slug: string,
+  date?: string,
+): Promise<AvailabilityBody> => {
+  const path =
+    date !== undefined
+      ? `/api/listings/${slug}/availability?date=${date}`
+      : `/api/listings/${slug}/availability`;
+  const res = await apiGet(path);
+  expect(res.status).toBe(200);
+  return (await res.json()) as AvailabilityBody;
+};
+
+/** Assert a per-child availability response carries the expected
+ *  available/blocked pair (in any order): the same arrayContaining shape was
+ *  repeated across the inactive-child, closed-registration, and per-child
+ *  availability tests in the split. */
+export const expectChildAvailability = (
+  body: AvailabilityBody,
+  okChild: { slug: string },
+  blockedChild: { slug: string },
+): void => {
+  expect(body.children).toEqual(
+    expect.arrayContaining([
+      { available: true, slug: okChild.slug },
+      { available: false, slug: blockedChild.slug },
+    ]),
+  );
+};
+
 /** GET a path with the public site enabled and return the raw Response. The
  * shared fetch behind {@link publicBody} and {@link ticketPageStatus}. */
 const publicFetch = async (path: string): Promise<Response> => {
-  const { settings } = await import("#shared/db/settings.ts");
-  await settings.update.showPublicSite(true);
+  await enablePublicSite();
   const { handleRequest } = await import("#routes");
   const { mockRequest } = await import("#test-utils/mocks.ts");
   return handleRequest(mockRequest(path));
@@ -261,4 +378,49 @@ export const makeParent = async (
     children.map((c) => c.id),
   );
   return { child: children[0]!, children, group, parent };
+};
+
+/**
+ * Build the "a group whose only standalone member is a sold-out parent"
+ * scenario shared by the `/listings` CTA suppression and the group-QR 404
+ * tests: a `createTestGroup` + parent placed in that group + a single-spot
+ * child sold out via `createTestAttendee`, with the parent→child edge wired.
+ * Both the CTA-suppression and the QR-404 paths exercise the same dead-member
+ * setup, so it lives once here — only the group name (for assertion clarity)
+ * varies between callers.
+ */
+export const soldOutParentInGroup = async (
+  groupName: string,
+): Promise<{ child: Listing; group: Group; parent: Listing }> => {
+  const group = await createTestGroup({ name: groupName });
+  const parent = await createTestListing({
+    groupId: group.id,
+    name: "Base in group",
+  });
+  const child = await createTestListing({
+    maxAttendees: 1,
+    name: "Sold-out add-on",
+  });
+  await createTestAttendee(child.id, child.slug, "Buyer", "b@x.com");
+  await listingChildren.setIds(parent.id, [child.id]);
+  return { child, group, parent };
+};
+
+/**
+ * Enable the public site and assert `/listings` does NOT advertise a Book CTA
+ * pointing at `groupSlug` — i.e. the dead-group link the page must not render.
+ * The shared shape behind the two `/listings` CTA-suppression tests: turn the
+ * site on, GET `/listings`, assert the `href="/ticket/<group>"` link is absent.
+ */
+export const expectNoListingsCta = async (groupSlug: string): Promise<void> => {
+  await enablePublicSite();
+  const { handleRequest } = await import("#routes");
+  const body = await (
+    await handleRequest(
+      new Request("http://localhost/listings", {
+        headers: { host: "localhost" },
+      }),
+    )
+  ).text();
+  expect(body).not.toContain(`href="/ticket/${groupSlug}"`);
 };
