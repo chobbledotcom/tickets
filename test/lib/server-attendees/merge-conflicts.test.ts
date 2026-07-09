@@ -1,18 +1,19 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+// jscpd:ignore-end
+import { queryAll } from "#shared/db/client.ts";
 import {
   adminFormPost,
   adminGet,
   createTestAttendeeDirect,
+  createTestGroup,
   createTestListing,
   describeWithEnv,
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
 } from "#test-utils";
-
-// jscpd:ignore-end
 import {
   assignMergeAnswers,
   createDualPackageAttendee,
@@ -36,7 +37,7 @@ describeWithEnv(
         );
 
         await assignMergeAnswers(target.id, sourceToken, {
-          source: [a2.id],
+          source: [a2!.id],
           target: [a1.id],
         });
 
@@ -116,7 +117,6 @@ describeWithEnv(
         // its own row. Taking the source for the STANDALONE conflict must
         // replace only that slot; the package row survives untouched.
         const listing = await createTestListing({ maxAttendees: 10 });
-        const { createTestGroup } = await import("#test-utils");
         const group = await createTestGroup({
           isPackage: true,
           name: "KeepKit",
@@ -157,7 +157,6 @@ describeWithEnv(
         expect(response.status).toBe(302);
         expectFlash(response, expect.stringContaining("Merged"), true);
 
-        const { queryAll } = await import("#shared/db/client.ts");
         const rows = await queryAll<{ quantity: number }>(
           "SELECT quantity FROM listing_attendees WHERE attendee_id = ?",
           [target.id],

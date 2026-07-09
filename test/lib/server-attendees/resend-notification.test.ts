@@ -27,7 +27,7 @@ describeWithEnv(
   "server (admin attendees) > resend notification",
   { db: true },
   () => {
-    describe("GET /admin/listing/:listingId/attendee/:attendeeId/resend-notification", () => {
+    describe("GET /admin/attendees/:attendeeId/resend-notification", () => {
       testRequiresAuth("/admin/attendees/1/resend-notification", {
         setup: async () => {
           await setupListingAndAttendee();
@@ -78,24 +78,6 @@ describeWithEnv(
         );
       });
 
-      test("shows error message when attendee name does not match", async () => {
-        const { attendee, cookie, csrfToken } = await setupAdminTest();
-        const postResponse = await handleRequest(
-          mockFormRequest(
-            `/admin/attendees/${attendee.id}/resend-notification`,
-            { confirm_identifier: "Wrong Name", csrf_token: csrfToken },
-            cookie,
-          ),
-        );
-        const page = await followRedirectWithFlash(
-          postResponse,
-          handleRequest,
-          cookie,
-        );
-        const html = await page.text();
-        expect(html).toContain("does not match");
-      });
-
       test("shows amount paid on resend notification page for paid attendee", async () => {
         const listing = await createTestListing({
           maxAttendees: 100,
@@ -127,7 +109,7 @@ describeWithEnv(
       });
     });
 
-    describe("POST /admin/listing/:listingId/attendee/:attendeeId/resend-notification", () => {
+    describe("POST /admin/attendees/:attendeeId/resend-notification", () => {
       const resendNotificationAction = adminAttendeeAction(
         "resend-notification",
       );
@@ -174,6 +156,24 @@ describeWithEnv(
         })();
         expect(response.status).toBe(302);
         expectFlash(response, expect.stringContaining("does not match"), false);
+      });
+
+      test("shows the mismatch error on the page after following the redirect", async () => {
+        const { attendee, cookie, csrfToken } = await setupAdminTest();
+        const postResponse = await handleRequest(
+          mockFormRequest(
+            `/admin/attendees/${attendee.id}/resend-notification`,
+            { confirm_identifier: "Wrong Name", csrf_token: csrfToken },
+            cookie,
+          ),
+        );
+        const page = await followRedirectWithFlash(
+          postResponse,
+          handleRequest,
+          cookie,
+        );
+        const html = await page.text();
+        expect(html).toContain("does not match");
       });
 
       test("re-sends notification with matching name", async () => {

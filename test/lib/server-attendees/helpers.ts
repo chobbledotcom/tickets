@@ -45,7 +45,13 @@ export const getMergeVersion = async (
     )}`,
   );
   const html = await page.text();
-  return extractInputValue(html, "merge_version")!;
+  const version = extractInputValue(html, "merge_version");
+  if (!version) {
+    throw new Error(
+      `merge_version input not found on actions page for attendee ${targetId}`,
+    );
+  }
+  return version;
 };
 
 /** A listing (100 spots by default) plus one attendee booked onto it ("John
@@ -101,7 +107,9 @@ export const firstAttendee = (
     | { success: true; attendees: Attendee[] }
     | { success: false; reason: string },
 ): Attendee => {
-  if (!result.success) throw new Error("Failed to create attendee");
+  if (!result.success) {
+    throw new Error(`Failed to create attendee: ${result.reason}`);
+  }
   return result.attendees[0]!;
 };
 
@@ -158,21 +166,20 @@ export const mergePair = async (
 /** A {@link mergePair} where both listings carry the same radio question with
  *  the given answer texts (one or two answers). `a1` is always the first
  *  answer; `a2` is the second when two are passed (the merge answer-conflict
- *  tests use two; the source-only / target-only tests pass one and ignore
- *  `a2`). Used by the merge answer conflict tests, which then assign answers
- *  to target/source and submit. */
+ *  tests use two; the source-only / target-only tests pass one, leaving `a2`
+ *  undefined — they never read it). Used by the merge answer conflict tests. */
 export const mergePairWithQuestion = async (
   questionText: string,
   answerTexts: string[],
 ): Promise<{
+  a1: Answer;
+  a2: Answer | undefined;
   listing1: Listing;
   listing2: Listing | null;
   q: Question;
-  a1: Answer;
-  a2: Answer;
-  target: Attendee;
   source: Attendee;
   sourceToken: string;
+  target: Attendee;
 }> => {
   const { listing1, listing2, target, source, sourceToken } = await mergePair();
   const q = await questionsTable.insert({
@@ -193,7 +200,7 @@ export const mergePairWithQuestion = async (
   if (listing2) await setListingQuestions(listing2.id, [q.id]);
   return {
     a1: answers[0]!,
-    a2: answers[1]!,
+    a2: answers[1],
     listing1,
     listing2,
     q,
@@ -419,7 +426,7 @@ export const mergeWithAnswerConflict = async (
     answerTexts,
   );
   await assignMergeAnswers(target.id, sourceToken, {
-    source: [a2.id],
+    source: [a2!.id],
     target: [a1.id],
   });
   const { response } = await submitMerge(target.id, sourceToken, {
@@ -427,7 +434,7 @@ export const mergeWithAnswerConflict = async (
   });
   expect(response.status).toBe(302);
   const expected =
-    choice === "source" ? a2.id : choice === "target" ? a1.id : undefined;
+    choice === "source" ? a2!.id : choice === "target" ? a1.id : undefined;
   await expectMergeAnswer(target.id, q.id, expected);
   return response;
 };

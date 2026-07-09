@@ -1,6 +1,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getAttendeeRaw } from "#shared/db/attendees.ts";
+import { queryAll } from "#shared/db/client.ts";
 import {
   adminFormPost,
   adminGet,
@@ -10,6 +12,7 @@ import {
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
+  getListingActivityLog,
   testRequiresAuth,
 } from "#test-utils";
 
@@ -118,7 +121,6 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
 
       // The merge is recorded on the target's listing activity log, naming the
       // source and the kept (target) attendee.
-      const { getListingActivityLog } = await import("#test-utils");
       const mergeLog = (await getListingActivityLog(listing1.id)).find((l) =>
         l.message.includes("merged into"),
       );
@@ -127,7 +129,6 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       );
 
       // Source attendee should be deleted
-      const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
       const deleted = await getAttendeeRaw(source.id);
       expect(deleted).toBeNull();
 
@@ -136,8 +137,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       expect(surviving).not.toBeNull();
 
       // Target should now have both listing links
-      const m = await import("#shared/db/client.ts");
-      const targetListingLinks = await m.queryAll<{ listing_id: number }>(
+      const targetListingLinks = await queryAll<{ listing_id: number }>(
         "SELECT listing_id FROM listing_attendees WHERE attendee_id = ?",
         [target.id],
       );
@@ -212,11 +212,9 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       expectFlash(response, expect.stringContaining("Merged"), true);
 
       // Source deleted
-      const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
       expect(await getAttendeeRaw(source.id)).toBeNull();
 
       // Target still has exactly one link to the listing (conflict was skipped)
-      const { queryAll } = await import("#shared/db/client.ts");
       const links = await queryAll<{ listing_id: number }>(
         "SELECT listing_id FROM listing_attendees WHERE attendee_id = ?",
         [target.id],

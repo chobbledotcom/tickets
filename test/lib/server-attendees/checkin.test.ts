@@ -13,6 +13,7 @@ import {
   expectFlashRedirect,
   expectHtmlResponse,
   expectRedirect,
+  getListingActivityLog,
   mockFormRequest,
   setupAdminTest,
   testRequiresAuth,
@@ -74,7 +75,6 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       expectFlash(response, expect.stringContaining("Checked John Doe in"));
 
       // The check-in is recorded in the listing activity log.
-      const { getListingActivityLog } = await import("#test-utils");
       const log = (await getListingActivityLog(listing.id)).find((l) =>
         l.message.includes("checked in"),
       );

@@ -383,10 +383,10 @@ describeWithEnv(
         await expectHtmlResponse(response, 200, 'name="qty_');
       });
 
-      test("firstAttendee throws on a failed booking result", () => {
+      test("firstAttendee throws on a failed booking result, surfacing the reason", () => {
         expect(() =>
           firstAttendee({ reason: "encryption_error", success: false }),
-        ).toThrow("Failed to create attendee");
+        ).toThrow("Failed to create attendee: encryption_error");
       });
     });
   },
