@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
 import { assignListingsToGroup } from "#shared/db/groups.ts";
-import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers.ts";
+import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { setListingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { todayInTz } from "#shared/timezone.ts";

@@ -21,10 +21,8 @@ import {
   isSessionProcessed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
-import {
-  getAttendeeAnswersBatch,
-  saveAttendeeAnswers,
-} from "#shared/db/questions/attendee-answers.ts";
+import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
+import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { setListingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import {

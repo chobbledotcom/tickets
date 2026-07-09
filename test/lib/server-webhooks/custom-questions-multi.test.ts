@@ -6,7 +6,7 @@ import { handleRequest } from "#routes";
 import {
   getAttendeeAnswersBatch,
   getAttendeeTextAnswers,
-} from "#shared/db/questions/attendee-answers.ts";
+} from "#shared/db/questions/attendee-answers/reads.ts";
 import { setListingQuestions } from "#shared/db/questions/queries.ts";
 import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
@@ -94,7 +94,7 @@ describeWithEnv(
         "#shared/db/questions/queries.ts"
       );
       const { getAttendeeAnswersBatch } = await import(
-        "#shared/db/questions/attendee-answers.ts"
+        "#shared/db/questions/attendee-answers/reads.ts"
       );
       const q = await questionsTable.insert({
         displayType: "radio",

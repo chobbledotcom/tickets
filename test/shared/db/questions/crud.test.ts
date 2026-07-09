@@ -6,10 +6,8 @@ import {
   questionDisplayTypeError,
   requireQuestionDisplayType,
 } from "#shared/db/question-types.ts";
-import {
-  getAttendeeAnswersBatch,
-  saveAttendeeAnswers,
-} from "#shared/db/questions/attendee-answers.ts";
+import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
+import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { deleteAnswer, deleteQuestion } from "#shared/db/questions/delete.ts";
 import {
   getAllQuestionsWithAnswers,

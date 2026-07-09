@@ -11,7 +11,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { N_PLUS_ONE_THRESHOLD } from "#shared/db/query-log.ts";
-import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers.ts";
+import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { setListingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import {

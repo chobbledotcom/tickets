@@ -6,8 +6,8 @@ import {
   getAttendeeAnswersBatch,
   getAttendeeTextAnswers,
   getListingChoiceAnswerMap,
-  saveAttendeeAnswers,
-} from "#shared/db/questions/attendee-answers.ts";
+} from "#shared/db/questions/attendee-answers/reads.ts";
+import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import { nowIso } from "#shared/now.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";

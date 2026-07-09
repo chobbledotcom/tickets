@@ -2465,7 +2465,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("pre-selects existing answer on edit page", async () => {
       const { attendee, a1, q } = await setupQuestionAndAttendee();
       const { saveAttendeeAnswers } = await import(
-        "#shared/db/questions/attendee-answers.ts"
+        "#shared/db/questions/attendee-answers/save.ts"
       );
       await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
@@ -2504,7 +2504,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(response.status).toBe(302);
 
       const { getAttendeeAnswersBatch } = await import(
-        "#shared/db/questions/attendee-answers.ts"
+        "#shared/db/questions/attendee-answers/reads.ts"
       );
       const answers = await getAttendeeAnswersBatch([attendee.id], {
         texts: false,
@@ -2514,8 +2514,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("updates answer from one option to another", async () => {
       const { attendee, q, a1, a2 } = await setupQuestionAndAttendee();
-      const { saveAttendeeAnswers, getAttendeeAnswersBatch } = await import(
-        "#shared/db/questions/attendee-answers.ts"
+      const { saveAttendeeAnswers } = await import(
+        "#shared/db/questions/attendee-answers/save.ts"
+      );
+      const { getAttendeeAnswersBatch } = await import(
+        "#shared/db/questions/attendee-answers/reads.ts"
       );
       await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
@@ -2538,8 +2541,11 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("clears answers when no question field submitted", async () => {
       const { attendee, a1 } = await setupQuestionAndAttendee();
-      const { saveAttendeeAnswers, getAttendeeAnswersBatch } = await import(
-        "#shared/db/questions/attendee-answers.ts"
+      const { saveAttendeeAnswers } = await import(
+        "#shared/db/questions/attendee-answers/save.ts"
+      );
+      const { getAttendeeAnswersBatch } = await import(
+        "#shared/db/questions/attendee-answers/reads.ts"
       );
       await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
@@ -2575,7 +2581,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       expect(response.status).toBe(302);
 
       const { getAttendeeAnswersBatch } = await import(
-        "#shared/db/questions/attendee-answers.ts"
+        "#shared/db/questions/attendee-answers/reads.ts"
       );
       const answers = await getAttendeeAnswersBatch([attendee.id], {
         texts: false,
@@ -3246,7 +3252,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
       // Assign different answers
       const { saveAttendeeAnswers: save } = await import(
-        "#shared/db/questions/attendee-answers.ts"
+        "#shared/db/questions/attendee-answers/save.ts"
       );
       await save(new Map([[target.id, [a1.id]]]));
       // Need source attendee ID
@@ -3301,8 +3307,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
       );
 
-      const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
-        await import("#shared/db/questions/attendee-answers.ts");
+      const { saveAttendeeAnswers: save } = await import(
+        "#shared/db/questions/attendee-answers/save.ts"
+      );
+      const { getAttendeeAnswersByQuestion } = await import(
+        "#shared/db/questions/attendee-answers/reads.ts"
+      );
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [sourceData] = await getAttendeesByTokens([sourceToken]);
       await save(new Map([[target.id, [a1.id]]])); // Small
@@ -3443,8 +3453,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
       );
 
-      const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
-        await import("#shared/db/questions/attendee-answers.ts");
+      const { saveAttendeeAnswers: save } = await import(
+        "#shared/db/questions/attendee-answers/save.ts"
+      );
+      const { getAttendeeAnswersByQuestion } = await import(
+        "#shared/db/questions/attendee-answers/reads.ts"
+      );
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [sourceData] = await getAttendeesByTokens([sourceToken]);
       await save(new Map([[target.id, [a1.id]]]));
@@ -3500,8 +3514,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "john@example.com",
       );
 
-      const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
-        await import("#shared/db/questions/attendee-answers.ts");
+      const { saveAttendeeAnswers: save } = await import(
+        "#shared/db/questions/attendee-answers/save.ts"
+      );
+      const { getAttendeeAnswersByQuestion } = await import(
+        "#shared/db/questions/attendee-answers/reads.ts"
+      );
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [sourceData] = await getAttendeesByTokens([sourceToken]);
       await save(new Map([[target.id, [a1.id]]]));
@@ -3553,8 +3571,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
 
       // Only source has an answer — no conflict
-      const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
-        await import("#shared/db/questions/attendee-answers.ts");
+      const { saveAttendeeAnswers: save } = await import(
+        "#shared/db/questions/attendee-answers/save.ts"
+      );
+      const { getAttendeeAnswersByQuestion } = await import(
+        "#shared/db/questions/attendee-answers/reads.ts"
+      );
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [sourceData] = await getAttendeesByTokens([sourceToken]);
       await save(new Map([[sourceData!.id, [a1.id]]]));
@@ -3604,8 +3626,12 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
 
       // Only target has an answer — no conflict
-      const { saveAttendeeAnswers: save, getAttendeeAnswersByQuestion } =
-        await import("#shared/db/questions/attendee-answers.ts");
+      const { saveAttendeeAnswers: save } = await import(
+        "#shared/db/questions/attendee-answers/save.ts"
+      );
+      const { getAttendeeAnswersByQuestion } = await import(
+        "#shared/db/questions/attendee-answers/reads.ts"
+      );
       await save(new Map([[target.id, [a1.id]]]));
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);

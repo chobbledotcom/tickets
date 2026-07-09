@@ -7,7 +7,7 @@ import {
   modifiersTable,
   setModifierAnswers,
 } from "#shared/db/modifiers.ts";
-import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers.ts";
+import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
 import { setListingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { todayInTz } from "#shared/timezone.ts";

@@ -6,7 +6,7 @@ import {
   resetAnswerAggregateFields,
   updateAnswerAggregateValues,
 } from "#shared/db/questions/aggregates.ts";
-import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers.ts";
+import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import {
   getAllQuestionsWithAnswers,
   getQuestionsWithListingIds,

@@ -5,7 +5,7 @@ import { stub } from "@std/testing/mock";
 import {
   getAttendeeAnswersBatch,
   getAttendeeTextAnswers,
-} from "#shared/db/questions/attendee-answers.ts";
+} from "#shared/db/questions/attendee-answers/reads.ts";
 import { setListingQuestions } from "#shared/db/questions/queries.ts";
 import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";

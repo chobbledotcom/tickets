@@ -7,7 +7,7 @@ import type {
   QuestionDisplayType,
   QuestionWithAnswers,
 } from "#shared/db/question-types.ts";
-import type { AttendeeQuestionData } from "#shared/db/questions/attendee-answers.ts";
+import type { AttendeeQuestionData } from "#shared/db/questions/attendee-answers/reads.ts";
 import type { EmailEntry, EmailListing } from "#shared/email.ts";
 import { signPriceSync } from "#shared/payment-signature.ts";
 import type { SessionMetadata } from "#shared/payments.ts";

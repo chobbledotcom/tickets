@@ -81,7 +81,7 @@ import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import {
   type AttendeeAnswerSet,
   saveAttendeeAnswers,
-} from "#shared/db/questions/attendee-answers.ts";
+} from "#shared/db/questions/attendee-answers/save.ts";
 import { parseQuestionAnswers } from "#shared/db/questions/parsing.ts";
 import { settings } from "#shared/db/settings.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";

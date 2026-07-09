@@ -45,7 +45,7 @@ import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import {
   getAttendeeTextAnswers,
   loadAttendeeQuestionData,
-} from "#shared/db/questions/attendee-answers.ts";
+} from "#shared/db/questions/attendee-answers/reads.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";

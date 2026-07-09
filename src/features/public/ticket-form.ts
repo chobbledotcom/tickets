@@ -14,7 +14,7 @@ import type {
 import type {
   AttendeeAnswerSet,
   AttendeeListingEntry,
-} from "#shared/db/questions/attendee-answers.ts";
+} from "#shared/db/questions/attendee-answers/save.ts";
 import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { mergeListingFields } from "#shared/listing-fields.ts";

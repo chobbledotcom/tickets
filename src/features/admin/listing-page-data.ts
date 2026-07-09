@@ -37,7 +37,7 @@ import {
   listingRevenueBreakdown,
 } from "#shared/db/listings.ts";
 import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
-import { getListingChoiceAnswerMap } from "#shared/db/questions/attendee-answers.ts";
+import { getListingChoiceAnswerMap } from "#shared/db/questions/attendee-answers/reads.ts";
 import {
   getAllQuestionsWithAnswers,
   getListingQuestionIds,

@@ -273,7 +273,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     ): Promise<void> => {
       const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
       const { saveAttendeeAnswers } = await import(
-        "#shared/db/questions/attendee-answers.ts"
+        "#shared/db/questions/attendee-answers/save.ts"
       );
       const result = await createAttendeeAtomic({
         bookings: [{ listingId }],

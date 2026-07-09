@@ -130,8 +130,11 @@ describeWithEnv(
       });
       const { textQuestionId, choiceAnswerId } =
         await attachTextAndChoiceQuestions(listing.id);
-      const { saveAttendeeAnswers, getAttendeeTextAnswers } = await import(
-        "#shared/db/questions/attendee-answers.ts"
+      const { saveAttendeeAnswers } = await import(
+        "#shared/db/questions/attendee-answers/save.ts"
+      );
+      const { getAttendeeTextAnswers } = await import(
+        "#shared/db/questions/attendee-answers/reads.ts"
       );
       // Seed a free-text answer on the servicing event.
       await saveAttendeeAnswers(
