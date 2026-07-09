@@ -23,22 +23,26 @@ import {
 } from "#test-utils";
 
 // jscpd:ignore-end
+import { setupListingAndAttendee } from "./helpers.ts";
+
+/** A listing plus "John Doe" attendee, with the thank-you URL set — the
+ *  shared setup for the delete GET/POST/DELETE auth and 404 tests. */
+const setupDeleteListingAndAttendee = ():
+  ReturnType<typeof setupListingAndAttendee> =>
+  setupListingAndAttendee({
+    listing: {
+      maxAttendees: 100,
+      thankYouUrl: "https://example.com",
+    },
+  });
+
 describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
   const deleteAction = adminAttendeeAction("delete");
 
   describe("GET /admin/listing/:listingId/attendee/:attendeeId/delete", () => {
     testRequiresAuth("/admin/attendees/1/delete", {
       setup: async () => {
-        const listing = await createTestListing({
-          maxAttendees: 100,
-          thankYouUrl: "https://example.com",
-        });
-        await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
+        await setupDeleteListingAndAttendee();
       },
     });
 
@@ -60,17 +64,13 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
     test("returns 404 for an orphan attendee with no home listing", async () => {
       // The attendee-scoped action loads the attendee's home listing; an
       // attendee whose bookings are all gone has none, so the page 404s.
-      const listing = await createTestListing({
-        maxAttendees: 100,
-        name: "Listing 1",
-        thankYouUrl: "https://example.com",
+      const { attendee } = await setupListingAndAttendee({
+        listing: {
+          maxAttendees: 100,
+          name: "Listing 1",
+          thankYouUrl: "https://example.com",
+        },
       });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
       const { getDb } = await import("#shared/db/client.ts");
       await getDb().execute(
         "DELETE FROM listing_attendees WHERE attendee_id = ?",
@@ -119,16 +119,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       },
       method: "POST",
       setup: async () => {
-        const listing = await createTestListing({
-          maxAttendees: 100,
-          thankYouUrl: "https://example.com",
-        });
-        await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
+        await setupDeleteListingAndAttendee();
       },
     });
 
@@ -236,16 +227,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
 
   describe("DELETE /admin/listing/:listingId/attendee/:attendeeId/delete", () => {
     test("deletes attendee with DELETE method", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
+      const { attendee } = await setupDeleteListingAndAttendee();
 
       const formBody = new URLSearchParams({
         confirm_identifier: "John Doe",

@@ -12,6 +12,8 @@ import {
 } from "#test-utils";
 
 // jscpd:ignore-end
+import { setupListingAndAttendee } from "./helpers.ts";
+
 describeWithEnv(
   "server (admin attendees) > attendee detail",
   { db: true },
@@ -19,13 +21,7 @@ describeWithEnv(
     describe("GET /admin/attendees/:attendeeId", () => {
       testRequiresAuth("/admin/attendees/1", {
         setup: async () => {
-          const listing = await createTestListing({ maxAttendees: 100 });
-          await createTestAttendee(
-            listing.id,
-            listing.slug,
-            "John Doe",
-            "john@example.com",
-          );
+          await setupListingAndAttendee();
         },
       });
 
@@ -40,13 +36,7 @@ describeWithEnv(
       // page must highlight the Attendees top-level link but show no "Add"
       // sub-nav beside it.
       test("the attendee page highlights Attendees but shows no Add sub-nav", async () => {
-        const listing = await createTestListing({ maxAttendees: 100 });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
+        const { attendee } = await setupListingAndAttendee();
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         const html = await response.text();
         expect(response.status).toBe(200);
@@ -82,13 +72,7 @@ describeWithEnv(
       });
 
       test("includes return_url as hidden field when provided", async () => {
-        const listing = await createTestListing({ maxAttendees: 100 });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
+        const { attendee } = await setupListingAndAttendee();
         const response = await adminGet(
           `/admin/attendees/${attendee.id}/edit?return_url=${encodeURIComponent(
             "/admin/calendar#attendees",
@@ -103,16 +87,9 @@ describeWithEnv(
       });
 
       test("shows current listing in registrations table", async () => {
-        const listing = await createTestListing({
-          maxAttendees: 100,
-          name: "Current Listing",
+        const { attendee } = await setupListingAndAttendee({
+          listing: { maxAttendees: 100, name: "Current Listing" },
         });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
         const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
         await expectHtmlResponse(
           response,

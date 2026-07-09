@@ -14,7 +14,7 @@ import {
 } from "#test-utils";
 
 // jscpd:ignore-end
-import { getMergeVersion } from "./helpers.ts";
+import { getMergeVersion, mergePair, submitMerge } from "./helpers.ts";
 
 describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
   describe("POST /admin/attendees/:attendeeId/merge", () => {
@@ -111,11 +111,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
           "john@example.com",
         );
 
-      const mergeVersion = await getMergeVersion(target.id, sourceToken);
-      const { response } = await adminFormPost(
-        `/admin/attendees/${target.id}/merge`,
-        { merge_version: mergeVersion, source_token: sourceToken },
-      );
+      const { response } = await submitMerge(target.id, sourceToken);
 
       // The flash names both attendees, and with no PII chosen the kept name is
       // the target's — so it reads "into Jane Doe", never "into John Smith".
@@ -154,32 +150,13 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
     });
 
     test("keeps target PII when no source fields selected", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const { attendee: target } = await createTestAttendeeDirect(
-        listing.id,
-        "Jane Doe",
-        "jane@example.com",
-        1,
-        "555-1111",
-      );
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "E2",
+      const { target, sourceToken } = await mergePair({
+        source: { phone: "555-9999" },
+        target: { phone: "555-1111" },
       });
-      const { token: sourceToken } = await createTestAttendeeDirect(
-        listing2.id,
-        "John Smith",
-        "john@example.com",
-        1,
-        "555-9999",
-      );
 
-      const mergeVersion = await getMergeVersion(target.id, sourceToken);
       // Submit without choosing source for any field (all default to target)
-      const { response } = await adminFormPost(
-        `/admin/attendees/${target.id}/merge`,
-        { merge_version: mergeVersion, source_token: sourceToken },
-      );
+      const { response } = await submitMerge(target.id, sourceToken);
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Merged"), true);
 
@@ -189,25 +166,13 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
     });
 
     test("takes source PII fields when selected", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const { attendee: target } = await createTestAttendeeDirect(
-        listing.id,
-        "Jane Doe",
-        "jane@example.com",
-      );
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "E2",
+      const { target, sourceToken } = await mergePair({
+        source: {
+          address: "123 Source St",
+          phone: "555-1234",
+          special_instructions: "Source instructions",
+        },
       });
-      const { token: sourceToken } = await createTestAttendeeDirect(
-        listing2.id,
-        "John Smith",
-        "john@example.com",
-        1,
-        "555-1234",
-        "123 Source St",
-        "Source instructions",
-      );
 
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
       // Choose source for all PII fields
@@ -239,31 +204,15 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
     });
 
     test("skips conflicting listing booking during merge", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
+      const { listing1, target, source, sourceToken } = await mergePair({
+        sameListing: true,
+      });
 
-      // Both attendees are registered for the same listing
-      const { attendee: target } = await createTestAttendeeDirect(
-        listing.id,
-        "Jane Doe",
-        "jane@example.com",
-      );
-      const { token: sourceToken, attendee: source } =
-        await createTestAttendeeDirect(
-          listing.id,
-          "John Smith",
-          "john@example.com",
-        );
-
-      const mergeVersion = await getMergeVersion(target.id, sourceToken);
       // Booking conflict: same listing, same start_at (null) — choose keep_target
-      const bookingKey = `${listing.id}:null:0:0`;
-      const { response } = await adminFormPost(
-        `/admin/attendees/${target.id}/merge`,
-        {
-          merge_version: mergeVersion,
-          source_token: sourceToken,
-          [`booking_${bookingKey}`]: "keep_target",
-        },
+      const { response } = await submitMerge(
+        target.id,
+        sourceToken,
+        { [`booking_${listing1.id}:null:0:0`]: "keep_target" },
       );
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Merged"), true);
@@ -279,7 +228,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
         [target.id],
       );
       expect(links.length).toBe(1);
-      expect(links[0]!.listing_id).toBe(listing.id);
+      expect(links[0]!.listing_id).toBe(listing1.id);
     });
   });
 });

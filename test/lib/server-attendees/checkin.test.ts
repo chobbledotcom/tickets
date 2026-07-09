@@ -8,8 +8,6 @@ import {
   adminFormPost,
   adminListingPage,
   assertAdminHtml,
-  createTestAttendee,
-  createTestListing,
   describeWithEnv,
   expectFlash,
   expectFlashRedirect,
@@ -21,6 +19,19 @@ import {
 } from "#test-utils";
 
 // jscpd:ignore-end
+import { setupListingAndAttendee } from "./helpers.ts";
+
+/** A listing plus "John Doe" attendee with the thank-you URL set — shared
+ *  setup for the checkin auth, 404, and CSRF tests. */
+const setupCheckinListingAndAttendee = ():
+  ReturnType<typeof setupListingAndAttendee> =>
+  setupListingAndAttendee({
+    listing: {
+      maxAttendees: 100,
+      thankYouUrl: "https://example.com",
+    },
+  });
+
 describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
   const checkinAction = adminAttendeeAction("checkin", "listing");
 
@@ -29,16 +40,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       body: {},
       method: "POST",
       setup: async () => {
-        const listing = await createTestListing({
-          maxAttendees: 100,
-          thankYouUrl: "https://example.com",
-        });
-        await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
+        await setupCheckinListingAndAttendee();
       },
     });
 
@@ -50,10 +52,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
     });
 
     test("returns 404 for non-existent attendee", async () => {
-      await createTestListing({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
+      await setupCheckinListingAndAttendee();
 
       const { response } = await adminFormPost(
         "/admin/listing/1/attendee/999/checkin",
