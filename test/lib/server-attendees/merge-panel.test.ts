@@ -11,9 +11,9 @@ import {
   extractInputValue,
   testRequiresAuth,
 } from "#test-utils";
-
+import { setupListingAndDirectAttendee } from "./helpers.ts";
 // jscpd:ignore-end
-import { mergePair, setupListingAndDirectAttendee } from "./helpers.ts";
+import { mergePair } from "./merge.ts";
 
 /** Fetch the merge Actions page for `target` with `sourceToken` set. */
 const mergeActionsPage = (

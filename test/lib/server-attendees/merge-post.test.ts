@@ -15,14 +15,9 @@ import {
   getListingActivityLog,
   testRequiresAuth,
 } from "#test-utils";
-
+import { setupListingAndDirectAttendee } from "./helpers.ts";
 // jscpd:ignore-end
-import {
-  getMergeVersion,
-  mergePair,
-  setupListingAndDirectAttendee,
-  submitMerge,
-} from "./helpers.ts";
+import { getMergeVersion, mergePair, submitMerge } from "./merge.ts";
 
 describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
   describe("POST /admin/attendees/:attendeeId/merge", () => {

@@ -14,16 +14,15 @@ import {
   expectHtmlResponse,
   expectRedirect,
 } from "#test-utils";
+import { createDualPackageAttendee, dualPackageRows } from "./helpers.ts";
 import {
   assignMergeAnswers,
-  createDualPackageAttendee,
-  dualPackageRows,
   mergeNonConflictingAnswer,
   mergePair,
   mergePairWithQuestion,
   mergeWithAnswerConflict,
   submitMerge,
-} from "./helpers.ts";
+} from "./merge.ts";
 
 describeWithEnv(
   "server (admin attendees) > merge conflicts",

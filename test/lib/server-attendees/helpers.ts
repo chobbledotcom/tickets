@@ -9,7 +9,6 @@ import {
 import type { Attendee, Listing } from "#shared/types.ts";
 import {
   adminFormPost,
-  adminGet,
   awaitTestRequest,
   buildAttendeeEditForm,
   createTestAttendee,
@@ -17,39 +16,11 @@ import {
   createTestListing,
   expectFlash,
   expectHtmlResponse,
-  extractInputValue,
   FLASH_TEST_ID,
   flashCookieHeader,
   getAttendeesRaw,
   mockFormRequest,
 } from "#test-utils";
-
-/** A slot for one of the optional contact fields on a direct attendee booking. */
-export type DirectBooking = {
-  name?: string;
-  email?: string;
-  quantity?: number;
-  phone?: string;
-  address?: string;
-  special_instructions?: string;
-};
-
-/** Extract merge_version from the merge preview HTML page. */
-export const getMergeVersion = async (
-  targetId: number,
-  sourceToken: string,
-): Promise<string> => {
-  const page = await adminGet(
-    `/admin/attendees/${targetId}/actions?token=${encodeURIComponent(
-      sourceToken,
-    )}`,
-  );
-  const html = await page.text();
-  // The merge preview template always renders the merge_version hidden input,
-  // so a missing value means the page itself is broken — let it fail loudly
-  // downstream rather than guarding an impossible state here.
-  return extractInputValue(html, "merge_version")!;
-};
 
 /** A listing (100 spots by default) plus one attendee booked onto it ("John
  *  Doe" by default). The single most repeated setup across the attendee admin
@@ -74,7 +45,7 @@ export const setupListingAndAttendee = async (
   return { attendee, listing };
 };
 
-/** Like {@link setupListingAndAttendee} but creates the attendee directly via
+/** Like `setupListingAndAttendee` but creates the attendee directly via
  *  the DB (`createTestAttendeeDirect`), returning its ticket token too. The
  *  merge-panel tests need the token (the public-route `createTestAttendee`
  *  leaves `ticket_token` unset), so they use this direct variant. */
@@ -97,7 +68,7 @@ export const setupListingAndDirectAttendee = async (
   return { attendee, listing, token };
 };
 
-/** The first attendee from a {@link createTestAttendeeAtomic}-style result,
+/** The first attendee from a `createTestAttendeeAtomic`-style result,
  *  throwing (loudly, like the tests it replaces) when booking failed. */
 export const firstAttendee = (
   result:
@@ -110,140 +81,8 @@ export const firstAttendee = (
   return result.attendees[0]!;
 };
 
-/** A merge pair: a "Jane Doe" target on one listing and a "John Smith" source
- *  (with its ticket token) on a second listing named "E2". Pass
- *  `sameListing` to put both on the same listing (booking conflict). Extra
- *  PII (`phone`/`address`/`special_instructions`) is forwarded to
- *  {@link createTestAttendeeDirect}; used by the merge-panel preview tests
- *  that exercise "source has empty phone" / "address differs" branches. */
-export const mergePair = async (
-  opts: {
-    sameListing?: boolean;
-    target?: DirectBooking;
-    source?: DirectBooking;
-    listingOpts?: Parameters<typeof createTestListing>[0];
-  } = {},
-): Promise<{
-  listing1: Listing;
-  listing2: Listing | null;
-  target: Attendee;
-  source: Attendee;
-  sourceToken: string;
-}> => {
-  const listing1 = await createTestListing({
-    maxAttendees: 10,
-    ...opts.listingOpts,
-  });
-  const t = opts.target ?? {};
-  const { attendee: target } = await createTestAttendeeDirect(
-    listing1.id,
-    t.name ?? "Jane Doe",
-    t.email ?? "jane@example.com",
-    t.quantity,
-    t.phone,
-    t.address,
-    t.special_instructions,
-  );
-  const listing2 = opts.sameListing
-    ? null
-    : await createTestListing({ maxAttendees: 10, name: "E2" });
-  const { attendee: source, token: sourceToken } =
-    await createTestAttendeeDirect(
-      listing2?.id ?? listing1.id,
-      opts.source?.name ?? "John Smith",
-      opts.source?.email ?? "john@example.com",
-      opts.source?.quantity,
-      opts.source?.phone,
-      opts.source?.address,
-      opts.source?.special_instructions,
-    );
-  return { listing1, listing2, source, sourceToken, target };
-};
-
-/** A {@link mergePair} where both listings carry the same radio question with
- *  the given answer texts (one or two answers). `a1` is always the first
- *  answer; `a2` is the second when two are passed (the merge answer-conflict
- *  tests use two; the source-only / target-only tests pass one, leaving `a2`
- *  undefined — they never read it). Used by the merge answer conflict tests. */
-export const mergePairWithQuestion = async (
-  questionText: string,
-  answerTexts: string[],
-): Promise<{
-  a1: Answer;
-  a2: Answer | undefined;
-  listing1: Listing;
-  listing2: Listing | null;
-  q: Question;
-  source: Attendee;
-  sourceToken: string;
-  target: Attendee;
-}> => {
-  const { listing1, listing2, target, source, sourceToken } = await mergePair();
-  const q = await questionsTable.insert({
-    displayType: "radio",
-    text: questionText,
-  });
-  const answers: Answer[] = [];
-  for (const [index, text] of answerTexts.entries()) {
-    answers.push(
-      await answersTable.insert({
-        questionId: q.id,
-        sortOrder: index,
-        text,
-      }),
-    );
-  }
-  await setListingQuestions(listing1.id, [q.id]);
-  if (listing2) await setListingQuestions(listing2.id, [q.id]);
-  return {
-    a1: answers[0]!,
-    a2: answers[1],
-    listing1,
-    listing2,
-    q,
-    source,
-    sourceToken,
-    target,
-  };
-};
-
-/** Save answers for the target and/or source of a merge pair. Only the side
- *  whose ids are passed is written, so "source-only" and "target-only" cases
- *  skip the other side entirely — matching the inline code it replaces. */
-export const assignMergeAnswers = async (
-  targetId: number,
-  sourceToken: string,
-  assignments: { target?: number[]; source?: number[] },
-): Promise<void> => {
-  const { saveAttendeeAnswers: save } = await import("#shared/db/questions.ts");
-  if (assignments.target) {
-    await save(new Map([[targetId, assignments.target]]));
-  }
-  if (assignments.source) {
-    const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
-    const [source] = await getAttendeesByTokens([sourceToken]);
-    await save(new Map([[source!.id, assignments.source]]));
-  }
-};
-
-/** Fetch the preview's merge_version, then POST the merge form with the given
- *  extra fields (`answer_<qId>`, `booking_<key>`, PII choices, …). Returns
- *  the redirect response and the version used. */
-export const submitMerge = async (
-  targetId: number,
-  sourceToken: string,
-  extra: Record<string, string> = {},
-): Promise<{ response: Response; mergeVersion: string }> => {
-  const mergeVersion = await getMergeVersion(targetId, sourceToken);
-  const { response } = await adminFormPost(
-    `/admin/attendees/${targetId}/merge`,
-    { merge_version: mergeVersion, source_token: sourceToken, ...extra },
-  );
-  return { mergeVersion, response };
-};
-
 /** Load a page with a flash cookie carrying `message` and assert the message
- *  renders. Shared by the add-attende and attendee-edit "listing page shows
+ *  renders. Shared by the add-attendee and attendee-edit "listing page shows
  *  flash message" tests. */
 export const expectFlashPage = async (
   url: string,
@@ -374,87 +213,6 @@ export const attendeeAnswerIds = async (
   return answers.get(attendeeId) ?? [];
 };
 
-/** Read a merged attendee's answer for one question after a merge POST. Pass
- *  `undefined` for `expectedAnswerId` to assert the answer was cleared. */
-export const expectMergeAnswer = async (
-  targetId: number,
-  questionId: number,
-  expectedAnswerId: number | undefined,
-): Promise<void> => {
-  const { getAttendeeAnswersByQuestion } = await import(
-    "#shared/db/questions.ts"
-  );
-  const finalAnswers = await getAttendeeAnswersByQuestion(targetId);
-  if (expectedAnswerId === undefined) {
-    expect(finalAnswers.has(questionId)).toBe(false);
-  } else {
-    expect(finalAnswers.get(questionId)?.answerId).toBe(expectedAnswerId);
-  }
-};
-
-/** Submit the admin add-attendee form for `listing` with the given fields,
- *  injecting the session's CSRF token. Returns the response. */
-export const submitAddAttendee = async (
-  listingId: number,
-  cookie: string,
-  csrfToken: string,
-  fields: Record<string, string>,
-): Promise<Response> =>
-  handleRequest(
-    mockFormRequest(
-      `/admin/listing/${listingId}/attendee`,
-      { csrf_token: csrfToken, ...fields },
-      cookie,
-    ),
-  );
-
-/** Set up a merge pair with a two-answer question, assign target=a1/source=a2
- *  (the conflict), submit the merge with the given answer `choice`
- *  ("source"/"clear"/"target"), and assert the expected outcome. The Size,
- *  Diet, and Shirt merge-conflict tests all share this exact shape. Returns the
- *  response so a caller can add extra assertions (e.g. flash). */
-export const mergeWithAnswerConflict = async (
-  questionText: string,
-  answerTexts: [string, string],
-  choice: "source" | "clear" | "target",
-): Promise<Response> => {
-  const { q, a1, a2, target, sourceToken } = await mergePairWithQuestion(
-    questionText,
-    answerTexts,
-  );
-  await assignMergeAnswers(target.id, sourceToken, {
-    source: [a2!.id],
-    target: [a1.id],
-  });
-  const { response } = await submitMerge(target.id, sourceToken, {
-    [`answer_${q.id}`]: choice,
-  });
-  expect(response.status).toBe(302);
-  const expected =
-    choice === "source" ? a2!.id : choice === "target" ? a1.id : undefined;
-  await expectMergeAnswer(target.id, q.id, expected);
-  return response;
-};
-
-/** Set up a merge pair with a one-answer question, assign the answer to only
- *  `side` ("source"/"target"), submit the merge (no answer choice — the
- *  non-conflicting answer auto-adopts), and assert the survivor keeps the
- *  answer. The source-only and target-only merge tests share this shape. */
-export const mergeNonConflictingAnswer = async (
-  questionText: string,
-  answerText: string,
-  side: "source" | "target",
-): Promise<void> => {
-  const { q, a1, target, sourceToken } = await mergePairWithQuestion(
-    questionText,
-    [answerText],
-  );
-  await assignMergeAnswers(target.id, sourceToken, { [side]: [a1.id] });
-  const { response } = await submitMerge(target.id, sourceToken);
-  expect(response.status).toBe(302);
-  await expectMergeAnswer(target.id, q.id, a1.id);
-};
-
 /** Save one answer id for a single attendee (the one-answer setup shared by
  *  the attendee-questions pre-select and clear tests). */
 export const saveAttendeeAnswer = async (
@@ -504,8 +262,8 @@ export const dualPackageRows = async (
 
 /** Create an attendee who books `listing` twice — once through `groupId`
  *  (quantity 2) and once standalone (quantity 1). The dual-path booking shared
- *  by the attendee-edit "keeps every path" and merge "take_source on one path"
- *  tests. */
+ *  by the attendee-edit "keeps every path" and merge "take_source on one
+ *  path" tests. */
 export const createDualPackageAttendee = async (
   listingId: number,
   groupId: number,
@@ -523,6 +281,22 @@ export const createDualPackageAttendee = async (
   });
   return (made as Extract<typeof made, { success: true }>).attendees[0]!;
 };
+
+/** Submit the admin add-attendee form for `listing` with the given fields,
+ *  injecting the session's CSRF token. Returns the response. */
+export const submitAddAttendee = async (
+  listingId: number,
+  cookie: string,
+  csrfToken: string,
+  fields: Record<string, string>,
+): Promise<Response> =>
+  handleRequest(
+    mockFormRequest(
+      `/admin/listing/${listingId}/attendee`,
+      { csrf_token: csrfToken, ...fields },
+      cookie,
+    ),
+  );
 
 /** Assert the add-attendee response redirected with an "Added" flash and that
  *  exactly one attendee was booked onto the listing; return that attendee row
