@@ -52,9 +52,11 @@ export const login = async (session: BrowserSession): Promise<void> => {
       LOGIN_FIELDS_SELECTOR,
       { timeout: config.actionTimeoutMs },
     );
-  } catch {
+  } catch (err) {
     await session.dumpPage("login-did-not-stick");
-    throw new Error("admin login did not stick; still on the login page");
+    throw new Error("admin login did not stick; still on the login page", {
+      cause: err,
+    });
   }
   log("  logged in");
 };
