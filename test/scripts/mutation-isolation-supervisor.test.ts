@@ -90,6 +90,14 @@ const writeRecords = async (records: MutationRunRecord[]): Promise<void> => {
   await Promise.all(records.map(writeRunRecord));
 };
 
+const readOnlyRunRecord = async (root: string): Promise<MutationRunRecord> => {
+  const records = await readRunRecords(root);
+  expect(records).toHaveLength(1);
+  return records[0]!;
+};
+
+type KillCall = { pid: number; signal: Deno.Signal | undefined };
+
 describe("mutation isolation supervisor commands", () => {
   test("runs invalid, help, and empty list commands", async () => {
     await withTempDir(async (root) => {
@@ -169,7 +177,7 @@ describe("mutation isolation supervisor commands", () => {
       const passed = markFinished(newRunRecord("mutation-passed", [], root), 0);
       await writeRecords([live, noPid, passed]);
 
-      const calls: { pid: number; signal?: Deno.Signal }[] = [];
+      const calls: KillCall[] = [];
       using _kill = stub(Deno, "kill", ((pid, signal) => {
         calls.push({ pid, signal });
       }) as typeof Deno.kill);
@@ -242,7 +250,7 @@ describe("mutation isolation supervisor commands", () => {
         ["src/a.ts", join(root, "test/a.test.ts")],
         root,
       );
-      const [record] = await readRunRecords(root);
+      const record = await readOnlyRunRecord(root);
 
       expect(run.result).toBe(7);
       expect(run.errors).toEqual([]);
@@ -268,7 +276,7 @@ describe("mutation isolation supervisor commands", () => {
       const run = await captureConsole(() =>
         runMutationInSnapshot(["src/a.ts", "test/a.test.ts"], root),
       );
-      const [record] = await readRunRecords(root);
+      const record = await readOnlyRunRecord(root);
 
       expect(run.result).toBe(130);
       expect(record.status).toBe("interrupted");
@@ -286,7 +294,7 @@ describe("mutation isolation supervisor commands", () => {
       const run = await captureConsole(() =>
         runMutationInSnapshot(["src/missing.ts", "test/missing.test.ts"], root),
       );
-      const [record] = await readRunRecords(root);
+      const record = await readOnlyRunRecord(root);
 
       expect(run.result).toBe(130);
       expect(run.errors).toHaveLength(1);
@@ -298,7 +306,7 @@ describe("mutation isolation supervisor commands", () => {
   test("records a failed run when snapshot copying throws a plain value", async () => {
     await withTempDir(async (root) => {
       const run = await capturePlainSnapshotFailure(root);
-      const [record] = await readRunRecords(root);
+      const record = await readOnlyRunRecord(root);
 
       expect(run).toMatchObject({ errors: [SNAPSHOT_FAILED], result: 1 });
       expect(record.status).toBe("failed");
@@ -312,7 +320,7 @@ describe("mutation isolation supervisor commands", () => {
         root,
         failSecondTextFileWrite,
       );
-      const [record] = await readRunRecords(root);
+      const record = await readOnlyRunRecord(root);
 
       expect(run).toMatchObject({ errors: [SNAPSHOT_FAILED], result: 1 });
       expect(record.status).toBe("copying");
@@ -325,7 +333,7 @@ describe("mutation isolation supervisor commands", () => {
 
       const originalKill = Deno.kill;
       let stopChild: (() => void) | undefined;
-      const killCalls: { pid: number; signal?: Deno.Signal }[] = [];
+      const killCalls: KillCall[] = [];
       using _addSignal = stub(Deno, "addSignalListener", ((
         _signal,
         listener,
@@ -372,16 +380,17 @@ describe("mutation isolation supervisor commands", () => {
       using _removeSignal = stub(Deno, "removeSignalListener", (() => {
         throw new Error("not registered");
       }) as typeof Deno.removeSignalListener);
-      using _command = stub(Deno, "Command", function throwingCommand() {
-        throw new Error("spawn failed");
-      } as unknown as typeof Deno.Command);
+      using _execPath = stub(Deno, "execPath", (() =>
+        join(root, "missing-deno")) as typeof Deno.execPath);
 
       const run = await captureConsole(() =>
         runMutationInSnapshot(["src/a.ts", "test/a.test.ts"], root),
       );
-      const [record] = await readRunRecords(root);
+      const record = await readOnlyRunRecord(root);
 
-      expect(run).toMatchObject({ errors: ["spawn failed"], result: 1 });
+      expect(run.result).toBe(1);
+      expect(run.errors).toHaveLength(1);
+      expect(run.errors[0]).toContain("missing-deno");
       expect(record.status).toBe("failed");
       expect(record.exitCode).toBe(1);
     });
