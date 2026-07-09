@@ -9,13 +9,15 @@ const [getCreatedTempDir, setCreatedTempDir] = lazyRef<string | null>(
 
 const ignoreCleanupError = (): void => {};
 
-const makeRemover = (options?: Deno.RemoveOptions) => (path: string): void => {
-  try {
-    Deno.removeSync(path, options);
-  } catch {
-    ignoreCleanupError();
-  }
-};
+const makeRemover =
+  (options?: Deno.RemoveOptions) =>
+  (path: string): void => {
+    try {
+      Deno.removeSync(path, options);
+    } catch {
+      ignoreCleanupError();
+    }
+  };
 
 const removeIfPresent = makeRemover();
 const removeDirIfPresent = makeRemover({ recursive: true });
