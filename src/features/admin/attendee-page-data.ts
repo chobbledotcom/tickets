@@ -397,8 +397,9 @@ const incompleteParentWarnings = async (
   for (const line of booked) {
     // getChildrenForParents only returns listings that ARE parents (≥1 child).
     const children = childrenByParent.get(line.listingId);
-    if (!children || children.some((child) => bookedIds.has(child.id)))
+    if (!children || children.some((child) => bookedIds.has(child.id))) {
       continue;
+    }
     warnings.set(
       line.listingId,
       t("attendee_form.warn_incomplete_parent", {

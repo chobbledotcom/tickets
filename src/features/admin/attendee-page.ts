@@ -39,6 +39,7 @@ import {
   type PageCtx,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
+import { loadPreviousBookings } from "#routes/admin/previous-bookings.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
@@ -188,12 +189,18 @@ const overviewTab: TabDef<LoadedAttendee> = {
     },
     {
       kind: "custom",
-      load: async ({ attendee }, ctx) =>
-        ContactHistory({
+      load: async ({ attendee }, ctx) => {
+        const [contactRecords, previousBookings] = await Promise.all([
+          loadContactRecords(attendee),
+          loadPreviousBookings(attendee),
+        ]);
+        return ContactHistory({
           attendee,
-          contactRecords: await loadContactRecords(attendee),
+          contactRecords,
           isOwner: ctx.session.adminLevel === "owner",
-        }),
+          previousBookings,
+        });
+      },
     },
   ],
   slug: "",

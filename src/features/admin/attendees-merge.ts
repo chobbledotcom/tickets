@@ -19,6 +19,7 @@ import {
   updateAttendeePII,
 } from "#shared/db/attendees.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
+import { syncAttendeeContactTokens } from "#shared/db/contact-tokens.ts";
 import { getQuestionsWithListingIds } from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
@@ -170,12 +171,12 @@ const pickPiiField = <K extends keyof MergeSource>(
 };
 
 /** Update target attendee PII based on merge decisions */
-const updateTargetPiiFromDecision = (
+const updateTargetPiiFromDecision = async (
   attendeeId: number,
   decision: AttendeeMergeDecisionInput,
   source: MergeSource,
   target: Attendee,
-): Promise<unknown> => {
+): Promise<void> => {
   // The pinned location belongs to the address it was pinned for, so it
   // follows whichever side's address the operator keeps. When the kept side
   // has no pin but the OTHER side pinned the very same address text, keep
@@ -186,14 +187,16 @@ const updateTargetPiiFromDecision = (
   const keptIsPinned = Boolean(kept.lat && kept.lng);
   const addressFrom =
     keptIsPinned || kept.address !== other.address ? kept : other;
-  return updateAttendeePII(attendeeId, {
+  const email = pickPiiField(decision, "email", source, target);
+  const phone = pickPiiField(decision, "phone", source, target);
+  await updateAttendeePII(attendeeId, {
     address: pickPiiField(decision, "address", source, target),
-    email: pickPiiField(decision, "email", source, target),
+    email,
     lat: addressFrom.lat,
     lng: addressFrom.lng,
     name: pickPiiField(decision, "name", source, target),
     payment_id: target.payment_id,
-    phone: pickPiiField(decision, "phone", source, target),
+    phone,
     special_instructions: pickPiiField(
       decision,
       "special_instructions",
@@ -201,6 +204,19 @@ const updateTargetPiiFromDecision = (
       target,
     ),
     ticket_token: target.ticket_token,
+  });
+  // The target keeps its ticket token, but the merge may switch its kept email
+  // or phone to the source's value. Keep that token attached to whichever
+  // contact now owns it. The deleted source's token is left stale and simply
+  // filtered out on read.
+  await syncAttendeeContactTokens({
+    after: { email, phone },
+    before: { email: target.email, phone: target.phone },
+    firstRealBooking: false,
+    hasBooking: true,
+    privateKey: await requireRequestPrivateKey(),
+    source: "admin",
+    ticketToken: target.ticket_token,
   });
 };
 

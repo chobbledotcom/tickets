@@ -5,6 +5,7 @@
  * - `attendees/pii.ts` — PII blob build/parse + encrypt/decrypt
  * - `attendees/queries.ts` — SELECT helpers + read queries
  * - `attendees/stats.ts` — aggregated active-listing statistics
+ * - `attendees/tokens.ts` — ticket-token lookup queries
  * - `attendees/capacity.ts` — availability/capacity checks
  * - `attendees/create.ts` — atomic attendee creation
  * - `attendees/delete.ts` — deletion + listing unlink
@@ -87,7 +88,6 @@ export {
   getAttendeePiiBlobsForListings,
   getAttendeeRaw,
   getAttendeesByIds,
-  getAttendeesByTokens,
   getAttendeesPage,
   getAttendeesRaw,
   getNewestAttendeesRaw,
@@ -96,6 +96,11 @@ export {
   LISTING_ATTENDEE_ROW_COLS,
 } from "#shared/db/attendees/queries.ts";
 export { getActiveListingStats } from "#shared/db/attendees/stats.ts";
+export type { AttendeeBookingRows } from "#shared/db/attendees/tokens.ts";
+export {
+  getAttendeeBookingRowsByTokens,
+  getAttendeesByTokens,
+} from "#shared/db/attendees/tokens.ts";
 export {
   checkGroupCapAfterDurationChange,
   incrementAttachmentDownloads,

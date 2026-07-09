@@ -147,8 +147,8 @@ describeWithEnv("admin sms", { db: true }, () => {
       log.some((e) => e.message.includes("queued for Jane Doe: Hello Jane")),
     ).toBe(true);
 
-    // The text counts against the phone contact, so the per-phone history
-    // panel's "Total messages" reflects SMS — not just bulk email.
+    // The text counts against the phone contact, so the history panel's
+    // "Total phone messages" reflects SMS — not just bulk email.
     const record = await getContactRecord(
       await hashPhone(PHONE),
       await getTestPrivateKey(),
