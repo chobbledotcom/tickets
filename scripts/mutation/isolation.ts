@@ -46,6 +46,13 @@ const processBelongsToRun = async (
   return await runLockIsHeld(record);
 };
 
+const runningProcessStillExists = async (
+  record: MutationRunRecord,
+): Promise<boolean> =>
+  record.status === "running" &&
+  record.pid !== undefined &&
+  (await processExists(record.pid));
+
 const liveRunIdSet = async (
   records: MutationRunRecord[],
 ): Promise<Set<string>> => {
@@ -71,7 +78,8 @@ const cleanableRuns = async (
   const statuses = await Promise.all(
     records.map(async (record) => ({
       isActive:
-        record.status === "copying" || (await processBelongsToRun(record)),
+        record.status === "copying" ||
+        (await runningProcessStillExists(record)),
       record,
     })),
   );

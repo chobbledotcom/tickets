@@ -325,15 +325,26 @@ describe("mutation isolation commands", () => {
         newRunRecord("mutation-running", [], root),
         Deno.pid,
       );
+      const starting = markRunning(
+        newRunRecord("mutation-starting", [], root),
+        Deno.pid,
+      );
       const stale = markRunning(
         newRunRecord("mutation-stale", [], root),
         99_999_999,
       );
+      const noPid = {
+        ...newRunRecord("mutation-nopid", [], root),
+        status: "running" as const,
+      };
       const passed = markFinished(newRunRecord("mutation-passed", [], root), 0);
-      for (const record of [copying, running, stale, passed]) {
+      for (const record of [copying, running, starting, stale, noPid, passed]) {
         await writeRunRecord(record);
       }
 
+      expect(
+        await runQuietMutationCommand(["--clean", "mutation-starting"], root),
+      ).toBe(1);
       await withMutationRunLock(running.root, async () => {
         expect(
           await runQuietMutationCommand(["--clean", "mutation-running"], root),
@@ -343,7 +354,9 @@ describe("mutation isolation commands", () => {
 
       expect(await pathExists(copying.root)).toBe(true);
       expect(await pathExists(running.root)).toBe(true);
+      expect(await pathExists(starting.root)).toBe(true);
       expect(await pathExists(stale.root)).toBe(false);
+      expect(await pathExists(noPid.root)).toBe(false);
       expect(await pathExists(passed.root)).toBe(false);
     });
   });
