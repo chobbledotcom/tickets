@@ -12,7 +12,10 @@ import {
   createRunId,
   formatRunList,
   ISOLATION_USAGE,
+  MUTATION_RUN_ID_ENV,
+  MUTATION_RUN_ROOT_ENV,
   MUTATION_SNAPSHOT_CHILD_ENV,
+  MUTATION_WORK_ROOT_ENV,
   type MutationRunRecord,
   markFinished,
   markInterrupted,
@@ -21,11 +24,10 @@ import {
   parseIsolationCommand,
   readRunRecords,
   rewriteMutationArgs,
+  runLockIsHeld,
   selectedRuns,
   writeRunRecord,
 } from "./isolation-state.ts";
-
-export { MUTATION_SNAPSHOT_CHILD_ENV } from "./isolation-state.ts";
 
 const processExists = async (pid: number): Promise<boolean> => {
   const result = await new Deno.Command("kill", {
@@ -36,24 +38,60 @@ const processExists = async (pid: number): Promise<boolean> => {
   return result.success;
 };
 
-const livePidSet = async (
+const processBelongsToRun = async (
+  record: MutationRunRecord,
+): Promise<boolean> => {
+  if (record.status !== "running" || record.pid === undefined) return false;
+  if (!(await processExists(record.pid))) return false;
+  return await runLockIsHeld(record);
+};
+
+const liveRunIdSet = async (
   records: MutationRunRecord[],
-): Promise<Set<number>> => {
+): Promise<Set<string>> => {
   const live = await Promise.all(
     records.map(async (record) => {
       if (record.pid === undefined) return null;
-      return (await processExists(record.pid)) ? record.pid : null;
+      return (await processBelongsToRun(record)) ? record.id : null;
     }),
   );
-  return new Set(live.filter((pid): pid is number => pid !== null));
+  return new Set(live.filter((id): id is string => id !== null));
 };
 
 const removeRun = async (record: MutationRunRecord): Promise<void> => {
   await Deno.remove(record.root, { recursive: true }).catch(() => {});
 };
 
-const signalRun = (record: MutationRunRecord, force: boolean): boolean => {
-  if (record.status !== "running" || record.pid === undefined) return false;
+const cleanableRuns = async (
+  records: MutationRunRecord[],
+): Promise<{
+  removable: MutationRunRecord[];
+  skipped: MutationRunRecord[];
+}> => {
+  const statuses = await Promise.all(
+    records.map(async (record) => ({
+      isActive:
+        record.status === "copying" || (await processBelongsToRun(record)),
+      record,
+    })),
+  );
+  return {
+    removable: statuses
+      .filter(({ isActive }) => !isActive)
+      .map(({ record }) => record),
+    skipped: statuses
+      .filter(({ isActive }) => isActive)
+      .map(({ record }) => record),
+  };
+};
+
+const signalRun = async (
+  record: MutationRunRecord,
+  force: boolean,
+): Promise<boolean> => {
+  if (!(await processBelongsToRun(record)) || record.pid === undefined) {
+    return false;
+  }
   try {
     Deno.kill(record.pid, force ? "SIGKILL" : "SIGTERM");
     return true;
@@ -69,9 +107,9 @@ const childEnv = (
 ): Record<string, string> => ({
   ...Deno.env.toObject(),
   [MUTATION_SNAPSHOT_CHILD_ENV]: "1",
-  TICKETS_MUTATION_RUN_ID: id,
-  TICKETS_MUTATION_RUN_ROOT: runRootPath,
-  TICKETS_MUTATION_WORK_ROOT: snapshotRoot,
+  [MUTATION_RUN_ID_ENV]: id,
+  [MUTATION_RUN_ROOT_ENV]: runRootPath,
+  [MUTATION_WORK_ROOT_ENV]: snapshotRoot,
 });
 
 const childArgs = (
@@ -112,6 +150,7 @@ export const runMutationInSnapshot = async (
     }
   }
 
+  let exitCode: number;
   try {
     console.log(`Creating isolated mutation run ${id}`);
     console.log(`Snapshot: ${relative(root, record.workRoot)}`);
@@ -119,45 +158,47 @@ export const runMutationInSnapshot = async (
     if (interrupted) {
       record = markInterrupted(record);
       await writeRunRecord(record);
-      return 130;
+      exitCode = 130;
+    } else {
+      child = new Deno.Command(Deno.execPath(), {
+        args: childArgs(root, record.workRoot, args),
+        cwd: record.workRoot,
+        env: childEnv(id, record.root, record.workRoot),
+        stderr: "inherit",
+        stdin: "inherit",
+        stdout: "inherit",
+      }).spawn();
+      record = markRunning(record, child.pid);
+      await writeRunRecord(record);
+      console.log(`Mutation child pid ${child.pid}`);
+
+      const status = await child.status;
+      record = markFinished(record, status.code);
+      await writeRunRecord(record);
+      exitCode = status.code;
     }
-
-    child = new Deno.Command(Deno.execPath(), {
-      args: childArgs(root, record.workRoot, args),
-      cwd: record.workRoot,
-      env: childEnv(id, record.root, record.workRoot),
-      stderr: "inherit",
-      stdin: "inherit",
-      stdout: "inherit",
-    }).spawn();
-    record = markRunning(record, child.pid);
-    await writeRunRecord(record);
-    console.log(`Mutation child pid ${child.pid}`);
-
-    const status = await child.status;
-    record = markFinished(record, status.code);
-    await writeRunRecord(record);
-    return status.code;
   } catch (error) {
-    record = markFinished(record, interrupted ? 130 : 1);
+    exitCode = interrupted ? 130 : 1;
+    record = markFinished(record, exitCode);
     await writeRunRecord(record).catch(() => {});
     console.error(error instanceof Error ? error.message : String(error));
-    return interrupted ? 130 : 1;
-  } finally {
-    for (const signal of signals) {
-      try {
-        Deno.removeSignalListener(signal, stopChild);
-      } catch {
-        // Matches the add above.
-      }
+  }
+  for (const signal of signals) {
+    try {
+      Deno.removeSignalListener(signal, stopChild);
+    } catch {
+      // Matches the add above.
     }
   }
+  return exitCode;
 };
 
 const listRuns = async (root = projectRoot): Promise<number> => {
   const records = await readRunRecords(root);
-  const livePids = await livePidSet(records);
-  for (const line of formatRunList(records, livePids, root)) console.log(line);
+  const liveRunIds = await liveRunIdSet(records);
+  for (const line of formatRunList(records, liveRunIds, root)) {
+    console.log(line);
+  }
   return 0;
 };
 
@@ -171,7 +212,14 @@ const killRuns = async (
     console.error(`No isolated mutation run matched ${target}.`);
     return 1;
   }
-  const killed = records.filter((record) => signalRun(record, force));
+  const signalled = await Promise.all(
+    records.map(async (record) =>
+      (await signalRun(record, force)) ? record : null,
+    ),
+  );
+  const killed = signalled.filter(
+    (record): record is MutationRunRecord => record !== null,
+  );
   for (const record of killed) console.log(`Signalled ${record.id}.`);
   if (killed.length === 0) {
     console.error(`No running isolated mutation run matched ${target}.`);
@@ -189,8 +237,16 @@ const cleanRuns = async (
     console.error(`No isolated mutation run matched ${target}.`);
     return 1;
   }
-  await Promise.all(records.map(removeRun));
-  for (const record of records) console.log(`Removed ${record.id}.`);
+  const { removable, skipped } = await cleanableRuns(records);
+  await Promise.all(removable.map(removeRun));
+  for (const record of removable) console.log(`Removed ${record.id}.`);
+  for (const record of skipped) {
+    console.error(`Skipped active isolated mutation run ${record.id}.`);
+  }
+  if (removable.length === 0) {
+    console.error(`No cleanable isolated mutation run matched ${target}.`);
+    return 1;
+  }
   return 0;
 };
 
@@ -199,6 +255,11 @@ export const runIsolatedMutationCommand = async (
   root = projectRoot,
 ): Promise<number> => {
   const command = parseIsolationCommand(args);
+  if (command.kind === "invalid") {
+    console.error(command.message);
+    console.error(ISOLATION_USAGE);
+    return 1;
+  }
   if (command.kind === "help") {
     console.log(ISOLATION_USAGE);
     return 0;

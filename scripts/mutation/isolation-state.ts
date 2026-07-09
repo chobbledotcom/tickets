@@ -18,7 +18,11 @@ import { projectRoot } from "../project-root.ts";
 export const MUTATION_RUNS_DIR = ".mutation-runs";
 export const MUTATION_WORK_DIR = "work";
 export const MUTATION_RECORD_FILE = "run.json";
+export const MUTATION_RUN_LOCK_FILE = "run.lock";
 export const MUTATION_SNAPSHOT_CHILD_ENV = "TICKETS_MUTATION_SNAPSHOT_CHILD";
+export const MUTATION_RUN_ID_ENV = "TICKETS_MUTATION_RUN_ID";
+export const MUTATION_RUN_ROOT_ENV = "TICKETS_MUTATION_RUN_ROOT";
+export const MUTATION_WORK_ROOT_ENV = "TICKETS_MUTATION_WORK_ROOT";
 
 const SKIPPED_TOP_LEVEL_NAMES = new Set([
   ".agents",
@@ -78,6 +82,7 @@ export interface MutationRunRecord {
 export type IsolationCommand =
   | { kind: "clean"; target: string }
   | { kind: "help" }
+  | { kind: "invalid"; message: string }
   | { kind: "kill"; force: boolean; target: string }
   | { kind: "list" }
   | { args: string[]; kind: "run" };
@@ -181,6 +186,9 @@ export const workRoot = (id: string, root = projectRoot): string =>
 export const recordPath = (id: string, root = projectRoot): string =>
   join(runRoot(id, root), MUTATION_RECORD_FILE);
 
+export const runLockPath = (record: Pick<MutationRunRecord, "root">): string =>
+  join(record.root, MUTATION_RUN_LOCK_FILE);
+
 export const newRunRecord = (
   id: string,
   args: string[],
@@ -231,6 +239,9 @@ export const markInterrupted = (
   updatedAt,
 });
 
+export const isTerminalRunStatus = (status: MutationRunStatus): boolean =>
+  status === "passed" || status === "failed" || status === "interrupted";
+
 export const writeRunRecord = async (
   record: MutationRunRecord,
 ): Promise<void> => {
@@ -253,6 +264,17 @@ export const readRunRecord = async (
   }
 };
 
+const recordInCurrentRunDirectory = (
+  record: MutationRunRecord,
+  id: string,
+  root = projectRoot,
+): MutationRunRecord => ({
+  ...record,
+  id,
+  root: runRoot(id, root),
+  workRoot: workRoot(id, root),
+});
+
 export const readRunRecords = async (
   root = projectRoot,
 ): Promise<MutationRunRecord[]> => {
@@ -261,7 +283,9 @@ export const readRunRecords = async (
     for await (const entry of Deno.readDir(runsRoot(root))) {
       if (!entry.isDirectory) continue;
       const record = await readRunRecord(recordPath(entry.name, root));
-      if (record) records.push(record);
+      if (record) {
+        records.push(recordInCurrentRunDirectory(record, entry.name, root));
+      }
     }
   } catch (error) {
     if (!(error instanceof Deno.errors.NotFound)) throw error;
@@ -298,15 +322,26 @@ export const rewriteMutationArgs = (
 
 export const parseIsolationCommand = (args: string[]): IsolationCommand => {
   const [first, second, ...rest] = args;
-  if (!first || first === "-h" || first === "--help") return { kind: "help" };
+  if (!first) {
+    return {
+      kind: "invalid",
+      message: "Mutation source and test globs are required.",
+    };
+  }
+  if (first === "-h" || first === "--help") return { kind: "help" };
   if (first === "list" || first === "--list") return { kind: "list" };
   if (first === "kill" || first === "--kill") {
     return second
       ? { force: rest.includes("--force"), kind: "kill", target: second }
-      : { kind: "help" };
+      : { kind: "invalid", message: "A run id or all is required for --kill." };
   }
   if (first === "clean" || first === "--clean") {
-    return second ? { kind: "clean", target: second } : { kind: "help" };
+    return second
+      ? { kind: "clean", target: second }
+      : {
+          kind: "invalid",
+          message: "A run id, all, or finished is required for --clean.",
+        };
   }
   return { args, kind: "run" };
 };
@@ -333,18 +368,86 @@ export const formatRunLine = (
 
 export const formatRunList = (
   records: MutationRunRecord[],
-  livePids: Set<number>,
+  liveRunIds: Set<string>,
   root = projectRoot,
 ): string[] =>
   records.length === 0
     ? ["No isolated mutation runs."]
     : records.map((record) =>
-        formatRunLine(
-          record,
-          record.pid === undefined ? false : livePids.has(record.pid),
-          root,
-        ),
+        formatRunLine(record, liveRunIds.has(record.id), root),
       );
+
+const LOCK_HELD_EXIT_CODE = 124;
+
+const LOCK_PROBE_SCRIPT = `
+const [path, timeoutText] = Deno.args;
+const timeout = setTimeout(
+  () => Deno.exit(${LOCK_HELD_EXIT_CODE}),
+  Number(timeoutText),
+);
+const file = await Deno.open(path, { read: true, write: true }).catch(() => null);
+if (file === null) {
+  clearTimeout(timeout);
+  Deno.exit(2);
+}
+try {
+  await file.lock(true);
+  await file.unlock();
+  clearTimeout(timeout);
+  file.close();
+  Deno.exit(0);
+} catch {
+  clearTimeout(timeout);
+  file.close();
+  Deno.exit(2);
+}
+`;
+
+const lockProbeExitCode = async (
+  path: string,
+  timeoutMs: number,
+): Promise<number> => {
+  const { code } = await new Deno.Command(Deno.execPath(), {
+    args: ["eval", LOCK_PROBE_SCRIPT, "--", path, String(timeoutMs)],
+    stderr: "null",
+    stdout: "null",
+  }).output();
+  return code;
+};
+
+export const runLockIsHeld = async (
+  record: Pick<MutationRunRecord, "root">,
+  timeoutMs = 50,
+): Promise<boolean> => {
+  const path = runLockPath(record);
+  const file = await Deno.open(path, {
+    create: true,
+    read: true,
+    write: true,
+  }).catch(() => null);
+  if (file === null) return false;
+  file.close();
+  return (await lockProbeExitCode(path, timeoutMs)) === LOCK_HELD_EXIT_CODE;
+};
+
+export const withMutationRunLock = async <Result>(
+  runRootPath: string,
+  run: () => Promise<Result>,
+): Promise<Result> => {
+  await Deno.mkdir(runRootPath, { recursive: true });
+  const file = await Deno.open(join(runRootPath, MUTATION_RUN_LOCK_FILE), {
+    create: true,
+    read: true,
+    write: true,
+  });
+  try {
+    await file.lock(true);
+    return await run();
+  } finally {
+    await file.unlock();
+    file.close();
+  }
+};
 
 export const selectedRuns = (
   records: MutationRunRecord[],
@@ -352,7 +455,7 @@ export const selectedRuns = (
 ): MutationRunRecord[] => {
   if (target === "all") return records;
   if (target === "finished") {
-    return records.filter((record) => record.status !== "running");
+    return records.filter((record) => isTerminalRunStatus(record.status));
   }
   const exact = records.filter((record) => record.id === target);
   if (exact.length > 0) return exact;

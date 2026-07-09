@@ -14,24 +14,21 @@ import {
   readRunRecord,
   readRunRecords,
   rewriteMutationArgs,
+  runLockIsHeld,
+  runRoot,
   selectedRuns,
   shouldCopySnapshotPath,
   statusForExitCode,
   visibleStatus,
+  withMutationRunLock,
   workRoot,
   writeRunRecord,
 } from "../../scripts/mutation/isolation-state.ts";
-
-const withTempDir = async (
-  run: (dir: string) => Promise<void>,
-): Promise<void> => {
-  const dir = await Deno.makeTempDir({ prefix: "mutation-isolation-" });
-  try {
-    await run(dir);
-  } finally {
-    await Deno.remove(dir, { recursive: true }).catch(() => {});
-  }
-};
+import {
+  runQuietMutationCommand,
+  withTempDir,
+  writeMovedRunRecord,
+} from "./mutation-isolation-helpers.ts";
 
 describe("mutation isolation paths", () => {
   test("copies source-like files and skips git, reports, secrets, dbs, and generated assets", async () => {
@@ -173,6 +170,20 @@ describe("mutation isolation run records", () => {
     });
   });
 
+  test("reads records from the current run directory", async () => {
+    await withTempDir(async (root) => {
+      const { id, record } = await writeMovedRunRecord(root);
+
+      expect(await readRunRecords(root)).toEqual([
+        {
+          ...record,
+          root: runRoot(id, root),
+          workRoot: workRoot(id, root),
+        },
+      ]);
+    });
+  });
+
   test("surfaces unreadable run directories", async () => {
     await withTempDir(async (root) => {
       const fileRoot = join(root, "file-root");
@@ -183,60 +194,157 @@ describe("mutation isolation run records", () => {
       );
     });
   });
+
+  test("reports whether a run lock is held", async () => {
+    await withTempDir(async (root) => {
+      const record = { root };
+      expect(await runLockIsHeld(record, 10)).toBe(false);
+      await withMutationRunLock(root, async () => {
+        expect(await runLockIsHeld(record, 10)).toBe(true);
+      });
+      expect(await runLockIsHeld(record, 10)).toBe(false);
+
+      const fileRoot = join(root, "file-root");
+      await Deno.writeTextFile(fileRoot, "");
+      expect(await runLockIsHeld({ root: fileRoot }, 10)).toBe(false);
+    });
+  });
 });
 
 describe("mutation isolation commands", () => {
   test("parses management commands and passes mutation args through", () => {
-    expect(parseIsolationCommand([])).toEqual({ kind: "help" });
+    expect(parseIsolationCommand([])).toEqual({
+      kind: "invalid",
+      message: "Mutation source and test globs are required.",
+    });
+    expect(parseIsolationCommand(["--help"])).toEqual({ kind: "help" });
     expect(parseIsolationCommand(["--list"])).toEqual({ kind: "list" });
     expect(parseIsolationCommand(["kill", "run-1", "--force"])).toEqual({
       force: true,
       kind: "kill",
       target: "run-1",
     });
-    expect(parseIsolationCommand(["--kill"])).toEqual({ kind: "help" });
+    expect(parseIsolationCommand(["--kill"])).toEqual({
+      kind: "invalid",
+      message: "A run id or all is required for --kill.",
+    });
     expect(parseIsolationCommand(["clean", "finished"])).toEqual({
       kind: "clean",
       target: "finished",
     });
-    expect(parseIsolationCommand(["clean"])).toEqual({ kind: "help" });
+    expect(parseIsolationCommand(["clean"])).toEqual({
+      kind: "invalid",
+      message: "A run id, all, or finished is required for --clean.",
+    });
     expect(parseIsolationCommand(["src/a.ts", "test/a.test.ts"])).toEqual({
       args: ["src/a.ts", "test/a.test.ts"],
       kind: "run",
     });
   });
 
-  test("selects records by target and formats list output", () => {
+  test("selects records by target", () => {
     const running = markRunning(
       newRunRecord("mutation-running", ["src/a.ts"], "/repo"),
       10,
     );
+    const copying = newRunRecord("mutation-copying", ["src/c.ts"], "/repo");
     const passed = markFinished(
       newRunRecord("mutation-passed", ["src/b.ts"], "/repo"),
       0,
     );
-    const records = [running, passed];
+    const failed = markFinished(
+      newRunRecord("mutation-failed", ["src/d.ts"], "/repo"),
+      1,
+    );
+    const interrupted = markInterrupted(
+      newRunRecord("mutation-interrupted", ["src/e.ts"], "/repo"),
+    );
+    const records = [running, copying, passed, failed, interrupted];
 
     expect(selectedRuns(records, "all").map((record) => record.id)).toEqual([
       "mutation-running",
+      "mutation-copying",
       "mutation-passed",
+      "mutation-failed",
+      "mutation-interrupted",
     ]);
     expect(
       selectedRuns(records, "finished").map((record) => record.id),
-    ).toEqual(["mutation-passed"]);
+    ).toEqual(["mutation-passed", "mutation-failed", "mutation-interrupted"]);
     expect(selectedRuns(records, "mutation-running")).toEqual([running]);
     expect(selectedRuns(records, "mutation-runn")).toEqual([running]);
     expect(selectedRuns(records, "mutation-")).toEqual([]);
     expect(selectedRuns(records, "missing")).toEqual([]);
+  });
+
+  test("formats list output", () => {
+    const running = markRunning(
+      newRunRecord("mutation-running", ["src/a.ts"], "/repo"),
+      10,
+    );
+
     expect(visibleStatus(running, false)).toBe("stale");
     expect(formatRunList([], new Set(), "/repo")).toEqual([
       "No isolated mutation runs.",
     ]);
-    expect(formatRunList(records, new Set([10]), "/repo").join("\n")).toContain(
+    expect(
+      formatRunList([running], new Set(["mutation-running"]), "/repo"),
+    ).toEqual([
       "mutation-running running pid=10 exit=- work=.mutation-runs/mutation-running/work args=src/a.ts",
-    );
+    ]);
+    expect(formatRunList([running], new Set(), "/repo")).toEqual([
+      "mutation-running stale pid=10 exit=- work=.mutation-runs/mutation-running/work args=src/a.ts",
+    ]);
+    expect(
+      formatRunList([markFinished(running, 1)], new Set(), "/repo"),
+    ).toEqual([
+      "mutation-running failed pid=10 exit=1 work=.mutation-runs/mutation-running/work args=src/a.ts",
+    ]);
     expect(
       formatRunList([newRunRecord("empty", [], "/repo")], new Set(), "/repo"),
     ).toEqual(["empty copying pid=- exit=- work=.mutation-runs/empty/work"]);
+  });
+
+  test("cleans only the current run directory", async () => {
+    await withTempDir(async (root) => {
+      const { id, oldRunRoot } = await writeMovedRunRecord(root);
+      await Deno.mkdir(oldRunRoot, { recursive: true });
+      await Deno.writeTextFile(join(oldRunRoot, "keep.txt"), "old");
+
+      expect(await runQuietMutationCommand(["--clean", "all"], root)).toBe(0);
+
+      expect(await pathExists(runRoot(id, root))).toBe(false);
+      expect(await pathExists(join(oldRunRoot, "keep.txt"))).toBe(true);
+    });
+  });
+
+  test("skips active runs during cleanup", async () => {
+    await withTempDir(async (root) => {
+      const copying = newRunRecord("mutation-copying", [], root);
+      const running = markRunning(
+        newRunRecord("mutation-running", [], root),
+        Deno.pid,
+      );
+      const stale = markRunning(
+        newRunRecord("mutation-stale", [], root),
+        99_999_999,
+      );
+      const passed = markFinished(newRunRecord("mutation-passed", [], root), 0);
+      for (const record of [copying, running, stale, passed]) {
+        await writeRunRecord(record);
+      }
+
+      await withMutationRunLock(running.root, async () => {
+        expect(
+          await runQuietMutationCommand(["--clean", "mutation-running"], root),
+        ).toBe(1);
+        expect(await runQuietMutationCommand(["--clean", "all"], root)).toBe(0);
+      });
+
+      expect(await pathExists(copying.root)).toBe(true);
+      expect(await pathExists(running.root)).toBe(true);
+      expect(await pathExists(stale.root)).toBe(false);
+      expect(await pathExists(passed.root)).toBe(false);
+    });
   });
 });

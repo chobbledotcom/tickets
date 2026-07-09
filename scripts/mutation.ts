@@ -18,10 +18,14 @@
  */
 
 import { globToRegExp, join, normalize, SEPARATOR } from "@std/path";
+import { runIsolatedMutationCommand } from "./mutation/isolation.ts";
 import {
+  MUTATION_RUN_ID_ENV,
+  MUTATION_RUN_ROOT_ENV,
   MUTATION_SNAPSHOT_CHILD_ENV,
-  runIsolatedMutationCommand,
-} from "./mutation/isolation.ts";
+  MUTATION_WORK_ROOT_ENV,
+  withMutationRunLock,
+} from "./mutation/isolation-state.ts";
 
 const DEFAULT_TIMEOUT = 10_000;
 
@@ -215,9 +219,23 @@ const main = async (): Promise<void> => {
   Deno.exit(code);
 };
 
+const mutationRunRootFromEnv = (): string | null => {
+  const id = Deno.env.get(MUTATION_RUN_ID_ENV);
+  const runRoot = Deno.env.get(MUTATION_RUN_ROOT_ENV);
+  const workRoot = Deno.env.get(MUTATION_WORK_ROOT_ENV);
+  return id && runRoot && workRoot ? runRoot : null;
+};
+
+const runSnapshotChild = async (): Promise<void> => {
+  const runRoot = mutationRunRootFromEnv();
+  return runRoot === null
+    ? await main()
+    : await withMutationRunLock(runRoot, main);
+};
+
 if (import.meta.main) {
   if (Deno.env.get(MUTATION_SNAPSHOT_CHILD_ENV) === "1") {
-    await main();
+    await runSnapshotChild();
   } else {
     Deno.exit(await runIsolatedMutationCommand(Deno.args));
   }
