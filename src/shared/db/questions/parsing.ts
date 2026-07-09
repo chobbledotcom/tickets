@@ -14,6 +14,7 @@ import type {
   TextAnswer,
 } from "#shared/db/question-types.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { parsePositiveIntId } from "#shared/validation/number.ts";
 
 export const findAnswerById = (
   question: QuestionWithAnswers,
@@ -35,7 +36,12 @@ export const readQuestionAnswer = (
   | { status: "ok"; answerId: number } => {
   const raw = form.get(`question_${question.id}`);
   if (!raw) return { status: "missing" };
-  const answerId = Number.parseInt(raw, 10);
+  // Parse a strict positive-integer id: `Number.parseInt("12xyz", 10)` would
+  // return `12` and silently match answer id 12, so a malformed submission
+  // could select a real answer by accident. `parsePositiveIntId` rejects any
+  // non-digit input (the repo's shared Valibot helper) before coercing.
+  const answerId = parsePositiveIntId(raw);
+  if (answerId === null) return { status: "invalid" };
   const answer = findAnswerById(question, answerId);
   if (!answer || (activeOnly && !answer.active)) {
     return { status: "invalid" };
