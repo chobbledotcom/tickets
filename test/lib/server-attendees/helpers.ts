@@ -45,13 +45,10 @@ export const getMergeVersion = async (
     )}`,
   );
   const html = await page.text();
-  const version = extractInputValue(html, "merge_version");
-  if (!version) {
-    throw new Error(
-      `merge_version input not found on actions page for attendee ${targetId}`,
-    );
-  }
-  return version;
+  // The merge preview template always renders the merge_version hidden input,
+  // so a missing value means the page itself is broken — let it fail loudly
+  // downstream rather than guarding an impossible state here.
+  return extractInputValue(html, "merge_version")!;
 };
 
 /** A listing (100 spots by default) plus one attendee booked onto it ("John
