@@ -20,6 +20,10 @@ import {
   hasReporterArg,
   runCompactDenoTest,
 } from "./compact-test-reporter.ts";
+import {
+  COVERAGE_OUTPUT_DIR,
+  removeOldCoverageOutput,
+} from "./coverage-output.ts";
 import { projectRoot } from "./project-root.ts";
 import { startStripeMock, stripeMockEnv } from "./stripe-mock.ts";
 
@@ -88,7 +92,7 @@ const buildDenoTestArgs = (
     "--v8-flags=--expose-gc",
   ];
   if (reporter) args.push("--reporter", reporter);
-  if (useCoverage) args.push("--coverage=coverage");
+  if (useCoverage) args.push(`--coverage=${COVERAGE_OUTPUT_DIR}`);
   if (junitPath) args.push("--junit-path", junitPath);
   args.push(...extraArgs);
   return args;
@@ -110,6 +114,8 @@ export const runTests = async (
     ...Deno.env.toObject(),
     ...stripeMockEnv(),
   };
+
+  if (useCoverage) await removeOldCoverageOutput();
 
   if (!hasReporterArg(extraArgs)) {
     const estimatedTotal = await estimateTapEventCount(projectRoot, extraArgs);

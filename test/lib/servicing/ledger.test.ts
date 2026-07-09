@@ -14,10 +14,8 @@
  * Implementation contract (test-first):
  *   - `#shared/accounting/accounts.ts` exports `COST = "cost"` and
  *     `costAccount = rowAccount(COST)` (reuses the `rowAccount` id guard).
- *   - `#shared/accounting/projection.ts` exports pure `costOf(listingId)` and
- *     `profitOf(listingId)` readers over the `transfers` table; the pure
- *     projections `costProjection`/`profitProjection` live in
- *     `#shared/ledger/project.ts` (or a sibling) for unit testing.
+ *   - Listing cost is read from the cost account balance, and listing profit
+ *     comes from the same SQL row projection the admin page displays.
  *   - `#shared/db/attendees/servicing.ts` (or a `servicing-cost.ts` sibling)
  *     exports `recordServiceCost`, `editServiceCost`. The delete path does NOT
  *     reverse cost legs — the ledger is append-only history and is never
@@ -29,7 +27,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { costAccount, revenueAccount } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
-import { costOf, profitOf } from "#shared/accounting/projection.ts";
 import {
   accountBalance,
   allTransfers,
@@ -51,6 +48,7 @@ import {
   editServiceCost,
   expectCostAfterRecording,
   expectRejects,
+  listingCostOf,
   parseFlashCookie,
   recordServiceCost,
   renderAdminPage,
@@ -62,6 +60,14 @@ const SERVICE_DATE = "2026-07-01T00:00:00.000Z";
 
 const transfersOfKind = async (kind: string) =>
   (await allTransfers()).filter((t) => t.kind === kind);
+
+const listingProfitOf = async (listingId: number): Promise<number> => {
+  const { getListingWithCount, invalidateListingsCache } = await import(
+    "#shared/db/listings.ts"
+  );
+  invalidateListingsCache();
+  return (await getListingWithCount(listingId))!.profit;
+};
 
 /** Record a £90 "Boiler part" cost against the servicing event. */
 const recordBoilerCost = (servicingId: number, listingId: number) =>
@@ -135,7 +141,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
 
   test("cost(L) sums cost legs and is zero when there are none", async () => {
     const { id, listing } = await createServicingHold();
-    expect(await costOf(listing.id)).toBe(0);
+    expect(await listingCostOf(listing.id)).toBe(0);
     await expectCostAfterRecording(id, listing.id, 9000, 9000);
   });
 
@@ -147,15 +153,14 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     const { id } = await createServicingHold({ listing: { name: "L" } });
     await expectCostAfterRecording(id, listing.id, 9000, 9000);
     expect(await accountBalance(revenueAccount(listing.id))).toBe(20000);
-    expect(await profitOf(listing.id)).toBe(11000);
+    expect(await listingProfitOf(listing.id)).toBe(11000);
   });
 
-  test("profitOf matches the listing row profit after a refund (gross, not net)", async () => {
+  test("listing row profit stays gross after a refund", async () => {
     // The listing row projects profit as recognised (gross) income − costs
-    // (listingProfitSubquery). profitOf previously read the NET revenue balance
+    // (listingProfitSubquery). An older reader used the NET revenue balance
     // (`accountBalance(revenue) − cost`), so after a refund — which lowers the
     // net balance but not recognised income — it diverged from the listing row.
-    // It now uses recognised income, matching the SQL and the revenue breakdown.
     const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
     const listing = await createTestListing({ maxAttendees: 10, name: "L" });
     const { attendee } = await createTestAttendeeDirect(
@@ -186,8 +191,8 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     // but does NOT lower recognised income or the listing's profit.
     expect(breakdown.recognisedIncome).toBe(20000);
     expect(breakdown.netBalance).toBe(0);
-    expect(await costOf(listing.id)).toBe(9000);
-    expect(await profitOf(listing.id)).toBe(11000); // 200 − 90
+    expect(await listingCostOf(listing.id)).toBe(9000);
+    expect(await listingProfitOf(listing.id)).toBe(11000); // 200 − 90
     expect(row?.profit).toBe(11000); // SQL listingProfitSubquery (the listing row)
   });
 
@@ -225,7 +230,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
       servicingId: id,
     });
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(1);
-    expect(await costOf(listing.id)).toBe(9000);
+    expect(await listingCostOf(listing.id)).toBe(9000);
   });
 
   test("a double-submit of the cost form records once and reports a clean success (idempotency key)", async () => {
@@ -251,11 +256,11 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     expect(parseFlashCookie(retried).error).toBeUndefined();
     expect(parseFlashCookie(retried).success).toBeDefined();
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(1);
-    expect(await costOf(listing.id)).toBe(9000);
+    expect(await listingCostOf(listing.id)).toBe(9000);
     // A separate submission (fresh key) posts a second, independent cost.
     await postCost(crypto.randomUUID());
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(2);
-    expect(await costOf(listing.id)).toBe(18000);
+    expect(await listingCostOf(listing.id)).toBe(18000);
   });
 
   test("reusing an idempotency key with a changed amount errors, never a silent false success", async () => {
@@ -277,7 +282,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     const changed = await postCost("50.00"); // same key, different amount
     // Exactly one cost leg exists, and it is NOT a silent success storing £50.
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(1);
-    expect(await costOf(listing.id)).toBe(9000);
+    expect(await listingCostOf(listing.id)).toBe(9000);
     // The distinguishing signal from the old false-success: the second submit
     // carries an ERROR flash, not a "Recorded cost 50.00" success flash.
     expect(parseFlashCookie(changed).success).toBeUndefined();
@@ -338,7 +343,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     );
     // Nothing new landed.
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(1);
-    expect(await costOf(listing.id)).toBe(9000);
+    expect(await listingCostOf(listing.id)).toBe(9000);
   });
 
   test("editing a cost posts a correcting adjustment, never mutates a row", async () => {
@@ -349,7 +354,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     await editServiceCost(costId, { amount: 6000 });
     const afterRows = (await transfersOfKind(KIND.serviceCost)).length;
     expect(afterRows).toBe(beforeRows + 1);
-    expect(await costOf(listing.id)).toBe(6000);
+    expect(await listingCostOf(listing.id)).toBe(6000);
     const legs = await transfersByAccount(costAccount(listing.id));
     expect(legs.length).toBeGreaterThanOrEqual(2);
   });
@@ -360,14 +365,14 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     const beforeRows = (await transfersOfKind(KIND.serviceCost)).length;
     await editServiceCost(costId, { amount: 9000 });
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(beforeRows);
-    expect(await costOf(listing.id)).toBe(9000);
+    expect(await listingCostOf(listing.id)).toBe(9000);
   });
 
   test("raising a cost posts a positive cost adjustment", async () => {
     const { id, listing } = await createServicingHold();
     const costId = await recordBoilerCost(id, listing.id);
     await editServiceCost(costId, { amount: 12000 });
-    expect(await costOf(listing.id)).toBe(12000);
+    expect(await listingCostOf(listing.id)).toBe(12000);
     const legs = await transfersByAccount(costAccount(listing.id));
     expect(legs.map((leg) => leg.amount).toSorted()).toEqual([3000, 9000]);
     // The cost list's getServicingCosts derives the current amount from the
@@ -390,7 +395,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
 
     await editServiceCost(reduction.id, { amount: 1000 });
 
-    expect(await costOf(listing.id)).toBe(4000);
+    expect(await listingCostOf(listing.id)).toBe(4000);
   });
 
   test("the servicing edit route records a cost from the cost form", async () => {
@@ -403,7 +408,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     expect(response.headers.get("location")).toContain(
       `/admin/servicing/${id}`,
     );
-    expect(await costOf(listing.id)).toBe(9000);
+    expect(await listingCostOf(listing.id)).toBe(9000);
   });
 
   test("the service-cost edit route posts a correcting delta for that event", async () => {
@@ -415,7 +420,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     expect(response.headers.get("location")).toContain(
       `/admin/servicing/${id}`,
     );
-    expect(await costOf(listing.id)).toBe(6000);
+    expect(await listingCostOf(listing.id)).toBe(6000);
   });
 
   test("invalid create cost amounts write no service_cost transfer (form error, not 500)", async () => {
@@ -431,7 +436,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
       });
       await expectCostFormError(response, id, before);
     }
-    expect(await costOf(listing.id)).toBe(0);
+    expect(await listingCostOf(listing.id)).toBe(0);
   });
 
   test("an invalid create target_listing_id writes no service_cost transfer", async () => {
@@ -456,7 +461,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     });
     expect(response.status).toBe(302);
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(before);
-    expect(await costOf(listing.id)).toBe(0);
+    expect(await listingCostOf(listing.id)).toBe(0);
   });
 
   test("invalid edit cost amounts write no service_cost transfer (form error, not 500)", async () => {
@@ -471,7 +476,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
       await expectCostFormError(response, id, before);
     }
     // The original £90 cost is untouched — no delta leg landed.
-    expect(await costOf(listing.id)).toBe(9000);
+    expect(await listingCostOf(listing.id)).toBe(9000);
   });
 
   test("deleting a servicing event leaves its cost legs as append-only history", async () => {
@@ -481,7 +486,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     // "Deleted listing" for the unresolved account label.
     const { id, listing } = await createServicingHold();
     await recordBoilerCost(id, listing.id);
-    expect(await costOf(listing.id)).toBe(9000);
+    expect(await listingCostOf(listing.id)).toBe(9000);
     await deleteServicingEvent(id);
     // The cost legs are untouched — the original leg still exists.
     const legs = await transfersByAccount(costAccount(listing.id));
@@ -661,7 +666,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     const costId = await recordBoilerCost(id, listing.id); // £90
     await editServiceCost(costId, { amount: 6000 }); // → £60; delta −30
     await editServiceCost(costId, { amount: 5000 }); // → £50; delta should be −10
-    expect(await costOf(listing.id)).toBe(5000);
+    expect(await listingCostOf(listing.id)).toBe(5000);
   });
 
   test("a sequential edit after an increase accumulates the positive adjustment leg correctly", async () => {
@@ -673,7 +678,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     const costId = await recordBoilerCost(id, listing.id); // £90
     await editServiceCost(costId, { amount: 12000 }); // → £120; delta +30
     await editServiceCost(costId, { amount: 10000 }); // → £100; delta should be −20
-    expect(await costOf(listing.id)).toBe(10000);
+    expect(await listingCostOf(listing.id)).toBe(10000);
   });
 
   test("the cost route dates the cost leg to the service event date, not the submit time", async () => {
@@ -710,7 +715,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     await editServiceCost(costId, { amount: 6000 }); // → £60; delta −30
     await editServiceCost(costId, { amount: 7000 }); // → £70; delta +10
     await editServiceCost(costId, { amount: 6000 }); // → £60; delta must be −10
-    expect(await costOf(listing.id)).toBe(6000);
+    expect(await listingCostOf(listing.id)).toBe(6000);
   });
 
   test("an operator memo matching the old internal adjustment pattern is not misidentified as an adjustment", async () => {
@@ -726,7 +731,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
       servicingId: id,
     });
     await editServiceCost(costId, { amount: 6000 }); // correct delta = −3000
-    expect(await costOf(listing.id)).toBe(6000);
+    expect(await listingCostOf(listing.id)).toBe(6000);
     const { getServicingCosts } = await import(
       "#shared/db/attendees/servicing.ts"
     );

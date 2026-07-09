@@ -14,12 +14,14 @@
  *
  * Production API surface these helpers delegate to (`createServicingEvent`,
  * `deleteServicingEvent`, `updateServicingEvent`, `duplicateServicingEvent`,
- * `getServicingEvent`, `recordServiceCost`, `editServiceCost`, `costOf`,
- * `profitOf`, `costAccount`) — defined by `src/shared/db/attendees/servicing.ts`
- * and `src/shared/accounting/*`; see each test file's header for the contract.
+ * `getServicingEvent`, `recordServiceCost`, `editServiceCost`, and
+ * `costAccount`) — defined by `src/shared/db/attendees/servicing.ts` and
+ * `src/shared/accounting/*`; see each test file's header for the contract.
  */
 
 import { expect } from "@std/expect";
+import { costAccount } from "#shared/accounting/accounts.ts";
+import { accountBalance } from "#shared/accounting/queries.ts";
 import type { ListingBooking } from "#shared/db/attendee-types.ts";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { ATTENDEE_JOIN_SELECT } from "#shared/db/attendees.ts";
@@ -393,6 +395,11 @@ export const expectLogisticsDisabled = async (id: number): Promise<void> => {
   expect(row?.assigned).toBe(0);
 };
 
+export const listingCostOf = async (listingId: number): Promise<number> => {
+  const cost = -(await accountBalance(costAccount(listingId)));
+  return Object.is(cost, -0) ? 0 : cost;
+};
+
 /** Record a cost against a servicing event and assert the listing's total cost
  *  projection reads the expected amount. The §22 ledger tests repeat this
  *  record-then-assert sequence for every "cost lands on the listing" check. */
@@ -402,10 +409,6 @@ export const expectCostAfterRecording = async (
   amount: number,
   expectedTotal: number,
 ): Promise<void> => {
-  const { recordServiceCost } = await import(
-    "#shared/db/attendees/servicing.ts"
-  );
-  const { costOf } = await import("#shared/accounting/projection.ts");
   await recordServiceCost({
     amount,
     listingId,
@@ -413,7 +416,7 @@ export const expectCostAfterRecording = async (
     occurredAt: "2026-07-01T00:00:00.000Z",
     servicingId,
   });
-  expect(await costOf(listingId)).toBe(expectedTotal);
+  expect(await listingCostOf(listingId)).toBe(expectedTotal);
 };
 
 /** Assert a promise rejects, optionally matching a pattern. The §14 validation

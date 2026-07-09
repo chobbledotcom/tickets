@@ -21,15 +21,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - name: Set up Deno
+        uses: ./.github/actions/setup-deno
         with:
-          node-version: 24
-
-      - name: Setup Deno
-        uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.5.6
+          install_dependencies: "false"
 
       - name: Generate docs
         run: >-

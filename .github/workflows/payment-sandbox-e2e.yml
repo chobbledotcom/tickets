@@ -52,10 +52,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Deno
-        uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.5.6
+      - name: Set up Deno
+        uses: ./.github/actions/setup-deno
 
       - name: Install cloudflared
         run: |
@@ -67,16 +65,6 @@ jobs:
           # $GITHUB_PATH only affects later steps, so verify via the full path here.
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/bin/cloudflared" --version
-
-      - name: Cache Deno dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/deno
-          key: deno-${{ runner.os }}-${{ hashFiles('deno.lock', 'e2e-payments/deno.json') }}
-
-      - name: Install Deno dependencies
-        run: deno install --allow-scripts
 
       - name: Resolve Playwright version
         id: pw
