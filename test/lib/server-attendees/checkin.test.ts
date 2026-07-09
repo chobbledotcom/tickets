@@ -23,8 +23,9 @@ import { setupListingAndAttendee } from "./helpers.ts";
 
 /** A listing plus "John Doe" attendee with the thank-you URL set — shared
  *  setup for the checkin auth, 404, and CSRF tests. */
-const setupCheckinListingAndAttendee = ():
-  ReturnType<typeof setupListingAndAttendee> =>
+const setupCheckinListingAndAttendee = (): ReturnType<
+  typeof setupListingAndAttendee
+> =>
   setupListingAndAttendee({
     listing: {
       maxAttendees: 100,

@@ -1,21 +1,20 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { handleRequest } from "#routes";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import {
   createPaidTestAttendee,
   createTestAttendee,
-  createTestListing,
   describeWithEnv,
   expectFlashRedirect,
   getAttendeesRaw,
-  mockFormRequest,
   setupListingAndLogin,
   testRequiresAuth,
 } from "#test-utils";
 
 // jscpd:ignore-end
+import { submitDeleteIncomplete } from "./helpers.ts";
+
 describeWithEnv(
   "server (admin attendees) > delete-incomplete",
   { db: true },
@@ -25,7 +24,7 @@ describeWithEnv(
         body: {},
         method: "POST",
         setup: async () => {
-          const listing = await createTestListing({
+          const { listing } = await setupListingAndLogin({
             maxAttendees: 100,
             unitPrice: 1000,
           });
@@ -52,12 +51,11 @@ describeWithEnv(
           1000,
         );
 
-        const response = await handleRequest(
-          mockFormRequest(
-            `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
-            { csrf_token: csrfToken },
-            cookie,
-          ),
+        const response = await submitDeleteIncomplete(
+          listing.id,
+          attendee.id,
+          cookie,
+          csrfToken,
         );
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/attendees`,
@@ -95,12 +93,11 @@ describeWithEnv(
           1000,
         );
 
-        const response = await handleRequest(
-          mockFormRequest(
-            `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
-            { csrf_token: csrfToken },
-            cookie,
-          ),
+        const response = await submitDeleteIncomplete(
+          listing.id,
+          attendee.id,
+          cookie,
+          csrfToken,
         );
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/attendees`,
@@ -126,12 +123,11 @@ describeWithEnv(
           "admin@example.com",
         );
 
-        const response = await handleRequest(
-          mockFormRequest(
-            `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
-            { csrf_token: csrfToken },
-            cookie,
-          ),
+        const response = await submitDeleteIncomplete(
+          listing.id,
+          attendee.id,
+          cookie,
+          csrfToken,
         );
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/attendees`,
@@ -158,12 +154,11 @@ describeWithEnv(
           500,
         );
 
-        const response = await handleRequest(
-          mockFormRequest(
-            `/admin/listing/${listing.id}/attendee/${attendee.id}/delete-incomplete`,
-            { csrf_token: csrfToken },
-            cookie,
-          ),
+        const response = await submitDeleteIncomplete(
+          listing.id,
+          attendee.id,
+          cookie,
+          csrfToken,
         );
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/attendees`,
@@ -181,12 +176,11 @@ describeWithEnv(
           unitPrice: 1000,
         });
 
-        const response = await handleRequest(
-          mockFormRequest(
-            `/admin/listing/${listing.id}/attendee/999/delete-incomplete`,
-            { csrf_token: csrfToken },
-            cookie,
-          ),
+        const response = await submitDeleteIncomplete(
+          listing.id,
+          999,
+          cookie,
+          csrfToken,
         );
         expect(response.status).toBe(404);
       });

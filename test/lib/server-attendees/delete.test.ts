@@ -27,8 +27,9 @@ import { setupListingAndAttendee } from "./helpers.ts";
 
 /** A listing plus "John Doe" attendee, with the thank-you URL set — the
  *  shared setup for the delete GET/POST/DELETE auth and 404 tests. */
-const setupDeleteListingAndAttendee = ():
-  ReturnType<typeof setupListingAndAttendee> =>
+const setupDeleteListingAndAttendee = (): ReturnType<
+  typeof setupListingAndAttendee
+> =>
   setupListingAndAttendee({
     listing: {
       maxAttendees: 100,

@@ -14,7 +14,12 @@ import {
 } from "#test-utils";
 
 // jscpd:ignore-end
-import { getMergeVersion, mergePair, submitMerge } from "./helpers.ts";
+import {
+  getMergeVersion,
+  mergePair,
+  setupListingAndDirectAttendee,
+  submitMerge,
+} from "./helpers.ts";
 
 describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
   describe("POST /admin/attendees/:attendeeId/merge", () => {
@@ -41,12 +46,9 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
     });
 
     test("rejects missing source_token", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const { attendee } = await createTestAttendeeDirect(
-        listing.id,
-        "John Doe",
-        "john@example.com",
-      );
+      const { attendee } = await setupListingAndDirectAttendee({
+        listing: { maxAttendees: 10 },
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/merge`,
         {},
@@ -56,12 +58,9 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
     });
 
     test("rejects invalid source token", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const { attendee } = await createTestAttendeeDirect(
-        listing.id,
-        "John Doe",
-        "john@example.com",
-      );
+      const { attendee } = await setupListingAndDirectAttendee({
+        listing: { maxAttendees: 10 },
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/merge`,
         { source_token: "nonexistent-token" },
@@ -71,12 +70,9 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
     });
 
     test("rejects self-merge", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const { attendee, token } = await createTestAttendeeDirect(
-        listing.id,
-        "John Doe",
-        "john@example.com",
-      );
+      const { attendee, token } = await setupListingAndDirectAttendee({
+        listing: { maxAttendees: 10 },
+      });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/merge`,
         { source_token: token },
@@ -209,11 +205,9 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       });
 
       // Booking conflict: same listing, same start_at (null) — choose keep_target
-      const { response } = await submitMerge(
-        target.id,
-        sourceToken,
-        { [`booking_${listing1.id}:null:0:0`]: "keep_target" },
-      );
+      const { response } = await submitMerge(target.id, sourceToken, {
+        [`booking_${listing1.id}:null:0:0`]: "keep_target",
+      });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Merged"), true);
 

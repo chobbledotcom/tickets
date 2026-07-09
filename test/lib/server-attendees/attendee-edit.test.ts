@@ -5,10 +5,7 @@ import { handleRequest } from "#routes";
 import {
   adminFormPost,
   adminGet,
-  awaitTestRequest,
   bookAttendee,
-  buildAttendeeEditForm,
-  createTestAttendee,
   createTestAttendeeDirect,
   createTestListing,
   describeWithEnv,
@@ -16,8 +13,6 @@ import {
   expectFlashRedirect,
   expectHtmlResponse,
   expectRedirect,
-  FLASH_TEST_ID,
-  flashCookieHeader,
   mockFormRequest,
   setupListingAndLogin,
   testCookie,
@@ -25,6 +20,15 @@ import {
 } from "#test-utils";
 
 // jscpd:ignore-end
+import {
+  createDualPackageAttendee,
+  dualPackageRows,
+  expectFlashPage,
+  firstAttendee,
+  setupListingAndAttendee,
+  submitAttendeeEdit,
+} from "./helpers.ts";
+
 describeWithEnv(
   "server (admin attendees) > attendee edit",
   { db: true },
@@ -44,13 +48,7 @@ describeWithEnv(
         },
         method: "POST",
         setup: async () => {
-          const listing = await createTestListing({ maxAttendees: 100 });
-          await createTestAttendee(
-            listing.id,
-            listing.slug,
-            "John Doe",
-            "john@example.com",
-          );
+          await setupListingAndAttendee();
         },
       });
 
@@ -69,13 +67,7 @@ describeWithEnv(
       });
 
       test("rejects invalid CSRF token", async () => {
-        const listing = await createTestListing({ maxAttendees: 100 });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
+        const { listing, attendee } = await setupListingAndAttendee();
         const response = await handleRequest(
           mockFormRequest(
             `/admin/attendees/${attendee.id}`,
@@ -97,18 +89,10 @@ describeWithEnv(
       });
 
       test("rejects empty name", async () => {
-        const listing = await createTestListing({ maxAttendees: 100 });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
-        const form = await buildAttendeeEditForm(attendee.id, { name: "" });
-        const { response } = await adminFormPost(
-          `/admin/attendees/${attendee.id}`,
-          form,
-        );
+        const { attendee } = await setupListingAndAttendee();
+        const response = await submitAttendeeEdit(attendee.id, {
+          name: "",
+        });
         // Validation failure re-renders the form (200) with the error inline.
         expect(response.status).toBe(200);
         const html = await response.text();
@@ -116,23 +100,13 @@ describeWithEnv(
       });
 
       test("preserves return_url on edit validation error", async () => {
-        const listing = await createTestListing({ maxAttendees: 100 });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
+        const { attendee } = await setupListingAndAttendee();
         const returnUrl = "/admin/calendar#attendees";
 
-        const form = await buildAttendeeEditForm(attendee.id, {
+        const response = await submitAttendeeEdit(attendee.id, {
           name: "",
           returnUrl,
         });
-        const { response } = await adminFormPost(
-          `/admin/attendees/${attendee.id}`,
-          form,
-        );
         expect(response.status).toBe(200);
         const html = await response.text();
         expect(html).toContain("Name is required");
@@ -140,42 +114,24 @@ describeWithEnv(
       });
 
       test("rejects whitespace-only name", async () => {
-        const listing = await createTestListing({ maxAttendees: 100 });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
-        const form = await buildAttendeeEditForm(attendee.id, { name: "   " });
-        const { response } = await adminFormPost(
-          `/admin/attendees/${attendee.id}`,
-          form,
-        );
+        const { attendee } = await setupListingAndAttendee();
+        const response = await submitAttendeeEdit(attendee.id, {
+          name: "   ",
+        });
         expect(response.status).toBe(200);
         const html = await response.text();
         expect(html).toContain("Name is required");
       });
 
       test("updates attendee with new data", async () => {
-        const listing = await createTestListing({ maxAttendees: 100 });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
-        const form = await buildAttendeeEditForm(attendee.id, {
+        const { attendee } = await setupListingAndAttendee();
+        const response = await submitAttendeeEdit(attendee.id, {
           address: "456 Oak Ave",
           email: "jane@example.com",
           name: "Jane Doe",
           phone: "555-9999",
           special_instructions: "Wheelchair access",
         });
-        const { response } = await adminFormPost(
-          `/admin/attendees/${attendee.id}`,
-          form,
-        );
         expect(response.status).toBe(302);
         await expectFlashRedirect(
           `/admin/attendees/${attendee.id}/edit?form=attendee-form#attendee-form`,
@@ -208,66 +164,33 @@ describeWithEnv(
           isPackage: true,
           name: "EditKit",
         });
-        const { createAttendeeAtomic } = await import(
-          "#shared/db/attendees.ts"
+        const attendee = await createDualPackageAttendee(
+          listing.id,
+          group.id,
+          "Dual Edit",
+          "dual-edit@example.com",
         );
-        const made = await createAttendeeAtomic({
-          bookings: [
-            { listingId: listing.id, packageGroupId: group.id, quantity: 2 },
-            { listingId: listing.id, quantity: 1 },
-          ],
-          email: "dual-edit@example.com",
-          name: "Dual Edit",
-        });
-        expect(made.success).toBe(true);
-        const attendee = (made as Extract<typeof made, { success: true }>)
-          .attendees[0]!;
 
-        const form = await buildAttendeeEditForm(attendee.id, {
+        const response = await submitAttendeeEdit(attendee.id, {
           name: "Dual Edit Renamed",
         });
-        const { response } = await adminFormPost(
-          `/admin/attendees/${attendee.id}`,
-          form,
-        );
         expect(response.status).toBe(302);
 
-        const { queryAll } = await import("#shared/db/client.ts");
-        const rows = await queryAll<{
-          package_group_id: number;
-          quantity: number;
-        }>(
-          `SELECT package_group_id, quantity FROM listing_attendees
-          WHERE attendee_id = ? ORDER BY package_group_id ASC`,
-          [attendee.id],
-        );
-        expect(
-          rows.map((row) => [Number(row.package_group_id), row.quantity]),
-        ).toEqual([
+        expect(await dualPackageRows(attendee.id)).toEqual([
           [0, 1],
           [group.id, 2],
         ]);
       });
 
       test("returns to the edit form after edit, preserving return_url", async () => {
-        const listing = await createTestListing({ maxAttendees: 100 });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
+        const { attendee } = await setupListingAndAttendee();
         const returnUrl = "/admin/calendar?date=2026-03-15#attendees";
 
-        const form = await buildAttendeeEditForm(attendee.id, {
+        const response = await submitAttendeeEdit(attendee.id, {
           email: "john@example.com",
           name: "John Doe",
           returnUrl,
         });
-        const { response } = await adminFormPost(
-          `/admin/attendees/${attendee.id}`,
-          form,
-        );
         // Save returns to the same form (anchored), carrying return_url through
         // so a later save still round-trips the caller's origin.
         expectRedirect(
@@ -280,24 +203,13 @@ describeWithEnv(
       });
 
       test("updates attendee PII via edit form", async () => {
-        const listing = await createTestListing({
-          maxAttendees: 100,
-          name: "Listing 1",
+        const { attendee } = await setupListingAndAttendee({
+          listing: { maxAttendees: 100, name: "Listing 1" },
         });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
-        const form = await buildAttendeeEditForm(attendee.id, {
+        const response = await submitAttendeeEdit(attendee.id, {
           email: "jane@example.com",
           name: "Jane Smith",
         });
-        const { response } = await adminFormPost(
-          `/admin/attendees/${attendee.id}`,
-          form,
-        );
         expect(response.status).toBe(302);
         await expectFlashRedirect(
           `/admin/attendees/${attendee.id}/edit?form=attendee-form#attendee-form`,
@@ -316,14 +228,10 @@ describeWithEnv(
           "john@example.com",
           3,
         );
-        const form = await buildAttendeeEditForm(attendee.id, {
+        const response = await submitAttendeeEdit(attendee.id, {
           email: "jane@example.com",
           name: "Jane Doe",
         });
-        const { response } = await adminFormPost(
-          `/admin/attendees/${attendee.id}`,
-          form,
-        );
         expect(response.status).toBe(302);
 
         const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
@@ -335,24 +243,15 @@ describeWithEnv(
         const { listing, cookie } = await setupListingAndLogin({
           maxAttendees: 100,
         });
-
-        const response = await awaitTestRequest(
-          `/admin/listing/${listing.id}?flash=${FLASH_TEST_ID}`,
-          {
-            cookie: `${cookie}; ${flashCookieHeader("Updated Jane Doe")}`,
-          },
+        await expectFlashPage(
+          `/admin/listing/${listing.id}`,
+          cookie,
+          "Updated Jane Doe",
         );
-        await expectHtmlResponse(response, 200, "Updated Jane Doe");
       });
 
       test("attendee table shows edit link", async () => {
-        const listing = await createTestListing({ maxAttendees: 100 });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
+        const { listing, attendee } = await setupListingAndAttendee();
         const response = await adminGet(
           `/admin/listing/${listing.id}/attendees`,
         );
@@ -375,13 +274,13 @@ describeWithEnv(
           maxAttendees: 100,
           name: "Listing 2",
         });
-        const result = await bookAttendee(listing1, {
-          email: "john@example.com",
-          name: "John Doe",
-          quantity: 1,
-        });
-        if (!result.success) throw new Error("Failed to create attendee");
-        const attendee = result.attendees[0]!;
+        const attendee = firstAttendee(
+          await bookAttendee(listing1, {
+            email: "john@example.com",
+            name: "John Doe",
+            quantity: 1,
+          }),
+        );
 
         const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
         await expectHtmlResponse(response, 200, "Listing 1", "Listing 2");
@@ -389,13 +288,13 @@ describeWithEnv(
 
       test("shows edit form with empty email field", async () => {
         const listing = await createTestListing({ maxAttendees: 100 });
-        const result = await bookAttendee(listing, {
-          email: "",
-          name: "John Doe",
-          quantity: 1,
-        });
-        if (!result.success) throw new Error("Failed to create attendee");
-        const attendee = result.attendees[0]!;
+        const attendee = firstAttendee(
+          await bookAttendee(listing, {
+            email: "",
+            name: "John Doe",
+            quantity: 1,
+          }),
+        );
 
         const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
         await expectHtmlResponse(response, 200, 'type="email"', 'name="email"');
@@ -407,13 +306,13 @@ describeWithEnv(
           name: "Inactive Listing",
         });
 
-        const result = await bookAttendee(inactiveListing, {
-          email: "john@example.com",
-          name: "John Doe",
-          quantity: 1,
-        });
-        if (!result.success) throw new Error("Failed to create attendee");
-        const attendee = result.attendees[0]!;
+        const attendee = firstAttendee(
+          await bookAttendee(inactiveListing, {
+            email: "john@example.com",
+            name: "John Doe",
+            quantity: 1,
+          }),
+        );
 
         // Manually set listing to inactive after creating attendee
         const { getDb } = await import("#shared/db/client.ts");
@@ -434,49 +333,41 @@ describeWithEnv(
 
       test("updates attendee with empty email", async () => {
         const listing = await createTestListing({ maxAttendees: 100 });
-        const result = await bookAttendee(listing, {
-          email: "john@example.com",
-          name: "John Doe",
-          quantity: 1,
-        });
-        if (!result.success) throw new Error("Failed to create attendee");
-        const attendee = result.attendees[0]!;
+        const attendee = firstAttendee(
+          await bookAttendee(listing, {
+            email: "john@example.com",
+            name: "John Doe",
+            quantity: 1,
+          }),
+        );
 
-        const form = await buildAttendeeEditForm(attendee.id, {
+        const response = await submitAttendeeEdit(attendee.id, {
           email: "",
           name: "John Doe",
         });
-        const { response } = await adminFormPost(
-          `/admin/attendees/${attendee.id}`,
-          form,
-        );
         expect(response.status).toBe(302);
       });
 
       test("updates attendee with all non-empty fields", async () => {
         const listing = await createTestListing({ maxAttendees: 100 });
-        const result = await bookAttendee(listing, {
-          address: "123 Main St",
-          email: "john@example.com",
-          name: "John Doe",
-          phone: "555-1234",
-          quantity: 1,
-          special_instructions: "VIP",
-        });
-        if (!result.success) throw new Error("Failed to create attendee");
-        const attendee = result.attendees[0]!;
+        const attendee = firstAttendee(
+          await bookAttendee(listing, {
+            address: "123 Main St",
+            email: "john@example.com",
+            name: "John Doe",
+            phone: "555-1234",
+            quantity: 1,
+            special_instructions: "VIP",
+          }),
+        );
 
-        const form = await buildAttendeeEditForm(attendee.id, {
+        const response = await submitAttendeeEdit(attendee.id, {
           address: "456 Oak Ave",
           email: "jane@example.com",
           name: "Jane Smith",
           phone: "555-9999",
           special_instructions: "Special access needed",
         });
-        const { response } = await adminFormPost(
-          `/admin/attendees/${attendee.id}`,
-          form,
-        );
         expect(response.status).toBe(302);
         await expectFlashRedirect(
           `/admin/attendees/${attendee.id}/edit?form=attendee-form#attendee-form`,
@@ -485,16 +376,9 @@ describeWithEnv(
       });
 
       test("shows quantity field on edit form", async () => {
-        const listing = await createTestListing({
-          maxAttendees: 100,
-          maxQuantity: 5,
+        const { attendee } = await setupListingAndAttendee({
+          listing: { maxAttendees: 100, maxQuantity: 5 },
         });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
         const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
         await expectHtmlResponse(response, 200, 'name="qty_');
       });

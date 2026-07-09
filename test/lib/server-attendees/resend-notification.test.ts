@@ -9,7 +9,6 @@ import {
   adminGet,
   adminListingPage,
   bookAttendee,
-  createTestAttendee,
   createTestListing,
   describeWithEnv,
   expectFlash,
@@ -22,6 +21,8 @@ import {
 } from "#test-utils";
 
 // jscpd:ignore-end
+import { setupListingAndAttendee } from "./helpers.ts";
+
 describeWithEnv(
   "server (admin attendees) > resend notification",
   { db: true },
@@ -29,13 +30,7 @@ describeWithEnv(
     describe("GET /admin/listing/:listingId/attendee/:attendeeId/resend-notification", () => {
       testRequiresAuth("/admin/attendees/1/resend-notification", {
         setup: async () => {
-          const listing = await createTestListing({ maxAttendees: 100 });
-          await createTestAttendee(
-            listing.id,
-            listing.slug,
-            "John Doe",
-            "john@example.com",
-          );
+          await setupListingAndAttendee();
         },
       });
 
@@ -47,7 +42,7 @@ describeWithEnv(
       });
 
       test("returns 404 for non-existent attendee", async () => {
-        await createTestListing({ maxAttendees: 100 });
+        await setupListingAndAttendee();
 
         const response = await adminGet(
           "/admin/attendees/999/resend-notification",
@@ -143,13 +138,7 @@ describeWithEnv(
         },
         method: "POST",
         setup: async () => {
-          const listing = await createTestListing({ maxAttendees: 100 });
-          await createTestAttendee(
-            listing.id,
-            listing.slug,
-            "John Doe",
-            "john@example.com",
-          );
+          await setupListingAndAttendee();
         },
       });
 

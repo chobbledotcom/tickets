@@ -16,7 +16,10 @@ import {
 import { mergePair, setupListingAndDirectAttendee } from "./helpers.ts";
 
 /** Fetch the merge Actions page for `target` with `sourceToken` set. */
-const mergeActionsPage = (targetId: number, sourceToken: string): Promise<Response> =>
+const mergeActionsPage = (
+  targetId: number,
+  sourceToken: string,
+): Promise<Response> =>
   adminGet(
     `/admin/attendees/${targetId}/actions?token=${encodeURIComponent(
       sourceToken,
