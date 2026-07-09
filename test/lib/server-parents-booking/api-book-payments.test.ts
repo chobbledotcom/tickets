@@ -10,6 +10,7 @@ import {
   bookParentChild,
   describeWithEnv,
   enablePublicApi,
+  makeCustomisableDailyParent,
   makeParent,
   setupStripe,
 } from "#test-utils";
@@ -108,18 +109,7 @@ describeWithEnv(
       // webhook reprices the child at a 1-day span (£10) and refunds the gap.
       await setupStripe();
 
-      const { parent, child } = await makeParent({
-        children: [
-          {
-            customisableDays: true,
-            dayPrices: { 1: 1000, 3: 3000 },
-            durationDays: 3,
-            maxPrice: 0,
-            unitPrice: 0,
-          },
-        ],
-        parent: { daily: true, durationDays: 3 },
-      });
+      const { parent, child } = await makeCustomisableDailyParent();
 
       const date = (await bookableStartDates(parent.id))[0]!;
 

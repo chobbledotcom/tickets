@@ -6,6 +6,7 @@ import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import {
+  bookableStartDates,
   bookingPageHtml,
   createDailyTestListing,
   createTestHoliday,
@@ -13,7 +14,7 @@ import {
   makeParent,
 } from "#test-utils";
 import { weekdayOf } from "../booking-model-fixtures.ts";
-import { bookableDates, firstBookableDate } from "./helpers.ts";
+import { firstBookableDate } from "./helpers.ts";
 
 // jscpd:ignore-end
 
@@ -80,7 +81,7 @@ describeWithEnv(
         parent: { daily: true },
       });
 
-      const childDates = (await bookableDates(child.id)).join(",");
+      const childDates = (await bookableStartDates(child.id)).join(",");
 
       const html = await bookingPageHtml(parent.slug);
       // The sole-child marker carries the span-keyed serveable dates.
@@ -159,7 +160,7 @@ describeWithEnv(
       // child-date set must be HOLIDAY-AWARE: it computes the dates with the
       // active holidays, so this date is excluded from `data-child-dates`. (If the
       // render path dropped the holidays it would re-appear — this pins the fetch.)
-      const childBStarts = await bookableDates(childB.id);
+      const childBStarts = await bookableStartDates(childB.id);
       const holidayDate = childBStarts[1]!;
       await createTestHoliday({ endDate: holidayDate, startDate: holidayDate });
 

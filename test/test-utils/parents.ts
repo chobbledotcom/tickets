@@ -16,6 +16,7 @@
 import { expect } from "@std/expect";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import type { Group, Listing } from "#shared/types.ts";
+import { expectAttendeeCounts, expectFlash } from "./assertions.ts";
 import { createTestAttendee } from "./db-helpers/attendees.ts";
 import { createTestGroup } from "./db-helpers/groups.ts";
 import {
@@ -23,7 +24,6 @@ import {
   createTestListing,
 } from "./db-helpers/listings.ts";
 import { enablePublicSite } from "./settings.ts";
-import { expectAttendeeCounts, expectFlash } from "./assertions.ts";
 
 // ---------------------------------------------------------------------------
 // HTTP request helpers (one definition, shared by every parent suite)
@@ -154,6 +154,24 @@ export const makeTwoDefaultChildren = async (
   });
   return { childA: children[0]!, childB: children[1]!, parent };
 };
+
+/** A fixed 3-day daily parent with a customisable child priced 1 day £10 / 3
+ *  days £30 (unit_price 0) — the shared spec behind the "child inherits the
+ *  parent's duration" tests in both the parents-gate and parents-booking
+ *  suites. Declared once so the spec can't drift across the two. */
+export const makeCustomisableDailyParent = () =>
+  makeParent({
+    children: [
+      {
+        customisableDays: true,
+        dayPrices: { 1: 1000, 3: 3000 },
+        durationDays: 3,
+        maxPrice: 0,
+        unitPrice: 0,
+      },
+    ],
+    parent: { daily: true, durationDays: 3 },
+  });
 
 /** GET a JSON API path and return the raw Response. */
 export const apiGet = async (path: string): Promise<Response> => {

@@ -9,6 +9,7 @@ import {
   expectFoldedLine,
   expectRejectedBooking,
   expectReserved,
+  makeCustomisableDailyParent,
   makeParent,
   parentField,
   postCalculate,
@@ -16,23 +17,6 @@ import {
 import { firstBookableDate, stubCheckoutIntent } from "./helpers.ts";
 
 // jscpd:ignore-end
-
-/** A fixed 3-day daily parent with a customisable child priced 1 day £10 / 3
- *  days £30 (unit_price 0). The shared spec behind the "child inherits the
- *  parent's duration" tests — declared once so the two tests can't drift. */
-const makeCustomisableDailyParent = () =>
-  makeParent({
-    children: [
-      {
-        customisableDays: true,
-        dayPrices: { 1: 1000, 3: 3000 },
-        durationDays: 3,
-        maxPrice: 0,
-        unitPrice: 0,
-      },
-    ],
-    parent: { daily: true, durationDays: 3 },
-  });
 
 describeWithEnv(
   "server > parents gate > customisable duration fold",

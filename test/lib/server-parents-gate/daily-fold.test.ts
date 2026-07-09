@@ -7,6 +7,7 @@ import { listingChildren } from "#shared/db/listing-parents.ts";
 import type { Listing } from "#shared/types.ts";
 import {
   bookAttendee,
+  bookableStartDates,
   bookParent,
   createDailyTestListing,
   describeWithEnv,
@@ -18,11 +19,7 @@ import {
   parentField,
 } from "#test-utils";
 import { weekdayOf } from "../booking-model-fixtures.ts";
-import {
-  bookableDates,
-  firstBookableDate,
-  makeDailyChildFilledOnDayA,
-} from "./helpers.ts";
+import { firstBookableDate, makeDailyChildFilledOnDayA } from "./helpers.ts";
 
 // jscpd:ignore-end
 
@@ -62,7 +59,7 @@ const makeDailyGroupWithFiller = async (): Promise<{
     name: "Daily filler",
     thankYouUrl: "",
   });
-  const dates = await bookableDates(parent.id);
+  const dates = await bookableStartDates(parent.id);
   const [dayA, dayB] = [dates[0]!, dates[1]!];
   const booked = await bookAttendee(filler, { date: dayA, quantity: 2 });
   expect(booked.success).toBe(true);
@@ -130,7 +127,7 @@ describeWithEnv(
       const { parent, child, dayA } = await makeDailyChildFilledOnDayA();
 
       // dayB is the child's second bookable date (day A is now full).
-      const dayB = (await bookableDates(child.id))[1]!;
+      const dayB = (await bookableStartDates(child.id))[1]!;
 
       // A parent booking on day B folds the child fine (it has day-B capacity).
       const okRes = await bookParent(parent.slug, {

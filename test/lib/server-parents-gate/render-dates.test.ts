@@ -5,6 +5,7 @@ import { DAY_NAMES } from "#shared/dates.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
   bookAttendee,
+  bookableStartDates,
   bookingPageHtml,
   createDailyTestListing,
   deactivateTestListing,
@@ -13,7 +14,6 @@ import {
 } from "#test-utils";
 import { weekdayOf } from "../booking-model-fixtures.ts";
 import {
-  bookableDates,
   firstBookableDate,
   makeDailyChildFilledOnDayA,
   selectOptionsFromHtml,
@@ -61,7 +61,7 @@ describeWithEnv(
       // the child's dates (parentDates ∩ child union), never a parent-only date
       // the submit fold would reject.
       const parent = await createDailyTestListing({ name: "Daily base" });
-      const parentDates = await bookableDates(parent.id);
+      const parentDates = await bookableStartDates(parent.id);
       const childDate = parentDates[0]!;
       const childDay = weekdayOf(childDate);
       // A daily child bookable only on the first parent date's weekday.
@@ -71,7 +71,7 @@ describeWithEnv(
       });
       await listingChildren.setIds(parent.id, [child.id]);
 
-      const childDates = await bookableDates(child.id);
+      const childDates = await bookableStartDates(child.id);
       const otherDate = parentDates.find((d) => !childDates.includes(d))!;
 
       const html = await bookingPageHtml(parent.slug);
@@ -87,7 +87,7 @@ describeWithEnv(
       // keeps every one of its own bookable dates.
       const { parent } = await makeParent({ parent: { daily: true } });
 
-      const parentDates = await bookableDates(parent.id);
+      const parentDates = await bookableStartDates(parent.id);
 
       const html = await bookingPageHtml(parent.slug);
       for (const d of parentDates) {
@@ -100,7 +100,7 @@ describeWithEnv(
       // The inactive child must contribute NOTHING to the union, so only Monday
       // is offered — its Tuesday must never become selectable.
       const parent = await createDailyTestListing({ name: "Daily base" });
-      const parentDates = await bookableDates(parent.id);
+      const parentDates = await bookableStartDates(parent.id);
       const mondayDate = parentDates[0]!;
       const tuesdayDate = parentDates.find((d) => d !== mondayDate)!;
       const mondayName = weekdayOf(mondayDate);
@@ -136,7 +136,7 @@ describeWithEnv(
         durationDays: 3,
         name: "Fixed 3-day base",
       });
-      const parentDates = await bookableDates(parent.id);
+      const parentDates = await bookableStartDates(parent.id);
       const mondayDate = parentDates[0]!;
       const mondayName = weekdayOf(mondayDate);
 
@@ -183,7 +183,7 @@ describeWithEnv(
           durationDays: 3,
         },
       });
-      const parentDates = await bookableDates(parent.id);
+      const parentDates = await bookableStartDates(parent.id);
       const monIdx = DAY_NAMES.indexOf("Monday");
       const tueIdx = DAY_NAMES.indexOf("Tuesday");
       // A Monday in the parent's dates and the Tuesday in the parent's dates that

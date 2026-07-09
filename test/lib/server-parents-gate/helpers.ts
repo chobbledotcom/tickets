@@ -1,37 +1,30 @@
 /**
  * Shared helpers for the split `server-parents-gate/` suite.
  *
- * The single 2,700-line monolith repeatedly inlined the same date/calendar
- * setup (load a listing row, fetch active holidays, read its bookable start
- * dates), the same Stripe checkout-stub capture, and the same table-driven
- * contains/notContains loop runner. The split would have surfaced each as a
- * jscpd clone, so each lives here once. The booking-body and reject/fold
- * assertion patterns are shared across the broader parents suite, so they live
- * in `#test-utils` (parents.ts) instead.
+ * The single 2,700-line monolith repeatedly inlined the same Stripe
+ * checkout-stub capture, table-driven contains/notContains loop runner, and
+ * select-option slicer. The split would have surfaced each as a jscpd clone,
+ * so each lives here once. The booking-body, reject/fold assertion, and
+ * `bookableStartDates`/`makeCustomisableDailyParent` patterns are shared across
+ * the broader parents suite, so they live in `#test-utils` (parents.ts /
+ * db-helpers/listings.ts) instead.
  */
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getBookableStartDates } from "#shared/dates.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
 import type { Listing } from "#shared/types.ts";
-import { bookAttendee, bookingPageHtml, makeParent } from "#test-utils";
+import {
+  bookAttendee,
+  bookableStartDates,
+  bookingPageHtml,
+  makeParent,
+} from "#test-utils";
 
-/**
- * Every bookable start date for a listing, computed against the active
- * holidays. The shared core of the daily/customisable tests, which otherwise
- * each re-imported `getBookableStartDates` + `getActiveHolidays` +
- * `getListingWithCount` and resolved the listing row inline.
- */
-export const bookableDates = async (listingId: number): Promise<string[]> => {
-  const listing = (await getListingWithCount(listingId))!;
-  return getBookableStartDates(listing, await getActiveHolidays());
-};
-
-/** The first date a listing can be booked for — the common single-date need. */
+/** The first date a listing can be booked for — the common single-date need.
+ *  Delegates to the shared {@link bookableStartDates} (from `#test-utils`) and
+ *  picks the first. */
 export const firstBookableDate = async (listingId: number): Promise<string> =>
-  (await bookableDates(listingId))[0]!;
+  (await bookableStartDates(listingId))[0]!;
 
 /** A daily parent + a 1-capacity daily child, with the child's single spot on
  *  day A already filled — the shared "date-less sold-out aggregate reads true,
