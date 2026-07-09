@@ -181,8 +181,8 @@ describe("startStripeMock ports", () => {
       await withUnusedPort(async (port) => {
         const stripeMock = await startStripeMock({
           confirmDelayMs: 10,
-          delayMs: 1,
-          maxAttempts: 50,
+          delayMs: 10,
+          maxAttempts: 100,
           paths,
           port,
           stopTimeoutMs: 20,

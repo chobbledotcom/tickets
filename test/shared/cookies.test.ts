@@ -3,6 +3,7 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { parseCookies } from "#routes/url.ts";
 import {
   resetEffectiveDomain,
+  seedEffectiveDomainHost,
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
 import {
@@ -43,6 +44,14 @@ describe("isSecureMode", () => {
     setEffectiveDomainForTest("localhost");
     expect(isSecureMode()).toBe(false);
   });
+
+  test("returns false for loopback IP hosts", () => {
+    setEffectiveDomainForTest("127.0.0.1");
+    expect(isSecureMode()).toBe(false);
+
+    setEffectiveDomainForTest("[::1]");
+    expect(isSecureMode()).toBe(false);
+  });
 });
 
 describe("getSessionCookieName", () => {
@@ -76,6 +85,13 @@ describe("buildSessionCookie", () => {
     expect(cookie).toContain("session=test-token");
     expectDevCookieAttributes(cookie);
     expect(cookie).toContain("Max-Age=86400");
+  });
+
+  test("keeps loopback request hosts in dev cookie mode", () => {
+    seedEffectiveDomainHost("http://127.0.0.1:38123/admin/");
+    const cookie = buildSessionCookie("test-token");
+    expect(cookie).toContain("session=test-token");
+    expectDevCookieAttributes(cookie);
   });
 
   test("respects custom maxAge", () => {

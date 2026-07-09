@@ -14,6 +14,7 @@ const LISTING_NAME = "E2E Payment Concert";
 // invalid email before redirecting, failing the booking pre-checkout.
 const BOOKER_EMAIL = config.bookerEmail;
 const BOOKER_NAME = "E2E Booker";
+const LOGIN_FIELDS_SELECTOR = '[name="username"], [name="password"]';
 
 /** Run the first-run setup wizard for a fresh install. */
 export const runSetup = async (
@@ -44,6 +45,18 @@ export const login = async (session: BrowserSession): Promise<void> => {
   // A just-migrated install may show an interstitial.
   if ((await session.bodyText()).includes("Migration complete")) {
     await session.clickLink("Back to dashboard");
+  }
+  try {
+    await session.page.waitForFunction(
+      (selector) => document.querySelectorAll(selector).length === 0,
+      LOGIN_FIELDS_SELECTOR,
+      { timeout: config.actionTimeoutMs },
+    );
+  } catch (err) {
+    await session.dumpPage("login-did-not-stick");
+    throw new Error("admin login did not stick; still on the login page", {
+      cause: err,
+    });
   }
   log("  logged in");
 };
