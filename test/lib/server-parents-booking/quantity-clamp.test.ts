@@ -8,6 +8,18 @@ import {
   ticketGet,
 } from "#test-utils";
 
+/** Slice the `<select>` options substring for `marker` out of a rendered
+ *  booking page body — assert the marker is present first (so a missing
+ *  selector fails clearly here, instead of slicing from -1 and producing a
+ *  confusing assertion failure), then cut at the closing `</select>`. Shared
+ *  by the parent-quantity table-driven loop and the shared-group child test. */
+const selectOptions = (body: string, marker: string): string => {
+  const start = body.indexOf(marker);
+  expect(start).toBeGreaterThanOrEqual(0);
+  const select = body.slice(start);
+  return select.slice(0, select.indexOf("</select>"));
+};
+
 /** Build the "ungrouped parent whose two children share ONE capped child-only
  *  group" scenario: only the child-cap (`cap`) and the parent's max quantity
  *  (`parentMaxQuantity`) vary between the 1-spot and 3-spot rows — the rest of
@@ -143,8 +155,7 @@ describeWithEnv(
       test(c.name, async () => {
         const { parent } = await c.setup();
         const body = await (await ticketGet(parent.slug)).text();
-        const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
-        const options = select.slice(0, select.indexOf("</select>"));
+        const options = selectOptions(body, `name="quantity_${parent.id}"`);
         expect(options).toContain(`value=${c.contains}`);
         for (const value of c.notContains) {
           expect(options).not.toContain(`value=${value}`);
@@ -167,10 +178,10 @@ describeWithEnv(
       });
       const shared = children[0]!;
       const body = await (await ticketGet(parent.slug)).text();
-      const start = body.indexOf(`name="child_qty_${parent.id}_${shared.id}"`);
-      expect(start).toBeGreaterThanOrEqual(0);
-      const select = body.slice(start);
-      const options = select.slice(0, select.indexOf("</select>"));
+      const options = selectOptions(
+        body,
+        `name="child_qty_${parent.id}_${shared.id}"`,
+      );
       expect(options).toContain('value="1"');
       expect(options).not.toContain('value="2"');
     });

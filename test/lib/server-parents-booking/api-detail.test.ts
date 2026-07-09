@@ -113,6 +113,16 @@ describeWithEnv(
       expect(row.maxPurchasable).toBeGreaterThan(0);
     });
 
+    test("apiListingRow fails fast with a clear error when the slug is absent", async () => {
+      // The helper must not silently return undefined (a non-null assertion lies
+      // to TypeScript); it names the missing slug so a broken test points here,
+      // not at a cryptic downstream TypeError.
+      await enablePublicApi();
+      await expect(apiListingRow("does-not-exist")).rejects.toThrow(
+        'no listing with slug "does-not-exist" found',
+      );
+    });
+
     test("API detail availableDates of a daily parent equal the child-constrained intersection", async () => {
       await enablePublicApi();
       // The parent is bookable every weekday, but its only (daily) child is

@@ -112,7 +112,11 @@ export const apiListingRow = async (
       slug: string;
     }[];
   };
-  return body.listings.find((l) => l.slug === slug)!;
+  const row = body.listings.find((l) => l.slug === slug);
+  if (!row) {
+    throw new Error(`apiListingRow: no listing with slug "${slug}" found`);
+  }
+  return row;
 };
 
 /** POST `/api/listings/<parent>/book` with a single child at qty 1 (the most
