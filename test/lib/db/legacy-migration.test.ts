@@ -229,17 +229,17 @@ describe("db > listing_attendees migration from legacy schema", () => {
    *  migration tests. */
   const createLegacyDbWithListing = async () => {
     const client = await createLegacyDb();
-    await client.batch(
-      [
-        "PRAGMA foreign_keys = ON",
-        insert("listings", {
-          created: "2024-01-01T00:00:00Z",
-          id: 1,
-          max_attendees: 100,
-          name: "Test Listing",
-        }),
-      ],
-      "write",
+    // PRAGMA foreign_keys must run outside a batch — SQLite ignores it inside
+    // an implicit transaction (libsql batches), and the "deletes under FK
+    // enforcement" test depends on FKs actually being on.
+    await client.execute("PRAGMA foreign_keys = ON");
+    await client.execute(
+      insert("listings", {
+        created: "2024-01-01T00:00:00Z",
+        id: 1,
+        max_attendees: 100,
+        name: "Test Listing",
+      }),
     );
     return client;
   };

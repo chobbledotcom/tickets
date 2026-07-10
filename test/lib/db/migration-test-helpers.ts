@@ -1,3 +1,4 @@
+import type { InValue, ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeBatch, getDb, queryBatch } from "#shared/db/client.ts";
@@ -7,6 +8,28 @@ import { createTestListing } from "#test-utils";
 /** Run many plain SQL strings as a single batched write round-trip. */
 export const executeStatements = (sqls: readonly string[]): Promise<void> =>
   executeBatch(sqls.map((sql) => ({ args: [], sql })));
+
+/** A read statement paired with a label, so a batch's results can be read by
+ *  name instead of by position. Keeps the batch list and the assertion list
+ *  self-aligning: insert or reorder a statement and its follow-up read stays
+ *  attached to the same label. */
+export type LabelledStatement = {
+  label: string;
+  args: InValue[];
+  sql: string;
+};
+
+/** Run a list of labelled read statements in one batch round-trip and return
+ *  the results keyed by label. The caller reads specific results by name
+ *  instead of remembering which index a statement landed at. */
+export const queryLabelledBatch = async (
+  statements: readonly LabelledStatement[],
+): Promise<Map<string, ResultSet>> => {
+  const results = await queryBatch(
+    statements.map((stmt) => ({ args: stmt.args, sql: stmt.sql })),
+  );
+  return new Map(statements.map((stmt, i) => [stmt.label, results[i]!]!));
+};
 
 export type SchemaRenameStep =
   | { kind: "table"; from: string; to: string }
@@ -70,16 +93,27 @@ export const schemaHashMarker = async (): Promise<unknown> => {
 
 export const seedListingDomainRows = async (): Promise<number> => {
   const listing = await createTestListing();
-  await executeStatements([
-    "INSERT INTO listing_attendees (listing_id, attendee_id) VALUES (" +
-      `${listing.id}, 999)`,
-    "INSERT INTO listing_questions (listing_id, question_id) VALUES (" +
-      `${listing.id}, 999)`,
-    "INSERT INTO activity_log (created, listing_id, message) " +
-      `VALUES ('2024-01-01T00:00:00Z', ${listing.id}, ` +
-      "'legacy listing activity')",
-    "INSERT INTO built_sites (site_data, assigned_listing_id, created) " +
-      `VALUES ('{}', ${listing.id}, '2024-01-01T00:00:00Z')`,
+  await executeBatch([
+    {
+      args: [listing.id, 999],
+      sql: "INSERT INTO listing_attendees (listing_id, attendee_id) VALUES (?, ?)",
+    },
+    {
+      args: [listing.id, 999],
+      sql: "INSERT INTO listing_questions (listing_id, question_id) VALUES (?, ?)",
+    },
+    {
+      args: [listing.id],
+      sql:
+        "INSERT INTO activity_log (created, listing_id, message) " +
+        "VALUES ('2024-01-01T00:00:00Z', ?, 'legacy listing activity')",
+    },
+    {
+      args: [listing.id],
+      sql:
+        "INSERT INTO built_sites (site_data, assigned_listing_id, created) " +
+        "VALUES ('{}', ?, '2024-01-01T00:00:00Z')",
+    },
   ]);
   return listing.id;
 };
@@ -316,44 +350,76 @@ export const seedLegacyAggregateColumnDropSchema = async (
 export const expectListingDomainRestored = async (
   listingId: number,
 ): Promise<void> => {
-  const tables = [
-    "events",
-    "event_attendees",
-    "event_questions",
-    "listings",
-    "listing_attendees",
-    "listing_questions",
-  ] as const;
-  const results = await queryBatch([
-    ...tables.map((t) => ({
-      args: [t],
+  const results = await queryLabelledBatch([
+    {
+      args: ["events"],
+      label: "events_exists",
       sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
-    })),
-    ...["listings", "listing_attendees", "listing_questions"].map((t) => ({
-      args: [],
-      sql: `SELECT COUNT(*) AS v FROM ${t}`,
-    })),
+    },
+    {
+      args: ["event_attendees"],
+      label: "event_attendees_exists",
+      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
+    },
+    {
+      args: ["event_questions"],
+      label: "event_questions_exists",
+      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
+    },
+    {
+      args: ["listings"],
+      label: "listings_exists",
+      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
+    },
+    {
+      args: ["listing_attendees"],
+      label: "listing_attendees_exists",
+      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
+    },
+    {
+      args: ["listing_questions"],
+      label: "listing_questions_exists",
+      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
+    },
     {
       args: [],
+      label: "listings_count",
+      sql: "SELECT COUNT(*) AS v FROM listings",
+    },
+    {
+      args: [],
+      label: "listing_attendees_count",
+      sql: "SELECT COUNT(*) AS v FROM listing_attendees",
+    },
+    {
+      args: [],
+      label: "listing_questions_count",
+      sql: "SELECT COUNT(*) AS v FROM listing_questions",
+    },
+    {
+      args: [],
+      label: "activity_log_listing_id",
       sql: "SELECT listing_id AS v FROM activity_log WHERE message = 'legacy listing activity'",
     },
     {
       args: [],
+      label: "built_sites_listing_id",
       sql: "SELECT assigned_listing_id AS v FROM built_sites WHERE site_data = '{}'",
     },
   ]);
-  const exists = (i: number) => results[i]!.rows.length > 0;
-  expect(exists(0)).toBe(false);
-  expect(exists(1)).toBe(false);
-  expect(exists(2)).toBe(false);
-  expect(exists(3)).toBe(true);
-  expect(exists(4)).toBe(true);
-  expect(exists(5)).toBe(true);
-  expect(Number(results[6]!.rows[0]?.v)).toBe(1);
-  expect(Number(results[7]!.rows[0]?.v)).toBe(1);
-  expect(Number(results[8]!.rows[0]?.v)).toBe(1);
-  expect(results[9]!.rows[0]?.v).toBe(listingId);
-  expect(results[10]!.rows[0]?.v).toBe(listingId);
+  const exists = (label: string) => results.get(label)!.rows.length > 0;
+  const scalar = (label: string) => results.get(label)!.rows[0]?.v;
+  expect(exists("events_exists")).toBe(false);
+  expect(exists("event_attendees_exists")).toBe(false);
+  expect(exists("event_questions_exists")).toBe(false);
+  expect(exists("listings_exists")).toBe(true);
+  expect(exists("listing_attendees_exists")).toBe(true);
+  expect(exists("listing_questions_exists")).toBe(true);
+  expect(Number(scalar("listings_count"))).toBe(1);
+  expect(Number(scalar("listing_attendees_count"))).toBe(1);
+  expect(Number(scalar("listing_questions_count"))).toBe(1);
+  expect(scalar("activity_log_listing_id")).toBe(listingId);
+  expect(scalar("built_sites_listing_id")).toBe(listingId);
 };
 
 /**

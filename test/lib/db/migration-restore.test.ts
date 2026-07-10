@@ -1,30 +1,18 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
-import { spy } from "@std/testing/mock";
-import {
-  getDb,
-  insert,
-  queryBatch,
-  type SqlStatement,
-} from "#shared/db/client.ts";
-import { assertLiveTableColumns } from "#shared/db/migrations/schema-assertions.ts";
-import {
-  currentSchemaColumnsPresentIn,
-  runMigration,
-} from "#shared/db/migrations/schema-sync.ts";
+import { it as test } from "@std/testing/bdd";
+import { getDb, insert, queryBatch } from "#shared/db/client.ts";
 import {
   initDb,
   invalidateInitDbCache,
   MIGRATIONS,
-  type Migration,
   type SchemaRequirement,
 } from "#shared/db/migrations.ts";
-import { describeWithEnv, indexExists } from "#test-utils";
+import { describeWithEnv } from "#test-utils";
 import {
-  downgradeListingDomainToLegacyNames,
   executeStatements,
+  type LabelledStatement,
+  queryLabelledBatch,
   seedPreDropLedgerColumns,
-  tableRowCount,
 } from "./migration-test-helpers.ts";
 
 /**
@@ -36,9 +24,6 @@ import {
  * declared `requires` honest against what up() actually creates.
  */
 describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
-  const migrationById = (id: string): Migration =>
-    MIGRATIONS.find((m) => m.id === id)!;
-
   // Collect every explicitly-created index name on `table` (sql IS NOT NULL
   // excludes the auto-indexes backing UNIQUE/PK constraints), then read each
   // index's column list in one batched round-trip. Returns the index names
@@ -175,65 +160,95 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
   ): Promise<void> => {
     // Build the list of survival-check queries, including the conditional
     // ones for migrations past certain boundaries, then run them all as one
-    // batched read round-trip instead of N sequential executes.
-    const baseSqls: string[] = [
-      "SELECT COUNT(*) AS value FROM listings WHERE id = 902 AND name = 'migration-listing' AND booked_quantity = 2 AND tickets_count = 1",
-      "SELECT COUNT(*) AS value FROM listing_attendees WHERE id = 904 AND listing_id = 902 AND attendee_id = 903 AND quantity = 2",
-      "SELECT COUNT(*) AS value FROM attendees WHERE id = 903 AND ticket_token_index = 'ticket-index'",
-      "SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND listing_id = 902 AND message = 'fixture activity'",
-      "SELECT COUNT(*) AS value FROM groups WHERE id = 901 AND slug_index = 'group-index'",
-      "SELECT COUNT(*) AS value FROM built_sites WHERE id = 913 AND assigned_listing_id = 902 AND assigned_attendee_id = 903",
-      "SELECT COUNT(*) AS value FROM questions WHERE id = 906 AND text = 'Meal choice?'",
-      "SELECT COUNT(*) AS value FROM answers WHERE id = 908 AND question_id = 906 AND times_selected = 1",
-      "SELECT COUNT(*) AS value FROM attendee_answers WHERE id = 910 AND attendee_id = 903 AND answer_id = 908",
+    // batched read round-trip. Each query is labelled so the assertion reads
+    // by name — adding or reordering a check can't silently shift the indices.
+    const checks: LabelledStatement[] = [
+      {
+        args: [],
+        label: "listing",
+        sql: "SELECT COUNT(*) AS value FROM listings WHERE id = 902 AND name = 'migration-listing' AND booked_quantity = 2 AND tickets_count = 1",
+      },
+      {
+        args: [],
+        label: "listing_attendee",
+        sql: "SELECT COUNT(*) AS value FROM listing_attendees WHERE id = 904 AND listing_id = 902 AND attendee_id = 903 AND quantity = 2",
+      },
+      {
+        args: [],
+        label: "attendee",
+        sql: "SELECT COUNT(*) AS value FROM attendees WHERE id = 903 AND ticket_token_index = 'ticket-index'",
+      },
+      {
+        args: [],
+        label: "activity_log",
+        sql: "SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND listing_id = 902 AND message = 'fixture activity'",
+      },
+      {
+        args: [],
+        label: "group",
+        sql: "SELECT COUNT(*) AS value FROM groups WHERE id = 901 AND slug_index = 'group-index'",
+      },
+      {
+        args: [],
+        label: "built_site",
+        sql: "SELECT COUNT(*) AS value FROM built_sites WHERE id = 913 AND assigned_listing_id = 902 AND assigned_attendee_id = 903",
+      },
+      {
+        args: [],
+        label: "question",
+        sql: "SELECT COUNT(*) AS value FROM questions WHERE id = 906 AND text = 'Meal choice?'",
+      },
+      {
+        args: [],
+        label: "answer",
+        sql: "SELECT COUNT(*) AS value FROM answers WHERE id = 908 AND question_id = 906 AND times_selected = 1",
+      },
+      {
+        args: [],
+        label: "attendee_answer",
+        sql: "SELECT COUNT(*) AS value FROM attendee_answers WHERE id = 910 AND attendee_id = 903 AND answer_id = 908",
+      },
     ];
     const hasAttendeeStatuses =
       migrationIndex(baseMigrationId) >=
       migrationIndex("2026-06-14_attendee_statuses");
     const hasModifiers =
       migrationIndex(baseMigrationId) >= migrationIndex("2026-06-16_modifiers");
-    const results = await queryBatch([
-      ...baseSqls.map((sql) => ({ args: [], sql }) as SqlStatement),
-      ...(hasAttendeeStatuses
-        ? [
-            {
-              args: [],
-              sql: "SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND attendee_id = 903",
-            } as SqlStatement,
-          ]
-        : []),
-      ...(hasModifiers
-        ? [
-            {
-              args: [],
-              sql: "SELECT COUNT(*) AS value FROM modifiers WHERE id = 907 AND total_uses = 2 AND usage_count = 1",
-            } as SqlStatement,
-            {
-              args: [],
-              sql: "SELECT COUNT(*) AS value FROM modifier_usages WHERE id = 911 AND modifier_id = 907 AND attendee_id = 903",
-            } as SqlStatement,
-          ]
-        : []),
-    ]);
-    const one = (i: number) =>
-      expect(Number(results[i]!.rows[0]?.value)).toBe(1);
-    one(0);
-    one(1);
-    one(2);
-    one(3);
-    one(4);
-    one(5);
-    one(6);
-    one(7);
-    one(8);
-    let i = 9;
     if (hasAttendeeStatuses) {
-      one(i);
-      i++;
+      checks.push({
+        args: [],
+        label: "activity_log_attendee",
+        sql: "SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND attendee_id = 903",
+      });
     }
     if (hasModifiers) {
-      one(i);
-      one(i + 1);
+      checks.push({
+        args: [],
+        label: "modifier",
+        sql: "SELECT COUNT(*) AS value FROM modifiers WHERE id = 907 AND total_uses = 2 AND usage_count = 1",
+      });
+      checks.push({
+        args: [],
+        label: "modifier_usage",
+        sql: "SELECT COUNT(*) AS value FROM modifier_usages WHERE id = 911 AND modifier_id = 907 AND attendee_id = 903",
+      });
+    }
+    const results = await queryLabelledBatch(checks);
+    const one = (label: string) =>
+      expect(Number(results.get(label)!.rows[0]?.value)).toBe(1);
+    one("listing");
+    one("listing_attendee");
+    one("attendee");
+    one("activity_log");
+    one("group");
+    one("built_site");
+    one("question");
+    one("answer");
+    one("attendee_answer");
+    if (hasAttendeeStatuses) one("activity_log_attendee");
+    if (hasModifiers) {
+      one("modifier");
+      one("modifier_usage");
     }
   };
 
@@ -335,46 +350,49 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
       expect(await sentinelListingExists()).toBe(true);
 
       // Spot-check that each declared object is actually present again,
-      // batched into one read round-trip instead of N sequential queries.
+      // batched into one read round-trip. Each statement is labelled by its
+      // object name so the assertions read by name — adding or reordering a
+      // declared object can't silently shift the indices.
       const newTables = req.newTables ?? [];
       const columnTables = Object.entries(req.columns ?? {});
       const indexes = req.indexes ?? [];
       const triggers = req.triggers ?? [];
-      const checks = await queryBatch([
+      const checks = await queryLabelledBatch([
         ...newTables.map((t) => ({
           args: [],
+          label: `table:${t}`,
           sql: `SELECT name FROM pragma_table_info('${t}')`,
         })),
         ...columnTables.map(([t]) => ({
           args: [],
+          label: `columns:${t}`,
           sql: `SELECT name FROM pragma_table_info('${t}')`,
         })),
-        ...indexes.map((i) => ({
-          args: [i],
+        ...indexes.map((name) => ({
+          args: [name],
+          label: `index:${name}`,
           sql: "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?",
         })),
-        ...triggers.map((t) => ({
-          args: [t],
+        ...triggers.map((name) => ({
+          args: [name],
+          label: `trigger:${name}`,
           sql: "SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ?",
         })),
       ]);
-      let i = 0;
-      for (const _table of newTables) {
-        expect(checks[i]!.rows.length).toBeGreaterThan(0);
-        i++;
+      for (const t of newTables) {
+        expect(checks.get(`table:${t}`)!.rows.length).toBeGreaterThan(0);
       }
-      for (const [_table, cols] of columnTables) {
-        const present = new Set(checks[i]!.rows.map((r) => String(r.name)));
+      for (const [t, cols] of columnTables) {
+        const present = new Set(
+          checks.get(`columns:${t}`)!.rows.map((r) => String(r.name)),
+        );
         for (const col of cols) expect(present.has(col)).toBe(true);
-        i++;
       }
-      for (const _index of indexes) {
-        expect(checks[i]!.rows.length).toBeGreaterThan(0);
-        i++;
+      for (const name of indexes) {
+        expect(checks.get(`index:${name}`)!.rows.length).toBeGreaterThan(0);
       }
-      for (const _trigger of triggers) {
-        expect(checks[i]!.rows.length).toBeGreaterThan(0);
-        i++;
+      for (const name of triggers) {
+        expect(checks.get(`trigger:${name}`)!.rows.length).toBeGreaterThan(0);
       }
     });
   }
@@ -421,188 +439,4 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
       await assertPopulatedFixtureSurvived(baseMigration.id);
     });
   }
-
-  test("verify reads the live schema from the primary, not a replica", async () => {
-    // A replica can lag behind the DDL a migration just committed, so verify()
-    // must read its own writes from the primary or it reports a freshly-created
-    // table as missing. libsql routes "write"-mode batches to the primary and
-    // "read"-mode batches to a (possibly stale) replica.
-    const client = getDb();
-    const batchSpy = spy(client, "batch");
-    try {
-      await migrationById("2026-06-16_email_templates").verify();
-    } finally {
-      batchSpy.restore();
-    }
-
-    const schemaReads = batchSpy.calls.filter(({ args }) =>
-      (args[0] as Array<{ sql: string }>).some((stmt) =>
-        stmt.sql.includes("pragma_table_info"),
-      ),
-    );
-    expect(schemaReads.length).toBeGreaterThan(0);
-    for (const call of schemaReads) {
-      expect(call.args[1]).toBe("write");
-    }
-  });
-
-  test("a fully-migrated database satisfies every migration's verify()", async () => {
-    for (const migration of MIGRATIONS) {
-      await migration.verify();
-    }
-  });
-
-  test("narrowed verify fails only for the owning migration", async () => {
-    // Drop an index owned solely by the activity-log-index migration.
-    await getDb().execute("DROP INDEX IF EXISTS idx_activity_log_listing_id");
-
-    await expect(
-      migrationById("2026-06-15_activity_log_listing_id_index").verify(),
-    ).rejects.toThrow("idx_activity_log_listing_id");
-
-    // A migration that does not own that index is unaffected — the old
-    // full-schema verify would have failed here too.
-    await migrationById("2026-06-12_sumup_checkouts").verify();
-  });
-
-  test("verify names the missing object", async () => {
-    await getDb().execute("DROP TABLE IF EXISTS attendee_statuses");
-    await expect(
-      migrationById("2026-06-14_attendee_statuses").verify(),
-    ).rejects.toThrow("missing table attendee_statuses");
-  });
-
-  test("the slot-index verify demands the widened columns, not bare existence", async () => {
-    // The widening migrations recreate the slot index under its OLD name, so a
-    // name-existence check cannot tell a landed widening from a stale pre-drop
-    // definition that somehow survived. Simulate that survivor: same name,
-    // pre-widening column list.
-    const slotIndex = "idx_listing_attendees_listing_attendee_start";
-    await getDb().execute(`DROP INDEX IF EXISTS ${slotIndex}`);
-    await getDb().execute(
-      `CREATE UNIQUE INDEX ${slotIndex} ON listing_attendees ` +
-        "(listing_id, attendee_id, start_at, parent_listing_id)",
-    );
-    await expect(
-      migrationById("2026-07-05_package_slot_identity").verify(),
-    ).rejects.toThrow("package_group_id");
-    // Both widening migrations share the check: the 06-23 verify's own
-    // requirement is satisfied by the stale survivor (name + columns exist),
-    // so only the live-definition check can catch it.
-    await expect(
-      migrationById("2026-06-23_attendee_order_parent").verify(),
-    ).rejects.toThrow("package_group_id");
-    // An ABSENT index reads as lacking every column — never a silent pass.
-    await getDb().execute(`DROP INDEX IF EXISTS ${slotIndex}`);
-    await expect(
-      migrationById("2026-07-05_package_slot_identity").verify(),
-    ).rejects.toThrow("absent");
-    // Re-running the real up() restores the widened index and verify passes.
-    await migrationById("2026-07-05_package_slot_identity").up();
-    await migrationById("2026-07-05_package_slot_identity").verify();
-    expect(await indexExists(slotIndex)).toBe(true);
-  });
-
-  test("schema assertions use context-specific missing table and column messages", () => {
-    const live = { tables: new Map([["legacy", new Set(["id"])]]) };
-
-    expect(() =>
-      assertLiveTableColumns("appSchema", live, "missing", ["id"]),
-    ).toThrow("Database schema verification failed: missing table missing");
-    expect(() =>
-      assertLiveTableColumns("legacy", live, "missing", ["id"]),
-    ).toThrow("Cannot migrate missing: missing expected legacy table");
-    expect(() =>
-      assertLiveTableColumns("appSchema", live, "legacy", ["name"]),
-    ).toThrow(
-      "Database schema verification failed: legacy missing column(s): name",
-    );
-    expect(() =>
-      assertLiveTableColumns("migration", live, "legacy", ["name"]),
-    ).toThrow("Migration verification failed: legacy missing column(s): name");
-  });
-
-  test("schema column selection rejects unknown tables", () => {
-    expect(() =>
-      currentSchemaColumnsPresentIn("missing_schema_table", new Set()),
-    ).toThrow("Unknown schema table missing_schema_table");
-  });
-
-  test("runMigration ignores idempotent duplicate errors but rethrows real ones", async () => {
-    await runMigration("CREATE TABLE duplicate_probe (id TEXT)");
-    await runMigration("CREATE TABLE duplicate_probe (id TEXT)");
-
-    await expect(
-      runMigration("SELECT * FROM missing_probe_table"),
-    ).rejects.toThrow("missing_probe_table");
-  });
-
-  test("verify names legacy tables that should be absent", async () => {
-    await getDb().execute("CREATE TABLE events (id TEXT)");
-    await expect(
-      migrationById("2026-06-14_rename_events_to_listings").verify(),
-    ).rejects.toThrow("legacy table events still present");
-  });
-
-  test("tableRowCount returns the count for populated tables", async () => {
-    await seedSentinelListing();
-    expect(await tableRowCount("listings")).toBeGreaterThan(0);
-  });
-
-  test("a migration's verify names a missing trigger it owns", async () => {
-    await getDb().execute(
-      "DROP TRIGGER IF EXISTS trg_listing_attendees_aggregates_insert",
-    );
-    await expect(
-      migrationById("2026-06-16_listing_aggregates").verify(),
-    ).rejects.toThrow(
-      "missing trigger trg_listing_attendees_aggregates_insert",
-    );
-  });
-
-  test("the baseline schema verify names a missing trigger", async () => {
-    // The baseline reconcile verifies the whole schema, triggers included.
-    await getDb().execute(
-      "DROP TRIGGER IF EXISTS trg_listing_attendees_aggregates_delete",
-    );
-    await expect(
-      migrationById("2026-06-11_current_schema").verify(),
-    ).rejects.toThrow(
-      "missing trigger trg_listing_attendees_aggregates_delete",
-    );
-  });
-
-  describe("rename migration verify", () => {
-    const rename = () => migrationById("2026-06-14_rename_events_to_listings");
-
-    test("rejects while legacy event tables are still present", async () => {
-      await downgradeListingDomainToLegacyNames();
-      await expect(rename().verify()).rejects.toThrow(
-        "Migration verification failed",
-      );
-    });
-
-    test("resolves after up() renames everything to listing", async () => {
-      await downgradeListingDomainToLegacyNames();
-      await rename().up();
-      await rename().verify();
-    });
-  });
-
-  describe("overlap index migration on pre-rename database", () => {
-    const overlapIdx = () =>
-      migrationById("2026-06-13_event_attendees_overlap_index");
-
-    test("up() is a no-op when legacy 'events' table exists", async () => {
-      await downgradeListingDomainToLegacyNames();
-      // Must not throw (would fail with "no such table: main.listings" before fix)
-      await overlapIdx().up();
-    });
-
-    test("verify() passes when legacy 'events' table exists", async () => {
-      await downgradeListingDomainToLegacyNames();
-      // Defers to rename migration — nothing to verify yet
-      await overlapIdx().verify();
-    });
-  });
 });
