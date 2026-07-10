@@ -156,9 +156,12 @@ test/test-utils/test-browser.ts:351:58  ?? → ||  # RequestInit.method is omitt
 test/test-utils/test-browser.ts:414:28  ?? → ||  # forms[0] is a FormInfo object when present, otherwise undefined
 src/ui/templates/admin/listing-defaults.tsx:105:19  ?? → ||  # UrlControl value: string|undefined; the only falsy-non-null string is "" which equals the "" fallback, so ?? and || coincide
 src/ui/templates/admin/listing-defaults.tsx:131:38  ?? → ||  # value?.includes(day): boolean|undefined; for boolean b, b ?? false === b || false, and undefined ?? false === undefined || false
-src/shared/booking/build-tree.ts:132:48  ?? → ||    # childrenByParentId.get(): readonly TicketListing[]|undefined — an array is always truthy
-src/shared/booking/build-tree.ts:172:62  ?? → ||    # packageQuantities.get(): a member's fixed per-package quantity is ≥1 (group_listings.quantity DEFAULT 1), never 0, so ?? and || coincide
-src/shared/booking/build-tree.ts:205:38  ?? → ||    # input.root: RootRef-minus-listing|undefined — an object literal is always truthy, so ?? and || coincide
+src/shared/booking/build-tree.ts:130:48  ?? → ||    # childrenByParentId?.get(): readonly TicketListing[]|undefined — an array is always truthy, so ?? and || coincide
+src/shared/booking/build-tree.ts:170:52  ?? → ||    # pkg.quantities.get(): a member's fixed per-package quantity is ≥1 (group_listings.quantity DEFAULT 1), never 0, so ?? and || coincide
+src/shared/booking/build-tree.ts:208:33  ?? → ||    # deriveRootRef input.packages: readonly TreePackage[]|null|undefined — a non-empty array is truthy and [] destructures to the same `first`, so ?? and || coincide
+src/shared/booking/build-tree.ts:212:38  ?? → ||    # standaloneListingIds?.size: number|undefined — a real size is ≥0 and (0 ?? 0)===(0 || 0), undefined too, so ?? and || coincide
+src/shared/booking/build-tree.ts:224:34  ?? → ||    # buildBookingTree input.packages: readonly TreePackage[]|null|undefined — same as the deriveRootRef case, an array/null/undefined makes ?? and || coincide
+src/shared/booking/build-tree.ts:231:56  ?? → ||    # standaloneListingIds?.has(): boolean|undefined — (b ?? false)===(b || false) for any boolean b, and undefined too, so ?? and || coincide
 src/shared/booking/fold-tree.ts:157:4  ?? → ||    # childQtyField: parseNonNegativeInt returns a non-negative int or null; its only falsy result (0) already maps to 0, so ?? and || coincide
 src/shared/booking/fold-tree.ts:280:48  ?? → ||    # foldChild summed: state.quantities.get(childId) is undefined (first fold) or a positive running total, never 0, so ?? and || coincide
 src/shared/booking/fold-tree.ts:424:58  ?? → ||    # foldBookingTree parentQty: base.quantities.get() is undefined or ≥0, and a 0 takes the same `<= 0` skip, so ?? and || coincide

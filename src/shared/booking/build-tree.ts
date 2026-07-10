@@ -4,7 +4,7 @@ import {
   packageByMemberListingId,
   type TreePackage,
 } from "#shared/booking/page-packages.ts";
-import { packageMemberPriceRule } from "#shared/booking/price-tree.ts";
+import { selectPriceRule } from "#shared/booking/price-tree.ts";
 import {
   type BookingNode,
   type BookingTree,
@@ -69,23 +69,19 @@ const derivePriceRule = (
   listing: ListingWithCount,
   overrideMinor: number | undefined,
   dayOverrides?: ReadonlyMap<number, number> | undefined,
-): PriceRule => {
-  // A flat override outranks pay-more, but the two never coexist: packages
-  // cannot contain pay-what-you-want listings, so an overridden line is never
-  // PAY_MORE. Everything else is the shared member/base rule constructor.
-  if (overrideMinor === undefined && listing.can_pay_more) {
-    return {
-      kind: "PAY_MORE",
-      maxMinor: listing.max_price,
-      minMinor: listing.unit_price,
-    };
-  }
-  return packageMemberPriceRule(
-    overrideMinor,
+): PriceRule =>
+  // Map the listing onto the shared precedence inputs and let
+  // {@link selectPriceRule} pick the winning tier. A flat override outranks
+  // pay-more, but the two never coexist: packages cannot contain
+  // pay-what-you-want listings, so an overridden line is never PAY_MORE.
+  selectPriceRule({
+    customisableDays: listing.customisable_days,
     dayOverrides,
-    listing.customisable_days,
-  );
-};
+    overrideMinor,
+    payMore: listing.can_pay_more
+      ? { maxMinor: listing.max_price, minMinor: listing.unit_price }
+      : undefined,
+  });
 
 /** A required child's date facet. Only a child that carries date/span semantics
  * — a daily or customisable listing — `INHERIT`s its parent's resolved span; a
