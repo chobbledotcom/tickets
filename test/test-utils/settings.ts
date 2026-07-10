@@ -2,7 +2,7 @@ import { afterEach, beforeEach, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import type { SettingsData } from "#shared/db/settings.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
-import { setDemoModeForTest } from "#shared/demo-mode.ts";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { describeWithEnv } from "./db.ts";
 
 /** The standard outer describe for admin-settings tests: scoped to

@@ -3,14 +3,20 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import {
-  createPaidTestAttendee,
-  createTestAttendee,
-  describeWithEnv,
+  finalizeSession,
+  reserveSession,
+} from "#shared/db/processed-payments.ts";
+import {
   expectFlashRedirect,
-  getAttendeesRaw,
-  setupListingAndLogin,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import {
+  createTestAttendee,
+  getAttendeesRaw,
+} from "#test-utils/db-helpers/attendees.ts";
+import { setupListingAndLogin } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 import { submitDeleteIncomplete } from "./helpers.ts";
@@ -63,12 +69,16 @@ describeWithEnv(
         )(response);
 
         // Verify attendee was deleted
-        const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
+        const { getAttendeeRaw } = await import(
+          "#shared/db/attendees/queries.ts"
+        );
         const deleted = await getAttendeeRaw(attendee.id);
         expect(deleted).toBeNull();
 
         // The deletion is recorded in the listing activity log.
-        const { getListingActivityLog } = await import("#test-utils");
+        const { getListingActivityLog } = await import(
+          "#test-utils/activity-log.ts"
+        );
         const log = (await getListingActivityLog(listing.id)).find((l) =>
           l.message.includes("Incomplete attendee deleted"),
         );
@@ -106,6 +116,42 @@ describeWithEnv(
         )(response);
 
         // Verify attendee was NOT deleted (still exists)
+        const rows = await getAttendeesRaw(listing.id);
+        expect(rows.length).toBe(1);
+      });
+
+      test("refuses to delete empty-payment-id attendee with processed payment reference", async () => {
+        const { listing, cookie, csrfToken } = await setupListingAndLogin({
+          maxAttendees: 100,
+          unitPrice: 1000,
+        });
+        const attendee = await createPaidTestAttendee(
+          listing.id,
+          "Balance Paid",
+          "balance-paid@example.com",
+          "",
+          1000,
+        );
+        await reserveSession("balance_paid_delete_guard");
+        await finalizeSession(
+          "balance_paid_delete_guard",
+          attendee.id,
+          [],
+          "pi_balance_paid",
+        );
+
+        const response = await submitDeleteIncomplete(
+          listing.id,
+          attendee.id,
+          cookie,
+          csrfToken,
+        );
+        await expectFlashRedirect(
+          `/admin/listing/${listing.id}/attendees`,
+          undefined,
+          false,
+        )(response);
+
         const rows = await getAttendeesRaw(listing.id);
         expect(rows.length).toBe(1);
       });
@@ -165,7 +211,9 @@ describeWithEnv(
           "Incomplete registration removed",
         )(response);
 
-        const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
+        const { getAttendeeRaw } = await import(
+          "#shared/db/attendees/queries.ts"
+        );
         const deleted = await getAttendeeRaw(attendee.id);
         expect(deleted).toBeNull();
       });

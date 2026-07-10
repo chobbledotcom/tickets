@@ -1,8 +1,6 @@
-import {
-  createTestListing,
-  expectRedirect,
-  submitTicketForm,
-} from "#test-utils";
+import { expectRedirect } from "#test-utils/assertions.ts";
+import { submitTicketForm } from "#test-utils/csrf.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /**
  * Books a plain single-ticket listing (name + email only) and asserts the

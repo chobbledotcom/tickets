@@ -5,32 +5,40 @@ import { handleRequest } from "#routes";
 import { getDb } from "#shared/db/client.ts";
 import { invalidateInitDbCache, resetDatabase } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   assertPublicHtml,
-  assertSchemaEmpty,
-  awaitTestRequest,
-  createTestDb,
-  describeWithEnv,
   expectFlashRedirect,
   expectHtmlResponse,
   expectRedirect,
-  getAllActivityLog,
-  getSetupCsrfToken,
+} from "#test-utils/assertions.ts";
+import { getSetupCsrfToken } from "#test-utils/csrf.ts";
+import {
+  createTestDb,
+  describeWithEnv,
   invalidateTestDbCache,
+  resetDb,
+} from "#test-utils/db.ts";
+import {
+  assertSchemaEmpty,
+  schemaMarkerKeys,
+  settingsTableExists,
+  tableExists,
+} from "#test-utils/migrations.ts";
+import {
+  awaitTestRequest,
   mockFormRequest,
   mockRequest,
   mockSetupFormRequest,
-  recordQueries,
-  reloginAsAdmin,
-  resetDb,
-  schemaMarkerKeys,
-  settingsTableExists,
-  statementSql,
-  tableExists,
   withExpectedError,
   withMocks,
+} from "#test-utils/mocks.ts";
+import {
+  recordQueries,
+  statementSql,
   wrapDbClient,
-} from "#test-utils";
+} from "#test-utils/record-queries.ts";
+import { reloginAsAdmin } from "#test-utils/session.ts";
 
 describeWithEnv("server (setup)", { db: true }, () => {
   /** Get CSRF token from setup page and submit setup form with given fields */

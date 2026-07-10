@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { resetSquareClient, type SquareClient } from "#shared/square.ts";
-import { createTestDb, resetDb } from "#test-utils";
+import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { reclaimLeakedFdsNow } from "#test-utils/reclaim-fds.ts";
 
 /** Mock implementation function type (accepts unknown args, returns unknown) */

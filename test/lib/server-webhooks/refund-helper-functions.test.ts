@@ -4,21 +4,22 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  checkoutSessionEvent,
   createTestListing,
   deactivateTestListing,
-  describeWithEnv,
+} from "#test-utils/db-helpers/listings.ts";
+import { signedMeta, singleItem } from "#test-utils/factories.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
+import { setupStripe } from "#test-utils/settings.ts";
+import {
+  checkoutSessionEvent,
   expectAttendeeCreatedWithPiiBlob,
-  expectHtmlResponse,
   expectWebhookProcessed,
-  mockRequest,
-  setupStripe,
-  signedMeta,
-  singleItem,
   stubRefundPayment,
   stubRetrieveCheckoutSession,
-} from "#test-utils";
+} from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -157,7 +158,7 @@ describeWithEnv(
         sessionId: "cs_create_boom",
       });
       const mockRefund = stubRefundPayment();
-      const { attendeesApi } = await import("#shared/db/attendees.ts");
+      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
       // The booking honour path uses createBookingAtomic; the quantity-0
       // placeholder fallback uses createAttendeeAtomic. A genuinely broken
       // create breaks both, so the error escapes instead of becoming a refund.

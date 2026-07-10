@@ -8,24 +8,25 @@ import { setSkipLoginDelay } from "#shared/test-overrides.ts";
 import {
   assertAdminHtml,
   assertPublicHtml,
-  awaitTestRequest,
-  createTestAgentSession,
-  describeWithEnv,
   expectAdminLoginSuccess,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
-  extractInputValue,
   FLASH_TEST_ID,
   flashCookieHeader,
   followRedirectWithFlash,
-  loginAsAdmin,
+  testRequiresAuth,
+} from "#test-utils/assertions.ts";
+import { extractInputValue } from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { TEST_ADMIN_PASSWORD } from "#test-utils/internal.ts";
+import {
+  awaitTestRequest,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
-  TEST_ADMIN_PASSWORD,
-  testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
+import { createTestAgentSession, loginAsAdmin } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin auth)", { db: true }, () => {
   describe("GET /admin/", () => {

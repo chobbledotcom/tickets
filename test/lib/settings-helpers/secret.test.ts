@@ -7,7 +7,8 @@ import {
   secretFieldHandler,
 } from "#routes/admin/settings-helpers.ts";
 import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
-import { describeWithEnv, expectFlash, expectRedirect } from "#test-utils";
+import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   formFrom,
   lastLogMessage,

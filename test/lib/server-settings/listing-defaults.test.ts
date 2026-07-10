@@ -2,16 +2,15 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllListings } from "#shared/db/listings.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
-import { setDemoModeForTest } from "#shared/demo-mode.ts";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
-  adminFormPost,
-  adminGet,
-  createTestListing,
-  describeWithEnv,
   expectErrorFlash,
   expectFlash,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { extractFormEntries } from "#test-utils/test-browser.ts";
 
 const findByName = async (name: string) =>

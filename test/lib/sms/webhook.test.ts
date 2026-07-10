@@ -17,13 +17,13 @@ import {
   normalizeForIndex,
 } from "#shared/sms/phone-index.ts";
 import {
-  createServicingHold,
-  createTestAttendeeDirect,
-  createTestListing,
-  describeWithEnv,
   getAllActivityLog,
   getAttendeeActivityLog,
-} from "#test-utils";
+} from "#test-utils/activity-log.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createServicingHold } from "#test-utils/servicing.ts";
 
 const SECRET = "whsec-123";
 const PASS = "gateway-pass";

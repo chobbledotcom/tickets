@@ -4,13 +4,10 @@ import { t } from "#i18n";
 import { createLinkSections } from "#shared/admin-pages.ts";
 import type { AdminLevel } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
-import {
-  describeWithEnv,
-  setTestEnv,
-  withSetting,
-  withStorageDisabled,
-  withStorageEnabled,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setTestEnv } from "#test-utils/env.ts";
+import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
+import { withSetting } from "#test-utils/settings.ts";
 
 describeWithEnv("AdminNav", {}, () => {
   /** Assert every role in `adminLevels` sees a nav link to `href` labelled

@@ -11,7 +11,8 @@ import {
   packageStandIns,
   resolveNamesConcealed,
 } from "#shared/package-privacy.ts";
-import { createTestGroup, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 
 const HIDDEN = packagePrivacy(true, "Welcome Pack");
 const SHOWN = packagePrivacy(false, "Welcome Pack");

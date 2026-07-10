@@ -6,18 +6,20 @@ import { settings } from "#shared/db/settings.ts";
 import { agentUsers } from "#shared/db/user-agents.ts";
 import { getAllUsers } from "#shared/db/users.ts";
 import {
-  adminFormPost,
-  adminGet,
-  createListingWithAttendeeAndLogistics,
-  createTestAgentSession,
-  createTestEditorSession,
-  describeWithEnv,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
   expectStatus,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createListingWithAttendeeAndLogistics } from "#test-utils/db-helpers/attendee-payments.ts";
+import {
+  adminFormPost,
+  adminGet,
+  createTestAgentSession,
+  createTestEditorSession,
+} from "#test-utils/session.ts";
 
 const createAgent = async (name: string): Promise<number> => {
   const { response } = await adminFormPost("/admin/logistics", { name });

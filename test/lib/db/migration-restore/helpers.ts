@@ -27,7 +27,8 @@ import {
   SCHEMA_HASH,
   type SchemaRequirement,
 } from "#shared/db/migrations.ts";
-import { describeWithEnv, indexExists } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { indexExists } from "#test-utils/migrations.ts";
 import { seedPreDropLedgerColumns } from "../migration-test-helpers.ts";
 
 export const migrationById = (id: string): Migration =>

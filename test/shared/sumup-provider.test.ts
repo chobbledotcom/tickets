@@ -7,7 +7,8 @@ import {
 } from "#shared/db/sumup-checkouts.ts";
 import { type SumupCheckout, sumupApi } from "#shared/sumup.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
-import { createTestDb, resetDb, withMocks } from "#test-utils";
+import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { withMocks } from "#test-utils/mocks.ts";
 
 /** Booking metadata as buildItemsMetadata would write it. */
 const META = {

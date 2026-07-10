@@ -15,21 +15,25 @@ import {
   verifyUserPassword,
 } from "#shared/db/users.ts";
 import { setHostEmailConfigForTest } from "#shared/email.ts";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
-  adminFormPost,
-  awaitTestRequest,
-  createTestManagerSession,
-  describeWithEnv,
   expectErrorFlash,
   expectFlashRedirect,
-  getAllActivityLog,
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { validEmail } from "#test-utils/email.ts";
+import { setTestEnv } from "#test-utils/env.ts";
+import {
+  awaitTestRequest,
   mockFormRequest,
-  setTestEnv,
   stubFetchStatus,
-  testCookie,
-  validEmail,
   withMocks,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
+import {
+  adminFormPost,
+  createTestManagerSession,
+  testCookie,
+} from "#test-utils/session.ts";
 
 const SUPERUSER_ROUTE = "/admin/settings/superuser";
 

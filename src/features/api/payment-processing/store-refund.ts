@@ -30,9 +30,9 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { bookingDateFields } from "#routes/public/ticket-payment.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
-import { balanceFinalizeStatement } from "#shared/db/processed-payments.ts";
+import { balanceFinalizeStatement } from "#shared/db/payment-finalize.ts";
 import { createSystemNote } from "#shared/db/system-notes.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
@@ -113,7 +113,14 @@ export const settleBalanceSession = async (
     attendeeId,
     expectedAmount,
     { id: sessionId, occurredAt: businessTime(session) },
-    [balanceFinalizeStatement(sessionId, attendeeId, expectedAmount)],
+    [
+      await balanceFinalizeStatement(
+        sessionId,
+        attendeeId,
+        expectedAmount,
+        session.paymentReference,
+      ),
+    ],
   );
   if (!settled.settled) {
     return refundAndFail(

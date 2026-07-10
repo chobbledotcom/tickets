@@ -1,8 +1,35 @@
+import type { InValue, ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
+import { executeBatch, getDb, queryBatch } from "#shared/db/client.ts";
 import { initDb, invalidateInitDbCache } from "#shared/db/migrations.ts";
-import { createTestListing } from "#test-utils";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+
+/** Run many plain SQL strings as a single batched write round-trip. */
+export const executeStatements = (sqls: readonly string[]): Promise<void> =>
+  executeBatch(sqls.map((sql) => ({ args: [], sql })));
+
+/** A read statement paired with a label, so a batch's results can be read by
+ *  name instead of by position. Keeps the batch list and the assertion list
+ *  self-aligning: insert or reorder a statement and its follow-up read stays
+ *  attached to the same label. */
+export type LabelledStatement = {
+  label: string;
+  args: InValue[];
+  sql: string;
+};
+
+/** Run a list of labelled read statements in one batch round-trip and return
+ *  the results keyed by label. The caller reads specific results by name
+ *  instead of remembering which index a statement landed at. */
+export const queryLabelledBatch = async (
+  statements: readonly LabelledStatement[],
+): Promise<Map<string, ResultSet>> => {
+  const results = await queryBatch(
+    statements.map((stmt) => ({ args: stmt.args, sql: stmt.sql })),
+  );
+  return new Map(statements.map((stmt, i) => [stmt.label, results[i]!]!));
+};
 
 export type SchemaRenameStep =
   | { kind: "table"; from: string; to: string }
@@ -50,10 +77,10 @@ export const markCurrentSchemaMigrationPending = () => {
 };
 
 export const markMigrationsForRerun = async (): Promise<void> => {
-  await getDb().execute("DROP TABLE IF EXISTS schema_migrations");
-  await getDb().execute(
+  await executeStatements([
+    "DROP TABLE IF EXISTS schema_migrations",
     "UPDATE settings SET value = 'stale' WHERE key IN ('latest_db_update', 'db_schema_hash')",
-  );
+  ]);
   invalidateInitDbCache();
 };
 
@@ -66,22 +93,28 @@ export const schemaHashMarker = async (): Promise<unknown> => {
 
 export const seedListingDomainRows = async (): Promise<number> => {
   const listing = await createTestListing();
-  await getDb().execute(
-    "INSERT INTO listing_attendees (listing_id, attendee_id) VALUES (?, 999)",
-    [listing.id],
-  );
-  await getDb().execute(
-    "INSERT INTO listing_questions (listing_id, question_id) VALUES (?, 999)",
-    [listing.id],
-  );
-  await getDb().execute(
-    "INSERT INTO activity_log (created, listing_id, message) VALUES ('2024-01-01T00:00:00Z', ?, 'legacy listing activity')",
-    [listing.id],
-  );
-  await getDb().execute(
-    "INSERT INTO built_sites (site_data, assigned_listing_id, created) VALUES ('{}', ?, '2024-01-01T00:00:00Z')",
-    [listing.id],
-  );
+  await executeBatch([
+    {
+      args: [listing.id, 999],
+      sql: "INSERT INTO listing_attendees (listing_id, attendee_id) VALUES (?, ?)",
+    },
+    {
+      args: [listing.id, 999],
+      sql: "INSERT INTO listing_questions (listing_id, question_id) VALUES (?, ?)",
+    },
+    {
+      args: [listing.id],
+      sql:
+        "INSERT INTO activity_log (created, listing_id, message) " +
+        "VALUES ('2024-01-01T00:00:00Z', ?, 'legacy listing activity')",
+    },
+    {
+      args: [listing.id],
+      sql:
+        "INSERT INTO built_sites (site_data, assigned_listing_id, created) " +
+        "VALUES ('{}', ?, '2024-01-01T00:00:00Z')",
+    },
+  ]);
   return listing.id;
 };
 
@@ -96,14 +129,11 @@ export const seedListingDomainRows = async (): Promise<number> => {
  * backfill really runs against (the drop migrations remove them again, leaving
  * the final schema correct).
  */
-export const seedPreDropLedgerColumns = async (): Promise<void> => {
-  await getDb().execute(
+export const seedPreDropLedgerColumns = (): Promise<void> =>
+  executeStatements([
     "ALTER TABLE listing_attendees ADD COLUMN refunded INTEGER NOT NULL DEFAULT 0",
-  );
-  await getDb().execute(
     "ALTER TABLE listing_attendees ADD COLUMN price_paid INTEGER NOT NULL DEFAULT 0",
-  );
-};
+  ]);
 
 /**
  * Stamp a pre-ledger booking row's `price_paid` — the column the backfill reads
@@ -249,6 +279,12 @@ export type LegacyAggregateTriggerSpec = {
  * migration replaces. Each trigger body is built from the spec's
  * `contribution` so it mirrors the pre-migration database shape (triggers that
  * still reference the column the migration removes).
+ *
+ * The DROP TRIGGER statements are simple and batched together in one
+ * round-trip; the CREATE TRIGGER statements each run as an individual
+ * `execute()` because a compound `CREATE TRIGGER … BEGIN … END` carries
+ * internal semicolons that some libsql batch transports mis-split (see
+ * `schema-sync.ts`'s `recreateTable` for the same constraint in production).
  */
 export const installLegacyAggregateTriggers = async (
   spec: Pick<
@@ -276,8 +312,11 @@ FOR EACH ROW BEGIN
   ${spec.contribution("+", "NEW")}
 END`,
   };
-  for (const name of legacyAggregateTriggerNames(spec.triggerStem)) {
-    await getDb().execute(`DROP TRIGGER IF EXISTS ${name}`);
+  const names = legacyAggregateTriggerNames(spec.triggerStem);
+  await executeStatements(
+    names.map((name) => `DROP TRIGGER IF EXISTS ${name}`),
+  );
+  for (const name of names) {
     await getDb().execute(`CREATE TRIGGER ${name} ${bodies[name]}`);
   }
 };
@@ -317,24 +356,76 @@ export const seedLegacyAggregateColumnDropSchema = async (
 export const expectListingDomainRestored = async (
   listingId: number,
 ): Promise<void> => {
-  expect(await tableExists("events")).toBe(false);
-  expect(await tableExists("event_attendees")).toBe(false);
-  expect(await tableExists("event_questions")).toBe(false);
-  expect(await tableExists("listings")).toBe(true);
-  expect(await tableExists("listing_attendees")).toBe(true);
-  expect(await tableExists("listing_questions")).toBe(true);
-  expect(await tableRowCount("listings")).toBe(1);
-  expect(await tableRowCount("listing_attendees")).toBe(1);
-  expect(await tableRowCount("listing_questions")).toBe(1);
-
-  const activity = await getDb().execute(
-    "SELECT listing_id FROM activity_log WHERE message = 'legacy listing activity'",
-  );
-  expect(activity.rows[0]?.listing_id).toBe(listingId);
-  const builtSite = await getDb().execute(
-    "SELECT assigned_listing_id FROM built_sites WHERE site_data = '{}'",
-  );
-  expect(builtSite.rows[0]?.assigned_listing_id).toBe(listingId);
+  const results = await queryLabelledBatch([
+    {
+      args: ["events"],
+      label: "events_exists",
+      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
+    },
+    {
+      args: ["event_attendees"],
+      label: "event_attendees_exists",
+      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
+    },
+    {
+      args: ["event_questions"],
+      label: "event_questions_exists",
+      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
+    },
+    {
+      args: ["listings"],
+      label: "listings_exists",
+      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
+    },
+    {
+      args: ["listing_attendees"],
+      label: "listing_attendees_exists",
+      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
+    },
+    {
+      args: ["listing_questions"],
+      label: "listing_questions_exists",
+      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
+    },
+    {
+      args: [],
+      label: "listings_count",
+      sql: "SELECT COUNT(*) AS v FROM listings",
+    },
+    {
+      args: [],
+      label: "listing_attendees_count",
+      sql: "SELECT COUNT(*) AS v FROM listing_attendees",
+    },
+    {
+      args: [],
+      label: "listing_questions_count",
+      sql: "SELECT COUNT(*) AS v FROM listing_questions",
+    },
+    {
+      args: [],
+      label: "activity_log_listing_id",
+      sql: "SELECT listing_id AS v FROM activity_log WHERE message = 'legacy listing activity'",
+    },
+    {
+      args: [],
+      label: "built_sites_listing_id",
+      sql: "SELECT assigned_listing_id AS v FROM built_sites WHERE site_data = '{}'",
+    },
+  ]);
+  const exists = (label: string) => results.get(label)!.rows.length > 0;
+  const scalar = (label: string) => results.get(label)!.rows[0]?.v;
+  expect(exists("events_exists")).toBe(false);
+  expect(exists("event_attendees_exists")).toBe(false);
+  expect(exists("event_questions_exists")).toBe(false);
+  expect(exists("listings_exists")).toBe(true);
+  expect(exists("listing_attendees_exists")).toBe(true);
+  expect(exists("listing_questions_exists")).toBe(true);
+  expect(Number(scalar("listings_count"))).toBe(1);
+  expect(Number(scalar("listing_attendees_count"))).toBe(1);
+  expect(Number(scalar("listing_questions_count"))).toBe(1);
+  expect(scalar("activity_log_listing_id")).toBe(listingId);
+  expect(scalar("built_sites_listing_id")).toBe(listingId);
 };
 
 /**

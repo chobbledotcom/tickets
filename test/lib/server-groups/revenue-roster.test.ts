@@ -1,15 +1,13 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
-import { setDemoModeForTest } from "#shared/demo-mode.ts";
-import {
-  adminGet,
-  createTestAttendee,
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-  expectStatus,
-} from "#test-utils";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
+import { expectStatus } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(
   "server (admin groups) — revenue & roster decryption",
@@ -87,7 +85,7 @@ describeWithEnv(
         // A daily member needs a dated booking; the form helper posts date-less,
         // so book atomically like the checkout would.
         const { createAttendeeAtomic } = await import(
-          "#shared/db/attendees.ts"
+          "#shared/db/attendees/api.ts"
         );
         const { addDays } = await import("#shared/dates.ts");
         const { todayInTz } = await import("#shared/timezone.ts");

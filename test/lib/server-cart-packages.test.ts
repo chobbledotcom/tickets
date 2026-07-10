@@ -4,14 +4,14 @@ import { handleRequest } from "#routes";
 import { queryAll } from "#shared/db/client.ts";
 import { setGroupPackageMembers, setListingGroups } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 import {
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
   expectPackageBookingAccepted,
-  mockRequest,
   submitPackageBooking,
-} from "#test-utils";
+} from "#test-utils/packages.ts";
 
 /**
  * Multi-slug cart bookings (`/ticket/<slug>+<slug>`) where slugs name PACKAGE
@@ -353,7 +353,9 @@ describeWithEnv(
         { listingId: kept.id, price: 0 },
         { listingId: dropped.id, price: 0 },
       ]);
-      const { deactivateTestListing } = await import("#test-utils");
+      const { deactivateTestListing } = await import(
+        "#test-utils/db-helpers/listings.ts"
+      );
       await deactivateTestListing(dropped.id);
       const whole = await freePackage("Camp Kit", "camp-kit", "Kit Tent");
 

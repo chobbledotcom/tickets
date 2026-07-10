@@ -2,29 +2,34 @@ import type { Client } from "@libsql/client";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#shared/cookies.ts";
+import { expectHtmlEscaped, rejectionMessage } from "#test-utils/assertions.ts";
 import {
   createTestDb,
+  invalidateTestDbCache,
+  resetDb,
+} from "#test-utils/db.ts";
+import {
   emailTestSandbox,
-  expectFetchSilent,
-  expectHtmlEscaped,
-  expectNtfyNotification,
   expectSendNoop,
+  rejectedFetch,
+} from "#test-utils/email.ts";
+import { setTestEnv } from "#test-utils/env.ts";
+import {
   generateTestListingName,
   getCachedSetupUsers,
-  invalidateTestDbCache,
+  resetTestSlugCounter,
+} from "#test-utils/internal.ts";
+import {
+  expectFetchSilent,
+  expectNtfyNotification,
   mockFormRequest,
   mockRequest,
   okResponse,
   randomString,
-  rejectedFetch,
-  rejectionMessage,
-  resetDb,
-  resetTestSlugCounter,
-  setTestEnv,
   stubNtfyFetch,
   testRequest,
   wait,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
 import { createTrackedTestDbFile } from "#test-utils/temp-db-files.ts";
 
 describe("test-utils — stubs, caches & request mocks", () => {

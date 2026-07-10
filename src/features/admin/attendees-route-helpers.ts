@@ -12,7 +12,8 @@ import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { decryptAttendeeOrNull, getAttendee } from "#shared/db/attendees.ts";
+import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
+import { getAttendee } from "#shared/db/attendees/queries.ts";
 import {
   getListingWithAttendeeRaw,
   getListingWithCount,

@@ -2,11 +2,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import { getListing } from "#shared/db/listings.ts";
-import {
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 // Package day-price override validation lives in its own file: importing a
 // customisable member exercises the read-heavy create helpers, and folding

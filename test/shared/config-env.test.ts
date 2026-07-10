@@ -27,7 +27,7 @@ import {
   setEffectiveDomainForTest,
   slugifyForProvider,
 } from "#shared/config.ts";
-import { setTestEnv } from "#test-utils";
+import { setTestEnv } from "#test-utils/env.ts";
 
 type EnvVars = Record<string, string | undefined>;
 type BoolGetter = () => boolean;

@@ -6,7 +6,6 @@
  * 2. applyAttendeeMerge: apply explicit decisions from the admin
  */
 
-import type { InValue } from "@libsql/client";
 import { filter, map, mapParallel, reduce } from "#fp";
 import {
   attendeeAccount,
@@ -17,7 +16,8 @@ import { KIND } from "#shared/accounting/kinds.ts";
 import { transfersByEventGroup } from "#shared/accounting/queries.ts";
 import { repointAttendeeStatements } from "#shared/accounting/repoint.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
-import { executeBatch, insert } from "#shared/db/client.ts";
+import { executeBatch, insert, type SqlStatement } from "#shared/db/client.ts";
+import { legacyMergePaymentReferenceStatement } from "#shared/db/payment-references.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import {
   getAttendeeAnswersByQuestion,
@@ -736,6 +736,7 @@ export const applyAttendeeMerge = async (
   const {
     targetId,
     sourceId,
+    sourcePaymentId,
     targetPii,
     sourcePii,
     diff,
@@ -784,6 +785,12 @@ export const applyAttendeeMerge = async (
     credited: bookingsCredited,
     writtenOff: bookingsWrittenOff,
   } = moneyReversalLegs(targetId, diff, decision);
+  const sourceLegacyPaymentStatement =
+    await legacyMergePaymentReferenceStatement(
+      targetId,
+      sourceId,
+      sourcePaymentId,
+    );
 
   // --- 5. Execute all DB changes atomically ---
   // One ACID batch so the row changes, the ledger repoint, and the decision-17
@@ -792,15 +799,18 @@ export const applyAttendeeMerge = async (
   // (rather than an interactive transaction that posted each reversal leg with its
   // own read-then-write) keeps the write lock held for one round-trip regardless
   // of how many bookings the merged person has.
-  const rowStatements: { args: InValue[]; sql: string }[] = [
+  const rowStatements: SqlStatement[] = [
     // Delete target bookings that are being replaced
     ...deleteTargetBookingStatements,
     // Insert moved/replaced source bookings
     ...insertStatements,
-    // Clean up source attendee
+    ...(sourceLegacyPaymentStatement ? [sourceLegacyPaymentStatement] : []),
+    // Move source-owned payment references before deleting the source attendee,
+    // so refunds on the merged person can return every charge whose ledger rows
+    // now live on the target account.
     {
-      args: [sourceId],
-      sql: "DELETE FROM processed_payments WHERE attendee_id = ?",
+      args: [targetId, sourceId],
+      sql: "UPDATE processed_payments SET attendee_id = ? WHERE attendee_id = ?",
     },
     {
       args: [sourceId],

@@ -3,11 +3,11 @@ import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { clearFormStash } from "#shared/form-stash.ts";
 import {
-  adminFormPost,
-  describeWithEnv,
   expectFlash,
   followRedirectWithFlash,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 /**
  * End-to-end coverage of the POST → redirect → GET form re-fill: a failed admin

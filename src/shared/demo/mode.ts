@@ -1,9 +1,12 @@
 /**
- * The demo-mode flag and banner, on their own so that always-loaded code
- * (the page layout, settings pages) can ask "is this the demo site?"
- * without pulling in the generated demo data — building those word lists
- * is real work that would otherwise run on every isolate boot.
- * Enable by setting DEMO_MODE=true environment variable.
+ * Demo mode flag and banner.
+ *
+ * Demo mode replaces user-entered text with sample data to prevent PII
+ * storage. Enable by setting DEMO_MODE=true environment variable.
+ *
+ * This module is deliberately tiny: the page layout checks the flag on every
+ * render, so it must not drag the sample-data pools (`#shared/demo/samples.ts`)
+ * into every page's import graph.
  */
 
 import { lazyRef } from "#fp";
@@ -27,5 +30,5 @@ export const resetDemoMode = (): void => setDemoMode(null);
 export const setDemoModeForTest = (enabled: boolean): void =>
   setDemoMode(enabled);
 
-/** Banner shown at the top of every page while demo mode is on */
+/** Demo mode banner HTML */
 export const DEMO_BANNER = `<div class="demo-banner">${t("guide.demo_mode_notice")}</div>`;

@@ -5,17 +5,15 @@ import {
   revenueAccount,
 } from "#shared/accounting/accounts.ts";
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import backfillTransfersMigration from "#shared/db/migrations/2026-06-22_backfill_transfers.ts";
 import {
   applySchemaChanges,
   syncIndexes,
 } from "#shared/db/migrations/schema-sync.ts";
-import {
-  buildMigrationContext,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { buildMigrationContext } from "#test-utils/migrations.ts";
 import {
   seedPreDropLedgerColumns,
   stampHistoricalPricePaid,

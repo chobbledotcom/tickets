@@ -3,13 +3,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
-import { ICS_DISCOVERY_TAG, RSS_DISCOVERY_TAG } from "#templates/public.tsx";
 import {
-  assertPublicHtml,
-  describeWithEnv,
-  expectRedirect,
-  mockRequest,
-} from "#test-utils";
+  ICS_DISCOVERY_TAG,
+  RSS_DISCOVERY_TAG,
+} from "#templates/public/shared.tsx";
+import { assertPublicHtml, expectRedirect } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 
 // jscpd:ignore-end
 

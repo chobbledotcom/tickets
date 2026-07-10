@@ -3,19 +3,25 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import {
-  awaitTestRequest,
-  createTestGroup,
+  expectFlash,
+  expectReservedRedirectWithTokens,
+} from "#test-utils/assertions.ts";
+import {
+  expectMissingCsrfRejected,
+  getTicketCsrfToken,
+  submitTicketForm,
+} from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
   createTestListing,
   deactivateTestListing,
-  describeWithEnv,
-  expectFlash,
-  expectMissingCsrfRejected,
-  expectReservedRedirectWithTokens,
-  getTicketCsrfToken,
+} from "#test-utils/db-helpers/listings.ts";
+import {
+  awaitTestRequest,
   mockFormRequest,
   mockRequest,
-  submitTicketForm,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
 import { expectBasicTicketBookingRedirectsToThanks } from "./basic-ticket-booking.ts";
 
 // jscpd:ignore-end
@@ -74,7 +80,9 @@ describeWithEnv(
         );
         expectReservedRedirectWithTokens(response);
 
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const { getAttendeesRaw } = await import(
+          "#shared/db/attendees/queries.ts"
+        );
         const attendees1 = await getAttendeesRaw(listing1.id);
         const attendees2 = await getAttendeesRaw(listing2.id);
         expect(attendees1.length).toBe(1);

@@ -5,7 +5,7 @@ import {
   resetCacheRegistry,
 } from "#shared/cache-registry.ts";
 import { execute, executeBatch } from "#shared/db/client.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 /**
  * Verb- and column-driven cache invalidation: after every write, the db client

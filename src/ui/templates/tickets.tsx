@@ -19,7 +19,7 @@ import {
 } from "#shared/package-privacy.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
-import { renderListingImage } from "#templates/public.tsx";
+import { renderListingImage } from "#templates/public/shared.tsx";
 
 /** Alias export used by ticket templates */
 export type { TokenEntry as TicketEntry };

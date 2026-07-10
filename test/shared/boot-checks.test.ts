@@ -5,11 +5,8 @@ import {
   validateBootChecks,
   validateOptionalMainInstanceKey,
 } from "#shared/boot-checks.ts";
-import {
-  clearTestEncryptionKey,
-  describeWithEnv,
-  setTestEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { clearTestEncryptionKey, setTestEnv } from "#test-utils/env.ts";
 
 describeWithEnv("boot checks", { encryptionKey: true }, () => {
   test("lists the global checks run before serving requests", () => {

@@ -3,7 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { OrderGalleryStates } from "#templates/public/order-gallery.tsx";
 import { orderGalleryPage } from "#templates/public/order-gallery.tsx";
 import type { PublicNavProps } from "#templates/public/shared.tsx";
-import { getRealEnv, setTestEnv, testGroup } from "#test-utils";
+import { getRealEnv, setTestEnv } from "#test-utils/env.ts";
+import { testGroup } from "#test-utils/factories.ts";
 
 /** A nav with no operator pages and every optional link off. */
 const emptyNav: PublicNavProps = {

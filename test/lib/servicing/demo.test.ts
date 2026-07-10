@@ -11,7 +11,7 @@
  *
  * Implementation contract (already partially present, test-first for the
  * remaining wiring):
- *   - `#shared/demo.ts` already exports `DEMO_SERVICING_NAMES`,
+ *   - the `#shared/demo/` modules already export `DEMO_SERVICING_NAMES`,
  *     `SERVICING_DEMO_FIELDS = { name: DEMO_SERVICING_NAMES }`,
  *     `DEMO_NAMES`, `ATTENDEE_DEMO_FIELDS`,
  *     `applyDemoOverrides`, `setDemoModeForTest`.
@@ -19,21 +19,17 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
   ATTENDEE_DEMO_FIELDS,
   applyDemoOverrides,
-  DEMO_NAMES,
-  DEMO_SERVICING_NAMES,
   SERVICING_DEMO_FIELDS,
-} from "#shared/demo.ts";
-import { setDemoModeForTest } from "#shared/demo-mode.ts";
+} from "#shared/demo/overrides.ts";
+import { DEMO_NAMES, DEMO_SERVICING_NAMES } from "#shared/demo/samples.ts";
 import { FormParams } from "#shared/form-data.ts";
-import {
-  adminPost,
-  createTestListing,
-  describeWithEnv,
-  getServicingEvent,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminPost, getServicingEvent } from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 

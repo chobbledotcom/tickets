@@ -18,7 +18,8 @@ import {
   setBuildCommitForTest,
   setBuildTimestampForTest,
 } from "#shared/update.ts";
-import { describeWithEnv, recordQueries } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { recordQueries } from "#test-utils/record-queries.ts";
 
 const request = (path: string): Request =>
   new Request(`http://localhost${path}`, { headers: { host: "localhost" } });

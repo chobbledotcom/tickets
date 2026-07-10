@@ -7,19 +7,20 @@ import { setListingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import {
-  adminFormPost,
-  awaitTestRequest,
-  buildAttendeeEditForm,
-  createTestAttendee,
-  createTestAttendeeDirect,
-  createTestListing,
   expectFlash,
   expectHtmlResponse,
   FLASH_TEST_ID,
   flashCookieHeader,
+} from "#test-utils/assertions.ts";
+import {
+  buildAttendeeEditForm,
+  createTestAttendee,
+  createTestAttendeeDirect,
   getAttendeesRaw,
-  mockFormRequest,
-} from "#test-utils";
+} from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 /** A listing (100 spots by default) plus one attendee booked onto it ("John
  *  Doe" by default). The single most repeated setup across the attendee admin
@@ -130,33 +131,18 @@ export const refreshPaymentAsStripe = async (
   attendeeId: number,
   refunded: boolean,
 ): Promise<{ response: Response; refundCheckArgs: unknown[] }> => {
-  let response = new Response();
+  const { withRefreshPaymentProbe } = await import(
+    "#test-utils/refund-routes.ts"
+  );
   let refundCheckArgs: unknown[] = [];
-  const { stub } = await import("@std/testing/mock");
-  const { withMocks, mockProviderType } = await import("#test-utils");
-  const { paymentsApi } = await import("#shared/payments.ts");
-  await withMocks(
-    () =>
-      stub(paymentsApi, "getConfiguredProvider", () =>
-        mockProviderType("stripe"),
-      ),
-    async () => {
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
+  const response = await withRefreshPaymentProbe(
+    () => Promise.resolve(refunded),
+    async (mockRefunded) => {
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendeeId}/refresh-payment`,
       );
-      const mockRefunded = stub(
-        stripePaymentProvider,
-        "isPaymentRefunded",
-        () => Promise.resolve(refunded),
-      );
-      try {
-        response = (
-          await adminFormPost(`/admin/attendees/${attendeeId}/refresh-payment`)
-        ).response;
-        refundCheckArgs = mockRefunded.calls[0]!.args;
-      } finally {
-        mockRefunded.restore();
-      }
+      refundCheckArgs = mockRefunded.calls[0]!.args;
+      return response;
     },
   );
   return { refundCheckArgs, response };
@@ -267,7 +253,7 @@ export const createDualPackageAttendee = async (
   name: string,
   email: string,
 ): Promise<Attendee> => {
-  const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+  const { createAttendeeAtomic } = await import("#shared/db/attendees/api.ts");
   const made = await createAttendeeAtomic({
     bookings: [
       { listingId, packageGroupId: groupId, quantity: 2 },

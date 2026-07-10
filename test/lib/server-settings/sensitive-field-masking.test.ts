@@ -5,17 +5,12 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { settings } from "#shared/db/settings.ts";
-import { setDemoModeForTest } from "#shared/demo-mode.ts";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import {
-  adminGet,
-  describeWithEnv,
-  expectFlash,
-  mockFormRequest,
-  testCookie,
-  testCsrfToken,
-  withMocks,
-} from "#test-utils";
+import { expectFlash } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockFormRequest, withMocks } from "#test-utils/mocks.ts";
+import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 

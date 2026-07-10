@@ -10,14 +10,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingRemainingForRange } from "#shared/db/attendees/capacity.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
-  createServicingHold,
-  createTestGroup,
   createTestListing,
-  describeWithEnv,
-  expectRejects,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
+import { createServicingHold, expectRejects } from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 
@@ -169,7 +168,9 @@ describeWithEnv(
       const { assignListingsToGroup } = await import("#shared/db/groups.ts");
       await assignListingsToGroup([standard.id], group.id);
       // Pre-book the standard listing with qty 2 (cumulative against group cap).
-      const { createTestAttendeeDirect } = await import("#test-utils");
+      const { createTestAttendeeDirect } = await import(
+        "#test-utils/db-helpers/attendees.ts"
+      );
       await createTestAttendeeDirect(standard.id, "Real", "r@example.com", 2);
       // Servicing hold of qty 2 on the daily for 07-01: group cap (5) must
       // drop by both (2 real + 2 servicing) = 3 remain for that day.

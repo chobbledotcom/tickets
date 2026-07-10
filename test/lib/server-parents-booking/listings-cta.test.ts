@@ -1,11 +1,11 @@
 import { it as test } from "@std/testing/bdd";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
-  createTestGroup,
-  describeWithEnv,
   expectNoListingsCta,
   makeParent,
   soldOutParentInGroup,
-} from "#test-utils";
+} from "#test-utils/parents.ts";
 
 describeWithEnv(
   "server > parents booking — /listings CTA suppression",

@@ -7,7 +7,7 @@ import {
   itemsSubtotal,
 } from "#shared/booking-fee.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { testWithSetting } from "#test-utils";
+import { testWithSetting } from "#test-utils/settings.ts";
 
 describe("feeSubtotalFor", () => {
   const items = [{ quantity: 2, unitPrice: 500 }];

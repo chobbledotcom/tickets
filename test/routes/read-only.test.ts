@@ -2,8 +2,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { allTransfers } from "#shared/accounting/queries.ts";
-import { readOnlyPage } from "#templates/public.tsx";
-import { describeWithEnv, jsonRequest, mockRequest } from "#test-utils";
+import { readOnlyPage } from "#templates/public/errors.tsx";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { jsonRequest, mockRequest } from "#test-utils/mocks.ts";
 
 /** POST a urlencoded form body to `path` (defaults to a trivial field). */
 const postForm = (path: string, body = "name=test"): Promise<Response> =>

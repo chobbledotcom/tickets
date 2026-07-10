@@ -20,16 +20,16 @@ import {
   purgeOrphanedAttendees,
 } from "#shared/db/orphan-attendees.ts";
 import { nowIso } from "#shared/now.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { attendeeExists } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
-  attendeeExists,
   childRowCount,
   createServicingHold,
-  createTestListing,
   daysAgoIso,
-  describeWithEnv,
   orphanServicingEvent,
   recordServiceCost,
-} from "#test-utils";
+} from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 
@@ -93,7 +93,7 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
     // Mixed-kind sweep: the purge is kind-agnostic and removes both.
     const { id: servicingId } = await createServicingHold();
     await orphanServicingEvent(servicingId);
-    const { createRealAttendee } = await import("#test-utils");
+    const { createRealAttendee } = await import("#test-utils/servicing.ts");
     const { attendee: real } = await createRealAttendee();
     await getDb().execute({
       args: [real.id],
@@ -141,7 +141,9 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
   test("deactivating a listing does NOT orphan its servicing event (only deletion does)", async () => {
     const listing = await createTestListing({ maxAttendees: 10, name: "L" });
     const { id } = await createServicingHold({ listing: { name: "L" } });
-    const { deactivateTestListing } = await import("#test-utils");
+    const { deactivateTestListing } = await import(
+      "#test-utils/db-helpers/listings.ts"
+    );
     await deactivateTestListing(listing.id);
     // The listing still exists (just inactive); the attendee is not an orphan.
     expect(await attendeeExists(id)).toBe(true);

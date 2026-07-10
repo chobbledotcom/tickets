@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { formatDateLongLabel } from "#shared/dates.ts";
-import { testWithSetting } from "#test-utils";
+import { testWithSetting } from "#test-utils/settings.ts";
 
 describe("formatDateLongLabel", () => {
   test("formats a UTC datetime as a date-only label, dropping the time", () => {

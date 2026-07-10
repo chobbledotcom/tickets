@@ -3,17 +3,16 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getListingWithCount } from "#shared/db/listings.ts";
-import { setDemoModeForTest } from "#shared/demo-mode.ts";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
-  adminFormPost,
-  createTestListing,
-  describeWithEnv,
   expectFlashRedirect,
   expectHtmlResponse,
-  mockFormRequest,
-  setupListingAndLogin,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { mockFormRequest } from "#test-utils/mocks.ts";
+import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 

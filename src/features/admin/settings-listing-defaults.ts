@@ -13,9 +13,10 @@ import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { VALID_DAY_NAMES } from "#shared/dates.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
-import { isDemoMode } from "#shared/demo-mode.ts";
+import { isDemoMode } from "#shared/demo/mode.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   LISTING_DEFAULT_FIELDS,
@@ -28,7 +29,6 @@ import {
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { adminListingDefaultsPage } from "#templates/admin/listing-defaults.tsx";
-import { VALID_DAY_NAMES } from "#templates/fields/validators.ts";
 
 /** One field's parse outcome: a value to set, an error, or neither (unset). */
 type FieldParse = { value?: unknown; error?: string };

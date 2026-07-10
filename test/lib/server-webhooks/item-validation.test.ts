@@ -3,16 +3,15 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { resetStripeClient } from "#shared/stripe.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { webhookMeta } from "#test-utils/factories.ts";
+import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
-  createTestListing,
-  describeWithEnv,
   expectWebhookIgnored,
   postWebhookAndAssert,
-  setupStripe,
-  stubWebhookVerify,
-  webhookMeta,
-} from "#test-utils";
+} from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -49,7 +48,9 @@ describeWithEnv(
           sessionId: "cs_no_price",
         }),
       );
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       expect((await getAttendeesRaw(listing1.id)).length).toBe(0);
     });
 
@@ -178,7 +179,9 @@ describeWithEnv(
           sessionId: "cs_bad_p",
         }),
       );
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
 
@@ -203,7 +206,9 @@ describeWithEnv(
           sessionId: "cs_bad_item",
         }),
       );
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
   },

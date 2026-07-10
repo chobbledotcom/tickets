@@ -2,19 +2,17 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllUsers } from "#shared/db/users.ts";
 import {
-  adminFormPost,
-  adminGet,
-  awaitTestRequest,
-  describeWithEnv,
   expectFlashRedirect,
   expectHtmlResponse,
   expectRedirect,
   FLASH_TEST_ID,
   flashCookieHeader,
-  TEST_ADMIN_USERNAME,
-  testCookie,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("GET /admin/users", () => {

@@ -13,7 +13,8 @@ import {
   runMigration,
 } from "#shared/db/migrations/schema-sync.ts";
 import { MIGRATIONS } from "#shared/db/migrations.ts";
-import { describeWithEnv, indexExists } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { indexExists } from "#test-utils/migrations.ts";
 import {
   downgradeListingDomainToLegacyNames,
   tableRowCount,

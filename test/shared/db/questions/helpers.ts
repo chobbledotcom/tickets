@@ -5,7 +5,8 @@ import { setListingQuestions } from "#shared/db/questions/queries.ts";
 import { assignNextQuestionSortOrder } from "#shared/db/questions/sort-order.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
-import { bookTestAttendee, createTestListing } from "#test-utils";
+import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** Create a test attendee directly via the DB (bypasses routes). Shared by
  *  every questions test file that needs an attendee to hang answers off. */

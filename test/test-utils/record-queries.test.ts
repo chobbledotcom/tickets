@@ -7,7 +7,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
-import { describeWithEnv, recordQueries } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { recordQueries } from "#test-utils/record-queries.ts";
 
 describeWithEnv("recordQueries", { db: true }, () => {
   test("records every client call shape and forwards to the real client", async () => {

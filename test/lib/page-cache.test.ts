@@ -8,7 +8,7 @@ import {
   CONFIG_KEYS,
   settings,
 } from "#shared/db/settings.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("page content cache", { db: true }, () => {
   describe("getWebsiteTitleFromDb", () => {

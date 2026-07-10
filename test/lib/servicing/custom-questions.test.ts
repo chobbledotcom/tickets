@@ -17,12 +17,12 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#shared/db/client.ts";
 import { getQuestionsWithListingIds } from "#shared/db/questions/queries.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   createServicingHold,
-  createTestListing,
-  describeWithEnv,
   updateServicingEvent,
-} from "#test-utils";
+} from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 

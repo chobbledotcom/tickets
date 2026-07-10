@@ -11,13 +11,11 @@ import {
 } from "#shared/db/built-sites.ts";
 import type { Listing } from "#shared/types.ts";
 import { applyRenewalsForEntries } from "#shared/webhook.ts";
-import {
-  createTestListing,
-  describeWithEnv,
-  getAllActivityLog,
-  makeTestEntry,
-  provisionTestBuiltSite,
-} from "#test-utils";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { provisionTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { makeTestEntry } from "#test-utils/factories.ts";
 
 const NOW_MS = 1_700_000_000_000;
 const NOW_ISO = new Date(NOW_MS).toISOString();

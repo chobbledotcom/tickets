@@ -6,8 +6,9 @@ import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { fieldsApi } from "#templates/fields/ticket.ts";
-import { ticketPage } from "#templates/public.tsx";
-import { hasInputWithValue, testListingWithCount } from "#test-utils";
+import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
+import { hasInputWithValue } from "#test-utils/csrf.ts";
+import { testListingWithCount } from "#test-utils/factories.ts";
 import {
   PKG_SLUG,
   pagePackage,

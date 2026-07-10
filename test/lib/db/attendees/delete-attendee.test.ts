@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { deleteAttendee, getAttendee } from "#shared/db/attendees.ts";
+import { deleteAttendee } from "#shared/db/attendees/delete.ts";
+import { getAttendee } from "#shared/db/attendees/queries.ts";
 import { getDb, queryOne } from "#shared/db/client.ts";
 import {
   getListingWithCount,
@@ -14,14 +15,12 @@ import {
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import { createSystemNote, getNoteRows } from "#shared/db/system-notes.ts";
-import {
-  consumeModifierStock,
-  createPaidTestAttendee,
-  createTestAttendee,
-  createTestListing,
-  describeWithEnv,
-  getTestPrivateKey,
-} from "#test-utils";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { consumeModifierStock } from "#test-utils/modifiers.ts";
 
 describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
   test("removes attendee", async () => {
@@ -56,9 +55,12 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     );
 
     await reserveSession("sess_attendee_delete");
-    await finalizePaymentSession("sess_attendee_delete", attendee.id, [
-      "tok-test",
-    ]);
+    await finalizePaymentSession(
+      "sess_attendee_delete",
+      attendee.id,
+      ["tok-test"],
+      "pi_attendee_delete",
+    );
 
     await deleteAttendee(attendee.id);
 

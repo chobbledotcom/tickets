@@ -15,12 +15,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
-import { withLocalStorageEnabled } from "#test-utils";
 import {
   invalidateAllCaches,
   setupAndLogin,
   useE2eBrowser,
 } from "#test-utils/e2e.ts";
+import { withLocalStorageEnabled } from "#test-utils/mocks.ts";
 
 // jscpd:ignore-end
 

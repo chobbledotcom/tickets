@@ -2,14 +2,14 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import { assignListingsToGroup } from "#shared/db/groups.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
   insertModifier,
   linkModifierGroup,
   patchModifier,
-} from "#test-utils";
+} from "#test-utils/modifiers.ts";
 
 // Child add-on reachability on import lives in its own file: the setup creates
 // listings, a group, and an opt-in modifier, and folding it into

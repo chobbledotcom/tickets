@@ -10,12 +10,8 @@ import {
   adminImagesPage,
   ItemImagesPanel,
 } from "#templates/admin/images.tsx";
-import {
-  setTestEnv,
-  setupTestEncryptionKey,
-  withStorageDisabled,
-  withStorageEnabled,
-} from "#test-utils";
+import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
+import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
 
 const SESSION: AdminSession = { adminLevel: "owner" };
 

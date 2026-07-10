@@ -7,7 +7,7 @@ import {
   questionTextContent,
   questionWrapper,
 } from "#templates/components/question-text.tsx";
-import { testAnswer, testQuestion } from "#test-utils";
+import { testAnswer, testQuestion } from "#test-utils/factories.ts";
 
 const radioQuestion = (text: string): QuestionWithAnswers =>
   testQuestion({

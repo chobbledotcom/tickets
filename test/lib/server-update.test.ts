@@ -7,21 +7,21 @@ import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { uploadRaw } from "#shared/storage.ts";
 import { setBuildTimestampForTest } from "#shared/update.ts";
 import {
-  adminFormPost,
-  adminGet,
-  awaitTestRequest,
-  describeWithEnv,
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
   FLASH_TEST_ID,
   flashCookieHeader,
-  setTestEnv,
-  stubReleaseFetch,
-  testCookie,
   testRequiresAuth,
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setTestEnv } from "#test-utils/env.ts";
+import {
+  awaitTestRequest,
+  stubReleaseFetch,
   withMocks,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
+import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 
 /** GitHub release API response with no assets */
 const MOCK_RELEASE_NO_ASSET = {

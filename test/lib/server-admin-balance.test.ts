@@ -1,22 +1,21 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
-  adminGet,
-  awaitTestRequest,
-  createTestListing,
-  createTestManagerSession,
-  describeWithEnv,
   expectHtml,
   expectHtmlResponse,
-  setupStripe,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { adminGet, createTestManagerSession } from "#test-utils/session.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 /** A settle identity (session id + business time) for settleAttendeeBalance. */
 const settle = (id = "settle-session") => ({
@@ -75,18 +74,24 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
     const response = await adminGet(`/admin/attendees/${attendeeId}/ledger`);
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("Reservation balance");
+    // The headline summary opens with a prose block and the status name beside
+    // its label (with the separating space).
+    expect(html).toContain('class="prose"><h3>Reservation balance');
+    expect(html).toContain("Status:</strong> Reserved");
     expect(html).toContain("Reservation deposit");
     expect(html).toContain("Balance outstanding");
     // The account statement (the "bits already there") renders alongside, with
     // its running-balance table's counterparty column.
     expect(html).toContain("<th>Counterparty</th>");
+    // The customer payment link block: its prose heading, the copyable text
+    // input carrying the signed link, and the quantity note.
+    expect(html).toContain('class="prose"><h3>Customer payment link');
+    expect(html).toContain('class="copyable" readonly type="text"');
+    expect(html).toContain('class="muted small">Only items with a quantity');
     // The signed customer link points at the public pay page.
     expect(html).toContain("/pay/bal1.");
-    // When the link IS shown, the owner is told only quantity > 0 lines are
-    // charged, so the mixed case (some real, some no-quantity lines) is clear.
-    expect(html).toContain("Only items with a quantity");
-    // The history section is just a pointer to the Activity tab (no log list).
+    // The history section is a prose pointer to the Activity tab (no log list).
+    expect(html).toContain('class="prose"><h3>History');
     expect(html).toContain(
       "See the full plain-English log on the Activity tab",
     );
@@ -101,13 +106,11 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
     await expectHtml(await adminGet(`/admin/attendees/${attendeeId}/ledger`), {
       contains: [
         "Balance outstanding",
-        "Collect this balance directly",
+        // The offline-collection guidance opens with its own prose block.
+        'class="prose"><h3>Collect this balance directly',
         "no payment provider is connected",
       ],
-      notContains: [
-        "/pay/",
-        "only reservations can take a balance payment online",
-      ],
+      notContains: ["/pay/"],
     });
   });
 
@@ -121,26 +124,44 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
     await settleAttendeeBalance(attendeeId, 1500, settle());
     const response = await adminGet(`/admin/attendees/${attendeeId}/ledger`);
     const html = await response.text();
-    expect(html).toContain("This booking is fully paid");
+    // The fully-paid note renders in its own prose block.
+    expect(html).toContain('class="prose"><p>This booking is fully paid');
     // No payment link when nothing is outstanding.
     expect(html).not.toContain("/pay/bal1.");
   });
 
-  test("explains both reasons for a no-status, non-reservation balance", async () => {
+  test("lists only the no-provider reason for a non-reservation balance without a provider", async () => {
     const listing = await createTestListing({
       maxAttendees: 10,
       thankYouUrl: "https://example.com",
     });
+    // No status at all and no provider. Status no longer gates online balance
+    // payment, so the only blocker left is the missing provider.
     const attendeeId = await owedAttendee(listing.id, null, 1500);
-    // No reservation status AND no provider — both reasons are listed.
     await expectHtml(await adminGet(`/admin/attendees/${attendeeId}/ledger`), {
       contains: [
         "Balance outstanding",
         "Collect this balance directly",
-        "only reservations can take a balance payment online",
         "no payment provider is connected",
+        // No status → an em-dash placeholder beside the status label.
+        "Status:</strong> —",
       ],
       notContains: ["Reservation deposit", "/pay/"],
+      status: 200,
+    });
+  });
+
+  test("treats a single penny outstanding as a balance to collect, not fully paid", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      thankYouUrl: "https://example.com",
+    });
+    // Boundary guard: any positive balance (even £0.01) is outstanding, so the
+    // panel offers to collect it rather than declaring the booking fully paid.
+    const attendeeId = await owedAttendee(listing.id, null, 1);
+    await expectHtml(await adminGet(`/admin/attendees/${attendeeId}/ledger`), {
+      contains: ["Collect this balance directly"],
+      notContains: ["This booking is fully paid"],
       status: 200,
     });
   });
@@ -160,35 +181,29 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
         "Collect this balance directly",
         "the order has no payable lines",
       ],
-      notContains: [
-        "/pay/",
-        "only reservations can take a balance payment online",
-        "no payment provider is connected",
-      ],
+      notContains: ["/pay/", "no payment provider is connected"],
     });
   });
 
-  test("explains the not-a-reservation reason for a named non-reservation status", async () => {
+  test("shows the customer pay link for a non-reservation status once a provider is connected", async () => {
+    // Removing the reservation-only restriction: a named, non-reservation
+    // status with a provider and a real line can now take a balance payment
+    // online, so the customer link is offered — not the offline guidance.
+    await setupStripe();
     const listing = await createTestListing({
       maxAttendees: 10,
       thankYouUrl: "https://example.com",
     });
-    // A named, non-reservation status (mirrors a provider-less booking sitting
-    // in the seeded public/paid default) still carries an outstanding balance.
     const confirmed = await attendeeStatuses.table.insert({
       isReservation: false,
       name: "Confirmed",
       reservationAmount: "0",
     });
-    // A provider-less owed booking: full value owed, nothing paid up front.
     const attendeeId = await owedAttendee(listing.id, confirmed.id, 1500, 0);
     await expectHtml(await adminGet(`/admin/attendees/${attendeeId}/ledger`), {
-      contains: [
-        "Balance outstanding",
-        "Collect this balance directly",
-        "only reservations can take a balance payment online",
-      ],
-      notContains: ["/pay/"],
+      contains: ["Balance outstanding", "/pay/bal1."],
+      notContains: ["Collect this balance directly", "Reservation deposit"],
+      status: 200,
     });
   });
 

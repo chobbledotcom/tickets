@@ -9,7 +9,8 @@ import {
 } from "#shared/db/backup.ts";
 import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
 import { initDb } from "#shared/db/migrations.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /**
  * Regression tests for restoring a backup taken before a column-dropping

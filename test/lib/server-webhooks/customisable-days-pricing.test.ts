@@ -2,17 +2,16 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { resetStripeClient } from "#shared/stripe.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { signedMeta, singleItem } from "#test-utils/factories.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
-  createTestListing,
-  describeWithEnv,
   expectKeptAsQuantityZeroAndRefunded,
   expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
-  setupStripe,
-  signedMeta,
-  singleItem,
-} from "#test-utils";
+} from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -64,7 +63,9 @@ describeWithEnv(
         }),
       );
 
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(1);
       // Created at the day-count price and start date — proving the webhook
@@ -97,7 +98,9 @@ describeWithEnv(
           sessionId: "cs_no_daycount",
         }),
       );
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const attendees = await getAttendeesRaw(listing.id);
       expect(Number(attendees[0]?.price_paid)).toBe(1000);
     });

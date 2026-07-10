@@ -33,7 +33,7 @@ import type {
   TargetMap,
 } from "#shared/site-pages/types.ts";
 import type { Group, SitePageItem, SitePageItemType } from "#shared/types.ts";
-import { navFlags, type PublicNavProps } from "#templates/public.tsx";
+import { navFlags, type PublicNavProps } from "#templates/public/shared.tsx";
 import {
   classifyForDiscovery,
   getVisibleGroupMembersByGroupIds,

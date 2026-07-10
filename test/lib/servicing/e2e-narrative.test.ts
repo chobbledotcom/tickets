@@ -15,8 +15,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { findServicingLink, setupBrowserWithHold } from "#test-utils";
 import { useE2eBrowser } from "#test-utils/e2e.ts";
+import {
+  findServicingLink,
+  setupBrowserWithHold,
+} from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 

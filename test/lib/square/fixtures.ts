@@ -3,7 +3,7 @@ import { stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
 import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
 import { squareApi } from "#shared/square.ts";
-import { withMocks } from "#test-utils";
+import { withMocks } from "#test-utils/mocks.ts";
 import { createMockClient } from "./harness.ts";
 
 type MockImpls = Parameters<typeof createMockClient>[0];

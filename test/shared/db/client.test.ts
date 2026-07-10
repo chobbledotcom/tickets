@@ -19,7 +19,8 @@ import {
   setDb,
   update,
 } from "#shared/db/client.ts";
-import { describeWithEnv, setTestEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setTestEnv } from "#test-utils/env.ts";
 
 /** A minimal libsql ResultSet for stubbed execute/batch calls. */
 const emptyResultSet = (): ResultSet => ({

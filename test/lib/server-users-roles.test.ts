@@ -8,19 +8,25 @@ import { getDb, insert } from "#shared/db/client.ts";
 import { createSession } from "#shared/db/sessions.ts";
 import { getUserByUsername, invalidateUsersCache } from "#shared/db/users.ts";
 import {
-  adminFormPost,
-  adminGet,
   assertAdminHtmlWithCookie,
-  awaitTestRequest,
-  createTestManagerSession,
-  describeWithEnv,
   expectFlashRedirect,
   expectHtmlResponse,
-  mockFormRequest,
-  mockRequest,
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
-} from "#test-utils";
+} from "#test-utils/internal.ts";
+import {
+  awaitTestRequest,
+  mockFormRequest,
+  mockRequest,
+} from "#test-utils/mocks.ts";
+import {
+  adminFormPost,
+  adminGet,
+  createTestManagerSession,
+} from "#test-utils/session.ts";
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("role enforcement", () => {

@@ -46,14 +46,14 @@ import type {
   LineBooking,
   ListingBooking,
 } from "#shared/db/attendee-types.ts";
-import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import {
   checkBatchAvailability,
   createAttendeeAtomic,
   createBookingAtomic,
-  ensureAllBookings,
-  getDatelessGroupRemaining,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/api.ts";
+import { getDatelessGroupRemaining } from "#shared/db/attendees/capacity.ts";
+import { ensureAllBookings } from "#shared/db/attendees/create.ts";
+import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import {
   getGroupIdsByListingIds,
   getHiddenPackageMemberIds,

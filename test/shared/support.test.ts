@@ -12,7 +12,11 @@ import {
   supportNagLabel,
   supportSubject,
 } from "#shared/support.ts";
-import { emailTestSandbox, expectSendNoop, validEmail } from "#test-utils";
+import {
+  emailTestSandbox,
+  expectSendNoop,
+  validEmail,
+} from "#test-utils/email.ts";
 
 const ADMIN_ENV = { ADMIN_EMAIL_ADDRESS: "host@support.test" };
 

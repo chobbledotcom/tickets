@@ -9,7 +9,7 @@ import {
   getWebhookUrl,
 } from "#routes/admin/settings-helpers.ts";
 import { settings } from "#shared/db/settings.ts";
-import { isDemoMode } from "#shared/demo-mode.ts";
+import { isDemoMode } from "#shared/demo/mode.ts";
 import {
   detectStripeKeyMode,
   setupWebhookEndpoint,

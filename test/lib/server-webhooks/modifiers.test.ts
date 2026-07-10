@@ -7,18 +7,20 @@ import {
   modifiersTable,
 } from "#shared/db/modifiers.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
-  checkoutSessionEvent,
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-  expectModifierUsage,
-  expectWebhookProcessed,
-  setupStripe,
   signedMeta,
   singleItem,
   singleModifierMeta,
-} from "#test-utils";
+} from "#test-utils/factories.ts";
+import { expectModifierUsage } from "#test-utils/modifiers.ts";
+import { setupStripe } from "#test-utils/settings.ts";
+import {
+  checkoutSessionEvent,
+  expectWebhookProcessed,
+} from "#test-utils/webhooks.ts";
 import { createServiceChargeScenario } from "./service-charge-scenario.ts";
 
 // jscpd:ignore-end
@@ -91,7 +93,7 @@ describeWithEnv("server webhooks > modifiers", { db: true }, () => {
         sessionId: "cs_modifier_ok",
       }),
     );
-    const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+    const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
     expect((await getAttendeesRaw(listing.id)).length).toBe(1);
   });
 

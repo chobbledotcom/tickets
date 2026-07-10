@@ -10,7 +10,8 @@ import {
   adminModifierNewPage,
   adminModifiersPage,
 } from "#templates/admin/modifiers/pages.tsx";
-import { setTestEnv, setupTestEncryptionKey, testModifier } from "#test-utils";
+import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testModifier } from "#test-utils/factories.ts";
 
 const SESSION = { adminLevel: "owner" as const };
 const mod = testModifier;

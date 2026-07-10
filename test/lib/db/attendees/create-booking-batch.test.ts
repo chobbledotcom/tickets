@@ -17,11 +17,9 @@ import type {
   PricedLine,
   PricedOrder,
 } from "#shared/checkout-pricing.ts";
-import {
-  type BookingBatchPlan,
-  createBookingAtomic,
-  getAttendeesRaw,
-} from "#shared/db/attendees.ts";
+import { createBookingAtomic } from "#shared/db/attendees/api.ts";
+import type { BookingBatchPlan } from "#shared/db/attendees/create.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { queryOne, withTransaction } from "#shared/db/client.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
@@ -29,7 +27,8 @@ import {
   isSessionProcessed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const OCCURRED_AT = "2026-06-24T00:00:00.000Z";
 
@@ -97,7 +96,9 @@ const buildPlan = async (opts: {
   const plan = await bookingBatchPlan(
     usages,
     { eventId: opts.eventId, occurredAt: OCCURRED_AT, pricedOrder },
-    opts.sessionId,
+    opts.sessionId
+      ? { paymentReference: `pi_${opts.sessionId}`, sessionId: opts.sessionId }
+      : undefined,
   );
   return { plan, pricedOrder };
 };

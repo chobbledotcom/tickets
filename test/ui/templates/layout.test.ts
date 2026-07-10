@@ -7,14 +7,11 @@ import { settings } from "#shared/db/settings.ts";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
-import { ticketPage } from "#templates/public.tsx";
-import {
-  describeWithEnv,
-  setupTestEncryptionKey,
-  testListingWithCount,
-  withStorageDisabled,
-  withStorageEnabled,
-} from "#test-utils";
+import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testListingWithCount } from "#test-utils/factories.ts";
+import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 const EDITOR_SESSION = { adminLevel: "editor" as const };

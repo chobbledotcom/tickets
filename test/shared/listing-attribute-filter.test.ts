@@ -11,7 +11,7 @@ import {
   filterListingsByAttributes,
   selectedAttributeFiltersFromRequest,
 } from "#shared/listing-attribute-filter.ts";
-import { testListingWithCount } from "#test-utils";
+import { testListingWithCount } from "#test-utils/factories.ts";
 
 const option = (
   attributeId: number,

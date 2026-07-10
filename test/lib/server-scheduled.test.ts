@@ -14,13 +14,12 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { insertBuiltSite } from "#shared/db/built-sites.ts";
 import { queryOne } from "#shared/db/client.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeExists,
-  describeWithEnv,
-  expectFetchSilent,
   insertOrphanAttendee,
-  mockRequest,
-} from "#test-utils";
+} from "#test-utils/db-helpers/attendees.ts";
+import { expectFetchSilent, mockRequest } from "#test-utils/mocks.ts";
 
 /** GET or POST /scheduled. */
 const scheduled = (method: "GET" | "POST"): Promise<Response> =>

@@ -11,19 +11,20 @@ import {
   adminDashboardPage,
   adminListingsPage,
 } from "#templates/admin/dashboard.tsx";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  createDailyTestListing,
+  createTestListing,
+} from "#test-utils/db-helpers/listings.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 import {
   adminPost,
-  createDailyTestListing,
   createServicingHold,
-  createTestListing,
   createTestServicingEvent,
-  describeWithEnv,
   renderAdminPage,
-  setupTestEncryptionKey,
-  testAttendee,
-  testListingWithCount,
   updateServicingEvent,
-} from "#test-utils";
+} from "#test-utils/servicing.ts";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 

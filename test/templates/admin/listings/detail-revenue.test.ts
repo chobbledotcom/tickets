@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { testAttendee, testListingWithCount } from "#test-utils";
+import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
 import { detailHtml, registerListingTemplateHooks } from "./helpers.ts";
 
@@ -167,6 +167,20 @@ describe("adminListingPage failed payments", () => {
       },
     );
     expect(html).not.toContain("Failed Payments");
+  });
+
+  test("hides Failed Payments section when an empty-payment-id attendee has a processed reference", () => {
+    const html = detailHtml(
+      testListingWithCount({ attendee_count: 1, unit_price: 1000 }),
+      {
+        attendees: [
+          testAttendee({ id: 7, payment_id: "", price_paid: "1000" }),
+        ],
+        paymentReferenceAttendeeIds: new Set([7]),
+      },
+    );
+    expect(html).not.toContain("Failed Payments");
+    expect(html).toContain("John Doe");
   });
 
   test("hides Failed Payments section for free listings", () => {

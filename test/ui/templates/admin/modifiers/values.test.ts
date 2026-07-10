@@ -5,7 +5,7 @@ import {
   modifierToFieldValues,
   ruleSummary,
 } from "#templates/admin/modifiers/values.ts";
-import { testModifier } from "#test-utils";
+import { testModifier } from "#test-utils/factories.ts";
 
 describe("ruleSummary", () => {
   test("summarises a percent discount", () => {

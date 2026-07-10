@@ -17,7 +17,7 @@ import {
   getNewsPostCards,
 } from "#shared/db/news-posts.ts";
 import { settings } from "#shared/db/settings.ts";
-import { newsListPage, newsPostPage } from "#templates/public.tsx";
+import { newsListPage, newsPostPage } from "#templates/public/news.tsx";
 import { requirePublicSite } from "./pages.ts";
 import { publicNavProps } from "./site-nav.ts";
 

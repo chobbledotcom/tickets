@@ -8,16 +8,18 @@ import { createEntityRouteHandlers } from "#routes/admin/entity-handlers.ts";
 import type { AttendeeRouteParams } from "#routes/entity.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
-  ATTENDEE_LEFT_JOIN_SELECT,
   decryptAttendeeOrNull,
   decryptAttendees,
-  getAttendeesByTokens,
+} from "#shared/db/attendees/pii.ts";
+import {
+  ATTENDEE_LEFT_JOIN_SELECT,
   LISTING_ATTENDEE_ROW_COLS,
-  type ListingAttendeeRow,
-  updateAttendeePII,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/queries.ts";
+import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
+import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
 import { syncAttendeeContactTokens } from "#shared/db/contact-tokens.ts";
 import { getQuestionsWithListingIds } from "#shared/db/questions/queries.ts";
@@ -65,6 +67,7 @@ const loadMergeSource = async (
       id: number;
       lat: string;
       lng: string;
+      payment_id: string;
       ticket_token: string;
       bookings: ListingAttendeeRow[];
     })
@@ -87,6 +90,7 @@ const loadMergeSource = async (
     lat: decrypted.lat,
     lng: decrypted.lng,
     name: decrypted.name,
+    payment_id: decrypted.payment_id,
     phone: decrypted.phone,
     special_instructions: decrypted.special_instructions,
     ticket_token: decrypted.ticket_token,
@@ -319,6 +323,7 @@ const applyMergeDecisions = async (
     diff,
     privateKey: await requireRequestPrivateKey(),
     sourceId: source.id,
+    sourcePaymentId: source.payment_id,
     sourcePii: extractSourcePii(source),
     targetId: attendeeId,
     targetPii: {

@@ -40,8 +40,10 @@ import {
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import type { TicketListing } from "#shared/booking/model.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
-import { getGroupRemainingForSpan } from "#shared/db/attendees/capacity.ts";
-import { getListingRemainingForRange } from "#shared/db/attendees.ts";
+import {
+  getGroupRemainingForSpan,
+  getListingRemainingForRange,
+} from "#shared/db/attendees/capacity.ts";
 import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
 import {
   getGroupIdsByListingIds,
@@ -64,7 +66,7 @@ import {
 } from "#shared/order-select.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
-import { orderGalleryPage } from "#templates/public.tsx";
+import { orderGalleryPage } from "#templates/public/order-gallery.tsx";
 /* jscpd:ignore-start */
 import {
   applyParentSoldOut,

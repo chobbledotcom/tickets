@@ -14,7 +14,8 @@ import {
 } from "#shared/db/listing-parents.ts";
 import { deleteListing } from "#shared/db/listings.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const ascending = (ids: number[]) => [...ids].sort((a, b) => a - b);
 

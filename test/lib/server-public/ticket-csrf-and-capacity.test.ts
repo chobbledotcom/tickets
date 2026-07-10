@@ -5,17 +5,19 @@ import { stub } from "@std/testing/mock";
 import { capacityErrorFormatter } from "#shared/capacity-error.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
-  bookOneEachViaTicketForm,
-  createTestListing,
-  describeWithEnv,
-  expectBookOneEachRejected,
   expectFlash,
-  expectMissingCsrfRejected,
   expectReservedRedirectWithTokens,
-  setupStripe,
+} from "#test-utils/assertions.ts";
+import {
+  bookOneEachViaTicketForm,
+  expectBookOneEachRejected,
+  expectMissingCsrfRejected,
   submitMultiTicketForm,
   submitTicketForm,
-} from "#test-utils";
+} from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -91,7 +93,7 @@ describeWithEnv(
 
         // Mock attendeesApi to fail (capacity exceeded). A free order with a ledger
         // order uses createBookingAtomic; fail both so the path is covered either way.
-        const { attendeesApi } = await import("#shared/db/attendees.ts");
+        const { attendeesApi } = await import("#shared/db/attendees/api.ts");
         const originalFn = attendeesApi.createAttendeeAtomic;
         const originalBooking = attendeesApi.createBookingAtomic;
         const failure = () =>
@@ -122,7 +124,7 @@ describeWithEnv(
           maxAttendees: 50,
         });
 
-        const { attendeesApi } = await import("#shared/db/attendees.ts");
+        const { attendeesApi } = await import("#shared/db/attendees/api.ts");
         const failure = () =>
           Promise.resolve({
             reason: "encryption_error" as const,
@@ -196,7 +198,9 @@ describeWithEnv(
         expectReservedRedirectWithTokens(response);
 
         // Verify only listing2 got an attendee
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const { getAttendeesRaw } = await import(
+          "#shared/db/attendees/queries.ts"
+        );
         const attendees1 = await getAttendeesRaw(listing1.id);
         const attendees2 = await getAttendeesRaw(listing2.id);
         expect(attendees1.length).toBe(0);

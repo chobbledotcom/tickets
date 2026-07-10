@@ -4,20 +4,19 @@ import { getAvailableDates } from "#shared/dates.ts";
 import {
   checkBatchAvailability,
   hasAvailableSpots,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/api.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buildTemplateData } from "#shared/email-renderer.ts";
+import { describeWithEnv, rawListingRange } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
 import {
-  bookAttendee,
   createDailyTestListing,
-  createTestGroup,
-  createTestHoliday,
-  describeWithEnv,
-  makeTestEntry,
-  rawListingRange,
   updateTestListing,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
+import { makeTestEntry } from "#test-utils/factories.ts";
 
 describeWithEnv(
   "e2e: multi-day bookings — capacity & availability",

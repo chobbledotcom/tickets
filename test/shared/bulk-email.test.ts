@@ -32,7 +32,8 @@ import {
 import { hashEmail } from "#shared/db/contact-preferences.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import { describeWithEnv, getTestPrivateKey } from "#test-utils";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import {
   createTestListing,

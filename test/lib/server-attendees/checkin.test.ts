@@ -3,21 +3,23 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getDb } from "#shared/db/client.ts";
+import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import {
-  adminAttendeeAction,
-  adminFormPost,
-  adminListingPage,
   assertAdminHtml,
-  describeWithEnv,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
   expectRedirect,
-  getListingActivityLog,
-  mockFormRequest,
-  setupAdminTest,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockFormRequest } from "#test-utils/mocks.ts";
+import {
+  adminAttendeeAction,
+  adminFormPost,
+  adminListingPage,
+  setupAdminTest,
+} from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 import { setupListingAndAttendee } from "./helpers.ts";

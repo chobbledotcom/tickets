@@ -3,19 +3,20 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import {
-  adminFormPost,
-  adminGet,
-  awaitTestRequest,
-  describeWithEnv,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
-  getEmbeddableTicketResponse,
   getHeader,
+  testRequiresAuth,
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { getEmbeddableTicketResponse } from "#test-utils/db-helpers/misc.ts";
+import {
+  awaitTestRequest,
   mockFormRequest,
   mockRequest,
-  testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 /** Post invalid embed hosts and assert a 302 redirect with error flash */
 async function postInvalidEmbedHosts(

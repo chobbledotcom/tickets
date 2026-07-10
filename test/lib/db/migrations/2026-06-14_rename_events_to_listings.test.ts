@@ -7,7 +7,8 @@ import {
   renameEventsToListings,
   SCHEMA_HASH,
 } from "#shared/db/migrations.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   columnNames,
   downgradeListingDomainToLegacyNames,

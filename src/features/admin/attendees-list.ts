@@ -17,12 +17,12 @@ import { getSearchParam } from "#routes/url.ts";
 import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { isAttendeeSort } from "#shared/db/attendees/queries.ts";
+import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import {
   type AttendeeSort,
-  decryptAttendees,
   getAttendeesPage,
-} from "#shared/db/attendees.ts";
+  isAttendeeSort,
+} from "#shared/db/attendees/queries.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";

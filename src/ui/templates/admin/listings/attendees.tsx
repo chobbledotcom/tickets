@@ -3,6 +3,7 @@ import { filter, joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { CsrfForm, renderFields } from "#shared/forms.tsx";
+import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   type Attendee,
@@ -27,14 +28,6 @@ import type { AttendeeFilter, DateOption } from "./types.ts";
 
 /* jscpd:ignore-end */
 
-export const isIncompletePayment = (
-  attendee: Attendee,
-  hasPaidListing: boolean,
-): boolean =>
-  hasPaidListing &&
-  !attendee.payment_id &&
-  Number.parseInt(attendee.price_paid, 10) > 0;
-
 const keepByRosterFilter: Record<AttendeeFilter, (a: Attendee) => boolean> = {
   all: () => true,
   in: (a) => a.checked_in && hasTicketQuantity(a),
@@ -46,6 +39,19 @@ const ROSTER_FILTER_LINKS: { filter: AttendeeFilter; labelKey: string }[] = [
   { filter: "in", labelKey: "common.checked_in" },
   { filter: "out", labelKey: "listings_table.checked_out" },
 ];
+
+const hasKnownPaymentReference =
+  (paymentReferenceAttendeeIds: ReadonlySet<number>) =>
+  (attendee: Attendee): boolean =>
+    attendee.payment_id !== "" || paymentReferenceAttendeeIds.has(attendee.id);
+
+const hasIncompletePayment = (
+  paymentReferenceAttendeeIds: ReadonlySet<number>,
+): ((attendee: Attendee) => boolean) => {
+  const knowsPayment = hasKnownPaymentReference(paymentReferenceAttendeeIds);
+  return (attendee: Attendee): boolean =>
+    isIncompletePayment(attendee, true, knowsPayment(attendee));
+};
 
 const FailedPaymentRow = ({
   attendee,
@@ -307,15 +313,19 @@ export const AddAttendeeSection = ({
 export const completePaymentAttendees = (
   listing: ListingWithCount,
   attendees: Attendee[],
-): Attendee[] =>
-  isPaidListing(listing)
-    ? filter((a: Attendee) => !isIncompletePayment(a, true))(attendees)
+  paymentReferenceAttendeeIds: ReadonlySet<number> = new Set(),
+): Attendee[] => {
+  const isIncomplete = hasIncompletePayment(paymentReferenceAttendeeIds);
+  return isPaidListing(listing)
+    ? filter((a: Attendee) => !isIncomplete(a))(attendees)
     : attendees;
+};
 
 export const attendeeStatsForListing = (
   listing: ListingWithCount,
   attendees: Attendee[],
   hasPaidListing: boolean,
+  paymentReferenceAttendeeIds: ReadonlySet<number> = new Set(),
 ): {
   incompleteAttendees: Attendee[];
   completeAttendees: Attendee[];
@@ -323,9 +333,13 @@ export const attendeeStatsForListing = (
   completeQuantitySum: number;
 } => {
   const incompleteAttendees = hasPaidListing
-    ? filter((a: Attendee) => isIncompletePayment(a, true))(attendees)
+    ? filter(hasIncompletePayment(paymentReferenceAttendeeIds))(attendees)
     : [];
-  const completeAttendees = completePaymentAttendees(listing, attendees);
+  const completeAttendees = completePaymentAttendees(
+    listing,
+    attendees,
+    paymentReferenceAttendeeIds,
+  );
   const adjustedCount =
     listing.attendee_count - sumQuantity(incompleteAttendees);
   const completeQuantitySum = sumQuantity(completeAttendees);

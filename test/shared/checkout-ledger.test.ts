@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { bookingFactsFromOrder } from "#shared/checkout-ledger.ts";
-import { pricedLine as line, pricedOrder as order } from "#test-utils";
+import {
+  pricedLine as line,
+  pricedOrder as order,
+} from "#test-utils/factories.ts";
 
 const ctx = {
   attendeeId: 42,

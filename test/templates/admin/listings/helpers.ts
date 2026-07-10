@@ -8,7 +8,7 @@ import {
   overviewStatsFromAttendees,
 } from "#templates/admin/listings/overview.tsx";
 import { ListingRosterPanel } from "#templates/admin/listings/roster.tsx";
-import { setTestEnv, setupTestEncryptionKey } from "#test-utils";
+import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 
 export const TEST_SESSION = { adminLevel: "owner" as const };
 
@@ -49,7 +49,11 @@ export const renderListingDetail = (
       noteNames: attendeeNameMap(opts.attendees),
       questionData: opts.questionData,
       revenueBreakdown: opts.revenueBreakdown,
-      stats: overviewStatsFromAttendees(opts.listing, opts.attendees),
+      stats: overviewStatsFromAttendees(
+        opts.listing,
+        opts.attendees,
+        opts.paymentReferenceAttendeeIds,
+      ),
       systemNotes: opts.systemNotes,
     }),
   ) + String(ListingRosterPanel(opts));

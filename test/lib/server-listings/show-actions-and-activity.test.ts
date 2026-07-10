@@ -1,23 +1,27 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { addDays } from "#shared/dates.ts";
 import { createSystemNote } from "#shared/db/system-notes.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { logActivity } from "#test-utils/activity-log.ts";
+import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import { submitTicketForm } from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createTestListing,
+  deactivateTestListing,
+} from "#test-utils/db-helpers/listings.ts";
+import { postListingSale, postWriteoffAdjustment } from "#test-utils/ledger.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
   adminGet,
-  awaitTestRequest,
-  createTestAttendee,
-  createTestListing,
-  deactivateTestListing,
-  describeWithEnv,
-  expectFlashRedirect,
-  logActivity,
   setupListingAndLogin,
-  submitTicketForm,
-} from "#test-utils";
-import { postListingSale } from "#test-utils/ledger.ts";
+} from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 
@@ -101,11 +105,12 @@ describeWithEnv(
           unitPrice: 500,
         });
         // A confirmed buyer (sale + full payment) who has an operator note.
-        const confirmed = await createTestAttendee(
+        const confirmed = await createPaidAttendeeWithoutLedger(
           listing.id,
-          listing.slug,
           "Grace Hopper",
           "grace@example.com",
+          "pi_confirmed",
+          5000,
         );
         await postListingSale({
           attendeeId: confirmed.id,
@@ -114,11 +119,12 @@ describeWithEnv(
         });
         await createSystemNote(confirmed.id, "Called ahead about access");
         // An incomplete booking: a recognised sale that was never paid.
-        const incomplete = await createTestAttendee(
+        const incomplete = await createPaidAttendeeWithoutLedger(
           listing.id,
-          listing.slug,
           "Abandoned Cart",
           "cart@example.com",
+          "",
+          3000,
         );
         await postListingSale({
           amountPaid: 0,
@@ -126,6 +132,10 @@ describeWithEnv(
           gross: 3000,
           listingId: listing.id,
         });
+        await postWriteoffAdjustment(attendeeAccount(incomplete.id), 3000, [
+          "clear-incomplete",
+          incomplete.id,
+        ]);
 
         const response = await awaitTestRequest(
           `/admin/listing/${listing.id}`,

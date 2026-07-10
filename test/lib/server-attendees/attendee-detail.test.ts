@@ -2,14 +2,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  adminGet,
-  bookAttendee,
-  createTestAttendee,
-  createTestListing,
-  describeWithEnv,
   expectHtmlResponse,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminGet } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 import { setupListingAndAttendee } from "./helpers.ts";
@@ -134,7 +134,9 @@ describeWithEnv(
           "Badge User",
           "badge@example.com",
         );
-        const { updateCheckedIn } = await import("#shared/db/attendees.ts");
+        const { updateCheckedIn } = await import(
+          "#shared/db/attendees/update.ts"
+        );
         await updateCheckedIn(attendee.id, listing.id, true);
         const { invalidateListingsCache } = await import(
           "#shared/db/listings.ts"

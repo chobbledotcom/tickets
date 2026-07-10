@@ -32,7 +32,10 @@ import { edgeIdsTouchingMany } from "#shared/db/listing-parents.ts";
 import { getListing } from "#shared/db/listings.ts";
 import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
 import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
-import { GROUP_DEMO_FIELDS, wrapResourceForDemo } from "#shared/demo.ts";
+import {
+  GROUP_DEMO_FIELDS,
+  wrapResourceForDemo,
+} from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";

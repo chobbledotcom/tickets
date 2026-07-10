@@ -3,11 +3,13 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   checkBatchAvailability,
   createAttendeeAtomic,
+  hasAvailableSpots,
+} from "#shared/db/attendees/api.ts";
+import {
   getGroupRemainingByGroupId,
   getGroupRemainingByListingId,
   getGroupRemainingForListing,
-  hasAvailableSpots,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/capacity.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   anyListingInPackageGroup,
@@ -26,12 +28,10 @@ import {
   setGroupPackageMembers,
 } from "#shared/db/groups.ts";
 import { updateListingAggregateValues } from "#shared/db/listings.ts";
-import {
-  bookAttendee,
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("db > groups", { db: true, triggers: true }, () => {
   /** Create a capped group with two listings (each with listing-level max of 10). */

@@ -32,6 +32,45 @@ export const operationsSections = (): GuideSection[] => [
   },
   {
     entries: [
+      faq("what_is_logistics"),
+      faq("logistics_agents"),
+      faq("enable_logistics_on_listing"),
+      faq("delivery_run_sheet"),
+    ],
+    id: "logistics",
+    titleKey: "logistics",
+  },
+  {
+    entries: [
+      faq("what_is_image_library"),
+      faq("add_image_to_library"),
+      faq("link_image_to_listing"),
+      faq("delete_library_image"),
+    ],
+    id: "images",
+    titleKey: "images",
+  },
+  {
+    entries: [
+      faq("what_are_attendee_statuses"),
+      faq("status_flags"),
+      faq("reservation_amount"),
+      faq("assign_change_status"),
+    ],
+    id: "attendee-statuses",
+    titleKey: "attendee_statuses",
+  },
+  {
+    entries: [
+      faq("what_is_attendees_list"),
+      faq("export_attendees_csv"),
+      faq("where_are_attendee_actions"),
+    ],
+    id: "attendees",
+    titleKey: "attendees",
+  },
+  {
+    entries: [
       faq("what_is_the_backup_feature"),
       faq("how_do_i_create_a_backup"),
       faq("how_do_i_restore_from_a_backup"),

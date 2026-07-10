@@ -8,6 +8,7 @@
  * `refund_cash` leg is what the per-row `refunded` projection now reads.
  */
 
+import { chunk } from "#fp";
 import { t } from "#i18n";
 import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
@@ -15,19 +16,28 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
+import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
 import {
   ATTENDEE_LEFT_JOIN_SELECT,
-  decryptAttendeeOrNull,
   LISTING_ATTENDEE_ROW_COLS,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/queries.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
+import {
+  getRefundPaymentReferences,
+  markPaymentReferencesProviderRefunded,
+  type RefundPaymentReference,
+} from "#shared/db/payment-references.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { getActivePaymentProvider } from "#shared/payments.ts";
+import {
+  getActivePaymentProvider,
+  type PaymentProvider,
+} from "#shared/payments.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
+import { PROVIDER_REFUND_CONCURRENCY } from "./refunds/provider.ts";
 
 /** Minimal context needed by the refresh-payment flow. */
 type RefreshPaymentContext = {
@@ -63,6 +73,38 @@ const loadRefreshContext = async (
   return { attendee, listing };
 };
 
+const refreshProviderRefunds = async (
+  provider: Pick<PaymentProvider, "isPaymentRefunded">,
+  references: readonly RefundPaymentReference[],
+): Promise<RefundPaymentReference[]> => {
+  const refreshed: RefundPaymentReference[] = [];
+  // Chunk the provider status checks by charge-reference count — a merged
+  // attendee can carry many charges, and an unbounded fan-out would blow the
+  // edge subrequest budget before the ledger is marked. Same bound the
+  // bulk-refund path uses.
+  for (const group of chunk(PROVIDER_REFUND_CONCURRENCY)([...references])) {
+    refreshed.push(
+      ...(await Promise.all(
+        group.map(async (reference) =>
+          reference.providerRefunded
+            ? reference
+            : {
+                ...reference,
+                providerRefunded: await provider.isPaymentRefunded(
+                  reference.reference,
+                ),
+              },
+        ),
+      )),
+    );
+  }
+  return refreshed;
+};
+
+const hasProviderRefund = (
+  reference: Pick<RefundPaymentReference, "providerRefunded">,
+): boolean => reference.providerRefunded;
+
 /** Handle POST /admin/attendees/:attendeeId/refresh-payment */
 export const handleRefreshPayment: TypedRouteHandler<
   "POST /admin/attendees/:attendeeId/refresh-payment"
@@ -74,7 +116,13 @@ export const handleRefreshPayment: TypedRouteHandler<
     const { attendee, listing } = ctx;
     const form = _form as FormParams;
 
-    if (!attendee.payment_id) {
+    const references = (
+      await getRefundPaymentReferences(
+        [attendee],
+        await requireRequestPrivateKey(),
+      )
+    ).get(attendee.id)!;
+    if (references.length === 0) {
       return redirect(
         `/admin/attendees/${attendeeId}`,
         t("error.no_payment_to_refresh"),
@@ -88,9 +136,18 @@ export const handleRefreshPayment: TypedRouteHandler<
       return errorRedirect(`/admin/attendees/${attendeeId}`, NO_PROVIDER_ERROR);
     }
 
-    const isRefunded = await provider.isPaymentRefunded(attendee.payment_id);
-    if (isRefunded && !attendee.refunded) {
-      const { posted } = await recordAttendeeRefund(attendeeId);
+    const refreshedReferences = await refreshProviderRefunds(
+      provider,
+      references,
+    );
+    await markPaymentReferencesProviderRefunded(
+      refreshedReferences.filter(hasProviderRefund),
+    );
+    if (refreshedReferences.every(hasProviderRefund) && !attendee.refunded) {
+      const { posted } = await recordAttendeeRefund(
+        attendeeId,
+        refreshedReferences,
+      );
       await logActivity(
         `Payment marked as refunded for attendee '${attendee.name}'`,
         listing.id,

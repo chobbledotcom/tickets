@@ -16,7 +16,7 @@ import {
   setSumupCheckoutId,
   storeSumupCheckout,
 } from "#shared/db/sumup-checkouts.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 const REFERENCE = "9c1f7a52-1b3e-4f6d-8a2c-5e9d0b4c7a31";
 

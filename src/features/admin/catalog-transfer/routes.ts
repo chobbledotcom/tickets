@@ -24,7 +24,7 @@ import {
 } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { isDemoMode } from "#shared/demo-mode.ts";
+import { isDemoMode } from "#shared/demo/mode.ts";
 import { adminCatalogImportPage } from "#templates/admin/catalog-transfer.tsx";
 import { CatalogExportError, exportGroup, exportListing } from "./export.ts";
 import { importCatalog } from "./import.ts";

@@ -1,12 +1,10 @@
 import { expect } from "@std/expect";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import {
-  createAttendeeAtomic,
-  decryptAttendees,
-  ensureAllBookings,
-  getAttendeesRaw,
-} from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { ensureAllBookings } from "#shared/db/attendees/create.ts";
+import { decryptAttendees } from "#shared/db/attendees/pii.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { ListingInput } from "#shared/db/listings.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -144,7 +142,7 @@ export const createTestAttendeeDirect = async (
   address = "",
   special_instructions = "",
 ): Promise<{ attendee: Attendee; token: string }> => {
-  const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+  const { createAttendeeAtomic } = await import("#shared/db/attendees/api.ts");
 
   const result = await createAttendeeAtomic({
     address,
@@ -229,7 +227,9 @@ export const buildAttendeeEditForm = async (
     extra?: Record<string, string>;
   } = {},
 ): Promise<Record<string, string>> => {
-  const { loadExistingLines } = await import("#shared/db/attendees.ts");
+  const { loadExistingLines } = await import(
+    "#shared/db/attendees/atomic-update.ts"
+  );
   const { resolveSharedDates } = await import(
     "#routes/admin/attendee-form-model.ts"
   );
@@ -266,7 +266,7 @@ export const createMultiBookingAttendee = async (
   email: string,
   bookings: Array<{ listingId: number; quantity?: number }>,
 ): Promise<Attendee> => {
-  const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+  const { createAttendeeAtomic } = await import("#shared/db/attendees/api.ts");
   const result = await createAttendeeAtomic({
     bookings: bookings.map((booking) => ({
       listingId: booking.listingId,
@@ -324,7 +324,7 @@ export const createDailyTestAttendee = async (
   date: string,
   listingOverrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
 ): Promise<{ listing: Listing; attendee: Attendee; token: string }> => {
-  const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+  const { createAttendeeAtomic } = await import("#shared/db/attendees/api.ts");
   const listing = await createDailyTestListing(listingOverrides);
   const result = await createAttendeeAtomic({
     bookings: [{ date, listingId: listing.id }],

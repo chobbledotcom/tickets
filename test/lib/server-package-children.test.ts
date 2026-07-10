@@ -4,17 +4,17 @@ import { handleRequest } from "#routes";
 import { queryAll } from "#shared/db/client.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { expectRedirect } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { signMeta } from "#test-utils/factories.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 import {
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
   expectPackageBookingAccepted,
-  expectRedirect,
-  mockRequest,
-  setupStripe,
-  signMeta,
   submitPackageBooking,
-} from "#test-utils";
+} from "#test-utils/packages.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 /** The REAL booking rows for a listing (a refunded order's quantity-0
  * placeholder is not a booking), newest first, with their parent allocation. */
@@ -110,7 +110,9 @@ const makePackageFree = async (
   childIds: number[],
 ) => {
   const { setGroupPackageMembers } = await import("#shared/db/groups.ts");
-  const { updateTestListing } = await import("#test-utils");
+  const { updateTestListing } = await import(
+    "#test-utils/db-helpers/listings.ts"
+  );
   for (const childId of childIds) {
     await updateTestListing(childId, { unitPrice: 0 });
   }
@@ -199,7 +201,9 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
       "gone-addons-pkg",
     );
     const { listingsTable } = await import("#shared/db/listings.ts");
-    const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+    const { createAttendeeAtomic } = await import(
+      "#shared/db/attendees/api.ts"
+    );
     for (const c of [child, childB]) {
       await listingsTable.update(c.id, { maxAttendees: 1, maxQuantity: 1 });
       const fill = await createAttendeeAtomic({
@@ -347,9 +351,13 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
   test("a child edge added mid-checkout refunds instead of booking without the add-on", async () => {
     await setupStripe();
     const { stub } = await import("@std/testing/mock");
-    const { createTestGroup, createTestListing, signMeta } = await import(
-      "#test-utils"
+    const { createTestGroup } = await import(
+      "#test-utils/db-helpers/groups.ts"
     );
+    const { createTestListing } = await import(
+      "#test-utils/db-helpers/listings.ts"
+    );
+    const { signMeta } = await import("#test-utils/factories.ts");
     // The package had NO children when the buyer checked out, so the signed
     // intent carries no allocations.
     const group = await createTestGroup({ isPackage: true, name: "Grown Kit" });

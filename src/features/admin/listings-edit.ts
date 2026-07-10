@@ -24,7 +24,7 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import {
   checkGroupCapAfterDurationChange,
   recomputeListingBookingRanges,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/update.ts";
 import {
   anyHiddenPackageGroup,
   getGroupIdsByListingId,
@@ -41,7 +41,10 @@ import {
   updateListingAggregateValues,
 } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
-import { applyDemoOverrides, LISTING_DEMO_FIELDS } from "#shared/demo.ts";
+import {
+  applyDemoOverrides,
+  LISTING_DEMO_FIELDS,
+} from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   dimensionsOf,
@@ -64,7 +67,7 @@ import {
 import { listingAggregateFields } from "#templates/fields/aggregate.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
 import { listingPage } from "./listing-page.ts";
-import { loadListingEditPanel } from "./listing-page-data.ts";
+import { loadListingEditPanel } from "./listing-page-management-panels.ts";
 import {
   buildCreateListingResource,
   buildUpdateListingResource,

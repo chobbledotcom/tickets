@@ -3,25 +3,28 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { imagesTable } from "#shared/db/images.ts";
 import { listingsTable } from "#shared/db/listings.ts";
-import { setDemoModeForTest } from "#shared/demo-mode.ts";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import {
-  adminFormPost,
-  adminGet,
   assertFormRedirect,
-  createTestListing,
-  describeWithEnv,
   expectDatabaseResetRedirect,
   expectFlash,
   expectHtmlResponse,
-  invalidateTestDbCache,
+  testRequiresAuth,
+} from "#test-utils/assertions.ts";
+import { describeWithEnv, invalidateTestDbCache } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
   mockFormRequest,
   mockRequest,
+  withBunnyDeleteCapture,
+} from "#test-utils/mocks.ts";
+import {
+  adminFormPost,
+  adminGet,
   setupListingAndLogin,
   testCookie,
-  testRequiresAuth,
-  withBunnyDeleteCapture,
-} from "#test-utils";
+} from "#test-utils/session.ts";
 
 describeWithEnv("server (admin settings)", { db: true }, () => {
   afterEach(() => {
