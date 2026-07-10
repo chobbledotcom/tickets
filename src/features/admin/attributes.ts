@@ -34,7 +34,7 @@ import {
   getAllAttributesWithOptions,
   getAttributeId,
   getAttributeIdsOrdered,
-  getAttributeOptionListingIds,
+  getAttributeListingUse,
   getAttributeWithOptions,
   getNextAttributeOptionSortOrder,
   pruneInvalidAttributeOptionIds,
@@ -42,7 +42,6 @@ import {
   swapAttributeOptionOrder,
   swapAttributeOrder,
 } from "#shared/db/attributes.ts";
-import { getAllListingOptions } from "#shared/db/listings.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
@@ -116,14 +115,12 @@ const handleAttributesPost = createAuthedFormRoute({
  * the attribute's options, as per-option counts plus a builder that turns any
  * subset of the options into "listings using this" table rows. */
 const loadAttributeListingUse = async (attributeId: number) => {
-  const [listingIdsByOption, listingOptions] = await Promise.all([
-    getAttributeOptionListingIds(attributeId),
-    getAllListingOptions(),
-  ]);
+  const { listingIdsByOption, listings } =
+    await getAttributeListingUse(attributeId);
   return {
     listingCounts: optionListingCounts(listingIdsByOption),
     rowsFor: (options: AttributeOption[]) =>
-      attributeListingRows(options, listingIdsByOption, listingOptions),
+      attributeListingRows(options, listingIdsByOption, listings),
   };
 };
 
