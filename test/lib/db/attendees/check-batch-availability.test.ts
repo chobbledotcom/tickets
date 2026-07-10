@@ -43,6 +43,46 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
     ).toBe(true);
   });
 
+  test("a dated batch still counts a standard listing's demand as a running total", async () => {
+    const standard = await createTestListing({ maxAttendees: 2 });
+    const daily = await createDailyTestListing({ maxAttendees: 5 });
+    // The standard listing's prior booking lives only in its running total —
+    // its rows carry no booking range, so a per-day count would never see it.
+    await bookAttendee(standard, { quantity: 1 });
+    // The date belongs to the daily item; the standard listing's demand must
+    // still land on its running total (1 booked + 2 > 2), not in a per-day
+    // bucket where the existing booking is invisible.
+    expect(
+      await checkBatchAvailability(
+        [
+          { listingId: standard.id, quantity: 2 },
+          { listingId: daily.id, quantity: 1 },
+        ],
+        "2026-05-01",
+      ),
+    ).toBe(false);
+    expect(
+      await checkBatchAvailability(
+        [
+          { listingId: standard.id, quantity: 1 },
+          { listingId: daily.id, quantity: 1 },
+        ],
+        "2026-05-01",
+      ),
+    ).toBe(true);
+  });
+
+  test("a date-less batch counts a daily listing's running total", async () => {
+    const daily = await createDailyTestListing({ maxAttendees: 2 });
+    await bookAttendee(daily, { date: "2026-05-01", quantity: 2 });
+    // With no anchor date the daily listing's demand must fall back to the
+    // date-less running total (2 booked + 1 > 2), not a per-day expansion of
+    // a date that does not exist.
+    expect(
+      await checkBatchAvailability([{ listingId: daily.id, quantity: 1 }]),
+    ).toBe(false);
+  });
+
   test("rejects a multi-day booking when any day in the range is at capacity", async () => {
     const listing = await createDailyTestListing({
       durationDays: 3,
