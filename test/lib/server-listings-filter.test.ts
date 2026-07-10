@@ -145,20 +145,32 @@ describeWithEnv("listings type filter", { db: true }, () => {
   });
 
   describe("admin listings index", () => {
-    test("filters listings by selected listing attribute", async () => {
-      const shown = await createTestListing({ name: "Shown" });
-      const hidden = await createTestListing({ name: "Hidden" });
+    const setupFilteredPair = async (labels: [string, string]) => {
+      const shown = await createTestListing({ name: labels[0] });
+      const hidden = await createTestListing({ name: labels[1] });
       const difficulty = await createTestAttributeWithOptions("Difficulty", [
         "Easy",
         "Hard",
       ]);
       await assignTestAttributeOptions(shown.id, [difficulty.options[0]!]);
       await assignTestAttributeOptions(hidden.id, [difficulty.options[1]!]);
+      return { difficulty, hidden, shown };
+    };
+
+    const filterUrl = (
+      path: string,
+      attributeId: number,
+      optionId: number,
+    ): string => `${path}?attribute_${attributeId}=${optionId}`;
+
+    test("filters listings by selected listing attribute", async () => {
+      const { shown, hidden, difficulty } = await setupFilteredPair([
+        "Shown",
+        "Hidden",
+      ]);
 
       const response = await adminGet(
-        `/admin/listings?attribute_${difficulty.id}=${
-          difficulty.options[0]!.id
-        }`,
+        filterUrl("/admin/listings", difficulty.id, difficulty.options[0]!.id),
       );
       const html = await response.text();
 
@@ -174,9 +186,7 @@ describeWithEnv("listings type filter", { db: true }, () => {
       await assignTestAttributeOptions(listing.id, difficulty.options);
 
       const response = await adminGet(
-        `/admin/listings?attribute_${difficulty.id}=${
-          difficulty.options[0]!.id
-        }`,
+        filterUrl("/admin/listings", difficulty.id, difficulty.options[0]!.id),
       );
       const html = await response.text();
       const filterParam = `attribute_${difficulty.id}=${
@@ -186,19 +196,17 @@ describeWithEnv("listings type filter", { db: true }, () => {
     });
 
     test("CSV export respects attribute filter", async () => {
-      const shown = await createTestListing({ name: "CSV Shown" });
-      const hidden = await createTestListing({ name: "CSV Hidden" });
-      const difficulty = await createTestAttributeWithOptions("Difficulty", [
-        "Easy",
-        "Hard",
+      const { difficulty } = await setupFilteredPair([
+        "CSV Shown",
+        "CSV Hidden",
       ]);
-      await assignTestAttributeOptions(shown.id, [difficulty.options[0]!]);
-      await assignTestAttributeOptions(hidden.id, [difficulty.options[1]!]);
 
       const response = await adminGet(
-        `/admin/listings/csv?attribute_${difficulty.id}=${
-          difficulty.options[0]!.id
-        }`,
+        filterUrl(
+          "/admin/listings/csv",
+          difficulty.id,
+          difficulty.options[0]!.id,
+        ),
       );
       const csv = await response.text();
 
