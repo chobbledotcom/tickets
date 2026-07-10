@@ -15,6 +15,7 @@ import {
   expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
   fillSoleCapacityListing,
+  findKeptPlaceholder,
   makeParent,
   setupStripe,
   signedMeta,
@@ -135,11 +136,8 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
     );
     // The late buyer is not dropped: a quantity-0 placeholder is kept
     // alongside the original sold-out attendee, refunded once, with a note.
-    const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-    const attendees = await getAttendeesRaw(listing.id);
-    const placeholder = attendees.find((a) => a.quantity === 0);
-    expect(placeholder).toBeDefined();
-    await expectRefundedWithNote(placeholder!.id, mockRefund);
+    const placeholder = await findKeptPlaceholder(listing.id);
+    await expectRefundedWithNote(placeholder.id, mockRefund);
     await expectSessionFailed("cs_soldout");
   });
 
