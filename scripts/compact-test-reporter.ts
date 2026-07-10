@@ -1,5 +1,7 @@
 import { isAbsolute, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { toDisplayPath } from "./project-root.ts";
+import { readStream } from "./stream-lines.ts";
 
 type Location = {
   file: string;
@@ -186,12 +188,6 @@ const countMatches = (text: string, re: RegExp): number => {
   let count = 0;
   for (const _match of text.matchAll(re)) count++;
   return count;
-};
-
-const toDisplayPath = (cwd: string, file: string): string => {
-  if (!isAbsolute(file)) return file.replace(/^\.\//, "");
-  const rel = relative(cwd, file);
-  return rel.startsWith("..") ? file : rel || ".";
 };
 
 const locationFromDiagnostic = (
@@ -465,51 +461,6 @@ export class CompactTapReporter {
   }
 }
 
-const readLines = async (
-  stream: ReadableStream<Uint8Array>,
-  onLine: (line: string) => void,
-): Promise<void> => {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let buffered = "";
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffered += decoder.decode(value, { stream: true });
-      const lines = buffered.split(/\r?\n/);
-      buffered = lines.pop() ?? "";
-      for (const line of lines) onLine(line);
-    }
-  } finally {
-    buffered += decoder.decode();
-    if (buffered) onLine(buffered);
-    reader.releaseLock();
-  }
-};
-
-const readText = async (
-  stream: ReadableStream<Uint8Array>,
-): Promise<string> => {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let text = "";
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      text += decoder.decode(value, { stream: true });
-    }
-  } finally {
-    text += decoder.decode();
-    reader.releaseLock();
-  }
-
-  return text;
-};
-
 const usefulStderr = (stderr: string): string =>
   stderr
     .split(/\r?\n/)
@@ -569,10 +520,10 @@ export const runCompactDenoTest = async (
     hideProgress: Boolean(options.env.CI || options.env.GITHUB_ACTIONS),
   });
 
-  const stdoutTask = readLines(child.stdout, (line) =>
+  const stdoutTask = readStream(child.stdout, (line) =>
     reporter.consumeLine(line),
   );
-  const stderrTask = readText(child.stderr);
+  const stderrTask = readStream(child.stderr);
   const status = await child.status;
   await stdoutTask;
   const stderrText = await stderrTask;

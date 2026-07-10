@@ -57,6 +57,10 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
       // Easy is set on one listing; Hard on none.
       expect(html).toContain('<td class="col-quantity">1</td>');
       expect(html).toContain('<td class="col-quantity">0</td>');
+      // The attribute's own delete action stays on its detail page.
+      expect(html).toContain(
+        `<a class="danger" href="/admin/attributes/${attribute.id}/delete">`,
+      );
     });
 
     test("lists each listing using the attribute with its selected options", async () => {

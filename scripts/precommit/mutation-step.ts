@@ -56,7 +56,7 @@
  * `scripts/precommit-mutation.ts` wires in the real implementations.
  */
 
-import type { RunCommand } from "./merge-warning.ts";
+import type { RunCommand } from "./git.ts";
 
 /** A changed-source count above this almost certainly means the local base ref
  *  is stale (the merge-base fell far back), not a real change set — so the gate

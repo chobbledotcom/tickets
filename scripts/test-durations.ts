@@ -18,9 +18,10 @@
  * they locate the slow area without losing either signal — so no test slower
  * than the threshold is ever dropped.
  */
-import { dirname, isAbsolute, join, relative } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { filter, mapNotNullish, pipe, sort } from "#fp";
+import { toDisplayPath } from "./project-root.ts";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(SCRIPT_DIR, "..");
@@ -66,12 +67,6 @@ const toDurationMs = (time: string | undefined): number | undefined => {
 const isUserFile = (classname: string): boolean =>
   !/^(?:ext:|https?:|node:)/.test(classname);
 
-const toDisplayPath = (file: string): string => {
-  if (!isAbsolute(file)) return file.replace(/^\.\//, "");
-  const rel = relative(PROJECT_ROOT, file);
-  return rel.startsWith("..") ? file : rel;
-};
-
 /** Parse JUnit XML into per-test durations (one entry per `<testcase>`). */
 export const parseJunitDurations = (xml: string): TestDuration[] =>
   mapNotNullish<RegExpMatchArray, TestDuration>((match) => {
@@ -81,7 +76,9 @@ export const parseJunitDurations = (xml: string): TestDuration[] =>
     if (name === undefined || durationMs === undefined) return undefined;
     const classname = attrs.classname;
     const file =
-      classname && isUserFile(classname) ? toDisplayPath(classname) : "";
+      classname && isUserFile(classname)
+        ? toDisplayPath(PROJECT_ROOT, classname)
+        : "";
     const lineText = attrs.line;
     const line = lineText ? Number(lineText) : undefined;
     return { durationMs, file, line, name };

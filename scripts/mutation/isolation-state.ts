@@ -13,7 +13,9 @@ import {
   resolve,
   SEPARATOR,
 } from "@std/path";
+import { rethrowUnlessNotFound } from "../not-found.ts";
 import { projectRoot } from "../project-root.ts";
+import { denoExitCode } from "./child-process.ts";
 
 export const MUTATION_RUNS_DIR = ".mutation-runs";
 export const MUTATION_WORK_DIR = "work";
@@ -305,7 +307,7 @@ export const readRunRecords = async (
       }
     }
   } catch (error) {
-    if (!(error instanceof Deno.errors.NotFound)) throw error;
+    rethrowUnlessNotFound(error);
   }
   return records.sort((left, right) =>
     right.createdAt.localeCompare(left.createdAt),
@@ -420,17 +422,11 @@ try {
 }
 `;
 
-const lockProbeExitCode = async (
-  path: string,
-  timeoutMs: number,
-): Promise<number> => {
-  const { code } = await new Deno.Command(Deno.execPath(), {
-    args: ["eval", LOCK_PROBE_SCRIPT, "--", path, String(timeoutMs)],
+const lockProbeExitCode = (path: string, timeoutMs: number): Promise<number> =>
+  denoExitCode(["eval", LOCK_PROBE_SCRIPT, "--", path, String(timeoutMs)], {
     stderr: "null",
     stdout: "null",
-  }).output();
-  return code;
-};
+  });
 
 export const runLockIsHeld = async (
   record: Pick<MutationRunRecord, "root">,

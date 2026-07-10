@@ -272,8 +272,9 @@ describeWithEnv(
             { confirm_identifier: "Duo Buyer" },
           );
           expect(response.status).toBe(302);
-          // Allow the fire-and-forget webhook to dispatch.
-          await new Promise((resolve) => setTimeout(resolve, 0));
+          // No wait needed: handleRequest flushes pending work (the
+          // fire-and-forget webhook) in its finally before returning the
+          // response, so the dispatch has already completed by here.
           expect(webhookFetch.calls.length).toBe(1);
           const [, options] = webhookFetch.calls[0]!.args as [
             string,

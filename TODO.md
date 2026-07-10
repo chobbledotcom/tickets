@@ -215,24 +215,6 @@ descriptors — PRs #1478 and others). A weak-assertion audit script also exists
 
 ---
 
-## server-attendees test split — assertion-strength follow-ups
-
-*Origin: PR #1681 (split the 3674-line `server-attendees.test.ts` into 12 themed
-files). CodeRabbit reviewed the split and flagged five pre-existing weaknesses
-in tests that were relocated verbatim from the original monolith. The PR's scope
-was pure relocation + cpd dedup (the task explicitly required "do NOT change what
-any test asserts"), so these were left untouched and tracked here instead. Each is
-a small, isolated assertion-strength improvement.*
-
-- **`resend-notification.test.ts` — `setTimeout(resolve, 0)` is race-prone.** The
-  "a package member's resend rehydrates every line" test waits for the
-  fire-and-forget webhook with a zero-delay timer, which is scheduler-dependent
-  and can race the dispatch. Expose/await a completion signal from the test helper
-  or make the fetch stub resolve through a deferred promise, then await it
-  deterministically before asserting the payload. (Original monolith line 2040.)
-
----
-
 ## Settings on-demand loading — generation counter
 
 *Origin: `settings-plan.md`.*
