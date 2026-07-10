@@ -38,7 +38,7 @@ import {
   toLinkedItemOptions,
 } from "#templates/components/linked-items.tsx";
 import {
-  ReorderCell,
+  ReorderLinkRow,
   ReorderTable,
   reorderLinkTableAt,
 } from "#templates/components/reorder-table.tsx";
@@ -211,25 +211,19 @@ export const adminQuestionPage = (
               orderLabel={t("questions.order_column")}
             >
               {question.answers.map((a, i) => (
-                <tr>
-                  <ReorderCell
-                    action={(d) =>
-                      `/admin/questions/${question.id}/answers/${a.id}/move-${d}`
-                    }
-                    count={question.answers.length}
-                    index={i}
-                  />
-                  <td>
-                    <a
-                      href={`/admin/questions/${question.id}/answers/${a.id}/edit`}
-                    >
-                      {a.text}
-                    </a>
-                  </td>
+                <ReorderLinkRow
+                  action={(d) =>
+                    `/admin/questions/${question.id}/answers/${a.id}/move-${d}`
+                  }
+                  count={question.answers.length}
+                  href={`/admin/questions/${question.id}/answers/${a.id}/edit`}
+                  index={i}
+                  label={a.text}
+                >
                   <td class={colClass("quantity")}>
                     {answerCounts?.get(a.id) ?? 0}
                   </td>
-                </tr>
+                </ReorderLinkRow>
               ))}
             </ReorderTable>
           )}

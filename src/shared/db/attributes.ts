@@ -240,6 +240,31 @@ export const getAttributeIdsOrdered = async (): Promise<number[]> =>
 export const getAllAttributeOptionIds = async (): Promise<Set<number>> =>
   new Set(await queryIds("SELECT id FROM attribute_options"));
 
+/** The ids of the listings that selected each of an attribute's options,
+ * keyed by option id. Options no listing uses are absent from the map. */
+export const getAttributeOptionListingIds = async (
+  attributeId: number,
+): Promise<Map<number, number[]>> => {
+  const rows = await queryAll<{ listing_id: number; option_id: number }>(
+    `SELECT listingAttribute.option_id, listingAttribute.listing_id
+       FROM listing_attribute_options AS listingAttribute
+       JOIN attribute_options AS attributeOption
+         ON attributeOption.id = listingAttribute.option_id
+      WHERE attributeOption.attribute_id = ?
+      ORDER BY listingAttribute.option_id, listingAttribute.listing_id`,
+    [attributeId],
+  );
+  return new Map(
+    map(
+      ([optionId, optionRows]: [number, { listing_id: number }[]]) =>
+        [
+          optionId,
+          map((row: { listing_id: number }) => row.listing_id)(optionRows),
+        ] as const,
+    )([...Map.groupBy(rows, (row) => row.option_id)]),
+  );
+};
+
 export const assignNextAttributeSortOrder = async (
   attributeId: number,
 ): Promise<void> => {
