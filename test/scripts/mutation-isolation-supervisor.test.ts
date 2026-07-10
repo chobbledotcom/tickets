@@ -43,7 +43,7 @@ const failSnapshotRead = (reason: unknown) =>
     throw reason;
   }) as typeof Deno.readDir);
 
-const failSecondTextFileWrite = () => {
+const failTextFileWrites = (shouldFail: (writeNumber: number) => boolean) => {
   const writeTextFile = Deno.writeTextFile;
   let writes = 0;
   return stub(Deno, "writeTextFile", ((
@@ -52,25 +52,24 @@ const failSecondTextFileWrite = () => {
     options?: Deno.WriteFileOptions,
   ) => {
     writes += 1;
-    if (writes > 1) throw new Error("record write failed");
+    if (shouldFail(writes)) throw new Error("record write failed");
     return writeTextFile(path, data, options);
   }) as typeof Deno.writeTextFile);
 };
+
+const failOnlyThirdTextFileWrite = () =>
+  failTextFileWrites((writes) => writes === 3);
 
 const capturePlainSnapshotFailure = async (
   root: string,
   extraFailure: (() => Disposable) | null = null,
 ): Promise<Awaited<ReturnType<typeof captureConsole>>> => {
   using _readDir = failSnapshotRead(SNAPSHOT_FAILED);
-  const captureRun = () =>
-    captureConsole(() =>
-      runMutationInSnapshot(["src/a.ts", "test/a.test.ts"], root),
-    );
   if (extraFailure) {
     using _extraFailure = extraFailure();
-    return await captureRun();
+    return await captureSimpleSnapshotMutation(root);
   }
-  return await captureRun();
+  return await captureSimpleSnapshotMutation(root);
 };
 
 const waitForRunningRecord = async (
@@ -96,7 +95,61 @@ const readOnlyRunRecord = async (root: string): Promise<MutationRunRecord> => {
   return records[0]!;
 };
 
+const runSimpleSnapshotMutation = (root: string): Promise<number> =>
+  runMutationInSnapshot(["src/a.ts", "test/a.test.ts"], root);
+
+const captureSimpleSnapshotMutation = (
+  root: string,
+): ReturnType<typeof captureConsole> =>
+  captureConsole(() => runSimpleSnapshotMutation(root));
+
+const withCapturedStopChild = async (
+  run: (getStopChild: () => (() => void) | undefined) => Promise<void>,
+): Promise<void> => {
+  let stopChild: (() => void) | undefined;
+  using _addSignal = stub(Deno, "addSignalListener", ((_signal, listener) => {
+    stopChild = listener;
+  }) as typeof Deno.addSignalListener);
+  using _removeSignal = stub(
+    Deno,
+    "removeSignalListener",
+    (() => {}) as typeof Deno.removeSignalListener,
+  );
+
+  await run(() => stopChild);
+};
+
 type KillCall = { pid: number; signal: Deno.Signal | undefined };
+type DenoCommandShim = { Command: (...args: unknown[]) => unknown };
+
+const denoCommand = Deno as unknown as DenoCommandShim;
+const childCommand = (child: Deno.ChildProcess) =>
+  function fakeCommand(): { spawn: () => Deno.ChildProcess } {
+    return {
+      spawn: () => child,
+    };
+  };
+
+const controlledChild = (
+  pid: number,
+  onKill: (
+    signal: Deno.Signal | undefined,
+    finish: (status: Deno.CommandStatus) => void,
+  ) => void,
+) => {
+  let resolveStatus: (status: Deno.CommandStatus) => void = () => {};
+  const status = new Promise<Deno.CommandStatus>((resolve) => {
+    resolveStatus = resolve;
+  });
+  const child = {
+    kill: (signal?: Deno.Signal) => onKill(signal, resolveStatus),
+    pid,
+    ref: () => {},
+    status,
+  } as unknown as Deno.ChildProcess;
+
+  return { child, finish: resolveStatus };
+};
 
 describe("mutation isolation supervisor commands", () => {
   test("runs invalid, help, and empty list commands", async () => {
@@ -160,6 +213,30 @@ describe("mutation isolation supervisor commands", () => {
           ],
           result: 0,
         });
+      });
+    });
+  });
+
+  test("lists stale pid records without shelling out to kill", async () => {
+    await withTempDir(async (root) => {
+      const stale = markRunning(
+        newRunRecord("mutation-stale", [], root),
+        99_999_999,
+      );
+      await writeRunRecord(stale);
+
+      using _command = stub(denoCommand, "Command", function failCommand() {
+        throw new Error("unexpected external command");
+      });
+
+      const list = await captureMutationCommand(["--list"], root);
+
+      expect(list).toEqual({
+        errors: [],
+        logs: [
+          "mutation-stale stale pid=99999999 exit=- work=.mutation-runs/mutation-stale/work",
+        ],
+        result: 0,
       });
     });
   });
@@ -273,9 +350,7 @@ describe("mutation isolation supervisor commands", () => {
 
       using _addSignal = sendFirstSignalImmediately();
 
-      const run = await captureConsole(() =>
-        runMutationInSnapshot(["src/a.ts", "test/a.test.ts"], root),
-      );
+      const run = await captureSimpleSnapshotMutation(root);
       const record = await readOnlyRunRecord(root);
 
       expect(run.result).toBe(130);
@@ -316,14 +391,102 @@ describe("mutation isolation supervisor commands", () => {
 
   test("keeps the original failure when the failed record cannot be rewritten", async () => {
     await withTempDir(async (root) => {
-      const run = await capturePlainSnapshotFailure(
-        root,
-        failSecondTextFileWrite,
-      );
+      let copyFailed = false;
+      const failSnapshotReadAfterMarkingCopyFailed = (reason: unknown) =>
+        stub(Deno, "readDir", (() => {
+          copyFailed = true;
+          throw reason;
+        }) as typeof Deno.readDir);
+      const run = await (async () => {
+        using _readDir =
+          failSnapshotReadAfterMarkingCopyFailed(SNAPSHOT_FAILED);
+        using _writeTextFile = failTextFileWrites(() => copyFailed);
+
+        return await captureSimpleSnapshotMutation(root);
+      })();
       const record = await readOnlyRunRecord(root);
 
       expect(run).toMatchObject({ errors: [SNAPSHOT_FAILED], result: 1 });
       expect(record.status).toBe("copying");
+    });
+  });
+
+  test("stops the child when recording its pid fails", async () => {
+    await withTempDir(async (root) => {
+      await writeFakeMutationScript(root, "Deno.exit(0);\n");
+
+      const killCalls: (Deno.Signal | undefined)[] = [];
+      const process = controlledChild(42_424, (signal, finish) => {
+        killCalls.push(signal);
+        finish({ code: 143, signal: "SIGTERM", success: false });
+      });
+      using _command = stub(
+        denoCommand,
+        "Command",
+        childCommand(process.child),
+      );
+
+      using _writeTextFile = failOnlyThirdTextFileWrite();
+
+      const run = await captureSimpleSnapshotMutation(root);
+      const record = await readOnlyRunRecord(root);
+
+      expect(run.result).toBe(1);
+      expect(run.errors).toEqual(["record write failed"]);
+      expect(killCalls).toEqual([undefined]);
+      expect(record.status).toBe("failed");
+      expect(record.exitCode).toBe(1);
+    });
+  });
+
+  test("records interrupted when a running child exits after a signal", async () => {
+    await withTempDir(async (root) => {
+      await writeFakeMutationScript(root, "await new Promise(() => {});\n");
+
+      const originalKill = Deno.kill;
+      await withCapturedStopChild(async (getStopChild) => {
+        const run = captureSimpleSnapshotMutation(root);
+        const record = await waitForRunningRecord(root);
+
+        getStopChild()?.();
+        originalKill(record.pid!, "SIGKILL");
+        await run;
+
+        const finished = await readOnlyRunRecord(root);
+        expect(finished.status).toBe("interrupted");
+        expect(finished.exitCode).toBe(130);
+      });
+    });
+  });
+
+  test("records interrupted when the signalled child already stopped", async () => {
+    await withTempDir(async (root) => {
+      await writeFakeMutationScript(root, "Deno.exit(0);\n");
+
+      let killCalls = 0;
+      const process = controlledChild(42_425, () => {
+        killCalls += 1;
+        throw new Error("already stopped");
+      });
+      using _command = stub(
+        denoCommand,
+        "Command",
+        childCommand(process.child),
+      );
+
+      await withCapturedStopChild(async (getStopChild) => {
+        const run = captureSimpleSnapshotMutation(root);
+        await waitForRunningRecord(root);
+
+        getStopChild()?.();
+        process.finish({ code: 0, signal: null, success: true });
+
+        expect((await run).result).toBe(130);
+        expect(killCalls).toBe(1);
+        const finished = await readOnlyRunRecord(root);
+        expect(finished.status).toBe("interrupted");
+        expect(finished.exitCode).toBe(130);
+      });
     });
   });
 
@@ -332,41 +495,24 @@ describe("mutation isolation supervisor commands", () => {
       await writeFakeMutationScript(root, "await new Promise(() => {});\n");
 
       const originalKill = Deno.kill;
-      let stopChild: (() => void) | undefined;
-      const killCalls: KillCall[] = [];
-      using _addSignal = stub(Deno, "addSignalListener", ((
-        _signal,
-        listener,
-      ) => {
-        stopChild = listener;
-      }) as typeof Deno.addSignalListener);
-      using _removeSignal = stub(
-        Deno,
-        "removeSignalListener",
-        (() => {}) as typeof Deno.removeSignalListener,
-      );
-      using _kill = stub(Deno, "kill", ((pid, signal) => {
-        killCalls.push({ pid, signal });
-      }) as typeof Deno.kill);
       using _exit = stub(Deno, "exit", ((code) => {
         throw new Error(`exit ${code}`);
       }) as typeof Deno.exit);
+      await withCapturedStopChild(async (getStopChild) => {
+        const run = captureSimpleSnapshotMutation(root);
+        const record = await waitForRunningRecord(root);
 
-      const run = captureConsole(() =>
-        runMutationInSnapshot(["src/a.ts", "test/a.test.ts"], root),
-      );
-      const record = await waitForRunningRecord(root);
+        expect(getStopChild()).toBeDefined();
+        getStopChild()?.();
+        expect(() => getStopChild()?.()).toThrow("exit 130");
 
-      expect(stopChild).toBeDefined();
-      stopChild?.();
-      expect(() => stopChild?.()).toThrow("exit 130");
-      expect(killCalls).toEqual([
-        { pid: record.pid, signal: "SIGTERM" },
-        { pid: record.pid, signal: "SIGKILL" },
-      ]);
-
-      originalKill(record.pid!, "SIGKILL");
-      expect((await run).result).not.toBe(0);
+        try {
+          originalKill(record.pid!, "SIGKILL");
+        } catch {
+          // The supervisor may already have stopped it.
+        }
+        expect((await run).result).not.toBe(0);
+      });
     });
   });
 
@@ -383,9 +529,7 @@ describe("mutation isolation supervisor commands", () => {
       using _execPath = stub(Deno, "execPath", (() =>
         join(root, "missing-deno")) as typeof Deno.execPath);
 
-      const run = await captureConsole(() =>
-        runMutationInSnapshot(["src/a.ts", "test/a.test.ts"], root),
-      );
+      const run = await captureSimpleSnapshotMutation(root);
       const record = await readOnlyRunRecord(root);
 
       expect(run.result).toBe(1);

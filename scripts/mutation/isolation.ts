@@ -6,6 +6,7 @@
  */
 
 import { relative } from "@std/path";
+import { processExists, stopProcess, stopProcessNow } from "../process.ts";
 import { projectRoot } from "../project-root.ts";
 import {
   copyMutationSnapshot,
@@ -26,32 +27,29 @@ import {
   rewriteMutationArgs,
   runLockIsHeld,
   selectedRuns,
+  withMutationRunLock,
   writeRunRecord,
 } from "./isolation-state.ts";
-
-const processExists = async (pid: number): Promise<boolean> => {
-  const result = await new Deno.Command("kill", {
-    args: ["-0", String(pid)],
-    stderr: "null",
-    stdout: "null",
-  }).output();
-  return result.success;
-};
 
 const processBelongsToRun = async (
   record: MutationRunRecord,
 ): Promise<boolean> => {
   if (record.status !== "running" || record.pid === undefined) return false;
-  if (!(await processExists(record.pid))) return false;
+  if (!processExists(record.pid)) return false;
   return await runLockIsHeld(record);
 };
+
+const copyingRunStillActive = async (
+  record: MutationRunRecord,
+): Promise<boolean> =>
+  record.status === "copying" && (await runLockIsHeld(record));
 
 const runningProcessStillExists = async (
   record: MutationRunRecord,
 ): Promise<boolean> =>
   record.status === "running" &&
   record.pid !== undefined &&
-  (await processExists(record.pid));
+  processExists(record.pid);
 
 const liveRunIdSet = async (
   records: MutationRunRecord[],
@@ -65,8 +63,22 @@ const liveRunIdSet = async (
   return new Set(live.filter((id): id is string => id !== null));
 };
 
-const removeRun = async (record: MutationRunRecord): Promise<void> => {
-  await Deno.remove(record.root, { recursive: true }).catch(() => {});
+type RemoveRunResult =
+  | { record: MutationRunRecord; removed: true }
+  | { error: unknown; record: MutationRunRecord; removed: false };
+
+const removeRun = async (
+  record: MutationRunRecord,
+): Promise<RemoveRunResult> => {
+  try {
+    await Deno.remove(record.root, { recursive: true });
+    return { record, removed: true };
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) {
+      return { record, removed: true };
+    }
+    return { error, record, removed: false };
+  }
 };
 
 const cleanableRuns = async (
@@ -78,7 +90,7 @@ const cleanableRuns = async (
   const statuses = await Promise.all(
     records.map(async (record) => ({
       isActive:
-        record.status === "copying" ||
+        (await copyingRunStillActive(record)) ||
         (await runningProcessStillExists(record)),
       record,
     })),
@@ -143,11 +155,17 @@ export const runMutationInSnapshot = async (
   let interrupted = false;
   const stopChild = (): void => {
     if (interrupted) {
-      if (child) Deno.kill(child.pid, "SIGKILL");
+      if (child) stopProcessNow(child);
       Deno.exit(130);
     }
     interrupted = true;
-    if (child) Deno.kill(child.pid, "SIGTERM");
+    if (child) {
+      try {
+        child.kill();
+      } catch {
+        // It may already have exited.
+      }
+    }
   };
   const signals: Deno.Signal[] = ["SIGINT", "SIGTERM"];
   for (const signal of signals) {
@@ -158,17 +176,20 @@ export const runMutationInSnapshot = async (
     }
   }
 
-  let exitCode: number;
+  let exitCode = 1;
   try {
     console.log(`Creating isolated mutation run ${id}`);
     console.log(`Snapshot: ${relative(root, record.workRoot)}`);
-    await copyMutationSnapshot(root, record.workRoot);
-    if (interrupted) {
-      record = markInterrupted(record);
+    child = await withMutationRunLock(record.root, async () => {
       await writeRunRecord(record);
-      exitCode = 130;
-    } else {
-      child = new Deno.Command(Deno.execPath(), {
+      await copyMutationSnapshot(root, record.workRoot);
+      if (interrupted) {
+        record = markInterrupted(record);
+        await writeRunRecord(record);
+        exitCode = 130;
+        return null;
+      }
+      const spawned = new Deno.Command(Deno.execPath(), {
         args: childArgs(root, record.workRoot, args),
         cwd: record.workRoot,
         env: childEnv(id, record.root, record.workRoot),
@@ -176,18 +197,27 @@ export const runMutationInSnapshot = async (
         stdin: "inherit",
         stdout: "inherit",
       }).spawn();
-      record = markRunning(record, child.pid);
+      child = spawned;
+      record = markRunning(record, spawned.pid);
       await writeRunRecord(record);
-      console.log(`Mutation child pid ${child.pid}`);
+      console.log(`Mutation child pid ${spawned.pid}`);
+      return spawned;
+    });
 
+    if (child !== null) {
       const status = await child.status;
-      record = markFinished(record, status.code);
+      record = interrupted
+        ? markInterrupted(record)
+        : markFinished(record, status.code);
       await writeRunRecord(record);
-      exitCode = status.code;
+      exitCode = interrupted ? 130 : status.code;
     }
   } catch (error) {
+    if (child !== null) await stopProcess(child, 250).catch(() => {});
     exitCode = interrupted ? 130 : 1;
-    record = markFinished(record, exitCode);
+    record = interrupted
+      ? markInterrupted(record)
+      : markFinished(record, exitCode);
     await writeRunRecord(record).catch(() => {});
     console.error(error instanceof Error ? error.message : String(error));
   }
@@ -246,12 +276,31 @@ const cleanRuns = async (
     return 1;
   }
   const { removable, skipped } = await cleanableRuns(records);
-  await Promise.all(removable.map(removeRun));
-  for (const record of removable) console.log(`Removed ${record.id}.`);
+  const removeResults = await Promise.all(removable.map(removeRun));
+  const removed = removeResults
+    .filter(
+      (result): result is Extract<RemoveRunResult, { removed: true }> =>
+        result.removed,
+    )
+    .map(({ record }) => record);
+  const failed = removeResults.filter(
+    (result): result is Extract<RemoveRunResult, { removed: false }> =>
+      !result.removed,
+  );
+
+  for (const record of removed) console.log(`Removed ${record.id}.`);
+  for (const { error, record } of failed) {
+    console.error(
+      `Failed to remove ${record.id}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
   for (const record of skipped) {
     console.error(`Skipped active isolated mutation run ${record.id}.`);
   }
-  if (removable.length === 0) {
+  if (failed.length > 0) return 1;
+  if (removed.length === 0) {
     console.error(`No cleanable isolated mutation run matched ${target}.`);
     return 1;
   }

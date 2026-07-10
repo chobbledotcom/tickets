@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { pathExists } from "#test-utils/files.ts";
 import {
   copyMutationSnapshot,
@@ -25,10 +26,48 @@ import {
   writeRunRecord,
 } from "../../scripts/mutation/isolation-state.ts";
 import {
+  captureMutationCommand,
   runQuietMutationCommand,
   withTempDir,
   writeMovedRunRecord,
 } from "./mutation-isolation-helpers.ts";
+
+const cleanPassedRunWithRemoveError = async (
+  root: string,
+  error: unknown,
+): Promise<{
+  clean: Awaited<ReturnType<typeof captureMutationCommand>>;
+  passed: ReturnType<typeof markFinished>;
+}> => {
+  const passed = markFinished(newRunRecord("mutation-passed", [], root), 0);
+  await writeRunRecord(passed);
+
+  const remove = Deno.remove;
+  using _remove = stub(Deno, "remove", ((path, options) => {
+    if (String(path) === passed.root) return Promise.reject(error);
+    return remove(path, options);
+  }) as typeof Deno.remove);
+
+  const clean = await captureMutationCommand(
+    ["--clean", "mutation-passed"],
+    root,
+  );
+  return { clean, passed };
+};
+
+const expectCleanPassedRunRemovalFailure = async (
+  root: string,
+  error: unknown,
+): Promise<void> => {
+  const { clean, passed } = await cleanPassedRunWithRemoveError(root, error);
+
+  expect(clean).toEqual({
+    errors: ["Failed to remove mutation-passed: permission denied"],
+    logs: [],
+    result: 1,
+  });
+  expect(await pathExists(passed.root)).toBe(true);
+};
 
 describe("mutation isolation paths", () => {
   test("copies source-like files and skips git, reports, secrets, dbs, and generated assets", async () => {
@@ -321,6 +360,7 @@ describe("mutation isolation commands", () => {
   test("skips active runs during cleanup", async () => {
     await withTempDir(async (root) => {
       const copying = newRunRecord("mutation-copying", [], root);
+      const staleCopying = newRunRecord("mutation-stale-copying", [], root);
       const running = markRunning(
         newRunRecord("mutation-running", [], root),
         Deno.pid,
@@ -338,26 +378,72 @@ describe("mutation isolation commands", () => {
         status: "running" as const,
       };
       const passed = markFinished(newRunRecord("mutation-passed", [], root), 0);
-      for (const record of [copying, running, starting, stale, noPid, passed]) {
+      for (const record of [
+        copying,
+        staleCopying,
+        running,
+        starting,
+        stale,
+        noPid,
+        passed,
+      ]) {
         await writeRunRecord(record);
       }
 
       expect(
         await runQuietMutationCommand(["--clean", "mutation-starting"], root),
       ).toBe(1);
-      await withMutationRunLock(running.root, async () => {
-        expect(
-          await runQuietMutationCommand(["--clean", "mutation-running"], root),
-        ).toBe(1);
-        expect(await runQuietMutationCommand(["--clean", "all"], root)).toBe(0);
+      await withMutationRunLock(copying.root, async () => {
+        await withMutationRunLock(running.root, async () => {
+          expect(
+            await runQuietMutationCommand(
+              ["--clean", "mutation-running"],
+              root,
+            ),
+          ).toBe(1);
+          expect(await runQuietMutationCommand(["--clean", "all"], root)).toBe(
+            0,
+          );
+        });
       });
 
       expect(await pathExists(copying.root)).toBe(true);
+      expect(await pathExists(staleCopying.root)).toBe(false);
       expect(await pathExists(running.root)).toBe(true);
       expect(await pathExists(starting.root)).toBe(true);
       expect(await pathExists(stale.root)).toBe(false);
       expect(await pathExists(noPid.root)).toBe(false);
       expect(await pathExists(passed.root)).toBe(false);
+    });
+  });
+
+  test("reports cleanup removal failures", async () => {
+    await withTempDir(async (root) => {
+      await expectCleanPassedRunRemovalFailure(
+        root,
+        new Error("permission denied"),
+      );
+    });
+  });
+
+  test("treats missing run directories as already removed", async () => {
+    await withTempDir(async (root) => {
+      const { clean } = await cleanPassedRunWithRemoveError(
+        root,
+        new Deno.errors.NotFound("already gone"),
+      );
+
+      expect(clean).toEqual({
+        errors: [],
+        logs: ["Removed mutation-passed."],
+        result: 0,
+      });
+    });
+  });
+
+  test("reports cleanup removal failures from thrown values", async () => {
+    await withTempDir(async (root) => {
+      await expectCleanPassedRunRemovalFailure(root, "permission denied");
     });
   });
 });
