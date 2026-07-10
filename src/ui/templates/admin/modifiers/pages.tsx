@@ -33,6 +33,14 @@ import {
 } from "./links.tsx";
 import { modifierToFieldValues, ruleSummary } from "./values.ts";
 
+/** Render the modifier form inputs, building the field list once and threading
+ * it through both the value map and the renderer so a single page render does
+ * not reconstruct the fields (and re-run their picklist i18n) twice. */
+const renderModifierFormFields = (modifier?: Modifier): string => {
+  const fields = getModifierFields();
+  return renderFields(fields, modifierToFieldValues(modifier, fields));
+};
+
 /** The modifier guide link, rendered at the bottom of every modifier page. */
 const ModifiersGuideFooter = (): JSX.Element => (
   <GuideFooter href="/admin/guide#modifiers">
@@ -118,9 +126,7 @@ export const adminModifierNewPage = (
     <>
       <CsrfForm action="/admin/modifiers">
         <h1>{t("modifiers.add.heading")}</h1>
-        <Raw
-          html={renderFields(getModifierFields(), modifierToFieldValues())}
-        />
+        <Raw html={renderModifierFormFields()} />
         <SubmitButton icon="plus">{t("modifiers.add.submit")}</SubmitButton>
       </CsrfForm>
       <ModifiersGuideFooter />
@@ -150,12 +156,7 @@ export const adminModifierEditPage = (
       <CsrfForm action={`/admin/modifiers/${modifier.id}/edit`}>
         <h1>{t("modifiers.edit.heading")}</h1>
         <Flash error={error} success={success} />
-        <Raw
-          html={renderFields(
-            getModifierFields(),
-            modifierToFieldValues(modifier),
-          )}
-        />
+        <Raw html={renderModifierFormFields(modifier)} />
         <ModifierRunningTotalsSection modifier={modifier} />
         {SaveChangesButton()}
       </CsrfForm>
