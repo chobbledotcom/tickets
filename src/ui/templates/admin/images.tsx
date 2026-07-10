@@ -172,7 +172,9 @@ export const adminImagesPage = (
       ) : (
         storageDisabledNotice()
       )}
-      <GuideFooter href="/admin/guide#images">
+      {/* The images page is editor-reachable, but the guide is staff-only, so
+          gate the link by role — editors would otherwise get a 403. */}
+      <GuideFooter adminLevel={session.adminLevel} href="/admin/guide#images">
         {t("images.guide_link")}
       </GuideFooter>
     </>,
