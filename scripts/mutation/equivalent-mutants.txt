@@ -700,3 +700,4 @@ src/shared/db/contact-tokens.ts:289:18  ?? → ||    # `removedSource ?? sync.so
 src/shared/db/attendees/tokens.ts:159:45  ?? → ||    # resultsInTokenOrder: byTokenIndex.get() is Result|undefined; Result is AttendeeWithBookings or AttendeeBookingRows (always a truthy object), so ?? and || agree
 src/shared/db/attendees/tokens.ts:162:56  ?? → ||    # resultsInTokenOrder: tokenToResult.get() is Result|undefined; Result is always a truthy object (see 159), so ?? and || agree
 src/shared/db/attendees/tokens.ts:175:48  ?? → ||    # tokenResultMap: bookingsByAttendee.get() is Booking[]|undefined; an array is always truthy (even empty), so ?? and || agree
+src/shared/sentry.ts:49:32  ?? → ||    # getSentrySdk(): SentrySdk|null — a loaded module namespace object is always truthy, never falsy-but-non-null, so ?? and || agree

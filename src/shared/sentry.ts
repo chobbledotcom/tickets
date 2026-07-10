@@ -99,8 +99,10 @@ export const captureServerError = async (
 };
 
 /**
- * Tear down the SDK so the global client doesn't leak between test files.
- * No-op when the SDK was never loaded — it must not drag the module in.
+ * Detach the SDK's client so Sentry state doesn't leak between tests. No-op
+ * when the SDK was never loaded — it must not drag the module in. The loaded
+ * namespace itself stays cached: a re-import would return the identical
+ * module object, so dropping the reference could never be observed.
  * Production never calls this — the client lives for the process lifetime.
  */
 export const resetSentryForTest = (): void => {
@@ -112,5 +114,4 @@ export const resetSentryForTest = (): void => {
     Sentry.getIsolationScope(),
   ];
   for (const scope of scopes) scope.setClient(undefined);
-  setSentrySdk(null);
 };

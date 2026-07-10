@@ -1,12 +1,13 @@
 /**
  * Shared production request handler for the server entry points.
  *
- * Both the Bunny edge entry (`edge.ts`) and the Deno Deploy entry (`deploy.ts`)
- * wrap the router identically: boot the app once, run `handleRequest`, and turn
- * any unhandled error into a logged generic 503 rather than letting it crash the
- * isolate. Kept here so the two entry points share one implementation. Like the
- * other entry points (`edge.ts`, `index.ts`) it drives the live router/boot
- * path and is never imported by tests, so it carries no unit tests of its own.
+ * The Bunny edge entry (`edge.ts`), the Deno Deploy entry (`deploy.ts`), and
+ * the local dev entry (`index.ts`) all wrap the router identically: boot the
+ * app once, run `handleRequest`, and turn any unhandled error into a logged
+ * generic 503 rather than letting it crash the isolate. Kept here so every
+ * entry point shares one implementation — and so the boot/serve behaviour is
+ * unit-testable (`test/lib/serve-app.test.ts`) while the entry files stay
+ * logic-free one-liners.
  */
 
 import { once } from "#fp";
@@ -14,6 +15,7 @@ import { handleRequest } from "#routes";
 import { temporaryErrorResponse } from "#routes/response.ts";
 import { validateBootChecks } from "#shared/boot-checks.ts";
 import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
+import { getEnv } from "#shared/env.ts";
 import {
   ErrorCode,
   formatRequestError,
@@ -21,6 +23,9 @@ import {
   logError,
 } from "#shared/logger.ts";
 import { initSentry } from "#shared/sentry.ts";
+
+/** The port the local dev entry listens on: PORT when set, else 3000. */
+export const devServerPort = (): number => Number(getEnv("PORT") || 3000);
 
 const initialize = once((): Promise<boolean> => {
   validateBootChecks();
