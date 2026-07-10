@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { getDb, insert } from "#shared/db/client.ts";
+import { SLOT_INDEX } from "#shared/db/migrations/booking-slot-index.ts";
 import { assertLiveTableColumns } from "#shared/db/migrations/schema-assertions.ts";
 import {
   currentSchemaColumnsPresentIn,
@@ -89,7 +90,7 @@ describeWithEnv("db > migration verify", { db: true, triggers: true }, () => {
     // name-existence check cannot tell a landed widening from a stale pre-drop
     // definition that somehow survived. Simulate that survivor: same name,
     // pre-widening column list.
-    const slotIndex = "idx_listing_attendees_listing_attendee_start";
+    const slotIndex = SLOT_INDEX;
     await getDb().execute(`DROP INDEX IF EXISTS ${slotIndex}`);
     await getDb().execute(
       `CREATE UNIQUE INDEX ${slotIndex} ON listing_attendees ` +
@@ -140,10 +141,12 @@ describeWithEnv("db > migration verify", { db: true, triggers: true }, () => {
     ).toThrow("Unknown schema table missing_schema_table");
   });
 
-  test("runMigration ignores idempotent duplicate errors but rethrows real ones", async () => {
+  test("runMigration ignores idempotent duplicate-create errors", async () => {
     await runMigration("CREATE TABLE duplicate_probe (id TEXT)");
     await runMigration("CREATE TABLE duplicate_probe (id TEXT)");
+  });
 
+  test("runMigration rethrows non-idempotent errors", async () => {
     await expect(
       runMigration("SELECT * FROM missing_probe_table"),
     ).rejects.toThrow("missing_probe_table");
@@ -157,8 +160,9 @@ describeWithEnv("db > migration verify", { db: true, triggers: true }, () => {
   });
 
   test("tableRowCount returns the count for populated tables", async () => {
+    const before = await tableRowCount("listings");
     await seedSentinelListing();
-    expect(await tableRowCount("listings")).toBeGreaterThan(0);
+    expect(await tableRowCount("listings")).toBe(before + 1);
   });
 
   test("a migration's verify names a missing trigger it owns", async () => {

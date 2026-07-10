@@ -279,6 +279,12 @@ export type LegacyAggregateTriggerSpec = {
  * migration replaces. Each trigger body is built from the spec's
  * `contribution` so it mirrors the pre-migration database shape (triggers that
  * still reference the column the migration removes).
+ *
+ * The DROP TRIGGER statements are simple and batched together in one
+ * round-trip; the CREATE TRIGGER statements each run as an individual
+ * `execute()` because a compound `CREATE TRIGGER … BEGIN … END` carries
+ * internal semicolons that some libsql batch transports mis-split (see
+ * `schema-sync.ts`'s `recreateTable` for the same constraint in production).
  */
 export const installLegacyAggregateTriggers = async (
   spec: Pick<
@@ -308,11 +314,11 @@ END`,
   };
   const names = legacyAggregateTriggerNames(spec.triggerStem);
   await executeStatements(
-    names.flatMap((name) => [
-      `DROP TRIGGER IF EXISTS ${name}`,
-      `CREATE TRIGGER ${name} ${bodies[name]}`,
-    ]),
+    names.map((name) => `DROP TRIGGER IF EXISTS ${name}`),
   );
+  for (const name of names) {
+    await getDb().execute(`CREATE TRIGGER ${name} ${bodies[name]}`);
+  }
 };
 
 /**
