@@ -25,7 +25,7 @@
 
 import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
 import { buildEdgeBundle } from "../../edge-bundle-lib.ts";
-import { benchChildEnv } from "./child-env.ts";
+import { spawnChildJson } from "./spawn-child.ts";
 import {
   median,
   stripBase64Payloads,
@@ -113,26 +113,20 @@ const measureOnce = async (
     bundle,
   ];
   if (mode === "request") args.push("request");
-  const command = new Deno.Command(Deno.execPath(), {
+  // The 60s timeout is generous (a healthy run takes <1s): it only exists so
+  // a bundle whose top-level never resolves fails the run instead of
+  // blocking the whole benchmark.
+  return spawnChildJson<ChildTimings>(
     args,
-    clearEnv: true,
-    env: benchChildEnv({
+    {
       // A valid 32-byte key so the boot checks in "request" mode pass.
       DB_ENCRYPTION_KEY: encodeBase64(
         crypto.getRandomValues(new Uint8Array(32)),
       ),
-    }),
-    // A hung child (a bundle whose top-level never resolves) must fail the
-    // run, not block the whole benchmark. Generous: a healthy run takes <1s.
-    signal: AbortSignal.timeout(60_000),
-    stderr: "inherit",
-    stdout: "piped",
-  });
-  const { code, stdout } = await command.output();
-  if (code !== 0) {
-    throw new Error(`measure-import failed for ${bundle} (${mode} mode)`);
-  }
-  return JSON.parse(new TextDecoder().decode(stdout)) as ChildTimings;
+    },
+    60_000,
+    `measure-import of ${bundle} (${mode} mode)`,
+  );
 };
 
 type VariantReport = {

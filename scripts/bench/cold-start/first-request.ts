@@ -19,7 +19,7 @@
  */
 
 import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
-import { benchChildEnv } from "./child-env.ts";
+import { spawnChildJson } from "./spawn-child.ts";
 
 const LATENCIES_MS = [0, 25, 50, 100];
 // Matches what a real deploy bakes in; lets recordScriptVersion() behave
@@ -101,8 +101,10 @@ const runChild = async (
   latencyMs: number,
   env: Record<string, string>,
 ): Promise<ChildReport> => {
-  const command = new Deno.Command(Deno.execPath(), {
-    args: [
+  // The 120s timeout is generous (a healthy run takes a few seconds even at
+  // the highest latency): a hung child must fail the sweep, not stall it.
+  const report = await spawnChildJson<ChildReport>(
+    [
       "run",
       "--quiet",
       "--no-check",
@@ -110,17 +112,10 @@ const runChild = async (
       "scripts/bench/cold-start/first-request-child.ts",
       String(latencyMs),
     ],
-    clearEnv: true,
-    env: benchChildEnv(env),
-    // A hung child must fail the sweep, not stall it forever. Generous: a
-    // healthy run finishes in a few seconds even at the highest latency.
-    signal: AbortSignal.timeout(120_000),
-    stderr: "inherit",
-    stdout: "piped",
-  });
-  const { code, stdout } = await command.output();
-  if (code !== 0) throw new Error(`child failed for latency ${latencyMs}ms`);
-  const report = JSON.parse(new TextDecoder().decode(stdout)) as ChildReport;
+    env,
+    120_000,
+    `first-request child at ${latencyMs}ms latency`,
+  );
   requireHealthyStatus(report.firstStatus, `cold request at ${latencyMs}ms`);
   requireHealthyStatus(report.secondStatus, `warm request at ${latencyMs}ms`);
   return report;

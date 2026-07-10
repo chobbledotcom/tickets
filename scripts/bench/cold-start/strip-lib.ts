@@ -57,14 +57,17 @@ export const stripLongStrings = (
   minChars: number,
 ): StripResult => {
   const stripped: StrippedPayload[] = [];
-  let out = "";
+  // Collect whole segments and join once — the input is a multi-MB bundle,
+  // so per-character appends would churn millions of tiny strings.
+  const parts: string[] = [];
   let i = 0;
+  let segmentStart = 0;
   while (i < code.length) {
     if (code[i] !== '"') {
-      out += code[i];
       i++;
       continue;
     }
+    parts.push(code.slice(segmentStart, i));
     // Scan from the opening quote to its matching unescaped closing quote.
     let j = i + 1;
     while (j < code.length && code[j] !== '"') {
@@ -73,13 +76,15 @@ export const stripLongStrings = (
     const literal = code.slice(i, j + 1);
     if (j < code.length && literal.length - 2 >= minChars) {
       stripped.push({ lengthChars: literal.length - 2, startIndex: i });
-      out += '""';
+      parts.push('""');
     } else {
-      out += literal;
+      parts.push(literal);
     }
     i = j + 1;
+    segmentStart = i;
   }
-  return { code: out, stripped };
+  parts.push(code.slice(segmentStart));
+  return { code: parts.join(""), stripped };
 };
 
 /** Total characters removed by a strip pass. */
