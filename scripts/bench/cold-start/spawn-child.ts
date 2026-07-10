@@ -1,13 +1,7 @@
 /**
- * Shared child-process runner for the cold-start benchmarks.
- *
- * Both drivers measure by spawning fresh Deno processes and parsing one JSON
- * line from stdout. The child runs with a cleared environment plus a small
- * whitelist, so a variable in the operator's shell (SENTRY_URL,
- * MAIN_INSTANCE_KEY, ...) cannot change what the measured process boots or
- * serves — only what Deno itself needs to find its module caches is
- * inherited. A hung child is killed by the timeout and fails the run with
- * its label, instead of blocking the whole benchmark.
+ * Shared child runner: spawn a fresh Deno process, parse one JSON line.
+ * Cleared environment + small whitelist so the operator's shell cannot
+ * change what the measured process boots; a hung child times out loudly.
  */
 
 const INHERITED_KEYS = ["HOME", "PATH", "DENO_DIR", "DENO_TLS_CA_STORE"];

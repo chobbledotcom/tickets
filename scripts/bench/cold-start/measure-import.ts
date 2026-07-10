@@ -1,13 +1,7 @@
 /**
- * Child process for the bundle-load benchmark.
- *
- * Imports the given bundle in a fresh process and reports how long the
- * import took (parse + compile + top-level evaluation). With a second
- * "request" argument it also serves one static request (`/robots.txt` —
- * chosen because it never touches the database) to time the extra lazy
- * module evaluation a first request pays.
- *
- * Prints a single JSON line so the driver can parse the result.
+ * Child for the bundle-load benchmark: imports the given bundle fresh and
+ * reports the time; with a "request" argument also serves /robots.txt once
+ * (never touches the database). Prints one JSON line.
  */
 
 import { toFileUrl } from "@std/path";

@@ -126,9 +126,8 @@ const API_PATH_PATTERN = /^\/api\//;
 const WALLET_WEBSERVICE_PATTERN = /^\/v1\//;
 
 /**
- * Check if path is a JSON API endpoint. The patterns live here, next to the
- * check, so this always-loaded middleware never drags route modules (and
- * their templates) into the boot path just for a regex.
+ * Check if path is a JSON API endpoint. The patterns live here so this
+ * always-loaded middleware never drags route modules into boot for a regex.
  */
 export const isJsonApiPath = (path: string): boolean =>
   SCAN_API_PATTERN.test(path) ||

@@ -80,12 +80,9 @@ export const currentVersion = async (): Promise<number> =>
 /** Start fetching the settings version as early as possible in a request, so
  *  the tiny query overlaps the rest of request setup; loadKeys awaits it. */
 export const prefetchVersion = (): void => {
-  // Fired before the schema state check, which may legitimately find the
-  // database not ready (fresh install) — drop the failure here; loadKeys
-  // re-fetches and surfaces any real error on its own await. Registered as
-  // pending work so a request that never reaches loadKeys (e.g. the
-  // not-activated page) still settles the probe before responding — Bunny
-  // kills fetches that outlive the response.
+  // Failure dropped (a fresh install has no settings table; loadKeys
+  // re-fetches). Pending work so early returns that skip loadKeys still
+  // settle the probe before responding — Bunny kills post-response fetches.
   addPendingWork(versionProbe.getAll().catch(() => {}));
 };
 

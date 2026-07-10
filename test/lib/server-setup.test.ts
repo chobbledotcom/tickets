@@ -97,11 +97,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
       });
 
       test("the not-activated response waits for the version prefetch to settle", async () => {
-        // A request to an unactivated site never reaches loadKeys, so the
-        // version prefetch must be settled by the pending-work flush before
-        // the 503 goes out — a query still in flight after the response is
-        // killed by the edge runtime. The harness withholds the probe; the
-        // response must not be produced while it is pending.
+        // An unactivated site never reaches loadKeys, so the pending-work
+        // flush must settle the prefetch before the 503 goes out (the edge
+        // runtime kills queries that outlive the response).
         await resetToBrandNewDatabase();
 
         const real = getDb();
@@ -142,12 +140,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
       });
 
       test("does not probe the settings version before setup bootstraps the schema", async () => {
-        // The request pipeline prefetches the settings version so its round
-        // trip overlaps the schema probe — but on a setup path the settings
-        // table may not exist yet, and the request cache would share the
-        // prefetch's still-pending failure with the loadKeys read that
-        // renders the page. The version probe must not run until initDb has
-        // bootstrapped the schema.
+        // On a setup path the settings table may not exist yet, and the
+        // request cache would share a still-pending probe failure with the
+        // loadKeys read that renders the page.
         await resetToBrandNewDatabase();
 
         const seen: string[] = [];

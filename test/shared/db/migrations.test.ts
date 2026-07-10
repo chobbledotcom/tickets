@@ -170,11 +170,8 @@ describeWithEnv("db > migrations", { db: true }, () => {
     });
 
     test("initDb does not re-baseline over an orphaned history row", async () => {
-      // A restored backup may carry a schema_migrations row for a
-      // historically renamed migration id. The boot probe must count only
-      // current ids: counting the orphan too would make the totals disagree
-      // forever, sending every cold boot down the baseline-reconcile path
-      // and paying its extra round trips for nothing.
+      // A restored backup may carry a row for a renamed migration id;
+      // counting it would send every cold boot down the baseline reconcile.
       await getDb().execute({
         args: ["2020-01-01_renamed_away_long_ago", "orphan", "2020-01-01"],
         sql: "INSERT INTO schema_migrations (id, description, applied_at) VALUES (?, ?, ?)",

@@ -1,18 +1,9 @@
 /**
- * Pure helpers for the bundle-load benchmark.
- *
- * The benchmark builds "what if" variants of the production bundle with the
- * huge inlined string payloads emptied out, so we can measure how much V8
- * parse/compile time those strings cost on a cold start. The variants are
- * only ever *loaded* (never asked to encode an image), so emptying the
- * payloads keeps the bundle loadable while removing the bytes.
- *
- * Only the base64 WASM blobs are stripped from the built output — their
- * charset makes the match unambiguous. The inlined client assets are
- * emptied at *build* time instead (`emptyInlinedAssets` in the bundle
- * pipeline), because reliably finding arbitrary string literals in minified
- * JS would need a real lexer (a regex literal containing a double quote is
- * enough to fool anything simpler).
+ * Pure helpers for the bundle-load benchmark's "what if" variants (big
+ * inlined strings emptied, bundle still loadable). Only base64 WASM blobs
+ * are stripped from built output — their charset is unambiguous; inlined
+ * client assets are emptied at build time (`emptyInlinedAssets`) instead,
+ * since finding arbitrary literals in minified JS needs a real lexer.
  */
 
 /** One replaced string payload: where it sat and how big it was. */

@@ -371,14 +371,9 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
       expect(restored!.name).toBe("Restore Me");
     });
 
-    /**
-     * Hold the boot marker read (the `WHERE key IN (?, ?)` probe carrying
-     * `current_script_version`) back like a slow production round trip: its
-     * result is withheld until the restore replay is seen starting, or a
-     * grace period passes — with the pre-restore flush in place nothing else
-     * ever releases it, so the timer stands in for a settled round trip.
-     * Returns a restore function.
-     */
+    /** Withhold the boot marker read's result — a slow production round
+     *  trip — until the restore replay starts (or a grace timer, since the
+     *  pre-restore flush leaves nothing else to release it). */
     const delayMarkerReadUntilReplay = (): (() => void) => {
       const real = getDb();
       let release = (): void => {};
@@ -416,13 +411,9 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
     };
 
     test("a deploy's first request cannot clobber the commit a restore reports", async () => {
-      // The exact broken condition: the isolate's first request after a NEW
-      // deploy is the restore-confirm POST. initDb queues
-      // recordScriptVersion() as pending work, and because the running
-      // commit changed it will WRITE; if that write is still in flight when
-      // restoreFromZip replaces the data, it lands afterwards and stamps the
-      // running commit over the restored one — the flash then tells the
-      // operator to redeploy the wrong commit.
+      // A new deploy's first request IS the restore POST: initDb's queued
+      // marker write, still in flight when the replay runs, would land after
+      // it and stamp the running commit over the restored one.
       const backupSha = "0123456789abcdef0123456789abcdef01234567";
       const deploySha = "89abcdef0123456789abcdef0123456789abcdef";
       setBuildCommitForTest(backupSha);
@@ -443,9 +434,8 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
               confirm_identifier: RESTORE_CONFIRM_PHRASE,
             },
           );
-          // The restored commit survives the restore request itself; only
-          // the NEXT request's initDb legitimately restamps the running
-          // build (which is why this is read before following the redirect).
+          // Read before the follow-up request, whose initDb legitimately
+          // restamps the running build.
           expect(await readRecordedScriptCommit()).toBe(backupSha);
           await expectFlashRedirect(
             "/admin/login",

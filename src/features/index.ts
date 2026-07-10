@@ -628,11 +628,9 @@ const prepareRequestEnvironment = async (
   if (method === "GET" && getPrefix(path) === "admin") enableQueryLog();
 
   // Load only the settings this route needs (infra ∪ prefix bundle) in one
-  // targeted query. The version probe was prefetched before the database
-  // state check, so on a cold boot its round trip has already overlapped
-  // that work by the time loadKeys awaits it. When the settings version is
-  // unchanged since this isolate last loaded, the cached snapshot is reused
-  // with no reload or decryption.
+  // targeted query, awaiting the version probe prefetched in processRequest.
+  // When the version is unchanged since this isolate last loaded, the cached
+  // snapshot is reused with no reload or decryption.
   await settings.loadKeys(settingsForPath(path));
 
   // Schedule DB pruning as fire-and-forget pending work. Each prune task
@@ -781,21 +779,17 @@ const processRequest = async (
     // prepareRequestEnvironment() refines this once settings are loaded.
     seedEffectiveDomainHost(url.href);
 
-    // A tracked URL is answered by a pure redirect — no settings, no
-    // database. Handle it before the version prefetch and initDb: a
-    // prefetch started here would be a query nothing ever awaits, still in
-    // flight when the response returns (Bunny kills post-response fetches).
+    // A tracked URL is a pure redirect: answer it before the prefetch and
+    // initDb so the request touches the database not at all.
     const trackingRedirect = trackingParamRedirect(url, method);
     if (trackingRedirect) {
       return finish(trackingRedirect);
     }
 
-    // Kick off the settings-version probe now so its round trip overlaps the
-    // schema state check below — on a cold boot both must happen before
-    // routing, and neither depends on the other. Setup paths must not probe:
-    // there the settings table may not exist until initDb bootstraps it, and
-    // the request cache would share the probe's still-pending failure with
-    // the post-bootstrap loadKeys read, failing the first setup page.
+    // Start the settings-version probe so its round trip overlaps the schema
+    // state check below. Not on setup paths: the settings table may not
+    // exist until initDb bootstraps it, and the request cache would share
+    // the probe's still-pending failure with the post-bootstrap loadKeys.
     if (!isSetupPath(path)) {
       settings.prefetchVersion();
     }

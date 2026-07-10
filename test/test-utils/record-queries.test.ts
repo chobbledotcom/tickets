@@ -1,9 +1,5 @@
-/**
- * recordQueries wraps the live db client, so every call shape the client
- * supports must record correctly and forward to the real client — a shape
- * the proxy mishandled would silently corrupt the exact-query assertions
- * that depend on it (cold-boot chain, orphan-history, setup-prefetch).
- */
+/** Every client call shape must record and forward correctly — a mishandled
+ *  shape would silently corrupt the exact-query assertions built on this. */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";

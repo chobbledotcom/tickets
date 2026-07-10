@@ -12,12 +12,9 @@ export type DbCallHooks = {
   batch: (statements: InStatement[]) => void;
 };
 
-/**
- * Swap the db client for a proxy that lets a test observe or intercept
- * statements — including raw boot-path queries that bypass the tracked
- * client helpers. Everything else forwards to the real client (plain values
- * as-is, methods bound so they keep working). Returns a restore function.
- */
+/** Swap the db client for a proxy that observes or intercepts statements
+ *  (including raw boot-path queries); everything else forwards to the real
+ *  client. Returns a restore function. */
 export const wrapDbClient = (hooks: DbCallHooks): (() => void) => {
   const real = getDb();
   setDb(
@@ -44,11 +41,8 @@ export const wrapDbClient = (hooks: DbCallHooks): (() => void) => {
   return () => setDb(real);
 };
 
-/**
- * Wrap the current db client so every statement lands in `seen` (whitespace
- * collapsed; batches recorded as one `batch[a | b]` entry). Returns a restore
- * function. Tests use this to assert exactly which queries an operation runs.
- */
+/** Record every statement into `seen` (whitespace collapsed; batches as one
+ *  `batch[a | b]` entry). Returns a restore function. */
 export const recordQueries = (seen: string[]): (() => void) => {
   const record = (sql: string): void => {
     seen.push(sql.replace(/\s+/g, " "));

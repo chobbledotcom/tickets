@@ -125,19 +125,11 @@ const readSettingMarker = async (key: string): Promise<string> =>
   (await readSettingMarkers([key])).get(key) ?? "";
 
 /**
- * Record the running build's version *and* commit into this database's
- * `settings` table so a parent host can read them back — both which
- * release we are on and which commit it was built from. The commit is what a
- * backup carries so a restore can redeploy that exact point in time.
- *
- * Runs on every isolate boot, so the steady-state path costs one read round
- * trip: both markers are checked in a single query, and writes only happen
- * when a value actually changed. A built bundle without an embedded commit
- * (e.g. `deno task deploy:edge`, which doesn't set BUILD_COMMIT) must *clear*
- * a previously-recorded commit — a stale one would mislead a later
- * backup/restore — while a dev/source boot (no build timestamp either) never
- * wipes a remote DB's commit and does no work at all.
- * Best-effort: any failure is logged and swallowed so it can never block boot.
+ * Record the running build's version and commit into settings so a parent
+ * host (or a backup) can read them back. Runs on every isolate boot: one
+ * combined marker read, writes only on change. A built bundle without an
+ * embedded commit must clear a stale one; a dev boot (no build timestamp
+ * either) does nothing. Best-effort — failures are logged, never block boot.
  */
 export const recordScriptVersion = async (): Promise<void> => {
   try {
@@ -160,10 +152,8 @@ export const recordScriptVersion = async (): Promise<void> => {
         : null,
     ]);
     if (changes.length > 0) {
-      // These plaintext markers never live in the settings snapshot, and
-      // this runs *concurrently* with the request — the normal write path
-      // would fire the settings invalidation hook and wipe the snapshot the
-      // request just loaded.
+      // Runs concurrently with the request; the normal write path would
+      // wipe the settings snapshot the request just loaded.
       await executeBatchWithoutCacheInvalidation(
         changes.map(([key, value]) => ({
           args: [key, value],

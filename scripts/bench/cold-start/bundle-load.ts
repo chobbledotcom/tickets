@@ -1,24 +1,10 @@
 /**
- * Cold-start benchmark 1: what does *loading* the production bundle cost?
- *
- * Bunny Edge Scripting (and Deno Deploy) pay this on every isolate cold
- * start: parse + compile + top-level evaluation of the single-file bundle.
- * This benchmark builds the production pipeline's bundle for the shared
- * request handler (`src/serve-app.ts` — the edge entry minus the BunnySDK
- * serve call, so importing it does not open a listener), plus variants with
- * the big inlined string payloads emptied, and times a fresh `deno run`
- * import of each:
- *
- *   hello        — a two-line handler; the Deno-process floor.
- *   full         — the real bundle, byte-for-byte the production pipeline.
- *   no-wasm      — WASM codec base64 blobs emptied (~1.4MB of the bundle).
- *   no-big-strings — WASM blobs AND inlined client JS/CSS assets emptied.
- *
- * Each run is a fresh process with `--no-code-cache`, so V8 cannot reuse a
- * compile from the previous run (a cold edge isolate cannot either). The
- * "request" mode also serves /robots.txt once — a static route that never
- * touches the database — to time the lazy module evaluation plus boot checks
- * a first request pays after import.
+ * Cold-start benchmark 1: the CPU cost of loading the production bundle
+ * (parse + compile + top-level eval), timed as fresh `--no-code-cache`
+ * `deno run` imports of the real bundle plus variants: `hello` (process
+ * floor), `full`, `no-wasm` (base64 blobs emptied), `no-big-strings`
+ * (inlined client assets emptied too). "Request" mode also serves
+ * /robots.txt once to time lazy evaluation + boot checks.
  *
  * Run with: deno run -A scripts/bench/cold-start/bundle-load.ts [--skip-build]
  */
@@ -41,8 +27,7 @@ const log = console.log.bind(console);
 const buildVariants = async (): Promise<void> => {
   await Deno.mkdir(OUT_DIR, { recursive: true });
 
-  // The real production pipeline (same plugins, minify, asset inlining) —
-  // only the entry point differs, so importing it starts no server.
+  // Real production pipeline; only the entry differs, so no server starts.
   await buildEdgeBundle({
     emit: async ({ content }) => {
       await Deno.writeTextFile(FULL, content);
@@ -53,8 +38,7 @@ const buildVariants = async (): Promise<void> => {
     outfile: "serve-app.js",
   });
 
-  // Same contents, but nothing evaluates until the first request — its
-  // import time is the parse/compile share of the full variant's.
+  // Same contents behind await import(): isolates the parse/compile share.
   await buildEdgeBundle({
     emit: async ({ content }) => {
       await Deno.writeTextFile(LAZY, content);
@@ -65,10 +49,8 @@ const buildVariants = async (): Promise<void> => {
     skipClientBuild: true,
   });
 
-  // The same pipeline with the inlined client assets emptied at build time —
-  // exact, unlike text surgery on the minified output, which a regex literal
-  // containing a double quote can throw off. Combined with the WASM strip
-  // below, this isolates what the big inlined string payloads cost.
+  // Inlined client assets emptied at build time (exact, unlike text surgery
+  // on minified JS); with the WASM strip this isolates the big strings' cost.
   await buildEdgeBundle({
     emit: async ({ content }) => {
       await Deno.writeTextFile(
@@ -123,13 +105,11 @@ const measureOnce = async (
     bundle,
   ];
   if (mode === "request") args.push("request");
-  // The 60s timeout is generous (a healthy run takes <1s): it only exists so
-  // a bundle whose top-level never resolves fails the run instead of
-  // blocking the whole benchmark.
+  // Generous timeout so a never-resolving bundle fails instead of blocking.
   return spawnChildJson<ChildTimings>(
     args,
     {
-      // A valid 32-byte key so the boot checks in "request" mode pass.
+      // Valid 32-byte key so "request" mode passes boot checks.
       DB_ENCRYPTION_KEY: encodeBase64(
         crypto.getRandomValues(new Uint8Array(32)),
       ),

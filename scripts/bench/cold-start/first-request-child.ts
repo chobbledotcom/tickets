@@ -1,15 +1,8 @@
 /**
- * Child process for the first-request benchmark.
- *
- * Simulates one freshly booted isolate handling its first request against an
- * already-migrated database. The parent prepared the database file; this
- * process wraps the libsql client so every statement pays a configurable
- * fake network delay (edge isolates talk to the database over HTTP, so each
- * round trip costs real latency in production), then serves `GET /` twice —
- * once cold, once warm — and prints the timings plus a per-query timeline as
- * a single JSON line.
- *
- * Usage (spawned by first-request.ts): first-request-child.ts <latencyMs>
+ * Child for the first-request benchmark: one freshly booted isolate against
+ * the parent's prepared database, every statement paying a fake network
+ * delay. Serves `GET /` twice (cold, warm) and prints timings + a per-query
+ * timeline as one JSON line. Usage: first-request-child.ts <latencyMs>
  */
 
 import {
@@ -36,8 +29,7 @@ import { serveHandler } from "#src/serve-app.ts";
 setSuppressDebugLogs(true);
 setSuppressRequestLogs(true);
 
-// Behave like a production build: carry the same build markers the parent
-// recorded, so recordScriptVersion() takes its steady-state read-only path.
+// Carry the parent's build markers: steady-state read-only boot path.
 const benchBuildIso = Deno.env.get("BENCH_BUILD_ISO");
 if (benchBuildIso) setBuildTimestampForTest(benchBuildIso);
 const benchBuildCommit = Deno.env.get("BENCH_BUILD_COMMIT");

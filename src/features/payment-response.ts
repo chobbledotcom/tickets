@@ -1,8 +1,7 @@
 /**
- * Payment-flow responses. These live apart from `response.ts` because they
- * pull in the payment templates (and through them the full page layout) —
- * `response.ts` is loaded on every isolate boot, while these are only needed
- * by the lazily-loaded payment routes.
+ * Payment-flow responses, split from the boot-loaded `response.ts` because
+ * they pull the payment templates (and full page layout) into the graph —
+ * only the lazily-loaded payment routes need them.
  */
 
 import { getIframeMode } from "#shared/iframe.ts";

@@ -1,13 +1,7 @@
 /**
- * Locks the cold-boot database chain measured in docs/cold-start.md.
- *
- * A fresh isolate serving its first request against an already-migrated
- * database pays for every boot query before it can respond, and any query
- * that waits for the previous one adds a full network round trip in
- * production. This test simulates that exact situation — warm database,
- * cold isolate — records every statement the request runs, and asserts the
- * complete set. A new boot query makes this fail loudly, so the cost is a
- * deliberate decision instead of an accident.
+ * Locks the cold-boot database chain measured in docs/cold-start.md: warm
+ * database, cold isolate — every statement of the first request is recorded
+ * and the complete set asserted, so a new boot query fails loudly.
  */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";

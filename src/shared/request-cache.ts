@@ -48,10 +48,8 @@ export const requestCache = <T>(
         resolve = res;
         reject = rej;
       });
-      // No later read may ever pick this promise up (a fire-and-forget
-      // prefetch whose request errors out before the next read), so observe
-      // it here — an unobserved rejection would kill the isolate. Readers
-      // that do await it still receive the failure.
+      // A fire-and-forget prefetch may leave this promise unobserved; an
+      // unobserved rejection would kill the isolate.
       promise.catch(() => {});
       store.set(key, promise);
       try {
@@ -62,9 +60,8 @@ export const requestCache = <T>(
         resolve(items);
         return items;
       } catch (error) {
-        // Readers sharing this promise get the failure, and the entry is
-        // removed so the next read within the request fetches fresh — a
-        // permanently cached rejection would wedge the whole request.
+        // Drop the entry so the next read fetches fresh — a cached
+        // rejection would wedge the whole request.
         if (store.get(key) === promise) store.delete(key);
         reject(error);
         throw error;

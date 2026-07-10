@@ -358,11 +358,10 @@ const runBatch = async (
 };
 
 /**
- * Execute write statements without firing the table-cache invalidation
- * hooks. Reserved for plaintext bookkeeping rows (the script-version
- * markers) that no cache or settings snapshot ever holds: they are written
- * concurrently with request work, and the normal write path would wipe the
- * settings snapshot the request just loaded for no benefit.
+ * Write without firing cache invalidation. Reserved for plaintext
+ * bookkeeping rows (script-version markers) no cache ever holds — written
+ * concurrently with requests, the normal path would wipe the settings
+ * snapshot the request just loaded.
  */
 export const executeBatchWithoutCacheInvalidation = async (
   statements: SqlStatement[],

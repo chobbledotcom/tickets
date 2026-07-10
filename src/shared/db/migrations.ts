@@ -181,12 +181,8 @@ const isMissingMigrationsTableError = missingTableError("schema_migrations");
 /** Everything the boot path needs to know, answered by one round trip. */
 type DbProbe = {
   state: DbState;
-  /**
-   * How many of the *current* migration ids schema_migrations records, or
-   * null when the table is missing. Counting only known ids keeps orphaned
-   * rows (historically renamed migrations, which a restored backup may
-   * legitimately carry) from making the count disagree forever.
-   */
+  /** Count of *current* migration ids recorded (orphaned rows from renamed
+   *  migrations are ignored), or null when the table is missing. */
   appliedMigrations: number | null;
 };
 
@@ -232,23 +228,16 @@ const runProbeQuery = async (
   }
 };
 
-/**
- * Probe fallback for when schema_migrations does not exist yet (SQLite
- * reports one missing table at a time, so settings may be missing too):
- * read the markers on their own so the caller can rebuild the history.
- */
+/** Probe fallback when schema_migrations doesn't exist (settings may be
+ *  missing too — SQLite reports one missing table at a time). */
 const probeWithoutHistory = (): Promise<DbProbe> =>
   runProbeQuery(SCHEMA_MARKERS_SQL, [], (values) => ({
     appliedMigrations: null,
     state: markerState(values),
   }));
 
-/**
- * Check database state (up-to-date, needs migration, or missing settings
- * table) and count the recorded migration history — in a single round trip,
- * because every isolate's first request pays for this before it can serve.
- * Only current migration ids are counted (see {@link DbProbe}).
- */
+/** Read the schema state AND count the recorded migration history in one
+ *  round trip — every isolate's first request pays for this. */
 const probeDbState = (): Promise<DbProbe> => {
   const ids = MIGRATIONS.map((migration) => migration.id);
   return runProbeQuery(
@@ -735,9 +724,8 @@ export const initDb = async (opts: InitDbOptions = {}): Promise<void> => {
   await initDbUncached(opts.allowMissingSettings ?? false);
   // Self-record the running build's version so a parent host can read it back.
   // Best-effort and once per isolate (initDb caches the ready client below).
-  // Inside a request it runs as pending work, so its round trip overlaps the
-  // rest of the request instead of gating the isolate's first response;
-  // callers outside a request scope (tests, CLI tools) still wait for it.
+  // Pending work inside a request (overlaps instead of gating the first
+  // response); callers outside a request scope still wait for it.
   const recorded = recordScriptVersion();
   if (hasPendingWorkScope()) {
     addPendingWork(recorded);
@@ -760,14 +748,9 @@ const requireAllowedInitialDbState = (
   }
 };
 
-/**
- * When the markers match this build the boot path is done — except that the
- * probe may have found the recorded migration history missing entries (a
- * restored database), in which case the baseline reconcile rebuilds it
- * first. This is why a steady-state boot no longer pays the reconcile's two
- * round trips: the probe already counted the rows. Returns true when the
- * database was up to date and has been handled.
- */
+/** Finish the boot path when the markers match this build; the baseline
+ *  reconcile runs only when the probe found the history incomplete (a
+ *  restored database), so a steady-state boot pays no extra round trips. */
 const finishIfUpToDate = async (probe: DbProbe): Promise<boolean> => {
   if (probe.state !== "up_to_date") return false;
   if (probe.appliedMigrations !== MIGRATIONS.length) {

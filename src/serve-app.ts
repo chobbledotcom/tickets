@@ -27,9 +27,8 @@ import { initSentry } from "#shared/sentry.ts";
 /** The port the local dev entry listens on: PORT when set, else 3000. */
 export const devServerPort = (): number => Number(getEnv("PORT") || 3000);
 
-/** Wait for the Sentry SDK (when configured), then log the boot as done.
- * performance.now() counts from process start, so the logged number is how
- * long the isolate spent booting before going live. */
+/** After Sentry init resolves, log the isolate's real boot time
+ *  (performance.now() counts from process start). */
 const logStartedAfter = async (
   sentryReady: Promise<boolean>,
 ): Promise<boolean> => {
@@ -39,8 +38,7 @@ const logStartedAfter = async (
 };
 
 const initialize = once((): Promise<boolean> => {
-  // Boot checks throw synchronously, before `once` memoizes anything, so a
-  // failed boot is retried on the next request rather than poisoning them all.
+  // Throws synchronously, before `once` memoizes — a failed boot is retried.
   validateBootChecks();
   // Start Sentry error reporting (no-op unless SENTRY_URL is configured).
   // Loads the SDK lazily; the returned promise is awaited before serving so

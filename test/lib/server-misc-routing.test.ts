@@ -599,10 +599,8 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
       });
 
       test("answers a tracked URL without touching the database", async () => {
-        // The redirect is pure URL work. It must run before the settings
-        // version prefetch and initDb: a prefetch started for a redirect is
-        // a query nothing awaits — still in flight when the response
-        // returns, where Bunny kills post-response fetches.
+        // The redirect is pure URL work; a prefetch started for it would be
+        // a query nothing awaits, in flight after the response returns.
         const seen: string[] = [];
         const restore = recordQueries(seen);
         try {

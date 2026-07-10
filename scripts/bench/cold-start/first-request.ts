@@ -1,19 +1,9 @@
 /**
- * Cold-start benchmark 2: how much of the first request is database round
- * trips?
- *
- * In production the edge isolate talks to the database over HTTP, so every
- * query costs a full network round trip — and any query that *waits* for the
- * previous one adds its whole latency to the first response. This benchmark
- * prepares a fully migrated, setup-complete database file, then spawns one
- * fresh child process per simulated latency. Each child wraps the libsql
- * client so every statement pays that latency, serves `GET /` twice (cold
- * isolate, then warm), and reports a per-query timeline.
- *
- * Reading the results:
- *   - The slope of "first request" against latency = the number of
- *     *sequential* round trips on the cold path (parallel queries share one).
- *   - The timeline for the slowest run shows exactly which queries chain.
+ * Cold-start benchmark 2: the first request's database round trips.
+ * Prepares a migrated, setup-complete database file, then per simulated
+ * latency spawns a fresh child whose libsql client delays every statement;
+ * the child serves `GET /` twice (cold, warm) and reports a query timeline.
+ * The slope of "first request" against latency = sequential round trips.
  *
  * Run with: deno run -A scripts/bench/cold-start/first-request.ts
  */
@@ -22,8 +12,7 @@ import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
 import { spawnChildJson } from "./spawn-child.ts";
 
 const LATENCIES_MS = [0, 25, 50, 100];
-// Matches what a real deploy bakes in; lets recordScriptVersion() behave
-// exactly as it does on a production cold boot (marker reads, no writes).
+// Fake deploy markers so recordScriptVersion() takes its steady-state path.
 const BUILD_ISO = "2026-01-01T00:00:00.000Z";
 const BUILD_COMMIT = "benchmark0";
 
@@ -31,8 +20,7 @@ const log = console.log.bind(console);
 
 /** Create and fully migrate a database file, then complete site setup. */
 const prepareDatabase = async (): Promise<void> => {
-  // Imports happen after DB_URL/DB_ENCRYPTION_KEY are set (see main), and
-  // dynamically so nothing reads the environment before it is ready.
+  // Dynamic imports: nothing may read the environment before main sets it.
   const { createClient } = await import("@libsql/client");
   const { setDb } = await import("#shared/db/client.ts");
   const { initDb } = await import("#shared/db/migrations.ts");
@@ -46,8 +34,7 @@ const prepareDatabase = async (): Promise<void> => {
     setBuildTimestampForTest,
   } = await import("#shared/update.ts");
 
-  // Speed up the one-off setup ceremony; the child never logs in, so the
-  // weaker prep-only hash and key size cannot affect the measurements.
+  // Weaker prep-only crypto; the child never logs in, so unmeasured.
   setFastPbkdf2ForTest(true);
   setRsaKeySizeForTest(1024);
   setSuppressDebugLogs(true);
@@ -57,16 +44,13 @@ const prepareDatabase = async (): Promise<void> => {
   await initDb({ allowMissingSettings: true });
   await settings.setup.complete("benchadmin", "bench-password-123", "GB");
 
-  // Record the fake build's markers, as the previous deploy of this build
-  // would have — the child's cold boot then takes the steady-state path.
+  // Stamp the markers as an earlier isolate of this deploy would have.
   setBuildTimestampForTest(BUILD_ISO);
   setBuildCommitForTest(BUILD_COMMIT);
   await recordScriptVersion();
 
-  // Serve one request here so the first-ever housekeeping (prune stamps,
-  // activity-log backfill markers) lands in prep, not in a measured child.
-  // Every child then measures the same steady state a production isolate
-  // sees: the site is live and some earlier isolate has already pruned.
+  // One warm-up request so first-ever housekeeping (prune stamps, backfill
+  // markers) lands in prep, not in a measured child.
   const { serveHandler } = await import("#src/serve-app.ts");
   const response = await serveHandler(new Request("http://localhost/"));
   await response.text();
@@ -101,8 +85,7 @@ const runChild = async (
   latencyMs: number,
   env: Record<string, string>,
 ): Promise<ChildReport> => {
-  // The 120s timeout is generous (a healthy run takes a few seconds even at
-  // the highest latency): a hung child must fail the sweep, not stall it.
+  // Generous timeout: a hung child must fail the sweep, not stall it.
   const report = await spawnChildJson<ChildReport>(
     [
       "run",
@@ -171,9 +154,8 @@ const main = async (): Promise<void> => {
     DB_URL: `file:${dir}/bench.db`,
   };
   for (const [key, value] of Object.entries(env)) Deno.env.set(key, value);
-  // The prep request runs in this parent process, which still sees the
-  // operator's shell. Drop the variables that would fail the boot checks or
-  // add network calls during prep (children get a clean env separately).
+  // Prep runs in this process: drop shell variables that would fail boot
+  // checks or add network calls (children get a clean env separately).
   for (const key of ["MAIN_INSTANCE_KEY", "SENTRY_URL"]) Deno.env.delete(key);
 
   try {
