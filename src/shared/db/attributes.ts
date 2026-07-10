@@ -5,7 +5,7 @@
  * ids only; display code resolves those ids back to ordered attribute groups.
  */
 
-import { map, reduce, unique } from "#fp";
+import { filter, map, reduce, unique } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import {
   executeBatch,
@@ -47,15 +47,12 @@ type AttributeOptionInput = {
   text: string;
 };
 
-const generatedId = col.generated<number>();
-const encryptedText = col.encrypted(encrypt, decrypt);
-
 export const attributesTable = defineTable<Attribute, AttributeInput>({
   name: "attributes",
   primaryKey: "id",
   schema: {
-    id: generatedId,
-    name: encryptedText,
+    id: col.generated<number>(),
+    name: col.encrypted(encrypt, decrypt),
     sort_order: col.withDefault(() => 0),
   },
 });
@@ -68,9 +65,9 @@ export const attributeOptionsTable = defineTable<
   primaryKey: "id",
   schema: {
     attribute_id: col.simple<number>(),
-    id: generatedId,
-    sort_order: col.withDefault(() => 0),
-    text: encryptedText,
+    id: col.generated<number>(),
+    sort_order: col.simple<number>(),
+    text: col.encrypted(encrypt, decrypt),
   },
 });
 
@@ -144,23 +141,23 @@ const decryptAttributeRows = async (
 ): Promise<DecryptedAttributeRows> => {
   const [attributes, options] = await Promise.all([
     Promise.all(
-      [
-        ...reduce(collectUniqueAttributes, new Map<number, Attribute>())(rows),
-      ].map(
-        async ([id, attribute]) =>
+      map(
+        async ([id, attribute]: [number, Attribute]) =>
           [id, await attributesTable.fromDb(attribute)] as const,
-      ),
+      )([
+        ...reduce(collectUniqueAttributes, new Map<number, Attribute>())(rows),
+      ]),
     ),
     Promise.all(
-      [
+      map(
+        async ([id, option]: [number, AttributeOption]) =>
+          [id, await attributeOptionsTable.fromDb(option)] as const,
+      )([
         ...reduce(
           collectUniqueOptions,
           new Map<number, AttributeOption>(),
         )(rows),
-      ].map(
-        async ([id, option]) =>
-          [id, await attributeOptionsTable.fromDb(option)] as const,
-      ),
+      ]),
     ),
   ]);
   return {
@@ -338,10 +335,10 @@ export const getSelectedAttributesForListings = async (
   const rows = await selectedOptionRows(unique(listingIds));
   const decrypted = await decryptAttributeRows(rows);
   return new Map(
-    [...selectedRowsForListing(rows)].map(
-      ([listingId, listingRows]) =>
+    map(
+      ([listingId, listingRows]: [number, JoinedAttributeRow[]]) =>
         [listingId, buildAttributeGroups(listingRows, decrypted)] as const,
-    ),
+    )([...selectedRowsForListing(rows)]),
   );
 };
 
@@ -354,4 +351,4 @@ export const setListingAttributeOptions = async (
 export const pruneInvalidAttributeOptionIds = (
   validOptionIds: Set<number>,
   optionIds: number[],
-): number[] => optionIds.filter((id) => validOptionIds.has(id));
+): number[] => filter((id: number) => validOptionIds.has(id))(optionIds);

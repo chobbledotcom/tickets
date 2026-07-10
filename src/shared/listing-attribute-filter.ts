@@ -1,4 +1,4 @@
-import { reduce } from "#fp";
+import { filter, flatMap, map, pipe, reduce } from "#fp";
 import type {
   AttributeOption,
   AttributeWithOptions,
@@ -7,7 +7,7 @@ import type {
 import type { ListingWithCount } from "#shared/types.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 
-export type AttributeFilterOption = Pick<
+type AttributeFilterOption = Pick<
   AttributeOption,
   "id" | "sort_order" | "text"
 >;
@@ -48,13 +48,15 @@ const addAttributeOptions = (
     options: new Map<number, AttributeFilterOption>(),
     sort_order: attribute.sort_order,
   };
-  for (const option of attribute.options) {
-    group.options.set(option.id, {
-      id: option.id,
-      sort_order: option.sort_order,
-      text: option.text,
-    });
-  }
+  reduce(
+    (options, option: AttributeOption) =>
+      options.set(option.id, {
+        id: option.id,
+        sort_order: option.sort_order,
+        text: option.text,
+      }),
+    group.options,
+  )(attribute.options);
   return filters.set(attribute.id, group);
 };
 
@@ -74,31 +76,34 @@ const freezeFilterGroup = (
 export const attributeFilterGroupsForListings = (
   listingIds: number[],
   attributesByListing: ListingAttributesById,
-): AttributeFilterGroup[] =>
-  [
+): AttributeFilterGroup[] => {
+  const groups = [
     ...reduce(
       (filters: Map<number, MutableFilterGroup>, listingId: number) =>
         addListingAttributes(filters, attributesByListing.get(listingId) ?? []),
       new Map<number, MutableFilterGroup>(),
     )(listingIds).values(),
-  ]
-    .map(freezeFilterGroup)
-    .filter((group) => group.options.length > 0)
-    .toSorted(attributeSort);
+  ];
+  return pipe(
+    map(freezeFilterGroup),
+    filter((group: AttributeFilterGroup) => group.options.length > 0),
+    (filtered: AttributeFilterGroup[]) => filtered.toSorted(attributeSort),
+  )(groups);
+};
 
 export const selectedAttributeFiltersFromRequest = (
   request: Request,
   filters: AttributeFilterGroup[],
 ): SelectedAttributeFilters => {
   const params = new URL(request.url).searchParams;
-  const selected = filters.flatMap((group) => {
+  const selected = flatMap((group: AttributeFilterGroup) => {
     const value = params.get(attributeFilterParam(group.id));
     const optionId = value === null ? null : parsePositiveInt(value);
     return optionId !== null &&
       group.options.some((option) => option.id === optionId)
       ? [[group.id, optionId] as const]
       : [];
-  });
+  })(filters);
   return new Map(selected);
 };
 
@@ -106,9 +111,11 @@ const selectedOptionIds = (
   attributes: AttributeWithOptions[] | undefined,
 ): Set<number> =>
   new Set(
-    (attributes ?? []).flatMap((attribute) =>
-      attribute.options.map((option) => option.id),
-    ),
+    pipe(
+      flatMap((attribute: AttributeWithOptions) =>
+        map((option: AttributeOption) => option.id)(attribute.options),
+      ),
+    )(attributes ?? []),
   );
 
 export const filterListingsByAttributes =
@@ -119,10 +126,10 @@ export const filterListingsByAttributes =
   (listings: ListingWithCount[]): ListingWithCount[] => {
     const required = [...selected.values()];
     if (required.length === 0) return listings;
-    return listings.filter((listing) => {
+    return filter((listing: ListingWithCount) => {
       const listingOptions = selectedOptionIds(
         attributesByListing.get(listing.id),
       );
       return required.every((optionId) => listingOptions.has(optionId));
-    });
+    })(listings);
   };
