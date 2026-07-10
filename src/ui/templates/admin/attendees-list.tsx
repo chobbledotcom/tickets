@@ -23,6 +23,7 @@ import type {
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
 import { AttendeeTableBlock } from "#templates/admin/attendee-table-block.tsx";
+import { GuideFooter } from "#templates/components/actions.tsx";
 import {
   SelectField,
   type SelectOption,
@@ -242,5 +243,9 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
         sortOrder={props.sort}
         type={props.type}
       />
+
+      <GuideFooter href="/admin/guide#attendees">
+        {t("attendees_list.guide_link")}
+      </GuideFooter>
     </AdminPage>,
   );

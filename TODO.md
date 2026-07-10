@@ -302,34 +302,18 @@ admin page now renders a `GuideFooter` (or, for embedded settings sub-forms, a
 small inline link) pointing at the relevant `/admin/guide#<anchor>` section. The
 gaps below are pages whose natural guide section **does not exist yet**, so they
 either link a placeholder anchor or currently render no footer. `guide-anchor-
-links.test.ts` guards that every referenced anchor resolves; the two dangling
-ones are whitelisted in its `PENDING_SECTIONS` set. Write the section, add it to
-the appropriate `src/ui/templates/admin/guide/*.tsx` module with a unique `id`,
-then remove it from `PENDING_SECTIONS` and wire up any page still missing a
-footer.*
+links.test.ts` guards that every referenced anchor resolves; anchors still
+awaiting a section are whitelisted in its `PENDING_SECTIONS` set (now empty).
+Write the section, add it to the appropriate `src/ui/templates/admin/guide/*.tsx`
+module with a unique `id`, then remove it from `PENDING_SECTIONS` and wire up any
+page still missing a footer.*
 
-**Dangling anchors (a page already links here, section missing — in
-`PENDING_SECTIONS`):**
+The `ledger`, `logistics`, `images`, `attendee-statuses`, and `attendees`
+sections have all shipped (with footers on `deliveries.tsx`, `images.tsx`,
+`settings-statuses.tsx`, and `attendees-list.tsx`), emptying `PENDING_SECTIONS`.
 
-- **`#logistics`** — the logistics settings page (`/admin/logistics`,
-  `logistics.tsx`) and the delivery run sheet (`/admin/deliveries`) both want a
-  `#logistics` section: delivery/collection addresses, the run-sheet, agent
-  assignment, and the per-listing `uses_logistics` flag. Once written, add the
-  footer to `deliveries.tsx` too (currently omitted — it's a driver view and the
-  anchor was dangling).
+**Remaining:**
 
-**Pages with no footer yet (no fitting section exists):**
-
-- **Attendees list** (`/admin/attendees`, `attendees-list.tsx`) — the `listings`
-  section already carries the per-attendee FAQs (add/remove/merge/delete), but
-  there's no attendee-management overview to anchor a footer to. Either add an
-  `attendees` section or split the attendee FAQs out of `listings`.
-- **Image library** (`/admin/images`, `images.tsx`) — needs an `images` section
-  (uploading, linking images to listings/items, storage requirements).
-- **Attendee statuses** (`/admin/settings/statuses`, `settings-statuses.tsx`) —
-  needs a section on custom statuses and the public/paid/reservation flags. The
-  page is wired through `defineAdminResourcePages`, which already exposes a
-  `guideFooter` slot — just pass one once the section exists.
 - **Support** (`/admin/support`) — borderline (it's a contact-the-host form);
   give it a footer only if a support/troubleshooting section is written.
 

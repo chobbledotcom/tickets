@@ -17,6 +17,7 @@ import type { AdminSession } from "#shared/types.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
 import { markAdminFooter } from "#templates/admin/footer.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { GuideFooter } from "#templates/components/actions.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
@@ -250,5 +251,13 @@ export const agentDeliveriesPage = (
           </section>
         ))
       )}
+      {/* Agent-only drivers are not staff, so GuideFooter renders nothing for
+          them; owners and managers get the link to the logistics guide. */}
+      <GuideFooter
+        adminLevel={session.adminLevel}
+        href="/admin/guide#logistics"
+      >
+        {t("deliveries.guide_link")}
+      </GuideFooter>
     </Layout>,
   );
