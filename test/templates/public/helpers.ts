@@ -3,7 +3,7 @@ import { buildTicketListing } from "#shared/booking/model.ts";
 import type { PagePackage } from "#shared/booking/page-packages.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
-import { ticketPage } from "#templates/public/reservations.tsx";
+import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import { pagePackage as sharedPagePackage } from "#test/lib/package-cap-fixtures.ts";
 import { setupTestEncryptionKey, testListingWithCount } from "#test-utils";
 

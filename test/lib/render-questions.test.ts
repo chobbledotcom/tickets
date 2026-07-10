@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { clearSavedFormData, setSavedFormData } from "#shared/forms.tsx";
-import { renderQuestions } from "#templates/public/reservations.tsx";
+import { renderQuestions } from "#templates/public/reservations/questions.tsx";
 import { testAnswer, testQuestion, testRadioQuestion } from "#test-utils";
 
 /** Two single-answer radio questions — the shared fixture for the

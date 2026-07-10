@@ -34,7 +34,8 @@ generalized passes: render, fold, price, capacity, revalidate.
 **Already shipped (phases 1 & 2, PR #1462) — do not redo:**
 - Tree model + pure builder: `src/shared/booking/tree.ts`, `build-tree.ts`
   (`buildBookingTree`). The public renderer `src/ui/templates/public/
-  reservations.tsx` drives field names/rendering off the tree.
+  reservations/` (entry point `ticket-page.tsx`) drives field names/rendering
+  off the tree.
 - Unified walks: `fold-tree.ts` (`foldBookingTree`), `price-tree.ts`
   (`effectivePrice`, `priceRuleByListingId`, `packageMemberPriceRule`),
   `capacity-tree.ts` (`packageQuantityCap`, own-cap + group-pool arms).
@@ -331,6 +332,32 @@ footer.*
   `guideFooter` slot — just pass one once the section exists.
 - **Support** (`/admin/support`) — borderline (it's a contact-the-host form);
   give it a footer only if a support/troubleshooting section is written.
+
+## Standalone child selector suppressed for sold-out / hidden package members
+
+`src/ui/templates/public/reservations/packages.ts` — `buildPageListingRows`
+derives `memberIds` from `packageMemberIds(opts.packages)` (every package's
+members), then suppresses the child selector on any standalone row whose listing
+is in that set (a rendered package member carries the one selector). But a
+**sold-out** package (`limit < 1`) renders a sold-out card with no member rows,
+and a `hideListings` package renders no member rows either — so their members'
+child selectors are never rendered in the package section. If such a member is
+ALSO a standalone parent whose own row is still bookable, its child selector is
+suppressed on both paths, so a buyer can't satisfy its multi-choice child
+requirements.
+
+CodeRabbit flagged this on PR #1693; it is pre-existing behaviour (verbatim from
+the original monolith), not introduced by the template split, so it's out of
+scope for that mechanical refactor. Fix: build the suppression set from only the
+packages that actually render member rows (skip `pkg.hideListings` and
+`packageLimits.get(pkg.groupId)! < 1`), so standalone parents whose package rows
+were omitted keep `opts.childCtx`. Ships with a regression test that books a
+standalone parent whose sibling-capacity sold-out package hid its member row and
+asserts the child selector still renders. (Note the `hideListings` half may be
+unreachable — the code assumes only visible packages contain parents — so verify
+that invariant before widening the fix.)
+
+---
 
 ## Test-suite speed — remaining opportunities
 
