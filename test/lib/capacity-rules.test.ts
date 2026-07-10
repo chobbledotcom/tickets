@@ -5,7 +5,9 @@ import {
   applicableCapacityRules,
   assertCapacityRulesCoherent,
   CAPACITY_RULES,
+  type CapacityFacet,
   type CapacityRule,
+  type CapacityRuleKey,
   capacityDateFor,
   capacityRuleTypeSql,
   countsPerDate,
@@ -116,34 +118,54 @@ describe("capacity rules", () => {
   });
 
   describe("assertCapacityRulesCoherent", () => {
+    /** The production table with some rules' applicability swapped out. */
+    const tableWith = (
+      over: Partial<Record<CapacityRuleKey, (facet: CapacityFacet) => boolean>>,
+    ): CapacityRule[] =>
+      CAPACITY_RULES.map((rule) => {
+        const appliesTo = over[rule.key];
+        return appliesTo ? { appliesTo, key: rule.key } : rule;
+      });
+
     test("accepts the production table unchanged", () => {
       expect(assertCapacityRulesCoherent(CAPACITY_RULES)).toBe(CAPACITY_RULES);
     });
 
-    test("rejects a table where a listing would be counted twice", () => {
-      const both: CapacityRule[] = [
-        { appliesTo: () => true, key: "dateLessCap" },
-        { appliesTo: () => true, key: "perDateCap" },
+    test("rejects a table missing one of the known checks", () => {
+      const missing = CAPACITY_RULES.filter(
+        (rule) => rule.key !== "perDateCap",
+      );
+      expect(() => assertCapacityRulesCoherent(missing)).toThrow(
+        'Capacity rule "perDateCap" must be declared exactly once, found 0',
+      );
+    });
+
+    test("rejects a table declaring the same check twice", () => {
+      const doubled = [
+        ...CAPACITY_RULES,
+        { appliesTo: () => true, key: "groupPoolCap" } as CapacityRule,
       ];
+      expect(() => assertCapacityRulesCoherent(doubled)).toThrow(
+        'Capacity rule "groupPoolCap" must be declared exactly once, found 2',
+      );
+    });
+
+    test("rejects a table where a listing would be counted twice", () => {
+      const both = tableWith({ perDateCap: () => true });
       expect(() => assertCapacityRulesCoherent(both)).toThrow(
         "exactly one own-cap counting rule, found 2",
       );
     });
 
     test("rejects a table where a listing would never be counted", () => {
-      const neither: CapacityRule[] = [
-        { appliesTo: () => true, key: "groupPoolCap" },
-      ];
+      const neither = tableWith({ dateLessCap: () => false });
       expect(() => assertCapacityRulesCoherent(neither)).toThrow(
         "exactly one own-cap counting rule, found 0",
       );
     });
 
     test("rejects a rule no listing can ever match", () => {
-      const withDeadRule: CapacityRule[] = [
-        { appliesTo: () => true, key: "dateLessCap" },
-        { appliesTo: () => false, key: "groupPoolCap" },
-      ];
+      const withDeadRule = tableWith({ groupPoolCap: () => false });
       expect(() => assertCapacityRulesCoherent(withDeadRule)).toThrow(
         'Capacity rule "groupPoolCap" applies to no listing',
       );

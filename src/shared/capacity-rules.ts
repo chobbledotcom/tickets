@@ -25,12 +25,15 @@ export type CapacityFacet = {
 };
 
 /** Every capacity check the system can apply to a booking. */
-export type CapacityRuleKey =
-  | "dateLessCap"
-  | "perDateCap"
-  | "groupPoolCap"
-  | "parentChildUnits"
-  | "adminOverbookBypass";
+const CAPACITY_RULE_KEYS = [
+  "dateLessCap",
+  "perDateCap",
+  "groupPoolCap",
+  "parentChildUnits",
+  "adminOverbookBypass",
+] as const;
+
+export type CapacityRuleKey = (typeof CAPACITY_RULE_KEYS)[number];
 
 /** One capacity check plus the listings it applies to. */
 export type CapacityRule = {
@@ -57,6 +60,9 @@ export const allCapacityFacets = (): CapacityFacet[] =>
 
 /**
  * Check a rule table is coherent before anything derives from it:
+ * - Every known rule key must be declared exactly once — a missing key would
+ *   make its lookups dereference nothing, and a duplicate would let two
+ *   declarations silently disagree about the same check.
  * - A listing's own cap (`listings.max_attendees`) is counted exactly one of
  *   two ways, so every facet must have exactly one of
  *   `dateLessCap`/`perDateCap`. Both would double-count the same cap;
@@ -68,6 +74,14 @@ export const allCapacityFacets = (): CapacityFacet[] =>
 export const assertCapacityRulesCoherent = (
   rules: readonly CapacityRule[],
 ): readonly CapacityRule[] => {
+  for (const key of CAPACITY_RULE_KEYS) {
+    const declared = rules.filter((rule) => rule.key === key).length;
+    if (declared !== 1) {
+      throw new Error(
+        `Capacity rule "${key}" must be declared exactly once, found ${declared}`,
+      );
+    }
+  }
   const facets = allCapacityFacets();
   for (const facet of facets) {
     const counting = rules.filter(
