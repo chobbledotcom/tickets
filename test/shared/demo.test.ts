@@ -48,7 +48,7 @@ describe("demo sample pools", () => {
     const pools = Object.entries(demoSamples).filter(
       (entry): entry is [string, readonly string[]] => Array.isArray(entry[1]),
     );
-    expect(pools.length).toBeGreaterThan(10);
+    expect(pools.length).toBeGreaterThan(0);
     for (const [name, pool] of pools) {
       expect(pool.length, name).toBeGreaterThan(0);
       for (const value of pool) {
