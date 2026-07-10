@@ -19,12 +19,14 @@ export {
 export { newsListPage, newsPostPage } from "./public/news.tsx";
 export { orderGalleryPage } from "./public/order-gallery.tsx";
 export { orderSummary, orderSummaryMessage } from "./public/order-summary.tsx";
+export type {
+  BookingPrefill,
+  TicketPrefill,
+} from "./public/reservations/inputs.ts";
+export { buildOgTags } from "./public/reservations/og.ts";
+export { renderQuestions } from "./public/reservations/questions.tsx";
 export {
-  type BookingPrefill,
-  buildOgTags,
-  renderQuestions,
   type TicketPageOptions,
-  type TicketPrefill,
   type TicketQuantities,
   ticketPage,
 } from "./public/reservations.tsx";

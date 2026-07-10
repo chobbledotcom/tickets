@@ -20,6 +20,7 @@ import {
   customPriceFieldName,
   packageQuantityFieldName,
   quantityFieldName,
+  standaloneListingIds,
 } from "#shared/booking/tree.ts";
 import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -222,11 +223,7 @@ export const resolvePageQuantities = (
 ): { nodeQuantities: Map<string, number>; quantities: Map<number, number> } => {
   // Listings with a standalone node keep their own quantity_<id> input — every
   // non-member, plus any member the cart also added by its own slug.
-  const standaloneIds = new Set(
-    tree.nodes
-      .filter((node) => node.quantityRule.kind === "BUYER_CHOICE")
-      .map((node) => node.listingId),
-  );
+  const standaloneIds = standaloneListingIds(tree);
   const standaloneQuantities = parseQuantities(
     form,
     ctx.listings.filter((info) => standaloneIds.has(info.listing.id)),
