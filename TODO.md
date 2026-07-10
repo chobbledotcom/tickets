@@ -370,3 +370,26 @@ footer.*
   `guideFooter` slot — just pass one once the section exists.
 - **Support** (`/admin/support`) — borderline (it's a contact-the-host form);
   give it a footer only if a support/troubleshooting section is written.
+
+---
+
+## Strengthen the idempotent-replay assertion in the payments confirmation test
+
+*Origin: CodeRabbit review on PR #1690 (payments test split).*
+
+`test/lib/server-payments/confirm.test.ts`, the test **"handles replay of same
+session (idempotent)"**, asserts `expect([200, 302]).toContain(response.status)`.
+This hedge was moved verbatim from the old `server-payments.test.ts` monolith —
+it accepts either branch, so it would not catch a regression that flips the
+replay from one path to the other.
+
+Pinning it to a single deterministic status is a real behavioural question, not
+a mechanical edit: the test books an attendee directly (payment intent
+`pi_test_123`) and then replays the same signed session, and the current code
+does **not** dedupe on payment-intent (the in-test comment spells this out), so
+the outcome depends on the capacity check rather than a defined idempotency
+contract. Deciding the single correct status means first deciding what replaying
+an already-booked payment intent *should* do (reject as duplicate? re-render the
+existing ticket?) and likely adding payment-intent uniqueness — out of scope for
+a test-only file split. Starting point: `src/features/api/payment-processing.ts`
+(the `/payment/success` finalize path) and `#shared/db/processed-payments.ts`.

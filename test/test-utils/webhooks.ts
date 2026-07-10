@@ -166,11 +166,13 @@ export const findKeptPlaceholder = async (
   listingId: number,
 ): Promise<{ id: number }> => {
   const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-  const placeholder = (await getAttendeesRaw(listingId)).find(
+  const placeholders = (await getAttendeesRaw(listingId)).filter(
     (a) => a.quantity === 0,
   );
-  expect(placeholder).toBeDefined();
-  return placeholder!;
+  // The invariant this helper documents: exactly one kept placeholder, so a
+  // duplicate-placeholder regression fails here rather than silently passing.
+  expect(placeholders.length).toBe(1);
+  return placeholders[0]!;
 };
 
 /**

@@ -2,6 +2,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { isSessionProcessed } from "#shared/db/processed-payments.ts";
+import { getNoteRows } from "#shared/db/system-notes.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
   bookAttendee,
@@ -45,12 +48,13 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     });
 
     /** Assert a retry replays the same fully-handled "saved details" outcome:
-     * HTTP 200, never the transient lock, exactly one surviving booking
-     * (`remaining`), and no second refund. */
+     * HTTP 200, never the transient lock, and no second refund — then read
+     * `countRemaining` AFTER the retry to prove it left exactly one surviving
+     * booking (so a replay that adds an extra placeholder is caught). */
     const expectReplayedSave = async (
       sessionId: string,
       mockRefund: { calls: unknown[] },
-      remaining: number,
+      countRemaining: () => Promise<number>,
     ) => {
       const second = await handleRequest(
         mockRequest(`/payment/success?session_id=${sessionId}`),
@@ -59,7 +63,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       const html = await second.text();
       expect(html).toContain("saved your details");
       expect(html).not.toContain("being processed");
-      expect(remaining).toBe(1);
+      expect(await countRemaining()).toBe(1);
       expect(mockRefund.calls.length).toBe(1);
     };
 
@@ -136,11 +140,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             1000,
           ),
         async ({ mockRefund }) => {
-          const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-          const { getNoteRows } = await import("#shared/db/system-notes.ts");
-          const { isSessionProcessed } = await import(
-            "#shared/db/processed-payments.ts"
-          );
           const placeholders = async () =>
             (await getAttendeesRaw(listing.id)).filter((a) => a.quantity === 0);
 
@@ -172,7 +171,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           await expectReplayedSave(
             "cs_replay_soldout",
             mockRefund,
-            (await placeholders()).length,
+            async () => (await placeholders()).length,
           );
         },
         resetStripeClient,
@@ -202,12 +201,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             500,
           ),
         async ({ mockRefund }) => {
-          const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-          const { getNoteRows } = await import("#shared/db/system-notes.ts");
-          const { isSessionProcessed } = await import(
-            "#shared/db/processed-payments.ts"
-          );
-
           // First delivery: the booking is kept as a quantity-0 placeholder and
           // refunded once. The specific reason now lives in the system note, so
           // the customer sees the generic saved-details message (HTTP 200).
@@ -232,7 +225,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           await expectReplayedSave(
             "cs_replay_price",
             mockRefund,
-            (await getAttendeesRaw(listing.id)).length,
+            async () => (await getAttendeesRaw(listing.id)).length,
           );
         },
         resetStripeClient,
@@ -243,9 +236,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       const { stub } = await import("@std/testing/mock");
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"
-      );
-      const { isSessionProcessed } = await import(
-        "#shared/db/processed-payments.ts"
       );
       await setupStripe();
       const listing = await createTestListing({
