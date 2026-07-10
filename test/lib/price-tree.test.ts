@@ -4,7 +4,11 @@ import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import { buildTicketListing } from "#shared/booking/model.ts";
 import {
   effectivePrice,
+  type PriceRuleInputs,
+  packageBundleTotal,
+  packageMemberPriceRule,
   priceRuleByListingId,
+  selectPriceRule,
 } from "#shared/booking/price-tree.ts";
 import type { PriceRule } from "#shared/booking/tree.ts";
 import type { ListingWithCount } from "#shared/types.ts";
@@ -112,6 +116,118 @@ describe("effectivePrice", () => {
         1,
       ),
     ).toBe(1500);
+  });
+});
+
+describe("selectPriceRule", () => {
+  /** A listing that offers none of the higher tiers by default. */
+  const inputs = (over: Partial<PriceRuleInputs> = {}): PriceRuleInputs => ({
+    customisableDays: false,
+    dayOverrides: undefined,
+    overrideMinor: undefined,
+    ...over,
+  });
+
+  test("BASE is the fallback when no higher tier applies", () => {
+    expect(selectPriceRule(inputs())).toEqual({ kind: "BASE" });
+  });
+
+  test("PAY_MORE wins over DAY_PRICE and BASE, carrying its bounds", () => {
+    expect(
+      selectPriceRule(
+        inputs({
+          customisableDays: true,
+          payMore: { maxMinor: 5000, minMinor: 100 },
+        }),
+      ),
+    ).toEqual({ kind: "PAY_MORE", maxMinor: 5000, minMinor: 100 });
+  });
+
+  test("DAY_PRICE wins over BASE and carries its per-day overrides", () => {
+    const dayOverrides = new Map([[2, 1500]]);
+    expect(
+      selectPriceRule(inputs({ customisableDays: true, dayOverrides })),
+    ).toEqual({ kind: "DAY_PRICE", overrides: dayOverrides });
+  });
+
+  test("OVERRIDE outranks every other tier, carrying its amount (incl. free 0)", () => {
+    // Every lower tier is also offered; the flat override must still win.
+    const contested = inputs({
+      customisableDays: true,
+      dayOverrides: new Map([[1, 999]]),
+      payMore: { maxMinor: 5000, minMinor: 100 },
+    });
+    expect(selectPriceRule({ ...contested, overrideMinor: 1200 })).toEqual({
+      amountMinor: 1200,
+      kind: "OVERRIDE",
+    });
+    expect(selectPriceRule({ ...contested, overrideMinor: 0 })).toEqual({
+      amountMinor: 0,
+      kind: "OVERRIDE",
+    });
+  });
+});
+
+describe("packageMemberPriceRule", () => {
+  test("never yields PAY_MORE — a member is never pay-what-you-want", () => {
+    // Even though the shared precedence has a PAY_MORE tier, this member-pricing
+    // entry omits pay-more info, so a customisable member falls to DAY_PRICE.
+    expect(packageMemberPriceRule(undefined, undefined, true)).toEqual({
+      kind: "DAY_PRICE",
+      overrides: undefined,
+    });
+  });
+
+  test("a flat override outranks the day/base price", () => {
+    expect(packageMemberPriceRule(1200, new Map([[1, 999]]), true)).toEqual({
+      amountMinor: 1200,
+      kind: "OVERRIDE",
+    });
+  });
+
+  test("a non-member, non-customisable line falls through to BASE", () => {
+    expect(packageMemberPriceRule(undefined, undefined, false)).toEqual({
+      kind: "BASE",
+    });
+  });
+});
+
+describe("packageBundleTotal", () => {
+  /** A package tree carrying one child (id 9, unit 300) under member 5; the
+   * caller supplies the members and their package pricing. */
+  const bundleTree = (
+    over: Pick<Parameters<typeof buildBookingTree>[0], "listings" | "packages">,
+  ) =>
+    buildBookingTree({
+      childrenByParentId: new Map([
+        [5, [resolved({ id: 9, unit_price: 300 })]],
+      ]),
+      slugs: ["pkg"],
+      ...over,
+    });
+
+  test("sums each member's unit + cheapest bookable child, × its fixed quantity", () => {
+    const tree = bundleTree({
+      listings: [resolved({ id: 5 }), resolved({ id: 6, unit_price: 500 })],
+      packages: [
+        treePackage(3, [5, 6], {
+          prices: new Map([[5, 1000]]),
+          quantities: new Map([[5, 2]]),
+        }),
+      ],
+    });
+    // Member 5: (override 1000 + child 300) × fixed 2 = 2600.
+    // Member 6: (base 500 + no child 0) × fixed 1 = 500.
+    expect(packageBundleTotal(tree, 1, new Set([9]))).toBe(3100);
+  });
+
+  test("a child that is not bookable adds nothing to the minimum charge", () => {
+    const tree = bundleTree({
+      listings: [resolved({ id: 5, unit_price: 1000 })],
+      packages: [treePackage(3, [5])],
+    });
+    // Child 9 is outside the bookable set → filtered out → just the member's 1000.
+    expect(packageBundleTotal(tree, 1, new Set())).toBe(1000);
   });
 });
 
