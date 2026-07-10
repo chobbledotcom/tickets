@@ -108,25 +108,47 @@ const relFromSrc = (file: string): string => file.slice(SRC_DIR.length + 1);
 /** Object-property labels are a .ts-module idiom; .tsx uses JSX instead. */
 const isTsModule = (file: string): boolean => file.endsWith(".ts");
 
+/** Wordy matches of `re` on one line, each formatted via `label`. The captured
+ * user-facing value lives in group `valueGroup` (differs per pattern). */
+const matchesOnLine = (
+  line: string,
+  lineNo: number,
+  re: RegExp,
+  valueGroup: number,
+  label: (m: RegExpMatchArray, value: string, lineNo: number) => string,
+): string[] => {
+  const out: string[] = [];
+  for (const m of line.matchAll(re)) {
+    const value = m[valueGroup] ?? "";
+    if (wordy(value)) out.push(label(m, value, lineNo));
+  }
+  return out;
+};
+
+/** Hard-coded strings in JSX attributes and text nodes on one line. */
+const jsxLeftovers = (line: string, lineNo: number): string[] => [
+  ...matchesOnLine(line, lineNo, ATTR, 3, (m, v, n) => `L${n} ${m[1]}="${v}"`),
+  ...matchesOnLine(
+    line,
+    lineNo,
+    TEXT,
+    1,
+    (_m, v, n) => `L${n} text "${v.trim()}"`,
+  ),
+];
+
+/** Hard-coded strings in object-property definitions on one line (.ts only). */
+const propLeftovers = (line: string, lineNo: number): string[] =>
+  matchesOnLine(line, lineNo, PROP, 3, (m, v, n) => `L${n} ${m[1]}: "${v}"`);
+
 /** Hard-coded user-facing strings still present in a file's source. */
 const leftoverLiterals = (src: string, isTs: boolean): string[] => {
   const hits: string[] = [];
-  src.split("\n").forEach((line, i) => {
+  src.split("\n").forEach((line, idx) => {
     if (isCommentLine(line)) return;
-    for (const m of line.matchAll(ATTR)) {
-      const value = m[3] ?? "";
-      if (wordy(value)) hits.push(`L${i + 1} ${m[1]}="${value}"`);
-    }
-    if (isTs) {
-      for (const m of line.matchAll(PROP)) {
-        const value = m[3] ?? "";
-        if (wordy(value)) hits.push(`L${i + 1} ${m[1]}: "${value}"`);
-      }
-    }
-    for (const m of line.matchAll(TEXT)) {
-      const text = (m[1] ?? "").trim();
-      if (wordy(text)) hits.push(`L${i + 1} text "${text}"`);
-    }
+    const lineNo = idx + 1;
+    hits.push(...jsxLeftovers(line, lineNo));
+    if (isTs) hits.push(...propLeftovers(line, lineNo));
   });
   return hits;
 };

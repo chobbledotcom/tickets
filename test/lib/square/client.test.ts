@@ -96,6 +96,11 @@ describeSquare(() => {
   describe("testSquareConnection", () => {
     type ConnectionResult = Awaited<ReturnType<typeof testSquareConnection>>;
 
+    /** Run an assertion only when the test named a value for it. */
+    const when = <T>(value: T | undefined, assert: (value: T) => void) => {
+      if (value !== undefined) assert(value);
+    };
+
     /** Checks only the parts of a connection result a test names. */
     const expectConnection = (
       result: ConnectionResult,
@@ -112,34 +117,24 @@ describeSquare(() => {
         webhookError?: string;
       },
     ) => {
-      if (want.ok !== undefined) expect(result.ok).toBe(want.ok);
-      if (want.tokenValid !== undefined) {
-        expect(result.accessToken.valid).toBe(want.tokenValid);
-      }
-      if (want.tokenError !== undefined) {
-        expect(result.accessToken.error).toContain(want.tokenError);
-      }
-      if (want.mode !== undefined) {
-        expect(result.accessToken.mode).toBe(want.mode);
-      }
-      if (want.locationConfigured !== undefined) {
-        expect(result.location.configured).toBe(want.locationConfigured);
-      }
-      if (want.locationName !== undefined) {
-        expect(result.location.name).toBe(want.locationName);
-      }
-      if (want.locationStatus !== undefined) {
-        expect(result.location.status).toBe(want.locationStatus);
-      }
-      if (want.locationError !== undefined) {
-        expect(result.location.error).toContain(want.locationError);
-      }
-      if (want.webhookConfigured !== undefined) {
-        expect(result.webhook.configured).toBe(want.webhookConfigured);
-      }
-      if (want.webhookError !== undefined) {
-        expect(result.webhook.error).toContain(want.webhookError);
-      }
+      when(want.ok, (ok) => expect(result.ok).toBe(ok));
+      when(want.tokenValid, (v) => expect(result.accessToken.valid).toBe(v));
+      when(want.tokenError, (e) =>
+        expect(result.accessToken.error).toContain(e),
+      );
+      when(want.mode, (mode) => expect(result.accessToken.mode).toBe(mode));
+      when(want.locationConfigured, (c) =>
+        expect(result.location.configured).toBe(c),
+      );
+      when(want.locationName, (n) => expect(result.location.name).toBe(n));
+      when(want.locationStatus, (s) => expect(result.location.status).toBe(s));
+      when(want.locationError, (e) =>
+        expect(result.location.error).toContain(e),
+      );
+      when(want.webhookConfigured, (c) =>
+        expect(result.webhook.configured).toBe(c),
+      );
+      when(want.webhookError, (e) => expect(result.webhook.error).toContain(e));
     };
 
     /** Store settings, stub locations.list, run the checks, assert the result. */

@@ -92,14 +92,6 @@
       "includes": ["test/**/*.js", "test/**/*.ts", "test/**/*.tsx"],
       "linter": {
         "rules": {
-          "complexity": {
-            "noExcessiveCognitiveComplexity": {
-              "level": "error",
-              "options": {
-                "maxAllowedComplexity": 30
-              }
-            }
-          },
           "correctness": {
             "noUnusedFunctionParameters": "off",
             "noUnusedVariables": "off"
@@ -129,9 +121,6 @@
       "includes": ["scripts/**/*.ts"],
       "linter": {
         "rules": {
-          "complexity": {
-            "noExcessiveCognitiveComplexity": "off"
-          },
           "suspicious": {
             "noConsole": "off"
           }

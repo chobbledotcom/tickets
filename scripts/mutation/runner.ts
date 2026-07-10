@@ -363,23 +363,15 @@ interface RunMutantsOptions {
   useHarness: boolean;
 }
 
-/** Baseline check, then the per-file/per-mutant loop, then the report. */
-const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
-  const {
-    abortSignal,
-    batchJobs,
-    exhaustive,
-    ignoreList,
-    isAborted,
-    originals,
-    restoreAll,
-    results,
-    sourceFiles,
-    testFiles,
-    timeout,
-    useHarness,
-  } = opts;
-
+/**
+ * Run the baseline (unmutated) tests. Returns `{ code }` when the run should
+ * stop early (interrupted, or a non-green baseline), or the derived
+ * `{ perMutantTimeout }` when the baseline passed and mutation can proceed.
+ */
+const establishBaseline = async (
+  opts: RunMutantsOptions,
+): Promise<{ code: number } | { perMutantTimeout: number }> => {
+  const { abortSignal, batchJobs, isAborted, testFiles, timeout } = opts;
   console.log(dim("Running baseline (unmutated) tests…"));
   const baseline = await runTests(
     testFiles,
@@ -387,7 +379,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
     batchJobs,
     abortSignal,
   );
-  if (isAborted()) return 130;
+  if (isAborted()) return { code: 130 };
   if (baseline.outcome !== "passed") {
     console.error(red(`\nBaseline tests did not pass (${baseline.outcome}).`));
     console.error(
@@ -396,7 +388,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
     console.error(
       "if these tests import the app / Stripe and need stripe-mock + built assets.",
     );
-    return 1;
+    return { code: 1 };
   }
   const perMutantTimeout = Math.max(
     timeout,
@@ -408,6 +400,171 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
     ),
   );
   console.log(dim(`Using up to ${batchJobs} concurrent test batch(es).`));
+  return { perMutantTimeout };
+};
+
+/**
+ * Probe that the *unmutated* target lints clean before its mutants run, and
+ * report loudly if not. The lint gate can only tell a mutation-introduced
+ * diagnostic apart from a broken Biome or an already-dirty target if the
+ * unmutated file lints clean. The file on disk is the original here (restored
+ * after every mutant), so probe it once per file. A non-zero exit means the
+ * gate can't be trusted — precommit runs `lint:ci` before mutation, but a
+ * standalone `deno task mutation` does not — so the caller aborts rather than
+ * record every mutant as a bogus lint-kill. Probing the target itself (not a
+ * fixed path) also means a run that mutates this very file never reprobes a
+ * path that is currently holding a mutant.
+ */
+const isUnmutatedTargetDirty = async (
+  plan: FileMutationPlan,
+  lint: MutantLinter,
+): Promise<boolean> => {
+  if (plan.mutants.length === 0) return false;
+  if ((await lint.exit(plan.file)) === 0) return false;
+  console.error(red(`\nThe unmutated ${rel(plan.file)} does not lint clean.`));
+  console.error(
+    "The mutation lint gate needs a lint-clean target and a working Biome.",
+  );
+  console.error(
+    "Run `deno task lint` and fix any errors (precommit runs lint:ci first;",
+  );
+  console.error("a standalone `deno task mutation` does not), then retry.");
+  return true;
+};
+
+/** Print the running progress line for a mutant, on the cadence the loop uses. */
+const reportMutantProgress = (
+  last: MutantResult,
+  counts: Record<Status, number>,
+  completed: number,
+  total: number,
+): void => {
+  if (
+    completed % PROGRESS_INTERVAL !== 0 &&
+    completed !== total &&
+    last.status === "killed"
+  ) {
+    return;
+  }
+  write("\n");
+  console.log(
+    formatProgressLine({
+      completed,
+      ignored: counts.ignored,
+      killed: counts.killed,
+      last,
+      survived: counts.survived,
+      timedOut: counts["timed-out"],
+      total,
+    }),
+  );
+};
+
+interface MutantLoopContext {
+  counts: Record<Status, number>;
+  lint: MutantLinter;
+  perMutantTimeout: number;
+  totalMutants: number;
+}
+
+/** Evaluate every mutant for one file plan, recording results and progress. */
+const evaluatePlanMutants = async (
+  plan: FileMutationPlan,
+  opts: RunMutantsOptions,
+  ctx: MutantLoopContext,
+): Promise<void> => {
+  const { counts, lint, perMutantTimeout, totalMutants } = ctx;
+  const {
+    abortSignal,
+    batchJobs,
+    ignoreList,
+    isAborted,
+    originals,
+    results,
+    testFiles,
+  } = opts;
+  for (const mutant of plan.mutants) {
+    if (isAborted()) break;
+    originals.set(plan.file, plan.original);
+    const outcome = await evaluateMutant(
+      plan.file,
+      plan.original,
+      mutant,
+      testFiles,
+      perMutantTimeout,
+      batchJobs,
+      plan.assets,
+      lint,
+      abortSignal,
+    );
+    originals.delete(plan.file);
+    if (isAborted()) break;
+    // A survivor recorded as known-equivalent is suppressed, not a failure.
+    const status: Status =
+      outcome === "survived" && isIgnored(ignoreList, plan.file, mutant)
+        ? "ignored"
+        : outcome;
+    const result = { file: plan.file, mutant, status };
+    results.push(result);
+    counts[status] += 1;
+    write(statusGlyph(status));
+    reportMutantProgress(result, counts, results.length, totalMutants);
+  }
+};
+
+/**
+ * Re-check the ignore-list against the run's results and report any stale
+ * entries, returning the final exit code. The ignore-list is location-based, so
+ * it drifts as code moves. Re-check it here — only for the files just mutated —
+ * and fail if any entry no longer lines up with a real survivor, so it gets
+ * fixed instead of rotting. Staleness is checked against every mutant
+ * --exhaustive could produce (regardless of the mode this run used), so an
+ * entry for an exhaustive-only replacement isn't falsely flagged during a
+ * non-exhaustive (e.g. precommit) run.
+ */
+const reportIgnoreListStaleness = (
+  opts: RunMutantsOptions,
+  plans: FileMutationPlan[],
+  exitCode: number,
+): number => {
+  const possibleKeys = new Set(
+    plans.flatMap((plan) =>
+      generateMutants(plan.original, plan.file, true).map((mutant) =>
+        mutantKey(plan.file, mutant),
+      ),
+    ),
+  );
+  const problems = ignoreListProblems(
+    opts.ignoreList,
+    opts.results,
+    opts.sourceFiles,
+    possibleKeys,
+  );
+  if (problems.length === 0) return exitCode;
+  console.error(
+    yellow("\nIgnore-list issues (scripts/mutation/equivalent-mutants.txt):"),
+  );
+  for (const problem of problems) console.error(red(`  ✗ ${problem}`));
+  console.error(
+    dim("  Update or remove these so the list stays in sync with reality."),
+  );
+  return exitCode === 0 ? 1 : exitCode;
+};
+
+/** Baseline check, then the per-file/per-mutant loop, then the report. */
+const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
+  const {
+    exhaustive,
+    isAborted,
+    restoreAll,
+    results,
+    sourceFiles,
+    useHarness,
+  } = opts;
+
+  const baseline = await establishBaseline(opts);
+  if ("code" in baseline) return baseline.code;
+  const { perMutantTimeout } = baseline;
 
   // Under --harness the client bundles are built once; a mutant on a bundled
   // source must rebuild the affected bundle(s) or it would falsely survive.
@@ -437,74 +594,13 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
 
     for (const plan of plans) {
       if (isAborted()) break;
-      // The lint gate can only tell a mutation-introduced diagnostic apart from
-      // a broken Biome or an already-dirty target if the *unmutated* file lints
-      // clean. The file on disk is the original here (restored after every
-      // mutant), so probe it once per file. A non-zero exit means the gate
-      // can't be trusted — precommit runs `lint:ci` before mutation, but a
-      // standalone `deno task mutation` does not — so abort loudly rather than
-      // record every mutant as a bogus lint-kill. Probing the target itself
-      // (not a fixed path) also means a run that mutates this very file never
-      // reprobes a path that is currently holding a mutant.
-      if (plan.mutants.length > 0 && (await lint.exit(plan.file)) !== 0) {
-        console.error(
-          red(`\nThe unmutated ${rel(plan.file)} does not lint clean.`),
-        );
-        console.error(
-          "The mutation lint gate needs a lint-clean target and a working Biome.",
-        );
-        console.error(
-          "Run `deno task lint` and fix any errors (precommit runs lint:ci first;",
-        );
-        console.error(
-          "a standalone `deno task mutation` does not), then retry.",
-        );
-        return 1;
-      }
-      for (const mutant of plan.mutants) {
-        if (isAborted()) break;
-        originals.set(plan.file, plan.original);
-        const outcome = await evaluateMutant(
-          plan.file,
-          plan.original,
-          mutant,
-          testFiles,
-          perMutantTimeout,
-          batchJobs,
-          plan.assets,
-          lint,
-          abortSignal,
-        );
-        originals.delete(plan.file);
-        if (isAborted()) break;
-        // A survivor recorded as known-equivalent is suppressed, not a failure.
-        const status: Status =
-          outcome === "survived" && isIgnored(ignoreList, plan.file, mutant)
-            ? "ignored"
-            : outcome;
-        const result = { file: plan.file, mutant, status };
-        results.push(result);
-        counts[status] += 1;
-        write(statusGlyph(status));
-        if (
-          results.length % PROGRESS_INTERVAL === 0 ||
-          results.length === totalMutants ||
-          status !== "killed"
-        ) {
-          write("\n");
-          console.log(
-            formatProgressLine({
-              completed: results.length,
-              ignored: counts.ignored,
-              killed: counts.killed,
-              last: result,
-              survived: counts.survived,
-              timedOut: counts["timed-out"],
-              total: totalMutants,
-            }),
-          );
-        }
-      }
+      if (await isUnmutatedTargetDirty(plan, lint)) return 1;
+      await evaluatePlanMutants(plan, opts, {
+        counts,
+        lint,
+        perMutantTimeout,
+        totalMutants,
+      });
     }
   } finally {
     restoreAll();
@@ -517,36 +613,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
     return 130;
   }
 
-  const exitCode = report(results);
-  // The ignore-list is location-based, so it drifts as code moves. Re-check it
-  // here — only for the files just mutated — and fail if any entry no longer
-  // lines up with a real survivor, so it gets fixed instead of rotting.
-  // Staleness is checked against every mutant --exhaustive could produce
-  // (regardless of the mode this run used), so an entry for an
-  // exhaustive-only replacement isn't falsely flagged during a non-exhaustive
-  // (e.g. precommit) run.
-  const possibleKeys = new Set(
-    plans.flatMap((plan) =>
-      generateMutants(plan.original, plan.file, true).map((mutant) =>
-        mutantKey(plan.file, mutant),
-      ),
-    ),
-  );
-  const problems = ignoreListProblems(
-    ignoreList,
-    results,
-    sourceFiles,
-    possibleKeys,
-  );
-  if (problems.length === 0) return exitCode;
-  console.error(
-    yellow("\nIgnore-list issues (scripts/mutation/equivalent-mutants.txt):"),
-  );
-  for (const problem of problems) console.error(red(`  ✗ ${problem}`));
-  console.error(
-    dim("  Update or remove these so the list stays in sync with reality."),
-  );
-  return exitCode === 0 ? 1 : exitCode;
+  return reportIgnoreListStaleness(opts, plans, report(results));
 };
 
 const mutate = async (options: MutationOptions): Promise<number> => {

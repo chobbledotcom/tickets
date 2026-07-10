@@ -244,6 +244,66 @@ const withStripeMockStartLock = async <T>(
   }
 };
 
+const resolveStripeMockPort = (
+  options: StartStripeMockOptions,
+  env: StripeMockEnvSource,
+): number => {
+  const choosePort = options.choosePort ?? chooseStripeMockPort;
+  return options.port ?? choosePort(env);
+};
+
+const confirmOwnedStripeMock = (
+  options: StartStripeMockOptions,
+  port: number,
+  spawned: SpawnedStripeMock,
+): Promise<boolean> =>
+  waitForOwnedStripeMock(
+    spawned.process,
+    port,
+    options.maxAttempts ?? 100,
+    options.delayMs ?? 100,
+    options.confirmDelayMs ?? START_CONFIRM_DELAY_MS,
+  );
+
+type StripeMockStartAttempt =
+  | { readonly kind: "running"; readonly mock: RunningStripeMock }
+  | { readonly kind: "retry"; readonly error: string };
+
+const attemptStartStripeMock = async (
+  options: StartStripeMockOptions,
+  env: StripeMockEnvSource,
+  paths: StripeMockPaths,
+  configuredPort: boolean,
+): Promise<StripeMockStartAttempt> => {
+  const port = resolveStripeMockPort(options, env);
+
+  if (await isStripeMockRunning(port)) {
+    return configuredPort
+      ? { kind: "running", mock: alreadyRunningStripeMock(port) }
+      : { error: "", kind: "retry" };
+  }
+
+  if (configuredPort) await downloadStripeMock(options);
+
+  const spawned = spawnStripeMock(paths, port);
+  const stopTimeoutMs = options.stopTimeoutMs ?? STOP_TIMEOUT_MS;
+
+  if (await confirmOwnedStripeMock(options, port, spawned)) {
+    return {
+      kind: "running",
+      mock: managedStripeMock(
+        port,
+        spawned.process,
+        stopTimeoutMs,
+        spawned.closeStderr,
+      ),
+    };
+  }
+
+  await stopProcess(spawned.process, stopTimeoutMs);
+  return { error: await spawned.stderr(), kind: "retry" };
+};
+
 const startStripeMockProcess = async (
   options: StartStripeMockOptions,
   env: StripeMockEnvSource,
@@ -254,39 +314,14 @@ const startStripeMockProcess = async (
   let lastStartupError = "";
 
   for (let attempt = 0; attempt < startAttempts; attempt++) {
-    const choosePort = options.choosePort ?? chooseStripeMockPort;
-    const port = options.port ?? choosePort(env);
-    if (await isStripeMockRunning(port)) {
-      if (configuredPort) return alreadyRunningStripeMock(port);
-      continue;
-    }
-
-    if (configuredPort) await downloadStripeMock(options);
-
-    const spawned = spawnStripeMock(paths, port);
-
-    if (
-      await waitForOwnedStripeMock(
-        spawned.process,
-        port,
-        options.maxAttempts ?? 100,
-        options.delayMs ?? 100,
-        options.confirmDelayMs ?? START_CONFIRM_DELAY_MS,
-      )
-    ) {
-      return managedStripeMock(
-        port,
-        spawned.process,
-        options.stopTimeoutMs ?? STOP_TIMEOUT_MS,
-        spawned.closeStderr,
-      );
-    }
-
-    await stopProcess(
-      spawned.process,
-      options.stopTimeoutMs ?? STOP_TIMEOUT_MS,
+    const result = await attemptStartStripeMock(
+      options,
+      env,
+      paths,
+      configuredPort,
     );
-    lastStartupError = await spawned.stderr();
+    if (result.kind === "running") return result.mock;
+    lastStartupError = result.error;
   }
 
   throw new Error(
