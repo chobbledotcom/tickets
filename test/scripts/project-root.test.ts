@@ -22,4 +22,12 @@ describe("toDisplayPath", () => {
   test("keeps an absolute path that escapes the base", () => {
     expect(toDisplayPath("/base/sub", "/other/x.ts")).toBe("/other/x.ts");
   });
+
+  test("keeps the parent directory itself (relative '..')", () => {
+    expect(toDisplayPath("/base/sub", "/base")).toBe("/base");
+  });
+
+  test("does not treat a '..'-prefixed filename as escaping", () => {
+    expect(toDisplayPath("/base", "/base/..cache.ts")).toBe("..cache.ts");
+  });
 });

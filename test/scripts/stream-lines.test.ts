@@ -4,12 +4,7 @@ import { readStream } from "../../scripts/stream-lines.ts";
 
 const streamOf = (...chunks: string[]): ReadableStream<Uint8Array> => {
   const encoder = new TextEncoder();
-  return new ReadableStream({
-    start(controller) {
-      for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
-      controller.close();
-    },
-  });
+  return ReadableStream.from(chunks.map((chunk) => encoder.encode(chunk)));
 };
 
 describe("readStream", () => {
