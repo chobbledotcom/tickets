@@ -427,3 +427,28 @@ look.
   and group the package-pricing loads, preserving the existing validation and
   fail-closed behaviour. See the "Respect the subrequest budget" guidance in
   AGENTS.md.
+
+## Stop patching @std/expect's `toContain` (from PR #1712)
+
+`test/test-utils/fast-expect.ts` globally overrides `@std/expect`'s built-in
+`toContain` via `expect.extend`, to skip the built-in's eager pretty-printing of
+the whole searched value on every (passing) assertion — the speed win documented
+in AGENTS.md's "Fast Tests" section (landed in PR #1702). PR #1712 removed the
+`#test-utils` barrel that used to side-effect-import it, so the override is now
+loaded via a `--preload ./test/test-utils/fast-expect.ts` flag on the test
+harness (`scripts/test-harness.ts`) and the mutation runner
+(`scripts/mutation/runner.ts`).
+
+The preference is to **not** patch a standard library if we can avoid it. This
+is genuinely out of scope for the barrel-removal PR (it would touch far more than
+that PR's remit), so it's recorded here rather than done there.
+
+Fix direction: replace the global `toContain` override with `@std/assert`'s
+native `assertStringIncludes` (and `assertArrayIncludes` where a `toContain` is
+used on arrays), which is already fast — it does not pretty-print on success — so
+no `@std` behaviour is patched. Migrate the `expect(bigHtml).toContain(...)` call
+sites (thousands, mostly rendered-HTML assertions), then delete `fast-expect.ts`,
+its test, the `--preload` flag in both runners, and the "Fast Tests" note that
+documents the override. Confirm the suite's slow-test report
+(`SLOW_TEST_THRESHOLD_MS`) doesn't regress. Start points: `fast-expect.ts` for
+what it did and why, and grep `\.toContain(` under `test/` for the call sites.
