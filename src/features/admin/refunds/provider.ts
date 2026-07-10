@@ -38,7 +38,7 @@ export const PROVIDER_REFUND_CONCURRENCY = 5;
  * provider subrequests. A single candidate carrying more references than the
  * budget forms its own wave; its references are chunked inside
  * {@link refundCandidateAtProvider}. */
-const packByReferenceCount =
+export const packByReferenceCount =
   (budget: number) =>
   (candidates: RefundCandidate[]): RefundCandidate[][] => {
     const waves: RefundCandidate[][] = [];
@@ -87,7 +87,9 @@ const refundReferenceAtProvider = async (
   }
 };
 
-const combineRefundOutcomes = (outcomes: RefundOutcome[]): RefundOutcome => {
+export const combineRefundOutcomes = (
+  outcomes: RefundOutcome[],
+): RefundOutcome => {
   if (outcomes.includes("errored")) return "errored";
   if (outcomes.includes("failed")) return "failed";
   return "refunded";
