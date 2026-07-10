@@ -33,10 +33,8 @@ import {
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
   adjustListingIncome,
-  getListingAggregateRecalculation,
   getListingWithCount,
   getStoredListingWithCount,
-  type ListingAggregateRecalculation,
   type ListingAggregateValues,
   updateListingAggregateValues,
 } from "#shared/db/listings.ts";
@@ -49,12 +47,7 @@ import {
   LISTING_TEMPLATES,
   submissionRequiresDate,
 } from "#shared/listing-templates.ts";
-import type {
-  AdminSession,
-  Group,
-  Listing,
-  ListingWithCount,
-} from "#shared/types.ts";
+import type { AdminSession, Listing, ListingWithCount } from "#shared/types.ts";
 import { isListingType } from "#shared/types.ts";
 import {
   adminDuplicateListingPage,
@@ -64,6 +57,7 @@ import {
 import { listingAggregateFields } from "#templates/fields/aggregate.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
 import { listingPage } from "./listing-page.ts";
+import { getListingAndGroups } from "./listing-page-data.ts";
 import { loadListingEditPanel } from "./listing-page-management-panels.ts";
 import {
   buildCreateListingResource,
@@ -289,33 +283,6 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
       childWarning,
     );
   });
-
-/** Listing + its groups + aggregate recalculation, loaded for the edit pages. */
-export const getListingAndGroups = async (
-  listingId: number,
-): Promise<{
-  aggregateRecalculation: ListingAggregateRecalculation;
-  groups: Group[];
-  listing: ListingWithCount;
-  selectedGroupIds: number[];
-} | null> => {
-  const [listing, allGroups, selectedGroupIds] = await Promise.all([
-    // The edit form reads the listing's *stored* values, not the resolved view,
-    // so editing an inheriting listing can't bake the current defaults into its
-    // row (and the editor webhook lock below preserves the real stored URL).
-    getStoredListingWithCount(listingId),
-    groups.cache.getAll(),
-    getGroupIdsByListingId(listingId),
-  ]);
-  return listing
-    ? {
-        aggregateRecalculation: await getListingAggregateRecalculation(listing),
-        groups: allGroups,
-        listing,
-        selectedGroupIds,
-      }
-    : null;
-};
 
 type ListingAndGroups = NonNullable<
   Awaited<ReturnType<typeof getListingAndGroups>>

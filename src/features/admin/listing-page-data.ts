@@ -24,7 +24,11 @@ import {
   decryptAttendees,
   getAttendeeNamesByIds,
 } from "#shared/db/attendees.ts";
-import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
+import {
+  getGroupIdsByListingId,
+  getHiddenPackageMemberIds,
+  groups,
+} from "#shared/db/groups.ts";
 import { getListingOverviewStats } from "#shared/db/listing-overview-stats.ts";
 import {
   anyNonStandaloneChild,
@@ -34,6 +38,8 @@ import {
   getAttendeesByListingIds,
   getListingAggregateRecalculation,
   getListingWithCount,
+  getStoredListingWithCount,
+  type ListingAggregateRecalculation,
   listingRevenueBreakdown,
 } from "#shared/db/listings.ts";
 import { getAttendeeIdsWithPaymentReference } from "#shared/db/payment-references.ts";
@@ -49,6 +55,7 @@ import {
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   type Attendee,
+  type Group,
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
@@ -320,3 +327,32 @@ export const loadListingActivity = async ({
   listing,
 }: LoadedListing): Promise<ActivityLogEntry[]> =>
   (await getListingWithActivityLog(listing.id))!.entries;
+
+/** Listing + its groups + aggregate recalculation, loaded for the edit pages.
+ *  Shared by the edit/duplicate routes and the Edit tab's panel loader, so
+ *  neither module has to reach into the other for it. */
+export const getListingAndGroups = async (
+  listingId: number,
+): Promise<{
+  aggregateRecalculation: ListingAggregateRecalculation;
+  groups: Group[];
+  listing: ListingWithCount;
+  selectedGroupIds: number[];
+} | null> => {
+  const [listing, allGroups, selectedGroupIds] = await Promise.all([
+    // The edit form reads the listing's *stored* values, not the resolved view,
+    // so editing an inheriting listing can't bake the current defaults into its
+    // row (and the editor webhook lock preserves the real stored URL).
+    getStoredListingWithCount(listingId),
+    groups.cache.getAll(),
+    getGroupIdsByListingId(listingId),
+  ]);
+  return listing
+    ? {
+        aggregateRecalculation: await getListingAggregateRecalculation(listing),
+        groups: allGroups,
+        listing,
+        selectedGroupIds,
+      }
+    : null;
+};
