@@ -53,6 +53,9 @@ export interface EdgeBundleOptions {
   guards?: EdgeBundleGuard[];
   /** Emit the finished bundle (write files, copy the map, …) and return. */
   emit: (ctx: EdgeBundleContext) => Promise<void>;
+  /** Reuse already-built client bundles instead of rebuilding them (for the
+   * benchmarks that bundle several entry points back to back). */
+  skipClientBuild?: boolean;
 }
 
 const JS = "application/javascript; charset=utf-8";
@@ -225,7 +228,7 @@ export const buildEdgeBundle = async (
   const { label, entryPoint, outfile, transformContent, guards } = options;
 
   // --- Step 1: Build client bundles ---
-  await buildStaticAssets();
+  if (!options.skipClientBuild) await buildStaticAssets();
 
   // --- Step 2: Build the edge bundle ---
 

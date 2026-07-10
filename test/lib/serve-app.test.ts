@@ -52,12 +52,13 @@ describeWithEnv("serve-app", { db: true }, () => {
         expect(second.status).toBe(200);
 
         // One boot for both requests — and the failed boot above was retried
-        // rather than memoized.
+        // rather than memoized. The line carries how long the isolate took
+        // to boot, e.g. "App started (10ms)".
         const bootLogs = logSpy.calls.filter((call) =>
           call.args.some(
             (arg) =>
               String(arg).includes("Setup") &&
-              String(arg).includes("App started"),
+              /App started \(\d+ms\)/.test(String(arg)),
           ),
         );
         expect(bootLogs.length).toBe(1);

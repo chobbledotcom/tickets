@@ -36,7 +36,9 @@ const initialize = once((): Promise<boolean> => {
   // In production a request must never be killed by the N+1 guard: report it
   // to the error log instead of throwing (dev/test keep the default throw).
   setN1GuardNotifyOnly(true);
-  logDebug("Setup", "App started");
+  // performance.now() counts from process start, so this is how long the
+  // isolate spent booting (runtime start + bundle load) before going live.
+  logDebug("Setup", `App started (${Math.round(performance.now())}ms)`);
   return sentryReady;
 });
 
