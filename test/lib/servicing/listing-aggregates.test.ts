@@ -10,7 +10,7 @@
  * tickets_count.
  *
  * Implementation contract (test-first):
- *   - `TICKET_COUNTS_PREDICATE` (`schema.ts`) becomes `quantity > 0 AND kind =
+ *   - `TICKET_COUNTS_PREDICATE` (`schema/listing-aggregates.ts`) becomes `quantity > 0 AND kind =
  *     'attendee'` (or the trigger/recompute SQL joins attendees and filters
  *     kind), so the predicate is the single source of truth for "is a ticket".
  *   - `booked_quantity` keeps counting every quantity > 0 row regardless of kind.
@@ -27,7 +27,7 @@ import {
   invalidateListingsCache,
   resetListingAggregateFields,
 } from "#shared/db/listings.ts";
-import { TICKET_COUNTS_PREDICATE } from "#shared/db/migrations/schema.ts";
+import { TICKET_COUNTS_PREDICATE } from "#shared/db/migrations/schema/listing-aggregates.ts";
 import {
   createServicingHold,
   createTestListing,
