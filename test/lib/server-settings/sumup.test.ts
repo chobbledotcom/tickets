@@ -5,17 +5,16 @@ import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import { sumupApi } from "#shared/sumup.ts";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
-  adminFormPost,
-  adminGet,
   assertJson,
-  describeWithEnv,
   expectFlash,
-  getAllActivityLog,
   redirectFormId,
   testRequiresAuth,
-  withMocks,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { withMocks } from "#test-utils/mocks.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin settings)", { db: true }, () => {
   afterEach(() => {

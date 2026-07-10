@@ -6,7 +6,7 @@ import {
   type AgentUserOption,
   adminLogisticsAgentEditPage,
 } from "#templates/admin/logistics.tsx";
-import { setupTestEncryptionKey } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 const session: AdminSession = { adminLevel: "owner" };
 const agent: LogisticsAgent = { id: 7, name: "Van 1" };

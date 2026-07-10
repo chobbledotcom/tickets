@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { signPrice, verifyPrice } from "#shared/payment-signature.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 const TOTAL = 4500;
 

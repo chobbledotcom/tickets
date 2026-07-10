@@ -11,17 +11,16 @@ import { setListingQuestions } from "#shared/db/questions/queries.ts";
 import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { signedMeta } from "#test-utils/factories.ts";
+import { mockWebhookRequest } from "#test-utils/mocks.ts";
+import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
-  createTestListing,
-  describeWithEnv,
   expectWebhookProcessed,
-  mockWebhookRequest,
-  setupStripe,
-  signedMeta,
-  stubWebhookVerify,
-} from "#test-utils";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
+} from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -42,9 +41,8 @@ const submitMultiTicketFormWithStubbedCheckout = async (
       sessionId: stubSessionId,
     }),
   );
-  const { submitMultiTicketForm, expectCheckoutRedirect } = await import(
-    "#test-utils"
-  );
+  const { expectCheckoutRedirect } = await import("#test-utils/assertions.ts");
+  const { submitMultiTicketForm } = await import("#test-utils/csrf.ts");
   try {
     const checkoutResponse = await submitMultiTicketForm(slug, formData);
     expectCheckoutRedirect(checkoutResponse);

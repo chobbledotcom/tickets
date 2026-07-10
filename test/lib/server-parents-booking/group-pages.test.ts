@@ -1,12 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-  makeParent,
-  ticketGet,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { makeParent, ticketGet } from "#test-utils/parents.ts";
 
 describeWithEnv(
   "server > parents booking — group pages",

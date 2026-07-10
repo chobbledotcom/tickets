@@ -13,11 +13,9 @@ import {
 } from "#shared/db/attendee-statuses.ts";
 import { createAttendeeAtomic, getAttendee } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
-import {
-  createTestListing,
-  describeWithEnv,
-  getTestPrivateKey,
-} from "#test-utils";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
 describeWithEnv("db > attendee statuses", { db: true }, () => {

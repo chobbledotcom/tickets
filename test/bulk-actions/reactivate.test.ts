@@ -1,14 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount, listingsTable } from "#shared/db/listings.ts";
-import {
-  adminFormPost,
-  adminGet,
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-  expectHtml,
-} from "#test-utils";
+import { expectHtml } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
   const createInactiveListGroup = async (name: string) => {

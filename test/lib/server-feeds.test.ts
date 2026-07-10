@@ -7,16 +7,18 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { escapeIcs, escapeXml } from "#routes/feeds.ts";
 import { settings } from "#shared/db/settings.ts";
+import { expectHtml } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,
   createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
+import {
   createTestListing,
   deactivateTestListing,
-  describeWithEnv,
-  expectHtml,
-  mockRequest,
   pastCloseTime,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 
 /** Fetch a feed URL and return the body text */
 const fetchFeedBody = async (feedPath: string): Promise<string> => {

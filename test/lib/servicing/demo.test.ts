@@ -28,12 +28,9 @@ import {
   setDemoModeForTest,
 } from "#shared/demo.ts";
 import { FormParams } from "#shared/form-data.ts";
-import {
-  adminPost,
-  createTestListing,
-  describeWithEnv,
-  getServicingEvent,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminPost, getServicingEvent } from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 

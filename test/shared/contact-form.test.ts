@@ -8,7 +8,11 @@ import {
 } from "#shared/contact-form.ts";
 import { settings } from "#shared/db/settings.ts";
 import { setHostEmailConfigForTest } from "#shared/email.ts";
-import { emailTestSandbox, expectSendNoop, validEmail } from "#test-utils";
+import {
+  emailTestSandbox,
+  expectSendNoop,
+  validEmail,
+} from "#test-utils/email.ts";
 
 const BOTH_KEYS = {
   BOTPOISON_PUBLIC_KEY: "pk_test_public",

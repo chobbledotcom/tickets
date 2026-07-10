@@ -28,15 +28,12 @@ import {
   getSuperuserUsername,
   sendSuperuserCredentialsEmail,
 } from "#shared/superuser.ts";
-import {
-  describeWithEnv,
-  setTestEnv,
-  stubFetchStatus,
-  times,
-  validEmail,
-  withMocks,
-  withRandomBytes,
-} from "#test-utils";
+import { times } from "#test-utils/arrays.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { validEmail } from "#test-utils/email.ts";
+import { setTestEnv } from "#test-utils/env.ts";
+import { stubFetchStatus, withMocks } from "#test-utils/mocks.ts";
+import { withRandomBytes } from "#test-utils/random.ts";
 
 const captureConsoleErrors = <T>(
   body: () => T,

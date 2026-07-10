@@ -3,12 +3,10 @@ import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import dropListingAttendeeRefundedMigration from "#shared/db/migrations/2026-06-22_drop_listing_attendee_refunded.ts";
 import { recreateTable } from "#shared/db/migrations/schema-sync.ts";
-import {
-  buildMigrationContext,
-  createTestAttendee,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { buildMigrationContext } from "#test-utils/migrations.ts";
 import {
   columnNames,
   seedPreDropLedgerColumns,

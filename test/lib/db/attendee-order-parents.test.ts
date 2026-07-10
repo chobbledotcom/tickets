@@ -9,7 +9,8 @@ import {
   expandChildAllocations,
 } from "#shared/db/attendees/order-parents.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** A bare booking line for a listing id (other fields default at insert time). */
 const line = (listingId: number): ListingBooking => ({ listingId });

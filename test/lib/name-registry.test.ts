@@ -7,11 +7,9 @@ import {
   matchName,
   normalizeEntityName,
 } from "#shared/db/name-registry.ts";
-import {
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("name-registry", { db: true }, () => {
   test("normalizeEntityName trims and case-folds", () => {

@@ -9,7 +9,8 @@ import {
 } from "#shared/flash-context.ts";
 import { CsrfForm, Flash, renderError, renderSuccess } from "#shared/forms.tsx";
 import { detectIframeMode } from "#shared/iframe.ts";
-import { hasInputWithValue, setupTestEncryptionKey } from "#test-utils";
+import { hasInputWithValue } from "#test-utils/csrf.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 /** Render a CsrfForm inside a flash context targeting `formId`, so the form's
  *  inline-flash branch (id === target form) can be exercised. */

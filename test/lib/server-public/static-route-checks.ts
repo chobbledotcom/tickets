@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
-import { awaitTestRequest, mockRequest } from "#test-utils";
+import { awaitTestRequest, mockRequest } from "#test-utils/mocks.ts";
 
 /**
  * Every small static-file route (robots.txt, favicon.ico, style.css,

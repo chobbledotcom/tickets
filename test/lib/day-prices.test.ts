@@ -6,7 +6,7 @@ import {
   isPaidListing,
   parseDayPrices,
 } from "#shared/types.ts";
-import { testListing } from "#test-utils";
+import { testListing } from "#test-utils/factories.ts";
 
 describe("parseDayPrices", () => {
   test("keeps whole-number day counts mapped to whole-number minor prices", () => {

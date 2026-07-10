@@ -1,12 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#shared/db/listing-parents.ts";
-import {
-  createTestListing,
-  describeWithEnv,
-  expectReserved,
-  postBooking,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { expectReserved, postBooking } from "#test-utils/parents.ts";
 
 describeWithEnv(
   "server > parents booking — Stage B shared child",

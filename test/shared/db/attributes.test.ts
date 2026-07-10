@@ -13,13 +13,13 @@ import {
   swapAttributeOptionOrder,
   swapAttributeOrder,
 } from "#shared/db/attributes.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAttribute,
   createTestAttributeOption,
   createTestAttributeWithOptions,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+} from "#test-utils/db-helpers/attributes.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const names = <T extends { name: string }>(items: T[]): string[] =>
   items.map((item) => item.name);

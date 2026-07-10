@@ -4,12 +4,9 @@ import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { settings } from "#shared/db/settings.ts";
 import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 import { getSmsGatewayConfig } from "#shared/sms/gateway.ts";
-import {
-  adminFormPost,
-  describeWithEnv,
-  expectFlash,
-  testRequiresAuth,
-} from "#test-utils";
+import { expectFlash, testRequiresAuth } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 const post = (data: Record<string, string>) =>
   adminFormPost("/admin/settings/sms-gateway", data);

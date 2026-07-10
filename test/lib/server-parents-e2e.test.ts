@@ -3,25 +3,29 @@ import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import type { Listing } from "#shared/types.ts";
+import { expectFlash } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createDailyTestListing,
+  createTestListing,
+} from "#test-utils/db-helpers/listings.ts";
+import {
+  expectPackageBookingAccepted,
+  submitPackageBooking,
+} from "#test-utils/packages.ts";
 import {
   bookingPageHtml,
   bookParent,
   childField,
-  createDailyTestListing,
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-  expectFlash,
-  expectPackageBookingAccepted,
   expectRejectedBooking,
   expectReserved,
   makeParent,
   parentField,
   postBooking,
   postCalculate,
-  submitPackageBooking,
   ticketPageStatus,
-} from "#test-utils";
+} from "#test-utils/parents.ts";
 import { firstBookableDate } from "./server-parents-gate/helpers.ts";
 
 /**
@@ -356,7 +360,7 @@ describeWithEnv(
     test("admin attendee pages show the booking and each chosen child quantity", async () => {
       const { parent, childA, childB, date } = await setupAndBookOneOfEach();
 
-      const { adminGet } = await import("#test-utils");
+      const { adminGet } = await import("#test-utils/session.ts");
 
       // The parent listing's attendee page lists the buyer with quantity 2.
       const parentPage = await adminGet(
@@ -429,7 +433,7 @@ describeWithEnv(
     test("the admin attendee detail page labels each child under its parent", async () => {
       const { parent } = await setupAndBookOneOfEach();
 
-      const { adminGet } = await import("#test-utils");
+      const { adminGet } = await import("#test-utils/session.ts");
       const { getAttendeesRaw: rawFor } = await import(
         "#shared/db/attendees.ts"
       );
@@ -448,7 +452,7 @@ describeWithEnv(
     test("a standalone booking's attendee detail page shows no add-on annotation", async () => {
       const { standalone } = await setupStandalone();
 
-      const { adminGet } = await import("#test-utils");
+      const { adminGet } = await import("#test-utils/session.ts");
       const { getAttendeesRaw: rawFor } = await import(
         "#shared/db/attendees.ts"
       );
@@ -462,7 +466,7 @@ describeWithEnv(
     test("the admin calendar shows the parent and inherited-date child bookings on the parent's date", async () => {
       const { date } = await setupAndBookOneOfEach();
 
-      const { adminGet } = await import("#test-utils");
+      const { adminGet } = await import("#test-utils/session.ts");
       const calendar = await adminGet(`/admin/calendar?date=${date}`);
       expect(calendar.status).toBe(200);
       const html = await calendar.text();

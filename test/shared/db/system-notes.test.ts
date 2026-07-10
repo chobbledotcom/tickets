@@ -15,12 +15,10 @@ import {
   loadNotesForAttendees,
   loadNotesForListing,
 } from "#shared/db/system-notes.ts";
-import {
-  createTestAttendee,
-  createTestListing,
-  describeWithEnv,
-  getTestPrivateKey,
-} from "#test-utils";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** Create a listing + attendee and return the attendee id. */
 const makeAttendee = async (name = "Note Target"): Promise<number> => {

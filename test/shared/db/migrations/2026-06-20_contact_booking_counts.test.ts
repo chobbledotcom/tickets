@@ -7,7 +7,8 @@ import {
   tableExists as schemaTableExists,
   syncIndexes,
 } from "#shared/db/migrations/schema-sync.ts";
-import { buildMigrationContext, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { buildMigrationContext } from "#test-utils/migrations.ts";
 
 const context = buildMigrationContext({
   applySchemaChanges,

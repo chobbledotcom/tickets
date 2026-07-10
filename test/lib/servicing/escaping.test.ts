@@ -10,12 +10,9 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  createDailyTestListing,
-  createServicingHold,
-  describeWithEnv,
-  renderAdminPage,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createServicingHold, renderAdminPage } from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 

@@ -8,14 +8,13 @@ import {
 } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
+import { describeWithEnv, rawListingRange } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
-  bookAttendee,
   createDailyTestListing,
-  createTestGroup,
-  describeWithEnv,
-  rawListingRange,
   updateTestListing,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("e2e: multi-day bookings — edge cases", { db: true }, () => {
   describe("edge cases: realistic unusual scenarios", () => {

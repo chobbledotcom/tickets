@@ -6,20 +6,17 @@ import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import type { SquareConnectionTestResult } from "#shared/square.ts";
 import { squareApi } from "#shared/square.ts";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
-  adminFormPost,
-  adminGet,
   assertJson,
-  describeAdminSettings,
   expectFlash,
   expectHtmlResponse,
-  getAllActivityLog,
-  mockFormRequest,
   redirectFormId,
-  testCookie,
   testRequiresAuth,
-  withMocks,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { mockFormRequest, withMocks } from "#test-utils/mocks.ts";
+import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
+import { describeAdminSettings } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 

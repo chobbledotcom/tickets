@@ -5,8 +5,9 @@ import {
   slugifyForTurso,
   tursoDbProvider as tursoApi,
 } from "#shared/turso-api.ts";
-import { describeWithEnv, withMocks } from "#test-utils";
 import { testCreateDatabaseReturnsErrorOn403 } from "#test-utils/builder-mocks.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { withMocks } from "#test-utils/mocks.ts";
 
 const TURSO_ENV = {
   TURSO_API_TOKEN: "test-turso-token",

@@ -30,16 +30,18 @@ import {
   verifyUserPassword,
 } from "#shared/db/users.ts";
 import type { User } from "#shared/types.ts";
+import { submitJoinForm } from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestInvite } from "#test-utils/db-helpers/misc.ts";
 import {
-  createTestInvite,
-  describeWithEnv,
+  TEST_ADMIN_PASSWORD,
+  TEST_ADMIN_USERNAME,
+} from "#test-utils/internal.ts";
+import {
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
-  submitJoinForm,
-  TEST_ADMIN_PASSWORD,
-  TEST_ADMIN_USERNAME,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
 
 /** Unwrap a v2 user's DATA_KEY with the per-user-salted password KEK. The salt
  * folds in the account's stored hash, so we re-derive it from the password. */

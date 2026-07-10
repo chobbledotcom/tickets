@@ -10,7 +10,7 @@ import {
   runWithRequestId,
   setSuppressRequestLogs,
 } from "#shared/logger.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
   beforeEach(() => {

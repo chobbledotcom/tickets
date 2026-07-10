@@ -9,7 +9,8 @@ import {
   paymentPage,
   successPage,
 } from "#templates/payment.tsx";
-import { setupTestEncryptionKey, testAttendee, testListing } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testAttendee, testListing } from "#test-utils/factories.ts";
 
 beforeAll(async () => {
   setupTestEncryptionKey();

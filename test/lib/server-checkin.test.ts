@@ -2,19 +2,16 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { formatDateLabel } from "#shared/dates.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
-  adminGet,
-  awaitTestRequest,
-  bookAttendee,
   createDailyTestAttendee,
   createMultiBookingAttendee,
   createTestAttendeeWithToken,
-  createTestListing,
-  describeWithEnv,
-  mockFormRequest,
-  testCookie,
-  testCsrfToken,
-} from "#test-utils";
+} from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 /** Create attendee + login, returning token + session for check-in tests */
 const setupCheckinTest = async (

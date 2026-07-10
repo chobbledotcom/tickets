@@ -9,7 +9,7 @@ import {
   getSmsGatewayConfig,
   sendEncryptedMessage,
 } from "#shared/sms/gateway.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 const PASS = "test-passphrase";
 

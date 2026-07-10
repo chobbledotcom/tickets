@@ -4,22 +4,23 @@ import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
-  adminFormPost,
-  adminGet,
-  describeWithEnv,
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
   expectRedirectWithFlash,
-  getAllActivityLog,
-  mockAdminLoginRequest,
-  mockFormRequest,
-  reloginAsAdmin,
-  TEST_ADMIN_PASSWORD,
-  testCookie,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { TEST_ADMIN_PASSWORD } from "#test-utils/internal.ts";
+import { mockAdminLoginRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import {
+  adminFormPost,
+  adminGet,
+  reloginAsAdmin,
+  testCookie,
+} from "#test-utils/session.ts";
 
 describeWithEnv("server (admin settings)", { db: true }, () => {
   afterEach(() => {

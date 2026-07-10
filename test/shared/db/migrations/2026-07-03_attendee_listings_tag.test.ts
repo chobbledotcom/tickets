@@ -2,7 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, queryOne } from "#shared/db/client.ts";
 import attendeeListingsTagMigration from "#shared/db/migrations/2026-07-03_attendee_listings_tag.ts";
-import { buildMigrationContext, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { buildMigrationContext } from "#test-utils/migrations.ts";
 
 // Data-only migration: it reads and rewrites one settings row via getDb.
 const context = buildMigrationContext({});

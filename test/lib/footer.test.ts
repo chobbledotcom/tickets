@@ -12,7 +12,8 @@ import {
   markAdminFooter,
   renderAdminFooter,
 } from "#templates/admin/footer.tsx";
-import { expectHtmlEscaped, setupTestEncryptionKey } from "#test-utils";
+import { expectHtmlEscaped } from "#test-utils/assertions.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 beforeAll(async () => {
   // The footer's logout form embeds the current CSRF token, which is HMAC

@@ -2,7 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesByTokens } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("db > attendees > getAttendeesByTokens", { db: true }, () => {
   test("returns an empty list for no tokens", async () => {
@@ -12,7 +13,9 @@ describeWithEnv("db > attendees > getAttendeesByTokens", { db: true }, () => {
   test("returns attendees in token order", async () => {
     const listing = await createTestListing({ maxAttendees: 10 });
 
-    const { createTestAttendeeDirect } = await import("#test-utils");
+    const { createTestAttendeeDirect } = await import(
+      "#test-utils/db-helpers/attendees.ts"
+    );
     const { attendee: a1, token: token1 } = await createTestAttendeeDirect(
       listing.id,
       "Tok1",
@@ -45,7 +48,7 @@ describeWithEnv("db > attendees > getAttendeesByTokens", { db: true }, () => {
   test("returns empty bookings for orphaned attendee", async () => {
     const listing = await createTestListing({ maxAttendees: 10 });
     const { createTestAttendeeDirect: createDirect } = await import(
-      "#test-utils"
+      "#test-utils/db-helpers/attendees.ts"
     );
     const { attendee, token } = await createDirect(
       listing.id,

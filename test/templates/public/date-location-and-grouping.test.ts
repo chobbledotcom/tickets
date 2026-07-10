@@ -8,7 +8,7 @@ import { todayInTz } from "#shared/timezone.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { ticketPage } from "#templates/public/reservations.tsx";
 import { ticketViewPage } from "#templates/tickets.tsx";
-import { testAttendee, testListingWithCount } from "#test-utils";
+import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
 import { registerPublicTemplateHooks } from "./helpers.ts";
 

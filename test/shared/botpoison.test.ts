@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { verifyBotpoisonSolution } from "#shared/botpoison.ts";
-import { setTestEnv } from "#test-utils";
+import { setTestEnv } from "#test-utils/env.ts";
 import { setupFetchStub } from "#test-utils/fetch-stub.ts";
 
 describe("verifyBotpoisonSolution", () => {

@@ -16,12 +16,10 @@ import {
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getAgentRunSheet, setLegDone } from "#shared/db/logistics.ts";
-import {
-  awaitTestRequest,
-  createTestAttendeeWithToken,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 
 /** Make the attendee's single line a quantity-0 sentinel (price 0, invariant). */
 const ghostLine = (attendeeId: number): Promise<unknown> =>

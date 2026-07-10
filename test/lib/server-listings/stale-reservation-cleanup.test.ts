@@ -3,11 +3,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#shared/db/client.ts";
 import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
-import {
-  awaitTestRequest,
-  describeWithEnv,
-  setupListingAndLogin,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { setupListingAndLogin } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 

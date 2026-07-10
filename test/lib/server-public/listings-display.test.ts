@@ -5,15 +5,14 @@ import { handleRequest } from "#routes";
 import { appendImageToItem, imagesTable } from "#shared/db/images.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
+import { assertPublicHtml, expectRedirect } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
-  assertPublicHtml,
-  createTestGroup,
   createTestListing,
   deactivateTestListing,
-  describeWithEnv,
-  expectRedirect,
-  mockRequest,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 
 // jscpd:ignore-end
 

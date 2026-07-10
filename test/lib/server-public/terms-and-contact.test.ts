@@ -7,13 +7,9 @@ import {
   ICS_DISCOVERY_TAG,
   RSS_DISCOVERY_TAG,
 } from "#templates/public/shared.tsx";
-import {
-  assertPublicHtml,
-  describeWithEnv,
-  expectRedirect,
-  mockFormRequest,
-  mockRequest,
-} from "#test-utils";
+import { assertPublicHtml, expectRedirect } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 
 // jscpd:ignore-end
 

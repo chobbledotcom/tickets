@@ -7,13 +7,13 @@ import {
   getAttendeesRaw,
   loadExistingLines,
 } from "#shared/db/attendees.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
-  bookAttendee,
   createDailyTestListing,
   createTestListing,
-  describeWithEnv,
-} from "#test-utils";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
+} from "#test-utils/db-helpers/listings.ts";
 
 /** Encrypt a minimal PII blob for the test attendee. Reuses the production
  * encryptPiiBlob path so the resulting blob decrypts correctly. */

@@ -1,15 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#shared/db/listings.ts";
-import {
-  adminFormPost,
-  adminGet,
-  apiRequest,
-  assertJson,
-  createTestListing,
-  describeWithEnv,
-  expectFlash,
-} from "#test-utils";
+import { assertJson, expectFlash } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminFormPost, adminGet, apiRequest } from "#test-utils/session.ts";
 import { rescuingPageSetup, soloChildAddOn } from "./helpers.ts";
 
 const ADDON_ERROR = "opt-in add-on reachable only through";

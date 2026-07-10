@@ -5,7 +5,8 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { ticketPage } from "#templates/public/reservations.tsx";
 import { pagePackage as sharedPagePackage } from "#test/lib/package-cap-fixtures.ts";
-import { setupTestEncryptionKey, testListingWithCount } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** A ticket-page listing row built from column overrides (not hidden, no
  * per-attendee override) — the shape almost every ticketPage test needs. */

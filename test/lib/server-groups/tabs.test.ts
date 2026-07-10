@@ -5,21 +5,22 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import { getGroupIdsByListingId } from "#shared/db/groups.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
-  adminFormPost,
-  adminGet,
-  awaitTestRequest,
-  createTestEditorSession,
-  createTestGroup,
-  createTestListing,
-  createTestManagerSession,
-  describeWithEnv,
   expectFlashRedirect,
   expectStatus,
-  mockFormRequest,
+  testRequiresAuth,
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import {
+  adminFormPost,
+  adminGet,
+  createTestEditorSession,
+  createTestManagerSession,
   testCookie,
   testCsrfToken,
-  testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/session.ts";
 
 describeWithEnv(
   "server (admin groups) — tabs & add-listings",
@@ -161,7 +162,9 @@ describeWithEnv(
         expect(await getGroupIdsByListingId(listing1.id)).toContain(group.id);
         expect(await getGroupIdsByListingId(listing2.id)).toEqual([]);
         // The assignment is recorded in the activity log.
-        const { getAllActivityLog } = await import("#test-utils");
+        const { getAllActivityLog } = await import(
+          "#test-utils/activity-log.ts"
+        );
         const log = await getAllActivityLog();
         expect(
           log.some((e) => e.message.includes("added to group 'Assign Group'")),

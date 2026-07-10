@@ -7,7 +7,8 @@ import { detectIframeMode } from "#shared/iframe.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { fieldsApi } from "#templates/fields/ticket.ts";
 import { ticketPage } from "#templates/public/reservations.tsx";
-import { hasInputWithValue, testListingWithCount } from "#test-utils";
+import { hasInputWithValue } from "#test-utils/csrf.ts";
+import { testListingWithCount } from "#test-utils/factories.ts";
 import {
   PKG_SLUG,
   pagePackage,

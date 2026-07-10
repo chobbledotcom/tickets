@@ -1,5 +1,5 @@
 import { modifiersTable } from "#shared/db/modifiers.ts";
-import { createTestListing } from "#test-utils";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /**
  * A £10 listing plus a 10%-charge "Service charge" modifier — the base setup

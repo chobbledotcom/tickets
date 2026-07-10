@@ -7,13 +7,13 @@ import {
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
-  bookAttendee,
   createDailyTestListing,
-  createTestGroup,
   createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
   test("returns true for empty items", async () => {

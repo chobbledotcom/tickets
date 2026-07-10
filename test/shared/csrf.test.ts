@@ -10,7 +10,7 @@ import {
   signCsrfToken,
   verifySignedCsrfToken,
 } from "#shared/csrf.ts";
-import { setupTestEncryptionKey } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 describe("signCsrfToken", () => {
   beforeEach(() => {

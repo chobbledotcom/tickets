@@ -13,7 +13,8 @@ import {
   setBuildCommitForTest,
   setBuildTimestampForTest,
 } from "#shared/update.ts";
-import { createTestBuiltSite, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 
 const LATEST_TAG = "v2099-01-01-120000";
 

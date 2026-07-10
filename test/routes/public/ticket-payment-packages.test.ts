@@ -16,12 +16,10 @@ import { setGroupPackageMembers, setListingGroups } from "#shared/db/groups.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { treePackage } from "#test/lib/package-cap-fixtures.ts";
-import {
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-  testListingWithCount,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** Per-path line assembly and the package-aware ticket context, split from
  * ticket-payment.test.ts to stay under the file-size lint. */

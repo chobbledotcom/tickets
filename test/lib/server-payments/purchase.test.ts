@@ -9,16 +9,13 @@ import type { CheckoutIntent } from "#shared/payments.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
-import {
-  awaitTestRequest,
-  bookAttendee,
-  createTestListing,
-  describeWithEnv,
-  expectFlash,
-  expectRedirect,
-  setupStripe,
-  submitTicketForm,
-} from "#test-utils";
+import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
+import { submitTicketForm } from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 

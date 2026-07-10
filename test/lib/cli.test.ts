@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { adminApiRoutes } from "#routes/admin/api.ts";
-import { setTestEnv } from "#test-utils";
+import { setTestEnv } from "#test-utils/env.ts";
 import { buildRequest, parseBody } from "../../cli/api-request.ts";
 import { loadConfig } from "../../cli/config.ts";
 import { buildCurlArgs, curlFailureMessage, curlJson } from "../../cli/curl.ts";

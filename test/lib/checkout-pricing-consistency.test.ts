@@ -22,15 +22,15 @@ import type {
   ModifierSpec,
 } from "#shared/payments.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   checkoutItem,
-  describeWithEnv,
   insertModifier,
   linkModifierAnswer,
   linkModifierListing,
   patchModifier,
-  useSetting,
-} from "#test-utils";
+} from "#test-utils/modifiers.ts";
+import { useSetting } from "#test-utils/settings.ts";
 
 /**
  * The public checkout and the webhook must price the same cart identically: the

@@ -7,20 +7,19 @@ import { groups } from "#shared/db/groups.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { clearTokenAttempts } from "#shared/db/token-attempts.ts";
 import { MAX_TOKEN_404S } from "#shared/limits.ts";
+import { expectHtml, expectHtmlResponse } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
-  awaitTestRequest,
   createDailyTestAttendee,
-  createPaidTestAttendee,
   createTestAttendee,
   createTestAttendeeWithToken,
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-  expectHtml,
-  expectHtmlResponse,
   fetchAliceTicketPageBody,
   getAttendeesRaw,
-} from "#test-utils";
+} from "#test-utils/db-helpers/attendees.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 
 /** Fetch a ticket page and return the response body text */
 const fetchTicketBody = async (tokenPath: string): Promise<string> => {
@@ -453,7 +452,7 @@ describeWithEnv(
       group: { id: number; slug: string },
       contact: { email: string; name: string },
     ): Promise<Response> => {
-      const { submitPackageBooking } = await import("#test-utils");
+      const { submitPackageBooking } = await import("#test-utils/packages.ts");
       // The count selector is per group now: package_quantity_<groupId>.
       return submitPackageBooking(group.slug, {
         ...contact,

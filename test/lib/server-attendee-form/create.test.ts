@@ -1,17 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { expectRedirect, testRequiresAuth } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  adminFormPost,
   attendeeLineFields,
   buildAttendeeEditForm,
   createTestAttendee,
-  createTestListing,
-  describeWithEnv,
-  expectRedirect,
   getAttendeesRaw,
-  setupListingAndLogin,
-  testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
 import { expectAttendeeLineCount, submitNewAttendeeForm } from "./helpers.ts";
 
 describeWithEnv(

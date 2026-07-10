@@ -5,7 +5,7 @@ import {
   parentAndChildFitGroup,
   ticketsThatFitInPool,
 } from "#shared/booking/model.ts";
-import { useSetting } from "#test-utils";
+import { useSetting } from "#test-utils/settings.ts";
 import { listing } from "./booking-model-fixtures.ts";
 
 describe("booking model — capacity", () => {

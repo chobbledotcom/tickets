@@ -10,18 +10,19 @@ import {
 import { queryAll } from "#shared/db/client.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import type { Group, Listing } from "#shared/types.ts";
+import { attendeeLineIndex } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   type AttendeeLineInput,
-  adminFormPost,
-  adminGet,
   attendeeLineFields,
-  attendeeLineIndex,
   buildAttendeeEditForm,
-  createTestGroup,
+} from "#test-utils/db-helpers/attendees.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
   createTestListing,
   deactivateTestListing,
-  describeWithEnv,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 /**
  * The row-per-path attendee editor: every stored booking row renders as its

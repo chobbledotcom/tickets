@@ -4,7 +4,11 @@ import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { clearSavedFormData, setSavedFormData } from "#shared/forms.tsx";
 import { renderQuestions } from "#templates/public/reservations.tsx";
-import { testAnswer, testQuestion, testRadioQuestion } from "#test-utils";
+import {
+  testAnswer,
+  testQuestion,
+  testRadioQuestion,
+} from "#test-utils/factories.ts";
 
 /** Two single-answer radio questions — the shared fixture for the
  *  "multiple questions" and "data-listing-ids" tests. */

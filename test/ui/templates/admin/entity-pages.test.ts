@@ -6,7 +6,7 @@ import {
   renderSection,
   type SummaryRow,
 } from "#templates/admin/entity-pages.tsx";
-import { setupTestEncryptionKey } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 beforeAll(() => {
   setupTestEncryptionKey();

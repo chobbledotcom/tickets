@@ -14,13 +14,10 @@ import { buildItemsMetadata } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { sumupApi } from "#shared/sumup.ts";
-import {
-  createTestListing,
-  describeWithEnv,
-  expectHtmlResponse,
-  mockRequest,
-  mockWebhookRequest,
-} from "#test-utils";
+import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
 
 // jscpd:ignore-end
 

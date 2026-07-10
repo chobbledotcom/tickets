@@ -1,14 +1,10 @@
 import { expect } from "@std/expect";
 import type { ListingInput } from "#shared/db/listings.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
-import {
-  createPaidTestAttendee,
-  createTestListing,
-  expectFlash,
-  expectFlashRedirect,
-  testCookie,
-  testCsrfToken,
-} from "#test-utils";
+import { expectFlash, expectFlashRedirect } from "#test-utils/assertions.ts";
+import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 /** Seed `count` paid attendees with payment-intent ids `${piPrefix}<i>`. */
 export const seedBatchAttendees = async (

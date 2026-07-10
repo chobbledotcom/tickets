@@ -5,27 +5,30 @@ import { encryptBytes } from "#shared/crypto/encryption.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import {
-  adminGet,
   assertAdminHtml,
-  createTestManagerSession,
-  describeWithEnv,
   expectFlashRedirect,
   expectHtmlResponse,
   expectRedirectWithFlash,
-  JPEG_HEADER,
-  makeTestPng,
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { JPEG_HEADER, PDF_BYTES } from "#test-utils/factories.ts";
+import {
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
-  PDF_BYTES,
-  testCookie,
-  testCsrfToken,
   withCdnProxy,
   withCdnRejecting,
   withStorageDisabled,
   withStorageEnabled,
   withStorageMock,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
+import {
+  adminGet,
+  createTestManagerSession,
+  testCookie,
+  testCsrfToken,
+} from "#test-utils/session.ts";
+import { makeTestPng } from "#test-utils/test-image.ts";
 
 const HEADER_IMAGE_POST = "/admin/settings/header-image";
 const HEADER_IMAGE_DELETE = "/admin/settings/header-image/delete";

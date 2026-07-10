@@ -6,8 +6,9 @@ import {
   EUROPEAN_REGIONS,
   STORAGE_REGION,
 } from "#shared/bunny-db.ts";
-import { describeWithEnv, withMocks } from "#test-utils";
 import { testCreateDatabaseReturnsErrorOn403 } from "#test-utils/builder-mocks.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { withMocks } from "#test-utils/mocks.ts";
 
 describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
   const dbCreateFetch = (dbId: string, fallback: (url: string) => Response) =>

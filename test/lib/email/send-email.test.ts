@@ -3,7 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import type { EmailConfig, EmailMessage } from "#shared/email.ts";
 import { sendEmail } from "#shared/email.ts";
-import { useFetchStub, validEmail } from "#test-utils";
+import { validEmail } from "#test-utils/email.ts";
+import { useFetchStub } from "#test-utils/mocks.ts";
 
 const testConfig: EmailConfig = {
   apiKey: "re_test_key",

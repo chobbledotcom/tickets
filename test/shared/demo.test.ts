@@ -29,10 +29,10 @@ import { FormParams } from "#shared/form-data.ts";
 import {
   createTestDbWithSetup,
   describeWithEnv,
-  mockRequest,
   resetDb,
-  setupTestEncryptionKey,
-} from "#test-utils";
+} from "#test-utils/db.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 
 describeWithEnv("isDemoMode", { env: { DEMO_MODE: undefined } }, () => {
   beforeEach(() => setDemoModeForTest(false));

@@ -1,4 +1,4 @@
-import { createTestListing } from "#test-utils";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** Every weekday, so a daily listing is bookable any day of the week — the
  * base setup shared by every daily-listing test in this folder that isn't

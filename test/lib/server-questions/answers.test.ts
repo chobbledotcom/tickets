@@ -1,15 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  adminFormPost,
-  adminGet,
-  describeWithEnv,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
   expectStatus,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { addAnswer, createQuestion } from "./helpers.ts";
 
 describeWithEnv("server (admin questions)", { db: true }, () => {

@@ -8,14 +8,11 @@ import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { getNoteRows, getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
-import {
-  assertJson,
-  describeWithEnv,
-  getTestPrivateKey,
-  setupStripe,
-  singleItem,
-  webhookMeta,
-} from "#test-utils";
+import { assertJson } from "#test-utils/assertions.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 import {
   expectAcknowledgedIgnore,
   expectNoAttendees,

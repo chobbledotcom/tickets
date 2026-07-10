@@ -2,14 +2,12 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
-import {
-  adminGet,
-  createTestAttendee,
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-  expectStatus,
-} from "#test-utils";
+import { expectStatus } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(
   "server (admin groups) — revenue & roster decryption",

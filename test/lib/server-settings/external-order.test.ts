@@ -2,15 +2,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import {
-  adminFormPost,
-  awaitTestRequest,
-  describeWithEnv,
   expectFlash,
   expectHtmlResponse,
-  mockFormRequest,
-  testCookie,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { adminFormPost, testCookie } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin settings: external-order)", { db: true }, () => {
   describe("POST /admin/settings/external-order", () => {

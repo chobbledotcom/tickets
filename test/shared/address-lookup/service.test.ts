@@ -12,7 +12,7 @@ import {
   storeCachedAddresses,
 } from "#shared/db/address-cache.ts";
 import { settings } from "#shared/db/settings.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { setupFetchStub } from "#test-utils/fetch-stub.ts";
 

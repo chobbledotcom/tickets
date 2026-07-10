@@ -5,18 +5,12 @@ import { getAttendeesRaw } from "#shared/db/attendees.ts";
 import { getListing } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
-import {
-  apiRequest,
-  assertJson,
-  awaitTestRequest,
-  bookAttendee,
-  createDailyTestListing,
-  describeWithEnv,
-  fetchListingExportCsv,
-  mockFormRequest,
-  rawListingRange,
-  setupListingAndLogin,
-} from "#test-utils";
+import { assertJson, fetchListingExportCsv } from "#test-utils/assertions.ts";
+import { describeWithEnv, rawListingRange } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { apiRequest, setupListingAndLogin } from "#test-utils/session.ts";
 
 describeWithEnv("e2e: multi-day bookings — API & HTTP", { db: true }, () => {
   describe("admin REST API", () => {

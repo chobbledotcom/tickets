@@ -17,15 +17,17 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { getDb, queryOne } from "#shared/db/client.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  createDailyTestListing,
+  createTestListing,
+} from "#test-utils/db-helpers/listings.ts";
 import {
   createAnnualInspectionEvent,
   createDailyListingPair,
-  createDailyTestListing,
   createServicingHold,
-  createTestListing,
   createTestServicingEvent,
   decryptFirstServicingAttendee,
-  describeWithEnv,
   expectEmptyContactFields,
   expectLogisticsDisabled,
   expectRejects,
@@ -33,7 +35,7 @@ import {
   SMUGGLED_CONTACT_FIELDS,
   servicingRowsForListing,
   tokenIndexOf,
-} from "#test-utils";
+} from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 

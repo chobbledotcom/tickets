@@ -1,6 +1,6 @@
 import type { AttendeeTableRow } from "#shared/types.ts";
 import type { AttendeeColumnOpts } from "#templates/attendee-table.tsx";
-import { testAttendee } from "#test-utils";
+import { testAttendee } from "#test-utils/factories.ts";
 
 /** Base AttendeeColumnOpts shared by ATTENDEE_TABLE_COLUMNS cell tests */
 export const attendeeColumnOpts: AttendeeColumnOpts = {

@@ -11,19 +11,18 @@ import { handleRequest } from "#routes";
 import { isJsonApiPath } from "#routes/middleware.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
 import { SCANNER_CSRF_MAX_AGE_S } from "#shared/limits.ts";
+import { assertJson, expectHtmlResponse } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminGet,
-  assertJson,
-  awaitTestRequest,
-  createTestAttendeeWithToken,
-  createTestListing,
-  describeWithEnv,
-  expectHtmlResponse,
   requestAsSession,
   setupListingAndLogin,
   testCookie,
   testCsrfToken,
-} from "#test-utils";
+} from "#test-utils/session.ts";
 
 /** Create a JSON POST request for the scan API */
 const mockScanRequest = (

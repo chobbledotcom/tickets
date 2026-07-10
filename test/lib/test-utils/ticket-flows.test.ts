@@ -2,22 +2,26 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import {
-  createTestDb,
-  createTestDbWithSetup,
-  createTestInvite,
-  createTestListing,
   expectCheckoutRedirect,
   expectRedirectWithFlash,
+} from "#test-utils/assertions.ts";
+import {
   getPageCsrfToken,
-  loginAsAdmin,
-  mockWebhookRequest,
-  resetDb,
-  setTestSession,
-  setupStripe,
   submitJoinForm,
   submitMultiTicketForm,
   submitTicketForm,
-} from "#test-utils";
+} from "#test-utils/csrf.ts";
+import {
+  createTestDb,
+  createTestDbWithSetup,
+  resetDb,
+} from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestInvite } from "#test-utils/db-helpers/misc.ts";
+import { setTestSession } from "#test-utils/internal.ts";
+import { mockWebhookRequest } from "#test-utils/mocks.ts";
+import { loginAsAdmin } from "#test-utils/session.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 describe("test-utils — ticket & join flows", () => {
   afterEach(() => {

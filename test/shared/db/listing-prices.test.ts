@@ -16,11 +16,11 @@ import {
   syncListingPricesForIds,
 } from "#shared/db/listing-prices.ts";
 import { deleteListing, listingsTable } from "#shared/db/listings.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
-  describeWithEnv,
   updateTestListing,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
 
 describe("basePriceStatements", () => {
   test("emits a base-scoped delete then one base insert", () => {

@@ -2,15 +2,11 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { setDemoModeForTest } from "#shared/demo.ts";
-import {
-  adminFormPost,
-  adminGet,
-  describeWithEnv,
-  expectFlash,
-  getAllActivityLog,
-  testRequiresAuth,
-  withMocks,
-} from "#test-utils";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
+import { expectFlash, testRequiresAuth } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { withMocks } from "#test-utils/mocks.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin settings: email)", { db: true }, () => {
   afterEach(() => {

@@ -9,7 +9,7 @@ import {
   type DeliveryDayGroup,
   type DeliveryLegView,
 } from "#templates/admin/deliveries.tsx";
-import { setupTestEncryptionKey } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 /** Agent-class session so the page renders the agent header (no staff nav). */
 const agentSession: AdminSession = { adminLevel: "agent" };

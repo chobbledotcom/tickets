@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { testRequiresAuth } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  adminGet,
   createMultiBookingAttendee,
   createTestAttendeeDirect,
-  createTestListing,
-  describeWithEnv,
-  testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminGet } from "#test-utils/session.ts";
 
 const makeListing = (name: string) =>
   createTestListing({

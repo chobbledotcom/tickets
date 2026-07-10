@@ -6,7 +6,7 @@ import {
   resetSquareClient,
   testSquareConnection,
 } from "#shared/square.ts";
-import { createTestDb, resetDb } from "#test-utils";
+import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { setupFetchStub } from "#test-utils/fetch-stub.ts";
 import { configureSquare, oneLocation, withSquareClient } from "./fixtures.ts";
 import { describeSquare } from "./harness.ts";

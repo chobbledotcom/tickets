@@ -15,12 +15,10 @@ import {
   setSessionTicketTokens,
 } from "#shared/db/processed-payments.ts";
 import { nowMs } from "#shared/now.ts";
-import {
-  bookAttendee,
-  createTestListing,
-  describeWithEnv,
-  expectRefundReferences,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { expectRefundReferences } from "#test-utils/payment-references.ts";
 
 const finalizeSession = (
   sessionId: string,

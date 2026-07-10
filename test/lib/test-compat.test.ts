@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { createTestDbWithSetup } from "#test-utils/db.ts";
 import {
-  createTestDbWithSetup,
   createTestGroup,
   deleteTestGroup,
   updateTestGroup,
-  urlFromFetchInput,
-} from "#test-utils";
+} from "#test-utils/db-helpers/groups.ts";
+import { urlFromFetchInput } from "#test-utils/mocks.ts";
 
 describe("test-compat", () => {
   describe("group helpers", () => {

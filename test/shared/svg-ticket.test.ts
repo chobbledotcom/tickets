@@ -7,7 +7,7 @@ import {
   generateSvgTicket,
   type SvgTicketData,
 } from "#shared/svg-ticket.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 const makeTicketData = (
   overrides: Partial<SvgTicketData> = {},

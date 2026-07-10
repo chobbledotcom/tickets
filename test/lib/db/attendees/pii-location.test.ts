@@ -13,13 +13,11 @@ import {
   parsePiiBlob,
 } from "#shared/db/attendees/pii.ts";
 import { settings } from "#shared/db/settings.ts";
-import {
-  bookAttendee,
-  createTestListing,
-  decryptFirstAttendee,
-  describeWithEnv,
-  getTestPrivateKey,
-} from "#test-utils";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { decryptFirstAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const basePii = {
   address: "10 Downing Street, LONDON, SW1A 2AA",

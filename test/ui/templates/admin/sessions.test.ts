@@ -4,7 +4,7 @@ import type { TokenHash } from "#shared/crypto/sealed.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { Session } from "#shared/types.ts";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
-import { setupTestEncryptionKey } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 

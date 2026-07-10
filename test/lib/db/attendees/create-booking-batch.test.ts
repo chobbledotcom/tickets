@@ -29,7 +29,8 @@ import {
   isSessionProcessed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const OCCURRED_AT = "2026-06-24T00:00:00.000Z";
 

@@ -9,7 +9,7 @@ import {
   soleParentPackageIds,
   stampChildRowPackages,
 } from "#shared/booking/page-packages.ts";
-import { testGroup } from "#test-utils";
+import { testGroup } from "#test-utils/factories.ts";
 import { pagePackage, treePackage } from "./package-cap-fixtures.ts";
 
 describe("buildPagePackage", () => {

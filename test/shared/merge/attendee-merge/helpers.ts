@@ -19,8 +19,9 @@ import type {
   AttendeeMergeDiff,
 } from "#shared/merge/attendee-merge-types.ts";
 import type { ContactInfo } from "#shared/types.ts";
-import { bookTestAttendee, createTestListing } from "#test-utils";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** Create a test attendee on a single listing. */
 export const createAttendee = (

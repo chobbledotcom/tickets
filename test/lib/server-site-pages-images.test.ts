@@ -9,21 +9,22 @@ import {
 } from "#shared/db/images.ts";
 import { createSitePage } from "#shared/db/site-pages.ts";
 import {
-  createTestManagerSession,
-  describeWithEnv,
-  expectFlashRedirect,
-  expectHtmlResponse,
-  testCookie,
-  testCsrfToken,
-  withStorageMock,
-} from "#test-utils";
-import {
   formRequest,
   imageNamesForItem,
   makeImage,
   postImageUpload,
 } from "#test-utils/admin-images.ts";
-import { mockRequest } from "#test-utils/mocks.ts";
+import {
+  expectFlashRedirect,
+  expectHtmlResponse,
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockRequest, withStorageMock } from "#test-utils/mocks.ts";
+import {
+  createTestManagerSession,
+  testCookie,
+  testCsrfToken,
+} from "#test-utils/session.ts";
 
 const makePage = (name: string, slug: string) =>
   createSitePage({

@@ -4,13 +4,13 @@ import {
   decryptAttendees,
   getNewestAttendeesRaw,
 } from "#shared/db/attendees.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createMultiBookingAttendee,
   createTestAttendee,
-  createTestListing,
-  describeWithEnv,
-  getTestPrivateKey,
-} from "#test-utils";
+} from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("db > attendees > getNewestAttendeesRaw", { db: true }, () => {
   test("returns attendees across listings ordered by newest first", async () => {

@@ -12,14 +12,14 @@ import {
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import type { ListingWithCount } from "#shared/types.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
-  bookAttendee,
   createDailyTestListing,
-  createTestAttendee,
-  createTestGroup,
   createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
 
 /** Fetch the listing-with-count row the helper accepts as input. */
 const row = async (id: number): Promise<ListingWithCount> =>

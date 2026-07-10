@@ -1,16 +1,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { Listing } from "#shared/types.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
-  apiBook,
-  bookAttendee,
   bookableStartDates,
-  bookParentChild,
   createTestListing,
-  describeWithEnv,
-  enablePublicApi,
-  makeParent,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
+import { apiBook, bookParentChild, makeParent } from "#test-utils/parents.ts";
+import { enablePublicApi } from "#test-utils/settings.ts";
 
 describeWithEnv(
   "server > parents booking — JSON API booking",

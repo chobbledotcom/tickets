@@ -13,7 +13,7 @@ import { repointAttendeeStatements } from "#shared/accounting/repoint.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { executeBatch } from "#shared/db/client.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 describe("accounting > repoint > repointAttendeeStatements", () => {
   test("builds source- and dest-id updates scoped to the attendee account", () => {

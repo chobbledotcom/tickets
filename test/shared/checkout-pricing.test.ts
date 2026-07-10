@@ -13,7 +13,7 @@ import type {
   CheckoutItem,
   ModifierSpec,
 } from "#shared/payments.ts";
-import { testWithSetting } from "#test-utils";
+import { testWithSetting } from "#test-utils/settings.ts";
 
 const modifier = (overrides: Partial<ModifierSpec> = {}): ModifierSpec => ({
   id: 1,
