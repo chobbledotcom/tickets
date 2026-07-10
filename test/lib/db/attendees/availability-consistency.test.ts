@@ -140,6 +140,23 @@ describeWithEnv(
       return listing;
     };
 
+    test("a mixed standard+daily dated cart agrees when the standard line is full", async () => {
+      // The date must not leak into the standard line's counting: its running
+      // total is what's full, on every date.
+      const standard = await createTestListing({ maxAttendees: 2 });
+      await bookAttendee(standard, { quantity: 2 });
+      const daily = await createDailyTestListing({ maxAttendees: 5 });
+      expect(
+        await assertConsistent(
+          [
+            { date: "2026-05-01", listingId: daily.id, quantity: 1 },
+            { listingId: standard.id, quantity: 1 },
+          ],
+          "2026-05-01",
+        ),
+      ).toBe(false);
+    });
+
     test("daily per-date capacity agrees on a full date", async () => {
       const listing = await dailyListingFullOn("2026-05-01");
       expect(

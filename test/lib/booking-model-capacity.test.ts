@@ -104,6 +104,17 @@ describe("booking model — capacity", () => {
       expect(tl.maxPurchasable).toBe(100);
     });
 
+    test("a daily listing still sells out when its shared group pool is empty", () => {
+      // The per-date own cap doesn't apply date-lessly, but the group pool does.
+      const tl = buildTicketListing(
+        listing({ listing_type: "daily", max_quantity: 5 }),
+        false,
+        0,
+      );
+      expect(tl.isSoldOut).toBe(true);
+      expect(tl.maxPurchasable).toBe(0);
+    });
+
     test("sold out when remaining spots are zero", () => {
       const tl = buildTicketListing(
         listing({
