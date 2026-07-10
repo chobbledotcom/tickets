@@ -310,11 +310,6 @@ footer.*
 **Dangling anchors (a page already links here, section missing — in
 `PENDING_SECTIONS`):**
 
-- **`#ledger`** — the money ledger (`/admin/ledger`, `ledger.tsx`) links
-  `#ledger`. Needs a section covering the double-entry money ledger: what the
-  accounts/legs mean, how balances are projected, manual write-off entries, and
-  how refunds/booking-fees show up. (The existing `payments` overview and
-  `refunds` sections are adjacent but not a home for the ledger itself.)
 - **`#logistics`** — the logistics settings page (`/admin/logistics`,
   `logistics.tsx`) and the delivery run sheet (`/admin/deliveries`) both want a
   `#logistics` section: delivery/collection addresses, the run-sheet, agent
