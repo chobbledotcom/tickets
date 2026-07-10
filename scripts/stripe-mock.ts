@@ -321,7 +321,9 @@ const startStripeMockProcess = async (
       configuredPort,
     );
     if (result.kind === "running") return result.mock;
-    lastStartupError = result.error;
+    // Keep the first meaningful stderr: a later retry can return an empty error
+    // that would otherwise clobber the useful failure context.
+    if (result.error) lastStartupError = result.error;
   }
 
   throw new Error(

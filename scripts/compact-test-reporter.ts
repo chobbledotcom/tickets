@@ -137,14 +137,29 @@ const parseYamlMessage = (lines: string[]): string | undefined => {
   return undefined;
 };
 
+type AtFieldAssign = (
+  at: NonNullable<TapDiagnostic["at"]>,
+  value: string,
+) => void;
+
+const AT_FIELD_ASSIGNERS: Record<string, AtFieldAssign | undefined> = {
+  column: (at, value) => {
+    at.column = Number(value);
+  },
+  file: (at, value) => {
+    at.file = value;
+  },
+  line: (at, value) => {
+    at.line = Number(value);
+  },
+};
+
 const assignAtField = (
   at: NonNullable<TapDiagnostic["at"]>,
   key: string,
   value: string,
 ): void => {
-  if (key === "file") at.file = value;
-  if (key === "line") at.line = Number(value);
-  if (key === "column") at.column = Number(value);
+  AT_FIELD_ASSIGNERS[key]?.(at, value);
 };
 
 const parseYamlAt = (lines: string[]): TapDiagnostic["at"] | undefined => {

@@ -411,6 +411,8 @@ describe("code quality", () => {
     for (const file of files) {
       const relativePath = repoRelative(file);
       if (isCodeQualityFile(relativePath)) continue;
+      // ensureLoaded() populates `contents` from this same `files` list, so
+      // every file requested here is guaranteed present.
       const lines = contents.get(file)!.split("\n");
       let lineNum = 0;
       for (const line of lines) {
