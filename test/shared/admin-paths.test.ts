@@ -1,17 +1,35 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { groupReturnPath, listingReturnPath } from "#shared/admin-paths.ts";
+import { entityReturnPath } from "#shared/admin-pages.ts";
 
-describe("role-aware admin entity paths", () => {
+describe("entityReturnPath (role-aware detail vs edit redirect)", () => {
   test("editors are sent to the edit form (they can't open the detail page)", () => {
-    expect(listingReturnPath("editor", 5)).toBe("/admin/listing/5/edit");
-    expect(groupReturnPath("editor", 7)).toBe("/admin/groups/7/edit");
+    expect(entityReturnPath("/admin/listings", "editor", 5)).toBe(
+      "/admin/listing/5/edit",
+    );
+    expect(entityReturnPath("/admin/groups", "editor", 7)).toBe(
+      "/admin/groups/7/edit",
+    );
   });
 
   test("staff are sent to the detail page", () => {
-    expect(listingReturnPath("owner", 5)).toBe("/admin/listing/5");
-    expect(listingReturnPath("manager", 5)).toBe("/admin/listing/5");
-    expect(groupReturnPath("owner", 7)).toBe("/admin/groups/7");
-    expect(groupReturnPath("agent", 7)).toBe("/admin/groups/7");
+    expect(entityReturnPath("/admin/listings", "owner", 5)).toBe(
+      "/admin/listing/5",
+    );
+    expect(entityReturnPath("/admin/listings", "manager", 5)).toBe(
+      "/admin/listing/5",
+    );
+    expect(entityReturnPath("/admin/groups", "owner", 7)).toBe(
+      "/admin/groups/7",
+    );
+    expect(entityReturnPath("/admin/groups", "agent", 7)).toBe(
+      "/admin/groups/7",
+    );
+  });
+
+  test("a section with no detail page falls back to its list page", () => {
+    expect(entityReturnPath("/admin/settings", "owner", 1)).toBe(
+      "/admin/settings",
+    );
   });
 });
