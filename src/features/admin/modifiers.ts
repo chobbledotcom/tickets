@@ -3,6 +3,7 @@
  */
 
 /* jscpd:ignore-start */
+import { once } from "#fp";
 import { t } from "#i18n";
 import {
   createRecalculatePageRenderer,
@@ -51,7 +52,7 @@ import {
   setModifierAnswers,
   updateModifierAggregateValues,
 } from "#shared/db/modifiers.ts";
-import { getAllQuestionsWithAnswers } from "#shared/db/questions.ts";
+import { getAllQuestionsWithAnswers } from "#shared/db/questions/queries.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
@@ -80,11 +81,11 @@ import {
   adminModifierNewPage,
   adminModifiersPage,
 } from "#templates/admin/modifiers/pages.tsx";
-import type {
-  ModifierAggregateFormValues,
-  ModifierFormValues,
-} from "#templates/fields.ts";
-import { modifierAggregateFields, modifierFields } from "#templates/fields.ts";
+import { modifierAggregateFields } from "#templates/fields/aggregate.ts";
+import {
+  getModifierFields,
+  type ModifierFormValues,
+} from "#templates/fields/modifier.ts";
 import { withEntityLoader } from "./entity-handlers.ts";
 import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 
@@ -115,7 +116,7 @@ const extractModifierInput = async (
 };
 
 const extractModifierAggregateValues = (
-  values: ModifierAggregateFormValues,
+  values: ModifierAggregateValues,
 ): ModifierAggregateValues => ({
   total_uses: values.total_uses,
   usage_count: values.usage_count,
@@ -272,23 +273,31 @@ const validateModifier = (
   if (isOptionalAddOn && requiresPreviousBookings) {
     return Promise.resolve("Optional add-ons cannot require previous bookings");
   }
-  const valueError = modifierValueError(input.calcKind, input.calcValue);
-  if (valueError) return Promise.resolve(valueError);
   return childAddOnInputError(input, id);
 };
 
-const modifiersResource = defineNamedResource<
-  ModifierRow,
-  ModifierInput,
-  number,
-  ModifierFormValues
->({
-  fields: modifierFields,
-  nameField: "name",
-  table: modifiersTable,
-  toInput: extractModifierInput,
-  validate: validateModifier,
-});
+/** The kind-aware `calc_value` check, run on the raw form values (where the
+ * chosen `calc_kind` sits beside the value) before they are converted to a
+ * {@link ModifierInput}. A crafted POST can still send an unknown kind, so the
+ * bounds are skipped for one — {@link validateModifier} rejects it by name. */
+const modifierValuesError = (values: ModifierFormValues): string | null =>
+  isCalcKind(values.calc_kind)
+    ? modifierValueError(values.calc_kind, values.calc_value)
+    : null;
+
+// Built lazily on first use (never at module load), so `getModifierFields()` —
+// whose picklist option labels resolve through `t()` — stays off the admin
+// routes' cold-start path. `once` caches the resource after the first build.
+const getModifiersResource = once(() =>
+  defineNamedResource<ModifierRow, ModifierInput, number, ModifierFormValues>({
+    fields: getModifierFields(),
+    nameField: "name",
+    table: modifiersTable,
+    toInput: extractModifierInput,
+    validate: validateModifier,
+    validateValues: modifierValuesError,
+  }),
+);
 
 // The list renders the projected total_revenue (Display = Modifier from
 // getAllModifiers), while the resource and the delete page load the stored row
@@ -301,7 +310,7 @@ const crud = createCrudHandlers({
   renderDelete: adminModifierDeletePage,
   renderList: adminModifiersPage,
   renderNew: adminModifierNewPage,
-  resource: modifiersResource,
+  resource: getModifiersResource,
   singular: "Modifier",
 });
 
@@ -399,13 +408,13 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
     const modifier = await getModifier(id);
     if (!modifier) return notFoundResponse();
     const aggregates = parseEditableAggregateForm<
-      ModifierAggregateFormValues,
+      ModifierAggregateValues,
       ModifierAggregateValues
     >(form, modifierAggregateFields, extractModifierAggregateValues);
     if (!aggregates.ok) {
       return errorRedirect(`/admin/modifiers/${id}/edit`, aggregates.error);
     }
-    const result = await modifiersResource.update(id, form);
+    const result = await getModifiersResource().update(id, form);
     if (result.ok) {
       if (aggregates.input) {
         await updateModifierAggregateValues(id, aggregates.input);

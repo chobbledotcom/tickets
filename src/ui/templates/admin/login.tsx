@@ -9,7 +9,7 @@ import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
-import { getLoginFields } from "#templates/fields.ts";
+import { getLoginFields } from "#templates/fields/admin.ts";
 import { Layout } from "#templates/layout.tsx";
 /* jscpd:ignore-end */
 

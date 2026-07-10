@@ -14,6 +14,7 @@ const LISTING_NAME = "E2E Payment Concert";
 // invalid email before redirecting, failing the booking pre-checkout.
 const BOOKER_EMAIL = config.bookerEmail;
 const BOOKER_NAME = "E2E Booker";
+const LOGIN_FIELDS_SELECTOR = '[name="username"], [name="password"]';
 
 /** Run the first-run setup wizard for a fresh install. */
 export const runSetup = async (
@@ -45,6 +46,18 @@ export const login = async (session: BrowserSession): Promise<void> => {
   if ((await session.bodyText()).includes("Migration complete")) {
     await session.clickLink("Back to dashboard");
   }
+  try {
+    await session.page.waitForFunction(
+      (selector) => document.querySelectorAll(selector).length === 0,
+      LOGIN_FIELDS_SELECTOR,
+      { timeout: config.actionTimeoutMs },
+    );
+  } catch (err) {
+    await session.dumpPage("login-did-not-stick");
+    throw new Error("admin login did not stick; still on the login page", {
+      cause: err,
+    });
+  }
   log("  logged in");
 };
 
@@ -74,7 +87,9 @@ export const createListing = async (
     .locator('a[href*="/ticket/"]')
     .first()
     .getAttribute("href", { timeout: config.navTimeoutMs });
-  if (!href) throw new Error("no public /ticket/ link found on the listing page");
+  if (!href) {
+    throw new Error("no public /ticket/ link found on the listing page");
+  }
   const path = href.startsWith("http") ? new URL(href).pathname : href;
   log(`  public booking path: ${path}`);
   return path;
@@ -127,7 +142,9 @@ export const submitBooking = async (
   await fillIfPresent(session, "name", BOOKER_NAME);
 
   // Quantity field name varies (single `quantity` vs per-listing `quantity_<id>`).
-  const qty = page.locator('input[name^="quantity"], select[name^="quantity"]').first();
+  const qty = page
+    .locator('input[name^="quantity"], select[name^="quantity"]')
+    .first();
   if (await qty.count()) {
     const tag = await qty.evaluate((el) => el.tagName.toLowerCase());
     if (tag === "select") await qty.selectOption("1");
@@ -227,7 +244,7 @@ const collectHostedErrors = async (
  */
 export const assertPaidBookingConfirmed = async (
   session: BrowserSession,
-  ticketPath: string,
+  _ticketPath: string,
 ): Promise<void> => {
   step("Confirming the paid booking");
   const { page } = session;
@@ -243,11 +260,15 @@ export const assertPaidBookingConfirmed = async (
     );
   } catch {
     const hostedError = await collectHostedErrors(session);
+    const appBody = await session.bodyText();
     throw new Error(
       `did not land on a success page after checkout.\nURL: ${page.url()}\n` +
+        // Prefer the scraped inline error; only fall back to the raw body when
+        // no error node was found (the body is mostly a huge country <select>
+        // that buries the real message and floods the CI log).
         (hostedError
           ? `Checkout page error(s): ${hostedError}`
-          : (await session.bodyText()).slice(0, 400)),
+          : appBody.slice(0, 400)),
     );
   }
   log(`  ✔ customer saw the success page (${page.url()})`);

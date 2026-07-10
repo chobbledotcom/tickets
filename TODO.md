@@ -187,6 +187,14 @@ descriptors — PRs #1478 and others). A weak-assertion audit script also exists
 
 **Remaining:**
 
+- **Mutation tests removed from `deno task precommit`.** The
+  `precommit:mutation` step was too slow for the standard precommit run and was
+  removed from `scripts/precommit/steps.ts`. The mutation gate still exists as
+  `deno task precommit:mutation` and `deno task mutation` — run it manually on
+  changed src/test pairs before merging. Re-wire it into precommit (perhaps
+  behind a flag or with a tighter changed-set bound) only if the per-commit
+  mutation cost comes down.
+
 - **Property-based tests (item 5).** `fast-check` is currently used in only one
   test (`test/lib/fold-tree.test.ts`). Add properties for: slug generation, CSV
   round-trips (commas / quotes / CRLF), date formatting across timezones, token
@@ -203,6 +211,24 @@ descriptors — PRs #1478 and others). A weak-assertion audit script also exists
   checks. These are permanent review habits, not a one-time sweep.
 - **Metrics.** Surface mutation-score baselines / surviving-mutant counts as a
   tracked artifact so regressions in assertion strength are visible.
+
+---
+
+## server-attendees test split — assertion-strength follow-ups
+
+*Origin: PR #1681 (split the 3674-line `server-attendees.test.ts` into 12 themed
+files). CodeRabbit reviewed the split and flagged five pre-existing weaknesses
+in tests that were relocated verbatim from the original monolith. The PR's scope
+was pure relocation + cpd dedup (the task explicitly required "do NOT change what
+any test asserts"), so these were left untouched and tracked here instead. Each is
+a small, isolated assertion-strength improvement.*
+
+- **`resend-notification.test.ts` — `setTimeout(resolve, 0)` is race-prone.** The
+  "a package member's resend rehydrates every line" test waits for the
+  fire-and-forget webhook with a zero-delay timer, which is scheduler-dependent
+  and can race the dispatch. Expose/await a completion signal from the test helper
+  or make the fetch stub resolve through a deferred promise, then await it
+  deterministically before asserting the payload. (Original monolith line 2040.)
 
 ---
 
@@ -233,13 +259,6 @@ keeps the bundles honest by failing when a route reads a key it didn't declare.
   `max_quantity: 1` under a pick-2 slot silently caps the whole package at 0,
   with no save-time warning. Fix: reject (or warn on) a parent package member
   whose per-order cap is below its pick count.
-
-- **`allocations` metadata length limit.** `enforceMetadataLimits`
-  length-checks `items`, answers, `modifiers`, the entry count and the packed
-  field, but not `allocations` — the fastest-growing field once every pick adds
-  an allocation. A large multi-slot checkout can fail with a raw payment-provider
-  error instead of the app's "book in smaller batches" message. Add
-  `allocations` to the same length guard.
 
 - **Capacity edge cases beyond the shipped model.** The shipped bundle-cap model
   (per-member child caps, sole-child pools, all-children forced demand) covers
@@ -317,3 +336,100 @@ footer.*
   `guideFooter` slot — just pass one once the section exists.
 - **Support** (`/admin/support`) — borderline (it's a contact-the-host form);
   give it a footer only if a support/troubleshooting section is written.
+
+## Test-suite speed — remaining opportunities
+
+*Origin: the test-suite performance pass (lazy Sentry, fast `toContain`,
+migration-suite sharding, `withVirtualBackoff`, `cachedAdminPage`; see the
+Fast Tests section of AGENTS.md). These were identified during profiling but
+deliberately left for later:*
+
+- **Shard `test/lib/db/legacy-migration.test.ts`** (~600 lines, ~13s of
+  sequential full legacy→current migration runs in one file). Same recipe as
+  `test/lib/db/migration-restore/`: move the legacy schema + helpers into a
+  shared module and split the six tests across two or three shard files so
+  `deno test --parallel` spreads them.
+- **Per-file module-graph evaluation.** Every test file re-evaluates the app's
+  module graph (~0.35s each after the lazy-Sentry fix, ~250 files ≈ 80-90s of
+  CPU per run). The biggest remaining import-time chunks are `@libsql/client`
+  (~65ms, needed) and the `#routes` feature tree (~150ms). Any further
+  import-time work moved behind `once()`/dynamic import pays for itself ~250×
+  per run — profile with a `performance.now()` probe around `import("#test-utils")`
+  under `deno test` before and after.
+- **`test/lib/stripe-mock/ports.test.ts` (~4s)** spawns real child processes
+  to test the harness's port handling; each spawn is inherently slow. If it
+  grows, the port-conflict cases could stub the child-process layer the same
+  way the supervisor tests do.
+
+---
+
+## Capacity rules — feature-layer adoption (stage 3)
+
+*Origin: the capacity-rules consolidation (`src/shared/capacity-rules.ts`).*
+Stages 1–2 shipped: the declarative `CAPACITY_RULES` table exists, and the SQL
+guard (`src/shared/db/capacity.ts`), the JS preflight
+(`src/shared/db/attendees/capacity.ts`, `update.ts`), and the booking-page
+limits (`booking/model.ts`, `booking/package-cap.ts`) all derive their
+per-date-vs-running-total decisions from it. A handful of **feature-layer**
+call sites still decide the capacity date by hand with
+`listing_type === "daily"` and could consult `capacityDateFor`/`countsPerDate`
+instead (behaviour-identical, one file each):
+`src/features/public/ticket-payment.ts` (~line 219, the stored booking date),
+`src/features/public/qr-book.ts` (~line 99), `src/features/api/listings.ts`
+(the per-child availability dates, ~lines 122–157), and
+`src/features/api/booking.ts` (~line 64). Only the *capacity-date* decisions
+belong to the table — calendar/UI daily branches (date pickers, sorting,
+display) are date-selection logic and should stay as they are.
+
+---
+
+## Strengthen the idempotent-replay assertion in the payments confirmation test
+
+*Origin: CodeRabbit review on PR #1690 (payments test split).*
+
+`test/lib/server-payments/confirm.test.ts`, the test **"handles replay of same
+session (idempotent)"**, asserts `expect([200, 302]).toContain(response.status)`.
+This hedge was moved verbatim from the old `server-payments.test.ts` monolith —
+it accepts either branch, so it would not catch a regression that flips the
+replay from one path to the other.
+
+Pinning it to a single deterministic status is a real behavioural question, not
+a mechanical edit: the test books an attendee directly (payment intent
+`pi_test_123`) and then replays the same signed session, and the current code
+does **not** dedupe on payment-intent (the in-test comment spells this out), so
+the outcome depends on the capacity check rather than a defined idempotency
+contract. Deciding the single correct status means first deciding what replaying
+an already-booked payment intent *should* do (reject as duplicate? re-render the
+existing ticket?) and likely adding payment-intent uniqueness — out of scope for
+a test-only file split. Starting point: `src/features/api/payment-processing.ts`
+(the `/payment/success` finalize path) and `#shared/db/processed-payments.ts`.
+
+## Payment-processing review follow-ups (from PR #1692)
+
+Both items describe behaviour that predates the payment-processing split (the
+code was moved verbatim from the old `payment-processing.ts` monolith). They are
+recorded here because the split PR was a pure reorganisation — changing this
+behaviour there would be out of scope — and CodeRabbit flagged them as worth a
+look.
+
+- **Refund after a committed booking** (`src/features/api/payment-processing/index.ts`,
+  the `try { honoured = await createAttendeeForSession(...) } catch` in
+  `processReservedSession`). `createAttendeeForSession` commits the attendee +
+  bookings atomically, then runs `ensureAllBookings` (a post-commit read). If
+  that post-write step *threw*, the `catch` would route to `storeRefundedBooking`
+  — refunding a booking that actually persisted. Today `ensureAllBookings`
+  returns a structured `{ ok: false }` rather than throwing on the capacity path,
+  so the window is theoretical, but it isn't guarded structurally. Fix direction:
+  narrow the `try` to the pre-commit call only, or guarantee the post-commit
+  cleanup path is non-throwing, so a persisted booking can never be refunded.
+  Add a regression test that makes the post-commit step throw and asserts no
+  refund is issued.
+- **Per-item DB reads not batched** (`src/features/api/payment-processing/items.ts`
+  `validateAllItems`, and `package-pricing.ts` `loadPackagePricingByGroup`).
+  `validateAllItems` calls `getListingWithCount` once per item in a loop, and
+  `loadPackagePricingByGroup` makes two sequential round-trips per group. Under
+  the edge subrequest budget these accumulate for larger orders. Fix direction:
+  add/use a batched `getListingsWithCount(ids)` for all order listing ids at once
+  and group the package-pricing loads, preserving the existing validation and
+  fail-closed behaviour. See the "Respect the subrequest budget" guidance in
+  AGENTS.md.

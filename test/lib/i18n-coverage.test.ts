@@ -12,7 +12,7 @@ import { walkSourceFiles as walk } from "#test-utils/walk-src.ts";
  *              still pending wiring, recorded per file in LEFTOVER_ALLOWLIST.
  *
  * The backward scan covers JSX templates (.tsx) AND the .ts modules that hold
- * field/copy definitions (e.g. fields.ts, email/defaults.ts) plus the shared
+ * field/copy definitions (e.g. fields/*.ts, email/defaults.ts) plus the shared
  * form framework — places where hard-coded labels used to slip through because
  * the scan only looked at .tsx text/attributes.
  *
@@ -65,7 +65,11 @@ const LEFTOVER_ALLOWLIST = new Map<string, number>([
   ["ui/templates/admin/settings/payment.tsx", 9],
   ["ui/templates/admin/site.tsx", 2],
   ["ui/templates/email/defaults.ts", 12],
-  ["ui/templates/fields.ts", 49],
+  ["ui/templates/fields/add-attendee.ts", 3],
+  ["ui/templates/fields/admin.ts", 4],
+  ["ui/templates/fields/listing.ts", 5],
+  ["ui/templates/fields/modifier.ts", 20],
+  ["ui/templates/fields/ticket.ts", 5],
 ]);
 
 /** t("key") / t('key') / t(`key`) not preceded by an identifier char. */

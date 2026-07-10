@@ -1,3 +1,4 @@
+import { hasDateLessCap } from "#shared/capacity-rules.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import {
   availableDayCounts,
@@ -189,16 +190,17 @@ export const updateForMembersWithChildren = <T>(
       : step(current, member, children);
   }, initial);
 
-/** Builds listing availability for ticket pages before a date is chosen. */
+/** Builds listing availability for ticket pages before a date is chosen. A
+ * listing without the `dateLessCap` rule has no date-less own count — its cap
+ * is per-date, checked once a date is known — so no ceiling applies here. */
 export const buildTicketListing = (
   listing: ListingWithCount,
   closed: boolean,
   groupRemaining: number | undefined,
 ): TicketListing => {
-  const listingRemaining =
-    listing.listing_type === "daily"
-      ? Number.POSITIVE_INFINITY
-      : listing.max_attendees - listing.attendee_count;
+  const listingRemaining = hasDateLessCap(listing)
+    ? listing.max_attendees - listing.attendee_count
+    : Number.POSITIVE_INFINITY;
   const spotsRemaining =
     groupRemaining === undefined
       ? listingRemaining

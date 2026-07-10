@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { mapBooking } from "#shared/accounting/mappers.ts";
@@ -11,7 +10,6 @@ import {
   finalizeSession,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
-import { paymentsApi } from "#shared/payments.ts";
 import type { Attendee } from "#shared/types.ts";
 import {
   adminFormPost,
@@ -20,10 +18,9 @@ import {
   describeWithEnv,
   expectErrorFlash,
   expectFlash,
-  mockProviderType,
-  withMocks,
 } from "#test-utils";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { refreshPaymentWithStripe } from "./server-attendees/helpers.ts";
 
 const OCCURRED_AT = "2026-07-01T00:00:00.000Z";
 
@@ -81,35 +78,12 @@ const submitRefreshPayment = async (
   expectedFlash: string | any = expect.stringContaining("refunded"),
   succeeded = true,
 ): Promise<string[]> => {
-  const providerQueries: string[] = [];
-  await withMocks(
-    () =>
-      stub(paymentsApi, "getConfiguredProvider", () =>
-        mockProviderType("stripe"),
-      ),
-    async () => {
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockRefunded = stub(
-        stripePaymentProvider,
-        "isPaymentRefunded",
-        (reference: string) => {
-          providerQueries.push(reference);
-          return refundedPredicate(reference);
-        },
-      );
-      try {
-        const { response } = await adminFormPost(
-          `/admin/attendees/${attendee.id}/refresh-payment`,
-        );
-        expectFlash(response, expectedFlash, succeeded);
-      } finally {
-        mockRefunded.restore();
-      }
-    },
+  const { response, queriedReferences } = await refreshPaymentWithStripe(
+    attendee.id,
+    refundedPredicate,
   );
-  return providerQueries;
+  expectFlash(response, expectedFlash, succeeded);
+  return queriedReferences;
 };
 
 describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {

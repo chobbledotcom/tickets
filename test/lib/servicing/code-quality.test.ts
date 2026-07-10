@@ -1,9 +1,12 @@
 /**
  * Servicing §20 — code quality & reuse (DRY / shared helpers).
  *
- * The mechanical guard is `deno task cpd` (jscpd at 0%, run in precommit).
- * These tests pin the *specific* shared helpers so the feature can't land as
- * near-duplicate logic sprinkled across files.
+ * The mechanical guard is `deno task cpd` (jscpd at 0%), which runs as its own
+ * dedicated step in both `deno task precommit` and CI — never inside the test
+ * suite, where a second full jscpd subprocess would add a minute of CPU to
+ * every run for a check already enforced elsewhere. These tests pin the
+ * *specific* shared helpers so the feature can't land as near-duplicate logic
+ * sprinkled across files.
  */
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -86,20 +89,5 @@ describe("servicing §20 — servicing query readers reuse the shared SELECT con
     // project, so the two can't drift.
     expect(typeof ATTENDEE_JOIN_SELECT).toBe("string");
     expect(ATTENDEE_JOIN_SELECT.length).toBeGreaterThan(0);
-  });
-});
-
-describe("servicing §20 — precommit duplication check stays at 0%", () => {
-  test("deno task cpd exits zero (no new duplication landed)", async () => {
-    // Meta-guard: the feature must land without tripping jscpd's 0% threshold.
-    // Skipped in plain `deno test` runs that don't have the toolchain pinned;
-    // the precommit script runs it for real.
-    const command = new Deno.Command(Deno.execPath(), {
-      args: ["task", "cpd"],
-      stderr: "inherit",
-      stdout: "piped",
-    });
-    const { success } = await command.output();
-    expect(success).toBe(true);
   });
 });

@@ -19,7 +19,7 @@ import {
 import { formDataToParams } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { listingReturnPath } from "#shared/admin-paths.ts";
+import { entityReturnPath } from "#shared/admin-pages.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   checkGroupCapAfterDurationChange,
@@ -61,8 +61,7 @@ import {
   adminListingNewPage,
   adminListingPickerPage,
 } from "#templates/admin/listings/form-pages.tsx";
-import type { ListingAggregateFormValues } from "#templates/fields.ts";
-import { listingAggregateFields } from "#templates/fields.ts";
+import { listingAggregateFields } from "#templates/fields/aggregate.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
 import { listingPage } from "./listing-page.ts";
 import { loadListingEditPanel } from "./listing-page-management-panels.ts";
@@ -279,7 +278,7 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
     // the success message and any upload caveats are surfaced, not swallowed.
     const createdRedirect =
       session.adminLevel === "editor"
-        ? listingReturnPath(session.adminLevel, result.row.id)
+        ? entityReturnPath("/admin/listings", session.adminLevel, result.row.id)
         : adminLandingPath(session.adminLevel);
     return processUploadsAndRedirect(
       formData,
@@ -433,7 +432,7 @@ const handleListingEditSuccess = async (
   return processUploadsAndRedirect(
     formData,
     id,
-    listingReturnPath(session.adminLevel, row.id),
+    entityReturnPath("/admin/listings", session.adminLevel, row.id),
     `Listing updated${durationWarning}`,
     existing.attachment_url,
   );
@@ -454,7 +453,7 @@ const parseAggregatesForRole = (
   session.adminLevel === "editor"
     ? { input: null, ok: true }
     : parseEditableAggregateForm<
-        ListingAggregateFormValues,
+        ListingAggregateValues,
         ListingAggregateValues
       >(form, listingAggregateFields, extractListingAggregateValues);
 

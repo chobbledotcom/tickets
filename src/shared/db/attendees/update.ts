@@ -4,6 +4,7 @@
 
 import { filter, map, pipe, reduce, sumOf, unique } from "#fp";
 import { ledgerTx } from "#shared/accounting/ledger-tx.ts";
+import { countsPerDate } from "#shared/capacity-rules.ts";
 import type { UpdateAttendeePIIInput } from "#shared/db/attendee-types.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import {
@@ -15,7 +16,7 @@ import {
   withTransaction,
 } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
-import { normalizeDurationDays } from "#shared/types.ts";
+import { type ListingType, normalizeDurationDays } from "#shared/types.ts";
 
 /**
  * Set a line's check-in flag, refusing a no-quantity (quantity 0) line — it
@@ -33,17 +34,6 @@ export const updateCheckedIn = async (
     [checkedIn ? 1 : 0, attendeeId, listingId],
   );
 };
-
-/**
- * Reconcile an attendee's ledger-projected outstanding balance to `target` — the
- * attendee-balance entry of {@link ledgerTx}'s read-then-adjust corrections
- * (`ledgerTx.correct.owed`). It reads the current owed figure and posts THROUGH
- * the caller's `tx`, crediting/debiting the attendee against the `writeoff` contra
- * account (never external cash). The edit path uses it only to clear a stranded
- * receivable to 0 when an attendee is left with no payable line; owners adjust a
- * balance to any other figure through the ledger UI's manual write-off entries.
- */
-export const reconcileLedgerBalanceTx = ledgerTx.correct.owed;
 
 /**
  * Set an attendee's status from the admin edit form (a plain column write,
@@ -73,7 +63,7 @@ export const updateAttendeeStatus = async (
     await tx.execute(
       update("attendees", { status_id: statusId }, { id: attendeeId }),
     );
-    await reconcileLedgerBalanceTx(tx, attendeeId, 0);
+    await ledgerTx.correct.owed(tx, attendeeId, 0);
   });
 };
 
@@ -155,7 +145,7 @@ export const checkGroupCapAfterDurationChange = async (
 
   const rows = await queryAll<{
     listing_id: number;
-    listing_type: string;
+    listing_type: ListingType;
     start_at: string | null;
     end_at: string | null;
     quantity: number;
@@ -167,12 +157,13 @@ export const checkGroupCapAfterDurationChange = async (
     [groupId],
   );
 
-  // Rows on non-daily listings count on every day; daily rows count on the
-  // days of their [start, end) range. NULL-range rows on daily listings never
-  // count (pre-daily legacy bookings), mirroring the SQL overlap predicate.
+  // Rows on `dateLessCap` listings count on every day; `perDateCap` rows count
+  // on the days of their [start, end) range. NULL-range rows on per-date
+  // listings never count (pre-daily legacy bookings), mirroring the SQL
+  // overlap predicate.
   type GroupRow = (typeof rows)[number];
   const isDailyWithRange = (row: GroupRow): boolean =>
-    row.listing_type === "daily" &&
+    countsPerDate(row.listing_type) &&
     row.start_at !== null &&
     row.end_at !== null;
   const toDayInterval = (row: GroupRow): DayInterval => ({
@@ -181,7 +172,7 @@ export const checkGroupCapAfterDurationChange = async (
     start: row.start_at!.slice(0, 10),
   });
   const base = pipe(
-    filter((row: GroupRow) => row.listing_type !== "daily"),
+    filter((row: GroupRow) => !countsPerDate(row.listing_type)),
     sumOf((row) => row.quantity),
   )(rows);
   const intervals = pipe(filter(isDailyWithRange), map(toDayInterval))(rows);

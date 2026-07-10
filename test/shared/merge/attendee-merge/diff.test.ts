@@ -7,11 +7,8 @@ import {
 import { KIND } from "#shared/accounting/kinds.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { getDb } from "#shared/db/client.ts";
-import {
-  answersTable,
-  questionsTable,
-  setListingQuestions,
-} from "#shared/db/questions.ts";
+import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { bookingKey } from "#shared/merge/attendee-merge.ts";
 import { bookAttendee, createTestListing, describeWithEnv } from "#test-utils";
 import {

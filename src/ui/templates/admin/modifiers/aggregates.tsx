@@ -16,7 +16,7 @@ import {
   RunningTotalsFieldset,
   recalculatePageRenderer,
 } from "#templates/components/aggregate-sections.tsx";
-import { modifierAggregateFields } from "#templates/fields.ts";
+import { modifierAggregateFields } from "#templates/fields/aggregate.ts";
 import { modifierAggregateToFieldValues } from "./values.ts";
 
 const modifierRunningTotalsConfig = (
@@ -72,7 +72,7 @@ const modifierRecalculateRenderer = (
 ) =>
   recalculatePageRenderer({
     action: `/admin/modifiers/recalculate/${modifier.id}`,
-    active: "/admin/modifiers",
+    active: { section: "/admin/modifiers" },
     currentLabel: t("modifiers.recalculate.current"),
     description: t("modifiers.recalculate.description"),
     recalculatedLabel: t("modifiers.recalculate.from_attendees"),

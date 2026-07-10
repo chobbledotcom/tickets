@@ -13,9 +13,9 @@ import { schemaMigration } from "./define.ts";
  * plus its `service_cost` adjustment legs); the ledger stays append-only.
  *
  * Existing cost legs (recorded before this migration) carry no servicing link,
- * so they are not backfilled into `service_costs` — they still count in
- * `costOf(listing)`, they simply don't surface in the per-event cost list. New
- * costs are listed as soon as they are recorded.
+ * so they are not backfilled into `service_costs` — they still count toward
+ * listing cost, they simply don't surface in the per-event cost list. New costs
+ * are listed as soon as they are recorded.
  */
 export default schemaMigration(
   "2026-06-27_service_costs",

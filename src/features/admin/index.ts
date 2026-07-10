@@ -12,6 +12,7 @@ import { apiKeysRoutes } from "#routes/admin/api-keys.ts";
 import { attendeeNotesRoutes } from "#routes/admin/attendee-notes.ts";
 import { attendeeRefundRoutes } from "#routes/admin/attendee-refunds.ts";
 import { attendeesRoutes } from "#routes/admin/attendees.ts";
+import { attributesRoutes } from "#routes/admin/attributes.ts";
 import { authRoutes } from "#routes/admin/auth.ts";
 import { backupRoutes } from "#routes/admin/backup.ts";
 import { builderRoutes } from "#routes/admin/builder.ts";
@@ -26,7 +27,7 @@ import { debugRoutes } from "#routes/admin/debug.ts";
 import { deliveriesRoutes } from "#routes/admin/deliveries.ts";
 import { groupsRoutes } from "#routes/admin/groups.ts";
 import { guideRoutes } from "#routes/admin/guide.ts";
-import { holidaysRoutes } from "#routes/admin/holidays.ts";
+import { holidaysCrud } from "#routes/admin/holidays.ts";
 import { imagesRoutes } from "#routes/admin/images.ts";
 import { ledgerRoutes } from "#routes/admin/ledger.ts";
 import { listingQrRoutes } from "#routes/admin/listing-qr.ts";
@@ -86,8 +87,9 @@ const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   modifiersRoutes,
   bulkActionsRoutes,
   bulkEmailRoutes,
-  holidaysRoutes,
+  holidaysCrud.routes,
   imagesRoutes,
+  attributesRoutes,
   questionsRoutes,
   scannerRoutes,
   seedsRoutes,

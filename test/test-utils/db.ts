@@ -54,6 +54,10 @@ import {
   maybeReclaimLeakedFds,
   reclaimLeakedFdsNow,
 } from "#test-utils/reclaim-fds.ts";
+import {
+  cleanupTestDbPath,
+  createTrackedTestDbFile,
+} from "#test-utils/temp-db-files.ts";
 
 type SchemaEntry = (typeof SCHEMA)[number];
 type SchemaIndex = NonNullable<SchemaEntry[1]["indexes"]>[number];
@@ -97,7 +101,7 @@ const TEST_SCHEMA_SQL = `${[
 // statements on every beforeEach.
 const getOrCreateGoldenDb: () => Promise<string> = once(
   async (): Promise<string> => {
-    const path = await Deno.makeTempFile({ suffix: "-golden.db" });
+    const path = await createTrackedTestDbFile("-golden.db");
     const client = createClient({ url: `file:${path}` });
     setDb(client);
     await client.executeMultiple(
@@ -135,7 +139,7 @@ const prepareTestClient = async (triggers = false): Promise<void> => {
   // than re-running the schema SQL on every test — a file copy is much cheaper
   // than executing 100+ CREATE TABLE / INDEX / TRIGGER statements.
   const goldenPath = await getOrCreateGoldenDb();
-  const path = await Deno.makeTempFile({ suffix: ".db" });
+  const path = await createTrackedTestDbFile(".db");
   await Deno.copyFile(goldenPath, path);
   setTestEnv({
     DB_URL: `file:${path}`,
@@ -169,7 +173,7 @@ export const setupTransactionalTestDb = async (): Promise<
   maybeReclaimLeakedFds();
   setupTestEncryptionKey();
   const goldenPath = await getOrCreateGoldenDb();
-  const path = await Deno.makeTempFile({ suffix: ".db" });
+  const path = await createTrackedTestDbFile(".db");
   await Deno.copyFile(goldenPath, path);
   const restoreEnv = setTestEnv({
     DB_URL: `file:${path}`,
@@ -182,7 +186,7 @@ export const setupTransactionalTestDb = async (): Promise<
     setDb(null);
     client.close();
     restoreEnv();
-    await Deno.remove(path);
+    cleanupTestDbPath(path);
   };
 };
 
@@ -267,8 +271,6 @@ export const createTestDbWithSetup = async (
   setTestSession(session);
 };
 
-const ignoreCleanupError = (): void => {};
-
 const createDirectAdminSession = async (): Promise<{
   cookie: string;
   csrfToken: string;
@@ -311,13 +313,8 @@ const cleanupTestDbFile = (): void => {
     getDb().close();
   } catch {
     // client already closed or never opened
-    ignoreCleanupError();
   }
-  try {
-    Deno.removeSync(url.slice("file:".length));
-  } catch {
-    // file already removed or never created
-  }
+  cleanupTestDbPath(url.slice("file:".length));
 };
 
 export const resetDb = (): void => {

@@ -17,14 +17,14 @@
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminNav, type NavActive } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 /* jscpd:ignore-end */
 
 export type AdminPageProps = {
   title: string;
   session: AdminSession;
-  active: string;
+  active: NavActive;
   /** Optional page theme forwarded to <Layout> — the settings/debug pages
    *  preview the site's saved theme (`s.theme`) rather than the viewer's. */
   theme?: Theme;
@@ -73,7 +73,7 @@ export const adminFormPage = ({
   children,
 }: {
   title: string;
-  active: string;
+  active: NavActive;
   session: AdminSession;
   action: string;
   error?: string | undefined;

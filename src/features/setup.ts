@@ -17,7 +17,8 @@ import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms.tsx";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
-import { getSetupFields, type SetupFormValues } from "#templates/fields.ts";
+import { getSetupFields } from "#templates/fields/admin.ts";
+import type { SetupFormValues } from "#templates/fields/types.ts";
 import { setupCompletePage, setupPage } from "#templates/setup.tsx";
 
 /** Response helper - renders setup page with current stored CSRF token */

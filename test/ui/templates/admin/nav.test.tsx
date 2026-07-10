@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
+import { createLinkSections } from "#shared/admin-pages.ts";
 import type { AdminLevel } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
@@ -58,54 +60,20 @@ describeWithEnv("AdminNav", {}, () => {
     expectOwnerAndManagerLink("/admin/servicing", "Servicing");
   });
 
-  /** Every section that carries an "Add X" create link in its sub-nav: the
-   * section's landing route, the create link, and the route the create page
-   * itself renders with (which should highlight the create link). Each pair
-   * lives only in its own section's sub-nav — never on the top-level bar. */
-  const addLinkSections = [
-    {
-      addHref: "/admin/listing/new",
-      addText: "Add",
-      createActive: "/admin/listing/new",
-      roles: ["owner", "manager", "editor"] as const,
-      sectionActive: "/admin/listings",
-    },
-    {
-      addHref: "/admin/groups/new",
-      addText: "Add",
-      createActive: "/admin/groups/new",
-      roles: ["owner", "manager", "editor"] as const,
-      sectionActive: "/admin/groups",
-    },
-    {
-      addHref: "/admin/servicing/new",
-      addText: "Add",
-      createActive: "/admin/servicing/new",
-      roles: ["owner", "manager"] as const,
-      sectionActive: "/admin/servicing",
-    },
-    {
-      addHref: "/admin/attendees/new",
-      addText: "Add",
-      createActive: "/admin/attendees/new",
-      roles: ["owner", "manager"] as const,
-      sectionActive: "/admin/attendees",
-    },
-    {
-      addHref: "/admin/modifiers/new",
-      addText: "Add",
-      createActive: "/admin/modifiers/new",
-      roles: ["owner", "manager"] as const,
-      sectionActive: "/admin/modifiers",
-    },
-    {
-      addHref: "/admin/user/new",
-      addText: "Invite",
-      createActive: "/admin/user/new",
-      roles: ["owner"] as const,
-      sectionActive: "/admin/users",
-    },
-  ];
+  /** Every section that carries an "Add X" create link in its sub-nav, derived
+   *  from the admin-page schema — the section's landing route, the create link,
+   *  and the roles that reach it. Feature-flag-gated sections (Images) are
+   *  excluded here — they have dedicated tests that enable the flag. Each pair
+   *  lives only in its own section's sub-nav — never on the top-level bar. */
+  const addLinkSections = createLinkSections()
+    .filter((s) => !s.featureGated)
+    .map((s) => ({
+      addHref: s.createHref,
+      addText: t(s.createLabelKey),
+      createActive: s.createHref,
+      roles: s.roles,
+      sectionActive: s.sectionPath,
+    }));
 
   // Regression: the create links used to sit on the top-level nav bar, visible
   // on every page. They must not appear at the top level any more — only inside
@@ -148,8 +116,10 @@ describeWithEnv("AdminNav", {}, () => {
   // link un-highlighted. Each create page now marks its own link active.
   test("each 'Add X' link highlights as active on its create page", () => {
     for (const { createActive, addHref, roles } of addLinkSections) {
+      const topRole = roles[0];
+      if (!topRole) throw new Error(`section ${addHref} declares no roles`);
       const html = String(
-        AdminNav({ active: createActive, session: { adminLevel: roles[0] } }),
+        AdminNav({ active: createActive, session: { adminLevel: topRole } }),
       );
       expect(html, addHref).toContain(`class="active" href="${addHref}"`);
     }
@@ -178,6 +148,25 @@ describeWithEnv("AdminNav", {}, () => {
     const start = html.indexOf('class="admin-subnav"');
     const sub = html.slice(start, html.indexOf("</ul>", start));
     expect(sub).toContain("Import");
+  });
+
+  test("the Listings Import link hides in read-only mode (it leads to a blocked upload flow)", () => {
+    const restore = setTestEnv({
+      READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
+    });
+    try {
+      const html = String(
+        AdminNav({
+          active: "/admin/listings",
+          session: { adminLevel: "owner" },
+        }),
+      );
+      expect(html).not.toContain('href="/admin/catalog/import"');
+      // The section landing link stays.
+      expect(html).toContain('href="/admin/listings"');
+    } finally {
+      restore();
+    }
   });
 
   test("Invite User stays owner-only", () => {
@@ -309,6 +298,44 @@ describeWithEnv("AdminNav", {}, () => {
       }),
     );
     expect(html).toContain('class="active" href="/admin/attendees"');
+  });
+
+  // Regression: an individual attendee page (and every other single-item page)
+  // used to pass the *section landing route* as its `active` value just to get
+  // the top-level link highlighted — which also re-opened the section's "Add"
+  // sub-nav beside a page that is not the section's landing page. A page that
+  // merely lives *within* a section now says so with `{ section }`: the section
+  // still highlights, but its sub-nav (here, the "Add" create link) must not
+  // appear. Verified for every section that carries an "Add X"-style sub-nav —
+  // derived from the schema so new sections are covered automatically.
+  const withinSectionCases = addLinkSections
+    .filter((s) => s.sectionActive !== "/admin/users")
+    .map((s) => ({ addHref: s.addHref, section: s.sectionActive }));
+
+  test("a page within a section highlights the section but shows no sub-nav", () => {
+    for (const { section, addHref } of withinSectionCases) {
+      const html = String(
+        AdminNav({ active: { section }, session: { adminLevel: "owner" } }),
+      );
+      // The section's top-level link is highlighted…
+      expect(html, section).toContain(`class="active" href="${section}"`);
+      // …but its sub-nav (the "Add" create link, and the whole desktop
+      // sub-nav level) is absent — a detail page is not the landing page.
+      expect(html, section).not.toContain(`href="${addHref}"`);
+      expect(html, section).not.toContain("admin-subnav");
+    }
+  });
+
+  // The contrast that proves the distinction is real: the SAME section, passed
+  // as a bare route string (the landing list page), DOES open the sub-nav.
+  test("the same section as a bare route string still opens its sub-nav", () => {
+    for (const { section, addHref } of withinSectionCases) {
+      const html = String(
+        AdminNav({ active: section, session: { adminLevel: "owner" } }),
+      );
+      expect(html, section).toContain(`href="${addHref}"`);
+      expect(html, section).toContain("admin-subnav");
+    }
   });
 
   test("AdminNav marks the servicing link active on servicing pages", () => {

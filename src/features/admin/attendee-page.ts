@@ -39,6 +39,7 @@ import {
   type PageCtx,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
+import { loadPreviousBookings } from "#routes/admin/previous-bookings.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
@@ -182,12 +183,18 @@ const overviewTab: TabDef<LoadedAttendee> = {
     },
     {
       kind: "custom",
-      load: async ({ attendee }, ctx) =>
-        ContactHistory({
+      load: async ({ attendee }, ctx) => {
+        const [contactRecords, previousBookings] = await Promise.all([
+          loadContactRecords(attendee),
+          loadPreviousBookings(attendee),
+        ]);
+        return ContactHistory({
           attendee,
-          contactRecords: await loadContactRecords(attendee),
+          contactRecords,
           isOwner: ctx.session.adminLevel === "owner",
-        }),
+          previousBookings,
+        });
+      },
     },
   ],
   slug: "",
@@ -207,7 +214,9 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
   basePath: (id) => `/admin/attendees/${id}`,
   guard: requireSessionOr,
   load: (id) => loadAttendeeForEdit(id),
-  navActive: "/admin/attendees",
+  // A single attendee is a page *within* the Attendees section: highlight the
+  // top-level link, but never re-open the section's "Add" sub-nav beside it.
+  navActive: { section: "/admin/attendees" },
   proseExtra: ({ attendee }) =>
     Promise.resolve(AddNoteLink({ attendeeId: attendee.id })),
   tabs: [

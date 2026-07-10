@@ -3,13 +3,12 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import {
-  answersTable,
   getAttendeeAnswersBatch,
   getAttendeeTextAnswers,
-  getOrCreateStringIds,
-  questionsTable,
-  setListingQuestions,
-} from "#shared/db/questions.ts";
+} from "#shared/db/questions/attendee-answers/reads.ts";
+import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
+import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {

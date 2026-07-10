@@ -4,7 +4,7 @@
 
 import { map, pipe, sumOf } from "#fp";
 import { t } from "#i18n";
-import { groupReturnPath } from "#shared/admin-paths.ts";
+import { entityReturnPath } from "#shared/admin-pages.ts";
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { resolveColumnLayout } from "#shared/column-order.ts";
 import {
@@ -74,7 +74,10 @@ import {
   toLinkedItemOptions,
 } from "#templates/components/linked-items.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
-import { getGroupCreateFields, getGroupFields } from "#templates/fields.ts";
+import {
+  getGroupCreateFields,
+  getGroupFields,
+} from "#templates/fields/group.ts";
 
 /**
  * Admin groups list page
@@ -94,7 +97,11 @@ export const adminGroupsPage = (
         <DataTable
           columns={[{ header: t("common.name") }, { header: t("common.slug") }]}
           rows={groups.map((g) => [
-            <a href={groupReturnPath(session.adminLevel, g.id)}>{g.name}</a>,
+            <a
+              href={entityReturnPath("/admin/groups", session.adminLevel, g.id)}
+            >
+              {g.name}
+            </a>,
             g.slug,
           ])}
         />
@@ -273,7 +280,7 @@ export const adminGroupDeletePage = (
 ): string =>
   ConfirmPage({
     action: `/admin/groups/${group.id}/delete`,
-    active: "/admin/groups",
+    active: { section: "/admin/groups" },
     buttonText: t("groups.delete.submit"),
     children: (
       <>

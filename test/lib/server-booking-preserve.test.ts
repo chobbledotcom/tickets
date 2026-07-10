@@ -2,13 +2,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
-import {
-  answersTable,
-  questionsTable,
-  setListingQuestions,
-} from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { assignQuestion } from "#test/shared/db/questions/helpers.ts";
 import {
   createTestListing,
   describeWithEnv,
@@ -131,16 +127,11 @@ describeWithEnv("server (booking input preservation)", { db: true }, () => {
   test("re-fills a question answer", async () => {
     await settings.update.terms(TERMS);
     const listing = await createTestListing({ maxQuantity: 5, name: "Ticket" });
-    const question = await questionsTable.insert({
-      displayType: "radio",
-      text: "Size?",
-    });
-    const answer = await answersTable.insert({
-      questionId: question.id,
-      sortOrder: 0,
-      text: "Large",
-    });
-    await setListingQuestions(listing.id, [question.id]);
+    const { question, answer } = await assignQuestion(
+      listing.id,
+      "Size?",
+      "Large",
+    );
 
     const html = await submitAndRefill(listing.slug, {
       email: "jane@example.com",

@@ -42,6 +42,7 @@ import type { TicketListing } from "#shared/booking/model.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { getGroupRemainingForSpan } from "#shared/db/attendees/capacity.ts";
 import { getListingRemainingForRange } from "#shared/db/attendees.ts";
+import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
 import {
   getGroupIdsByListingIds,
   getGroupPackagePricesByGroupIds,
@@ -404,6 +405,9 @@ const handleOrder = withEvaluatedOrder(async (catalog, evaluation) => {
   );
   if (bookingUrl !== null) return redirectResponse(bookingUrl);
 
+  const attributesByListing = await getSelectedAttributesForListings(
+    catalog.ticketListings.map((info) => info.listing.id),
+  );
   return htmlResponse(
     orderGalleryPage(
       catalog.ticketListings,
@@ -416,6 +420,7 @@ const handleOrder = withEvaluatedOrder(async (catalog, evaluation) => {
       await publicNavProps(null),
       settings.websiteTitle,
       settings.orderIntroText || null,
+      attributesByListing,
     ),
   );
 });

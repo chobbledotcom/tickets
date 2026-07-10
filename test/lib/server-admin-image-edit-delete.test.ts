@@ -19,7 +19,6 @@ import {
   testCookie,
   testCsrfToken,
   withCdnRejecting,
-  withExpectedError,
   withStorageDisabled,
   withStorageMock,
 } from "#test-utils";
@@ -29,7 +28,6 @@ import {
   imageNamesForItem,
   makeImage,
 } from "#test-utils/admin-images.ts";
-import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 describeWithEnv(
   "admin image edit and delete routes",
@@ -231,8 +229,6 @@ describeWithEnv(
     });
 
     describe("POST /admin/images/:id/delete", () => {
-      const errors = setupErrorSpy();
-
       test("redirects away from delete confirmation when storage is disabled", async () => {
         const image = await makeImage("Disabled delete");
 
@@ -316,35 +312,29 @@ describeWithEnv(
         expect(messages).toContain("Image 'Discard' deleted");
       });
 
-      test("deletes the image row even when storage cleanup fails", async () => {
+      test("keeps the image row when storage cleanup fails", async () => {
         const image = await makeImage("Storage failure");
         const cookie = await testCookie();
         const csrfToken = await testCsrfToken();
 
-        await withExpectedError(async () => {
-          await withCdnRejecting(new Error("delete down"), async () => {
-            const response = await handleRequest(
-              mockFormRequest(
-                `/admin/images/${image.id}/delete`,
-                { confirm_identifier: image.name, csrf_token: csrfToken },
-                cookie,
-              ),
-            );
-            await expectFlashRedirect(
-              "/admin/images",
-              "Image deleted",
-              true,
+        await withCdnRejecting(new Error("delete down"), async () => {
+          const response = await handleRequest(
+            mockFormRequest(
+              `/admin/images/${image.id}/delete`,
+              { confirm_identifier: image.name, csrf_token: csrfToken },
               cookie,
-            )(response);
-          });
+            ),
+          );
+          await expectFlashRedirect(
+            `/admin/images/${image.id}/delete`,
+            "Could not delete the image files from storage. The image was kept so you can try again.",
+            false,
+            cookie,
+          )(response);
         });
-        expect(await getImageById(image.id)).toBeNull();
-        // Both files (full-size + thumbnail) log their failed cleanup with the
-        // "image deletion" context so an operator can trace the orphaned files.
-        const cleanupFailures = errors.calls
-          .map((call) => String(call.args[0]))
-          .filter((message) => message.includes('detail="image deletion"'));
-        expect(cleanupFailures.length).toBe(2);
+        // The record survives so the admin can retry rather than orphaning the
+        // stored files under a deleted library entry.
+        expect(await getImageById(image.id)).not.toBeNull();
       });
     });
   },

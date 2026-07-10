@@ -161,6 +161,9 @@ describeWithEnv(
         const id = await seedAttendee(reservation.id, 900);
         const html = await getEdit(id);
         expect(html).toContain("<h2>Status: Reserved</h2>");
+        // The heading is wrapped in the .attendee-status pin so it holds still
+        // across the view transition between an attendee's tabs.
+        expect(html).toContain('<div class="prose attendee-status">');
       });
 
       test("edit page status heading reads None when the attendee has no status", async () => {

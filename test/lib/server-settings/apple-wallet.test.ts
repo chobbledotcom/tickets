@@ -412,7 +412,7 @@ const setWalletEnvVars = () =>
   });
 
 describeWithEnv(
-  "getHostAppleWalletConfig",
+  "appleWallet.getHostConfig",
   {
     env: {
       APPLE_WALLET_PASS_TYPE_ID: undefined,

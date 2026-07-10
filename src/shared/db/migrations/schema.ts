@@ -842,6 +842,60 @@ export const SCHEMA: [name: string, table: Table][] = [
   ],
 
   [
+    // Reusable public listing attributes. The attribute name and option text are
+    // encrypted like listing descriptions and custom questions; filtering uses
+    // option ids, so no plaintext index is needed.
+    "attributes",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["name", "TEXT NOT NULL"],
+        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      indexes: [{ columns: ["sort_order"], name: "idx_attributes_sort_order" }],
+    },
+  ],
+
+  [
+    "attribute_options",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["attribute_id", "INTEGER NOT NULL"],
+        ["text", "TEXT NOT NULL"],
+        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      indexes: [
+        { columns: ["attribute_id"], name: "idx_attribute_options_attribute" },
+      ],
+    },
+  ],
+
+  [
+    // A selected option on a listing. The option points to its attribute, so the
+    // listing does not need a separate attribute row: one path handles one or
+    // many selected options.
+    "listing_attribute_options",
+    {
+      columns: [
+        ["listing_id", "INTEGER NOT NULL"],
+        ["option_id", "INTEGER NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["listing_id", "option_id"],
+          name: "idx_listing_attribute_options_pair",
+          unique: true,
+        },
+        {
+          columns: ["option_id"],
+          name: "idx_listing_attribute_options_option",
+        },
+      ],
+    },
+  ],
+
+  [
     "built_sites",
     {
       columns: [
@@ -951,6 +1005,7 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["public_booking_count", "INTEGER NOT NULL DEFAULT 0"],
         ["admin_booking_count", "INTEGER NOT NULL DEFAULT 0"],
         ["stats_blob", "TEXT NOT NULL DEFAULT ''"],
+        ["attendee_tokens_blob", "TEXT NOT NULL DEFAULT ''"],
         ["last_activity", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [

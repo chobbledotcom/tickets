@@ -4,6 +4,7 @@
 
 import { t } from "#i18n";
 import { formDataToParams } from "#routes/csrf.ts";
+import { redirect } from "#routes/response.ts";
 import { imagesTable } from "#shared/db/images.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
@@ -107,4 +108,15 @@ export const createImageFromUpload = async (
     );
     throw err;
   }
+};
+
+export const withUploadedImage = async (
+  formData: FormData,
+  failurePath: string,
+  useImage: (image: Image) => Promise<Response>,
+): Promise<Response> => {
+  const result = await createImageFromUpload(formData);
+  return result.ok
+    ? useImage(result.value)
+    : redirect(failurePath, result.error, false);
 };

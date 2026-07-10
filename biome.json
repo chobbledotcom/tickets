@@ -83,11 +83,7 @@
   },
   "overrides": [
     {
-      "includes": [
-        "test/**/*.js",
-        "test/**/*.ts",
-        "test/**/*.tsx"
-      ],
+      "includes": ["test/**/*.js", "test/**/*.ts", "test/**/*.tsx"],
       "linter": {
         "rules": {
           "complexity": {
@@ -124,9 +120,7 @@
       }
     },
     {
-      "includes": [
-        "scripts/**/*.ts"
-      ],
+      "includes": ["scripts/**/*.ts"],
       "linter": {
         "rules": {
           "complexity": {
@@ -141,18 +135,13 @@
       }
     },
     {
-      "includes": [
-        "src/ui/client/scanner.js",
-        "src/ui/static/**"
-      ],
+      "includes": ["src/ui/client/scanner.js", "src/ui/static/**"],
       "linter": {
         "enabled": false
       }
     },
     {
-      "includes": [
-        "test/lib/code-quality/**"
-      ],
+      "includes": ["test/lib/code-quality/**"],
       "linter": {
         "rules": {
           "suspicious": {
@@ -163,22 +152,8 @@
     },
     {
       "includes": [
-        "src/features/api/index.ts",
-        "src/features/api/payment-processing.ts",
         "src/shared/db/migrations/schema.ts",
-        "src/shared/db/questions.ts",
-        "src/shared/db/settings.ts",
-        "src/ui/templates/fields.ts",
-        "src/ui/templates/public/reservations.tsx",
-        "test/e2e/accounting.test.ts",
-        "test/lib/server-attendees.test.ts",
-        "test/lib/server-listing-parents.test.ts",
-        "test/lib/server-parents-booking.test.ts",
-        "test/lib/server-parents-gate.test.ts",
-        "test/lib/server-payments.test.ts",
-        "test/lib/square.test.ts",
-        "test/lib/stripe.test.ts",
-        "test/routes/api.test.ts"
+        "src/ui/templates/public/reservations.tsx"
       ],
       "linter": {
         "rules": {

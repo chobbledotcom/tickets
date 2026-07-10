@@ -10,7 +10,7 @@ import {
 } from "#routes/admin/owner-crud.ts";
 import { redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import { groupReturnPath } from "#shared/admin-paths.ts";
+import { entityReturnPath } from "#shared/admin-pages.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { executeBatch, type TxScope } from "#shared/db/client.ts";
@@ -49,11 +49,13 @@ import {
   adminGroupsPage,
 } from "#templates/admin/groups.tsx";
 import {
-  type GroupCreateFormValues,
-  type GroupFormValues,
   getGroupCreateFields,
   getGroupFields,
-} from "#templates/fields.ts";
+} from "#templates/fields/group.ts";
+import type {
+  GroupCreateFormValues,
+  GroupFormValues,
+} from "#templates/fields/types.ts";
 import { withEntityLoader } from "./entity-handlers.ts";
 import { groupPage } from "./group-page.ts";
 import { createItemImageHandlers } from "./item-images.ts";
@@ -308,7 +310,7 @@ const crudConfig = {
   getAll: () => groups.cache.getAll(),
   getName: (g: Group) => g.name,
   getRowPath: (g: Group, session: AdminSession) =>
-    groupReturnPath(session.adminLevel, g.id),
+    entityReturnPath("/admin/groups", session.adminLevel, g.id),
   listPath: "/admin/groups",
   renderDelete: adminGroupDeletePage,
   renderList: adminGroupsPage,

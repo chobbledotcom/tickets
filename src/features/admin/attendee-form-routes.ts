@@ -70,17 +70,19 @@ import {
   updateAttendeeStatus,
 } from "#shared/db/attendees.ts";
 import { hasAssignedBuiltSite } from "#shared/db/built-sites.ts";
+import { syncAttendeeContactTokens } from "#shared/db/contact-tokens.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
   type LogisticsAssignment,
   setLogisticsAssignments,
 } from "#shared/db/logistics.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
+import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import {
-  parseQuestionAnswers,
-  type QuestionWithAnswers,
+  type AttendeeAnswerSet,
   saveAttendeeAnswers,
-} from "#shared/db/questions.ts";
+} from "#shared/db/questions/attendee-answers/save.ts";
+import { parseQuestionAnswers } from "#shared/db/questions/parsing.ts";
 import { settings } from "#shared/db/settings.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -88,6 +90,7 @@ import {
   selectedListingQuantities,
   selectedStartDate,
 } from "#shared/order-select.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
 import {
   AttendeeFormPanel,
@@ -265,6 +268,7 @@ const handleSubmitInner = async (
           questions,
           parseQuestionAnswers({ optional: true })(form, questions),
           logisticsPlan,
+          existingByKey,
         );
   if (outcome.ok) return outcome.response;
   return renderSubmittedForm(
@@ -394,8 +398,9 @@ const applyEdit = async (
   parsed: ParsedAttendeeForm,
   attendee: Attendee,
   questions: QuestionWithAnswers[],
-  answers: import("#shared/db/questions.ts").AttendeeAnswerSet,
+  answers: AttendeeAnswerSet,
   logisticsPlan: LogisticsPlan,
+  existingByKey: Map<string, ListingAttendeeRow>,
 ): Promise<SaveOutcome> => {
   // Block marking an assigned built-site line no-quantity (no release path here).
   if (
@@ -457,6 +462,27 @@ const applyEdit = async (
   // public pay gate would refuse) is cleared to 0 alongside the status write.
   const hasRealLine = desired.some((line) => line.quantity > 0);
   await updateAttendeeStatus(attendeeId, parsed.statusId, !hasRealLine);
+
+  const hadRealLine = [...existingByKey.values()].some(
+    (line) => line.quantity > 0,
+  );
+  const contactChanged =
+    parsed.email !== attendee.email || parsed.phone !== attendee.phone;
+  const gainedFirstRealLine = hasRealLine && !hadRealLine;
+  if (contactChanged || gainedFirstRealLine) {
+    // Keep this attendee's ticket token attached to whichever contact owns it
+    // now. Running when the first real line appears links placeholders that
+    // have just become bookings.
+    await syncAttendeeContactTokens({
+      after: { email: parsed.email, phone: parsed.phone },
+      before: { email: attendee.email, phone: attendee.phone },
+      firstRealBooking: gainedFirstRealLine,
+      hasBooking: hasRealLine,
+      privateKey: await requireRequestPrivateKey(),
+      source: "admin",
+      ticketToken: attendee.ticket_token,
+    });
+  }
 
   await applyLogisticsPlan(attendeeId, logisticsPlan);
 

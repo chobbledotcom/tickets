@@ -1,3 +1,7 @@
+// Side effect: replace @std/expect's toContain with one that doesn't
+// pretty-print the whole value on success (see fast-expect.ts).
+import "./test-utils/fast-expect.ts";
+
 export * from "./test-utils/activity-log.ts";
 export * from "./test-utils/api-schemas.ts";
 export * from "./test-utils/arrays.ts";
@@ -7,12 +11,14 @@ export * from "./test-utils/csrf.ts";
 export * from "./test-utils/db.ts";
 export * from "./test-utils/db-helpers/attendee-payments.ts";
 export * from "./test-utils/db-helpers/attendees.ts";
+export * from "./test-utils/db-helpers/attributes.ts";
 export * from "./test-utils/db-helpers/built-sites.ts";
 export * from "./test-utils/db-helpers/groups.ts";
 export * from "./test-utils/db-helpers/holidays.ts";
 export * from "./test-utils/db-helpers/listing-forms.ts";
 export * from "./test-utils/db-helpers/listings.ts";
 export * from "./test-utils/db-helpers/misc.ts";
+export * from "./test-utils/db-poison.ts";
 export * from "./test-utils/e2e.ts";
 export * from "./test-utils/email.ts";
 export * from "./test-utils/env.ts";
@@ -34,4 +40,5 @@ export * from "./test-utils/settings.ts";
 export { TestBrowser } from "./test-utils/test-browser.ts";
 export * from "./test-utils/test-image.ts";
 export * from "./test-utils/validation.ts";
+export * from "./test-utils/virtual-time.ts";
 export * from "./test-utils/webhooks.ts";

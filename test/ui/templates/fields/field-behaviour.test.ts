@@ -2,18 +2,18 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Field } from "#shared/forms.tsx";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
+import { getBuiltSiteFields } from "#templates/fields/admin.ts";
+import { listingAggregateFields } from "#templates/fields/aggregate.ts";
+import { getGroupCreateFields } from "#templates/fields/group.ts";
 import {
-  getBuiltSiteFields,
-  getGroupCreateFields,
   getInitialSiteMonthsField,
   getListingFields,
   getMonthsPerUnitField,
-  getSlugField,
-  getTicketFields,
-  listingAggregateFields,
   logisticsAgentFields,
-  modifierFields,
-} from "#templates/fields.ts";
+} from "#templates/fields/listing.ts";
+import { getModifierFields } from "#templates/fields/modifier.ts";
+import { getTicketFields } from "#templates/fields/ticket.ts";
+import { getSlugField } from "#templates/fields/validators.ts";
 import { byName } from "#test-utils/fields.ts";
 
 /** Run a field's `validate` (present on the fields under test here). */
@@ -52,6 +52,13 @@ describe("fields behaviour", () => {
   });
 
   describe("modifier fields", () => {
+    const modifierFields = getModifierFields();
+    test("is a per-request builder, not a shared module-load array", () => {
+      // Each call builds a fresh array, so the picklist option labels (which
+      // resolve through t()) are compiled per request rather than at module
+      // load — keeping that work off the admin routes' cold-start path.
+      expect(getModifierFields()).not.toBe(getModifierFields());
+    });
     test("name is required", () => {
       expect(byName(modifierFields, "name").required).toBe(true);
     });

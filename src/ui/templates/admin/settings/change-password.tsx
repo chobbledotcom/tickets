@@ -6,7 +6,7 @@ import { t } from "#i18n";
 import { renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
-import { getChangePasswordFields } from "#templates/fields.ts";
+import { getChangePasswordFields } from "#templates/fields/admin.ts";
 
 export const ChangePasswordForm = (): JSX.Element => (
   <SettingsSection

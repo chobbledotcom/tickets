@@ -4,7 +4,7 @@
  */
 
 import { renderSVG } from "uqr";
-import { getQuestionsForListing } from "#shared/db/questions.ts";
+import { getQuestionsForListing } from "#shared/db/questions/queries.ts";
 import { parseListingFields } from "#shared/listing-fields.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 

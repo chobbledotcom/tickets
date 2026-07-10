@@ -20,7 +20,8 @@ export const notifyFailure = async (target: string): Promise<void> => {
 
   try {
     const res = await fetch(ntfyUrl, {
-      body: `payment sandbox e2e (${target}) failed — see the CI job log/artifacts for details.`,
+      body:
+        `payment sandbox e2e (${target}) failed — see the CI job log/artifacts for details.`,
       headers: {
         Tags: "warning",
         Title: `payment sandbox e2e: ${target} failed`,
@@ -29,11 +30,19 @@ export const notifyFailure = async (target: string): Promise<void> => {
       signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
     });
     if (!res.ok) {
-      warn(`ntfy publish rejected: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+      warn(
+        `ntfy publish rejected: HTTP ${res.status} ${
+          (await res.text()).slice(0, 200)
+        }`,
+      );
       return;
     }
     log("  notified ntfy of the failure");
   } catch (err) {
-    warn(`failed to notify ntfy: ${err instanceof Error ? err.message : String(err)}`);
+    warn(
+      `failed to notify ntfy: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
   }
 };

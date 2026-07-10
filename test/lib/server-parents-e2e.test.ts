@@ -5,19 +5,24 @@ import { listingChildren } from "#shared/db/listing-parents.ts";
 import type { Listing } from "#shared/types.ts";
 import {
   bookingPageHtml,
+  bookParent,
+  childField,
   createDailyTestListing,
   createTestGroup,
   createTestListing,
   describeWithEnv,
   expectFlash,
   expectPackageBookingAccepted,
+  expectRejectedBooking,
   expectReserved,
   makeParent,
+  parentField,
   postBooking,
   postCalculate,
   submitPackageBooking,
   ticketPageStatus,
 } from "#test-utils";
+import { firstBookableDate } from "./server-parents-gate/helpers.ts";
 
 /**
  * End-to-end journey for the parent/child (per-unit) booking flow: a daily
@@ -65,11 +70,7 @@ const setupParentWithTwoChildren = async (): Promise<{
   });
   const [childA, childB] = children;
 
-  const { getBookableStartDates } = await import("#shared/dates.ts");
-  const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-  const { getListingWithCount } = await import("#shared/db/listings.ts");
-  const parentRow = (await getListingWithCount(parent.id))!;
-  const date = getBookableStartDates(parentRow, await getActiveHolidays())[0]!;
+  const date = await firstBookableDate(parent.id);
 
   return { childA: childA!, childB: childB!, date, parent };
 };
@@ -102,29 +103,6 @@ const bookingRowsFor = async (
   );
 };
 
-/** Quick booking with email "a@b.com"/name "Ada" — validation tests. */
-const adaBook = (
-  parent: Listing,
-  date: string,
-  extra: Record<string, string>,
-) =>
-  postBooking(parent.slug, {
-    date,
-    email: "a@b.com",
-    name: "Ada",
-    ...extra,
-  });
-
-/** Build the parent-qty form field for a booking or calculate call. */
-const parentField = (p: Listing, qty: string) => ({
-  [`quantity_${p.id}`]: qty,
-});
-
-/** Build a child-qty form field for a booking or calculate call. */
-const childField = (p: Listing, c: Listing, qty: string) => ({
-  [`child_qty_${p.id}_${c.id}`]: qty,
-});
-
 /** "Ada Lovelace" booking; asserts reserved. */
 const adaLoveBook = async (
   parent: Listing,
@@ -139,13 +117,6 @@ const adaLoveBook = async (
   });
   expectReserved(res);
   return res;
-};
-
-/** Asserts a "choose 1 more" rejection: 302, flash, no attendee row written. */
-const assertChoose1More = async (res: Response, parent: Listing) => {
-  expect(res.status).toBe(302);
-  expectFlash(res, `Choose 1 more add-on for ${parent.name}.`, false);
-  expect((await getAttendeesRaw(parent.id)).length).toBe(0);
 };
 
 /** Asserts one attendee row per child with qty 1; returns rows for extra checks. */
@@ -216,11 +187,7 @@ const setupStandalone = async (): Promise<{
     thankYouUrl: "",
     unitPrice: 0,
   });
-  const { getBookableStartDates } = await import("#shared/dates.ts");
-  const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-  const { getListingWithCount } = await import("#shared/db/listings.ts");
-  const row = (await getListingWithCount(standalone.id))!;
-  const date = getBookableStartDates(row, await getActiveHolidays())[0]!;
+  const date = await firstBookableDate(standalone.id);
   const res = await postBooking(standalone.slug, {
     date,
     email: "ada@example.com",
@@ -252,14 +219,22 @@ describeWithEnv(
 
     test("parent qty 1 with no child chosen is rejected (choose 1 more)", async () => {
       const { parent, date } = await setupParentWithTwoChildren();
-      const res = await adaBook(parent, date, parentField(parent, "1"));
-      await assertChoose1More(res, parent);
+      const res = await bookParent(parent.slug, {
+        date,
+        ...parentField(parent, "1"),
+      });
+      await expectRejectedBooking(
+        res,
+        parent.id,
+        `Choose 1 more add-on for ${parent.name}.`,
+      );
     });
 
     test("parent qty 1 with one child unit is accepted", async () => {
       const { parent, childA, childB, date } =
         await setupParentWithTwoChildren();
-      const res = await adaBook(parent, date, {
+      const res = await bookParent(parent.slug, {
+        date,
         ...parentField(parent, "1"),
         ...childField(parent, childA, "1"),
       });
@@ -273,7 +248,7 @@ describeWithEnv(
     test("parent qty 2 with two of one child is accepted and folds a single line", async () => {
       const { parent, childA, childB, date, baseFields } =
         await setupTwoChildrenBase();
-      const res = await adaBook(parent, date, baseFields);
+      const res = await bookParent(parent.slug, { date, ...baseFields });
       expectReserved(res);
       const rowsA = await getAttendeesRaw(childA.id);
       expect(rowsA.length).toBe(1);
@@ -285,7 +260,8 @@ describeWithEnv(
     test("parent qty 2 with one of each child is accepted and folds two lines", async () => {
       const { parent, childA, childB, date } =
         await setupParentWithTwoChildren();
-      const res = await adaBook(parent, date, {
+      const res = await bookParent(parent.slug, {
+        date,
         ...parentField(parent, "2"),
         ...childField(parent, childA, "1"),
         ...childField(parent, childB, "1"),
@@ -296,16 +272,22 @@ describeWithEnv(
 
     test("parent qty 2 with only one child unit is rejected (too few)", async () => {
       const { parent, childA, date } = await setupParentWithTwoChildren();
-      const res = await adaBook(parent, date, {
+      const res = await bookParent(parent.slug, {
+        date,
         ...parentField(parent, "2"),
         ...childField(parent, childA, "1"),
       });
-      await assertChoose1More(res, parent);
+      await expectRejectedBooking(
+        res,
+        parent.id,
+        `Choose 1 more add-on for ${parent.name}.`,
+      );
     });
 
     test("parent qty 2 with three child units is rejected (too many)", async () => {
       const { parent, childB, date, baseFields } = await setupTwoChildrenBase();
-      const res = await adaBook(parent, date, {
+      const res = await bookParent(parent.slug, {
+        date,
         ...baseFields,
         ...childField(parent, childB, "1"),
       });

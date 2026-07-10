@@ -66,8 +66,8 @@ import type { RunCommand } from "./merge-warning.ts";
 export const STALE_BASE_SOURCE_LIMIT = 100;
 
 /** Prefix on the skip/warning notices that must stay visible even when the gate
- *  passes. The precommit runner swallows a successful step's stdout, so these
- *  are re-surfaced via `mutationNoticeSummary` (wired as the step's summary). */
+ *  passes. The standalone `precommit:mutation` task prints these directly;
+ *  `mutationNoticeSummary` extracts them for callers that swallow stdout. */
 export const MUTATION_NOTICE_PREFIX = "⚠ mutation: ";
 
 /** The changed paths split into the src files to mutate and tests to run. */

@@ -14,7 +14,7 @@ import type {
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
-import { saveAttendeeAnswers } from "#shared/db/questions.ts";
+import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import {

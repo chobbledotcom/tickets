@@ -50,7 +50,7 @@ import {
   formatDateRangeLabel,
 } from "#shared/dates.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import {
@@ -76,7 +76,7 @@ import {
   SelectField,
   type SelectOption,
 } from "#templates/components/select-field.tsx";
-import { PHONE_INPUT_PATTERN } from "#templates/fields.ts";
+import { PHONE_INPUT_PATTERN } from "#templates/fields/ticket.ts";
 
 /** Template data for the attendee form: everything the editable form itself
  * renders. The other tabs' data (log, ledger, notes, contact history) lives

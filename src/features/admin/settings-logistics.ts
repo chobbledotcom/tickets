@@ -40,12 +40,11 @@ import { defineNamedResource } from "#shared/rest/resource.ts";
 import { isDeliveryRole } from "#shared/types.ts";
 import {
   type AgentUserOption,
-  adminLogisticsAgentDeletePage,
   adminLogisticsAgentEditPage,
-  adminLogisticsAgentNewPage,
   adminLogisticsPage,
+  logisticsAgentPages,
 } from "#templates/admin/logistics.tsx";
-import { logisticsAgentFields } from "#templates/fields.ts";
+import { logisticsAgentFields } from "#templates/fields/listing.ts";
 
 /**
  * Disabling logistics also clears any saved logistics default, so a later
@@ -101,9 +100,9 @@ const crud = createOwnerCrudHandlers({
   getAll: logisticsAgents.getAll,
   getName: (a) => a.name,
   listPath: "/admin/logistics",
-  renderDelete: adminLogisticsAgentDeletePage,
+  renderDelete: logisticsAgentPages.deletePage,
   renderList: adminLogisticsPage,
-  renderNew: adminLogisticsAgentNewPage,
+  renderNew: logisticsAgentPages.newPage,
   resource: logisticsAgentsResource,
   singular: "Logistics agent",
 });

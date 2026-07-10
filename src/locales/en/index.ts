@@ -5,6 +5,7 @@
 import addressLookup from "./address-lookup.json" with { type: "json" };
 import admin from "./admin.json" with { type: "json" };
 import attendees from "./attendees.json" with { type: "json" };
+import attributes from "./attributes.json" with { type: "json" };
 import availability from "./availability.json" with { type: "json" };
 import backup from "./backup.json" with { type: "json" };
 import builder from "./builder.json" with { type: "json" };
@@ -53,6 +54,7 @@ import users from "./users.json" with { type: "json" };
 const en: Record<string, string> = {
   ...addressLookup,
   ...admin,
+  ...attributes,
   ...availability,
   ...attendees,
   ...backup,

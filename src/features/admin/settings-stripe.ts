@@ -16,7 +16,7 @@ import {
   testStripeConnection,
 } from "#shared/stripe.ts";
 
-const stripeRoutes = defineProviderCredentialsRoute<undefined>({
+export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
   // Provision the Stripe webhook before the key is persisted, so a setup
   // failure aborts the save leaving nothing configured.
   afterSave: async (value) => {
@@ -49,9 +49,3 @@ const stripeRoutes = defineProviderCredentialsRoute<undefined>({
     return null;
   },
 });
-
-/** Handle POST /admin/settings/stripe - owner only */
-export const handleAdminStripePost = stripeRoutes.save;
-
-/** Handle POST /admin/settings/stripe/test - owner only */
-export const handleStripeTestPost = stripeRoutes.test;

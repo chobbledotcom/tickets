@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Field } from "#shared/forms.tsx";
+import { AdminLevelSchema } from "#shared/types.ts";
+import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
 import {
-  extractContact,
-  getAddAttendeeFields,
   getChangePasswordFields,
   getInviteUserFields,
   getLoginFields,
@@ -12,8 +12,12 @@ import {
   getSquareWebhookFields,
   getStripeKeyFields,
   getSumupFields,
+} from "#templates/fields/admin.ts";
+import {
+  extractContact,
   type TicketFormValues,
-} from "#templates/fields.ts";
+} from "#templates/fields/ticket.ts";
+import { expectInvalid } from "#test-utils";
 import { byName, hasField } from "#test-utils/fields.ts";
 
 describe("fields contracts", () => {
@@ -142,6 +146,26 @@ describe("fields contracts", () => {
       const role = byName(getInviteUserFields(), "admin_level");
       expect(role.type).toBe("select");
       expect(role.required).toBe(true);
+    });
+
+    test("the invite-user role leads with a blank option, so no role is preselected", () => {
+      // Regression: the options derive from AdminLevelSchema, which lists owner
+      // first. Without a blank leading option, an unchanged required select
+      // would silently submit owner — a privilege escalation. The blank must
+      // lead, owner must still be selectable, and every schema role is offered.
+      const role = byName(getInviteUserFields(), "admin_level");
+      const values = (role.options ?? []).map((o) => o.value);
+      expect(values[0]).toBe("");
+      expect(values).toEqual(["", ...AdminLevelSchema.options]);
+    });
+
+    test("rejects an invite that leaves the role blank", () => {
+      // The blank default plus required means an unchanged form fails closed
+      // instead of granting the first schema role (owner).
+      expectInvalid("Role is required")(getInviteUserFields(), {
+        admin_level: "",
+        username: "neweditor",
+      });
     });
   });
 });

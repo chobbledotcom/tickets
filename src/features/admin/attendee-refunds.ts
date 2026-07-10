@@ -31,7 +31,7 @@ import {
 } from "#templates/admin/attendees.tsx";
 import {
   attendeeActionPage,
-  attendeeActionUrl,
+  attendeeActionUrlWithReturn,
   type ListingRouteParams,
   NO_PROVIDER_ERROR,
   verifiedAttendeeAction,
@@ -56,9 +56,7 @@ const refundError = (
   returnUrl = "",
 ): Response =>
   errorRedirect(
-    `${attendeeActionUrl(attendeeId, "refund")}${
-      returnUrl ? `?return_url=${encodeURIComponent(returnUrl)}` : ""
-    }`,
+    attendeeActionUrlWithReturn(attendeeId, "refund", returnUrl),
     msg,
   );
 

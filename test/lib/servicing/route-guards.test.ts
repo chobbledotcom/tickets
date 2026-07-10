@@ -27,6 +27,7 @@ import {
   createTestServicingEvent,
   describeWithEnv,
   getTestSession,
+  listingCostOf,
   recordServiceCost,
 } from "#test-utils";
 
@@ -100,8 +101,7 @@ describeWithEnv(
       expect(
         (await allTransfers()).filter((t) => t.kind === "service_cost").length,
       ).toBe(0);
-      const { costOf } = await import("#shared/accounting/projection.ts");
-      expect(await costOf(listing.id)).toBe(0);
+      expect(await listingCostOf(listing.id)).toBe(0);
     });
 
     test("POST /admin/servicing/:id/cost/:costId 404s for a cost belonging to another event", async () => {
@@ -137,8 +137,7 @@ describeWithEnv(
       );
       expect(response.status).toBe(404);
       response.body?.cancel();
-      const { costOf } = await import("#shared/accounting/projection.ts");
-      expect(await costOf(heldListing.id)).toBe(9000);
+      expect(await listingCostOf(heldListing.id)).toBe(9000);
     });
 
     test("POST /admin/servicing/:id/cost/:costId 404s for a cost from a different event on the SAME listing", async () => {
@@ -173,8 +172,7 @@ describeWithEnv(
       expect(response.status).toBe(404);
       response.body?.cancel();
       // The cost is unchanged.
-      const { costOf } = await import("#shared/accounting/projection.ts");
-      expect(await costOf(sharedListing.id)).toBe(9000);
+      expect(await listingCostOf(sharedListing.id)).toBe(9000);
     });
   },
 );

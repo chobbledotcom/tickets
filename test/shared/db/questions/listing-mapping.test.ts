@@ -7,8 +7,8 @@ import {
   getQuestionsForListing,
   setListingQuestions,
   setQuestionListings,
-  swapQuestionOrder,
-} from "#shared/db/questions.ts";
+} from "#shared/db/questions/queries.ts";
+import { swapQuestionOrder } from "#shared/db/questions/sort-order.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 import {
   createOrderedQuestionPair,

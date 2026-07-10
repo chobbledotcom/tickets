@@ -6,7 +6,8 @@
 import { settingsHandler } from "#routes/admin/settings-helpers.ts";
 import { OWNER_FORM, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
-import { MAX_EMAIL_TEMPLATE_LENGTH, settings } from "#shared/db/settings.ts";
+import { MAX_EMAIL_TEMPLATE_LENGTH } from "#shared/db/settings/constants.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   buildTemplateData,
   renderTemplate,

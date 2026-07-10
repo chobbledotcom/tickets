@@ -23,7 +23,7 @@ type SquareFields = {
   sandbox: boolean;
 };
 
-const squareRoutes = defineProviderCredentialsRoute<SquareFields>({
+export const squareRoutes = defineProviderCredentialsRoute<SquareFields>({
   extraFields: (form) => ({
     locationId: form.getString("square_location_id"),
     sandbox: form.get("square_sandbox") === "on",
@@ -53,9 +53,6 @@ const squareRoutes = defineProviderCredentialsRoute<SquareFields>({
   },
 });
 
-/** Handle POST /admin/settings/square - owner only */
-export const handleAdminSquarePost = squareRoutes.save;
-
 /**
  * Handle POST /admin/settings/square-webhook - owner only
  */
@@ -67,6 +64,3 @@ export const handleAdminSquareWebhookPost = settingsSecret({
   save: (v) => settings.update.square.webhookSignatureKey(v),
   validate: validateSquareWebhookSignatureKey,
 });
-
-/** Handle POST /admin/settings/square/test - owner only */
-export const handleSquareTestPost = squareRoutes.test;

@@ -7,7 +7,7 @@
  * unchanged (see processSecretField).
  */
 
-import { MASK_SENTINEL } from "#shared/db/settings.ts";
+import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { TextField } from "#templates/components/text-field.tsx";
 
 export const MaskedInput = ({

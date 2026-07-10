@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { MASK_SENTINEL } from "#shared/db/settings.ts";
+import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";

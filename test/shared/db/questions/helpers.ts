@@ -1,13 +1,9 @@
 import { expect } from "@std/expect";
-import {
-  answersTable,
-  assignNextQuestionSortOrder,
-  type Question,
-  questionsTable,
-  saveAttendeeAnswers,
-  setListingQuestions,
-  type TextAnswer,
-} from "#shared/db/questions.ts";
+import type { Question, TextAnswer } from "#shared/db/question-types.ts";
+import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
+import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { assignNextQuestionSortOrder } from "#shared/db/questions/sort-order.ts";
+import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { bookTestAttendee, createTestListing } from "#test-utils";
 
@@ -27,12 +23,15 @@ export const createQuestion = (
   questionsTable.insert({ displayType: "radio", text, ...overrides });
 
 /** Insert one answer at a given sort position — the shared shape behind
- *  every "add an answer option" line across the questions test suite. */
+ *  every "add an answer option" line across the questions test suite.
+ *  `overrides` (e.g. `{ active: false }`) covers the rare deactivated-answer
+ *  case. */
 export const addAnswer = (
   questionId: number,
   sortOrder: number,
   text: string,
-) => answersTable.insert({ questionId, sortOrder, text });
+  overrides: Partial<Parameters<typeof answersTable.insert>[0]> = {},
+) => answersTable.insert({ questionId, sortOrder, text, ...overrides });
 
 /** Create a question and its answer options in one call, in the order
  *  given (so `sortOrder` matches array position) — the single factory
@@ -98,4 +97,27 @@ export const seedQuestionWithAndWithoutAnswers = async (): Promise<{
   const listing = await createTestListing();
   await setListingQuestions(listing.id, [qWithAnswers.id, qNoAnswers.id]);
   return { listing, qNoAnswers, qWithAnswers };
+};
+
+/** Create a "radio" question with one answer and assign it to `listingId` —
+ *  the shared trio behind every parent-gate and booking-preserve question
+ *  test. Composes {@link createQuestion} + {@link addAnswer} +
+ *  {@link setListingQuestions} so the insert pair is declared once.
+ *  `active` defaults true (pass false for the all-deactivated-choice-question
+ *  case). */
+export const assignQuestion = async (
+  listingId: number,
+  text: string,
+  answerText: string,
+  active = true,
+) => {
+  const question = await createQuestion(text);
+  const answer = await addAnswer(
+    question.id,
+    0,
+    answerText,
+    active ? {} : { active: false },
+  );
+  await setListingQuestions(listingId, [question.id]);
+  return { answer, question };
 };

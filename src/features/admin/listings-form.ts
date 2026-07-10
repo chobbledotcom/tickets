@@ -10,6 +10,7 @@
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { normalizeDatetime } from "#shared/dates.ts";
+import { copyListingAttributeOptionsTx } from "#shared/db/attributes.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import {
   copyPackageMemberOverridesTx,
@@ -41,19 +42,17 @@ import {
   parseDayPrices,
 } from "#shared/types.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
-import type {
-  ListingAggregateFormValues,
-  ListingEditFormValues,
-  ListingFormValues,
-} from "#templates/fields.ts";
 import {
   getAssignBuiltSiteField,
   getInitialSiteMonthsField,
   getListingFields,
   getMonthsPerUnitField,
-  getSlugField,
-  splitCsv,
-} from "#templates/fields.ts";
+} from "#templates/fields/listing.ts";
+import type {
+  ListingEditFormValues,
+  ListingFormValues,
+} from "#templates/fields/types.ts";
+import { getSlugField, splitCsv } from "#templates/fields/validators.ts";
 
 /* jscpd:ignore-end */
 
@@ -230,7 +229,7 @@ const extractListingUpdateInput = async (
 };
 
 export const extractListingAggregateValues = (
-  values: ListingAggregateFormValues,
+  values: ListingAggregateValues,
 ): ListingAggregateValues => ({
   booked_quantity: values.booked_quantity,
   tickets_count: values.tickets_count,
@@ -262,15 +261,18 @@ const writeListingGroups = async (
 };
 
 /** Create-only afterWrite: persist the memberships, then — for a duplicate —
- * copy the source's package overrides onto the new membership rows in the SAME
- * transaction, so the duplicate never commits as a live package member at the
- * default price when the override copy fails. */
+ * copy the source's package overrides and attribute selections onto the new
+ * rows in the SAME transaction, so the duplicate never commits as a live
+ * package member at the default price when the override copy fails. */
 const writeCreateListingGroups =
   (form: FormParams) =>
   async (tx: TxScope, id: number, input: ListingInput): Promise<void> => {
     await writeListingGroups(tx, id, input);
     const sourceId = form.getOptionalInt("duplicated_from");
-    if (sourceId !== null) await copyPackageMemberOverridesTx(tx, sourceId, id);
+    if (sourceId !== null) {
+      await copyPackageMemberOverridesTx(tx, sourceId, id);
+      await copyListingAttributeOptionsTx(tx, sourceId, id);
+    }
   };
 
 /**

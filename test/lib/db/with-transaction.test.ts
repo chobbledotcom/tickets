@@ -18,6 +18,11 @@ import {
   runWithQueryLogContext,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
 } from "#shared/db/query-log.ts";
+import {
+  cleanupTestDbPath,
+  createTrackedTestDbFile,
+} from "#test-utils/temp-db-files.ts";
+import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
 
 /**
  * withTransaction needs an interactive transaction that shares state with the
@@ -26,7 +31,7 @@ import {
  * up directly rather than using the shared in-memory harness.
  */
 const withFileDb = async (run: () => Promise<void>): Promise<void> => {
-  const path = await Deno.makeTempFile({ suffix: ".db" });
+  const path = await createTrackedTestDbFile(".db");
   const client = createClient({ url: `file:${path}` });
   setDb(client);
   try {
@@ -35,7 +40,7 @@ const withFileDb = async (run: () => Promise<void>): Promise<void> => {
   } finally {
     setDb(null);
     client.close();
-    await Deno.remove(path);
+    cleanupTestDbPath(path);
   }
 };
 
@@ -184,7 +189,9 @@ describe("withTransaction lock contention", () => {
       }),
     );
     try {
-      expect(await withTransaction(async () => "ok")).toBe("ok");
+      expect(
+        await withVirtualBackoff(() => withTransaction(async () => "ok")),
+      ).toBe("ok");
       expect(calls).toBe(2);
     } finally {
       setDb(null);
@@ -218,7 +225,7 @@ describe("withTransaction lock contention", () => {
     try {
       let error: unknown;
       try {
-        await withTransaction(async () => "x");
+        await withVirtualBackoff(() => withTransaction(async () => "x"));
       } catch (caught) {
         error = caught;
       }

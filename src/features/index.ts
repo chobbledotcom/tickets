@@ -29,10 +29,15 @@ import {
   temporaryErrorResponse,
   withCookie,
 } from "#routes/response.ts";
-import { createRouter, defineRoutes } from "#routes/router.ts";
+import {
+  createRouter,
+  defineRoutes,
+  type RouteHandlerFn,
+} from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { getClientIp, parseCookies, parseRequest } from "#routes/url.ts";
+import { readOnlyGetRoutePatterns } from "#shared/admin-pages.ts";
 import { runWithClientIp } from "#shared/client-context.ts";
 import {
   loadEffectiveDomain,
@@ -101,85 +106,72 @@ const lazyExport = <M, K extends keyof M>(
   key: K,
 ): (() => Promise<M[K]>) => once(async () => (await load())[key]);
 
-// Lazy-load route groups so the edge script only pays for what a request uses
-const loadAdminRoutes = lazyExport(
-  () => import("#routes/admin/index.ts"),
-  "routeAdmin",
-);
 const loadPublicPages = once(() => import("#routes/public/pages.ts"));
-const loadTicketRoutes = lazyExport(
-  () => import("#routes/public/ticket-routes.ts"),
-  "routeTicket",
-);
-const loadOrderRoutes = lazyExport(
-  () => import("#routes/public/order.ts"),
-  "routeOrder",
-);
-const loadSitePageRoutes = lazyExport(
-  () => import("#routes/public/site-page.ts"),
-  "routeSitePage",
-);
-const loadNewsRoutes = lazyExport(
-  () => import("#routes/public/news.ts"),
-  "routeNews",
-);
-const loadOrderJs = lazyExport(
-  () => import("#routes/public/order-js.ts"),
-  "handleOrderJs",
-);
-const loadCustomCss = lazyExport(
-  () => import("#routes/public/custom-css.ts"),
-  "handleCustomCss",
-);
-const loadPaymentRoutes = lazyExport(
-  () => import("#routes/api/webhooks.ts"),
-  "routePayment",
-);
-const loadJoinRoutes = lazyExport(() => import("#routes/join.ts"), "routeJoin");
-const loadBalanceRoutes = lazyExport(
-  () => import("#routes/public/balance.ts"),
-  "routeBalance",
-);
-const loadTicketViewRoutes = lazyExport(
-  () => import("#routes/tickets/index.ts"),
-  "routeTicketView",
-);
-const loadCheckinRoutes = lazyExport(
-  () => import("#routes/checkin.ts"),
-  "routeCheckin",
-);
-const loadImageRoutes = lazyExport(
-  () => import("#routes/images.ts"),
-  "routeImage",
-);
-const loadFeedRoutes = lazyExport(
-  () => import("#routes/feeds.ts"),
-  "routeFeed",
-);
-const loadDemoResetRoutes = lazyExport(
-  () => import("#routes/admin/database-reset.ts"),
-  "routeDatabaseReset",
-);
-const loadWalletRoutes = lazyExport(
-  () => import("#routes/wallet/index.ts"),
-  "routeWallet",
-);
-const loadGoogleWalletRoutes = lazyExport(
-  () => import("#routes/wallet/google.ts"),
-  "routeGoogleWallet",
-);
-const loadWalletWebserviceRoutes = lazyExport(
-  () => import("#routes/wallet/webservice.ts"),
-  "routeWalletWebservice",
-);
-const loadApiRoutes = lazyExport(
-  () => import("#routes/api/index.ts"),
-  "routeApi",
-);
-const loadSmsWebhookRoutes = lazyExport(
-  () => import("#routes/api/sms-webhook.ts"),
-  "routeSmsWebhook",
-);
+
+/** Lazy-load a small route table assembled from named handlers. */
+const lazyRouter = <M>(
+  load: () => Promise<M>,
+  routes: (module: M) => Record<string, RouteHandlerFn>,
+): (() => Promise<RouterFn>) =>
+  once(async () => createRouter(routes(await load())));
+
+// Lazy-load route groups so the edge script only pays for what a request uses.
+// Import specifiers stay literal so esbuild can still bundle every target.
+const routeLoaders = {
+  admin: lazyExport(() => import("#routes/admin/index.ts"), "routeAdmin"),
+  api: lazyExport(() => import("#routes/api/index.ts"), "routeApi"),
+  balance: lazyExport(
+    () => import("#routes/public/balance.ts"),
+    "routeBalance",
+  ),
+  checkin: lazyExport(() => import("#routes/checkin.ts"), "routeCheckin"),
+  demoReset: lazyExport(
+    () => import("#routes/admin/database-reset.ts"),
+    "routeDatabaseReset",
+  ),
+  feed: lazyExport(() => import("#routes/feeds.ts"), "routeFeed"),
+  googleWallet: lazyExport(
+    () => import("#routes/wallet/google.ts"),
+    "routeGoogleWallet",
+  ),
+  image: lazyExport(() => import("#routes/images.ts"), "routeImage"),
+  join: lazyExport(() => import("#routes/join.ts"), "routeJoin"),
+  news: lazyExport(() => import("#routes/public/news.ts"), "routeNews"),
+  order: lazyExport(() => import("#routes/public/order.ts"), "routeOrder"),
+  payment: lazyExport(() => import("#routes/api/webhooks.ts"), "routePayment"),
+  sitePage: lazyExport(
+    () => import("#routes/public/site-page.ts"),
+    "routeSitePage",
+  ),
+  smsWebhook: lazyExport(
+    () => import("#routes/api/sms-webhook.ts"),
+    "routeSmsWebhook",
+  ),
+  ticket: lazyExport(
+    () => import("#routes/public/ticket-routes.ts"),
+    "routeTicket",
+  ),
+  ticketView: lazyExport(
+    () => import("#routes/tickets/index.ts"),
+    "routeTicketView",
+  ),
+  wallet: lazyExport(() => import("#routes/wallet/index.ts"), "routeWallet"),
+  walletWebservice: lazyExport(
+    () => import("#routes/wallet/webservice.ts"),
+    "routeWalletWebservice",
+  ),
+};
+
+const handlerLoaders = {
+  customCss: lazyExport(
+    () => import("#routes/public/custom-css.ts"),
+    "handleCustomCss",
+  ),
+  orderJs: lazyExport(
+    () => import("#routes/public/order-js.ts"),
+    "handleOrderJs",
+  ),
+};
 
 /** Lazy-load setup routes (bound to the setup-complete check) */
 const loadSetupRoutes = once(async () =>
@@ -188,61 +180,45 @@ const loadSetupRoutes = once(async () =>
   ),
 );
 
-/** Lazy-load attachment download routes */
 const loadAttachmentRoutes = once(async () =>
   createRouter((await import("#routes/attachments.ts")).attachmentRoutes),
 );
 
-/** Lazy-load admin API routes */
 const loadAdminApiRoutes = once(async () =>
   createRouter((await import("#routes/admin/api.ts")).adminApiRoutes),
 );
 
-/** Lazy-load the scheduled-tasks (cron) endpoint */
 const loadScheduledRoutes = once(async () =>
   createRouter((await import("#routes/scheduled.ts")).scheduledRoutes),
 );
 
-/** Lazy-load the inter-instance machine endpoint (builder only) */
 const loadInstanceRoutes = once(async () =>
   createRouter((await import("#routes/instance.ts")).instanceRoutes),
 );
 
-/** Lazy-load the address-lookup (postcode search) endpoint */
-const loadAddressLookupRoutes = once(async () => {
-  const { handleAddressLookupGet } = await import(
-    "#routes/public/address-lookup.ts"
-  );
-  return createRouter(
-    defineRoutes({ "GET /address-lookup": handleAddressLookupGet }),
-  );
-});
-
-/** Lazy-load unsubscribe routes */
-const loadUnsubscribeRoutes = once(async () => {
-  const { handleUnsubscribeGet, handleUnsubscribePost } = await import(
-    "#routes/public/unsubscribe.ts"
-  );
-  return createRouter(
-    defineRoutes({
-      "GET /unsubscribe": handleUnsubscribeGet,
-      "POST /unsubscribe": handleUnsubscribePost,
-    }),
-  );
-});
-
-/** Lazy-load renewal routes */
-const loadRenewalRoutes = once(async () => {
-  const { handleRenewalGet, handleRenewalPost } = await import(
-    "#routes/public/renewal.ts"
-  );
-  return createRouter(
-    defineRoutes({
-      "GET /renew": handleRenewalGet,
-      "POST /renew": handleRenewalPost,
-    }),
-  );
-});
+const exactRouteLoaders = {
+  addressLookup: lazyRouter(
+    () => import("#routes/public/address-lookup.ts"),
+    ({ handleAddressLookupGet }) =>
+      defineRoutes({ "GET /address-lookup": handleAddressLookupGet }),
+  ),
+  renewal: lazyRouter(
+    () => import("#routes/public/renewal.ts"),
+    ({ handleRenewalGet, handleRenewalPost }) =>
+      defineRoutes({
+        "GET /renew": handleRenewalGet,
+        "POST /renew": handleRenewalPost,
+      }),
+  ),
+  unsubscribe: lazyRouter(
+    () => import("#routes/public/unsubscribe.ts"),
+    ({ handleUnsubscribeGet, handleUnsubscribePost }) =>
+      defineRoutes({
+        "GET /unsubscribe": handleUnsubscribeGet,
+        "POST /unsubscribe": handleUnsubscribePost,
+      }),
+  ),
+};
 
 export type { PaymentCspConfig } from "#routes/middleware.ts";
 // Re-export middleware functions for testing
@@ -268,28 +244,20 @@ const lazyRoute =
 /** Read-only mode message */
 const READ_ONLY_MESSAGE = "This site is in read-only mode";
 
-/** Paths that should redirect to /read-only when visited via GET in read-only mode */
-const READ_ONLY_GET_PATTERNS = [
-  /^\/admin\/listing\/new$/,
-  /^\/admin\/listing\/\d+\/edit$/,
-  /^\/admin\/listing\/\d+\/duplicate$/,
-  /^\/admin\/listing\/\d+\/images$/,
-  /^\/admin\/groups\/\d+\/images$/,
-  /^\/admin\/images\/new$/,
-  /^\/admin\/images\/\d+\/edit$/,
-  /^\/admin\/images\/\d+\/delete$/,
-  /^\/admin\/groups\/new$/,
-  /^\/admin\/groups\/\d+\/edit$/,
-  /^\/admin\/site\/pages\/new$/,
-  /^\/admin\/site\/pages\/\d+\/edit$/,
-  /^\/admin\/site\/pages\/\d+\/delete$/,
-  /^\/admin\/site\/news\/new$/,
-  /^\/admin\/site\/news\/\d+\/edit$/,
-  /^\/admin\/site\/news\/\d+\/delete$/,
-  /^\/admin\/attendees\/new$/,
-  /^\/admin\/ledger\/[^/]+\/[^/]+\/add$/,
-  /^\/admin\/ledger\/entries\/\d+\/edit$/,
-];
+/** Convert a route pattern (using `:id` for numeric, `:type`/`:ref` for string
+ * params) into a regex that matches concrete paths. Derived from the
+ * admin-page schema so new sections' create/edit routes are blocked
+ * automatically — no hand-maintained list to keep in sync. */
+const routePatternToRegex = (pattern: string): RegExp =>
+  new RegExp(
+    `^${pattern.replace(/:id/g, "\\d+").replace(/:[a-zA-Z_]+/g, "[^/]+")}$`,
+  );
+
+/** GET routes that redirect to /read-only when visited in read-only mode —
+ * the create/edit/delete/duplicate form pages. Derived from the admin-page
+ * schema's create links and mutatingGetRoutes. */
+const READ_ONLY_GET_PATTERNS =
+  readOnlyGetRoutePatterns().map(routePatternToRegex);
 
 const isMutatingMethod = (method: string): boolean =>
   method === "DELETE" ||
@@ -422,7 +390,7 @@ const publicPageHandlers = reduce(
  * attributes its branches correctly. */
 const orderJsPrefixHandler: RouterFn = async (request, path, method) => {
   if (path !== "/order.js" || method !== "GET") return null;
-  const handle = await loadOrderJs();
+  const handle = await handlerLoaders.orderJs();
   return handle(request);
 };
 
@@ -430,7 +398,7 @@ const orderJsPrefixHandler: RouterFn = async (request, path, method) => {
  * ignore any other path under the `custom.css` prefix. */
 const customCssPrefixHandler: RouterFn = async (_request, path, method) => {
   if (path !== "/custom.css" || method !== "GET") return null;
-  const handle = await loadCustomCss();
+  const handle = await handlerLoaders.customCss();
   return handle();
 };
 
@@ -438,8 +406,8 @@ const customCssPrefixHandler: RouterFn = async (_request, path, method) => {
 const prefixHandlers: Record<string, RouterFn> = {
   ...publicPageHandlers,
   // Prefix-matched lazy-loaded route groups
-  "address-lookup": lazyRoute(loadAddressLookupRoutes),
-  admin: lazyRoute(loadAdminRoutes),
+  "address-lookup": lazyRoute(exactRouteLoaders.addressLookup),
+  admin: lazyRoute(routeLoaders.admin),
   api: async (request, path, method, server) => {
     // Admin API is always available (auth-protected)
     const adminResult = await (await loadAdminApiRoutes())(
@@ -451,40 +419,40 @@ const prefixHandlers: Record<string, RouterFn> = {
     if (adminResult) return adminResult;
     // Public API requires feature flag
     return settings.showPublicApi
-      ? (await loadApiRoutes())(request, path, method, server)
+      ? (await routeLoaders.api())(request, path, method, server)
       : null;
   },
   attachment: lazyRoute(loadAttachmentRoutes),
-  calculate: lazyRoute(loadTicketRoutes),
-  caldav: lazyRoute(loadFeedRoutes),
-  checkin: lazyRoute(loadCheckinRoutes),
+  calculate: lazyRoute(routeLoaders.ticket),
+  caldav: lazyRoute(routeLoaders.feed),
+  checkin: lazyRoute(routeLoaders.checkin),
   contact: contactPrefixHandler,
   "custom.css": customCssPrefixHandler,
-  demo: lazyRoute(loadDemoResetRoutes),
+  demo: lazyRoute(routeLoaders.demoReset),
   events: legacyEventsRedirectHandler,
-  feeds: lazyRoute(loadFeedRoutes),
-  gwallet: lazyRoute(loadGoogleWalletRoutes),
-  image: lazyRoute(loadImageRoutes),
+  feeds: lazyRoute(routeLoaders.feed),
+  gwallet: lazyRoute(routeLoaders.googleWallet),
+  image: lazyRoute(routeLoaders.image),
   instance: lazyRoute(loadInstanceRoutes),
-  join: lazyRoute(loadJoinRoutes),
-  news: lazyRoute(loadNewsRoutes),
-  order: lazyRoute(loadOrderRoutes),
+  join: lazyRoute(routeLoaders.join),
+  news: lazyRoute(routeLoaders.news),
+  order: lazyRoute(routeLoaders.order),
   "order.js": orderJsPrefixHandler,
-  page: lazyRoute(loadSitePageRoutes),
-  pay: lazyRoute(loadBalanceRoutes),
-  payment: lazyRoute(loadPaymentRoutes),
+  page: lazyRoute(routeLoaders.sitePage),
+  pay: lazyRoute(routeLoaders.balance),
+  payment: lazyRoute(routeLoaders.payment),
   "read-only": (_request, path, method) =>
     path === "/read-only" && method === "GET"
       ? Promise.resolve(htmlResponse(readOnlyPage()))
       : Promise.resolve(null),
-  renew: lazyRoute(loadRenewalRoutes),
+  renew: lazyRoute(exactRouteLoaders.renewal),
   scheduled: lazyRoute(loadScheduledRoutes),
-  sms: lazyRoute(loadSmsWebhookRoutes),
-  t: lazyRoute(loadTicketViewRoutes),
-  ticket: lazyRoute(loadTicketRoutes),
-  unsubscribe: lazyRoute(loadUnsubscribeRoutes),
-  v1: lazyRoute(loadWalletWebserviceRoutes),
-  wallet: lazyRoute(loadWalletRoutes),
+  sms: lazyRoute(routeLoaders.smsWebhook),
+  t: lazyRoute(routeLoaders.ticketView),
+  ticket: lazyRoute(routeLoaders.ticket),
+  unsubscribe: lazyRoute(exactRouteLoaders.unsubscribe),
+  v1: lazyRoute(routeLoaders.walletWebservice),
+  wallet: lazyRoute(routeLoaders.wallet),
 };
 
 /**

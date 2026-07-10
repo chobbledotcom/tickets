@@ -96,8 +96,8 @@ const main = async () => {
 
   // 6. Measure isSetupComplete query
   await measure("6. isSetupComplete() query", async () => {
-    const { isSetupComplete } = await import("#shared/db/settings.ts");
-    await isSetupComplete();
+    const { settings } = await import("#shared/db/settings.ts");
+    await settings.setup.isComplete();
   });
 
   // 7. Measure route module loading
@@ -120,25 +120,23 @@ const main = async () => {
 
   // Complete setup to test caching
   log("Completing setup to test caching...\n");
-  const { completeSetup, isSetupComplete } = await import(
-    "#shared/db/settings.ts"
-  );
-  await completeSetup("testpassword", "GBP");
+  const { settings } = await import("#shared/db/settings.ts");
+  await settings.setup.complete("profileuser", "testpassword", "GBP");
 
   // Test isSetupComplete caching (before it's cached)
   log("Testing isSetupComplete() caching:\n");
 
   // First call after setup - should query DB and cache
   const firstStart = performance.now();
-  await isSetupComplete();
+  await settings.setup.isComplete();
   const firstDuration = performance.now() - firstStart;
-  log(`  First call (queries DB + caches): ${firstDuration.toFixed(2)}ms`);
+  log(`  First call (queries DB + caches): ${firstDuration.toFixed(2)}ms\n`);
 
   // Subsequent calls - should return cached value instantly
   const cachedTimings: number[] = [];
   for (let i = 0; i < 5; i++) {
     const start = performance.now();
-    await isSetupComplete();
+    await settings.setup.isComplete();
     const duration = performance.now() - start;
     cachedTimings.push(duration);
   }

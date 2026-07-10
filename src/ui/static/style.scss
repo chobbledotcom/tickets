@@ -235,6 +235,27 @@ article > * {
   margin-bottom: 0;
 }
 
+.listing-attributes {
+  display: grid;
+  gap: calc(var(--space-s) / 2);
+  margin-block: var(--space-s);
+}
+
+.listing-attributes > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 calc(var(--space-s) / 2);
+}
+
+.listing-attributes dt {
+  color: var(--color-text-secondary);
+  font-weight: 700;
+}
+
+.listing-attributes dd {
+  margin: 0;
+}
+
 /* Agent run sheet: the top-level booking list has no bullets or indent; the
    nested job/detail lists drop their bullets but keep their padding so they
    still read as indented sub-lists. */
@@ -1377,9 +1398,20 @@ output.success {
   }
 }
 
+/* The attendee's status heading, shown above the tab strip whenever more than
+   one status exists. Like the notes below it, the heading is identical on every
+   attendee tab, so pin it too — switching tabs holds it still. */
+.attendee-status {
+  view-transition-name: attendee-status;
+}
+
 /* Per-attendee operator/system notes */
 .attendee-notes {
   margin-bottom: var(--space-l);
+  /* The notes banner sits above the tab strip on every attendee tab, so pin it
+     too: switching tabs keeps the same alerts in place instead of re-fading
+     them in on each navigation. */
+  view-transition-name: attendee-notes;
 }
 .system-note {
   background: var(--color-surface-alt, #f4f4f4);
@@ -2907,7 +2939,10 @@ a.cal-day-selected:active {
   border-color: var(--color-secondary);
 }
 
-.news-gallery-radio:focus-visible + .news-gallery-full + .news-gallery-thumb img {
+.news-gallery-radio:focus-visible
+  + .news-gallery-full
+  + .news-gallery-thumb
+  img {
   outline: 2px solid var(--color-secondary);
   outline-offset: 2px;
 }
@@ -3368,11 +3403,23 @@ label:hover .embed-toggle-badge,
 
 /* ── Entity pages: the tabbed admin "edit X" framework ── */
 
+/* The page header above the tab strip — the entity's `<h1>` title and any
+   prose extra (e.g. the attendee page's "Add a note" link). Its content is the
+   same on every one of an entity's tabs, so pin it: switching Edit → Attendees
+   → Actions keeps the same heading in place instead of re-fading it in. */
+.entity-header {
+  view-transition-name: entity-header;
+}
+
 .entity-tabs {
   margin: 0;
   /* The base `nav` rule centres its row; the tab strip reads left-to-right
      like the page content beneath it, so pin it to the start. */
   justify-content: flex-start;
+  /* Hold the tab strip still across cross-document navigations: moving between
+     an entity's tabs (Edit → Attendees → Actions) keeps the same strip in
+     place while only the panel beneath it transitions. */
+  view-transition-name: entity-tabs;
 
   ul {
     display: flex;

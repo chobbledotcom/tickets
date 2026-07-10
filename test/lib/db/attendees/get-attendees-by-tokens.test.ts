@@ -5,6 +5,10 @@ import { getDb } from "#shared/db/client.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 
 describeWithEnv("db > attendees > getAttendeesByTokens", { db: true }, () => {
+  test("returns an empty list for no tokens", async () => {
+    expect(await getAttendeesByTokens([])).toEqual([]);
+  });
+
   test("returns attendees in token order", async () => {
     const listing = await createTestListing({ maxAttendees: 10 });
 
@@ -24,6 +28,12 @@ describeWithEnv("db > attendees > getAttendeesByTokens", { db: true }, () => {
     expect(results.length).toBe(2);
     expect(results[0]?.id).toBe(a2.id);
     expect(results[1]?.id).toBe(a1.id);
+    // The plaintext token is a placeholder here: the caller already holds the
+    // input tokens (this function returns them in the same order), so it fills
+    // them in. Lock the placeholder so a mutant that seeds a non-empty string
+    // is caught.
+    expect(results[0]?.ticket_token).toBe("");
+    expect(results[1]?.ticket_token).toBe("");
   });
 
   test("returns null for missing tokens", async () => {
