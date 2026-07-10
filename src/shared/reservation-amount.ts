@@ -143,7 +143,7 @@ type AllocationUnit = {
  */
 export const allocateReservationDeposit = (
   raw: string,
-  items: ReadonlyArray<ReservationAllocationItem>,
+  items: readonly ReservationAllocationItem[],
 ): ReservationDepositAllocation => {
   const perItemTotals = Array.from({ length: items.length }, () => 0);
   const units: AllocationUnit[] = items.flatMap((item, itemIndex) =>

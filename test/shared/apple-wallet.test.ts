@@ -20,10 +20,10 @@ import { generateTestCerts } from "#test-utils/crypto.ts";
 
 /** Type for listingTicket field groups in pass.json */
 type TicketFields = {
-  primaryFields: Array<Record<string, unknown>>;
-  secondaryFields: Array<Record<string, unknown>>;
-  auxiliaryFields: Array<Record<string, unknown>>;
-  backFields: Array<Record<string, unknown>>;
+  primaryFields: Record<string, unknown>[];
+  secondaryFields: Record<string, unknown>[];
+  auxiliaryFields: Record<string, unknown>[];
+  backFields: Record<string, unknown>[];
 };
 
 const makePassData = (overrides: Partial<PassData> = {}): PassData => ({
@@ -61,7 +61,7 @@ describe("apple-wallet", () => {
       expect(pass.organizationName).toBe("Test Platform");
       expect(pass.description).toBe("Ticket for Summer Concert");
 
-      const barcodes = pass.barcodes as Array<Record<string, string>>;
+      const barcodes = pass.barcodes as Record<string, string>[];
       expect(barcodes).toHaveLength(1);
       expect(barcodes[0]!.format).toBe("PKBarcodeFormatQR");
       expect(barcodes[0]!.message).toBe("https://example.com/checkin/ABC123");

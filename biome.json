@@ -66,6 +66,12 @@
       "style": {
         "noNonNullAssertion": "off",
         "noUnusedTemplateLiteral": "error",
+        "useConsistentArrayType": {
+          "level": "error",
+          "options": {
+            "syntax": "shorthand"
+          }
+        },
         "useConst": "error",
         "useTemplate": "error"
       },
@@ -151,9 +157,7 @@
       }
     },
     {
-      "includes": [
-        "src/shared/db/migrations/schema.ts"
-      ],
+      "includes": ["src/shared/db/migrations/schema.ts"],
       "linter": {
         "rules": {
           "nursery": {

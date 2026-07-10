@@ -35,7 +35,7 @@ import { stubNtfyFetch } from "#test-utils/mocks.ts";
 describeWithEnv("db > migrations", { db: true }, () => {
   describe("initDb version check", () => {
     const resultSet = (
-      rows: Array<Record<string, unknown>>,
+      rows: Record<string, unknown>[],
       rowsAffected = 0,
     ): ResultSet => ({
       columns: [],

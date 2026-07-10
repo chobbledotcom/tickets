@@ -225,7 +225,7 @@ const updateTargetPiiFromDecision = async (
 };
 
 /** Build labeled count strings from summary fields, omitting zero-count entries */
-const mergeCountParts = (fields: Array<[number, string]>): string[] =>
+const mergeCountParts = (fields: [number, string][]): string[] =>
   pipe(
     filter(([count]: [number, string]) => count > 0),
     map(([count, label]) => `${count} ${label}`),
@@ -233,7 +233,7 @@ const mergeCountParts = (fields: Array<[number, string]>): string[] =>
 
 /** The booking-movement counts every merge message leads with, before each
  *  surface adds its own (the log is fuller; the flash is a short confirmation). */
-const bookingMoveParts = (summary: MergeSummary): Array<[number, string]> => [
+const bookingMoveParts = (summary: MergeSummary): [number, string][] => [
   [summary.bookingsMoved, "booking(s) moved"],
   [summary.bookingsSkipped, "booking(s) skipped"],
 ];

@@ -241,7 +241,7 @@ export const deleteListingAttachmentFile = async (
 
 /** Delete all attachment files for a list of listings */
 export const deleteAllListingAttachmentFiles = async (
-  listings: ReadonlyArray<ListingWithAttachmentStorage>,
+  listings: readonly ListingWithAttachmentStorage[],
 ): Promise<void> => {
   for (const listing of listings) {
     await deleteListingAttachmentFile(listing, "database reset");
@@ -286,7 +286,7 @@ export const deleteImageStorageFilesStrict = async (
 
 /** Delete all first-class image files. */
 export const deleteAllImageStorageFiles = async (
-  images: ReadonlyArray<ImageWithStorage>,
+  images: readonly ImageWithStorage[],
 ): Promise<void> => {
   for (const image of images) {
     await deleteImageStorageFiles(image, "database reset");
@@ -392,7 +392,7 @@ const encryptAndUpload = async (
 export const uploadImageTargets = async (
   data: Uint8Array,
   mime: DecodableMime,
-  targets: ReadonlyArray<ImageTarget>,
+  targets: readonly ImageTarget[],
 ): Promise<string[]> => {
   const { transcodeToWebp } = await import("#shared/images/transcode.ts");
   const variants = await transcodeToWebp(data, mime, targets);
@@ -602,7 +602,7 @@ export const listFilesWithMeta = async (
   // readDirSafe handles a missing directory. Other failures (401/403 bad
   // credentials, 5xx outages) must surface, not masquerade as an empty zone.
   if (response.status === 404) return [];
-  const items = (await response.json()) as Array<Record<string, unknown>>;
+  const items = (await response.json()) as Record<string, unknown>[];
   return byName(
     items
       // Bunny lists directories alongside files; keep only files so per-site

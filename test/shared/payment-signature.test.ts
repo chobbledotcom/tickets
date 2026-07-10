@@ -31,7 +31,7 @@ const baseMeta = (
  * can be checked against an untouched signature. Includes the contact and
  * fulfilment fields (email/phone/site_token_index) that feed pricing or renewal
  * indirectly and so must be bound, not just the obvious price fields. */
-const fieldMutations: Array<[string, Record<string, string>]> = [
+const fieldMutations: [string, Record<string, string>][] = [
   ["email", { email: "attacker@example.com" }],
   ["phone", { phone: "07700900000" }],
   ["site_token_index", { site_token_index: "deadbeefcafe" }],
@@ -49,7 +49,7 @@ const fieldMutations: Array<[string, Record<string, string>]> = [
 
 /** Keys deliberately left out of the signed payload — changing them must not
  * invalidate a signature (see the module doc for why each is excluded). */
-const excludedKeys: Array<[string, Record<string, string>]> = [
+const excludedKeys: [string, Record<string, string>][] = [
   ["_origin", { _origin: "other-instance.example.test" }],
   ["price_proof", { price_proof: "9999.somedigest" }],
   ["b", { b: '{"phone":"07700900000"}' }],
