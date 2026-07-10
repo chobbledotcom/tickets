@@ -4,7 +4,7 @@ import {
   incrementAttachmentDownloads,
   updateAttendeePII,
   updateCheckedIn,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/update.ts";
 import { queryOne } from "#shared/db/client.ts";
 import {
   createTestAttendee,

@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { VALID_DAY_NAMES } from "#shared/dates.ts";
 import {
   splitCsv,
-  VALID_DAY_NAMES,
   validateAddress,
   validateBookableDays,
   validateDate,

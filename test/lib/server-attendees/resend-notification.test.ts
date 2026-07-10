@@ -232,7 +232,7 @@ describeWithEnv(
         // confirmation collapses to that single row's quantity/price.
         const { createTestGroup } = await import("#test-utils");
         const { createAttendeeAtomic } = await import(
-          "#shared/db/attendees.ts"
+          "#shared/db/attendees/api.ts"
         );
         const group = await createTestGroup({
           isPackage: true,

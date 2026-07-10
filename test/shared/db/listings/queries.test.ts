@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAttendeeNamesByIds } from "#shared/db/attendees.ts";
+import { getAttendeeNamesByIds } from "#shared/db/attendees/queries.ts";
 import {
   getAllListingOptions,
   getListingNamesByIds,

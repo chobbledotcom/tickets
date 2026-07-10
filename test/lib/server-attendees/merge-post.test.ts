@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAttendeeRaw } from "#shared/db/attendees.ts";
+import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import { queryAll } from "#shared/db/client.ts";
 import {
   adminFormPost,
@@ -337,7 +337,9 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
         name: "L2",
         unitPrice: 500,
       });
-      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+      const { createAttendeeAtomic } = await import(
+        "#shared/db/attendees/api.ts"
+      );
       const targetResult = await createAttendeeAtomic({
         bookings: [
           { listingId: listing1.id, quantity: 1 },

@@ -127,7 +127,9 @@ describeWithEnv(
       );
 
       // Verify listing1 attendee was rolled back
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const attendees1 = await getAttendeesRaw(listing1.id);
       expect(attendees1.length).toBe(0);
     });
@@ -180,7 +182,9 @@ describeWithEnv(
       );
 
       // Verify daily listing attendee has the date set
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const attendees1 = await getAttendeesRaw(listing1.id);
       expect(attendees1.length).toBe(1);
       expect(attendees1[0]?.date).toBe("2026-02-10");

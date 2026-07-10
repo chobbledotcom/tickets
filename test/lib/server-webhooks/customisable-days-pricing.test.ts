@@ -64,7 +64,9 @@ describeWithEnv(
         }),
       );
 
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(1);
       // Created at the day-count price and start date — proving the webhook
@@ -97,7 +99,9 @@ describeWithEnv(
           sessionId: "cs_no_daycount",
         }),
       );
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const attendees = await getAttendeesRaw(listing.id);
       expect(Number(attendees[0]?.price_paid)).toBe(1000);
     });

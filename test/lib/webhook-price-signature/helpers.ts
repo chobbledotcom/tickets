@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import { getNoteRows } from "#shared/db/system-notes.ts";
 import { stripeApi } from "#shared/stripe.ts";

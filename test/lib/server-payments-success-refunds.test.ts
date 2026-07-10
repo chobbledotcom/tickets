@@ -279,7 +279,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           "saved your details",
           "refund is being arranged",
         );
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const { getAttendeesRaw } = await import(
+          "#shared/db/attendees/queries.ts"
+        );
         const { getNoteRows } = await import("#shared/db/system-notes.ts");
         const ghost = (await getAttendeesRaw(listing.id)).find(
           (a) => a.quantity === 0,
@@ -357,7 +359,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
 
         // The paid customer is never lost: a quantity-0 ghost is kept on listing1
         // (not rolled back to nothing).
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const { getAttendeesRaw } = await import(
+          "#shared/db/attendees/queries.ts"
+        );
         const ghost1 = (await getAttendeesRaw(listing1.id)).find(
           (a) => a.quantity === 0,
         );

@@ -9,7 +9,7 @@ import {
   type PackagePath,
   packagesByListingIdFrom,
 } from "#routes/admin/attendee-page-data.ts";
-import type { ExistingLine } from "#shared/db/attendees.ts";
+import type { ExistingLine } from "#shared/db/attendees/atomic-update.ts";
 import {
   adminGet,
   bookAttendee,

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDatelessGroupRemaining } from "#shared/db/attendees.ts";
+import { getDatelessGroupRemaining } from "#shared/db/attendees/capacity.ts";
 import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
 import {
   createDailyTestListing,

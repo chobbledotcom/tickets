@@ -25,7 +25,7 @@ import {
 import { resetSessionCache } from "#shared/db/sessions.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
-import { setDemoModeForTest } from "#shared/demo.ts";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
   resetHostEmailConfig,
   setHostEmailConfigForTest,

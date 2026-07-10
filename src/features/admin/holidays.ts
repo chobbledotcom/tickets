@@ -5,7 +5,10 @@
 import { t } from "#i18n";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { type HolidayInput, holidays } from "#shared/db/holidays.ts";
-import { HOLIDAY_DEMO_FIELDS, wrapResourceForDemo } from "#shared/demo.ts";
+import {
+  HOLIDAY_DEMO_FIELDS,
+  wrapResourceForDemo,
+} from "#shared/demo/overrides.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import { adminHolidaysPage, holidayPages } from "#templates/admin/holidays.tsx";
 import { getHolidayFields } from "#templates/fields/admin.ts";

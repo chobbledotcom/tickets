@@ -62,7 +62,9 @@ describeWithEnv(
         expectReservedRedirectWithTokens(response);
 
         // Verify answers were saved
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const { getAttendeesRaw } = await import(
+          "#shared/db/attendees/queries.ts"
+        );
         const attendees = await getAttendeesRaw(listing.id);
         const batch = await getAttendeeAnswersBatch([attendees[0]!.id], {
           texts: false,

@@ -8,16 +8,18 @@ import { createEntityRouteHandlers } from "#routes/admin/entity-handlers.ts";
 import type { AttendeeRouteParams } from "#routes/entity.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
-  ATTENDEE_LEFT_JOIN_SELECT,
   decryptAttendeeOrNull,
   decryptAttendees,
-  getAttendeesByTokens,
+} from "#shared/db/attendees/pii.ts";
+import {
+  ATTENDEE_LEFT_JOIN_SELECT,
   LISTING_ATTENDEE_ROW_COLS,
-  type ListingAttendeeRow,
-  updateAttendeePII,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/queries.ts";
+import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
+import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
 import { syncAttendeeContactTokens } from "#shared/db/contact-tokens.ts";
 import { getQuestionsWithListingIds } from "#shared/db/questions/queries.ts";

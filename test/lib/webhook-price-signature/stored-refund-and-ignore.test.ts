@@ -3,7 +3,7 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { getNoteRows, getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
@@ -163,7 +163,7 @@ describeWithEnv(
       // while the quantity-0 placeholder store (createAttendeeAtomic) keeps working
       // — so a signed payment that hits an unexpected error after the charge is kept
       // at quantity 0 and refunded, not crash-looped over money already taken.
-      const { attendeesApi } = await import("#shared/db/attendees.ts");
+      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
       const boom = stub(attendeesApi, "createBookingAtomic", () =>
         Promise.reject(new Error("synthetic create failure")),
       );

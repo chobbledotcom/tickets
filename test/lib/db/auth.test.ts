@@ -7,7 +7,7 @@ import {
   unwrapKey,
 } from "#shared/crypto/keys.ts";
 import type { KeyEncrypted, PasswordHash } from "#shared/crypto/sealed.ts";
-import { getAttendee } from "#shared/db/attendees.ts";
+import { getAttendee } from "#shared/db/attendees/queries.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   clearLoginAttempts,

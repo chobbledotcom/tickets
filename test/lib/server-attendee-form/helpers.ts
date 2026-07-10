@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";

@@ -5,7 +5,7 @@
 
 import { defineProviderCredentialsRoute } from "#routes/admin/settings-helpers.ts";
 import { settings } from "#shared/db/settings.ts";
-import { isDemoMode } from "#shared/demo.ts";
+import { isDemoMode } from "#shared/demo/mode.ts";
 import { isSumupCurrency, testSumupConnection } from "#shared/sumup.ts";
 
 type SumupFields = {

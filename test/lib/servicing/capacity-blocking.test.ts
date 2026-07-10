@@ -17,12 +17,12 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { hasAvailableSpots } from "#shared/db/attendees/api.ts";
 import {
   checkListingAvailability,
   getGroupRemainingForListing,
   getListingRemainingForRange,
 } from "#shared/db/attendees/capacity.ts";
-import { hasAvailableSpots } from "#shared/db/attendees.ts";
 import {
   createDailyTestListing,
   createServicingHold,

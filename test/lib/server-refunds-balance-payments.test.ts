@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { balanceFinalizeStatement } from "#shared/db/payment-finalize.ts";
 import {
   finalizeSession as finalizePaymentSession,

@@ -18,7 +18,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeeKindsByIds } from "#shared/db/attendees.ts";
+import { getAttendeeKindsByIds } from "#shared/db/attendees/queries.ts";
 import { getAttendeesByListingIds } from "#shared/db/listings.ts";
 import {
   awaitTestRequest,

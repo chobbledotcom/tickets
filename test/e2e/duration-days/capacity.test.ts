@@ -4,7 +4,7 @@ import { getAvailableDates } from "#shared/dates.ts";
 import {
   checkBatchAvailability,
   hasAvailableSpots,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/api.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buildTemplateData } from "#shared/email-renderer.ts";

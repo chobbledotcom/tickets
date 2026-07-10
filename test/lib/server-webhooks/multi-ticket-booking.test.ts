@@ -103,7 +103,7 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
       }),
     );
 
-    const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+    const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
     const childRows = await getAttendeesRaw(child.id);
     expect(childRows.length).toBe(1);
     const parentIdRow = await getDb().execute({

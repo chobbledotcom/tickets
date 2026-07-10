@@ -20,7 +20,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { getAttendee } from "#shared/db/attendees.ts";
+import { getAttendee } from "#shared/db/attendees/queries.ts";
 import {
   createOwnerNote,
   deleteAttendeeNote,

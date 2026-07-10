@@ -199,7 +199,9 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
       "gone-addons-pkg",
     );
     const { listingsTable } = await import("#shared/db/listings.ts");
-    const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+    const { createAttendeeAtomic } = await import(
+      "#shared/db/attendees/api.ts"
+    );
     for (const c of [child, childB]) {
       await listingsTable.update(c.id, { maxAttendees: 1, maxQuantity: 1 });
       const fill = await createAttendeeAtomic({

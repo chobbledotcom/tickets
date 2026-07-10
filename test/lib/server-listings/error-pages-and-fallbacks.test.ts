@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
 import { invalidateListingsCache, listingsTable } from "#shared/db/listings.ts";
 import {

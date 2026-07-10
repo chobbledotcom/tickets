@@ -134,7 +134,9 @@ describeWithEnv(
           "Badge User",
           "badge@example.com",
         );
-        const { updateCheckedIn } = await import("#shared/db/attendees.ts");
+        const { updateCheckedIn } = await import(
+          "#shared/db/attendees/update.ts"
+        );
         await updateCheckedIn(attendee.id, listing.id, true);
         const { invalidateListingsCache } = await import(
           "#shared/db/listings.ts"

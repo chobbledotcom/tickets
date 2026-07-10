@@ -357,7 +357,9 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
     });
 
     test("blocks check-in for refunded attendee", async () => {
-      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const { getAttendeesByTokens } = await import(
+        "#shared/db/attendees/tokens.ts"
+      );
       const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
       const { listing, token, session } = await setupCheckinTest(
         "Refund",
@@ -378,7 +380,9 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
     });
 
     test("blocks check-out for refunded attendee", async () => {
-      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const { getAttendeesByTokens } = await import(
+        "#shared/db/attendees/tokens.ts"
+      );
       const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
       const { listing, token, session } = await setupCheckinTest(
         "Refund2",
@@ -402,7 +406,9 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       // A package/order can mix a checkable member with a No Check-In
       // (purchase_only) one on the same token; the token check-in must update
       // only the checkable row.
-      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+      const { createAttendeeAtomic } = await import(
+        "#shared/db/attendees/api.ts"
+      );
       const { queryAll } = await import("#shared/db/client.ts");
       const normal = await createTestListing({ name: "Entry Pass" });
       const merch = await createTestListing({
