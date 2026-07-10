@@ -14,6 +14,7 @@ import {
   loadBookablePackages,
 } from "#routes/public/discovery.ts";
 import { keepParentDailyDatesChildrenCanServe } from "#routes/public/ticket-payment.ts";
+import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { getAvailableDates, getBookableStartDates } from "#shared/dates.ts";
 import { getGroupRemainingByListingId } from "#shared/db/attendees/capacity.ts";
 import { hasAvailableSpots } from "#shared/db/attendees.ts";
@@ -133,7 +134,7 @@ const buildChildAvailability = (
         (await hasAvailableSpots(
           child.id,
           quantity,
-          child.listing_type === "daily" ? (date ?? null) : null,
+          capacityDateFor(child.listing_type, date),
           child.duration_days,
         )),
       slug: child.slug,
