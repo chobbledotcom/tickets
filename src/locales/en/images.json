@@ -27,5 +27,6 @@
   "images.new.heading": "Add Image",
   "images.new.submit": "Create image",
   "images.storage_off": "File storage is not configured.",
-  "images.updated": "Image updated"
+  "images.updated": "Image updated",
+  "images.guide_link": "Image library guide"
 }

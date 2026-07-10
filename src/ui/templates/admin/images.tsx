@@ -21,6 +21,7 @@ import {
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
   ActionButton,
+  GuideFooter,
   type IconName,
   SaveChangesButton,
   SubmitButton,
@@ -161,15 +162,20 @@ export const adminImagesPage = (
     session,
     successMessage,
   )(
-    storageEnabled ? (
-      images.length === 0 ? (
-        <p>{t("images.empty")}</p>
+    <>
+      {storageEnabled ? (
+        images.length === 0 ? (
+          <p>{t("images.empty")}</p>
+        ) : (
+          imageTable(images)
+        )
       ) : (
-        imageTable(images)
-      )
-    ) : (
-      storageDisabledNotice()
-    ),
+        storageDisabledNotice()
+      )}
+      <GuideFooter href="/admin/guide#images">
+        {t("images.guide_link")}
+      </GuideFooter>
+    </>,
   );
 };
 
