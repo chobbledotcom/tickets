@@ -32,7 +32,9 @@ describe("cold-start bench string stripping", () => {
     const code = `const re=/viewBox="([^"]+)"/;const big=x("${blob}");`;
     const result = stripBase64Payloads(code, 30);
     expect(result.code).toBe(`const re=/viewBox="([^"]+)"/;const big=x("");`);
-    expect(result.stripped.length).toBe(1);
+    expect(result.stripped).toEqual([
+      { lengthChars: 40, startIndex: code.indexOf(`"${blob}"`) },
+    ]);
   });
 
   test("median picks the middle of a sorted copy", () => {

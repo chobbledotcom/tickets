@@ -242,9 +242,9 @@ export const buildEdgeBundle = async (
   const rawCss = await Deno.readTextFile("./src/ui/static/style.css");
   const minifiedCss = await minifyCss(rawCss);
   const staticAssets = await readStaticAssets(minifiedCss);
-  if (options.emptyInlinedAssets) {
-    for (const key of Object.keys(staticAssets)) staticAssets[key] = "";
-  }
+  const inlinedAssets = options.emptyInlinedAssets
+    ? Object.fromEntries(Object.keys(staticAssets).map((key) => [key, ""]))
+    : staticAssets;
 
   // Build timestamp — always the current time. Used both as BUILD_TIMESTAMP
   // and (formatted) as the release tag in release builds, so the two always match.
@@ -264,7 +264,7 @@ export const buildEdgeBundle = async (
     platform: "browser",
     plugins: [
       shimBareNodeCryptoPlugin,
-      inlineAssetsPlugin(buildIso, buildTs, staticAssets),
+      inlineAssetsPlugin(buildIso, buildTs, inlinedAssets),
       inlineWasmPlugin,
       ...denoPlugins({
         configPath: fromFileUrl(new URL("../deno.json", import.meta.url)),
