@@ -67,7 +67,7 @@ describeWithEnv(
       test("links the payment id to the configured provider dashboard", async () => {
         settings.setForTest({
           payment_provider: "stripe",
-          stripe_secret_key: "sk_live_abc",
+          stripe_secret_key: "sk_test_abc",
         });
         try {
           const listing = await createTestListing(paidListing());
@@ -84,7 +84,7 @@ describeWithEnv(
           await expectHtmlResponse(
             response,
             200,
-            'href="https://dashboard.stripe.com/payments/pi_linked_123"',
+            'href="https://dashboard.stripe.com/test/payments/pi_linked_123"',
             'target="_blank"',
           );
         } finally {

@@ -15,14 +15,16 @@
  */
 
 import { unique } from "#fp";
+import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import {
-  cancelPageResponse,
   classifySession,
-  extractIntent,
+  validatePaidSession,
+} from "#routes/api/payment-processing/classify.ts";
+import {
   formatPaymentError,
   processPaymentSession,
-  validatePaidSession,
-} from "#routes/api/payment-processing.ts";
+} from "#routes/api/payment-processing/index.ts";
+import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
 import {

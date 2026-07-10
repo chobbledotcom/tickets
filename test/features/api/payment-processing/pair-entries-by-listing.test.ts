@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { pairEntriesByListing } from "#routes/api/payment-processing.ts";
+import { pairEntriesByListing } from "#routes/api/payment-processing/create.ts";
 import { testListingWithCount } from "#test-utils";
 
 /** A validated item carries a listing (the only field the pairing reads). */
