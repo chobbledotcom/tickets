@@ -293,6 +293,11 @@ export const routeAdmin: PathMethodRoute = async (
   method,
   server,
 ) => {
+  // An unknown segment 404s before any session work, so probing traffic
+  // never costs a session lookup.
+  const segment = adminPathSegment(path);
+  if (!Object.hasOwn(segmentRouters, segment)) return null;
+
   // Query recording is turned on earlier (prepareRequestEnvironment) for admin
   // GETs, so the route's settings load is captured. Here we only unlock the
   // footer for back-office staff — delivery agents and content editors (who are
@@ -304,8 +309,6 @@ export const routeAdmin: PathMethodRoute = async (
     enableFooterDebug();
   }
 
-  const segment = adminPathSegment(path);
-  if (!Object.hasOwn(segmentRouters, segment)) return null;
   const router = await segmentRouters[segment]!();
   return router(request, path, method, server);
 };

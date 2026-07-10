@@ -82,7 +82,7 @@ describeWithEnv("admin segment dispatch", { db: true }, () => {
     expect(response.status).toBe(404);
   });
 
-  test("a repeat hit on a segment reuses its compiled router", async () => {
+  test("a repeat hit on a settings segment succeeds twice", async () => {
     const first = await awaitTestRequest("/admin/settings");
     const second = await awaitTestRequest("/admin/settings");
     expect(first.status).toBe(302);

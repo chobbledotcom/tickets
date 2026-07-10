@@ -29,7 +29,10 @@ export const DAY_NAMES = [
 ] as const;
 
 /** Valid day names for bookable_days (Monday-first for display) */
-export const VALID_DAY_NAMES = [...DAY_NAMES.slice(1), DAY_NAMES[0]!];
+export const VALID_DAY_NAMES: readonly string[] = [
+  ...DAY_NAMES.slice(1),
+  DAY_NAMES[0]!,
+];
 
 /** Month names for display */
 const MONTH_NAMES = [
