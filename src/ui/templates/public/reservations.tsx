@@ -46,6 +46,10 @@ import {
   formatDateLabel,
   formatDatetimeLabel,
 } from "#shared/dates.ts";
+import type {
+  AttributeWithOptions,
+  ListingAttributesById,
+} from "#shared/db/attributes.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
@@ -81,6 +85,7 @@ import {
 } from "#templates/components/question-text.tsx";
 import { getTicketFields } from "#templates/fields/ticket.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { renderListingAttributes } from "./listing-attributes.ts";
 import { PublicImageGallery, renderListingImage } from "./shared.tsx";
 /** OpenGraph meta tags for a public listing page. */
 export const buildOgTags = (
@@ -1009,6 +1014,8 @@ export type TicketPageOptions = {
   /** The header entity's images, shown as the shared CSS gallery above the
    * form (empty ⇒ falls back to the single header image). */
   galleryImages?: readonly Image[];
+  /** Selected listing attributes, populated only on render paths. */
+  attributesByListing?: ListingAttributesById;
   prefill?: BookingPrefill | undefined;
   /** Override the <form action="…"> URL. Defaults to `/ticket/<slugs>`. */
   actionUrl?: string;
@@ -1051,6 +1058,7 @@ const TicketPageHeader = ({
   headerDescription,
   headerImage,
   galleryImages,
+  listingAttributes,
   singleListing,
   pastDays,
 }: {
@@ -1058,6 +1066,7 @@ const TicketPageHeader = ({
   headerDescription: string | null | undefined;
   headerImage: ItemImageProjection | null;
   galleryImages: readonly Image[];
+  listingAttributes: AttributeWithOptions[] | undefined;
   singleListing: ListingWithCount | null;
   pastDays: number | null;
 }): JSX.Element => (
@@ -1095,6 +1104,7 @@ const TicketPageHeader = ({
           {singleListing.location}
         </p>
       )}
+      <Raw html={renderListingAttributes(listingAttributes)} />
     </div>
   </>
 );
@@ -1683,6 +1693,7 @@ export const ticketPage = ({
   packages = [],
   packageGroupRemainingByGroupId = new Map(),
   packageMemberGroupIds = new Map(),
+  attributesByListing = new Map(),
 }: TicketPageOptions): string => {
   // The canonical booking tree drives node identity + the stable form field
   // names (via nodeQuantityFieldName/nodePriceFieldName): one node per
@@ -1804,6 +1815,11 @@ export const ticketPage = ({
           headerDescription={headerDescription}
           headerImage={headerImage}
           headerName={headerName}
+          listingAttributes={
+            singleListing
+              ? attributesByListing.get(singleListing.id)
+              : undefined
+          }
           pastDays={pastDays}
           singleListing={singleListing}
         />

@@ -123,6 +123,29 @@ export const CheckboxLabel = ({
   </label>
 );
 
+export const IdCheckboxLabel = ({
+  checkedIds,
+  children,
+  id,
+  label,
+  name,
+}: {
+  checkedIds: ReadonlySet<number>;
+  children?: Child;
+  id: number;
+  label: Child;
+  name: string;
+}): JSX.Element => (
+  <CheckboxLabel
+    checked={checkedIds.has(id) || undefined}
+    label={label}
+    name={name}
+    value={String(id)}
+  >
+    {children}
+  </CheckboxLabel>
+);
+
 export const CheckboxesFieldset = <T extends { id: number; name: string }>({
   fieldName,
   noneMessage,

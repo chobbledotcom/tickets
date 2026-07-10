@@ -23,6 +23,7 @@ import {
   getGroupRemainingByListingId,
   getSharedGroupCapacities,
 } from "#shared/db/attendees.ts";
+import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
 import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getImagesForItem } from "#shared/db/images.ts";
@@ -345,24 +346,34 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
   const children = [...ctx.childrenByParentId.values()]
     .flat()
     .map((child) => child.listing);
-  const [childCaps, childOwnRemaining, holidays, membership, galleryImages] =
-    await Promise.all([
-      getSharedGroupCapacities(children),
-      getGroupRemainingByListingId(children),
-      getActiveHolidays(),
-      getGroupIdsByListingIds([
-        ...ctx.listings.map((l) => l.listing.id),
-        ...children.map((c) => c.id),
-      ]),
-      // The header entity's image gallery — read only here, on the render path,
-      // never on the submit/quote/API flows that don't show it.
-      ctx.galleryTarget
-        ? getImagesForItem(ctx.galleryTarget.type, ctx.galleryTarget.id)
-        : Promise.resolve([]),
-    ]);
+  const [
+    childCaps,
+    childOwnRemaining,
+    holidays,
+    membership,
+    galleryImages,
+    attributesByListing,
+  ] = await Promise.all([
+    getSharedGroupCapacities(children),
+    getGroupRemainingByListingId(children),
+    getActiveHolidays(),
+    getGroupIdsByListingIds([
+      ...ctx.listings.map((l) => l.listing.id),
+      ...children.map((c) => c.id),
+    ]),
+    // The header entity's image gallery — read only here, on the render path,
+    // never on the submit/quote/API flows that don't show it.
+    ctx.galleryTarget
+      ? getImagesForItem(ctx.galleryTarget.type, ctx.galleryTarget.id)
+      : Promise.resolve([]),
+    getSelectedAttributesForListings(
+      ctx.listings.map((entry) => entry.listing.id),
+    ),
+  ]);
   const caps = childCapacityInfo(childCaps, childOwnRemaining, membership);
   return {
     ...ctx,
+    attributesByListing,
     galleryImages,
     // The PER-GROUP remaining drives the per-parent quantity clamp keyed by the
     // SPECIFIC group a parent and child share: a parent sharing a capped

@@ -24,6 +24,10 @@ import {
   decryptAttendees,
   getAttendeeNamesByIds,
 } from "#shared/db/attendees.ts";
+import {
+  getAllAttributesWithOptions,
+  getListingAttributeOptionIds,
+} from "#shared/db/attributes.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getListingOverviewStats } from "#shared/db/listing-overview-stats.ts";
 import {
@@ -56,6 +60,7 @@ import {
   type ListingWithCount,
 } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
+import { ListingAttributesPanel } from "#templates/admin/attributes.tsx";
 import { ListingQrPanel } from "#templates/admin/listing-qr.tsx";
 import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
 import {
@@ -359,24 +364,43 @@ export const loadListingImagesPanel = ({
 }: LoadedListing): Promise<JSX.Element> =>
   loadItemImagesPanel("listing", listing.id, `/admin/listing/${listing.id}`);
 
+const listingChoicePanelLoader =
+  <Item>(
+    loadItems: () => Promise<Item[]>,
+    loadSelectedIds: (listingId: number) => Promise<number[]>,
+    render: (
+      listing: ListingWithCount,
+      items: Item[],
+      selectedIds: Set<number>,
+      error: string | undefined,
+    ) => JSX.Element,
+  ) =>
+  async ({ listing }: LoadedListing, error?: string): Promise<JSX.Element> => {
+    const [items, selectedIds] = await Promise.all([
+      loadItems(),
+      loadSelectedIds(listing.id),
+    ]);
+    return render(listing, items, new Set(selectedIds), error);
+  };
+
 /** Build the Questions tab: assign the site's questions to this listing. The
  *  tab is owner-only (matching the route's own gate). `error` is set only on an
  *  in-place 400 re-render. */
-export const loadListingQuestionsPanel = async (
-  { listing }: LoadedListing,
-  error?: string,
-): Promise<JSX.Element> => {
-  const [allQuestions, assignedIds] = await Promise.all([
-    getAllQuestionsWithAnswers(),
-    getListingQuestionIds(listing.id),
-  ]);
-  return ListingQuestionsPanel({
-    allQuestions,
-    assignedIds: new Set(assignedIds),
-    error,
-    listing,
-  });
-};
+export const loadListingQuestionsPanel = listingChoicePanelLoader(
+  getAllQuestionsWithAnswers,
+  getListingQuestionIds,
+  (listing, allQuestions, assignedIds, error) =>
+    ListingQuestionsPanel({ allQuestions, assignedIds, error, listing }),
+);
+
+/** Build the Attributes tab: choose the public attributes displayed for this
+ * listing. `error` is set only on an in-place 400 re-render. */
+export const loadListingAttributesPanel = listingChoicePanelLoader(
+  getAllAttributesWithOptions,
+  getListingAttributeOptionIds,
+  (listing, attributes, selectedOptionIds, error) =>
+    ListingAttributesPanel({ attributes, error, listing, selectedOptionIds }),
+);
 
 /** Build the QR tab: the booking-QR generation form. The tab is hidden for a
  *  child / hidden-package listing (no standalone booking page), so the loader
