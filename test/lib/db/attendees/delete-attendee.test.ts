@@ -57,9 +57,12 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     );
 
     await reserveSession("sess_attendee_delete");
-    await finalizePaymentSession("sess_attendee_delete", attendee.id, [
-      "tok-test",
-    ]);
+    await finalizePaymentSession(
+      "sess_attendee_delete",
+      attendee.id,
+      ["tok-test"],
+      "pi_attendee_delete",
+    );
 
     await deleteAttendee(attendee.id);
 

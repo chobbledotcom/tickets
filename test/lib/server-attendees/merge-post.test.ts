@@ -6,6 +6,7 @@ import { queryAll } from "#shared/db/client.ts";
 import {
   adminFormPost,
   adminGet,
+  createPaidTestAttendee,
   createTestAttendeeDirect,
   createTestListing,
   describeWithEnv,
@@ -18,6 +19,49 @@ import {
 import { setupListingAndDirectAttendee } from "./helpers.ts";
 // jscpd:ignore-end
 import { getMergeVersion, mergePair, submitMerge } from "./merge.ts";
+
+/** Merge a paid source into a target on the same listing with its booking
+ *  skipped, choosing `money` ("credit"/"writeoff") for the discarded charge,
+ *  then assert the flash and activity-log messages. The two money-decision
+ *  tests differ only in that decision and the resulting wording. */
+const runMoneyDecisionMerge = async (
+  money: string,
+  paymentId: string,
+  expectedFlash: string,
+  expectedLog: string,
+): Promise<void> => {
+  const listing = await createTestListing({ maxAttendees: 10, unitPrice: 500 });
+  const { attendee: target } = await createTestAttendeeDirect(
+    listing.id,
+    "Jane Doe",
+    "jane@example.com",
+    1,
+  );
+  const source = await createPaidTestAttendee(
+    listing.id,
+    "John Smith",
+    "john@example.com",
+    paymentId,
+    500,
+    3,
+  );
+  const bookingKey = `${listing.id}:null:0:0`;
+  const mergeVersion = await getMergeVersion(target.id, source.ticket_token);
+  const { response } = await adminFormPost(
+    `/admin/attendees/${target.id}/merge`,
+    {
+      merge_version: mergeVersion,
+      source_token: source.ticket_token,
+      [`booking_${bookingKey}`]: "skip_source",
+      [`money_${bookingKey}`]: money,
+    },
+  );
+  expectFlash(response, expectedFlash, true);
+  const log = (await getListingActivityLog(listing.id)).find((l) =>
+    l.message.includes("merged into"),
+  );
+  expect(log?.message).toBe(expectedLog);
+};
 
 describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
   describe("POST /admin/attendees/:attendeeId/merge", () => {
@@ -165,8 +209,8 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       const mergeLog = (await getListingActivityLog(listing1.id)).find((l) =>
         l.message.includes("merged into"),
       );
-      expect(mergeLog?.message).toContain(
-        "Attendee 'John Smith' merged into 'Jane Doe'",
+      expect(mergeLog?.message).toBe(
+        "Attendee 'John Smith' merged into 'Jane Doe'. 1 booking(s) moved",
       );
 
       // Source attendee should be deleted
@@ -262,6 +306,89 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       );
       expect(links.length).toBe(1);
       expect(links[0]!.listing_id).toBe(listing1.id);
+    });
+
+    test("POST merge credits a discarded paid conflict's money", async () => {
+      await runMoneyDecisionMerge(
+        "credit",
+        "pi_merge_credit",
+        "Merged John Smith into Jane Doe. 1 booking(s) skipped. 1 payment(s) credited",
+        "Attendee 'John Smith' merged into 'Jane Doe'. 1 booking(s) skipped. 1 payment(s) kept as credit",
+      );
+    });
+
+    test("POST merge writes off a discarded paid conflict's money", async () => {
+      await runMoneyDecisionMerge(
+        "writeoff",
+        "pi_merge_writeoff",
+        "Merged John Smith into Jane Doe. 1 booking(s) skipped. 1 payment(s) written off",
+        "Attendee 'John Smith' merged into 'Jane Doe'. 1 booking(s) skipped. 1 payment(s) written off",
+      );
+    });
+
+    test('POST merge joins multiple validation errors with "; "', async () => {
+      const listing1 = await createTestListing({
+        maxAttendees: 10,
+        name: "L1",
+        unitPrice: 500,
+      });
+      const listing2 = await createTestListing({
+        maxAttendees: 10,
+        name: "L2",
+        unitPrice: 500,
+      });
+      const { createAttendeeAtomic } = await import(
+        "#shared/db/attendees/api.ts"
+      );
+      const targetResult = await createAttendeeAtomic({
+        bookings: [
+          { listingId: listing1.id, quantity: 1 },
+          { listingId: listing2.id, quantity: 1 },
+        ],
+        email: "jane@example.com",
+        name: "Jane Doe",
+      });
+      const target = (
+        targetResult as Extract<typeof targetResult, { success: true }>
+      ).attendees[0]!;
+      const sourceResult = await createAttendeeAtomic({
+        bookings: [
+          { listingId: listing1.id, quantity: 3 },
+          { listingId: listing2.id, quantity: 3 },
+        ],
+        email: "john@example.com",
+        name: "John Smith",
+      });
+      const source = (
+        sourceResult as Extract<typeof sourceResult, { success: true }>
+      ).attendees[0]!;
+      const { postListingSale } = await import("#test-utils/ledger.ts");
+      await postListingSale({
+        attendeeId: source.id,
+        gross: 500,
+        listingId: listing1.id,
+      });
+      await postListingSale({
+        attendeeId: source.id,
+        gross: 500,
+        listingId: listing2.id,
+      });
+
+      const mergeVersion = await getMergeVersion(
+        target.id,
+        source.ticket_token,
+      );
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        { merge_version: mergeVersion, source_token: source.ticket_token },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Missing money decision"),
+        false,
+      );
+      expectFlash(response, expect.stringContaining("; "), false);
     });
   });
 });

@@ -26,6 +26,7 @@ import {
 } from "#shared/db/attendees/atomic-update.ts";
 import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import { checkLinesCapacity } from "#shared/db/attendees/capacity.ts";
+import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
 import {
   getContactRecord,
   getRepairFallbackRecord,
@@ -41,6 +42,7 @@ import {
 } from "#shared/db/groups.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings.ts";
+import { hasRefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import {
   getAttendeeTextAnswers,
@@ -59,16 +61,31 @@ import type {
 
 /** An attendee plus its listing_attendees rows — the entity the whole page
  * loads once and every tab shares. */
-export type LoadedAttendee = { attendee: Attendee; existing: ExistingLine[] };
+export type LoadedAttendee = {
+  attendee: Attendee;
+  canRefund: boolean;
+  existing: ExistingLine[];
+};
+
+const canRefundAttendee = async (attendee: Attendee): Promise<boolean> => {
+  if (attendee.refunded) return false;
+  if (!(await hasActiveBookingLine(attendee.id, attendee.listing_id))) {
+    return false;
+  }
+  return hasRefundPaymentReference(attendee, await requireRequestPrivateKey());
+};
 
 /** Load an attendee + all its lines, or null (→ 404) when it doesn't exist. */
 export const loadAttendeeForEdit: (
   attendeeId: number,
 ) => Promise<LoadedAttendee | null> = withDecryptedAttendee(
-  async (attendee) => ({
-    attendee,
-    existing: await loadExistingLines(attendee.id),
-  }),
+  async (attendee) => {
+    const [canRefund, existing] = await Promise.all([
+      canRefundAttendee(attendee),
+      loadExistingLines(attendee.id),
+    ]);
+    return { attendee, canRefund, existing };
+  },
 );
 
 /** Index listings by id. */
@@ -288,10 +305,10 @@ export const buildEditFormFromAttendee = (
 };
 
 /** How many activity-log entries the full Activity tab shows. */
-export const ATTENDEE_LOG_LIMIT = 1000;
+const ATTENDEE_LOG_LIMIT = 1000;
 
 /** How many entries the Overview preview shows before "view all". */
-export const ATTENDEE_LOG_PREVIEW = 3;
+const ATTENDEE_LOG_PREVIEW = 3;
 
 /** Load the full activity log for the Activity tab. */
 export const loadAttendeeActivity = (

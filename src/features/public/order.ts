@@ -66,7 +66,7 @@ import {
 } from "#shared/order-select.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
-import { orderGalleryPage } from "#templates/public.tsx";
+import { orderGalleryPage } from "#templates/public/order-gallery.tsx";
 /* jscpd:ignore-start */
 import {
   applyParentSoldOut,

@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   deleteAllStaleReservations,
-  finalizeSession,
+  finalizeSession as finalizePaymentSession,
   isReservationStale,
   isSessionProcessed,
   releaseReservation,
@@ -11,6 +11,18 @@ import {
   STALE_RESERVATION_MS,
 } from "#shared/db/processed-payments.ts";
 import { describeWithEnv, useProcessedPaymentsAttendee } from "#test-utils";
+
+const finalizeSession = (
+  sessionId: string,
+  attendeeId: number,
+  ticketTokens: string[],
+) =>
+  finalizePaymentSession(
+    sessionId,
+    attendeeId,
+    ticketTokens,
+    `pi_${sessionId}`,
+  );
 
 describeWithEnv("processed-payments / staleness", { db: true }, () => {
   const ctx = useProcessedPaymentsAttendee();

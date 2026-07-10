@@ -1,5 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
+import { postTransfers } from "#shared/accounting/store.ts";
+import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { execute } from "#shared/db/client.ts";
 import { getListingOverviewStats } from "#shared/db/listing-overview-stats.ts";
@@ -8,6 +12,10 @@ import {
   getListingWithCount,
   listingRevenueBreakdown,
 } from "#shared/db/listings.ts";
+import {
+  finalizeSession,
+  reserveSession,
+} from "#shared/db/processed-payments.ts";
 import { isPaidListing } from "#shared/types.ts";
 import {
   overviewStatsFromAttendees,
@@ -20,7 +28,7 @@ import {
   describeWithEnv,
   getTestPrivateKey,
 } from "#test-utils";
-import { postListingSale } from "#test-utils/ledger.ts";
+import { postListingSale, postWriteoffAdjustment } from "#test-utils/ledger.ts";
 
 const checkIn = (attendeeId: number, listingId: number): Promise<unknown> =>
   execute(
@@ -84,6 +92,10 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
       1,
     );
     await postIncompleteSale(a3.id, listing.id, 300);
+    await postWriteoffAdjustment(attendeeAccount(a3.id), 300, [
+      "clear-incomplete",
+      a3.id,
+    ]);
     // A4: deposit — a full sale but only part paid (owes a balance), qty 1,
     // checked in. It keeps its payment leg + payment id, so it is NOT incomplete.
     const a4 = await createPaidAttendeeWithoutLedger(
@@ -162,6 +174,45 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
     expect(view.completeRevenue).toBe(0);
   });
 
+  test("does not mark an empty-payment-id attendee incomplete once a processed payment reference exists", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 500,
+    });
+    const attendee = await createPaidAttendeeWithoutLedger(
+      listing.id,
+      "Balance Paid",
+      "balance-paid@example.com",
+      "",
+      500,
+      1,
+    );
+    await postIncompleteSale(attendee.id, listing.id, 500);
+    await postTransfers([
+      {
+        amount: 500,
+        destination: attendeeAccount(attendee.id),
+        eventGroup: await balanceEventGroup("overview_balance_paid"),
+        kind: KIND.payment,
+        occurredAt: "2026-06-21T00:00:00.000Z",
+        reference: "overview-balance-payment",
+        source: WORLD,
+      },
+    ]);
+    await reserveSession("overview_balance_paid");
+    await finalizeSession(
+      "overview_balance_paid",
+      attendee.id,
+      [],
+      "pi_overview_balance_paid",
+    );
+
+    const stats = await getListingOverviewStats(listing);
+    expect(stats.incompleteQuantity).toBe(0);
+    expect(stats.incompleteSales).toBe(0);
+    expect(stats.completeQuantitySum).toBe(1);
+  });
+
   test("ignores servicing rows and other listings' bookings", async () => {
     const other = await createTestListing({ maxAttendees: 10, unitPrice: 500 });
     await createPaidTestAttendee(
@@ -188,5 +239,53 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
     const stats = await getListingOverviewStats(listing);
     expect(stats.completeQuantitySum).toBe(1);
     expect(stats.incompleteQuantity).toBe(0);
+  });
+
+  test("does not count a refunded balance-paid attendee whose reference was pruned", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 500,
+    });
+    const attendee = await createPaidAttendeeWithoutLedger(
+      listing.id,
+      "Refunded Balance",
+      "refunded-balance@example.com",
+      "",
+      500,
+      1,
+    );
+    // A balance-paid booking: a booking-group sale with no booking-group
+    // payment, the payment sitting in its own balance event group.
+    await postIncompleteSale(attendee.id, listing.id, 500);
+    await postTransfers([
+      {
+        amount: 500,
+        destination: attendeeAccount(attendee.id),
+        eventGroup: await balanceEventGroup("overview_refunded_balance"),
+        kind: KIND.payment,
+        occurredAt: "2026-06-21T00:00:00.000Z",
+        reference: "overview-refunded-balance-payment",
+        source: WORLD,
+      },
+    ]);
+    // Then it is refunded: a `refund_cash` leg sourced from the attendee. Once
+    // that exists prunePayments drops the processed reference, so no surviving
+    // reference remains — only the ledger-fed refunded flag keeps this out of
+    // the incomplete split.
+    await postTransfers([
+      {
+        amount: 500,
+        destination: WORLD,
+        eventGroup: await balanceEventGroup("overview_refunded_balance_refund"),
+        kind: KIND.refundCash,
+        occurredAt: "2026-06-22T00:00:00.000Z",
+        reference: "overview-refunded-balance-refund",
+        source: attendeeAccount(attendee.id),
+      },
+    ]);
+
+    const stats = await getListingOverviewStats(listing);
+    expect(stats.incompleteQuantity).toBe(0);
+    expect(stats.incompleteSales).toBe(0);
   });
 });

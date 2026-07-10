@@ -85,9 +85,12 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       );
 
       await reserveSession("sess_listing_delete");
-      await finalizePaymentSession("sess_listing_delete", attendee.id, [
-        "tok-test",
-      ]);
+      await finalizePaymentSession(
+        "sess_listing_delete",
+        attendee.id,
+        ["tok-test"],
+        "pi_listing_delete",
+      );
 
       await deleteListing(listing.id);
 
@@ -215,9 +218,12 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     test("keeps the shared attendee's processed payment when one listing is deleted", async () => {
       const { attendeeId, listing1 } = await bookAttendeeOnTwoListings();
       await reserveSession("sess_multi_listing");
-      await finalizePaymentSession("sess_multi_listing", attendeeId, [
-        "tok-test",
-      ]);
+      await finalizePaymentSession(
+        "sess_multi_listing",
+        attendeeId,
+        ["tok-test"],
+        "pi_multi_listing",
+      );
 
       await deleteListing(listing1.id);
 

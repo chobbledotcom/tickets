@@ -10,6 +10,11 @@ import {
   settleAttendeeBalance,
 } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
+import { balanceFinalizeStatement } from "#shared/db/payment-finalize.ts";
+import {
+  isSessionProcessed,
+  reserveSession,
+} from "#shared/db/processed-payments.ts";
 import {
   enableQueryLog,
   getQueryLog,
@@ -18,9 +23,14 @@ import {
 import {
   createTestListing,
   describeWithEnv,
+  expectRefundReferences,
   getAttendeeActivityLog,
 } from "#test-utils";
-import { createReservedAttendee, settle } from "#test-utils/balance.ts";
+import {
+  createNonReservationAttendee,
+  createReservedAttendee,
+  settle,
+} from "#test-utils/balance.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
 describeWithEnv("db > settle attendee balance", { db: true }, () => {
@@ -38,6 +48,61 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     const log = await getAttendeeActivityLog(attendeeId);
     expect(log).toHaveLength(1);
     expect(log[0]!.message).toContain("Reservation balance paid");
+  });
+
+  test("clears a non-reservation balance without replacing its status", async () => {
+    const { attendeeId } = await createNonReservationAttendee(1500);
+    const before = await getAttendeeBalanceState(attendeeId);
+
+    const result = await settleAttendeeBalance(attendeeId, 1500, settle());
+    expect(result.settled).toBe(true);
+
+    const after = await getAttendeeBalanceState(attendeeId);
+    expect(after?.remainingBalance).toBe(0);
+    expect(after?.statusId).toBe(before?.statusId);
+  });
+
+  test("finalizes a balance session with its provider reference only when the amount still matches", async () => {
+    const { attendeeId } = await createReservedAttendee(1500);
+    await reserveSession("balance-ref-ok");
+
+    await settleAttendeeBalance(attendeeId, 1500, settle("balance-ref-ok"), [
+      await balanceFinalizeStatement(
+        "balance-ref-ok",
+        attendeeId,
+        1500,
+        "pi_balance_ok",
+      ),
+    ]);
+
+    const row = await isSessionProcessed("balance-ref-ok");
+    expect(row?.attendee_id).toBe(attendeeId);
+    expect(row?.payment_reference).not.toContain("pi_balance_ok");
+    await expectRefundReferences(attendeeId, ["pi_balance_ok"]);
+  });
+
+  test("does not finalize a balance session reference on amount mismatch", async () => {
+    const { attendeeId } = await createReservedAttendee(1500);
+    await reserveSession("balance-ref-mismatch");
+
+    const result = await settleAttendeeBalance(
+      attendeeId,
+      1000,
+      settle("balance-ref-mismatch"),
+      [
+        await balanceFinalizeStatement(
+          "balance-ref-mismatch",
+          attendeeId,
+          1000,
+          "pi_balance_mismatch",
+        ),
+      ],
+    );
+
+    expect(result).toEqual({ reason: "amount_mismatch", settled: false });
+    const row = await isSessionProcessed("balance-ref-mismatch");
+    expect(row?.attendee_id).toBe(null);
+    expect(row?.payment_reference).toBe("");
   });
 
   test("is idempotent once the balance is cleared", async () => {

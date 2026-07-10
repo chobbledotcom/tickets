@@ -15,7 +15,9 @@ export const ReorderCell = ({
   </td>
 );
 
-const ReorderLinkRow = ({
+/** A ReorderTable row whose label links through to the item's own page:
+ * reorder arrows, then the linked label, then any extra cells. */
+export const ReorderLinkRow = ({
   action,
   children,
   count,

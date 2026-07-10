@@ -175,6 +175,9 @@ export type ApplyAttendeeMergeInput = {
   /** The merge only reads the decision fields plus payment/ticket identity —
    * it never rebuilds the PII blob (the feature layer does, pin included). */
   targetPii: ContactInfo & { payment_id: string; ticket_token: string };
+  /** Legacy provider payment id from the source row, kept so merged refunds can
+   * still return pre-migration source charges after the source row is deleted. */
+  sourcePaymentId: string;
   sourcePii: ContactInfo;
   diff: AttendeeMergeDiff;
   decision: AttendeeMergeDecisionInput;

@@ -20,7 +20,7 @@ import {
   getSitePageBySlugIndex,
 } from "#shared/db/site-pages.ts";
 import { targetKey } from "#shared/site-pages/core.ts";
-import { sitePagePage } from "#templates/public.tsx";
+import { sitePagePage } from "#templates/public/site-page.tsx";
 import { requirePublicSite } from "./pages.ts";
 import { publicNavProps } from "./site-nav.ts";
 

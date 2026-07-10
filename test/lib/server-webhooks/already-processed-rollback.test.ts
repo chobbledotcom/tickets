@@ -143,9 +143,12 @@ describeWithEnv(
         finalizeSession: finalizeSessionFn,
       } = await import("#shared/db/processed-payments.ts");
       await reserveSessionFn("cs_del_listing_wh");
-      await finalizeSessionFn("cs_del_listing_wh", attResult.attendees[0]!.id, [
-        "tok-test",
-      ]);
+      await finalizeSessionFn(
+        "cs_del_listing_wh",
+        attResult.attendees[0]!.id,
+        ["tok-test"],
+        "pi_del_listing_wh",
+      );
 
       // The metadata points at a since-deleted listing (99999). Because the
       // session is already finalized (the attendee exists), the retry is an

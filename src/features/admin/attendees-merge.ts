@@ -67,6 +67,7 @@ const loadMergeSource = async (
       id: number;
       lat: string;
       lng: string;
+      payment_id: string;
       ticket_token: string;
       bookings: ListingAttendeeRow[];
     })
@@ -89,6 +90,7 @@ const loadMergeSource = async (
     lat: decrypted.lat,
     lng: decrypted.lng,
     name: decrypted.name,
+    payment_id: decrypted.payment_id,
     phone: decrypted.phone,
     special_instructions: decrypted.special_instructions,
     ticket_token: decrypted.ticket_token,
@@ -321,6 +323,7 @@ const applyMergeDecisions = async (
     diff,
     privateKey: await requireRequestPrivateKey(),
     sourceId: source.id,
+    sourcePaymentId: source.payment_id,
     sourcePii: extractSourcePii(source),
     targetId: attendeeId,
     targetPii: {
