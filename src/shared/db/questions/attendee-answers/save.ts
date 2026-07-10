@@ -6,12 +6,18 @@
  * trigger fires before the strings are recreated).
  */
 
-import type { InValue } from "@libsql/client";
 import { unique } from "#fp";
-import { executeBatch, inPlaceholders, queryAll } from "#shared/db/client.ts";
-import { columnMapByIds } from "#shared/db/query.ts";
+import {
+  inPlaceholders,
+  resultRows,
+  type TxScope,
+  withTransaction,
+} from "#shared/db/client.ts";
 import type { TextAnswer, TextAnswerId } from "#shared/db/question-types.ts";
-import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
+import {
+  internStringRows,
+  prepareStringRows,
+} from "#shared/db/questions/strings.ts";
 
 export type AttendeeAnswerSet = {
   answerIds: number[];
@@ -26,10 +32,22 @@ const normalizeAnswerSet = (
     ? { answerIds: answerIdsOrSet }
     : answerIdsOrSet;
 
-const questionIdsByAnswerId = (
+/** answer_id → question_id for the chosen ids, read on the open transaction so
+ *  a deleted-between-checkout-and-finalize answer shows up as missing without
+ *  starting a separate read transaction (the read shares the save's snapshot). */
+const questionIdsByAnswerIdTx = async (
+  tx: TxScope,
   answerIds: number[],
-): Promise<Map<number, number>> =>
-  columnMapByIds("answers", "answer", "question_id", answerIds);
+): Promise<Map<number, number>> => {
+  if (answerIds.length === 0) return new Map();
+  const rows = resultRows<{ id: number; question_id: number }>(
+    await tx.execute({
+      args: answerIds,
+      sql: `SELECT answer.id, answer.question_id FROM answers AS answer WHERE answer.id IN (${inPlaceholders(answerIds)})`,
+    }),
+  );
+  return new Map(rows.map((row) => [row.id, row.question_id]));
+};
 
 const dedupeByQuestion = <T extends { questionId: number }>(
   answers: T[],
@@ -63,55 +81,67 @@ const dedupeTextAnswerIdsByQuestion = (
 ): TextAnswerId[] => dedupeByQuestion(textAnswerIds);
 
 /** The subset of `questionIds` that still exist — text answers reference a
- * question directly, so a question deleted between checkout and finalize must
- * be dropped (mirrors the deleted-answer skip on the choice path) rather than
- * inserting an orphan row whose plaintext the admin UI can never surface. */
-const existingQuestionIds = async (
+ *  question directly, so a question deleted between checkout and finalize must
+ *  be dropped (mirrors the deleted-answer skip on the choice path) rather than
+ *  inserting an orphan row whose plaintext the admin UI can never surface.
+ *  Read on the open transaction so it shares the save's snapshot. */
+const existingQuestionIdsTx = async (
+  tx: TxScope,
   questionIds: number[],
 ): Promise<Set<number>> => {
   if (questionIds.length === 0) return new Set();
-  const rows = await queryAll<{ id: number }>(
-    `SELECT id FROM questions WHERE id IN (${inPlaceholders(questionIds)})`,
-    questionIds,
+  const rows = resultRows<{ id: number }>(
+    await tx.execute({
+      args: questionIds,
+      sql: `SELECT id FROM questions WHERE id IN (${inPlaceholders(questionIds)})`,
+    }),
   );
   return new Set(rows.map((row) => row.id));
 };
 
 /**
- * Replace every listed attendee's answers in one atomic batch: each attendee's
- * existing answers are deleted, then their new answer set inserted. The
- * `Map<attendeeId, answerIds>` is the single shape every save situation reduces
- * to — one answer set shared across attendees, a by-question selection, or the
- * per-listing grouping from `groupListingAnswers` — so callers build the map and
- * this builds the SQL. Repeated question answers collapse to the last value
- * before insert, matching the single-answer-per-question invariant.
+ * Replace every listed attendee's answers in one atomic transaction: each
+ * attendee's existing answers are deleted, then their new answer set inserted,
+ * committing (or rolling back) as one. The `Map<attendeeId, answerIds>` is the
+ * single shape every save situation reduces to — one answer set shared across
+ * attendees, a by-question selection, or the per-listing grouping from
+ * `groupListingAnswers` — so callers build the map and this builds the SQL.
+ * Repeated question answers collapse to the last value before insert, matching
+ * the single-answer-per-question invariant.
  *
- * The DELETE runs in its own committed batch ahead of the INSERT (rather than
- * both in one `withTransaction`), for two reasons:
+ * The delete, the in-between reads, the free-text string interning, and the
+ * insert all run inside one `withTransaction` on `tx.execute`:
  *
- * 1. `getOrCreateStringIds` between the two batches is itself a write-mode
- *    `executeBatchWithResults` (insert-or-ignore + refresh `created` + a
- *    read-your-own-writes SELECT). libsql's `batch()` always starts its own
- *    implicit transaction, so it cannot share an outer interactive
- *    transaction's `TxScope` — wrapping the whole flow in `withTransaction`
- *    would not make the two batches atomic. Threading a `TxScope` through
- *    `getOrCreateStringIds` (replacing its batch with per-statement `tx.execute`)
- *    is the only way to get true atomicity, and is left as a follow-up: the
- *    read-your-writes invariant the in-between SELECT relies on is subtle, and
- *    reworking it belongs in a focused change rather than this module split.
- * 2. The DELETE's trigger decrements `strings.used_count`; the subsequent
- *    `getOrCreateStringIds` refreshes `created` on the strings it re-inserts so
- *    the age-based pruner does not drop a string this save still references. The
- *    delete must commit before that refresh so the pruner sees a consistent
- *    `used_count` snapshot (a string now at 0 because this attendee was its last
- *    user is then re-created or refreshed by the insert path). A future
- *    transactional version must preserve this ordering inside the tx.
+ * 0. Precompute the encrypted + HMAC-indexed string rows BEFORE opening the
+ *    transaction (`prepareStringRows`). The crypto is CPU-bound and holds no DB
+ *    statement, so running it inside the tx would hold the SQLite writer open
+ *    for nothing; doing it up front keeps only real statements on the tx.
+ * 1. DELETE — one `IN (...)` statement for every attendee at once; SQLite
+ *    triggers fire per affected row (there is no statement-level trigger form),
+ *    so `strings.used_count` is decremented once per row regardless of whether
+ *    the DELETE matches one row or many.
+ * 2. Read `answer_id → question_id` and which text questions still exist, so a
+ *    question or answer deleted between checkout and finalize is skipped rather
+ *    than producing an orphan row. These run on the tx to share the save's
+ *    snapshot.
+ * 3. Intern the precomputed free-text rows via `internStringRows(rows, tx)` —
+ *    one batched multi-row `INSERT OR IGNORE` + refresh `created` + one
+ *    read-your-writes `SELECT`, all on the tx, so the SELECT sees the rows the
+ *    INSERT just wrote in the same transaction. The intern phase is a fixed 3
+ *    round trips regardless of how many unique texts are saved.
+ * 4. INSERT — at most two multi-row `VALUES` batches: one for every attendee's
+ *    choice answers, one for every attendee's text answers. Batching across
+ *    attendees keeps the statement count at a handful regardless of how many
+ *    attendees a multi-listing/package save covers, staying within the
+ *    transaction round-trip guard.
  *
- * The narrow gap: if the INSERT batch fails after the DELETE committed, the
- * attendee is left with no answers until the next re-save. A genuine INSERT
- * failure here means the database is already broken (the same write path every
- * other write takes), so we let it throw rather than add a partial-rollback
- * shim around an effectively-impossible branch.
+ * The delete runs before the string refresh so a consistent `used_count`
+ * snapshot is seen: a string this save drops to 0 (its last attendee removed) is
+ * then re-created or refreshed by the interning path, keeping it alive past its
+ * now-stale reference until this save re-inserts. Atomicity: a failure in any
+ * step rolls the whole save back — an attendee's prior answers survive a failed
+ * re-save rather than being left empty (the gap the previous two-batch
+ * delete-then-insert left when the INSERT failed after the DELETE had committed).
  */
 export const saveAttendeeAnswers = async (
   answersByAttendee: Map<number, number[] | AttendeeAnswerSet>,
@@ -136,81 +166,117 @@ export const saveAttendeeAnswers = async (
     }),
   );
   if (normalized.size === 0) return;
-  // Clear each attendee's existing answers FIRST, in its own committed batch.
-  // The delete fires the string-refcount trigger (decrementing `used_count`),
-  // and must commit before getOrCreateStringIds below refreshes `created` on the
-  // strings we re-insert — see the doc comment on saveAttendeeAnswers for why
-  // the two batches stay split and why the in-between string interning needs the
-  // delete's effects visible.
-  await executeBatch(
-    [...normalized.keys()].map((attendeeId) => ({
-      args: [attendeeId],
-      sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
-    })),
+  // Precompute the encrypted + HMAC-indexed string rows BEFORE opening the
+  // transaction. The crypto (hybrid encryption + blind index) is CPU-bound and
+  // holds no DB statement; running it inside `withTransaction` would keep the
+  // SQLite writer open while no statement is running, blocking unrelated writes
+  // and pushing the transaction toward its round-trip/time-out guard. Doing it
+  // up front means only the actual INSERT/UPDATE/SELECT land on the tx.
+  const preparedStringRows = await prepareStringRows(
+    [...normalized.values()].flatMap((set) =>
+      set.textAnswers.map((a) => a.text),
+    ),
   );
-  const [stringIds, questionIdsByAnswer, liveTextQuestionIds] =
-    await Promise.all([
-      getOrCreateStringIds(
-        [...normalized.values()].flatMap((set) =>
-          set.textAnswers.map((a) => a.text),
-        ),
-      ),
-      questionIdsByAnswerId(
-        unique([...normalized.values()].flatMap((set) => set.answerIds)),
-      ),
-      existingQuestionIds(
-        unique(
-          [...normalized.values()].flatMap((set) => [
-            ...set.textAnswerIds.map((answer) => answer.questionId),
-            ...set.textAnswers.map((answer) => answer.questionId),
-          ]),
-        ),
-      ),
-    ]);
-  const statements: { sql: string; args: InValue[] }[] = [];
-  for (const [
-    attendeeId,
-    { answerIds, textAnswerIds, textAnswers },
-  ] of normalized) {
-    const dedupedAnswerIds = dedupeAnswerIdsByQuestion(
-      answerIds,
-      questionIdsByAnswer,
+  await withTransaction(async (tx) => {
+    // Delete every attendee's existing answers in one statement. SQLite
+    // triggers fire per affected row (there is no statement-level trigger
+    // form), so strings.used_count is decremented once per row whether the
+    // DELETE matches one attendee or many. The interning below then refreshes
+    // `created` on the strings this save re-references, so the order
+    // (delete → intern → insert) keeps a consistent used_count snapshot.
+    const attendeeIds = [...normalized.keys()];
+    await tx.execute({
+      args: attendeeIds,
+      sql: `DELETE FROM attendee_answers WHERE attendee_id IN (${inPlaceholders(attendeeIds)})`,
+    });
+    const answerIds = unique(
+      [...normalized.values()].flatMap((set) => set.answerIds),
     );
-    if (dedupedAnswerIds.length > 0) {
-      const placeholders = dedupedAnswerIds.map(() => "(?, ?, ?)").join(", ");
-      statements.push({
-        args: dedupedAnswerIds.flatMap((id) => [
+    const textQuestionIds = unique(
+      [...normalized.values()].flatMap((set) => [
+        ...set.textAnswerIds.map((answer) => answer.questionId),
+        ...set.textAnswers.map((answer) => answer.questionId),
+      ]),
+    );
+    // Run the reads and string interning sequentially on the tx — concurrent
+    // tx.execute calls share the one transaction connection, so serialising
+    // avoids interleaved statements. The reads touch different tables than the
+    // delete but run on the tx to share the save's snapshot.
+    const questionIdsByAnswer = await questionIdsByAnswerIdTx(tx, answerIds);
+    const liveTextQuestionIds = await existingQuestionIdsTx(
+      tx,
+      textQuestionIds,
+    );
+    const stringIds = await internStringRows(preparedStringRows, tx);
+    // Collect every attendee's rows, then emit at most two multi-row INSERTs
+    // (one for choice answers, one for text answers) so the statement count
+    // stays at a handful regardless of attendee count — the transaction
+    // round-trip guard thresholds a chatty per-attendee loop would trip.
+    type AnswerRow = {
+      attendeeId: number;
+      questionId: number;
+      answerId: number;
+    };
+    type TextRow = {
+      attendeeId: number;
+      questionId: number;
+      stringId: number;
+    };
+    const choiceRows: AnswerRow[] = [];
+    const textRows: TextRow[] = [];
+    for (const [
+      attendeeId,
+      { answerIds, textAnswerIds, textAnswers },
+    ] of normalized) {
+      const dedupedAnswerIds = dedupeAnswerIdsByQuestion(
+        answerIds,
+        questionIdsByAnswer,
+      );
+      for (const id of dedupedAnswerIds) {
+        choiceRows.push({
+          answerId: id,
           attendeeId,
-          questionIdsByAnswer.get(id)!,
-          id,
+          questionId: questionIdsByAnswer.get(id)!,
+        });
+      }
+      const resolvedTextAnswerIds = dedupeTextAnswerIdsByQuestion([
+        ...textAnswerIds,
+        ...textAnswers.map((answer) => ({
+          questionId: answer.questionId,
+          stringId: stringIds.get(answer.text)!,
+        })),
+      ]).filter((answer) => liveTextQuestionIds.has(answer.questionId));
+      for (const answer of resolvedTextAnswerIds) {
+        textRows.push({
+          attendeeId,
+          questionId: answer.questionId,
+          stringId: answer.stringId,
+        });
+      }
+    }
+    if (choiceRows.length > 0) {
+      const placeholders = choiceRows.map(() => "(?, ?, ?)").join(", ");
+      await tx.execute({
+        args: choiceRows.flatMap((row) => [
+          row.attendeeId,
+          row.questionId,
+          row.answerId,
         ]),
         sql: `INSERT INTO attendee_answers (attendee_id, question_id, answer_id) VALUES ${placeholders}`,
       });
     }
-    const resolvedTextAnswerIds = dedupeTextAnswerIdsByQuestion([
-      ...textAnswerIds,
-      ...textAnswers.map((answer) => ({
-        questionId: answer.questionId,
-        stringId: stringIds.get(answer.text)!,
-      })),
-    ]).filter((answer) => liveTextQuestionIds.has(answer.questionId));
-    if (resolvedTextAnswerIds.length > 0) {
-      const placeholders = resolvedTextAnswerIds
-        .map(() => "(?, ?,?)")
-        .join(", ");
-      statements.push({
-        args: resolvedTextAnswerIds.flatMap((answer) => [
-          attendeeId,
-          answer.questionId,
-          answer.stringId,
+    if (textRows.length > 0) {
+      const placeholders = textRows.map(() => "(?, ?, ?)").join(", ");
+      await tx.execute({
+        args: textRows.flatMap((row) => [
+          row.attendeeId,
+          row.questionId,
+          row.stringId,
         ]),
         sql: `INSERT INTO attendee_answers (attendee_id, question_id, string_id) VALUES ${placeholders}`,
       });
     }
-  }
-  if (statements.length > 0) {
-    await executeBatch(statements);
-  }
+  });
 };
 
 /** One booked line: an attendee paired with one listing they are booked into.

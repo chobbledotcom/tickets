@@ -10,7 +10,12 @@ import {
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import { nowIso } from "#shared/now.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import {
+  createTestListing,
+  describeWithEnv,
+  expectRejects,
+  withPoisonedTransactionExecute,
+} from "#test-utils";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import {
   addAnswer,
@@ -18,6 +23,31 @@ import {
   createQuestion,
   saveTextAnswers,
 } from "./helpers.ts";
+
+/** The choice answer ids one attendee has saved (undefined when none). Shared by
+ *  the replace and rollback tests so the read+assert pair stays one line each. */
+const choiceAnswersFor = async (att: {
+  id: number;
+}): Promise<number[] | undefined> => {
+  const batch = await getAttendeeAnswersBatch([att.id], { texts: false });
+  return batch.get(att.id);
+};
+
+/** "Colour?" question with Red/Blue options plus one attendee who has saved Red
+ *  — the shared setup behind the replace and rollback tests below. */
+const seedColourAttendeeWithRed = async (): Promise<{
+  a1: { id: number };
+  a2: { id: number };
+  att: { id: number };
+}> => {
+  const q = await createQuestion("Colour?");
+  const a1 = await addAnswer(q.id, 0, "Red");
+  const a2 = await addAnswer(q.id, 1, "Blue");
+  const listing = await createTestListing();
+  const att = await createAttendee(listing.id);
+  await saveAttendeeAnswers(new Map([[att.id, [a1.id]]]));
+  return { a1, a2, att };
+};
 
 describeWithEnv("custom questions", { db: true }, () => {
   describe("createAttendee helper", () => {
@@ -124,21 +154,68 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("saveAttendeeAnswers replaces existing answers atomically", async () => {
-      const q = await createQuestion("Colour?");
-      const a1 = await addAnswer(q.id, 0, "Red");
-      const a2 = await addAnswer(q.id, 1, "Blue");
-
-      const listing = await createTestListing();
-      const att = await createAttendee(listing.id);
-      await saveAttendeeAnswers(new Map([[att.id, [a1.id]]]));
-
-      const before = await getAttendeeAnswersBatch([att.id], { texts: false });
-      expect(before.get(att.id)).toEqual([a1.id]);
+      const { a1, a2, att } = await seedColourAttendeeWithRed();
+      expect(await choiceAnswersFor(att)).toEqual([a1.id]);
 
       await saveAttendeeAnswers(new Map([[att.id, [a2.id]]]));
 
-      const after = await getAttendeeAnswersBatch([att.id], { texts: false });
-      expect(after.get(att.id)).toEqual([a2.id]);
+      expect(await choiceAnswersFor(att)).toEqual([a2.id]);
+    });
+
+    test("saveAttendeeAnswers rolls back the DELETE when the INSERT fails", async () => {
+      // Regression for the CodeRabbit gap on PR #1678: the delete and insert
+      // used to be two committed batches, so an INSERT failure after the DELETE
+      // committed left the attendee with no answers at all. Now the whole save
+      // runs in one transaction, so a mid-save INSERT failure rolls the DELETE
+      // back and the attendee's prior answers survive.
+      const { a1, a2, att } = await seedColourAttendeeWithRed();
+      expect(await choiceAnswersFor(att)).toEqual([a1.id]);
+
+      await withPoisonedTransactionExecute(
+        (sql) => sql.includes("INSERT INTO attendee_answers"),
+        "insert boom",
+      )(async () => {
+        await expectRejects(
+          saveAttendeeAnswers(new Map([[att.id, [a2.id]]])),
+          /insert boom/,
+        );
+      });
+
+      // The DELETE rolled back with the failed INSERT: a1 survives, not empty.
+      expect(await choiceAnswersFor(att)).toEqual([a1.id]);
+    });
+
+    test("saveAttendeeAnswers rollback preserves a FREE-TEXT answer, not just choice ids", async () => {
+      // The choice-only rollback test above can't catch free-text loss: a
+      // free-text answer is interned into the strings table and referenced by
+      // string_id, so a non-atomic delete-then-insert that drops the text row
+      // and then fails on the re-insert loses the attendee's free-text answer
+      // even though the choice path looked intact. This test seeds a free-text
+      // answer, forces the INSERT to fail mid-save, and asserts the decrypted
+      // text survives the rollback.
+      const { attendee: att, q } = await seedFreeTextQuestion("Notes?");
+      const privateKey = await getTestPrivateKey();
+      await saveTextAnswers(att.id, [{ questionId: q.id, text: "Keep me" }]);
+      expect((await getAttendeeTextAnswers(att.id, privateKey)).get(q.id)).toBe(
+        "Keep me",
+      );
+
+      await withPoisonedTransactionExecute(
+        (sql) => sql.includes("INSERT INTO attendee_answers"),
+        "insert boom",
+      )(async () => {
+        await expectRejects(
+          saveTextAnswers(att.id, [
+            { questionId: q.id, text: "Should not land" },
+          ]),
+          /insert boom/,
+        );
+      });
+
+      // The free-text answer survived the rolled-back save, not lost.
+      expect((await getAttendeeTextAnswers(att.id, privateKey)).get(q.id)).toBe(
+        "Keep me",
+      );
     });
 
     test("saves text-only answers and decrypts them for editing", async () => {
