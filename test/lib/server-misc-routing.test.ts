@@ -29,6 +29,7 @@ import {
   getHeader,
   mockFormRequest,
   mockRequest,
+  recordQueries,
   resetDb,
   testCookie,
   withExpectedError,
@@ -595,6 +596,24 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
         expect(response.headers.get("location")).toBe(
           "/ticket/my-listing?iframe=true",
         );
+      });
+
+      test("answers a tracked URL without touching the database", async () => {
+        // The redirect is pure URL work. It must run before the settings
+        // version prefetch and initDb: a prefetch started for a redirect is
+        // a query nothing awaits — still in flight when the response
+        // returns, where Bunny kills post-response fetches.
+        const seen: string[] = [];
+        const restore = recordQueries(seen);
+        try {
+          const response = await handleRequest(
+            mockRequest("/ticket/my-listing?utm_source=facebook"),
+          );
+          expect(response.status).toBe(301);
+        } finally {
+          restore();
+        }
+        expect(seen).toEqual([]);
       });
 
       test("does not redirect POST requests with tracking params", async () => {

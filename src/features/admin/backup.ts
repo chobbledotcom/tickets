@@ -32,6 +32,7 @@ import {
 } from "#shared/db/backup.ts";
 import { SCHEMA_HASH } from "#shared/db/migrations.ts";
 import { formatBytes, MAX_BACKUPS } from "#shared/limits.ts";
+import { flushPendingWork } from "#shared/pending-work.ts";
 import {
   deleteFile,
   downloadRaw,
@@ -255,6 +256,12 @@ const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/
           "Backup file expired or not found. Please upload again.",
         );
       }
+
+      // A cold isolate queues recordScriptVersion() as pending work during
+      // initDb. Drain it before replacing the database: a marker write still
+      // in flight could land after the replay and clobber the restored
+      // commit that message() reads back for the operator.
+      await flushPendingWork();
 
       // Capture any restoreFromZip error so we can throw *after* the
       // finally cleanup — V8's coverage source maps don't reliably track

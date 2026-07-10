@@ -781,6 +781,15 @@ const processRequest = async (
     // prepareRequestEnvironment() refines this once settings are loaded.
     seedEffectiveDomainHost(url.href);
 
+    // A tracked URL is answered by a pure redirect — no settings, no
+    // database. Handle it before the version prefetch and initDb: a
+    // prefetch started here would be a query nothing ever awaits, still in
+    // flight when the response returns (Bunny kills post-response fetches).
+    const trackingRedirect = trackingParamRedirect(url, method);
+    if (trackingRedirect) {
+      return finish(trackingRedirect);
+    }
+
     // Kick off the settings-version probe now so its round trip overlaps the
     // schema state check below — on a cold boot both must happen before
     // routing, and neither depends on the other. Setup paths must not probe:
@@ -794,11 +803,6 @@ const processRequest = async (
     const notActivated = await initializeDatabaseForPath(path);
     if (notActivated) {
       return finish(notActivated);
-    }
-
-    const trackingRedirect = trackingParamRedirect(url, method);
-    if (trackingRedirect) {
-      return finish(trackingRedirect);
     }
 
     await prepareRequestEnvironment(bufferedRequest, path, method);
