@@ -148,7 +148,8 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             "no longer accepting registrations",
           );
 
-          // Verify refund was called
+          // Verify exactly one refund was issued, for the right intent.
+          expect(mockRefund.calls.length).toBe(1);
           expect(mockRefund.calls[0]!.args).toEqual(["pi_test_123"]);
         },
         resetStripeClient,
