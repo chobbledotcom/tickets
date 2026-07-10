@@ -1,9 +1,12 @@
 /**
  * Servicing §20 — code quality & reuse (DRY / shared helpers).
  *
- * The mechanical guard is `deno task cpd` (jscpd at 0%, run in precommit).
- * These tests pin the *specific* shared helpers so the feature can't land as
- * near-duplicate logic sprinkled across files.
+ * The mechanical guard is `deno task cpd` (jscpd at 0%), which runs as its own
+ * dedicated step in both `deno task precommit` and CI — never inside the test
+ * suite, where a second full jscpd subprocess would add a minute of CPU to
+ * every run for a check already enforced elsewhere. These tests pin the
+ * *specific* shared helpers so the feature can't land as near-duplicate logic
+ * sprinkled across files.
  */
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

@@ -250,6 +250,37 @@ export const isSymbolImported = (
 };
 
 /**
+ * Every word appearing inside a named `import { … }` clause anywhere in the
+ * given file contents. One pass over the corpus builds a set that answers
+ * `isSymbolImported` for every symbol at once — the per-symbol regex scan was
+ * O(exports × files) over the whole tree and dominated this suite's runtime.
+ * Matching stays identical to {@link isSymbolImported}: the same
+ * `import\s*\{ … \}` clause shape, with each `\w+` inside the braces counted
+ * as an imported word.
+ *
+ * Keyed by the contents Map instance (built once per scan), so the corpus is
+ * only tokenized the first time it is queried.
+ */
+const importedSymbolsCache = new WeakMap<Map<string, string>, Set<string>>();
+
+export const importedSymbolsOf = (
+  contents: Map<string, string>,
+): Set<string> => {
+  const cached = importedSymbolsCache.get(contents);
+  if (cached) return cached;
+  const symbols = new Set<string>();
+  for (const content of contents.values()) {
+    for (const clause of content.matchAll(/import\s*\{([^}]*)\}/g)) {
+      for (const word of clause[1]!.matchAll(/\w+/g)) {
+        symbols.add(word[0]);
+      }
+    }
+  }
+  importedSymbolsCache.set(contents, symbols);
+  return symbols;
+};
+
+/**
  * Whether `symbolName` (exported from `sourceFile`) is used anywhere in
  * production code: within the same file, imported by another `.ts` source, or
  * imported by a `.tsx` template. `srcContents`/`tsxContents` map an absolute
@@ -267,36 +298,20 @@ export const isUsedInProductionCode = (
     return true;
   }
 
-  // Check other .ts source files
-  for (const [file, content] of srcContents) {
-    if (file === sourceFile) continue;
-    if (isSymbolImported(symbolName, content)) {
-      return true;
-    }
-  }
-
-  // Also check .tsx files as importers
-  for (const content of tsxContents.values()) {
-    if (isSymbolImported(symbolName, content)) {
-      return true;
-    }
-  }
-
-  return false;
+  // Check .ts and .tsx importers via the corpus-wide index. A file cannot
+  // import its own export (that would be a duplicate declaration), so the
+  // index never wrongly credits `sourceFile` itself as an importer.
+  return (
+    importedSymbolsOf(srcContents).has(symbolName) ||
+    importedSymbolsOf(tsxContents).has(symbolName)
+  );
 };
 
 /** Whether `symbolName` is imported by any test file in `testContents`. */
 export const isUsedInTests = (
   symbolName: string,
   testContents: Map<string, string>,
-): boolean => {
-  for (const content of testContents.values()) {
-    if (isSymbolImported(symbolName, content)) {
-      return true;
-    }
-  }
-  return false;
-};
+): boolean => importedSymbolsOf(testContents).has(symbolName);
 
 /** Whether `content` is primarily a re-export (aggregation) module. */
 export const isPrimarilyReExportModule = (content: string): boolean => {

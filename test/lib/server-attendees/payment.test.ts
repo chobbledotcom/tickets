@@ -67,7 +67,7 @@ describeWithEnv(
       test("links the payment id to the configured provider dashboard", async () => {
         settings.setForTest({
           payment_provider: "stripe",
-          stripe_secret_key: "sk_live_abc",
+          stripe_secret_key: "sk_test_abc",
         });
         try {
           const listing = await createTestListing(paidListing());
@@ -84,7 +84,7 @@ describeWithEnv(
           await expectHtmlResponse(
             response,
             200,
-            'href="https://dashboard.stripe.com/payments/pi_linked_123"',
+            'href="https://dashboard.stripe.com/test/payments/pi_linked_123"',
             'target="_blank"',
           );
         } finally {
@@ -267,6 +267,10 @@ describeWithEnv(
           expect.stringContaining("could not be recorded"),
           false,
         );
+        // The error must not silently flip the payment to refunded: with no
+        // ledger reversal posted, the attendee page still shows "Not refunded".
+        const page = await adminGet(`/admin/attendees/${attendee.id}`);
+        await expectHtmlResponse(page, 200, "Not refunded");
       });
 
       test("redirects without marking refunded when payment is not refunded", async () => {

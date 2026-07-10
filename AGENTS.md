@@ -747,3 +747,47 @@ import {
 | Duplicating test helpers        | Use `#test-utils`                |
 | Magic numbers/strings           | Import constants from production |
 | Testing private internals       | Test public API behavior         |
+
+### Fast Tests
+
+After every run the suite prints each test slower than 500ms
+(`SLOW_TEST_THRESHOLD_MS` in `scripts/test-durations.ts`). Treat entries in
+that report as regressions to fix, not ambient noise. These are the patterns
+that keep tests fast — reach for them when writing the test, not after it
+shows up in the report:
+
+- **Never run repo tooling as a subprocess inside a test.** jscpd, Biome, and
+  typechecking are dedicated precommit/CI steps; a test that shells out to
+  `deno task cpd` re-runs a minute of CPU inside every suite run to enforce a
+  gate that already exists elsewhere.
+- **Never sleep for real.** A test driving a retry/backoff path (the write-lock
+  retry, migration verify retries — anything built on `retryWithBackoff`)
+  wraps the operation in `withVirtualBackoff` from `#test-utils`, which
+  advances a `FakeTime` clock timer-by-timer instead of genuinely waiting the
+  50/150/350ms backoffs out.
+- **Render once, assert many.** A suite making many assertions about ONE page
+  in its default fixture state uses `cachedAdminPage(path)` — the page
+  renders a single time and every test asserts against the cached HTML
+  (`test/lib/server-guide.test.ts` is the reference). Tests that alter
+  config, env, or fixture data still fetch their own copy.
+- **Seed volume with a batch, not a loop.** When a test needs many rows (e.g.
+  filling a pagination page), create ONE record through the production path
+  and clone its rows in a single batch — see `seedFillerAttendees` in
+  `test/lib/server-attendees-list.test.ts` — instead of running the full
+  production write path N times.
+- **Shard inherently heavy suites.** A suite that is minutes of sequential
+  work by nature (the migration restore/chain suites) is split into shard
+  files driven by one factory so `deno test --parallel` spreads it across
+  workers — see `test/lib/db/migration-restore/` (shard by
+  `index % shardCount`, which stays balanced as the list grows).
+- **Keep heavy SDKs out of module load.** Every test file re-evaluates the
+  whole app module graph, so an import-time SDK evaluation is paid once per
+  test FILE — hundreds of times per run. Dynamically import heavy
+  dependencies on first use; `stripe.ts` and `sentry.ts` are the references
+  (this is the [cold-start rule](#built-for-cold-starts), which the test
+  suite feels ~250× over).
+- **`expect(bigHtml).toContain(...)` is safe here** because `#test-utils`
+  overrides the matcher (`test/test-utils/fast-expect.ts`): the @std/expect
+  built-in pretty-prints the entire searched value even when the assertion
+  passes (~35ms per call on a rendered page), the override only formats on
+  failure.

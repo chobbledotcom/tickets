@@ -22,6 +22,7 @@ import {
   cleanupTestDbPath,
   createTrackedTestDbFile,
 } from "#test-utils/temp-db-files.ts";
+import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
 
 /**
  * withTransaction needs an interactive transaction that shares state with the
@@ -188,7 +189,9 @@ describe("withTransaction lock contention", () => {
       }),
     );
     try {
-      expect(await withTransaction(async () => "ok")).toBe("ok");
+      expect(
+        await withVirtualBackoff(() => withTransaction(async () => "ok")),
+      ).toBe("ok");
       expect(calls).toBe(2);
     } finally {
       setDb(null);
@@ -222,7 +225,7 @@ describe("withTransaction lock contention", () => {
     try {
       let error: unknown;
       try {
-        await withTransaction(async () => "x");
+        await withVirtualBackoff(() => withTransaction(async () => "x"));
       } catch (caught) {
         error = caught;
       }

@@ -19,7 +19,7 @@ import {
 import { formDataToParams } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { listingReturnPath } from "#shared/admin-paths.ts";
+import { entityReturnPath } from "#shared/admin-pages.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   checkGroupCapAfterDurationChange,
@@ -278,7 +278,7 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
     // the success message and any upload caveats are surfaced, not swallowed.
     const createdRedirect =
       session.adminLevel === "editor"
-        ? listingReturnPath(session.adminLevel, result.row.id)
+        ? entityReturnPath("/admin/listings", session.adminLevel, result.row.id)
         : adminLandingPath(session.adminLevel);
     return processUploadsAndRedirect(
       formData,
@@ -432,7 +432,7 @@ const handleListingEditSuccess = async (
   return processUploadsAndRedirect(
     formData,
     id,
-    listingReturnPath(session.adminLevel, row.id),
+    entityReturnPath("/admin/listings", session.adminLevel, row.id),
     `Listing updated${durationWarning}`,
     existing.attachment_url,
   );

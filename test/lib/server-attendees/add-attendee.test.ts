@@ -218,7 +218,8 @@ describeWithEnv("server (admin attendees) > add attendee", { db: true }, () => {
         quantity: "1",
       });
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining(""), false);
+      // Empty name is the first required field to fail, so the flash names it.
+      expectFlash(response, "Your Name is required", false);
     });
 
     test("redirects with error when capacity exceeded", async () => {

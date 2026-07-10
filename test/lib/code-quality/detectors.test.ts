@@ -12,6 +12,7 @@ import {
   findRedundantArg,
   findTestOnlyExportViolations,
   getAllFilesWithExt,
+  importedSymbolsOf,
   isConstantLiteral,
   isPrimarilyReExportModule,
   isSymbolImported,
@@ -306,6 +307,30 @@ describe("isSymbolImported", () => {
     expect(isSymbolImported("foo", 'import { bar } from "./x.ts";')).toBe(
       false,
     );
+  });
+});
+
+describe("importedSymbolsOf", () => {
+  test("collects every word inside named import clauses across the corpus", () => {
+    const corpus = mapOf([
+      ["a.ts", 'import { foo, bar as baz } from "./x.ts";\nconst y = 1;'],
+      ["b.ts", 'import {\n  quux,\n} from "./y.ts";'],
+    ]);
+    const symbols = importedSymbolsOf(corpus);
+    // "as" is a word inside the braces too — the same over-match the original
+    // per-symbol regex had, kept for exact parity (no export is named "as").
+    expect([...symbols].sort()).toEqual(["as", "bar", "baz", "foo", "quux"]);
+  });
+
+  test("ignores words outside import clauses, matching isSymbolImported", () => {
+    const corpus = mapOf([["a.ts", "const loose = 1;\nexport { loose };"]]);
+    expect(importedSymbolsOf(corpus).has("loose")).toBe(false);
+    expect(isSymbolImported("loose", "const loose = 1;")).toBe(false);
+  });
+
+  test("tokenizes a corpus only once, serving repeat queries from the cache", () => {
+    const corpus = mapOf([["a.ts", 'import { once } from "./x.ts";']]);
+    expect(importedSymbolsOf(corpus)).toBe(importedSymbolsOf(corpus));
   });
 });
 
