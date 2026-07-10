@@ -232,6 +232,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
 
     const markResponse = await markRequest(cookie, {
       attendee_id: String(attendeeId),
+      date: todayInTz(settings.timezone),
       done: "1",
       kind: "start",
       listing_id: String(listingId),
@@ -244,6 +245,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     // Toggling it back off takes the "not done" message branch.
     const unmark = await markRequest(cookie, {
       attendee_id: String(attendeeId),
+      date: todayInTz(settings.timezone),
       done: "0",
       kind: "start",
       listing_id: String(listingId),
@@ -268,12 +270,35 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
 
     const response = await markRequest(cookie, {
       attendee_id: String(attendeeId),
+      date: todayInTz(settings.timezone),
       done: "1",
       kind: "start",
       listing_id: String(listingId),
     });
     const location = expectRedirect(response, "/admin/deliveries");
     expect(location).toContain("flash");
+  });
+
+  test("marking with a date outside today or tomorrow is rejected", async () => {
+    const van = await makeVan("Van 1");
+    const { cookie } = await createTestAgentSession({
+      agentIds: [van],
+      token: "a15",
+      username: "agent15",
+    });
+    const { attendeeId, listingId } = await makeTodayBooking(van, van);
+
+    const response = await markRequest(cookie, {
+      attendee_id: String(attendeeId),
+      date: addDays(todayInTz(settings.timezone), 2),
+      done: "1",
+      kind: "start",
+      listing_id: String(listingId),
+    });
+    expectRedirect(response, "/admin/deliveries");
+
+    const after = await awaitTestRequest("/admin/deliveries", { cookie });
+    expect(await after.text()).toContain("Mark done");
   });
 
   test("marking with missing ids is rejected", async () => {
@@ -300,6 +325,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     });
     const response = await markRequest(cookie, {
       attendee_id: "1",
+      date: todayInTz(settings.timezone),
       done: "1",
       kind: "middle",
       listing_id: "1",
@@ -388,6 +414,34 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     // neither today nor tomorrow).
     expect(html).toContain("Future Castle");
     expect(html).toContain(formatDateLabel(future));
+  });
+
+  test("staff can mark a leg done on a future date they opened", async () => {
+    // Agents are pinned to today/tomorrow, but staff may open any date — so a
+    // mark on a far-future run-sheet day must be accepted, not rejected as an
+    // out-of-window date.
+    const van = await makeVan("Van 1");
+    await assignOwnerAgents([van]);
+    const future = addDays(todayInTz(settings.timezone), 10);
+    const { attendeeId, listingId } = await makeBookingOn(
+      van,
+      van,
+      future,
+      1,
+      "Future Castle",
+    );
+
+    const response = await markRequest(await testCookie(), {
+      attendee_id: String(attendeeId),
+      date: future,
+      done: "1",
+      kind: "start",
+      listing_id: String(listingId),
+    });
+    expectRedirect(response, "/admin/deliveries");
+
+    const html = await fetchDeliveriesForDate(future);
+    expect(html).toContain("Mark not done");
   });
 
   test("staff run sheet offers a date picker linking to their delivery dates", async () => {
