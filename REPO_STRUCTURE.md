@@ -34,7 +34,6 @@ src/
   index.ts                 # local/server bootstrap
   edge.ts                  # Bunny edge bootstrap
   fp.ts                    # functional primitives
-  test-utils.ts            # test utils barrel
   static.d.ts              # static module declarations
 ```
 
