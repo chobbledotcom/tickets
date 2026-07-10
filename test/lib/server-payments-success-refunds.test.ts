@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
@@ -17,6 +18,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+// jscpd:ignore-end
 import { setupStripe } from "#test-utils/settings.ts";
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
