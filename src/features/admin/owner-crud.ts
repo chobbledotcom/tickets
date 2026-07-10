@@ -45,7 +45,11 @@ type CrudConfig<Row, Input, Display = Row> = {
    * who can't open the staff detail page, return to the edit form instead). */
   getRowPath?: (row: Row, session: AdminSession) => string;
   getAll: () => Promise<Display[]>;
-  resource: NamedResource<Row, Input>;
+  /** The resource, or a factory that builds it. A factory lets a resource whose
+   * fields are a per-request builder (e.g. modifiers, whose picklist options
+   * resolve through `t()`) stay off the module-load / cold-start path — it is
+   * only invoked inside the per-request handlers below, never at setup. */
+  resource: NamedResource<Row, Input> | (() => NamedResource<Row, Input>);
   renderList: (
     rows: Display[],
     session: AdminSession,
@@ -93,6 +97,12 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
       form: FormParams,
     ) => Response | Promise<Response>;
 
+    // Resolve the resource per-request. When `cfg.resource` is a factory, this
+    // defers building its fields until a handler actually runs (see the type
+    // note above); an already-built resource is returned as-is.
+    const resource = (): NamedResource<Row, Input> =>
+      typeof cfg.resource === "function" ? cfg.resource() : cfg.resource;
+
     const authForm =
       (handler: FormHandler) =>
       (request: Request): Promise<Response> =>
@@ -109,7 +119,7 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
           const flash = applyFlash(request);
           return withEntity<Row>((row) =>
             htmlResponse(render(row, session, flash.error)),
-          )(() => cfg.resource.table.findById(id));
+          )(() => resource().table.findById(id));
         });
 
     const logAndRedirect = async (
@@ -139,7 +149,7 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
     );
 
     const createHandler: FormHandler = async (session, form) => {
-      const result = await cfg.resource.create(form);
+      const result = await resource().create(form);
       return result.ok
         ? await logAndRedirect("created", result.row, session)
         : errorRedirect(`${cfg.listPath}/new`, result.error);
@@ -151,7 +161,7 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
 
     const editPost: IdRouteHandler = (request, { id }) =>
       auth.withForm(request, async (session, form) => {
-        const result = await cfg.resource.update(id, form);
+        const result = await resource().update(id, form);
         if (result.ok) {
           return logAndRedirect("updated", result.row, session);
         }
@@ -166,9 +176,9 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
         : {}),
       identifier: cfg.getName,
       identifierLabel: `${cfg.singular} name`,
-      load: (id) => cfg.resource.table.findById(id),
+      load: (id) => resource().table.findById(id),
       onConfirm: async (row, id) => {
-        await cfg.resource.delete(id);
+        await resource().delete(id);
         await logActivity(`${cfg.singular} '${cfg.getName(row)}' deleted`);
       },
       path: `${cfg.listPath}/:id/delete`,

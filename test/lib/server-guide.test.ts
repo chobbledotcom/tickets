@@ -7,37 +7,33 @@ import {
   setHostEmailConfigForTest,
 } from "#shared/email.ts";
 import {
-  adminGet,
   assertAdminHtml,
+  cachedAdminPage,
   describeWithEnv,
-  expectHtmlResponse,
   setTestEnv,
   testRequiresAuth,
   validEmail,
 } from "#test-utils";
 
 describeWithEnv("server (admin guide)", { db: true }, () => {
+  // The guide's default rendering is identical in every test (static help
+  // content from the standard fixture), so it is rendered once and shared;
+  // only the tests that alter config below fetch their own copy.
+  const guide = cachedAdminPage("/admin/guide");
+
   describe("GET /admin/guide", () => {
     testRequiresAuth("/admin/guide");
 
     test("renders guide page when authenticated", async () => {
-      const response = await adminGet("/admin/guide");
-      await expectHtmlResponse(response, 200, "Guide");
+      await guide("Guide");
     });
 
     test("contains FAQ sections", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
-        "Getting Started",
-        "Listings",
-        "Payments",
-        "Check-in",
-      );
+      await guide("Getting Started", "Listings", "Payments", "Check-in");
     });
 
     test("renders ampersands in guide section titles once", async () => {
-      const html = await assertAdminHtml(
-        "/admin/guide",
+      const html = await guide(
         "Data &amp; Privacy",
         "Daily Listings &amp; Holidays",
         "Check-in &amp; QR Scanner",
@@ -47,8 +43,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains booking questions section", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "Booking Questions",
         "multiple-choice",
         "must select one",
@@ -58,24 +53,18 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains public links section", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
-        "Public Links",
-        "Facebook Sharing Debugger",
-      );
+      await guide("Public Links", "Facebook Sharing Debugger");
     });
 
     test("contains payment provider recommendation", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "Which payment provider do you recommend?",
         "setup is a fair bit easier",
       );
     });
 
     test("explains why places aren't held during checkout", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "Why don't we hold places during checkout?",
         "scalpers",
         "automatically refunded",
@@ -83,12 +72,11 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains add attendee info", async () => {
-      await assertAdminHtml("/admin/guide", "Add Attendee");
+      await guide("Add Attendee");
     });
 
     test("contains payment setup section with Stripe instructions", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "Payment Setup",
         'id="payment-setup"',
         "Stripe secret key",
@@ -98,8 +86,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains payment setup section with Square instructions", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "create a Square application",
         "Square access token",
         "Square location ID",
@@ -109,12 +96,11 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains test vs live credentials guidance", async () => {
-      await assertAdminHtml("/admin/guide", "test or live credentials");
+      await guide("test or live credentials");
     });
 
     test("contains SumUp setup with the API keys link and 401 guidance", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "How do I set up SumUp?",
         "me.sumup.com/en-gb/settings/api-keys",
         "same SumUp account",
@@ -123,8 +109,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("warns the SumUp public API key is not the one to use", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "Public API key",
         "that is not the one you need",
         "Create API key",
@@ -132,16 +117,11 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains public site section", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
-        "Public Site",
-        "homepage and contact page",
-      );
+      await guide("Public Site", "homepage and contact page");
     });
 
     test("contains login security section", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "Login &amp; Security",
         "5 failed login attempts",
         "15 minutes",
@@ -151,8 +131,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("explains the privacy-first CRM stance", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "Why is this privacy-first instead of a CRM?",
         "stops short of being a CRM",
         "GDPR and UK GDPR obligations",
@@ -162,15 +141,14 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains calendar and activity log sections", async () => {
-      await assertAdminHtml("/admin/guide", "Calendar", "Activity Log");
+      await guide("Calendar", "Activity Log");
     });
 
     test("contains login lockout documentation", async () => {
       const { MAX_LOGIN_ATTEMPTS, LOGIN_LOCKOUT_MS } = await import(
         "#shared/limits.ts"
       );
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         'id="login"',
         "too many failed login attempts",
         `${MAX_LOGIN_ATTEMPTS} failed attempts`,
@@ -180,26 +158,15 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains settings overview section", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
-        "Settings Overview",
-        "Business email",
-        "Site theme",
-      );
+      await guide("Settings Overview", "Business email", "Site theme");
     });
 
     test("contains listing image, duplicate, and deactivate info", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
-        "image to a listing",
-        "Duplicate",
-        "Deactivate",
-      );
+      await guide("image to a listing", "Duplicate", "Deactivate");
     });
 
     test("contains allow pay more info with max price", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "Allow Pay More",
         "maximum",
         // formatCurrency strips the trailing zeros from whole amounts: £1.
@@ -208,8 +175,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("anchors each linkable section", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         'id="text-formatting"',
         'id="packages"',
         'id="modifiers"',
@@ -218,8 +184,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains purchase only info", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "No Check-In",
         "raffles, fundraisers, donations, merchandise",
         "Buy now",
@@ -229,8 +194,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains merge attendees info", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "merge duplicate attendees",
         "ticket token",
         "source attendee is deleted",
@@ -238,25 +202,15 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains resend notification info", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
-        "resend a confirmation email",
-        "Re-send Notification",
-      );
+      await guide("resend a confirmation email", "Re-send Notification");
     });
 
     test("contains non-transferable tickets info", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
-        "non-transferable",
-        "ID required at entry",
-        "ticket touting",
-      );
+      await guide("non-transferable", "ID required at entry", "ticket touting");
     });
 
     test("contains attendee editing info", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "edit an attendee",
         "Listing Registrations",
         "Add to Listing",
@@ -264,8 +218,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains text formatting section", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "Text Formatting",
         'id="text-formatting"',
         "Markdown",
@@ -274,8 +227,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("explains the visual markdown editor", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "How does the visual editor work?",
         "Edit markdown",
         "Edit visually",
@@ -284,17 +236,11 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains hidden listings info", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
-        "hide a listing",
-        "Hidden Listing",
-        "noindex, nofollow",
-      );
+      await guide("hide a listing", "Hidden Listing", "noindex, nofollow");
     });
 
     test("contains testing your system section", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "Testing Your System",
         "test the full booking process",
         "early in development",
@@ -303,19 +249,11 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains admin navigation", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
-        "/admin/guide",
-        "Listings",
-        "Log out",
-      );
+      await guide("/admin/guide", "Listings", "Log out");
     });
 
     test("shows default email setup instructions when no host email configured", async () => {
-      const html = await assertAdminHtml(
-        "/admin/guide",
-        "Choose your email provider from the dropdown",
-      );
+      const html = await guide("Choose your email provider from the dropdown");
       expect(html).not.toContain(
         "already configured by your server administrator",
       );
@@ -341,19 +279,17 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains Google Wallet section", async () => {
-      const response = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("Google Wallet");
-      expect(html).toContain("Add to Google Wallet");
-      expect(html).toContain("Issuer ID");
-      expect(html).toContain("Service Account Email");
-      expect(html).toContain("Service Account Private Key");
+      await guide(
+        "Google Wallet",
+        "Add to Google Wallet",
+        "Issuer ID",
+        "Service Account Email",
+        "Service Account Private Key",
+      );
     });
 
     test("shows default Google Wallet setup when no host config", async () => {
-      const response = await adminGet("/admin/guide");
-      const html = await response.text();
-      expect(html).toContain("You need three values from");
+      const html = await guide("You need three values from");
       expect(html).not.toContain(
         "already configured by your server administrator\nusing issuer ID",
       );
@@ -366,21 +302,19 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         serviceAccountKey: "pem-key-data",
       });
       try {
-        const response = await adminGet("/admin/guide");
-        const html = await response.text();
-        expect(html).toContain(
+        await assertAdminHtml(
+          "/admin/guide",
           "already configured by your server administrator",
+          "3388000000012345678",
+          "You need three values from",
         );
-        expect(html).toContain("3388000000012345678");
-        expect(html).toContain("You need three values from");
       } finally {
         settings.googleWallet.resetHostConfig();
       }
     });
 
     test("hides built sites section when builder is disabled", async () => {
-      const response = await adminGet("/admin/guide");
-      const html = await response.text();
+      const html = await guide();
       expect(html).not.toContain('id="built-sites"');
     });
 
@@ -398,10 +332,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("shows default wallet setup instructions when no host wallet configured", async () => {
-      const html = await assertAdminHtml(
-        "/admin/guide",
-        "You need five values from",
-      );
+      const html = await guide("You need five values from");
       expect(html).not.toContain(
         "already configured by your server administrator using pass type",
       );
@@ -428,8 +359,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("documents the debug page including tunable limits", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "/admin/debug",
         "tunable system limit",
         "environment variable",
@@ -438,8 +368,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains admin API section with auth and endpoint info", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         'id="admin-api"',
         "Admin API",
         "Authorization: Bearer YOUR_API_KEY",
@@ -454,8 +383,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains host subdomain section", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "Host Subdomain",
         "permanent and cannot be changed",
         "host subdomain and custom domain",
@@ -463,8 +391,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("explains the canonical-domain priority order for generated links", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "Which domain is used for ticket links and emails?",
         "CNAME has been validated",
         "host subdomain",
@@ -472,11 +399,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains host subdomain in advanced settings list", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
-        "Host subdomain",
-        "register a pretty",
-      );
+      await guide("Host subdomain", "register a pretty");
     });
 
     test("shows subdomain suffix when Bunny DNS is configured", async () => {
@@ -493,8 +416,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("documents the release tag format shared with the update checker", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         "Software Updates",
         "vYYYY-MM-DD-HHMMSS",
         "UTC date and time",
@@ -502,8 +424,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains read-only mode explanation aimed at end users", async () => {
-      await assertAdminHtml(
-        "/admin/guide",
+      await guide(
         'id="read-only-mode"',
         "Read-only Mode",
         "switched on by the host",
@@ -514,16 +435,11 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
   });
 
   describe("guide section structure", () => {
-    const guideHtml = async (): Promise<string> => {
-      const response = await adminGet("/admin/guide");
-      return response.text();
-    };
-
     // Modifiers renders as its own <h3> section immediately before Booking
     // Questions, so the slice between those two headings is exactly the
     // Modifiers section's body — every <summary> in it is a Modifiers FAQ.
     test("Modifiers section contains exactly its own three FAQs", async () => {
-      const html = await guideHtml();
+      const html = await guide();
       const start = html.indexOf(`>${t("guide.sections.modifiers")}</h3>`);
       const end = html.indexOf(
         `>${t("guide.sections.booking_questions")}</h3>`,
@@ -547,7 +463,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     // pulled them under its heading. Pinning the Modifiers heading after the
     // last listing FAQ and before the next section catches any such regression.
     test("Modifiers heading sits after the listing FAQs, not in the middle", async () => {
-      const html = await guideHtml();
+      const html = await guide();
       const indexOf = (needle: string): number => {
         const i = html.indexOf(needle);
         expect(i).toBeGreaterThanOrEqual(0);

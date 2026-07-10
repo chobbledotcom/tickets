@@ -11,7 +11,7 @@ import {
   getMonthsPerUnitField,
   logisticsAgentFields,
 } from "#templates/fields/listing.ts";
-import { modifierFields } from "#templates/fields/modifier.ts";
+import { getModifierFields } from "#templates/fields/modifier.ts";
 import { getTicketFields } from "#templates/fields/ticket.ts";
 import { getSlugField } from "#templates/fields/validators.ts";
 import { byName } from "#test-utils/fields.ts";
@@ -52,6 +52,13 @@ describe("fields behaviour", () => {
   });
 
   describe("modifier fields", () => {
+    const modifierFields = getModifierFields();
+    test("is a per-request builder, not a shared module-load array", () => {
+      // Each call builds a fresh array, so the picklist option labels (which
+      // resolve through t()) are compiled per request rather than at module
+      // load — keeping that work off the admin routes' cold-start path.
+      expect(getModifierFields()).not.toBe(getModifierFields());
+    });
     test("name is required", () => {
       expect(byName(modifierFields, "name").required).toBe(true);
     });

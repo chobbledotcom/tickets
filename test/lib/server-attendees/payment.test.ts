@@ -267,6 +267,10 @@ describeWithEnv(
           expect.stringContaining("could not be recorded"),
           false,
         );
+        // The error must not silently flip the payment to refunded: with no
+        // ledger reversal posted, the attendee page still shows "Not refunded".
+        const page = await adminGet(`/admin/attendees/${attendee.id}`);
+        await expectHtmlResponse(page, 200, "Not refunded");
       });
 
       test("redirects without marking refunded when payment is not refunded", async () => {

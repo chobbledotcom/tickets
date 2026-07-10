@@ -7,7 +7,8 @@
  */
 
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import { Window } from "happy-dom";
 import { initOrderGallery } from "#src/ui/client/admin/order-gallery.ts";
 import { createGlobalStash } from "#test-utils/happy-dom.ts";
@@ -38,7 +39,19 @@ const GALLERY_HTML = `
   </form>`;
 
 const stash = createGlobalStash();
-afterEach(() => stash.restore());
+
+// The availability refresh debounces on a real 200ms setTimeout; run every
+// test on a virtual clock so settle() skips past it instantly instead of each
+// test genuinely sleeping 300ms.
+const clock: { time: FakeTime | null } = { time: null };
+beforeEach(() => {
+  clock.time = new FakeTime();
+});
+afterEach(() => {
+  clock.time?.restore();
+  clock.time = null;
+  stash.restore();
+});
 
 /** Install the DOM and a scripted availability endpoint, then boot the
  * script. `responses` are consumed one per request; when empty the endpoint
@@ -100,9 +113,13 @@ const harness = (html = GALLERY_HTML) => {
   };
 };
 
-/** Wait out the 200ms refresh debounce plus the response microtasks. */
-const settle = (): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, 300));
+/** Advance the virtual clock past the 200ms refresh debounce, then drain the
+ *  response microtasks (tickAsync flushes them BEFORE advancing, so the
+ *  fired callback's await chain needs one more round). */
+const settle = async (): Promise<void> => {
+  await clock.time!.tickAsync(300);
+  await clock.time!.runMicrotasks();
+};
 
 describe("initOrderGallery", () => {
   test("does nothing on a page without the gallery form", () => {
