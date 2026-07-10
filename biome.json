@@ -133,9 +133,7 @@
             "noExcessiveCognitiveComplexity": "off"
           },
           "suspicious": {
-            "noAssignInExpressions": "off",
-            "noConsole": "off",
-            "noImplicitAnyLet": "off"
+            "noConsole": "off"
           }
         }
       }
