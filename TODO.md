@@ -393,6 +393,7 @@ an already-booked payment intent *should* do (reject as duplicate? re-render the
 existing ticket?) and likely adding payment-intent uniqueness — out of scope for
 a test-only file split. Starting point: `src/features/api/payment-processing.ts`
 (the `/payment/success` finalize path) and `#shared/db/processed-payments.ts`.
+
 ## Payment-processing review follow-ups (from PR #1692)
 
 Both items describe behaviour that predates the payment-processing split (the
