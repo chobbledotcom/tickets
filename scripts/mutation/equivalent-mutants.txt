@@ -101,6 +101,12 @@ src/shared/checkout-pricing.ts:177:16  - → /     # toUnits gives ascending lin
 src/features/admin/attendee-form-model.ts:320:53  ?? → ||   # existingByKey.get(key): ListingAttendeeRow|undefined — an object is always truthy
 src/features/admin/attendee-form-model.ts:321:36  ?? → ||   # listingsById.get(id): ListingWithCount|undefined — an object is always truthy
 src/features/admin/attendee-form-model.ts:373:66  ?? → ||   # (existingBooking?.price_paid ?? 0): a number; the only falsy number is 0, and 0 ?? 0 === 0 || 0
+src/features/admin/attendee-page-data.ts:141:69  ?? → ||   # priceRowsByGroupId.get(): PriceRow[]|undefined — an array is always truthy
+src/features/admin/attendee-page-data.ts:157:33  ?? → ||   # byListing.get(): Map<number,number|null>|undefined — a Map is always truthy
+src/features/admin/attendee-page-data.ts:238:65  ?? → ||   # preselectedQty.get(): number|undefined; the only falsy number is 0, and the fallback is also 0
+src/features/admin/attendee-page-data.ts:333:12  return null → return undefined   # compact removes both null and undefined warning slots
+src/features/admin/attendee-page-data.ts:354:47  1 → 0   # standard bookings pass date:null, so buildCapacityCondition ignores durationDays entirely
+src/features/admin/attendee-page-data.ts:381:42  ?? → ||   # totalByListing.get(): number|undefined; the only falsy number is 0, and the fallback is also 0
 src/features/tickets/token-utils.ts:222:44  ?? → ||   # (attendees[i]?.bookings ?? []): ListingAttendeeRow[]|undefined — an array is always truthy, undefined→[] either way
 
 # Ticket form parsing (ticket-form.ts): `?? → ||` where the operand is an array,
@@ -695,6 +701,105 @@ src/shared/db/client.ts:105:67  insert → ""   # unparseable-UPDATE fallback fi
 # DB client (client.ts) — rawSql sentinel symbol.
 src/shared/db/client.ts:509:24  raw-sql → ""   # Symbol("raw-sql") description is debug-only metadata; the symbol's identity (not its description) is what insert()/update() branch on, and RAW_SQL is module-private so no test can observe the description
 
+# Payment references (payment-references.ts) — `getRefundPaymentReferences`
+# consolidates rows for the same reference into a single entry by folding
+# sessionIds into one array and OR'ing providerRefunded with `||=`. The ORDER BY
+# pins the iteration order, but every consumer of `RefundPaymentReference.sessionIds`
+# today passes it through `unique(...)` and into `IN (...)` (refund-ledger's
+# `coveredRefundGroups` and `markPaymentReferencesProviderRefunded`), and the
+# `providerRefunded` flag is itself order-independent (`||=` is commutative). The
+# consolidator's final Set/Map is identical regardless of input row order, so the
+# ORDER BY is unobservable from any current test.
+src/shared/db/payment-references.ts:88:5  ORDER BY attendee_id, processed_at, payment_session_id → ""   # sessionIds dedupe or IN-match at every consumer; the merged Set/Map result is order-independent
+
+# Refresh-payment context (attendees-edit.ts) — `loadRefreshContext` returns null
+# when the attendee or its listing can't be loaded, and its sole consumer is
+# `if (!ctx) return htmlResponse("", 404)` (handleRefreshPayment line 100). null
+# and undefined are both falsy, so `!ctx` agrees on every input and the four
+# downstream branches (404, references, provider, redirect) all behave
+# identically.
+src/features/admin/attendees-edit.ts:59:28  return null → return undefined   # `!ctx` at the call site treats null and undefined the same way
+src/features/admin/attendees-edit.ts:70:24  return null → return undefined   # same as :59 — `!ctx` at the call site treats null and undefined the same way
+
+# Refresh-payment context (attendees-edit.ts) — `bookings[0]?.listing_id
+# ?? attendee.listing_id`. The query that produces `bookings` is `… ORDER BY
+# start_at, listing_id LIMIT 1`, so it returns at most one row in every case:
+# `bookings[1]` is therefore always undefined, falling back to
+# `attendee.listing_id` every time, identical to the unmutated line (which
+# also resolves to attendee.listing_id when the singleton row's listing_id
+# matches attendee.listing_id — the createAttendeeAtomic-created pair the
+# query loads).
+src/features/admin/attendees-edit.ts:68:35  0 → 1   # the LIMIT 1 query always returns at most one row, so bookings[1] is always undefined — falls back to attendee.listing_id either way
+
+# Refresh-payment context (attendees-edit.ts) — `?? → ||` between
+# `bookings[0]?.listing_id` (number|undefined) and `attendee.listing_id`
+# (number). ?? and || only differ when the LHS is a falsy non-null value; the
+# only falsy number is 0, and listing ids are positive integers (autoincrement
+# from 1), so the LHS is either undefined (|| falls through to the RHS, same as
+# ?? for undefined) or a truthy positive number (both keep the LHS).
+src/features/admin/attendees-edit.ts:68:49  ?? → ||   # the LHS is undefined or a positive listing id — never a falsy non-null value, so ?? and || agree
+
+# Attendee merge service (attendee-merge.ts) — `?? → ||` between
+# `targetAnswers.get(qid)` (a `{answerId, answerText}` object or undefined) and
+# `null`. ?? and || only differ when the LHS is a falsy non-null value; the
+# value type here is "object" or undefined — an object is always truthy, and
+# undefined falls through to the RHS for both. (Source-side mirror at :245
+# holds the same type.)
+src/shared/merge/attendee-merge.ts:244:38  ?? → ||   # Map<number,object>.get returns undefined or a truthy object — ?? and || agree for both
+src/shared/merge/attendee-merge.ts:245:38  ?? → ||   # same as :244 — Map<number,object>.get returns undefined or a truthy object
+src/shared/merge/attendee-merge.ts:250:45  ?? → ||   # questionTextMap.get returns undefined or a truthy string; both ?? and || fall through for undefined, and a string only differs on ""  which an empty `get` never returns
+src/shared/merge/attendee-merge.ts:251:35  ?? → ||   # sa?.answerId is undefined|number; ?? vs || differ only on 0 (falsy non-null), and answer ids are positive
+src/shared/merge/attendee-merge.ts:252:39  ?? → ||   # sa?.answerText is undefined|string; differs only on "" — this code path is non-conflict (sa !== null), so answerText is a real choice's text, never ""
+src/shared/merge/attendee-merge.ts:253:35  ?? → ||   # ta?.answerId is undefined|number; positive ints only
+src/shared/merge/attendee-merge.ts:254:39  ?? → ||   # ta?.answerText same as :252 — real choice text, never ""
+
+# Attendee merge service (attendee-merge.ts) — targetByKey lookup
+# `targetByKey.get(bookingKey(...)) ?? null`. Map.get returns undefined or a
+# ListingAttendeeRow object (always truthy); ?? and || agree on both.
+src/shared/merge/attendee-merge.ts:344:10  ?? → ||   # Map<string, ListingAttendeeRow>.get: undefined or a truthy object
+
+# Attendee merge service (attendee-merge.ts) — strandsPayment's two early
+# returns feed exactly one consumer, `strandedPaymentErrors`'s
+# `diff.bookingItems.filter(strandsPayment)`: Array.prototype.filter coerces
+# its predicate result with ToBoolean, so `false` and `undefined` both fall
+# out of the filtered set the same way. `strandsPayment` is module-private,
+# so no other caller can ever read the literal return value.
+src/shared/merge/attendee-merge.ts:462:52  return false → return undefined   # filter()'s predicate only checks truthiness; false and undefined agree
+src/shared/merge/attendee-merge.ts:463:49  return false → return undefined   # filter()'s predicate only checks truthiness; false and undefined agree
+
+# Attendee merge service (attendee-merge.ts) — `applyPiiDecisions` writes the
+# merged PII into `mergedPii` and returns it; `applyAttendeeMerge` is the sole
+# caller and it destructures ONLY `piiFieldsFromSource` from the return,
+# discarding `mergedPii`. The `mergedPii[field] = sourceValue` line is the
+# only site that touches the mergedPii object after the spread copy, so any
+# assignment-operator mutation (`= → +=`, `= → -=`, …) on `mergedPii[field]`
+# is unobservable: the field is computed but never read. (PII itself is
+# re-blobbed by the feature layer from `decision.pii` and `targetPii` raw —
+# not from `mergedPii` — so nothing downstream reads it either.)
+src/shared/merge/attendee-merge.ts:502:57  = → +=   # mergedPii is computed then discarded by applyAttendeeMerge; only piiFieldsFromSource is observed
+
+# Attendee merge service (attendee-merge.ts) — `moneyReversalLegs`'s keyParts
+# prefix strings ("merge-unbill", "merge-credit") are the FIRST element of an
+# array that feeds only `writeoffAdjustmentLeg`'s
+# `[...keyParts, delta, occurredAt]` tuple, which is HMAC'd by `eventGroup`
+# and `legReference` (refs.ts). The resulting `event_group`/`reference`
+# columns of the persisted `transfers` rows are HMAC digests — non-reversible
+# and not substring-matchable — so mutating either prefix changes only those
+# digests, never the leg's amount/source/destination/kind. The merge runs once
+# per request (writes adjustment legs once with `INSERT OR IGNORE`), so a
+# hash change can't surface via an idempotent-replay either; and no test or
+# production code queries the merged attendee's reversal legs by their
+# `event_group` value.
+src/shared/merge/attendee-merge.ts:715:18  merge-unbill → ""   # keyParts prefix feeds only the non-reversible event_group/reference hashes; never observed
+src/shared/merge/attendee-merge.ts:722:20  merge-credit → ""   # same as :715 — keyParts prefix feeds only the non-reversible hashes; never observed
+
+# Admin attendee-merge routes (src/features/admin/attendees-merge.ts) — mutants
+# with no observable effect through any reachable caller or input.
+src/features/admin/attendees-merge.ts:76:20  return null → return undefined   # loadMergeSource: both callers (validateMergePostInput:272, loadMergePanel:450) test the result with `!source`, which treats null and undefined identically
+src/features/admin/attendees-merge.ts:188:40  && → ||   # keptIsPinned = Boolean(kept.lat && kept.lng): lat/lng are always both non-empty or both "" (parseCoordinatePair requires both-or-neither, and every write path — the logistics route, the attendee-form addressUnchanged branch, and the merge's own addressFrom — preserves that pair), so `&&` and `||` agree on every reachable value
+src/features/admin/attendees-merge.ts:344:54  target → ""   # parsePiiDecisions fallback string: every consumer of decision.pii (pickPiiField, the kept/address ternary on :186, mergedPiiName on :319, applyPiiDecisions on attendee-merge.ts:501) only tests `=== "source"`, so any non-"source" value (including "" and "target") is treated identically as "keep target"
+src/features/admin/attendees-merge.ts:374:15  skip_source → ""   # toBookingChoice comparison `raw === "skip_source"` → `raw === ""`: parse "skip_source" as the "keep_target" fallback. Unobservable — both fall to applyBookingDecisions' same `else` branch (no DB write, bookingsSkipped++) and discardedSaleAmount returns sourceSaleAmount for both, so the merge outcome is identical for every input
+src/features/admin/attendees-merge.ts:408:10  return undefined → return undefined   # toMoneyChoice's fallback is already `return undefined`; the mutation is a no-op (it produces identical code), so no test can ever observe a difference
 # contact-tokens.ts — `?? → ||` and `return null → return undefined` sites whose
 # operand can never be a falsy-but-non-null value, or whose result is only ever
 # consumed by a nullish check. Each is provably equivalent from the types.

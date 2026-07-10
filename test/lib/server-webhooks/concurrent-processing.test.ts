@@ -179,9 +179,12 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
       finalizeSession: finalizeSessionFn,
     } = await import("#shared/db/processed-payments.ts");
     await reserveSessionFn("cs_multi_already_done");
-    await finalizeSessionFn("cs_multi_already_done", attendee.id, [
-      attendee.ticket_token,
-    ]);
+    await finalizeSessionFn(
+      "cs_multi_already_done",
+      attendee.id,
+      [attendee.ticket_token],
+      "pi_multi_already_done",
+    );
 
     await expectWebhookProcessed(
       checkoutSessionEvent({

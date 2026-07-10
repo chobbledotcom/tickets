@@ -34,15 +34,15 @@ const BATCH_LEG_ATTENDEE_PLACEHOLDER = 1;
 /**
  * Build the {@link BookingBatchPlan} for the single-batch checkout: the modifier
  * stock to consume, the booking's ledger legs (sale/modifier/fee/payment, keyed
- * on `eventId`), and — for a paid session — the session to finalize in the same
- * batch. The paid path keys `eventId` on its payment session id, so the legs are
- * attendee-id-independent and can be built before the attendee exists. */
+ * on `eventId`), and — for a paid session — the session/reference to finalize in
+ * the same batch. The paid path keys `eventId` on its payment session id, so the
+ * legs are attendee-id-independent and can be built before the attendee exists. */
 export const bookingBatchPlan = async (
   usages: ModifierUsage[],
   ledger: { pricedOrder: PricedOrder; occurredAt: string; eventId: string },
-  finalizeSessionId?: string,
+  finalize?: { paymentReference: string; sessionId: string },
 ): Promise<BookingBatchPlan> => ({
-  ...(finalizeSessionId !== undefined ? { finalizeSessionId } : {}),
+  ...(finalize !== undefined ? { finalize } : {}),
   legs: await mapBooking(
     bookingFactsFromOrder(ledger.pricedOrder, {
       attendeeId: BATCH_LEG_ATTENDEE_PLACEHOLDER,

@@ -2,9 +2,8 @@
  * Public balance-payment routes: GET /pay/:token shows a PII-free recap and a
  * pay button; POST /pay/:token starts a checkout for the outstanding balance.
  *
- * The token only carries the attendee id (HMAC-signed); the amount due and
- * reserved/paid state are read live from plaintext columns, so no private key
- * is needed here.
+ * The token only carries the attendee id (HMAC-signed); the amount due is read
+ * live from plaintext columns, so no private key is needed here.
  */
 
 import { withCsrfForm } from "#routes/csrf.ts";
@@ -13,7 +12,6 @@ import type { PathMethodRoute } from "#routes/types.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { verifyBalanceToken } from "#shared/balance-link.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { getAttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import {
   getAttendeeBalanceState,
   getAttendeeOrderSummary,
@@ -49,10 +47,9 @@ const withOutstanding = async (
   const payload = await verifyBalanceToken(token);
   const state = payload ? await getAttendeeBalanceState(payload.a) : null;
   if (!payload || !state) return htmlResponse(balanceInvalidPage());
-  const status = state.statusId
-    ? await getAttendeeStatus(state.statusId)
-    : null;
-  if (!status?.is_reservation || state.remainingBalance <= 0) {
+  // Any attendee who still owes money can pay it online — the balance to
+  // collect is what's outstanding, whatever status the booking sits in.
+  if (state.remainingBalance <= 0) {
     return htmlResponse(balanceSettledPage());
   }
   const summary = await getAttendeeOrderSummary(payload.a);

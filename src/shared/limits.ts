@@ -297,16 +297,16 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * The longest a payment provider keeps retrying a webhook before giving up
- * (Stripe and Square both retry for up to ~3 days). The processed_payments
- * idempotency row MUST outlive this window: if it is pruned while a retry can
- * still arrive, that retry re-processes the paid session and could re-issue a
- * refund. See prune.ts (prunePayments) and processed-payments.ts.
+ * (Stripe and Square both retry for up to ~3 days). Processed payment rows that
+ * no longer carry useful refund references MUST outlive this window: pruning one
+ * while a retry can still arrive could re-process the paid session and re-issue
+ * a refund. Rows still needed for admin refunds are kept longer by prunePayments.
  */
 export const WEBHOOK_RETRY_WINDOW_DAYS = 3;
 
 /**
  * Validate the payments-retention config: reject a value that would let the
- * idempotency ledger be pruned while a provider could still retry the webhook.
+ * payment replay rows be pruned while a provider could still retry the webhook.
  * Throws (failing startup) rather than silently risking a duplicate refund.
  * Extracted from the constant below so the invariant is unit-testable without
  * having to construct a broken live environment.
@@ -325,8 +325,8 @@ export const assertPaymentsRetentionSafe = (days: number): number => {
 };
 
 /** Retention (days) for resolved processed_payments rows (default: 90). Floored
- * at WEBHOOK_RETRY_WINDOW_DAYS so the idempotency ledger always outlives the
- * provider webhook-retry window (a too-short value throws at startup). */
+ * at WEBHOOK_RETRY_WINDOW_DAYS so payment replay rows always outlive the provider
+ * webhook-retry window (a too-short value throws at startup). */
 export const PRUNE_PAYMENTS_RETENTION_DAYS = computedLimit(
   assertPaymentsRetentionSafe(readLimit("PRUNE_PAYMENTS_RETENTION_DAYS", 90)),
   90,

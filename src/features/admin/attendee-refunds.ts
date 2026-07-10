@@ -2,7 +2,7 @@
  * Admin attendee refund routes (single + bulk)
  */
 
-import { chunk, filter } from "#fp";
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   withDecryptedAttendees,
@@ -15,19 +15,16 @@ import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { hasActiveBookingLine } from "#shared/db/attendees.ts";
+import {
+  getRefundPaymentReferences,
+  hasRefundPaymentReference,
+} from "#shared/db/payment-references.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
-import {
-  recordAttendeeRefund,
-  recordAttendeeRefundsBatch,
-} from "#shared/refund-ledger.ts";
+import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import { fail, ok } from "#shared/response.ts";
-import {
-  type Attendee,
-  hasTicketQuantity,
-  type ListingWithCount,
-} from "#shared/types.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
+import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import {
   adminRefundAllAttendeesPage,
   adminRefundAttendeePage,
@@ -39,6 +36,14 @@ import {
   NO_PROVIDER_ERROR,
   verifiedAttendeeAction,
 } from "./attendees-route-helpers.ts";
+import { getRefundCandidates } from "./refunds/candidates.ts";
+import {
+  processRefundBatch,
+  type RefundCounts,
+  refundCandidateAtProvider,
+} from "./refunds/provider.ts";
+
+/* jscpd:ignore-end */
 
 /** Max refunds per request to stay within Bunny Edge fetch limits */
 const REFUND_BATCH_LIMIT = 30;
@@ -65,14 +70,19 @@ const handleAdminAttendeeRefundGet = attendeeActionPage(
     // The no-payment branch also covers a no-quantity ghost home line: the
     // guard runs against the exact (attendee, home listing) row, so a refund
     // can't fire for a non-booking.
-    if (
-      !data.attendee.payment_id ||
-      !(await hasActiveBookingLine(data.attendee.id, data.listing.id))
-    ) {
+    if (!(await hasActiveBookingLine(data.attendee.id, data.listing.id))) {
       return t("error.no_payment_to_refund");
     }
     if (data.attendee.refunded) {
       return t("error.already_refunded");
+    }
+    if (
+      !(await hasRefundPaymentReference(
+        data.attendee,
+        await requireRequestPrivateKey(),
+      ))
+    ) {
+      return t("error.no_payment_to_refund");
     }
     return null;
   },
@@ -96,15 +106,21 @@ const handleAttendeeRefund = verifiedAttendeeAction(
         returnUrl,
       );
     }
-    if (!data.attendee.payment_id) {
+    if (data.attendee.refunded) {
+      return refundError(attendeeId, t("error.already_refunded"), returnUrl);
+    }
+    const references = (
+      await getRefundPaymentReferences(
+        [data.attendee],
+        await requireRequestPrivateKey(),
+      )
+    ).get(attendeeId)!;
+    if (references.length === 0) {
       return refundError(
         attendeeId,
         t("error.no_payment_to_refund"),
         returnUrl,
       );
-    }
-    if (data.attendee.refunded) {
-      return refundError(attendeeId, t("error.already_refunded"), returnUrl);
     }
 
     const provider = await getActivePaymentProvider();
@@ -112,17 +128,16 @@ const handleAttendeeRefund = verifiedAttendeeAction(
       return refundError(attendeeId, NO_PROVIDER_ERROR, returnUrl);
     }
 
-    const refunded = await provider.refundPayment(data.attendee.payment_id);
-    if (!refunded) {
-      logError({
-        code: ErrorCode.PAYMENT_REFUND,
-        detail: `Admin refund failed for attendee ${attendeeId}, payment ${data.attendee.payment_id}`,
-        listingId,
-      });
+    const refunded = await refundCandidateAtProvider(
+      provider,
+      { attendee: data.attendee, references },
+      listingId,
+    );
+    if (refunded.outcome !== "refunded") {
       return refundError(attendeeId, t("error.refund_failed"), returnUrl);
     }
 
-    const { posted } = await recordAttendeeRefund(attendeeId);
+    const { posted } = await recordAttendeeRefund(attendeeId, references);
     await logActivity(
       `Refund issued for attendee '${data.attendee.name}'`,
       listingId,
@@ -145,21 +160,16 @@ const handleAttendeeRefund = verifiedAttendeeAction(
   },
 );
 
-/** Filter attendees refundable on this listing: a payment, not yet refunded, and
- * a real ticket line — a no-quantity ghost row on this listing isn't refundable
- * (its roster row carries this listing's quantity). */
-const getRefundable = filter(
-  (a: Attendee) => a.payment_id !== "" && !a.refunded && hasTicketQuantity(a),
-);
-
 /** Handle GET /admin/listing/:id/refund-all */
 const handleAdminRefundAllGet = (
   request: Request,
   { id }: ListingRouteParams,
 ): Promise<Response> =>
-  withListingAttendeesAuth(request, id, (listing, attendees, session) => {
+  withListingAttendeesAuth(request, id, async (listing, attendees, session) => {
     const flash = applyFlash(request);
-    const count = getRefundable(attendees).length;
+    const count = (
+      await getRefundCandidates(attendees, await requireRequestPrivateKey())
+    ).length;
     return count === 0
       ? htmlResponse(
           adminRefundAllAttendeesPage(
@@ -174,91 +184,6 @@ const handleAdminRefundAllGet = (
           adminRefundAllAttendeesPage(listing, count, session, flash.error),
         );
   });
-
-type RefundOutcome = "refunded" | "failed" | "errored";
-type RefundCounts = {
-  refundedCount: number;
-  failedCount: number;
-  errorCount: number;
-};
-
-/**
- * Refund one attendee at the provider — the network I/O safe to run in parallel.
- * Provider errors are caught per attendee, so one failure never aborts the
- * batch. No DB write happens here: refund status is now projected from the
- * `refund_cash` ledger leg, which {@link processRefundBatch} posts serially via
- * {@link recordAttendeeRefund} to avoid concurrent write-transaction contention.
- */
-const refundAtProvider = async (
-  provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
-  attendee: Attendee,
-  listingId: number,
-): Promise<{ attendee: Attendee; outcome: RefundOutcome }> => {
-  try {
-    const refunded = await provider.refundPayment(attendee.payment_id);
-    if (!refunded) {
-      logError({
-        code: ErrorCode.PAYMENT_REFUND,
-        detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
-        listingId,
-      });
-      return { attendee, outcome: "failed" };
-    }
-    return { attendee, outcome: "refunded" };
-  } catch (err) {
-    logError({
-      code: ErrorCode.PAYMENT_REFUND,
-      detail: `Admin bulk refund errored for attendee ${attendee.id}, payment ${attendee.payment_id}: ${String(err)}`,
-      listingId,
-    });
-    return { attendee, outcome: "errored" };
-  }
-};
-
-/**
- * Process a batch of refundable attendees and tally results. Provider refunds run
- * in parallel within each chunk; then — before issuing the next chunk's provider
- * refunds — that chunk's successes are recorded in the ledger in one transaction
- * (see {@link recordAttendeeRefundsBatch}), so an edge timeout mid-batch can't
- * leave a completed provider refund without its `refund_cash` leg (a retry would
- * see it already-refunded and never re-post). The per-attendee interactive write
- * is avoided because it contends the single SQLite writer (SQLITE_BUSY) at scale.
- * A missed post is tallied as errored, not refunded: refund status is ledger-only
- * now, so it must surface rather than leave the payment silently re-refundable.
- * Never 500s — neither helper throws.
- */
-const processRefundBatch = async (
-  provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
-  batch: Attendee[],
-  listingId: number,
-): Promise<RefundCounts> => {
-  const REFUND_CHUNK_SIZE = 5;
-  const counts: RefundCounts = {
-    errorCount: 0,
-    failedCount: 0,
-    refundedCount: 0,
-  };
-  for (const group of chunk(REFUND_CHUNK_SIZE)(batch)) {
-    const results = await Promise.all(
-      group.map((attendee) => refundAtProvider(provider, attendee, listingId)),
-    );
-    const chunkRefundedIds: number[] = [];
-    for (const { attendee, outcome } of results) {
-      if (outcome === "errored") counts.errorCount++;
-      else if (outcome === "failed") counts.failedCount++;
-      else chunkRefundedIds.push(attendee.id);
-    }
-    // Record this chunk's ledger reversals before moving on to the next chunk's
-    // provider refunds, narrowing the window where a completed provider refund
-    // has no ledger leg.
-    const posted = await recordAttendeeRefundsBatch(chunkRefundedIds);
-    for (const ok of posted.values()) {
-      if (ok) counts.refundedCount++;
-      else counts.errorCount++;
-    }
-  }
-  return counts;
-};
 
 type RefundResponseCtx = {
   listing: ListingWithCount;
@@ -332,7 +257,10 @@ const processRefundAll = async (
   form: FormParams,
 ): Promise<Response> => {
   const refundAllUrl = `/admin/listing/${listing.id}/refund-all`;
-  const refundable = getRefundable(attendees);
+  const refundable = await getRefundCandidates(
+    attendees,
+    await requireRequestPrivateKey(),
+  );
   const error = verifyOrRedirect(
     form,
     listing.name,
