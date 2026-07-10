@@ -9,7 +9,7 @@
 import { compact, lazyRef } from "#fp";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import { deployScriptCode } from "#shared/bunny-cdn.ts";
-import { executeBatch, queryAll } from "#shared/db/client.ts";
+import { executeBatch, inPlaceholders, queryAll } from "#shared/db/client.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { logDebug } from "#shared/logger.ts";
 
@@ -110,9 +110,7 @@ const readSettingMarkers = async (
   keys: string[],
 ): Promise<Map<string, string>> => {
   const rows = await queryAll<{ key: string; value: string }>(
-    `SELECT key, value FROM settings WHERE key IN (${keys
-      .map(() => "?")
-      .join(", ")})`,
+    `SELECT key, value FROM settings WHERE key IN (${inPlaceholders(keys)})`,
     keys,
   );
   return new Map(rows.map((row) => [row.key, row.value]));
