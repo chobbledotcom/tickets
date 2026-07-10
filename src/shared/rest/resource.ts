@@ -103,6 +103,12 @@ export interface ResourceConfig<
   toInput: (values: Values) => Input | Promise<Input>;
   /** Custom validation (e.g., check uniqueness). Return error message or null. */
   validate?: ValidateFn<Input, Id>;
+  /** Cross-field validation on the parsed form values, before `toInput`. Unlike
+   * `validate` (which runs on the converted `Input`), this sees the raw field
+   * values together, so a field whose rule depends on a sibling — e.g. a
+   * modifier's `calc_value` bounds depend on its `calc_kind` — can be checked
+   * where both are visible. Return an error message or null. */
+  validateValues?: (values: Values) => string | null;
 }
 
 /** Validate form and convert to result type */
@@ -110,11 +116,13 @@ const validateAndParse = async <T, V extends FieldValues = FieldValues>(
   form: FormParams,
   fields: Field[],
   toInput: (values: V) => T | Promise<T>,
+  validateValues?: (values: V) => string | null,
 ): Promise<ParseResult<T>> => {
   const validation = validateForm<V>(form, fields);
-  return validation.valid
-    ? { input: await toInput(validation.values), ok: true }
-    : { error: validation.error, ok: false };
+  if (!validation.valid) return { error: validation.error, ok: false };
+  const valuesError = validateValues?.(validation.values);
+  if (valuesError) return { error: valuesError, ok: false };
+  return { input: await toInput(validation.values), ok: true };
 };
 
 /** Check existence and return not found result if missing */
@@ -177,7 +185,12 @@ export const defineResource = <
   const { table, fields, toInput, nameField } = config;
 
   const parseInput = (form: FormParams): Promise<ParseResult<Input>> =>
-    validateAndParse<Input, Values>(form, fields, toInput);
+    validateAndParse<Input, Values>(
+      form,
+      fields,
+      toInput,
+      config.validateValues,
+    );
 
   const parsePartialInput = (
     form: FormParams,

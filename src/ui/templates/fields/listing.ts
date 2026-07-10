@@ -8,9 +8,14 @@ import { formatCurrency, getDecimalPlaces } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { Field } from "#shared/forms.tsx";
 import { formatBytes, MAX_ATTACHMENT_SIZE } from "#shared/limits.ts";
-import { MAX_DURATION_DAYS } from "#shared/types.ts";
+import {
+  ContactFieldSchema,
+  ListingTypeSchema,
+  MAX_DURATION_DAYS,
+} from "#shared/types.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
+import { picklistOptions } from "#templates/fields/picklist-options.ts";
 import {
   buildDescriptionField,
   buildHiddenField,
@@ -39,10 +44,7 @@ export const getListingFields = (): Field[] => [
     hint: t("fields.listing.type_hint"),
     label: t("fields.listing.type"),
     name: "listing_type",
-    options: [
-      { label: t("fields.listing.type_standard"), value: "standard" },
-      { label: t("fields.listing.type_daily"), value: "daily" },
-    ],
+    options: picklistOptions(ListingTypeSchema, "fields.listing.type"),
     type: "select",
     validate: validateListingType,
   },
@@ -137,15 +139,7 @@ export const getListingFields = (): Field[] => [
     hintHtml: t("fields.listing.contact_fields_hint_html"),
     label: t("fields.listing.contact_fields"),
     name: "fields",
-    options: [
-      { label: t("common.email"), value: "email" },
-      { label: t("fields.listing.contact_phone"), value: "phone" },
-      { label: t("common.address"), value: "address" },
-      {
-        label: t("common.special_instructions"),
-        value: "special_instructions",
-      },
-    ],
+    options: picklistOptions(ContactFieldSchema, "fields.listing.contact"),
     type: "checkbox-group",
     validate: validateListingFields,
   },

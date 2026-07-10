@@ -229,6 +229,11 @@ a small, isolated assertion-strength improvement.*
   string and passes even if the flash carries the wrong message. Assert the actual
   validation error text (or another specific error contract) so the negative path
   is genuine. (Original monolith line 990.)
+- **`payment.test.ts` — assert payment stays unrefunded after ledger failure.**
+  The "surfaces a Stripe refund the ledger could not record" test only checks the
+  error flash; its comment says the payment must remain visibly un-refunded. Add a
+  state/UI assertion after the POST so a regression that both flashes an error AND
+  marks the payment refunded cannot pass. (Original monolith lines 2340–2384.)
 
 - **`resend-notification.test.ts` — `setTimeout(resolve, 0)` is race-prone.** The
   "a package member's resend rehydrates every line" test waits for the

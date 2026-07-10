@@ -1,7 +1,14 @@
 /** Modifier form fields (same for create and edit — no slug). */
 
 import type { Field } from "#shared/forms.tsx";
+import {
+  CalcKindSchema,
+  ModifierDirectionSchema,
+  ModifierScopeSchema,
+  ModifierTriggerSchema,
+} from "#shared/price-modifier.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
+import { picklistOptions } from "#templates/fields/picklist-options.ts";
 
 /** Form values for the modifier create/edit form. */
 export type ModifierFormValues = {
@@ -30,21 +37,14 @@ export const modifierFields: Field[] = [
     defaultValue: "fixed",
     label: "Type",
     name: "calc_kind",
-    options: [
-      { label: "Fixed amount", value: "fixed" },
-      { label: "Percentage", value: "percent" },
-      { label: "Multiplier", value: "multiply" },
-    ],
+    options: picklistOptions(CalcKindSchema, "modifiers.calc_kind"),
     type: "select",
   },
   {
     defaultValue: "charge",
     label: "Direction",
     name: "direction",
-    options: [
-      { label: "Charge (adds to the price)", value: "charge" },
-      { label: "Discount (reduces the price)", value: "discount" },
-    ],
+    options: picklistOptions(ModifierDirectionSchema, "modifiers.direction"),
     type: "select",
   },
   {
@@ -65,12 +65,7 @@ export const modifierFields: Field[] = [
     hint: "When this applies. Promo codes are entered by the buyer at checkout; optional add-ons are chosen by the buyer; question answers apply when the buyer picks a linked answer (choose the answers on the edit page after saving).",
     label: "Trigger",
     name: "trigger",
-    options: [
-      { label: "Automatic (always)", value: "automatic" },
-      { label: "Promo code", value: "code" },
-      { label: "Optional add-on", value: "optional" },
-      { label: "Question answer", value: "answer" },
-    ],
+    options: picklistOptions(ModifierTriggerSchema, "modifiers.trigger"),
     type: "select",
   },
   {
@@ -85,11 +80,7 @@ export const modifierFields: Field[] = [
     hint: "Which items this applies to. For specific listings or groups, choose the listings/groups on the edit page after saving.",
     label: "Applies to",
     name: "scope",
-    options: [
-      { label: "The whole order", value: "all" },
-      { label: "Specific listings", value: "listings" },
-      { label: "Listings in specific groups", value: "groups" },
-    ],
+    options: picklistOptions(ModifierScopeSchema, "modifiers.scope"),
     type: "select",
   },
   {
