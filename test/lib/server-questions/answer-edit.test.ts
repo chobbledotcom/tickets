@@ -73,13 +73,17 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const response = await adminGet(
         `/admin/questions/${qId}/answers/${aId}/edit`,
       );
-      await expectHtmlResponse(
+      const html = await expectHtmlResponse(
         response,
         200,
         "Editable",
         "Surcharge tier",
         'name="modifier_id"',
       );
+      // The shared child-edit frame: a back link to the question and a small
+      // context line naming it.
+      expect(html).toContain(`href="/admin/questions/${qId}"`);
+      expect(html).toContain("Answer for: Edit answer page");
     });
 
     test("updates the answer text and redirects to the question", async () => {

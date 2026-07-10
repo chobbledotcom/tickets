@@ -34,6 +34,7 @@ import {
   getAllAttributesWithOptions,
   getAttributeId,
   getAttributeIdsOrdered,
+  getAttributeOptionListingIds,
   getAttributeWithOptions,
   getNextAttributeOptionSortOrder,
   pruneInvalidAttributeOptionIds,
@@ -41,15 +42,22 @@ import {
   swapAttributeOptionOrder,
   swapAttributeOrder,
 } from "#shared/db/attributes.ts";
+import { getAllListingOptions } from "#shared/db/listings.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms.tsx";
+import type { AdminSession } from "#shared/types.ts";
 import {
   adminAttributeDeletePage,
   adminAttributeOptionDeletePage,
+  adminAttributeOptionEditPage,
   adminAttributePage,
   adminAttributesPage,
   attributeNameFlat,
 } from "#templates/admin/attributes.tsx";
+import {
+  attributeListingRows,
+  optionListingCounts,
+} from "./attribute-page-data.ts";
 import { createListingChoicePost } from "./listing-choice-post.ts";
 /* jscpd:ignore-end */
 
@@ -104,10 +112,34 @@ const handleAttributesPost = createAuthedFormRoute({
   },
 });
 
+/** The listing usage both detail pages show: which listings selected each of
+ * the attribute's options, as per-option counts plus a builder that turns any
+ * subset of the options into "listings using this" table rows. */
+const loadAttributeListingUse = async (attributeId: number) => {
+  const [listingIdsByOption, listingOptions] = await Promise.all([
+    getAttributeOptionListingIds(attributeId),
+    getAllListingOptions(),
+  ]);
+  return {
+    listingCounts: optionListingCounts(listingIdsByOption),
+    rowsFor: (options: AttributeOption[]) =>
+      attributeListingRows(options, listingIdsByOption, listingOptions),
+  };
+};
+
 const handleAttributeGet = ownerGetById(
   getAttributeWithOptions,
-  (attribute, session) =>
-    htmlResponse(adminAttributePage(attribute, session, getFlash().error)),
+  async (attribute, session) => {
+    const { listingCounts, rowsFor } = await loadAttributeListingUse(
+      attribute.id,
+    );
+    return htmlResponse(
+      adminAttributePage(attribute, session, getFlash().error, {
+        listingCounts,
+        listings: rowsFor(attribute.options),
+      }),
+    );
+  },
 );
 
 type AttributeParams = { id: number };
@@ -209,8 +241,8 @@ const optionRoute =
     handler: (
       attribute: AttributeWithOptions,
       option: AttributeOption,
-      session: Parameters<typeof adminAttributeOptionDeletePage>[2],
-    ) => Response,
+      session: AdminSession,
+    ) => Response | Promise<Response>,
   ) =>
   (request: Request, params: AttributeOptionParams): Promise<Response> =>
     requireOwnerOr(request, async (session) => {
@@ -229,6 +261,19 @@ const handleDeleteOptionGet = optionRoute((attribute, option, session) =>
     ),
   ),
 );
+
+const handleEditOptionGet = optionRoute(async (attribute, option, session) => {
+  const { rowsFor } = await loadAttributeListingUse(attribute.id);
+  return htmlResponse(
+    adminAttributeOptionEditPage(
+      attribute,
+      option,
+      session,
+      getFlash().error,
+      rowsFor([option]),
+    ),
+  );
+});
 
 const optionDeletePath = ({ id, optionId }: AttributeOptionParams): string =>
   `/admin/attributes/${id}/options/${optionId}/delete`;
@@ -254,8 +299,8 @@ const handleDeleteOptionPost = createVerifiedFormRoute<
   },
 });
 
-const editOptionPath = ({ id }: AttributeOptionParams): string =>
-  `/admin/attributes/${id}`;
+const editOptionPath = ({ id, optionId }: AttributeOptionParams): string =>
+  `/admin/attributes/${id}/options/${optionId}/edit`;
 
 const handleEditOptionPost = createAuthedFormRoute<
   { text: string },
@@ -329,6 +374,7 @@ export const attributesRoutes = {
     "GET /admin/attributes": handleAttributesGet,
     "GET /admin/attributes/:id": handleAttributeGet,
     "GET /admin/attributes/:id/options/:optionId/delete": handleDeleteOptionGet,
+    "GET /admin/attributes/:id/options/:optionId/edit": handleEditOptionGet,
     "POST /admin/attributes": handleAttributesPost,
     "POST /admin/attributes/:id/edit": handleAttributeEdit,
     "POST /admin/attributes/:id/move-down": moveAttributeHandler(1),

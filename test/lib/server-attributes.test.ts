@@ -201,7 +201,7 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
         ).response,
       );
       await expectFlashRedirect(
-        `/admin/attributes/${attribute.id}`,
+        `/admin/attributes/${attribute.id}/options/${option.id}/edit`,
         expect.any(String),
         false,
       )(
