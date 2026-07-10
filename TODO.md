@@ -394,6 +394,31 @@ look.
   fail-closed behaviour. See the "Respect the subrequest budget" guidance in
   AGENTS.md.
 
+## Cold start: lazy-load the migration implementations (from PR #1714)
+
+*Origin: `docs/cold-start.md`.* `src/shared/db/migrations.ts` statically
+imports every per-migration module (~70 files) — the bulk of the remaining
+~120 eager `#shared/db/*` modules. A steady-state boot only needs each
+migration's *id* plus `LATEST_UPDATE`/`SCHEMA_HASH`; the fix is a registry of
+`{ id, load: () => import(...) }` pairs awaited only on the migration path.
+Deferred: it touches every migration module and `runMigrations`' control flow
+(see the load-bearing baseline test in `test/shared/db/migrations.test.ts`)
+for a slice of ~80ms of CPU. Re-measure with
+`scripts/bench/cold-start/bundle-load.ts` before and after.
+
+## Cross-request pending work vs. restore (from PR #1714)
+
+PR #1714 makes the restore-confirm handler drain its own request's pending
+work before `restoreFromZip()`, so a queued script-version write can't land
+after the replay and clobber the restored commit. Residual window (Codex):
+pending work is scoped per request, so when a *concurrent* request ran
+`initDb()` its queued marker write is invisible to the restore's flush.
+Requires a cold deploy-boot racing an owner restore on one isolate; impact is
+only the flash's commit hint. Fix direction: an isolate-level in-flight set
+in `src/shared/pending-work.ts` + `flushAllPendingWork()` for the restore
+path; extend the race harness in `test/lib/server-backup.test.ts` ("a
+deploy's first request cannot clobber...") with a concurrent cold GET.
+
 ## Equivalent-mutant entries challenged by review (from PR #1717)
 
 *Origin: CodeRabbit review on PR #1717 (import-graph slimming). The challenged
