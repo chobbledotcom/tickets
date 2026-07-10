@@ -22,7 +22,8 @@ import {
   getLogisticsAssignments,
   setLogisticsAssignments,
 } from "#shared/db/logistics.ts";
-import { DEMO_ADDRESSES, setDemoModeForTest } from "#shared/demo.ts";
+import { DEMO_ADDRESSES } from "#shared/demo.ts";
+import { setDemoModeForTest } from "#shared/demo-mode.ts";
 import {
   adminFormPost,
   buildAttendeeEditForm,

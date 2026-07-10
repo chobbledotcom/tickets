@@ -25,8 +25,8 @@ import {
   DEMO_NAMES,
   DEMO_SERVICING_NAMES,
   SERVICING_DEMO_FIELDS,
-  setDemoModeForTest,
 } from "#shared/demo.ts";
+import { setDemoModeForTest } from "#shared/demo-mode.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
   adminPost,

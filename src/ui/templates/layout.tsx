@@ -9,7 +9,7 @@ import {
   JS_PATH,
 } from "#shared/asset-paths.ts";
 import { settings } from "#shared/db/settings.ts";
-import { DEMO_BANNER, isDemoMode } from "#shared/demo.ts";
+import { DEMO_BANNER, isDemoMode } from "#shared/demo-mode.ts";
 import { flashConsumed, getFlash } from "#shared/flash-context.ts";
 import { Flash } from "#shared/forms.tsx";
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";

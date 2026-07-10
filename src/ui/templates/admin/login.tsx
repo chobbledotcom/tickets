@@ -4,7 +4,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { isDemoMode } from "#shared/demo.ts";
+import { isDemoMode } from "#shared/demo-mode.ts";
 import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";

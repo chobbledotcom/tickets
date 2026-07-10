@@ -19,12 +19,14 @@ import {
   DEMO_LISTING_NAMES,
   DEMO_NAMES,
   type DemoFieldMap,
-  isDemoMode,
   LISTING_DEMO_FIELDS,
-  resetDemoMode,
-  setDemoModeForTest,
   wrapResourceForDemo,
 } from "#shared/demo.ts";
+import {
+  isDemoMode,
+  resetDemoMode,
+  setDemoModeForTest,
+} from "#shared/demo-mode.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
   createTestDbWithSetup,

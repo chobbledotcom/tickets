@@ -5,7 +5,7 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { settings } from "#shared/db/settings.ts";
-import { setDemoModeForTest } from "#shared/demo.ts";
+import { setDemoModeForTest } from "#shared/demo-mode.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import {
   adminGet,

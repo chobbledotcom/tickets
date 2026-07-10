@@ -3,11 +3,8 @@
  */
 
 import { compact } from "#fp";
-import {
-  checkoutResponse,
-  errorRedirect,
-  notFoundResponse,
-} from "#routes/response.ts";
+import { checkoutResponse } from "#routes/payment-response.ts";
+import { errorRedirect, notFoundResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import {
   type BuildTreeInput,

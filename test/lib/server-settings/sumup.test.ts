@@ -3,7 +3,7 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { settings } from "#shared/db/settings.ts";
-import { setDemoModeForTest } from "#shared/demo.ts";
+import { setDemoModeForTest } from "#shared/demo-mode.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import {
   adminFormPost,

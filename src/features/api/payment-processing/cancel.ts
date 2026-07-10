@@ -8,12 +8,13 @@
 
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import type { BookingIntent } from "#routes/api/webhook-types.ts";
+import { paymentErrorResponse } from "#routes/payment-response.ts";
 import {
   getVisibleGroupMembers,
   groupBookable,
 } from "#routes/public/discovery.ts";
 import { lacksStandalonePublicPage } from "#routes/public/ticket-payment.ts";
-import { htmlResponse, paymentErrorResponse } from "#routes/response.ts";
+import { htmlResponse } from "#routes/response.ts";
 import { lineGroupIds } from "#shared/booking/signed-metadata.ts";
 import { groups } from "#shared/db/groups.ts";
 import { getListing } from "#shared/db/listings.ts";

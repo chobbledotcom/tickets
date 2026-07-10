@@ -4,7 +4,7 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getGroupIdsByListingId } from "#shared/db/groups.ts";
-import { setDemoModeForTest } from "#shared/demo.ts";
+import { setDemoModeForTest } from "#shared/demo-mode.ts";
 import {
   adminFormPost,
   adminGet,

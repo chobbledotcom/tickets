@@ -332,9 +332,10 @@ export type SqlStatement = { sql: string; args: InValue[] };
  * committed; if the batch throws (rollback) it is skipped, so a cache is never
  * cleared for a write that did not land.
  */
-const trackedBatch = async (
+const runBatch = async (
   statements: SqlStatement[],
   mode: TransactionMode,
+  invalidate: boolean,
 ): Promise<ResultSet[]> => {
   const start = performance.now();
   // Batch writes serialize against the single SQLite writer like any other write,
@@ -351,16 +352,29 @@ const trackedBatch = async (
   }
   for (const stmt of statements) {
     void logCompletedSql(stmt.sql);
-    invalidateForSql(stmt.sql);
+    if (invalidate) invalidateForSql(stmt.sql);
   }
   return results;
+};
+
+/**
+ * Execute write statements without firing the table-cache invalidation
+ * hooks. Reserved for plaintext bookkeeping rows (the script-version
+ * markers) that no cache or settings snapshot ever holds: they are written
+ * concurrently with request work, and the normal write path would wipe the
+ * settings snapshot the request just loaded for no benefit.
+ */
+export const executeBatchWithoutCacheInvalidation = async (
+  statements: SqlStatement[],
+): Promise<void> => {
+  await runBatch(statements, "write", false);
 };
 
 /** Create a batch executor for a given transaction mode */
 const batchFor =
   (mode: TransactionMode) =>
   (statements: SqlStatement[]): Promise<ResultSet[]> =>
-    trackedBatch(statements, mode);
+    runBatch(statements, mode, true);
 
 /** Execute multiple read queries in a single round-trip using Turso batch API. */
 export const queryBatch = batchFor("read");

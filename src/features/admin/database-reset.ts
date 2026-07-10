@@ -19,7 +19,7 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import { getAllImages } from "#shared/db/images.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { resetDatabase } from "#shared/db/migrations.ts";
-import { isDemoMode } from "#shared/demo.ts";
+import { isDemoMode } from "#shared/demo-mode.ts";
 import { defineForm } from "#shared/forms.tsx";
 import {
   deleteAllImageStorageFiles,

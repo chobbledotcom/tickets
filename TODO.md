@@ -427,3 +427,29 @@ look.
   and group the package-pricing loads, preserving the existing validation and
   fail-closed behaviour. See the "Respect the subrequest budget" guidance in
   AGENTS.md.
+
+## Cold start: lazy-load the migration implementations (from PR #1714)
+
+*Origin: `docs/cold-start.md`, improvement 2, last bullet.*
+
+The cold-start work broke the cheap eager import edges (scanner pattern,
+public template barrel, payment templates, demo banner), taking eager
+top-level evaluation from ~89ms to ~78ms and the eager module count from 371
+to 297. The one remaining big edge is `src/shared/db/migrations.ts`, which
+statically imports every per-migration module (`src/shared/db/migrations/*`,
+~70 files) plus the schema helpers they pull in — the bulk of the ~120 eager
+`#shared/db/*` modules.
+
+A steady-state boot only needs each migration's *id* (to compare against
+`schema_migrations`) and `LATEST_UPDATE`/`SCHEMA_HASH`; the implementations
+are only executed when the database is behind. The fix is a registry split:
+a light module exporting `{ id, load: () => import(...) }` pairs that
+`migrations.ts` awaits only on the migration path. It is deferred, not done,
+because it touches every migration module (repo rule: migrate all callers,
+no shims), changes `runMigrations`' control flow around `once()`-retry and
+baseline healing (see the load-bearing test
+`test/shared/db/migrations.test.ts` "initDb baselines current databases
+without schema_migrations"), and the measured payoff is a slice of ~78ms of
+CPU — small next to the ~500ms of network latency the same PR already
+removed. Worth doing when eager-eval time next matters; re-measure with
+`deno run -A scripts/bench/cold-start/bundle-load.ts` before and after.

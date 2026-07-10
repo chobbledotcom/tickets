@@ -9,7 +9,11 @@
 import { compact, lazyRef } from "#fp";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import { deployScriptCode } from "#shared/bunny-cdn.ts";
-import { executeBatch, inPlaceholders, queryAll } from "#shared/db/client.ts";
+import {
+  executeBatchWithoutCacheInvalidation,
+  inPlaceholders,
+  queryAll,
+} from "#shared/db/client.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { logDebug } from "#shared/logger.ts";
 
@@ -155,7 +159,11 @@ export const recordScriptVersion = async (): Promise<void> => {
         : null,
     ]);
     if (changes.length > 0) {
-      await executeBatch(
+      // These plaintext markers never live in the settings snapshot, and
+      // this runs *concurrently* with the request — the normal write path
+      // would fire the settings invalidation hook and wipe the snapshot the
+      // request just loaded.
+      await executeBatchWithoutCacheInvalidation(
         changes.map(([key, value]) => ({
           args: [key, value],
           sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",

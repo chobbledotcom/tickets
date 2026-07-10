@@ -131,7 +131,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
     });
 
     test("is disabled in demo mode", async () => {
-      const { setDemoModeForTest } = await import("#shared/demo.ts");
+      const { setDemoModeForTest } = await import("#shared/demo-mode.ts");
       setDemoModeForTest(true);
       try {
         const response = await importUpload({
