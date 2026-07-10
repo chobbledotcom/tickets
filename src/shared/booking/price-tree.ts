@@ -142,17 +142,28 @@ const PRICE_RULES: { [K in PriceRuleKind]: PriceRuleSpec<K> } = {
   },
 };
 
+/** Compile-time assertion that `order` names EVERY {@link PriceRuleKind} — a new
+ * tier added to {@link PriceRule} becomes a type error here until it is given a
+ * place in the precedence, so it can never be silently skipped straight to
+ * `BASE`. `T` is inferred as the literal tuple (the `const` type parameter), and
+ * the conditional collapses the parameter to `never` when a kind is missing. */
+const orderedKinds = <const T extends readonly PriceRuleKind[]>(
+  order: [PriceRuleKind] extends [T[number]] ? T : never,
+): T => order;
+
 /** The price-rule precedence as data, highest first: the FIRST kind whose
  * {@link PriceRuleSpec.appliesTo} accepts the listing wins — `OVERRIDE >
  * PAY_MORE > DAY_PRICE > BASE`. This is the single source of truth for the
  * precedence the app once repeated as a comment, an if-chain, and a switch;
- * `BASE` always applies and sits last, so a match is always found. */
-export const PRICE_RULE_PRECEDENCE: readonly PriceRuleKind[] = [
+ * `BASE` always applies and sits last, so a match is always found. The list is
+ * exhaustive by construction ({@link orderedKinds}), so it can never fall out of
+ * step with the {@link PRICE_RULES} table. */
+const PRICE_RULE_PRECEDENCE = orderedKinds([
   "OVERRIDE",
   "PAY_MORE",
   "DAY_PRICE",
   "BASE",
-];
+]);
 
 /** Choose a listing's {@link PriceRule} by the {@link PRICE_RULE_PRECEDENCE}
  * order — the ONE selector the tree builder and every member-pricing surface
