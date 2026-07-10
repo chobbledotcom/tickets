@@ -23,17 +23,14 @@ import { getIframeMode } from "#shared/iframe.ts";
 import type { Image, ItemImageProjection } from "#shared/types.ts";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { Layout } from "#templates/layout.tsx";
-import { splitChildQuestions } from "./reservations/child-block.ts";
-import { buildContactFields } from "./reservations/contact-fields.ts";
-import {
-  dayConfig,
-  resolveDayCountPriceFor,
-} from "./reservations/day-config.ts";
-import { TicketPageForm, unavailableMessage } from "./reservations/form.tsx";
-import { TicketPageHeader } from "./reservations/header.tsx";
-import type { BookingPrefill } from "./reservations/inputs.ts";
-import { ticketPageHeadExtra } from "./reservations/og.ts";
-import { buildPageListingRows } from "./reservations/packages.ts";
+import { splitChildQuestions } from "./child-block.ts";
+import { buildContactFields } from "./contact-fields.ts";
+import { dayConfig, resolveDayCountPriceFor } from "./day-config.ts";
+import { TicketPageForm, unavailableMessage } from "./form.tsx";
+import { TicketPageHeader } from "./header.tsx";
+import type { BookingPrefill } from "./inputs.ts";
+import { ticketPageHeadExtra } from "./og.ts";
+import { buildPageListingRows } from "./packages.ts";
 import {
   buildPageTree,
   headerListing,
@@ -41,7 +38,7 @@ import {
   packagePageAvailability,
   pageOrChildPaid,
   pagePaid,
-} from "./reservations/page-meta.ts";
+} from "./page-meta.ts";
 
 /** Quantity values parsed from ticket form */
 export type TicketQuantities = Map<number, number>;

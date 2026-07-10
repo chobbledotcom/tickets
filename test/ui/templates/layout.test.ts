@@ -7,7 +7,7 @@ import { settings } from "#shared/db/settings.ts";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
-import { ticketPage } from "#templates/public/reservations.tsx";
+import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import {
   describeWithEnv,
   setupTestEncryptionKey,

@@ -34,7 +34,8 @@ generalized passes: render, fold, price, capacity, revalidate.
 **Already shipped (phases 1 & 2, PR #1462) — do not redo:**
 - Tree model + pure builder: `src/shared/booking/tree.ts`, `build-tree.ts`
   (`buildBookingTree`). The public renderer `src/ui/templates/public/
-  reservations.tsx` drives field names/rendering off the tree.
+  reservations/` (entry point `ticket-page.tsx`) drives field names/rendering
+  off the tree.
 - Unified walks: `fold-tree.ts` (`foldBookingTree`), `price-tree.ts`
   (`effectivePrice`, `priceRuleByListingId`, `packageMemberPriceRule`),
   `capacity-tree.ts` (`packageQuantityCap`, own-cap + group-pool arms).
