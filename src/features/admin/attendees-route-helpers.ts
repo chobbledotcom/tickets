@@ -104,6 +104,18 @@ const attendeeActionHandlers = createEntityRouteHandlers(
 export const attendeeActionUrl = (attendeeId: number, action: string): string =>
   `/admin/attendees/${attendeeId}/${action}`;
 
+/** The action URL with the caller's return_url threaded on, so bouncing back
+ *  to the confirm page keeps its "return here when done" link (and hidden
+ *  field) for a corrected retry. Empty return_url yields the plain action URL. */
+export const attendeeActionUrlWithReturn = (
+  attendeeId: number,
+  action: string,
+  returnUrl: string,
+): string =>
+  `${attendeeActionUrl(attendeeId, action)}${
+    returnUrl ? `?return_url=${encodeURIComponent(returnUrl)}` : ""
+  }`;
+
 /** An attendee-action confirm page renderer's shape. */
 type AttendeeActionRenderer = (
   data: AttendeeWithListing,
@@ -144,7 +156,11 @@ export const verifiedAttendeeAction = (
     const error = verifyOrRedirect(
       form,
       data.attendee.name,
-      attendeeActionUrl(data.attendee.id, action),
+      attendeeActionUrlWithReturn(
+        data.attendee.id,
+        action,
+        form.getString("return_url"),
+      ),
       "Attendee name",
       actionLabel,
     );
