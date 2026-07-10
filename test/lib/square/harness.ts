@@ -1,7 +1,8 @@
-import { afterEach, beforeEach, describe } from "@std/testing/bdd";
+import { afterAll, afterEach, beforeEach, describe } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { resetSquareClient, type SquareClient } from "#shared/square.ts";
 import { createTestDb, resetDb } from "#test-utils";
+import { reclaimLeakedFdsNow } from "#test-utils/reclaim-fds.ts";
 
 /** Mock implementation function type (accepts unknown args, returns unknown) */
 type MockFn = (...args: unknown[]) => unknown;
@@ -55,6 +56,11 @@ export const describeSquare = (body: () => void): void => {
       resetSquareClient();
       resetDb();
     });
+
+    // These small split files each run fewer than RECLAIM_FDS_EVERY DB setups,
+    // so createTestDb's amortised GC never fires — hand back libsql's leaked
+    // descriptors at suite teardown, exactly as describeWithEnv does.
+    afterAll(() => reclaimLeakedFdsNow());
 
     body();
   });
