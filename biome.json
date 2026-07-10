@@ -152,9 +152,7 @@
     },
     {
       "includes": [
-        "src/shared/db/migrations/schema.ts",
-        "test/lib/square.test.ts",
-        "test/lib/stripe.test.ts"
+        "src/shared/db/migrations/schema.ts"
       ],
       "linter": {
         "rules": {

@@ -330,6 +330,12 @@ src/features/admin/modifiers.ts:400:27  return notFoundResponse() → return und
 src/features/admin/modifiers.ts:416:38  return notFoundResponse() → return undefined    # same as 400: undefined → routeMainApp `?? notFoundResponse()` → 404
 src/features/admin/modifiers.ts:527:10  return Promise.resolve() → return undefined    # whole-order modifier writes no links; awaited by caller, so undefined and Promise.resolve() agree
 
+# attendees-route-helpers.ts — loadAttendeeForListing's "not found" returns feed
+# orNotFound's truthiness check (`data ? handler : notFoundResponse()`), so a
+# null and an undefined both take the 404 arm through every reachable caller.
+src/features/admin/attendees-route-helpers.ts:49:23  return null → return undefined    # missing attendee row; orNotFound uses truthiness, so null and undefined agree
+src/features/admin/attendees-route-helpers.ts:52:62  return null → return undefined    # undecryptable / wrong-listing attendee; orNotFound uses truthiness, so null and undefined agree
+
 # group-page-data: groupHasPaidListing's result is consumed only in boolean
 # context (decryptAttendees's paidListing flag and the revenue-row gate), so a
 # false vs undefined early-return is indistinguishable; the two `?? →  ||` are

@@ -165,7 +165,17 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
         return_url: "/admin/calendar#attendees",
       })();
       expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("does not match"), false);
+      expectFlash(
+        response,
+        "Attendee name does not match. Please type the exact attendee name to confirm deletion.",
+        false,
+      );
+      // The bounce-back confirm page must keep the caller's return_url so a
+      // corrected retry still lands where the operator came from.
+      const location = response.headers.get("location") ?? "";
+      expect(location).toContain(
+        `return_url=${encodeURIComponent("/admin/calendar#attendees")}`,
+      );
     });
 
     test("deletes attendee with matching name (case insensitive)", async () => {
