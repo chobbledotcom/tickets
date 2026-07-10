@@ -33,11 +33,13 @@ import type { CheckoutIntent } from "#shared/payments.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import {
-  type BookingPrefill,
   orderSummary,
   orderSummaryMessage,
-  type TicketPrefill,
-} from "#templates/public.tsx";
+} from "#templates/public/order-summary.tsx";
+import type {
+  BookingPrefill,
+  TicketPrefill,
+} from "#templates/public/reservations.tsx";
 import {
   applyBookingPageParentSoldOut,
   childCapacityInfo,

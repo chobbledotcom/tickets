@@ -24,11 +24,11 @@ import type { CheckoutIntent } from "#shared/payments.ts";
 import { listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { type QrBookPayload, verifyQrBookToken } from "#shared/qr-token.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import {
-  type BookingPrefill,
-  qrBookErrorPage,
-  type TicketPrefill,
-} from "#templates/public.tsx";
+import { qrBookErrorPage } from "#templates/public/errors.tsx";
+import type {
+  BookingPrefill,
+  TicketPrefill,
+} from "#templates/public/reservations.tsx";
 import { getTicketContext, runCheckoutFlow } from "./ticket-payment.ts";
 import { handleTicket } from "./ticket-submit.ts";
 

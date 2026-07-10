@@ -3,7 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#shared/booking/model.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { renderListingImage, ticketPage } from "#templates/public.tsx";
+import { ticketPage } from "#templates/public/reservations.tsx";
+import { renderListingImage } from "#templates/public/shared.tsx";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import {
   describeWithEnv,

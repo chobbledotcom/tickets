@@ -10,7 +10,7 @@ import type { ColumnDef, ColumnGenerators } from "#shared/column-order.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
-import { renderListingImage } from "#templates/public.tsx";
+import { renderListingImage } from "#templates/public/shared.tsx";
 
 type ListingCol = ColumnDef<ListingWithCount>;
 

@@ -15,7 +15,7 @@ import {
   rateLimitedPage,
   siteNotActivatedPage,
   temporaryErrorPage,
-} from "#templates/public.tsx";
+} from "#templates/public/errors.tsx";
 
 /**
  * Shared TextEncoder for pre-encoding string response bodies to Uint8Array.
