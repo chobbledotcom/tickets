@@ -311,11 +311,7 @@ export const createLegacyMigrationHarness = (): LegacyMigrationHarness => {
   const cleanup = async (): Promise<void> => {
     resetDb();
     for (const { client, path } of openFileDbs.splice(0)) {
-      try {
-        client.close();
-      } catch {
-        // already closed
-      }
+      client.close();
       cleanupTestDbPath(path);
     }
   };

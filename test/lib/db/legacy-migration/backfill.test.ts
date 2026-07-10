@@ -48,12 +48,8 @@ describe("db > listing_attendees migration from legacy schema (backfill)", () =>
       }),
     );
 
-    const pragmaStub = stubPragmaForeignKeysOff(client);
-    try {
-      await initDb();
-    } finally {
-      pragmaStub.restore();
-    }
+    using _pragmaStub = stubPragmaForeignKeysOff(client);
+    await initDb();
 
     const listings = await client.execute("SELECT duration_days FROM listings");
     expect(listings.rows[0]!.duration_days).toBe(1);

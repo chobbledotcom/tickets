@@ -35,12 +35,8 @@ describe("db > listing_attendees migration from legacy schema (questions)", () =
       }),
     );
 
-    const pragmaStub = stubPragmaForeignKeysOff(client);
-    try {
-      await initDb();
-    } finally {
-      pragmaStub.restore();
-    }
+    using _pragmaStub = stubPragmaForeignKeysOff(client);
+    await initDb();
 
     const questions = await client.execute(
       "SELECT id, text, sort_order, display_type FROM questions",
@@ -65,12 +61,8 @@ describe("db > listing_attendees migration from legacy schema (questions)", () =
       insert("listing_questions", { id: 1, listing_id: 1, question_id: 1 }),
     );
 
-    const pragmaStub = stubPragmaForeignKeysOff(client);
-    try {
-      await initDb();
-    } finally {
-      pragmaStub.restore();
-    }
+    using _pragmaStub = stubPragmaForeignKeysOff(client);
+    await initDb();
 
     // The free-text migration rebuilds listing_questions FK-free (so the
     // questions table it references can itself be rebuilt to relax the
