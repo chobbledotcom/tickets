@@ -6,6 +6,8 @@
 
 import { t } from "#i18n";
 import type { Field } from "#shared/forms.tsx";
+import { AdminLevelSchema } from "#shared/types.ts";
+import { picklistOptions } from "#templates/fields/picklist-options.ts";
 import {
   getUsernameFieldBase,
   validateDate,
@@ -285,12 +287,7 @@ export const getInviteUserFields = (): Field[] => [
   {
     label: t("fields.user.role"),
     name: "admin_level",
-    options: [
-      { label: t("fields.user.manager"), value: "manager" },
-      { label: t("fields.user.owner"), value: "owner" },
-      { label: t("fields.user.agent"), value: "agent" },
-      { label: t("fields.user.editor"), value: "editor" },
-    ],
+    options: picklistOptions(AdminLevelSchema, "fields.user"),
     required: true,
     type: "select",
   },

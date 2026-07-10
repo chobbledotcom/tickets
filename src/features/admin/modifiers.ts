@@ -272,10 +272,17 @@ const validateModifier = (
   if (isOptionalAddOn && requiresPreviousBookings) {
     return Promise.resolve("Optional add-ons cannot require previous bookings");
   }
-  const valueError = modifierValueError(input.calcKind, input.calcValue);
-  if (valueError) return Promise.resolve(valueError);
   return childAddOnInputError(input, id);
 };
+
+/** The kind-aware `calc_value` check, run on the raw form values (where the
+ * chosen `calc_kind` sits beside the value) before they are converted to a
+ * {@link ModifierInput}. A crafted POST can still send an unknown kind, so the
+ * bounds are skipped for one — {@link validateModifier} rejects it by name. */
+const modifierValuesError = (values: ModifierFormValues): string | null =>
+  isCalcKind(values.calc_kind)
+    ? modifierValueError(values.calc_kind, values.calc_value)
+    : null;
 
 const modifiersResource = defineNamedResource<
   ModifierRow,
@@ -288,6 +295,7 @@ const modifiersResource = defineNamedResource<
   table: modifiersTable,
   toInput: extractModifierInput,
   validate: validateModifier,
+  validateValues: modifierValuesError,
 });
 
 // The list renders the projected total_revenue (Display = Modifier from
