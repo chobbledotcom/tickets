@@ -47,20 +47,20 @@ describe("sentry", () => {
   });
 
   describe("initSentry", () => {
-    test("does not initialize when SENTRY_URL is unset", () => {
+    test("does not initialize when SENTRY_URL is unset", async () => {
       restoreEnv = setTestEnv({ SENTRY_URL: undefined });
-      expect(initSentry()).toBe(false);
+      expect(await initSentry()).toBe(false);
     });
 
-    test("initializes when SENTRY_URL is set", () => {
+    test("initializes when SENTRY_URL is set", async () => {
       restoreEnv = setTestEnv({ SENTRY_URL: DSN });
-      expect(initSentry()).toBe(true);
+      expect(await initSentry()).toBe(true);
     });
 
-    test("is idempotent once initialized", () => {
+    test("is idempotent once initialized", async () => {
       restoreEnv = setTestEnv({ SENTRY_URL: DSN });
-      expect(initSentry()).toBe(true);
-      expect(initSentry()).toBe(true);
+      expect(await initSentry()).toBe(true);
+      expect(await initSentry()).toBe(true);
     });
   });
 
@@ -73,7 +73,7 @@ describe("sentry", () => {
 
     test("captures the original exception with its stack trace", async () => {
       restoreEnv = setTestEnv({ SENTRY_URL: DSN });
-      initSentry();
+      await initSentry();
 
       await captureServerError({
         code: ErrorCode.CDN_REQUEST,
@@ -96,7 +96,7 @@ describe("sentry", () => {
 
     test("sends the formatted message when no exception is attached", async () => {
       restoreEnv = setTestEnv({ SENTRY_URL: DSN });
-      initSentry();
+      await initSentry();
 
       const context = { code: ErrorCode.STRIPE_SIGNATURE, detail: "mismatch" };
       await captureServerError(context);
@@ -109,7 +109,7 @@ describe("sentry", () => {
 
     test("tags the event with listing and attendee ids", async () => {
       restoreEnv = setTestEnv({ SENTRY_URL: DSN });
-      initSentry();
+      await initSentry();
 
       await captureServerError({
         attendeeId: 99,

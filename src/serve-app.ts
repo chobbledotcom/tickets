@@ -22,14 +22,17 @@ import {
 } from "#shared/logger.ts";
 import { initSentry } from "#shared/sentry.ts";
 
-const initialize = once((): void => {
+const initialize = once((): Promise<boolean> => {
   validateBootChecks();
   // Start Sentry error reporting (no-op unless SENTRY_URL is configured).
-  initSentry();
+  // Loads the SDK lazily; the returned promise is awaited before serving so
+  // an error in the very first request still reaches Sentry.
+  const sentryReady = initSentry();
   // In production a request must never be killed by the N+1 guard: report it
   // to the error log instead of throwing (dev/test keep the default throw).
   setN1GuardNotifyOnly(true);
   logDebug("Setup", "App started");
+  return sentryReady;
 });
 
 /**
@@ -38,7 +41,7 @@ const initialize = once((): void => {
  */
 export const serveHandler = async (request: Request): Promise<Response> => {
   try {
-    initialize();
+    await initialize();
     return await handleRequest(request);
   } catch (error) {
     const url = new URL(request.url);
