@@ -151,14 +151,19 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const qId = await createQuestion("Dietary needs?");
       await addAnswer(qId, "Vegetarian");
       await addAnswer(qId, "Vegan");
+      const soloId = await createQuestion("Bringing a plus one?");
+      await addAnswer(soloId, "Yes");
 
       const response = await adminGet(`/admin/listing/${listing.id}/questions`);
-      await expectHtmlResponse(
+      const body = await expectHtmlResponse(
         response,
         200,
         "Question Listing",
         "Dietary needs?",
       );
+      // Each question's checkbox summarises its answers, pluralised by count.
+      expect(body).toContain("(2 options: Vegetarian, Vegan)");
+      expect(body).toContain("(1 option: Yes)");
     });
 
     test("shows assigned questions as checked", async () => {

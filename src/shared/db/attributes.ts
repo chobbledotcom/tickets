@@ -169,6 +169,18 @@ const decryptAttributeRows = async (
 
 const known = <T>(items: Map<number, T>, id: number): T => items.get(id)!;
 
+/** Group rows into a Map keyed by `key(row)`, keeping one `value(row)` per
+ * row in query order — the shared shape behind every "rows → id-keyed lists"
+ * read in this module. */
+const groupRows =
+  <R, V>(key: (row: R) => number, value: (row: R) => V) =>
+  (rows: R[]): Map<number, V[]> =>
+    reduce((acc: Map<number, V[]>, row: R) => {
+      const values = acc.get(key(row)) ?? [];
+      values.push(value(row));
+      return acc.set(key(row), values);
+    }, new Map<number, V[]>())(rows);
+
 const buildAttributeGroups = (
   rows: JoinedAttributeRow[],
   decrypted: DecryptedAttributeRows,
@@ -239,6 +251,28 @@ export const getAttributeIdsOrdered = async (): Promise<number[]> =>
 
 export const getAllAttributeOptionIds = async (): Promise<Set<number>> =>
   new Set(await queryIds("SELECT id FROM attribute_options"));
+
+type OptionListingRow = { listing_id: number; option_id: number };
+
+/** The ids of the listings that selected each of an attribute's options,
+ * keyed by option id. Options no listing uses are absent from the map. */
+export const getAttributeOptionListingIds = async (
+  attributeId: number,
+): Promise<Map<number, number[]>> =>
+  groupRows(
+    (row: OptionListingRow) => row.option_id,
+    (row) => row.listing_id,
+  )(
+    await queryAll<OptionListingRow>(
+      `SELECT listingAttribute.option_id, listingAttribute.listing_id
+         FROM listing_attribute_options AS listingAttribute
+         JOIN attribute_options AS attributeOption
+           ON attributeOption.id = listingAttribute.option_id
+        WHERE attributeOption.attribute_id = ?
+        ORDER BY listingAttribute.option_id, listingAttribute.listing_id`,
+      [attributeId],
+    ),
+  );
 
 export const assignNextAttributeSortOrder = async (
   attributeId: number,
@@ -318,17 +352,13 @@ const selectedOptionRows = (
         listingIds,
       );
 
-const selectedRowsForListing = (
-  rows: SelectedAttributeRow[],
-): Map<number, JoinedAttributeRow[]> =>
-  reduce(
-    (acc: Map<number, JoinedAttributeRow[]>, row: SelectedAttributeRow) => {
-      const listingRows = acc.get(row.listing_id) ?? [];
-      listingRows.push(row);
-      return acc.set(row.listing_id, listingRows);
-    },
-    new Map<number, JoinedAttributeRow[]>(),
-  )(rows);
+const selectedRowsForListing = groupRows<
+  SelectedAttributeRow,
+  JoinedAttributeRow
+>(
+  (row) => row.listing_id,
+  (row) => row,
+);
 
 export const getSelectedAttributesForListings = async (
   listingIds: number[],
