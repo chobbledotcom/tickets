@@ -162,7 +162,6 @@ export const runMutationInSnapshot = async (
 ): Promise<number> => {
   const id = createRunId();
   let record = newRunRecord(id, args, root);
-  await writeRunRecord(record);
 
   let child: Deno.ChildProcess | null = null;
   let interrupted = false;
