@@ -16,6 +16,7 @@
 import { expect } from "@std/expect";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import type { Group, Listing } from "#shared/types.ts";
+import { expectAttendeeCounts, expectFlash } from "./assertions.ts";
 import { createTestAttendee } from "./db-helpers/attendees.ts";
 import { createTestGroup } from "./db-helpers/groups.ts";
 import {
@@ -85,6 +86,92 @@ export const postCalculate = async (
   );
   return res.text();
 };
+
+/** POST a booking to `/ticket/<slug>` with the standard test contact
+ *  (`email: "a@b.com"`, `name: "Ada"`) merged into `fields`. The shared default
+ *  behind every parent-gate booking so the email/name pair is declared once,
+ *  not re-typed per test — `fields` overrides the defaults when a test needs a
+ *  distinct contact (e.g. a second buyer). `slug` may be a compound
+ *  `<a>+<b>` slugs string for multi-listing pages. */
+export const bookParent = (
+  slug: string,
+  fields: Record<string, string>,
+): Promise<Response> =>
+  postBooking(slug, { email: "a@b.com", name: "Ada", ...fields });
+
+/** Build the parent-quantity form field (`quantity_<id>`). */
+export const parentField = (
+  parent: Pick<Listing, "id">,
+  qty: string,
+): Record<string, string> => ({ [`quantity_${parent.id}`]: qty });
+
+/** Build a child-quantity form field (`child_qty_<parentId>_<childId>`). */
+export const childField = (
+  parent: Pick<Listing, "id">,
+  child: Pick<Listing, "id">,
+  qty: string,
+): Record<string, string> => ({ [`child_qty_${parent.id}_${child.id}`]: qty });
+
+/** A parent sharing a roomy 10-spot "Shared" group with its only child, and the
+ *  child ALSO in a tighter 1-spot "Tighter" group of its own — the shared setup
+ *  behind the "child not sold out by its tighter non-shared group" render and
+ *  discovery tests. The combined-demand check must use the group the parent and
+ *  child SHARE (10), not the child's tightest group overall (1). */
+export const makeRoomySharedChild = async (): Promise<{
+  child: Listing;
+  parent: Listing;
+}> => {
+  const groupA = await createTestGroup({ maxAttendees: 10, name: "Shared" });
+  const groupB = await createTestGroup({ maxAttendees: 1, name: "Tighter" });
+  const parent = await createTestListing({
+    groupIds: [groupA.id],
+    maxAttendees: 100,
+    name: "Base unit",
+  });
+  const child = await createTestListing({
+    groupIds: [groupA.id, groupB.id],
+    maxAttendees: 100,
+    name: "Add-on",
+  });
+  await listingChildren.setIds(parent.id, [child.id]);
+  return { child, parent };
+};
+
+/** A parent with TWO default children, returning `childA`/`childB` for the
+ *  per-unit multi-child fold tests so each can name its chosen child without
+ *  re-declaring the `makeParent({ children: [{}, {}] })` + destructure pair.
+ *  `parentSpec` overrides the parent's own spec (e.g. `{ maxQuantity: 5 }`). */
+export const makeTwoDefaultChildren = async (
+  parentSpec?: ListingSpec,
+): Promise<{
+  childA: Listing;
+  childB: Listing;
+  parent: Listing;
+}> => {
+  const { parent, children } = await makeParent({
+    children: [{}, {}],
+    ...(parentSpec !== undefined ? { parent: parentSpec } : {}),
+  });
+  return { childA: children[0]!, childB: children[1]!, parent };
+};
+
+/** A fixed 3-day daily parent with a customisable child priced 1 day £10 / 3
+ *  days £30 (unit_price 0) — the shared spec behind the "child inherits the
+ *  parent's duration" tests in both the parents-gate and parents-booking
+ *  suites. Declared once so the spec can't drift across the two. */
+export const makeCustomisableDailyParent = () =>
+  makeParent({
+    children: [
+      {
+        customisableDays: true,
+        dayPrices: { 1: 1000, 3: 3000 },
+        durationDays: 3,
+        maxPrice: 0,
+        unitPrice: 0,
+      },
+    ],
+    parent: { daily: true, durationDays: 3 },
+  });
 
 /** GET a JSON API path and return the raw Response. */
 export const apiGet = async (path: string): Promise<Response> => {
@@ -259,6 +346,57 @@ export const expectReserved = (response: Response): void => {
   expect(response.headers.get("location")!).toMatch(
     /^\/ticket\/reserved\?tokens=.+$/,
   );
+};
+
+/** Assert a booking was rejected at the parents gate: a 302 redirect, an error
+ *  flash (checked when `flash` is given), and zero attendee rows for
+ *  `listingId`. The shared tail of every parent-gate rejection test; callers
+ *  add extra child-row assertions after it. */
+export const expectRejectedBooking = async (
+  response: Response,
+  listingId: number,
+  flash?: string,
+): Promise<void> => {
+  expect(response.status).toBe(302);
+  expectFlash(response, flash, false);
+  await expectNoBooking({ id: listingId });
+};
+
+/** Assert a listing folded exactly one attendee line of `qty` — the shared
+ *  "one folded line of quantity N" persistence check behind the multi-child
+ *  fold tests. Delegates to {@link expectAttendeeCounts} (one-or-many: a
+ *  single folded line is a one-element list). Does NOT assert the redirect —
+ *  pair with {@link expectReserved} when the booking response is at hand. */
+export const expectFoldedLine = (
+  child: Pick<Listing, "id">,
+  qty: number,
+): Promise<void> =>
+  expectAttendeeCounts([{ count: 1, listingId: child.id, quantity: qty }]);
+
+/** Assert a listing has no attendee rows — the "the unchosen/sold-out child
+ *  was never booked" check behind the multi-child fold tests. Delegates to
+ *  {@link expectAttendeeCounts} (one-or-many: zero rows is a one-element list
+ *  with count 0). */
+export const expectNoBooking = (child: Pick<Listing, "id">): Promise<void> =>
+  expectAttendeeCounts([{ count: 0, listingId: child.id }]);
+
+/** Book a parent at quantity 2 split 1 of `childA` + 1 of `childB`, then assert
+ *  both folded exactly one line of quantity 1 — the shared "1+1 fold" behind the
+ *  multi-child fold-acceptance test and the separate-pool combined-cap render
+ *  test that proves the selector matches the fold. */
+export const bookOneOfEachFold = async (
+  parent: Listing,
+  childA: Listing,
+  childB: Listing,
+): Promise<void> => {
+  const res = await bookParent(parent.slug, {
+    ...childField(parent, childA, "1"),
+    ...childField(parent, childB, "1"),
+    ...parentField(parent, "2"),
+  });
+  expectReserved(res);
+  await expectFoldedLine(childA, 1);
+  await expectFoldedLine(childB, 1);
 };
 
 /** The slugs returned by `GET /api/listings`. */

@@ -1,8 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
-import type { CheckoutIntent } from "#shared/payments.ts";
-import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
   apiBook,
   bookAttendee,
@@ -10,9 +7,14 @@ import {
   bookParentChild,
   describeWithEnv,
   enablePublicApi,
+  makeCustomisableDailyParent,
   makeParent,
   setupStripe,
 } from "#test-utils";
+import {
+  expectCapturedItemPriced,
+  stubCheckout,
+} from "../server-reservation/helpers.ts";
 
 /** A pay-more parent (£10 unit price, £50 max) with a free add-on child — the
  *  scenario behind both parent-`customPrice` tests (the accepted £30 and the
@@ -29,40 +31,6 @@ const makePayMoreParent = () =>
     },
   });
 
-/** Stub `stripePaymentProvider.createCheckoutSession` so a paid API booking
- *  completes against a fake Stripe checkout URL, and capture the
- *  {@link CheckoutIntent} the API path handed over — so a test can assert
- *  against the per-line-item prices and `dayCount`. Returns `restore()` for
- *  the `finally` block and `calls()` to assert the provider was never reached
- *  (the sold-out preflight case). The three paid-API tests all need the same
- *  settled-URL stub; only the captured-intent assertions vary, so the curry
- *  takes the `sessionId` and exposes both sides. */
-const captureCheckoutIntent = (
-  sessionId: string,
-): {
-  capturedIntent: () => CheckoutIntent | undefined;
-  calls: () => number;
-  restore: () => void;
-} => {
-  let captured: CheckoutIntent | undefined;
-  const mock = stub(
-    stripePaymentProvider,
-    "createCheckoutSession",
-    (intent: CheckoutIntent) => {
-      captured = intent;
-      return Promise.resolve({
-        checkoutUrl: "https://stripe.test/checkout",
-        sessionId,
-      });
-    },
-  );
-  return {
-    calls: () => mock.calls.length,
-    capturedIntent: () => captured,
-    restore: () => mock.restore(),
-  };
-};
-
 describeWithEnv(
   "server > parents booking — JSON API paid booking",
   { db: true, triggers: true },
@@ -76,14 +44,11 @@ describeWithEnv(
 
       const { parent } = await makePayMoreParent();
 
-      const checkout = captureCheckoutIntent("cs_parent_custom_price");
+      const { checkout, getCaptured } = stubCheckout("cs_parent_custom_price");
       try {
         const res = await apiBook(parent.slug, { customPrice: "30.00" });
         expect(res.status).toBe(200);
-        const parentItem = checkout
-          .capturedIntent()
-          ?.items.find((i) => i.listingId === parent.id);
-        expect(parentItem?.unitPrice).toBe(3000);
+        expectCapturedItemPriced(getCaptured(), parent, 3000);
       } finally {
         checkout.restore();
       }
@@ -108,33 +73,19 @@ describeWithEnv(
       // webhook reprices the child at a 1-day span (£10) and refunds the gap.
       await setupStripe();
 
-      const { parent, child } = await makeParent({
-        children: [
-          {
-            customisableDays: true,
-            dayPrices: { 1: 1000, 3: 3000 },
-            durationDays: 3,
-            maxPrice: 0,
-            unitPrice: 0,
-          },
-        ],
-        parent: { daily: true, durationDays: 3 },
-      });
+      const { parent, child } = await makeCustomisableDailyParent();
 
       const date = (await bookableStartDates(parent.id))[0]!;
 
-      const checkout = captureCheckoutIntent("cs_api_custom_child");
+      const { checkout, getCaptured } = stubCheckout("cs_api_custom_child");
       try {
         const res = await apiBook(parent.slug, {
           children: [{ quantity: 1, slug: child.slug }],
           date,
         });
         expect(res.status).toBe(200);
-        expect(checkout.capturedIntent()?.dayCount).toBe(3);
-        const childItem = checkout
-          .capturedIntent()
-          ?.items.find((i) => i.listingId === child.id);
-        expect(childItem?.unitPrice).toBe(3000);
+        expect(getCaptured()?.dayCount).toBe(3);
+        expectCapturedItemPriced(getCaptured(), child, 3000);
       } finally {
         checkout.restore();
       }
@@ -157,12 +108,12 @@ describeWithEnv(
       const date = (await bookableStartDates(parent.id))[0]!;
       await bookAttendee(child, { date, quantity: 1 });
 
-      const checkout = captureCheckoutIntent("cs_should_not_be_reached");
+      const { checkout, calls } = stubCheckout("cs_should_not_be_reached");
       try {
         const res = await bookParentChild(parent, child, { date });
         expect(res.status).toBe(409);
         // The preflight rejected before the provider was ever called.
-        expect(checkout.calls()).toBe(0);
+        expect(calls()).toBe(0);
       } finally {
         checkout.restore();
       }
