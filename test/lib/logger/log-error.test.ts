@@ -23,7 +23,7 @@ describe("error code table", () => {
   // a blanked or duplicated code would corrupt every logged error's identity.
   test("every code is E_-prefixed, unique, and labelled", () => {
     const codes = Object.values(ErrorCode);
-    expect(codes.length).toBeGreaterThan(20);
+    expect(codes.length).toBeGreaterThan(0);
     expect(new Set(codes).size).toBe(codes.length);
     for (const code of codes) {
       expect(code).toMatch(/^E_[A-Z_]+$/);

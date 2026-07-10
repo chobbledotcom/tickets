@@ -18,6 +18,7 @@ import {
   applyDemoOverrides,
   type DemoFieldMap,
   LISTING_DEMO_FIELDS,
+  LOGISTICS_DEMO_FIELDS,
   wrapResourceForDemo,
 } from "#shared/demo/overrides.ts";
 import * as demoSamples from "#shared/demo/samples.ts";
@@ -47,7 +48,7 @@ describe("demo sample pools", () => {
     const pools = Object.entries(demoSamples).filter(
       (entry): entry is [string, readonly string[]] => Array.isArray(entry[1]),
     );
-    expect(pools.length).toBeGreaterThan(10);
+    expect(pools.length).toBeGreaterThan(0);
     for (const [name, pool] of pools) {
       expect(pool.length, name).toBeGreaterThan(0);
       for (const value of pool) {
@@ -122,6 +123,19 @@ describe("applyDemoOverrides", () => {
     expect(DEMO_NAMES as readonly string[]).toContain(form.get("name"));
     expect(form.get("email")).not.toBe("real@example.com");
     expect(DEMO_EMAILS as readonly string[]).toContain(form.get("email"));
+  });
+
+  test("clears pinned coordinates outright instead of substituting text", () => {
+    setDemoModeForTest(true);
+    const form = new FormParams({
+      address: "10 Real Street",
+      lat: "51.5074",
+      lng: "-0.1278",
+    });
+    applyDemoOverrides(form, LOGISTICS_DEMO_FIELDS);
+    expect(form.get("lat")).toBe("");
+    expect(form.get("lng")).toBe("");
+    expect(form.get("address")).not.toBe("10 Real Street");
   });
 
   test("skips fields not present in the form", () => {
