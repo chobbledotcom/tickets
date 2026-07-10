@@ -167,7 +167,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Attendee name does not match"),
+        "Attendee name does not match. Please type the exact attendee name to confirm deletion.",
         false,
       );
       // The bounce-back confirm page must keep the caller's return_url so a
