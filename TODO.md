@@ -344,11 +344,6 @@ migration-suite sharding, `withVirtualBackoff`, `cachedAdminPage`; see the
 Fast Tests section of AGENTS.md). These were identified during profiling but
 deliberately left for later:*
 
-- **Shard `test/lib/db/legacy-migration.test.ts`** (~600 lines, ~13s of
-  sequential full legacy→current migration runs in one file). Same recipe as
-  `test/lib/db/migration-restore/`: move the legacy schema + helpers into a
-  shared module and split the six tests across two or three shard files so
-  `deno test --parallel` spreads them.
 - **Per-file module-graph evaluation.** Every test file re-evaluates the app's
   module graph (~0.35s each after the lazy-Sentry fix, ~250 files ≈ 80-90s of
   CPU per run). The biggest remaining import-time chunks are `@libsql/client`
