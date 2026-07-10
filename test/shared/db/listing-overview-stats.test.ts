@@ -240,4 +240,52 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
     expect(stats.completeQuantitySum).toBe(1);
     expect(stats.incompleteQuantity).toBe(0);
   });
+
+  test("does not count a refunded balance-paid attendee whose reference was pruned", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 500,
+    });
+    const attendee = await createPaidAttendeeWithoutLedger(
+      listing.id,
+      "Refunded Balance",
+      "refunded-balance@example.com",
+      "",
+      500,
+      1,
+    );
+    // A balance-paid booking: a booking-group sale with no booking-group
+    // payment, the payment sitting in its own balance event group.
+    await postIncompleteSale(attendee.id, listing.id, 500);
+    await postTransfers([
+      {
+        amount: 500,
+        destination: attendeeAccount(attendee.id),
+        eventGroup: await balanceEventGroup("overview_refunded_balance"),
+        kind: KIND.payment,
+        occurredAt: "2026-06-21T00:00:00.000Z",
+        reference: "overview-refunded-balance-payment",
+        source: WORLD,
+      },
+    ]);
+    // Then it is refunded: a `refund_cash` leg sourced from the attendee. Once
+    // that exists prunePayments drops the processed reference, so no surviving
+    // reference remains — only the ledger-fed refunded flag keeps this out of
+    // the incomplete split.
+    await postTransfers([
+      {
+        amount: 500,
+        destination: WORLD,
+        eventGroup: await balanceEventGroup("overview_refunded_balance_refund"),
+        kind: KIND.refundCash,
+        occurredAt: "2026-06-22T00:00:00.000Z",
+        reference: "overview-refunded-balance-refund",
+        source: attendeeAccount(attendee.id),
+      },
+    ]);
+
+    const stats = await getListingOverviewStats(listing);
+    expect(stats.incompleteQuantity).toBe(0);
+    expect(stats.incompleteSales).toBe(0);
+  });
 });

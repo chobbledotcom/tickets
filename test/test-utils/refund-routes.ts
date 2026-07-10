@@ -87,6 +87,40 @@ export const expectSingleRefundIssued = async (
   });
 };
 
+/** Run `body` with Stripe configured as the provider and `isPaymentRefunded`
+ *  stubbed to `probe`. The refresh-payment route only reads refund status (it
+ *  never issues a refund), so — unlike {@link withRefundMock} — this stubs just
+ *  that one method. Passes the stub to `body` (so a caller can read its call
+ *  args) and returns whatever `body` returns. */
+export const withRefreshPaymentProbe = async <T>(
+  probe: (reference: string) => Promise<boolean>,
+  body: (mockRefunded: Stub) => Promise<T>,
+): Promise<T> => {
+  let result!: T;
+  await withMocks(
+    () =>
+      stub(paymentsApi, "getConfiguredProvider", () =>
+        mockProviderType("stripe"),
+      ),
+    async () => {
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      const mockRefunded = stub(
+        stripePaymentProvider,
+        "isPaymentRefunded",
+        probe,
+      );
+      try {
+        result = await body(mockRefunded);
+      } finally {
+        mockRefunded.restore();
+      }
+    },
+  );
+  return result;
+};
+
 export const withRefundMock = async (
   refundBehavior: RefundBehavior,
   fn: (mockRefund: Stub) => Promise<void>,

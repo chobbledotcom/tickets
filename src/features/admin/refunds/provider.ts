@@ -24,6 +24,38 @@ export type RefundCounts = {
   errorCount: number;
 };
 
+/** Max provider refund subrequests in flight at once. Bounds concurrency by
+ * charge reference, not attendee: an attendee can carry several references (a
+ * deposit plus a balance charge, or a merged attendee's combined charges), so
+ * capping attendees alone could still fan a bulk refund out to far more
+ * subrequests than an edge worker can safely hold open. Waves are packed by
+ * reference count and each candidate's own references are chunked to this too. */
+const PROVIDER_REFUND_CONCURRENCY = 5;
+
+/** Pack candidates into waves whose combined charge references stay within
+ * `budget`, so each concurrently-processed wave issues at most ~`budget`
+ * provider subrequests. A single candidate carrying more references than the
+ * budget forms its own wave; its references are chunked inside
+ * {@link refundCandidateAtProvider}. */
+const packByReferenceCount =
+  (budget: number) =>
+  (candidates: RefundCandidate[]): RefundCandidate[][] => {
+    const waves: RefundCandidate[][] = [];
+    let currentCount = 0;
+    for (const candidate of candidates) {
+      const refs = candidate.references.length;
+      const wave = waves[waves.length - 1];
+      if (!wave || currentCount + refs > budget) {
+        waves.push([candidate]);
+        currentCount = refs;
+      } else {
+        wave.push(candidate);
+        currentCount += refs;
+      }
+    }
+    return waves;
+  };
+
 const refundReferenceAtProvider = async (
   provider: RefundProvider,
   candidate: RefundCandidate,
@@ -66,17 +98,28 @@ export const refundCandidateAtProvider = async (
   listingId: number,
   markReturnedReferences: MarkReturnedReferences = markPaymentReferencesProviderRefunded,
 ): Promise<{ candidate: RefundCandidate; outcome: RefundOutcome }> => {
-  const results = await Promise.all(
-    candidate.references.map(async (reference) => ({
-      outcome: await refundReferenceAtProvider(
-        provider,
-        candidate,
-        listingId,
+  const results: {
+    outcome: RefundOutcome;
+    reference: RefundPaymentReference;
+  }[] = [];
+  // Chunk this attendee's own references so a merged attendee carrying many
+  // charges never fans out past the concurrency budget on its own.
+  for (const group of chunk(PROVIDER_REFUND_CONCURRENCY)(
+    candidate.references,
+  )) {
+    const groupResults = await Promise.all(
+      group.map(async (reference) => ({
+        outcome: await refundReferenceAtProvider(
+          provider,
+          candidate,
+          listingId,
+          reference,
+        ),
         reference,
-      ),
-      reference,
-    })),
-  );
+      })),
+    );
+    results.push(...groupResults);
+  }
   const outcome = combineRefundOutcomes(
     results.map((result) => result.outcome),
   );
@@ -151,13 +194,14 @@ export const processRefundBatch = async (
   batch: RefundCandidate[],
   listingId: number,
 ): Promise<RefundCounts> => {
-  const REFUND_CHUNK_SIZE = 5;
   const counts: RefundCounts = {
     errorCount: 0,
     failedCount: 0,
     refundedCount: 0,
   };
-  for (const group of chunk(REFUND_CHUNK_SIZE)(batch)) {
+  for (const group of packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)(
+    batch,
+  )) {
     const results = await Promise.all(
       group.map((candidate) =>
         refundCandidateAtProvider(provider, candidate, listingId),

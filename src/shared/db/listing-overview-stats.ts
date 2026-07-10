@@ -8,9 +8,15 @@
  * any provider payment reference. Legacy paid checkouts carry the ledger shadow
  * (`sale` plus `payment` in the booking group); balance-paid/provider-less
  * checkouts carry a processed payment reference. So "incomplete" is a recognised
- * sale with neither a booking-group payment nor a processed provider reference:
+ * sale with neither a booking-group payment nor a processed provider reference,
+ * that still owes money and was never refunded:
  *
  *   incomplete  ⇔  sale leg AND no booking payment AND no processed reference
+ *                  AND nothing still owed AND not refunded
+ *
+ * The last two clauses keep already-settled and already-refunded bookings out:
+ * a refunded balance-paid booking can have its processed reference pruned once a
+ * `refund_cash` leg exists, which would otherwise make it look like a bare sale.
  *
  * Everything the Overview shows is derived from that split plus the plain
  * quantity/check-in columns, matching the pre-existing template derivation
@@ -62,11 +68,20 @@ export type ListingOverviewStats = {
   incompleteSales: number;
 };
 
+/** SQL predicate: the attendee has NOT been refunded — no `refund_cash` leg
+ *  sourced from their account. Mirrors `refundedFromLedger` in
+ *  `attendees/queries.ts` (minus its `AS refunded` alias) so a refunded booking
+ *  whose processed reference was later pruned is not mistaken for a bare sale. */
+const notRefunded = (attendeeIdExpr: string): string =>
+  `NOT EXISTS (SELECT 1 FROM transfers WHERE kind = '${KIND.refundCash}'` +
+  ` AND ${accountPredicate("source", ATTENDEE, attendeeIdExpr)})`;
+
 /** SQL boolean (0/1) marking a `listing_attendees` row `listingAttendee` as an
  *  incomplete payment: a recognised `sale` leg for the booking with no
  *  `payment` leg ever received into the attendee for that same ledger event
- *  group. Only paid listings can carry one, so `false` collapses the CASE arms
- *  for a free listing to their confirmed side. */
+ *  group, nothing still owed, and no refund. Only paid listings can carry one,
+ *  so `false` collapses the CASE arms for a free listing to their confirmed
+ *  side. */
 const incompleteRowPredicate = (paid: boolean): string => {
   if (!paid) return "0";
   const hasSale = `EXISTS (SELECT 1 FROM transfers WHERE ${saleLegPredicate(
@@ -89,7 +104,10 @@ const incompleteRowPredicate = (paid: boolean): string => {
   const nothingOwed = `${attendeeOwedSubquery(
     "listingAttendee.attendee_id",
   )} <= 0`;
-  return `(${hasSale} AND NOT ${hasPayment} AND NOT ${hasProviderReference} AND ${nothingOwed})`;
+  return (
+    `(${hasSale} AND NOT ${hasPayment} AND NOT ${hasProviderReference}` +
+    ` AND ${nothingOwed} AND ${notRefunded("listingAttendee.attendee_id")})`
+  );
 };
 
 type OverviewCountsRow = {
@@ -121,10 +139,12 @@ const incompleteSales = async (listingId: number): Promise<number> => {
   const nothingOwed = `${attendeeOwedSubquery(
     "CAST(saleLeg.source_id AS INTEGER)",
   )} <= 0`;
+  const notRefundedSale = notRefunded("CAST(saleLeg.source_id AS INTEGER)");
   const row = (await queryOne<{ incomplete_sales: number | bigint }>(
     `SELECT COALESCE(SUM(saleLeg.amount), 0) AS incomplete_sales
        FROM transfers AS saleLeg
-      WHERE ${saleToRevenue} AND ${noPayment} AND ${noProviderReference} AND ${nothingOwed}`,
+      WHERE ${saleToRevenue} AND ${noPayment} AND ${noProviderReference}
+        AND ${nothingOwed} AND ${notRefundedSale}`,
     [String(listingId)],
   ))!;
   return Number(row.incomplete_sales);

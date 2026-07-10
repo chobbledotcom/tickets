@@ -98,8 +98,9 @@ import firstClassImagesMigration from "./migrations/2026-07-05_first_class_image
 import packageSlotIdentityMigration from "./migrations/2026-07-05_package_slot_identity.ts";
 import listingAttendeesEndStartIndexMigration from "./migrations/2026-07-06_listing_attendees_end_start_index.ts";
 import newsPostsMigration from "./migrations/2026-07-06_news_posts.ts";
-import processedPaymentsPaymentReferenceMigration from "./migrations/2026-07-07_processed_payments_payment_reference.ts";
 import contactAttendeeTokensMigration from "./migrations/2026-07-07_contact_attendee_tokens.ts";
+import processedPaymentsPaymentReferenceMigration from "./migrations/2026-07-07_processed_payments_payment_reference.ts";
+import processedPaymentsAttendeeIndexMigration from "./migrations/2026-07-10_processed_payments_attendee_index.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -324,6 +325,8 @@ export const MIGRATIONS: Migration[] = [
   processedPaymentsPaymentReferenceMigration,
   // Add the encrypted per-contact list of booked ticket tokens.
   contactAttendeeTokensMigration,
+  // Index processed_payments by attendee for roster/export/refund lookups.
+  processedPaymentsAttendeeIndexMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

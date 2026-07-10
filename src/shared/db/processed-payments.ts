@@ -229,14 +229,24 @@ export const finalizeSession = async (
  * overwrites the `attendee_id` or blanks the `ticket_tokens` a racing delivery
  * may have just finalized and stored. Guarded on {@link UNRESOLVED_RESERVATION}
  * (the first outcome wins), and a no-op if the row was pruned away.
+ *
+ * When the replayed session carries a provider `paymentReference`, it is stored
+ * too, so a replay that recreated the idempotency row (after a prune) restores
+ * the refundable charge reference rather than leaving it empty — the only
+ * refundable id for a provider-less/admin-added attendee's balance charge.
  */
 export const finalizeSessionIfUnresolved = async (
   sessionId: string,
   attendeeId: number,
+  paymentReference = "",
 ): Promise<void> => {
+  const refClause = paymentReference ? ", payment_reference = ?" : "";
+  const refParams = paymentReference
+    ? [await encryptPaymentReference(paymentReference)]
+    : [];
   await execute(
-    `UPDATE processed_payments SET attendee_id = ? WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
-    [attendeeId, sessionId],
+    `UPDATE processed_payments SET attendee_id = ?${refClause} WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
+    [attendeeId, ...refParams, sessionId],
   );
 };
 

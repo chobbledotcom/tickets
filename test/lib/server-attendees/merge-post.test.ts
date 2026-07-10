@@ -20,6 +20,49 @@ import { setupListingAndDirectAttendee } from "./helpers.ts";
 // jscpd:ignore-end
 import { getMergeVersion, mergePair, submitMerge } from "./merge.ts";
 
+/** Merge a paid source into a target on the same listing with its booking
+ *  skipped, choosing `money` ("credit"/"writeoff") for the discarded charge,
+ *  then assert the flash and activity-log messages. The two money-decision
+ *  tests differ only in that decision and the resulting wording. */
+const runMoneyDecisionMerge = async (
+  money: string,
+  paymentId: string,
+  expectedFlash: string,
+  expectedLog: string,
+): Promise<void> => {
+  const listing = await createTestListing({ maxAttendees: 10, unitPrice: 500 });
+  const { attendee: target } = await createTestAttendeeDirect(
+    listing.id,
+    "Jane Doe",
+    "jane@example.com",
+    1,
+  );
+  const source = await createPaidTestAttendee(
+    listing.id,
+    "John Smith",
+    "john@example.com",
+    paymentId,
+    500,
+    3,
+  );
+  const bookingKey = `${listing.id}:null:0:0`;
+  const mergeVersion = await getMergeVersion(target.id, source.ticket_token);
+  const { response } = await adminFormPost(
+    `/admin/attendees/${target.id}/merge`,
+    {
+      merge_version: mergeVersion,
+      source_token: source.ticket_token,
+      [`booking_${bookingKey}`]: "skip_source",
+      [`money_${bookingKey}`]: money,
+    },
+  );
+  expectFlash(response, expectedFlash, true);
+  const log = (await getListingActivityLog(listing.id)).find((l) =>
+    l.message.includes("merged into"),
+  );
+  expect(log?.message).toBe(expectedLog);
+};
+
 describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
   describe("POST /admin/attendees/:attendeeId/merge", () => {
     testRequiresAuth("/admin/attendees/1/merge", {
@@ -266,87 +309,19 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
     });
 
     test("POST merge credits a discarded paid conflict's money", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
-      const { attendee: target } = await createTestAttendeeDirect(
-        listing.id,
-        "Jane Doe",
-        "jane@example.com",
-        1,
-      );
-      const source = await createPaidTestAttendee(
-        listing.id,
-        "John Smith",
-        "john@example.com",
+      await runMoneyDecisionMerge(
+        "credit",
         "pi_merge_credit",
-        500,
-        3,
-      );
-      const bookingKey = `${listing.id}:null:0:0`;
-      const mergeVersion = await getMergeVersion(target.id, source.ticket_token);
-      const { response } = await adminFormPost(
-        `/admin/attendees/${target.id}/merge`,
-        {
-          merge_version: mergeVersion,
-          source_token: source.ticket_token,
-          [`booking_${bookingKey}`]: "skip_source",
-          [`money_${bookingKey}`]: "credit",
-        },
-      );
-      expectFlash(
-        response,
         "Merged John Smith into Jane Doe. 1 booking(s) skipped. 1 payment(s) credited",
-        true,
-      );
-      const creditLog = (await getListingActivityLog(listing.id)).find((l) =>
-        l.message.includes("merged into"),
-      );
-      expect(creditLog?.message).toBe(
         "Attendee 'John Smith' merged into 'Jane Doe'. 1 booking(s) skipped. 1 payment(s) kept as credit",
       );
     });
 
     test("POST merge writes off a discarded paid conflict's money", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
-      const { attendee: target } = await createTestAttendeeDirect(
-        listing.id,
-        "Jane Doe",
-        "jane@example.com",
-        1,
-      );
-      const source = await createPaidTestAttendee(
-        listing.id,
-        "John Smith",
-        "john@example.com",
+      await runMoneyDecisionMerge(
+        "writeoff",
         "pi_merge_writeoff",
-        500,
-        3,
-      );
-      const bookingKey = `${listing.id}:null:0:0`;
-      const mergeVersion = await getMergeVersion(target.id, source.ticket_token);
-      const { response } = await adminFormPost(
-        `/admin/attendees/${target.id}/merge`,
-        {
-          merge_version: mergeVersion,
-          source_token: source.ticket_token,
-          [`booking_${bookingKey}`]: "skip_source",
-          [`money_${bookingKey}`]: "writeoff",
-        },
-      );
-      expectFlash(
-        response,
         "Merged John Smith into Jane Doe. 1 booking(s) skipped. 1 payment(s) written off",
-        true,
-      );
-      const writeoffLog = (await getListingActivityLog(listing.id)).find((l) =>
-        l.message.includes("merged into"),
-      );
-      expect(writeoffLog?.message).toBe(
         "Attendee 'John Smith' merged into 'Jane Doe'. 1 booking(s) skipped. 1 payment(s) written off",
       );
     });

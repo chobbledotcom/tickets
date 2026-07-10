@@ -84,6 +84,23 @@ describeWithEnv("server (balance payment replay)", { db: true }, () => {
         attendeeId,
       );
       expect(mockRefund.calls.length).toBe(0);
+
+      // The replay recreated the pruned idempotency row, but it must restore the
+      // provider charge reference too — otherwise a provider-less attendee whose
+      // only refundable id is this balance charge could no longer be refunded.
+      const { getRefundPaymentReferences } = await import(
+        "#shared/db/payment-references.ts"
+      );
+      const { getTestPrivateKey } = await import("#test-utils");
+      const references = (
+        await getRefundPaymentReferences(
+          [{ id: attendeeId, payment_id: "" }],
+          await getTestPrivateKey(),
+        )
+      ).get(attendeeId)!;
+      expect(references.map((reference) => reference.reference)).toContain(
+        `pi_${sessionId}`,
+      );
     } finally {
       mockRefund.restore();
       mockRetrieve.restore();

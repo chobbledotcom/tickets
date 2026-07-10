@@ -493,6 +493,17 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["payment_reference", "TEXT NOT NULL DEFAULT ''"],
         ["provider_refunded_at", "TEXT NOT NULL DEFAULT ''"],
       ],
+      // Admin rosters, exports, and refund-all candidate loading look up the
+      // retained charge references for a listing's attendees
+      // (attendee_id IN (...) AND payment_reference != ''). Leading with
+      // attendee_id and covering payment_reference turns that into an index
+      // range scan instead of a full scan of every retained payment row.
+      indexes: [
+        {
+          columns: ["attendee_id", "payment_reference"],
+          name: "idx_processed_payments_attendee_id",
+        },
+      ],
       // FK declarations removed — libsql's FK enforcement breaks table
       // recreation migrations (PRAGMA foreign_keys is connection-scoped and
       // doesn't persist into batch operations on remote databases).

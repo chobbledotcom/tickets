@@ -1705,8 +1705,9 @@ const replaySuccess = async (
   sessionId: string,
   attendeeId: number,
   listingId: number,
+  paymentReference = "",
 ): Promise<PaymentResult> => {
-  await finalizeSessionIfUnresolved(sessionId, attendeeId);
+  await finalizeSessionIfUnresolved(sessionId, attendeeId, paymentReference);
   logDebug("Payment", `Replayed already-ledgered session ${sessionId}`);
   return sessionSuccess(attendeeId, listingId);
 };
@@ -1766,9 +1767,10 @@ const replayBalanceFromLedger = async (
   sessionId: string,
   attendeeId: number,
   listingId: number,
+  paymentReference: string,
 ): Promise<PaymentResult | null> =>
   (await eventGroupHasLegs(await balanceEventGroup(sessionId)))
-    ? replaySuccess(sessionId, attendeeId, listingId)
+    ? replaySuccess(sessionId, attendeeId, listingId, paymentReference)
     : null;
 
 /**
@@ -1801,6 +1803,7 @@ const processReservedSession = async (
       sessionId,
       intent.balanceAttendeeId,
       signedListingId,
+      session.paymentReference,
     );
     if (replay) return replay;
     if (verdict.verdict === "mismatch") {
