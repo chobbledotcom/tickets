@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { AttributeWithOptions } from "#shared/db/attributes.ts";
+import {
+  type AttributeWithOptions,
+  getSelectedAttributesForListings,
+} from "#shared/db/attributes.ts";
 import type { Listing } from "#shared/types.ts";
 import {
   adminFormPost,
@@ -172,6 +175,20 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
         "Set on 0 listings.",
         "No listings have this option set yet.",
       );
+    });
+  });
+
+  describe("getSelectedAttributesForListings", () => {
+    test("groups each listing's selected options and skips an empty id list", async () => {
+      const { attribute, listing } = await createTaggedListing();
+
+      const selected = await getSelectedAttributesForListings([listing.id]);
+      const groups = selected.get(listing.id)!;
+      expect(groups.map((group) => group.id)).toEqual([attribute.id]);
+      expect(groups[0]!.options.map((option) => option.text)).toEqual(["Easy"]);
+
+      // An empty id list short-circuits without querying.
+      expect(await getSelectedAttributesForListings([])).toEqual(new Map());
     });
   });
 });
