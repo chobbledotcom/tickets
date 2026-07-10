@@ -801,6 +801,7 @@ const renderListingRow = (
       <div class="ticket-row sold-out">
         ${imageHtml}
         <label>${escapeHtml(listing.name)}</label>
+        ${attributesHtml}
         <span class="sold-out-label">${t("public.registration_closed")}</span>
       </div>
     `;
@@ -847,6 +848,7 @@ const renderPackageMemberRow = (
   info: TicketListing,
   fixedQty: number,
   childCtx: ChildRenderCtx | undefined,
+  attributesHtml = "",
 ): string => `
     <div class="ticket-row package-member">
       ${renderListingImage(info.listing)}
@@ -854,6 +856,7 @@ const renderPackageMemberRow = (
         info.listing.name,
       )} <span class="package-member-qty">&times;${fixedQty}</span></label>
       ${renderListingDescription(info.listing.description)}
+      ${attributesHtml}
       ${childCtx ? renderChildBlock(info, childCtx) : ""}
     </div>
   `;
@@ -869,6 +872,7 @@ const renderPackageControls = (
   members: TicketListing[],
   limit: number,
   childCtxFor: (memberListingId: number) => ChildRenderCtx | undefined,
+  attributesByListing: ListingAttributesById = new Map(),
 ): string => {
   // Every member as `id:fixedQty`, so the client knows which listing-scoped
   // questions to show/require once this package is selected — even when
@@ -894,6 +898,7 @@ const renderPackageControls = (
             e,
             pkg.quantities.get(e.listing.id) ?? 1,
             childCtxFor(e.listing.id),
+            renderListingAttributes(attributesByListing.get(e.listing.id)),
           ),
         )
         .join("");
@@ -909,13 +914,20 @@ const renderPackageSection = (
   members: TicketListing[],
   limit: number,
   childCtxFor: (memberListingId: number) => ChildRenderCtx | undefined,
+  attributesByListing: ListingAttributesById = new Map(),
 ): string => {
   const heading = `<legend>${escapeHtml(pkg.name)}</legend>`;
   const body =
     limit < 1
       ? `<span class="sold-out-label">${t("public.sold_out")}</span>`
       : renderListingDescription(pkg.description) +
-        renderPackageControls(pkg, members, limit, childCtxFor);
+        renderPackageControls(
+          pkg,
+          members,
+          limit,
+          childCtxFor,
+          attributesByListing,
+        );
   return `<fieldset class="ticket-package${
     limit < 1 ? " sold-out" : ""
   }" data-package-section="${pkg.groupId}">${heading}${body}</fieldset>`;
@@ -1527,6 +1539,7 @@ const buildPageListingRows = (opts: {
       membersOf(pkg),
       opts.packageLimits.get(pkg.groupId)!,
       claimChildCtx,
+      opts.attributesByListing ?? new Map(),
     );
   }
   const packageSections = opts.packages
@@ -1536,6 +1549,7 @@ const buildPageListingRows = (opts: {
         membersOf(pkg),
         opts.packageLimits.get(pkg.groupId)!,
         claimChildCtx,
+        opts.attributesByListing ?? new Map(),
       ),
     )
     .join("");

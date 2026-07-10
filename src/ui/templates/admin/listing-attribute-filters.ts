@@ -57,6 +57,17 @@ export const attributeFilterHref =
     return hrefWithParams(path, params);
   };
 
+/** Build the CSV-export URL so it carries the current type and attribute
+ *  filters through, keeping the download aligned with the filtered table. */
+export const csvExportHref = (
+  activeType: ListingFilter,
+  activeAttributes: SelectedAttributeFilters,
+): string =>
+  hrefWithParams(
+    "/admin/listings/csv",
+    filterParams(activeType, activeAttributes),
+  );
+
 export const renderAttributeFilterBars = (
   filters: AttributeFilterGroup[],
   activeFilters: SelectedAttributeFilters,

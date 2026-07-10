@@ -345,10 +345,6 @@ export const getSelectedAttributesForListings = async (
   );
 };
 
-export const getListingAttributeOptionIds = (
-  listingId: number,
-): Promise<number[]> => listingAttributeOptions.getIds(listingId);
-
 export const setListingAttributeOptions = async (
   listingId: number,
   optionIds: number[],

@@ -6,8 +6,8 @@ import {
   getAllAttributeOptionIds,
   getAllAttributesWithOptions,
   getAttributeWithOptions,
-  getListingAttributeOptionIds,
   getSelectedAttributesForListings,
+  listingAttributeOptions,
   pruneInvalidAttributeOptionIds,
   setListingAttributeOptions,
   swapAttributeOptionOrder,
@@ -72,13 +72,13 @@ describeWithEnv("db > attributes", { db: true }, () => {
       attribute.options[1]!.id,
       attribute.options[0]!.id,
     ]);
-    expect(await getListingAttributeOptionIds(listing.id)).toEqual([
+    expect(await listingAttributeOptions.getIds(listing.id)).toEqual([
       attribute.options[0]!.id,
       attribute.options[1]!.id,
     ]);
 
     await setListingAttributeOptions(listing.id, [attribute.options[0]!.id]);
-    expect(await getListingAttributeOptionIds(listing.id)).toEqual([
+    expect(await listingAttributeOptions.getIds(listing.id)).toEqual([
       attribute.options[0]!.id,
     ]);
   });
@@ -134,7 +134,7 @@ describeWithEnv("db > attributes", { db: true }, () => {
 
     await deleteAttributeOption(attribute.options[0]!.id);
 
-    expect(await getListingAttributeOptionIds(listing.id)).toEqual([
+    expect(await listingAttributeOptions.getIds(listing.id)).toEqual([
       attribute.options[1]!.id,
     ]);
     const found = await getAttributeWithOptions(attribute.id);
@@ -157,7 +157,7 @@ describeWithEnv("db > attributes", { db: true }, () => {
     await deleteAttribute(attribute.id);
 
     expect(await getAttributeWithOptions(attribute.id)).toBeNull();
-    expect(await getListingAttributeOptionIds(listing.id)).toEqual([]);
+    expect(await listingAttributeOptions.getIds(listing.id)).toEqual([]);
   });
 
   test("keeps only option ids that exist", async () => {

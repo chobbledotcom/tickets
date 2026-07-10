@@ -165,6 +165,46 @@ describeWithEnv("listings type filter", { db: true }, () => {
       expect(html).toContain(`href="/admin/listing/${shown.id}"`);
       expect(html).not.toContain(`href="/admin/listing/${hidden.id}"`);
     });
+
+    test("CSV export link carries the active attribute filter", async () => {
+      const listing = await createTestListing({ name: "Filtered CSV" });
+      const difficulty = await createTestAttributeWithOptions("Difficulty", [
+        "Easy",
+      ]);
+      await assignTestAttributeOptions(listing.id, difficulty.options);
+
+      const response = await adminGet(
+        `/admin/listings?attribute_${difficulty.id}=${
+          difficulty.options[0]!.id
+        }`,
+      );
+      const html = await response.text();
+      const filterParam = `attribute_${difficulty.id}=${
+        difficulty.options[0]!.id
+      }`;
+      expect(html).toContain(`href="/admin/listings/csv?${filterParam}"`);
+    });
+
+    test("CSV export respects attribute filter", async () => {
+      const shown = await createTestListing({ name: "CSV Shown" });
+      const hidden = await createTestListing({ name: "CSV Hidden" });
+      const difficulty = await createTestAttributeWithOptions("Difficulty", [
+        "Easy",
+        "Hard",
+      ]);
+      await assignTestAttributeOptions(shown.id, [difficulty.options[0]!]);
+      await assignTestAttributeOptions(hidden.id, [difficulty.options[1]!]);
+
+      const response = await adminGet(
+        `/admin/listings/csv?attribute_${difficulty.id}=${
+          difficulty.options[0]!.id
+        }`,
+      );
+      const csv = await response.text();
+
+      expect(csv).toContain("CSV Shown");
+      expect(csv).not.toContain("CSV Hidden");
+    });
   });
 
   describe("public listings page", () => {
@@ -225,7 +265,11 @@ describeWithEnv("listings type filter", { db: true }, () => {
       const format = await createTestAttributeWithOptions("Format", [
         "In person",
       ]);
+      const audience = await createTestAttributeWithOptions("Audience", [
+        "Adults",
+      ]);
       await assignTestAttributeOptions(listing1.id, format.options);
+      await assignTestAttributeOptions(listing2.id, audience.options);
 
       await expectHtmlResponse(
         await get(`/ticket/${listing1.slug}+${listing2.slug}`),
@@ -235,6 +279,8 @@ describeWithEnv("listings type filter", { db: true }, () => {
         "listing-attributes",
         "Format",
         "In person",
+        "Audience",
+        "Adults",
       );
     });
   });

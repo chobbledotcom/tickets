@@ -37,6 +37,7 @@ import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import {
   attributeFilterGroupsForListings,
+  filterListingsByAttributes,
   selectedAttributeFiltersFromRequest,
 } from "#shared/listing-attribute-filter.ts";
 import {
@@ -185,14 +186,21 @@ const handleAdminListingsGet: TypedRouteHandler<"GET /admin/listings"> =
   });
 
 /** Handle GET /admin/listings/csv — export every listing (filtered by the same
- * ?type= category filter the listings views use) as a CSV download. */
+ * ?type= category and attribute filters the listings views use) as a CSV
+ * download. */
 const handleListingsCsvExport: TypedRouteHandler<"GET /admin/listings/csv"> = (
   request,
 ) =>
   requireSessionOr(request, async () => {
     const type = listingTypeFromRequest(request);
     const listings = filterListingsByType(type)(await loadSortedListings());
-    const csv = generateListingsCsv(listings, settings.timezone);
+    const { activeAttributeFilters, attributesByListing } =
+      await loadListingAttributeFilterContext(request, listings);
+    const filteredListings = filterListingsByAttributes(
+      activeAttributeFilters,
+      attributesByListing,
+    )(listings);
+    const csv = generateListingsCsv(filteredListings, settings.timezone);
     const suffix = type === "all" ? "" : `_${type}`;
     await logActivity(
       `Listings CSV exported${type === "all" ? "" : ` (type: ${type})`}`,

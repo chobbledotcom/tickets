@@ -41,6 +41,7 @@ import { AdminPage, flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { HolidayTable } from "#templates/admin/holidays.tsx";
 import {
   attributeFilterHref,
+  csvExportHref,
   emptyAttributeFilterView,
   type ListingAttributeFilterView,
   renderAttributeFilterBars,
@@ -326,10 +327,12 @@ const ListingsTableBlock = ({
   columnKeys,
   filters,
   csvExport = false,
+  csvHref = "/admin/listings/csv",
   headerHtml = "",
   columns = LISTING_TABLE_COLUMNS,
 }: ListingTableArgs & {
   csvExport?: boolean;
+  csvHref?: string;
   headerHtml?: string;
 }): JSX.Element => (
   <div class="table-block">
@@ -339,7 +342,7 @@ const ListingsTableBlock = ({
     />
     {csvExport && (
       <div class="table-actions">
-        <a href="/admin/listings/csv">{t("listings_table.export_csv")}</a>
+        <a href={csvHref}>{t("listings_table.export_csv")}</a>
       </div>
     )}
   </div>
@@ -485,6 +488,7 @@ export const adminListingsPage = (
         columnKeys={columnKeys}
         columns={columns}
         csvExport={!isEditor}
+        csvHref={csvExportHref("all", activeAttributeFilters)}
         filters={filters}
         headerHtml={attributeFilterHtml}
         listings={filterByAttribute(activeListings)}

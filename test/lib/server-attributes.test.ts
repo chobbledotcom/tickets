@@ -4,7 +4,7 @@ import { handleRequest } from "#routes";
 import {
   getAllAttributesWithOptions,
   getAttributeWithOptions,
-  getListingAttributeOptionIds,
+  listingAttributeOptions,
   setListingAttributeOptions,
 } from "#shared/db/attributes.ts";
 import {
@@ -380,7 +380,7 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
         `/admin/listing/${listing.id}/attributes`,
         "Attributes updated",
       )(response);
-      expect(await getListingAttributeOptionIds(listing.id)).toEqual(
+      expect(await listingAttributeOptions.getIds(listing.id)).toEqual(
         attribute.options.map((option) => option.id),
       );
     });

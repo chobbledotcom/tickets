@@ -26,7 +26,7 @@ import {
 } from "#shared/db/attendees.ts";
 import {
   getAllAttributesWithOptions,
-  getListingAttributeOptionIds,
+  listingAttributeOptions,
 } from "#shared/db/attributes.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getListingOverviewStats } from "#shared/db/listing-overview-stats.ts";
@@ -397,7 +397,7 @@ export const loadListingQuestionsPanel = listingChoicePanelLoader(
  * listing. `error` is set only on an in-place 400 re-render. */
 export const loadListingAttributesPanel = listingChoicePanelLoader(
   getAllAttributesWithOptions,
-  getListingAttributeOptionIds,
+  listingAttributeOptions.getIds,
   (listing, attributes, selectedOptionIds, error) =>
     ListingAttributesPanel({ attributes, error, listing, selectedOptionIds }),
 );
