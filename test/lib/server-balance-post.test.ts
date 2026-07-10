@@ -7,13 +7,11 @@ import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
-import {
-  describeWithEnv,
-  mockFormRequest,
-  setupStripe,
-  testCsrfToken,
-} from "#test-utils";
 import { createReservedAttendee } from "#test-utils/balance.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockFormRequest } from "#test-utils/mocks.ts";
+import { testCsrfToken } from "#test-utils/session.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 import {
   createReserved,
   insertBareAttendee,

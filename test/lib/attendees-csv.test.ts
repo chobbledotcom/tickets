@@ -5,11 +5,9 @@ import {
   generateAttendeesCsv,
 } from "#routes/admin/attendees-csv.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import {
-  expectTestAttendeeCsvColumns,
-  setupTestEncryptionKey,
-  testAttendee,
-} from "#test-utils";
+import { expectTestAttendeeCsvColumns } from "#test-utils/assertions.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testAttendee } from "#test-utils/factories.ts";
 
 beforeAll(async () => {
   setupTestEncryptionKey();

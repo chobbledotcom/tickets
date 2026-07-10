@@ -34,7 +34,8 @@ generalized passes: render, fold, price, capacity, revalidate.
 **Already shipped (phases 1 & 2, PR #1462) — do not redo:**
 - Tree model + pure builder: `src/shared/booking/tree.ts`, `build-tree.ts`
   (`buildBookingTree`). The public renderer `src/ui/templates/public/
-  reservations.tsx` drives field names/rendering off the tree.
+  reservations/` (entry point `ticket-page.tsx`) drives field names/rendering
+  off the tree.
 - Unified walks: `fold-tree.ts` (`foldBookingTree`), `price-tree.ts`
   (`effectivePrice`, `priceRuleByListingId`, `packageMemberPriceRule`),
   `capacity-tree.ts` (`packageQuantityCap`, own-cap + group-pool arms).
@@ -214,24 +215,6 @@ descriptors — PRs #1478 and others). A weak-assertion audit script also exists
 
 ---
 
-## server-attendees test split — assertion-strength follow-ups
-
-*Origin: PR #1681 (split the 3674-line `server-attendees.test.ts` into 12 themed
-files). CodeRabbit reviewed the split and flagged five pre-existing weaknesses
-in tests that were relocated verbatim from the original monolith. The PR's scope
-was pure relocation + cpd dedup (the task explicitly required "do NOT change what
-any test asserts"), so these were left untouched and tracked here instead. Each is
-a small, isolated assertion-strength improvement.*
-
-- **`resend-notification.test.ts` — `setTimeout(resolve, 0)` is race-prone.** The
-  "a package member's resend rehydrates every line" test waits for the
-  fire-and-forget webhook with a zero-delay timer, which is scheduler-dependent
-  and can race the dispatch. Expose/await a completion signal from the test helper
-  or make the fetch stub resolve through a deferred promise, then await it
-  deterministically before asserting the payload. (Original monolith line 2040.)
-
----
-
 ## Settings on-demand loading — generation counter
 
 *Origin: `settings-plan.md`.*
@@ -294,48 +277,31 @@ keeps the bundles honest by failing when a route reads a key it didn't declare.
   computing bundle caps for several packages in one pass over shared capacity
   maps — worthwhile only if a page with many package links shows up hot.
 
-## Admin guide — sections still to write
+## Standalone child selector suppressed for sold-out / hidden package members
 
-*Origin: the admin-guide-footer linking pass. Every substantive, non-transactional
-admin page now renders a `GuideFooter` (or, for embedded settings sub-forms, a
-small inline link) pointing at the relevant `/admin/guide#<anchor>` section. The
-gaps below are pages whose natural guide section **does not exist yet**, so they
-either link a placeholder anchor or currently render no footer. `guide-anchor-
-links.test.ts` guards that every referenced anchor resolves; the two dangling
-ones are whitelisted in its `PENDING_SECTIONS` set. Write the section, add it to
-the appropriate `src/ui/templates/admin/guide/*.tsx` module with a unique `id`,
-then remove it from `PENDING_SECTIONS` and wire up any page still missing a
-footer.*
+`src/ui/templates/public/reservations/packages.ts` — `buildPageListingRows`
+derives `memberIds` from `packageMemberIds(opts.packages)` (every package's
+members), then suppresses the child selector on any standalone row whose listing
+is in that set (a rendered package member carries the one selector). But a
+**sold-out** package (`limit < 1`) renders a sold-out card with no member rows,
+and a `hideListings` package renders no member rows either — so their members'
+child selectors are never rendered in the package section. If such a member is
+ALSO a standalone parent whose own row is still bookable, its child selector is
+suppressed on both paths, so a buyer can't satisfy its multi-choice child
+requirements.
 
-**Dangling anchors (a page already links here, section missing — in
-`PENDING_SECTIONS`):**
+CodeRabbit flagged this on PR #1693; it is pre-existing behaviour (verbatim from
+the original monolith), not introduced by the template split, so it's out of
+scope for that mechanical refactor. Fix: build the suppression set from only the
+packages that actually render member rows (skip `pkg.hideListings` and
+`packageLimits.get(pkg.groupId)! < 1`), so standalone parents whose package rows
+were omitted keep `opts.childCtx`. Ships with a regression test that books a
+standalone parent whose sibling-capacity sold-out package hid its member row and
+asserts the child selector still renders. (Note the `hideListings` half may be
+unreachable — the code assumes only visible packages contain parents — so verify
+that invariant before widening the fix.)
 
-- **`#ledger`** — the money ledger (`/admin/ledger`, `ledger.tsx`) links
-  `#ledger`. Needs a section covering the double-entry money ledger: what the
-  accounts/legs mean, how balances are projected, manual write-off entries, and
-  how refunds/booking-fees show up. (The existing `payments` overview and
-  `refunds` sections are adjacent but not a home for the ledger itself.)
-- **`#logistics`** — the logistics settings page (`/admin/logistics`,
-  `logistics.tsx`) and the delivery run sheet (`/admin/deliveries`) both want a
-  `#logistics` section: delivery/collection addresses, the run-sheet, agent
-  assignment, and the per-listing `uses_logistics` flag. Once written, add the
-  footer to `deliveries.tsx` too (currently omitted — it's a driver view and the
-  anchor was dangling).
-
-**Pages with no footer yet (no fitting section exists):**
-
-- **Attendees list** (`/admin/attendees`, `attendees-list.tsx`) — the `listings`
-  section already carries the per-attendee FAQs (add/remove/merge/delete), but
-  there's no attendee-management overview to anchor a footer to. Either add an
-  `attendees` section or split the attendee FAQs out of `listings`.
-- **Image library** (`/admin/images`, `images.tsx`) — needs an `images` section
-  (uploading, linking images to listings/items, storage requirements).
-- **Attendee statuses** (`/admin/settings/statuses`, `settings-statuses.tsx`) —
-  needs a section on custom statuses and the public/paid/reservation flags. The
-  page is wired through `defineAdminResourcePages`, which already exposes a
-  `guideFooter` slot — just pass one once the section exists.
-- **Support** (`/admin/support`) — borderline (it's a contact-the-host form);
-  give it a footer only if a support/troubleshooting section is written.
+---
 
 ## Test-suite speed — remaining opportunities
 
@@ -427,3 +393,62 @@ look.
   and group the package-pricing loads, preserving the existing validation and
   fail-closed behaviour. See the "Respect the subrequest budget" guidance in
   AGENTS.md.
+
+## Equivalent-mutant entries challenged by review (from PR #1717)
+
+*Origin: CodeRabbit review on PR #1717 (import-graph slimming). The challenged
+entries live in `scripts/mutation/equivalent-mutants.txt` but were added by the
+balance-payments work (PR #1697) and only passed through #1717 via a merge of
+main, so relitigating them there was out of scope.*
+
+CodeRabbit argued three suppressions don't meet the file's "no possible input
+distinguishes it" bar because they rely on *current-consumer* behaviour rather
+than interface guarantees:
+
+- **`src/shared/db/payment-references.ts:88` (ORDER BY removal).** The entry's
+  rationale is that every consumer dedupes `sessionIds` or uses them in an
+  `IN (...)`. That is consumer-dependent: a future consumer that renders or
+  compares the array order would observe the mutant. Either normalize ordering
+  at the exported API boundary (e.g. sort `sessionIds` before returning) and
+  keep the suppression, or drop the entry and pin the order with a test.
+- **`src/features/admin/attendees-edit.ts:68` (`bookings[0]` → `bookings[1]`).**
+  The entry leans on a data invariant (the LIMIT 1 row's `listing_id` matching
+  `attendee.listing_id`). Multi-parent bookings exist (see
+  `test/lib/db/attendee-multiparent-rows.test.ts`), so an attendee whose first
+  booking is on a different listing may be constructible. Preferred fix: add a
+  regression test with divergent booking/attendee listing ids asserting the
+  refresh context picks `bookings[0].listing_id`, then delete the entry.
+- **`src/shared/merge/attendee-merge.ts:715/:722` (`merge-unbill`/`merge-credit`
+  keyParts).** The entry argues the prefixes feed only HMAC'd
+  `event_group`/`reference` digests that nothing queries. The digests are still
+  persisted, so the safest resolution is a test that pins the two legs'
+  event-group derivation (or an explicit storage-contract note), then removal.
+
+Starting point: each entry's full rationale is in the file next to the line
+numbers above; the mutation harness is `deno task mutation --source <file>
+--test <suite>`.
+
+## Stop patching @std/expect's `toContain` (from PR #1712)
+
+`test/test-utils/fast-expect.ts` globally overrides `@std/expect`'s built-in
+`toContain` via `expect.extend`, to skip the built-in's eager pretty-printing of
+the whole searched value on every (passing) assertion — the speed win documented
+in AGENTS.md's "Fast Tests" section (landed in PR #1702). PR #1712 removed the
+`#test-utils` barrel that used to side-effect-import it, so the override is now
+loaded via a `--preload ./test/test-utils/fast-expect.ts` flag on the test
+harness (`scripts/test-harness.ts`) and the mutation runner
+(`scripts/mutation/runner.ts`).
+
+The preference is to **not** patch a standard library if we can avoid it. This
+is genuinely out of scope for the barrel-removal PR (it would touch far more than
+that PR's remit), so it's recorded here rather than done there.
+
+Fix direction: replace the global `toContain` override with `@std/assert`'s
+native `assertStringIncludes` (and `assertArrayIncludes` where a `toContain` is
+used on arrays), which is already fast — it does not pretty-print on success — so
+no `@std` behaviour is patched. Migrate the `expect(bigHtml).toContain(...)` call
+sites (thousands, mostly rendered-HTML assertions), then delete `fast-expect.ts`,
+its test, the `--preload` flag in both runners, and the "Fast Tests" note that
+documents the override. Confirm the suite's slow-test report
+(`SLOW_TEST_THRESHOLD_MS`) doesn't regress. Start points: `fast-expect.ts` for
+what it did and why, and grep `\.toContain(` under `test/` for the call sites.

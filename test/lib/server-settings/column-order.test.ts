@@ -1,11 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import {
-  adminFormPost,
-  describeWithEnv,
-  expectFlashRedirect,
-} from "#test-utils";
+import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin settings: column order)", { db: true }, () => {
   describe("POST /admin/settings/listing-column-order", () => {

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import {
@@ -17,12 +17,10 @@ import {
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
-import {
-  createListingWithAttendeeAndLogistics,
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createListingWithAttendeeAndLogistics } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const D1 = "2026-06-16";
 const D2 = "2026-06-17";
@@ -369,7 +367,7 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
       expect(before.find((l) => l.kind === "start")?.done).toBe(false);
 
       // Ticking the run-sheet leg completes every path row together.
-      await setLegDone(attendeeId, listingId, "start", true, [van]);
+      await setLegDone(attendeeId, listingId, "start", D1, true, [van]);
       const after = await getAgentRunSheet([van], [D1]);
       expect(after.find((l) => l.kind === "start")?.done).toBe(true);
       const rows = await queryAll<{ start_done: number }>(
@@ -437,7 +435,7 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
 
   describe("setLegDone", () => {
     test("returns false for no agent ids", async () => {
-      expect(await setLegDone(1, 1, "start", true, [])).toBe(false);
+      expect(await setLegDone(1, 1, "start", D1, true, [])).toBe(false);
     });
 
     test("marks the start leg done for the owning agent", async () => {
@@ -447,7 +445,9 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
         startAgentId: van,
         startDate: D1,
       });
-      const ok = await setLegDone(attendeeId, listingId, "start", true, [van]);
+      const ok = await setLegDone(attendeeId, listingId, "start", D1, true, [
+        van,
+      ]);
       expect(ok).toBe(true);
       const legs = await getAgentRunSheet([van], [D1]);
       expect(legs[0]?.done).toBe(true);
@@ -461,7 +461,7 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
         startAgentId: van,
         startDate: D1,
       });
-      await setLegDone(attendeeId, listingId, "end", true, [van]);
+      await setLegDone(attendeeId, listingId, "end", D1, true, [van]);
       const legs = await getAgentRunSheet([van], [D1]);
       expect(legs.find((l) => l.kind === "start")?.done).toBe(false);
       expect(legs.find((l) => l.kind === "end")?.done).toBe(true);
@@ -475,7 +475,7 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
         startDate: D1,
         startDone: true,
       });
-      await setLegDone(attendeeId, listingId, "start", false, [van]);
+      await setLegDone(attendeeId, listingId, "start", D1, false, [van]);
       const legs = await getAgentRunSheet([van], [D1]);
       expect(legs[0]?.done).toBe(false);
     });
@@ -488,9 +488,26 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
         startDate: D1,
       });
       const kind: DeliveryLegKind = "start";
-      const ok = await setLegDone(attendeeId, listingId, kind, true, [van]);
+      const ok = await setLegDone(attendeeId, listingId, kind, D1, true, [van]);
       expect(ok).toBe(false);
       const legs = await getAgentRunSheet([other], [D1]);
+      expect(legs[0]?.done).toBe(false);
+    });
+
+    test("refuses to update an owning agent leg on a different date", async () => {
+      // The leg is genuinely the van's, but on D3 — marking it via a D1 form
+      // must not flip a leg on a day the run sheet wasn't showing.
+      const { attendeeId, listingId } = await makeBooking({
+        endAgentId: null,
+        endDate: D4,
+        startAgentId: van,
+        startDate: D3,
+      });
+      const ok = await setLegDone(attendeeId, listingId, "start", D1, true, [
+        van,
+      ]);
+      expect(ok).toBe(false);
+      const legs = await getAgentRunSheet([van], [D3]);
       expect(legs[0]?.done).toBe(false);
     });
   });

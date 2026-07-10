@@ -6,7 +6,8 @@ import {
   formatAddressInline,
 } from "#shared/columns/attendee-columns.ts";
 import { colClass } from "#templates/components/table-columns.ts";
-import { setupTestEncryptionKey, testAttendee } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testAttendee } from "#test-utils/factories.ts";
 import {
   makeAttendeeRow as makeRow,
   attendeeColumnOpts as opts,

@@ -5,7 +5,8 @@ import {
   adminModifierRecalculatePage,
   ModifierRunningTotalsSection,
 } from "#templates/admin/modifiers/aggregates.tsx";
-import { setupTestEncryptionKey, testModifier } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testModifier } from "#test-utils/factories.ts";
 
 const SESSION = { adminLevel: "owner" as const };
 

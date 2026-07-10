@@ -312,7 +312,7 @@ export const expectReservedRedirectWithTokens = (response: Response): void => {
 export const expectAttendeeCounts = async (
   expectations: { count: number; listingId: number; quantity?: number }[],
 ): Promise<void> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
   for (const { count, listingId, quantity } of expectations) {
     const attendees = await getAttendeesRaw(listingId);
     expect(attendees.length).toBe(count);

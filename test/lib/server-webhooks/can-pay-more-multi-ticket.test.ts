@@ -2,20 +2,19 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { resetStripeClient } from "#shared/stripe.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { signedMeta, singleItem } from "#test-utils/factories.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
-  createTestListing,
-  describeWithEnv,
   expectKeptAsQuantityZeroAndRefunded,
   expectMergedMultiListingAttendee,
   expectRefundedWithNote,
   expectSessionFailed,
   expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
-  setupStripe,
-  signedMeta,
-  singleItem,
-} from "#test-utils";
+} from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -65,7 +64,9 @@ describeWithEnv(
       );
 
       // Verify both attendees were created with correct per-item prices
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const attendees1 = await getAttendeesRaw(listing1.id);
       const attendees2 = await getAttendeesRaw(listing2.id);
       expect(attendees1.length).toBe(1);
@@ -154,7 +155,9 @@ describeWithEnv(
       );
 
       // Verify one attendee record was created (quantity=2 is stored on the record)
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(1);
       expect(attendees[0]!.quantity).toBe(2);

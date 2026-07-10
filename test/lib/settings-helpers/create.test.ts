@@ -3,7 +3,8 @@ import { fn } from "@std/expect/fn";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import type { ErrorPageFn } from "#routes/admin/settings-helpers.ts";
 import { createSettingsHandler } from "#routes/admin/settings-helpers.ts";
-import { describeWithEnv, expectFlash, expectRedirect } from "#test-utils";
+import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   lastLogMessage,
   makeMockErrorPage,

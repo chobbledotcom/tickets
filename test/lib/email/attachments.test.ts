@@ -2,7 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { EmailEntry } from "#shared/email.ts";
 import { buildSvgTicketData, buildTicketAttachments } from "#shared/email.ts";
-import { describeWithEnv, makeTestEntry as makeEntry } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 
 /** One group per entry — the shape a package-less order renders as. */
 const soloGroups = (entries: EmailEntry[]) =>

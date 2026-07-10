@@ -12,7 +12,8 @@ import {
   type LogisticsAssignment,
 } from "#shared/db/logistics.ts";
 import { appleMapsUrl, googleMapsUrl } from "#shared/maps.ts";
-import { setupTestEncryptionKey, testAttendee } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testAttendee } from "#test-utils/factories.ts";
 
 const calAttendee = (
   over: Partial<CalendarAttendee> = {},

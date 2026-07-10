@@ -5,7 +5,8 @@ import {
   syncTriggers,
 } from "#shared/db/migrations/schema-sync.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
-import { buildMigrationContext, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { buildMigrationContext } from "#test-utils/migrations.ts";
 import {
   readModifierAggregates as modifierAggregates,
   runAggregateColumnDropTests,

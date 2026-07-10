@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   createTestApiKeyToken,
-  describeWithEnv,
   getTestSession,
   requestAsApiKey,
   requestAsSession,
-} from "#test-utils";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+} from "#test-utils/session.ts";
 
 describeWithEnv("admin API security", { db: true }, () => {
   describe("malformed JSON with API key auth", () => {

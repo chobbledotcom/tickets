@@ -1,12 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-  makeParent,
-  ticketGet,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { makeParent, ticketGet } from "#test-utils/parents.ts";
 
 describeWithEnv(
   "server > parents booking — group pages",
@@ -56,7 +53,9 @@ describeWithEnv(
       );
       // The child's quantity field is ignored (it is not a standalone row), so
       // no child attendee is created.
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       expect((await getAttendeesRaw(child.id)).length).toBe(0);
       expect(res.status).not.toBe(500);
     });

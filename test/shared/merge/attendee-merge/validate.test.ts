@@ -8,7 +8,7 @@ import type {
   AttendeeMergeDiffAnswerItem,
   AttendeeMergeDiffBookingItem,
 } from "#shared/merge/attendee-merge-types.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 /** A listing-attendee booking row on listing 5, overridable per test. */
 const row = (over: Partial<ListingAttendeeRow> = {}): ListingAttendeeRow => ({

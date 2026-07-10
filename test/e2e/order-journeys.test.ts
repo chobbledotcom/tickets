@@ -13,12 +13,12 @@ import {
   revenueAccount,
 } from "#shared/accounting/accounts.ts";
 import { accountBalance } from "#shared/accounting/queries.ts";
+import { attendeeLineIndex } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  attendeeLineIndex,
-  describeWithEnv,
   openEditorFromRoster,
   runOrderJourney,
-} from "#test-utils";
+} from "#test-utils/order-journey.ts";
 
 describeWithEnv("e2e: order journeys", { db: true }, () => {
   test("a paid mixed order completes through the provider and settles in the ledger", async () => {

@@ -1,18 +1,22 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { ATTENDEES_PAGE_SIZE } from "#shared/db/attendees.ts";
+import { ATTENDEES_PAGE_SIZE } from "#shared/db/attendees/queries.ts";
 import { createSystemNote } from "#shared/db/system-notes.ts";
 import {
-  adminGet,
   assertAdminHtml,
-  createMultiBookingAttendee,
-  createTestAttendeeDirect,
-  createTestListing,
-  deactivateTestListing,
-  describeWithEnv,
   expectHtml,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  createMultiBookingAttendee,
+  createTestAttendeeDirect,
+} from "#test-utils/db-helpers/attendees.ts";
+import {
+  createTestListing,
+  deactivateTestListing,
+} from "#test-utils/db-helpers/listings.ts";
+import { adminGet } from "#test-utils/session.ts";
 
 /** Create a standard listing with plenty of capacity */
 const makeListing = (name: string, maxAttendees = 100) =>

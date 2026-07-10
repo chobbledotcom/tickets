@@ -6,7 +6,7 @@ import {
   applySchemaChanges,
   recreateTable,
 } from "#shared/db/migrations/schema-sync.ts";
-import { resetDb } from "#test-utils";
+import { resetDb } from "#test-utils/db.ts";
 import {
   cleanupTestDbPath,
   createTrackedTestDbFile,

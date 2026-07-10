@@ -14,12 +14,12 @@ import {
   isInviteValid,
   verifyUserPassword,
 } from "#shared/db/users.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   assertAdminPasswordRejects,
   assertAdminPasswordVerifies,
-  describeWithEnv,
-  TEST_ADMIN_USERNAME,
-} from "#test-utils";
+} from "#test-utils/db-helpers/misc.ts";
+import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("users CRUD", () => {

@@ -10,7 +10,8 @@ import {
   reserveSession,
   STALE_RESERVATION_MS,
 } from "#shared/db/processed-payments.ts";
-import { describeWithEnv, useProcessedPaymentsAttendee } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { useProcessedPaymentsAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 
 const finalizeSession = (
   sessionId: string,

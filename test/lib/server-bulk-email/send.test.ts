@@ -3,17 +3,15 @@ import { describe, it as test } from "@std/testing/bdd";
 import { hashEmail, unsubscribeHash } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
-  adminFormPost,
-  adminGet,
-  describeWithEnv,
-  expectFlashRedirect,
-  expectRedirect,
   getAllActivityLog,
   getListingActivityLog,
-  useFetchStub,
-} from "#test-utils";
+} from "#test-utils/activity-log.ts";
+import { expectFlashRedirect, expectRedirect } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { useFetchStub } from "#test-utils/mocks.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import {
   seedDraft,
   seedListingWithAttendees,

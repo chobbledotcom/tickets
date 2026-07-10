@@ -8,7 +8,7 @@ import {
   getActivePaymentProvider,
   isPaymentStatus,
 } from "#shared/payments.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 /** A minimal booking line that satisfies every schema rule; spread and override
  * one field per case to probe a single boundary in isolation. Each line is

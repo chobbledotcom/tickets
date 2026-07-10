@@ -9,14 +9,14 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getListing } from "#shared/db/listings.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,
-  describeWithEnv,
   updateTestListing,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("integration: duration_days", { db: true }, () => {
   describe("admin edit flow", () => {

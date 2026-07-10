@@ -8,7 +8,7 @@ import {
   buildSignedToken,
   encodeTokenPayload,
 } from "#shared/crypto/signed-token.ts";
-import { setupTestEncryptionKey } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 // A minimal scheme exercising the factory directly: the payload has one extra
 // field beyond the expiry, and the HMAC message is keyed by a string context so

@@ -25,7 +25,7 @@
 
 import { bookingEventGroup } from "#shared/accounting/mappers.ts";
 import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
-import { attendeeIdByLedgerEventGroup } from "#shared/db/attendees.ts";
+import { attendeeIdByLedgerEventGroup } from "#shared/db/attendees/queries.ts";
 
 /** What the ledger already records for a booking session (keyed on its event group). */
 export type BookingLedgerDisposition =

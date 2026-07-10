@@ -1,22 +1,25 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { groups } from "#shared/db/groups.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookAttendee,
-  createTestGroup,
+  fillSoleCapacityListing,
+} from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
   createTestListing,
   deactivateTestListing,
-  describeWithEnv,
-  expectHtmlResponse,
-  fillSoleCapacityListing,
-  mockRequest,
-  setupStripe,
-  signMeta,
-  singleItem,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
+import { signMeta, singleItem } from "#test-utils/factories.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
+// jscpd:ignore-end
+import { setupStripe } from "#test-utils/settings.ts";
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("GET /payment/success (ticket)", () => {
@@ -279,7 +282,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           "saved your details",
           "refund is being arranged",
         );
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const { getAttendeesRaw } = await import(
+          "#shared/db/attendees/queries.ts"
+        );
         const { getNoteRows } = await import("#shared/db/system-notes.ts");
         const ghost = (await getAttendeesRaw(listing.id)).find(
           (a) => a.quantity === 0,
@@ -357,7 +362,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
 
         // The paid customer is never lost: a quantity-0 ghost is kept on listing1
         // (not rolled back to nothing).
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const { getAttendeesRaw } = await import(
+          "#shared/db/attendees/queries.ts"
+        );
         const ghost1 = (await getAttendeesRaw(listing1.id)).find(
           (a) => a.quantity === 0,
         );

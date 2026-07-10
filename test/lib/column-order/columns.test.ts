@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { LISTING_TABLE_COLUMNS } from "#shared/columns/listing-columns.ts";
-import { testListingWithCount } from "#test-utils";
+import { testListingWithCount } from "#test-utils/factories.ts";
 
 describe("LISTING_TABLE_COLUMNS cell renderers", () => {
   const u = undefined as unknown;

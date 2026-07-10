@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { updateBusinessEmail } from "#shared/validation/email.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("business-email", { db: true }, () => {
   describe("settings.businessEmail", () => {

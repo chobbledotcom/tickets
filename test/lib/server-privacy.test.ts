@@ -23,19 +23,23 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { nowMs } from "#shared/now.ts";
 import {
-  adminFormPost,
-  adminGet,
   assertAdminHtml,
-  attendeeExists as attendeeExistsHelper,
-  awaitTestRequest,
-  createTestManagerSession,
-  describeWithEnv,
   expectFlashRedirect,
   expectHtmlResponse,
   expectStatus,
-  insertOrphanAttendee,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  attendeeExists as attendeeExistsHelper,
+  insertOrphanAttendee,
+} from "#test-utils/db-helpers/attendees.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
+import {
+  adminFormPost,
+  adminGet,
+  createTestManagerSession,
+} from "#test-utils/session.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const oldIso = (): string => new Date(nowMs() - 365 * DAY_MS).toISOString();

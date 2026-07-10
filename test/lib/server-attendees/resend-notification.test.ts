@@ -4,21 +4,23 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import {
-  adminAttendeeAction,
-  adminFormPost,
-  adminGet,
-  adminListingPage,
-  bookAttendee,
-  createTestListing,
-  describeWithEnv,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
   followRedirectWithFlash,
-  mockFormRequest,
-  setupAdminTest,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { mockFormRequest } from "#test-utils/mocks.ts";
+import {
+  adminAttendeeAction,
+  adminFormPost,
+  adminGet,
+  adminListingPage,
+  setupAdminTest,
+} from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 import { setupListingAndAttendee } from "./helpers.ts";
@@ -214,7 +216,9 @@ describeWithEnv(
           expect(response.status).toBe(302);
 
           // Verify activity was logged
-          const { getListingActivityLog } = await import("#test-utils");
+          const { getListingActivityLog } = await import(
+            "#test-utils/activity-log.ts"
+          );
           const logs = await getListingActivityLog(listing.id);
           const resendLog = logs.find((l: { message: string }) =>
             l.message.includes("Notification re-sent"),
@@ -230,9 +234,11 @@ describeWithEnv(
         // The resend selects ONE member row, but the notification must carry
         // the attendee's whole package — otherwise a hidden package's
         // confirmation collapses to that single row's quantity/price.
-        const { createTestGroup } = await import("#test-utils");
+        const { createTestGroup } = await import(
+          "#test-utils/db-helpers/groups.ts"
+        );
         const { createAttendeeAtomic } = await import(
-          "#shared/db/attendees.ts"
+          "#shared/db/attendees/api.ts"
         );
         const group = await createTestGroup({
           isPackage: true,
@@ -266,8 +272,9 @@ describeWithEnv(
             { confirm_identifier: "Duo Buyer" },
           );
           expect(response.status).toBe(302);
-          // Allow the fire-and-forget webhook to dispatch.
-          await new Promise((resolve) => setTimeout(resolve, 0));
+          // No wait needed: handleRequest flushes pending work (the
+          // fire-and-forget webhook) in its finally before returning the
+          // response, so the dispatch has already completed by here.
           expect(webhookFetch.calls.length).toBe(1);
           const [, options] = webhookFetch.calls[0]!.args as [
             string,

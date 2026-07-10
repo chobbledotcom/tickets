@@ -16,7 +16,7 @@ import { walkSourceFiles } from "#test-utils/walk-src.ts";
  * Their links are allowed to dangle until the section lands; delete an entry
  * here as soon as its section is authored (the second test fails if you forget).
  */
-const PENDING_SECTIONS = new Set(["ledger", "logistics"]);
+const PENDING_SECTIONS = new Set<string>([]);
 
 const SRC_DIR = "src";
 const ANCHOR = /\/admin\/guide#([a-z0-9-]+)/g;

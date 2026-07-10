@@ -37,7 +37,9 @@ import {
 } from "#shared/db/migrations.ts";
 import { listFiles, uploadRaw } from "#shared/storage.ts";
 import { setDeleteOverride } from "#shared/test-overrides.ts";
-import { createTestListing, describeWithEnv, setTestEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { setTestEnv } from "#test-utils/env.ts";
 
 describeWithEnv("backup", { db: true }, () => {
   describe("splitStatements", () => {

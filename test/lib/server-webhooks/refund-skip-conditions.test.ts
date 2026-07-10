@@ -4,20 +4,19 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  checkoutSessionEvent,
   createTestListing,
   deactivateTestListing,
-  describeWithEnv,
+} from "#test-utils/db-helpers/listings.ts";
+import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { mockWebhookRequest } from "#test-utils/mocks.ts";
+import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
+import {
+  checkoutSessionEvent,
   expectWebhookIgnored,
-  mockWebhookRequest,
   postWebhookAndAssert,
-  setupStripe,
-  signedMeta,
-  singleItem,
-  stubWebhookVerify,
-  webhookMeta,
-} from "#test-utils";
+} from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -162,7 +161,9 @@ describeWithEnv(
       expect(mockRefund.calls.length).toBe(0);
 
       // No attendees created (the session is ignored before any creation pass)
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const attendees = await getAttendeesRaw(listing1.id);
       expect(attendees.length).toBe(0);
     });

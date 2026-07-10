@@ -16,20 +16,17 @@ const stubDbOk = () =>
   );
 
 import {
-  adminFormPost,
-  adminGet,
-  awaitTestRequest,
-  describeWithEnv,
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
   FLASH_TEST_ID,
   flashCookieHeader,
-  setTestEnv,
-  testCookie,
   testRequiresAuth,
-  withMocks,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setTestEnv } from "#test-utils/env.ts";
+import { awaitTestRequest, withMocks } from "#test-utils/mocks.ts";
+import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 
 /** Stub all Bunny + GitHub APIs for a successful build */
 const stubSuccessfulBuild = () => ({

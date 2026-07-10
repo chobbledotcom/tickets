@@ -11,19 +11,18 @@ import { handleRequest } from "#routes";
 import { isJsonApiPath } from "#routes/middleware.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
 import { SCANNER_CSRF_MAX_AGE_S } from "#shared/limits.ts";
+import { assertJson, expectHtmlResponse } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminGet,
-  assertJson,
-  awaitTestRequest,
-  createTestAttendeeWithToken,
-  createTestListing,
-  describeWithEnv,
-  expectHtmlResponse,
   requestAsSession,
   setupListingAndLogin,
   testCookie,
   testCsrfToken,
-} from "#test-utils";
+} from "#test-utils/session.ts";
 
 /** Create a JSON POST request for the scan API */
 const mockScanRequest = (
@@ -327,7 +326,9 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("datalist excludes refunded attendees", async () => {
-      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const { getAttendeesByTokens } = await import(
+        "#shared/db/attendees/tokens.ts"
+      );
       const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
       const { listing, token } = await createTestAttendeeWithToken(
         "Carol Refunded",
@@ -392,7 +393,9 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("returns refunded status for refunded attendee", async () => {
-      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const { getAttendeesByTokens } = await import(
+        "#shared/db/attendees/tokens.ts"
+      );
       const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
       const { listing, token, session } = await setupScanTest(
         "Refund",

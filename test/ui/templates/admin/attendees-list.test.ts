@@ -7,11 +7,8 @@ import {
   type AttendeesListPageProps,
   adminAttendeesListPage,
 } from "#templates/admin/attendees-list.tsx";
-import {
-  setupTestEncryptionKey,
-  testAttendee,
-  testListingWithCount,
-} from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 

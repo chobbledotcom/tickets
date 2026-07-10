@@ -12,7 +12,7 @@ import {
   getSession,
   resetSessionCache,
 } from "#shared/db/sessions.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("db > sessions", { db: true }, () => {
   test("createSession and getSession work together", async () => {

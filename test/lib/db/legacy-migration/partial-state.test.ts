@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { insert, setDb } from "#shared/db/client.ts";
 import { initDb } from "#shared/db/migrations.ts";
-import { setupTestEncryptionKey } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
   createLegacyMigrationHarness,
   expectAttendeeCols,

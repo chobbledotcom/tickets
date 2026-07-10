@@ -2,24 +2,27 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
-import { attendeesApi } from "#shared/db/attendees.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
-  adminFormPost,
-  adminGet,
   assertAdminHtml,
-  createTestAttendee,
-  createTestListing,
-  describeWithEnv,
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
-  getAttendeesRaw,
-  rawListingRange,
-  setupListingAndLogin,
   testRequiresAuth,
-  withMocks,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv, rawListingRange } from "#test-utils/db.ts";
+import {
+  createTestAttendee,
+  getAttendeesRaw,
+} from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withMocks } from "#test-utils/mocks.ts";
+import {
+  adminFormPost,
+  adminGet,
+  setupListingAndLogin,
+} from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 import {
@@ -88,7 +91,9 @@ describeWithEnv("server (admin attendees) > add attendee", { db: true }, () => {
 
       // The manual add is recorded in the listing activity log, naming the
       // attendee.
-      const { getListingActivityLog } = await import("#test-utils");
+      const { getListingActivityLog } = await import(
+        "#test-utils/activity-log.ts"
+      );
       const log = (await getListingActivityLog(listing.id)).find((l) =>
         l.message.includes("added manually"),
       );

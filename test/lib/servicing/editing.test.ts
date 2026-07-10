@@ -16,13 +16,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   adminPost,
   createDailyListingPair,
-  createDailyTestListing,
   createServicingHold,
   decryptFirstServicingAttendee,
-  describeWithEnv,
   expectRejects,
   getServicingEvent,
   kindOf,
@@ -30,7 +30,7 @@ import {
   servicingRowsForListing,
   tokenIndexOf,
   updateServicingEvent,
-} from "#test-utils";
+} from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 
@@ -47,7 +47,9 @@ describeWithEnv("servicing §4 — editing", { db: true }, () => {
 
   test("editing updates name and bookings (changed qty, removed listing)", async () => {
     const [a, b] = await createDailyListingPair("A", "B");
-    const { createTestServicingEvent } = await import("#test-utils");
+    const { createTestServicingEvent } = await import(
+      "#test-utils/servicing.ts"
+    );
     const event = await createTestServicingEvent({
       bookings: [
         { date: "2026-07-01", listingId: a.id, quantity: 1 },
@@ -131,7 +133,9 @@ describeWithEnv(
       // the hold was created vanished from the form — and saving the form then
       // silently dropped the hold. The edit page must include held listings
       // regardless of active state, mark them inactive, and preserve them.
-      const { deactivateTestListing } = await import("#test-utils");
+      const { deactivateTestListing } = await import(
+        "#test-utils/db-helpers/listings.ts"
+      );
       const listing = await createDailyTestListing({
         maxAttendees: 10,
         name: "Boiler Room",

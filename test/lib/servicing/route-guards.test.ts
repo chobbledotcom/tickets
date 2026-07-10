@@ -17,19 +17,19 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   adminPost,
   assertAdmin404,
   assertServicingId404sEverywhere,
   createRealAttendee,
   createServicingHold,
-  createTestListing,
   createTestServicingEvent,
-  describeWithEnv,
-  getTestSession,
   listingCostOf,
   recordServiceCost,
-} from "#test-utils";
+} from "#test-utils/servicing.ts";
+import { getTestSession } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 

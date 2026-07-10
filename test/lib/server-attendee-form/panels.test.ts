@@ -1,20 +1,24 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import {
-  adminGet,
-  awaitTestRequest,
-  bookAttendee,
-  createDailyTestListing,
-  createTestAttendee,
-  createTestListing,
-  createTestManagerSession,
-  describeWithEnv,
   expectHtmlResponse,
   expectListingRowQuantity,
-  testCookie,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createDailyTestListing,
+  createTestListing,
+} from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
+import {
+  adminGet,
+  createTestManagerSession,
+  testCookie,
+} from "#test-utils/session.ts";
 import { everydayDailyListing } from "./helpers.ts";
 
 describeWithEnv(
@@ -71,7 +75,9 @@ describeWithEnv(
           "Arrived",
           "arrived@example.com",
         );
-        const { updateCheckedIn } = await import("#shared/db/attendees.ts");
+        const { updateCheckedIn } = await import(
+          "#shared/db/attendees/update.ts"
+        );
         await updateCheckedIn(attendee.id, listing.id, true);
 
         const response = await adminGet(`/admin/attendees/${attendee.id}`);

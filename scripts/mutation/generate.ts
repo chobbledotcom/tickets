@@ -22,6 +22,7 @@
 
 import { parseSync } from "npm:oxc-parser@0.132.0";
 import { flatMap, unique } from "#fp";
+import { lineColumnAt } from "../line-column.ts";
 import {
   assignmentOperators,
   assignmentOperatorsExhaustive,
@@ -64,13 +65,15 @@ interface AstNode {
   value?: unknown;
 }
 
-const lineColumnAt = (
+/**
+ * A mutant generator for one node shape. `exhaustive` toggles the larger,
+ * slower mutant set on; the two-argument generators simply ignore it.
+ */
+type MutantFn = (
+  node: AstNode,
   content: string,
-  index: number,
-): { column: number; line: number } => {
-  const lines = content.slice(0, index).split("\n");
-  return { column: lines.at(-1)!.length + 1, line: lines.length };
-};
+  exhaustive: boolean,
+) => Mutant[];
 
 /** Build a mutant for the span [start, end), resolving its line/column. */
 const spanMutant = (
@@ -86,6 +89,12 @@ const spanMutant = (
   return replacement === undefined ? base : { ...base, replacement };
 };
 
+/** Whitespace-collapsed source of [start, end), truncated to ~40 chars. */
+const clippedText = (content: string, start: number, end: number): string => {
+  const text = content.slice(start, end).replace(/\s+/g, " ").trim();
+  return text.length > 40 ? `${text.slice(0, 39)}…` : text;
+};
+
 // --- Binary / logical / assignment operators -----------------------------
 
 const MUTABLE_NODES: Record<string, readonly [OperatorTable, OperatorTable]> = {
@@ -94,11 +103,7 @@ const MUTABLE_NODES: Record<string, readonly [OperatorTable, OperatorTable]> = {
   LogicalExpression: [logicalOperators, logicalOperatorsExhaustive],
 };
 
-const operatorMutants = (
-  node: AstNode,
-  content: string,
-  exhaustive: boolean,
-): Mutant[] => {
+const operatorMutants: MutantFn = (node, content, exhaustive) => {
   const { left, operator, right, type } = node as AstNode & {
     left: { end: number };
     operator: string;
@@ -194,13 +199,16 @@ const literalReplacementMutants = (
     );
 };
 
-const stringLiteralMutants = (
+/** The literal's `value` when it is `type`, else undefined (skip the node). */
+const literalValueOfType = <T>(
   node: AstNode,
-  content: string,
-  exhaustive: boolean,
-): Mutant[] => {
-  const { value } = node;
-  if (typeof value !== "string") return [];
+  type: "number" | "string",
+): T | undefined =>
+  typeof node.value === type ? (node.value as T) : undefined;
+
+const stringLiteralMutants: MutantFn = (node, content, exhaustive) => {
+  const value = literalValueOfType<string>(node, "string");
+  if (value === undefined) return [];
   const replacements =
     value === ""
       ? ['"mutated"']
@@ -210,13 +218,9 @@ const stringLiteralMutants = (
 
 const numberText = (value: number): string => String(value);
 
-const numberLiteralMutants = (
-  node: AstNode,
-  content: string,
-  exhaustive: boolean,
-): Mutant[] => {
-  const { value } = node;
-  if (typeof value !== "number") return [];
+const numberLiteralMutants: MutantFn = (node, content, exhaustive) => {
+  const value = literalValueOfType<number>(node, "number");
+  if (value === undefined) return [];
   const defaultValue = value === 0 ? 1 : 0;
   const values = [
     defaultValue,
@@ -226,11 +230,7 @@ const numberLiteralMutants = (
   return literalReplacementMutants(node, content, replacements);
 };
 
-const literalMutants = (
-  node: AstNode,
-  content: string,
-  exhaustive: boolean,
-): Mutant[] => [
+const literalMutants: MutantFn = (node, content, exhaustive) => [
   ...booleanMutants(node, content),
   ...numberLiteralMutants(node, content, exhaustive),
   ...stringLiteralMutants(node, content, exhaustive),
@@ -247,18 +247,12 @@ const statementRemovalMutants = (node: AstNode, content: string): Mutant[] => {
     start: number;
   };
   if (!REMOVABLE_EXPRESSIONS.has(expression.type)) return [];
-  const text = content.slice(start, end).replace(/\s+/g, " ").trim();
-  const label = text.length > 40 ? `${text.slice(0, 39)}…` : text;
+  const label = clippedText(content, start, end);
   // Replace with an empty statement — valid even as a braceless if/for/while body.
   return [spanMutant(content, start, end, label, "(removed)", ";")];
 };
 
 // --- Control-flow removals ------------------------------------------------
-
-const clippedText = (content: string, start: number, end: number): string => {
-  const text = content.slice(start, end).replace(/\s+/g, " ").trim();
-  return text.length > 40 ? `${text.slice(0, 39)}…` : text;
-};
 
 const returnMutants = (node: AstNode, content: string): Mutant[] => {
   const { argument } = node;
@@ -289,11 +283,7 @@ const statementRemoval = (node: AstNode, content: string): Mutant[] => {
   ];
 };
 
-const conditionalMutants = (
-  node: AstNode,
-  content: string,
-  exhaustive: boolean,
-): Mutant[] => {
+const conditionalMutants: MutantFn = (node, content, exhaustive) => {
   const { alternate, consequent, end, start } = node as AstNode & {
     alternate: { end: number; start: number };
     consequent: { end: number; start: number };

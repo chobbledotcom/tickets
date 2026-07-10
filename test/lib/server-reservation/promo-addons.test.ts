@@ -3,7 +3,8 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
-import { describeWithEnv, mockRequest } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 import {
   captureCheckoutIntent,
   createOptionalAddOn,

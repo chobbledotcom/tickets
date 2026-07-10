@@ -20,7 +20,7 @@ import {
 } from "#shared/contact-form.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getBookableStartDates, parseIsoDateParam } from "#shared/dates.ts";
-import { getListingRemainingForRange } from "#shared/db/attendees.ts";
+import { getListingRemainingForRange } from "#shared/db/attendees/capacity.ts";
 import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { settings } from "#shared/db/settings.ts";

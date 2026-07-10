@@ -9,8 +9,20 @@ import {
 } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import {
+  isDemoMode,
+  resetDemoMode,
+  setDemoModeForTest,
+} from "#shared/demo/mode.ts";
+import {
   ATTENDEE_DEMO_FIELDS,
   applyDemoOverrides,
+  type DemoFieldMap,
+  LISTING_DEMO_FIELDS,
+  LOGISTICS_DEMO_FIELDS,
+  wrapResourceForDemo,
+} from "#shared/demo/overrides.ts";
+import * as demoSamples from "#shared/demo/samples.ts";
+import {
   DEMO_EMAILS,
   DEMO_GROUP_NAMES,
   DEMO_HOLIDAY_NAMES,
@@ -18,21 +30,34 @@ import {
   DEMO_LISTING_LOCATIONS,
   DEMO_LISTING_NAMES,
   DEMO_NAMES,
-  type DemoFieldMap,
-  isDemoMode,
-  LISTING_DEMO_FIELDS,
-  resetDemoMode,
-  setDemoModeForTest,
-  wrapResourceForDemo,
-} from "#shared/demo.ts";
+} from "#shared/demo/samples.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
   createTestDbWithSetup,
   describeWithEnv,
-  mockRequest,
   resetDb,
-  setupTestEncryptionKey,
-} from "#test-utils";
+} from "#test-utils/db.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
+
+describe("demo sample pools", () => {
+  // applyDemoOverrides only replaces fields that arrive non-empty, so a blank
+  // sample would silently erase real submitted data. Walking every exported
+  // pool keeps that invariant pinned for pools added later too.
+  test("every exported pool has entries and no entry is empty", () => {
+    const pools = Object.entries(demoSamples).filter(
+      (entry): entry is [string, readonly string[]] => Array.isArray(entry[1]),
+    );
+    expect(pools.length).toBeGreaterThan(0);
+    for (const [name, pool] of pools) {
+      expect(pool.length, name).toBeGreaterThan(0);
+      for (const value of pool) {
+        expect(typeof value, name).toBe("string");
+        expect(value.length, `${name} has an empty entry`).toBeGreaterThan(0);
+      }
+    }
+  });
+});
 
 describeWithEnv("isDemoMode", { env: { DEMO_MODE: undefined } }, () => {
   beforeEach(() => setDemoModeForTest(false));
@@ -98,6 +123,19 @@ describe("applyDemoOverrides", () => {
     expect(DEMO_NAMES as readonly string[]).toContain(form.get("name"));
     expect(form.get("email")).not.toBe("real@example.com");
     expect(DEMO_EMAILS as readonly string[]).toContain(form.get("email"));
+  });
+
+  test("clears pinned coordinates outright instead of substituting text", () => {
+    setDemoModeForTest(true);
+    const form = new FormParams({
+      address: "10 Real Street",
+      lat: "51.5074",
+      lng: "-0.1278",
+    });
+    applyDemoOverrides(form, LOGISTICS_DEMO_FIELDS);
+    expect(form.get("lat")).toBe("");
+    expect(form.get("lng")).toBe("");
+    expect(form.get("address")).not.toBe("10 Real Street");
   });
 
   test("skips fields not present in the form", () => {

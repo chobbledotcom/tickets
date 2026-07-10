@@ -8,13 +8,12 @@ import {
 import { getDb } from "#shared/db/client.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import {
-  adminFormPost,
-  adminGet,
-  describeWithEnv,
   expectFlashRedirect,
   expectHtmlResponse,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 const PATH = "/admin/settings/statuses";
 

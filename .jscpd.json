@@ -26,6 +26,7 @@
   "minTokens": 23,
   "path": [
     "src",
-    "e2e-payments"
+    "e2e-payments",
+    "scripts"
   ]
 }

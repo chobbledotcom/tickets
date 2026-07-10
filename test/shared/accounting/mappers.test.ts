@@ -14,7 +14,8 @@ import {
 } from "#shared/accounting/mappers.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
-import { describeWithEnv, rejectionMessage } from "#test-utils";
+import { rejectionMessage } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 // balanceOf ignores id, so a constant id keeps these as plain value assertions.
 const asTransfer = (t: TransferInput): Transfer => ({

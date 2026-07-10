@@ -7,7 +7,7 @@ import {
 } from "#routes/admin/entity-pages.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { setupTestEncryptionKey } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 beforeAll(() => {
   setupTestEncryptionKey();

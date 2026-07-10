@@ -8,7 +8,9 @@ import {
   getSettingsNagItemsForOwner,
 } from "#shared/settings-nags.ts";
 import { getSuperuserState } from "#shared/superuser.ts";
-import { describeWithEnv, setTestEnv, withSetting } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setTestEnv } from "#test-utils/env.ts";
+import { withSetting } from "#test-utils/settings.ts";
 
 // ---------------------------------------------------------------------------
 // Backward-compatible sync base nags

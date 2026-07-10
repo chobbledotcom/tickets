@@ -10,7 +10,7 @@ import {
   releaseFromCommit,
   resetSentryForTest,
 } from "#shared/sentry.ts";
-import { setTestEnv } from "#test-utils";
+import { setTestEnv } from "#test-utils/env.ts";
 
 const DSN = "https://abc123@bugs.example.test/2";
 

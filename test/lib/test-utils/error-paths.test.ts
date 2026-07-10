@@ -1,34 +1,39 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import type { Field } from "#shared/forms.tsx";
+import { expectStatus } from "#test-utils/assertions.ts";
 import {
-  buildMigrationContext,
-  createTestAttendee,
   createTestDb,
   createTestDbWithSetup,
+  invalidateTestDbCache,
+  resetDb,
+} from "#test-utils/db.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { priceFormValue } from "#test-utils/db-helpers/listing-forms.ts";
+import {
   createTestListing,
   deactivateTestListing,
-  emailTestSandbox,
-  errorResponse,
-  expectInvalidForm,
-  expectStatus,
-  installRecordingFetch,
-  invalidateTestDbCache,
-  loginAsAdmin,
-  priceFormValue,
-  resetDb,
-  resetTestSession,
-  unusedMigrationMember,
   updateTestListing,
-  validEmail,
+} from "#test-utils/db-helpers/listings.ts";
+import { emailTestSandbox, validEmail } from "#test-utils/email.ts";
+import { resetTestSession } from "#test-utils/internal.ts";
+import { rejection } from "#test-utils/ledger.ts";
+import {
+  buildMigrationContext,
+  unusedMigrationMember,
+} from "#test-utils/migrations.ts";
+import {
+  errorResponse,
+  installRecordingFetch,
   withBunnyDeleteCapture,
   withBunnyStorageStub,
   withCdnProxy,
   withCdnRejecting,
-  withRandomBytes,
   withStorageMock,
-} from "#test-utils";
-import { rejection } from "#test-utils/ledger.ts";
+} from "#test-utils/mocks.ts";
+import { withRandomBytes } from "#test-utils/random.ts";
+import { loginAsAdmin } from "#test-utils/session.ts";
+import { expectInvalidForm } from "#test-utils/validation.ts";
 
 describe("test-utils — error paths & contracts", () => {
   afterEach(() => {

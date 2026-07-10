@@ -14,12 +14,10 @@ import {
   updateNewsPost,
 } from "#shared/db/news-posts.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
-import {
-  createTestNewsPost,
-  describeWithEnv,
-  expectEncryptedAtRest,
-} from "#test-utils";
 import { makeImage } from "#test-utils/admin-images.ts";
+import { expectEncryptedAtRest } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
 
 describeWithEnv("db > news-posts", { db: true }, () => {
   describe("encryption + single reads", () => {

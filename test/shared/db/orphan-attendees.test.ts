@@ -14,11 +14,9 @@ import {
   purgeOrphanedAttendees,
 } from "#shared/db/orphan-attendees.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
-import {
-  createTestAttendeeDirect,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

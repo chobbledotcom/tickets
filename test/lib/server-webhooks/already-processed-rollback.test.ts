@@ -2,20 +2,20 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { resetStripeClient } from "#shared/stripe.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
-  bookAttendee,
-  checkoutSessionEvent,
   createTestListing,
   deactivateTestListing,
-  describeWithEnv,
+} from "#test-utils/db-helpers/listings.ts";
+import { signedMeta, singleItem } from "#test-utils/factories.ts";
+import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
+import {
+  checkoutSessionEvent,
   expectKeptAsQuantityZeroAndRefunded,
   expectWebhookKeptAndRefunded,
   postWebhookAndAssert,
-  setupStripe,
-  signedMeta,
-  singleItem,
-  stubWebhookVerify,
-} from "#test-utils";
+} from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -64,7 +64,9 @@ describeWithEnv(
         "no longer accepting",
       );
 
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const attendees1 = await getAttendeesRaw(listing1.id);
       expect(attendees1.length).toBe(0);
     });

@@ -14,7 +14,8 @@ import { settings } from "#shared/db/settings.ts";
 import { ACTIVITY_LOG_BACKFILL_INTERVAL_MS } from "#shared/limits.ts";
 import { setSuppressDebugLogs } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
-import { describeWithEnv, withTestSession } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { withTestSession } from "#test-utils/session.ts";
 
 /** Insert a row encrypted with DB_ENCRYPTION_KEY (the pre-migration format). */
 const insertLegacyRow = async (message: string): Promise<number> => {

@@ -3,21 +3,17 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getAllImages, setItemsForImage } from "#shared/db/images.ts";
 import {
-  createTestGroup,
-  describeWithEnv,
-  expectFlashRedirect,
-  testCookie,
-  testCsrfToken,
-  withStorageDisabled,
-  withStorageMock,
-} from "#test-utils";
-import {
   adminGet,
   formRequest,
   imageNamesForItem,
   makeImage,
   postImageUpload,
 } from "#test-utils/admin-images.ts";
+import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { withStorageDisabled, withStorageMock } from "#test-utils/mocks.ts";
+import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 describeWithEnv("admin item image routes", { db: true, storage: "cdn" }, () => {
   describe("GET /admin/groups/:id/images", () => {

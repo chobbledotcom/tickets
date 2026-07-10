@@ -37,7 +37,7 @@ import {
   STALE_RESERVATION_MS,
   WEBHOOK_RETRY_WINDOW_DAYS,
 } from "#shared/limits.ts";
-import { setTestEnv } from "#test-utils";
+import { setTestEnv } from "#test-utils/env.ts";
 
 describe("limits", () => {
   describe("parsePositiveInt", () => {

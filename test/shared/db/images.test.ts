@@ -17,11 +17,9 @@ import {
 import { getListingWithCount } from "#shared/db/listings.ts";
 import type { Image } from "#shared/types.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
-import {
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const makeImage = (
   name: string,

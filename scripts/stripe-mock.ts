@@ -12,6 +12,7 @@ import { stopProcess, stopProcessNow } from "./process.ts";
 import {
   defaultStripeMockPaths,
   downloadStripeMock,
+  ensureBinDir,
   type StripeMockCommands,
   type StripeMockInstallOptions,
   type StripeMockPaths,
@@ -223,8 +224,9 @@ const withStripeMockStartLock = async <T>(
   paths: StripeMockPaths,
   body: () => Promise<T>,
 ): Promise<T> => {
-  await Deno.mkdir(paths.binDir, { recursive: true });
-  const lock = await Deno.open(stripeMockStartLockPath(paths), {
+  const lockPath = stripeMockStartLockPath(paths);
+  await ensureBinDir(paths);
+  const lock = await Deno.open(lockPath, {
     create: true,
     read: true,
     write: true,

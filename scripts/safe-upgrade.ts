@@ -132,17 +132,9 @@ async function checkUpgrade(
     let pkgName: string;
     let versionRange: string;
 
-    if (specifier.startsWith("npm:")) {
-      // npm:@scope/name@version or npm:name@version
-      const withoutPrefix = specifier.slice(4);
-      const atIdx = withoutPrefix.lastIndexOf("@");
-      if (atIdx <= 0) {
-        result.error = "no version specifier found";
-        return result;
-      }
-      pkgName = withoutPrefix.slice(0, atIdx);
-      versionRange = withoutPrefix.slice(atIdx + 1);
-    } else if (specifier.startsWith("jsr:")) {
+    // npm: and jsr: share the same `@scope/name@version` / `name@version`
+    // shape after their (equal-length) prefix, so both parse identically.
+    if (specifier.startsWith("npm:") || specifier.startsWith("jsr:")) {
       const withoutPrefix = specifier.slice(4);
       const atIdx = withoutPrefix.lastIndexOf("@");
       if (atIdx <= 0) {

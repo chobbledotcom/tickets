@@ -2,10 +2,12 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   type CommandResult,
-  getMergeConflictWarning,
-  parseMergeTreeConflictedPaths,
   runCommand,
   runInteractiveCommand,
+} from "../../scripts/precommit/git.ts";
+import {
+  getMergeConflictWarning,
+  parseMergeTreeConflictedPaths,
 } from "../../scripts/precommit/merge-warning.ts";
 import {
   formatPushPrompt,

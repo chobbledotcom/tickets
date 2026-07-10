@@ -6,7 +6,7 @@ import {
   hasBookingConflicts,
   nonConflictAnswerLabel,
 } from "#shared/merge/attendee-merge.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("attendee merge service", { db: true }, () => {
   describe("bookingKey", () => {

@@ -16,13 +16,12 @@ import {
   verifyUserPassword,
 } from "#shared/db/users.ts";
 import { DEFAULT_ORPHAN_RETENTION } from "#shared/orphan-retention.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  describeWithEnv,
-  seedCountry,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
-  testWithSetting,
-} from "#test-utils";
+} from "#test-utils/internal.ts";
+import { seedCountry, testWithSetting } from "#test-utils/settings.ts";
 
 describeWithEnv("db > settings", { db: true }, () => {
   describe("basic CRUD", () => {

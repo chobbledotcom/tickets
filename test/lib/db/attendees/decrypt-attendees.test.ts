@@ -1,16 +1,17 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { decryptAttendees, getAttendeesRaw } from "#shared/db/attendees.ts";
+import { decryptAttendees } from "#shared/db/attendees/pii.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
-  bookAttendee,
   createTestAttendee,
-  createTestListing,
   decryptFirstAttendee,
-  describeWithEnv,
   expectNoDecryptedAttendees,
-  getTestPrivateKey,
-} from "#test-utils";
+} from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
   test("returns empty array when no attendees", async () => {
@@ -170,7 +171,9 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
 
 describeWithEnv("db > attendees > decryptAttendeeOrNull", { db: true }, () => {
   test("returns null when row is null", async () => {
-    const { decryptAttendeeOrNull } = await import("#shared/db/attendees.ts");
+    const { decryptAttendeeOrNull } = await import(
+      "#shared/db/attendees/pii.ts"
+    );
     const privateKey = await getTestPrivateKey();
     const result = await decryptAttendeeOrNull(null, privateKey);
     expect(result).toBeNull();

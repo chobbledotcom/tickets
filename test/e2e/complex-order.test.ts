@@ -20,14 +20,14 @@ import { it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
 import { settings } from "#shared/db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { attendeeLineIndex } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  attendeeLineIndex,
-  describeWithEnv,
   lineCountFor,
   lineQty,
   openEditorFromRoster,
   runOrderJourney,
-} from "#test-utils";
+} from "#test-utils/order-journey.ts";
 
 describeWithEnv("e2e: one complex mixed order", { db: true }, () => {
   test("package + overlap + parent/child + plain + daily book as one order the admin can read", async () => {

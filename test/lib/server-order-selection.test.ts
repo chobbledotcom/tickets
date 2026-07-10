@@ -4,16 +4,15 @@ import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
 import { settings } from "#shared/db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { expectRedirect, expectStatus } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
-  createTestAttendee,
-  createTestGroup,
   createTestListing,
-  describeWithEnv,
-  expectRedirect,
-  expectStatus,
-  mockRequest,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 import {
   enablePublicOrder,
   fetchAvailability,
@@ -222,7 +221,7 @@ describeWithEnv(
         });
         const start = orderDate();
         const { createAttendeeAtomic } = await import(
-          "#shared/db/attendees.ts"
+          "#shared/db/attendees/api.ts"
         );
         const fill = await createAttendeeAtomic({
           bookings: [
@@ -285,7 +284,7 @@ describeWithEnv(
         });
         const start = orderDate();
         const { createAttendeeAtomic } = await import(
-          "#shared/db/attendees.ts"
+          "#shared/db/attendees/api.ts"
         );
         const fill = await createAttendeeAtomic({
           bookings: [

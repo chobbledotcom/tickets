@@ -8,11 +8,9 @@ import {
   updateCheckedIn,
 } from "#shared/db/attendees/update.ts";
 import { getAllListings, getListingWithCount } from "#shared/db/listings.ts";
-import {
-  createPaidTestAttendee,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** A settle identity (session id + business time) for settleAttendeeBalance. */
 const settle = (id = "settle-session") => ({

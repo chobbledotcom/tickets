@@ -10,19 +10,18 @@ import {
   sitePages,
 } from "#shared/db/site-pages.ts";
 import type { SitePage } from "#shared/types.ts";
+import { wasActivityLogged as wasLogged } from "#test-utils/activity-log.ts";
 import {
-  adminFormPost,
-  adminGet,
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
   expectErrorFlash,
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
   testRequiresAuth,
-  wasActivityLogged as wasLogged,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 const BASE = "/admin/site/pages";
 
@@ -432,7 +431,9 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       const page = await seedPage("actives");
       const inactive = await createTestListing({ name: "Retired Listing" });
       await addPageItem(page.id, "listing", inactive.id);
-      const { deactivateTestListing } = await import("#test-utils");
+      const { deactivateTestListing } = await import(
+        "#test-utils/db-helpers/listings.ts"
+      );
       await deactivateTestListing(inactive.id);
       const html = await expectHtmlResponse(
         await adminGet(`${BASE}/${page.id}/items`),

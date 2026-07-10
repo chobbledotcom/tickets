@@ -2,13 +2,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { settings } from "#shared/db/settings.ts";
-import {
-  adminFormPost,
-  adminGet,
-  describeWithEnv,
-  expectFlash,
-  testRequiresAuth,
-} from "#test-utils";
+import { expectFlash, testRequiresAuth } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 const post = (data: Record<string, string>) =>
   adminFormPost("/admin/settings/address-lookup", data);

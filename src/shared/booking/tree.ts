@@ -97,6 +97,17 @@ export type BookingTree = {
   readonly nodes: readonly BookingNode[];
 };
 
+/** The listing ids that keep their own buyer-chosen `quantity_<id>` control:
+ * every node whose quantity is the buyer's choice (a standalone listing, plus a
+ * member the cart also added by its own slug). Both the render side (which rows
+ * get a quantity selector) and the submit parser read this from one place. */
+export const standaloneListingIds = (tree: BookingTree): Set<number> =>
+  new Set(
+    tree.nodes
+      .filter((node) => node.quantityRule.kind === "BUYER_CHOICE")
+      .map((node) => node.listingId),
+  );
+
 // ---------------------------------------------------------------------------
 // Node identity — the `nodeKey` scheme (single source of truth)
 // ---------------------------------------------------------------------------
@@ -224,14 +235,3 @@ export const nodePriceFieldName = (node: BookingNode): string | null => {
     ? childPriceFieldName(node.edgeRef.parentId, node.listingId)
     : customPriceFieldName(node.listingId);
 };
-
-/** The listing ids that carry a standalone `BUYER_CHOICE` node — i.e. the rows
- * with their own quantity selector (every non-member, plus any member the cart
- * also added by its own slug). The render path and the submit parser both derive
- * this from the same tree so the two can't drift. */
-export const standaloneListingIds = (tree: BookingTree): Set<number> =>
-  new Set(
-    tree.nodes
-      .filter((node) => node.quantityRule.kind === "BUYER_CHOICE")
-      .map((node) => node.listingId),
-  );

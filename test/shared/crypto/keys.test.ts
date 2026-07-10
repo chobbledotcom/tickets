@@ -23,7 +23,7 @@ import type {
   WrappedKey,
 } from "#shared/crypto/sealed.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 // Two stored-password-hash stand-ins. The v2 KEK folds the account's password
 // hash into its salt, so these stand in for two different users' hashes.

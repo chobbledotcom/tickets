@@ -5,11 +5,11 @@ import {
   getListingActivityLog,
   logActivity,
 } from "#shared/db/activityLog.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import {
-  createAttendeeAtomic,
   getAttendeeRaw,
   getAttendeesRaw,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/queries.ts";
 import { queryAll } from "#shared/db/client.ts";
 import {
   deleteListing,
@@ -25,15 +25,17 @@ import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/r
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { setListingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  createTestAttendee,
+  expectNoDecryptedAttendees,
+} from "#test-utils/db-helpers/attendees.ts";
 import {
   assignTestAttributeOptions,
-  createTestAttendee,
   createTestAttributeWithOptions,
-  createTestListing,
-  describeWithEnv,
-  expectNoDecryptedAttendees,
-  withTestSession,
-} from "#test-utils";
+} from "#test-utils/db-helpers/attributes.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withTestSession } from "#test-utils/session.ts";
 
 describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   describe("deleteListing", () => {

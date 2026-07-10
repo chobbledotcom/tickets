@@ -26,7 +26,7 @@ export const createPaidAttendeeWithoutLedger = async (
   pricePaid = 500,
   quantity = 1,
 ): Promise<Attendee> => {
-  const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+  const { createAttendeeAtomic } = await import("#shared/db/attendees/api.ts");
   const result = await createAttendeeAtomic({
     bookings: [{ listingId, pricePaid, quantity }],
     email,
@@ -70,7 +70,7 @@ export const bookAttendee = async (
   listing: Pick<Listing, "id">,
   opts: BookAttendeeOpts = {},
 ): Promise<CreateAttendeeResult> => {
-  const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+  const { createAttendeeAtomic } = await import("#shared/db/attendees/api.ts");
   const booking: ListingBooking = {
     listingId: listing.id,
   };

@@ -6,12 +6,12 @@ import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
-  createTestGroup,
   createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
 import { createFlexPackage } from "#test-utils/packages.ts";
 import { apiGet } from "#test-utils/parents.ts";
 
@@ -217,7 +217,9 @@ describeWithEnv("public API packages", { db: true }, () => {
 
     // A child a buyer can't choose must not price the bundle: with the cheap
     // add-on deactivated, the dear one is the cheapest bookable child.
-    const { deactivateTestListing } = await import("#test-utils");
+    const { deactivateTestListing } = await import(
+      "#test-utils/db-helpers/listings.ts"
+    );
     await deactivateTestListing(cheap.id);
     const { package: repriced } = await (
       await apiGet(`/api/packages/${group.slug}`)
@@ -592,7 +594,7 @@ describeWithEnv("public API packages", { db: true }, () => {
   });
 
   test("POST creates a paid checkout carrying the package id; a hidden package's items keep its name", async () => {
-    const { setupStripe } = await import("#test-utils");
+    const { setupStripe } = await import("#test-utils/settings.ts");
     const { stub } = await import("@std/testing/mock");
     const { stripePaymentProvider } = await import(
       "#shared/stripe-provider.ts"

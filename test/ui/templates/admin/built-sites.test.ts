@@ -5,11 +5,8 @@ import {
   adminBuiltSiteEditPage,
   adminBuiltSitesPage,
 } from "#templates/admin/built-sites.tsx";
-import {
-  setupTestEncryptionKey,
-  testBuiltSite,
-  testListingWithCount,
-} from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testBuiltSite, testListingWithCount } from "#test-utils/factories.ts";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 

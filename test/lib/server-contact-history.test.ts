@@ -9,14 +9,13 @@ import {
 } from "#shared/db/contact-preferences.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
-  adminFormPost,
-  adminGet,
-  describeWithEnv,
   expectHtml,
   expectRedirect,
-  getTestPrivateKey,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 const seededRecord = (overrides: Record<string, unknown> = {}) => ({
   adminBookingCount: 0,

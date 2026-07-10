@@ -4,15 +4,13 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import {
-  adminGet,
-  describeAdminSettings,
   expectFlash,
   expectHtmlResponse,
-  mockFormRequest,
-  testCookie,
-  testCsrfToken,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { mockFormRequest } from "#test-utils/mocks.ts";
+import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
+import { describeAdminSettings } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 

@@ -8,7 +8,7 @@ import {
   adminUsersPage,
   type DisplayUser,
 } from "#templates/admin/users.tsx";
-import { setupTestEncryptionKey } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 const SESSION = { adminLevel: "owner" as const };
 const AGENTS: LogisticsAgent[] = [

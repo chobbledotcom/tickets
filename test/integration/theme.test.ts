@@ -2,13 +2,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
-import {
-  adminFormPost,
-  adminGet,
-  describeWithEnv,
-  expectFlashRedirect,
-  mockRequest,
-} from "#test-utils";
+import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("integration: theme settings", { db: true }, () => {
   test("default theme is light", async () => {

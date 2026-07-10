@@ -2,12 +2,9 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { getAuthenticatedSession } from "#routes/auth.ts";
 import { settings } from "#shared/db/settings.ts";
-import {
-  createTestManagerSession,
-  describeWithEnv,
-  setTestEnv,
-  testCookie,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setTestEnv } from "#test-utils/env.ts";
+import { createTestManagerSession, testCookie } from "#test-utils/session.ts";
 
 // ---------------------------------------------------------------------------
 // AdminSession.settingsNagItems population

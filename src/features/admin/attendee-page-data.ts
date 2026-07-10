@@ -20,13 +20,13 @@ import { buildAttendeeLogisticsData } from "#routes/admin/attendee-logistics.ts"
 import { withDecryptedAttendee } from "#routes/admin/attendees-route-helpers.ts";
 import { getAttendeeActivityLog } from "#shared/db/activityLog.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import {
-  checkLinesCapacity,
   type ExistingLine,
-  hasActiveBookingLine,
   loadExistingLines,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/atomic-update.ts";
+import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
+import { checkLinesCapacity } from "#shared/db/attendees/capacity.ts";
+import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
 import {
   getContactRecord,
   getRepairFallbackRecord,

@@ -10,17 +10,17 @@ import {
   type DebugPageState,
 } from "#templates/admin/debug.tsx";
 import {
-  adminGet,
   assertAdminHtml,
-  describeWithEnv,
   expectHtmlResponse,
-  setTestEnv,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
 import {
   generateGoogleTestCreds,
   generateTestCerts,
 } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setTestEnv } from "#test-utils/env.ts";
+import { adminGet } from "#test-utils/session.ts";
 
 /** Build a complete DebugPageState, overriding only the fields a test cares about. */
 const makeDebugState = (

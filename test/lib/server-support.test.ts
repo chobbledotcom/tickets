@@ -3,20 +3,21 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setTestEnv } from "#test-utils/env.ts";
 import {
-  adminFormPost,
-  adminGet,
   awaitTestRequest,
-  createTestManagerSession,
-  describeWithEnv,
-  expectFlash,
-  expectRedirect,
   installRecordingFetch,
   mockFormRequest,
   mockRequest,
-  setTestEnv,
+} from "#test-utils/mocks.ts";
+import {
+  adminFormPost,
+  adminGet,
+  createTestManagerSession,
   testCookie,
-} from "#test-utils";
+} from "#test-utils/session.ts";
 
 const ADMIN_ENV = { ADMIN_EMAIL_ADDRESS: "host@support.test" };
 

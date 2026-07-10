@@ -7,7 +7,7 @@ import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import {
   type AttendeeBookingRows,
   getAttendeeBookingRowsByTokens,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/tokens.ts";
 import { hashEmail, hashPhone } from "#shared/db/contact-preferences.ts";
 import { getRecentBookingTokens } from "#shared/db/contact-tokens.ts";
 import { getListingNamesByIds } from "#shared/db/listings.ts";
