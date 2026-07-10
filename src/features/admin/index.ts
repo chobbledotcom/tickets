@@ -17,6 +17,7 @@
  * segments, and every declared segment serves at least one route.
  */
 
+import { once } from "#fp";
 import { createRouter, type RouteHandlerFn } from "#routes/router.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
 import { enableFooterDebug } from "#shared/db/query-log.ts";
@@ -255,35 +256,31 @@ export const ADMIN_AREAS: Record<string, AdminArea> = {
 export const adminPathSegment = (path: string): string =>
   path.split("/")[2] ?? "";
 
-/** Areas serving each segment, in manifest order (built once; pure and cheap). */
-const buildSegmentIndex = (): Map<string, AdminArea[]> => {
-  const index = new Map<string, AdminArea[]>();
+/**
+ * One lazy router per segment, derived from the manifest at module load
+ * (pure and cheap — no area module is imported until its `once` fires).
+ */
+const buildSegmentRouters = (): Record<
+  string,
+  () => Promise<PathMethodRoute>
+> => {
+  const areasBySegment: Record<string, AdminArea[]> = {};
   for (const adminArea of Object.values(ADMIN_AREAS)) {
     for (const segment of adminArea.segments) {
-      const areas = index.get(segment) ?? [];
-      areas.push(adminArea);
-      index.set(segment, areas);
+      (areasBySegment[segment] ??= []).push(adminArea);
     }
   }
-  return index;
+  const routers: Record<string, () => Promise<PathMethodRoute>> = {};
+  for (const [segment, areas] of Object.entries(areasBySegment)) {
+    routers[segment] = once(async () => {
+      const maps = await Promise.all(areas.map(({ load }) => load()));
+      return createRouter(Object.assign({}, ...maps));
+    });
+  }
+  return routers;
 };
 
-const areasBySegment = buildSegmentIndex();
-
-/** One compiled router per segment, built on first hit from just its areas. */
-const segmentRouters = new Map<string, Promise<PathMethodRoute>>();
-
-const routerForSegment = (segment: string): Promise<PathMethodRoute> | null => {
-  const areas = areasBySegment.get(segment);
-  if (!areas) return null;
-  const cached = segmentRouters.get(segment);
-  if (cached) return cached;
-  const router = Promise.all(areas.map(({ load }) => load())).then((maps) =>
-    createRouter(Object.assign({}, ...maps)),
-  );
-  segmentRouters.set(segment, router);
-  return router;
-};
+const segmentRouters = buildSegmentRouters();
 
 /**
  * Route admin requests.
@@ -307,7 +304,8 @@ export const routeAdmin: PathMethodRoute = async (
     enableFooterDebug();
   }
 
-  const router = routerForSegment(adminPathSegment(path));
-  if (!router) return null;
-  return (await router)(request, path, method, server);
+  const segment = adminPathSegment(path);
+  if (!Object.hasOwn(segmentRouters, segment)) return null;
+  const router = await segmentRouters[segment]!();
+  return router(request, path, method, server);
 };
