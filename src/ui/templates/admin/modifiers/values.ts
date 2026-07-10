@@ -7,7 +7,7 @@ import { t } from "#i18n";
 import { toMajorUnits } from "#shared/currency.ts";
 import { booleanToCheckbox, entityToFieldValues } from "#shared/forms.tsx";
 import type { Modifier } from "#shared/types.ts";
-import { modifierFields } from "#templates/fields/modifier.ts";
+import { getModifierFields } from "#templates/fields/modifier.ts";
 
 /** Human-readable summary of a modifier's rule, e.g. "Discount · 10%". */
 export const ruleSummary = (m: Modifier): string => {
@@ -34,7 +34,7 @@ export const modifierToFieldValues = (
 ): Record<string, string | number | null> =>
   entityToFieldValues(
     modifier,
-    modifierFields,
+    getModifierFields(),
     {
       active: (m) => booleanToCheckbox(m.active),
       min_subtotal: (m) =>

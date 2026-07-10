@@ -23,7 +23,7 @@ import {
   SubmitButton,
 } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
-import { modifierFields } from "#templates/fields/modifier.ts";
+import { getModifierFields } from "#templates/fields/modifier.ts";
 import { ModifierRunningTotalsSection } from "./aggregates.tsx";
 import {
   type AnswerLinks,
@@ -118,7 +118,9 @@ export const adminModifierNewPage = (
     <>
       <CsrfForm action="/admin/modifiers">
         <h1>{t("modifiers.add.heading")}</h1>
-        <Raw html={renderFields(modifierFields, modifierToFieldValues())} />
+        <Raw
+          html={renderFields(getModifierFields(), modifierToFieldValues())}
+        />
         <SubmitButton icon="plus">{t("modifiers.add.submit")}</SubmitButton>
       </CsrfForm>
       <ModifiersGuideFooter />
@@ -149,7 +151,10 @@ export const adminModifierEditPage = (
         <h1>{t("modifiers.edit.heading")}</h1>
         <Flash error={error} success={success} />
         <Raw
-          html={renderFields(modifierFields, modifierToFieldValues(modifier))}
+          html={renderFields(
+            getModifierFields(),
+            modifierToFieldValues(modifier),
+          )}
         />
         <ModifierRunningTotalsSection modifier={modifier} />
         {SaveChangesButton()}

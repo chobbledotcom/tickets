@@ -25,7 +25,13 @@ export type ModifierFormValues = {
   active: string;
 };
 
-export const modifierFields: Field[] = [
+/**
+ * Modifier form fields (per-request builder). Built on demand rather than at
+ * module load so the picklist option labels — which resolve through `t()` and
+ * compile their ICU messages — stay off the admin routes' cold-start path, the
+ * same way the listing and invite field builders do.
+ */
+export const getModifierFields = (): Field[] => [
   {
     label: "Name",
     name: "name",
