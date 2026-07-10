@@ -157,6 +157,7 @@
   "fields.sumup.merchant_code_placeholder": "M...",
   "fields.user.username_hint": "Letters, numbers, hyphens, underscores (2-32 chars)",
   "fields.user.role": "Role",
+  "fields.user.role_placeholder": "Choose a role…",
   "fields.user.role_manager": "Manager",
   "fields.user.role_owner": "Owner",
   "fields.validation.price_non_negative": "Price must be 0 or greater",

@@ -285,9 +285,16 @@ export const getInviteUserFields = (): Field[] => [
     validate: validateUsername,
   },
   {
+    // A blank option leads so nothing is pre-selected: the role is required, so
+    // an unchanged form is rejected ("Role is required") rather than silently
+    // granting whatever option happens to sit first (AdminLevelSchema lists
+    // owner first). The operator must pick a role deliberately.
     label: t("fields.user.role"),
     name: "admin_level",
-    options: picklistOptions(AdminLevelSchema, "fields.user"),
+    options: [
+      { label: t("fields.user.role_placeholder"), value: "" },
+      ...picklistOptions(AdminLevelSchema, "fields.user"),
+    ],
     required: true,
     type: "select",
   },
