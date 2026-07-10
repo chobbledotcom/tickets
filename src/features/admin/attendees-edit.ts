@@ -8,6 +8,7 @@
  * `refund_cash` leg is what the per-row `refunded` projection now reads.
  */
 
+import { chunk } from "#fp";
 import { t } from "#i18n";
 import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
@@ -36,6 +37,7 @@ import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
+import { PROVIDER_REFUND_CONCURRENCY } from "./refunds/provider.ts";
 
 /** Minimal context needed by the refresh-payment flow. */
 type RefreshPaymentContext = {
@@ -74,19 +76,30 @@ const loadRefreshContext = async (
 const refreshProviderRefunds = async (
   provider: Pick<PaymentProvider, "isPaymentRefunded">,
   references: readonly RefundPaymentReference[],
-): Promise<RefundPaymentReference[]> =>
-  Promise.all(
-    references.map(async (reference) =>
-      reference.providerRefunded
-        ? reference
-        : {
-            ...reference,
-            providerRefunded: await provider.isPaymentRefunded(
-              reference.reference,
-            ),
-          },
-    ),
-  );
+): Promise<RefundPaymentReference[]> => {
+  const refreshed: RefundPaymentReference[] = [];
+  // Chunk the provider status checks by charge-reference count — a merged
+  // attendee can carry many charges, and an unbounded fan-out would blow the
+  // edge subrequest budget before the ledger is marked. Same bound the
+  // bulk-refund path uses.
+  for (const group of chunk(PROVIDER_REFUND_CONCURRENCY)([...references])) {
+    refreshed.push(
+      ...(await Promise.all(
+        group.map(async (reference) =>
+          reference.providerRefunded
+            ? reference
+            : {
+                ...reference,
+                providerRefunded: await provider.isPaymentRefunded(
+                  reference.reference,
+                ),
+              },
+        ),
+      )),
+    );
+  }
+  return refreshed;
+};
 
 const hasProviderRefund = (
   reference: Pick<RefundPaymentReference, "providerRefunded">,

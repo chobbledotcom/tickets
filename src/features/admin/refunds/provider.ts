@@ -29,8 +29,9 @@ export type RefundCounts = {
  * deposit plus a balance charge, or a merged attendee's combined charges), so
  * capping attendees alone could still fan a bulk refund out to far more
  * subrequests than an edge worker can safely hold open. Waves are packed by
- * reference count and each candidate's own references are chunked to this too. */
-const PROVIDER_REFUND_CONCURRENCY = 5;
+ * reference count and each candidate's own references are chunked to this too.
+ * The refresh-payment status check reuses it to bound its own fan-out. */
+export const PROVIDER_REFUND_CONCURRENCY = 5;
 
 /** Pack candidates into waves whose combined charge references stay within
  * `budget`, so each concurrently-processed wave issues at most ~`budget`
