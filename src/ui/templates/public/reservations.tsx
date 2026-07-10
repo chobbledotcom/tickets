@@ -662,7 +662,7 @@ const renderSoleChildOption = (
     parentId,
     child,
     childDatesById,
-  )}>${label}</p>${priceHtml}${attributesHtml}`;
+  )}>${label}</p>${priceHtml}${visible ? attributesHtml : ""}`;
 };
 
 /**
