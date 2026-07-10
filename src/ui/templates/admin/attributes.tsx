@@ -384,6 +384,10 @@ export const ListingAttributesPanel = (
                   />
                 ))
               ),
+            // The row-based checkbox layout the logistics tab's user selector
+            // uses, so an attribute's options flow as a wrapping row under its
+            // legend instead of stacking one per line.
+            className: "checkboxes listing-section",
             legend: attribute.name,
           }))}
         />
