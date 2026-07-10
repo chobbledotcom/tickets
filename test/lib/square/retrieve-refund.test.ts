@@ -199,11 +199,17 @@ describeSquare(() => {
     });
 
     test("returns false when payment retrieval returns null", async () => {
+      const retrieveStub = stub(squareApi, "retrievePayment", () =>
+        Promise.resolve(null),
+      );
       await withMocks(
-        () => stub(squareApi, "retrievePayment", () => Promise.resolve(null)),
+        () => retrieveStub,
         async () => {
           const result = await squareApi.refundPayment("pay_123");
           expect(result).toBe(false);
+          // Prove we reached the null-retrieval branch, not an earlier exit.
+          expect(retrieveStub.calls).toHaveLength(1);
+          expect(retrieveStub.calls[0]!.args[0]).toBe("pay_123");
         },
       );
     });

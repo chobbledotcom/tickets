@@ -7,11 +7,30 @@ import {
   testSquareConnection,
 } from "#shared/square.ts";
 import { createTestDb, resetDb } from "#test-utils";
+import { setupFetchStub } from "#test-utils/fetch-stub.ts";
 import { configureSquare, oneLocation, withSquareClient } from "./fixtures.ts";
 import { describeSquare } from "./harness.ts";
 
 describeSquare(() => {
   describe("getSquareClient", () => {
+    const { stubFetch } = setupFetchStub();
+    let calledUrl = "";
+
+    /** Install one fetch stub for this test that records the URL it was given. */
+    const trackFetch = () =>
+      stubFetch((url) => {
+        calledUrl = String(url);
+        return Promise.resolve(new Response(JSON.stringify({ locations: [] })));
+      });
+
+    /** Drive one request through the client and return the host it called. */
+    const hostFor = async (
+      client: NonNullable<Awaited<ReturnType<typeof getSquareClient>>>,
+    ): Promise<string> => {
+      await client.locations.list();
+      return new URL(calledUrl).host;
+    };
+
     test("returns null when access token not set", async () => {
       const client = await getSquareClient();
       expect(client).toBeNull();
@@ -28,9 +47,9 @@ describeSquare(() => {
       const client1 = await getSquareClient();
       expect(client1).not.toBeNull();
 
-      // Second call with same token should use cached path
+      // Second call with same token returns the very same cached instance.
       const client2 = await getSquareClient();
-      expect(client2).not.toBeNull();
+      expect(client2).toBe(client1);
     });
 
     test("returns client in sandbox mode when sandbox setting enabled", async () => {
@@ -38,6 +57,9 @@ describeSquare(() => {
       await settings.update.square.sandbox(true);
       const client = await getSquareClient();
       expect(client).not.toBeNull();
+      // Sandbox mode must route requests to the sandbox host.
+      trackFetch();
+      expect(await hostFor(client!)).toBe("connect.squareupsandbox.com");
     });
 
     test("recreates client when sandbox setting changes", async () => {
@@ -45,11 +67,14 @@ describeSquare(() => {
       await settings.update.square.sandbox(false);
       const client1 = await getSquareClient();
       expect(client1).not.toBeNull();
+      trackFetch();
+      expect(await hostFor(client1!)).toBe("connect.squareup.com");
 
-      // Toggle sandbox mode - should create new client
+      // Toggling sandbox creates a new client configured for the sandbox host.
       await settings.update.square.sandbox(true);
       const client2 = await getSquareClient();
-      expect(client2).not.toBeNull();
+      expect(client2).not.toBe(client1);
+      expect(await hostFor(client2!)).toBe("connect.squareupsandbox.com");
     });
   });
 

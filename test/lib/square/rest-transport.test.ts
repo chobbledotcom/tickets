@@ -343,13 +343,16 @@ describeSquare(() => {
       );
 
       const client = await getSquareClient();
+      let err: Error | undefined;
       try {
         await client!.orders.get({ orderId: "bad" });
-        expect(true).toBe(false);
-      } catch (err) {
-        expect((err as Error).message).toContain("Status code: 400");
-        expect((err as Error).message).toContain("BAD_REQUEST");
+      } catch (e) {
+        err = e as Error;
       }
+      // Assert outside the try so a missing rejection can't be swallowed.
+      expect(err).toBeInstanceOf(Error);
+      expect(err!.message).toContain("Status code: 400");
+      expect(err!.message).toContain("BAD_REQUEST");
     });
 
     test("locations.list sends GET to /v2/locations", async () => {

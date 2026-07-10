@@ -16,9 +16,8 @@ export const stripeClient = async (
   key = "sk_test_mock",
 ): Promise<StripeClient> => {
   await settings.update.stripe.secretKey(key);
-  const client = await getStripeClient();
-  if (!client) throw new Error("Expected a Stripe client");
-  return client;
+  // The key was just stored, so getStripeClient always resolves a client here.
+  return (await getStripeClient())!;
 };
 
 /** One checkout line with easy-to-override defaults. */

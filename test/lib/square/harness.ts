@@ -16,12 +16,13 @@ export const createMockClient = (
     locationsList?: MockFn;
   } = {},
 ) => {
-  const noop: MockFn = () => undefined;
-  const checkoutCreate = spy(impls.checkoutCreate ?? noop);
-  const ordersGet = spy(impls.ordersGet ?? noop);
-  const paymentsGet = spy(impls.paymentsGet ?? noop);
-  const refundsRefundPayment = spy(impls.refundsRefundPayment ?? noop);
-  const locationsList = spy(impls.locationsList ?? noop);
+  // Spy a provided implementation, or a bare no-op spy that returns undefined.
+  const asSpy = (impl?: MockFn) => (impl ? spy(impl) : spy());
+  const checkoutCreate = asSpy(impls.checkoutCreate);
+  const ordersGet = asSpy(impls.ordersGet);
+  const paymentsGet = asSpy(impls.paymentsGet);
+  const refundsRefundPayment = asSpy(impls.refundsRefundPayment);
+  const locationsList = asSpy(impls.locationsList);
 
   return {
     checkoutCreate,

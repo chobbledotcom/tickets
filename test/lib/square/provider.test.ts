@@ -264,8 +264,8 @@ describeSquare(() => {
       );
     });
 
-    test("verifyWebhookSignature delegates with notification URL", async () => {
-      // Without a real key configured, verification should fail
+    test("verifyWebhookSignature reports failure when no signature key configured", async () => {
+      // With no webhook signature key stored, verification fails up front.
       const body = '{"test": true}';
       const result = await squarePaymentProvider.verifyWebhookSignature(
         body,
@@ -274,6 +274,9 @@ describeSquare(() => {
         new TextEncoder().encode(body),
       );
       expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("Webhook signature key not configured");
+      }
     });
   });
 });
