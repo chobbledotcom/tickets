@@ -833,3 +833,8 @@ src/shared/dates.ts:451:19   → "mutated"    # widestDatedEntry's initial wides
 src/shared/dates.ts:454:47  ?? → ||    # end_date is string|null; String(null ?? "") and String(null || "") agree, and for every string s (including "") String(s ?? "") === String(s || "")
 src/shared/dates.ts:414:21  1 → 0    # bookedSpanDays' `diffDays > 1 ? diffDays : 1`: diffDays is Math.round (an integer), and at the only differing input (diffDays === 1) both comparisons yield 1
 src/shared/dates.ts:432:30  1 → 0    # bookedRangeLabel's `fallbackDurationDays > 1` guard: at the only differing input (fallback === 1) the mutant computes lastDay = addDays(date, 0) = date, and the `lastDay > date` check then produces the same single-day label the null branch does
+
+# Admin segment dispatch (admin/index.ts) — two provably-equivalent survivors
+# from the routeAdmin/adminPathSegment run over the manifest + footer suites.
+src/features/admin/index.ts:257:21  ?? → ||   # `path.split("/")[2] ?? ""`: the RHS is "" and the only falsy string is "", so `x ?? ""` and `x || ""` agree on every string|undefined input
+src/features/admin/index.ts:299:55  return null → return undefined   # routeAdmin's only consumer folds the result with `?? notFoundResponse()` (features/index.ts routeMainApp), and ?? treats null and undefined identically
