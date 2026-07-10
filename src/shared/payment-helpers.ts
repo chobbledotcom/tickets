@@ -489,11 +489,12 @@ const parsePackedFields = (raw: string): Partial<Record<string, string>> => {
 /**
  * Enforce a payment provider's metadata limits.
  *
- * Only items, answer_ids and modifiers can realistically exceed the per-value
- * length limit — they grow with the number of listings/options/modifiers
- * selected (answer-triggered modifiers ride the modifiers refs). All other
- * fields (name, email, address, etc.) are already constrained by form
- * validation to lengths well below the smallest provider limit (255).
+ * Only items, answer_ids, modifiers and allocations can realistically exceed
+ * the per-value length limit — they grow with the number of
+ * listings/options/modifiers/package-picks selected (answer-triggered modifiers
+ * ride the modifiers refs). All other fields (name, email, address, etc.) are
+ * already constrained by form validation to lengths well below the smallest
+ * provider limit (255).
  *
  * Square also caps the *number* of entries: a customisable-day checkout that
  * fills its optional fields (date, day_count, answer_ids, …) plus a modifiers
@@ -524,10 +525,14 @@ export const enforceMetadataLimits = (
   const answerIds = metadata.answer_ids;
   const textAnswerIds = metadata.text_answer_ids;
   const modifiers = metadata.modifiers;
+  // `allocations` grows with every package pick, so it can outrun the per-value
+  // cap just like the other option refs — guard it the same way.
+  const allocations = metadata.allocations;
   if (
     (answerIds && answerIds.length > maxValueLength) ||
     (textAnswerIds && textAnswerIds.length > maxValueLength) ||
     (modifiers && modifiers.length > maxValueLength) ||
+    (allocations && allocations.length > maxValueLength) ||
     (maxEntries !== undefined && Object.keys(metadata).length > maxEntries)
   ) {
     throw new PaymentUserError(
