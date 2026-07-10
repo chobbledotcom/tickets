@@ -295,28 +295,6 @@ keeps the bundles honest by failing when a route reads a key it didn't declare.
   computing bundle caps for several packages in one pass over shared capacity
   maps — worthwhile only if a page with many package links shows up hot.
 
-## Admin guide — sections still to write
-
-*Origin: the admin-guide-footer linking pass. Every substantive, non-transactional
-admin page now renders a `GuideFooter` (or, for embedded settings sub-forms, a
-small inline link) pointing at the relevant `/admin/guide#<anchor>` section. The
-gaps below are pages whose natural guide section **does not exist yet**, so they
-either link a placeholder anchor or currently render no footer. `guide-anchor-
-links.test.ts` guards that every referenced anchor resolves; anchors still
-awaiting a section are whitelisted in its `PENDING_SECTIONS` set (now empty).
-Write the section, add it to the appropriate `src/ui/templates/admin/guide/*.tsx`
-module with a unique `id`, then remove it from `PENDING_SECTIONS` and wire up any
-page still missing a footer.*
-
-The `ledger`, `logistics`, `images`, `attendee-statuses`, and `attendees`
-sections have all shipped (with footers on `deliveries.tsx`, `images.tsx`,
-`settings-statuses.tsx`, and `attendees-list.tsx`), emptying `PENDING_SECTIONS`.
-
-**Remaining:**
-
-- **Support** (`/admin/support`) — borderline (it's a contact-the-host form);
-  give it a footer only if a support/troubleshooting section is written.
-
 ## Standalone child selector suppressed for sold-out / hidden package members
 
 `src/ui/templates/public/reservations/packages.ts` — `buildPageListingRows`
