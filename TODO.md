@@ -237,12 +237,6 @@ a small, isolated assertion-strength improvement.*
   or make the fetch stub resolve through a deferred promise, then await it
   deterministically before asserting the payload. (Original monolith line 2040.)
 
-- **`delete.test.ts` — `return_url` preservation not asserted.** The "preserves
-  return_url on mismatched attendee name" test only checks the flash message — it
-  never verifies the redirect's Location header actually carries `return_url`. Add
-  a Location-header assertion so a regression that drops `return_url` on the
-  mismatch-name error path cannot pass silently. (Original monolith lines 195–202.)
-
 ---
 
 ## Settings on-demand loading — generation counter
