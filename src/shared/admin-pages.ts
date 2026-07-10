@@ -85,6 +85,23 @@ interface SectionDef {
    * section's. A sub-nav with a distinctly-named landing link (e.g. Site's
    * "Homepage") stays visible in the rendered sub-nav. */
   readonly subNav?: readonly SubNavDef[];
+  /** Parametric route patterns for mutating GET pages within this section —
+   * edit forms, delete confirmation pages, duplicate pages, and create
+   * pages that are NOT also in the subNav (e.g. Site pages/news create
+   * pages). Uses `:id` for numeric params, `:type`/`:ref` for string params.
+   * The read-only guard derives its GET blocklist from these plus the
+   * subNav create-link hrefs — see {@link readOnlyGetRoutePatterns}. */
+  readonly mutatingGetRoutes?: readonly string[];
+  /** The parametric route for this entity's detail/view page
+   * (e.g. "/admin/listing/:id"). When present, {@link entityReturnPath}
+   * uses it to decide where a user should land after saving — the detail
+   * page, or the edit page if the viewer's role can't open the detail
+   * page (see {@link staffOnlyDetail}). */
+  readonly detailPath?: string;
+  /** True when the detail page decrypts PII that editors can't see, so
+   * editors must be redirected to the edit form instead of the detail
+   * page after a save. {@link entityReturnPath} applies this rule. */
+  readonly staffOnlyDetail?: boolean;
 }
 
 /** True when the active route is within the Site section. */
@@ -110,8 +127,15 @@ const ADMIN_NAV: readonly SectionDef[] = [
   },
   {
     basePath: "/admin/listings",
+    detailPath: "/admin/listing/:id",
     labelKey: "terms.listings",
+    mutatingGetRoutes: [
+      "/admin/listing/:id/edit",
+      "/admin/listing/:id/duplicate",
+      "/admin/listing/:id/images",
+    ],
     roles: CONTENT_ADMIN_LEVELS,
+    staffOnlyDetail: true,
     subNav: [
       { href: "/admin/listings", labelKey: "terms.listings" },
       { href: "/admin/listing/new", kind: "create", labelKey: "nav.sub.add" },
@@ -162,8 +186,11 @@ const ADMIN_NAV: readonly SectionDef[] = [
   },
   {
     basePath: "/admin/groups",
+    detailPath: "/admin/groups/:id",
     labelKey: "terms.groups",
+    mutatingGetRoutes: ["/admin/groups/:id/edit", "/admin/groups/:id/images"],
     roles: CONTENT_ADMIN_LEVELS,
+    staffOnlyDetail: true,
     subNav: [
       { href: "/admin/groups", labelKey: "terms.groups" },
       { href: "/admin/groups/new", kind: "create", labelKey: "nav.sub.add" },
@@ -172,6 +199,7 @@ const ADMIN_NAV: readonly SectionDef[] = [
   {
     basePath: "/admin/images",
     labelKey: "terms.images",
+    mutatingGetRoutes: ["/admin/images/:id/edit", "/admin/images/:id/delete"],
     roles: CONTENT_ADMIN_LEVELS,
     subNav: [
       { href: "/admin/images", labelKey: "terms.images" },
@@ -191,11 +219,23 @@ const ADMIN_NAV: readonly SectionDef[] = [
   {
     basePath: "/admin/ledger",
     labelKey: "nav.ledger",
+    mutatingGetRoutes: [
+      "/admin/ledger/:type/:ref/add",
+      "/admin/ledger/entries/:id/edit",
+    ],
     roles: ["owner"],
   },
   {
     basePath: "/admin/site",
     labelKey: "nav.site",
+    mutatingGetRoutes: [
+      "/admin/site/pages/new",
+      "/admin/site/pages/:id/edit",
+      "/admin/site/pages/:id/delete",
+      "/admin/site/news/new",
+      "/admin/site/news/:id/edit",
+      "/admin/site/news/:id/delete",
+    ],
     roles: SITE_ADMIN_LEVELS,
     subNav: [
       { href: "/admin/site", labelKey: "site.sub_nav.homepage" },
@@ -326,3 +366,50 @@ export const createLinkSections = (): CreateLinkSection[] =>
         sectionPath: def.basePath,
       })),
   );
+
+/**
+ * Where a user should be sent after saving an entity: the detail page for
+ * staff, or the edit form for editors when the detail page is staff-only
+ * (it decrypts PII editors can't see). When the section has no detail page,
+ * returns the section's list page.
+ *
+ * This is the single place the role-aware "detail vs edit" redirect rule
+ * lives — previously `admin-paths.ts` hardcoded the base paths per entity.
+ * Adding `detailPath` + `staffOnlyDetail: true` to a new section in the
+ * schema automatically extends this rule. */
+export const entityReturnPath = (
+  sectionPath: string,
+  adminLevel: AdminLevel,
+  id: number,
+): string => {
+  const def = ADMIN_NAV.find((d) => d.basePath === sectionPath);
+  if (!def?.detailPath) return sectionPath;
+  const detail = def.detailPath.replace(":id", String(id));
+  if (def.staffOnlyDetail && adminLevel === "editor") {
+    return `${detail}/edit`;
+  }
+  return detail;
+};
+
+/**
+ * Every GET route pattern that should be blocked in read-only mode, derived
+ * from the schema: every subNav create-link href (the "Add X" / "Invite"
+ * pages) plus every section's `mutatingGetRoutes` (edit/delete/duplicate
+ * forms and create pages not in the subNav). Uses `:id` for numeric params,
+ * `:type`/`:ref` for string params — the caller converts these to regexes.
+ *
+ * This replaces the hand-maintained `READ_ONLY_GET_PATTERNS` list that
+ * lived in `features/index.ts`, so adding a new section with create/edit
+ * routes automatically extends the read-only blocklist. */
+export const readOnlyGetRoutePatterns = (): readonly string[] => {
+  const patterns: string[] = [];
+  for (const def of ADMIN_NAV) {
+    for (const item of def.subNav ?? []) {
+      if (item.kind === "create") patterns.push(item.href);
+    }
+    for (const route of def.mutatingGetRoutes ?? []) {
+      patterns.push(route);
+    }
+  }
+  return patterns;
+};

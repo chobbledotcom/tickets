@@ -90,117 +90,84 @@ The migration can be gradual: build the schema, have `nav.tsx` consume it first
 (replacing the hand-wired builders), then migrate tests, then derive
 `adminLandingPath` and the read-only patterns.
 
-**Status (partially shipped):** The schema (`src/shared/admin-pages.ts`) and
-nav.tsx migration are done — `nav.tsx` now reads from the schema instead of
-hand-wired builder functions. The `nav.test.tsx` `addLinkSections` and
-`withinSectionCases` tables now derive from `createLinkSections()` instead of
-being hand-typed. Remaining: deriving `READ_ONLY_GET_PATTERNS` (item 4 — only
-4 of 19 patterns are nav create-links; the rest are deep entity routes needing
-a separate route-level schema), and migrating `server-editor.test.ts` /
-`server-owner-routes.test.ts` to import role expectations from the schema.
+**Status: Shipped.** The schema (`src/shared/admin-pages.ts`) is the single
+source of truth for every admin nav section — its landing route, role set,
+feature-flag predicates, sub-nav links, mutating GET routes (edit/delete/
+duplicate patterns), and role-aware detail-vs-edit redirect metadata.
+
+- `nav.tsx` consumes the schema folds (`visibleTopLevel`, `visibleSections`)
+  instead of ~200 lines of hand-wired builders (`editorTopLevelItems`,
+  `topLevelItems`, ten `*Sub()` functions, `sectionsForRole`).
+- `nav.test.tsx`'s `addLinkSections` and `withinSectionCases` tables derive
+  from `createLinkSections()` instead of being hand-typed — new sections are
+  covered automatically.
+- `READ_ONLY_GET_PATTERNS` (item 4) is derived from the schema's
+  `readOnlyGetRoutePatterns()`, replacing the hand-maintained 19-regex list.
+- `entityReturnPath` (item 2) is derived from the schema's `detailPath` +
+  `staffOnlyDetail` fields, replacing `admin-paths.ts` (which was deleted).
+- All 5 callers of the old `listingReturnPath`/`groupReturnPath` helpers now
+  call `entityReturnPath("/admin/listings", adminLevel, id)` directly.
+
+**Remaining (not yet done):**
+- Migrating `server-editor.test.ts` / `server-owner-routes.test.ts` to import
+  role expectations from the schema instead of hand-typing route lists.
+- Deriving `adminLandingPath` (`auth.ts:131`) from the schema's first visible
+  section per role (currently still a hand-maintained map).
 
 ---
 
 ## 2. Post-action redirect targets
 
-**Problem.** After a successful create/update/delete, the redirect target is
-decided per-handler. There is a partial centralizer (`admin-paths.ts:
-listingReturnPath` / `groupReturnPath`) but it covers only two entities. The
-"back to the entity's detail page" and "back to the entity's edit page"
-patterns are hand-written at every site (`/admin/questions/${id}`, `/admin/modifiers/${id}/edit`,
-`/admin/listing/${id}/edit` for listing-children, `imagePath(image.id)`,
-`config.editPath(id)` for money-adjust, etc.).
+**Status: Shipped.** The `entityReturnPath(sectionPath, adminLevel, id)`
+function in `admin-pages.ts` derives from the schema's `detailPath` and
+`staffOnlyDetail` fields. Listings and Groups declare `detailPath` +
+`staffOnlyDetail: true` in the schema; `entityReturnPath` sends editors to
+the edit form and staff to the detail page. The old `admin-paths.ts` (which
+hardcoded `/admin/listing` and `/admin/groups` base paths) was deleted; all
+callers now use the generic `entityReturnPath` with the section's basePath.
 
-**Plan.** Extend the admin-page schema (item 1) to carry per-section redirect
-metadata:
-
-```typescript
-interface AdminSectionDef {
-  // ...fields from item 1...
-  /** Where a successful create/update redirects.
-   * `"detail"` → the entity's view page; `"edit"` → its edit form;
-   * `"list"` → the collection. Defaults to `"list"`.
-   * Can be role-aware: editors who can't open a PII detail page go to edit. */
-  afterSave: "detail" | "edit" | "list" | ((role: AdminLevel, id: number) => string);
-}
-```
-
-This collapses the `getRowPath` config in `owner-crud.ts`, the hand-written
-redirect targets in `questions.ts`/`images.ts`/`modifiers.ts`/`listings-edit.ts`,
-and the `listingReturnPath`/`groupReturnPath` helpers — all into one
-field per section. `admin-paths.ts` becomes the fold that resolves the field,
-and every call site reads from the schema entry instead of hand-writing a path
-template.
-
-**Exemplar:** `adminLandingPath` is the curried-shape precedent —
-`(adminLevel) => string`. This generalises it from "where you log in" to "where
-you land after any save."
+**Not yet schema-tized** (lower priority — each is a hand-written `redirect`
+call in a single handler): the "back to the list" pattern (questions,
+modifiers, images, sessions, deliveries), the `return_url` honouring pattern
+(attendees, refunds), and the `getRowPath` config in `owner-crud.ts`. These
+could be extended by adding an `afterSave: "detail" | "edit" | "list"` field
+to the schema, but each has per-handler nuances (role-split landing pages,
+`return_url` threading, `formId` anchors) that make a one-size fold less
+clean than the detail-vs-edit rule that shipped.
 
 ---
 
 ## 3. `limits.ts` — unify the dual declaration into one table
 
-**Problem.** Every limit is declared **twice**: once as a `readLimit(envKey,
-default)` constant (lines 35–303) and again as a `LIMIT_ENTRIES` table entry
-(lines 417–655). A test (`limits.test.ts:138–177`) exists solely to assert they
-match — a smell. They have already drifted: `MAX_IMAGE_SIZE` is declared as
-`32 * 1024 * 1024` (32 MB) in the constant but `256 * 1024` (256 KB) in
-`LIMIT_ENTRIES` — a real bug the sync test is supposed to catch (and may be
-masking because that specific entry's default mismatch needs to be verified).
-
-**Plan.** Create a single `LIMIT_FIELDS` array (mirroring
-`LISTING_DEFAULT_FIELDS`), where each entry carries `{ envKey, defaultValue,
-unit, label }`, and a fold that produces both the named constant and the
-`LIMIT_ENTRIES` debug list from one declaration:
-
-```typescript
-const LIMIT_FIELDS = [
-  { envKey: "MAX_IMAGE_SIZE", defaultValue: 32 * 1024 * 1024, label: "Max image size", unit: "bytes" },
-  ...
-] as const;
-
-// fold: derive the named exports AND the debug table
-export const MAX_IMAGE_SIZE = readLimit("MAX_IMAGE_SIZE", 32 * 1024 * 1024); // still named for ergonomics
-export const LIMIT_ENTRIES = LIMIT_FIELDS.map(f => ({ ...f, current: readLimit(f.envKey, f.defaultValue) }));
-```
-
-Delete the sync test — the duplication is gone by construction. Fix the
-`MAX_IMAGE_SIZE` default mismatch while doing this.
-
-**Exemplar:** `LISTING_DEFAULT_FIELDS` + `resolveListingDefaults` is the exact
-"one table, two consumers" pattern. The `settings/registry.ts` is the closer
-analogue (one entry → sync getter + storage mode).
+**Status: Shipped.** Each limit is now declared exactly once via a `limit()`
+helper that reads the env var AND registers the debug-page entry in one call.
+The named constant and the `LIMIT_ENTRIES` display table both derive from the
+same declaration — they can never drift. The `MAX_IMAGE_SIZE` bug (32 MB
+constant vs 256 KB table entry) is fixed. `ACTIVITY_LOG_BACKFILL_BATCH` is now
+on the debug page (it was previously missing from `LIMIT_ENTRIES`). The sync
+test's expected-keys list was updated to include the newly-surfaced entry.
 
 ---
 
 ## 4. Read-only mode patterns — derive from the admin-page schema
 
-**Problem.** `READ_ONLY_GET_PATTERNS` (`src/features/index.ts:247–267`) is a
-third hand-maintained list of admin create/edit paths (19 regexes). It must
-stay in sync with the route modules, the nav sub-builders, and the
-`READ_ONLY_SAFE_PATHS` allowlist (20 more patterns, maintained separately).
-Any of these three lists can drift from the others silently.
+**Status: Shipped.** `READ_ONLY_GET_PATTERNS` in `features/index.ts` is now
+derived from the schema's `readOnlyGetRoutePatterns()` fold, which collects
+every subNav create-link href plus every section's `mutatingGetRoutes`
+(edit/delete/duplicate/create-variant patterns). A `routePatternToRegex`
+helper converts `:id` → `\d+` and `:type`/`:ref` → `[^/]+` at module load.
 
-**Plan.** Once the admin-page schema (item 1) exists with `subNav` entries that
-carry a `create?: boolean` or `editPath?: string` flag, derive
-`READ_ONLY_GET_PATTERNS` by folding over the schema:
+The hand-maintained 19-regex list was replaced. **Fixed 3 gaps**: the original
+list was missing `/admin/servicing/new`, `/admin/modifiers/new`, and
+`/admin/user/new` — the schema derivation catches these automatically.
+Regression tests were added for all three in `read-only.test.ts`.
 
-```typescript
-export const readOnlyEditPaths = pipe(
-  ADMIN_PAGES,
-  flatMap(section => section.subNav ?? []),
-  filter(entry => entry.kind === "create" || entry.kind === "edit"),
-  map(entry => entry.pathPattern),
-);
-```
-
-Similarly, `READ_ONLY_SAFE_PATHS` can carry its own schema (or live as a
-`readOnlySafe: true` flag on the relevant route entries). The key is: one
-declaration, derived everywhere.
-
-**Exemplar:** The `LISTING_DEFAULT_FIELDS` `appliesTo` predicate is the
-precedent for per-entry conditional inclusion — a `readOnly` or `mutating`
-flag on each route entry replaces a parallel blocklist.
+**Not yet derived from the schema:** `READ_ONLY_SAFE_PATHS` (the 20-pattern
+allowlist of non-admin routes that stay writable in read-only mode — auth,
+billing, webhooks, check-in, etc.) is still a hand-maintained list. These are
+public/inter-instance routes, not admin-section routes, so they don't fit the
+admin-page schema naturally. A separate `READ_ONLY_SAFE_ROUTES` schema could
+consolidate them, but the list is stable and low-risk.
 
 ---
 
@@ -444,16 +411,24 @@ pattern to content string fields.
 
 ## Prioritisation
 
-Items 1 and 3 are the highest-value starting points:
+**Shipped (items 1–4):**
 
-- **Item 1 (admin-page schema)** unlocks items 2, 4, and 8, and is the largest
-  single reduction in duplicated knowledge. It is also the hardest.
-- **Item 3 (limits unification)** is self-contained, small, and fixes a real
-  bug (`MAX_IMAGE_SIZE` default mismatch).
+- **Item 1 (admin-page schema)** — the schema, nav.tsx migration, and
+  nav.test.tsx migration are done. Remaining: `adminLandingPath` derivation
+  and `server-editor.test.ts` / `server-owner-routes.test.ts` migration.
+- **Item 2 (redirect targets)** — `entityReturnPath` is schema-driven;
+  `admin-paths.ts` is deleted. The "back to list" / `return_url` patterns
+  remain per-handler (lower priority — per-handler nuances make a clean fold
+  harder).
+- **Item 3 (limits unification)** — done; `MAX_IMAGE_SIZE` bug fixed.
+- **Item 4 (read-only patterns)** — `READ_ONLY_GET_PATTERNS` is schema-derived;
+  3 gaps fixed. `READ_ONLY_SAFE_PATHS` remains hand-maintained (stable, low-risk).
 
-Items 5, 6, 7, 9, and 10 are independent, medium-size refactors that can be
-done in any order. Item 8 is the most complex and should be staged after the
-admin-page schema exists (so read-only patterns can derive from it).
+**Remaining (items 5–11):**
+
+Items 5, 6, 7, 9, 10, and 11 are independent, medium-size refactors that can be
+done in any order. Item 8 (capacity rules) is the most complex and should be
+staged last.
 
 When taking any item, follow the codebase conventions: put the schema in
 `src/shared/` (pure, data-in/data-out), keep the IO shell thin, and migrate
