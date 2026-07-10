@@ -1529,8 +1529,9 @@ const buildPageListingRows = (opts: {
   hideQuantity: boolean;
   prefill?: BookingPrefill | undefined;
   childCtx?: ChildRenderCtx | undefined;
-  attributesByListing?: ListingAttributesById;
+  attributesByListing: ListingAttributesById;
 }): string => {
+  const { attributesByListing } = opts;
   const membersOf = (pkg: PagePackage): TicketListing[] => {
     const memberIds = new Set(pkg.memberListingIds);
     return opts.listings.filter((info) => memberIds.has(info.listing.id));
@@ -1555,7 +1556,7 @@ const buildPageListingRows = (opts: {
       membersOf(pkg),
       opts.packageLimits.get(pkg.groupId)!,
       claimChildCtx,
-      opts.attributesByListing ?? new Map(),
+      attributesByListing,
     );
   }
   const packageSections = opts.packages
@@ -1565,7 +1566,7 @@ const buildPageListingRows = (opts: {
         membersOf(pkg),
         opts.packageLimits.get(pkg.groupId)!,
         claimChildCtx,
-        opts.attributesByListing ?? new Map(),
+        attributesByListing,
       ),
     )
     .join("");
@@ -1589,7 +1590,7 @@ const buildPageListingRows = (opts: {
       opts.hideQuantity,
       opts.prefill,
       (info) => (memberIds.has(info.listing.id) ? undefined : opts.childCtx),
-      opts.attributesByListing ?? new Map(),
+      attributesByListing,
     )
   );
 };
