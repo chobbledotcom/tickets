@@ -148,12 +148,13 @@ export const recordScriptVersion = async (): Promise<void> => {
       CURRENT_SCRIPT_VERSION_KEY,
       CURRENT_SCRIPT_COMMIT_KEY,
     ]);
-    const wantedCommit = commit || (version ? "" : null);
+    // The early return above means a missing commit implies a real build
+    // (version is set), which must clear any stale recorded commit.
+    const wantedCommit = commit || "";
     const changes = compact<[string, string]>([
       version && stored.get(CURRENT_SCRIPT_VERSION_KEY) !== version
         ? [CURRENT_SCRIPT_VERSION_KEY, version]
         : null,
-      wantedCommit !== null &&
       (stored.get(CURRENT_SCRIPT_COMMIT_KEY) ?? "") !== wantedCommit
         ? [CURRENT_SCRIPT_COMMIT_KEY, wantedCommit]
         : null,

@@ -9,55 +9,19 @@
  * complete set. A new boot query makes this fail loudly, so the cost is a
  * deliberate decision instead of an accident.
  */
-import type { InArgs, InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { getDb, setDb } from "#shared/db/client.ts";
 import { invalidateInitDbCache } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   setBuildCommitForTest,
   setBuildTimestampForTest,
 } from "#shared/update.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv, recordQueries } from "#test-utils";
 
 const request = (path: string): Request =>
   new Request(`http://localhost${path}`, { headers: { host: "localhost" } });
-
-const statementSql = (statement: InStatement | string): string =>
-  typeof statement === "string" ? statement : statement.sql;
-
-/** Wrap the client so every statement lands in `seen`. */
-const recordQueries = (seen: string[]): (() => void) => {
-  const real = getDb();
-  const record = (sql: string): void => {
-    seen.push(sql.replace(/\s+/g, " "));
-  };
-  setDb(
-    new Proxy(real, {
-      get(target, prop, receiver) {
-        if (prop === "execute") {
-          return (statement: InStatement | string, args?: InArgs) => {
-            record(statementSql(statement));
-            return typeof statement === "string" && args !== undefined
-              ? target.execute(statement, args)
-              : target.execute(statement as InStatement);
-          };
-        }
-        if (prop === "batch") {
-          return (statements: InStatement[], mode?: "write" | "read") => {
-            record(`batch[${statements.map(statementSql).join(" | ")}]`);
-            return target.batch(statements, mode);
-          };
-        }
-        const value = Reflect.get(target, prop, receiver);
-        return typeof value === "function" ? value.bind(target) : value;
-      },
-    }),
-  );
-  return () => setDb(real);
-};
 
 describeWithEnv("cold-boot query chain", { db: true }, () => {
   test("a cold isolate's first request runs only the expected boot queries", async () => {

@@ -19,6 +19,7 @@ import {
   mockFormRequest,
   mockRequest,
   mockSetupFormRequest,
+  recordQueries,
   reloginAsAdmin,
   resetDb,
   schemaMarkerKeys,
@@ -82,6 +83,35 @@ describeWithEnv("server (setup)", { db: true }, () => {
           503,
           "This site has not been activated yet",
         );
+      });
+
+      test("does not probe the settings version before setup bootstraps the schema", async () => {
+        // The request pipeline prefetches the settings version so its round
+        // trip overlaps the schema probe — but on a setup path the settings
+        // table may not exist yet, and the request cache would share the
+        // prefetch's still-pending failure with the loadKeys read that
+        // renders the page. The version probe must not run until initDb has
+        // bootstrapped the schema.
+        await resetToBrandNewDatabase();
+
+        const seen: string[] = [];
+        const restore = recordQueries(seen);
+        try {
+          const response = await handleRequest(mockRequest("/setup/"));
+          expect(response.status).toBe(200);
+        } finally {
+          restore();
+        }
+
+        const schemaBootstrap = seen.findIndex((sql) =>
+          sql.includes("CREATE TABLE"),
+        );
+        expect(schemaBootstrap).toBeGreaterThan(-1);
+        expect(
+          seen
+            .slice(0, schemaBootstrap)
+            .filter((sql) => sql.startsWith("SELECT value FROM settings")),
+        ).toEqual([]);
       });
 
       test("returns not-activated page without bootstrapping a missing settings table", async () => {

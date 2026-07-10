@@ -159,7 +159,11 @@ plan (the warm request's shape plus one). What changed:
   settings load. The write path deliberately skips settings-cache
   invalidation (`executeBatchWithoutCacheInvalidation`) — the markers are
   not part of any snapshot, and invalidating mid-request would wipe the
-  settings the page is being rendered from.
+  settings the page is being rendered from. One accepted caveat: Bunny kills
+  fetches once the response is returned, so pending work flushes *before*
+  responding — the single request per deploy per database that actually
+  changes a marker still pays that write's round trip. That is a one-off
+  per deploy, not part of the steady-state cold path measured above.
 - **The settings version probe starts before `initDb`** (in
   `processRequest`, right after the request environment is seeded), so it
   overlaps the schema probe instead of queueing behind it.

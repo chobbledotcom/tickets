@@ -14,7 +14,7 @@
 import type { Client } from "@libsql/client";
 import { lazyRef } from "#fp";
 import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import { executeBatch, getDb } from "#shared/db/client.ts";
+import { executeBatch, getDb, inPlaceholders } from "#shared/db/client.ts";
 import { groups } from "#shared/db/groups.ts";
 import { holidays } from "#shared/db/holidays.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
@@ -179,7 +179,12 @@ const isMissingMigrationsTableError = missingTableError("schema_migrations");
 /** Everything the boot path needs to know, answered by one round trip. */
 type DbProbe = {
   state: DbState;
-  /** Rows recorded in schema_migrations, or null when the table is missing. */
+  /**
+   * How many of the *current* migration ids schema_migrations records, or
+   * null when the table is missing. Counting only known ids keeps orphaned
+   * rows (historically renamed migrations, which a restored backup may
+   * legitimately carry) from making the count disagree forever.
+   */
   appliedMigrations: number | null;
 };
 
@@ -209,11 +214,12 @@ const MISSING_SETTINGS_PROBE: DbProbe = {
 /** Run one probe query and translate its rows or failure into a DbProbe. */
 const runProbeQuery = async (
   sql: string,
+  args: string[],
   toProbe: (values: Map<string, string>) => DbProbe,
   onMissingHistory?: () => Promise<DbProbe>,
 ): Promise<DbProbe> => {
   try {
-    const result = await getDb().execute(sql);
+    const result = await getDb().execute({ args, sql });
     return toProbe(rowsToMap(result.rows));
   } catch (error) {
     if (isMissingSettingsTableError(error)) return MISSING_SETTINGS_PROBE;
@@ -230,7 +236,7 @@ const runProbeQuery = async (
  * read the markers on their own so the caller can rebuild the history.
  */
 const probeWithoutHistory = (): Promise<DbProbe> =>
-  runProbeQuery(SCHEMA_MARKERS_SQL, (values) => ({
+  runProbeQuery(SCHEMA_MARKERS_SQL, [], (values) => ({
     appliedMigrations: null,
     state: markerState(values),
   }));
@@ -239,17 +245,22 @@ const probeWithoutHistory = (): Promise<DbProbe> =>
  * Check database state (up-to-date, needs migration, or missing settings
  * table) and count the recorded migration history — in a single round trip,
  * because every isolate's first request pays for this before it can serve.
+ * Only current migration ids are counted (see {@link DbProbe}).
  */
-const probeDbState = (): Promise<DbProbe> =>
-  runProbeQuery(
+const probeDbState = (): Promise<DbProbe> => {
+  const ids = MIGRATIONS.map((migration) => migration.id);
+  return runProbeQuery(
     `${SCHEMA_MARKERS_SQL} UNION ALL SELECT 'applied_migrations', ` +
-      `CAST(COUNT(*) AS TEXT) FROM ${SCHEMA_MIGRATIONS_TABLE}`,
+      `CAST(COUNT(*) AS TEXT) FROM ${SCHEMA_MIGRATIONS_TABLE} ` +
+      `WHERE id IN (${inPlaceholders(ids)})`,
+    ids,
     (values) => ({
       appliedMigrations: Number(values.get("applied_migrations")),
       state: markerState(values),
     }),
     probeWithoutHistory,
   );
+};
 
 /**
  * Rename the legacy "event" domain to "listing". Public entrypoint so tests

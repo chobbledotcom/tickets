@@ -783,10 +783,13 @@ const processRequest = async (
 
     // Kick off the settings-version probe now so its round trip overlaps the
     // schema state check below — on a cold boot both must happen before
-    // routing, and neither depends on the other. The prefetch drops its own
-    // failure (a fresh install has no settings table yet); loadKeys inside
-    // prepareRequestEnvironment() re-fetches and surfaces any real error.
-    settings.prefetchVersion();
+    // routing, and neither depends on the other. Setup paths must not probe:
+    // there the settings table may not exist until initDb bootstraps it, and
+    // the request cache would share the probe's still-pending failure with
+    // the post-bootstrap loadKeys read, failing the first setup page.
+    if (!isSetupPath(path)) {
+      settings.prefetchVersion();
+    }
 
     const notActivated = await initializeDatabaseForPath(path);
     if (notActivated) {

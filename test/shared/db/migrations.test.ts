@@ -27,6 +27,7 @@ import {
   assertSchemaEmpty,
   describeWithEnv,
   invalidateTestDbCache,
+  recordQueries,
   schemaMarkerKeys,
   settingsTableExists,
   stubNtfyFetch,
@@ -167,6 +168,44 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
       expect(await schemaMigrationsTableExists()).toBe(true);
       expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
+    });
+
+    test("initDb does not re-baseline over an orphaned history row", async () => {
+      // A restored backup may carry a schema_migrations row for a
+      // historically renamed migration id. The boot probe must count only
+      // current ids: counting the orphan too would make the totals disagree
+      // forever, sending every cold boot down the baseline-reconcile path
+      // and paying its extra round trips for nothing.
+      await getDb().execute({
+        args: ["2020-01-01_renamed_away_long_ago", "orphan", "2020-01-01"],
+        sql: "INSERT INTO schema_migrations (id, description, applied_at) VALUES (?, ?, ?)",
+      });
+      invalidateInitDbCache();
+
+      const seen: string[] = [];
+      const restore = recordQueries(seen);
+      try {
+        await initDb();
+      } finally {
+        restore();
+        await getDb().execute({
+          args: ["2020-01-01_renamed_away_long_ago"],
+          sql: "DELETE FROM schema_migrations WHERE id = ?",
+        });
+      }
+
+      // The one probe answers everything; the baseline reconcile's
+      // CREATE TABLE + SELECT id pair must not run.
+      expect(
+        seen.filter((sql) => sql.includes("applied_migrations")).length,
+      ).toBe(1);
+      expect(
+        seen.filter(
+          (sql) =>
+            sql.includes("CREATE TABLE") ||
+            sql.includes("SELECT id FROM schema_migrations"),
+        ),
+      ).toEqual([]);
     });
 
     test("runs a schema-hash-neutral data migration on a site upgrading from the previous release", async () => {
