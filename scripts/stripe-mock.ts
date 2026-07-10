@@ -8,6 +8,7 @@
  */
 
 import { join } from "node:path";
+import { stopProcess, stopProcessNow } from "./process.ts";
 import {
   defaultStripeMockPaths,
   downloadStripeMock,
@@ -102,16 +103,6 @@ const raceWithDelay = async <T>(
   }
 };
 
-const beforeTimeout = (
-  status: Promise<unknown>,
-  timeoutMs: number,
-): Promise<boolean> =>
-  raceWithDelay(
-    status.then(() => true),
-    timeoutMs,
-    () => false,
-  );
-
 const confirmProcessStillRunning = (
   processExited: Promise<void>,
   delayMs: number,
@@ -179,37 +170,6 @@ type StartStripeMockOptions = StripeMockInstallOptions & {
   stopTimeoutMs?: number;
 };
 
-const stopManagedProcess = async (
-  process: Deno.ChildProcess,
-  timeoutMs = STOP_TIMEOUT_MS,
-  closeStderr: () => Promise<void> = () => Promise.resolve(),
-): Promise<void> => {
-  process.ref();
-  const status = process.status;
-  try {
-    try {
-      process.kill();
-    } catch {
-      // It may already have exited.
-    }
-    const stopped = await beforeTimeout(status, timeoutMs);
-    if (!stopped) {
-      process.kill("SIGKILL");
-      await status;
-    }
-  } finally {
-    await closeStderr();
-  }
-};
-
-const stopManagedProcessNow = (process: Deno.ChildProcess): void => {
-  try {
-    process.kill("SIGKILL");
-  } catch {
-    // It may already have exited.
-  }
-};
-
 const alreadyRunningStripeMock = (port: number): RunningStripeMock => ({
   port,
   stop: () => Promise.resolve(),
@@ -225,8 +185,8 @@ const managedStripeMock = (
   process.unref();
   return {
     port,
-    stop: () => stopManagedProcess(process, stopTimeoutMs, closeStderr),
-    stopNow: () => stopManagedProcessNow(process),
+    stop: () => stopProcess(process, stopTimeoutMs, closeStderr),
+    stopNow: () => stopProcessNow(process),
   };
 };
 
@@ -320,7 +280,7 @@ const startStripeMockProcess = async (
       );
     }
 
-    await stopManagedProcess(
+    await stopProcess(
       spawned.process,
       options.stopTimeoutMs ?? STOP_TIMEOUT_MS,
     );

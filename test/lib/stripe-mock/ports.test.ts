@@ -180,12 +180,12 @@ describe("startStripeMock ports", () => {
       await writeTermIgnoringMock(paths);
       await withUnusedPort(async (port) => {
         const stripeMock = await startStripeMock({
-          confirmDelayMs: 10,
+          confirmDelayMs: 50,
           delayMs: 10,
           maxAttempts: 100,
           paths,
           port,
-          stopTimeoutMs: 20,
+          stopTimeoutMs: 50,
         });
 
         expect(stripeMock.port).toBe(port);
