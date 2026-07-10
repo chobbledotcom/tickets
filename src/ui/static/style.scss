@@ -237,14 +237,14 @@ article > * {
 
 .listing-attributes {
   display: grid;
-  gap: var(--space-xs);
+  gap: calc(var(--space-s) / 2);
   margin-block: var(--space-s);
 }
 
 .listing-attributes > div {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 var(--space-xs);
+  gap: 0 calc(var(--space-s) / 2);
 }
 
 .listing-attributes dt {

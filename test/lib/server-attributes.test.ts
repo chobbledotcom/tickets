@@ -144,6 +144,9 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
           })
         ).response,
       );
+      expectStatus(404)(
+        (await adminFormPost("/admin/attributes/999999/move-up")).response,
+      );
     });
 
     test("adds, edits, and reorders options", async () => {
@@ -365,7 +368,12 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
 
       const response = await postRepeatedOptions(
         `/admin/listing/${listing.id}/attributes`,
-        [attribute.options[0]!.id, 999_999, attribute.options[1]!.id],
+        [
+          attribute.options[0]!.id,
+          attribute.options[0]!.id,
+          999_999,
+          attribute.options[1]!.id,
+        ],
       );
 
       await expectFlashRedirect(

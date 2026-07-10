@@ -2,7 +2,7 @@
  * Admin dashboard route
  */
 
-import { compact, unique } from "#fp";
+import { compact, filter, unique } from "#fp";
 import { csvResponse, loadAttendeeLinkRefs } from "#routes/admin/actions.ts";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
 import {
@@ -85,11 +85,10 @@ const loadSortedListings = async () => {
 
 const loadListingAttributeFilterContext = async (
   request: Request,
-  listings: ListingWithCount[],
   filterSource: ListingWithCount[],
 ): Promise<ListingAttributeFilterView> => {
   const attributesByListing = await getSelectedAttributesForListings(
-    listings.map((listing) => listing.id),
+    filterSource.map((listing) => listing.id),
   );
   const attributeFilters = attributeFilterGroupsForListings(
     filterSource.map((listing) => listing.id),
@@ -136,7 +135,9 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       // builder emits would be rejected by the server. A `bookable_alone` child
       // has its own page, so it stays bookable here.
       const listingIds = sortedListings.map((l) => l.id);
-      const activeListings = sortedListings.filter((listing) => listing.active);
+      const activeListings = filter(
+        (listing: ListingWithCount) => listing.active,
+      )(sortedListings);
       const [
         childIds,
         hiddenMemberIds,
@@ -146,11 +147,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
         getNonStandaloneChildIds(listingIds),
         getHiddenPackageMemberIds(listingIds),
         getUpcomingServicingEvents(privateKey, todayInTz(settings.timezone)),
-        loadListingAttributeFilterContext(
-          request,
-          sortedListings,
-          activeListings,
-        ),
+        loadListingAttributeFilterContext(request, activeListings),
       ]);
       const unbookableIds = new Set([...childIds, ...hiddenMemberIds]);
       return htmlResponse(
@@ -183,7 +180,7 @@ const handleAdminListingsGet: TypedRouteHandler<"GET /admin/listings"> =
       listings,
       session,
       settings.listingColumnOrder,
-      await loadListingAttributeFilterContext(request, listings, listings),
+      await loadListingAttributeFilterContext(request, listings),
     );
   });
 

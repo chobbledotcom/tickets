@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import {
   deleteAttribute,
   deleteAttributeOption,
+  getAllAttributeOptionIds,
   getAllAttributesWithOptions,
   getAttributeWithOptions,
   getListingAttributeOptionIds,
@@ -159,19 +160,25 @@ describeWithEnv("db > attributes", { db: true }, () => {
     expect(await getListingAttributeOptionIds(listing.id)).toEqual([]);
   });
 
-  test("keeps only option ids that belong to known attributes", async () => {
+  test("keeps only option ids that exist", async () => {
     const attribute = await createTestAttributeWithOptions("Food", [
       "Vegan",
       "Gluten-free",
     ]);
-    const hidden = await createTestAttribute("Hidden");
-    await createTestAttributeOption(hidden.id, "Ignored");
+    const other = await createTestAttribute("Other");
+    const otherOption = await createTestAttributeOption(other.id, "Other");
 
     expect(
-      pruneInvalidAttributeOptionIds(
-        [attribute],
-        [attribute.options[1]!.id, 123_456, attribute.options[0]!.id],
-      ),
-    ).toEqual([attribute.options[1]!.id, attribute.options[0]!.id]);
+      pruneInvalidAttributeOptionIds(await getAllAttributeOptionIds(), [
+        attribute.options[1]!.id,
+        123_456,
+        otherOption.id,
+        attribute.options[0]!.id,
+      ]),
+    ).toEqual([
+      attribute.options[1]!.id,
+      otherOption.id,
+      attribute.options[0]!.id,
+    ]);
   });
 });

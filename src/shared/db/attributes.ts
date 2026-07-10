@@ -102,10 +102,9 @@ type SelectedAttributeRow = JoinedAttributeRow & {
   listing_id: number;
 };
 
-type AttributeGroup = {
-  name: string;
-  sortOrder: number;
-  options: AttributeOption[];
+type DecryptedAttributeRows = {
+  attributes: Map<number, Attribute>;
+  options: Map<number, AttributeOption>;
 };
 
 const rowOption = (row: JoinedAttributeRow): AttributeOption | null =>
@@ -118,43 +117,86 @@ const rowOption = (row: JoinedAttributeRow): AttributeOption | null =>
         text: row.option_text!,
       };
 
-const collectAttributeRow = (
-  acc: Map<number, AttributeGroup>,
+const rowAttribute = (row: JoinedAttributeRow): Attribute => ({
+  id: row.attribute_id,
+  name: row.attribute_name,
+  sort_order: row.attribute_sort_order,
+});
+
+const collectUniqueAttributes = (
+  acc: Map<number, Attribute>,
   row: JoinedAttributeRow,
-): Map<number, AttributeGroup> => {
-  const group = acc.get(row.attribute_id) ?? {
-    name: row.attribute_name,
-    options: [],
-    sortOrder: row.attribute_sort_order,
-  };
+): Map<number, Attribute> =>
+  acc.has(row.attribute_id)
+    ? acc
+    : acc.set(row.attribute_id, rowAttribute(row));
+
+const collectUniqueOptions = (
+  acc: Map<number, AttributeOption>,
+  row: JoinedAttributeRow,
+): Map<number, AttributeOption> => {
   const option = rowOption(row);
-  if (option) group.options.push(option);
-  return acc.set(row.attribute_id, group);
+  return option && !acc.has(option.id) ? acc.set(option.id, option) : acc;
 };
 
-const decryptAttribute = async (
-  id: number,
-  group: AttributeGroup,
-): Promise<AttributeWithOptions> => {
-  const [attribute, ...options] = await Promise.all([
-    attributesTable.fromDb({
-      id,
-      name: group.name,
-      sort_order: group.sortOrder,
-    }),
-    ...group.options.map((option) => attributeOptionsTable.fromDb(option)),
+const decryptAttributeRows = async (
+  rows: JoinedAttributeRow[],
+): Promise<DecryptedAttributeRows> => {
+  const [attributes, options] = await Promise.all([
+    Promise.all(
+      [
+        ...reduce(collectUniqueAttributes, new Map<number, Attribute>())(rows),
+      ].map(
+        async ([id, attribute]) =>
+          [id, await attributesTable.fromDb(attribute)] as const,
+      ),
+    ),
+    Promise.all(
+      [
+        ...reduce(
+          collectUniqueOptions,
+          new Map<number, AttributeOption>(),
+        )(rows),
+      ].map(
+        async ([id, option]) =>
+          [id, await attributeOptionsTable.fromDb(option)] as const,
+      ),
+    ),
   ]);
-  return { ...attribute, options };
+  return {
+    attributes: new Map(attributes),
+    options: new Map(options),
+  };
 };
+
+const known = <T>(items: Map<number, T>, id: number): T => items.get(id)!;
+
+const buildAttributeGroups = (
+  rows: JoinedAttributeRow[],
+  decrypted: DecryptedAttributeRows,
+): AttributeWithOptions[] => [
+  ...reduce(
+    (acc: Map<number, AttributeWithOptions>, row: JoinedAttributeRow) => {
+      const group = acc.get(row.attribute_id) ?? {
+        ...known(decrypted.attributes, row.attribute_id),
+        options: [],
+      };
+      if (row.option_id !== null) {
+        group.options.push(known(decrypted.options, row.option_id));
+      }
+      return acc.set(row.attribute_id, group);
+    },
+    new Map<number, AttributeWithOptions>(),
+  )(rows).values(),
+];
+
+const queryIds = async (sql: string): Promise<number[]> =>
+  map((row: { id: number }) => row.id)(await queryAll<{ id: number }>(sql));
 
 const groupAttributeRows = async (
   rows: JoinedAttributeRow[],
 ): Promise<AttributeWithOptions[]> =>
-  Promise.all(
-    [
-      ...reduce(collectAttributeRow, new Map<number, AttributeGroup>())(rows),
-    ].map(([id, group]) => decryptAttribute(id, group)),
-  );
+  buildAttributeGroups(rows, await decryptAttributeRows(rows));
 
 export const getAllAttributesWithOptions = async (): Promise<
   AttributeWithOptions[]
@@ -185,6 +227,20 @@ export const getAttributeWithOptions = async (
   const [attribute] = await groupAttributeRows(rows);
   return attribute ?? null;
 };
+
+export const getAttributeId = async (id: number): Promise<number | null> =>
+  (
+    await queryOne<{ id: number }>(
+      "SELECT id FROM attributes WHERE id = ? LIMIT 1",
+      [id],
+    )
+  )?.id ?? null;
+
+export const getAttributeIdsOrdered = async (): Promise<number[]> =>
+  queryIds("SELECT id FROM attributes ORDER BY sort_order, id");
+
+export const getAllAttributeOptionIds = async (): Promise<Set<number>> =>
+  new Set(await queryIds("SELECT id FROM attribute_options"));
 
 export const assignNextAttributeSortOrder = async (
   attributeId: number,
@@ -279,16 +335,14 @@ const selectedRowsForListing = (
 export const getSelectedAttributesForListings = async (
   listingIds: number[],
 ): Promise<ListingAttributesById> => {
-  const rowsByListing = selectedRowsForListing(
-    await selectedOptionRows(unique(listingIds)),
-  );
-  const entries = await Promise.all(
-    [...rowsByListing].map(
-      async ([listingId, rows]) =>
-        [listingId, await groupAttributeRows(rows)] as const,
+  const rows = await selectedOptionRows(unique(listingIds));
+  const decrypted = await decryptAttributeRows(rows);
+  return new Map(
+    [...selectedRowsForListing(rows)].map(
+      ([listingId, listingRows]) =>
+        [listingId, buildAttributeGroups(listingRows, decrypted)] as const,
     ),
   );
-  return new Map(entries);
 };
 
 export const getListingAttributeOptionIds = (
@@ -301,17 +355,7 @@ export const setListingAttributeOptions = async (
 ): Promise<void> =>
   listingAttributeOptions.setIds(listingId, unique(optionIds));
 
-export const optionIdsForAttributes = (
-  attributes: AttributeWithOptions[],
-): number[] =>
-  attributes.flatMap((attribute) =>
-    map((option: AttributeOption) => option.id)(attribute.options),
-  );
-
 export const pruneInvalidAttributeOptionIds = (
-  allAttributes: AttributeWithOptions[],
+  validOptionIds: Set<number>,
   optionIds: number[],
-): number[] => {
-  const valid = new Set(optionIdsForAttributes(allAttributes));
-  return optionIds.filter((id) => valid.has(id));
-};
+): number[] => optionIds.filter((id) => validOptionIds.has(id));

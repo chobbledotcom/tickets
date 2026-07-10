@@ -30,7 +30,10 @@ import {
   attributesTable,
   deleteAttribute,
   deleteAttributeOption,
+  getAllAttributeOptionIds,
   getAllAttributesWithOptions,
+  getAttributeId,
+  getAttributeIdsOrdered,
   getAttributeWithOptions,
   getNextAttributeOptionSortOrder,
   pruneInvalidAttributeOptionIds,
@@ -128,6 +131,17 @@ const withAttribute = async (
   return attribute ? handle(attribute) : notFoundResponse();
 };
 
+const logAttributeOptionActivity = (
+  optionText: string,
+  action: string,
+  attribute: AttributeWithOptions,
+) =>
+  logActivity(
+    `Attribute option '${optionText}' ${action} ${attributeNameFlat(
+      attribute.name,
+    )}`,
+  );
+
 const handleAttributeEdit = createAuthedFormRoute<
   { name: string },
   AttributeParams
@@ -161,7 +175,7 @@ const handleAddOption = createAuthedFormRoute<
         sortOrder: await getNextAttributeOptionSortOrder(params.id),
         text,
       });
-      await logActivity(`Attribute option '${text}' added to ${attribute.id}`);
+      await logAttributeOptionActivity(text, "added to", attribute);
       return redirect(`/admin/attributes/${params.id}`, "Option added", true);
     }),
 });
@@ -231,9 +245,7 @@ const handleDeleteOptionPost = createVerifiedFormRoute<
   mismatchRedirect: (_context, params) => optionDeletePath(params),
   onConfirm: async ({ context: { attribute, option } }) => {
     await deleteAttributeOption(option.id);
-    await logActivity(
-      `Attribute option '${option.text}' deleted from ${attribute.id}`,
-    );
+    await logAttributeOptionActivity(option.text, "deleted from", attribute);
     return redirect(
       `/admin/attributes/${attribute.id}`,
       "Option deleted",
@@ -257,7 +269,7 @@ const handleEditOptionPost = createAuthedFormRoute<
     errorRedirect(editOptionPath(params), error),
   onValid: async ({ context: { attribute, option }, values: { text } }) => {
     await attributeOptionsTable.update(option.id, { text });
-    await logActivity(`Attribute option '${text}' updated in ${attribute.id}`);
+    await logAttributeOptionActivity(text, "updated in", attribute);
     return redirect(
       `/admin/attributes/${attribute.id}`,
       "Option updated",
@@ -286,16 +298,16 @@ const moveOptionHandler = (direction: -1 | 1) =>
   });
 
 const moveAttributeHandler = (direction: -1 | 1) =>
-  createAuthedHandler<AttributeParams, AttributeWithOptions>({
+  createAuthedHandler<AttributeParams, number>({
     auth: OWNER_FORM,
-    handle: async ({ context: attribute }) => {
-      const attributes = await getAllAttributesWithOptions();
-      const index = attributes.findIndex((item) => item.id === attribute.id);
-      const neighbor = attributes[index + direction];
-      if (neighbor) await swapAttributeOrder(attribute.id, neighbor.id);
+    handle: async ({ context: attributeId }) => {
+      const attributeIds = await getAttributeIdsOrdered();
+      const index = attributeIds.indexOf(attributeId);
+      const neighborId = attributeIds[index + direction];
+      if (neighborId) await swapAttributeOrder(attributeId, neighborId);
       return redirect("/admin/attributes", "Attribute moved", true);
     },
-    loadContext: ({ id }) => getAttributeWithOptions(id),
+    loadContext: ({ id }) => getAttributeId(id),
   });
 
 const handleListingAttributesPost = createListingChoicePost({
@@ -304,7 +316,7 @@ const handleListingAttributesPost = createListingChoicePost({
   noun: "option",
   readIds: async (form) =>
     pruneInvalidAttributeOptionIds(
-      await getAllAttributesWithOptions(),
+      await getAllAttributeOptionIds(),
       form.getNumberArray("option_ids"),
     ),
   saveIds: setListingAttributeOptions,
