@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  buildOgTags,
   migrationInProgressPage,
   notFoundPage,
   siteNotActivatedPage,
   temporaryErrorPage,
-} from "#templates/public.tsx";
+} from "#templates/public/errors.tsx";
+import { buildOgTags } from "#templates/public/reservations.tsx";
 
 import { registerPublicTemplateHooks } from "./helpers.ts";
 

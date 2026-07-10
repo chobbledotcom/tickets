@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { AttributeWithOptions } from "#shared/db/attributes.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { clearSavedFormData, setSavedFormData } from "#shared/forms.tsx";
-import { ticketPage } from "#templates/public.tsx";
+import { ticketPage } from "#templates/public/reservations.tsx";
 import {
   bigAndSmallListings,
   evenSplitPackages,

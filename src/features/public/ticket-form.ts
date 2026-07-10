@@ -21,7 +21,7 @@ import { mergeListingFields } from "#shared/listing-fields.ts";
 import type { ListingFields } from "#shared/types.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { extractContact } from "#templates/fields/ticket.ts";
-import { ticketPage } from "#templates/public.tsx";
+import { ticketPage } from "#templates/public/reservations.tsx";
 import type { ListingQty, TicketCtx } from "./types.ts";
 
 /** Parse and validate a quantity value from a raw string, capping at max */
