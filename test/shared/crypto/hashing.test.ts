@@ -1,24 +1,33 @@
 import { expect } from "@std/expect";
-import { describe, it } from "@std/testing/bdd";
+import { afterAll, beforeAll, describe, it } from "@std/testing/bdd";
 import {
   getEncryptionKeyBytes,
   setEncryptionKeyForTest,
 } from "#shared/crypto/encryption.ts";
 import {
   computeTicketTokenIndex,
+  getPbkdf2Iterations,
   hashPassword,
   hashSessionToken,
   hmacHash,
+  setFastPbkdf2ForTest,
   verifyPassword,
 } from "#shared/crypto/hashing.ts";
 import { toBase64 } from "#shared/crypto/utils.ts";
-import {
-  describeWithEnv,
-  setTestEnv,
-  setupTestEncryptionKey,
-} from "#test-utils";
+import { describeWithEnv, setupTestEncryptionKey } from "#test-utils";
 
 describe("password hashing", () => {
+  // Pin the fast test iteration count explicitly: when this file lands first
+  // on a worker nothing has called setupTestEncryptionKey() yet, and every
+  // hashPassword call below would grind through the production 600k
+  // iterations for real.
+  beforeAll(() => {
+    setFastPbkdf2ForTest(true);
+  });
+  afterAll(() => {
+    setFastPbkdf2ForTest(null);
+  });
+
   describe("hashPassword", () => {
     it("generates different hashes for same password (random salt)", async () => {
       const hash1 = await hashPassword("samepassword");
@@ -26,14 +35,18 @@ describe("password hashing", () => {
       expect(hash1).not.toBe(hash2);
     });
 
-    it("uses production iterations when test override is disabled", async () => {
-      const restore = setTestEnv({ TEST_FAST_PBKDF2: undefined });
+    it("stamps the hash with the iteration count it derived with", async () => {
+      const hash = await hashPassword("password");
+      const iterations = Number(hash.split(":")[1]);
+      expect(iterations).toBe(getPbkdf2Iterations());
+    });
+
+    it("uses the OWASP production iteration count when the test override is off", () => {
+      setFastPbkdf2ForTest(null);
       try {
-        const hash = await hashPassword("password");
-        const iterations = Number(hash.split(":")[1]);
-        expect(iterations).toBe(600000);
+        expect(getPbkdf2Iterations()).toBe(600000);
       } finally {
-        restore();
+        setFastPbkdf2ForTest(true);
       }
     });
   });

@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
+import { once } from "#fp";
 import { getSessionCookieName, parseFlashValue } from "#shared/cookies.ts";
 
 export const FLASH_TEST_ID = "t001";
@@ -183,6 +184,41 @@ export const assertAdminHtml = async (
   return expectHtml(response, { contains: substrings, status: 200 });
 };
 
+/** Assert every substring appears in the HTML; returns the HTML for further
+ *  checks. The positive half of {@link expectHtml}, for callers that already
+ *  hold the body text rather than a `Response`. */
+export const expectHtmlContains = (
+  html: string,
+  substrings: string[],
+): string => {
+  for (const s of substrings) expect(html).toContain(s);
+  return html;
+};
+
+/**
+ * "Render once, assert many": for a suite that makes many assertions about one
+ * admin page rendered from the standard fixture, this returns an assert
+ * function shaped like {@link assertAdminHtml} minus the path — but the page
+ * is fetched a single time, on the first call, and the same HTML serves every
+ * later assertion. A 40-test suite that would otherwise re-render an identical
+ * page 40 times (each render on a fresh per-test database) does the work once.
+ *
+ * Only for assertions against the page's DEFAULT state: a test that changes
+ * settings, env, or fixture data to alter the page must fetch its own copy
+ * (e.g. via {@link assertAdminHtml}) so it never reads the stale snapshot.
+ * Call with no substrings to just get the cached HTML.
+ */
+export const cachedAdminPage = (
+  path: string,
+): ((...substrings: string[]) => Promise<string>) => {
+  const load = once(async (): Promise<string> => {
+    const { adminGet } = await import("#test-utils/session.ts");
+    return expectHtml(await adminGet(path), { status: 200 });
+  });
+  return async (...substrings: string[]): Promise<string> =>
+    expectHtmlContains(await load(), substrings);
+};
+
 export const assertAdminHtmlWithCookie = async (
   path: string,
   cookie: string,
@@ -223,7 +259,7 @@ export const expectHtml = async (
 ): Promise<string> => {
   if (opts.status !== undefined) expect(response.status).toBe(opts.status);
   const html = await response.text();
-  for (const s of opts.contains ?? []) expect(html).toContain(s);
+  expectHtmlContains(html, opts.contains ?? []);
   for (const s of opts.notContains ?? []) expect(html).not.toContain(s);
   return html;
 };

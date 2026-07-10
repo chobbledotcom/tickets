@@ -1,19 +1,15 @@
 /**
- * Entry point for ticket reservation system
+ * Entry point for local development (`deno task start`).
+ *
+ * Boot checks run eagerly so a misconfigured environment fails at startup;
+ * everything else — Sentry, the N+1 guard mode, request handling — comes from
+ * the shared production handler, exactly as the edge and Deploy entries use
+ * it. Deno.serve prints its own "Listening on" line, so there is no bespoke
+ * startup log here.
  */
 
-import { handleRequest } from "#routes/index.ts";
 import { validateBootChecks } from "#shared/boot-checks.ts";
-import { logDebug } from "#shared/logger.ts";
-import { initSentry } from "#shared/sentry.ts";
+import { devServerPort, serveHandler } from "./serve-app.ts";
 
-const startServer = (port = 3000): void => {
-  validateBootChecks();
-  initSentry();
-  logDebug("Setup", `Server starting on http://localhost:${port}`);
-
-  Deno.serve({ port }, (request) => handleRequest(request));
-};
-
-const port = Number.parseInt(Deno.env.get("PORT") || "3000", 10);
-startServer(port);
+validateBootChecks();
+Deno.serve({ port: devServerPort() }, serveHandler);
