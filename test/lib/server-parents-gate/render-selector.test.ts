@@ -325,7 +325,7 @@ describeWithEnv(
       // sliced from `indexOf(...) === -1`. Callers like expectSelectOffers get
       // an immediate, readable signal instead of a misleading truthy slice.
       expect(() =>
-        selectOptionsFromHtml("<p>no selects here</p>", "missing_field")
+        selectOptionsFromHtml("<p>no selects here</p>", "missing_field"),
       ).toThrow('No <select name="missing_field"> found in HTML');
     });
 
@@ -338,7 +338,7 @@ describeWithEnv(
         selectOptionsFromHtml(
           '<input name="missing_field" value="0">',
           "missing_field",
-        )
+        ),
       ).toThrow('No <select name="missing_field"> found in HTML');
     });
   },
