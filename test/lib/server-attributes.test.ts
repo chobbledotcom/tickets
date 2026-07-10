@@ -357,6 +357,8 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
           attribute.options[1]!.id
         }"`,
       );
+      // Each attribute's options render as a row-based checkbox fieldset.
+      expect(html).toContain('<fieldset class="checkboxes listing-section">');
     });
 
     test("shows attributes that do not have options yet", async () => {
