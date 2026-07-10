@@ -7,13 +7,8 @@ import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { type HolidayInput, holidays } from "#shared/db/holidays.ts";
 import { HOLIDAY_DEMO_FIELDS, wrapResourceForDemo } from "#shared/demo.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
-import {
-  adminHolidayDeletePage,
-  adminHolidayEditPage,
-  adminHolidayNewPage,
-  adminHolidaysPage,
-} from "#templates/admin/holidays.tsx";
-import { getHolidayFields } from "#templates/fields.ts";
+import { adminHolidaysPage, holidayPages } from "#templates/admin/holidays.tsx";
+import { getHolidayFields } from "#templates/fields/admin.ts";
 
 /** Extract holiday input from validated form values */
 const extractHolidayInput = (
@@ -41,17 +36,14 @@ const holidaysResource = defineNamedResource({
   validate: validateDateRange,
 });
 
-const crud = createOwnerCrudHandlers({
+export const holidaysCrud = createOwnerCrudHandlers({
   getAll: holidays.getAll,
   getName: (h) => h.name,
   listPath: "/admin/holidays",
-  renderDelete: adminHolidayDeletePage,
-  renderEdit: adminHolidayEditPage,
+  renderDelete: holidayPages.deletePage,
+  renderEdit: holidayPages.editPage,
   renderList: adminHolidaysPage,
-  renderNew: adminHolidayNewPage,
+  renderNew: holidayPages.newPage,
   resource: wrapResourceForDemo(holidaysResource, HOLIDAY_DEMO_FIELDS),
   singular: "Holiday",
 });
-
-/** Holiday routes */
-export const holidaysRoutes = crud.routes;

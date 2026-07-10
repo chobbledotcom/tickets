@@ -311,6 +311,47 @@ describeWithEnv("AdminNav", {}, () => {
     expect(html).toContain('class="active" href="/admin/attendees"');
   });
 
+  // Regression: an individual attendee page (and every other single-item page)
+  // used to pass the *section landing route* as its `active` value just to get
+  // the top-level link highlighted — which also re-opened the section's "Add"
+  // sub-nav beside a page that is not the section's landing page. A page that
+  // merely lives *within* a section now says so with `{ section }`: the section
+  // still highlights, but its sub-nav (here, the "Add" create link) must not
+  // appear. Verified for every section that carries an "Add X"-style sub-nav.
+  const withinSectionCases = [
+    { addHref: "/admin/attendees/new", section: "/admin/attendees" },
+    { addHref: "/admin/groups/new", section: "/admin/groups" },
+    { addHref: "/admin/servicing/new", section: "/admin/servicing" },
+    { addHref: "/admin/modifiers/new", section: "/admin/modifiers" },
+    { addHref: "/admin/listing/new", section: "/admin/listings" },
+  ] as const;
+
+  test("a page within a section highlights the section but shows no sub-nav", () => {
+    for (const { section, addHref } of withinSectionCases) {
+      const html = String(
+        AdminNav({ active: { section }, session: { adminLevel: "owner" } }),
+      );
+      // The section's top-level link is highlighted…
+      expect(html, section).toContain(`class="active" href="${section}"`);
+      // …but its sub-nav (the "Add" create link, and the whole desktop
+      // sub-nav level) is absent — a detail page is not the landing page.
+      expect(html, section).not.toContain(`href="${addHref}"`);
+      expect(html, section).not.toContain("admin-subnav");
+    }
+  });
+
+  // The contrast that proves the distinction is real: the SAME section, passed
+  // as a bare route string (the landing list page), DOES open the sub-nav.
+  test("the same section as a bare route string still opens its sub-nav", () => {
+    for (const { section, addHref } of withinSectionCases) {
+      const html = String(
+        AdminNav({ active: section, session: { adminLevel: "owner" } }),
+      );
+      expect(html, section).toContain(`href="${addHref}"`);
+      expect(html, section).toContain("admin-subnav");
+    }
+  });
+
   test("AdminNav marks the servicing link active on servicing pages", () => {
     const html = String(
       AdminNav({

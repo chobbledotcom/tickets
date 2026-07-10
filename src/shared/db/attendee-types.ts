@@ -4,7 +4,7 @@
 
 import type { BlindIndex, OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import type { AttendeeKind } from "#shared/db/attendees/kind.ts";
-import type { BookingSource } from "#shared/db/contact-preferences.ts";
+import type { BookingSource } from "#shared/db/contact-tokens.ts";
 import type { Attendee, ContactFields, ContactInfo } from "#shared/types.ts";
 
 /** Per-(child, parent) unit allocation from the booking fold: the quantity of

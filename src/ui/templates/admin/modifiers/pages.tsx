@@ -23,7 +23,7 @@ import {
   SubmitButton,
 } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
-import { modifierFields } from "#templates/fields.ts";
+import { modifierFields } from "#templates/fields/modifier.ts";
 import { ModifierRunningTotalsSection } from "./aggregates.tsx";
 import {
   type AnswerLinks,
@@ -141,7 +141,7 @@ export const adminModifierEditPage = (
 ): string =>
   String(
     <AdminPage
-      active="/admin/modifiers"
+      active={{ section: "/admin/modifiers" }}
       session={session}
       title={t("modifiers.edit.heading")}
     >
@@ -179,7 +179,7 @@ export const adminModifierDeletePage = (
 ): string =>
   ConfirmPage({
     action: `/admin/modifiers/${modifier.id}/delete`,
-    active: "/admin/modifiers",
+    active: { section: "/admin/modifiers" },
     buttonText: t("modifiers.delete.submit"),
     children: (
       <>

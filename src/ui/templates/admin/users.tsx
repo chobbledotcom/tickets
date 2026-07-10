@@ -28,7 +28,7 @@ import {
 import { DataTable } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
-import { getInviteUserFields } from "#templates/fields.ts";
+import { getInviteUserFields } from "#templates/fields/admin.ts";
 /* jscpd:ignore-end */
 
 /** Displayable user info (decrypted) */

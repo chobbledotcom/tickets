@@ -31,36 +31,40 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllListings, getListingWithCount } from "#shared/db/listings.ts";
 import { getAllModifiers } from "#shared/db/modifiers.ts";
 import {
-  ANSWER_AGGREGATE_FIELDS,
   type Answer,
-  type AnswerAggregateValues,
-  answersTable,
-  assignNextQuestionSortOrder,
-  deleteAnswer,
-  deleteQuestion,
-  findAnswerById,
-  getAllQuestionListingIds,
-  getAllQuestionsWithAnswers,
-  getAnswerAggregateRecalculation,
-  getAnswerModifierId,
-  getAnswerSelectionTotals,
-  getNextAnswerSortOrder,
-  getQuestionListingIds,
-  getQuestionWithAnswers,
   isQuestionDisplayType,
   QUESTION_DISPLAY_TYPES,
   type QuestionWithAnswers,
   questionDisplayTypeError,
-  questionsTable,
   requireQuestionDisplayType,
+} from "#shared/db/question-types.ts";
+import {
+  ANSWER_AGGREGATE_FIELDS,
+  type AnswerAggregateValues,
+  getAnswerAggregateRecalculation,
+  getAnswerModifierId,
+  getAnswerSelectionTotals,
   resetAnswerAggregateFields,
   setAnswerModifier,
+  updateAnswerAggregateValues,
+} from "#shared/db/questions/aggregates.ts";
+import { deleteAnswer, deleteQuestion } from "#shared/db/questions/delete.ts";
+import { findAnswerById } from "#shared/db/questions/parsing.ts";
+import {
+  getAllQuestionListingIds,
+  getAllQuestionsWithAnswers,
+  getQuestionListingIds,
+  getQuestionWithAnswers,
   setListingQuestions,
   setQuestionListings,
+} from "#shared/db/questions/queries.ts";
+import {
+  assignNextQuestionSortOrder,
+  getNextAnswerSortOrder,
   swapAnswerOrder,
   swapQuestionOrder,
-  updateAnswerAggregateValues,
-} from "#shared/db/questions.ts";
+} from "#shared/db/questions/sort-order.ts";
+import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms.tsx";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -75,11 +79,8 @@ import {
   adminQuestionsPage,
   questionTextFlat,
 } from "#templates/admin/questions.tsx";
-import {
-  type AnswerAggregateFormValues,
-  answerAggregateFields,
-  formattingHint,
-} from "#templates/fields.ts";
+import { formattingHint } from "#templates/components/formatting-hint.ts";
+import { answerAggregateFields } from "#templates/fields/aggregate.ts";
 
 /* jscpd:ignore-end */
 
@@ -402,7 +403,7 @@ const handleEditAnswerGet = answerRoute(async (question, answer, session) => {
 
 /** Map the validated aggregate form values onto the stored aggregate columns. */
 const extractAnswerAggregateValues = (
-  values: AnswerAggregateFormValues,
+  values: AnswerAggregateValues,
 ): AnswerAggregateValues => ({
   times_selected: values.times_selected,
 });
@@ -433,7 +434,7 @@ const handleEditAnswerPost = createAuthedFormRoute<
       return errorRedirect(editAnswerPath(params), "Invalid modifier");
     }
     const aggregates = parseEditableAggregateForm<
-      AnswerAggregateFormValues,
+      AnswerAggregateValues,
       AnswerAggregateValues
     >(form, answerAggregateFields, extractAnswerAggregateValues);
     if (!aggregates.ok) {

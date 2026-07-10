@@ -8,7 +8,7 @@ import {
 import { formatCurrency } from "#shared/currency.ts";
 
 /** Prefix a line label with its quantity when more than one was taken. */
-const quantityLabel = (quantity: number, name: string): string =>
+export const quantityLabel = (quantity: number, name: string): string =>
   quantity > 1 ? `${quantity}× ${name}` : name;
 
 /** One name/amount pair to render as a ticket row in the summary table. */

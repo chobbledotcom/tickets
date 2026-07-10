@@ -7,12 +7,11 @@ import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { answerTextForm, questionTextForm } from "#routes/admin/questions.ts";
+import type { Answer, QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type {
-  Answer,
   AnswerAggregateField,
   AnswerAggregateRecalculation,
-  QuestionWithAnswers,
-} from "#shared/db/questions.ts";
+} from "#shared/db/questions/aggregates.ts";
 import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
@@ -44,7 +43,7 @@ import {
 } from "#templates/components/reorder.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
-import { answerAggregateFields } from "#templates/fields.ts";
+import { answerAggregateFields } from "#templates/fields/aggregate.ts";
 
 /** Render question text flat for admin display: line breaks are replaced with
  * " / " so the text fits on one line in tables, headings, and confirmation

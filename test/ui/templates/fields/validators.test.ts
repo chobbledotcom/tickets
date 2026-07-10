@@ -10,7 +10,7 @@ import {
   validatePhone,
   validateSpecialInstructions,
   validateUsername,
-} from "#templates/fields.ts";
+} from "#templates/fields/validators.ts";
 
 /** A validator accepts a value when it returns exactly `null` (not `undefined`,
  *  which a `return null -> return undefined` mutant would produce). */

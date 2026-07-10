@@ -125,40 +125,39 @@ const deleteChildren = (status: AttendeeStatus): JSX.Element => (
   <p>{t("statuses.delete_confirm", { name: status.name })}</p>
 );
 
-const { deletePage, editPage, listPage, newPage } =
-  defineAdminResourcePages<AttendeeStatus>({
-    active: LIST_PATH,
-    basePath: LIST_PATH,
-    delete: {
-      children: deleteChildren,
-      danger: false,
-      heading: t("statuses.delete_title"),
-      label: t("common.name"),
-      name: (status) => status.name,
-    },
-    labels: {
-      addHeading: t("statuses.form_title_add"),
-      addSubmit: t("statuses.form_create_button"),
-      addTitle: t("statuses.form_title_add"),
-      deleteButton: t("statuses.delete_button"),
-      deleteLabel: t("common.name"),
-      deleteTitle: t("statuses.delete_title"),
-      editHeading: t("statuses.form_title_edit"),
-      editSubmit: t("statuses.form_save_button"),
-      editTitle: t("statuses.form_title_edit"),
-      listTitle: t("statuses.attendee_statuses_page_title"),
-    },
-    list: {
-      actions: (
-        <ActionButton href={`${LIST_PATH}/new`} icon="plus">
-          {t("statuses.add_status_button")}
-        </ActionButton>
-      ),
-      columns: statusColumns,
-      intro: <ProseIntro html={t("statuses.attendee_statuses_description")} />,
-    },
-    renderFields: renderStatusFields,
-  });
+export const statusPages = defineAdminResourcePages<AttendeeStatus>({
+  active: LIST_PATH,
+  basePath: LIST_PATH,
+  delete: {
+    children: deleteChildren,
+    danger: false,
+    heading: t("statuses.delete_title"),
+    label: t("common.name"),
+    name: (status) => status.name,
+  },
+  labels: {
+    addHeading: t("statuses.form_title_add"),
+    addSubmit: t("statuses.form_create_button"),
+    addTitle: t("statuses.form_title_add"),
+    deleteButton: t("statuses.delete_button"),
+    deleteLabel: t("common.name"),
+    deleteTitle: t("statuses.delete_title"),
+    editHeading: t("statuses.form_title_edit"),
+    editSubmit: t("statuses.form_save_button"),
+    editTitle: t("statuses.form_title_edit"),
+    listTitle: t("statuses.attendee_statuses_page_title"),
+  },
+  list: {
+    actions: (
+      <ActionButton href={`${LIST_PATH}/new`} icon="plus">
+        {t("statuses.add_status_button")}
+      </ActionButton>
+    ),
+    columns: statusColumns,
+    intro: <ProseIntro html={t("statuses.attendee_statuses_description")} />,
+  },
+  renderFields: renderStatusFields,
+});
 
 /** List of attendee statuses with reorder, edit and delete controls. */
 export const adminAttendeeStatusesPage = (
@@ -166,7 +165,7 @@ export const adminAttendeeStatusesPage = (
   session: AdminSession,
   error?: string,
   success?: string,
-): string => listPage(statuses, session, error, success);
+): string => statusPages.listPage(statuses, session, error, success);
 
 /** Shared new/edit form for an attendee status. Kept as a public export
  *  because the route handler renders one combined form page; the factory's
@@ -180,9 +179,6 @@ export const adminAttendeeStatusFormPage = (
 ): string => {
   const { status, error } = opts;
   return status === undefined
-    ? newPage(session, error)
-    : editPage(status, session, error);
+    ? statusPages.newPage(session, error)
+    : statusPages.editPage(status, session, error);
 };
-
-/** Confirmation page for deleting an attendee status. */
-export const adminAttendeeStatusDeletePage = deletePage;

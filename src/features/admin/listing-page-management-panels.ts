@@ -2,7 +2,7 @@ import type { PageCtx } from "#routes/admin/entity-pages.ts";
 import {
   getAllQuestionsWithAnswers,
   getListingQuestionIds,
-} from "#shared/db/questions.ts";
+} from "#shared/db/questions/queries.ts";
 import { ListingQrPanel } from "#templates/admin/listing-qr.tsx";
 import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
 import { ListingQuestionsPanel } from "#templates/admin/questions.tsx";

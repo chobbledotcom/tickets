@@ -26,7 +26,7 @@ import {
   widestDatedEntry,
 } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import { VALID_DAY_NAMES } from "#templates/fields.ts";
+import { VALID_DAY_NAMES } from "#templates/fields/validators.ts";
 import {
   testHoliday,
   testListing,

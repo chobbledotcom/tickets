@@ -1,15 +1,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  getAllQuestionsWithAnswers,
   getAnswerAggregateRecalculation,
   getAnswerSelectionTotals,
-  getQuestionsWithListingIds,
   resetAnswerAggregateFields,
-  saveAttendeeAnswers,
-  setListingQuestions,
   updateAnswerAggregateValues,
-} from "#shared/db/questions.ts";
+} from "#shared/db/questions/aggregates.ts";
+import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
+import {
+  getAllQuestionsWithAnswers,
+  getQuestionsWithListingIds,
+  setListingQuestions,
+} from "#shared/db/questions/queries.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 import {
   addAnswer,

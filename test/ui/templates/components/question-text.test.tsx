@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import {
   hasSimpleQuestionText,
   questionFieldset,

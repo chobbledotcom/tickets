@@ -15,7 +15,7 @@ import {
 } from "#shared/db/modifier-resolve.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
-import type { TicketFormValues } from "#templates/fields.ts";
+import type { TicketFormValues } from "#templates/fields/ticket.ts";
 import type { extractContact } from "../ticket-form.ts";
 import type { TicketCtx } from "../types.ts";
 import {

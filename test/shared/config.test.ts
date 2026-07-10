@@ -1,23 +1,17 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import {
   getBookingFee,
-  getBotpoisonPublicKey,
-  getBotpoisonSecretKey,
-  getDefaultDbProvider,
   getEffectiveDomain,
   getEmbedHosts,
-  isBotpoisonEnabled,
-  isDenoDeployEnabled,
   isPaymentsEnabled,
-  isTursoEnabled,
   loadEffectiveDomain,
   resetEffectiveDomain,
   seedEffectiveDomainHost,
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
-import { describeWithEnv, setTestEnv, setupStripe } from "#test-utils";
+import { describeWithEnv, setupStripe } from "#test-utils";
 
 describeWithEnv("isPaymentsEnabled", { db: true }, () => {
   test("returns false when no provider is configured", () => {
@@ -211,156 +205,5 @@ describeWithEnv("getEmbedHosts", { db: true }, () => {
       "two.example.com",
       "three.example.com",
     ]);
-  });
-});
-
-describe("Botpoison config", () => {
-  let restoreEnv: (() => void) | undefined;
-  afterEach(() => {
-    restoreEnv?.();
-    restoreEnv = undefined;
-  });
-
-  test("getBotpoisonPublicKey returns the configured env value", () => {
-    restoreEnv = setTestEnv({ BOTPOISON_PUBLIC_KEY: "pk_live_abc" });
-    expect(getBotpoisonPublicKey()).toBe("pk_live_abc");
-  });
-
-  test("getBotpoisonPublicKey returns an empty string when unset", () => {
-    restoreEnv = setTestEnv({ BOTPOISON_PUBLIC_KEY: undefined });
-    expect(getBotpoisonPublicKey()).toBe("");
-  });
-
-  test("getBotpoisonSecretKey returns the configured env value", () => {
-    restoreEnv = setTestEnv({ BOTPOISON_SECRET_KEY: "sk_live_abc" });
-    expect(getBotpoisonSecretKey()).toBe("sk_live_abc");
-  });
-
-  test("getBotpoisonSecretKey returns an empty string when unset", () => {
-    restoreEnv = setTestEnv({ BOTPOISON_SECRET_KEY: undefined });
-    expect(getBotpoisonSecretKey()).toBe("");
-  });
-
-  test("isBotpoisonEnabled is true only when both keys are set", () => {
-    restoreEnv = setTestEnv({
-      BOTPOISON_PUBLIC_KEY: "pk_live_abc",
-      BOTPOISON_SECRET_KEY: "sk_live_abc",
-    });
-    expect(isBotpoisonEnabled()).toBe(true);
-  });
-
-  test("isBotpoisonEnabled is false when only the public key is set", () => {
-    restoreEnv = setTestEnv({
-      BOTPOISON_PUBLIC_KEY: "pk_live_abc",
-      BOTPOISON_SECRET_KEY: undefined,
-    });
-    expect(isBotpoisonEnabled()).toBe(false);
-  });
-
-  test("isBotpoisonEnabled is false when only the secret key is set", () => {
-    restoreEnv = setTestEnv({
-      BOTPOISON_PUBLIC_KEY: undefined,
-      BOTPOISON_SECRET_KEY: "sk_live_abc",
-    });
-    expect(isBotpoisonEnabled()).toBe(false);
-  });
-});
-
-describe("isDenoDeployEnabled", () => {
-  let restoreEnv: (() => void) | undefined;
-  afterEach(() => {
-    restoreEnv?.();
-    restoreEnv = undefined;
-  });
-
-  test("returns true when both DENO_DEPLOY_TOKEN and DENO_DEPLOY_ORG_ID are set", () => {
-    restoreEnv = setTestEnv({
-      DENO_DEPLOY_ORG_ID: "org123",
-      DENO_DEPLOY_TOKEN: "tok123",
-    });
-    expect(isDenoDeployEnabled()).toBe(true);
-  });
-
-  test("returns false when DENO_DEPLOY_TOKEN is missing", () => {
-    restoreEnv = setTestEnv({
-      DENO_DEPLOY_ORG_ID: "org123",
-      DENO_DEPLOY_TOKEN: undefined,
-    });
-    expect(isDenoDeployEnabled()).toBe(false);
-  });
-
-  test("returns false when DENO_DEPLOY_ORG_ID is missing", () => {
-    restoreEnv = setTestEnv({
-      DENO_DEPLOY_ORG_ID: undefined,
-      DENO_DEPLOY_TOKEN: "tok123",
-    });
-    expect(isDenoDeployEnabled()).toBe(false);
-  });
-});
-
-describe("isTursoEnabled", () => {
-  let restoreEnv: (() => void) | undefined;
-  afterEach(() => {
-    restoreEnv?.();
-    restoreEnv = undefined;
-  });
-
-  test("returns true when all Turso env vars are set", () => {
-    restoreEnv = setTestEnv({
-      TURSO_API_TOKEN: "tok",
-      TURSO_GROUP: "grp",
-      TURSO_ORGANIZATION: "org",
-    });
-    expect(isTursoEnabled()).toBe(true);
-  });
-
-  test("returns false when TURSO_API_TOKEN is missing", () => {
-    restoreEnv = setTestEnv({
-      TURSO_API_TOKEN: undefined,
-      TURSO_GROUP: "grp",
-      TURSO_ORGANIZATION: "org",
-    });
-    expect(isTursoEnabled()).toBe(false);
-  });
-
-  test("returns false when TURSO_ORGANIZATION is missing", () => {
-    restoreEnv = setTestEnv({
-      TURSO_API_TOKEN: "tok",
-      TURSO_GROUP: "grp",
-      TURSO_ORGANIZATION: undefined,
-    });
-    expect(isTursoEnabled()).toBe(false);
-  });
-
-  test("returns false when TURSO_GROUP is missing", () => {
-    restoreEnv = setTestEnv({
-      TURSO_API_TOKEN: "tok",
-      TURSO_GROUP: undefined,
-      TURSO_ORGANIZATION: "org",
-    });
-    expect(isTursoEnabled()).toBe(false);
-  });
-});
-
-describe("getDefaultDbProvider", () => {
-  let restoreEnv: (() => void) | undefined;
-  afterEach(() => {
-    restoreEnv?.();
-    restoreEnv = undefined;
-  });
-
-  test("returns bunny when DEFAULT_DB_HOST is not set", () => {
-    restoreEnv = setTestEnv({ DEFAULT_DB_HOST: undefined });
-    expect(getDefaultDbProvider()).toBe("bunny");
-  });
-
-  test("returns turso when DEFAULT_DB_HOST is turso", () => {
-    restoreEnv = setTestEnv({ DEFAULT_DB_HOST: "turso" });
-    expect(getDefaultDbProvider()).toBe("turso");
-  });
-
-  test("returns bunny when DEFAULT_DB_HOST is set to an unrecognised value", () => {
-    restoreEnv = setTestEnv({ DEFAULT_DB_HOST: "bunny" });
-    expect(getDefaultDbProvider()).toBe("bunny");
   });
 });

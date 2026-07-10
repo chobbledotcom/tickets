@@ -61,8 +61,7 @@ import {
   adminListingNewPage,
   adminListingPickerPage,
 } from "#templates/admin/listings/form-pages.tsx";
-import type { ListingAggregateFormValues } from "#templates/fields.ts";
-import { listingAggregateFields } from "#templates/fields.ts";
+import { listingAggregateFields } from "#templates/fields/aggregate.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
 import { listingPage } from "./listing-page.ts";
 import { loadListingEditPanel } from "./listing-page-management-panels.ts";
@@ -454,7 +453,7 @@ const parseAggregatesForRole = (
   session.adminLevel === "editor"
     ? { input: null, ok: true }
     : parseEditableAggregateForm<
-        ListingAggregateFormValues,
+        ListingAggregateValues,
         ListingAggregateValues
       >(form, listingAggregateFields, extractListingAggregateValues);
 

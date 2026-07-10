@@ -19,10 +19,9 @@ import {
   getInitialSiteMonthsField,
   getListingFields,
   getMonthsPerUnitField,
-  getSlugField,
   logisticsField,
-  VALID_DAY_NAMES,
-} from "#templates/fields.ts";
+} from "#templates/fields/listing.ts";
+import { getSlugField, VALID_DAY_NAMES } from "#templates/fields/validators.ts";
 import {
   renderDayPricesFieldset,
   showUseDefaultsToggle,

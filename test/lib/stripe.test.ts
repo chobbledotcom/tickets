@@ -140,8 +140,7 @@ describeWithEnv(
     });
 
     describe("stripe-mock integration", () => {
-      // These tests require stripe-mock running on localhost:12111
-      // STRIPE_MOCK_HOST/PORT are set in test/setup.ts
+      // These tests use the stripe-mock host and port chosen by the harness.
 
       test("retrieves checkout session with stripe-mock", async () => {
         await settings.update.stripe.secretKey("sk_test_mock");

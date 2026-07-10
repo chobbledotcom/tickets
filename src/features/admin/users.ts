@@ -50,10 +50,8 @@ import {
   type DisplayUser,
   type UsersPageOpts,
 } from "#templates/admin/users.tsx";
-import {
-  getInviteUserFields,
-  type InviteUserFormValues,
-} from "#templates/fields.ts";
+import { getInviteUserFields } from "#templates/fields/admin.ts";
+import type { InviteUserFormValues } from "#templates/fields/types.ts";
 
 /* jscpd:ignore-end */
 

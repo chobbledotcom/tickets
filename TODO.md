@@ -187,6 +187,14 @@ descriptors — PRs #1478 and others). A weak-assertion audit script also exists
 
 **Remaining:**
 
+- **Mutation tests removed from `deno task precommit`.** The
+  `precommit:mutation` step was too slow for the standard precommit run and was
+  removed from `scripts/precommit/steps.ts`. The mutation gate still exists as
+  `deno task precommit:mutation` and `deno task mutation` — run it manually on
+  changed src/test pairs before merging. Re-wire it into precommit (perhaps
+  behind a flag or with a tighter changed-set bound) only if the per-commit
+  mutation cost comes down.
+
 - **Property-based tests (item 5).** `fast-check` is currently used in only one
   test (`test/lib/fold-tree.test.ts`). Add properties for: slug generation, CSV
   round-trips (commas / quotes / CRLF), date formatting across timezones, token
@@ -203,6 +211,51 @@ descriptors — PRs #1478 and others). A weak-assertion audit script also exists
   checks. These are permanent review habits, not a one-time sweep.
 - **Metrics.** Surface mutation-score baselines / surviving-mutant counts as a
   tracked artifact so regressions in assertion strength are visible.
+
+---
+
+## server-attendees test split — assertion-strength follow-ups
+
+*Origin: PR #1681 (split the 3674-line `server-attendees.test.ts` into 12 themed
+files). CodeRabbit reviewed the split and flagged five pre-existing weaknesses
+in tests that were relocated verbatim from the original monolith. The PR's scope
+was pure relocation + cpd dedup (the task explicitly required "do NOT change what
+any test asserts"), so these were left untouched and tracked here instead. Each is
+a small, isolated assertion-strength improvement.*
+
+- **`add-attendee.test.ts` — `expect.stringContaining("")` is vacuous.** The
+  "redirects with error on validation failure" test asserts
+  `expectFlash(response, expect.stringContaining(""), false)`, which matches every
+  string and passes even if the flash carries the wrong message. Assert the actual
+  validation error text (or another specific error contract) so the negative path
+  is genuine. (Original monolith line 990.)
+
+- **`payment.test.ts` — Stripe fixture uses a `live` key prefix.** The
+  "links the payment id to the configured provider dashboard" test sets
+  `stripe_secret_key: "sk_live_abc"`. The value is synthetic, but the `live`
+  prefix models a production credential and can trip secret scanners. Switch to a
+  `sk_test_...` fixture — note the test also asserts the live dashboard URL
+  (`dashboard.stripe.com/payments/...`), so verify that still holds after the
+  change. (Original monolith line 2092.)
+
+- **`payment.test.ts` — assert payment stays unrefunded after ledger failure.**
+  The "surfaces a Stripe refund the ledger could not record" test only checks the
+  error flash; its comment says the payment must remain visibly un-refunded. Add a
+  state/UI assertion after the POST so a regression that both flashes an error AND
+  marks the payment refunded cannot pass. (Original monolith lines 2340–2384.)
+
+- **`resend-notification.test.ts` — `setTimeout(resolve, 0)` is race-prone.** The
+  "a package member's resend rehydrates every line" test waits for the
+  fire-and-forget webhook with a zero-delay timer, which is scheduler-dependent
+  and can race the dispatch. Expose/await a completion signal from the test helper
+  or make the fetch stub resolve through a deferred promise, then await it
+  deterministically before asserting the payload. (Original monolith line 2040.)
+
+- **`delete.test.ts` — `return_url` preservation not asserted.** The "preserves
+  return_url on mismatched attendee name" test only checks the flash message — it
+  never verifies the redirect's Location header actually carries `return_url`. Add
+  a Location-header assertion so a regression that drops `return_url` on the
+  mismatch-name error path cannot pass silently. (Original monolith lines 195–202.)
 
 ---
 

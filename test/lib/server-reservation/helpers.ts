@@ -168,8 +168,12 @@ export const modifierRefs = (id: number, quantity = 1): string =>
 
 /** Stub the checkout-session provider and capture the intent it was called
  * with — the shared "inspect what checkout would have charged" fixture
- * behind every test that never actually completes a paid session. */
-export const stubCheckout = () => {
+ * behind every test that never actually completes a paid session. The optional
+ * `sessionId` labels the captured intent (defaults to `"cs_test"`). Returns
+ * `checkout` (the mock, for `restore()`), `getCaptured()` (the intent handed
+ * over), and `calls()` (how many times the provider was reached) so the
+ * sold-out preflight case can assert it was never called. */
+export const stubCheckout = (sessionId = "cs_test") => {
   let captured: CheckoutIntent | undefined;
   const checkout = stub(
     stripePaymentProvider,
@@ -178,11 +182,15 @@ export const stubCheckout = () => {
       captured = intent;
       return Promise.resolve({
         checkoutUrl: "https://stripe.example/checkout",
-        sessionId: "cs_test",
+        sessionId,
       });
     },
   );
-  return { checkout, getCaptured: () => captured };
+  return {
+    calls: () => checkout.calls.length,
+    checkout,
+    getCaptured: () => captured,
+  };
 };
 
 /** Submit a plain buyer order for one unit of `listing` — the default
@@ -231,6 +239,20 @@ export const captureCheckoutIntent = async (
   } finally {
     checkout.restore();
   }
+};
+
+/** Find the captured intent's line item for `listing` and assert its
+ *  `unitPrice` — the shared "this folded line was charged X" check behind
+ *  every test that inspects the outgoing intent's per-line prices. Pass the
+ *  captured intent (`getCaptured()`), the listing whose price to check, and the
+ *  expected unit price in the smallest currency unit (e.g. pence). */
+export const expectCapturedItemPriced = (
+  intent: CheckoutIntent | undefined,
+  listing: { id: number },
+  unitPrice: number,
+): void => {
+  const item = intent?.items.find((i) => i.listingId === listing.id);
+  expect(item?.unitPrice).toBe(unitPrice);
 };
 
 /** Create a modifier that only applies when the buyer opts in (an add-on),

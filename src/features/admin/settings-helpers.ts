@@ -18,7 +18,8 @@ import {
 import { errorRedirect, jsonResponse, redirect } from "#routes/response.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { isMaskSentinel, settings } from "#shared/db/settings.ts";
+import { isMaskSentinel } from "#shared/db/settings/mask.ts";
+import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 

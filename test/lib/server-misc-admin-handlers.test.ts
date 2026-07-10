@@ -556,7 +556,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
 
     test("loadAttendeeQuestionData returns undefined for empty attendeeIds", async () => {
       const { loadAttendeeQuestionData } = await import(
-        "#shared/db/questions.ts"
+        "#shared/db/questions/attendee-answers/reads.ts"
       );
 
       expect(await loadAttendeeQuestionData([1, 2], [])).toBeUndefined();
@@ -564,7 +564,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
 
     test("loadAttendeeQuestionData returns undefined for empty listingIds", async () => {
       const { loadAttendeeQuestionData } = await import(
-        "#shared/db/questions.ts"
+        "#shared/db/questions/attendee-answers/reads.ts"
       );
 
       expect(await loadAttendeeQuestionData([], [1, 2])).toBeUndefined();
@@ -572,7 +572,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
 
     test("loadAttendeeQuestionData returns undefined when no questions exist", async () => {
       const { loadAttendeeQuestionData } = await import(
-        "#shared/db/questions.ts"
+        "#shared/db/questions/attendee-answers/reads.ts"
       );
       const { createTestAttendeeDirect } = await import("#test-utils");
 
@@ -592,11 +592,11 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
 
     test("loadAttendeeQuestionData returns question data when questions exist", async () => {
       const { loadAttendeeQuestionData } = await import(
-        "#shared/db/questions.ts"
+        "#shared/db/questions/attendee-answers/reads.ts"
       );
       const { createTestAttendeeDirect } = await import("#test-utils");
       const { answersTable, listingQuestionsTable, questionsTable } =
-        await import("#shared/db/questions.ts");
+        await import("#shared/db/questions/tables.ts");
 
       const listing = await createTestListing({ maxAttendees: 10 });
       const question = await questionsTable.insert({

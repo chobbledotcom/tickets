@@ -10,7 +10,7 @@ import { DomainPaymentWebhookWarning } from "#templates/admin/settings/domain-pa
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { ProseIntro } from "#templates/components/prose-heading.tsx";
-import { SUBDOMAIN_INPUT_PATTERN } from "#templates/fields.ts";
+import { SUBDOMAIN_INPUT_PATTERN } from "#templates/fields/ticket.ts";
 
 /* jscpd:ignore-end */
 

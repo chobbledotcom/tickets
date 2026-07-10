@@ -35,17 +35,6 @@ export const updateCheckedIn = async (
 };
 
 /**
- * Reconcile an attendee's ledger-projected outstanding balance to `target` — the
- * attendee-balance entry of {@link ledgerTx}'s read-then-adjust corrections
- * (`ledgerTx.correct.owed`). It reads the current owed figure and posts THROUGH
- * the caller's `tx`, crediting/debiting the attendee against the `writeoff` contra
- * account (never external cash). The edit path uses it only to clear a stranded
- * receivable to 0 when an attendee is left with no payable line; owners adjust a
- * balance to any other figure through the ledger UI's manual write-off entries.
- */
-export const reconcileLedgerBalanceTx = ledgerTx.correct.owed;
-
-/**
  * Set an attendee's status from the admin edit form (a plain column write,
  * outside the encrypted pii_blob). The outstanding balance is NOT set from the
  * form — it projects from the transfers ledger, and an operator adjusts it
@@ -73,7 +62,7 @@ export const updateAttendeeStatus = async (
     await tx.execute(
       update("attendees", { status_id: statusId }, { id: attendeeId }),
     );
-    await reconcileLedgerBalanceTx(tx, attendeeId, 0);
+    await ledgerTx.correct.owed(tx, attendeeId, 0);
   });
 };
 

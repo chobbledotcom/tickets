@@ -108,12 +108,14 @@ const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
 const queryGroups = queryAndMap<Group, Group>((row) =>
   rawGroupsTable.fromDb(row),
 );
+const GROUP_COLUMNS = rawGroupsTable.columns.join(", ");
 
 export const groups = cachedEntityTable<Group, GroupInput>(
   "groups",
   rawGroupsTable,
   {
-    fetchAll: () => queryGroups("SELECT * FROM groups ORDER BY id ASC"),
+    fetchAll: () =>
+      queryGroups(`SELECT ${GROUP_COLUMNS} FROM groups ORDER BY id ASC`),
     idOf: (g) => g.id,
     keyOf: (g) => g.slug_index,
     ttlMs: GROUPS_CACHE_TTL_MS,
@@ -309,13 +311,8 @@ export const getListingsNotInGroup = (
 /** The ids of every group a listing belongs to, ascending. */
 export const getGroupIdsByListingId = async (
   listingId: number,
-): Promise<number[]> => {
-  const rows = await queryAll<{ group_id: number }>(
-    "SELECT group_id FROM group_listings WHERE listing_id = ? ORDER BY group_id ASC",
-    [listingId],
-  );
-  return rows.map((r) => r.group_id);
-};
+): Promise<number[]> =>
+  (await getGroupIdsByListingIds([listingId])).get(listingId) ?? [];
 
 /** Whether any of the given group ids satisfies the extra SQL `condition`.
  * Empty input → false (no query). */

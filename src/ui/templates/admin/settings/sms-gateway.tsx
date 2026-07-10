@@ -3,7 +3,7 @@
  */
 
 import { t } from "#i18n";
-import { MASK_SENTINEL } from "#shared/db/settings.ts";
+import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";

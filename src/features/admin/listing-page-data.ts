@@ -38,10 +38,8 @@ import {
 } from "#shared/db/listings.ts";
 import { getAttendeeIdsWithPaymentReference } from "#shared/db/payment-references.ts";
 import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
-import {
-  getListingChoiceAnswerMap,
-  getQuestionsForListing,
-} from "#shared/db/questions.ts";
+import { getListingChoiceAnswerMap } from "#shared/db/questions/attendee-answers/reads.ts";
+import { getQuestionsForListing } from "#shared/db/questions/queries.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   loadNotesForAttendees,

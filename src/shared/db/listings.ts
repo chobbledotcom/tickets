@@ -82,7 +82,7 @@ import {
   normalizeDurationDays,
   parseDayPrices,
 } from "#shared/types.ts";
-import { VALID_DAY_NAMES } from "#templates/fields.ts";
+import { VALID_DAY_NAMES } from "#templates/fields/validators.ts";
 
 /** Default bookable days (all days of the week) */
 export const DEFAULT_BOOKABLE_DAYS: string[] = [...VALID_DAY_NAMES];
@@ -273,9 +273,9 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
  * no `writeoff` legs (production today) it equals the plain gross credit sum, so
  * the refinement is backward-compatible. `idExpr` is the SQL for the listing's id
  * in the surrounding query (e.g. `listing.id` or `listings.id`). Shared by
- * {@link LISTING_COUNT_SELECT} and the batch `SELECT *` loaders so income is read
- * from the ledger in exactly one place, never off the now-dropped column. The
- * trailing `AS income` names the projected column.
+ * every listing-with-projections loader so income is read from the ledger in
+ * exactly one place, never off the now-dropped column. The trailing `AS income`
+ * names the projected column.
  */
 export const listingIncomeSubquery = (idExpr: string): string =>
   `${creditsLessWriteoffDebits("revenue", idExpr)} AS income`;

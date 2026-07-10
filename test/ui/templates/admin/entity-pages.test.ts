@@ -218,11 +218,18 @@ describe("entityPageView", () => {
       proseExtra: Raw({ html: '<p><a href="/add-note">Add a note</a></p>' }),
     });
     // The extra content sits inside the same prose <div> as the heading.
-    const proseStart = html.indexOf('<div class="prose">');
+    const proseStart = html.indexOf('<div class="prose entity-header">');
     const proseEnd = html.indexOf("</div>", proseStart);
     const prose = html.slice(proseStart, proseEnd);
     expect(prose).toContain("<h1>Attendee: Jane</h1>");
     expect(prose).toContain('<a href="/add-note">Add a note</a>');
+  });
+
+  test("pins the header block across view transitions via .entity-header", () => {
+    const html = entityPageView(view);
+    // The header carries the view-transition-name hook so the entity title
+    // holds still while only the panel beneath the tabs transitions.
+    expect(html).toContain('<div class="prose entity-header">');
   });
 
   test("marks only the active tab with aria-current=page", () => {

@@ -1,0 +1,36 @@
+name: Set up Deno
+description: >-
+  Set up Node.js, install the pinned Deno version, restore the shared Deno
+  dependency cache, and optionally install project dependencies.
+inputs:
+  install_dependencies:
+    description: Run deno install --allow-scripts after restoring the cache.
+    required: false
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: 24
+
+    - name: Setup Deno
+      id: deno
+      uses: denoland/setup-deno@v2
+      with:
+        deno-version-file: .tool-versions
+
+    # Keep one repo-wide dependency cache instead of one cache per workflow/job.
+    - name: Cache Deno dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/deno
+        key: deno-${{ runner.os }}-${{ runner.arch }}-${{ steps.deno.outputs.deno-version }}-${{ hashFiles('deno.lock', 'deno.json', 'e2e-payments/deno.json') }}
+        restore-keys: |
+          deno-${{ runner.os }}-${{ runner.arch }}-${{ steps.deno.outputs.deno-version }}-
+
+    - name: Install Deno dependencies
+      if: inputs.install_dependencies == 'true'
+      shell: bash
+      run: deno install --allow-scripts

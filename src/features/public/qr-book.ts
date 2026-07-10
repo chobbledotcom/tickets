@@ -24,7 +24,7 @@ import { listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { type QrBookPayload, verifyQrBookToken } from "#shared/qr-token.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import {
-  type QrPrefill,
+  type BookingPrefill,
   qrBookErrorPage,
   type TicketPrefill,
 } from "#templates/public.tsx";
@@ -52,12 +52,12 @@ const buildListingPrefills = (
   return new Map([[listing.id, entry]]);
 };
 
-/** Build the QrPrefill context for the ticket page */
+/** Build the booking prefill context for the ticket page */
 const buildPrefill = (
   listing: ListingWithCount,
   payload: QrBookPayload,
   token: string,
-): QrPrefill => ({
+): BookingPrefill => ({
   ...(payload.d ? { date: payload.d } : {}),
   listings: buildListingPrefills(listing, payload),
   ...(payload.n ? { name: payload.n } : {}),

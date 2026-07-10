@@ -2,13 +2,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
+import { getHolidayFields } from "#templates/fields/admin.ts";
+import { getGroupCreateFields } from "#templates/fields/group.ts";
+import { getListingFields } from "#templates/fields/listing.ts";
 import {
-  getGroupCreateFields,
-  getHolidayFields,
-  getListingFields,
   validateBookableDays,
   validateDate,
-} from "#templates/fields.ts";
+} from "#templates/fields/validators.ts";
 import { baseListingForm, expectInvalid, expectValid } from "#test-utils";
 
 const listingForm = (

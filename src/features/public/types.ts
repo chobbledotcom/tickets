@@ -8,10 +8,8 @@ import type {
 } from "#shared/booking/model.ts";
 import type { PagePackage } from "#shared/booking/page-packages.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
-import type {
-  QuestionListingMap,
-  QuestionWithAnswers,
-} from "#shared/db/questions.ts";
+import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
+import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
 import type {
   Image,
   ImageUseItemType,

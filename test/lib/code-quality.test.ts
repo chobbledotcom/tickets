@@ -86,7 +86,6 @@ const LIBRARY_PATHS = [
   "shared/checkout-ledger.ts",
   "shared/accounting/store.ts",
   "shared/accounting/queries.ts",
-  "shared/accounting/projection.ts",
   "shared/accounting/mappers.ts",
   // The site-pages feature is being wired in incrementally,
   // foundation-first: the pure core + DB layer landed before the admin CRUD /
@@ -219,6 +218,10 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/csrf.ts:isSignedCsrfToken",
   // Response cookie helper used by auth tests (production sets cookies directly)
   "features/utils.ts:withCookie",
+  // Role guard consumed in production only same-file (by deliveryPage, which
+  // deliveries.ts uses); the scan can't see same-file usage, but the
+  // authorization matrix test asserts it admits exactly its admin levels.
+  "features/auth.ts:requireDeliveryOr",
   // Reset cache registry between tests
   "shared/cache-registry.ts:resetCacheRegistry",
   // Reset cached effective domain between tests

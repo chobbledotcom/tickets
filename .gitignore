@@ -24,6 +24,7 @@ cov_profile/
 .deno/
 .deno-cache/
 .local-data/
+.mutation-runs/
 docs-output*/
 misc/
 ARCHITECTURE.md

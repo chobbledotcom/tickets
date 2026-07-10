@@ -30,18 +30,21 @@ The `.tool-versions` file is kept in sync for asdf-compatible tooling.
 
 ## stripe-mock
 
-The test harness needs the `stripe-mock` binary at `.bin/stripe-mock` (any test
-that imports the app boots the harness, which starts it on port 12111). The
-harness normally downloads a prebuilt release from GitHub, but in sandboxes
-where GitHub release downloads are blocked you can build it from source with Go
-instead — the Go module proxy is usually reachable when GitHub isn't:
+The test harness needs the `stripe-mock` binary at `.bin/stripe-mock`. The
+standard runners (`deno task test`, `deno task test:files`, and `--harness`
+mutation runs) start one stripe-mock process on a free local port and export
+`STRIPE_MOCK_HOST/PORT` to their child test processes, so parallel suites do not
+fight over port 12111. The harness normally downloads a prebuilt release from
+GitHub, but in sandboxes where GitHub release downloads are blocked you can
+build it from source with Go instead — the Go module proxy is usually reachable
+when GitHub isn't:
 
 ```bash
 GOBIN="$PWD/.bin" go install github.com/stripe/stripe-mock@v0.188.0
 ```
 
 Pin the same version the harness expects (`STRIPE_MOCK_VERSION` in
-`scripts/test-harness.ts`). Once `.bin/stripe-mock` exists the harness uses it
+`scripts/stripe-mock/install.ts`). Once `.bin/stripe-mock` exists the harness uses it
 as-is and skips the download, so `deno task test`, `deno task test:files`, and
 `--harness` mutation runs all work offline from GitHub.
 
@@ -57,6 +60,7 @@ as-is and skips the download, so `deno task test`, `deno task test:files`, and
 - **Unify systems — the answer is yes**: When the question is "should we unify these two systems / collapse these two paths into one?", the answer is yes. A core aim is to *reduce the lines of code* needed to accomplish the same thing: the codebase has a finite size it must stay within, so it is critical we reuse and refactor toward one shared mechanism rather than maintain two parallel ones. Two things doing almost the same job are a standing invitation to find the single abstraction that does both — take it. The recent `serve-app.ts` extraction is the reference: it collapsed the Bunny edge and Deno Deploy entry points onto one shared production request handler, leaving `edge.ts`/`deploy.ts` as thin platform wrappers.
 - **No alias exports — expose the shared mechanism itself**: Never export a name that is just another name for an existing method (`export const getChildIds = byParent.getIds`). Expose the underlying helper/object directly and let callers use it (`listingChildren.getIds(parentId)`). Exposing our internals is a feature: it encourages us to make them universal, understandable, and neat, while an alias layer hides the one shared mechanism behind per-module vocabulary and gives the same behavior two names. A thin wrapper that *adds* something — a default, a transformation, a guard — is not an alias and is fine.
 - **No internal compatibility layers**: We own every internal caller. When replacing an internal API, migrate every caller in the same change and delete the old surface instead of keeping wrappers, aliases, re-exports, or "compatibility" shims. Keep adapters only at true external boundaries (provider APIs, serialized data/import formats, browser/platform contracts) or for an explicitly staged data migration with a named removal path.
+- **Remove dead code — always the answer**: When code has no production caller — an unused export, an unreferenced helper, a guard/page whose only consumer is itself unused, an unreachable branch — delete it. Removal is *always* the right call; never keep it "for symmetry" or "for future use" (add it back when the future arrives, from git history), and never paper over it with a test-only import or a lint/usage-check exemption. If a check surfaces an export that's used only by tests, that's a signal the export is dead, not a reason to allow-list it: remove the export (and its now-pointless test). A symmetric-but-unused API is still dead code. The reference: `agentPage`/`requireAgentOr` were an agent-only page+guard pair with no route wiring (agents are gated via `deliveryPage`/`requireDeliveryOr`), so both were deleted rather than exempted.
 - **Keep files under ~400 lines**: When refactoring a file, aim to keep it under 400 lines — and if hitting that target means splitting one file into several, so be it: a new file is cheaper than an overloaded one. When you end up with a handful of files all about the same thing, group them in a folder and give them shorter names that don't repeat the folder's name (`ledger/project.ts`, not `ledger/ledger-project.ts` — see the `src/shared/ledger/` and `src/shared/db/attendees/` examples in [Modularised](#modularised)). While you're at it, use the split as a chance to separate pure from non-pure code — push the data-in/data-out logic into its own file and keep the IO in a thin shell (see [Pure, functional](#pure-functional)). **The same 400-line limit applies to test files**, and matters just as much: smaller, more specific test files let us run mutation tests far faster, because a source file's mutants only need to run against the narrow test file that covers it, not one giant suite. Biome enforces a hard 1,000-line ceiling as a lint error (`nursery.noExcessiveLinesPerFile` in `biome.json`); files that predate the rule are grandfathered in a `biome.json` override list — when you split one, delete its entry, and never add a new entry. (Expect a known side effect when splitting: jscpd cannot fully scan very large files, so a split routinely *surfaces* duplication that was silently passing inside the monolith — budget for extracting helpers, not just moving tests.)
 - **Good citizen — fix what you spot**: If you notice a bug, a coverage gap, or a flaky/fragile test while working — even in code you were not asked to touch and did not write — fix it in passing rather than stepping around it. A green build you helped produce is your responsibility too.
 - **Every bug fix ships with a regression test**: Never fix a bug without also adding a test that fails before the fix and passes after it. The test must exercise the real bug — reproduce the exact condition that was broken so it would have caught the original defect — not merely touch the changed lines for coverage. Write the failing test first, confirm it fails for the right reason, then apply the fix and watch it go green. This locks the bug out for good and proves the fix actually addresses it.
@@ -71,7 +75,7 @@ as-is and skips the download, so `deno task test`, `deno task test:files`, and
 - **Select only needed columns**: Avoid `SELECT *` and broad "load every row" helpers — query the specific columns a caller actually uses. See [Database Queries](#database-queries).
 - **SQL table aliases**: Alias tables with the full singular word using `AS`, not a single letter — write `FROM listings AS listing`, never `FROM listings e` (the `e` is a leftover from when listings were called "events"). When one query references the same table more than once (e.g. correlated subqueries that compare a row against its group), give each occurrence a descriptive word alias — `listing` for the row being checked, `groupListing` for sibling rows in its group.
 - **Never lose work — commit WIP even if broken**: Uncommitted changes are lost if the working environment is reclaimed (it has happened). If you have non-trivial work in progress and are about to pause, hand off, delegate to a background agent, or end a turn with a dirty tree, **commit and push it** rather than leaving it uncommitted. A known-broken checkpoint is fine and expected — mark it unmistakably in the commit message (e.g. `WIP: <chunk> — NOT GREEN, <what fails>`) so it is never mistaken for finished work, and follow up with a green commit. Do not hold a commit back purely because the tree does not yet build or pass; losing the work is worse.
-- **Answer every PR review thread you address**: When a pull request review leaves comments — from an automated reviewer (e.g. Codex) or a human — reply to **each** thread directly with a concise, proper note: how it was resolved (the mechanism + the regression test that locks it), or why it is not actionable/incorrect. Do this even when the commit message already explains the change — an open thread reads as unaddressed, so close the loop on the thread itself. This is a deliberate exception to general GitHub-comment frugality: resolution replies on review threads are expected, not noise. Keep each reply tight (a few sentences), and reference the fixing commit.
+- **Answer every PR review thread you address**: When a pull request review leaves comments — from an automated reviewer (e.g. Codex) or a human — reply to **each** thread directly with a concise, proper note: how it was resolved (the mechanism + the regression test that locks it), or why it is not actionable/incorrect. Do this even when the commit message already explains the change — an open thread reads as unaddressed, so close the loop on the thread itself. This is a deliberate exception to general GitHub-comment frugality: resolution replies on review threads are expected, not noise. Keep each reply tight (a few sentences), and reference the fixing commit. **If a suggestion is valid but outside the current job's scope**, do not silently drop it — record it in `TODO.md` with enough context for a future person to pick it up without re-reading the PR (the file/path it concerns, what the reviewer proposed, why it's genuinely out of scope here, and a starting point), then reply on the thread pointing to the TODO entry. Scope is a real boundary, not an excuse to lose good ideas.
 - **Finish by rewriting the PR name and description**: Once a feature is done, revisit its pull request and update the name and description to match what was actually built. A PR often starts life with a WIP or work-in-flight title; the finished PR should be thorough but written in simple, concise, understandable, non-technical language — the same plain language we want in our code, comments, and method names. Someone without a CS degree should be able to read the PR and know what changed, why, and what it means for the people using the site.
 - **Final check**: Run `deno task precommit` (via `mise exec -- deno task precommit` when using the pinned toolchain) before finishing any job with code or documentation changes. It is the only check that mirrors CI exactly — it typechecks the **test** files too, so `deno check <src>` plus `test:files` is not a substitute (a test-only type error will pass locally and still break CI).
 
@@ -471,9 +475,9 @@ logging and table-scoped cache invalidation stay automatic.
 - `deno task lint:ci` - Strict, read-only lint (`check --error-on-warnings`, no `--write`). Fails on lint warnings (e.g. cognitive complexity) and on any code that *would* be reformatted, without touching the checkout. This is the lint `deno task precommit` runs in **every** environment, so a clean `precommit` locally means the lint step will pass in CI too. Run `deno task lint` to auto-fix before re-running.
 - `deno task build:edge` - Build for Bunny Edge deployment
 - `deno task backup` - Dump the database out-of-band to a `.zip`. Uploads to the configured storage zone by default (so it appears on the Backups page and lets the next migration skip its own inline backup); pass `--out <path>` to write a local file. Runs in a full Deno process, so unlike the in-edge backup it has no per-request subrequest budget and can dump arbitrarily large databases.
-- `deno task precommit` - Run all checks (typecheck, lint, tests, changed-file mutation)
+- `deno task precommit` - Run all checks (typecheck, lint, tests)
 - `deno task precommit:mutation` - The precommit mutation gate, runnable on its own: mutation-test every `src/` file this branch changed against every changed `test/` file and demand a 100% kill rate. The changed set is the branch's committed diff against the integration branch (`origin/main`, else a local `main`) via `base...HEAD` — three-dot/merge-base, so it's the branch's full diff vs main and stays bounded to the branch's own commits (precommit runs post-commit on a clean tree, so the index is empty). Because the project requires 100% coverage, a src change lands with its covering test change in the same commit range, so the changed set is its own source→test mapping. Skips cheaply when there is no base ref or no changed `src/` files (and likewise when src changed without any changed test). If a badly stale local `origin/main` balloons the changed set past `STALE_BASE_SOURCE_LIMIT`, it skips with a "run `git fetch origin main`" hint instead of mutating most of the tree. See [Mutation Testing](#mutation-testing).
-- `deno task mutation <source-glob> <test-glob>` - Mutation-test your tests on demand: mutate operators in the source and check your tests catch it (see [Mutation Testing](#mutation-testing))
+- `deno task mutation <source-glob> <test-glob>` - Mutation-test your tests on demand in an isolated `.mutation-runs/<id>/work` copy: mutate operators in the source and check your tests catch it (see [Mutation Testing](#mutation-testing))
 
 ### Running Individual Test Files
 
@@ -500,7 +504,7 @@ For a pure unit test that imports neither the app nor Stripe, you can skip the h
 deno test --no-check --allow-all test/lib/dates.test.ts
 ```
 
-To do this for a test that depends on stripe-mock (anything importing Stripe), start the mock first (`deno task test:files` or `deno task test` does this for you, or run `.bin/stripe-mock -http-port 12111` manually) and set the env vars:
+To do this for a test that depends on stripe-mock (anything importing Stripe), start the mock first (`deno task test:files` or `deno task test` does this for you, or run `.bin/stripe-mock -http-port 12111` manually) and set the env vars to the port you chose:
 
 ```bash
 STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-all test/lib/stripe-mock.test.ts
@@ -647,18 +651,34 @@ bundle for each mutant, so the mutation reaches the built asset the tests load.
 
 How it works (and why it is bespoke): it mutates the source file **in place**,
 runs the mapped tests in a fresh `deno test` subprocess, then restores the
-file. In-place mutation is what makes mutations bind through `#…` import-map
-aliases. The operator tables and AST walk are vendored from
+file. The normal `deno task mutation` command first copies the current checkout
+(including dirty source/test edits, excluding `.git`, cache/report folders,
+local databases, secrets, and generated assets) to `.mutation-runs/<id>/work`;
+all in-place writes and per-mutant bundle rebuilds happen inside that copy, not
+the live files. Each run leaves `.mutation-runs/<id>/run.json` with the child
+PID/status, so a stray run is easy to find and stop:
+
+```bash
+deno task mutation --list
+deno task mutation --kill <run-id>   # or: all
+deno task mutation --clean finished  # or: <run-id> / all
+```
+
+In-place mutation inside the copied checkout is what makes mutations bind
+through `#…` import-map aliases. The operator tables and AST walk are vendored from
 [Mutasaurus](https://github.com/christoshrousis/mutasaurus) (MIT); its own
 execution model writes a temp copy but runs the original tests, so every mutant
 falsely "survives" on an alias-based project — see
 `scripts/mutation/LICENSE.mutasaurus.md`. As a manual tool it is **targeted**
 (run `deno task mutation` on the module you are hardening) — running it across
-the whole tree would be far too slow. `deno task precommit` does run it
-automatically, but **only over the files this branch changed** (its committed
-diff against `origin/main`/`main`): the `precommit:mutation` step
-mutates each changed `src/` file against the changed `test/` files and demands a
-100% kill rate, so the cost stays bounded to what you actually changed.
+the whole tree would be far too slow. The standalone
+`deno task precommit:mutation` runs it automatically, but **only over the files
+this branch changed** (its committed diff against `origin/main`/`main`): the
+`precommit:mutation` step mutates each changed `src/` file against the changed
+`test/` files and demands a 100% kill rate, so the cost stays bounded to what
+you actually changed. Run `deno task precommit:mutation` before merging a
+branch that changes `src/` files; the standard `deno task precommit` no longer
+runs it (it was too slow for every commit).
 Known-equivalent survivors recorded in
 `scripts/mutation/equivalent-mutants.txt` are suppressed, as with a manual run.
 That file's header warns against recording `=== → ==`/`!== → !=` mutants
@@ -673,6 +693,17 @@ already, e.g. `logistics-filter.ts:41:45`, `sort-listings.ts:44:12`,
 and running `deno run -A scripts/biome.ts check --error-on-warnings <file>` —
 exit 0 means the lint gate does not kill it, so a real survivor needs a test
 or a documented equivalent, not removal on the assumption that lint caught it.
+
+When a manual mutation run (or the precommit gate) surfaces survivors on a file
+you are touching — even on lines you did not change in this PR — they are yours
+to fix. Never determine whether a survivor "predates main" (no `git stash`, no
+diffing against the base to excuse it): the bar is 100%, and a survivor on a
+line in your changed file is a real gap in that file's tests that you are now
+the person best placed to close. Either write the assertion that kills it, or
+record the mutant in `scripts/mutation/equivalent-mutants.txt` with a proof that
+no input can distinguish it. "It was already there" is not a resolution; leaving
+it just guarantees the next person trips over the same survivor. This is the
+[Good citizen](#preferences) rule applied to mutation testing.
 It is a deliberately mapping-free, best-effort check with three documented blind
 spots (see the header of `scripts/precommit/mutation-step.ts`): it scopes to the
 *committed* diff, so uncommitted work isn't checked until committed; it trusts

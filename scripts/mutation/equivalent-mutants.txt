@@ -32,6 +32,10 @@
 src/shared/checkout-pricing.ts:85:35  ?? → ||    # Map<number,number> sum: 0 ?? 0 === 0 || 0
 src/shared/checkout-pricing.ts:334:41  ?? → ||   # intent.modifiers: an array is always truthy
 src/shared/logistics-filter.ts:22:35  ?? → ||    # raw: string|null, only falsy string "" === fallback ""
+src/shared/config.ts:150:39  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
+src/shared/config.ts:163:61  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
+src/shared/config.ts:170:33  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
+src/shared/config.ts:177:33  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/qr-token.ts:60:18  ?? → ||    # input.date?: string, only falsy string "" === fallback ""
 src/shared/qr-token.ts:62:18  ?? → ||    # input.name?: string, only falsy string "" === fallback ""
 src/shared/site-assignment.ts:192:57  ?? → ||    # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
@@ -787,3 +791,17 @@ src/features/admin/attendees-merge.ts:188:40  && → ||   # keptIsPinned = Boole
 src/features/admin/attendees-merge.ts:344:54  target → ""   # parsePiiDecisions fallback string: every consumer of decision.pii (pickPiiField, the kept/address ternary on :186, mergedPiiName on :319, applyPiiDecisions on attendee-merge.ts:501) only tests `=== "source"`, so any non-"source" value (including "" and "target") is treated identically as "keep target"
 src/features/admin/attendees-merge.ts:374:15  skip_source → ""   # toBookingChoice comparison `raw === "skip_source"` → `raw === ""`: parse "skip_source" as the "keep_target" fallback. Unobservable — both fall to applyBookingDecisions' same `else` branch (no DB write, bookingsSkipped++) and discardedSaleAmount returns sourceSaleAmount for both, so the merge outcome is identical for every input
 src/features/admin/attendees-merge.ts:408:10  return undefined → return undefined   # toMoneyChoice's fallback is already `return undefined`; the mutation is a no-op (it produces identical code), so no test can ever observe a difference
+# contact-tokens.ts — `?? → ||` and `return null → return undefined` sites whose
+# operand can never be a falsy-but-non-null value, or whose result is only ever
+# consumed by a nullish check. Each is provably equivalent from the types.
+src/shared/db/contact-tokens.ts:92:30  - → +    # splitTokenBlob's `separatorAt === -1`: every app-written line has a tab at the marker-length position (64), and a malformed separator-less line's first-chars marker can never equal a real BlindIndex (an hmac hex), and its ciphertext never decrypts, so taking the else-branch for a tab-less line (marker = raw.slice(0, -1)) is unobservable through ensureBookingToken/removeBookingToken/getRecentBookingTokens
+src/shared/db/contact-tokens.ts:177:35  ?? → ||    # loadTokenBlob's `row?.attendee_tokens_blob ?? null`: attendee_tokens_blob is string|undefined; the only falsy-non-null is "" and tokenLinesFrom("") === tokenLinesFrom(null) === [], so ?? and || agree
+src/shared/db/contact-tokens.ts:218:22  return null → return undefined    # removeBookingToken's no-match return; removedSource is only ever consumed by `removedSource ?? sync.source`, and null and undefined agree under ??
+src/shared/db/contact-tokens.ts:289:18  ?? → ||    # `removedSource ?? sync.source`: removedSource is BookingSource|null, and both BookingSource values ("admin","public") are non-empty truthy strings, so it is never falsy-but-non-null; ?? and || agree
+
+# attendees/tokens.ts — `?? → ||` sites where the operand is a Map#get() whose
+# value is always a truthy object or array (never a falsy-but-non-null value),
+# so ?? and || agree for every possible value.
+src/shared/db/attendees/tokens.ts:159:45  ?? → ||    # resultsInTokenOrder: byTokenIndex.get() is Result|undefined; Result is AttendeeWithBookings or AttendeeBookingRows (always a truthy object), so ?? and || agree
+src/shared/db/attendees/tokens.ts:162:56  ?? → ||    # resultsInTokenOrder: tokenToResult.get() is Result|undefined; Result is always a truthy object (see 159), so ?? and || agree
+src/shared/db/attendees/tokens.ts:175:48  ?? → ||    # tokenResultMap: bookingsByAttendee.get() is Booking[]|undefined; an array is always truthy (even empty), so ?? and || agree

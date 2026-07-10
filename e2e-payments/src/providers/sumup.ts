@@ -4,6 +4,7 @@ import { log, warn } from "../log.ts";
 import { clickFirst, fillCard, fillFirst, fillFrameInput } from "./card.ts";
 import { configureProvider } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
+
 /* jscpd:ignore-end */
 
 /**
@@ -24,21 +25,19 @@ import type { PaymentProvider } from "./types.ts";
 // authentication. 4000…0002 is a DECLINE card ("Payment Declined").
 // Docs: https://developer.sumup.com/online-payments/testing
 const CARD = {
-  number: "4200000000000091",
-  expiry: "12/34",
   cvc: "123",
+  expiry: "12/34",
   name: "E2E Tester",
+  number: "4200000000000091",
 } as const;
 
 export const sumup: PaymentProvider = {
-  name: "sumup",
-  setupCountry: "GB",
-
   configure: configureProvider("sumup", async (session, secrets) => {
     await session.fill("sumup_api_key", secrets.apiKey);
     await session.fill("sumup_merchant_code", secrets.merchantCode);
     await session.clickButton("Update SumUp Credentials");
   }),
+  name: "sumup",
 
   payHostedCheckout: async (page: Page): Promise<void> => {
     log("Filling SumUp hosted checkout…");
@@ -68,7 +67,13 @@ export const sumup: PaymentProvider = {
         "input",
         CARD.expiry,
       );
-      const filledCvc = await fillFrameInput(page, "cvc", ["CVV", "CVC"], "input", CARD.cvc);
+      const filledCvc = await fillFrameInput(
+        page,
+        "cvc",
+        ["CVV", "CVC"],
+        "input",
+        CARD.cvc,
+      );
       if (!filledExpiry || !filledCvc) {
         const missing = [
           ...(filledExpiry ? [] : ["expiry"]),
@@ -100,10 +105,10 @@ export const sumup: PaymentProvider = {
     } else {
       warn("  Braintree hosted fields not found — trying generic card fill");
       await fillCard(page, {
-        number: CARD.number,
-        expiry: CARD.expiry,
         cvc: CARD.cvc,
+        expiry: CARD.expiry,
         name: CARD.name,
+        number: CARD.number,
       });
     }
 
@@ -116,6 +121,7 @@ export const sumup: PaymentProvider = {
 
     await returnToMerchant(page);
   },
+  setupCountry: "GB",
 };
 
 /**
@@ -157,7 +163,9 @@ const returnToMerchant = async (page: Page): Promise<void> => {
     try {
       if (await link.isVisible({ timeout: 500 })) {
         await link.click({ timeout: 5_000 });
-        log("  clicked SumUp's 'Back to merchant website' to return to the app");
+        log(
+          "  clicked SumUp's 'Back to merchant website' to return to the app",
+        );
         return;
       }
     } catch {

@@ -9,7 +9,7 @@ import {
 } from "#routes/public/ticket-form.ts";
 import type { TicketListing } from "#shared/booking/model.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
-import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { FormParams } from "#shared/form-data.ts";
 
 const question = (

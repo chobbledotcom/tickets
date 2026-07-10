@@ -15,7 +15,7 @@ import {
   RunningTotalsFieldset,
   StackDetails,
 } from "#templates/components/aggregate-sections.tsx";
-import { listingAggregateFields } from "#templates/fields.ts";
+import { listingAggregateFields } from "#templates/fields/aggregate.ts";
 import {
   ListingAggregateMismatchNotice,
   listingAggregateToFieldValues,

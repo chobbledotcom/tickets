@@ -2,15 +2,14 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { renderFields } from "#shared/forms.tsx";
+import { mergeListingFields } from "#shared/listing-fields.ts";
+import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
+import { fieldsApi, getTicketFields } from "#templates/fields/ticket.ts";
 import {
-  fieldsApi,
-  getAddAttendeeFields,
-  getTicketFields,
-  mergeListingFields,
   validateAddress,
   validatePhone,
   validateSpecialInstructions,
-} from "#templates/fields.ts";
+} from "#templates/fields/validators.ts";
 import { expectInvalid, expectValid } from "#test-utils";
 
 // Helper: get the names of fields in order

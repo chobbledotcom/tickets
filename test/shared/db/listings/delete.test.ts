@@ -21,13 +21,10 @@ import {
   isSessionProcessed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
-import {
-  answersTable,
-  getAttendeeAnswersBatch,
-  questionsTable,
-  saveAttendeeAnswers,
-  setListingQuestions,
-} from "#shared/db/questions.ts";
+import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
+import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
+import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import {
   createTestAttendee,
   createTestListing,

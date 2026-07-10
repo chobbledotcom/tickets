@@ -131,6 +131,5 @@
   "public.addons.heading": "Add-ons",
   "public.addons.quantity": "Quantity",
   "public.promo.heading": "Promo code",
-  "public.promo.hint": "Have a promo code? Enter it to apply it at checkout.",
-  "public.promo.placeholder": "Promo code"
+  "public.promo.placeholder": "Optional"
 }

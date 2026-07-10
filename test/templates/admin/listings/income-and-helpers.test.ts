@@ -6,7 +6,7 @@ import { emptyLedgerNames } from "#templates/admin/ledger.tsx";
 import { nearCapacity } from "#templates/admin/listings/aggregates.tsx";
 import { completePaymentAttendees } from "#templates/admin/listings/attendees.tsx";
 import { overviewStatsFromDbStats } from "#templates/admin/listings/overview.tsx";
-import { getListingFields } from "#templates/fields.ts";
+import { getListingFields } from "#templates/fields/listing.ts";
 import { testAttendee, testListingWithCount } from "#test-utils";
 
 import {

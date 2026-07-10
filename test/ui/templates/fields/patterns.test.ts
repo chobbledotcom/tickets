@@ -4,22 +4,26 @@ import type { Field } from "#shared/forms.tsx";
 import {
   getBuiltSiteFields,
   getChangePasswordFields,
-  getGroupCreateFields,
-  getGroupFields,
   getHolidayFields,
   getInviteUserFields,
-  getListingFields,
   getLoginFields,
   getSetupFields,
-  getSlugField,
   getSquareAccessTokenFields,
   getSquareWebhookFields,
   getStripeKeyFields,
   getSumupFields,
+} from "#templates/fields/admin.ts";
+import {
+  getGroupCreateFields,
+  getGroupFields,
+} from "#templates/fields/group.ts";
+import { getListingFields } from "#templates/fields/listing.ts";
+import {
   getTicketFields,
   PHONE_INPUT_PATTERN,
   SUBDOMAIN_INPUT_PATTERN,
-} from "#templates/fields.ts";
+} from "#templates/fields/ticket.ts";
+import { getSlugField } from "#templates/fields/validators.ts";
 
 /**
  * Regression guard for HTML `pattern` attributes.

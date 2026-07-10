@@ -12,7 +12,6 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
 import {
   createDailyTestListing,
   createServicingHold,
@@ -24,54 +23,25 @@ import {
   getTestPrivateKey,
   servicingRowsForListing,
   updateServicingEvent,
+  withPoisonedTransactionExecute,
 } from "#test-utils";
 
 // jscpd:ignore-end
 
-/**
- * Reject the FIRST batch whose SQL matches `matches`, then delegate every
- * subsequent batch — including the compensating delete/restore — so the
- * create/update compensation runs against a working client. Swaps the libsql
- * client's `batch` method in place (module namespaces are frozen, but the
- * client instance's method is configurable) and discriminates by SQL content.
- */
-const withPoisonedBatch =
-  (matches: (sql: string) => boolean, message: string) =>
-  async (body: () => Promise<void>): Promise<void> => {
-    const db = getDb();
-    const realBatch = db.batch;
-    let poisoned = true;
-    db.batch = ((
-      statements: { sql: string }[],
-      mode?: "read" | "write",
-    ): Promise<unknown> => {
-      const sqls = statements.map((s) => (typeof s === "string" ? s : s.sql));
-      if (poisoned && sqls.some(matches)) {
-        poisoned = false;
-        return Promise.reject(new Error(message));
-      }
-      return realBatch.call(db, statements as never, mode);
-    }) as typeof db.batch;
-    try {
-      await body();
-    } finally {
-      db.batch = realBatch;
-    }
-  };
-
-/** Fail the FIRST `attendee_answers` batch (the answer save), so the
+/** Fail the FIRST `attendee_answers` write (the answer save), so the
  *  create/update compensation runs. */
-const withAnswerSaveFailure = withPoisonedBatch(
+const withAnswerSaveFailure = withPoisonedTransactionExecute(
   (sql) => sql.includes("attendee_answers"),
   "answer save boom",
 );
 
-/** Fail the FIRST `INSERT INTO attendee_answers` batch, letting the preceding
- *  clear (`DELETE FROM attendee_answers`) commit first — the exact window in
- *  which the free-text-loss bug lived: the delete drops the old answers, then
- *  the re-insert fails, so the compensation must restore the WHOLE prior answer
- *  set (choice + free-text), not just its choice half. */
-const withAnswerInsertFailure = withPoisonedBatch(
+/** Fail the FIRST `INSERT INTO attendee_answers`, letting the preceding
+ *  clear (`DELETE FROM attendee_answers`) run on the same transaction first —
+ *  the exact window in which the free-text-loss bug lived: the delete drops the
+ *  old answers, then the re-insert fails and rolls the delete back, so the
+ *  compensation must restore the WHOLE prior answer set (choice + free-text),
+ *  not just its choice half. */
+const withAnswerInsertFailure = withPoisonedTransactionExecute(
   (sql) => sql.includes("INSERT INTO attendee_answers"),
   "answer insert boom",
 );
@@ -85,7 +55,7 @@ const attachTextAndChoiceQuestions = async (
   choiceAnswerId: number;
 }> => {
   const { answersTable, listingQuestionsTable, questionsTable } = await import(
-    "#shared/db/questions.ts"
+    "#shared/db/questions/tables.ts"
   );
   const textQuestion = await questionsTable.insert({
     assignAll: false,
@@ -130,8 +100,11 @@ describeWithEnv(
       });
       const { textQuestionId, choiceAnswerId } =
         await attachTextAndChoiceQuestions(listing.id);
-      const { saveAttendeeAnswers, getAttendeeTextAnswers } = await import(
-        "#shared/db/questions.ts"
+      const { saveAttendeeAnswers } = await import(
+        "#shared/db/questions/attendee-answers/save.ts"
+      );
+      const { getAttendeeTextAnswers } = await import(
+        "#shared/db/questions/attendee-answers/reads.ts"
       );
       // Seed a free-text answer on the servicing event.
       await saveAttendeeAnswers(
