@@ -101,6 +101,7 @@ import newsPostsMigration from "./migrations/2026-07-06_news_posts.ts";
 import contactAttendeeTokensMigration from "./migrations/2026-07-07_contact_attendee_tokens.ts";
 import processedPaymentsPaymentReferenceMigration from "./migrations/2026-07-07_processed_payments_payment_reference.ts";
 import listingAttributesMigration from "./migrations/2026-07-09_listing_attributes.ts";
+import processedPaymentsAttendeeIndexMigration from "./migrations/2026-07-10_processed_payments_attendee_index.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -327,6 +328,8 @@ export const MIGRATIONS: Migration[] = [
   listingAttributesMigration,
   // Store every provider charge reference for later full-account refunds.
   processedPaymentsPaymentReferenceMigration,
+  // Index the retained charge rows by attendee for the refund lookups.
+  processedPaymentsAttendeeIndexMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

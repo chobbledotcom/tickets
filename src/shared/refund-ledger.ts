@@ -26,8 +26,8 @@ import {
   mapRefund,
 } from "#shared/accounting/mappers.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { eventGroup } from "#shared/accounting/refs.ts";
 import { postTransferGroups, postTransfers } from "#shared/accounting/store.ts";
+import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
@@ -54,9 +54,6 @@ const isProviderPaymentLeg = (leg: Transfer): boolean =>
 const isOperatorMoneyLeg = (leg: Transfer): boolean =>
   leg.kind === KIND.adjustment || leg.kind?.startsWith("manual_") === true;
 
-const balancePaymentEventGroup = (sessionId: string): Promise<string> =>
-  eventGroup(["balance", sessionId]);
-
 const refundedSessionGroups = async (
   references: RefundReferences,
 ): Promise<Set<string>> =>
@@ -66,7 +63,7 @@ const refundedSessionGroups = async (
         references.flatMap((reference) =>
           reference.sessionIds.flatMap((sessionId) => [
             bookingEventGroup(sessionId),
-            balancePaymentEventGroup(sessionId),
+            balanceEventGroup(sessionId),
           ]),
         ),
       )

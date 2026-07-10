@@ -497,6 +497,17 @@ export const SCHEMA: [name: string, table: Table][] = [
       // recreation migrations (PRAGMA foreign_keys is connection-scoped and
       // doesn't persist into batch operations on remote databases).
       // Referential integrity is enforced by application logic.
+      indexes: [
+        // The refund-reference lookups (getRefundPaymentReferences,
+        // getAttendeeIdsWithPaymentReference) seek by attendee: WHERE
+        // attendee_id IN (…). Rows are now retained while their reference is
+        // still refundable, so without this the roster/export/refund-all pages
+        // full-scan every payment ever processed.
+        {
+          columns: ["attendee_id"],
+          name: "idx_processed_payments_attendee",
+        },
+      ],
     },
   ],
 
