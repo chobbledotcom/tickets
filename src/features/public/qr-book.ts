@@ -10,6 +10,7 @@
 import { isRegistrationClosed } from "#routes/format.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { buildTicketListing } from "#shared/booking/model.ts";
+import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { getGroupRemainingForListing } from "#shared/db/attendees/capacity.ts";
 import { isHiddenPackageMember } from "#shared/db/groups.ts";
@@ -96,7 +97,7 @@ const buildCheckoutIntent = (
   payload: QrBookPayload,
 ): CheckoutIntent => ({
   address: "",
-  date: listing.listing_type === "daily" ? payload.d : null,
+  date: capacityDateFor(listing.listing_type, payload.d),
   email: "",
   items: [
     {
