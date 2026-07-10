@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getListing } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";

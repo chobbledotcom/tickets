@@ -9,7 +9,7 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#shared/booking/model.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { ticketPage } from "#templates/public/reservations.tsx";
+import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import { pagePackage } from "#test/lib/package-cap-fixtures.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";

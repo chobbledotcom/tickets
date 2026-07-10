@@ -32,7 +32,9 @@ describeWithEnv(
           booking: { ticketToken: string };
         }
       ).booking;
-      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const { getAttendeesByTokens } = await import(
+        "#shared/db/attendees/tokens.ts"
+      );
       const [attendee] = await getAttendeesByTokens([ticketToken]);
       const bookings = attendee!.bookings;
       // Both the parent and its child are booked on the one attendee, and the
@@ -60,7 +62,9 @@ describeWithEnv(
         quantity: 2,
       });
       expect(res.status).toBe(200);
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       expect((await getAttendeesRaw(childA.id))[0]?.quantity).toBe(1);
       expect((await getAttendeesRaw(childB.id))[0]?.quantity).toBe(1);
     });
@@ -133,7 +137,9 @@ describeWithEnv(
           expect(body.error).toContain(c.expectErrorContains);
         }
         if (c.expectZeroParentAttendees) {
-          const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+          const { getAttendeesRaw } = await import(
+            "#shared/db/attendees/queries.ts"
+          );
           expect((await getAttendeesRaw(parent.id)).length).toBe(0);
         }
       });
@@ -154,7 +160,9 @@ describeWithEnv(
         quantity: 2,
       });
       expect(res.status).toBe(200);
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       expect((await getAttendeesRaw(child.id))[0]?.quantity).toBe(2);
     });
 
@@ -200,7 +208,9 @@ describeWithEnv(
       const listing = await createTestListing({ name: "Plain" });
       const res = await apiBook(listing.slug);
       expect(res.status).toBe(200);
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       expect((await getAttendeesRaw(listing.id)).length).toBe(1);
     });
   },

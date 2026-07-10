@@ -177,7 +177,7 @@ describeWithEnv(
 
         // Mock checkBatchAvailability via attendeesApi to return false,
         // simulating a race condition where listing sells out between page load and check
-        const { attendeesApi } = await import("#shared/db/attendees.ts");
+        const { attendeesApi } = await import("#shared/db/attendees/api.ts");
         const mockBatch = stub(attendeesApi, "checkBatchAvailability", () =>
           Promise.resolve(false),
         );

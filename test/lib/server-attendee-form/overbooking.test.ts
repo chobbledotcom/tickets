@@ -51,7 +51,9 @@ describeWithEnv(
           "A",
           "a@e.com",
         );
-        const { loadExistingLines } = await import("#shared/db/attendees.ts");
+        const { loadExistingLines } = await import(
+          "#shared/db/attendees/atomic-update.ts"
+        );
         const key = (await loadExistingLines(attendee.id))[0]!.key;
         const form = await buildAttendeeEditForm(attendee.id, {
           lines: [{ eventId: listing.id, key, quantity: 10 }],
@@ -78,7 +80,9 @@ describeWithEnv(
           "B",
           "b@e.com",
         );
-        const { loadExistingLines } = await import("#shared/db/attendees.ts");
+        const { loadExistingLines } = await import(
+          "#shared/db/attendees/atomic-update.ts"
+        );
         const homeKey = (await loadExistingLines(attendee.id))[0]!.key;
         const form = await buildAttendeeEditForm(attendee.id, {
           lines: [
@@ -179,7 +183,9 @@ describeWithEnv(
           "Edit Mix",
           "editmix@example.com",
         );
-        const { loadExistingLines } = await import("#shared/db/attendees.ts");
+        const { loadExistingLines } = await import(
+          "#shared/db/attendees/atomic-update.ts"
+        );
         const existing = await loadExistingLines(attendee.id);
         const tomorrow = tomorrowInTz();
 

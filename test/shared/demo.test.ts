@@ -9,8 +9,18 @@ import {
 } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import {
+  isDemoMode,
+  resetDemoMode,
+  setDemoModeForTest,
+} from "#shared/demo/mode.ts";
+import {
   ATTENDEE_DEMO_FIELDS,
   applyDemoOverrides,
+  type DemoFieldMap,
+  LISTING_DEMO_FIELDS,
+  wrapResourceForDemo,
+} from "#shared/demo/overrides.ts";
+import {
   DEMO_EMAILS,
   DEMO_GROUP_NAMES,
   DEMO_HOLIDAY_NAMES,
@@ -18,13 +28,7 @@ import {
   DEMO_LISTING_LOCATIONS,
   DEMO_LISTING_NAMES,
   DEMO_NAMES,
-  type DemoFieldMap,
-  isDemoMode,
-  LISTING_DEMO_FIELDS,
-  resetDemoMode,
-  setDemoModeForTest,
-  wrapResourceForDemo,
-} from "#shared/demo.ts";
+} from "#shared/demo/samples.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
   createTestDbWithSetup,

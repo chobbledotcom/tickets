@@ -6,7 +6,7 @@ import {
   transfersByAccount,
 } from "#shared/accounting/queries.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { expectFlash, expectFlashRedirect } from "#test-utils/assertions.ts";
 import { extractInputValue } from "#test-utils/csrf.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";

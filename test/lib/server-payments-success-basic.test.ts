@@ -94,7 +94,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
 
         // Verify attendees created for both listings
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const { getAttendeesRaw } = await import(
+          "#shared/db/attendees/queries.ts"
+        );
         const attendees1 = await getAttendeesRaw(listing1.id);
         const attendees2 = await getAttendeesRaw(listing2.id);
         expect(attendees1.length).toBe(1);

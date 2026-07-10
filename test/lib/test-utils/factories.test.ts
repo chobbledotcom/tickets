@@ -43,7 +43,9 @@ describe("test-utils — listing & attendee factories", () => {
 
       // The booking that DID land on `open` is rolled back, so no stray
       // attendee is left occupying capacity or skewing later assertions.
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       expect((await getAttendeesRaw(open.id)).length).toBe(0);
 
       // Regression: the rollback must also reverse the contact-activity count
@@ -248,7 +250,9 @@ describe("test-utils — listing & attendee factories", () => {
       const { createDailyTestListing } = await import(
         "#test-utils/db-helpers/listings.ts"
       );
-      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+      const { createAttendeeAtomic } = await import(
+        "#shared/db/attendees/api.ts"
+      );
       const listing = await createDailyTestListing({ maxAttendees: 10 });
       const result = await createAttendeeAtomic({
         bookings: [{ date: "2026-05-01", listingId: listing.id, quantity: 3 }],

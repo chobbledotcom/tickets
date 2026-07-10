@@ -326,7 +326,9 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("datalist excludes refunded attendees", async () => {
-      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const { getAttendeesByTokens } = await import(
+        "#shared/db/attendees/tokens.ts"
+      );
       const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
       const { listing, token } = await createTestAttendeeWithToken(
         "Carol Refunded",
@@ -391,7 +393,9 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("returns refunded status for refunded attendee", async () => {
-      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const { getAttendeesByTokens } = await import(
+        "#shared/db/attendees/tokens.ts"
+      );
       const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
       const { listing, token, session } = await setupScanTest(
         "Refund",

@@ -221,7 +221,7 @@ describeWithEnv(
         });
         const start = orderDate();
         const { createAttendeeAtomic } = await import(
-          "#shared/db/attendees.ts"
+          "#shared/db/attendees/api.ts"
         );
         const fill = await createAttendeeAtomic({
           bookings: [
@@ -284,7 +284,7 @@ describeWithEnv(
         });
         const start = orderDate();
         const { createAttendeeAtomic } = await import(
-          "#shared/db/attendees.ts"
+          "#shared/db/attendees/api.ts"
         );
         const fill = await createAttendeeAtomic({
           bookings: [

@@ -9,7 +9,6 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { lazyRef } from "#fp";
-import { logActivity } from "#shared/db/activityLog.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import {
   addPendingWork,
@@ -314,6 +313,11 @@ const persistErrorToActivityLog = async (
   if (errorPersistGuard.active) return;
   errorPersistGuard.active = true;
   try {
+    // Imported on first error rather than at module load: the logger sits in
+    // every module's import graph (via env.ts), and a static import here would
+    // drag the activity-log table — and the listing helpers it queries with —
+    // into every page's graph.
+    const { logActivity } = await import("#shared/db/activityLog.ts");
     await logActivity(formatErrorMessage(context), context.listingId ?? null);
   } catch {
     // Swallow DB errors to avoid cascading failures

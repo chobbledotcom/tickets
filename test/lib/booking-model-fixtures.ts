@@ -2,10 +2,9 @@ import {
   buildTicketListing,
   type TicketListing,
 } from "#shared/booking/model.ts";
-import { DAY_NAMES } from "#shared/dates.ts";
+import { DAY_NAMES, VALID_DAY_NAMES } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { VALID_DAY_NAMES } from "#templates/fields/validators.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** Shared fixtures for the booking-model-*.test.ts suite (split across

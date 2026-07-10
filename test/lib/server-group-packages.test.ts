@@ -5,7 +5,7 @@
 // those modules are exercised by their real covering tests.
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import {
   assignListingsToGroup,
   getGroupPackagePrices,

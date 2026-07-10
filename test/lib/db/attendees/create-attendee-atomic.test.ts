@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import {
-  createAttendeeAtomic,
-  decryptAttendees,
   getAttendeeRaw,
   getAttendeesRaw,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/queries.ts";
 import { dateToRange } from "#shared/db/capacity.ts";
 import { getDb } from "#shared/db/client.ts";
 import { updateListingAggregateValues } from "#shared/db/listings.ts";

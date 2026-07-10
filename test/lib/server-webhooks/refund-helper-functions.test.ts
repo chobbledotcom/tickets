@@ -158,7 +158,7 @@ describeWithEnv(
         sessionId: "cs_create_boom",
       });
       const mockRefund = stubRefundPayment();
-      const { attendeesApi } = await import("#shared/db/attendees.ts");
+      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
       // The booking honour path uses createBookingAtomic; the quantity-0
       // placeholder fallback uses createAttendeeAtomic. A genuinely broken
       // create breaks both, so the error escapes instead of becoming a refund.

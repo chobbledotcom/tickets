@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";

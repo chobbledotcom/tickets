@@ -109,7 +109,9 @@ describePublicApi(() => {
         parent: { maxAttendees: 10, unitPrice: 0 },
       });
       const { body } = await bookListing(parent.slug);
-      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const { getAttendeesByTokens } = await import(
+        "#shared/db/attendees/tokens.ts"
+      );
       const [attendee] = await getAttendeesByTokens([
         body.booking!.ticketToken!,
       ]);
@@ -207,7 +209,9 @@ describePublicApi(() => {
     test("books no attendees when conflicting child prices are rejected", async () => {
       const { parent, child } = await parentWithTwoUnitPayMoreChild();
       await bookTwoChildEntries(parent.slug, child, [30, 20]);
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       expect((await getAttendeesRaw(child.id)).length).toBe(0);
       expect((await getAttendeesRaw(parent.id)).length).toBe(0);
     });

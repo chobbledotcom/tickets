@@ -424,7 +424,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
 
     // Simulate capacity exhausted between page load and the quote (e.g. a dated
     // group day filling up), as the submit path's availability check would catch.
-    const { attendeesApi } = await import("#shared/db/attendees.ts");
+    const { attendeesApi } = await import("#shared/db/attendees/api.ts");
     const mockBatch = stub(attendeesApi, "checkBatchAvailability", () =>
       Promise.resolve(false),
     );

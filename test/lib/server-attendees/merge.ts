@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { getAttendeesByTokens } from "#shared/db/attendees.ts";
+import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import type { Answer, Question } from "#shared/db/question-types.ts";
 import { getAttendeeAnswersByQuestion } from "#shared/db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";

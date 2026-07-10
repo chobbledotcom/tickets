@@ -10,7 +10,7 @@ import {
   listingsTable,
 } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
-import { setDemoModeForTest } from "#shared/demo.ts";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,

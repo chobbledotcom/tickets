@@ -11,7 +11,8 @@ import {
   transfersByAccount,
 } from "#shared/accounting/queries.ts";
 import { postTransfersTx } from "#shared/accounting/store.ts";
-import { createAttendeeAtomic, getAttendeesRaw } from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

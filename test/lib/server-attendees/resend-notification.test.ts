@@ -238,7 +238,7 @@ describeWithEnv(
           "#test-utils/db-helpers/groups.ts"
         );
         const { createAttendeeAtomic } = await import(
-          "#shared/db/attendees.ts"
+          "#shared/db/attendees/api.ts"
         );
         const group = await createTestGroup({
           isPackage: true,

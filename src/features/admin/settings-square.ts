@@ -10,7 +10,7 @@ import {
   settingsSecret,
 } from "#routes/admin/settings-helpers.ts";
 import { settings } from "#shared/db/settings.ts";
-import { isDemoMode } from "#shared/demo.ts";
+import { isDemoMode } from "#shared/demo/mode.ts";
 import { testSquareConnection } from "#shared/square.ts";
 import {
   validateSquareAccessToken,

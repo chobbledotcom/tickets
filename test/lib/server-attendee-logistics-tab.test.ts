@@ -13,7 +13,8 @@ import {
   startAgentField,
   startTimeField,
 } from "#routes/admin/attendee-logistics.ts";
-import { createAttendeeAtomic, getAttendee } from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { getAttendee } from "#shared/db/attendees/queries.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import {
   getLogisticsAssignments,

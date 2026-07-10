@@ -5,8 +5,10 @@
  * ids only; display code resolves those ids back to ordered attribute groups.
  */
 
-import { filter, map, reduce, unique } from "#fp";
+/* jscpd:ignore-start */
+import { filter, map, mapParallel, reduce, sort, unique, uniqueBy } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   executeBatch,
   inPlaceholders,
@@ -15,8 +17,10 @@ import {
   type TxScope,
 } from "#shared/db/client.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
+import type { ListingOption } from "#shared/db/listings.ts";
 import { swapSortOrder } from "#shared/db/query.ts";
 import { col, defineTable } from "#shared/db/table.ts";
+/* jscpd:ignore-end */
 
 export type Attribute = {
   id: number;
@@ -169,6 +173,18 @@ const decryptAttributeRows = async (
 
 const known = <T>(items: Map<number, T>, id: number): T => items.get(id)!;
 
+/** Group rows into a Map keyed by `key(row)`, keeping one `value(row)` per
+ * row in query order — the shared shape behind every "rows → id-keyed lists"
+ * read in this module. */
+const groupRows =
+  <R, V>(key: (row: R) => number, value: (row: R) => V) =>
+  (rows: R[]): Map<number, V[]> =>
+    reduce((acc: Map<number, V[]>, row: R) => {
+      const values = acc.get(key(row)) ?? [];
+      values.push(value(row));
+      return acc.set(key(row), values);
+    }, new Map<number, V[]>())(rows);
+
 const buildAttributeGroups = (
   rows: JoinedAttributeRow[],
   decrypted: DecryptedAttributeRows,
@@ -239,6 +255,57 @@ export const getAttributeIdsOrdered = async (): Promise<number[]> =>
 
 export const getAllAttributeOptionIds = async (): Promise<Set<number>> =>
   new Set(await queryIds("SELECT id FROM attribute_options"));
+
+type OptionListingRow = {
+  listing_active: number;
+  listing_id: number;
+  listing_name: EnvKeyEncrypted;
+  option_id: number;
+};
+
+export type AttributeListingUse = {
+  /** The ids of the listings that selected each option, keyed by option id.
+   * Options no listing uses are absent from the map. */
+  listingIdsByOption: Map<number, number[]>;
+  /** The distinct listings behind those ids in id order, names decrypted. */
+  listings: ListingOption[];
+};
+
+/** Which listings selected each of an attribute's options, in one read: the
+ * per-option listing ids plus each used listing's id, name, and active flag.
+ * Only the names of listings that actually use the attribute are decrypted. */
+export const getAttributeListingUse = async (
+  attributeId: number,
+): Promise<AttributeListingUse> => {
+  const rows = await queryAll<OptionListingRow>(
+    `SELECT listingAttribute.option_id,
+            listing.id AS listing_id,
+            listing.name AS listing_name,
+            listing.active AS listing_active
+       FROM listing_attribute_options AS listingAttribute
+       JOIN attribute_options AS attributeOption
+         ON attributeOption.id = listingAttribute.option_id
+       JOIN listings AS listing
+         ON listing.id = listingAttribute.listing_id
+      WHERE attributeOption.attribute_id = ?
+      ORDER BY listingAttribute.option_id, listingAttribute.listing_id`,
+    [attributeId],
+  );
+  const usedListings = sort(
+    (a: OptionListingRow, b: OptionListingRow) => a.listing_id - b.listing_id,
+  )(uniqueBy((row: OptionListingRow) => row.listing_id)(rows));
+  return {
+    listingIdsByOption: groupRows(
+      (row: OptionListingRow) => row.option_id,
+      (row) => row.listing_id,
+    )(rows),
+    listings: await mapParallel(async (row: OptionListingRow) => ({
+      active: row.listing_active === 1,
+      id: row.listing_id,
+      name: await decrypt(row.listing_name),
+    }))(usedListings),
+  };
+};
 
 export const assignNextAttributeSortOrder = async (
   attributeId: number,
@@ -318,17 +385,13 @@ const selectedOptionRows = (
         listingIds,
       );
 
-const selectedRowsForListing = (
-  rows: SelectedAttributeRow[],
-): Map<number, JoinedAttributeRow[]> =>
-  reduce(
-    (acc: Map<number, JoinedAttributeRow[]>, row: SelectedAttributeRow) => {
-      const listingRows = acc.get(row.listing_id) ?? [];
-      listingRows.push(row);
-      return acc.set(row.listing_id, listingRows);
-    },
-    new Map<number, JoinedAttributeRow[]>(),
-  )(rows);
+const selectedRowsForListing = groupRows<
+  SelectedAttributeRow,
+  JoinedAttributeRow
+>(
+  (row) => row.listing_id,
+  (row) => row,
+);
 
 export const getSelectedAttributesForListings = async (
   listingIds: number[],

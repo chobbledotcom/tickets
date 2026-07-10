@@ -185,6 +185,16 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
         "In-person",
         "Online",
       ]);
+
+      // Moving it back down restores the original order.
+      await adminFormPost(
+        `/admin/attributes/${id}/options/${second.id}/move-down`,
+      );
+      const restored = (await getAttributeWithOptions(id))!;
+      expect(restored.options.map((option) => option.text)).toEqual([
+        "Online",
+        "In-person",
+      ]);
     });
 
     test("returns 404 or redirects when changing a missing or invalid option", async () => {
@@ -207,7 +217,7 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
         ).response,
       );
       await expectFlashRedirect(
-        `/admin/attributes/${attribute.id}`,
+        `/admin/attributes/${attribute.id}/options/${option.id}/edit`,
         expect.any(String),
         false,
       )(

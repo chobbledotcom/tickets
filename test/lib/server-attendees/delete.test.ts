@@ -191,7 +191,9 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       )(response);
 
       // Verify attendee was deleted
-      const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeeRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const deleted = await getAttendeeRaw(attendee.id);
       expect(deleted).toBeNull();
       expect(await getListingWithCount(listing.id)).toMatchObject({
@@ -264,7 +266,9 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       )(response);
 
       // Verify attendee was deleted
-      const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeeRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const deletedAttendee = await getAttendeeRaw(1);
       expect(deletedAttendee).toBeNull();
     });

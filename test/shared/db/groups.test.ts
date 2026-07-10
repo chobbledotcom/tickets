@@ -3,11 +3,13 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   checkBatchAvailability,
   createAttendeeAtomic,
+  hasAvailableSpots,
+} from "#shared/db/attendees/api.ts";
+import {
   getGroupRemainingByGroupId,
   getGroupRemainingByListingId,
   getGroupRemainingForListing,
-  hasAvailableSpots,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/capacity.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   anyListingInPackageGroup,

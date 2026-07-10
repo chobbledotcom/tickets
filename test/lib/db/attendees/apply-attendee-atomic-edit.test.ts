@@ -3,10 +3,9 @@ import { it as test } from "@std/testing/bdd";
 import {
   applyAttendeeAtomicEdit,
   createAttendeeAtomic,
-  getAttendee,
-  getAttendeesRaw,
-  loadExistingLines,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/api.ts";
+import { loadExistingLines } from "#shared/db/attendees/atomic-update.ts";
+import { getAttendee, getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";

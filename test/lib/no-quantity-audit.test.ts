@@ -7,13 +7,13 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import {
   getAllAttendeePiiBlobs,
   getAttendeePiiBlobForToken,
   getAttendeePiiBlobsForListings,
   hasActiveBookingLine,
 } from "#shared/db/attendees/queries.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getAgentRunSheet, setLegDone } from "#shared/db/logistics.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -194,7 +194,11 @@ describeWithEnv("no-quantity audit > logistics", { db: true }, () => {
     ).toEqual([1]);
 
     // setLegDone refuses the ghost line even with the right agent.
-    expect(await setLegDone(2, listing.id, "start", true, [AGENT])).toBe(false);
-    expect(await setLegDone(1, listing.id, "start", true, [AGENT])).toBe(true);
+    expect(
+      await setLegDone(2, listing.id, "start", "2026-07-01", true, [AGENT]),
+    ).toBe(false);
+    expect(
+      await setLegDone(1, listing.id, "start", "2026-07-01", true, [AGENT]),
+    ).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import type { Listing } from "#shared/types.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
@@ -435,7 +435,7 @@ describeWithEnv(
 
       const { adminGet } = await import("#test-utils/session.ts");
       const { getAttendeesRaw: rawFor } = await import(
-        "#shared/db/attendees.ts"
+        "#shared/db/attendees/queries.ts"
       );
       const attendeeId = (await rawFor(parent.id))[0]!.id;
       const page = await adminGet(`/admin/attendees/${attendeeId}`);
@@ -454,7 +454,7 @@ describeWithEnv(
 
       const { adminGet } = await import("#test-utils/session.ts");
       const { getAttendeesRaw: rawFor } = await import(
-        "#shared/db/attendees.ts"
+        "#shared/db/attendees/queries.ts"
       );
       const attendeeId = (await rawFor(standalone.id))[0]!.id;
       const page = await adminGet(`/admin/attendees/${attendeeId}`);

@@ -14,11 +14,17 @@
 import { unique } from "#fp";
 import { t } from "#i18n";
 import { getDateFilter, getMonthFilter } from "#routes/admin/actions.ts";
-import { DELIVERY_FORM, deliveryPage, withAuth } from "#routes/auth.ts";
+import {
+  type AuthSession,
+  DELIVERY_FORM,
+  deliveryPage,
+  withAuth,
+} from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { addDays, formatDateLabel } from "#shared/dates.ts";
-import { decryptAttendees, getAttendeesByIds } from "#shared/db/attendees.ts";
+import { decryptAttendees } from "#shared/db/attendees/pii.ts";
+import { getAttendeesByIds } from "#shared/db/attendees/queries.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
   type AgentRunLeg,
@@ -84,6 +90,7 @@ const bookingsForDate = (
     }
     booking.legs.push({
       agentName: lookups.agentNameById.get(leg.agentId)!,
+      date: leg.date,
       done: leg.done,
       kind: leg.kind,
       time: leg.time,
@@ -211,13 +218,24 @@ const handleDeliveriesGet = deliveryPage(async (session, request) => {
   );
 });
 
+/** Whether a mark for `date` is allowed for the marking user. An agent only
+ * ever sees today and tomorrow, so a mark from one may name only those two
+ * days; staff may open any date on the run sheet, so their date is left to the
+ * query's per-day scoping (and agent ownership) to police. */
+const markDateAllowed = (session: AuthSession, date: string): boolean => {
+  if (isStaffRole(session.adminLevel)) return true;
+  const today = todayInTz(settings.timezone);
+  return date === today || date === addDays(today, 1);
+};
+
 /** Handle POST /admin/deliveries/mark — toggle a leg done, scoped to the
- * agent's own logistics agents. */
+ * agent's own logistics agents and to the run-sheet day it was shown on. */
 const handleDeliveriesMark = (request: Request): Promise<Response> =>
   withAuth(request, DELIVERY_FORM, async (session, form) => {
     const attendeeId = form.getOptionalInt("attendee_id");
     const listingId = form.getOptionalInt("listing_id");
     const kind = form.getString("kind");
+    const date = form.getString("date");
     const done = form.getFlag("done");
     if (attendeeId === null || listingId === null) {
       return errorRedirect(
@@ -231,12 +249,19 @@ const handleDeliveriesMark = (request: Request): Promise<Response> =>
         t("deliveries.invalid_request"),
       );
     }
+    if (!markDateAllowed(session, date)) {
+      return errorRedirect(
+        "/admin/deliveries",
+        t("deliveries.invalid_request"),
+      );
+    }
 
     const agentIds = await userAgents.getIds(session.userId);
     const updated = await setLegDone(
       attendeeId,
       listingId,
       kind,
+      date,
       done,
       agentIds,
     );

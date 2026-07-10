@@ -17,12 +17,13 @@ import {
   overlapsAnyInterval,
 } from "#routes/admin/attendee-logistics-tab.ts";
 import type { LoadedAttendee } from "#routes/admin/attendee-page-data.ts";
-import { getAttendee } from "#shared/db/attendees.ts";
+import { getAttendee } from "#shared/db/attendees/queries.ts";
 import {
   getLogisticsAssignments,
   setLogisticsAssignments,
 } from "#shared/db/logistics.ts";
-import { DEMO_ADDRESSES, setDemoModeForTest } from "#shared/demo.ts";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
+import { DEMO_ADDRESSES } from "#shared/demo/samples.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildAttendeeEditForm } from "#test-utils/db-helpers/attendees.ts";

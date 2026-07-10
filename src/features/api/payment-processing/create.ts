@@ -32,12 +32,12 @@ import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import type { ListingBooking } from "#shared/db/attendee-types.ts";
-import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import {
   type createAttendeeAtomic,
   createBookingAtomic,
-  ensureAllBookings,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/api.ts";
+import { ensureAllBookings } from "#shared/db/attendees/create.ts";
+import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import {
   decryptSessionTokens,
   type ProcessedPayment,

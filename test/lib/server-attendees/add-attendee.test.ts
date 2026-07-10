@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
-import { attendeesApi } from "#shared/db/attendees.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   assertAdminHtml,

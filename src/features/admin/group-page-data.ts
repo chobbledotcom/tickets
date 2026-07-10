@@ -12,7 +12,7 @@ import {
   groupBookable,
 } from "#routes/public/discovery.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { decryptAttendees } from "#shared/db/attendees.ts";
+import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import {
   getGroupPackagePrices,
   getListingsByGroupId,

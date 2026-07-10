@@ -21,7 +21,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 const getSharedAttendeeAnswers = async (
   listingId: number,
 ): Promise<number[]> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
   const attendees = await getAttendeesRaw(listingId);
   const attendeeId = attendees[0]!.id;
   const batch = await getAttendeeAnswersBatch([attendeeId], { texts: false });

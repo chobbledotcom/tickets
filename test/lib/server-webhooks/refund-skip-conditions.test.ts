@@ -161,7 +161,9 @@ describeWithEnv(
       expect(mockRefund.calls.length).toBe(0);
 
       // No attendees created (the session is ignored before any creation pass)
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const attendees = await getAttendeesRaw(listing1.id);
       expect(attendees.length).toBe(0);
     });

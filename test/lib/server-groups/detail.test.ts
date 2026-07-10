@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
-import { setDemoModeForTest } from "#shared/demo.ts";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
   expectHtmlResponse,
   expectStatus,
@@ -188,7 +188,9 @@ describeWithEnv(
         const { bookAttendee } = await import(
           "#test-utils/db-helpers/attendee-payments.ts"
         );
-        const { deleteAttendee } = await import("#shared/db/attendees.ts");
+        const { deleteAttendee } = await import(
+          "#shared/db/attendees/delete.ts"
+        );
         const group = await createTestGroup({ name: "Rev", slug: "rev-group" });
         const listing = await createTestListing({
           groupId: group.id,

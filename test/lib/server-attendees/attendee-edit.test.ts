@@ -238,7 +238,9 @@ describeWithEnv(
         });
         expect(response.status).toBe(302);
 
-        const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
+        const { getAttendeeRaw } = await import(
+          "#shared/db/attendees/queries.ts"
+        );
         const updated = await getAttendeeRaw(attendee.id);
         expect(updated!.quantity).toBe(3);
       });

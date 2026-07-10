@@ -23,10 +23,10 @@ import {
   normalizeDatetime,
   parseIsoDateParam,
   shiftMonth,
+  VALID_DAY_NAMES,
   widestDatedEntry,
 } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import { VALID_DAY_NAMES } from "#templates/fields/validators.ts";
 import { testHoliday, testListing } from "#test-utils/factories.ts";
 import { testWithSetting, useSetting } from "#test-utils/settings.ts";
 

@@ -5,11 +5,11 @@ import {
   getListingActivityLog,
   logActivity,
 } from "#shared/db/activityLog.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import {
-  createAttendeeAtomic,
   getAttendeeRaw,
   getAttendeesRaw,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/queries.ts";
 import { queryAll } from "#shared/db/client.ts";
 import {
   deleteListing,

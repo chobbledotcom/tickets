@@ -97,6 +97,17 @@ export type BookingTree = {
   readonly nodes: readonly BookingNode[];
 };
 
+/** The listing ids that keep their own buyer-chosen `quantity_<id>` control:
+ * every node whose quantity is the buyer's choice (a standalone listing, plus a
+ * member the cart also added by its own slug). Both the render side (which rows
+ * get a quantity selector) and the submit parser read this from one place. */
+export const standaloneListingIds = (tree: BookingTree): Set<number> =>
+  new Set(
+    tree.nodes
+      .filter((node) => node.quantityRule.kind === "BUYER_CHOICE")
+      .map((node) => node.listingId),
+  );
+
 // ---------------------------------------------------------------------------
 // Node identity — the `nodeKey` scheme (single source of truth)
 // ---------------------------------------------------------------------------

@@ -4,8 +4,8 @@ import {
   attendeeStatuses,
   getPaidDefaultStatus,
 } from "#shared/db/attendee-statuses.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   getContactRecord,

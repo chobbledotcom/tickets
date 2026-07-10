@@ -165,7 +165,7 @@ export const expectWebhookKeptAndRefunded = async (
 export const findKeptPlaceholder = async (
   listingId: number,
 ): Promise<{ id: number }> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
   const placeholders = (await getAttendeesRaw(listingId)).filter(
     (a) => a.quantity === 0,
   );
@@ -217,7 +217,7 @@ export const expectKeptAsQuantityZeroAndRefunded = async (
   sessionId: string,
   mockRefund: { calls: unknown[] },
 ): Promise<void> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
   const attendees = await getAttendeesRaw(listingId);
   expect(attendees.length).toBe(1);
   expect(attendees[0]!.quantity).toBe(0);
@@ -237,7 +237,7 @@ export const expectMergedMultiListingAttendee = async (
   listing1Id: number,
   listing2Id: number,
 ): Promise<{ id: number }> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
   const attendees1 = await getAttendeesRaw(listing1Id);
   const attendees2 = await getAttendeesRaw(listing2Id);
   expect(attendees1.length).toBe(1);
@@ -335,7 +335,7 @@ export const expectAttendeeWithPricePaid = async (
   listingId: number,
   pricePaid: number,
 ): Promise<void> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
   const attendees = await getAttendeesRaw(listingId);
   expect(attendees.length).toBe(1);
   expect((attendees[0] as unknown as Record<string, unknown>).price_paid).toBe(
@@ -349,7 +349,7 @@ export const expectAttendeeWithPricePaid = async (
 export const expectAttendeeCreatedWithPiiBlob = async (
   listingId: number,
 ): Promise<void> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
   const attendees = await getAttendeesRaw(listingId);
   expect(attendees.length).toBe(1);
   expect(attendees[0]?.pii_blob).not.toBe("");

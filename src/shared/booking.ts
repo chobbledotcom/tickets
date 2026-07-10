@@ -10,11 +10,11 @@ import { mapBooking } from "#shared/accounting/mappers.ts";
 import { postBookingLegsTx } from "#shared/checkout-complete.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
-import type { LedgerPoster } from "#shared/db/attendees/create.ts";
 import {
   createAttendeeAtomic,
   hasAvailableSpots,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/api.ts";
+import type { LedgerPoster } from "#shared/db/attendees/create.ts";
 import { singleListingAnswerIds } from "#shared/payment-helpers.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
 import type { Attendee, ContactInfo, ListingWithCount } from "#shared/types.ts";

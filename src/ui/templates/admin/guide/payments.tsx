@@ -72,6 +72,16 @@ export const paymentsSections = (): GuideSection[] => [
   },
   {
     entries: [
+      faq("what_is_the_money_ledger"),
+      faq("ledger_accounts_explained"),
+      faq("ledger_entry_kinds"),
+      faq("ledger_manual_entries"),
+    ],
+    id: "ledger",
+    titleKey: "ledger",
+  },
+  {
+    entries: [
       faq("how_daily_listings_work"),
       faq("what_are_bookable_days"),
       custom(

@@ -10,7 +10,7 @@ import {
   transfersByAccount,
 } from "#shared/accounting/queries.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { settings } from "#shared/db/settings.ts";
 import { expectFlashRedirect, expectRedirect } from "#test-utils/assertions.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";

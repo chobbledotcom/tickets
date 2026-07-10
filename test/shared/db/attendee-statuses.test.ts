@@ -11,7 +11,8 @@ import {
   getPublicStatusId,
   swapAttendeeStatusOrder,
 } from "#shared/db/attendee-statuses.ts";
-import { createAttendeeAtomic, getAttendee } from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { getAttendee } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

@@ -64,7 +64,9 @@ describeWithEnv(
         "no longer accepting",
       );
 
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const attendees1 = await getAttendeesRaw(listing1.id);
       expect(attendees1.length).toBe(0);
     });

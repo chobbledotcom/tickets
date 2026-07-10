@@ -21,12 +21,12 @@ import {
 } from "#shared/booking/model.ts";
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import { addDays } from "#shared/dates.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import {
-  createAttendeeAtomic,
   ensureAllBookings,
-  getAttendeesRaw,
   reverseOrderActivity,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/create.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   getContactRecord,

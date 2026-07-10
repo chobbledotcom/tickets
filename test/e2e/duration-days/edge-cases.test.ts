@@ -3,9 +3,9 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getAvailableDates } from "#shared/dates.ts";
 import {
   checkBatchAvailability,
-  checkGroupCapAfterDurationChange,
   hasAvailableSpots,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/api.ts";
+import { checkGroupCapAfterDurationChange } from "#shared/db/attendees/update.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { describeWithEnv, rawListingRange } from "#test-utils/db.ts";

@@ -11,7 +11,7 @@ import {
   transfersByAccount,
   transfersByEventGroup,
 } from "#shared/accounting/queries.ts";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { settings } from "#shared/db/settings.ts";
 import { expectFlashRedirect, expectRedirect } from "#test-utils/assertions.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";

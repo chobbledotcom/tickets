@@ -2,11 +2,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { revenueAccount } from "#shared/accounting/accounts.ts";
 import { accountBalance } from "#shared/accounting/queries.ts";
-import {
-  createAttendeeAtomic,
-  getAttendeesRaw,
-  loadExistingLines,
-} from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { loadExistingLines } from "#shared/db/attendees/atomic-update.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import type { Group, Listing } from "#shared/types.ts";

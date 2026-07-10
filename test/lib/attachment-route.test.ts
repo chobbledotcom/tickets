@@ -4,7 +4,7 @@ import { handleRequest } from "#routes";
 import { getMimeType } from "#routes/attachments.ts";
 import { signAttachmentUrl } from "#shared/attachment-url.ts";
 import { encryptBytes } from "#shared/crypto/encryption.ts";
-import { getAttendeeRaw } from "#shared/db/attendees.ts";
+import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";

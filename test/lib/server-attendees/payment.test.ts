@@ -123,7 +123,9 @@ describeWithEnv(
             quantity: 1,
           }),
         );
-        const { updateCheckedIn } = await import("#shared/db/attendees.ts");
+        const { updateCheckedIn } = await import(
+          "#shared/db/attendees/update.ts"
+        );
         const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
         await updateCheckedIn(attendee.id, listing.id, true);
         await postAttendeeRefund({

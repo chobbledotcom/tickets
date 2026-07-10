@@ -199,10 +199,14 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("shows answers on detail page", async () => {
       const id = await createQuestion("Pick a number");
-      await addAnswer(id, "One");
+      const answerId = await addAnswer(id, "One");
       await addAnswer(id, "Two");
       const response = await adminGet(`/admin/questions/${id}`);
-      await expectHtmlResponse(response, 200, "One", "Two");
+      const body = await expectHtmlResponse(response, 200, "One", "Two");
+      // Each answer links through to its own edit page.
+      expect(body).toContain(
+        `<a href="/admin/questions/${id}/answers/${answerId}/edit">One</a>`,
+      );
     });
   });
 

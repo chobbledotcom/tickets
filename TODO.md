@@ -34,7 +34,8 @@ generalized passes: render, fold, price, capacity, revalidate.
 **Already shipped (phases 1 & 2, PR #1462) — do not redo:**
 - Tree model + pure builder: `src/shared/booking/tree.ts`, `build-tree.ts`
   (`buildBookingTree`). The public renderer `src/ui/templates/public/
-  reservations.tsx` drives field names/rendering off the tree.
+  reservations/` (entry point `ticket-page.tsx`) drives field names/rendering
+  off the tree.
 - Unified walks: `fold-tree.ts` (`foldBookingTree`), `price-tree.ts`
   (`effectivePrice`, `priceRuleByListingId`, `packageMemberPriceRule`),
   `capacity-tree.ts` (`packageQuantityCap`, own-cap + group-pool arms).
@@ -310,11 +311,6 @@ footer.*
 **Dangling anchors (a page already links here, section missing — in
 `PENDING_SECTIONS`):**
 
-- **`#ledger`** — the money ledger (`/admin/ledger`, `ledger.tsx`) links
-  `#ledger`. Needs a section covering the double-entry money ledger: what the
-  accounts/legs mean, how balances are projected, manual write-off entries, and
-  how refunds/booking-fees show up. (The existing `payments` overview and
-  `refunds` sections are adjacent but not a home for the ledger itself.)
 - **`#logistics`** — the logistics settings page (`/admin/logistics`,
   `logistics.tsx`) and the delivery run sheet (`/admin/deliveries`) both want a
   `#logistics` section: delivery/collection addresses, the run-sheet, agent
@@ -336,6 +332,32 @@ footer.*
   `guideFooter` slot — just pass one once the section exists.
 - **Support** (`/admin/support`) — borderline (it's a contact-the-host form);
   give it a footer only if a support/troubleshooting section is written.
+
+## Standalone child selector suppressed for sold-out / hidden package members
+
+`src/ui/templates/public/reservations/packages.ts` — `buildPageListingRows`
+derives `memberIds` from `packageMemberIds(opts.packages)` (every package's
+members), then suppresses the child selector on any standalone row whose listing
+is in that set (a rendered package member carries the one selector). But a
+**sold-out** package (`limit < 1`) renders a sold-out card with no member rows,
+and a `hideListings` package renders no member rows either — so their members'
+child selectors are never rendered in the package section. If such a member is
+ALSO a standalone parent whose own row is still bookable, its child selector is
+suppressed on both paths, so a buyer can't satisfy its multi-choice child
+requirements.
+
+CodeRabbit flagged this on PR #1693; it is pre-existing behaviour (verbatim from
+the original monolith), not introduced by the template split, so it's out of
+scope for that mechanical refactor. Fix: build the suppression set from only the
+packages that actually render member rows (skip `pkg.hideListings` and
+`packageLimits.get(pkg.groupId)! < 1`), so standalone parents whose package rows
+were omitted keep `opts.childCtx`. Ships with a regression test that books a
+standalone parent whose sibling-capacity sold-out package hid its member row and
+asserts the child selector still renders. (Note the `hideListings` half may be
+unreachable — the code assumes only visible packages contain parents — so verify
+that invariant before widening the fix.)
+
+---
 
 ## Test-suite speed — remaining opportunities
 
@@ -427,6 +449,40 @@ look.
   and group the package-pricing loads, preserving the existing validation and
   fail-closed behaviour. See the "Respect the subrequest budget" guidance in
   AGENTS.md.
+
+## Equivalent-mutant entries challenged by review (from PR #1717)
+
+*Origin: CodeRabbit review on PR #1717 (import-graph slimming). The challenged
+entries live in `scripts/mutation/equivalent-mutants.txt` but were added by the
+balance-payments work (PR #1697) and only passed through #1717 via a merge of
+main, so relitigating them there was out of scope.*
+
+CodeRabbit argued three suppressions don't meet the file's "no possible input
+distinguishes it" bar because they rely on *current-consumer* behaviour rather
+than interface guarantees:
+
+- **`src/shared/db/payment-references.ts:88` (ORDER BY removal).** The entry's
+  rationale is that every consumer dedupes `sessionIds` or uses them in an
+  `IN (...)`. That is consumer-dependent: a future consumer that renders or
+  compares the array order would observe the mutant. Either normalize ordering
+  at the exported API boundary (e.g. sort `sessionIds` before returning) and
+  keep the suppression, or drop the entry and pin the order with a test.
+- **`src/features/admin/attendees-edit.ts:68` (`bookings[0]` → `bookings[1]`).**
+  The entry leans on a data invariant (the LIMIT 1 row's `listing_id` matching
+  `attendee.listing_id`). Multi-parent bookings exist (see
+  `test/lib/db/attendee-multiparent-rows.test.ts`), so an attendee whose first
+  booking is on a different listing may be constructible. Preferred fix: add a
+  regression test with divergent booking/attendee listing ids asserting the
+  refresh context picks `bookings[0].listing_id`, then delete the entry.
+- **`src/shared/merge/attendee-merge.ts:715/:722` (`merge-unbill`/`merge-credit`
+  keyParts).** The entry argues the prefixes feed only HMAC'd
+  `event_group`/`reference` digests that nothing queries. The digests are still
+  persisted, so the safest resolution is a test that pins the two legs'
+  event-group derivation (or an explicit storage-contract note), then removal.
+
+Starting point: each entry's full rationale is in the file next to the line
+numbers above; the mutation harness is `deno task mutation --source <file>
+--test <suite>`.
 
 ## Stop patching @std/expect's `toContain` (from PR #1712)
 

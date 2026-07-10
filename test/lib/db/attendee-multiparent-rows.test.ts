@@ -1,8 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
-import { createAttendeeAtomic, updateCheckedIn } from "#shared/db/attendees.ts";
+import { updateCheckedIn } from "#shared/db/attendees/update.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
