@@ -159,12 +159,11 @@ export const assignMergeAnswers = async (
   }
 };
 
-/** The first attendee out of a createAttendeeAtomic result, failing the test
- *  loudly if the setup insert was rejected. */
-export const attendeeOf = (result: CreateAttendeeResult): Attendee => {
-  if (!result.success) throw new Error("attendee setup failed");
-  return result.attendees[0]!;
-};
+/** The first attendee out of a createAttendeeAtomic result. Test setup always
+ *  fits capacity, so the success arm is asserted rather than branched on (a
+ *  failure would surface as the assertion blowing up downstream). */
+export const attendeeOf = (result: CreateAttendeeResult): Attendee =>
+  (result as Extract<CreateAttendeeResult, { success: true }>).attendees[0]!;
 
 /** A booking-conflict pair where the discarded side carries real money: a
  *  "Jane Doe" target and a PAID "John Smith" source (3 tickets at 500, paid
