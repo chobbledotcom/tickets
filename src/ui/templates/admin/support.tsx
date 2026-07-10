@@ -13,6 +13,7 @@ import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
+import { GuideFooter } from "#templates/components/actions.tsx";
 
 /* jscpd:ignore-end */
 
@@ -70,5 +71,8 @@ export const adminSupportPage = (opts: {
         )}
       </div>
       {opts.formActive && <SupportForm nagLabel={opts.nagLabel} />}
+      <GuideFooter href="/admin/guide#support">
+        {t("support.guide_link")}
+      </GuideFooter>
     </>,
   );
