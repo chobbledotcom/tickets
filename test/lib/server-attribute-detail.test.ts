@@ -78,9 +78,11 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
       );
       expect(html).toContain("<td>Easy, Hard</td>");
       // Rows are ordered by listing id (creation order).
-      expect(html.indexOf(">Climbing</a>")).toBeLessThan(
-        html.indexOf(">Both options</a>"),
-      );
+      const climbingIndex = html.indexOf(">Climbing</a>");
+      const bothOptionsIndex = html.indexOf(">Both options</a>");
+      expect(climbingIndex).toBeGreaterThanOrEqual(0);
+      expect(bothOptionsIndex).toBeGreaterThanOrEqual(0);
+      expect(climbingIndex).toBeLessThan(bothOptionsIndex);
     });
 
     test("mutes deactivated listings in the listings table", async () => {
