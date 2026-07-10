@@ -314,12 +314,12 @@ export const completePaymentAttendees = (
   listing: ListingWithCount,
   attendees: Attendee[],
   paymentReferenceAttendeeIds: ReadonlySet<number> = new Set(),
-): Attendee[] =>
-  isPaidListing(listing)
-    ? filter(
-        (a: Attendee) => !hasIncompletePayment(paymentReferenceAttendeeIds)(a),
-      )(attendees)
+): Attendee[] => {
+  const isIncomplete = hasIncompletePayment(paymentReferenceAttendeeIds);
+  return isPaidListing(listing)
+    ? filter((a: Attendee) => !isIncomplete(a))(attendees)
     : attendees;
+};
 
 export const attendeeStatsForListing = (
   listing: ListingWithCount,

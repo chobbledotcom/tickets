@@ -25,13 +25,7 @@ import {
 import { settle } from "#test-utils/balance.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
-
-type RefundCtx = {
-  attendee: Attendee;
-  cookie: string;
-  csrfToken: string;
-  listing: Listing;
-};
+import type { RefundCtx } from "./server-refunds-helpers.ts";
 
 const SETTLED_RESERVATION_REFERENCES = [
   "pi_reservation_balance",

@@ -313,7 +313,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
     // --- Stranded-payment guards (a no-quantity line must have price_paid 0) --- //
 
-    test("allows replacing a paid target with a positive-quantity source line", () => {
+    test("allows take_source when the source line carries a positive quantity", () => {
       // A `take_source` decision that copies a QUANTITY > 0 source booking
       // never strands a payment: the line carries its own cash. The second
       // guard (`item.sourceBooking.quantity !== 0`) returns false here, so

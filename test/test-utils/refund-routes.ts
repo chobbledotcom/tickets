@@ -92,11 +92,16 @@ export const expectSingleRefundIssued = async (
  *  never issues a refund), so — unlike {@link withRefundMock} — this stubs just
  *  that one method. Passes the stub to `body` (so a caller can read its call
  *  args) and returns whatever `body` returns. */
-export const withRefreshPaymentProbe = async <T>(
-  probe: (reference: string) => Promise<boolean>,
-  body: (mockRefunded: Stub) => Promise<T>,
-): Promise<T> => {
-  let result!: T;
+type StripeProvider =
+  typeof import("#shared/stripe-provider.ts")["stripePaymentProvider"];
+
+/** Configure Stripe as the active provider and hand its provider object to
+ *  `body`, which stubs whichever methods it needs. Centralises the
+ *  getConfiguredProvider stub + dynamic stripePaymentProvider import that every
+ *  refund/refresh route helper below builds on. */
+const withStripeProvider = async (
+  body: (provider: StripeProvider) => Promise<void>,
+): Promise<void> => {
   await withMocks(
     () =>
       stub(paymentsApi, "getConfiguredProvider", () =>
@@ -106,18 +111,24 @@ export const withRefreshPaymentProbe = async <T>(
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"
       );
-      const mockRefunded = stub(
-        stripePaymentProvider,
-        "isPaymentRefunded",
-        probe,
-      );
-      try {
-        result = await body(mockRefunded);
-      } finally {
-        mockRefunded.restore();
-      }
+      await body(stripePaymentProvider);
     },
   );
+};
+
+export const withRefreshPaymentProbe = async <T>(
+  probe: (reference: string) => Promise<boolean>,
+  body: (mockRefunded: Stub) => Promise<T>,
+): Promise<T> => {
+  let result!: T;
+  await withStripeProvider(async (provider) => {
+    const mockRefunded = stub(provider, "isPaymentRefunded", probe);
+    try {
+      result = await body(mockRefunded);
+    } finally {
+      mockRefunded.restore();
+    }
+  });
   return result;
 };
 
@@ -126,31 +137,22 @@ export const withRefundMock = async (
   fn: (mockRefund: Stub) => Promise<void>,
   options: RefundMockOptions = {},
 ) => {
-  await withMocks(
-    () =>
-      stub(paymentsApi, "getConfiguredProvider", () =>
-        mockProviderType("stripe"),
-      ),
-    async () => {
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockRefund = stub(
-        stripePaymentProvider,
-        "refundPayment",
-        refundResult(refundBehavior),
-      );
-      const mockRefunded = stub(
-        stripePaymentProvider,
-        "isPaymentRefunded",
-        refundResult(options.alreadyRefunded ?? false),
-      );
-      try {
-        await fn(mockRefund);
-      } finally {
-        mockRefunded.restore();
-        mockRefund.restore();
-      }
-    },
-  );
+  await withStripeProvider(async (provider) => {
+    const mockRefund = stub(
+      provider,
+      "refundPayment",
+      refundResult(refundBehavior),
+    );
+    const mockRefunded = stub(
+      provider,
+      "isPaymentRefunded",
+      refundResult(options.alreadyRefunded ?? false),
+    );
+    try {
+      await fn(mockRefund);
+    } finally {
+      mockRefunded.restore();
+      mockRefund.restore();
+    }
+  });
 };
