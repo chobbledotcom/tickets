@@ -196,7 +196,11 @@ describeWithEnv("no-quantity audit > logistics", { db: true }, () => {
     ).toEqual([1]);
 
     // setLegDone refuses the ghost line even with the right agent.
-    expect(await setLegDone(2, listing.id, "start", true, [AGENT])).toBe(false);
-    expect(await setLegDone(1, listing.id, "start", true, [AGENT])).toBe(true);
+    expect(
+      await setLegDone(2, listing.id, "start", "2026-07-01", true, [AGENT]),
+    ).toBe(false);
+    expect(
+      await setLegDone(1, listing.id, "start", "2026-07-01", true, [AGENT]),
+    ).toBe(true);
   });
 });

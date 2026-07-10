@@ -275,26 +275,35 @@ export const getAgentRunSheetDates = async (
 /**
  * Mark a booking leg done/undone, but only when the leg's logistics agent is
  * one of `agentIds` — this enforces that an agent user can only update their
- * own runs. Returns true when a row was updated (i.e. the agent owns the leg).
+ * own runs — and only the row whose leg falls on `date`, so a mark is scoped to
+ * the run-sheet day it was shown on. Returns true when a row was updated (i.e.
+ * the agent owns the leg on that date).
  */
 export const setLegDone = async (
   attendeeId: number,
   listingId: number,
   kind: DeliveryLegKind,
+  date: string,
   done: boolean,
   agentIds: number[],
 ): Promise<boolean> => {
   if (agentIds.length === 0) return false;
   const doneColumn = kind === "start" ? "start_done" : "end_done";
   const agentColumn = kind === "start" ? "start_agent_id" : "end_agent_id";
+  const dateExpression =
+    kind === "start" ? "DATE(start_at)" : "DATE(end_at, '-1 day')";
   const result = await execute(
+    // The date predicate scopes the update to the leg on the claimed run-sheet
+    // day: a listing+attendee can have several rows across dates, so without it
+    // a mark would flip legs on days the user isn't viewing.
     // quantity > 0: refuse to complete a leg on a no-quantity line, so a stale or
     // crafted delivery form can't mark a hidden ghost's drop-off/collection done.
     `UPDATE listing_attendees SET ${doneColumn} = ?
           WHERE attendee_id = ? AND listing_id = ?
+            AND ${dateExpression} = ?
             AND ${agentColumn} IN (${inPlaceholders(agentIds)})
             AND quantity > 0`,
-    [done ? 1 : 0, attendeeId, listingId, ...agentIds],
+    [done ? 1 : 0, attendeeId, listingId, date, ...agentIds],
   );
   return result.rowsAffected > 0;
 };
