@@ -1,3 +1,4 @@
+import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -24,9 +25,11 @@ import {
   resetDb,
   schemaMarkerKeys,
   settingsTableExists,
+  statementSql,
   tableExists,
   withExpectedError,
   withMocks,
+  wrapDbClient,
 } from "#test-utils";
 
 describeWithEnv("server (setup)", { db: true }, () => {
@@ -83,6 +86,51 @@ describeWithEnv("server (setup)", { db: true }, () => {
           503,
           "This site has not been activated yet",
         );
+      });
+
+      test("the not-activated response waits for the version prefetch to settle", async () => {
+        // A request to an unactivated site never reaches loadKeys, so the
+        // version prefetch must be settled by the pending-work flush before
+        // the 503 goes out — a query still in flight after the response is
+        // killed by the edge runtime. The harness withholds the probe; the
+        // response must not be produced while it is pending.
+        await resetToBrandNewDatabase();
+
+        const real = getDb();
+        let release = (): void => {};
+        const released = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const holdProbe = async (statement: InStatement) => {
+          await released;
+          return real.execute(statement);
+        };
+        const restore = wrapDbClient({
+          batch: () => {},
+          execute: (statement) =>
+            statementSql(statement).startsWith("SELECT value FROM settings")
+              ? holdProbe(statement as InStatement)
+              : null,
+        });
+        try {
+          let settled = false;
+          const inFlight = (async () => {
+            const response = await handleRequest(mockRequest("/"));
+            settled = true;
+            return response;
+          })();
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          expect(settled).toBe(false);
+          release();
+          await expectHtmlResponse(
+            await inFlight,
+            503,
+            "This site has not been activated yet",
+          );
+        } finally {
+          release();
+          restore();
+        }
       });
 
       test("does not probe the settings version before setup bootstraps the schema", async () => {

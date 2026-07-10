@@ -26,6 +26,7 @@ import {
   queryAll,
 } from "#shared/db/client.ts";
 import { recordSettingRead } from "#shared/db/settings-audit.ts";
+import { addPendingWork } from "#shared/pending-work.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 
@@ -81,8 +82,11 @@ export const currentVersion = async (): Promise<number> =>
 export const prefetchVersion = (): void => {
   // Fired before the schema state check, which may legitimately find the
   // database not ready (fresh install) — drop the failure here; loadKeys
-  // re-fetches and surfaces any real error on its own await.
-  void versionProbe.getAll().catch(() => {});
+  // re-fetches and surfaces any real error on its own await. Registered as
+  // pending work so a request that never reaches loadKeys (e.g. the
+  // not-activated page) still settles the probe before responding — Bunny
+  // kills fetches that outlive the response.
+  addPendingWork(versionProbe.getAll().catch(() => {}));
 };
 
 /**

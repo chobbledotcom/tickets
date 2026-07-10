@@ -453,3 +453,32 @@ without schema_migrations"), and the measured payoff is a slice of ~78ms of
 CPU — small next to the ~500ms of network latency the same PR already
 removed. Worth doing when eager-eval time next matters; re-measure with
 `deno run -A scripts/bench/cold-start/bundle-load.ts` before and after.
+
+## Cross-request pending work vs. restore (from PR #1714)
+
+*Origin: Codex review on `src/shared/db/migrations.ts` (initDb's queued
+`recordScriptVersion`).*
+
+PR #1714 made the restore-confirm handler drain its own request's pending
+work before `restoreFromZip()` replaces the database, so a queued
+script-version marker write can't land after the replay and clobber the
+restored `current_script_commit` the flash tells the operator to redeploy.
+Codex points out a residual window: pending work is scoped per request
+(`AsyncLocalStorage` in `src/shared/pending-work.ts`), so when a *different*
+concurrent request on the same isolate is the one that ran `initDb()` (first
+request after a deploy), its queued marker write lives in that request's
+scope — the restore request's flush cannot see it, and under enough write
+latency it could still land mid/post-restore.
+
+The window requires a cold isolate on a fresh deploy to be serving its first
+request *concurrently* with an owner's restore-confirm POST, and the
+consequence is limited to the commit hint in the restore flash (data is
+unaffected; the very next boot restamps legitimately). Deferred because the
+clean fix touches shared infrastructure: track in-flight pending work in a
+module-level set alongside the per-request scopes (add on `addPendingWork`,
+remove on settle) and give the restore path a `flushAllPendingWork()` that
+awaits the union. Starting points: `src/shared/pending-work.ts`,
+`handleBackupRestoreConfirm` in `src/features/admin/backup.ts`, and the race
+harness in `test/lib/server-backup.test.ts` ("a deploy's first request
+cannot clobber the commit a restore reports"), which can be extended with a
+concurrent cold GET to reproduce this variant.
