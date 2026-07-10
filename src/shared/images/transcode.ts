@@ -19,7 +19,7 @@ import type { DecodableMime, ImageTarget } from "./types.ts";
 export const transcodeToWebp = async (
   data: Uint8Array,
   mime: DecodableMime,
-  targets: ReadonlyArray<ImageTarget>,
+  targets: readonly ImageTarget[],
 ): Promise<Uint8Array[]> => {
   const decoded = await decodeImage(data, mime);
   const variants: Uint8Array[] = [];

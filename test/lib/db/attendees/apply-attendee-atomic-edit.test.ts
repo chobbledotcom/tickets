@@ -93,7 +93,7 @@ const expectRejected = (
 
 /** Assert each listing currently has the expected number of attendee rows. */
 const expectRawCounts = async (
-  pairs: Array<[{ id: number }, number]>,
+  pairs: [{ id: number }, number][],
 ): Promise<void> => {
   for (const [listing, count] of pairs) {
     expect((await getAttendeesRaw(listing.id)).length).toBe(count);

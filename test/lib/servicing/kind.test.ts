@@ -29,9 +29,11 @@ import {
 } from "#shared/db/attendees/kind.ts";
 
 describe("servicing §0 — kind guard helper classifies rows", () => {
-  const cases: Array<
-    [label: string, kind: string | null | undefined, expected: boolean]
-  > = [
+  const cases: [
+    label: string,
+    kind: string | null | undefined,
+    expected: boolean,
+  ][] = [
     ["attendee kind", ATTENDEE_KIND, false],
     ["servicing kind", SERVICING_KIND, true],
     ["null kind", null, false],
@@ -64,7 +66,7 @@ describe("servicing §0 — kind guard helper classifies rows", () => {
 });
 
 describe("servicing §0 — kind-aware ref link routing", () => {
-  const cases: Array<[label: string, kind: string, expectedPath: string]> = [
+  const cases: [label: string, kind: string, expectedPath: string][] = [
     ["servicing row", SERVICING_KIND, "/admin/servicing/42"],
     ["attendee row", ATTENDEE_KIND, "/admin/attendees/42"],
     ["unknown kind defaults to attendee route", "bogus", "/admin/attendees/42"],

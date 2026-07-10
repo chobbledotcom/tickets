@@ -137,7 +137,7 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
         expect(match?.[1]).toBe(expected);
       };
 
-      const coreDirectives: Array<[string, string]> = [
+      const coreDirectives: [string, string][] = [
         ["default-src", "'self'"],
         // The Logistics map loads its tiles straight from OpenStreetMap.
         ["img-src", "'self' https://tile.openstreetmap.org"],

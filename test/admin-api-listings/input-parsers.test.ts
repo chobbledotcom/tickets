@@ -66,7 +66,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
     test("maps the use_defaults flag both ways and omits it when absent", async () => {
       // true/false both round-trip (so the API can opt in *and* out), and an
       // absent flag stays absent rather than defaulting to either value.
-      const cases: Array<[boolean | undefined, boolean | undefined]> = [
+      const cases: [boolean | undefined, boolean | undefined][] = [
         [true, true],
         [false, false],
         [undefined, undefined],

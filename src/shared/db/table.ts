@@ -433,7 +433,7 @@ export const cachedTable = <Row, Input, Cached = Row>(config: {
   table: Table<Row, Input>;
   /** Extra tables (beyond the table itself) whose writes should clear it.
    * Entries may carry `whenColumns` to gate on specific UPDATE columns. */
-  dependsOn?: ReadonlyArray<DependsOnEntry>;
+  dependsOn?: readonly DependsOnEntry[];
 }): {
   getAll: () => Promise<Cached[]>;
   invalidate: () => void;
@@ -464,7 +464,7 @@ export const defineCachedListTable = <Row, Input>(
   config: TableDefinition<Row> & {
     /** ORDER BY clause without the keyword, e.g. `"start_date ASC"`. */
     orderBy: string;
-    dependsOn?: ReadonlyArray<DependsOnEntry>;
+    dependsOn?: readonly DependsOnEntry[];
   },
 ) => {
   const table = defineTable<Row, Input>(config);
