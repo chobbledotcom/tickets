@@ -5,7 +5,7 @@ import {
   expectedItemPrice,
   type PackagePricing,
   packageBundleMismatch,
-} from "#routes/api/payment-processing.ts";
+} from "#routes/api/payment-processing/package-pricing.ts";
 import type { PricedListing } from "#shared/booking/price-tree.ts";
 
 const pkg: PackagePricing = {
