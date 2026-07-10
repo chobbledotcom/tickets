@@ -113,27 +113,30 @@ const handleAttributesPost = createAuthedFormRoute({
 });
 
 /** The listing usage both detail pages show: which listings selected each of
- * the attribute's options, plus the id/name/active picker rows to label them. */
-const loadAttributeListingUse = (attributeId: number) =>
-  Promise.all([
+ * the attribute's options, as per-option counts plus a builder that turns any
+ * subset of the options into "listings using this" table rows. */
+const loadAttributeListingUse = async (attributeId: number) => {
+  const [listingIdsByOption, listingOptions] = await Promise.all([
     getAttributeOptionListingIds(attributeId),
     getAllListingOptions(),
   ]);
+  return {
+    listingCounts: optionListingCounts(listingIdsByOption),
+    rowsFor: (options: AttributeOption[]) =>
+      attributeListingRows(options, listingIdsByOption, listingOptions),
+  };
+};
 
 const handleAttributeGet = ownerGetById(
   getAttributeWithOptions,
   async (attribute, session) => {
-    const [listingIdsByOption, listingOptions] = await loadAttributeListingUse(
+    const { listingCounts, rowsFor } = await loadAttributeListingUse(
       attribute.id,
     );
     return htmlResponse(
       adminAttributePage(attribute, session, getFlash().error, {
-        listingCounts: optionListingCounts(listingIdsByOption),
-        listings: attributeListingRows(
-          attribute.options,
-          listingIdsByOption,
-          listingOptions,
-        ),
+        listingCounts,
+        listings: rowsFor(attribute.options),
       }),
     );
   },
@@ -260,16 +263,14 @@ const handleDeleteOptionGet = optionRoute((attribute, option, session) =>
 );
 
 const handleEditOptionGet = optionRoute(async (attribute, option, session) => {
-  const [listingIdsByOption, listingOptions] = await loadAttributeListingUse(
-    attribute.id,
-  );
+  const { rowsFor } = await loadAttributeListingUse(attribute.id);
   return htmlResponse(
     adminAttributeOptionEditPage(
       attribute,
       option,
       session,
       getFlash().error,
-      attributeListingRows([option], listingIdsByOption, listingOptions),
+      rowsFor([option]),
     ),
   );
 });

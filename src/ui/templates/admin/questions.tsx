@@ -14,6 +14,7 @@ import type {
 import { CsrfForm, renderFields } from "#shared/forms.tsx";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
+import { childEditPage } from "#templates/admin/child-edit-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
   type ExpectedActualItem,
@@ -23,11 +24,7 @@ import {
   adminRecalculatePage,
   type RecalculateRow,
 } from "#templates/admin/recalculate.tsx";
-import {
-  BackButton,
-  GuideFooter,
-  SubmitButton,
-} from "#templates/components/actions.tsx";
+import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import {
   CheckboxForm,
   CheckboxLabel,
@@ -353,75 +350,62 @@ export const adminAnswerEditPage = (
   modifiers: AnswerModifierOption[],
   modifierId: number | null,
 ): string =>
-  errorAdminPage(t("questions.edit_answer.title"), "/admin/questions")(
+  childEditPage({
+    active: "/admin/questions",
+    backHref: `/admin/questions/${question.id}`,
+    backLabel: t("questions.edit_answer.back_to_question"),
+    context: t("questions.edit_answer.question_context", {
+      text: questionTextFlat(question.text),
+    }),
+    formAction: `/admin/questions/${question.id}/answers/${answer.id}/edit`,
+    heading: t("questions.edit_answer.heading"),
+    title: t("questions.edit_answer.title"),
+  })(
     session,
     error,
-  )(
     <>
-      <p>
-        <BackButton href={`/admin/questions/${question.id}`}>
-          {t("questions.edit_answer.back_to_question")}
-        </BackButton>
-      </p>
-
-      <h1>{t("questions.edit_answer.heading")}</h1>
-      <p>
-        <small>
-          {t("questions.edit_answer.question_context", {
-            text: questionTextFlat(question.text),
-          })}
-        </small>
-      </p>
-
-      <CsrfForm
-        action={`/admin/questions/${question.id}/answers/${answer.id}/edit`}
-      >
-        <Raw html={answerTextForm.render({ text: answer.text })} />
-        <label>
-          {t("questions.edit_answer.modifier_label")}
-          <SelectField
-            id="modifier_id"
-            name="modifier_id"
-            options={[
-              { label: t("questions.edit_answer.modifier_none"), value: "" },
-              ...modifiers.map((m) => ({ label: m.name, value: String(m.id) })),
-            ]}
-            value={modifierId === null ? "" : String(modifierId)}
-          />
-          <small>{t("questions.edit_answer.modifier_hint")}</small>
-        </label>
-        <label>
-          <input
-            checked={answer.active || undefined}
-            name="active"
-            type="checkbox"
-            value="on"
-          />{" "}
-          Active
-          <small>
-            Deactivate to hide this answer on the booking form. Attendees who
-            already chose it keep it, and it still shows on their edit page.
-          </small>
-        </label>
-        <AnswerRunningTotalsSection
-          aggregateRecalculation={aggregateRecalculation}
-          answer={answer}
-          question={question}
+      <Raw html={answerTextForm.render({ text: answer.text })} />
+      <label>
+        {t("questions.edit_answer.modifier_label")}
+        <SelectField
+          id="modifier_id"
+          name="modifier_id"
+          options={[
+            { label: t("questions.edit_answer.modifier_none"), value: "" },
+            ...modifiers.map((m) => ({ label: m.name, value: String(m.id) })),
+          ]}
+          value={modifierId === null ? "" : String(modifierId)}
         />
-        <SubmitButton icon="save">
-          {t("questions.edit_answer.save")}
-        </SubmitButton>
-      </CsrfForm>
-
-      <p>
-        <a
-          class="danger"
-          href={`/admin/questions/${question.id}/answers/${answer.id}/delete`}
-        >
-          {t("questions.delete_answer.submit")}
-        </a>
-      </p>
+        <small>{t("questions.edit_answer.modifier_hint")}</small>
+      </label>
+      <label>
+        <input
+          checked={answer.active || undefined}
+          name="active"
+          type="checkbox"
+          value="on"
+        />{" "}
+        Active
+        <small>
+          Deactivate to hide this answer on the booking form. Attendees who
+          already chose it keep it, and it still shows on their edit page.
+        </small>
+      </label>
+      <AnswerRunningTotalsSection
+        aggregateRecalculation={aggregateRecalculation}
+        answer={answer}
+        question={question}
+      />
+      <SubmitButton icon="save">{t("questions.edit_answer.save")}</SubmitButton>
     </>,
+    <p>
+      <a
+        class="danger"
+        href={`/admin/questions/${question.id}/answers/${answer.id}/delete`}
+      >
+        {t("questions.delete_answer.submit")}
+      </a>
+    </p>,
   );
 
 /** Build the recalculate table rows comparing the stored selection total with

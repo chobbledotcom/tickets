@@ -13,6 +13,7 @@ import type {
 import { CsrfForm } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
+import { childEditPage } from "#templates/admin/child-edit-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
   BackButton,
@@ -23,6 +24,7 @@ import {
   FormSections,
   IdCheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
+import { DataTable } from "#templates/components/data-table.tsx";
 import {
   ReorderLinkRow,
   ReorderTable,
@@ -96,31 +98,21 @@ const AttributeListingsTable = ({
       <em>{emptyText}</em>
     </p>
   ) : (
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>{t("terms.listing")}</th>
-            {showOptions ? <th>{t("attributes.options_column")}</th> : null}
-          </tr>
-        </thead>
-        <tbody>
-          {listings.map((listing) => (
-            <tr>
-              <td>
-                <a
-                  class={listing.active ? undefined : "muted"}
-                  href={`/admin/listing/${listing.id}`}
-                >
-                  {listing.name}
-                </a>
-              </td>
-              {showOptions ? <td>{listing.optionTexts.join(", ")}</td> : null}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      columns={[
+        { header: t("terms.listing") },
+        ...(showOptions ? [{ header: t("attributes.options_column") }] : []),
+      ]}
+      rows={listings.map((listing) => [
+        <a
+          class={listing.active ? undefined : "muted"}
+          href={`/admin/listing/${listing.id}`}
+        >
+          {listing.name}
+        </a>,
+        ...(showOptions ? [listing.optionTexts.join(", ")] : []),
+      ])}
+    />
   );
 
 /** The data the attribute detail page shows beyond the attribute itself: how
@@ -219,35 +211,26 @@ export const adminAttributeOptionEditPage = (
   error: string | undefined,
   listings: AttributeListingRow[],
 ): string =>
-  errorAdminPage(t("attributes.edit_option.title"), "/admin/attributes")(
+  childEditPage({
+    active: "/admin/attributes",
+    backHref: `/admin/attributes/${attribute.id}`,
+    backLabel: t("attributes.edit_option.back_to_attribute"),
+    context: t("attributes.edit_option.attribute_context", {
+      name: attributeNameFlat(attribute.name),
+    }),
+    formAction: `/admin/attributes/${attribute.id}/options/${option.id}/edit`,
+    heading: t("attributes.edit_option.heading"),
+    title: t("attributes.edit_option.title"),
+  })(
     session,
     error,
-  )(
     <>
-      <p>
-        <BackButton href={`/admin/attributes/${attribute.id}`}>
-          {t("attributes.edit_option.back_to_attribute")}
-        </BackButton>
-      </p>
-
-      <h1>{t("attributes.edit_option.heading")}</h1>
-      <p>
-        <small>
-          {t("attributes.edit_option.attribute_context", {
-            name: attributeNameFlat(attribute.name),
-          })}
-        </small>
-      </p>
-
-      <CsrfForm
-        action={`/admin/attributes/${attribute.id}/options/${option.id}/edit`}
-      >
-        <Raw html={attributeOptionForm.render({ text: option.text })} />
-        <SubmitButton icon="save">
-          {t("attributes.edit_option.save")}
-        </SubmitButton>
-      </CsrfForm>
-
+      <Raw html={attributeOptionForm.render({ text: option.text })} />
+      <SubmitButton icon="save">
+        {t("attributes.edit_option.save")}
+      </SubmitButton>
+    </>,
+    <>
       <h2>{t("attributes.edit_option.listings_heading")}</h2>
       <p>
         <small>
