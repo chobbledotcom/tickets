@@ -148,6 +148,25 @@ describeWithEnv("AdminNav", {}, () => {
     expect(sub).toContain("Import");
   });
 
+  test("the Listings Import link hides in read-only mode (it leads to a blocked upload flow)", () => {
+    const restore = setTestEnv({
+      READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
+    });
+    try {
+      const html = String(
+        AdminNav({
+          active: "/admin/listings",
+          session: { adminLevel: "owner" },
+        }),
+      );
+      expect(html).not.toContain('href="/admin/catalog/import"');
+      // The section landing link stays.
+      expect(html).toContain('href="/admin/listings"');
+    } finally {
+      restore();
+    }
+  });
+
   test("Invite User stays owner-only", () => {
     const managerHtml = String(
       AdminNav({ active: "/admin/users", session: { adminLevel: "manager" } }),

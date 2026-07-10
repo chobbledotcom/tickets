@@ -59,8 +59,10 @@ export interface NavSection {
 interface SubNavDef {
   readonly href: string;
   readonly labelKey: string;
-  /** "create" links drop out in read-only mode. Defaults to "link". */
-  readonly kind?: "link" | "create";
+  /** "create" links drop out in read-only mode. "import" links do too —
+   * they lead to a mutating upload flow that can't be completed in
+   * read-only mode. "link" entries always show. Defaults to "link". */
+  readonly kind?: "link" | "create" | "import";
   /** When false, the link is omitted entirely. */
   readonly visible?: (ctx: NavCtx) => boolean;
 }
@@ -139,7 +141,11 @@ const ADMIN_NAV: readonly SectionDef[] = [
     subNav: [
       { href: "/admin/listings", labelKey: "terms.listings" },
       { href: "/admin/listing/new", kind: "create", labelKey: "nav.sub.add" },
-      { href: "/admin/catalog/import", labelKey: "nav.sub.import" },
+      {
+        href: "/admin/catalog/import",
+        kind: "import",
+        labelKey: "nav.sub.import",
+      },
     ],
   },
   {
@@ -296,7 +302,9 @@ const visibleSubItems = (
 ): NavLink[] => {
   const items: NavLink[] = [];
   for (const item of subNav) {
-    if (item.kind === "create" && ctx.isReadOnly) continue;
+    if (ctx.isReadOnly && (item.kind === "create" || item.kind === "import")) {
+      continue;
+    }
     if (item.visible && !item.visible(ctx)) continue;
     items.push({ href: item.href, labelKey: item.labelKey });
   }
