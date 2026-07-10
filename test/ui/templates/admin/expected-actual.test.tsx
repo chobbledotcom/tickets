@@ -110,6 +110,9 @@ test("ExpectedActualNotice keeps empty-string overrides instead of the defaults"
   })!.toString();
 
   // `??` keeps the empty strings; `||` would fall back to the i18n defaults.
+  // Assert the overrides are rendered as empty elements, not merely omitted.
+  expect(html).toContain('<span class="badge-alert"></span>');
+  expect(html).toContain("<div><p></p><p>explanation</p>");
   expect(html).not.toContain("Mismatch");
   expect(html).not.toContain("Stored total mismatch");
 });
@@ -159,8 +162,9 @@ test("ExpectedActualTableRow wraps the notice in a table row when there are mism
     notice: { explanation: "explanation", items: [item()] },
   })!.toString();
 
-  expect(html).toContain("<tr>");
-  expect(html).toContain("<th>Order total</th>");
-  expect(html).toContain("<td>");
-  expect(html).toContain('class="expected-actual-notice"');
+  // Verify the notice is nested inside the same row and cell as the header,
+  // not merely present somewhere in the output.
+  expect(html).toMatch(
+    /^<tr><th>Order total<\/th><td><details class="expected-actual-notice"[\s\S]*<\/details><\/td><\/tr>$/,
+  );
 });
