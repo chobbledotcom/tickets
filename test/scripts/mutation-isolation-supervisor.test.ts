@@ -57,8 +57,19 @@ const failTextFileWrites = (shouldFail: (writeNumber: number) => boolean) => {
   }) as typeof Deno.writeTextFile);
 };
 
-const failOnlyThirdTextFileWrite = () =>
-  failTextFileWrites((writes) => writes === 3);
+const failRunningStatusWrite = () => {
+  const original = Deno.writeTextFile;
+  return stub(Deno, "writeTextFile", ((
+    path: string | URL,
+    data: string | ReadableStream<string>,
+    options?: Deno.WriteFileOptions,
+  ) => {
+    if (typeof data === "string" && data.includes('"running"')) {
+      throw new Error("record write failed");
+    }
+    return original(path, data, options);
+  }) as typeof Deno.writeTextFile);
+};
 
 const capturePlainSnapshotFailure = async (
   root: string,
@@ -426,7 +437,7 @@ describe("mutation isolation supervisor commands", () => {
         childCommand(process.child),
       );
 
-      using _writeTextFile = failOnlyThirdTextFileWrite();
+      using _writeTextFile = failRunningStatusWrite();
 
       const run = await captureSimpleSnapshotMutation(root);
       const record = await readOnlyRunRecord(root);

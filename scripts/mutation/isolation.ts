@@ -215,12 +215,16 @@ export const runMutationInSnapshot = async (
       exitCode = interrupted ? 130 : status.code;
     }
   } catch (error) {
-    if (child !== null) await stopProcess(child, 250).catch(() => {});
+    if (child !== null) await stopProcess(child, 250);
     exitCode = interrupted ? 130 : 1;
     record = interrupted
       ? markInterrupted(record)
       : markFinished(record, exitCode);
-    await writeRunRecord(record).catch(() => {});
+    try {
+      await writeRunRecord(record);
+    } catch {
+      // A failed write should not mask the original error.
+    }
     console.error(error instanceof Error ? error.message : String(error));
   }
   for (const signal of signals) {
