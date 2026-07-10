@@ -9,9 +9,15 @@
  * Multi-day daily bookings emit one clause per day, AND'd together, so the
  * SQL safety-net matches the per-day accuracy of the JS preflight. Range
  * length is bounded (≤90 via form validation) so the SQL stays cheap.
+ *
+ * Which counting a listing type gets (per-date rows vs the running total) is
+ * declared once in `#shared/capacity-rules.ts`; the type predicates below are
+ * interpolated from that table, never hardcoded, so this guard and the JS
+ * preflight always read the same declaration.
  */
 
 import type { InValue } from "@libsql/client";
+import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
 import { addDays } from "#shared/dates.ts";
 import type { SqlStatement } from "#shared/db/client.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
@@ -59,7 +65,7 @@ const buildDailyListingCountSql = (
     listingId,
   ],
   sql: `(SELECT CASE
-          WHEN listing.listing_type = 'daily' THEN (
+          WHEN ${capacityRuleTypeSql("perDateCap", "listing.listing_type")} THEN (
             SELECT COALESCE(SUM(attendee.quantity), 0)
               FROM listing_attendees AS attendee
              WHERE attendee.listing_id = ? ${attendeeExclusionSql(
@@ -129,7 +135,7 @@ const buildDailyNonListingGroupExclusionSql = (
             JOIN listings AS memberListing
               ON memberListing.id = attendee.listing_id
            WHERE groupListing.group_id = groupRow.id
-             AND memberListing.listing_type != 'daily'
+             AND ${capacityRuleTypeSql("dateLessCap", "memberListing.listing_type")}
              AND attendee.attendee_id = ?
         ), 0)`;
 };
@@ -155,8 +161,8 @@ const buildUndatedGroupExclusionSql = (excludeAttendeeId?: number): string => {
 // keep the correlated "groupRow.id" they are only ever emitted with.)
 const buildDailyGroupCountSql = (
   dayRange: DayRange,
-  excludeAttendeeId?: number,
-  groupRef = "groupRow.id",
+  excludeAttendeeId: number | undefined,
+  groupRef: string,
 ): SqlStatement => ({
   args: [
     ...attendeeExclusionArgs(excludeAttendeeId),
@@ -170,7 +176,7 @@ const buildDailyGroupCountSql = (
             JOIN group_listings AS groupListing
               ON groupListing.listing_id = memberListing.id
            WHERE groupListing.group_id = ${groupRef}
-             AND memberListing.listing_type != 'daily'
+             AND ${capacityRuleTypeSql("dateLessCap", "memberListing.listing_type")}
         ), 0)
         ${buildDailyNonListingGroupExclusionSql(excludeAttendeeId)}
         + COALESCE((
@@ -181,7 +187,7 @@ const buildDailyGroupCountSql = (
             JOIN listings AS memberListing
               ON memberListing.id = attendee.listing_id
            WHERE groupListing.group_id = ${groupRef}
-             AND memberListing.listing_type = 'daily' ${attendeeExclusionSql(
+             AND ${capacityRuleTypeSql("perDateCap", "memberListing.listing_type")} ${attendeeExclusionSql(
                "attendee",
                excludeAttendeeId,
              )}
@@ -190,8 +196,8 @@ const buildDailyGroupCountSql = (
 });
 
 const buildUndatedGroupCountSql = (
-  excludeAttendeeId?: number,
-  groupRef = "groupRow.id",
+  excludeAttendeeId: number | undefined,
+  groupRef: string,
 ): SqlStatement => ({
   args: attendeeExclusionArgs(excludeAttendeeId),
   sql: `(COALESCE((
