@@ -76,3 +76,6 @@ export const writeFakeMutationScript = async (
   await Deno.mkdir(join(root, "scripts"), { recursive: true });
   await Deno.writeTextFile(join(root, "scripts", "mutation.ts"), body);
 };
+
+export type DenoCommandShim = { Command: (...args: unknown[]) => unknown };
+export const denoCommand = Deno as unknown as DenoCommandShim;

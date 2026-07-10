@@ -1,10 +1,11 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
-import { pathExists } from "#test-utils/files.ts";
 import {
-  copyMutationSnapshot,
+  runLockIsHeld,
+  withMutationRunLock,
+} from "../../scripts/mutation/isolation-lock.ts";
+import {
   createRunId,
   formatRunList,
   markFinished,
@@ -14,147 +15,18 @@ import {
   parseIsolationCommand,
   readRunRecord,
   readRunRecords,
-  rewriteMutationArgs,
-  runLockIsHeld,
   runRoot,
   runStartedRecently,
   selectedRuns,
-  shouldCopySnapshotPath,
   statusForExitCode,
   visibleStatus,
-  withMutationRunLock,
   workRoot,
   writeRunRecord,
 } from "../../scripts/mutation/isolation-state.ts";
 import {
-  captureMutationCommand,
-  runQuietMutationCommand,
   withTempDir,
   writeMovedRunRecord,
 } from "./mutation-isolation-helpers.ts";
-
-const cleanPassedRunWithRemoveError = async (
-  root: string,
-  error: unknown,
-): Promise<{
-  clean: Awaited<ReturnType<typeof captureMutationCommand>>;
-  passed: ReturnType<typeof markFinished>;
-}> => {
-  const passed = markFinished(newRunRecord("mutation-passed", [], root), 0);
-  await writeRunRecord(passed);
-
-  const remove = Deno.remove;
-  using _remove = stub(Deno, "remove", ((path, options) => {
-    if (String(path) === passed.root) return Promise.reject(error);
-    return remove(path, options);
-  }) as typeof Deno.remove);
-
-  const clean = await captureMutationCommand(
-    ["--clean", "mutation-passed"],
-    root,
-  );
-  return { clean, passed };
-};
-
-const expectCleanPassedRunRemovalFailure = async (
-  root: string,
-  error: unknown,
-): Promise<void> => {
-  const { clean, passed } = await cleanPassedRunWithRemoveError(root, error);
-
-  expect(clean).toEqual({
-    errors: ["Failed to remove mutation-passed: permission denied"],
-    logs: [],
-    result: 1,
-  });
-  expect(await pathExists(passed.root)).toBe(true);
-};
-
-describe("mutation isolation paths", () => {
-  test("copies source-like files and skips git, reports, secrets, dbs, and generated assets", async () => {
-    await withTempDir(async (dir) => {
-      const source = join(dir, "source");
-      const snapshot = join(dir, "snapshot");
-      await Deno.mkdir(join(source, "src", "ui", "static"), {
-        recursive: true,
-      });
-      await Deno.mkdir(join(source, ".bin"), { recursive: true });
-      await Deno.mkdir(join(source, ".git"), { recursive: true });
-      await Deno.mkdir(join(source, "coverage"), { recursive: true });
-      await Deno.writeTextFile(join(source, "src", "kept.ts"), "export {};\n");
-      await Deno.writeTextFile(join(source, ".bin", "stripe-mock"), "mock");
-      await Deno.writeTextFile(join(source, ".git", "config"), "git");
-      await Deno.writeTextFile(join(source, "coverage", "lcov.info"), "cov");
-      await Deno.writeTextFile(join(source, ".env"), "secret");
-      await Deno.writeTextFile(join(source, "tickets.db"), "db");
-      await Deno.writeTextFile(
-        join(source, "src", "ui", "static", "app.js"),
-        "js",
-      );
-      await Deno.writeTextFile(
-        join(source, "src", "ui", "static", "style.css"),
-        "css",
-      );
-
-      await copyMutationSnapshot(source, snapshot);
-
-      expect(await Deno.readTextFile(join(snapshot, "src", "kept.ts"))).toBe(
-        "export {};\n",
-      );
-      expect(
-        await Deno.readTextFile(join(snapshot, ".bin", "stripe-mock")),
-      ).toBe("mock");
-      expect(await pathExists(join(snapshot, ".git", "config"))).toBe(false);
-      expect(await pathExists(join(snapshot, "coverage", "lcov.info"))).toBe(
-        false,
-      );
-      expect(await pathExists(join(snapshot, ".env"))).toBe(false);
-      expect(await pathExists(join(snapshot, "tickets.db"))).toBe(false);
-      expect(
-        await pathExists(join(snapshot, "src", "ui", "static", "app.js")),
-      ).toBe(false);
-      expect(
-        await pathExists(join(snapshot, "src", "ui", "static", "style.css")),
-      ).toBe(false);
-    });
-  });
-
-  test("states which paths belong in a snapshot", () => {
-    expect(shouldCopySnapshotPath("")).toBe(true);
-    expect(shouldCopySnapshotPath("src/shared/dates.ts")).toBe(true);
-    expect(shouldCopySnapshotPath(".mutation-runs/run/work")).toBe(false);
-    expect(shouldCopySnapshotPath(".jscpd-report/index.html")).toBe(false);
-    expect(shouldCopySnapshotPath("coverage-test/lcov.info")).toBe(false);
-    expect(shouldCopySnapshotPath("local.db-wal")).toBe(false);
-    expect(shouldCopySnapshotPath("src/ui/static/order.js")).toBe(false);
-  });
-
-  test("rewrites only absolute project paths", () => {
-    const root = "/repo/tickets";
-    const snapshot = "/repo/tickets/.mutation-runs/run/work";
-
-    expect(
-      rewriteMutationArgs(root, snapshot, [
-        "--source",
-        "/repo/tickets",
-        "/repo/tickets/src/a.ts",
-        "test/a.test.ts",
-        "--harness",
-        "/tmp/outside.ts",
-      ]),
-    ).toEqual([
-      "--source",
-      "/repo/tickets/.mutation-runs/run/work",
-      "/repo/tickets/.mutation-runs/run/work/src/a.ts",
-      "test/a.test.ts",
-      "--harness",
-      "/tmp/outside.ts",
-    ]);
-    expect(rewriteMutationArgs("/", "/snapshot", ["/repo/tickets"])).toEqual([
-      "/snapshot/repo/tickets",
-    ]);
-  });
-});
 
 describe("mutation isolation run records", () => {
   test("creates deterministic ids and records state transitions", () => {
@@ -359,134 +231,5 @@ describe("mutation isolation commands", () => {
     expect(
       formatRunList([newRunRecord("empty", [], "/repo")], new Set(), "/repo"),
     ).toEqual(["empty copying pid=- exit=- work=.mutation-runs/empty/work"]);
-  });
-
-  test("cleans only the current run directory", async () => {
-    await withTempDir(async (root) => {
-      const { id, oldRunRoot } = await writeMovedRunRecord(root);
-      await Deno.mkdir(oldRunRoot, { recursive: true });
-      await Deno.writeTextFile(join(oldRunRoot, "keep.txt"), "old");
-
-      expect(await runQuietMutationCommand(["--clean", "all"], root)).toBe(0);
-
-      expect(await pathExists(runRoot(id, root))).toBe(false);
-      expect(await pathExists(join(oldRunRoot, "keep.txt"))).toBe(true);
-    });
-  });
-
-  test("skips active runs during cleanup", async () => {
-    await withTempDir(async (root) => {
-      const copying = newRunRecord("mutation-copying", [], root);
-      const staleCopying = newRunRecord("mutation-stale-copying", [], root);
-      const running = markRunning(
-        newRunRecord("mutation-running", [], root),
-        Deno.pid,
-      );
-      const starting = markRunning(
-        newRunRecord("mutation-starting", [], root),
-        Deno.pid,
-      );
-      const stale = markRunning(
-        newRunRecord("mutation-stale", [], root),
-        99_999_999,
-      );
-      const noPid = {
-        ...newRunRecord("mutation-nopid", [], root),
-        status: "running" as const,
-      };
-      const passed = markFinished(newRunRecord("mutation-passed", [], root), 0);
-      for (const record of [
-        copying,
-        staleCopying,
-        running,
-        starting,
-        stale,
-        noPid,
-        passed,
-      ]) {
-        await writeRunRecord(record);
-      }
-
-      expect(
-        await runQuietMutationCommand(["--clean", "mutation-starting"], root),
-      ).toBe(1);
-      await withMutationRunLock(copying.root, async () => {
-        await withMutationRunLock(running.root, async () => {
-          expect(
-            await runQuietMutationCommand(
-              ["--clean", "mutation-running"],
-              root,
-            ),
-          ).toBe(1);
-          expect(await runQuietMutationCommand(["--clean", "all"], root)).toBe(
-            0,
-          );
-        });
-      });
-
-      expect(await pathExists(copying.root)).toBe(true);
-      expect(await pathExists(staleCopying.root)).toBe(false);
-      expect(await pathExists(running.root)).toBe(true);
-      expect(await pathExists(starting.root)).toBe(true);
-      expect(await pathExists(stale.root)).toBe(false);
-      expect(await pathExists(noPid.root)).toBe(false);
-      expect(await pathExists(passed.root)).toBe(false);
-    });
-  });
-
-  test("cleans stale running records whose pid was reused after the grace period", async () => {
-    await withTempDir(async (root) => {
-      const staleReused = markRunning(
-        newRunRecord(
-          "mutation-stale-reused",
-          [],
-          root,
-          "2026-01-01T00:00:00.000Z",
-        ),
-        Deno.pid,
-        "2026-01-01T00:00:00.000Z",
-      );
-      await writeRunRecord(staleReused);
-
-      expect(runStartedRecently(staleReused)).toBe(false);
-
-      expect(
-        await runQuietMutationCommand(
-          ["--clean", "mutation-stale-reused"],
-          root,
-        ),
-      ).toBe(0);
-      expect(await pathExists(staleReused.root)).toBe(false);
-    });
-  });
-
-  test("reports cleanup removal failures", async () => {
-    await withTempDir(async (root) => {
-      await expectCleanPassedRunRemovalFailure(
-        root,
-        new Error("permission denied"),
-      );
-    });
-  });
-
-  test("treats missing run directories as already removed", async () => {
-    await withTempDir(async (root) => {
-      const { clean } = await cleanPassedRunWithRemoveError(
-        root,
-        new Deno.errors.NotFound("already gone"),
-      );
-
-      expect(clean).toEqual({
-        errors: [],
-        logs: ["Removed mutation-passed."],
-        result: 0,
-      });
-    });
-  });
-
-  test("reports cleanup removal failures from thrown values", async () => {
-    await withTempDir(async (root) => {
-      await expectCleanPassedRunRemovalFailure(root, "permission denied");
-    });
   });
 });

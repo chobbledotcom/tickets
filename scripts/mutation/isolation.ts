@@ -8,8 +8,9 @@
 import { relative } from "@std/path";
 import { processExists, stopProcess, stopProcessNow } from "../process.ts";
 import { projectRoot } from "../project-root.ts";
+import { runLockIsHeld, withMutationRunLock } from "./isolation-lock.ts";
+import { copyMutationSnapshot } from "./isolation-snapshot.ts";
 import {
-  copyMutationSnapshot,
   createRunId,
   formatRunList,
   ISOLATION_USAGE,
@@ -25,10 +26,8 @@ import {
   parseIsolationCommand,
   readRunRecords,
   rewriteMutationArgs,
-  runLockIsHeld,
   runStartedRecently,
   selectedRuns,
-  withMutationRunLock,
   writeRunRecord,
 } from "./isolation-state.ts";
 
@@ -107,15 +106,27 @@ const cleanableRuns = async (
   };
 };
 
+const FORCE_KILL_GRACE_MS = 500;
+
 const signalRun = async (
   record: MutationRunRecord,
   force: boolean,
+  forceGraceMs: number = FORCE_KILL_GRACE_MS,
 ): Promise<boolean> => {
   if (!(await processBelongsToRun(record)) || record.pid === undefined) {
     return false;
   }
   try {
-    Deno.kill(record.pid, force ? "SIGKILL" : "SIGTERM");
+    Deno.kill(record.pid, "SIGTERM");
+    if (!force) return true;
+    await new Promise((resolve) => setTimeout(resolve, forceGraceMs));
+    if (processExists(record.pid)) {
+      try {
+        Deno.kill(record.pid, "SIGKILL");
+      } catch {
+        // It may have exited during the grace window.
+      }
+    }
     return true;
   } catch {
     return false;

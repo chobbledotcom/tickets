@@ -8,7 +8,6 @@ import {
   type ChangedFiles,
   changedFiles,
   MUTATION_NOTICE_PREFIX,
-  mutationNoticeSummary,
   partitionChanged,
   runMutationStep,
   STALE_BASE_SOURCE_LIMIT,
@@ -158,27 +157,6 @@ describe("changedFiles", () => {
         fakeGit({ base: "origin/main", diff: fail("bad revision") }),
       ),
     ).rejects.toThrow("bad revision");
-  });
-});
-
-describe("mutationNoticeSummary", () => {
-  test("joins the notice lines and drops the rest", () => {
-    const stdout = [
-      "Running baseline tests…",
-      `${MUTATION_NOTICE_PREFIX}stale base, run git fetch`,
-      "..........",
-      `${MUTATION_NOTICE_PREFIX}no changed tests`,
-    ].join("\n");
-    expect(mutationNoticeSummary(stdout)).toBe(
-      `${MUTATION_NOTICE_PREFIX}stale base, run git fetch\n` +
-        `${MUTATION_NOTICE_PREFIX}no changed tests`,
-    );
-  });
-
-  test("returns undefined when there are no notices", () => {
-    expect(mutationNoticeSummary("All mutants were detected.\n")).toBe(
-      undefined,
-    );
   });
 });
 

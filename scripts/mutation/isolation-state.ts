@@ -2,7 +2,8 @@
  * Pure-ish state and filesystem helpers for isolated mutation runs.
  *
  * The process supervisor lives in isolation.ts; this module holds the small
- * rules that are cheap to unit-test directly.
+ * rules that are cheap to unit-test directly. Snapshot copying lives in
+ * isolation-snapshot.ts and lock probing lives in isolation-lock.ts.
  */
 
 import {
@@ -23,42 +24,6 @@ export const MUTATION_SNAPSHOT_CHILD_ENV = "TICKETS_MUTATION_SNAPSHOT_CHILD";
 export const MUTATION_RUN_ID_ENV = "TICKETS_MUTATION_RUN_ID";
 export const MUTATION_RUN_ROOT_ENV = "TICKETS_MUTATION_RUN_ROOT";
 export const MUTATION_WORK_ROOT_ENV = "TICKETS_MUTATION_WORK_ROOT";
-
-const SKIPPED_TOP_LEVEL_NAMES = new Set([
-  ".agents",
-  ".claude",
-  ".codex",
-  ".deno",
-  ".deno-cache",
-  ".deno_cache",
-  ".direnv",
-  ".do",
-  ".git",
-  ".i18n-work",
-  ".local-data",
-  ".mutation-runs",
-  ".pi-worktrees",
-  "cov",
-  "cov_profile",
-  "dist",
-  "docs-output",
-  "misc",
-  "node_modules",
-  "undefined",
-  "null",
-]);
-
-const SKIPPED_TOP_LEVEL_PREFIXES = ["coverage", ".jscpd", "docs-output"];
-
-const SKIPPED_FILE_NAMES = new Set([
-  ".build-tag",
-  ".db-key",
-  ".env",
-  ".test-junit.xml",
-  "bunny-script.ts",
-  "bunny-script.ts.map",
-  "tickets.db",
-]);
 
 export type MutationRunStatus =
   | "copying"
@@ -99,70 +64,6 @@ not touched.`;
 
 const nowIso = (): string => new Date().toISOString();
 
-const pathParts = (path: string): string[] =>
-  path.split(/[\\/]+/).filter((part) => part.length > 0);
-
-const slashPath = (path: string): string => pathParts(path).join("/");
-
-const isDatabaseFile = (name: string): boolean =>
-  name.endsWith(".db") || name.endsWith(".db-shm") || name.endsWith(".db-wal");
-
-const isGeneratedStaticAsset = (relativePath: string): boolean =>
-  relativePath.startsWith("src/ui/static/") &&
-  (relativePath.endsWith(".js") || relativePath === "src/ui/static/style.css");
-
-export const shouldCopySnapshotPath = (relativePath: string): boolean => {
-  const parts = pathParts(relativePath);
-  const top = parts[0];
-  const name = parts.at(-1);
-  if (!top || !name) return true;
-  if (SKIPPED_TOP_LEVEL_NAMES.has(top)) return false;
-  if (SKIPPED_TOP_LEVEL_PREFIXES.some((prefix) => top.startsWith(prefix))) {
-    return false;
-  }
-  if (SKIPPED_FILE_NAMES.has(name) || isDatabaseFile(name)) return false;
-  return !isGeneratedStaticAsset(slashPath(relativePath));
-};
-
-const copyDirectory = async (
-  fromRoot: string,
-  toRoot: string,
-  relativePath = "",
-): Promise<void> => {
-  const fromDir = join(fromRoot, relativePath);
-  const toDir = join(toRoot, relativePath);
-  await Deno.mkdir(toDir, { recursive: true });
-
-  const entries: Deno.DirEntry[] = [];
-  for await (const entry of Deno.readDir(fromDir)) entries.push(entry);
-
-  for (const entry of entries.sort((left, right) =>
-    left.name.localeCompare(right.name),
-  )) {
-    const childPath = relativePath
-      ? join(relativePath, entry.name)
-      : entry.name;
-    if (!shouldCopySnapshotPath(childPath)) continue;
-
-    const from = join(fromRoot, childPath);
-    const to = join(toRoot, childPath);
-    if (entry.isDirectory) {
-      await copyDirectory(fromRoot, toRoot, childPath);
-    } else {
-      await Deno.mkdir(dirname(to), { recursive: true });
-      await Deno.copyFile(from, to);
-    }
-  }
-};
-
-export const copyMutationSnapshot = async (
-  fromRoot: string,
-  toRoot: string,
-): Promise<void> => {
-  await Deno.mkdir(toRoot, { recursive: true });
-  await copyDirectory(fromRoot, toRoot);
-};
-
 const compactIso = (iso: string): string =>
   iso
     .replaceAll(":", "")
@@ -185,9 +86,6 @@ export const workRoot = (id: string, root = projectRoot): string =>
 
 export const recordPath = (id: string, root = projectRoot): string =>
   join(runRoot(id, root), MUTATION_RECORD_FILE);
-
-export const runLockPath = (record: Pick<MutationRunRecord, "root">): string =>
-  join(record.root, MUTATION_RUN_LOCK_FILE);
 
 export const newRunRecord = (
   id: string,
@@ -393,78 +291,6 @@ export const formatRunList = (
     : records.map((record) =>
         formatRunLine(record, liveRunIds.has(record.id), root),
       );
-
-const LOCK_HELD_EXIT_CODE = 124;
-
-const LOCK_PROBE_SCRIPT = `
-const [path, timeoutText] = Deno.args;
-const timeout = setTimeout(
-  () => Deno.exit(${LOCK_HELD_EXIT_CODE}),
-  Number(timeoutText),
-);
-const file = await Deno.open(path, { read: true, write: true }).catch(() => null);
-if (file === null) {
-  clearTimeout(timeout);
-  Deno.exit(2);
-}
-try {
-  await file.lock(true);
-  await file.unlock();
-  clearTimeout(timeout);
-  file.close();
-  Deno.exit(0);
-} catch {
-  clearTimeout(timeout);
-  file.close();
-  Deno.exit(2);
-}
-`;
-
-const lockProbeExitCode = async (
-  path: string,
-  timeoutMs: number,
-): Promise<number> => {
-  const { code } = await new Deno.Command(Deno.execPath(), {
-    args: ["eval", LOCK_PROBE_SCRIPT, "--", path, String(timeoutMs)],
-    stderr: "null",
-    stdout: "null",
-  }).output();
-  return code;
-};
-
-export const runLockIsHeld = async (
-  record: Pick<MutationRunRecord, "root">,
-  timeoutMs = 50,
-): Promise<boolean> => {
-  const path = runLockPath(record);
-  const file = await Deno.open(path, {
-    create: true,
-    read: true,
-    write: true,
-  }).catch(() => null);
-  if (file === null) return false;
-  file.close();
-  return (await lockProbeExitCode(path, timeoutMs)) === LOCK_HELD_EXIT_CODE;
-};
-
-export const withMutationRunLock = async <Result>(
-  runRootPath: string,
-  run: () => Promise<Result>,
-): Promise<Result> => {
-  await Deno.mkdir(runRootPath, { recursive: true });
-  const file = await Deno.open(join(runRootPath, MUTATION_RUN_LOCK_FILE), {
-    create: true,
-    read: true,
-    write: true,
-  });
-  try {
-    await file.lock(true);
-    return await run();
-  } finally {
-    await file.unlock();
-    file.close();
-  }
-};
 
 export const selectedRuns = (
   records: MutationRunRecord[],

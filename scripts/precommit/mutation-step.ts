@@ -66,8 +66,7 @@ import type { RunCommand } from "./merge-warning.ts";
 export const STALE_BASE_SOURCE_LIMIT = 100;
 
 /** Prefix on the skip/warning notices that must stay visible even when the gate
- *  passes. The standalone `precommit:mutation` task prints these directly;
- *  `mutationNoticeSummary` extracts them for callers that swallow stdout. */
+ *  passes. The standalone `precommit:mutation` task prints these directly. */
 export const MUTATION_NOTICE_PREFIX = "⚠ mutation: ";
 
 /** The changed paths split into the src files to mutate and tests to run. */
@@ -144,20 +143,6 @@ export const changedFiles = async (
     .map((line) => line.trim())
     .filter((line) => line !== "");
   return partitionChanged(paths);
-};
-
-/**
- * The notice lines (stale base, no merge base, no changed tests, …) emitted on
- * `stdout`, joined for display — or undefined when there are none. Wired as the
- * mutation step's `summary` so these stay visible even though the precommit
- * runner swallows a passing step's output. A normal mutation *run* emits none,
- * so a clean pass shows nothing extra.
- */
-export const mutationNoticeSummary = (stdout: string): string | undefined => {
-  const notices = stdout
-    .split("\n")
-    .filter((line) => line.includes(MUTATION_NOTICE_PREFIX));
-  return notices.length > 0 ? notices.join("\n") : undefined;
 };
 
 /**
