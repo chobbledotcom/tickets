@@ -21,10 +21,13 @@ const childOnlyAddOnFlash = async (): Promise<string> => {
 };
 
 /** Assert a JSON API call is rejected (400) with the orphaned-add-on error. */
-const expectApiAddOnError = (request: Promise<Response>): Promise<void> =>
-  assertJson<{ error: string }>(request, 400, (json) => {
+const expectApiAddOnError = async (
+  request: Promise<Response>,
+): Promise<void> => {
+  await assertJson<{ error: string }>(request, 400, (json) => {
     expect(json.error).toContain(ADDON_ERROR);
-  }).then(() => undefined);
+  });
+};
 
 /** Assert a listing is still active (an orphaning deactivate was blocked). */
 const expectStaysActive = async (id: number): Promise<void> => {

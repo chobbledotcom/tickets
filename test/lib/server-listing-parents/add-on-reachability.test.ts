@@ -110,7 +110,7 @@ describeWithEnv(
       const res = await postListingEdit(parent.id, { groupId: 0 });
       expect(res.status).toBe(400);
       expect(await res.text()).toContain("Group extra");
-      expect(await getGroupIdsByListingId(parent.id)).toContain(group.id);
+      expect(await getGroupIdsByListingId(parent.id)).toEqual([group.id]);
     });
 
     test("a listing save that keeps a group-scoped add-on reachable is allowed", async () => {
@@ -196,6 +196,7 @@ describeWithEnv(
         name: "New base unit",
       });
       expect(await listingChildren.getIds(newId)).toEqual([child.id]);
+      expect(await getGroupIdsByListingId(newId)).toEqual([group.id]);
     });
 
     test("API update moving a parent's group so the add-on becomes unreachable is rejected", async () => {
@@ -220,7 +221,7 @@ describeWithEnv(
       );
       // Neither the group move nor the edge change is partially applied; the
       // existing edge is preserved and the parent stays in its group.
-      expect(await getGroupIdsByListingId(parent.id)).toContain(group.id);
+      expect(await getGroupIdsByListingId(parent.id)).toEqual([group.id]);
       expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
     });
   },

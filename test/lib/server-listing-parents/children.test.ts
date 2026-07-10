@@ -77,7 +77,7 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
   test("shows what a child is offered under", async () => {
     const { child } = await linkedParentChild();
     const html = await listingEditPageHtml(child.id);
-    expect(html).toContain("This listing is itself offered under: Base unit");
+    expect(html).toContain("This listing is itself offered under: Base unit.");
   });
 
   test("pre-disables a candidate that is itself a parent (usability #4)", async () => {
@@ -164,7 +164,7 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     });
     const attendee = (result as { success: true; attendees: { id: number }[] })
       .attendees[0]!;
-    const response = await adminGet(`/admin/attendees/${attendee.id}`);
+    const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
     const html = await response.text();
     expect(html).not.toContain("requires one of its child listings");
   });
