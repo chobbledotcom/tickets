@@ -230,14 +230,6 @@ a small, isolated assertion-strength improvement.*
   validation error text (or another specific error contract) so the negative path
   is genuine. (Original monolith line 990.)
 
-- **`payment.test.ts` — Stripe fixture uses a `live` key prefix.** The
-  "links the payment id to the configured provider dashboard" test sets
-  `stripe_secret_key: "sk_live_abc"`. The value is synthetic, but the `live`
-  prefix models a production credential and can trip secret scanners. Switch to a
-  `sk_test_...` fixture — note the test also asserts the live dashboard URL
-  (`dashboard.stripe.com/payments/...`), so verify that still holds after the
-  change. (Original monolith line 2092.)
-
 - **`payment.test.ts` — assert payment stays unrefunded after ledger failure.**
   The "surfaces a Stripe refund the ledger could not record" test only checks the
   error flash; its comment says the payment must remain visibly un-refunded. Add a
@@ -370,3 +362,35 @@ footer.*
   `guideFooter` slot — just pass one once the section exists.
 - **Support** (`/admin/support`) — borderline (it's a contact-the-host form);
   give it a footer only if a support/troubleshooting section is written.
+
+---
+
+## Payment-processing review follow-ups (from PR #1692)
+
+Both items describe behaviour that predates the payment-processing split (the
+code was moved verbatim from the old `payment-processing.ts` monolith). They are
+recorded here because the split PR was a pure reorganisation — changing this
+behaviour there would be out of scope — and CodeRabbit flagged them as worth a
+look.
+
+- **Refund after a committed booking** (`src/features/api/payment-processing/index.ts`,
+  the `try { honoured = await createAttendeeForSession(...) } catch` in
+  `processReservedSession`). `createAttendeeForSession` commits the attendee +
+  bookings atomically, then runs `ensureAllBookings` (a post-commit read). If
+  that post-write step *threw*, the `catch` would route to `storeRefundedBooking`
+  — refunding a booking that actually persisted. Today `ensureAllBookings`
+  returns a structured `{ ok: false }` rather than throwing on the capacity path,
+  so the window is theoretical, but it isn't guarded structurally. Fix direction:
+  narrow the `try` to the pre-commit call only, or guarantee the post-commit
+  cleanup path is non-throwing, so a persisted booking can never be refunded.
+  Add a regression test that makes the post-commit step throw and asserts no
+  refund is issued.
+- **Per-item DB reads not batched** (`src/features/api/payment-processing/items.ts`
+  `validateAllItems`, and `package-pricing.ts` `loadPackagePricingByGroup`).
+  `validateAllItems` calls `getListingWithCount` once per item in a loop, and
+  `loadPackagePricingByGroup` makes two sequential round-trips per group. Under
+  the edge subrequest budget these accumulate for larger orders. Fix direction:
+  add/use a batched `getListingsWithCount(ids)` for all order listing ids at once
+  and group the package-pricing loads, preserving the existing validation and
+  fail-closed behaviour. See the "Respect the subrequest budget" guidance in
+  AGENTS.md.

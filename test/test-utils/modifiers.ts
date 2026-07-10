@@ -55,6 +55,18 @@ export const linkModifierListing = (modifierId: number, listingId: number) =>
     sql: "INSERT INTO modifier_listings (modifier_id, listing_id) VALUES (?, ?)",
   });
 
+/** Insert an active opt-in add-on scoped to the given listing ids. */
+export const optInAddOnForListings = async (
+  name: string,
+  listingIds: number[],
+): Promise<void> => {
+  const modifier = await insertModifier({ name });
+  await patchModifier(modifier.id, { scope: "listings", trigger: "optional" });
+  for (const listingId of listingIds) {
+    await linkModifierListing(modifier.id, listingId);
+  }
+};
+
 /** Link a "groups"-scoped modifier to a group. */
 export const linkModifierGroup = (modifierId: number, groupId: number) =>
   getDb().execute({
