@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
+import { createLinkSections } from "#shared/admin-pages.ts";
 import type { AdminLevel } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
@@ -58,54 +60,20 @@ describeWithEnv("AdminNav", {}, () => {
     expectOwnerAndManagerLink("/admin/servicing", "Servicing");
   });
 
-  /** Every section that carries an "Add X" create link in its sub-nav: the
-   * section's landing route, the create link, and the route the create page
-   * itself renders with (which should highlight the create link). Each pair
-   * lives only in its own section's sub-nav — never on the top-level bar. */
-  const addLinkSections = [
-    {
-      addHref: "/admin/listing/new",
-      addText: "Add",
-      createActive: "/admin/listing/new",
-      roles: ["owner", "manager", "editor"] as const,
-      sectionActive: "/admin/listings",
-    },
-    {
-      addHref: "/admin/groups/new",
-      addText: "Add",
-      createActive: "/admin/groups/new",
-      roles: ["owner", "manager", "editor"] as const,
-      sectionActive: "/admin/groups",
-    },
-    {
-      addHref: "/admin/servicing/new",
-      addText: "Add",
-      createActive: "/admin/servicing/new",
-      roles: ["owner", "manager"] as const,
-      sectionActive: "/admin/servicing",
-    },
-    {
-      addHref: "/admin/attendees/new",
-      addText: "Add",
-      createActive: "/admin/attendees/new",
-      roles: ["owner", "manager"] as const,
-      sectionActive: "/admin/attendees",
-    },
-    {
-      addHref: "/admin/modifiers/new",
-      addText: "Add",
-      createActive: "/admin/modifiers/new",
-      roles: ["owner", "manager"] as const,
-      sectionActive: "/admin/modifiers",
-    },
-    {
-      addHref: "/admin/user/new",
-      addText: "Invite",
-      createActive: "/admin/user/new",
-      roles: ["owner"] as const,
-      sectionActive: "/admin/users",
-    },
-  ];
+  /** Every section that carries an "Add X" create link in its sub-nav, derived
+   *  from the admin-page schema — the section's landing route, the create link,
+   *  and the roles that reach it. Feature-flag-gated sections (Images) are
+   *  excluded here — they have dedicated tests that enable the flag. Each pair
+   *  lives only in its own section's sub-nav — never on the top-level bar. */
+  const addLinkSections = createLinkSections()
+    .filter((s) => !s.featureGated)
+    .map((s) => ({
+      addHref: s.createHref,
+      addText: t(s.createLabelKey),
+      createActive: s.createHref,
+      roles: s.roles,
+      sectionActive: s.sectionPath,
+    }));
 
   // Regression: the create links used to sit on the top-level nav bar, visible
   // on every page. They must not appear at the top level any more — only inside
@@ -317,14 +285,11 @@ describeWithEnv("AdminNav", {}, () => {
   // sub-nav beside a page that is not the section's landing page. A page that
   // merely lives *within* a section now says so with `{ section }`: the section
   // still highlights, but its sub-nav (here, the "Add" create link) must not
-  // appear. Verified for every section that carries an "Add X"-style sub-nav.
-  const withinSectionCases = [
-    { addHref: "/admin/attendees/new", section: "/admin/attendees" },
-    { addHref: "/admin/groups/new", section: "/admin/groups" },
-    { addHref: "/admin/servicing/new", section: "/admin/servicing" },
-    { addHref: "/admin/modifiers/new", section: "/admin/modifiers" },
-    { addHref: "/admin/listing/new", section: "/admin/listings" },
-  ] as const;
+  // appear. Verified for every section that carries an "Add X"-style sub-nav —
+  // derived from the schema so new sections are covered automatically.
+  const withinSectionCases = addLinkSections
+    .filter((s) => s.sectionActive !== "/admin/users")
+    .map((s) => ({ addHref: s.addHref, section: s.sectionActive }));
 
   test("a page within a section highlights the section but shows no sub-nav", () => {
     for (const { section, addHref } of withinSectionCases) {
