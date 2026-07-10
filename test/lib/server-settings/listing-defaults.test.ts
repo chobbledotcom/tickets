@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllListings } from "#shared/db/listings.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
-import { setDemoModeForTest } from "#shared/demo.ts";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
   adminFormPost,
   adminGet,

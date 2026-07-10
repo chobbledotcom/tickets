@@ -26,7 +26,7 @@ import {
   DEMO_PHONES,
   DEMO_SPECIAL_INSTRUCTIONS,
   randomChoice,
-} from "#shared/demo.ts";
+} from "#shared/demo/samples.ts";
 import { nowIso } from "#shared/now.ts";
 import { generateUniqueSlug, type SlugWithIndex } from "#shared/slug.ts";
 

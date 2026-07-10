@@ -16,7 +16,10 @@ import {
   updateCheckedIn,
 } from "#shared/db/attendees.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
-import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
+import {
+  ATTENDEE_DEMO_FIELDS,
+  applyDemoOverrides,
+} from "#shared/demo/overrides.ts";
 import { validateForm } from "#shared/forms.tsx";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";

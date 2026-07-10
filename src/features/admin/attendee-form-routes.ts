@@ -84,7 +84,10 @@ import {
 } from "#shared/db/questions/attendee-answers/save.ts";
 import { parseQuestionAnswers } from "#shared/db/questions/parsing.ts";
 import { settings } from "#shared/db/settings.ts";
-import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
+import {
+  ATTENDEE_DEMO_FIELDS,
+  applyDemoOverrides,
+} from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   selectedListingQuantities,

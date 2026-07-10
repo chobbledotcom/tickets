@@ -12,10 +12,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  ADMIN_AREAS,
-  adminPathSegment,
-} from "#routes/admin/index.ts";
+import { ADMIN_AREAS, adminPathSegment } from "#routes/admin/index.ts";
 import { awaitTestRequest, describeWithEnv } from "#test-utils";
 
 const patternPath = (pattern: string): string => pattern.split(" ")[1] ?? "";
@@ -38,9 +35,10 @@ describe("admin route manifest", () => {
           true,
         );
         const segment = adminPathSegment(path);
-        expect(declared, `${name}: ${pattern} (segment "${segment}")`).toContain(
-          segment,
-        );
+        expect(
+          declared,
+          `${name}: ${pattern} (segment "${segment}")`,
+        ).toContain(segment);
       }
     }
   });
@@ -62,7 +60,10 @@ describe("admin route manifest", () => {
     const owners = new Map<string, string>();
     for (const [name, patterns] of await loadAreaRoutes()) {
       for (const pattern of patterns) {
-        expect(owners.get(pattern), `${pattern} in both ${owners.get(pattern)} and ${name}`).toBeUndefined();
+        expect(
+          owners.get(pattern),
+          `${pattern} in both ${owners.get(pattern)} and ${name}`,
+        ).toBeUndefined();
         owners.set(pattern, name);
       }
     }

@@ -15,7 +15,7 @@ import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
-import { isDemoMode } from "#shared/demo.ts";
+import { isDemoMode } from "#shared/demo/mode.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   LISTING_DEFAULT_FIELDS,

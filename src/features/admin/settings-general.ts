@@ -21,7 +21,10 @@ import { LISTING_TABLE_COLUMNS } from "#shared/columns/listing-columns.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
-import { applyDemoOverrides, TERMS_DEMO_FIELDS } from "#shared/demo.ts";
+import {
+  applyDemoOverrides,
+  TERMS_DEMO_FIELDS,
+} from "#shared/demo/overrides.ts";
 import { parseEmbedHosts, validateEmbedHosts } from "#shared/embed-hosts.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { ok } from "#shared/response.ts";

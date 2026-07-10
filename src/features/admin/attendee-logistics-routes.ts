@@ -33,7 +33,10 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { updateAttendeePII } from "#shared/db/attendees.ts";
 import { setLogisticsAssignments } from "#shared/db/logistics.ts";
-import { applyDemoOverrides, LOGISTICS_DEMO_FIELDS } from "#shared/demo.ts";
+import {
+  applyDemoOverrides,
+  LOGISTICS_DEMO_FIELDS,
+} from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { parseCoordinatePair } from "#shared/validation/coordinates.ts";
 import { AttendeeLogisticsPanel } from "#templates/admin/attendee-logistics-tab.tsx";
