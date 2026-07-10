@@ -219,9 +219,7 @@ describe("db > listing_attendees migration from legacy schema", () => {
     setupTestEncryptionKey();
     const client = await newFileDb();
     setDb(client);
-    for (const sql of LEGACY_SCHEMA_SQL) {
-      await client.execute(sql);
-    }
+    await client.batch(LEGACY_SCHEMA_SQL, "write");
     await seedLegacySchemaMarkers(client);
     return client;
   };
@@ -231,14 +229,17 @@ describe("db > listing_attendees migration from legacy schema", () => {
    *  migration tests. */
   const createLegacyDbWithListing = async () => {
     const client = await createLegacyDb();
-    await client.execute("PRAGMA foreign_keys = ON");
-    await client.execute(
-      insert("listings", {
-        created: "2024-01-01T00:00:00Z",
-        id: 1,
-        max_attendees: 100,
-        name: "Test Listing",
-      }),
+    await client.batch(
+      [
+        "PRAGMA foreign_keys = ON",
+        insert("listings", {
+          created: "2024-01-01T00:00:00Z",
+          id: 1,
+          max_attendees: 100,
+          name: "Test Listing",
+        }),
+      ],
+      "write",
     );
     return client;
   };
@@ -246,14 +247,19 @@ describe("db > listing_attendees migration from legacy schema", () => {
   const seedLegacySchemaMarkers = async (
     client: ReturnType<typeof createClient>,
   ) => {
-    await client.execute({
-      args: ["latest_db_update", LEGACY_DB_UPDATE],
-      sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
-    });
-    await client.execute({
-      args: ["db_schema_hash", LEGACY_DB_SCHEMA_HASH],
-      sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
-    });
+    await client.batch(
+      [
+        {
+          args: ["latest_db_update", LEGACY_DB_UPDATE],
+          sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
+        },
+        {
+          args: ["db_schema_hash", LEGACY_DB_SCHEMA_HASH],
+          sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
+        },
+      ],
+      "write",
+    );
   };
 
   /**
@@ -306,34 +312,33 @@ describe("db > listing_attendees migration from legacy schema", () => {
   test("migration backfills listing_attendees, listing duration, and processed_payments", async () => {
     const client = await createLegacyDb();
 
-    await client.execute(
-      insert("listings", {
-        created: "2024-01-01T00:00:00Z",
-        id: 1,
-        max_attendees: 100,
-        name: "Test Listing",
-      }),
-    );
-    await client.execute(
-      insert("attendees", {
-        checked_in_v2: 0,
-        created: "2024-01-01T00:00:00Z",
-        date: "2024-06-15",
-        email: "test@example.com",
-        id: 1,
-        listing_id: 1,
-        name: "Test User",
-        price_paid_v2: 1000,
-        quantity: 2,
-        refunded_v2: 0,
-      }),
-    );
-    await client.execute(
-      insert("processed_payments", {
-        attendee_id: 1,
-        payment_session_id: "ps_test_123",
-        processed_at: "2024-01-01T00:00:00Z",
-      }),
+    await client.batch(
+      [
+        insert("listings", {
+          created: "2024-01-01T00:00:00Z",
+          id: 1,
+          max_attendees: 100,
+          name: "Test Listing",
+        }),
+        insert("attendees", {
+          checked_in_v2: 0,
+          created: "2024-01-01T00:00:00Z",
+          date: "2024-06-15",
+          email: "test@example.com",
+          id: 1,
+          listing_id: 1,
+          name: "Test User",
+          price_paid_v2: 1000,
+          quantity: 2,
+          refunded_v2: 0,
+        }),
+        insert("processed_payments", {
+          attendee_id: 1,
+          payment_session_id: "ps_test_123",
+          processed_at: "2024-01-01T00:00:00Z",
+        }),
+      ],
+      "write",
     );
 
     const pragmaStub = stubPragmaForeignKeysOff(client);
@@ -383,25 +388,24 @@ describe("db > listing_attendees migration from legacy schema", () => {
 
   test("adds question display type when legacy question tables have foreign keys", async () => {
     const client = await createLegacyDbWithListing();
-    await client.execute(
-      insert("questions", {
-        id: 1,
-        text: "Encrypted question",
-      }),
-    );
-    await client.execute(
-      insert("answers", {
-        id: 1,
-        question_id: 1,
-        text: "Encrypted answer",
-      }),
-    );
-    await client.execute(
-      insert("listing_questions", {
-        id: 1,
-        listing_id: 1,
-        question_id: 1,
-      }),
+    await client.batch(
+      [
+        insert("questions", {
+          id: 1,
+          text: "Encrypted question",
+        }),
+        insert("answers", {
+          id: 1,
+          question_id: 1,
+          text: "Encrypted answer",
+        }),
+        insert("listing_questions", {
+          id: 1,
+          listing_id: 1,
+          question_id: 1,
+        }),
+      ],
+      "write",
     );
 
     const pragmaStub = stubPragmaForeignKeysOff(client);
@@ -429,9 +433,12 @@ describe("db > listing_attendees migration from legacy schema", () => {
 
   test("deletes a migrated listing and its question links under FK enforcement", async () => {
     const client = await createLegacyDbWithListing();
-    await client.execute(insert("questions", { id: 1, text: "Encrypted" }));
-    await client.execute(
-      insert("listing_questions", { id: 1, listing_id: 1, question_id: 1 }),
+    await client.batch(
+      [
+        insert("questions", { id: 1, text: "Encrypted" }),
+        insert("listing_questions", { id: 1, listing_id: 1, question_id: 1 }),
+      ],
+      "write",
     );
 
     const pragmaStub = stubPragmaForeignKeysOff(client);
@@ -565,15 +572,20 @@ describe("db > listing_attendees migration from legacy schema", () => {
 
     // Force a named migration re-run by making legacy markers stale and
     // clearing named migration history.
-    await client.execute({
-      args: [LEGACY_DB_UPDATE],
-      sql: "UPDATE settings SET value = ? WHERE key = 'latest_db_update'",
-    });
-    await client.execute({
-      args: [LEGACY_DB_SCHEMA_HASH],
-      sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-    });
-    await client.execute("DROP TABLE schema_migrations");
+    await client.batch(
+      [
+        {
+          args: [LEGACY_DB_UPDATE],
+          sql: "UPDATE settings SET value = ? WHERE key = 'latest_db_update'",
+        },
+        {
+          args: [LEGACY_DB_SCHEMA_HASH],
+          sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
+        },
+        "DROP TABLE schema_migrations",
+      ],
+      "write",
+    );
     invalidateInitDbCache();
     await initDb();
 

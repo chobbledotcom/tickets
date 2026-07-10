@@ -88,18 +88,3 @@ describe("servicing §20 — servicing query readers reuse the shared SELECT con
     expect(ATTENDEE_JOIN_SELECT.length).toBeGreaterThan(0);
   });
 });
-
-describe("servicing §20 — precommit duplication check stays at 0%", () => {
-  test("deno task cpd exits zero (no new duplication landed)", async () => {
-    // Meta-guard: the feature must land without tripping jscpd's 0% threshold.
-    // Skipped in plain `deno test` runs that don't have the toolchain pinned;
-    // the precommit script runs it for real.
-    const command = new Deno.Command(Deno.execPath(), {
-      args: ["task", "cpd"],
-      stderr: "inherit",
-      stdout: "piped",
-    });
-    const { success } = await command.output();
-    expect(success).toBe(true);
-  });
-});

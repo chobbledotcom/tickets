@@ -1,7 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { getDb, insert } from "#shared/db/client.ts";
+import {
+  getDb,
+  insert,
+  queryBatch,
+  type SqlStatement,
+} from "#shared/db/client.ts";
 import { assertLiveTableColumns } from "#shared/db/migrations/schema-assertions.ts";
 import {
   currentSchemaColumnsPresentIn,
@@ -10,15 +15,14 @@ import {
 import {
   initDb,
   invalidateInitDbCache,
-  LATEST_UPDATE,
   MIGRATIONS,
   type Migration,
-  SCHEMA_HASH,
   type SchemaRequirement,
 } from "#shared/db/migrations.ts";
 import { describeWithEnv, indexExists } from "#test-utils";
 import {
   downgradeListingDomainToLegacyNames,
+  executeStatements,
   seedPreDropLedgerColumns,
   tableRowCount,
 } from "./migration-test-helpers.ts";
@@ -35,25 +39,11 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
   const migrationById = (id: string): Migration =>
     MIGRATIONS.find((m) => m.id === id)!;
 
-  const tableColumns = async (table: string): Promise<Set<string>> => {
-    const result = await getDb().execute(
-      `SELECT name FROM pragma_table_info('${table}')`,
-    );
-    return new Set(result.rows.map((row) => String(row.name)));
-  };
-
-  const triggerExists = async (name: string): Promise<boolean> => {
-    const result = await getDb().execute({
-      args: [name],
-      sql: "SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ?",
-    });
-    return result.rows.length > 0;
-  };
-
-  // Explicitly-created indexes (sql IS NOT NULL excludes the auto-indexes backing
-  // UNIQUE/PK constraints) on `table` that include `column` — possibly declared
-  // by a LATER migration than the one that added the column. SQLite refuses
-  // DROP COLUMN while any index references it, so the restore drops these first.
+  // Collect every explicitly-created index name on `table` (sql IS NOT NULL
+  // excludes the auto-indexes backing UNIQUE/PK constraints), then read each
+  // index's column list in one batched round-trip. Returns the index names
+  // that include `column` — SQLite refuses DROP COLUMN while any index
+  // references it, so the restore drops these first.
   const indexesReferencingColumn = async (
     table: string,
     column: string,
@@ -62,42 +52,61 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
       args: [table],
       sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL",
     });
-    const names: string[] = [];
-    for (const row of indexes.rows) {
-      const name = String(row.name);
-      const cols = await getDb().execute(
-        `SELECT name FROM pragma_index_info('${name}')`,
-      );
-      if (cols.rows.some((c) => String(c.name) === column)) names.push(name);
-    }
-    return names;
+    if (indexes.rows.length === 0) return [];
+    const colResults = await queryBatch(
+      indexes.rows.map((row) => ({
+        args: [],
+        sql: `SELECT name FROM pragma_index_info('${String(row.name)}')`,
+      })),
+    );
+    return indexes.rows
+      .map((row, i) => ({
+        cols: colResults[i]!.rows.map((c) => String(c.name)),
+        name: String(row.name),
+      }))
+      .filter((idx) => idx.cols.includes(column))
+      .map((idx) => idx.name);
   };
 
-  // Drop a migration's owned objects in an order SQLite accepts: triggers and
-  // indexes first (a column can't be dropped while a trigger or index
-  // references it), then the columns added to existing tables, then the tables
-  // the migration created.
-  const dropOwnedObjects = async (req: SchemaRequirement): Promise<void> => {
-    for (const trigger of req.triggers ?? []) {
-      await getDb().execute(`DROP TRIGGER IF EXISTS ${trigger}`);
-    }
-    for (const index of req.indexes ?? []) {
-      await getDb().execute(`DROP INDEX IF EXISTS ${index}`);
-    }
-    for (const [table, cols] of Object.entries(req.columns ?? {})) {
+  // Collect every DROP statement for a migration's owned objects, doing all
+  // the index-referencing-column lookups as one batched read first. The
+  // statements are ordered so SQLite accepts them: triggers and indexes first
+  // (a column can't be dropped while a trigger or index references it), then
+  // the columns, then the tables.
+  const dropStatementsFor = async (
+    req: SchemaRequirement,
+  ): Promise<string[]> => {
+    const triggers = req.triggers ?? [];
+    const indexes = req.indexes ?? [];
+    const columnEntries = Object.entries(req.columns ?? {});
+    const newTables = req.newTables ?? [];
+
+    // For each column being dropped, find indexes (possibly declared by a LATER
+    // migration) that reference it — these must be dropped before the column.
+    const indexDropsForColumns: string[] = [];
+    for (const [table, cols] of columnEntries) {
       for (const col of cols) {
-        // A later migration may index this column (e.g.
-        // idx_listing_attendees_ledger_event_group on ledger_event_group); drop
-        // any such index before the column, or SQLite refuses the DROP COLUMN.
-        for (const index of await indexesReferencingColumn(table, col)) {
-          await getDb().execute(`DROP INDEX IF EXISTS ${index}`);
-        }
-        await getDb().execute(`ALTER TABLE ${table} DROP COLUMN ${col}`);
+        indexDropsForColumns.push(
+          ...(await indexesReferencingColumn(table, col)),
+        );
       }
     }
-    for (const table of req.newTables ?? []) {
-      await getDb().execute(`DROP TABLE IF EXISTS ${table}`);
-    }
+
+    return [
+      ...triggers.map((t) => `DROP TRIGGER IF EXISTS ${t}`),
+      ...indexes.map((i) => `DROP INDEX IF EXISTS ${i}`),
+      ...indexDropsForColumns.map((i) => `DROP INDEX IF EXISTS ${i}`),
+      ...columnEntries.flatMap(([table, cols]) =>
+        cols.map((col) => `ALTER TABLE ${table} DROP COLUMN ${col}`),
+      ),
+      ...newTables.map((t) => `DROP TABLE IF EXISTS ${t}`),
+    ];
+  };
+
+  // Drop a migration's owned objects in an order SQLite accepts, batched into
+  // a single write round-trip.
+  const dropOwnedObjects = async (req: SchemaRequirement): Promise<void> => {
+    await executeStatements(await dropStatementsFor(req));
   };
 
   const seedSentinelListing = (): Promise<unknown> =>
@@ -108,11 +117,6 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
         name: "sentinel-listing",
       }),
     );
-
-  const scalar = async (sql: string): Promise<unknown> => {
-    const result = await getDb().execute(sql);
-    return result.rows[0]?.value;
-  };
 
   const seedPopulatedMigrationFixture = () =>
     getDb().batch(
@@ -169,80 +173,67 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
   const assertPopulatedFixtureSurvived = async (
     baseMigrationId: string,
   ): Promise<void> => {
-    expect(
-      await scalar(
-        "SELECT COUNT(*) AS value FROM listings WHERE id = 902 AND name = 'migration-listing' AND booked_quantity = 2 AND tickets_count = 1",
-      ),
-    ).toBe(1);
-    expect(
-      await scalar(
-        "SELECT COUNT(*) AS value FROM listing_attendees WHERE id = 904 AND listing_id = 902 AND attendee_id = 903 AND quantity = 2",
-      ),
-    ).toBe(1);
-    expect(
-      await scalar(
-        "SELECT COUNT(*) AS value FROM attendees WHERE id = 903 AND ticket_token_index = 'ticket-index'",
-      ),
-    ).toBe(1);
-    expect(
-      await scalar(
-        "SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND listing_id = 902 AND message = 'fixture activity'",
-      ),
-    ).toBe(1);
-    expect(
-      await scalar(
-        "SELECT COUNT(*) AS value FROM groups WHERE id = 901 AND slug_index = 'group-index'",
-      ),
-    ).toBe(1);
-    expect(
-      await scalar(
-        "SELECT COUNT(*) AS value FROM built_sites WHERE id = 913 AND assigned_listing_id = 902 AND assigned_attendee_id = 903",
-      ),
-    ).toBe(1);
-    expect(
-      await scalar(
-        "SELECT COUNT(*) AS value FROM questions WHERE id = 906 AND text = 'Meal choice?'",
-      ),
-    ).toBe(1);
-    expect(
-      await scalar(
-        "SELECT COUNT(*) AS value FROM answers WHERE id = 908 AND question_id = 906 AND times_selected = 1",
-      ),
-    ).toBe(1);
-    expect(
-      await scalar(
-        "SELECT COUNT(*) AS value FROM attendee_answers WHERE id = 910 AND attendee_id = 903 AND answer_id = 908",
-      ),
-    ).toBe(1);
-
-    if (
+    // Build the list of survival-check queries, including the conditional
+    // ones for migrations past certain boundaries, then run them all as one
+    // batched read round-trip instead of N sequential executes.
+    const baseSqls: string[] = [
+      "SELECT COUNT(*) AS value FROM listings WHERE id = 902 AND name = 'migration-listing' AND booked_quantity = 2 AND tickets_count = 1",
+      "SELECT COUNT(*) AS value FROM listing_attendees WHERE id = 904 AND listing_id = 902 AND attendee_id = 903 AND quantity = 2",
+      "SELECT COUNT(*) AS value FROM attendees WHERE id = 903 AND ticket_token_index = 'ticket-index'",
+      "SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND listing_id = 902 AND message = 'fixture activity'",
+      "SELECT COUNT(*) AS value FROM groups WHERE id = 901 AND slug_index = 'group-index'",
+      "SELECT COUNT(*) AS value FROM built_sites WHERE id = 913 AND assigned_listing_id = 902 AND assigned_attendee_id = 903",
+      "SELECT COUNT(*) AS value FROM questions WHERE id = 906 AND text = 'Meal choice?'",
+      "SELECT COUNT(*) AS value FROM answers WHERE id = 908 AND question_id = 906 AND times_selected = 1",
+      "SELECT COUNT(*) AS value FROM attendee_answers WHERE id = 910 AND attendee_id = 903 AND answer_id = 908",
+    ];
+    const hasAttendeeStatuses =
       migrationIndex(baseMigrationId) >=
-      migrationIndex("2026-06-14_attendee_statuses")
-    ) {
-      expect(
-        await scalar(
-          "SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND attendee_id = 903",
-        ),
-      ).toBe(1);
+      migrationIndex("2026-06-14_attendee_statuses");
+    const hasModifiers =
+      migrationIndex(baseMigrationId) >= migrationIndex("2026-06-16_modifiers");
+    const results = await queryBatch([
+      ...baseSqls.map((sql) => ({ args: [], sql }) as SqlStatement),
+      ...(hasAttendeeStatuses
+        ? [
+            {
+              args: [],
+              sql: "SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND attendee_id = 903",
+            } as SqlStatement,
+          ]
+        : []),
+      ...(hasModifiers
+        ? [
+            {
+              args: [],
+              sql: "SELECT COUNT(*) AS value FROM modifiers WHERE id = 907 AND total_uses = 2 AND usage_count = 1",
+            } as SqlStatement,
+            {
+              args: [],
+              sql: "SELECT COUNT(*) AS value FROM modifier_usages WHERE id = 911 AND modifier_id = 907 AND attendee_id = 903",
+            } as SqlStatement,
+          ]
+        : []),
+    ]);
+    const one = (i: number) =>
+      expect(Number(results[i]!.rows[0]?.value)).toBe(1);
+    one(0);
+    one(1);
+    one(2);
+    one(3);
+    one(4);
+    one(5);
+    one(6);
+    one(7);
+    one(8);
+    let i = 9;
+    if (hasAttendeeStatuses) {
+      one(i);
+      i++;
     }
-
-    if (
-      migrationIndex(baseMigrationId) >= migrationIndex("2026-06-16_modifiers")
-    ) {
-      // total_revenue is no longer a stored column — a modifier's revenue
-      // projects from the transfers ledger as balanceOf(modifier:M). The
-      // fixture posts no modifier ledger legs, so only the count aggregates
-      // (trigger-maintained) survive here.
-      expect(
-        await scalar(
-          "SELECT COUNT(*) AS value FROM modifiers WHERE id = 907 AND total_uses = 2 AND usage_count = 1",
-        ),
-      ).toBe(1);
-      expect(
-        await scalar(
-          "SELECT COUNT(*) AS value FROM modifier_usages WHERE id = 911 AND modifier_id = 907 AND attendee_id = 903",
-        ),
-      ).toBe(1);
+    if (hasModifiers) {
+      one(i);
+      one(i + 1);
     }
   };
 
@@ -266,27 +257,18 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
           sql: "INSERT INTO schema_migrations (id, description, applied_at) VALUES (?, ?, '2026-01-01T00:00:00.000Z')",
         })),
         {
-          args: [LATEST_UPDATE],
-          sql: "UPDATE settings SET value = ? WHERE key = 'latest_db_update'",
+          args: [],
+          sql: "UPDATE settings SET value = 'stale' WHERE key = 'latest_db_update'",
         },
         {
-          args: [SCHEMA_HASH],
-          sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
+          args: [],
+          sql: "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
         },
       ],
       "write",
     );
     invalidateInitDbCache();
   };
-
-  const markSchemaMarkersStale = () =>
-    getDb().batch(
-      [
-        "UPDATE settings SET value = 'stale' WHERE key = 'latest_db_update'",
-        "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
-      ],
-      "write",
-    );
 
   // A migration is restore-testable only if it owns concrete schema objects to
   // drop and rebuild; a data-only migration (empty `requires`, e.g. a ledger
@@ -352,19 +334,47 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
       // ...and the row that existed before the drop/restore is untouched.
       expect(await sentinelListingExists()).toBe(true);
 
-      // Spot-check that each declared object is actually present again.
-      for (const table of req.newTables ?? []) {
-        expect((await tableColumns(table)).size).toBeGreaterThan(0);
+      // Spot-check that each declared object is actually present again,
+      // batched into one read round-trip instead of N sequential queries.
+      const newTables = req.newTables ?? [];
+      const columnTables = Object.entries(req.columns ?? {});
+      const indexes = req.indexes ?? [];
+      const triggers = req.triggers ?? [];
+      const checks = await queryBatch([
+        ...newTables.map((t) => ({
+          args: [],
+          sql: `SELECT name FROM pragma_table_info('${t}')`,
+        })),
+        ...columnTables.map(([t]) => ({
+          args: [],
+          sql: `SELECT name FROM pragma_table_info('${t}')`,
+        })),
+        ...indexes.map((i) => ({
+          args: [i],
+          sql: "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?",
+        })),
+        ...triggers.map((t) => ({
+          args: [t],
+          sql: "SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ?",
+        })),
+      ]);
+      let i = 0;
+      for (const _table of newTables) {
+        expect(checks[i]!.rows.length).toBeGreaterThan(0);
+        i++;
       }
-      for (const [table, cols] of Object.entries(req.columns ?? {})) {
-        const present = await tableColumns(table);
+      for (const [_table, cols] of columnTables) {
+        const present = new Set(checks[i]!.rows.map((r) => String(r.name)));
         for (const col of cols) expect(present.has(col)).toBe(true);
+        i++;
       }
-      for (const index of req.indexes ?? []) {
-        expect(await indexExists(index)).toBe(true);
+      for (const _index of indexes) {
+        expect(checks[i]!.rows.length).toBeGreaterThan(0);
+        i++;
       }
-      for (const trigger of req.triggers ?? []) {
-        expect(await triggerExists(trigger)).toBe(true);
+      for (const _trigger of triggers) {
+        expect(checks[i]!.rows.length).toBeGreaterThan(0);
+        i++;
       }
     });
   }
@@ -389,18 +399,19 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
       await seedPreDropLedgerColumns();
 
       const pending = MIGRATIONS.slice(MIGRATIONS.indexOf(baseMigration) + 1);
+      const dropStatements: string[] = [];
       for (const migration of [...pending].reverse()) {
         if (
           migration.requires &&
           !migration.requires.absentTables &&
           ownsSchemaObjects(migration.requires)
         ) {
-          await dropOwnedObjects(migration.requires);
+          dropStatements.push(...(await dropStatementsFor(migration.requires)));
         }
       }
+      await executeStatements(dropStatements);
 
       await markAppliedThrough(baseMigration.id);
-      await markSchemaMarkersStale();
 
       await initDb();
 

@@ -36,17 +36,37 @@ import { markCurrentSchemaMigrationPending } from "./migration-test-helpers.ts";
 describeWithEnv("db > migration runtime", { db: true }, () => {
   const TEST_DB_URL = "libsql://abc-tickets-spencer.lite.bunnydb.net";
 
+  /** Stale the schema hash marker and set a migration_lock at the given
+   *  timestamp, batched into one write round-trip. */
+  const setStaleSchemaAndLock = async (heldSince: Date): Promise<void> => {
+    await getDb().batch(
+      [
+        "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+        {
+          args: ["migration_lock", heldSince.toISOString()],
+          sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
+        },
+      ],
+      "write",
+    );
+  };
+
   const restoreLockTest = async (
     fetchStub: ReturnType<typeof stubNtfyFetch>["fetchStub"],
     restore: ReturnType<typeof stubNtfyFetch>["restore"],
   ) => {
     fetchStub.restore();
     restore();
-    await getDb().execute("DELETE FROM settings WHERE key = 'migration_lock'");
-    await getDb().execute({
-      args: [SCHEMA_HASH],
-      sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-    });
+    await getDb().batch(
+      [
+        "DELETE FROM settings WHERE key = 'migration_lock'",
+        {
+          args: [SCHEMA_HASH],
+          sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
+        },
+      ],
+      "write",
+    );
   };
 
   describe("migration behaviour", () => {
@@ -80,13 +100,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
     test("sends ntfy notification with DB_URL when migration lock is held", async () => {
       const { fetchStub, restore } = stubNtfyFetch({ DB_URL: TEST_DB_URL });
       try {
-        await getDb().execute(
-          "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
-        );
-        await getDb().execute({
-          args: ["migration_lock", new Date().toISOString()],
-          sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
-        });
+        await setStaleSchemaAndLock(new Date());
         invalidateInitDbCache();
 
         await expect(initDb()).rejects.toThrow("migration_lock held");
@@ -99,19 +113,10 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
   });
 
   describe("migration lock TTL", () => {
-    const setLock = (heldSince: Date) =>
-      getDb().execute({
-        args: ["migration_lock", heldSince.toISOString()],
-        sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
-      });
-
     test("fails fast when a concurrent migration holds the lock", async () => {
       const { fetchStub, restore } = stubNtfyFetch();
       try {
-        await getDb().execute(
-          "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
-        );
-        await setLock(new Date());
+        await setStaleSchemaAndLock(new Date());
         invalidateInitDbCache();
 
         await expect(initDb()).rejects.toThrow(MigrationInProgressError);
@@ -131,11 +136,10 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
         STORAGE_ZONE_NAME: undefined,
       });
       try {
-        await getDb().execute(
-          "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+        await setStaleSchemaAndLock(
+          new Date(Date.now() - MIGRATION_LOCK_TTL_MS - 1000),
         );
         await markCurrentSchemaMigrationPending();
-        await setLock(new Date(Date.now() - MIGRATION_LOCK_TTL_MS - 1000));
 
         await initDb();
 
@@ -153,21 +157,23 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
     test("keeps blocking while a lock is still within its TTL", async () => {
       try {
-        await getDb().execute(
-          "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+        await setStaleSchemaAndLock(
+          new Date(Date.now() - MIGRATION_LOCK_TTL_MS / 2),
         );
-        await setLock(new Date(Date.now() - MIGRATION_LOCK_TTL_MS / 2));
         invalidateInitDbCache();
 
         await expect(initDb()).rejects.toThrow("migration_lock held");
       } finally {
-        await getDb().execute(
-          "DELETE FROM settings WHERE key = 'migration_lock'",
+        await getDb().batch(
+          [
+            "DELETE FROM settings WHERE key = 'migration_lock'",
+            {
+              args: [SCHEMA_HASH],
+              sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
+            },
+          ],
+          "write",
         );
-        await getDb().execute({
-          args: [SCHEMA_HASH],
-          sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-        });
       }
     });
   });

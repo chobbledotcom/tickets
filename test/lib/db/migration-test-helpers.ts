@@ -1,8 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
+import { executeBatch, getDb, queryBatch } from "#shared/db/client.ts";
 import { initDb, invalidateInitDbCache } from "#shared/db/migrations.ts";
 import { createTestListing } from "#test-utils";
+
+/** Run many plain SQL strings as a single batched write round-trip. */
+export const executeStatements = (sqls: readonly string[]): Promise<void> =>
+  executeBatch(sqls.map((sql) => ({ args: [], sql })));
 
 export type SchemaRenameStep =
   | { kind: "table"; from: string; to: string }
@@ -50,10 +54,10 @@ export const markCurrentSchemaMigrationPending = () => {
 };
 
 export const markMigrationsForRerun = async (): Promise<void> => {
-  await getDb().execute("DROP TABLE IF EXISTS schema_migrations");
-  await getDb().execute(
+  await executeStatements([
+    "DROP TABLE IF EXISTS schema_migrations",
     "UPDATE settings SET value = 'stale' WHERE key IN ('latest_db_update', 'db_schema_hash')",
-  );
+  ]);
   invalidateInitDbCache();
 };
 
@@ -66,22 +70,17 @@ export const schemaHashMarker = async (): Promise<unknown> => {
 
 export const seedListingDomainRows = async (): Promise<number> => {
   const listing = await createTestListing();
-  await getDb().execute(
-    "INSERT INTO listing_attendees (listing_id, attendee_id) VALUES (?, 999)",
-    [listing.id],
-  );
-  await getDb().execute(
-    "INSERT INTO listing_questions (listing_id, question_id) VALUES (?, 999)",
-    [listing.id],
-  );
-  await getDb().execute(
-    "INSERT INTO activity_log (created, listing_id, message) VALUES ('2024-01-01T00:00:00Z', ?, 'legacy listing activity')",
-    [listing.id],
-  );
-  await getDb().execute(
-    "INSERT INTO built_sites (site_data, assigned_listing_id, created) VALUES ('{}', ?, '2024-01-01T00:00:00Z')",
-    [listing.id],
-  );
+  await executeStatements([
+    "INSERT INTO listing_attendees (listing_id, attendee_id) VALUES (" +
+      `${listing.id}, 999)`,
+    "INSERT INTO listing_questions (listing_id, question_id) VALUES (" +
+      `${listing.id}, 999)`,
+    "INSERT INTO activity_log (created, listing_id, message) " +
+      `VALUES ('2024-01-01T00:00:00Z', ${listing.id}, ` +
+      "'legacy listing activity')",
+    "INSERT INTO built_sites (site_data, assigned_listing_id, created) " +
+      `VALUES ('{}', ${listing.id}, '2024-01-01T00:00:00Z')`,
+  ]);
   return listing.id;
 };
 
@@ -96,14 +95,11 @@ export const seedListingDomainRows = async (): Promise<number> => {
  * backfill really runs against (the drop migrations remove them again, leaving
  * the final schema correct).
  */
-export const seedPreDropLedgerColumns = async (): Promise<void> => {
-  await getDb().execute(
+export const seedPreDropLedgerColumns = (): Promise<void> =>
+  executeStatements([
     "ALTER TABLE listing_attendees ADD COLUMN refunded INTEGER NOT NULL DEFAULT 0",
-  );
-  await getDb().execute(
     "ALTER TABLE listing_attendees ADD COLUMN price_paid INTEGER NOT NULL DEFAULT 0",
-  );
-};
+  ]);
 
 /**
  * Stamp a pre-ledger booking row's `price_paid` — the column the backfill reads
@@ -276,10 +272,13 @@ FOR EACH ROW BEGIN
   ${spec.contribution("+", "NEW")}
 END`,
   };
-  for (const name of legacyAggregateTriggerNames(spec.triggerStem)) {
-    await getDb().execute(`DROP TRIGGER IF EXISTS ${name}`);
-    await getDb().execute(`CREATE TRIGGER ${name} ${bodies[name]}`);
-  }
+  const names = legacyAggregateTriggerNames(spec.triggerStem);
+  await executeStatements(
+    names.flatMap((name) => [
+      `DROP TRIGGER IF EXISTS ${name}`,
+      `CREATE TRIGGER ${name} ${bodies[name]}`,
+    ]),
+  );
 };
 
 /**
@@ -317,24 +316,44 @@ export const seedLegacyAggregateColumnDropSchema = async (
 export const expectListingDomainRestored = async (
   listingId: number,
 ): Promise<void> => {
-  expect(await tableExists("events")).toBe(false);
-  expect(await tableExists("event_attendees")).toBe(false);
-  expect(await tableExists("event_questions")).toBe(false);
-  expect(await tableExists("listings")).toBe(true);
-  expect(await tableExists("listing_attendees")).toBe(true);
-  expect(await tableExists("listing_questions")).toBe(true);
-  expect(await tableRowCount("listings")).toBe(1);
-  expect(await tableRowCount("listing_attendees")).toBe(1);
-  expect(await tableRowCount("listing_questions")).toBe(1);
-
-  const activity = await getDb().execute(
-    "SELECT listing_id FROM activity_log WHERE message = 'legacy listing activity'",
-  );
-  expect(activity.rows[0]?.listing_id).toBe(listingId);
-  const builtSite = await getDb().execute(
-    "SELECT assigned_listing_id FROM built_sites WHERE site_data = '{}'",
-  );
-  expect(builtSite.rows[0]?.assigned_listing_id).toBe(listingId);
+  const tables = [
+    "events",
+    "event_attendees",
+    "event_questions",
+    "listings",
+    "listing_attendees",
+    "listing_questions",
+  ] as const;
+  const results = await queryBatch([
+    ...tables.map((t) => ({
+      args: [t],
+      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
+    })),
+    ...["listings", "listing_attendees", "listing_questions"].map((t) => ({
+      args: [],
+      sql: `SELECT COUNT(*) AS v FROM ${t}`,
+    })),
+    {
+      args: [],
+      sql: "SELECT listing_id AS v FROM activity_log WHERE message = 'legacy listing activity'",
+    },
+    {
+      args: [],
+      sql: "SELECT assigned_listing_id AS v FROM built_sites WHERE site_data = '{}'",
+    },
+  ]);
+  const exists = (i: number) => results[i]!.rows.length > 0;
+  expect(exists(0)).toBe(false);
+  expect(exists(1)).toBe(false);
+  expect(exists(2)).toBe(false);
+  expect(exists(3)).toBe(true);
+  expect(exists(4)).toBe(true);
+  expect(exists(5)).toBe(true);
+  expect(Number(results[6]!.rows[0]?.v)).toBe(1);
+  expect(Number(results[7]!.rows[0]?.v)).toBe(1);
+  expect(Number(results[8]!.rows[0]?.v)).toBe(1);
+  expect(results[9]!.rows[0]?.v).toBe(listingId);
+  expect(results[10]!.rows[0]?.v).toBe(listingId);
 };
 
 /**
