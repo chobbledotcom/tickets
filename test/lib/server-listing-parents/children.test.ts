@@ -12,6 +12,15 @@ import {
 } from "#test-utils";
 import { linkedParentChild } from "./helpers.ts";
 
+/** The rendered edit-page HTML for the first attendee of a booking result. */
+const attendeeEditHtml = async (result: unknown): Promise<string> => {
+  const { adminGet } = await import("#test-utils");
+  const attendee = (result as { success: true; attendees: { id: number }[] })
+    .attendees[0]!;
+  const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
+  return response.text();
+};
+
 describeWithEnv("server > listing parents > children", { db: true }, () => {
   test("saves the chosen children and redirects", async () => {
     const parent = await createTestListing({ name: "Base unit" });
@@ -138,22 +147,18 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
   });
 
   test("editing an attendee who booked only a parent warns its child is missing (usability #6)", async () => {
-    const { bookAttendee, adminGet } = await import("#test-utils");
+    const { bookAttendee } = await import("#test-utils");
     const { parent } = await linkedParentChild();
     // bookAttendee writes through the atomic path (no gate), creating exactly the
     // lone-parent state an admin manual add would.
     const result = await bookAttendee(parent, { name: "Ada" });
-    const attendee = (result as { success: true; attendees: { id: number }[] })
-      .attendees[0]!;
-    const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
-    const html = await response.text();
+    const html = await attendeeEditHtml(result);
     expect(html).toContain(
       "requires one of its child listings to be booked too (Add-on)",
     );
   });
 
   test("editing an attendee who booked both parent and child shows no missing-child warning", async () => {
-    const { adminGet } = await import("#test-utils");
     const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
     const { parent, child } = await linkedParentChild();
     // Both lines booked on the one attendee — the gate is satisfied.
@@ -162,10 +167,7 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
       email: "a@b.com",
       name: "Ada",
     });
-    const attendee = (result as { success: true; attendees: { id: number }[] })
-      .attendees[0]!;
-    const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
-    const html = await response.text();
+    const html = await attendeeEditHtml(result);
     expect(html).not.toContain("requires one of its child listings");
   });
 
