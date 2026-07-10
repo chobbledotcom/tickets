@@ -197,6 +197,18 @@ const ALLOWED_TEST_HOOKS: string[] = [
   // Payments-retention floor guard used in production (same-file: validates
   // PRUNE_PAYMENTS_RETENTION_DAYS at import) but test pattern doesn't detect same-file usage
   "shared/limits.ts:assertPaymentsRetentionSafe",
+  // Retention *_DAYS / *_HOURS constants used in production (same-file: derive
+  // the *_MS derivatives that prune.ts imports) but the pattern can't detect
+  // same-file arithmetic (`X * DAY_MS` — `*` isn't in its usage character class).
+  "shared/limits.ts:PRUNE_PAYMENTS_RETENTION_DAYS",
+  "shared/limits.ts:PRUNE_SESSIONS_RETENTION_DAYS",
+  "shared/limits.ts:PRUNE_LOGINS_RETENTION_DAYS",
+  "shared/limits.ts:PRUNE_TOKENS_RETENTION_DAYS",
+  "shared/limits.ts:PRUNE_SUMUP_RETENTION_HOURS",
+  "shared/limits.ts:PRUNE_UNUSED_STRINGS_RETENTION_DAYS",
+  "shared/limits.ts:PRUNE_CONTACTS_RETENTION_DAYS",
+  "shared/limits.ts:ADDRESS_CACHE_DAYS",
+  "shared/limits.ts:PRUNE_INTERVAL_HOURS",
   // Test helper for creating signed webhook payloads
   "shared/stripe.ts:constructTestWebhookEvent",
   // Reset cached Square client between tests

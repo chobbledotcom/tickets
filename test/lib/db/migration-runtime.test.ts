@@ -30,6 +30,7 @@ import {
   setTestEnv,
   stubNtfyFetch,
   TEST_ADMIN_PASSWORD,
+  withVirtualBackoff,
 } from "#test-utils";
 import { markCurrentSchemaMigrationPending } from "./migration-test-helpers.ts";
 
@@ -182,16 +183,18 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
     test("retries a transient verify failure and then resolves", async () => {
       let attempts = 0;
-      await verifyMigrationWithRetry(
-        fakeMigration(() => {
-          attempts++;
-          // Fail on the first two snapshots (stale schema), succeed on the third.
-          return attempts < 3
-            ? Promise.reject(
-                new Error("Migration verification failed: missing column(s)"),
-              )
-            : Promise.resolve();
-        }),
+      await withVirtualBackoff(() =>
+        verifyMigrationWithRetry(
+          fakeMigration(() => {
+            attempts++;
+            // Fail on the first two snapshots (stale schema), succeed on the third.
+            return attempts < 3
+              ? Promise.reject(
+                  new Error("Migration verification failed: missing column(s)"),
+                )
+              : Promise.resolve();
+          }),
+        ),
       );
       expect(attempts).toBe(3);
     });
@@ -199,11 +202,13 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
     test("rethrows after exhausting every retry", async () => {
       let attempts = 0;
       await expect(
-        verifyMigrationWithRetry(
-          fakeMigration(() => {
-            attempts++;
-            return Promise.reject(new Error("genuine schema defect"));
-          }),
+        withVirtualBackoff(() =>
+          verifyMigrationWithRetry(
+            fakeMigration(() => {
+              attempts++;
+              return Promise.reject(new Error("genuine schema defect"));
+            }),
+          ),
         ),
       ).rejects.toThrow("genuine schema defect");
       // One initial attempt plus one per backoff entry.
@@ -226,21 +231,25 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       // retry alone resolves it.
       let upCalls = 0;
       let attempts = 0;
-      await applyMigrationWithRetry(
-        fakeMigration({
-          up: () => {
-            upCalls++;
-            return Promise.resolve();
-          },
-          verify: () => {
-            attempts++;
-            return attempts < 3
-              ? Promise.reject(
-                  new Error("Migration verification failed: missing column(s)"),
-                )
-              : Promise.resolve();
-          },
-        }),
+      await withVirtualBackoff(() =>
+        applyMigrationWithRetry(
+          fakeMigration({
+            up: () => {
+              upCalls++;
+              return Promise.resolve();
+            },
+            verify: () => {
+              attempts++;
+              return attempts < 3
+                ? Promise.reject(
+                    new Error(
+                      "Migration verification failed: missing column(s)",
+                    ),
+                  )
+                : Promise.resolve();
+            },
+          }),
+        ),
       );
       expect(attempts).toBe(3);
       expect(upCalls).toBe(1);
@@ -256,24 +265,26 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       // verify retries has failed.
       let upCalls = 0;
       let indexCreated = false;
-      await applyMigrationWithRetry(
-        fakeMigration({
-          up: () => {
-            upCalls++;
-            // First up() skips the index (lagging snapshot); the second sees the
-            // table and creates it.
-            if (upCalls >= 2) indexCreated = true;
-            return Promise.resolve();
-          },
-          verify: () =>
-            indexCreated
-              ? Promise.resolve()
-              : Promise.reject(
-                  new Error(
-                    "Migration verification failed: missing index idx_system_notes_attendee_id",
+      await withVirtualBackoff(() =>
+        applyMigrationWithRetry(
+          fakeMigration({
+            up: () => {
+              upCalls++;
+              // First up() skips the index (lagging snapshot); the second sees the
+              // table and creates it.
+              if (upCalls >= 2) indexCreated = true;
+              return Promise.resolve();
+            },
+            verify: () =>
+              indexCreated
+                ? Promise.resolve()
+                : Promise.reject(
+                    new Error(
+                      "Migration verification failed: missing index idx_system_notes_attendee_id",
+                    ),
                   ),
-                ),
-        }),
+          }),
+        ),
       );
       // up() ran exactly twice — once initially, once to repair — never per retry.
       expect(upCalls).toBe(2);
@@ -284,17 +295,19 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       let upCalls = 0;
       let verifyAttempts = 0;
       await expect(
-        applyMigrationWithRetry(
-          fakeMigration({
-            up: () => {
-              upCalls++;
-              return Promise.resolve();
-            },
-            verify: () => {
-              verifyAttempts++;
-              return Promise.reject(new Error("genuine schema defect"));
-            },
-          }),
+        withVirtualBackoff(() =>
+          applyMigrationWithRetry(
+            fakeMigration({
+              up: () => {
+                upCalls++;
+                return Promise.resolve();
+              },
+              verify: () => {
+                verifyAttempts++;
+                return Promise.reject(new Error("genuine schema defect"));
+              },
+            }),
+          ),
         ),
       ).rejects.toThrow("genuine schema defect");
       // A genuine defect re-runs up() exactly once (the bounded repair), not once

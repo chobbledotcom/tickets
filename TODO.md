@@ -223,12 +223,6 @@ was pure relocation + cpd dedup (the task explicitly required "do NOT change wha
 any test asserts"), so these were left untouched and tracked here instead. Each is
 a small, isolated assertion-strength improvement.*
 
-- **`payment.test.ts` — assert payment stays unrefunded after ledger failure.**
-  The "surfaces a Stripe refund the ledger could not record" test only checks the
-  error flash; its comment says the payment must remain visibly un-refunded. Add a
-  state/UI assertion after the POST so a regression that both flashes an error AND
-  marks the payment refunded cannot pass. (Original monolith lines 2340–2384.)
-
 - **`resend-notification.test.ts` — `setTimeout(resolve, 0)` is race-prone.** The
   "a package member's resend rehydrates every line" test waits for the
   fire-and-forget webhook with a zero-delay timer, which is scheduler-dependent
@@ -373,6 +367,32 @@ standalone parent whose sibling-capacity sold-out package hid its member row and
 asserts the child selector still renders. (Note the `hideListings` half may be
 unreachable — the code assumes only visible packages contain parents — so verify
 that invariant before widening the fix.)
+
+---
+
+## Test-suite speed — remaining opportunities
+
+*Origin: the test-suite performance pass (lazy Sentry, fast `toContain`,
+migration-suite sharding, `withVirtualBackoff`, `cachedAdminPage`; see the
+Fast Tests section of AGENTS.md). These were identified during profiling but
+deliberately left for later:*
+
+- **Shard `test/lib/db/legacy-migration.test.ts`** (~600 lines, ~13s of
+  sequential full legacy→current migration runs in one file). Same recipe as
+  `test/lib/db/migration-restore/`: move the legacy schema + helpers into a
+  shared module and split the six tests across two or three shard files so
+  `deno test --parallel` spreads them.
+- **Per-file module-graph evaluation.** Every test file re-evaluates the app's
+  module graph (~0.35s each after the lazy-Sentry fix, ~250 files ≈ 80-90s of
+  CPU per run). The biggest remaining import-time chunks are `@libsql/client`
+  (~65ms, needed) and the `#routes` feature tree (~150ms). Any further
+  import-time work moved behind `once()`/dynamic import pays for itself ~250×
+  per run — profile with a `performance.now()` probe around `import("#test-utils")`
+  under `deno test` before and after.
+- **`test/lib/stripe-mock/ports.test.ts` (~4s)** spawns real child processes
+  to test the harness's port handling; each spawn is inherently slow. If it
+  grows, the port-conflict cases could stub the child-process layer the same
+  way the supervisor tests do.
 
 ---
 

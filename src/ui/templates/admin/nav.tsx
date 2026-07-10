@@ -1,16 +1,23 @@
 /**
  * Shared admin navigation.
  *
- * AdminNav builds the whole menu for the current page from one schema: the
- * top-level links, plus — for the section the page belongs to — that section's
- * sub-nav. The schema is lifted into the shared leveled-nav model and rendered
- * by the same `leveledNav` renderer the public nav uses (the desktop sidebar
- * with nested levels, and the stacked mobile bars).
+ * AdminNav builds the whole menu for the current page from one schema
+ * (`#shared/admin-pages.ts`): the top-level links, plus — for the section the
+ * page belongs to — that section's sub-nav. The pure schema folds decide which
+ * links/sections are visible for the viewer's role and feature flags; this
+ * module evaluates those flags at render time, resolves i18n label keys, and
+ * renders through the shared `leveledNav` renderer the public nav uses.
  */
 
-import { compact } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
+import {
+  type NavCtx,
+  type NavLink,
+  type NavSection,
+  visibleSections,
+  visibleTopLevel,
+} from "#shared/admin-pages.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   getReadOnlyCutoffIso,
@@ -21,7 +28,7 @@ import {
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { isSupportEnabled } from "#shared/support.ts";
-import type { AdminSession } from "#shared/types.ts";
+import type { AdminLevel, AdminSession } from "#shared/types.ts";
 import { markAdminFooter } from "#templates/admin/footer.tsx";
 import { SettingsNagBanner } from "#templates/admin/settings-nag-banner.tsx";
 import {
@@ -48,10 +55,10 @@ import {
  * section's landing page, so the section's "Add" create link has no business
  * appearing beside it — and the sub-nav resolves purely from the active route,
  * so a detail page that reuses the section's landing route as a bare `active`
- * string (to get the top link highlighted) would silently re-trigger that "Add"
- * affordance. Naming the section explicitly makes that impossible to do by
- * accident: a section a page is *in* can never be mistaken for the section's
- * landing route the page is *on*.
+ *   string (to get the top link highlighted) would silently re-trigger that "Add"
+ *   affordance. Naming the section explicitly makes that impossible to do by
+ *   accident: a section a page is *in* can never be mistaken for the section's
+ *   landing route the page is *on*.
  */
 export type NavActive = string | { readonly section: string };
 
@@ -60,28 +67,22 @@ const activeRoute = (active: NavActive): string =>
   typeof active === "string" ? active : active.section;
 
 /** True when a page is merely *within* a section (a single-item detail/child
- * page) rather than on a real section route — so it highlights the section's
- * top link but shows no sub-nav. */
+ * page) rather than on a real section route — so it highlights the section's top
+ * link but shows no sub-nav. */
 const isWithinSection = (active: NavActive): boolean =>
   typeof active !== "string";
 
-/** One navigation link. */
+/** One navigation link (i18n label already resolved). */
 interface NavItem {
   href: string;
   label: string;
 }
 
-const navItem = (href: string, label: string): NavItem => ({ href, label });
-const imagesItem = (): NavItem => navItem("/admin/images", t("terms.images"));
-const siteItem = (): NavItem => navItem("/admin/site", t("nav.site"));
-
-/** True when `active` is any route in the Site section — the editor landing
- * (/admin/site) or a sub-page (/admin/site/contact, /admin/site/pages, …). Used
- * to keep the top-level Site parent present for an owner editing the site before
- * it's public: the desktop sub-nav nests under the active parent, so without the
- * parent the Contact/Order/Pages links would have nothing to hang from. */
-const isSiteSectionRoute = (active: string): boolean =>
-  active === "/admin/site" || active.startsWith("/admin/site/");
+/** Resolve a schema link's labelKey to a display label. */
+const resolveLink = ({ href, labelKey }: NavLink): NavItem => ({
+  href,
+  label: t(labelKey),
+});
 
 /** The resolved menu for the active section: which top-level link to highlight,
  * an accessible name for its sub-nav, and its items. */
@@ -92,6 +93,13 @@ interface Section {
   label: string;
   items: NavItem[];
 }
+
+/** Resolve a schema section to a renderable section (labels resolved). */
+const resolveSectionItems = (sec: NavSection): Section => ({
+  items: sec.items.map(resolveLink),
+  label: t(sec.labelKey),
+  topHref: sec.topHref,
+});
 
 /** Render read-only or warning banner with optional renewal URL */
 const renderReadOnlyBanner = (
@@ -125,217 +133,19 @@ const renderReadOnlyBanner = (
   return null;
 };
 
-/** Editors only ever reach the content pages: listings, groups, and the public
- * site editor. Everything else is gated away, so their nav lists exactly those
- * (no dead/forbidden links). The Site editor is surfaced top-level here because
- * the owner-only Settings parent it normally nests under is hidden from them. */
-const editorTopLevelItems = (): NavItem[] =>
-  compact([
-    navItem("/admin/listings", t("terms.listings")),
-    navItem("/admin/groups", t("terms.groups")),
-    isStorageEnabled() ? imagesItem() : null,
-    siteItem(),
-  ]);
-
-/** Top-level admin links, in order. Users and Settings are owner-only. Each
- * link is only the section's landing page — the "Add X" create links live in
- * that section's sub-nav (see the section builders below), so they show only
- * once you're inside the section, not on every page. `active` is passed so the
- * Site parent stays present while an owner is on the Site editor even before
- * the public site is enabled (otherwise the desktop sub-nav, which nests under
- * the matching top item, would have no parent to hang from). */
-const topLevelItems = (session: AdminSession, active: string): NavItem[] =>
-  session.adminLevel === "editor"
-    ? editorTopLevelItems()
-    : compact([
-        { href: "/admin/", label: t("nav.public.home") },
-        navItem("/admin/listings", t("terms.listings")),
-        { href: "/admin/calendar", label: t("nav.calendar") },
-        { href: "/admin/servicing", label: t("nav.servicing") },
-        { href: "/admin/attendees", label: t("terms.attendees") },
-        session.adminLevel === "owner"
-          ? { href: "/admin/users", label: t("terms.users") }
-          : null,
-        navItem("/admin/groups", t("terms.groups")),
-        isStorageEnabled() ? imagesItem() : null,
-        { href: "/admin/modifiers", label: t("terms.modifiers") },
-        session.adminLevel === "owner"
-          ? { href: "/admin/ledger", label: t("nav.ledger") }
-          : null,
-        // Site is a top-level section for owners once the public site is on —
-        // or whenever they're on any Site editor page, so the section keeps a
-        // desktop parent even before enabling the public site. (Editors always
-        // have it top-level; managers/agents never edit the site.)
-        session.adminLevel === "owner" &&
-        (settings.showPublicSite || isSiteSectionRoute(active))
-          ? siteItem()
-          : null,
-        session.adminLevel === "owner"
-          ? { href: "/admin/settings", label: t("nav.settings") }
-          : null,
-      ]);
-
-/** Calendar sub-nav: shown only when logistics adds the deliveries run sheet to
- * branch to — otherwise the section is just the calendar, with no sub-nav. */
-const calendarSub = (): NavItem[] | null =>
-  settings.hasLogistics
-    ? [
-        { href: "/admin/calendar", label: t("nav.calendar") },
-        { href: "/admin/deliveries", label: t("nav.deliveries") },
-      ]
-    : null;
-
-/** A section's landing link paired with its create link. The landing link is
- * listed so the section can `ownsActive` its own route, but it's never rendered
- * in the sub-nav (`sectionLevels` filters it out — the top-level bar carries
- * it). The create link is a plain, collection-agnostic "Add": we're already
- * inside the section, so it needn't repeat the collection name. It drops out in
- * read-only mode, matching every other create affordance — a nav link must not
- * offer a create flow the site itself won't allow right now. */
-const sectionWithAdd = (
-  href: string,
-  label: string,
-  addHref: string,
-): NavItem[] => [
-  navItem(href, label),
-  ...(isReadOnly() ? [] : [navItem(addHref, t("nav.sub.add"))]),
-];
-
-/** Listings sub-nav: an "Add" create link and a catalog "Import" link (both
- * read-only-gated), sitting under the top-level Listings link. */
-const listingsSub = (): NavItem[] => [
-  navItem("/admin/listings", t("terms.listings")),
-  ...(isReadOnly()
-    ? []
-    : [
-        navItem("/admin/listing/new", t("nav.sub.add")),
-        navItem("/admin/catalog/import", t("nav.sub.import")),
-      ]),
-];
-
-/** Groups sub-nav: an "Add" create link. */
-const groupsSub = (): NavItem[] =>
-  sectionWithAdd("/admin/groups", t("terms.groups"), "/admin/groups/new");
-
-/** Servicing sub-nav: an "Add" create link. */
-const servicingSub = (): NavItem[] =>
-  sectionWithAdd(
-    "/admin/servicing",
-    t("nav.servicing"),
-    "/admin/servicing/new",
-  );
-
-/** Attendees sub-nav: an "Add" create link. */
-const attendeesSub = (): NavItem[] =>
-  sectionWithAdd(
-    "/admin/attendees",
-    t("terms.attendees"),
-    "/admin/attendees/new",
-  );
-
-/** Modifiers sub-nav: an "Add" create link. */
-const modifiersSub = (): NavItem[] =>
-  sectionWithAdd(
-    "/admin/modifiers",
-    t("terms.modifiers"),
-    "/admin/modifiers/new",
-  );
-
-/** Images sub-nav: an "Add" create link. */
-const imagesSub = (): NavItem[] =>
-  sectionWithAdd("/admin/images", t("terms.images"), "/admin/images/new");
-
-/** Users sub-nav: an "Invite" link, then sessions/API keys. */
-const usersSub = (): NavItem[] => [
-  navItem("/admin/users", t("terms.users")),
-  ...(isReadOnly() ? [] : [navItem("/admin/user/new", t("nav.sub.invite"))]),
-  { href: "/admin/sessions", label: t("nav.sub.sessions") },
-  { href: "/admin/api-keys", label: t("nav.sub.api_keys") },
-];
-
-/** Settings sub-nav. Built sites and Support appear only when enabled. (Site is
- * no longer here — it's a top-level section; see `resolveSection`.) */
-const settingsSub = (): NavItem[] =>
-  compact([
-    { href: "/admin/settings", label: t("nav.sub.settings") },
-    { href: "/admin/listing-defaults", label: t("nav.sub.listing_defaults") },
-    { href: "/admin/settings/statuses", label: t("nav.sub.statuses") },
-    { href: "/admin/privacy", label: t("nav.sub.privacy") },
-    { href: "/admin/questions", label: t("terms.questions") },
-    { href: "/admin/logistics", label: t("nav.logistics") },
-    { href: "/admin/emails", label: t("nav.emails") },
-    { href: "/admin/holidays", label: t("terms.holidays") },
-    isBuilderEnabled()
-      ? { href: "/admin/built-sites", label: t("nav.built_sites") }
-      : null,
-    { href: "/admin/settings-advanced", label: t("nav.sub.advanced") },
-    { href: "/admin/backup", label: t("nav.sub.backups") },
-    { href: "/admin/update", label: t("nav.sub.updates") },
-    { href: "/admin/debug", label: t("nav.sub.debug") },
-    isSupportEnabled()
-      ? { href: "/admin/support", label: t("nav.support") }
-      : null,
-  ]);
-
-/** Site editor sub-nav (the Site section's own pages). */
-const siteSub = (): NavItem[] => [
-  { href: "/admin/site", label: t("site.sub_nav.homepage") },
-  { href: "/admin/site/contact", label: t("site.sub_nav.contact") },
-  { href: "/admin/site/order", label: t("site.sub_nav.order") },
-  { href: "/admin/site/pages", label: t("nav.site.pages") },
-  { href: "/admin/site/news", label: t("nav.site.news") },
-];
-
-const section = (
-  topHref: string,
-  label: string,
-  items: NavItem[],
-): Section => ({
-  items,
-  label,
-  topHref,
+/** Evaluate all feature flags once per nav render, producing the pure context
+ * the schema folds consume. This is the thin IO shell around
+ * `admin-pages.ts` — the schema knows nothing about settings, env, or storage. */
+const navCtx = (adminLevel: AdminLevel, active: string): NavCtx => ({
+  active,
+  adminLevel,
+  builder: isBuilderEnabled(),
+  hasLogistics: settings.hasLogistics,
+  isReadOnly: isReadOnly(),
+  showPublicSite: settings.showPublicSite,
+  storage: isStorageEnabled(),
+  support: isSupportEnabled(),
 });
-
-/** Every section that owns a sub-nav, for this role. A section only appears for
- * a role that can see its top-level link, so we never resolve a sub-nav whose
- * parent link the viewer doesn't have. Calendar drops out when it has no
- * deliveries run sheet to branch to (just the calendar, no sub-nav).
- *
- * Editors only ever reach the content sections (Listings, Groups) and the Site
- * editor; everything else is owner-only, so their list omits it entirely. */
-const sectionsForRole = (adminLevel: AdminSession["adminLevel"]): Section[] => {
-  const siteSection = section("/admin/site", t("nav.site"), siteSub());
-  // The Images section only exists while storage is on — that's the same
-  // condition under which its top-level link appears (see `topLevelItems`).
-  const imagesSection = isStorageEnabled()
-    ? section("/admin/images", t("terms.images"), imagesSub())
-    : null;
-  if (adminLevel === "editor") {
-    return compact([
-      section("/admin/listings", t("terms.listings"), listingsSub()),
-      section("/admin/groups", t("terms.groups"), groupsSub()),
-      imagesSection,
-      siteSection,
-    ]);
-  }
-  const calendar = calendarSub();
-  return compact([
-    section("/admin/listings", t("terms.listings"), listingsSub()),
-    calendar ? section("/admin/calendar", t("nav.calendar"), calendar) : null,
-    section("/admin/servicing", t("nav.servicing"), servicingSub()),
-    section("/admin/attendees", t("terms.attendees"), attendeesSub()),
-    section("/admin/modifiers", t("terms.modifiers"), modifiersSub()),
-    section("/admin/groups", t("terms.groups"), groupsSub()),
-    imagesSection,
-    adminLevel === "owner"
-      ? section("/admin/users", t("terms.users"), usersSub())
-      : null,
-    adminLevel === "owner"
-      ? section("/admin/settings", t("nav.settings"), settingsSub())
-      : null,
-    adminLevel === "owner" ? siteSection : null,
-  ]);
-};
 
 /** A section owns the active route when it's the section's landing link or one
  * of its sub-nav links (an "Add X" create page, a settings sub-page, …). */
@@ -348,13 +158,10 @@ const ownsActive = (candidate: Section, active: string): boolean =>
  * resolves the section so its top-level link highlights, and a deeper route
  * (a create page like /admin/listing/new, or a sub-page like /admin/privacy)
  * additionally highlights that sub-nav link — see `sectionLevels`. */
-const resolveSection = (
-  active: string,
-  adminLevel: AdminSession["adminLevel"],
-): Section | null =>
-  sectionsForRole(adminLevel).find((candidate) =>
-    ownsActive(candidate, active),
-  ) ?? null;
+const resolveSection = (active: string, ctx: NavCtx): Section | null =>
+  visibleSections(ctx)
+    .map(resolveSectionItems)
+    .find((candidate) => ownsActive(candidate, active)) ?? null;
 
 /** Lift the plain link schema into leveled-nav nodes: every admin link is live
  * (the schema already omits links the viewer's role can't open), and `highlight`
@@ -422,9 +229,10 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => {
   // (Chobble link, optional debug menu, and the logout button).
   markAdminFooter(session.adminLevel);
   const route = activeRoute(active);
-  const activeSection = resolveSection(route, session.adminLevel);
+  const ctx = navCtx(session.adminLevel, route);
+  const activeSection = resolveSection(route, ctx);
   const highlight = activeSection?.topHref ?? route;
-  const rootNodes = toNodes(topLevelItems(session, route), highlight);
+  const rootNodes = toNodes(visibleTopLevel(ctx).map(resolveLink), highlight);
   // A page merely *within* a section highlights its top link but shows no
   // sub-nav — the section's "Add" create link is not an affordance for a
   // single-item detail page.

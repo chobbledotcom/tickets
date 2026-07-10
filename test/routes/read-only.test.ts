@@ -110,6 +110,11 @@ describeWithEnv(
       "/admin/attendees/new",
       "/admin/ledger/attendee/42/add",
       "/admin/ledger/entries/9/edit",
+      // These create pages were gaps in the original hand-maintained list —
+      // the schema derivation catches them automatically now.
+      "/admin/servicing/new",
+      "/admin/modifiers/new",
+      "/admin/user/new",
     ];
     for (const path of getRedirectPaths) {
       test(`GET ${path} redirects to /read-only`, async () => {
