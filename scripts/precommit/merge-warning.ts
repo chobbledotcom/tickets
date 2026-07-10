@@ -1,18 +1,21 @@
-export interface CommandResult {
-  code: number;
-  stdout: string;
-  stderr: string;
-  success: boolean;
-}
+import {
+  commandValue,
+  isInsideWorkTree,
+  type RunCommand,
+  runGit,
+} from "./git.ts";
 
-export type RunCommand = (cmd: string[]) => Promise<CommandResult>;
+export type { CommandResult, RunCommand } from "./git.ts";
 
-export const runCommand: RunCommand = async (
-  cmd: string[],
-): Promise<CommandResult> => {
+/** Split a command into [executable, args], rejecting an empty command. */
+const splitCommand = (cmd: string[]): [string, string[]] => {
   const [command, ...args] = cmd;
   if (!command) throw new Error("No command configured");
+  return [command, args];
+};
 
+export const runCommand: RunCommand = async (cmd) => {
+  const [command, args] = splitCommand(cmd);
   const output = await new Deno.Command(command, {
     args,
     stderr: "piped",
@@ -28,12 +31,8 @@ export const runCommand: RunCommand = async (
   };
 };
 
-export const runInteractiveCommand: RunCommand = async (
-  cmd: string[],
-): Promise<CommandResult> => {
-  const [command, ...args] = cmd;
-  if (!command) throw new Error("No command configured");
-
+export const runInteractiveCommand: RunCommand = async (cmd) => {
+  const [command, args] = splitCommand(cmd);
   const status = await new Deno.Command(command, {
     args,
     stderr: "inherit",
@@ -61,24 +60,10 @@ export const parseMergeTreeConflictedPaths = (stdout: string): string[] => {
   return Array.from(new Set(paths));
 };
 
-const runGit = (run: RunCommand, args: string[]): Promise<CommandResult> =>
-  run(["git", ...args]);
-
-const commandValue = async (
-  run: RunCommand,
-  args: string[],
-): Promise<string | undefined> => {
-  const result = await runGit(run, args);
-  if (!result.success) return undefined;
-  const value = result.stdout.trim();
-  return value || undefined;
-};
-
 export const getMergeConflictWarning = async (
   run: RunCommand,
 ): Promise<string | undefined> => {
-  const inWorkTree = await runGit(run, ["rev-parse", "--is-inside-work-tree"]);
-  if (!inWorkTree.success) return undefined;
+  if (!(await isInsideWorkTree(run))) return undefined;
 
   const originUrl = await commandValue(run, ["remote", "get-url", "origin"]);
   const head = await commandValue(run, ["rev-parse", "--verify", "HEAD"]);

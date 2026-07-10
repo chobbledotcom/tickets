@@ -61,6 +61,22 @@ function resolveImport(specifier: string, fromFile: string): string | null {
 const isTypeScriptFile = (name: string): boolean =>
   name.endsWith(".ts") || name.endsWith(".tsx");
 
+/** Read a project-relative source file as UTF-8 text. */
+const readSource = (filePath: string): string =>
+  fs.readFileSync(path.resolve(ROOT, filePath), "utf-8");
+
+/** Split a comma-separated `a, b as c` list into bare names, dropping aliases. */
+const splitAliasedNames = (raw: string): string[] =>
+  raw
+    .split(",")
+    .map((n: string) =>
+      n
+        .trim()
+        .replace(/\s+as\s+\w+/, "")
+        .trim(),
+    )
+    .filter(Boolean);
+
 /** List direct entries in a directory, classifying as files or subdirs */
 function listEntries(d: string): { dirs: string[]; files: string[] } {
   const dirs: string[] = [];
@@ -94,7 +110,7 @@ function collectFiles(dir: string): string[] {
 function extractImports(
   filePath: string,
 ): { specifier: string; names: string[] }[] {
-  const content = fs.readFileSync(path.resolve(ROOT, filePath), "utf-8");
+  const content = readSource(filePath);
   const imports: { specifier: string; names: string[] }[] = [];
 
   // Static imports/exports:
@@ -110,16 +126,7 @@ function extractImports(
   for (const match of content.matchAll(staticRegex)) {
     const namedImports = (match[1] || "") + (match[3] || "");
     const specifier = match[4]!;
-    const names = namedImports
-      .split(",")
-      .map((n: string) =>
-        n
-          .trim()
-          .replace(/\s+as\s+\w+/, "")
-          .trim(),
-      )
-      .filter(Boolean);
-    imports.push({ names, specifier });
+    imports.push({ names: splitAliasedNames(namedImports), specifier });
   }
 
   // Dynamic imports:
@@ -132,16 +139,7 @@ function extractImports(
   for (const match of content.matchAll(dynamicRegex)) {
     const namedImports = match[1] || "";
     const specifier = match[2]!;
-    const names = namedImports
-      .split(",")
-      .map((n: string) =>
-        n
-          .trim()
-          .replace(/\s+as\s+\w+/, "")
-          .trim(),
-      )
-      .filter(Boolean);
-    imports.push({ names, specifier });
+    imports.push({ names: splitAliasedNames(namedImports), specifier });
   }
 
   return imports;
@@ -160,20 +158,14 @@ const EXPORT_PATTERNS: RegExp[] = [
 const extractBraceExports = (content: string): string[] => {
   const names: string[] = [];
   for (const m of content.matchAll(/export\s+\{([^}]+)\}(?!\s*from)/g)) {
-    for (const name of m[1]!.split(",")) {
-      const trimmed = name
-        .trim()
-        .replace(/\s+as\s+\w+/, "")
-        .trim();
-      if (trimmed) names.push(trimmed);
-    }
+    names.push(...splitAliasedNames(m[1]!));
   }
   return names;
 };
 
 /** Extract exported names from a file */
 function extractExports(filePath: string): string[] {
-  const content = fs.readFileSync(path.resolve(ROOT, filePath), "utf-8");
+  const content = readSource(filePath);
   const exports: string[] = [];
 
   for (const pattern of EXPORT_PATTERNS) {
@@ -218,6 +210,27 @@ type ImportInfo = { file: string; names: string[] };
 const importedBySrc = new Map<string, ImportInfo[]>();
 const importedByTest = new Map<string, ImportInfo[]>();
 
+/** The src/ and test/ importers recorded for one source file. */
+const importersOf = (
+  srcFile: string,
+): { src: ImportInfo[]; test: ImportInfo[] } => ({
+  src: importedBySrc.get(srcFile) ?? [],
+  test: importedByTest.get(srcFile) ?? [],
+});
+
+// Files eligible for the "imported only by tests" and "dead code" checks:
+// entry points and browser-only client code are expected to sit outside the
+// module graph, so they are never reported.
+const candidateSrcFiles = srcFiles.filter(
+  (f) => !entryPoints.has(f) && !f.startsWith("src/ui/client/"),
+);
+
+/** True when `srcFile` is imported by neither src/ nor test/ files. */
+const isNeverImported = (srcFile: string): boolean => {
+  const { src, test } = importersOf(srcFile);
+  return src.length === 0 && test.length === 0;
+};
+
 for (const file of allFiles) {
   const imports = extractImports(file);
   for (const { specifier, names } of imports) {
@@ -254,14 +267,10 @@ console.log(
 );
 
 let fileCount = 0;
-for (const srcFile of srcFiles) {
-  if (entryPoints.has(srcFile)) continue;
-  if (srcFile.startsWith("src/ui/client/")) continue;
-
-  const srcImporters = importedBySrc.get(srcFile) ?? [];
-  const testImporters = importedByTest.get(srcFile) ?? [];
-
-  if (srcImporters.length === 0 && testImporters.length > 0) {
+for (const srcFile of candidateSrcFiles) {
+  const { src: srcImporters, test: testImporters } = importersOf(srcFile);
+  const testOnly = srcImporters.length === 0 && testImporters.length > 0;
+  if (testOnly) {
     fileCount++;
     const testFileList = [...new Set(testImporters.map((i) => i.file))];
     console.log(`  ${srcFile}`);
@@ -287,8 +296,7 @@ console.log(
 
 let exportCount = 0;
 for (const srcFile of srcFiles) {
-  const srcImporters = importedBySrc.get(srcFile) ?? [];
-  const testImporters = importedByTest.get(srcFile) ?? [];
+  const { src: srcImporters, test: testImporters } = importersOf(srcFile);
 
   if (srcImporters.length === 0) continue;
   if (testImporters.length === 0) continue;
@@ -333,17 +341,10 @@ console.log(
 );
 
 let deadCount = 0;
-for (const srcFile of srcFiles) {
-  if (entryPoints.has(srcFile)) continue;
-  if (srcFile.startsWith("src/ui/client/")) continue;
-
-  const srcImporters = importedBySrc.get(srcFile) ?? [];
-  const testImporters = importedByTest.get(srcFile) ?? [];
-
-  if (srcImporters.length === 0 && testImporters.length === 0) {
-    deadCount++;
-    console.log(`  ${srcFile}`);
-  }
+for (const srcFile of candidateSrcFiles) {
+  if (!isNeverImported(srcFile)) continue;
+  deadCount++;
+  console.log(`  ${srcFile}`);
 }
 
 if (deadCount === 0) {
