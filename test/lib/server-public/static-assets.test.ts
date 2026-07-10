@@ -2,7 +2,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { describeWithEnv, mockRequest } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 import {
   expect404ForNonGetStatic,
   expectLongCacheHeaders,

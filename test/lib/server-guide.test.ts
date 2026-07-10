@@ -9,11 +9,11 @@ import {
 import {
   assertAdminHtml,
   cachedAdminPage,
-  describeWithEnv,
-  setTestEnv,
   testRequiresAuth,
-  validEmail,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { validEmail } from "#test-utils/email.ts";
+import { setTestEnv } from "#test-utils/env.ts";
 
 describeWithEnv("server (admin guide)", { db: true }, () => {
   // The guide's default rendering is identical in every test (static help

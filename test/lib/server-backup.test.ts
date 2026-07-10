@@ -7,19 +7,20 @@ import { downloadRaw, uploadRaw } from "#shared/storage.ts";
 import { recordScriptVersion, setBuildCommitForTest } from "#shared/update.ts";
 import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
 import {
-  adminFormPost,
-  adminGet,
-  awaitTestRequest,
-  createTestHoliday,
-  createTestListing,
-  createTestManagerSession,
-  describeWithEnv,
   expectFlashRedirect,
   expectHtmlResponse,
-  getTestSession,
   testRequiresAuth,
-  withStorageDisabled,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest, withStorageDisabled } from "#test-utils/mocks.ts";
+import {
+  adminFormPost,
+  adminGet,
+  createTestManagerSession,
+  getTestSession,
+} from "#test-utils/session.ts";
 
 // The whole suite runs with a per-test local storage backend so the backup
 // create/restore/download paths have a real filesystem to read and write; the

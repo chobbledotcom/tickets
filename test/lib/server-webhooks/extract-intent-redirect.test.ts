@@ -4,17 +4,13 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
-import {
-  createTestListing,
-  describeWithEnv,
-  followRedirect,
-  mockRequest,
-  setupStripe,
-  signMeta,
-  singleItem,
-  stubRetrieveCheckoutSession,
-  webhookMeta,
-} from "#test-utils";
+import { followRedirect } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
+import { setupStripe } from "#test-utils/settings.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -110,7 +106,9 @@ describeWithEnv(
       const { insertBuiltSite, builtSites } = await import(
         "#shared/db/built-sites.ts"
       );
-      const { provisionTestBuiltSite } = await import("#test-utils");
+      const { provisionTestBuiltSite } = await import(
+        "#test-utils/db-helpers/built-sites.ts"
+      );
       const { bunnyCdnApi } = await import("#shared/bunny-cdn.ts");
       await insertBuiltSite(
         "Token Site",
@@ -230,7 +228,9 @@ describeWithEnv(
       const { insertBuiltSite, builtSites } = await import(
         "#shared/db/built-sites.ts"
       );
-      const { provisionTestBuiltSite } = await import("#test-utils");
+      const { provisionTestBuiltSite } = await import(
+        "#test-utils/db-helpers/built-sites.ts"
+      );
       const { bunnyCdnApi } = await import("#shared/bunny-cdn.ts");
       const listings = await getAllListings();
       const monthly = listings.find(

@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
-  describeWithEnv,
   followRedirectWithFlash,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("test-utils/assertions", { db: true }, () => {
   testRequiresAuth("/admin/settings");
@@ -21,7 +21,7 @@ describeWithEnv("test-utils/assertions", { db: true }, () => {
 
   testRequiresAuth("/admin/backup", {
     setup: async () => {
-      const { setTestEnv } = await import("#test-utils");
+      const { setTestEnv } = await import("#test-utils/env.ts");
       setTestEnv({ BUNNY_API_KEY: "test" });
     },
   });

@@ -3,15 +3,15 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { singleModifierMeta } from "#test-utils/factories.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
-  createTestListing,
-  describeWithEnv,
   expectKeptAsQuantityZeroAndRefunded,
   expectWebhookKeptAndRefunded,
-  setupStripe,
-  singleModifierMeta,
-} from "#test-utils";
+} from "#test-utils/webhooks.ts";
 import { createServiceChargeScenario } from "./service-charge-scenario.ts";
 
 // jscpd:ignore-end
@@ -107,7 +107,7 @@ describeWithEnv(
         stock: 1,
       });
       // Exhaust the single unit before the webhook arrives.
-      const { consumeModifierStock } = await import("#test-utils");
+      const { consumeModifierStock } = await import("#test-utils/modifiers.ts");
       await consumeModifierStock(999, [
         { amountApplied: 100, modifierId: modifier.id, quantity: 1 },
       ]);
@@ -140,7 +140,7 @@ describeWithEnv(
       const { getContactRecord, getVisits, hashEmail } = await import(
         "#shared/db/contact-preferences.ts"
       );
-      const { getTestPrivateKey } = await import("#test-utils");
+      const { getTestPrivateKey } = await import("#test-utils/crypto.ts");
       const buyerHash = await hashEmail("mod@example.com");
       expect(await getVisits(buyerHash)).toBe(0);
       expect(

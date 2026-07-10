@@ -3,17 +3,16 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
-  adminGet,
-  awaitTestRequest,
-  createTestAttendee,
-  createTestGroup,
-  createTestListing,
-  createTestManagerSession,
-  describeWithEnv,
   expectHtmlResponse,
   expectStatus,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { adminGet, createTestManagerSession } from "#test-utils/session.ts";
 
 describeWithEnv(
   "server (admin groups) — detail & sharing",
@@ -186,7 +185,9 @@ describeWithEnv(
       });
 
       test("group revenue comes from the ledger and survives attendee deletion", async () => {
-        const { bookAttendee } = await import("#test-utils");
+        const { bookAttendee } = await import(
+          "#test-utils/db-helpers/attendee-payments.ts"
+        );
         const { deleteAttendee } = await import(
           "#shared/db/attendees/delete.ts"
         );

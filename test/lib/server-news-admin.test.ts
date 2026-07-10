@@ -6,18 +6,17 @@ import {
   hasNewsPosts,
 } from "#shared/db/news-posts.ts";
 import type { NewsPost } from "#shared/types.ts";
+import { wasActivityLogged as wasLogged } from "#test-utils/activity-log.ts";
 import {
-  adminFormPost,
-  adminGet,
-  createTestNewsPost,
-  describeWithEnv,
   expectErrorFlash,
   expectHtmlResponse,
   expectRedirect,
   expectRedirectWithFlash,
   testRequiresAuth,
-  wasActivityLogged as wasLogged,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 const BASE = "/admin/site/news";
 

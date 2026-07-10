@@ -3,17 +3,16 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
-  adminGet,
-  awaitTestRequest,
-  describeWithEnv,
   expectHtml,
   expectHtmlResponse,
   FLASH_TEST_ID,
   flashCookieHeader,
-  setTestEnv,
-  testCookie,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setTestEnv } from "#test-utils/env.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { adminGet, testCookie } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin settings)", { db: true }, () => {
   afterEach(() => {

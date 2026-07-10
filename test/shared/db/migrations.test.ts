@@ -23,15 +23,14 @@ import {
   markCurrentSchemaMigrationPending,
   markMigrationsForRerun,
 } from "#test/lib/db/migration-test-helpers.ts";
+import { describeWithEnv, invalidateTestDbCache } from "#test-utils/db.ts";
 import {
   assertSchemaEmpty,
-  describeWithEnv,
-  invalidateTestDbCache,
   schemaMarkerKeys,
   settingsTableExists,
-  stubNtfyFetch,
   tableExists,
-} from "#test-utils";
+} from "#test-utils/migrations.ts";
+import { stubNtfyFetch } from "#test-utils/mocks.ts";
 
 describeWithEnv("db > migrations", { db: true }, () => {
   describe("initDb version check", () => {

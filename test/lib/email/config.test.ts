@@ -4,7 +4,7 @@ import { spy } from "@std/testing/mock";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
 import { updateBusinessEmail } from "#shared/validation/email.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("getEmailConfig", { db: true }, () => {
   test("returns null when no provider configured", async () => {

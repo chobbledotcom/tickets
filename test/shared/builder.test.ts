@@ -4,7 +4,6 @@ import { stub } from "@std/testing/mock";
 import { builderApi } from "#shared/builder.ts";
 import { bunnyDbProvider as bunnyDbApi } from "#shared/bunny-db.ts";
 import { tursoDbProvider as tursoApi } from "#shared/turso-api.ts";
-import { describeWithEnv, setTestEnv, withMocks } from "#test-utils";
 import {
   expectBuildError,
   expectSecret,
@@ -15,6 +14,9 @@ import {
   stubDenoBuilderApis,
   withBuildSiteMocks,
 } from "#test-utils/builder-mocks.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setTestEnv } from "#test-utils/env.ts";
+import { withMocks } from "#test-utils/mocks.ts";
 
 const BUILD_INPUT = {
   dbToken: "token123",

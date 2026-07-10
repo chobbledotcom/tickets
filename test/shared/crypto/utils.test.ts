@@ -11,7 +11,8 @@ import {
   toBase64,
   toBase64Url,
 } from "#shared/crypto/utils.ts";
-import { times, withRandomBytes } from "#test-utils";
+import { times } from "#test-utils/arrays.ts";
+import { withRandomBytes } from "#test-utils/random.ts";
 
 const expectUniqueGeneratedValues =
   (generate: () => string) =>

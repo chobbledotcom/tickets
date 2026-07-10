@@ -10,7 +10,7 @@ import { postTransfers } from "#shared/accounting/store.ts";
 import { getDb, withTransaction } from "#shared/db/client.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { AccountRef, TransferInput } from "#shared/ledger/types.ts";
-import { setupTransactionalTestDb } from "#test-utils";
+import { setupTransactionalTestDb } from "#test-utils/db.ts";
 import { tx } from "#test-utils/transfer-factory.ts";
 
 /** Post a standalone `writeoff` adjustment in its own transaction — the test-side

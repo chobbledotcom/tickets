@@ -9,13 +9,13 @@ import {
   createAttendeeAtomic,
 } from "#shared/db/attendees/api.ts";
 import { queryAll } from "#shared/db/client.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
-  bookAttendee,
   createDailyTestListing,
-  createTestGroup,
   createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
 
 /**
  * The read-time availability preflight (`checkBatchAvailability`) and the

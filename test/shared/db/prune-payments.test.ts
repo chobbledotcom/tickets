@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { prunePayments } from "#shared/db/prune.ts";
 import { PRUNE_PAYMENTS_RETENTION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   insertFailedPayment,
   insertFinalizedPayment,

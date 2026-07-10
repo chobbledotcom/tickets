@@ -17,15 +17,17 @@ import {
 import { createSession, getSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#shared/db/users.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   assertAdminPasswordRejects,
   assertAdminPasswordVerifies,
-  bookAttendee,
-  createTestListing,
-  describeWithEnv,
+} from "#test-utils/db-helpers/misc.ts";
+import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
-} from "#test-utils";
+} from "#test-utils/internal.ts";
 
 describeWithEnv("db > auth", { db: true }, () => {
   describe("admin password", () => {

@@ -39,14 +39,12 @@ import { FormParams } from "#shared/form-data.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { ContactInfo, ListingWithCount } from "#shared/types.ts";
-import {
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-  runAndCountRoundTrips,
-  testListingWithCount,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { testListingWithCount } from "#test-utils/factories.ts";
 import { makeParent } from "#test-utils/parents.ts";
+import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
 
 /** Wrap a listing-with-count as a selected cart line. */
 const line = (listing: ListingWithCount, qty = 1) => ({ listing, qty });
@@ -125,7 +123,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       expect((await getAttendeesRaw(e1.id)).length).toBe(1);
       expect((await getAttendeesRaw(e2.id)).length).toBe(1);
       // A kept order leaves the recorded public booking in place.
-      const { getTestPrivateKey } = await import("#test-utils");
+      const { getTestPrivateKey } = await import("#test-utils/crypto.ts");
       const record = await getContactRecord(
         await hashEmail(contact.email),
         await getTestPrivateKey(),
@@ -174,7 +172,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       // rolled-back order leaves no phantom history on the contact.
       const emailHash = await hashEmail(contact.email);
       expect(await getVisits(emailHash)).toBe(0);
-      const { getTestPrivateKey } = await import("#test-utils");
+      const { getTestPrivateKey } = await import("#test-utils/crypto.ts");
       const record = await getContactRecord(
         emailHash,
         await getTestPrivateKey(),

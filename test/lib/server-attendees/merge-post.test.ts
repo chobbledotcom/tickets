@@ -3,19 +3,18 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import { queryAll } from "#shared/db/client.ts";
+import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import {
-  adminFormPost,
-  adminGet,
-  createPaidTestAttendee,
-  createTestAttendeeDirect,
-  createTestListing,
-  describeWithEnv,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
-  getListingActivityLog,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { setupListingAndDirectAttendee } from "./helpers.ts";
 // jscpd:ignore-end
 import { getMergeVersion, mergePair, submitMerge } from "./merge.ts";

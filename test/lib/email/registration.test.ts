@@ -4,13 +4,11 @@ import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import type { EmailConfig } from "#shared/email.ts";
 import { sendRegistrationEmails, sendTestEmail } from "#shared/email.ts";
 import { updateBusinessEmail } from "#shared/validation/email.ts";
-import {
-  createTestGroup,
-  describeWithEnv,
-  makeTestEntry as makeEntry,
-  useFetchStub,
-  validEmail,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { validEmail } from "#test-utils/email.ts";
+import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
+import { useFetchStub } from "#test-utils/mocks.ts";
 
 const testConfig: EmailConfig = {
   apiKey: "re_test_key",

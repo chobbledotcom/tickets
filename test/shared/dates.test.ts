@@ -27,12 +27,8 @@ import {
   widestDatedEntry,
 } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import {
-  testHoliday,
-  testListing,
-  testWithSetting,
-  useSetting,
-} from "#test-utils";
+import { testHoliday, testListing } from "#test-utils/factories.ts";
+import { testWithSetting, useSetting } from "#test-utils/settings.ts";
 
 const today = () => todayInTz("UTC");
 

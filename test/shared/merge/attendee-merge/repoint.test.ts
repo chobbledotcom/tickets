@@ -9,12 +9,10 @@ import {
   finalizeSession,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
-import {
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-  getTestPrivateKey,
-} from "#test-utils";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   createAttendee,
   getBookings,

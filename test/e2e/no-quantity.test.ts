@@ -10,7 +10,6 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { awaitTestRequest } from "#test-utils";
 import {
   addAttendee,
   createListing,
@@ -21,6 +20,7 @@ import {
   ticketTokenOnPage,
   useE2eBrowser,
 } from "#test-utils/e2e.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 /** Fresh logged-in admin with one listing holding one real booking (quantity 2).

@@ -2,15 +2,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  adminGet,
-  bookAttendee,
-  createTestAttendeeDirect,
-  createTestListing,
-  describeWithEnv,
   expectHtmlResponse,
-  extractInputValue,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { extractInputValue } from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminGet } from "#test-utils/session.ts";
 import { setupListingAndDirectAttendee } from "./helpers.ts";
 // jscpd:ignore-end
 import { mergePair } from "./merge.ts";

@@ -3,11 +3,9 @@ import { it as test } from "@std/testing/bdd";
 import { resolveEntries } from "#routes/tickets/token-utils.ts";
 import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import { getDb } from "#shared/db/client.ts";
-import {
-  createTestAttendeeDirect,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("ticket token utils > resolveEntries", { db: true }, () => {
   test("skips listings when attendee bookings array is empty", async () => {

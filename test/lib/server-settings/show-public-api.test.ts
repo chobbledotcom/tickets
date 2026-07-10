@@ -3,15 +3,13 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
-  adminFormPost,
-  adminGet,
-  describeWithEnv,
   expectFlash,
   expectHtmlResponse,
-  mockFormRequest,
-  testCookie,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockFormRequest } from "#test-utils/mocks.ts";
+import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 
 describeWithEnv(
   "server (admin settings: show-public-api)",

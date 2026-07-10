@@ -16,17 +16,17 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   createRealAttendee,
   createServicingHold,
-  createTestListing,
   deleteServicingEvent,
-  describeWithEnv,
   expectRejects,
   kindOf,
   servicingRowsForListing,
   updateServicingEvent,
-} from "#test-utils";
+} from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 
@@ -77,7 +77,9 @@ describeWithEnv(
       // A servicing create must not land on an inactive listing — it would
       // book a hold the public can't see and the operator can't sell against.
       const listing = await createTestListing({ maxAttendees: 10, name: "L" });
-      const { deactivateTestListing } = await import("#test-utils");
+      const { deactivateTestListing } = await import(
+        "#test-utils/db-helpers/listings.ts"
+      );
       await deactivateTestListing(listing.id);
       await expectRejects(createServicingHold({ listing: { name: "L" } }));
     });
@@ -170,6 +172,8 @@ describeWithEnv(
 const createDailyTestListing = async (
   overrides: Parameters<typeof createTestListing>[0] = {},
 ) => {
-  const { createDailyTestListing: daily } = await import("#test-utils");
+  const { createDailyTestListing: daily } = await import(
+    "#test-utils/db-helpers/listings.ts"
+  );
   return daily({ maxAttendees: 5, name: "L", ...overrides });
 };

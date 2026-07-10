@@ -9,18 +9,18 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   adminPost,
   createRealAttendee,
   createServicingHold,
   decryptFirstServicingAttendee,
-  describeWithEnv,
   expectEmptyContactFields,
   expectLogisticsDisabled,
   kindOf,
   SMUGGLED_CONTACT_FIELDS,
   updateServicingEvent,
-} from "#test-utils";
+} from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 
@@ -31,7 +31,8 @@ describeWithEnv(
     test("a service event cannot be opened or edited via the attendee URL", async () => {
       const { id } = await createServicingHold();
       // GET and POST to the customer editor both 404 for a servicing id.
-      const { assertAdmin404, getTestSession } = await import("#test-utils");
+      const { assertAdmin404 } = await import("#test-utils/servicing.ts");
+      const { getTestSession } = await import("#test-utils/session.ts");
       const { cookie } = await getTestSession();
       await assertAdmin404(`/admin/attendees/${id}`, cookie);
       const post = await adminPost(`/admin/attendees/${id}`, {

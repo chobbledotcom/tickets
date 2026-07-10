@@ -22,7 +22,8 @@ import {
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   seedPreDropLedgerColumns,
   stampHistoricalPricePaid,

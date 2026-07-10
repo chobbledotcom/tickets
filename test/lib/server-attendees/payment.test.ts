@@ -5,20 +5,20 @@ import { stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import {
-  adminFormPost,
-  adminGet,
-  bookAttendee,
-  createPaidAttendeeWithoutLedger,
-  createPaidTestAttendee,
-  createTestListing,
-  describeWithEnv,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
-  testCookie,
   testRequiresAuth,
-  withMocks,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  bookAttendee,
+  createPaidAttendeeWithoutLedger,
+  createPaidTestAttendee,
+} from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withMocks } from "#test-utils/mocks.ts";
+import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 import {

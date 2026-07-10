@@ -4,12 +4,10 @@ import { updateCheckedIn } from "#shared/db/attendees/update.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { setListingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
-import {
-  adminGet,
-  createTestAttendeeDirect,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("server (listing export check-in filter)", { db: true }, () => {
   /** A listing with one checked-in (AliceIn) and one not (BobOut). */

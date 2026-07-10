@@ -9,13 +9,10 @@ import {
   logErrorLocal,
 } from "#shared/logger.ts";
 import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
-import {
-  createTestDbWithSetup,
-  createTestListing,
-  getAllActivityLog,
-  resetDb,
-  setTestEnv,
-} from "#test-utils";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
+import { createTestDbWithSetup, resetDb } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { setTestEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 // Outer describe ensures sequential execution — createTestListing() calls

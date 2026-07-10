@@ -10,7 +10,8 @@ import {
   requireRequestPrivateKey,
   SessionKeyError,
 } from "#shared/session-private-key.ts";
-import { describeWithEnv, withTestSession } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { withTestSession } from "#test-utils/session.ts";
 
 describeWithEnv("shared > session private key", { db: true }, () => {
   test("getRequestPrivateKey returns null with no session in scope", async () => {

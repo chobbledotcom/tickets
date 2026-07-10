@@ -8,7 +8,7 @@ import {
   FORM_STASH_MAX_ENTRIES,
   FORM_STASH_TTL_MS,
 } from "#shared/limits.ts";
-import { times } from "#test-utils";
+import { times } from "#test-utils/arrays.ts";
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 

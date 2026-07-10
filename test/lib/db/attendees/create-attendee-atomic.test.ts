@@ -10,13 +10,13 @@ import { dateToRange } from "#shared/db/capacity.ts";
 import { getDb } from "#shared/db/client.ts";
 import { updateListingAggregateValues } from "#shared/db/listings.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
-  createTestGroup,
   createTestListing,
-  describeWithEnv,
-  getTestPrivateKey,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
 /** Fetch raw start_at/end_at for an listing (getAttendeesRaw drops them). */
@@ -401,7 +401,9 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     groupMax: number,
     memberMax: number,
   ) => {
-    const { createTestGroup } = await import("#test-utils");
+    const { createTestGroup } = await import(
+      "#test-utils/db-helpers/groups.ts"
+    );
     const group = await createTestGroup({
       isPackage: true,
       maxAttendees: groupMax,

@@ -6,14 +6,14 @@ import {
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
-  bookAttendee,
   createDailyTestListing,
-  createTestAttendee,
-  createTestGroup,
   createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
 
 const createCappedListingWithJohn = async () => {
   const listing = await createTestListing({ maxAttendees: 2 });

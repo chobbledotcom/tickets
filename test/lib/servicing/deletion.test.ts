@@ -23,19 +23,19 @@ import {
   purgeOrphanedAttendees,
 } from "#shared/db/orphan-attendees.ts";
 import { nowIso } from "#shared/now.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { attendeeExists } from "#test-utils/db-helpers/attendees.ts";
 import {
-  attendeeExists,
   childRowCount,
   createServicingHold,
   deleteServicingEvent,
-  describeWithEnv,
   expectRejects,
   getServicingEvent,
   kindOf,
   orphanServicingEvent,
   recordServiceCost,
   servicingRowsForListing,
-} from "#test-utils";
+} from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 

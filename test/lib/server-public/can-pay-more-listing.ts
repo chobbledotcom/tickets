@@ -1,4 +1,4 @@
-import { createTestListing } from "#test-utils";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /**
  * A £10 can_pay_more listing — the base setup shared by

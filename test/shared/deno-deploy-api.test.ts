@@ -2,7 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { denoDeployApi, slugifyForDeno } from "#shared/deno-deploy-api.ts";
-import { describeWithEnv, withMocks } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { withMocks } from "#test-utils/mocks.ts";
 
 const DENO_ENV = {
   DENO_DEPLOY_ORG_ID: "test-org-id",

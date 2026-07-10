@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("bunny-cdn domain settings", { db: true }, () => {
   test("customDomain defaults to empty string", () => {

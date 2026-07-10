@@ -2,10 +2,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   bookParent,
-  createTestListing,
-  describeWithEnv,
   expectFoldedLine,
   expectRejectedBooking,
   expectReserved,
@@ -13,7 +13,7 @@ import {
   makeParent,
   parentField,
   postCalculate,
-} from "#test-utils";
+} from "#test-utils/parents.ts";
 import { expectCapturedItemPriced } from "../server-reservation/helpers.ts";
 import { firstBookableDate, stubCheckoutIntent } from "./helpers.ts";
 

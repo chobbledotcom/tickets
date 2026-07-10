@@ -6,16 +6,17 @@ import {
 } from "#shared/db/attributes.ts";
 import type { Listing } from "#shared/types.ts";
 import {
-  adminFormPost,
-  adminGet,
-  assignTestAttributeOptions,
-  createTestAttributeWithOptions,
-  createTestListing,
-  describeWithEnv,
   expectHtmlResponse,
   expectStatus,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  assignTestAttributeOptions,
+  createTestAttributeWithOptions,
+} from "#test-utils/db-helpers/attributes.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 /** One attribute ("Difficulty": Easy/Hard) and one listing that selected only
  * the Easy option — the fixture both detail pages are asserted against. */

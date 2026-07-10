@@ -5,7 +5,7 @@ import {
   isBunnyCdnEnabled,
   isBunnyDnsEnabled,
 } from "#shared/config.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv(
   "isBunnyCdnEnabled",

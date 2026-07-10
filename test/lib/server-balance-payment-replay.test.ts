@@ -6,15 +6,12 @@ import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
-import {
-  describeWithEnv,
-  expectHtmlResponse,
-  mockRequest,
-  setupStripe,
-  signedMeta,
-  singleItem,
-} from "#test-utils";
+import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { signedMeta, singleItem } from "#test-utils/factories.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 const balanceSession = (
   sessionId: string,
@@ -88,7 +85,7 @@ describeWithEnv("server (balance payment replay)", { db: true }, () => {
     const { getRefundPaymentReferences } = await import(
       "#shared/db/payment-references.ts"
     );
-    const { getTestPrivateKey } = await import("#test-utils");
+    const { getTestPrivateKey } = await import("#test-utils/crypto.ts");
     const references = (
       await getRefundPaymentReferences(
         [{ id: attendeeId, payment_id: "" }],

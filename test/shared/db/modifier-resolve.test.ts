@@ -25,16 +25,16 @@ import {
 } from "#shared/db/modifiers.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   checkoutItem,
   consumeModifierStock,
-  createTestListing,
-  describeWithEnv,
   insertModifier,
   linkModifierGroup,
   linkModifierListing,
   patchModifier,
-} from "#test-utils";
+} from "#test-utils/modifiers.ts";
 
 /** Create a question with `count` answers, returning their real ids (answer
  * ids are real rows now that the link is a modifier_id column on answers). */

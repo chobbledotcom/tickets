@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { makeParent, setupStripe } from "#test-utils";
+import { makeParent } from "#test-utils/parents.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 import {
   bookForToken,
@@ -241,7 +242,9 @@ describePublicApi(() => {
       const { response } = await bookListing(parent.slug);
       expect(response.status).toBe(200);
 
-      const { getListingActivityLog } = await import("#test-utils");
+      const { getListingActivityLog } = await import(
+        "#test-utils/activity-log.ts"
+      );
       const parentLog = await getListingActivityLog(parent.id);
       const childLog = await getListingActivityLog(child.id);
       expect(parentLog.some((e) => /registered/i.test(e.message))).toBe(true);

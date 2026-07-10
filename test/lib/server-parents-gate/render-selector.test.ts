@@ -3,19 +3,21 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
+import { followRedirectWithFlash } from "#test-utils/assertions.ts";
+import { submitMultiTicketForm } from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   assignTestAttributeOptions,
+  createTestAttributeWithOptions,
+} from "#test-utils/db-helpers/attributes.ts";
+import { deactivateTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
   bookingPageHtml,
   childField,
-  createTestAttributeWithOptions,
-  deactivateTestListing,
-  describeWithEnv,
-  followRedirectWithFlash,
   makeParent,
   makeTwoDefaultChildren,
   parentField,
-  submitMultiTicketForm,
-} from "#test-utils";
+} from "#test-utils/parents.ts";
 import { selectOptionsFromHtml, selectOptionsHtml } from "./helpers.ts";
 
 // jscpd:ignore-end

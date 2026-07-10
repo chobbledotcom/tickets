@@ -9,7 +9,7 @@ import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { allBalances } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
-import { adminGet } from "#test-utils";
+import { adminGet } from "#test-utils/session.ts";
 
 // -- Ledger-truth helpers ------------------------------------------------- //
 

@@ -8,17 +8,15 @@ import {
 } from "#shared/db/settings.ts";
 import { resetEngine } from "#shared/email-renderer.ts";
 import {
-  adminGet,
   assertJson,
-  describeWithEnv,
   expectFlash,
   expectHtmlResponse,
-  mockFormRequest,
-  testCookie,
-  testCsrfToken,
   testRequiresAuth,
-  useSetting,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockFormRequest } from "#test-utils/mocks.ts";
+import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
+import { useSetting } from "#test-utils/settings.ts";
 
 describeWithEnv("admin email templates", { db: true }, () => {
   useSetting({ currency: "GBP" });

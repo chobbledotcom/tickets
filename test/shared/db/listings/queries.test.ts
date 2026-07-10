@@ -16,13 +16,13 @@ import {
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import { settings } from "#shared/db/settings.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import {
-  createTestAttendee,
   createTestListing,
   deactivateTestListing,
-  describeWithEnv,
-  getTestPrivateKey,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
 describeWithEnv("db > listings", { db: true, triggers: true }, () => {

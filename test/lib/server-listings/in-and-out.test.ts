@@ -1,17 +1,16 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { assertAdminHtml, testRequiresAuth } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
   adminGet,
-  assertAdminHtml,
-  awaitTestRequest,
-  createTestAttendee,
-  createTestListing,
-  describeWithEnv,
   setupListingAndLogin,
-  testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 

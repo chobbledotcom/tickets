@@ -11,11 +11,9 @@ import {
 } from "#shared/db/migrations/schema-sync.ts";
 import type { MigrationContext } from "#shared/db/migrations/types.ts";
 import { additive } from "#shared/db/migrations/verify.ts";
-import {
-  buildMigrationContext,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { buildMigrationContext } from "#test-utils/migrations.ts";
 import { columnNames, tableRowCount } from "../migration-test-helpers.ts";
 
 // The real additive() (not the no-op stub) so runMigration's verify() genuinely

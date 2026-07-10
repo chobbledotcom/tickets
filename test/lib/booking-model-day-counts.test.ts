@@ -13,7 +13,7 @@ import {
   type TicketListing,
   updateForMembersWithChildren,
 } from "#shared/booking/model.ts";
-import { useSetting } from "#test-utils";
+import { useSetting } from "#test-utils/settings.ts";
 import {
   oneChildSupportingDayTwo,
   resolved,

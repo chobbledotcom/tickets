@@ -20,7 +20,8 @@ import {
   VALID_DAY_NAMES,
   widestDatedEntry,
 } from "#shared/dates.ts";
-import { testListing, useSetting } from "#test-utils";
+import { testListing } from "#test-utils/factories.ts";
+import { useSetting } from "#test-utils/settings.ts";
 
 describe("dates — pinned values", () => {
   useSetting({ timezone: "UTC" });

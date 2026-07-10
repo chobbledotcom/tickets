@@ -3,21 +3,23 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import {
-  adminFormPost,
-  adminGet,
-  bookAttendee,
-  createTestAttendeeDirect,
-  createTestListing,
-  describeWithEnv,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
   expectRedirect,
-  mockFormRequest,
+  testRequiresAuth,
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { mockFormRequest } from "#test-utils/mocks.ts";
+import {
+  adminFormPost,
+  adminGet,
   setupListingAndLogin,
   testCookie,
-  testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 import {
@@ -159,7 +161,9 @@ describeWithEnv(
           maxAttendees: 10,
           maxQuantity: 5,
         });
-        const { createTestGroup } = await import("#test-utils");
+        const { createTestGroup } = await import(
+          "#test-utils/db-helpers/groups.ts"
+        );
         const group = await createTestGroup({
           isPackage: true,
           name: "EditKit",

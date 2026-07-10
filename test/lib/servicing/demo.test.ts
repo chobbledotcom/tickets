@@ -27,12 +27,9 @@ import {
 } from "#shared/demo/overrides.ts";
 import { DEMO_NAMES, DEMO_SERVICING_NAMES } from "#shared/demo/samples.ts";
 import { FormParams } from "#shared/form-data.ts";
-import {
-  adminPost,
-  createTestListing,
-  describeWithEnv,
-  getServicingEvent,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminPost, getServicingEvent } from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { ErrorCode } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("ntfy", { env: { NTFY_URL: undefined } }, () => {
   let fetchStub: ReturnType<typeof stub<typeof globalThis, "fetch">>;

@@ -6,7 +6,8 @@ import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import { updateCheckedIn } from "#shared/db/attendees/update.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
 /** The persisted rows for one listing under one attendee, with their parent. */

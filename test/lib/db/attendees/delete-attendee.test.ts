@@ -15,14 +15,12 @@ import {
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import { createSystemNote, getNoteRows } from "#shared/db/system-notes.ts";
-import {
-  consumeModifierStock,
-  createPaidTestAttendee,
-  createTestAttendee,
-  createTestListing,
-  describeWithEnv,
-  getTestPrivateKey,
-} from "#test-utils";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { consumeModifierStock } from "#test-utils/modifiers.ts";
 
 describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
   test("removes attendee", async () => {

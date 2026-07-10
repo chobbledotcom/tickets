@@ -3,16 +3,17 @@ import { describe, it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
-  adminFormPost,
-  adminGet,
   attendeeLineIndex,
+  expectHtmlResponse,
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
   buildAttendeeEditForm,
   createTestAttendee,
-  createTestListing,
-  describeWithEnv,
-  expectHtmlResponse,
-} from "#test-utils";
+} from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(
   "server (unified attendee form) — no-quantity",

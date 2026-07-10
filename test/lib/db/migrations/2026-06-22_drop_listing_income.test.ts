@@ -4,11 +4,9 @@ import {
   recreateTable,
   syncTriggers,
 } from "#shared/db/migrations/schema-sync.ts";
-import {
-  buildMigrationContext,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { buildMigrationContext } from "#test-utils/migrations.ts";
 import {
   readListingAggregates as listingAggregates,
   runAggregateColumnDropTests,

@@ -3,17 +3,16 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { appendImageToItem, imagesTable } from "#shared/db/images.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import {
   assertPublicHtml,
-  createTestNewsPost,
-  describeWithEnv,
   expectRedirect,
   expectStatus,
-  mockRequest,
-  useSetting,
-  withSetting,
-} from "#test-utils";
-import { makeImage } from "#test-utils/admin-images.ts";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
+import { useSetting, withSetting } from "#test-utils/settings.ts";
 
 describeWithEnv("server (public news)", { db: true }, () => {
   describe("gate + resolution", () => {

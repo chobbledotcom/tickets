@@ -24,20 +24,20 @@ import {
 } from "#shared/db/logistics.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { DEMO_ADDRESSES } from "#shared/demo/samples.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { buildAttendeeEditForm } from "#test-utils/db-helpers/attendees.ts";
 import {
-  adminFormPost,
-  buildAttendeeEditForm,
   createDailyTestListing,
   createTestListing,
-  describeWithEnv,
-  getTestPrivateKey,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
 import {
   deliveredListingSetup,
   logisticsTabHtml,
   makeAttendee,
   postLogistics,
 } from "#test-utils/logistics-tab.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 describeWithEnv("attendee Logistics tab — demo mode", { db: true }, () => {
   test("a demo instance masks the address and clears the pin before saving", async () => {

@@ -9,15 +9,15 @@ import {
   ICS_DISCOVERY_TAG,
   RSS_DISCOVERY_TAG,
 } from "#templates/public/shared.tsx";
+import { assertPublicHtml } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
-  assertPublicHtml,
-  bookAttendee,
-  createTestGroup,
   createTestListing,
-  describeWithEnv,
-  mockFormRequest,
   pastCloseTime,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
+import { mockFormRequest } from "#test-utils/mocks.ts";
 
 // jscpd:ignore-end
 

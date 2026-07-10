@@ -27,7 +27,7 @@ import {
   recordAttendeeRefund,
   recordPlaceholderRefund,
 } from "#shared/refund-ledger.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import {
   ATTENDEE,

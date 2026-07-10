@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
-import { adminFormPost, expectFlash } from "#test-utils";
+import { expectFlash } from "#test-utils/assertions.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 /** Helper: create a question via the admin form */
 export const createQuestion = async (text: string): Promise<number> => {

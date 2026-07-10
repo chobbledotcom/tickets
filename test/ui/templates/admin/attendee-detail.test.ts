@@ -11,11 +11,9 @@ import {
 } from "#templates/admin/attendee-detail.tsx";
 import { attendeeSummaryRows } from "#templates/admin/attendee-page.tsx";
 import { renderSection } from "#templates/admin/entity-pages.tsx";
-import {
-  expectListingRowQuantity,
-  setupTestEncryptionKey,
-  testAttendee,
-} from "#test-utils";
+import { expectListingRowQuantity } from "#test-utils/assertions.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testAttendee } from "#test-utils/factories.ts";
 
 const booking = (
   overrides: Partial<AttendeeBooking> = {},

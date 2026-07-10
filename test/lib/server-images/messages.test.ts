@@ -2,14 +2,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import {
-  describeWithEnv,
   expectHtmlResponse,
   FLASH_TEST_ID,
   flashCookieHeader,
-  mockRequest,
-  setupListingAndLogin,
-  testCookie,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
+import { setupListingAndLogin, testCookie } from "#test-utils/session.ts";
 
 describeWithEnv(
   "server images > error messages",

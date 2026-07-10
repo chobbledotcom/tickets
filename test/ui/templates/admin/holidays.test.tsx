@@ -3,7 +3,7 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { AdminSession, Holiday } from "#shared/types.ts";
 import { adminHolidaysPage, holidayPages } from "#templates/admin/holidays.tsx";
-import { setupTestEncryptionKey } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 const session: AdminSession = { adminLevel: "owner" };
 

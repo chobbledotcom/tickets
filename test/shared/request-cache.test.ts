@@ -12,7 +12,7 @@ import {
 } from "#shared/cache-registry.ts";
 import { holidays } from "#shared/db/holidays.ts";
 import { requestCache, runWithRequestCache } from "#shared/request-cache.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 describe("cache-registry", () => {
   beforeEach(() => {

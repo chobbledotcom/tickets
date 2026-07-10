@@ -8,7 +8,8 @@ import {
   type ScopeLinks,
   ScopeLinksForm,
 } from "#templates/admin/modifiers/links.tsx";
-import { setupTestEncryptionKey, testModifier } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testModifier } from "#test-utils/factories.ts";
 
 const MODIFIER = testModifier({ id: 1 });
 

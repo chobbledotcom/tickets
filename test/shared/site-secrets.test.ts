@@ -11,7 +11,9 @@ import {
   hostInfraSecretNames,
   loadSiteSecretsStatus,
 } from "#shared/site-secrets.ts";
-import { describeWithEnv, testBuiltSite, withMocks } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { testBuiltSite } from "#test-utils/factories.ts";
+import { withMocks } from "#test-utils/mocks.ts";
 
 /** Build a Bunny secret-list entry (name + metadata; the API never returns values). */
 const secret = (name: string): EdgeScriptSecret => ({

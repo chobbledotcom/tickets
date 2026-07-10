@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
-import { hasInputWithValue } from "#test-utils";
+import { hasInputWithValue } from "#test-utils/csrf.ts";
 import {
   listingB,
   registerPublicTemplateHooks,

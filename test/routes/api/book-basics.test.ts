@@ -2,11 +2,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
-import {
-  assertJson,
-  createTestAttendeeDirect,
-  createTestListing,
-} from "#test-utils";
+import { assertJson } from "#test-utils/assertions.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 import {
   bookListing,

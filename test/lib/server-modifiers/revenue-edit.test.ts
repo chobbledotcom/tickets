@@ -8,19 +8,18 @@ import {
   modifiersTable,
   updateModifierAggregateValues,
 } from "#shared/db/modifiers.ts";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
-  adminFormPost,
-  adminGet,
-  describeWithEnv,
   expectFlashRedirect,
   expectHtmlResponse,
   expectStatus,
   followRedirectWithFlash,
-  getAllActivityLog,
-  insertModifierUsage,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { postModifierLeg } from "#test-utils/ledger.ts";
+import { insertModifierUsage } from "#test-utils/modifiers.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { createData, lastModifier } from "./helpers.ts";
 
 describeWithEnv("server (admin modifiers)", { db: true }, () => {

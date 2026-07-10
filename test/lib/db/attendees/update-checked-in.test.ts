@@ -6,13 +6,13 @@ import {
   updateCheckedIn,
 } from "#shared/db/attendees/update.ts";
 import { queryOne } from "#shared/db/client.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAttendee,
   createTestAttendeeDirect,
-  createTestListing,
   decryptFirstAttendee,
-  describeWithEnv,
-} from "#test-utils";
+} from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("db > attendees > updateCheckedIn", { db: true }, () => {
   const createAttendeeWithUpdates = async (updates: boolean[]) => {

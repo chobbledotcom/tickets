@@ -3,18 +3,20 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { holidays } from "#shared/db/holidays.ts";
 import {
-  apiRequest,
   assertApiDeleteOk,
   assertJson,
-  createTestHoliday,
-  createTestManagerSession,
-  describeWithEnv,
   expectRejectsEmptyName,
-  mockRequest,
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
+import {
+  apiRequest,
+  createTestManagerSession,
   requestAsSession,
   testCookie,
   testCsrfToken,
-} from "#test-utils";
+} from "#test-utils/session.ts";
 
 describeWithEnv("Admin API - Holidays", { db: true }, () => {
   describe("GET /api/admin/holidays", () => {

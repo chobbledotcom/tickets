@@ -12,20 +12,16 @@ import {
 } from "#shared/db/contact-preferences.ts";
 import { recordBooking } from "#shared/db/contact-tokens.ts";
 import { settings } from "#shared/db/settings.ts";
-import {
-  adminFormPost,
-  adminGet,
-  describeWithEnv,
-  expectHtmlResponse,
-  expectRedirect,
-  getTestPrivateKey,
-  useFetchStub,
-} from "#test-utils";
+import { expectHtmlResponse, expectRedirect } from "#test-utils/assertions.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   buildAttendeeEditForm,
   createTestAttendeeDirect,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { useFetchStub } from "#test-utils/mocks.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { seedDraft, seedListingWithAttendees, useResend } from "./helpers.ts";
 
 describeWithEnv("server bulk email > notes and history", { db: true }, () => {

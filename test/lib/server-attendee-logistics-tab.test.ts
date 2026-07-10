@@ -21,19 +21,17 @@ import {
   setLogisticsAssignments,
 } from "#shared/db/logistics.ts";
 import { settings } from "#shared/db/settings.ts";
-import {
-  awaitTestRequest,
-  createTestListing,
-  describeWithEnv,
-  getTestPrivateKey,
-  getTestSession,
-} from "#test-utils";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   deliveredListingSetup,
   logisticsTabHtml,
   makeAttendee,
   postLogistics,
 } from "#test-utils/logistics-tab.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { getTestSession } from "#test-utils/session.ts";
 
 describeWithEnv("attendee Logistics tab (GET)", { db: true }, () => {
   test("renders the address form, pin inputs, and a hidden map when unpinned", async () => {

@@ -34,10 +34,10 @@ import { FormParams } from "#shared/form-data.ts";
 import {
   createTestDbWithSetup,
   describeWithEnv,
-  mockRequest,
   resetDb,
-  setupTestEncryptionKey,
-} from "#test-utils";
+} from "#test-utils/db.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 
 describe("demo sample pools", () => {
   // applyDemoOverrides only replaces fields that arrive non-empty, so a blank

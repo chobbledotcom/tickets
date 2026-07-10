@@ -6,7 +6,7 @@ import {
   type BackupPageState,
   RESTORE_CONFIRM_PHRASE,
 } from "#templates/admin/backup.tsx";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 const mockSession = {
   adminLevel: "owner" as const,

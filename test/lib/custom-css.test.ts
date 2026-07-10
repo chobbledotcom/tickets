@@ -6,7 +6,8 @@ import {
   isCssResponse,
 } from "#routes/public/custom-css.ts";
 import { settings } from "#shared/db/settings.ts";
-import { describeWithEnv, mockRequest } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 
 const customCss = (): Promise<Response> =>
   handleRequest(mockRequest("/custom.css"));

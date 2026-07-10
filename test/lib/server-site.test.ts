@@ -5,21 +5,18 @@ import { MAX_WEBSITE_TITLE_LENGTH } from "#shared/db/settings/constants.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
-  adminFormPost,
-  adminGet,
-  awaitTestRequest,
-  describeWithEnv,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
   expectRedirect,
   FLASH_TEST_ID,
   flashCookieHeader,
-  hasCheckedInput,
-  mockFormRequest,
-  testCookie,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { hasCheckedInput } from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 
 /** Assert a 302 redirect with a flash cookie containing the given text */
 const expectRedirectContaining = (response: Response, text: string) => {
@@ -284,7 +281,9 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     });
 
     test("counts every active, visible listing", async () => {
-      const { createTestListing } = await import("#test-utils");
+      const { createTestListing } = await import(
+        "#test-utils/db-helpers/listings.ts"
+      );
       await createTestListing({ name: "Mug", purchaseOnly: true });
       await createTestListing({ name: "Regular Ticket" });
       const response = await adminGet("/admin/site/order");
@@ -294,7 +293,9 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     });
 
     test("uses the singular for a single listing", async () => {
-      const { createTestListing } = await import("#test-utils");
+      const { createTestListing } = await import(
+        "#test-utils/db-helpers/listings.ts"
+      );
       await createTestListing({ name: "Solo" });
       const response = await adminGet("/admin/site/order");
       const html = await response.text();

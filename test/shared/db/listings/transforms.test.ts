@@ -12,7 +12,7 @@ import {
   writeListingDate,
 } from "#shared/db/listings.ts";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 /** Decrypt a value written by `writeClosesAt`/`writeListingDate` — both
  * return already-sealed env-key ciphertext, so every test in this file needs

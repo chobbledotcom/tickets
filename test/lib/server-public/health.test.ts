@@ -2,13 +2,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import {
-  assertJson,
-  awaitTestRequest,
-  describeWithEnv,
-  mockRequest,
-  setTestEnv,
-} from "#test-utils";
+import { assertJson } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setTestEnv } from "#test-utils/env.ts";
+import { awaitTestRequest, mockRequest } from "#test-utils/mocks.ts";
 
 // jscpd:ignore-end
 

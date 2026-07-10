@@ -13,7 +13,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ADMIN_AREAS, adminPathSegment } from "#routes/admin/index.ts";
-import { awaitTestRequest, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 
 const patternPath = (pattern: string): string => pattern.split(" ")[1] ?? "";
 

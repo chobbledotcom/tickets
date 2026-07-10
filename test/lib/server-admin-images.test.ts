@@ -3,26 +3,27 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getDb } from "#shared/db/client.ts";
 import { getAllImages } from "#shared/db/images.ts";
-import {
-  describeWithEnv,
-  expectFlashRedirect,
-  expectHtmlResponse,
-  getAllActivityLog,
-  mockMultipartRequest,
-  testCookie,
-  testCsrfToken,
-  withBunnyStorageStub,
-  withCdnRejecting,
-  withExpectedError,
-  withStorageDisabled,
-  withStorageMock,
-} from "#test-utils";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   adminGet,
   imageUploadRequest,
   makeImage,
   postImageUpload,
 } from "#test-utils/admin-images.ts";
+import {
+  expectFlashRedirect,
+  expectHtmlResponse,
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  mockMultipartRequest,
+  withBunnyStorageStub,
+  withCdnRejecting,
+  withExpectedError,
+  withStorageDisabled,
+  withStorageMock,
+} from "#test-utils/mocks.ts";
+import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 describeWithEnv(
   "admin image library routes",

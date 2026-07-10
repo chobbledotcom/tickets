@@ -4,20 +4,18 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
-  bookAttendee,
-  createTestListing,
-  describeWithEnv,
   expectHtmlResponse,
   expectRedirect,
   followRedirect,
-  makeParent,
-  mockRequest,
-  setupStripe,
-  signMeta,
-  singleItem,
-  stubRetrieveCheckoutSession,
-  withMocks,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { signMeta, singleItem } from "#test-utils/factories.ts";
+import { mockRequest, withMocks } from "#test-utils/mocks.ts";
+import { makeParent } from "#test-utils/parents.ts";
+import { setupStripe } from "#test-utils/settings.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 

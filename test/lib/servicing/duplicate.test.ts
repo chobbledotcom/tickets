@@ -17,6 +17,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingRemainingForRange } from "#shared/db/attendees/capacity.ts";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   buildDuplicateServicingInput,
   createAnnualInspectionEvent,
@@ -24,7 +25,6 @@ import {
   createServicingHold,
   decryptFirstServicingAttendee,
   deleteServicingEvent,
-  describeWithEnv,
   duplicateServicingEvent,
   expectRejects,
   getServicingEvent,
@@ -32,7 +32,7 @@ import {
   servicingRowsForListing,
   tokenIndexOf,
   updateServicingEvent,
-} from "#test-utils";
+} from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 
@@ -44,7 +44,9 @@ const createHoldOnNewDailyListing = async (
 ) => {
   const maxAttendees = listingOverrides.maxAttendees ?? 10;
   const listingName = listingOverrides.name ?? "A";
-  const { createDailyTestListing } = await import("#test-utils");
+  const { createDailyTestListing } = await import(
+    "#test-utils/db-helpers/listings.ts"
+  );
   const listing = await createDailyTestListing({
     maxAttendees,
     name: listingName,

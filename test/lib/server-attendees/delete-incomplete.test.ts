@@ -7,14 +7,16 @@ import {
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import {
-  createPaidTestAttendee,
-  createTestAttendee,
-  describeWithEnv,
   expectFlashRedirect,
-  getAttendeesRaw,
-  setupListingAndLogin,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import {
+  createTestAttendee,
+  getAttendeesRaw,
+} from "#test-utils/db-helpers/attendees.ts";
+import { setupListingAndLogin } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 import { submitDeleteIncomplete } from "./helpers.ts";
@@ -74,7 +76,9 @@ describeWithEnv(
         expect(deleted).toBeNull();
 
         // The deletion is recorded in the listing activity log.
-        const { getListingActivityLog } = await import("#test-utils");
+        const { getListingActivityLog } = await import(
+          "#test-utils/activity-log.ts"
+        );
         const log = (await getListingActivityLog(listing.id)).find((l) =>
           l.message.includes("Incomplete attendee deleted"),
         );

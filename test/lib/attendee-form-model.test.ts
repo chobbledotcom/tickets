@@ -19,7 +19,7 @@ import {
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { FormParams } from "#shared/form-data.ts";
-import { testListingWithCount } from "#test-utils";
+import { testListingWithCount } from "#test-utils/factories.ts";
 
 const makeForm = (data: Record<string, string>): FormParams =>
   new FormParams(new URLSearchParams(data));

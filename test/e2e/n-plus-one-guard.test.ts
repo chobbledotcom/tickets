@@ -14,18 +14,18 @@ import { N_PLUS_ONE_THRESHOLD } from "#shared/db/query-log.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { setListingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
-  awaitTestRequest,
-  bookAttendee,
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-  getTestSession,
   insertModifier,
   linkModifierAnswer,
   linkModifierGroup,
   linkModifierListing,
-} from "#test-utils";
+} from "#test-utils/modifiers.ts";
+import { getTestSession } from "#test-utils/session.ts";
 
 const RELATION_COUNT = 30;
 

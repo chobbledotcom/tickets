@@ -20,18 +20,16 @@ import {
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
-import {
-  createTestListing,
-  describeWithEnv,
-  expectRefundReferences,
-  getAttendeeActivityLog,
-} from "#test-utils";
+import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import {
   createNonReservationAttendee,
   createReservedAttendee,
   settle,
 } from "#test-utils/balance.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
+import { expectRefundReferences } from "#test-utils/payment-references.ts";
 
 describeWithEnv("db > settle attendee balance", { db: true }, () => {
   test("clears the balance, moves to the paid status and logs it", async () => {

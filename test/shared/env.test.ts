@@ -13,7 +13,7 @@ import {
   parseWarnDays,
   requireEnv,
 } from "#shared/env.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 const KEY = "TEST_ENV_VAR_FOR_ENV_SPEC";
 
