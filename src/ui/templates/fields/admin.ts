@@ -6,6 +6,8 @@
 
 import { t } from "#i18n";
 import type { Field } from "#shared/forms.tsx";
+import { AdminLevelSchema } from "#shared/types.ts";
+import { picklistOptions } from "#templates/fields/picklist-options.ts";
 import {
   getUsernameFieldBase,
   validateDate,
@@ -283,13 +285,15 @@ export const getInviteUserFields = (): Field[] => [
     validate: validateUsername,
   },
   {
+    // A blank option leads so nothing is pre-selected: the role is required, so
+    // an unchanged form is rejected ("Role is required") rather than silently
+    // granting whatever option happens to sit first (AdminLevelSchema lists
+    // owner first). The operator must pick a role deliberately.
     label: t("fields.user.role"),
     name: "admin_level",
     options: [
-      { label: t("fields.user.manager"), value: "manager" },
-      { label: t("fields.user.owner"), value: "owner" },
-      { label: t("fields.user.agent"), value: "agent" },
-      { label: t("fields.user.editor"), value: "editor" },
+      { label: t("fields.user.role_placeholder"), value: "" },
+      ...picklistOptions(AdminLevelSchema, "fields.user"),
     ],
     required: true,
     type: "select",
