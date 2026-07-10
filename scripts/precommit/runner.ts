@@ -1,9 +1,7 @@
+import { readStream } from "../stream-lines.ts";
 import { bold, dim, green, red, yellow } from "./colors.ts";
-import {
-  getMergeConflictWarning,
-  runCommand,
-  runInteractiveCommand,
-} from "./merge-warning.ts";
+import { runCommand, runInteractiveCommand, splitCommand } from "./git.ts";
+import { getMergeConflictWarning } from "./merge-warning.ts";
 import { promptToPushCheckedInChanges, shouldPushFromAnswer } from "./push.ts";
 import { getSteps, type Step } from "./steps.ts";
 import {
@@ -43,43 +41,11 @@ const confirmPush = async (message: string): Promise<boolean> => {
   return shouldPushFromAnswer(await readPromptLine());
 };
 
-const readStream = async (
-  stream: ReadableStream<Uint8Array>,
-  onLine: (line: string) => void,
-): Promise<string> => {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let buffered = "";
-  let text = "";
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      text += chunk;
-      buffered += chunk;
-      const lines = buffered.split(/\r?\n/);
-      buffered = lines.pop() ?? "";
-      for (const line of lines) onLine(line);
-    }
-  } finally {
-    const chunk = decoder.decode();
-    text += chunk;
-    buffered += chunk;
-    if (buffered) onLine(buffered);
-    reader.releaseLock();
-  }
-
-  return text;
-};
-
 const runStep = async (step: Step): Promise<boolean> => {
   const prefix = `  ${step.name} … `;
   write(prefix);
   const start = performance.now();
-  const [command, ...args] = step.cmd;
-  if (!command) throw new Error(`No command configured for ${step.name}`);
+  const [command, args] = splitCommand(step.cmd, `command for ${step.name}`);
 
   const cmd = new Deno.Command(command, {
     args,

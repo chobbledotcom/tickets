@@ -19,6 +19,11 @@ import { stripeMockEnv } from "../stripe-mock.ts";
 import { withTestHarness } from "../test-harness.ts";
 import { type AssetRebuilder, createAssetRebuilder } from "./assets.ts";
 import { batchTestFiles } from "./batch.ts";
+import {
+  denoExitCode,
+  offTerminationSignals,
+  onTerminationSignals,
+} from "./child-process.ts";
 import { applyMutant, generateMutants, type Mutant } from "./generate.ts";
 import {
   type IgnoreList,
@@ -132,12 +137,9 @@ const createLinter = async (): Promise<MutantLinter> => {
 };
 
 /** Run one `deno test` process over `batch`, returning its exit code. */
-const runTestBatch = async (
-  batch: string[],
-  signal: AbortSignal,
-): Promise<number> => {
-  const { code } = await new Deno.Command(Deno.execPath(), {
-    args: [
+const runTestBatch = (batch: string[], signal: AbortSignal): Promise<number> =>
+  denoExitCode(
+    [
       "test",
       "--no-check",
       "--allow-all",
@@ -150,14 +152,14 @@ const runTestBatch = async (
       "--v8-flags=--expose-gc",
       ...batch,
     ],
-    cwd: projectRoot,
-    env: testEnv(),
-    signal,
-    stderr: "null",
-    stdout: "null",
-  }).output();
-  return code;
-};
+    {
+      cwd: projectRoot,
+      env: testEnv(),
+      signal,
+      stderr: "null",
+      stdout: "null",
+    },
+  );
 
 /**
  * Run the test files once, returning the outcome and how long it took.
@@ -581,15 +583,7 @@ const mutate = async (options: MutationOptions): Promise<number> => {
     aborted = true;
     abortController.abort();
   };
-  const signals: Deno.Signal[] = ["SIGINT", "SIGTERM"];
-  for (const signal of signals) {
-    try {
-      Deno.addSignalListener(signal, onSignal);
-    } catch {
-      // signal handling may be unavailable (e.g. SIGTERM on Windows);
-      // the finally below still restores.
-    }
-  }
+  onTerminationSignals(onSignal);
 
   try {
     return await runMutants({
@@ -607,13 +601,7 @@ const mutate = async (options: MutationOptions): Promise<number> => {
       useHarness: options.useHarness,
     });
   } finally {
-    for (const signal of signals) {
-      try {
-        Deno.removeSignalListener(signal, onSignal);
-      } catch {
-        // matches the add above
-      }
-    }
+    offTerminationSignals(onSignal);
   }
 };
 

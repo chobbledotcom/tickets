@@ -19,6 +19,14 @@ export type FetchText = (
 
 export type BunnyDeployResult = { ok: true } | { error: string; ok: false };
 
+/** Shared shape of the script-code operations (upload, deploy). */
+type ScriptCodeFn = (
+  scriptId: string,
+  code: string,
+  accessKey: string,
+  fetchText: FetchText,
+) => Promise<BunnyDeployResult>;
+
 export interface BuildResult {
   code: number;
   success: boolean;
@@ -102,12 +110,12 @@ const postScriptAction = async (
       };
 };
 
-export const uploadScriptCode = (
-  scriptId: string,
-  code: string,
-  accessKey: string,
-  fetchText: FetchText,
-): Promise<BunnyDeployResult> =>
+export const uploadScriptCode: ScriptCodeFn = (
+  scriptId,
+  code,
+  accessKey,
+  fetchText,
+) =>
   postScriptAction(
     scriptId,
     "code",
@@ -131,12 +139,12 @@ export const publishScript = (
     fetchText,
   );
 
-export const deployScriptCode = async (
-  scriptId: string,
-  code: string,
-  accessKey: string,
-  fetchText: FetchText,
-): Promise<BunnyDeployResult> => {
+export const deployScriptCode: ScriptCodeFn = async (
+  scriptId,
+  code,
+  accessKey,
+  fetchText,
+) => {
   const upload = await uploadScriptCode(scriptId, code, accessKey, fetchText);
   if (!upload.ok) return upload;
   return publishScript(scriptId, accessKey, fetchText);
