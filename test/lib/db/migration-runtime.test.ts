@@ -51,13 +51,10 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
     );
   };
 
-  const restoreLockTest = async (
-    fetchStub: ReturnType<typeof stubNtfyFetch>["fetchStub"],
-    restore: ReturnType<typeof stubNtfyFetch>["restore"],
-  ) => {
-    fetchStub.restore();
-    restore();
-    await getDb().batch(
+  // Remove the migration_lock row and restore the db_schema_hash marker —
+  // the shared cleanup step for every lock test's teardown.
+  const restoreLockSettings = (): Promise<unknown> =>
+    getDb().batch(
       [
         "DELETE FROM settings WHERE key = 'migration_lock'",
         {
@@ -67,6 +64,14 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       ],
       "write",
     );
+
+  const restoreLockTest = async (
+    fetchStub: ReturnType<typeof stubNtfyFetch>["fetchStub"],
+    restore: ReturnType<typeof stubNtfyFetch>["restore"],
+  ) => {
+    fetchStub.restore();
+    restore();
+    await restoreLockSettings();
   };
 
   describe("migration behaviour", () => {
@@ -164,16 +169,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
         await expect(initDb()).rejects.toThrow("migration_lock held");
       } finally {
-        await getDb().batch(
-          [
-            "DELETE FROM settings WHERE key = 'migration_lock'",
-            {
-              args: [SCHEMA_HASH],
-              sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-            },
-          ],
-          "write",
-        );
+        await restoreLockSettings();
       }
     });
   });
