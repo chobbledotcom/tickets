@@ -49,16 +49,23 @@ let requestStart = 0;
 const delay = (): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, latencyMs));
 
-const record = async <T>(sql: string, run: () => Promise<T>): Promise<T> => {
-  const start = performance.now();
-  await delay();
-  const result = await run();
+const pushEvent = (sql: string, start: number): void => {
   timeline.push({
     ms: performance.now() - start,
     sql: sql.replace(/\s+/g, " ").slice(0, 80),
     startOffsetMs: start - requestStart,
   });
-  return result;
+};
+
+/** Pay the fake latency, run the query, land it on the timeline. */
+const record = (sql: string) => {
+  const start = performance.now();
+  return async <T>(run: () => Promise<T>): Promise<T> => {
+    await delay();
+    const result = await run();
+    pushEvent(sql, start);
+    return result;
+  };
 };
 
 const statementSql = (statement: InStatement): string =>
@@ -70,60 +77,54 @@ const recordedExecute = (
   statement: InStatement | string,
   args?: InArgs,
 ): Promise<ResultSet> =>
-  record(
-    statementSql(statement),
+  record(statementSql(statement))(
     (): Promise<ResultSet> =>
       typeof statement === "string" && args !== undefined
         ? target.execute(statement, args)
         : target.execute(statement as InStatement),
   );
 
+/** Proxy `target`, overriding the given members; everything else forwards
+ *  (methods bound so they keep working). */
+const proxyMembers = <T extends object>(
+  target: T,
+  overrides: Record<string, unknown>,
+): T =>
+  new Proxy(target, {
+    get(t, prop, receiver) {
+      if (typeof prop === "string" && prop in overrides) {
+        return overrides[prop];
+      }
+      const value = Reflect.get(t, prop, receiver);
+      return typeof value === "function" ? value.bind(t) : value;
+    },
+  });
+
 /** Wrap a transaction so each statement inside it also pays the delay. */
 const wrapTransaction = (tx: Transaction): Transaction =>
-  new Proxy(tx, {
-    get(target, prop, receiver) {
-      if (prop === "execute") {
-        return (statement: InStatement | string, args?: InArgs) =>
-          recordedExecute(target, statement, args);
-      }
-      if (prop === "commit") {
-        return () => record("COMMIT", () => target.commit());
-      }
-      const value = Reflect.get(target, prop, receiver);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
+  proxyMembers(tx, {
+    commit: () => record("COMMIT")(() => tx.commit()),
+    execute: (statement: InStatement | string, args?: InArgs) =>
+      recordedExecute(tx, statement, args),
   });
 
 /** Wrap the client so every round trip pays the delay and lands on the timeline. */
 const wrapClient = (client: Client): Client =>
-  new Proxy(client, {
-    get(target, prop, receiver) {
-      if (prop === "execute") {
-        return (statement: InStatement | string, args?: InArgs) =>
-          recordedExecute(target, statement, args);
-      }
-      if (prop === "batch") {
-        return (statements: InStatement[], mode?: TransactionMode) =>
-          record(
-            `batch[${statements.length}]: ${statements
-              .map(statementSql)
-              .join(" | ")}`,
-            () => target.batch(statements, mode),
-          );
-      }
-      if (prop === "transaction") {
-        return async (mode?: TransactionMode) =>
-          wrapTransaction(
-            await record("BEGIN", () =>
-              mode === undefined
-                ? target.transaction()
-                : target.transaction(mode),
-            ),
-          );
-      }
-      const value = Reflect.get(target, prop, receiver);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
+  proxyMembers(client, {
+    batch: (statements: InStatement[], mode?: TransactionMode) =>
+      record(
+        `batch[${statements.length}]: ${statements
+          .map(statementSql)
+          .join(" | ")}`,
+      )(() => client.batch(statements, mode)),
+    execute: (statement: InStatement | string, args?: InArgs) =>
+      recordedExecute(client, statement, args),
+    transaction: async (mode?: TransactionMode) =>
+      wrapTransaction(
+        await record("BEGIN")(() =>
+          mode === undefined ? client.transaction() : client.transaction(mode),
+        ),
+      ),
   });
 
 const dbUrl = Deno.env.get("DB_URL");
