@@ -10,9 +10,11 @@ import {
 import {
   adminFormPost,
   adminGet,
+  assignTestAttributeOptions,
   createTestAttributeWithOptions,
   createTestListing,
   describeWithEnv,
+  duplicateTestListing,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
@@ -382,6 +384,25 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
       )(response);
       expect(await listingAttributeOptions.getIds(listing.id)).toEqual(
         attribute.options.map((option) => option.id),
+      );
+    });
+  });
+
+  describe("listing duplication", () => {
+    test("copies attribute selections onto the duplicate", async () => {
+      const source = await createTestListing({ name: "Attr Source" });
+      const format = await createTestAttributeWithOptions("Format", [
+        "Online",
+        "In person",
+      ]);
+      await assignTestAttributeOptions(source.id, format.options);
+
+      const duplicate = await duplicateTestListing(source.id, {
+        name: "Attr Duplicate",
+      });
+
+      expect(await listingAttributeOptions.getIds(duplicate.id)).toEqual(
+        format.options.map((option) => option.id),
       );
     });
   });

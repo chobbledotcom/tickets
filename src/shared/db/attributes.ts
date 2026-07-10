@@ -12,6 +12,7 @@ import {
   inPlaceholders,
   queryAll,
   queryOne,
+  type TxScope,
 } from "#shared/db/client.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
 import { swapSortOrder } from "#shared/db/query.ts";
@@ -347,6 +348,18 @@ export const setListingAttributeOptions = async (
   optionIds: number[],
 ): Promise<void> =>
   listingAttributeOptions.setIds(listingId, unique(optionIds));
+
+export const copyListingAttributeOptionsTx = async (
+  tx: TxScope,
+  sourceListingId: number,
+  newListingId: number,
+): Promise<void> => {
+  await tx.execute({
+    args: [newListingId, sourceListingId],
+    sql: `INSERT INTO listing_attribute_options (listing_id, option_id)
+          SELECT ?, option_id FROM listing_attribute_options WHERE listing_id = ?`,
+  });
+};
 
 export const pruneInvalidAttributeOptionIds = (
   validOptionIds: Set<number>,

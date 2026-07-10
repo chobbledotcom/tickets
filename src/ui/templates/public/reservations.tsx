@@ -416,6 +416,8 @@ export type ChildRenderCtx = {
   rendered: Set<number>;
   /** Child tickets already promised to parents on this page. */
   foldReserveByChildId: ReadonlyMap<number, number>;
+  /** Selected listing attributes, for rendering on child options. */
+  attributesByListing: ListingAttributesById;
 };
 
 /** Max parent tickets after checking the children it must book too. */
@@ -579,6 +581,7 @@ const renderChildOption = (
   childLimit: number,
   childDatesById: ReadonlyMap<string, ChildDatesByDayCount>,
   showZero: boolean,
+  attributesHtml = "",
 ): string => {
   const parentId = parent.id;
   const { listing } = child;
@@ -610,7 +613,7 @@ const renderChildOption = (
         restoredChildQty(parentId, listing.id, childLimit),
       )}</select>`
     : `<select name="${selectName}" disabled><option value="0" selected>0</option></select>`;
-  return `<label class="child-option">${select} ${label}</label>${priceHtml}`;
+  return `<label class="child-option">${select} ${label}</label>${priceHtml}${attributesHtml}`;
 };
 
 /** Render a sole bookable child as INFORMATIONAL (auto-select preserved): no
@@ -639,6 +642,7 @@ const renderSoleChildOption = (
   child: TicketListing,
   childDatesById: ReadonlyMap<string, ChildDatesByDayCount>,
   showZero: boolean,
+  attributesHtml = "",
 ): string => {
   const parentId = parent.id;
   const { listing } = child;
@@ -658,7 +662,7 @@ const renderSoleChildOption = (
     parentId,
     child,
     childDatesById,
-  )}>${label}</p>${priceHtml}`;
+  )}>${label}</p>${priceHtml}${attributesHtml}`;
 };
 
 /**
@@ -695,9 +699,18 @@ const renderChildBlock = (
   const isSole = (child: TicketListing): boolean =>
     bookable.length === 1 && bookable[0]!.listing.id === child.listing.id;
   const options = children
-    .map((child) =>
-      isSole(child)
-        ? renderSoleChildOption(parent, child, ctx.childDatesById, showZero)
+    .map((child) => {
+      const childAttributesHtml = renderListingAttributes(
+        ctx.attributesByListing.get(child.listing.id),
+      );
+      return isSole(child)
+        ? renderSoleChildOption(
+            parent,
+            child,
+            ctx.childDatesById,
+            showZero,
+            childAttributesHtml,
+          )
         : renderChildOption(
             parent,
             child,
@@ -716,8 +729,9 @@ const renderChildBlock = (
               : 0,
             ctx.childDatesById,
             showZero,
-          ),
-    )
+            childAttributesHtml,
+          );
+    })
     .join("");
   const questionsHtml = children
     .map((child) => {
@@ -1350,6 +1364,7 @@ const splitChildQuestions = (
   groupRemainingByGroupId: ReadonlyMap<number, number>,
   childDatesById: ReadonlyMap<string, ChildDatesByDayCount>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
+  attributesByListing: ListingAttributesById,
 ): { pageQuestions: QuestionWithAnswers[]; childCtx?: ChildRenderCtx } => {
   if (!childrenByParentId || childrenByParentId.size === 0) {
     return { pageQuestions: questions };
@@ -1362,6 +1377,7 @@ const splitChildQuestions = (
   const pageQuestions = questions.filter(isPageQuestion);
   return {
     childCtx: {
+      attributesByListing,
       childDatesById,
       children: childrenByParentId,
       foldReserveByChildId: foldReserveByChildId(listings, childrenByParentId),
@@ -1790,6 +1806,7 @@ export const ticketPage = ({
     groupRemainingByGroupId,
     childDatesById ?? new Map(),
     groupIdsByListingId,
+    attributesByListing,
   );
 
   // A package page shows one "number of packages" selector plus read-only member
