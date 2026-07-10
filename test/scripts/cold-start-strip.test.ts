@@ -42,6 +42,18 @@ describe("cold-start bench string stripping", () => {
     expect(stripLongStrings(code, 20).code).toBe(code);
   });
 
+  test("stripLongStrings never starts a string at another one's closing quote", () => {
+    // A short string followed by a long quote-free stretch of code, then
+    // another string: a naive regex would match from the first string's
+    // CLOSING quote to the second string's opening quote and delete the
+    // code in between. The quote-pairing scan must keep it intact.
+    const longCode = `const ${"x".repeat(30)}=1;`;
+    const code = `const a="short";${longCode}const b="also short";`;
+    const result = stripLongStrings(code, 20);
+    expect(result.code).toBe(code);
+    expect(result.stripped).toEqual([]);
+  });
+
   test("median picks the middle of a sorted copy", () => {
     expect(median([3, 1, 2])).toBe(2);
     expect(median([5])).toBe(5);

@@ -19,16 +19,6 @@ export type StripResult = {
   stripped: StrippedPayload[];
 };
 
-/** Replace every match with an empty string literal, recording what went. */
-const stripMatching = (code: string, matcher: RegExp): StripResult => {
-  const stripped: StrippedPayload[] = [];
-  const out = code.replace(matcher, (match, offset: number) => {
-    stripped.push({ lengthChars: match.length - 2, startIndex: offset });
-    return '""';
-  });
-  return { code: out, stripped };
-};
-
 /**
  * Empty out inlined base64 payloads (the WASM codec blobs) longer than
  * `minChars`. Base64 text never contains quotes or backslashes, so a plain
@@ -37,20 +27,60 @@ const stripMatching = (code: string, matcher: RegExp): StripResult => {
 export const stripBase64Payloads = (
   code: string,
   minChars: number,
-): StripResult =>
-  stripMatching(code, new RegExp(`"[A-Za-z0-9+/=]{${minChars},}"`, "g"));
+): StripResult => {
+  const stripped: StrippedPayload[] = [];
+  const out = code.replace(
+    new RegExp(`"[A-Za-z0-9+/=]{${minChars},}"`, "g"),
+    (match, offset: number) => {
+      stripped.push({ lengthChars: match.length - 2, startIndex: offset });
+      return '""';
+    },
+  );
+  return { code: out, stripped };
+};
 
 /**
  * Empty out *any* double-quoted string longer than `minChars`, including ones
- * with escape sequences (the inlined client JS/CSS assets). A match can only
- * start and end at unescaped quotes, so it cannot swallow code between two
- * separate strings.
+ * with escape sequences (the inlined client JS/CSS assets).
+ *
+ * This walks the file and pairs every double quote with its matching
+ * unescaped closing quote, so a "string" can never start at another string's
+ * *closing* quote and swallow the code between two literals — the trap a
+ * plain regex falls into when a short string is followed by a long
+ * quote-free stretch of code. Known limit: a double quote inside a template
+ * literal or regex literal would desync the pairing; esbuild-minified output
+ * normalises strings to double quotes, and a corrupted variant fails the
+ * benchmark loudly because the child process can no longer import it.
  */
-export const stripLongStrings = (code: string, minChars: number): StripResult =>
-  stripMatching(
-    code,
-    new RegExp(`"(?:[^"\\\\]|\\\\[\\s\\S]){${minChars},}"`, "g"),
-  );
+export const stripLongStrings = (
+  code: string,
+  minChars: number,
+): StripResult => {
+  const stripped: StrippedPayload[] = [];
+  let out = "";
+  let i = 0;
+  while (i < code.length) {
+    if (code[i] !== '"') {
+      out += code[i];
+      i++;
+      continue;
+    }
+    // Scan from the opening quote to its matching unescaped closing quote.
+    let j = i + 1;
+    while (j < code.length && code[j] !== '"') {
+      j += code[j] === "\\" ? 2 : 1;
+    }
+    const literal = code.slice(i, j + 1);
+    if (j < code.length && literal.length - 2 >= minChars) {
+      stripped.push({ lengthChars: literal.length - 2, startIndex: i });
+      out += '""';
+    } else {
+      out += literal;
+    }
+    i = j + 1;
+  }
+  return { code: out, stripped };
+};
 
 /** Total characters removed by a strip pass. */
 export const strippedChars = (result: StripResult): number =>

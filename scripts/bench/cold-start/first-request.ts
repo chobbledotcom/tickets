@@ -112,6 +112,9 @@ const runChild = async (
     ],
     clearEnv: true,
     env: benchChildEnv(env),
+    // A hung child must fail the sweep, not stall it forever. Generous: a
+    // healthy run finishes in a few seconds even at the highest latency.
+    signal: AbortSignal.timeout(120_000),
     stderr: "inherit",
     stdout: "piped",
   });
@@ -173,6 +176,10 @@ const main = async (): Promise<void> => {
     DB_URL: `file:${dir}/bench.db`,
   };
   for (const [key, value] of Object.entries(env)) Deno.env.set(key, value);
+  // The prep request runs in this parent process, which still sees the
+  // operator's shell. Drop the variables that would fail the boot checks or
+  // add network calls during prep (children get a clean env separately).
+  for (const key of ["MAIN_INSTANCE_KEY", "SENTRY_URL"]) Deno.env.delete(key);
 
   try {
     log("Preparing migrated, setup-complete database file...");

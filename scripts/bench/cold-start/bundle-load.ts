@@ -122,11 +122,16 @@ const measureOnce = async (
         crypto.getRandomValues(new Uint8Array(32)),
       ),
     }),
+    // A hung child (a bundle whose top-level never resolves) must fail the
+    // run, not block the whole benchmark. Generous: a healthy run takes <1s.
+    signal: AbortSignal.timeout(60_000),
     stderr: "inherit",
     stdout: "piped",
   });
   const { code, stdout } = await command.output();
-  if (code !== 0) throw new Error(`measure-import failed for ${bundle}`);
+  if (code !== 0) {
+    throw new Error(`measure-import failed for ${bundle} (${mode} mode)`);
+  }
   return JSON.parse(new TextDecoder().decode(stdout)) as ChildTimings;
 };
 
