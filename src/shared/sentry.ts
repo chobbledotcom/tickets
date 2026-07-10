@@ -6,17 +6,25 @@
  * self-hosted Bugsink). When an error carries its original exception, Sentry
  * receives the real stack trace; otherwise it gets the formatted message.
  *
- * The SDK is initialized once at startup and only when `SENTRY_URL` is set, so
- * local development and tests never send anything. All default integrations are
- * disabled (`integrations: []`): they read Deno-specific globals and source
- * files we don't need, and turning them off keeps the SDK to its core capture +
- * fetch transport, which is exactly what the edge runtime supports.
+ * The SDK is a large module, so — like the Stripe SDK in `stripe.ts` — it is
+ * dynamically imported on the first `initSentry` call with a DSN configured,
+ * never at module load. A deployment without `SENTRY_URL` (and every test
+ * file) therefore skips evaluating the SDK entirely, keeping cold boots inside
+ * their startup budget. All default integrations are disabled
+ * (`integrations: []`): they read Deno-specific globals and source files we
+ * don't need, and turning them off keeps the SDK to its core capture + fetch
+ * transport, which is exactly what the edge runtime supports.
  */
 
-import * as Sentry from "@sentry/deno";
+import { lazyRef } from "#fp";
 import { BUILD_COMMIT } from "#shared/build-info.ts";
 import { getEnv } from "#shared/env.ts";
 import { type ErrorContext, formatErrorMessage } from "#shared/logger.ts";
+
+type SentrySdk = typeof import("@sentry/deno");
+
+/** The loaded SDK namespace; null until `initSentry` first loads it. */
+const [getSentrySdk, setSentrySdk] = lazyRef<SentrySdk | null>(() => null);
 
 /** How long to wait for queued events to reach Sentry before giving up (ms). */
 const FLUSH_TIMEOUT_MS = 2000;
@@ -30,12 +38,16 @@ export const releaseFromCommit = (commit: string): string | undefined =>
   commit ? `chobble-tickets@${commit}` : undefined;
 
 /**
- * Initialize the Sentry SDK. No-op (returns false) when `SENTRY_URL` is unset.
- * Safe to call more than once: only the first call with a DSN initializes.
+ * Initialize the Sentry SDK. No-op (returns false) when `SENTRY_URL` is unset —
+ * without even loading the SDK. Safe to call more than once: only the first
+ * call with a DSN loads and initializes.
  */
-export const initSentry = (): boolean => {
+export const initSentry = async (): Promise<boolean> => {
   const dsn = getEnv("SENTRY_URL");
   if (!dsn) return false;
+
+  const Sentry = getSentrySdk() ?? (await import("@sentry/deno"));
+  setSentrySdk(Sentry);
   if (Sentry.isInitialized()) return true;
 
   Sentry.init({
@@ -68,7 +80,8 @@ const eventTags = (context: ErrorContext): Record<string, string> => {
 export const captureServerError = async (
   context: ErrorContext,
 ): Promise<void> => {
-  if (!Sentry.isInitialized()) return;
+  const Sentry = getSentrySdk();
+  if (!Sentry?.isInitialized()) return;
 
   const captureContext = {
     ...(context.detail ? { extra: { detail: context.detail } } : {}),
@@ -86,10 +99,15 @@ export const captureServerError = async (
 };
 
 /**
- * Tear down the SDK so the global client doesn't leak between test files.
+ * Detach the SDK's client so Sentry state doesn't leak between tests. No-op
+ * when the SDK was never loaded — it must not drag the module in. The loaded
+ * namespace itself stays cached: a re-import would return the identical
+ * module object, so dropping the reference could never be observed.
  * Production never calls this — the client lives for the process lifetime.
  */
 export const resetSentryForTest = (): void => {
+  const Sentry = getSentrySdk();
+  if (!Sentry) return;
   const scopes = [
     Sentry.getCurrentScope(),
     Sentry.getGlobalScope(),

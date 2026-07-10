@@ -223,39 +223,12 @@ was pure relocation + cpd dedup (the task explicitly required "do NOT change wha
 any test asserts"), so these were left untouched and tracked here instead. Each is
 a small, isolated assertion-strength improvement.*
 
-- **`add-attendee.test.ts` — `expect.stringContaining("")` is vacuous.** The
-  "redirects with error on validation failure" test asserts
-  `expectFlash(response, expect.stringContaining(""), false)`, which matches every
-  string and passes even if the flash carries the wrong message. Assert the actual
-  validation error text (or another specific error contract) so the negative path
-  is genuine. (Original monolith line 990.)
-
-- **`payment.test.ts` — Stripe fixture uses a `live` key prefix.** The
-  "links the payment id to the configured provider dashboard" test sets
-  `stripe_secret_key: "sk_live_abc"`. The value is synthetic, but the `live`
-  prefix models a production credential and can trip secret scanners. Switch to a
-  `sk_test_...` fixture — note the test also asserts the live dashboard URL
-  (`dashboard.stripe.com/payments/...`), so verify that still holds after the
-  change. (Original monolith line 2092.)
-
-- **`payment.test.ts` — assert payment stays unrefunded after ledger failure.**
-  The "surfaces a Stripe refund the ledger could not record" test only checks the
-  error flash; its comment says the payment must remain visibly un-refunded. Add a
-  state/UI assertion after the POST so a regression that both flashes an error AND
-  marks the payment refunded cannot pass. (Original monolith lines 2340–2384.)
-
 - **`resend-notification.test.ts` — `setTimeout(resolve, 0)` is race-prone.** The
   "a package member's resend rehydrates every line" test waits for the
   fire-and-forget webhook with a zero-delay timer, which is scheduler-dependent
   and can race the dispatch. Expose/await a completion signal from the test helper
   or make the fetch stub resolve through a deferred promise, then await it
   deterministically before asserting the payload. (Original monolith line 2040.)
-
-- **`delete.test.ts` — `return_url` preservation not asserted.** The "preserves
-  return_url on mismatched attendee name" test only checks the flash message — it
-  never verifies the redirect's Location header actually carries `return_url`. Add
-  a Location-header assertion so a regression that drops `return_url` on the
-  mismatch-name error path cannot pass silently. (Original monolith lines 195–202.)
 
 ---
 
@@ -371,6 +344,30 @@ footer.*
 - **Support** (`/admin/support`) — borderline (it's a contact-the-host form);
   give it a footer only if a support/troubleshooting section is written.
 
+## Test-suite speed — remaining opportunities
+
+*Origin: the test-suite performance pass (lazy Sentry, fast `toContain`,
+migration-suite sharding, `withVirtualBackoff`, `cachedAdminPage`; see the
+Fast Tests section of AGENTS.md). These were identified during profiling but
+deliberately left for later:*
+
+- **Shard `test/lib/db/legacy-migration.test.ts`** (~600 lines, ~13s of
+  sequential full legacy→current migration runs in one file). Same recipe as
+  `test/lib/db/migration-restore/`: move the legacy schema + helpers into a
+  shared module and split the six tests across two or three shard files so
+  `deno test --parallel` spreads them.
+- **Per-file module-graph evaluation.** Every test file re-evaluates the app's
+  module graph (~0.35s each after the lazy-Sentry fix, ~250 files ≈ 80-90s of
+  CPU per run). The biggest remaining import-time chunks are `@libsql/client`
+  (~65ms, needed) and the `#routes` feature tree (~150ms). Any further
+  import-time work moved behind `once()`/dynamic import pays for itself ~250×
+  per run — profile with a `performance.now()` probe around `import("#test-utils")`
+  under `deno test` before and after.
+- **`test/lib/stripe-mock/ports.test.ts` (~4s)** spawns real child processes
+  to test the harness's port handling; each spawn is inherently slow. If it
+  grows, the port-conflict cases could stub the child-process layer the same
+  way the supervisor tests do.
+
 ---
 
 ## Capacity rules — feature-layer adoption (stage 3)
@@ -392,6 +389,27 @@ belong to the table — calendar/UI daily branches (date pickers, sorting,
 display) are date-selection logic and should stay as they are.
 
 ---
+
+## Strengthen the idempotent-replay assertion in the payments confirmation test
+
+*Origin: CodeRabbit review on PR #1690 (payments test split).*
+
+`test/lib/server-payments/confirm.test.ts`, the test **"handles replay of same
+session (idempotent)"**, asserts `expect([200, 302]).toContain(response.status)`.
+This hedge was moved verbatim from the old `server-payments.test.ts` monolith —
+it accepts either branch, so it would not catch a regression that flips the
+replay from one path to the other.
+
+Pinning it to a single deterministic status is a real behavioural question, not
+a mechanical edit: the test books an attendee directly (payment intent
+`pi_test_123`) and then replays the same signed session, and the current code
+does **not** dedupe on payment-intent (the in-test comment spells this out), so
+the outcome depends on the capacity check rather than a defined idempotency
+contract. Deciding the single correct status means first deciding what replaying
+an already-booked payment intent *should* do (reject as duplicate? re-render the
+existing ticket?) and likely adding payment-intent uniqueness — out of scope for
+a test-only file split. Starting point: `src/features/api/payment-processing.ts`
+(the `/payment/success` finalize path) and `#shared/db/processed-payments.ts`.
 
 ## Payment-processing review follow-ups (from PR #1692)
 

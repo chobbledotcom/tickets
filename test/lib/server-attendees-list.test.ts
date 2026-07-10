@@ -121,18 +121,42 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
       expect(html).not.toContain('rel="prev"');
     });
 
-    /** Register `count` throwaway attendees on the listing */
+    /** Register `count` throwaway attendees on the listing. One is booked
+     *  through the real production path; the rest are copies of that row
+     *  (same encrypted PII, fresh unique token index), inserted in a single
+     *  batch — page-filling needs volume, not a hundred full bookings, and
+     *  the sequential version dominated this suite's runtime. Copies get
+     *  higher AUTOINCREMENT ids than every earlier row, so the newest-first
+     *  (id-ordered) pagination under test sees them exactly like real
+     *  bookings made after the "oldest" fixture attendee. */
     const seedFillerAttendees = async (
       listingId: number,
       count: number,
     ): Promise<void> => {
-      for (let i = 0; i < count; i++) {
-        await createTestAttendeeDirect(
-          listingId,
-          `Filler ${i}`,
-          `filler${i}@example.com`,
+      const { getDb } = await import("#shared/db/client.ts");
+      const { attendee } = await createTestAttendeeDirect(
+        listingId,
+        "Filler",
+        "filler@example.com",
+      );
+      const cloneStatements = [];
+      for (let i = 1; i < count; i++) {
+        cloneStatements.push(
+          {
+            args: [`filler-token-${i}`, attendee.id],
+            sql: `INSERT INTO attendees (created, kind, checked_in, ticket_token_index, pii_blob, status_id)
+                  SELECT created, kind, checked_in, ?, pii_blob, status_id
+                  FROM attendees WHERE id = ?`,
+          },
+          {
+            args: [attendee.id],
+            sql: `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, checked_in)
+                  SELECT listing_id, last_insert_rowid(), start_at, end_at, quantity, checked_in
+                  FROM listing_attendees WHERE attendee_id = ?`,
+          },
         );
       }
+      await getDb().batch(cloneStatements, "write");
     };
 
     test("shows the whole page with no paging links when the attendees exactly fill it", async () => {

@@ -11,7 +11,7 @@ import { compact } from "#fp";
 import { type AuthSession, CONTENT_FORM, withAuth } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { listingReturnPath } from "#shared/admin-paths.ts";
+import { entityReturnPath } from "#shared/admin-pages.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   getListingWithCount,
@@ -161,7 +161,11 @@ const handleFileDelete = (
 ): TypedRouteHandler<`POST /admin/listing/:id/${string}/delete`> =>
   listingUploadHandler(async (session, listing, id) => {
     // Staff return to the detail page; editors (who can't open it) to edit.
-    const returnPath = listingReturnPath(session.adminLevel, id);
+    const returnPath = entityReturnPath(
+      "/admin/listings",
+      session.adminLevel,
+      id,
+    );
     const url = getUrl(listing);
     if (url) {
       const [deleteResult] = await Promise.allSettled([deleteFile(url)]);

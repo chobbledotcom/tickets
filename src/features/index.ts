@@ -37,6 +37,7 @@ import {
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { getClientIp, parseCookies, parseRequest } from "#routes/url.ts";
+import { readOnlyGetRoutePatterns } from "#shared/admin-pages.ts";
 import { runWithClientIp } from "#shared/client-context.ts";
 import {
   loadEffectiveDomain,
@@ -243,28 +244,20 @@ const lazyRoute =
 /** Read-only mode message */
 const READ_ONLY_MESSAGE = "This site is in read-only mode";
 
-/** Paths that should redirect to /read-only when visited via GET in read-only mode */
-const READ_ONLY_GET_PATTERNS = [
-  /^\/admin\/listing\/new$/,
-  /^\/admin\/listing\/\d+\/edit$/,
-  /^\/admin\/listing\/\d+\/duplicate$/,
-  /^\/admin\/listing\/\d+\/images$/,
-  /^\/admin\/groups\/\d+\/images$/,
-  /^\/admin\/images\/new$/,
-  /^\/admin\/images\/\d+\/edit$/,
-  /^\/admin\/images\/\d+\/delete$/,
-  /^\/admin\/groups\/new$/,
-  /^\/admin\/groups\/\d+\/edit$/,
-  /^\/admin\/site\/pages\/new$/,
-  /^\/admin\/site\/pages\/\d+\/edit$/,
-  /^\/admin\/site\/pages\/\d+\/delete$/,
-  /^\/admin\/site\/news\/new$/,
-  /^\/admin\/site\/news\/\d+\/edit$/,
-  /^\/admin\/site\/news\/\d+\/delete$/,
-  /^\/admin\/attendees\/new$/,
-  /^\/admin\/ledger\/[^/]+\/[^/]+\/add$/,
-  /^\/admin\/ledger\/entries\/\d+\/edit$/,
-];
+/** Convert a route pattern (using `:id` for numeric, `:type`/`:ref` for string
+ * params) into a regex that matches concrete paths. Derived from the
+ * admin-page schema so new sections' create/edit routes are blocked
+ * automatically — no hand-maintained list to keep in sync. */
+const routePatternToRegex = (pattern: string): RegExp =>
+  new RegExp(
+    `^${pattern.replace(/:id/g, "\\d+").replace(/:[a-zA-Z_]+/g, "[^/]+")}$`,
+  );
+
+/** GET routes that redirect to /read-only when visited in read-only mode —
+ * the create/edit/delete/duplicate form pages. Derived from the admin-page
+ * schema's create links and mutatingGetRoutes. */
+const READ_ONLY_GET_PATTERNS =
+  readOnlyGetRoutePatterns().map(routePatternToRegex);
 
 const isMutatingMethod = (method: string): boolean =>
   method === "DELETE" ||
