@@ -296,6 +296,42 @@ describe("requestCache", () => {
     });
   });
 
+  test("a failed fetch is not cached: the next read fetches fresh", async () => {
+    // The cold-boot path prefetches the settings version before the schema
+    // state check, so the first fetch can legitimately fail (fresh install).
+    // A cached failure — or worse, a never-resolving placeholder — would
+    // wedge every later read in the request.
+    let calls = 0;
+    const cache = requestCache(() => {
+      calls++;
+      return calls === 1
+        ? Promise.reject(new Error("no such table: settings"))
+        : Promise.resolve([calls]);
+    });
+
+    await runWithRequestCache(async () => {
+      await expect(cache.getAll()).rejects.toThrow("no such table");
+      expect(await cache.getAll()).toEqual([2]);
+      expect(calls).toBe(2);
+    });
+  });
+
+  test("concurrent reads sharing a failed fetch all receive the failure", async () => {
+    let calls = 0;
+    const cache = requestCache(() => {
+      calls++;
+      return Promise.reject(new Error(`boom ${calls}`));
+    });
+
+    await runWithRequestCache(async () => {
+      const [a, b] = await Promise.allSettled([cache.getAll(), cache.getAll()]);
+      expect(a.status).toBe("rejected");
+      expect(b.status).toBe("rejected");
+      // Both readers shared the single in-flight fetch.
+      expect(calls).toBe(1);
+    });
+  });
+
   test("size returns 0 before fetch and count after", async () => {
     const cache = requestCache(() => Promise.resolve([1, 2, 3]));
 

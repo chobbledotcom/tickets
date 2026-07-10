@@ -6,10 +6,10 @@
  * 2. Deploy: download release asset, upload via bunny-cdn module
  */
 
-import { lazyRef } from "#fp";
+import { compact, lazyRef } from "#fp";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import { deployScriptCode } from "#shared/bunny-cdn.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { executeBatch, queryAll } from "#shared/db/client.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { logDebug } from "#shared/logger.ts";
 
@@ -105,65 +105,65 @@ export const isNewerVersion = (
   return releaseDate.getTime() > new Date(buildTimestamp).getTime();
 };
 
-/** Read a plaintext settings marker's value, or "" when the row is absent. */
-const readSettingMarker = async (key: string): Promise<string> => {
-  const row = await queryOne<{ value: string }>(
-    "SELECT value FROM settings WHERE key = ?",
-    [key],
+/** Read plaintext settings markers in one query; absent rows read as "". */
+const readSettingMarkers = async (
+  keys: string[],
+): Promise<Map<string, string>> => {
+  const rows = await queryAll<{ key: string; value: string }>(
+    `SELECT key, value FROM settings WHERE key IN (${keys
+      .map(() => "?")
+      .join(", ")})`,
+    keys,
   );
-  return row?.value ?? "";
+  return new Map(rows.map((row) => [row.key, row.value]));
 };
 
-/**
- * Upsert a plaintext settings marker, writing only when the stored value
- * differs (so the unchanged path costs one indexed read and no write). A blank
- * value is a no-op, matching development/test builds where build info is empty.
- */
-const recordSettingMarker = async (
-  key: string,
-  value: string,
-): Promise<void> => {
-  if (!value || (await readSettingMarker(key)) === value) return;
-  await execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [
-    key,
-    value,
-  ]);
-};
-
-/**
- * Sync the commit marker to the running build: upsert when the build embeds a
- * commit, but *clear* a previously-recorded one when a real built bundle ships
- * without one (e.g. `deno task deploy:edge`, which doesn't set BUILD_COMMIT) —
- * otherwise a stale commit from an earlier CI deploy would linger and a later
- * backup/restore would name the wrong commit. "Real built bundle" is gated on a
- * non-empty `version` (build timestamp): a dev/source boot has neither value,
- * so it stays a pure no-op and never wipes a remote DB's commit.
- */
-const syncCommitMarker = async (
-  version: string,
-  commit: string,
-): Promise<void> => {
-  if (commit) return recordSettingMarker(CURRENT_SCRIPT_COMMIT_KEY, commit);
-  if (!version) return;
-  await execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [
-    CURRENT_SCRIPT_COMMIT_KEY,
-    "",
-  ]);
-};
+/** Read a plaintext settings marker's value, or "" when the row is absent. */
+const readSettingMarker = async (key: string): Promise<string> =>
+  (await readSettingMarkers([key])).get(key) ?? "";
 
 /**
  * Record the running build's version *and* commit into this database's
  * `settings` table so a parent host can read them back — both which
  * release we are on and which commit it was built from. The commit is what a
  * backup carries so a restore can redeploy that exact point in time.
- * Best-effort: any failure is logged and swallowed so it can never block boot,
- * and each marker is a no-op for development/test builds where it is empty.
+ *
+ * Runs on every isolate boot, so the steady-state path costs one read round
+ * trip: both markers are checked in a single query, and writes only happen
+ * when a value actually changed. A built bundle without an embedded commit
+ * (e.g. `deno task deploy:edge`, which doesn't set BUILD_COMMIT) must *clear*
+ * a previously-recorded commit — a stale one would mislead a later
+ * backup/restore — while a dev/source boot (no build timestamp either) never
+ * wipes a remote DB's commit and does no work at all.
+ * Best-effort: any failure is logged and swallowed so it can never block boot.
  */
 export const recordScriptVersion = async (): Promise<void> => {
   try {
     const version = getEffectiveBuildTimestamp();
-    await recordSettingMarker(CURRENT_SCRIPT_VERSION_KEY, version);
-    await syncCommitMarker(version, getEffectiveBuildCommit());
+    const commit = getEffectiveBuildCommit();
+    if (!version && !commit) return;
+    const stored = await readSettingMarkers([
+      CURRENT_SCRIPT_VERSION_KEY,
+      CURRENT_SCRIPT_COMMIT_KEY,
+    ]);
+    const wantedCommit = commit || (version ? "" : null);
+    const changes = compact<[string, string]>([
+      version && stored.get(CURRENT_SCRIPT_VERSION_KEY) !== version
+        ? [CURRENT_SCRIPT_VERSION_KEY, version]
+        : null,
+      wantedCommit !== null &&
+      (stored.get(CURRENT_SCRIPT_COMMIT_KEY) ?? "") !== wantedCommit
+        ? [CURRENT_SCRIPT_COMMIT_KEY, wantedCommit]
+        : null,
+    ]);
+    if (changes.length > 0) {
+      await executeBatch(
+        changes.map(([key, value]) => ({
+          args: [key, value],
+          sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        })),
+      );
+    }
   } catch (e) {
     logDebug(
       "Migration",

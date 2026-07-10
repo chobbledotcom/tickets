@@ -627,13 +627,12 @@ const prepareRequestEnvironment = async (
   // (enableFooterDebug, after auth). Non-admin requests skip the overhead.
   if (method === "GET" && getPrefix(path) === "admin") enableQueryLog();
 
-  // Kick off the settings-version probe immediately so the tiny query overlaps
-  // the rest of request setup; loadKeys below awaits its result.
-  settings.prefetchVersion();
-
   // Load only the settings this route needs (infra ∪ prefix bundle) in one
-  // targeted query. When the settings version is unchanged since this isolate
-  // last loaded, the cached snapshot is reused with no reload or decryption.
+  // targeted query. The version probe was prefetched before the database
+  // state check, so on a cold boot its round trip has already overlapped
+  // that work by the time loadKeys awaits it. When the settings version is
+  // unchanged since this isolate last loaded, the cached snapshot is reused
+  // with no reload or decryption.
   await settings.loadKeys(settingsForPath(path));
 
   // Schedule DB pruning as fire-and-forget pending work. Each prune task
@@ -781,6 +780,13 @@ const processRequest = async (
     // cold boot) identify the real site instead of falling back to "localhost".
     // prepareRequestEnvironment() refines this once settings are loaded.
     seedEffectiveDomainHost(url.href);
+
+    // Kick off the settings-version probe now so its round trip overlaps the
+    // schema state check below — on a cold boot both must happen before
+    // routing, and neither depends on the other. The prefetch drops its own
+    // failure (a fresh install has no settings table yet); loadKeys inside
+    // prepareRequestEnvironment() re-fetches and surfaces any real error.
+    settings.prefetchVersion();
 
     const notActivated = await initializeDatabaseForPath(path);
     if (notActivated) {

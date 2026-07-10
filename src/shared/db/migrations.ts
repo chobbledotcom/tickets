@@ -26,6 +26,7 @@ import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
+import { addPendingWork, hasPendingWorkScope } from "#shared/pending-work.ts";
 import { retryWithBackoff } from "#shared/retry.ts";
 import { recordScriptVersion } from "#shared/update.ts";
 import currentSchemaMigration from "./migrations/2026-06-11_current_schema.ts";
@@ -167,22 +168,73 @@ const isMissingSettingsTableError = (error: unknown): boolean => {
   return /no such table:?\s*(\w+\.)?settings\b/i.test(message);
 };
 
-/** Check database state: up-to-date, needs migration, or missing settings table */
-const getDbState = async (): Promise<DbState> => {
+const isMissingMigrationsTableError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error);
+  return /no such table:?\s*(\w+\.)?schema_migrations\b/i.test(message);
+};
+
+/** Everything the boot path needs to know, answered by one round trip. */
+type DbProbe = {
+  state: DbState;
+  /** Rows recorded in schema_migrations, or null when the table is missing. */
+  appliedMigrations: number | null;
+};
+
+const SCHEMA_MARKERS_SQL =
+  "SELECT key, value FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash')";
+
+/** Turn a probe's key/value rows into a lookup map. */
+const rowsToMap = (rows: readonly Record<string, unknown>[]) =>
+  new Map(rows.map((row) => [row.key as string, row.value as string]));
+
+/** Read the schema state from the marker rows a probe returned. */
+const markerState = (values: Map<string, string>): DbState => {
+  if (!values.has("latest_db_update") && !values.has("db_schema_hash")) {
+    return "uninitialized_settings";
+  }
+  return values.get("latest_db_update") === LATEST_UPDATE &&
+    values.get("db_schema_hash") === SCHEMA_HASH
+    ? "up_to_date"
+    : "needs_migration";
+};
+
+/**
+ * Check database state (up-to-date, needs migration, or missing settings
+ * table) and count the recorded migration history — in a single round trip,
+ * because every isolate's first request pays for this before it can serve.
+ * When schema_migrations does not exist yet, fall back to reading just the
+ * markers so the caller can rebuild the history.
+ */
+const probeDbState = async (): Promise<DbProbe> => {
   try {
     const result = await getDb().execute(
-      "SELECT key, value FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash')",
+      `${SCHEMA_MARKERS_SQL} UNION ALL SELECT 'applied_migrations', ` +
+        `CAST(COUNT(*) AS TEXT) FROM ${SCHEMA_MIGRATIONS_TABLE}`,
     );
-    if (result.rows.length === 0) return "uninitialized_settings";
-    const values = new Map(
-      result.rows.map((r) => [r.key as string, r.value as string]),
-    );
-    return values.get("latest_db_update") === LATEST_UPDATE &&
-      values.get("db_schema_hash") === SCHEMA_HASH
-      ? "up_to_date"
-      : "needs_migration";
+    const values = rowsToMap(result.rows);
+    return {
+      appliedMigrations: Number(values.get("applied_migrations")),
+      state: markerState(values),
+    };
   } catch (error) {
-    if (isMissingSettingsTableError(error)) return "missing_settings";
+    if (isMissingSettingsTableError(error)) {
+      return { appliedMigrations: null, state: "missing_settings" };
+    }
+    if (!isMissingMigrationsTableError(error)) throw error;
+  }
+  // schema_migrations does not exist yet (SQLite reports one missing table at
+  // a time, so settings may be missing too) — read the markers on their own
+  // so the caller can rebuild the history.
+  try {
+    const result = await getDb().execute(SCHEMA_MARKERS_SQL);
+    return {
+      appliedMigrations: null,
+      state: markerState(rowsToMap(result.rows)),
+    };
+  } catch (error) {
+    if (isMissingSettingsTableError(error)) {
+      return { appliedMigrations: null, state: "missing_settings" };
+    }
     throw error;
   }
 };
@@ -654,7 +706,15 @@ export const initDb = async (opts: InitDbOptions = {}): Promise<void> => {
   await initDbUncached(opts.allowMissingSettings ?? false);
   // Self-record the running build's version so a parent host can read it back.
   // Best-effort and once per isolate (initDb caches the ready client below).
-  await recordScriptVersion();
+  // Inside a request it runs as pending work, so its round trip overlaps the
+  // rest of the request instead of gating the isolate's first response;
+  // callers outside a request scope (tests, CLI tools) still wait for it.
+  const recorded = recordScriptVersion();
+  if (hasPendingWorkScope()) {
+    addPendingWork(recorded);
+  } else {
+    await recorded;
+  }
   setReadyClient(client);
 };
 
@@ -671,13 +731,25 @@ const requireAllowedInitialDbState = (
   }
 };
 
-const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
-  let state = await getDbState();
-  if (state === "up_to_date") {
+/**
+ * When the markers match this build, make sure the recorded migration history
+ * is complete too. The probe already counted the rows, so the baseline
+ * reconcile (two extra round trips) only runs when history is actually
+ * missing entries — a restored database — instead of on every isolate boot.
+ */
+const baselineIfHistoryIncomplete = async (probe: DbProbe): Promise<void> => {
+  if (probe.appliedMigrations !== MIGRATIONS.length) {
     await baselineCurrentSchemaIfNeeded();
+  }
+};
+
+const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
+  let probe = await probeDbState();
+  if (probe.state === "up_to_date") {
+    await baselineIfHistoryIncomplete(probe);
     return;
   }
-  requireAllowedInitialDbState(state, allowMissingSettings);
+  requireAllowedInitialDbState(probe.state, allowMissingSettings);
 
   const acquired = await acquireMigrationLock(allowMissingSettings);
   if (!acquired) {
@@ -692,13 +764,13 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
 
   try {
     // Re-check after acquiring lock (another process may have finished)
-    state = await getDbState();
-    if (state === "up_to_date") {
-      await baselineCurrentSchemaIfNeeded();
+    probe = await probeDbState();
+    if (probe.state === "up_to_date") {
+      await baselineIfHistoryIncomplete(probe);
       return;
     }
 
-    if (state === "missing_settings") {
+    if (probe.state === "missing_settings") {
       await initializeFreshSchema();
       return;
     }
