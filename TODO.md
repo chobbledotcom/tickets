@@ -370,16 +370,15 @@ Stages 1–2 shipped: the declarative `CAPACITY_RULES` table exists, and the SQL
 guard (`src/shared/db/capacity.ts`), the JS preflight
 (`src/shared/db/attendees/capacity.ts`, `update.ts`), and the booking-page
 limits (`booking/model.ts`, `booking/package-cap.ts`) all derive their
-per-date-vs-running-total decisions from it. A handful of **feature-layer**
-call sites still decide the capacity date by hand with
-`listing_type === "daily"` and could consult `capacityDateFor`/`countsPerDate`
-instead (behaviour-identical, one file each):
-`src/features/public/ticket-payment.ts` (~line 219, the stored booking date),
-`src/features/public/qr-book.ts` (~line 99), `src/features/api/listings.ts`
-(the per-child availability dates, ~lines 122–157), and
-`src/features/api/booking.ts` (~line 64). Only the *capacity-date* decisions
-belong to the table — calendar/UI daily branches (date pickers, sorting,
-display) are date-selection logic and should stay as they are.
+per-date-vs-running-total decisions from it. Stage 3 shipped too: the
+feature-layer capacity-date call sites (`ticket-payment.ts` `bookingDateFields`,
+`qr-book.ts` `buildCheckoutIntent`, `api/listings.ts` child availability,
+`api/booking.ts` `resolveBookingDate`) consult
+`capacityDateFor`/`countsPerDate` instead of branching on
+`listing_type === "daily"` by hand. Only the *capacity-date* decisions belong
+to the table — the remaining calendar/UI daily branches (date pickers,
+sorting, display, duration spans) are date-selection logic and should stay as
+they are. Nothing further planned here.
 
 ---
 

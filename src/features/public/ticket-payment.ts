@@ -38,6 +38,7 @@ import {
   stampChildRowPackages,
 } from "#shared/booking/page-packages.ts";
 import type { BookingTree } from "#shared/booking/tree.ts";
+import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
@@ -216,7 +217,7 @@ export const bookingDateFields = (
   date: string | null,
   dayCount = 1,
 ): { date: string | null; durationDays: number } => ({
-  date: listing.listing_type === "daily" ? date : null,
+  date: capacityDateFor(listing.listing_type, date),
   durationDays: listing.customisable_days
     ? normalizeDurationDays(dayCount)
     : listing.listing_type === "daily"
