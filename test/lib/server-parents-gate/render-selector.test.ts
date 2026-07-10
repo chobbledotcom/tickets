@@ -317,5 +317,16 @@ describeWithEnv(
       // The child-only field is present but not HTML-required.
       expect(html).not.toMatch(/name="phone"[^>]*\srequired/);
     });
+
+    test("selectOptionsFromHtml throws a named error when the select is absent", () => {
+      // A guard against silent mis-slicing: when the HTML has no
+      // `<select name="…">` matching `selectName`, the helper must throw a
+      // message naming the missing select — not return a near-full-page string
+      // sliced from `indexOf(...) === -1`. Callers like expectSelectOffers get
+      // an immediate, readable signal instead of a misleading truthy slice.
+      const message = "No <select name=\"missing_field\"> found in HTML";
+      expect(() => selectOptionsFromHtml("<p>no selects here</p>", "missing_field"))
+        .toThrow(message);
+    });
   },
 );
