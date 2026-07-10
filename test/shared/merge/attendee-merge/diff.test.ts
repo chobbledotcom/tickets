@@ -178,7 +178,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       await saveChoice(target.id, answers[0]!.id);
       // Save the second choice alongside the first — `saveChoice` replaces the
       // attendee's full answer set, so re-save them together.
-      const { saveAttendeeAnswers } = await import("#shared/db/questions.ts");
+      const { saveAttendeeAnswers } = await import(
+        "#shared/db/questions/attendee-answers/save.ts"
+      );
       await saveAttendeeAnswers(
         new Map([[target.id, [answers[0]!.id, second.answers[0]!.id]]]),
       );
