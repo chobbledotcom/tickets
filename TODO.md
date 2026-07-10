@@ -260,13 +260,6 @@ keeps the bundles honest by failing when a route reads a key it didn't declare.
   with no save-time warning. Fix: reject (or warn on) a parent package member
   whose per-order cap is below its pick count.
 
-- **`allocations` metadata length limit.** `enforceMetadataLimits`
-  length-checks `items`, answers, `modifiers`, the entry count and the packed
-  field, but not `allocations` — the fastest-growing field once every pick adds
-  an allocation. A large multi-slot checkout can fail with a raw payment-provider
-  error instead of the app's "book in smaller batches" message. Add
-  `allocations` to the same length guard.
-
 - **Capacity edge cases beyond the shipped model.** The shipped bundle-cap model
   (per-member child caps, sole-child pools, all-children forced demand) covers
   the common configurations but is not a full per-candidate feasibility solver:
