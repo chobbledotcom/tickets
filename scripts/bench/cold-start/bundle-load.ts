@@ -26,12 +26,7 @@
 import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
 import { buildEdgeBundle } from "../../edge-bundle-lib.ts";
 import { spawnChildJson } from "./spawn-child.ts";
-import {
-  median,
-  stripBase64Payloads,
-  stripLongStrings,
-  strippedChars,
-} from "./strip-lib.ts";
+import { median, stripBase64Payloads, strippedChars } from "./strip-lib.ts";
 
 const OUT_DIR = "./dist/bench-cold-start";
 const FULL = `${OUT_DIR}/serve-app.js`;
@@ -70,13 +65,28 @@ const buildVariants = async (): Promise<void> => {
     skipClientBuild: true,
   });
 
+  // The same pipeline with the inlined client assets emptied at build time —
+  // exact, unlike text surgery on the minified output, which a regex literal
+  // containing a double quote can throw off. Combined with the WASM strip
+  // below, this isolates what the big inlined string payloads cost.
+  await buildEdgeBundle({
+    emit: async ({ content }) => {
+      await Deno.writeTextFile(
+        NO_BIG_STRINGS,
+        stripBase64Payloads(content, 50_000).code,
+      );
+    },
+    emptyInlinedAssets: true,
+    entryPoint: "./src/serve-app.ts",
+    label: "Bench",
+    outfile: "serve-app.js",
+    skipClientBuild: true,
+  });
+
   const full = await Deno.readTextFile(FULL);
 
   const noWasm = stripBase64Payloads(full, 50_000);
   await Deno.writeTextFile(NO_WASM, noWasm.code);
-
-  const noBigStrings = stripLongStrings(noWasm.code, 20_000);
-  await Deno.writeTextFile(NO_BIG_STRINGS, noBigStrings.code);
 
   await Deno.writeTextFile(
     HELLO,
@@ -85,10 +95,10 @@ const buildVariants = async (): Promise<void> => {
 
   log(
     `Variants built: full ${(full.length / 1e6).toFixed(2)}MB, ` +
-      `no-wasm strips ${(strippedChars(noWasm) / 1e6).toFixed(2)}MB, ` +
-      `no-big-strings strips a further ${(
-        strippedChars(noBigStrings) / 1e6
-      ).toFixed(2)}MB`,
+      `no-wasm strips ${(strippedChars(noWasm) / 1e6).toFixed(2)}MB of base64, ` +
+      `no-big-strings also drops the inlined assets (${(
+        (await Deno.stat(NO_BIG_STRINGS)).size / 1e6
+      ).toFixed(2)}MB)`,
   );
 };
 

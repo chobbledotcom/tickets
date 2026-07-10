@@ -4,8 +4,15 @@
  * The benchmark builds "what if" variants of the production bundle with the
  * huge inlined string payloads emptied out, so we can measure how much V8
  * parse/compile time those strings cost on a cold start. The variants are
- * only ever *loaded* (never asked to encode an image or serve an asset), so
- * emptying the payloads keeps the bundle loadable while removing the bytes.
+ * only ever *loaded* (never asked to encode an image), so emptying the
+ * payloads keeps the bundle loadable while removing the bytes.
+ *
+ * Only the base64 WASM blobs are stripped from the built output — their
+ * charset makes the match unambiguous. The inlined client assets are
+ * emptied at *build* time instead (`emptyInlinedAssets` in the bundle
+ * pipeline), because reliably finding arbitrary string literals in minified
+ * JS would need a real lexer (a regex literal containing a double quote is
+ * enough to fool anything simpler).
  */
 
 /** One replaced string payload: where it sat and how big it was. */
@@ -37,54 +44,6 @@ export const stripBase64Payloads = (
     },
   );
   return { code: out, stripped };
-};
-
-/**
- * Empty out *any* double-quoted string longer than `minChars`, including ones
- * with escape sequences (the inlined client JS/CSS assets).
- *
- * This walks the file and pairs every double quote with its matching
- * unescaped closing quote, so a "string" can never start at another string's
- * *closing* quote and swallow the code between two literals — the trap a
- * plain regex falls into when a short string is followed by a long
- * quote-free stretch of code. Known limit: a double quote inside a template
- * literal or regex literal would desync the pairing; esbuild-minified output
- * normalises strings to double quotes, and a corrupted variant fails the
- * benchmark loudly because the child process can no longer import it.
- */
-export const stripLongStrings = (
-  code: string,
-  minChars: number,
-): StripResult => {
-  const stripped: StrippedPayload[] = [];
-  // Collect whole segments and join once — the input is a multi-MB bundle,
-  // so per-character appends would churn millions of tiny strings.
-  const parts: string[] = [];
-  let i = 0;
-  let segmentStart = 0;
-  while (i < code.length) {
-    if (code[i] !== '"') {
-      i++;
-      continue;
-    }
-    parts.push(code.slice(segmentStart, i));
-    // Scan from the opening quote to its matching unescaped closing quote.
-    let j = i + 1;
-    while (j < code.length && code[j] !== '"') {
-      j += code[j] === "\\" ? 2 : 1;
-    }
-    const literal = code.slice(i, j + 1);
-    if (j < code.length && literal.length - 2 >= minChars) {
-      stripped.push({ lengthChars: literal.length - 2, startIndex: i });
-      parts.push('""');
-    } else {
-      parts.push(literal);
-    }
-    i = j + 1;
-    segmentStart = i;
-  }
-  parts.push(code.slice(segmentStart));
-  return { code: parts.join(""), stripped };
 };
 
 /** Total characters removed by a strip pass. */

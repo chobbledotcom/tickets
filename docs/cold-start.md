@@ -56,7 +56,10 @@ no-big-strings      3.76MB     206.2ms               —
   inlined base64 WASM and client-asset strings cost almost nothing to parse
   (~13ms and ~0ms). V8 handles giant string literals nearly for free — the
   parse cost is in the 3.7MB of actual minified *code*. Shrinking the bundle
-  only helps cold start if it removes code, not strings.
+  only helps cold start if it removes code, not strings. (`no-wasm` empties
+  the charset-unambiguous base64 blobs in the built output; `no-big-strings`
+  is rebuilt through the same pipeline with the inlined client assets
+  emptied at build time, so no text surgery on minified JS is needed.)
 - A warm V8 code cache halves the import (~113ms), but edge isolates can't
   be assumed to share one, so treat parse as a per-cold-start cost.
 

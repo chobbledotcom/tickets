@@ -56,6 +56,9 @@ export interface EdgeBundleOptions {
   /** Reuse already-built client bundles instead of rebuilding them (for the
    * benchmarks that bundle several entry points back to back). */
   skipClientBuild?: boolean;
+  /** Inline empty strings instead of the real asset bodies — for benchmark
+   * builds that measure what the inlined payloads themselves cost. */
+  emptyInlinedAssets?: boolean;
 }
 
 const JS = "application/javascript; charset=utf-8";
@@ -239,6 +242,9 @@ export const buildEdgeBundle = async (
   const rawCss = await Deno.readTextFile("./src/ui/static/style.css");
   const minifiedCss = await minifyCss(rawCss);
   const staticAssets = await readStaticAssets(minifiedCss);
+  if (options.emptyInlinedAssets) {
+    for (const key of Object.keys(staticAssets)) staticAssets[key] = "";
+  }
 
   // Build timestamp — always the current time. Used both as BUILD_TIMESTAMP
   // and (formatted) as the release tag in release builds, so the two always match.
