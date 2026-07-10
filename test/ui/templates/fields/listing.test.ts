@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import { MAX_DURATION_DAYS } from "#shared/types.ts";
+import {
+  CONTACT_FIELDS,
+  ListingTypeSchema,
+  MAX_DURATION_DAYS,
+} from "#shared/types.ts";
 import { getHolidayFields } from "#templates/fields/admin.ts";
 import { getGroupCreateFields } from "#templates/fields/group.ts";
 import { getListingFields } from "#templates/fields/listing.ts";
@@ -256,13 +260,9 @@ describe("getListingFields() — contact fields setting", () => {
   });
 
   test("accepts known contact field values", () => {
-    for (const value of [
-      "email",
-      "phone",
-      "address",
-      "special_instructions",
-      "email,phone",
-    ]) {
+    // Derived from the schema, so a new ContactField member is covered here the
+    // moment it is added — no hand-maintained list to forget to update.
+    for (const value of [...CONTACT_FIELDS, "email,phone"]) {
       expectValid(getListingFields(), listingForm({ fields: value }));
     }
   });
@@ -276,8 +276,10 @@ describe("getListingFields() — contact fields setting", () => {
 
 describe("getListingFields() — listing_type", () => {
   test("accepts standard and daily, rejects anything else", () => {
-    expectValid(getListingFields(), listingForm({ listing_type: "standard" }));
-    expectValid(getListingFields(), listingForm({ listing_type: "daily" }));
+    // Every declared listing type is accepted; the schema is the source of truth.
+    for (const value of ListingTypeSchema.options) {
+      expectValid(getListingFields(), listingForm({ listing_type: value }));
+    }
     expectInvalid("Listing Type must be standard or daily")(
       getListingFields(),
       listingForm({ listing_type: "weekly" }),

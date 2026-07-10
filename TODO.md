@@ -223,13 +223,6 @@ was pure relocation + cpd dedup (the task explicitly required "do NOT change wha
 any test asserts"), so these were left untouched and tracked here instead. Each is
 a small, isolated assertion-strength improvement.*
 
-- **`add-attendee.test.ts` — `expect.stringContaining("")` is vacuous.** The
-  "redirects with error on validation failure" test asserts
-  `expectFlash(response, expect.stringContaining(""), false)`, which matches every
-  string and passes even if the flash carries the wrong message. Assert the actual
-  validation error text (or another specific error contract) so the negative path
-  is genuine. (Original monolith line 990.)
-
 - **`payment.test.ts` — assert payment stays unrefunded after ledger failure.**
   The "surfaces a Stripe refund the ledger could not record" test only checks the
   error flash; its comment says the payment must remain visibly un-refunded. Add a
@@ -242,12 +235,6 @@ a small, isolated assertion-strength improvement.*
   and can race the dispatch. Expose/await a completion signal from the test helper
   or make the fetch stub resolve through a deferred promise, then await it
   deterministically before asserting the payload. (Original monolith line 2040.)
-
-- **`delete.test.ts` — `return_url` preservation not asserted.** The "preserves
-  return_url on mismatched attendee name" test only checks the flash message — it
-  never verifies the redirect's Location header actually carries `return_url`. Add
-  a Location-header assertion so a regression that drops `return_url` on the
-  mismatch-name error path cannot pass silently. (Original monolith lines 195–202.)
 
 ---
 
