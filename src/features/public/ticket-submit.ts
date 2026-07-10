@@ -366,9 +366,10 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
     ctx.galleryTarget
       ? getImagesForItem(ctx.galleryTarget.type, ctx.galleryTarget.id)
       : Promise.resolve([]),
-    getSelectedAttributesForListings(
-      ctx.listings.map((entry) => entry.listing.id),
-    ),
+    getSelectedAttributesForListings([
+      ...ctx.listings.map((entry) => entry.listing.id),
+      ...children.map((child) => child.id),
+    ]),
   ]);
   const caps = childCapacityInfo(childCaps, childOwnRemaining, membership);
   return {

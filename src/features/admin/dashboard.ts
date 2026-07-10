@@ -187,19 +187,22 @@ const handleAdminListingsGet: TypedRouteHandler<"GET /admin/listings"> =
 
 /** Handle GET /admin/listings/csv — export every listing (filtered by the same
  * ?type= category and attribute filters the listings views use) as a CSV
- * download. */
+ * download. The attribute filter context is loaded from the full listing set
+ * (before the type filter narrows it) so an attribute that only exists on a
+ * different listing type is still recognised by selectedAttributeFiltersFromRequest
+ * rather than silently dropped. */
 const handleListingsCsvExport: TypedRouteHandler<"GET /admin/listings/csv"> = (
   request,
 ) =>
   requireSessionOr(request, async () => {
+    const allListings = await loadSortedListings();
     const type = listingTypeFromRequest(request);
-    const listings = filterListingsByType(type)(await loadSortedListings());
     const { activeAttributeFilters, attributesByListing } =
-      await loadListingAttributeFilterContext(request, listings);
+      await loadListingAttributeFilterContext(request, allListings);
     const filteredListings = filterListingsByAttributes(
       activeAttributeFilters,
       attributesByListing,
-    )(listings);
+    )(filterListingsByType(type)(allListings));
     const csv = generateListingsCsv(filteredListings, settings.timezone);
     const suffix = type === "all" ? "" : `_${type}`;
     await logActivity(
