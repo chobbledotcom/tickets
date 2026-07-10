@@ -7,6 +7,7 @@ import type {
   TicketListing,
 } from "#shared/booking/model.ts";
 import type { PagePackage } from "#shared/booking/page-packages.ts";
+import type { ListingAttributesById } from "#shared/db/attributes.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
@@ -90,6 +91,8 @@ export type TicketCtx = TicketSharedContext & {
    * path alongside groupRemainingByGroupId so the shared-group quantity clamps
    * resolve the group a parent and child actually share. Omitted on submit/quote. */
   groupIdsByListingId?: ReadonlyMap<number, number[]>;
+  /** Selected listing attributes for display. Present on render paths only. */
+  attributesByListing?: ListingAttributesById;
   baseUrl?: string;
   prefill?: BookingPrefill | undefined;
 };

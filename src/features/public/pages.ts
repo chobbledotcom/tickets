@@ -21,6 +21,7 @@ import {
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getBookableStartDates, parseIsoDateParam } from "#shared/dates.ts";
 import { getListingRemainingForRange } from "#shared/db/attendees.ts";
+import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -212,11 +213,13 @@ export const handlePublicListings = (
     const requestedDate = parseIsoDateParam(
       new URL(request.url).searchParams.get("date"),
     );
-    const [ticketListings, dateFilter, soldOutPackages] = await Promise.all([
-      buildTicketListingsWithGroupCapacity(listings),
-      buildDailyDateFilter(listings, requestedDate),
-      soldOutPackageIds(groups, requestedDate),
-    ]);
+    const [ticketListings, dateFilter, soldOutPackages, attributesByListing] =
+      await Promise.all([
+        buildTicketListingsWithGroupCapacity(listings),
+        buildDailyDateFilter(listings, requestedDate),
+        soldOutPackageIds(groups, requestedDate),
+        getSelectedAttributesForListings(listings.map((listing) => listing.id)),
+      ]);
     return htmlResponse(
       homepagePage(
         applyParentSoldOut(ticketListings, classification),
@@ -230,6 +233,7 @@ export const handlePublicListings = (
         nav,
         soldOutPackages,
         requestedDate,
+        attributesByListing,
       ),
     );
   });

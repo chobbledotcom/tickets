@@ -46,6 +46,10 @@ import {
   formatDateLabel,
   formatDatetimeLabel,
 } from "#shared/dates.ts";
+import type {
+  AttributeWithOptions,
+  ListingAttributesById,
+} from "#shared/db/attributes.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
@@ -81,6 +85,7 @@ import {
 } from "#templates/components/question-text.tsx";
 import { getTicketFields } from "#templates/fields/ticket.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { renderListingAttributes } from "./listing-attributes.ts";
 import { PublicImageGallery, renderListingImage } from "./shared.tsx";
 /** OpenGraph meta tags for a public listing page. */
 export const buildOgTags = (
@@ -411,6 +416,8 @@ export type ChildRenderCtx = {
   rendered: Set<number>;
   /** Child tickets already promised to parents on this page. */
   foldReserveByChildId: ReadonlyMap<number, number>;
+  /** Selected listing attributes, for rendering on child options. */
+  attributesByListing: ListingAttributesById;
 };
 
 /** Max parent tickets after checking the children it must book too. */
@@ -574,6 +581,7 @@ const renderChildOption = (
   childLimit: number,
   childDatesById: ReadonlyMap<string, ChildDatesByDayCount>,
   showZero: boolean,
+  attributesHtml = "",
 ): string => {
   const parentId = parent.id;
   const { listing } = child;
@@ -605,7 +613,7 @@ const renderChildOption = (
         restoredChildQty(parentId, listing.id, childLimit),
       )}</select>`
     : `<select name="${selectName}" disabled><option value="0" selected>0</option></select>`;
-  return `<label class="child-option">${select} ${label}</label>${priceHtml}`;
+  return `<label class="child-option">${select} ${label}</label>${priceHtml}${attributesHtml}`;
 };
 
 /** Render a sole bookable child as INFORMATIONAL (auto-select preserved): no
@@ -634,6 +642,7 @@ const renderSoleChildOption = (
   child: TicketListing,
   childDatesById: ReadonlyMap<string, ChildDatesByDayCount>,
   showZero: boolean,
+  attributesHtml = "",
 ): string => {
   const parentId = parent.id;
   const { listing } = child;
@@ -653,7 +662,7 @@ const renderSoleChildOption = (
     parentId,
     child,
     childDatesById,
-  )}>${label}</p>${priceHtml}`;
+  )}>${label}</p>${priceHtml}${attributesHtml}`;
 };
 
 /**
@@ -690,9 +699,18 @@ const renderChildBlock = (
   const isSole = (child: TicketListing): boolean =>
     bookable.length === 1 && bookable[0]!.listing.id === child.listing.id;
   const options = children
-    .map((child) =>
-      isSole(child)
-        ? renderSoleChildOption(parent, child, ctx.childDatesById, showZero)
+    .map((child) => {
+      const childAttributesHtml = renderListingAttributes(
+        ctx.attributesByListing.get(child.listing.id),
+      );
+      return isSole(child)
+        ? renderSoleChildOption(
+            parent,
+            child,
+            ctx.childDatesById,
+            showZero,
+            childAttributesHtml,
+          )
         : renderChildOption(
             parent,
             child,
@@ -711,8 +729,9 @@ const renderChildBlock = (
               : 0,
             ctx.childDatesById,
             showZero,
-          ),
-    )
+            childAttributesHtml,
+          );
+    })
     .join("");
   const questionsHtml = children
     .map((child) => {
@@ -786,6 +805,7 @@ const renderListingRow = (
   hideQuantity = false,
   prefill?: TicketPrefill,
   childCtx?: ChildRenderCtx,
+  attributesHtml = "",
 ): string => {
   const { listing, isSoldOut, isClosed } = info;
   const imageHtml = renderListingImage(listing);
@@ -795,6 +815,7 @@ const renderListingRow = (
       <div class="ticket-row sold-out">
         ${imageHtml}
         <label>${escapeHtml(listing.name)}</label>
+        ${attributesHtml}
         <span class="sold-out-label">${t("public.registration_closed")}</span>
       </div>
     `;
@@ -806,6 +827,7 @@ const renderListingRow = (
         ${imageHtml}
         <label>${escapeHtml(listing.name)}</label>
         ${renderListingDescription(listing.description)}
+        ${attributesHtml}
         <span class="sold-out-label">${t("public.sold_out")}</span>
       </div>
     `;
@@ -824,6 +846,7 @@ const renderListingRow = (
       ${imageHtml}
       <label>${escapeHtml(listing.name)}${quantityHtml}</label>
       ${renderListingDescription(listing.description)}
+      ${attributesHtml}
       ${priceHtml}
       ${childBlock}
     </div>
@@ -839,6 +862,7 @@ const renderPackageMemberRow = (
   info: TicketListing,
   fixedQty: number,
   childCtx: ChildRenderCtx | undefined,
+  attributesHtml = "",
 ): string => `
     <div class="ticket-row package-member">
       ${renderListingImage(info.listing)}
@@ -846,6 +870,7 @@ const renderPackageMemberRow = (
         info.listing.name,
       )} <span class="package-member-qty">&times;${fixedQty}</span></label>
       ${renderListingDescription(info.listing.description)}
+      ${attributesHtml}
       ${childCtx ? renderChildBlock(info, childCtx) : ""}
     </div>
   `;
@@ -861,6 +886,7 @@ const renderPackageControls = (
   members: TicketListing[],
   limit: number,
   childCtxFor: (memberListingId: number) => ChildRenderCtx | undefined,
+  attributesByListing: ListingAttributesById = new Map(),
 ): string => {
   // Every member as `id:fixedQty`, so the client knows which listing-scoped
   // questions to show/require once this package is selected — even when
@@ -886,6 +912,7 @@ const renderPackageControls = (
             e,
             pkg.quantities.get(e.listing.id) ?? 1,
             childCtxFor(e.listing.id),
+            renderListingAttributes(attributesByListing.get(e.listing.id)),
           ),
         )
         .join("");
@@ -901,13 +928,20 @@ const renderPackageSection = (
   members: TicketListing[],
   limit: number,
   childCtxFor: (memberListingId: number) => ChildRenderCtx | undefined,
+  attributesByListing: ListingAttributesById = new Map(),
 ): string => {
   const heading = `<legend>${escapeHtml(pkg.name)}</legend>`;
   const body =
     limit < 1
       ? `<span class="sold-out-label">${t("public.sold_out")}</span>`
       : renderListingDescription(pkg.description) +
-        renderPackageControls(pkg, members, limit, childCtxFor);
+        renderPackageControls(
+          pkg,
+          members,
+          limit,
+          childCtxFor,
+          attributesByListing,
+        );
   return `<fieldset class="ticket-package${
     limit < 1 ? " sold-out" : ""
   }" data-package-section="${pkg.groupId}">${heading}${body}</fieldset>`;
@@ -1009,6 +1043,8 @@ export type TicketPageOptions = {
   /** The header entity's images, shown as the shared CSS gallery above the
    * form (empty ⇒ falls back to the single header image). */
   galleryImages?: readonly Image[];
+  /** Selected listing attributes, populated only on render paths. */
+  attributesByListing?: ListingAttributesById;
   prefill?: BookingPrefill | undefined;
   /** Override the <form action="…"> URL. Defaults to `/ticket/<slugs>`. */
   actionUrl?: string;
@@ -1051,6 +1087,7 @@ const TicketPageHeader = ({
   headerDescription,
   headerImage,
   galleryImages,
+  listingAttributes,
   singleListing,
   pastDays,
 }: {
@@ -1058,6 +1095,7 @@ const TicketPageHeader = ({
   headerDescription: string | null | undefined;
   headerImage: ItemImageProjection | null;
   galleryImages: readonly Image[];
+  listingAttributes: AttributeWithOptions[] | undefined;
   singleListing: ListingWithCount | null;
   pastDays: number | null;
 }): JSX.Element => (
@@ -1095,6 +1133,7 @@ const TicketPageHeader = ({
           {singleListing.location}
         </p>
       )}
+      <Raw html={renderListingAttributes(listingAttributes)} />
     </div>
   </>
 );
@@ -1325,6 +1364,7 @@ const splitChildQuestions = (
   groupRemainingByGroupId: ReadonlyMap<number, number>,
   childDatesById: ReadonlyMap<string, ChildDatesByDayCount>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
+  attributesByListing: ListingAttributesById,
 ): { pageQuestions: QuestionWithAnswers[]; childCtx?: ChildRenderCtx } => {
   if (!childrenByParentId || childrenByParentId.size === 0) {
     return { pageQuestions: questions };
@@ -1337,6 +1377,7 @@ const splitChildQuestions = (
   const pageQuestions = questions.filter(isPageQuestion);
   return {
     childCtx: {
+      attributesByListing,
       childDatesById,
       children: childrenByParentId,
       foldReserveByChildId: foldReserveByChildId(listings, childrenByParentId),
@@ -1448,6 +1489,7 @@ const buildListingRows = (
   hideQuantity: boolean,
   prefill: BookingPrefill | undefined,
   childCtxFor: (info: TicketListing) => ChildRenderCtx | undefined,
+  attributesByListing: ListingAttributesById = new Map(),
 ): string =>
   isSingleListing
     ? renderSingleListingControls(
@@ -1465,6 +1507,7 @@ const buildListingRows = (
             hideQuantity,
             prefill?.listings.get(e.listing.id),
             childCtxFor(e),
+            renderListingAttributes(attributesByListing.get(e.listing.id)),
           ),
         )
         .join("");
@@ -1486,7 +1529,9 @@ const buildPageListingRows = (opts: {
   hideQuantity: boolean;
   prefill?: BookingPrefill | undefined;
   childCtx?: ChildRenderCtx | undefined;
+  attributesByListing: ListingAttributesById;
 }): string => {
+  const { attributesByListing } = opts;
   const membersOf = (pkg: PagePackage): TicketListing[] => {
     const memberIds = new Set(pkg.memberListingIds);
     return opts.listings.filter((info) => memberIds.has(info.listing.id));
@@ -1511,6 +1556,7 @@ const buildPageListingRows = (opts: {
       membersOf(pkg),
       opts.packageLimits.get(pkg.groupId)!,
       claimChildCtx,
+      attributesByListing,
     );
   }
   const packageSections = opts.packages
@@ -1520,6 +1566,7 @@ const buildPageListingRows = (opts: {
         membersOf(pkg),
         opts.packageLimits.get(pkg.groupId)!,
         claimChildCtx,
+        attributesByListing,
       ),
     )
     .join("");
@@ -1543,6 +1590,7 @@ const buildPageListingRows = (opts: {
       opts.hideQuantity,
       opts.prefill,
       (info) => (memberIds.has(info.listing.id) ? undefined : opts.childCtx),
+      attributesByListing,
     )
   );
 };
@@ -1683,6 +1731,7 @@ export const ticketPage = ({
   packages = [],
   packageGroupRemainingByGroupId = new Map(),
   packageMemberGroupIds = new Map(),
+  attributesByListing = new Map(),
 }: TicketPageOptions): string => {
   // The canonical booking tree drives node identity + the stable form field
   // names (via nodeQuantityFieldName/nodePriceFieldName): one node per
@@ -1758,12 +1807,14 @@ export const ticketPage = ({
     groupRemainingByGroupId,
     childDatesById ?? new Map(),
     groupIdsByListingId,
+    attributesByListing,
   );
 
   // A package page shows one "number of packages" selector plus read-only member
   // rows (each ×its fixed quantity); a mixed page shows each package as a titled
   // section above the per-listing controls.
   const listingRows = buildPageListingRows({
+    attributesByListing,
     childCtx,
     hideQuantity,
     isSingleListing,
@@ -1804,6 +1855,11 @@ export const ticketPage = ({
           headerDescription={headerDescription}
           headerImage={headerImage}
           headerName={headerName}
+          listingAttributes={
+            singleListing
+              ? attributesByListing.get(singleListing.id)
+              : undefined
+          }
           pastDays={pastDays}
           singleListing={singleListing}
         />

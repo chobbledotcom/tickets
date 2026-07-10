@@ -80,9 +80,10 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-06_listing_attendees_end_start_index",
         "2026-07-07_processed_payments_payment_reference",
         "2026-07-07_contact_attendee_tokens",
+        "2026-07-09_listing_attributes",
         "2026-07-10_processed_payments_attendee_index",
       ],
-      schemaHash: "12bxq97",
+      schemaHash: "n2axyb",
     });
   });
 });

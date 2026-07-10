@@ -40,6 +40,7 @@ import {
   loadListingRosterPanel,
 } from "./listing-page-data.ts";
 import {
+  loadListingAttributesPanel,
   loadListingEditPanel,
   loadListingImagesPanel,
   loadListingQrPanel,
@@ -193,6 +194,17 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
       sections: [{ kind: "custom", load: loadListingImagesPanel }],
       slug: "images",
       visible: () => !isReadOnly() && isStorageEnabled(),
+    },
+    {
+      labelKey: "entity.tab.attributes",
+      sections: [
+        {
+          kind: "custom",
+          load: (entity) => loadListingAttributesPanel(entity),
+        },
+      ],
+      slug: "attributes",
+      visible: (_entity, session) => session.adminLevel === "owner",
     },
     {
       labelKey: "entity.tab.questions",
