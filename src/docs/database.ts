@@ -22,9 +22,42 @@
  */
 
 export * from "#shared/db/activityLog.ts";
+// The attendee surface spans the split modules under attendees/*. api.ts owns
+// the stubbable wrapper names (createAttendeeAtomic, applyAttendeeAtomicEdit,
+// …), so atomic-update.ts and create.ts are re-exported by explicit list —
+// star-exporting them too would make those names ambiguous and TypeScript
+// would silently drop them from this module.
+export type {
+  ActiveListingStats,
+  AttendeeInput,
+  AttendeeWithBookings,
+  BatchAvailabilityItem,
+  CreateAttendeeResult,
+  ListingAttendeeRow,
+  ListingBooking,
+  UpdateAttendeePIIInput,
+} from "#shared/db/attendee-types.ts";
 export * from "#shared/db/attendees/api.ts";
+export {
+  type AtomicDesiredLine,
+  type ExistingLine,
+  lineKeyFromBooking,
+  loadExistingLines,
+  type UpdateAttendeeAtomicResult,
+} from "#shared/db/attendees/atomic-update.ts";
+export * from "#shared/db/attendees/capacity.ts";
+export {
+  type BookingBatchPlan,
+  buildAttendeeInsert,
+  ensureAllBookings,
+  reverseOrderActivity,
+} from "#shared/db/attendees/create.ts";
+export * from "#shared/db/attendees/delete.ts";
 export * from "#shared/db/attendees/pii.ts";
 export * from "#shared/db/attendees/queries.ts";
+export * from "#shared/db/attendees/stats.ts";
+export * from "#shared/db/attendees/tokens.ts";
+export * from "#shared/db/attendees/update.ts";
 export * from "#shared/db/client.ts";
 export * from "#shared/db/common-schema.ts";
 export * from "#shared/db/define-id-table.ts";

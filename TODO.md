@@ -427,3 +427,37 @@ look.
   and group the package-pricing loads, preserving the existing validation and
   fail-closed behaviour. See the "Respect the subrequest budget" guidance in
   AGENTS.md.
+
+## Equivalent-mutant entries challenged by review (from PR #1717)
+
+*Origin: CodeRabbit review on PR #1717 (import-graph slimming). The challenged
+entries live in `scripts/mutation/equivalent-mutants.txt` but were added by the
+balance-payments work (PR #1697) and only passed through #1717 via a merge of
+main, so relitigating them there was out of scope.*
+
+CodeRabbit argued three suppressions don't meet the file's "no possible input
+distinguishes it" bar because they rely on *current-consumer* behaviour rather
+than interface guarantees:
+
+- **`src/shared/db/payment-references.ts:88` (ORDER BY removal).** The entry's
+  rationale is that every consumer dedupes `sessionIds` or uses them in an
+  `IN (...)`. That is consumer-dependent: a future consumer that renders or
+  compares the array order would observe the mutant. Either normalize ordering
+  at the exported API boundary (e.g. sort `sessionIds` before returning) and
+  keep the suppression, or drop the entry and pin the order with a test.
+- **`src/features/admin/attendees-edit.ts:68` (`bookings[0]` → `bookings[1]`).**
+  The entry leans on a data invariant (the LIMIT 1 row's `listing_id` matching
+  `attendee.listing_id`). Multi-parent bookings exist (see
+  `test/lib/db/attendee-multiparent-rows.test.ts`), so an attendee whose first
+  booking is on a different listing may be constructible. Preferred fix: add a
+  regression test with divergent booking/attendee listing ids asserting the
+  refresh context picks `bookings[0].listing_id`, then delete the entry.
+- **`src/shared/merge/attendee-merge.ts:715/:722` (`merge-unbill`/`merge-credit`
+  keyParts).** The entry argues the prefixes feed only HMAC'd
+  `event_group`/`reference` digests that nothing queries. The digests are still
+  persisted, so the safest resolution is a test that pins the two legs'
+  event-group derivation (or an explicit storage-contract note), then removal.
+
+Starting point: each entry's full rationale is in the file next to the line
+numbers above; the mutation harness is `deno task mutation --source <file>
+--test <suite>`.
