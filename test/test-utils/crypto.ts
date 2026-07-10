@@ -1,10 +1,10 @@
 /**
  * Test crypto utilities — wallet certificates and related helpers.
  *
- * NOTE: node-forge is imported only in this file. To avoid loading it in
- * workers that don't need wallet certificates, do NOT re-export these
- * functions from the #test-utils barrel. Import directly from
- * "#test-utils/crypto" instead.
+ * NOTE: node-forge is imported only in this file. Keep it that way — import
+ * these helpers directly from "#test-utils/crypto.ts" where they are needed, so
+ * the heavy node-forge dependency is not pulled into workers (or test files)
+ * that never render wallet certificates.
  */
 
 import forge from "node-forge";

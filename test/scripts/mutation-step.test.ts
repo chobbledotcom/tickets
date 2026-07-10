@@ -69,7 +69,7 @@ describe("partitionChanged", () => {
       "deno.json",
       "scripts/precommit-mutation.ts",
       "src/styles/app.scss",
-      "test/test-utils.ts",
+      "test/test-utils/db.ts",
     ]);
     expect(result).toEqual({ sources: [], tests: [] });
   });
