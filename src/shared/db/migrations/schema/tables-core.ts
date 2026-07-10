@@ -1,5 +1,6 @@
 /** Core schema tables: system config, auth, listings, assets, rate limits. */
 
+import { itemLinkColumns } from "./columns.ts";
 import type { Table } from "./types.ts";
 import { SCHEMA_MIGRATIONS_TABLE } from "./version.ts";
 
@@ -205,12 +206,7 @@ export const coreTables: [name: string, table: Table][] = [
     // one item.
     "image_uses",
     {
-      columns: [
-        ["image_id", "INTEGER NOT NULL"],
-        ["item_type", "TEXT NOT NULL"],
-        ["item_id", "INTEGER NOT NULL"],
-        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
-      ],
+      columns: [["image_id", "INTEGER NOT NULL"], ...itemLinkColumns],
       indexes: [
         {
           columns: ["item_type", "item_id", "sort_order"],

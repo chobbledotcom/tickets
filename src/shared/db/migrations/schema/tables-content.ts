@@ -1,5 +1,6 @@
 /** Content, communications, ledger, and page tables. */
 
+import { itemLinkColumns, slugNamedEntityColumns } from "./columns.ts";
 import type { Table } from "./types.ts";
 
 export const contentTables: [name: string, table: Table][] = [
@@ -181,10 +182,7 @@ export const contentTables: [name: string, table: Table][] = [
     "site_pages",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["slug", "TEXT NOT NULL"],
-        ["slug_index", "TEXT NOT NULL"],
-        ["name", "TEXT NOT NULL"],
+        ...slugNamedEntityColumns,
         ["meta_title", "TEXT NOT NULL DEFAULT ''"],
         ["meta_description", "TEXT NOT NULL DEFAULT ''"],
         ["content", "TEXT NOT NULL DEFAULT ''"],
@@ -239,12 +237,7 @@ export const contentTables: [name: string, table: Table][] = [
     // (the schema can't express a partial-unique index).
     "site_page_items",
     {
-      columns: [
-        ["page_id", "INTEGER NOT NULL"],
-        ["item_type", "TEXT NOT NULL"],
-        ["item_id", "INTEGER NOT NULL"],
-        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
-      ],
+      columns: [["page_id", "INTEGER NOT NULL"], ...itemLinkColumns],
       indexes: [
         {
           columns: ["page_id", "sort_order"],
