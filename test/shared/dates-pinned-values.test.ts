@@ -124,9 +124,7 @@ describe("dates — pinned values", () => {
   });
 
   test("the booked-range label ends the day before the exclusive end date", () => {
-    expect(bookedRangeLabel("2026-07-01", "2026-07-03")).toBe(
-      "1–2 July 2026",
-    );
+    expect(bookedRangeLabel("2026-07-01", "2026-07-03")).toBe("1–2 July 2026");
   });
 
   test("the widest dated entry is the latest end date, not the latest entry", () => {
