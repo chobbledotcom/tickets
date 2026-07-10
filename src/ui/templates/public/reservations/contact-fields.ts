@@ -85,14 +85,24 @@ const paidInContext = (
   );
 };
 
+/** The shared inputs to the paid-status checks: the page's listings, its opt-in
+ * add-ons, its packages, and which listings keep a standalone row beside them.
+ * Bundling these once avoids re-declaring the four params on each check. */
+type PaidInput = {
+  listings: TicketListing[];
+  addOns: AddOnOption[] | undefined;
+  packages: readonly PagePackage[];
+  standaloneRowIds: ReadonlySet<number>;
+};
+
 /** Whether the page itself (its listings or add-ons, NOT possible children) is
  * paid — so its provider-imposed email renders required. */
-export const pagePaid = (
-  listings: TicketListing[],
-  addOns: AddOnOption[] | undefined,
-  packages: readonly PagePackage[],
-  standaloneRowIds: ReadonlySet<number>,
-): boolean =>
+export const pagePaid = ({
+  addOns,
+  listings,
+  packages,
+  standaloneRowIds,
+}: PaidInput): boolean =>
   listings.some((e) => paidInContext(e, packages, standaloneRowIds)) ||
   (addOns?.some((addOn) => addOn.requiresPayment) ?? false);
 
@@ -101,17 +111,13 @@ export const pagePaid = (
  * a paid child still needs the email field present (non-required, enforced
  * server-side when the folded order is actually paid). */
 export const pageOrChildPaid = (
-  listings: TicketListing[],
-  childrenByParentId: Map<number, TicketListing[]> | undefined,
-  addOns: AddOnOption[] | undefined,
-  packages: readonly PagePackage[],
-  standaloneRowIds: ReadonlySet<number>,
+  input: PaidInput & {
+    childrenByParentId: Map<number, TicketListing[]> | undefined;
+  },
 ): boolean => {
+  const { childrenByParentId } = input;
   const children = childrenByParentId
     ? [...childrenByParentId.values()].flat()
     : [];
-  return (
-    pagePaid(listings, addOns, packages, standaloneRowIds) ||
-    children.some((e) => isPaidListing(e.listing))
-  );
+  return pagePaid(input) || children.some((e) => isPaidListing(e.listing));
 };

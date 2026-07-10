@@ -224,3 +224,14 @@ export const nodePriceFieldName = (node: BookingNode): string | null => {
     ? childPriceFieldName(node.edgeRef.parentId, node.listingId)
     : customPriceFieldName(node.listingId);
 };
+
+/** The listing ids that carry a standalone `BUYER_CHOICE` node — i.e. the rows
+ * with their own quantity selector (every non-member, plus any member the cart
+ * also added by its own slug). The render path and the submit parser both derive
+ * this from the same tree so the two can't drift. */
+export const standaloneListingIds = (tree: BookingTree): Set<number> =>
+  new Set(
+    tree.nodes
+      .filter((node) => node.quantityRule.kind === "BUYER_CHOICE")
+      .map((node) => node.listingId),
+  );

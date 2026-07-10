@@ -12,6 +12,7 @@
 import { t } from "#i18n";
 import type { BuildTreeInput } from "#shared/booking/build-tree.ts";
 import { bookableChildIds } from "#shared/booking/model.ts";
+import { packageLimitInfo } from "#shared/booking/package-cap.ts";
 import { explicitStandaloneIds } from "#shared/booking/page-packages.ts";
 import { daysAgo } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -95,22 +96,20 @@ export const ticketPage = ({
     tree,
     listings,
     standaloneRowIds,
-    childrenByParentId,
-    packageGroupRemainingByGroupId,
-    packageMemberGroupIds,
+    packageLimitInfo(
+      listings,
+      childrenByParentId,
+      packageGroupRemainingByGroupId,
+      packageMemberGroupIds,
+    ),
   );
   const allClosed = listings.every((e) => e.isClosed);
+  const paidInput = { addOns, listings, packages, standaloneRowIds };
   const fields: Field[] = buildContactFields(
     listings,
     childrenByParentId,
-    pagePaid(listings, addOns, packages, standaloneRowIds),
-    pageOrChildPaid(
-      listings,
-      childrenByParentId,
-      addOns,
-      packages,
-      standaloneRowIds,
-    ),
+    pagePaid(paidInput),
+    pageOrChildPaid({ ...paidInput, childrenByParentId }),
   );
   const hasDaily = listings.some((e) => e.listing.listing_type === "daily");
 

@@ -58,6 +58,49 @@ const childDateAttrs = (
   return attrs.join("");
 };
 
+/** The non-required pay-more price input a bookable child folds under a parent.
+ * Emitted for every pay-more child (selectable or sole auto-selected) so the
+ * server fold and the compat/required client scripts can read it. */
+const childPriceInput = (
+  parent: ListingWithCount,
+  child: TicketListing,
+): string =>
+  child.listing.can_pay_more
+    ? renderPayMoreInput(
+        child.listing,
+        childPriceFieldName(parent.id, child.listing.id),
+        undefined,
+        false,
+      )
+    : "";
+
+/** The `name (price)` label a visible child shows: the escaped listing name
+ * followed by its {@link childPriceLabel}, trimmed. Shared by the selectable
+ * option and the sole auto-select marker so the two can't drift. */
+const namedChildPriceLabel = (
+  child: TicketListing,
+  parent: ListingWithCount,
+  showZero: boolean,
+): string =>
+  `${escapeHtml(child.listing.name)} ${childPriceLabel(
+    child.listing,
+    parent,
+    showZero,
+  )}`.trim();
+
+/** The shared inputs to a child-option render: the parent the child folds
+ * under, the child itself, the daily-child date map, whether a £0 price is
+ * shown, and the child's pre-rendered attribute HTML. Bundling these once
+ * keeps the selectable and sole-auto-select option renderers from re-declaring
+ * the same five parameters (and so drifting one from the other). */
+type ChildOptionInput = {
+  parent: ListingWithCount;
+  child: TicketListing;
+  childDatesById: ReadonlyMap<string, ChildDatesByDayCount>;
+  showZero: boolean;
+  attributesHtml: string;
+};
+
 /** Render one child as a per-unit quantity row: a `child_qty_<parentId>_<childId>`
  * select over `0..childLimit`, plus — for a bookable pay-more child — its
  * non-required price input. A sold-out/closed/inactive child renders a disabled
@@ -66,32 +109,16 @@ const childDateAttrs = (
  * child also carries its date/span compatibility attributes ({@link
  * childDateAttrs}) for the client compatibility script. */
 const renderChildOption = (
-  parent: ListingWithCount,
-  child: TicketListing,
+  { attributesHtml, child, childDatesById, parent, showZero }: ChildOptionInput,
   childLimit: number,
-  childDatesById: ReadonlyMap<string, ChildDatesByDayCount>,
-  showZero: boolean,
-  attributesHtml = "",
 ): string => {
   const parentId = parent.id;
   const { listing } = child;
   const bookable = childCanBeBooked(child);
   const selectName = childQuantityFieldName(parentId, listing.id);
-  const priceHtml =
-    listing.can_pay_more && bookable
-      ? renderPayMoreInput(
-          listing,
-          childPriceFieldName(parentId, listing.id),
-          undefined,
-          false,
-        )
-      : "";
+  const priceHtml = bookable ? childPriceInput(parent, child) : "";
   const label = bookable
-    ? `${escapeHtml(listing.name)} ${childPriceLabel(
-        listing,
-        parent,
-        showZero,
-      )}`.trim()
+    ? namedChildPriceLabel(child, parent, showZero)
     : escapeHtml(t("public.ticket.child_unavailable", { name: listing.name }));
   const select = bookable
     ? `<select name="${selectName}" data-child-qty="${listing.id}"${childDateAttrs(
@@ -127,27 +154,18 @@ const renderChildOption = (
  * constrained to the child's calendar) the client script can tell the auto-selected
  * sole child can't serve the chosen date/span and flag/disable the parent — rather
  * than letting the buyer hit the submit-side `child_sold_out` rejection. */
-const renderSoleChildOption = (
-  parent: ListingWithCount,
-  child: TicketListing,
-  childDatesById: ReadonlyMap<string, ChildDatesByDayCount>,
-  showZero: boolean,
-  attributesHtml = "",
-): string => {
+const renderSoleChildOption = ({
+  attributesHtml,
+  child,
+  childDatesById,
+  parent,
+  showZero,
+}: ChildOptionInput): string => {
   const parentId = parent.id;
   const { listing } = child;
-  const priceHtml = listing.can_pay_more
-    ? renderPayMoreInput(
-        listing,
-        childPriceFieldName(parentId, listing.id),
-        undefined,
-        false,
-      )
-    : "";
+  const priceHtml = childPriceInput(parent, child);
   const visible = !listing.hidden;
-  const namePart = visible ? escapeHtml(listing.name) : "";
-  const pricePart = visible ? childPriceLabel(listing, parent, showZero) : "";
-  const label = `${namePart} ${pricePart}`.trim();
+  const label = visible ? namedChildPriceLabel(child, parent, showZero) : "";
   return `<p class="child-option child-sole" data-sole-parent="${parentId}" data-sole-child="${listing.id}"${childDateAttrs(
     parentId,
     child,
@@ -188,22 +206,21 @@ export const renderChildBlock = (
   );
   const isSole = (child: TicketListing): boolean =>
     bookable.length === 1 && bookable[0]!.listing.id === child.listing.id;
+  const optionInput = (child: TicketListing): ChildOptionInput => ({
+    attributesHtml: renderListingAttributes(
+      ctx.attributesByListing.get(child.listing.id),
+    ),
+    child,
+    childDatesById: ctx.childDatesById,
+    parent,
+    showZero,
+  });
   const options = children
-    .map((child) => {
-      const childAttributesHtml = renderListingAttributes(
-        ctx.attributesByListing.get(child.listing.id),
-      );
-      return isSole(child)
-        ? renderSoleChildOption(
-            parent,
-            child,
-            ctx.childDatesById,
-            showZero,
-            childAttributesHtml,
-          )
+    .map((child) =>
+      isSole(child)
+        ? renderSoleChildOption(optionInput(child))
         : renderChildOption(
-            parent,
-            child,
+            optionInput(child),
             childCanBeBooked(child)
               ? Math.min(
                   total,
@@ -217,11 +234,8 @@ export const renderChildBlock = (
                   ),
                 )
               : 0,
-            ctx.childDatesById,
-            showZero,
-            childAttributesHtml,
-          );
-    })
+          ),
+    )
     .join("");
   const questionsHtml = children
     .map((child) => {

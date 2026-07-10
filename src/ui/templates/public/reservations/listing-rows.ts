@@ -16,7 +16,10 @@ import {
   nodeQuantityFieldName,
   packageQuantityFieldName,
 } from "#shared/booking/tree.ts";
-import type { ListingAttributesById } from "#shared/db/attributes.ts";
+import type {
+  AttributeWithOptions,
+  ListingAttributesById,
+} from "#shared/db/attributes.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 import { renderListingAttributes } from "../listing-attributes.ts";
@@ -74,10 +77,11 @@ const renderListingRow = (
   hideQuantity = false,
   prefill?: TicketPrefill,
   childCtx?: ChildRenderCtx,
-  attributesHtml = "",
+  attributes: AttributeWithOptions[] | undefined = undefined,
 ): string => {
   const { listing, isSoldOut, isClosed } = info;
   const imageHtml = renderListingImage(listing);
+  const attributesHtml = renderListingAttributes(attributes);
 
   if (isClosed) {
     return `
@@ -131,7 +135,7 @@ const renderPackageMemberRow = (
   info: TicketListing,
   fixedQty: number,
   childCtx: ChildRenderCtx | undefined,
-  attributesHtml = "",
+  attributes: AttributeWithOptions[] | undefined = undefined,
 ): string => `
     <div class="ticket-row package-member">
       ${renderListingImage(info.listing)}
@@ -139,7 +143,7 @@ const renderPackageMemberRow = (
         info.listing.name,
       )} <span class="package-member-qty">&times;${fixedQty}</span></label>
       ${renderListingDescription(info.listing.description)}
-      ${attributesHtml}
+      ${renderListingAttributes(attributes)}
       ${childCtx ? renderChildBlock(info, childCtx) : ""}
     </div>
   `;
@@ -150,13 +154,21 @@ const renderPackageMemberRow = (
  * most bundles of this package the buyer can book; `childCtxFor` says whether
  * a member's row carries the parent's child selector (a parent shared by two
  * bundles renders it once — see {@link buildPageListingRows}). */
-const renderPackageControls = (
-  pkg: PagePackage,
-  members: TicketListing[],
-  limit: number,
-  childCtxFor: (memberListingId: number) => ChildRenderCtx | undefined,
-  attributesByListing: ListingAttributesById = new Map(),
-): string => {
+type PackageRenderInput = {
+  pkg: PagePackage;
+  members: TicketListing[];
+  limit: number;
+  childCtxFor: (memberListingId: number) => ChildRenderCtx | undefined;
+  attributesByListing: ListingAttributesById;
+};
+
+const renderPackageControls = ({
+  attributesByListing,
+  childCtxFor,
+  limit,
+  members,
+  pkg,
+}: PackageRenderInput): string => {
   // Every member as `id:fixedQty`, so the client knows which listing-scoped
   // questions to show/require once this package is selected — even when
   // members are hidden and render no rows of their own — and how many units
@@ -181,7 +193,7 @@ const renderPackageControls = (
             e,
             pkg.quantities.get(e.listing.id) ?? 1,
             childCtxFor(e.listing.id),
-            renderListingAttributes(attributesByListing.get(e.listing.id)),
+            attributesByListing.get(e.listing.id),
           ),
         )
         .join("");
@@ -192,25 +204,14 @@ const renderPackageControls = (
  * package's name (and description) above its controls, or a dimmed sold-out
  * card when no whole bundle fits any more — the page stays usable for the
  * other items, matching the order gallery's sold-out cards. */
-const renderPackageSection = (
-  pkg: PagePackage,
-  members: TicketListing[],
-  limit: number,
-  childCtxFor: (memberListingId: number) => ChildRenderCtx | undefined,
-  attributesByListing: ListingAttributesById = new Map(),
-): string => {
+const renderPackageSection = (input: PackageRenderInput): string => {
+  const { limit, pkg } = input;
   const heading = `<legend>${escapeHtml(pkg.name)}</legend>`;
   const body =
     limit < 1
       ? `<span class="sold-out-label">${t("public.sold_out")}</span>`
       : renderListingDescription(pkg.description) +
-        renderPackageControls(
-          pkg,
-          members,
-          limit,
-          childCtxFor,
-          attributesByListing,
-        );
+        renderPackageControls(input);
   return `<fieldset class="ticket-package${
     limit < 1 ? " sold-out" : ""
   }" data-package-section="${pkg.groupId}">${heading}${body}</fieldset>`;
@@ -224,17 +225,11 @@ const renderSingleListingControls = (
   prefill?: TicketPrefill,
   childCtx?: ChildRenderCtx,
 ): string => {
-  const { childBlock, priceHtml, quantityHtml } = listingControls(
-    info,
-    node,
-    hideQuantity,
-    prefill,
-    childCtx,
-  );
+  const controls = listingControls(info, node, hideQuantity, prefill, childCtx);
   const labelledQuantity = hideQuantity
-    ? quantityHtml
-    : `<label>${t("public.ticket.number_of_tickets")}${quantityHtml}</label>`;
-  return `${labelledQuantity}${priceHtml}${childBlock}`;
+    ? controls.quantityHtml
+    : `<label>${t("public.ticket.number_of_tickets")}${controls.quantityHtml}</label>`;
+  return `${labelledQuantity}${controls.priceHtml}${controls.childBlock}`;
 };
 
 /** Render the per-listing rows (with their child blocks). A single-listing page
@@ -267,7 +262,7 @@ const buildListingRows = (
             hideQuantity,
             prefill?.listings.get(e.listing.id),
             childCtxFor(e),
-            renderListingAttributes(attributesByListing.get(e.listing.id)),
+            attributesByListing.get(e.listing.id),
           ),
         )
         .join("");
@@ -308,27 +303,22 @@ export const buildPageListingRows = (opts: {
     claimedChildParents.add(memberListingId);
     return opts.childCtx;
   };
+  // Bundle one package's render inputs in one place so the single-package and
+  // multi-package layouts share the same assembly (a duplicate would silently
+  // drift one path's limit or child-ctx wiring from the other's).
+  const packageInput = (pkg: PagePackage): PackageRenderInput => ({
+    attributesByListing,
+    childCtxFor: claimChildCtx,
+    limit: opts.packageLimits.get(pkg.groupId)!,
+    members: membersOf(pkg),
+    pkg,
+  });
   if (opts.singlePackagePage) {
-    const pkg = opts.packages[0]!;
     // packageLimits carries every page package by construction.
-    return renderPackageControls(
-      pkg,
-      membersOf(pkg),
-      opts.packageLimits.get(pkg.groupId)!,
-      claimChildCtx,
-      attributesByListing,
-    );
+    return renderPackageControls(packageInput(opts.packages[0]!));
   }
   const packageSections = opts.packages
-    .map((pkg) =>
-      renderPackageSection(
-        pkg,
-        membersOf(pkg),
-        opts.packageLimits.get(pkg.groupId)!,
-        claimChildCtx,
-        attributesByListing,
-      ),
-    )
+    .map((pkg) => renderPackageSection(packageInput(pkg)))
     .join("");
   const memberIds = packageMemberIds(opts.packages);
   const standalone = opts.listings.filter((info) =>

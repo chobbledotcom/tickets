@@ -81,8 +81,9 @@ export const restoredChildQty = (
   parentId: number,
   childId: number,
   max: number,
-): number => {
-  const saved = savedFormValue(childQuantityFieldName(parentId, childId));
-  if (saved === "") return 0;
-  return Math.max(0, Math.min(Number.parseInt(saved, 10) || 0, max));
-};
+): number =>
+  clampSavedQuantity(
+    savedFormValue(childQuantityFieldName(parentId, childId)),
+    max,
+    0,
+  );

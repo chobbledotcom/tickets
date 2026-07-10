@@ -10,11 +10,12 @@ import {
 } from "#shared/booking/build-tree.ts";
 import type { TicketListing } from "#shared/booking/model.ts";
 import {
-  packageLimitInfo,
-  pagePackageBundleLimit,
+  type PackageLimitInfo,
+  pageBundleLimits,
 } from "#shared/booking/package-cap.ts";
 import type { PagePackage } from "#shared/booking/page-packages.ts";
 import type { BookingNode, BookingTree } from "#shared/booking/tree.ts";
+import { standaloneListingIds } from "#shared/booking/tree.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 /* jscpd:ignore-end */
@@ -37,22 +38,9 @@ export const packagePageAvailability = (
   tree: BookingTree,
   listings: TicketListing[],
   standaloneRowIds: ReadonlySet<number>,
-  childrenByParentId: Map<number, TicketListing[]> | undefined,
-  groupRemainingByGroupId: ReadonlyMap<number, number>,
-  groupIdsByListingId: ReadonlyMap<number, number[]>,
+  page: PackageLimitInfo,
 ): { packageLimits: Map<number, number>; soldOut: boolean } => {
-  const page = packageLimitInfo(
-    listings,
-    childrenByParentId,
-    groupRemainingByGroupId,
-    groupIdsByListingId,
-  );
-  const packageLimits = new Map(
-    packages.map((pkg) => [
-      pkg.groupId,
-      pagePackageBundleLimit(tree, pkg, page),
-    ]),
-  );
+  const packageLimits = pageBundleLimits(tree, packages, page);
   const standaloneUnavailable = listings
     .filter((info) => standaloneRowIds.has(info.listing.id))
     .every((e) => e.isSoldOut || e.isClosed);
@@ -95,11 +83,7 @@ export const buildPageTree = (
   singlePackagePage: boolean;
 } => {
   const tree = buildBookingTree(input);
-  const standaloneRowIds = new Set(
-    tree.nodes
-      .filter((node) => node.quantityRule.kind === "BUYER_CHOICE")
-      .map((node) => node.listingId),
-  );
+  const standaloneRowIds = standaloneListingIds(tree);
   const nodeByListingId = new Map<number, BookingNode>();
   for (const node of tree.nodes) {
     if (
