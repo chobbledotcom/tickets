@@ -34,7 +34,10 @@ import {
   updateServicingEvent,
 } from "#shared/db/attendees/servicing.ts";
 import { getAllListings } from "#shared/db/listings.ts";
-import { applyDemoOverrides, SERVICING_DEMO_FIELDS } from "#shared/demo.ts";
+import {
+  applyDemoOverrides,
+  SERVICING_DEMO_FIELDS,
+} from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { CsrfForm, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeesByTokens } from "#shared/db/attendees.ts";
+import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import { getDb } from "#shared/db/client.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 

@@ -12,10 +12,8 @@ import { notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { verifyAttachmentUrl } from "#shared/attachment-url.ts";
-import {
-  hasActiveBookingLine,
-  incrementAttachmentDownloads,
-} from "#shared/db/attendees.ts";
+import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
+import { incrementAttachmentDownloads } from "#shared/db/attendees/update.ts";
 import { getListing } from "#shared/db/listings.ts";
 import {
   downloadImage,

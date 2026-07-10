@@ -1,9 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  decryptAttendees,
-  getNewestAttendeesRaw,
-} from "#shared/db/attendees.ts";
+import { decryptAttendees } from "#shared/db/attendees/pii.ts";
+import { getNewestAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import {
   createMultiBookingAttendee,
   createTestAttendee,

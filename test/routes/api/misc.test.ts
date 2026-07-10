@@ -100,7 +100,9 @@ describePublicApi(() => {
       expect(response.status).toBe(404);
 
       // Verify no booking was created
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(0);
     });

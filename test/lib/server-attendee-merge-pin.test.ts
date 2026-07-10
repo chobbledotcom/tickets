@@ -7,7 +7,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendee, updateAttendeePII } from "#shared/db/attendees.ts";
+import { getAttendee } from "#shared/db/attendees/queries.ts";
+import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import type { Attendee } from "#shared/types.ts";
 import {
   adminFormPost,

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
-import { setDemoModeForTest } from "#shared/demo.ts";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
   adminGet,
   awaitTestRequest,
@@ -187,7 +187,9 @@ describeWithEnv(
 
       test("group revenue comes from the ledger and survives attendee deletion", async () => {
         const { bookAttendee } = await import("#test-utils");
-        const { deleteAttendee } = await import("#shared/db/attendees.ts");
+        const { deleteAttendee } = await import(
+          "#shared/db/attendees/delete.ts"
+        );
         const group = await createTestGroup({ name: "Rev", slug: "rev-group" });
         const listing = await createTestListing({
           groupId: group.id,

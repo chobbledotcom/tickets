@@ -85,7 +85,9 @@ describeWithEnv(
         expect(response.status).toBe(400);
 
         // Verify attendee was created with quantity 0, not silently converted to 1
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const { getAttendeesRaw } = await import(
+          "#shared/db/attendees/queries.ts"
+        );
         const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(0);

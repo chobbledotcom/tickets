@@ -233,7 +233,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         expect(html).toContain("Thank you for your order");
 
         // Should still only have one attendee
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const { getAttendeesRaw } = await import(
+          "#shared/db/attendees/queries.ts"
+        );
         const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
       } finally {

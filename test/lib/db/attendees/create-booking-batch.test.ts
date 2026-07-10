@@ -17,11 +17,9 @@ import type {
   PricedLine,
   PricedOrder,
 } from "#shared/checkout-pricing.ts";
-import {
-  type BookingBatchPlan,
-  createBookingAtomic,
-  getAttendeesRaw,
-} from "#shared/db/attendees.ts";
+import { createBookingAtomic } from "#shared/db/attendees/api.ts";
+import type { BookingBatchPlan } from "#shared/db/attendees/create.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { queryOne, withTransaction } from "#shared/db/client.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";

@@ -6,7 +6,7 @@ import {
   transfersByAccount,
 } from "#shared/accounting/queries.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import {
   adminFormPost,
   adminGet,

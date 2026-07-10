@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { deleteAttendee, getAttendee } from "#shared/db/attendees.ts";
+import { deleteAttendee } from "#shared/db/attendees/delete.ts";
+import { getAttendee } from "#shared/db/attendees/queries.ts";
 import { getDb, queryOne } from "#shared/db/client.ts";
 import {
   getListingWithCount,

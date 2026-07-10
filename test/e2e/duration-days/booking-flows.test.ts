@@ -3,10 +3,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import { generateAttendeesCsv } from "#routes/admin/attendees-csv.ts";
 import {
   checkBatchAvailability,
-  checkGroupCapAfterDurationChange,
-  getAttendeesRaw,
   hasAvailableSpots,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/api.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { checkGroupCapAfterDurationChange } from "#shared/db/attendees/update.ts";
 import {
   bookAttendee,
   createDailyTestListing,
@@ -291,7 +291,9 @@ describeWithEnv("e2e: multi-day bookings — booking flows", { db: true }, () =>
       await bookAttendee(listing, { date: "2026-10-01", quantity: 5 });
       // Simulate a legacy attendee with NULL start_at (pre-daily migration).
       const { getDb } = await import("#shared/db/client.ts");
-      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+      const { createAttendeeAtomic } = await import(
+        "#shared/db/attendees/api.ts"
+      );
       const legacy = await createAttendeeAtomic({
         bookings: [{ listingId: listing.id, quantity: 5 }],
         email: "legacy@example.com",

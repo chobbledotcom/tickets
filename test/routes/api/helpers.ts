@@ -101,7 +101,7 @@ export const expectBookedTo = async (
   targetId: number,
   otherId: number,
 ): Promise<void> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
   expect((await getAttendeesRaw(targetId)).length).toBe(1);
   expect((await getAttendeesRaw(otherId)).length).toBe(0);
 };

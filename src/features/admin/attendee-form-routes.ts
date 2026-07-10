@@ -58,17 +58,18 @@ import { getSearchParam } from "#routes/url.ts";
 import { manualAddLedgerPoster } from "#shared/checkout-complete.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
+import type {
+  CreateAttendeeResult,
+  ListingAttendeeRow,
+} from "#shared/db/attendee-types.ts";
 import {
   applyAttendeeAtomicEdit,
-  buildPiiBlob,
-  type CreateAttendeeResult,
   createAttendeeAtomic,
-  encryptPiiBlob,
-  ensureAllBookings,
-  hasPaidLine,
-  type ListingAttendeeRow,
-  updateAttendeeStatus,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/api.ts";
+import { ensureAllBookings } from "#shared/db/attendees/create.ts";
+import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
+import { hasPaidLine } from "#shared/db/attendees/queries.ts";
+import { updateAttendeeStatus } from "#shared/db/attendees/update.ts";
 import { hasAssignedBuiltSite } from "#shared/db/built-sites.ts";
 import { syncAttendeeContactTokens } from "#shared/db/contact-tokens.ts";
 import { getAllListings } from "#shared/db/listings.ts";
@@ -84,7 +85,10 @@ import {
 } from "#shared/db/questions/attendee-answers/save.ts";
 import { parseQuestionAnswers } from "#shared/db/questions/parsing.ts";
 import { settings } from "#shared/db/settings.ts";
-import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
+import {
+  ATTENDEE_DEMO_FIELDS,
+  applyDemoOverrides,
+} from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   selectedListingQuantities,

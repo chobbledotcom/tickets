@@ -359,7 +359,9 @@ describeWithEnv("contact-tokens", { db: true }, () => {
   test("a real create appends the new attendee's ticket token", async () => {
     const pk = await getTestPrivateKey();
     const listing = await createTestListing({ maxAttendees: 5, name: "Tok" });
-    const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+    const { createAttendeeAtomic } = await import(
+      "#shared/db/attendees/api.ts"
+    );
     const result = await createAttendeeAtomic({
       bookings: [{ listingId: listing.id }],
       email: "real-token@example.com",

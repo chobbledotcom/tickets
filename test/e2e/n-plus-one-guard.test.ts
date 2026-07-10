@@ -9,7 +9,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { N_PLUS_ONE_THRESHOLD } from "#shared/db/query-log.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { setListingQuestions } from "#shared/db/questions/queries.ts";

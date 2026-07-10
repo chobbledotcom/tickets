@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import {
   adminGet,
   awaitTestRequest,
@@ -71,7 +71,9 @@ describeWithEnv(
           "Arrived",
           "arrived@example.com",
         );
-        const { updateCheckedIn } = await import("#shared/db/attendees.ts");
+        const { updateCheckedIn } = await import(
+          "#shared/db/attendees/update.ts"
+        );
         await updateCheckedIn(attendee.id, listing.id, true);
 
         const response = await adminGet(`/admin/attendees/${attendee.id}`);

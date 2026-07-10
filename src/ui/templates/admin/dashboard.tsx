@@ -20,8 +20,8 @@ import {
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
+import type { ActiveListingStats } from "#shared/db/attendee-types.ts";
 import type { ServicingEventSummary } from "#shared/db/attendees/servicing.ts";
-import type { ActiveListingStats } from "#shared/db/attendees.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { filterListingsByAttributes } from "#shared/listing-attribute-filter.ts";

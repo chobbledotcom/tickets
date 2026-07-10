@@ -4,7 +4,7 @@ import {
   WORLD,
 } from "#shared/accounting/accounts.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
-import { LISTING_ATTENDEE_ROW_COLS } from "#shared/db/attendees.ts";
+import { LISTING_ATTENDEE_ROW_COLS } from "#shared/db/attendees/queries.ts";
 import { queryAll } from "#shared/db/client.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";

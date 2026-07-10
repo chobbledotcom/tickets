@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { groups } from "#shared/db/groups.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { clearTokenAttempts } from "#shared/db/token-attempts.ts";

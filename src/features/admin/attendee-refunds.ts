@@ -14,7 +14,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { hasActiveBookingLine } from "#shared/db/attendees.ts";
+import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
 import {
   getRefundPaymentReferences,
   hasRefundPaymentReference,

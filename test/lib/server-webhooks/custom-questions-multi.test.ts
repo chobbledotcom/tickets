@@ -60,7 +60,7 @@ const expectSharedAttendee = async (
   listing1Id: number,
   listing2Id: number,
 ): Promise<number> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
   const att1 = await getAttendeesRaw(listing1Id);
   const att2 = await getAttendeesRaw(listing2Id);
   expect(att1.length).toBe(1);
@@ -134,7 +134,9 @@ describeWithEnv(
         expect(response.status).toBe(200);
 
         // Verify answers were saved for the created attendee
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const { getAttendeesRaw } = await import(
+          "#shared/db/attendees/queries.ts"
+        );
         const attendees = await getAttendeesRaw(listing1.id);
         expect(attendees.length).toBe(1);
         const answerMap = await getAttendeeAnswersBatch([attendees[0]!.id], {
