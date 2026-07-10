@@ -161,8 +161,8 @@ const buildUndatedGroupExclusionSql = (excludeAttendeeId?: number): string => {
 // keep the correlated "groupRow.id" they are only ever emitted with.)
 const buildDailyGroupCountSql = (
   dayRange: DayRange,
-  excludeAttendeeId?: number,
-  groupRef = "groupRow.id",
+  excludeAttendeeId: number | undefined,
+  groupRef: string,
 ): SqlStatement => ({
   args: [
     ...attendeeExclusionArgs(excludeAttendeeId),
@@ -196,8 +196,8 @@ const buildDailyGroupCountSql = (
 });
 
 const buildUndatedGroupCountSql = (
-  excludeAttendeeId?: number,
-  groupRef = "groupRow.id",
+  excludeAttendeeId: number | undefined,
+  groupRef: string,
 ): SqlStatement => ({
   args: attendeeExclusionArgs(excludeAttendeeId),
   sql: `(COALESCE((

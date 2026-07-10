@@ -67,6 +67,11 @@ describe("capacity rules", () => {
       expect(capacityDateFor("daily", undefined)).toBe(null);
     });
 
+    test("only a missing date falls back — a present string passes through untouched", () => {
+      // Date validation lives upstream; this helper must not second-guess it.
+      expect(capacityDateFor("daily", "")).toBe("");
+    });
+
     test("a running-total listing always drops the date", () => {
       expect(capacityDateFor("standard", "2026-05-01")).toBe(null);
       expect(capacityDateFor("standard", undefined)).toBe(null);
