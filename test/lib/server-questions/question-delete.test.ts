@@ -60,7 +60,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       )(response);
 
       // Verify it's gone
-      const { questionsTable } = await import("#shared/db/questions.ts");
+      const { questionsTable } = await import("#shared/db/questions/tables.ts");
       const found = await questionsTable.findById(id);
       expect(found).toBeNull();
     });
@@ -80,7 +80,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "Question deleted",
       )(response);
 
-      const { questionsTable } = await import("#shared/db/questions.ts");
+      const { questionsTable } = await import("#shared/db/questions/tables.ts");
       expect(await questionsTable.findById(id)).toBeNull();
     });
 
@@ -100,7 +100,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
 
       // Verify still exists
-      const { questionsTable } = await import("#shared/db/questions.ts");
+      const { questionsTable } = await import("#shared/db/questions/tables.ts");
       const found = await questionsTable.findById(id);
       expect(found).not.toBeNull();
     });

@@ -13,7 +13,7 @@ import {
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
-import { answersTable, questionsTable } from "#shared/db/questions.ts";
+import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { toModifierRefs } from "#shared/payment-helpers.ts";
 import type {
   CheckoutIntent,

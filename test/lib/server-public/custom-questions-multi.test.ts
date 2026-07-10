@@ -1,12 +1,9 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  answersTable,
-  getAttendeeAnswersBatch,
-  questionsTable,
-  setListingQuestions,
-} from "#shared/db/questions.ts";
+import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
+import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import {
   createTestListing,
   describeWithEnv,

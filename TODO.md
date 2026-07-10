@@ -187,6 +187,14 @@ descriptors — PRs #1478 and others). A weak-assertion audit script also exists
 
 **Remaining:**
 
+- **Mutation tests removed from `deno task precommit`.** The
+  `precommit:mutation` step was too slow for the standard precommit run and was
+  removed from `scripts/precommit/steps.ts`. The mutation gate still exists as
+  `deno task precommit:mutation` and `deno task mutation` — run it manually on
+  changed src/test pairs before merging. Re-wire it into precommit (perhaps
+  behind a flag or with a tighter changed-set bound) only if the per-commit
+  mutation cost comes down.
+
 - **Property-based tests (item 5).** `fast-check` is currently used in only one
   test (`test/lib/fold-tree.test.ts`). Add properties for: slug generation, CSV
   round-trips (commas / quotes / CRLF), date formatting across timezones, token

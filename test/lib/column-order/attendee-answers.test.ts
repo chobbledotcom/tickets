@@ -4,7 +4,7 @@ import {
   ATTENDEE_TABLE_COLUMNS,
   formatAddressInline,
 } from "#shared/columns/attendee-columns.ts";
-import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { AttendeeColumnOpts } from "#templates/attendee-table.tsx";
 import { setupTestEncryptionKey, testAttendee } from "#test-utils";
 import {

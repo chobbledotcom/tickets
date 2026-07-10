@@ -12,7 +12,7 @@ import { buildOrderLines } from "#shared/booking/order-lines.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import { answerModifierQuantities } from "#shared/db/modifier-resolve.ts";
-import { parseQuestionAnswers } from "#shared/db/questions.ts";
+import { parseQuestionAnswers } from "#shared/db/questions/parsing.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { concealLineNames } from "#shared/package-privacy.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";

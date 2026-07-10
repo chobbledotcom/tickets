@@ -6,6 +6,10 @@ import { insert, setDb } from "#shared/db/client.ts";
 import { deleteListing } from "#shared/db/listings.ts";
 import { initDb, invalidateInitDbCache } from "#shared/db/migrations.ts";
 import { resetDb, setupTestEncryptionKey } from "#test-utils";
+import {
+  cleanupTestDbPath,
+  createTrackedTestDbFile,
+} from "#test-utils/temp-db-files.ts";
 
 /**
  * Migration test: verifies that migrating from the main-branch schema
@@ -24,7 +28,7 @@ describe("db > listing_attendees migration from legacy schema", () => {
   }> = [];
 
   const newFileDb = async (): Promise<ReturnType<typeof createClient>> => {
-    const path = await Deno.makeTempFile({ suffix: ".db" });
+    const path = await createTrackedTestDbFile(".db");
     const client = createClient({ url: `file:${path}` });
     openFileDbs.push({ client, path });
     return client;
@@ -38,7 +42,7 @@ describe("db > listing_attendees migration from legacy schema", () => {
       } catch {
         // already closed
       }
-      await Deno.remove(path).catch(() => {});
+      cleanupTestDbPath(path);
     }
   });
 

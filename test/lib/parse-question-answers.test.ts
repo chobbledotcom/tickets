@@ -1,9 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  parseQuestionAnswers,
-  type QuestionWithAnswers,
-} from "#shared/db/questions.ts";
+import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
+import { parseQuestionAnswers } from "#shared/db/questions/parsing.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 
 const freeText = (
@@ -163,5 +161,28 @@ describe("parseQuestionAnswers deactivated answers", () => {
       allInactive(1),
     ]);
     expect(result).toEqual({ answerIds: [], ok: true, textAnswers: [] });
+  });
+});
+
+describe("parseQuestionAnswers malformed input", () => {
+  // Regression: `Number.parseInt("10xyz", 10)` returned `10`, so a crafted
+  // submission could match answer id 10 by accident. The parser now uses
+  // `parsePositiveIntId`, which rejects any non-digit string before coercing.
+  test("rejects a numeric-prefixed value instead of matching the prefix", () => {
+    const form = new URLSearchParams({ question_1: "10xyz" });
+    const result = parseQuestionAnswers({ optional: false })(form, [radio(1)]);
+    expect(result).toEqual({
+      error: "Invalid answer for: Question 1",
+      ok: false,
+    });
+  });
+
+  test("rejects a non-numeric value", () => {
+    const form = new URLSearchParams({ question_1: "abc" });
+    const result = parseQuestionAnswers({ optional: false })(form, [radio(1)]);
+    expect(result).toEqual({
+      error: "Invalid answer for: Question 1",
+      ok: false,
+    });
   });
 });

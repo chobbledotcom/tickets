@@ -21,7 +21,7 @@ import {
   packageQuantityFieldName,
   quantityFieldName,
 } from "#shared/booking/tree.ts";
-import { getOrCreateStringIds } from "#shared/db/questions.ts";
+import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
@@ -135,7 +135,7 @@ export const applyQrTokenOverride = async (
 export type AnswerInfo = {
   activeQuestions: TicketCtx["questions"];
   answerIds: number[];
-  textAnswers: import("#shared/db/questions.ts").TextAnswer[];
+  textAnswers: import("#shared/db/question-types.ts").TextAnswer[];
   selectedListingIds: Set<number>;
 };
 

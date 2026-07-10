@@ -140,12 +140,23 @@ export const runContainsCases = (cases: readonly ContainsCase[]): void => {
  *  `html.slice(html.indexOf(\`name="…"\`))` + `.slice(0, indexOf("</select>"))`
  *  pair that recurred across the capacity/selector/render tests. Use
  *  {@link selectOptionsHtml} when you need to fetch the page first; use this
- *  directly when you already have the HTML (e.g. from a redirect-follow). */
+ *  directly when you already have the HTML (e.g. from a redirect-follow).
+ *
+ *  Matches a `<select>` opening tag that carries the requested `name` (not
+ *  just any element with that name attribute), so an `<input name="…">` or
+ *  other tag reusing the name can't mask a missing select. Throws a named
+ *  error when no such `<select>` exists, so callers get an immediate, readable
+ *  signal instead of a misleading near-full-page slice. */
 export const selectOptionsFromHtml = (
   html: string,
   selectName: string,
 ): string => {
-  const select = html.slice(html.indexOf(`name="${selectName}"`));
+  const needle = `<select name="${selectName}"`;
+  const start = html.indexOf(needle);
+  if (start === -1) {
+    throw new Error(`No <select name="${selectName}"> found in HTML`);
+  }
+  const select = html.slice(start);
   return select.slice(0, select.indexOf("</select>"));
 };
 

@@ -3,24 +3,29 @@ import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { queryAll } from "#shared/db/client.ts";
 import {
-  assignNextQuestionSortOrder,
-  deleteAnswer,
-  deleteQuestion,
+  questionDisplayTypeError,
+  requireQuestionDisplayType,
+} from "#shared/db/question-types.ts";
+import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
+import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
+import { deleteAnswer, deleteQuestion } from "#shared/db/questions/delete.ts";
+import {
   getAllQuestionsWithAnswers,
-  getAttendeeAnswersBatch,
-  getNextAnswerSortOrder,
-  getOrCreateStringIds,
   getQuestionsForListing,
   getQuestionWithAnswers,
-  pairStringIds,
-  questionDisplayTypeError,
-  questionsTable,
-  requireQuestionDisplayType,
-  saveAttendeeAnswers,
   setListingQuestions,
+} from "#shared/db/questions/queries.ts";
+import {
+  assignNextQuestionSortOrder,
+  getNextAnswerSortOrder,
   swapAnswerOrder,
   swapQuestionOrder,
-} from "#shared/db/questions.ts";
+} from "#shared/db/questions/sort-order.ts";
+import {
+  getOrCreateStringIds,
+  pairStringIds,
+} from "#shared/db/questions/strings.ts";
+import { questionsTable } from "#shared/db/questions/tables.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 import {
   addAnswer,

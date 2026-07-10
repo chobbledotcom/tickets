@@ -7,6 +7,10 @@ import {
   recreateTable,
 } from "#shared/db/migrations/schema-sync.ts";
 import { resetDb } from "#test-utils";
+import {
+  cleanupTestDbPath,
+  createTrackedTestDbFile,
+} from "#test-utils/temp-db-files.ts";
 
 /**
  * Guards the free-text migration's table rebuilds. An existing database carries
@@ -24,14 +28,14 @@ describe("db > free-text migration constraint relaxation", () => {
   afterEach(async () => {
     resetDb();
     if (dbPath) {
-      await Deno.remove(dbPath).catch(() => {});
+      cleanupTestDbPath(dbPath);
       dbPath = undefined;
     }
   });
 
   /** A database shaped as it was before the free-text feature shipped. */
   const seedLegacyDb = async () => {
-    dbPath = await Deno.makeTempFile({ suffix: ".db" });
+    dbPath = await createTrackedTestDbFile(".db");
     const db = createClient({ url: `file:${dbPath}` });
     setDb(db);
     await db.execute(

@@ -20,7 +20,7 @@ import {
 } from "#shared/db/attendees.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
 import { syncAttendeeContactTokens } from "#shared/db/contact-tokens.ts";
-import { getQuestionsWithListingIds } from "#shared/db/questions.ts";
+import { getQuestionsWithListingIds } from "#shared/db/questions/queries.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   applyAttendeeMerge,

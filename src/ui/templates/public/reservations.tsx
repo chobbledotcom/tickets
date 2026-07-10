@@ -47,10 +47,8 @@ import {
   formatDatetimeLabel,
 } from "#shared/dates.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
-import type {
-  QuestionListingMap,
-  QuestionWithAnswers,
-} from "#shared/db/questions.ts";
+import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
+import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { Field } from "#shared/forms.tsx";
 import {
