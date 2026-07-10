@@ -15,6 +15,14 @@ import {
   verifyWebhookSignature,
 } from "#shared/stripe.ts";
 import { createTestDb, resetDb, testListing, withMocks } from "#test-utils";
+import {
+  type CreatedSessionParams,
+  checkout,
+  line,
+  lineFor,
+  signedHeader,
+  stripeClient,
+} from "./fixtures.ts";
 import { describeStripe } from "./harness.ts";
 
 describeStripe("stripe", () => {
@@ -61,11 +69,7 @@ describeStripe("stripe", () => {
     });
 
     test("returns null when Stripe API throws error", async () => {
-      // Enable Stripe with mock
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client to be defined");
-
+      const client = await stripeClient();
       // Spy on the checkout.sessions.retrieve method and make it throw
       await withMocks(
         () =>
@@ -110,64 +114,13 @@ describeStripe("stripe", () => {
       await settings.update.stripe.secretKey("sk_test_mock");
 
       // First create a session using intent-based flow
-      const listing = {
-        active: true,
-        attachment_name: "",
-        attachment_url: "",
-        bookable_days: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
-        can_pay_more: false,
-        closes_at: null,
-        created: new Date().toISOString(),
-        date: "",
-        description: "Test Description",
-        fields: "email" as const,
-        group_id: 0,
-        hidden: false,
-        id: 1,
-        image_url: "",
-        listing_type: "standard" as const,
-        location: "",
-        max_attendees: 50,
-        max_price: 0,
-        max_quantity: 1,
-        maximum_days_after: 90,
-        minimum_days_before: 1,
-        name: "Test Listing",
-        non_transferable: false,
-        slug: "test-listing",
-        slug_index: "test-listing-index",
-        thank_you_url: "https://example.com/thanks",
-        unit_price: 1000,
-        webhook_url: "",
-      };
-      const intent = {
-        address: "",
-        date: null,
-        email: "john@example.com",
-        items: [
-          {
-            listingId: 1,
-            name: listing.name,
-            quantity: 1,
-            slug: listing.slug,
-            unitPrice: listing.unit_price,
-          },
-        ],
-        name: "John Doe",
-        phone: "",
-        special_instructions: "",
-      };
-
+      const listing = testListing({ unit_price: 1000 });
       const createdSession = await createCheckoutSession(
-        intent,
+        checkout({
+          email: "john@example.com",
+          items: [lineFor(listing)],
+          name: "John Doe",
+        }),
         "http://localhost:3000",
       );
       expect(createdSession).not.toBeNull();
@@ -183,65 +136,13 @@ describeStripe("stripe", () => {
     test("creates checkout session with intent metadata", async () => {
       await settings.update.stripe.secretKey("sk_test_mock");
 
-      const listing = {
-        active: true,
-        attachment_name: "",
-        attachment_url: "",
-        bookable_days: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
-        can_pay_more: false,
-        closes_at: null,
-        created: new Date().toISOString(),
-        date: "",
-        description: "Test Description",
-        fields: "email" as const,
-        group_id: 0,
-        hidden: false,
-        id: 1,
-        image_url: "",
-        listing_type: "standard" as const,
-        location: "",
-        max_attendees: 50,
-        max_price: 0,
-        max_quantity: 5,
-        maximum_days_after: 90,
-        minimum_days_before: 1,
-        name: "Test Listing",
-        non_transferable: false,
-        slug: "test-listing",
-        slug_index: "test-listing-index",
-        thank_you_url: "https://example.com/thanks",
-        unit_price: 1000,
-        webhook_url: "",
-      };
-
-      const intent = {
-        address: "",
-        date: null,
-        email: "john@example.com",
-        items: [
-          {
-            listingId: 1,
-            name: listing.name,
-            quantity: 2,
-            slug: listing.slug,
-            unitPrice: listing.unit_price,
-          },
-        ],
-        name: "John Doe",
-        phone: "",
-        special_instructions: "",
-      };
-
+      const listing = testListing({ max_quantity: 5, unit_price: 1000 });
       const session = await createCheckoutSession(
-        intent,
+        checkout({
+          email: "john@example.com",
+          items: [lineFor(listing, 2)],
+          name: "John Doe",
+        }),
         "http://localhost:3000",
       );
 
@@ -263,161 +164,119 @@ describeStripe("stripe", () => {
   });
 
   describe("createCheckoutSession", () => {
+    /** Stub `sessions.create` to resolve `session`, handing the spy to `run`. */
+    const withCreateSpy = (
+      client: Awaited<ReturnType<typeof stripeClient>>,
+      session: unknown,
+      run: (spy: ReturnType<typeof stub>) => Promise<void>,
+    ) =>
+      withMocks(
+        () =>
+          stub(client.checkout.sessions, "create", () =>
+            Promise.resolve(session as never),
+          ) as unknown as ReturnType<typeof stub>,
+        run,
+      );
+
     test("returns null when stripe key not set", async () => {
-      const intent = {
-        address: "",
-        date: null,
-        email: "john@example.com",
-        items: [
-          {
-            listingId: 1,
-            name: "Test",
-            quantity: 1,
-            slug: "test-listing",
-            unitPrice: 1000,
-          },
-        ],
-        name: "John",
-        phone: "",
-        special_instructions: "",
-      };
-      const result = await createCheckoutSession(intent, "http://localhost");
+      const result = await createCheckoutSession(
+        checkout({
+          email: "john@example.com",
+          items: [line({ name: "Test", slug: "test-listing" })],
+          name: "John",
+        }),
+        "http://localhost",
+      );
       expect(result).toBeNull();
     });
 
     test("includes booking fee line item when fee is set", async () => {
       const { settings: s } = await import("#shared/db/settings.ts");
       await s.update.bookingFee("5");
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
+      const client = await stripeClient();
 
-      const createSpy = stub(client.checkout.sessions, "create", () =>
-        Promise.resolve({
+      await withCreateSpy(
+        client,
+        {
           id: "cs_fee",
           object: "checkout.session",
           url: "https://checkout.stripe.com/fee",
-        } as never),
+        },
+        async (createSpy) => {
+          const listing = testListing({ unit_price: 1000 });
+          await createCheckoutSession(
+            checkout({
+              email: "jane@example.com",
+              items: [lineFor(listing)],
+              name: "Jane",
+            }),
+            "http://localhost:3000",
+          );
+
+          const params = createSpy.calls[0]!
+            .args[0] as unknown as CreatedSessionParams;
+          const feeItem = params.line_items.find(
+            (li) => li.price_data.product_data.name === "Booking fee",
+          );
+          expect(feeItem).toBeDefined();
+          // 5% of 1000 = 50
+          expect(feeItem!.price_data.unit_amount).toBe(50);
+          expect(feeItem!.quantity).toBe(1);
+        },
       );
-
-      try {
-        const listing = testListing({ unit_price: 1000 });
-        const intent = {
-          address: "",
-          date: null,
-          email: "jane@example.com",
-          items: [
-            {
-              listingId: listing.id,
-              name: listing.name,
-              quantity: 1,
-              slug: listing.slug,
-              unitPrice: listing.unit_price,
-            },
-          ],
-          name: "Jane",
-          phone: "",
-          special_instructions: "",
-        };
-
-        await createCheckoutSession(intent, "http://localhost:3000");
-
-        const params = createSpy.calls[0]!.args[0] as unknown as {
-          line_items: {
-            price_data: {
-              product_data: { name: string };
-              unit_amount: number;
-            };
-            quantity: number;
-          }[];
-        };
-        const lineItems = params.line_items;
-        const feeItem = lineItems.find(
-          (li) => li.price_data.product_data.name === "Booking fee",
-        );
-        expect(feeItem).toBeDefined();
-        // 5% of 1000 = 50
-        expect(feeItem!.price_data.unit_amount).toBe(50);
-        expect(feeItem!.quantity).toBe(1);
-      } finally {
-        createSpy.restore();
-      }
     });
 
     test("charges the deposit per ticket but the fee on the full order", async () => {
       const { settings: s } = await import("#shared/db/settings.ts");
       await s.update.bookingFee("5");
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
+      const client = await stripeClient();
 
-      const createSpy = stub(client.checkout.sessions, "create", () =>
-        Promise.resolve({
+      await withCreateSpy(
+        client,
+        {
           id: "cs_dep",
           object: "checkout.session",
           url: "https://checkout.stripe.com/dep",
-        } as never),
+        },
+        async (createSpy) => {
+          const listing = testListing({ unit_price: 1000 });
+          await createCheckoutSession(
+            checkout({
+              email: "jane@example.com",
+              items: [lineFor(listing, 2)],
+              name: "Jane",
+              // Public-default reservation charges a 10% deposit up front.
+              reservationAmount: "10%",
+            }),
+            "http://localhost:3000",
+          );
+
+          const params = createSpy.calls[0]!
+            .args[0] as unknown as CreatedSessionParams;
+          const ticketItem = params.line_items.find((li) =>
+            li.price_data.product_data.name.startsWith("Ticket:"),
+          );
+          const feeItem = params.line_items.find(
+            (li) => li.price_data.product_data.name === "Booking fee",
+          );
+          // Ticket line is charged the per-unit deposit (10% of £10.00 = £1.00).
+          expect(ticketItem!.price_data.unit_amount).toBe(100);
+          expect(ticketItem!.quantity).toBe(2);
+          // Fee is still 5% of the full £20.00 order, not of the deposit.
+          expect(feeItem!.price_data.unit_amount).toBe(100);
+          // Metadata records the FULL line price + the snapshot so the webhook
+          // can re-derive the deposit and compute the outstanding balance. The
+          // snapshot is packed into `b` on the wire; decode it the way the
+          // webhook does rather than reading the raw entry.
+          const metadata = extractSessionMetadata(
+            params.metadata as unknown as SessionMetadata,
+          );
+          expect(JSON.parse(metadata.items)).toEqual([
+            { e: listing.id, p: 2000, q: 2 },
+          ]);
+          expect(metadata.reservation_amount).toBe("10%");
+        },
       );
-
-      try {
-        const listing = testListing({ unit_price: 1000 });
-        const intent = {
-          address: "",
-          date: null,
-          email: "jane@example.com",
-          items: [
-            {
-              listingId: listing.id,
-              name: listing.name,
-              quantity: 2,
-              slug: listing.slug,
-              unitPrice: listing.unit_price,
-            },
-          ],
-          name: "Jane",
-          phone: "",
-          // Public-default reservation charges a 10% deposit up front.
-          reservationAmount: "10%",
-          special_instructions: "",
-        };
-
-        await createCheckoutSession(intent, "http://localhost:3000");
-
-        const params = createSpy.calls[0]!.args[0] as unknown as {
-          line_items: {
-            price_data: {
-              product_data: { name: string };
-              unit_amount: number;
-            };
-            quantity: number;
-          }[];
-          metadata: Record<string, string>;
-        };
-        const ticketItem = params.line_items.find((li) =>
-          li.price_data.product_data.name.startsWith("Ticket:"),
-        );
-        const feeItem = params.line_items.find(
-          (li) => li.price_data.product_data.name === "Booking fee",
-        );
-        // Ticket line is charged the per-unit deposit (10% of £10.00 = £1.00).
-        expect(ticketItem!.price_data.unit_amount).toBe(100);
-        expect(ticketItem!.quantity).toBe(2);
-        // Fee is still 5% of the full £20.00 order, not of the deposit.
-        expect(feeItem!.price_data.unit_amount).toBe(100);
-        // Metadata records the FULL line price + the snapshot so the webhook
-        // can re-derive the deposit and compute the outstanding balance. The
-        // snapshot is packed into `b` on the wire; decode it the way the
-        // webhook does rather than reading the raw entry.
-        const metadata = extractSessionMetadata(
-          params.metadata as unknown as SessionMetadata,
-        );
-        expect(JSON.parse(metadata.items)).toEqual([
-          { e: listing.id, p: 2000, q: 2 },
-        ]);
-        expect(metadata.reservation_amount).toBe("10%");
-      } finally {
-        createSpy.restore();
-      }
     });
   });
 
@@ -428,10 +287,7 @@ describeStripe("stripe", () => {
     });
 
     test("returns null when Stripe API throws error", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client to be defined");
-
+      const client = await stripeClient();
       await withMocks(
         () =>
           stub(client.refunds, "create", () =>
@@ -502,32 +358,12 @@ describeStripe("stripe", () => {
     });
 
     test("returns error for timestamp outside tolerance window", async () => {
-      // Create a signature with old timestamp (more than 5 minutes ago)
+      // Sign with an old timestamp (more than 5 minutes ago)
       const oldTimestamp = Math.floor(Date.now() / 1000) - 400; // 400 seconds ago
       const payload = '{"test": true}';
-      const signedPayload = `${oldTimestamp}.${payload}`;
-
-      // Compute valid signature with old timestamp
-      const encoder = new TextEncoder();
-      const key = await crypto.subtle.importKey(
-        "raw",
-        encoder.encode(TEST_SECRET),
-        { hash: "SHA-256", name: "HMAC" },
-        false,
-        ["sign"],
-      );
-      const signature = await crypto.subtle.sign(
-        "HMAC",
-        key,
-        encoder.encode(signedPayload),
-      );
-      const sigHex = Array.from(new Uint8Array(signature))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
-
       const result = await verifyWebhookSignature(
         payload,
-        `t=${oldTimestamp},v1=${sigHex}`,
+        await signedHeader(TEST_SECRET, payload, oldTimestamp),
       );
       expect(result.valid).toBe(false);
       if (!result.valid) {
@@ -549,30 +385,9 @@ describeStripe("stripe", () => {
 
     test("returns error for invalid JSON payload", async () => {
       const payload = "not valid json {{{";
-      const timestamp = Math.floor(Date.now() / 1000);
-      const signedPayload = `${timestamp}.${payload}`;
-
-      // Compute valid signature
-      const encoder = new TextEncoder();
-      const key = await crypto.subtle.importKey(
-        "raw",
-        encoder.encode(TEST_SECRET),
-        { hash: "SHA-256", name: "HMAC" },
-        false,
-        ["sign"],
-      );
-      const signature = await crypto.subtle.sign(
-        "HMAC",
-        key,
-        encoder.encode(signedPayload),
-      );
-      const sigHex = Array.from(new Uint8Array(signature))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
-
       const result = await verifyWebhookSignature(
         payload,
-        `t=${timestamp},v1=${sigHex}`,
+        await signedHeader(TEST_SECRET, payload),
       );
       expect(result.valid).toBe(false);
       if (!result.valid) {
@@ -611,40 +426,22 @@ describeStripe("stripe", () => {
     });
 
     test("accepts custom tolerance window", async () => {
-      // Create signature with timestamp 100 seconds ago
+      // Sign with a timestamp 100 seconds ago
       const oldTimestamp = Math.floor(Date.now() / 1000) - 100;
       const payload = '{"id": "evt_123", "type": "test"}';
-      const signedPayload = `${oldTimestamp}.${payload}`;
+      const header = await signedHeader(TEST_SECRET, payload, oldTimestamp);
 
-      const encoder = new TextEncoder();
-      const key = await crypto.subtle.importKey(
-        "raw",
-        encoder.encode(TEST_SECRET),
-        { hash: "SHA-256", name: "HMAC" },
-        false,
-        ["sign"],
-      );
-      const signature = await crypto.subtle.sign(
-        "HMAC",
-        key,
-        encoder.encode(signedPayload),
-      );
-      const sigHex = Array.from(new Uint8Array(signature))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
-
-      // Should fail with default 300s tolerance but pass with 150s tolerance
+      // Should fail with a tight tolerance but pass with a generous one
       const resultWithSmallTolerance = await verifyWebhookSignature(
         payload,
-        `t=${oldTimestamp},v1=${sigHex}`,
+        header,
         50, // 50 second tolerance - should fail
       );
       expect(resultWithSmallTolerance.valid).toBe(false);
 
-      // Should pass with larger tolerance
       const resultWithLargeTolerance = await verifyWebhookSignature(
         payload,
-        `t=${oldTimestamp},v1=${sigHex}`,
+        header,
         200, // 200 second tolerance - should pass
       );
       expect(resultWithLargeTolerance.valid).toBe(true);

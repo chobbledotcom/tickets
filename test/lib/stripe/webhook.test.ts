@@ -17,6 +17,7 @@ import {
   urlFromFetchInput,
   withFetchMock,
 } from "#test-utils";
+import { signedHeader } from "./fixtures.ts";
 import { describeStripe } from "./harness.ts";
 
 describeStripe("stripe", () => {
@@ -288,31 +289,11 @@ describeStripe("stripe", () => {
         secret: TEST_SECRET,
       });
 
-      // Use a timestamp that is a valid number string, exercising Number.parseInt
-      const timestamp = Math.floor(Date.now() / 1000);
+      // A valid number-string timestamp, exercising Number.parseInt
       const payload = '{"id": "evt_parse", "type": "test"}';
-      const signedPayload = `${timestamp}.${payload}`;
-
-      const encoder = new TextEncoder();
-      const key = await crypto.subtle.importKey(
-        "raw",
-        encoder.encode(TEST_SECRET),
-        { hash: "SHA-256", name: "HMAC" },
-        false,
-        ["sign"],
-      );
-      const signature = await crypto.subtle.sign(
-        "HMAC",
-        key,
-        encoder.encode(signedPayload),
-      );
-      const sigHex = Array.from(new Uint8Array(signature))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
-
       const result = await verifyWebhookSignature(
         payload,
-        `t=${timestamp},v1=${sigHex}`,
+        await signedHeader(TEST_SECRET, payload),
       );
       expect(result.valid).toBe(true);
     });
@@ -405,27 +386,10 @@ describeStripe("stripe", () => {
       const errorSpy = spy(console, "error");
       const oldTimestamp = Math.floor(Date.now() / 1000) - 400;
       const payload = '{"test": true}';
-      const signedPayload = `${oldTimestamp}.${payload}`;
-
-      const encoder = new TextEncoder();
-      const key = await crypto.subtle.importKey(
-        "raw",
-        encoder.encode(TEST_SECRET),
-        { hash: "SHA-256", name: "HMAC" },
-        false,
-        ["sign"],
-      );
-      const signature = await crypto.subtle.sign(
-        "HMAC",
-        key,
-        encoder.encode(signedPayload),
-      );
-      const sigHex = Array.from(new Uint8Array(signature))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
+      const header = await signedHeader(TEST_SECRET, payload, oldTimestamp);
 
       try {
-        await verifyWebhookSignature(payload, `t=${oldTimestamp},v1=${sigHex}`);
+        await verifyWebhookSignature(payload, header);
         const callArg = errorSpy.calls[0]!.args[0] as string;
         expect(callArg).toContain("timestamp out of tolerance delta=");
         expect(callArg).toContain("tolerance=300s");
@@ -437,28 +401,10 @@ describeStripe("stripe", () => {
     test("logs JSON parse error message for invalid payload", async () => {
       const errorSpy = spy(console, "error");
       const payload = "not valid json {{{";
-      const timestamp = Math.floor(Date.now() / 1000);
-      const signedPayload = `${timestamp}.${payload}`;
-
-      const encoder = new TextEncoder();
-      const key = await crypto.subtle.importKey(
-        "raw",
-        encoder.encode(TEST_SECRET),
-        { hash: "SHA-256", name: "HMAC" },
-        false,
-        ["sign"],
-      );
-      const signature = await crypto.subtle.sign(
-        "HMAC",
-        key,
-        encoder.encode(signedPayload),
-      );
-      const sigHex = Array.from(new Uint8Array(signature))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
+      const header = await signedHeader(TEST_SECRET, payload);
 
       try {
-        await verifyWebhookSignature(payload, `t=${timestamp},v1=${sigHex}`);
+        await verifyWebhookSignature(payload, header);
         const callArg = errorSpy.calls[0]!.args[0] as string;
         expect(callArg).toContain('detail="invalid JSON:');
       } finally {

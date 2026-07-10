@@ -4,7 +4,8 @@ import { stub } from "@std/testing/mock";
 import type { RefundPaymentInput } from "#shared/square.ts";
 import { retrievePayment, squareApi } from "#shared/square.ts";
 import { withMocks } from "#test-utils";
-import { createMockClient, describeSquare } from "./harness.ts";
+import { withSquareClient } from "./fixtures.ts";
+import { describeSquare } from "./harness.ts";
 
 describeSquare(() => {
   describe("retrieveOrder", () => {
@@ -14,13 +15,9 @@ describeSquare(() => {
     });
 
     test("returns null when SDK returns no order", async () => {
-      const { client, ordersGet } = createMockClient({
-        ordersGet: () => Promise.resolve({ order: null }),
-      });
-
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withSquareClient(
+        { ordersGet: () => Promise.resolve({ order: null }) },
+        async ({ ordersGet }) => {
           const result = await squareApi.retrieveOrder("order_missing");
           expect(result).toBeNull();
           expect(ordersGet.calls[0]!.args[0]).toEqual({
@@ -31,28 +28,26 @@ describeSquare(() => {
     });
 
     test("maps tender paymentId correctly", async () => {
-      const { client } = createMockClient({
-        ordersGet: () =>
-          Promise.resolve({
-            order: {
-              id: "order_tenders",
-              metadata: {
-                email: "john@example.com",
-                items: '[{"e":1,"q":1,"p":0}]',
-                name: "John",
+      await withSquareClient(
+        {
+          ordersGet: () =>
+            Promise.resolve({
+              order: {
+                id: "order_tenders",
+                metadata: {
+                  email: "john@example.com",
+                  items: '[{"e":1,"q":1,"p":0}]',
+                  name: "John",
+                },
+                state: "COMPLETED",
+                tenders: [
+                  { id: "tender_1", paymentId: "pay_abc" },
+                  { id: "tender_2", paymentId: null },
+                ],
+                totalMoney: { amount: BigInt(2000), currency: "USD" },
               },
-              state: "COMPLETED",
-              tenders: [
-                { id: "tender_1", paymentId: "pay_abc" },
-                { id: "tender_2", paymentId: null },
-              ],
-              totalMoney: { amount: BigInt(2000), currency: "USD" },
-            },
-          }),
-      });
-
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
+            }),
+        },
         async () => {
           const result = await squareApi.retrieveOrder("order_tenders");
           expect(result).not.toBeNull();
@@ -64,21 +59,19 @@ describeSquare(() => {
     });
 
     test("returns correct shape with state and id", async () => {
-      const { client } = createMockClient({
-        ordersGet: () =>
-          Promise.resolve({
-            order: {
-              id: "order_shape",
-              metadata: undefined,
-              state: "OPEN",
-              tenders: undefined,
-              totalMoney: { amount: BigInt(0), currency: "USD" },
-            },
-          }),
-      });
-
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
+      await withSquareClient(
+        {
+          ordersGet: () =>
+            Promise.resolve({
+              order: {
+                id: "order_shape",
+                metadata: undefined,
+                state: "OPEN",
+                tenders: undefined,
+                totalMoney: { amount: BigInt(0), currency: "USD" },
+              },
+            }),
+        },
         async () => {
           const result = await squareApi.retrieveOrder("order_shape");
           expect(result).not.toBeNull();
@@ -91,25 +84,23 @@ describeSquare(() => {
     });
 
     test("maps totalMoney from order response", async () => {
-      const { client } = createMockClient({
-        ordersGet: () =>
-          Promise.resolve({
-            order: {
-              id: "order_with_total",
-              metadata: {
-                email: "john@example.com",
-                items: '[{"e":1,"q":1,"p":0}]',
-                name: "John",
+      await withSquareClient(
+        {
+          ordersGet: () =>
+            Promise.resolve({
+              order: {
+                id: "order_with_total",
+                metadata: {
+                  email: "john@example.com",
+                  items: '[{"e":1,"q":1,"p":0}]',
+                  name: "John",
+                },
+                state: "COMPLETED",
+                tenders: [{ id: "tender_1", paymentId: "pay_total" }],
+                totalMoney: { amount: BigInt(7500), currency: "GBP" },
               },
-              state: "COMPLETED",
-              tenders: [{ id: "tender_1", paymentId: "pay_total" }],
-              totalMoney: { amount: BigInt(7500), currency: "GBP" },
-            },
-          }),
-      });
-
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
+            }),
+        },
         async () => {
           const result = await squareApi.retrieveOrder("order_with_total");
           expect(result).not.toBeNull();
@@ -127,13 +118,9 @@ describeSquare(() => {
     });
 
     test("returns null when SDK returns no payment", async () => {
-      const { client, paymentsGet } = createMockClient({
-        paymentsGet: () => Promise.resolve({ payment: null }),
-      });
-
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withSquareClient(
+        { paymentsGet: () => Promise.resolve({ payment: null }) },
+        async ({ paymentsGet }) => {
           const result = await squareApi.retrievePayment("pay_missing");
           expect(result).toBeNull();
           expect(paymentsGet.calls[0]!.args[0]).toEqual({
@@ -144,27 +131,25 @@ describeSquare(() => {
     });
 
     test("maps payment fields correctly from SDK response", async () => {
-      const { client } = createMockClient({
-        paymentsGet: () =>
-          Promise.resolve({
-            payment: {
-              amountMoney: {
-                amount: BigInt(5000),
-                currency: "GBP",
+      await withSquareClient(
+        {
+          paymentsGet: () =>
+            Promise.resolve({
+              payment: {
+                amountMoney: {
+                  amount: BigInt(5000),
+                  currency: "GBP",
+                },
+                id: "pay_full",
+                orderId: "order_999",
+                refundedMoney: {
+                  amount: BigInt(5000),
+                  currency: "GBP",
+                },
+                status: "COMPLETED",
               },
-              id: "pay_full",
-              orderId: "order_999",
-              refundedMoney: {
-                amount: BigInt(5000),
-                currency: "GBP",
-              },
-              status: "COMPLETED",
-            },
-          }),
-      });
-
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
+            }),
+        },
         async () => {
           const result = await squareApi.retrievePayment("pay_full");
           expect(result).not.toBeNull();
@@ -182,21 +167,19 @@ describeSquare(() => {
 
   describe("retrievePayment wrapper export", () => {
     test("delegates to squareApi.retrievePayment", async () => {
-      const { client, paymentsGet } = createMockClient({
-        paymentsGet: () =>
-          Promise.resolve({
-            payment: {
-              amountMoney: { amount: BigInt(1000), currency: "USD" },
-              id: "pay_wrapper",
-              orderId: "order_wrapper",
-              status: "COMPLETED",
-            },
-          }),
-      });
-
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withSquareClient(
+        {
+          paymentsGet: () =>
+            Promise.resolve({
+              payment: {
+                amountMoney: { amount: BigInt(1000), currency: "USD" },
+                id: "pay_wrapper",
+                orderId: "order_wrapper",
+                status: "COMPLETED",
+              },
+            }),
+        },
+        async ({ paymentsGet }) => {
           const result = await retrievePayment("pay_wrapper");
           expect(result).not.toBeNull();
           expect(result!.id).toBe("pay_wrapper");
@@ -226,25 +209,23 @@ describeSquare(() => {
     });
 
     test("calls SDK refund with correct amount from payment", async () => {
-      const { client, paymentsGet, refundsRefundPayment } = createMockClient({
-        paymentsGet: () =>
-          Promise.resolve({
-            payment: {
-              amountMoney: { amount: BigInt(4200), currency: "USD" },
-              id: "pay_refund_me",
-              orderId: "order_refund",
-              status: "COMPLETED",
-            },
-          }),
-        refundsRefundPayment: () =>
-          Promise.resolve({
-            refund: { id: "refund_123", status: "PENDING" },
-          }),
-      });
-
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await withSquareClient(
+        {
+          paymentsGet: () =>
+            Promise.resolve({
+              payment: {
+                amountMoney: { amount: BigInt(4200), currency: "USD" },
+                id: "pay_refund_me",
+                orderId: "order_refund",
+                status: "COMPLETED",
+              },
+            }),
+          refundsRefundPayment: () =>
+            Promise.resolve({
+              refund: { id: "refund_123", status: "PENDING" },
+            }),
+        },
+        async ({ paymentsGet, refundsRefundPayment }) => {
           const result = await squareApi.refundPayment("pay_refund_me");
           expect(result).toBe(true);
 
@@ -266,22 +247,20 @@ describeSquare(() => {
     });
 
     test("returns false when refund SDK call throws", async () => {
-      const { client } = createMockClient({
-        paymentsGet: () =>
-          Promise.resolve({
-            payment: {
-              amountMoney: { amount: BigInt(1000), currency: "GBP" },
-              id: "pay_fail",
-              orderId: "order_fail",
-              status: "COMPLETED",
-            },
-          }),
-        refundsRefundPayment: () =>
-          Promise.reject(new Error("Square API error")),
-      });
-
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
+      await withSquareClient(
+        {
+          paymentsGet: () =>
+            Promise.resolve({
+              payment: {
+                amountMoney: { amount: BigInt(1000), currency: "GBP" },
+                id: "pay_fail",
+                orderId: "order_fail",
+                status: "COMPLETED",
+              },
+            }),
+          refundsRefundPayment: () =>
+            Promise.reject(new Error("Square API error")),
+        },
         async () => {
           const result = await squareApi.refundPayment("pay_fail");
           expect(result).toBe(false);

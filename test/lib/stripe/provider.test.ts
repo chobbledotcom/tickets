@@ -5,7 +5,6 @@ import { settings } from "#shared/db/settings.ts";
 import type { StripeWebhookEvent } from "#shared/stripe.ts";
 import {
   constructTestWebhookEvent,
-  getStripeClient,
   resetStripeClient,
   retrievePaymentIntent,
   sanitizeErrorDetail,
@@ -13,342 +12,272 @@ import {
 } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { setTestEnv, testListing, withMocks } from "#test-utils";
+import { checkout, line, lineFor, stripeClient } from "./fixtures.ts";
 import { describeStripe } from "./harness.ts";
 
 describeStripe("stripe-provider", () => {
-  describe("toCheckoutResult - session with no URL", () => {
-    test("returns null when session has no URL", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
+  /** Stub `checkout.sessions.retrieve` with `impl`, then run `body`. */
+  const whileRetrieving = (
+    client: Awaited<ReturnType<typeof stripeClient>>,
+    impl: () => Promise<unknown>,
+    body: () => void | Promise<void>,
+  ) =>
+    withMocks(
+      () => stub(client.checkout.sessions, "retrieve", impl as never),
+      body,
+    );
 
-      // Spy on stripe.checkout.sessions.create to return session without URL
-      const createSpy = stub(client.checkout.sessions, "create", () =>
+  describe("toCheckoutResult - session with no URL", () => {
+    /** The checkout should collapse to null when the SDK create behaves badly. */
+    const expectNullCheckout = (
+      client: Awaited<ReturnType<typeof stripeClient>>,
+      createImpl: () => Promise<unknown>,
+    ) =>
+      withMocks(
+        () => stub(client.checkout.sessions, "create", createImpl as never),
+        async () => {
+          const listing = testListing({ unit_price: 1000 });
+          const result = await stripePaymentProvider.createCheckoutSession(
+            checkout({
+              email: "john@example.com",
+              items: [lineFor(listing)],
+              name: "John",
+            }),
+            "http://localhost:3000",
+          );
+          expect(result).toBeNull();
+        },
+      );
+
+    test("returns null when session has no URL", async () => {
+      const client = await stripeClient();
+      await expectNullCheckout(client, () =>
         Promise.resolve({
           id: "cs_no_url",
           object: "checkout.session",
           url: null,
-        } as never),
+        }),
       );
-
-      try {
-        const listing = testListing({ unit_price: 1000 });
-        const intent = {
-          address: "",
-          date: null,
-          email: "john@example.com",
-          items: [
-            {
-              listingId: listing.id,
-              name: listing.name,
-              quantity: 1,
-              slug: listing.slug,
-              unitPrice: listing.unit_price,
-            },
-          ],
-          name: "John",
-          phone: "",
-          special_instructions: "",
-        };
-
-        // Use stripePaymentProvider which wraps via toCheckoutResult
-        const result = await stripePaymentProvider.createCheckoutSession(
-          intent,
-          "http://localhost:3000",
-        );
-
-        expect(result).toBeNull();
-      } finally {
-        createSpy.restore();
-      }
     });
 
     test("returns null when session is null", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
-
-      const createSpy = stub(client.checkout.sessions, "create", () =>
+      const client = await stripeClient();
+      await expectNullCheckout(client, () =>
         Promise.reject(new Error("API error")),
       );
-
-      try {
-        const listing = testListing({ unit_price: 1000 });
-        const intent = {
-          address: "",
-          date: null,
-          email: "john@example.com",
-          items: [
-            {
-              listingId: listing.id,
-              name: listing.name,
-              quantity: 1,
-              slug: listing.slug,
-              unitPrice: listing.unit_price,
-            },
-          ],
-          name: "John",
-          phone: "",
-          special_instructions: "",
-        };
-
-        const result = await stripePaymentProvider.createCheckoutSession(
-          intent,
-          "http://localhost:3000",
-        );
-
-        expect(result).toBeNull();
-      } finally {
-        createSpy.restore();
-      }
     });
   });
 
   describe("retrieveSession - edge cases", () => {
     test("returns null for session without items", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
-
-      const retrieveSpy = stub(client.checkout.sessions, "retrieve", () =>
-        Promise.resolve({
-          id: "cs_no_items",
-          metadata: {
-            email: "test@example.com",
-            name: "Test User",
-            // No items field
-          },
-          payment_intent: "pi_test_123",
-          payment_status: "paid",
-        } as never),
+      const client = await stripeClient();
+      await whileRetrieving(
+        client,
+        () =>
+          Promise.resolve({
+            id: "cs_no_items",
+            metadata: {
+              email: "test@example.com",
+              name: "Test User",
+              // No items field
+            },
+            payment_intent: "pi_test_123",
+            payment_status: "paid",
+          }),
+        async () => {
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_no_items");
+          expect(result).toBeNull();
+        },
       );
-
-      try {
-        const result =
-          await stripePaymentProvider.retrieveSession("cs_no_items");
-        expect(result).toBeNull();
-      } finally {
-        retrieveSpy.restore();
-      }
     });
 
     test("returns null when session is null from Stripe", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
-
-      const retrieveSpy = stub(client.checkout.sessions, "retrieve", () =>
-        Promise.reject(new Error("Not found")),
+      const client = await stripeClient();
+      await whileRetrieving(
+        client,
+        () => Promise.reject(new Error("Not found")),
+        async () => {
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_notfound");
+          expect(result).toBeNull();
+        },
       );
-
-      try {
-        const result =
-          await stripePaymentProvider.retrieveSession("cs_notfound");
-        expect(result).toBeNull();
-      } finally {
-        retrieveSpy.restore();
-      }
     });
 
     test("returns null when metadata is missing name or email", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
-
-      const retrieveSpy = stub(client.checkout.sessions, "retrieve", () =>
-        Promise.resolve({
-          id: "cs_no_meta",
-          metadata: {
-            items: '[{"e":1,"q":1,"p":0}]',
-            // Missing name and email
-          },
-          payment_status: "paid",
-        } as never),
+      const client = await stripeClient();
+      await whileRetrieving(
+        client,
+        () =>
+          Promise.resolve({
+            id: "cs_no_meta",
+            metadata: {
+              items: '[{"e":1,"q":1,"p":0}]',
+              // Missing name and email
+            },
+            payment_status: "paid",
+          }),
+        async () => {
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_no_meta");
+          expect(result).toBeNull();
+        },
       );
-
-      try {
-        const result =
-          await stripePaymentProvider.retrieveSession("cs_no_meta");
-        expect(result).toBeNull();
-      } finally {
-        retrieveSpy.restore();
-      }
     });
 
     test("returns valid session for multi-ticket checkout", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
-
-      const retrieveSpy = stub(client.checkout.sessions, "retrieve", () =>
-        Promise.resolve({
-          id: "cs_multi",
-          metadata: {
-            email: "multi@example.com",
-            items: '[{"e":1,"q":2}]',
-            name: "Multi User",
-            phone: "+44 7700 900000",
-          },
-          payment_intent: "pi_multi_123",
-          payment_status: "paid",
-        } as never),
+      const client = await stripeClient();
+      await whileRetrieving(
+        client,
+        () =>
+          Promise.resolve({
+            id: "cs_multi",
+            metadata: {
+              email: "multi@example.com",
+              items: '[{"e":1,"q":2}]',
+              name: "Multi User",
+              phone: "+44 7700 900000",
+            },
+            payment_intent: "pi_multi_123",
+            payment_status: "paid",
+          }),
+        async () => {
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_multi");
+          expect(result).not.toBeNull();
+          expect(result?.id).toBe("cs_multi");
+          expect(result?.metadata.items).toBe('[{"e":1,"q":2}]');
+          expect(result?.metadata.phone).toBe("+44 7700 900000");
+        },
       );
-
-      try {
-        const result = await stripePaymentProvider.retrieveSession("cs_multi");
-        expect(result).not.toBeNull();
-        expect(result?.id).toBe("cs_multi");
-        expect(result?.metadata.items).toBe('[{"e":1,"q":2}]');
-        expect(result?.metadata.phone).toBe("+44 7700 900000");
-      } finally {
-        retrieveSpy.restore();
-      }
     });
 
     test("returns valid session for single-listing checkout", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
-
-      const retrieveSpy = stub(client.checkout.sessions, "retrieve", () =>
-        Promise.resolve({
-          id: "cs_single",
-          metadata: {
-            email: "single@example.com",
-            items: '[{"e":42,"q":2,"p":0}]',
-            name: "Single User",
-          },
-          payment_intent: "pi_single_123",
-          payment_status: "paid",
-        } as never),
+      const client = await stripeClient();
+      await whileRetrieving(
+        client,
+        () =>
+          Promise.resolve({
+            id: "cs_single",
+            metadata: {
+              email: "single@example.com",
+              items: '[{"e":42,"q":2,"p":0}]',
+              name: "Single User",
+            },
+            payment_intent: "pi_single_123",
+            payment_status: "paid",
+          }),
+        async () => {
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_single");
+          expect(result).not.toBeNull();
+          expect(result?.id).toBe("cs_single");
+          expect(result?.paymentStatus).toBe("paid");
+          expect(result?.paymentReference).toBe("pi_single_123");
+          expect(result?.metadata.items).toBe('[{"e":42,"q":2,"p":0}]');
+        },
       );
-
-      try {
-        const result = await stripePaymentProvider.retrieveSession("cs_single");
-        expect(result).not.toBeNull();
-        expect(result?.id).toBe("cs_single");
-        expect(result?.paymentStatus).toBe("paid");
-        expect(result?.paymentReference).toBe("pi_single_123");
-        expect(result?.metadata.items).toBe('[{"e":42,"q":2,"p":0}]');
-      } finally {
-        retrieveSpy.restore();
-      }
     });
 
     test("returns amountTotal when session has numeric amount_total", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
-
-      const retrieveSpy = stub(client.checkout.sessions, "retrieve", () =>
-        Promise.resolve({
-          amount_total: 4500,
-          id: "cs_with_amount",
-          metadata: {
-            email: "amount@example.com",
-            items: '[{"e":10,"q":3,"p":0}]',
-            name: "Amount User",
-          },
-          payment_intent: "pi_amount_123",
-          payment_status: "paid",
-        } as never),
+      const client = await stripeClient();
+      await whileRetrieving(
+        client,
+        () =>
+          Promise.resolve({
+            amount_total: 4500,
+            id: "cs_with_amount",
+            metadata: {
+              email: "amount@example.com",
+              items: '[{"e":10,"q":3,"p":0}]',
+              name: "Amount User",
+            },
+            payment_intent: "pi_amount_123",
+            payment_status: "paid",
+          }),
+        async () => {
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_with_amount");
+          expect(result).not.toBeNull();
+          expect(result?.amountTotal).toBe(4500);
+          expect(result?.paymentReference).toBe("pi_amount_123");
+        },
       );
-
-      try {
-        const result =
-          await stripePaymentProvider.retrieveSession("cs_with_amount");
-        expect(result).not.toBeNull();
-        expect(result?.amountTotal).toBe(4500);
-        expect(result?.paymentReference).toBe("pi_amount_123");
-      } finally {
-        retrieveSpy.restore();
-      }
     });
 
     test("returns null when amount_total is null", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
-
-      const retrieveSpy = stub(client.checkout.sessions, "retrieve", () =>
-        Promise.resolve({
-          amount_total: null,
-          id: "cs_null_amount",
-          metadata: {
-            email: "nullamount@example.com",
-            items: '[{"e":1,"q":1,"p":0}]',
-            name: "Null Amount User",
-          },
-          payment_intent: "pi_null_amount",
-          payment_status: "paid",
-        } as never),
+      const client = await stripeClient();
+      await whileRetrieving(
+        client,
+        () =>
+          Promise.resolve({
+            amount_total: null,
+            id: "cs_null_amount",
+            metadata: {
+              email: "nullamount@example.com",
+              items: '[{"e":1,"q":1,"p":0}]',
+              name: "Null Amount User",
+            },
+            payment_intent: "pi_null_amount",
+            payment_status: "paid",
+          }),
+        async () => {
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_null_amount");
+          expect(result).toBeNull();
+        },
       );
-
-      try {
-        const result =
-          await stripePaymentProvider.retrieveSession("cs_null_amount");
-        expect(result).toBeNull();
-      } finally {
-        retrieveSpy.restore();
-      }
     });
 
     test("falls back to unpaid for invalid payment_status", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
-
-      const retrieveSpy = stub(client.checkout.sessions, "retrieve", () =>
-        Promise.resolve({
-          amount_total: 1000,
-          id: "cs_bad_status",
-          metadata: {
-            email: "badstatus@example.com",
-            items: '[{"e":1,"q":1,"p":0}]',
-            name: "Bad Status User",
-          },
-          payment_intent: "pi_bad_status",
-          payment_status: "completed",
-        } as never),
+      const client = await stripeClient();
+      await whileRetrieving(
+        client,
+        () =>
+          Promise.resolve({
+            amount_total: 1000,
+            id: "cs_bad_status",
+            metadata: {
+              email: "badstatus@example.com",
+              items: '[{"e":1,"q":1,"p":0}]',
+              name: "Bad Status User",
+            },
+            payment_intent: "pi_bad_status",
+            payment_status: "completed",
+          }),
+        async () => {
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_bad_status");
+          expect(result).not.toBeNull();
+          expect(result?.paymentStatus).toBe("unpaid");
+        },
       );
-
-      try {
-        const result =
-          await stripePaymentProvider.retrieveSession("cs_bad_status");
-        expect(result).not.toBeNull();
-        expect(result?.paymentStatus).toBe("unpaid");
-      } finally {
-        retrieveSpy.restore();
-      }
     });
 
     test("casts amount_total to number", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
-
-      const retrieveSpy = stub(client.checkout.sessions, "retrieve", () =>
-        Promise.resolve({
-          amount_total: 7500,
-          id: "cs_amount_cast",
-          metadata: {
-            email: "cast@example.com",
-            items: '[{"e":11,"q":1,"p":0}]',
-            name: "Cast User",
-          },
-          payment_intent: "pi_amount_cast",
-          payment_status: "paid",
-        } as never),
+      const client = await stripeClient();
+      await whileRetrieving(
+        client,
+        () =>
+          Promise.resolve({
+            amount_total: 7500,
+            id: "cs_amount_cast",
+            metadata: {
+              email: "cast@example.com",
+              items: '[{"e":11,"q":1,"p":0}]',
+              name: "Cast User",
+            },
+            payment_intent: "pi_amount_cast",
+            payment_status: "paid",
+          }),
+        async () => {
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_amount_cast");
+          expect(result).not.toBeNull();
+          expect(result?.amountTotal).toBe(7500);
+        },
       );
-
-      try {
-        const result =
-          await stripePaymentProvider.retrieveSession("cs_amount_cast");
-        expect(result).not.toBeNull();
-        expect(result?.amountTotal).toBe(7500);
-      } finally {
-        retrieveSpy.restore();
-      }
     });
   });
 
@@ -442,20 +371,17 @@ describeStripe("stripe-provider", () => {
     });
 
     test("returns false when refund fails", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
-
-      const refundSpy = stub(client.refunds, "create", () =>
-        Promise.reject(new Error("Refund failed")),
+      const client = await stripeClient();
+      await withMocks(
+        () =>
+          stub(client.refunds, "create", () =>
+            Promise.reject(new Error("Refund failed")),
+          ),
+        async () => {
+          const result = await stripePaymentProvider.refundPayment("pi_fail");
+          expect(result).toBe(false);
+        },
       );
-
-      try {
-        const result = await stripePaymentProvider.refundPayment("pi_fail");
-        expect(result).toBe(false);
-      } finally {
-        refundSpy.restore();
-      }
     });
   });
 
@@ -478,7 +404,7 @@ describeStripe("stripe-provider", () => {
         // resetStripeClient now also resets getMockConfig (lazyRef)
         resetStripeClient();
 
-        const client = await getStripeClient();
+        const client = await stripeClient("sk_test_123");
         // Client is created using real Stripe (no mock) - returns non-null
         expect(client !== undefined).toBe(true);
       } finally {
@@ -495,10 +421,7 @@ describeStripe("stripe-provider", () => {
     });
 
     test("returns null when Stripe API throws error", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client to be defined");
-
+      const client = await stripeClient();
       await withMocks(
         () =>
           stub(client.paymentIntents, "retrieve", () =>
@@ -514,128 +437,90 @@ describeStripe("stripe-provider", () => {
   });
 
   describe("isPaymentRefunded", () => {
-    test("returns true when latest_charge is refunded", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
-
-      await withMocks(
-        () =>
-          stub(client.paymentIntents, "retrieve", () =>
-            Promise.resolve({
-              id: "pi_refunded",
-              latest_charge: { id: "ch_1", refunded: true },
-            } as never),
-          ),
+    /** isPaymentRefunded should return `expected` for the given intent lookup. */
+    const expectRefunded = (
+      client: Awaited<ReturnType<typeof stripeClient>>,
+      retrieveImpl: () => Promise<unknown>,
+      expected: boolean,
+    ) =>
+      withMocks(
+        () => stub(client.paymentIntents, "retrieve", retrieveImpl as never),
         async () => {
           const result =
-            await stripePaymentProvider.isPaymentRefunded("pi_refunded");
-          expect(result).toBe(true);
+            await stripePaymentProvider.isPaymentRefunded("pi_check");
+          expect(result).toBe(expected);
         },
+      );
+
+    test("returns true when latest_charge is refunded", async () => {
+      const client = await stripeClient();
+      await expectRefunded(
+        client,
+        () =>
+          Promise.resolve({
+            id: "pi_refunded",
+            latest_charge: { id: "ch_1", refunded: true },
+          }),
+        true,
       );
     });
 
     test("returns false when latest_charge is not refunded", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
-
-      await withMocks(
+      const client = await stripeClient();
+      await expectRefunded(
+        client,
         () =>
-          stub(client.paymentIntents, "retrieve", () =>
-            Promise.resolve({
-              id: "pi_not_refunded",
-              latest_charge: { id: "ch_2", refunded: false },
-            } as never),
-          ),
-        async () => {
-          const result =
-            await stripePaymentProvider.isPaymentRefunded("pi_not_refunded");
-          expect(result).toBe(false);
-        },
+          Promise.resolve({
+            id: "pi_not_refunded",
+            latest_charge: { id: "ch_2", refunded: false },
+          }),
+        false,
       );
     });
 
     test("returns false when payment intent not found", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
-
-      await withMocks(
-        () =>
-          stub(client.paymentIntents, "retrieve", () =>
-            Promise.reject(new Error("Not found")),
-          ),
-        async () => {
-          const result =
-            await stripePaymentProvider.isPaymentRefunded("pi_missing");
-          expect(result).toBe(false);
-        },
+      const client = await stripeClient();
+      await expectRefunded(
+        client,
+        () => Promise.reject(new Error("Not found")),
+        false,
       );
     });
 
     test("returns false when latest_charge is a string ID", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
-
-      await withMocks(
+      const client = await stripeClient();
+      await expectRefunded(
+        client,
         () =>
-          stub(client.paymentIntents, "retrieve", () =>
-            Promise.resolve({
-              id: "pi_string_charge",
-              latest_charge: "ch_string_id",
-            } as never),
-          ),
-        async () => {
-          const result =
-            await stripePaymentProvider.isPaymentRefunded("pi_string_charge");
-          expect(result).toBe(false);
-        },
+          Promise.resolve({
+            id: "pi_string_charge",
+            latest_charge: "ch_string_id",
+          }),
+        false,
       );
     });
   });
 
   describe("createCheckoutSession - via provider", () => {
     test("returns null when session has no URL", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
-
-      const createSpy = stub(client.checkout.sessions, "create", () =>
-        Promise.resolve({
-          id: "cs_multi_nourl",
-          object: "checkout.session",
-          url: null,
-        } as never),
+      const client = await stripeClient();
+      await withMocks(
+        () =>
+          stub(client.checkout.sessions, "create", () =>
+            Promise.resolve({
+              id: "cs_multi_nourl",
+              object: "checkout.session",
+              url: null,
+            } as never),
+          ),
+        async () => {
+          const result = await stripePaymentProvider.createCheckoutSession(
+            checkout({ email: "jane@example.com", name: "Jane" }),
+            "http://localhost:3000",
+          );
+          expect(result).toBeNull();
+        },
       );
-
-      try {
-        const intent = {
-          address: "",
-          date: null,
-          email: "jane@example.com",
-          items: [
-            {
-              listingId: 1,
-              name: "Evt",
-              quantity: 1,
-              slug: "evt",
-              unitPrice: 1000,
-            },
-          ],
-          name: "Jane",
-          phone: "",
-          special_instructions: "",
-        };
-        const result = await stripePaymentProvider.createCheckoutSession(
-          intent,
-          "http://localhost:3000",
-        );
-        expect(result).toBeNull();
-      } finally {
-        createSpy.restore();
-      }
     });
   });
 
@@ -643,24 +528,15 @@ describeStripe("stripe-provider", () => {
     test("returns error when items metadata exceeds Stripe limit", async () => {
       await settings.update.stripe.secretKey("sk_test_mock");
       // Generate enough items to exceed 500-char serialized metadata
-      const items = Array.from({ length: 40 }, (_, i) => ({
-        listingId: i + 1,
-        name: `Listing ${i + 1}`,
-        quantity: 1,
-        slug: `listing-${i + 1}`,
-        unitPrice: 1000,
-      }));
-      const intent = {
-        address: "",
-        date: null,
-        email: "alice@example.com",
-        items,
-        name: "Alice",
-        phone: "",
-        special_instructions: "",
-      };
+      const items = Array.from({ length: 40 }, (_, i) =>
+        line({
+          listingId: i + 1,
+          name: `Listing ${i + 1}`,
+          slug: `listing-${i + 1}`,
+        }),
+      );
       const result = await stripePaymentProvider.createCheckoutSession(
-        intent,
+        checkout({ email: "alice@example.com", items, name: "Alice" }),
         "http://localhost:3000",
       );
       expect(result).not.toBeNull();
@@ -676,25 +552,8 @@ describeStripe("stripe-provider", () => {
       stripeApi.createCheckoutSession = () =>
         Promise.reject(new TypeError("unexpected"));
       try {
-        const intent = {
-          address: "",
-          date: null,
-          email: "john@example.com",
-          items: [
-            {
-              listingId: 1,
-              name: "Evt",
-              quantity: 1,
-              slug: "evt",
-              unitPrice: 1000,
-            },
-          ],
-          name: "John",
-          phone: "",
-          special_instructions: "",
-        };
         const result = await stripePaymentProvider.createCheckoutSession(
-          intent,
+          checkout({ email: "john@example.com", name: "John" }),
           "http://localhost:3000",
         );
         expect(result).toBeNull();

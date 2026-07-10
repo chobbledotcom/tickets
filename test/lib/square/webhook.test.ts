@@ -15,6 +15,28 @@ describeSquare(() => {
     const TEST_NOTIFICATION_URL = "https://example.com/payment/webhook";
     const toBytes = (s: string) => new TextEncoder().encode(s);
 
+    /** Verify a payload against a signature using the shared notification URL. */
+    const verify = (payload: string, signature: string) =>
+      verifyWebhookSignature(
+        payload,
+        signature,
+        TEST_NOTIFICATION_URL,
+        toBytes(payload),
+      );
+
+    /** The verification should reject the payload with exactly `error`. */
+    const expectInvalid = async (
+      payload: string,
+      signature: string,
+      error: string,
+    ) => {
+      const result = await verify(payload, signature);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe(error);
+      }
+    };
+
     beforeEach(async () => {
       await settings.update.square.webhookSignatureKey(TEST_SECRET);
     });
@@ -22,31 +44,19 @@ describeSquare(() => {
     test("returns error when webhook signature key not configured", async () => {
       await resetDb();
       await createTestDb();
-      const payload = '{"test": true}';
-      const result = await verifyWebhookSignature(
-        payload,
+      await expectInvalid(
+        '{"test": true}',
         "somesig",
-        TEST_NOTIFICATION_URL,
-        toBytes(payload),
+        "Webhook signature key not configured",
       );
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Webhook signature key not configured");
-      }
     });
 
     test("returns error for invalid signature", async () => {
-      const payload = '{"test": true}';
-      const result = await verifyWebhookSignature(
-        payload,
+      await expectInvalid(
+        '{"test": true}',
         "invalidsignature",
-        TEST_NOTIFICATION_URL,
-        toBytes(payload),
+        "Signature verification failed",
       );
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Signature verification failed");
-      }
     });
 
     test("returns error for invalid JSON payload with valid signature", async () => {
@@ -69,16 +79,7 @@ describeSquare(() => {
       const sig = await crypto.subtle.sign("HMAC", key, combined);
       const sigBase64 = btoa(String.fromCharCode(...new Uint8Array(sig)));
 
-      const result = await verifyWebhookSignature(
-        payload,
-        sigBase64,
-        TEST_NOTIFICATION_URL,
-        toBytes(payload),
-      );
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Invalid JSON payload");
-      }
+      await expectInvalid(payload, sigBase64, "Invalid JSON payload");
     });
 
     test("verifies valid signature successfully", async () => {
@@ -100,12 +101,7 @@ describeSquare(() => {
         TEST_NOTIFICATION_URL,
       );
 
-      const result = await verifyWebhookSignature(
-        payload,
-        signature,
-        TEST_NOTIFICATION_URL,
-        toBytes(payload),
-      );
+      const result = await verify(payload, signature);
       expect(result.valid).toBe(true);
       if (result.valid) {
         expect(result.listing.id).toBe("evt_square_123");

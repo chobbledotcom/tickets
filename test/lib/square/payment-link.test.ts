@@ -1,104 +1,57 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
-import { settings } from "#shared/db/settings.ts";
 import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import type { CreatePaymentLinkInput } from "#shared/square.ts";
 import { squareApi } from "#shared/square.ts";
-import { testListing, withMocks } from "#test-utils";
-import { createMockClient, describeSquare } from "./harness.ts";
+import { testListing } from "#test-utils";
+import {
+  buyTickets,
+  configureSquare,
+  expectNoLink,
+  linkResult,
+  ticketLine,
+  withSquareClient,
+} from "./fixtures.ts";
+import { describeSquare } from "./harness.ts";
 
 describeSquare(() => {
   describe("createPaymentLink", () => {
     test("returns null when access token not set", async () => {
-      const intent = {
-        address: "",
-        date: null,
-        email: "john@example.com",
-        items: [
-          {
-            listingId: 1,
-            name: "Test Listing",
-            quantity: 1,
-            slug: "test-listing",
-            unitPrice: 1000,
-          },
-        ],
-        name: "John Doe",
-        phone: "",
-        special_instructions: "",
-      };
-      const result = await squareApi.createPaymentLink(
-        intent,
-        "http://localhost",
+      await expectNoLink(
+        buyTickets({
+          items: [ticketLine({ name: "Test Listing" })],
+          name: "John Doe",
+        }),
       );
-      expect(result).toBeNull();
     });
 
     test("returns null when location ID not configured", async () => {
-      await settings.update.square.accessToken("EAAAl_test_123");
+      await configureSquare();
       // No location ID set
-      const intent = {
-        address: "",
-        date: null,
-        email: "john@example.com",
-        items: [
-          {
-            listingId: 1,
-            name: "Test",
-            quantity: 1,
-            slug: "test-listing",
-            unitPrice: 1000,
-          },
-        ],
-        name: "John",
-        phone: "",
-        special_instructions: "",
-      };
-      const result = await squareApi.createPaymentLink(
-        intent,
-        "http://localhost",
-      );
-      expect(result).toBeNull();
+      await expectNoLink(buyTickets());
     });
 
     test("constructs correct SDK call for single-listing checkout", async () => {
-      await settings.update.square.accessToken("EAAAl_test_123");
-      await settings.update.square.locationId("L_loc_456");
-      const { client, checkoutCreate } = createMockClient({
-        checkoutCreate: () =>
-          Promise.resolve({
-            paymentLink: {
-              orderId: "order_abc",
-              url: "https://square.link/abc",
-            },
-          }),
-      });
-
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
-          const intent = {
-            address: "",
-            date: null,
-            email: "jane@example.com",
-            items: [
-              {
-                listingId: 7,
-                name: "Concert",
-                quantity: 3,
-                slug: "concert-2025",
-                unitPrice: 2500,
-              },
-            ],
-            name: "Jane Smith",
-            phone: "555-9876",
-            special_instructions: "",
-          };
-
+      await configureSquare({ locationId: "L_loc_456" });
+      await withSquareClient(
+        linkResult("order_abc", "https://square.link/abc"),
+        async ({ checkoutCreate }) => {
           const result = await squareApi.createPaymentLink(
-            intent,
+            buyTickets({
+              email: "jane@example.com",
+              items: [
+                ticketLine({
+                  listingId: 7,
+                  name: "Concert",
+                  quantity: 3,
+                  slug: "concert-2025",
+                  unitPrice: 2500,
+                }),
+              ],
+              name: "Jane Smith",
+              phone: "555-9876",
+            }),
             "https://tickets.example.com",
           );
 
@@ -148,42 +101,25 @@ describeSquare(() => {
     test("includes booking fee line item when fee is set", async () => {
       const { settings: s } = await import("#shared/db/settings.ts");
       await s.update.bookingFee("2.5");
-      await settings.update.square.accessToken("EAAAl_test_123");
-      await settings.update.square.locationId("L_loc_456");
-      const { client, checkoutCreate } = createMockClient({
-        checkoutCreate: () =>
-          Promise.resolve({
-            paymentLink: {
-              orderId: "order_fee",
-              url: "https://square.link/fee",
-            },
-          }),
-      });
-
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
+      await configureSquare({ locationId: "L_loc_456" });
+      await withSquareClient(
+        linkResult("order_fee", "https://square.link/fee"),
+        async ({ checkoutCreate }) => {
           const listing = testListing({ unit_price: 1000 });
-          const intent = {
-            address: "",
-            date: null,
-            email: "jane@example.com",
-            items: [
-              {
-                listingId: listing.id,
-                name: listing.name,
-                quantity: 2,
-                slug: listing.slug,
-                unitPrice: listing.unit_price,
-              },
-            ],
-            name: "Jane",
-            phone: "",
-            special_instructions: "",
-          };
-
           await squareApi.createPaymentLink(
-            intent,
+            buyTickets({
+              email: "jane@example.com",
+              items: [
+                ticketLine({
+                  listingId: listing.id,
+                  name: listing.name,
+                  quantity: 2,
+                  slug: listing.slug,
+                  unitPrice: listing.unit_price,
+                }),
+              ],
+              name: "Jane",
+            }),
             "https://tickets.example.com",
           );
 
@@ -199,40 +135,11 @@ describeSquare(() => {
     });
 
     test("omits phone from pre-populated data when empty", async () => {
-      await settings.update.square.accessToken("EAAAl_test_123");
-      await settings.update.square.locationId("L_loc_456");
-      const { client, checkoutCreate } = createMockClient({
-        checkoutCreate: () =>
-          Promise.resolve({
-            paymentLink: {
-              orderId: "order_xyz",
-              url: "https://square.link/xyz",
-            },
-          }),
-      });
-
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
-        async () => {
-          const intent = {
-            address: "",
-            date: null,
-            email: "john@example.com",
-            items: [
-              {
-                listingId: 1,
-                name: "Test",
-                quantity: 1,
-                slug: "test-listing",
-                unitPrice: 1000,
-              },
-            ],
-            name: "John",
-            phone: "",
-            special_instructions: "",
-          };
-
-          await squareApi.createPaymentLink(intent, "http://localhost");
+      await configureSquare({ locationId: "L_loc_456" });
+      await withSquareClient(
+        linkResult("order_xyz", "https://square.link/xyz"),
+        async ({ checkoutCreate }) => {
+          await squareApi.createPaymentLink(buyTickets(), "http://localhost");
 
           const args = checkoutCreate.calls[0]
             ?.args[0] as CreatePaymentLinkInput;
@@ -244,38 +151,17 @@ describeSquare(() => {
     });
 
     test("returns null when SDK response missing orderId", async () => {
-      await settings.update.square.accessToken("EAAAl_test_123");
-      await settings.update.square.locationId("L_loc_456");
-      const { client } = createMockClient({
-        checkoutCreate: () =>
-          Promise.resolve({
-            paymentLink: { url: "https://square.link/abc" },
-          }),
-      });
-
-      await withMocks(
-        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
+      await configureSquare({ locationId: "L_loc_456" });
+      await withSquareClient(
+        {
+          checkoutCreate: () =>
+            Promise.resolve({
+              paymentLink: { url: "https://square.link/abc" },
+            }),
+        },
         async () => {
-          const intent = {
-            address: "",
-            date: null,
-            email: "john@example.com",
-            items: [
-              {
-                listingId: 1,
-                name: "Test",
-                quantity: 1,
-                slug: "test-listing",
-                unitPrice: 1000,
-              },
-            ],
-            name: "John",
-            phone: "",
-            special_instructions: "",
-          };
-
           const result = await squareApi.createPaymentLink(
-            intent,
+            buyTickets(),
             "http://localhost",
           );
           expect(result).toBeNull();
