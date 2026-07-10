@@ -349,17 +349,12 @@ export const setListingAttributeOptions = async (
 ): Promise<void> =>
   listingAttributeOptions.setIds(listingId, unique(optionIds));
 
-export const copyListingAttributeOptionsTx = async (
+export const copyListingAttributeOptionsTx = (
   tx: TxScope,
   sourceListingId: number,
   newListingId: number,
-): Promise<void> => {
-  await tx.execute({
-    args: [newListingId, sourceListingId],
-    sql: `INSERT INTO listing_attribute_options (listing_id, option_id)
-          SELECT ?, option_id FROM listing_attribute_options WHERE listing_id = ?`,
-  });
-};
+): Promise<void> =>
+  listingAttributeOptions.copyLinksTx(tx, sourceListingId, newListingId);
 
 export const pruneInvalidAttributeOptionIds = (
   validOptionIds: Set<number>,
