@@ -38,14 +38,11 @@ export const insertBareAttendee = async (
 ): Promise<number> => {
   // A current `created` keeps this bare (booking-less) attendee out of the
   // orphaned-record auto-purge, which reaps orphans older than the retention.
-  await getDb().execute({
+  const inserted = await getDb().execute({
     args: [new Date().toISOString(), statusId],
     sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES (?, '', ?)",
   });
-  const { rows } = await getDb().execute(
-    "SELECT id FROM attendees ORDER BY id DESC LIMIT 1",
-  );
-  const attendeeId = Number(rows[0]!.id);
+  const attendeeId = Number(inserted.lastInsertRowid);
   // Outstanding balance projects from the ledger: owe `remainingBalance` via a
   // sale leg to a listing with no booking row, nothing paid.
   if (remainingBalance > 0) {
