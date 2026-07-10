@@ -110,7 +110,7 @@ const expectConsistent = async (
  * from its seed. */
 type Rng = {
   rand: () => number;
-  pick: <T>(xs: T[]) => T;
+  pick: <T>(xs: readonly T[]) => T;
   randInt: (lo: number, hi: number) => number;
 };
 
@@ -120,7 +120,7 @@ const makeRng = (initialSeed: number): Rng => {
     seed = (seed * 1103515245 + 12345) & 0x7fffffff;
     return seed / 0x7fffffff;
   };
-  const pick = <T>(xs: T[]): T => xs[Math.floor(rand() * xs.length)]!;
+  const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)]!;
   const randInt = (lo: number, hi: number) =>
     lo + Math.floor(rand() * (hi - lo + 1));
   return { pick, rand, randInt };

@@ -271,6 +271,8 @@ function printUpgrades(upgrades: UpgradeResult[], minAgeDays: number): void {
   if (upgrades.length === 0) return;
   console.log(`Upgrades available (${upgrades.length}):`);
   for (const r of upgrades) {
+    // checkUpgrade sets newPublishedAt alongside newVersion, and callers filter
+    // `upgrades` on newVersion !== null, so newPublishedAt is guaranteed present.
     const age = Math.floor(
       (Date.now() - r.newPublishedAt!.getTime()) / (1000 * 60 * 60 * 24),
     );
