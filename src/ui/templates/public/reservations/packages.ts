@@ -168,12 +168,11 @@ export const buildPageListingRows = (opts: {
   // otherwise lose its child selector on both paths — leaving a multi-choice
   // parent unbookable. (A `hideListings` package also renders no member rows,
   // but its members are never standalone rows, so they need no handling here.)
-  const renderedMemberIds = new Set<number>();
-  for (const pkg of opts.packages) {
-    if (opts.packageLimits.get(pkg.groupId)! >= 1) {
-      for (const id of pkg.memberListingIds) renderedMemberIds.add(id);
-    }
-  }
+  const renderedMemberIds = new Set<number>(
+    opts.packages
+      .filter((pkg) => opts.packageLimits.get(pkg.groupId)! >= 1)
+      .flatMap((pkg) => [...pkg.memberListingIds]),
+  );
   const standalone = opts.listings.filter((info) =>
     opts.standaloneRowIds.has(info.listing.id),
   );
