@@ -46,7 +46,7 @@ import {
   type ModifierUsage,
   usageInsert,
 } from "#shared/db/modifier-usage.ts";
-import { batchFinalizeStatement } from "#shared/db/processed-payments.ts";
+import { batchFinalizeStatement } from "#shared/db/payment-finalize.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { bestEffort } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
@@ -535,12 +535,12 @@ export const createAttendeeAtomicImpl = (
  * a chatty interactive transaction. `legs` are the booking's ledger legs (built
  * by mapBooking with a placeholder attendee id; their references/event group are
  * attendee-id-independent, and the real id is spliced in by subquery at write
- * time). `finalizeSessionId`, when set, finalizes that payment session in the
- * same batch as the attendee INSERT. */
+ * time). `finalize`, when set, finalizes that payment session in the same batch
+ * as the attendee INSERT. */
 export type BookingBatchPlan = {
   usages: ModifierUsage[];
   legs: TransferInput[];
-  finalizeSessionId?: string;
+  finalize?: { paymentReference: string; sessionId: string };
 };
 
 /**
@@ -584,13 +584,14 @@ const writeAsLedgerBatch = async (
           },
         ]
       : [];
-  const finalizeStatements: SqlStatement[] = plan.finalizeSessionId
+  const finalizeStatements: SqlStatement[] = plan.finalize
     ? [
-        batchFinalizeStatement(
-          plan.finalizeSessionId,
+        await batchFinalizeStatement(
+          plan.finalize.sessionId,
           ATTENDEE_BY_TOKEN_SQL,
           tokenIndex,
           guard,
+          plan.finalize.paymentReference,
         ),
       ]
     : [];

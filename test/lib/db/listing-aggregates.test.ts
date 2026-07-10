@@ -25,6 +25,16 @@ import { createTestListing, describeWithEnv } from "#test-utils";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { readListingAggregates as aggregates } from "./migration-test-helpers.ts";
 
+const refundPostedSale = (
+  listingId: number,
+  attendeeId: number,
+): Promise<{ posted: boolean }> =>
+  recordAttendeeRefund(attendeeId, [
+    {
+      sessionIds: [`sale-${listingId}-${attendeeId}`],
+    },
+  ]);
+
 describe("LISTING_AGGREGATE_WRITE_COLUMNS matches the trigger SQL", () => {
   test("the UPDATE trigger fires on exactly the columns in LISTING_AGGREGATE_WRITE_COLUMNS", () => {
     const updateTrigger = TRIGGERS.find(
@@ -299,7 +309,7 @@ describeWithEnv(
       // The refund reversal posts a SOURCE-side leg on revenue:<listingId>, so the
       // gross dest-credits the income reads are unchanged (it tracks gross, not net,
       // matching what admins currently see).
-      await recordAttendeeRefund(7);
+      await refundPostedSale(listing.id, 7);
       expect(await incomeOf(listing.id)).toBe(4000);
     });
 
@@ -346,7 +356,7 @@ describeWithEnv(
       expect(await incomeOf(listing.id)).toBe(5000);
 
       // A refund of the booking does NOT reduce income (gross, not net).
-      await recordAttendeeRefund(7);
+      await refundPostedSale(listing.id, 7);
       expect(await incomeOf(listing.id)).toBe(5000);
 
       // A manual write-off correction of £20 DOES reduce it.

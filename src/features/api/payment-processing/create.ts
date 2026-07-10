@@ -321,7 +321,7 @@ export const createAttendeeForSession = async (
       occurredAt: businessTime(session),
       pricedOrder,
     },
-    session.id,
+    { paymentReference: session.paymentReference, sessionId: session.id },
   );
 
   const result = await createBookingAtomic(

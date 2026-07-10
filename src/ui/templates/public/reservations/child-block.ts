@@ -202,7 +202,12 @@ const renderSoleChildOption = (opt: ChildOption): string => {
     : "";
   const label = `${namePart} ${pricePart}`.trim();
   const dateAttrs = childDateAttrs(parentId, opt.child, opt.childDatesById);
-  return `<p class="child-option child-sole" data-sole-parent="${parentId}" data-sole-child="${listing.id}"${dateAttrs}>${label}</p>${priceHtml}${opt.attributesHtml}`;
+  // A hidden sole child shows nothing identifying (name/price already
+  // suppressed above), so gate its attributes on the same `visible` flag —
+  // otherwise a hidden add-on leaks its attribute names to the public page.
+  return `<p class="child-option child-sole" data-sole-parent="${parentId}" data-sole-child="${listing.id}"${dateAttrs}>${label}</p>${priceHtml}${
+    visible ? opt.attributesHtml : ""
+  }`;
 };
 
 /** Render one child as a per-unit quantity option (select over `0..childLimit`

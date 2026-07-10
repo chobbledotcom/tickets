@@ -130,33 +130,18 @@ export const refreshPaymentAsStripe = async (
   attendeeId: number,
   refunded: boolean,
 ): Promise<{ response: Response; refundCheckArgs: unknown[] }> => {
-  let response = new Response();
+  const { withRefreshPaymentProbe } = await import(
+    "#test-utils/refund-routes.ts"
+  );
   let refundCheckArgs: unknown[] = [];
-  const { stub } = await import("@std/testing/mock");
-  const { withMocks, mockProviderType } = await import("#test-utils");
-  const { paymentsApi } = await import("#shared/payments.ts");
-  await withMocks(
-    () =>
-      stub(paymentsApi, "getConfiguredProvider", () =>
-        mockProviderType("stripe"),
-      ),
-    async () => {
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
+  const response = await withRefreshPaymentProbe(
+    () => Promise.resolve(refunded),
+    async (mockRefunded) => {
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendeeId}/refresh-payment`,
       );
-      const mockRefunded = stub(
-        stripePaymentProvider,
-        "isPaymentRefunded",
-        () => Promise.resolve(refunded),
-      );
-      try {
-        response = (
-          await adminFormPost(`/admin/attendees/${attendeeId}/refresh-payment`)
-        ).response;
-        refundCheckArgs = mockRefunded.calls[0]!.args;
-      } finally {
-        mockRefunded.restore();
-      }
+      refundCheckArgs = mockRefunded.calls[0]!.args;
+      return response;
     },
   );
   return { refundCheckArgs, response };

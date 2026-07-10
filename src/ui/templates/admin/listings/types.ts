@@ -43,6 +43,7 @@ export type ListingPanelOptions = ListingPanelSharedOptions & {
   phonePrefix?: string | undefined;
   hasEmailableAttendees?: boolean | undefined;
   childNames?: string[] | undefined;
+  paymentReferenceAttendeeIds?: ReadonlySet<number> | undefined;
 };
 
 export type OverviewStats = {

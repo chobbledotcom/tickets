@@ -37,10 +37,16 @@ export const ListingDeactivatedBanner = ({
 export const overviewStatsFromAttendees = (
   listing: ListingWithCount,
   attendees: Attendee[],
+  paymentReferenceAttendeeIds?: ReadonlySet<number>,
 ): OverviewStats => {
   const hasPaidListing = isPaidListing(listing);
   const { adjustedCount, completeQuantitySum, completeAttendees } =
-    attendeeStatsForListing(listing, attendees, hasPaidListing);
+    attendeeStatsForListing(
+      listing,
+      attendees,
+      hasPaidListing,
+      paymentReferenceAttendeeIds ?? new Set(),
+    );
   return {
     adjustedCount,
     checkedInStats: getCheckedInStats(completeAttendees),

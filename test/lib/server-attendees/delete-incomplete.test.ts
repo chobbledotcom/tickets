@@ -3,6 +3,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import {
+  finalizeSession,
+  reserveSession,
+} from "#shared/db/processed-payments.ts";
+import {
   createPaidTestAttendee,
   createTestAttendee,
   describeWithEnv,
@@ -106,6 +110,42 @@ describeWithEnv(
         )(response);
 
         // Verify attendee was NOT deleted (still exists)
+        const rows = await getAttendeesRaw(listing.id);
+        expect(rows.length).toBe(1);
+      });
+
+      test("refuses to delete empty-payment-id attendee with processed payment reference", async () => {
+        const { listing, cookie, csrfToken } = await setupListingAndLogin({
+          maxAttendees: 100,
+          unitPrice: 1000,
+        });
+        const attendee = await createPaidTestAttendee(
+          listing.id,
+          "Balance Paid",
+          "balance-paid@example.com",
+          "",
+          1000,
+        );
+        await reserveSession("balance_paid_delete_guard");
+        await finalizeSession(
+          "balance_paid_delete_guard",
+          attendee.id,
+          [],
+          "pi_balance_paid",
+        );
+
+        const response = await submitDeleteIncomplete(
+          listing.id,
+          attendee.id,
+          cookie,
+          csrfToken,
+        );
+        await expectFlashRedirect(
+          `/admin/listing/${listing.id}/attendees`,
+          undefined,
+          false,
+        )(response);
+
         const rows = await getAttendeesRaw(listing.id);
         expect(rows.length).toBe(1);
       });

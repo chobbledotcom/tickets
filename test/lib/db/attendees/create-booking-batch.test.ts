@@ -97,7 +97,9 @@ const buildPlan = async (opts: {
   const plan = await bookingBatchPlan(
     usages,
     { eventId: opts.eventId, occurredAt: OCCURRED_AT, pricedOrder },
-    opts.sessionId,
+    opts.sessionId
+      ? { paymentReference: `pi_${opts.sessionId}`, sessionId: opts.sessionId }
+      : undefined,
   );
   return { plan, pricedOrder };
 };

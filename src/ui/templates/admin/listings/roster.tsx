@@ -31,6 +31,7 @@ const listingRosterView = (opts: ListingPanelOptions) => {
     activeFilter = "all",
     dateFilter = null,
     questionData,
+    paymentReferenceAttendeeIds = new Set(),
   } = opts;
   const isDaily = listing.listing_type === "daily";
   const hasPaidListing = isPaidListing(listing);
@@ -39,7 +40,12 @@ const listingRosterView = (opts: ListingPanelOptions) => {
     completeAttendees,
     adjustedCount,
     completeQuantitySum,
-  } = attendeeStatsForListing(listing, attendees, hasPaidListing);
+  } = attendeeStatsForListing(
+    listing,
+    attendees,
+    hasPaidListing,
+    paymentReferenceAttendeeIds,
+  );
   const filteredAttendees = filterAttendees(completeAttendees, activeFilter);
   const dailySuffix = attendeeCountLabelSuffix(isDaily, dateFilter);
   const sharedRows = buildSharedDetailRows({

@@ -47,7 +47,6 @@ import { settings } from "#shared/db/settings.ts";
 import { getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { Attendee } from "#shared/types.ts";
 import {
   AttendeeAnswersTable,
   AttendeeBookingsTable,
@@ -60,11 +59,6 @@ import {
   ContactHistory,
 } from "#templates/admin/attendee-page.tsx";
 import { PaymentDetails } from "#templates/admin/attendees.tsx";
-
-/** An attendee is refundable when they have a captured payment that has not
- * already been refunded — the same condition the refund route enforces. */
-const isRefundable = (attendee: Attendee): boolean =>
-  !!attendee.payment_id && !attendee.refunded;
 
 /** The attendee-scoped action routes live under the entity's own base. */
 const actionBase = ({ attendee }: LoadedAttendee): string =>
@@ -80,7 +74,7 @@ const ATTENDEE_ACTIONS: readonly ActionDef<LoadedAttendee>[] = [
     href: (entity, ctx) => withReturn(`${actionBase(entity)}/refund`, ctx),
     icon: "credit-card",
     labelKey: "attendee_form.action_refund",
-    visible: ({ attendee }) => isRefundable(attendee),
+    visible: ({ canRefund }) => canRefund,
   },
   {
     href: (entity, ctx) =>

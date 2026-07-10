@@ -64,7 +64,7 @@ import {
 import { listingAggregateFields } from "#templates/fields/aggregate.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
 import { listingPage } from "./listing-page.ts";
-import { loadListingEditPanel } from "./listing-page-data.ts";
+import { loadListingEditPanel } from "./listing-page-management-panels.ts";
 import {
   buildCreateListingResource,
   buildUpdateListingResource,
