@@ -1,8 +1,6 @@
 import { t } from "#i18n";
 import { formatDatetimeLabel } from "#shared/dates.ts";
-// jscpd:ignore-end
 import type { AttributeWithOptions } from "#shared/db/attributes.ts";
-// jscpd:ignore-start
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type {
