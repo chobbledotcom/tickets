@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FormParams } from "#shared/form-data.ts";
 import { clearSavedFormData, setSavedFormData } from "#shared/forms.tsx";
-import { ticketPage } from "#templates/public.tsx";
+import { ticketPage } from "#templates/public/reservations.tsx";
 import {
   bigAndSmallListings,
   evenSplitPackages,

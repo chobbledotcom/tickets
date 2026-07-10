@@ -78,8 +78,8 @@ src/features/public/ticket-payment.ts:873:47  ?? → ||   # packageMaps?.quantit
 # Parent/child curried atoms (shared.tsx).
 src/ui/templates/public/shared.tsx:318:41  ?? → ||   # span: null or a duration ≥1, never falsy-non-null; null??1===null||1
 
-# Parent/child per-unit render (reservations.tsx).
-src/ui/templates/public/reservations.tsx:1546:50  ?? → ||   # addOns?.some(...) is boolean|undefined; ?? and || agree on every boolean and on undefined
+# Parent/child per-unit render (reservations page-meta.ts).
+src/ui/templates/public/reservations/page-meta.ts:66:55  ?? → ||   # addOns?.some(...) is boolean|undefined; ?? and || agree on every boolean and on undefined
 
 # Attendee phone blind-index (attendee-phone-index.ts).
 src/shared/db/attendee-phone-index.ts:36:17  ?? → ||   # row?.id is undefined or an AUTOINCREMENT id (≥1, never 0), so ?? and || agree

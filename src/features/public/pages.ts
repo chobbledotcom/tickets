@@ -33,13 +33,15 @@ import {
 } from "#shared/types.ts";
 import { parseEmail } from "#shared/validation/email.ts";
 import {
-  childCardState,
   contactPage,
-  type DailyDateFilter,
-  homepagePage,
   type PublicPageType,
   publicSitePage,
-} from "#templates/public.tsx";
+} from "#templates/public/basic-pages.tsx";
+import {
+  childCardState,
+  type DailyDateFilter,
+  homepagePage,
+} from "#templates/public/homepage.tsx";
 import {
   applyParentSoldOut,
   classifyForDiscovery,

@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { allTransfers } from "#shared/accounting/queries.ts";
-import { readOnlyPage } from "#templates/public.tsx";
+import { readOnlyPage } from "#templates/public/errors.tsx";
 import { describeWithEnv, jsonRequest, mockRequest } from "#test-utils";
 
 /** POST a urlencoded form body to `path` (defaults to a trivial field). */

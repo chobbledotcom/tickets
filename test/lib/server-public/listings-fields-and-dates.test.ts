@@ -5,7 +5,10 @@ import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
 import { settings } from "#shared/db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import { ICS_DISCOVERY_TAG, RSS_DISCOVERY_TAG } from "#templates/public.tsx";
+import {
+  ICS_DISCOVERY_TAG,
+  RSS_DISCOVERY_TAG,
+} from "#templates/public/shared.tsx";
 import {
   assertPublicHtml,
   bookAttendee,

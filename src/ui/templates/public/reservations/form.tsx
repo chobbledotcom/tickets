@@ -1,6 +1,4 @@
 import { t } from "#i18n";
-import type { TicketListing } from "#shared/booking/model.ts";
-import { formatDatetimeLabel } from "#shared/dates.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
@@ -12,17 +10,6 @@ import {
   savedFormValue,
 } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { mergeListingFields } from "#shared/listing-fields.ts";
-import { renderMarkdown } from "#shared/markdown.ts";
-import type {
-  Image,
-  ItemImageProjection,
-  ListingFields,
-  ListingWithCount,
-} from "#shared/types.ts";
-import { Badge } from "#templates/components/badge.tsx";
-import { getTicketFields } from "#templates/fields/ticket.ts";
-import { PublicImageGallery, renderListingImage } from "../shared.tsx";
 import {
   type BookingPrefill,
   renderDateSelector,
@@ -30,45 +17,6 @@ import {
   renderTermsAndCheckbox,
 } from "./inputs.ts";
 import { renderQuestions } from "./questions.tsx";
-
-/** The merged fields setting across the selected listings. */
-const getTicketFieldsSetting = (listings: TicketListing[]): ListingFields =>
-  mergeListingFields(listings.map((e) => e.listing.fields));
-
-/**
- * The contact fields rendered on the booking form: every page listing's fields
- * (required) PLUS any extra field a possible child requires. A child with stricter
- * `fields` than its parent (e.g. parent collects email, child also wants
- * phone/address) is validated server-side for the *selected* child, but the buyer
- * must SEE that field to fill it — so it is rendered here NON-required (mirroring
- * the provider-email/`anyPaid` handling), since an unselected child or a
- * zero-quantity parent must not block submission. The page fields keep `required`.
- */
-export const buildContactFields = (
-  listings: TicketListing[],
-  childrenByParentId: Map<number, TicketListing[]> | undefined,
-  pagePaid: boolean,
-  anyPaid: boolean,
-): Field[] => {
-  const pageSetting = getTicketFieldsSetting(listings);
-  const children = childrenByParentId
-    ? [...childrenByParentId.values()].flat()
-    : [];
-  const childSetting = mergeListingFields(
-    children.map((e) => e.listing.fields),
-  );
-  const mergedSetting = mergeListingFields([pageSetting, childSetting]);
-  // The provider-imposed paid email is a required page field only when the PAGE
-  // itself is paid; a free page with a paid child renders it non-required (enforced
-  // server-side once the folded order is actually paid). So `pageNames` uses
-  // `pagePaid` while the rendered set uses `anyPaid` (so the email is present at all).
-  const pageNames = new Set<string>(
-    getTicketFields(pageSetting, pagePaid).map((f) => f.name),
-  );
-  return getTicketFields(mergedSetting, anyPaid).map((f) =>
-    pageNames.has(f.name) ? f : { ...f, required: false },
-  );
-};
 
 /** Unavailability message shown when all listings are sold out or closed */
 export const unavailableMessage = (
@@ -80,60 +28,6 @@ export const unavailableMessage = (
     ? t("public.ticket.listing_full")
     : t("public.multi.all_sold_out");
 };
-
-/** Header block shown above the form with listing/group details */
-export const TicketPageHeader = ({
-  headerName,
-  headerDescription,
-  headerImage,
-  galleryImages,
-  singleListing,
-  pastDays,
-}: {
-  headerName: string;
-  headerDescription: string | null | undefined;
-  headerImage: ItemImageProjection | null;
-  galleryImages: readonly Image[];
-  singleListing: ListingWithCount | null;
-  pastDays: number | null;
-}): JSX.Element => (
-  <>
-    {/* The full CSS gallery when the header entity has images; otherwise the
-        single header-image projection (a listing whose only picture is its
-        stored `image_url` with no image_uses rows). */}
-    {galleryImages.length > 0 ? (
-      <PublicImageGallery images={galleryImages} />
-    ) : (
-      headerImage && <Raw html={renderListingImage(headerImage)} />
-    )}
-    <div class="prose">
-      <h1>{headerName}</h1>
-      {headerDescription && (
-        <div class="description">
-          <Raw html={renderMarkdown(headerDescription)} />
-        </div>
-      )}
-      {singleListing?.date && (
-        <p>
-          <strong>{t("public.ticket.date_label")}</strong>{" "}
-          {formatDatetimeLabel(singleListing.date)}
-          {pastDays !== null && (
-            <Badge variant="alert">
-              {" "}
-              {t("public.ticket.days_ago", { count: pastDays })}
-            </Badge>
-          )}
-        </p>
-      )}
-      {singleListing?.location && (
-        <p>
-          <strong>{t("public.ticket.location_label")}</strong>{" "}
-          {singleListing.location}
-        </p>
-      )}
-    </div>
-  </>
-);
 
 /** Opt-in add-on selectors: one quantity input per add-on, defaulting to 0
  * (not selected) and restored on validation error. */

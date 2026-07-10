@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#shared/booking/model.ts";
-import { ticketPage } from "#templates/public.tsx";
+import { ticketPage } from "#templates/public/reservations.tsx";
 import { testListingWithCount } from "#test-utils";
 
 import { registerPublicTemplateHooks, ticketListing } from "./helpers.ts";

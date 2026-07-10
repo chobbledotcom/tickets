@@ -91,7 +91,7 @@ import { addPendingWork, flushPendingWork } from "#shared/pending-work.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
 import { runWithSessionContext } from "#shared/session-context.ts";
 import { getRethrowErrors } from "#shared/test-overrides.ts";
-import { readOnlyPage } from "#templates/public.tsx";
+import { readOnlyPage } from "#templates/public/errors.tsx";
 
 /** Router function type - reuse from router.ts */
 type RouterFn = ReturnType<typeof createRouter>;

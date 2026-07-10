@@ -23,16 +23,13 @@ import type { Image, ItemImageProjection } from "#shared/types.ts";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { Layout } from "#templates/layout.tsx";
 import { splitChildQuestions } from "./reservations/child-block.ts";
+import { buildContactFields } from "./reservations/contact-fields.ts";
 import {
   dayConfig,
   resolveDayCountPriceFor,
 } from "./reservations/day-config.ts";
-import {
-  buildContactFields,
-  TicketPageForm,
-  TicketPageHeader,
-  unavailableMessage,
-} from "./reservations/form.tsx";
+import { TicketPageForm, unavailableMessage } from "./reservations/form.tsx";
+import { TicketPageHeader } from "./reservations/header.tsx";
 import type { BookingPrefill } from "./reservations/inputs.ts";
 import { ticketPageHeadExtra } from "./reservations/og.ts";
 import { buildPageListingRows } from "./reservations/packages.ts";

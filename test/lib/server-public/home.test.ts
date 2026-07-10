@@ -3,7 +3,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
-import { ICS_DISCOVERY_TAG, RSS_DISCOVERY_TAG } from "#templates/public.tsx";
+import {
+  ICS_DISCOVERY_TAG,
+  RSS_DISCOVERY_TAG,
+} from "#templates/public/shared.tsx";
 import {
   assertPublicHtml,
   describeWithEnv,
