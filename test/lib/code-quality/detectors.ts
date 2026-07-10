@@ -779,14 +779,15 @@ const parseInterfaceBody = (
 const skipTypeParams = (code: string, i: number): number => {
   if (code[i] !== "<") return i;
   let depth = 0;
-  for (; i < code.length; i++) {
-    if (code[i] === "<") depth++;
-    else if (code[i] === ">") {
-      depth--;
-      if (depth === 0) return i + 1;
+  let j = i;
+  for (; j < code.length; j++) {
+    if (code[j] === "<") depth++;
+    else if (code[j] === ">" && --depth === 0) {
+      j++;
+      break;
     }
   }
-  return i;
+  return j;
 };
 
 /** Whether the character following a `type X = { … }` body may legitimately

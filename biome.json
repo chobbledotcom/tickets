@@ -76,12 +76,12 @@
         "useTemplate": "error"
       },
       "suspicious": {
-        "noAssignInExpressions": "off",
+        "noAssignInExpressions": "error",
         "noConsole": "error",
         "noDoubleEquals": "error",
         "noExplicitAny": "off",
         "noFocusedTests": "error",
-        "noImplicitAnyLet": "off",
+        "noImplicitAnyLet": "error",
         "noSkippedTests": "error",
         "noVar": "error"
       }
