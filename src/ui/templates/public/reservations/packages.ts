@@ -1,9 +1,6 @@
 import { t } from "#i18n";
 import type { TicketListing } from "#shared/booking/model.ts";
-import {
-  type PagePackage,
-  packageMemberIds,
-} from "#shared/booking/page-packages.ts";
+import type { PagePackage } from "#shared/booking/page-packages.ts";
 import {
   type BookingNode,
   packageQuantityFieldName,
@@ -164,7 +161,19 @@ export const buildPageListingRows = (opts: {
   const packageSections = opts.packages
     .map((pkg) => renderPackageSection(renderFor(pkg)))
     .join("");
-  const memberIds = packageMemberIds(opts.packages);
+  // Suppress a standalone row's child selector only when a package section
+  // actually renders that member's row (which carries the one selector). A
+  // SOLD-OUT package (`limit < 1`) renders a bare sold-out card with no member
+  // rows, so a standalone parent that is also one of its members would
+  // otherwise lose its child selector on both paths — leaving a multi-choice
+  // parent unbookable. (A `hideListings` package also renders no member rows,
+  // but its members are never standalone rows, so they need no handling here.)
+  const renderedMemberIds = new Set<number>();
+  for (const pkg of opts.packages) {
+    if (opts.packageLimits.get(pkg.groupId)! >= 1) {
+      for (const id of pkg.memberListingIds) renderedMemberIds.add(id);
+    }
+  }
   const standalone = opts.listings.filter((info) =>
     opts.standaloneRowIds.has(info.listing.id),
   );
@@ -183,7 +192,8 @@ export const buildPageListingRows = (opts: {
       opts.isSingleListing && opts.packages.length === 0,
       opts.hideQuantity,
       opts.prefill,
-      (info) => (memberIds.has(info.listing.id) ? undefined : opts.childCtx),
+      (info) =>
+        renderedMemberIds.has(info.listing.id) ? undefined : opts.childCtx,
       opts.attributesByListing,
     )
   );
