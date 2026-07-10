@@ -324,9 +324,22 @@ describeWithEnv(
       // message naming the missing select — not return a near-full-page string
       // sliced from `indexOf(...) === -1`. Callers like expectSelectOffers get
       // an immediate, readable signal instead of a misleading truthy slice.
-      const message = "No <select name=\"missing_field\"> found in HTML";
-      expect(() => selectOptionsFromHtml("<p>no selects here</p>", "missing_field"))
-        .toThrow(message);
+      expect(() =>
+        selectOptionsFromHtml("<p>no selects here</p>", "missing_field")
+      ).toThrow('No <select name="missing_field"> found in HTML');
+    });
+
+    test("selectOptionsFromHtml ignores a non-select element that reuses the name", () => {
+      // The lookup matches a `<select>` opening tag carrying `name`, not any
+      // element with that name attribute — so an `<input name="…">` (or any
+      // other tag) reusing the name must NOT mask a missing select: the helper
+      // still throws, because no `<select name="…">` is present.
+      expect(() =>
+        selectOptionsFromHtml(
+          '<input name="missing_field" value="0">',
+          "missing_field",
+        )
+      ).toThrow('No <select name="missing_field"> found in HTML');
     });
   },
 );
