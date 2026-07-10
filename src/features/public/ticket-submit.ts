@@ -39,7 +39,7 @@ import {
 import type {
   BookingPrefill,
   TicketPrefill,
-} from "#templates/public/reservations.tsx";
+} from "#templates/public/reservations/types.ts";
 import {
   applyBookingPageParentSoldOut,
   childCapacityInfo,

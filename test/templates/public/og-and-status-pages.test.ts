@@ -6,7 +6,7 @@ import {
   siteNotActivatedPage,
   temporaryErrorPage,
 } from "#templates/public/errors.tsx";
-import { buildOgTags } from "#templates/public/reservations.tsx";
+import { buildOgTags } from "#templates/public/reservations/og-tags.ts";
 
 import { registerPublicTemplateHooks } from "./helpers.ts";
 

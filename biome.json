@@ -152,8 +152,7 @@
     },
     {
       "includes": [
-        "src/shared/db/migrations/schema.ts",
-        "src/ui/templates/public/reservations.tsx"
+        "src/shared/db/migrations/schema.ts"
       ],
       "linter": {
         "rules": {

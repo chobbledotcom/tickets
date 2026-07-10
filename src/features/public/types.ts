@@ -17,7 +17,7 @@ import type {
   ItemImageProjection,
   ListingWithCount,
 } from "#shared/types.ts";
-import type { BookingPrefill } from "#templates/public/reservations.tsx";
+import type { BookingPrefill } from "#templates/public/reservations/types.ts";
 
 /** Parent listing id → its bookable-child candidates, each hydrated to a
  * {@link TicketListing} so availability (isSoldOut/isClosed/maxPurchasable) is
