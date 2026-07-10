@@ -1,0 +1,240 @@
+/**
+ * The refund mechanics of the payment machine, plus the typed reasons a
+ * signed-by-us payment must be refunded.
+ *
+ * `tryRefund` and friends issue the money-back call and turn it into a handled
+ * {@link PaymentFailureResult}; {@link RefundSpec} names *why* a booking we
+ * kept had to be refunded, stamped PII-free into the ledger reversal and the
+ * attendee's system note.
+ */
+
+import type {
+  PaymentFailureResult,
+  PaymentResult,
+} from "#routes/api/webhook-types.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import {
+  ErrorCode,
+  type ErrorCodeType,
+  logDebug,
+  logError,
+} from "#shared/logger.ts";
+import { sendNtfyError } from "#shared/ntfy.ts";
+import type { ValidatedPaymentSession } from "#shared/payments.ts";
+import { getActivePaymentProvider } from "#shared/payments.ts";
+import { addPendingWork } from "#shared/pending-work.ts";
+
+/** User-facing message when the listing price changed between checkout and payment */
+const PRICE_CHANGED_MESSAGE =
+  "The price for this listing changed while you were completing payment.";
+
+/**
+ * Attempt to refund a payment. Returns true if refund succeeded, false otherwise.
+ * Logs an error if refund fails.
+ */
+export const tryRefund = async (
+  paymentReference: string,
+  listingId?: number,
+): Promise<boolean> => {
+  if (!paymentReference) return false;
+
+  const provider = await getActivePaymentProvider();
+  if (!provider) {
+    logError({
+      code: ErrorCode.PAYMENT_REFUND,
+      detail: "No payment provider configured for refund",
+      listingId,
+    });
+    return false;
+  }
+
+  if (await provider.refundPayment(paymentReference)) {
+    logDebug("Payment", "Refund issued");
+    return true;
+  }
+
+  // A false return can simply mean the payment was ALREADY fully refunded: each
+  // provider rejects a second full refund (Stripe errors on an already-refunded
+  // intent; Square and SumUp reject a re-refund), and that rejection surfaces
+  // here as false. That is success, not failure — the money is back with the
+  // customer — so confirm via the provider's refund-status query before
+  // reporting failure. Without this, a redelivery after a recovered refund would
+  // loop on a 503 retry for money already returned.
+  if (await provider.isPaymentRefunded(paymentReference)) {
+    logDebug("Payment", "Payment already fully refunded");
+    return true;
+  }
+
+  logError({
+    code: ErrorCode.PAYMENT_REFUND,
+    detail: `Failed to refund payment ${paymentReference}`,
+    listingId,
+  });
+  return false;
+};
+
+/** Attempt refund and log activity if successful */
+const refundAndLog = async (
+  session: ValidatedPaymentSession,
+  error: string,
+  listingId: number,
+): Promise<boolean> => {
+  const refunded = await tryRefund(session.paymentReference, listingId);
+  if (refunded) {
+    await logActivity(`Automatic refund: ${error}`, listingId);
+  }
+  return refunded;
+};
+
+/**
+ * Refund the session and return a handled-failure PaymentResult. The single
+ * refund-and-fail shape shared by post-payment failures (validation, price
+ * mismatch, balance mismatch) so the refundAndLog + 409/410 result block isn't
+ * re-spelled at each site.
+ */
+export const refundAndFail = async (
+  session: ValidatedPaymentSession,
+  message: string,
+  listingId: number,
+  status: number | undefined,
+  detail?: string,
+): Promise<PaymentFailureResult> => {
+  const refunded = await refundAndLog(session, message, listingId);
+  return {
+    detail,
+    error: message,
+    refunded,
+    status,
+    success: false,
+  };
+};
+
+/**
+ * Handle listing validation failure: skip refund for unknown listings (404)
+ * since the webhook may be intended for a different instance sharing the same
+ * payment provider account. For known-listing failures (inactive, closed),
+ * refund so the customer gets their money back.
+ */
+export const validationFailure = (
+  session: ValidatedPaymentSession,
+  validation: { error: string; status?: number },
+  listingId: number,
+): Promise<PaymentFailureResult> | PaymentFailureResult => {
+  if (validation.status === 404) {
+    return {
+      detail: `Post-payment listing not found (session=${session.id})`,
+      error: validation.error,
+      status: 404,
+      success: false,
+    };
+  }
+  return refundAndFail(session, validation.error, listingId, validation.status);
+};
+
+/** Log a price mismatch and refund the session */
+const priceMismatchRefund = (
+  session: ValidatedPaymentSession,
+  detail: string,
+  listingId: number,
+): Promise<PaymentResult> =>
+  refundAndFail(session, PRICE_CHANGED_MESSAGE, listingId, 409, detail);
+
+/**
+ * Refund a session the provider charged for an amount other than our signed
+ * total. Defers the alert so a slow ntfy never delays the money.
+ */
+export const refuseMismatch = (
+  session: ValidatedPaymentSession,
+  agreed: number,
+  listingId: number,
+): Promise<PaymentResult> => {
+  addPendingWork(sendNtfyError(ErrorCode.WEBHOOK_PRICE_SIGNATURE));
+  return priceMismatchRefund(
+    session,
+    `Provider charged ${session.amountTotal} but signed total was ${agreed}`,
+    listingId,
+  );
+};
+
+/**
+ * Why a signed-by-us payment must be refunded even though we can't just drop it.
+ * `code` is a PII-free reason stamped into the ledger reversal and the system
+ * note; `reason` is the operator-facing phrase for the note; `detail` is the
+ * internal log line (ids/prices, never PII); `notify` optionally pages an alert.
+ */
+export type RefundSpec = {
+  code: string;
+  reason: string;
+  detail: string;
+  notify?: ErrorCodeType;
+};
+
+export const priceChangedSpec = (detail: string): RefundSpec => ({
+  code: "price_changed",
+  detail,
+  reason: "the listing price changed while they were paying",
+});
+
+export const chargeMismatchSpec = (
+  session: ValidatedPaymentSession,
+  agreed: number,
+): RefundSpec => ({
+  code: "charge_mismatch",
+  detail: `Provider charged ${session.amountTotal} but signed total was ${agreed}`,
+  notify: ErrorCode.WEBHOOK_PRICE_SIGNATURE,
+  reason: "the amount charged did not match the agreed total",
+});
+
+export const soldOutSpec = (detail: string): RefundSpec => ({
+  code: "sold_out",
+  detail,
+  reason: "an add-on or extra they chose sold out while they were paying",
+});
+
+export const capacitySpec = (detail: string): RefundSpec => ({
+  code: "capacity_full",
+  detail,
+  reason: "the event filled up while they were paying",
+});
+
+/** A signed booking that threw an unexpected error after the charge — kept and
+ *  refunded rather than crash-looping the webhook over a paid customer. */
+export const unexpectedErrorSpec = (detail: string): RefundSpec => ({
+  code: "unexpected_error",
+  detail,
+  notify: ErrorCode.PAYMENT_SESSION,
+  reason: "an unexpected error stopped the booking being completed",
+});
+
+/** A signed booking whose listing was deleted between checkout and payment:
+ *  nothing left to honour, but we keep a quantity-0 ghost so the customer (and
+ *  their refund) is never lost. */
+export const deletedListingSpec = (
+  session: ValidatedPaymentSession,
+): RefundSpec => ({
+  code: "listing_removed",
+  detail: `Listing not found for a signed session (session=${session.id})`,
+  notify: ErrorCode.PAYMENT_SESSION,
+  reason: "the listing was removed while they were paying",
+});
+
+/**
+ * The PII-free system note for a stored-but-refunded booking. Explains in plain
+ * language what happened, carries the provider's payment reference and our reason
+ * code so the charge/refund can be reconciled in the provider dashboard, and
+ * links the operator to the attendee's ledger statement. No names or emails.
+ */
+export const refundedNoteText = (
+  attendeeId: number,
+  spec: RefundSpec,
+  refunded: boolean,
+  paymentReference: string,
+): string => {
+  const ledger = `[ledger](/admin/ledger/attendee/${attendeeId})`;
+  // PII-free: the provider's payment reference lets the operator reconcile the
+  // charge/refund in the provider dashboard; the reason code names why.
+  const ref = ` Payment reference: ${paymentReference} (code: ${spec.code}).`;
+  return refunded
+    ? `This booking was kept at quantity 0 but its payment was refunded because ${spec.reason}.${ref} Please check the ${ledger}.`
+    : `This booking was kept at quantity 0 but its payment could NOT be refunded automatically because ${spec.reason}.${ref} Please refund it manually and check the ${ledger}.`;
+};
