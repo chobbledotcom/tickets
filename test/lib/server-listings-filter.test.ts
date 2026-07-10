@@ -218,5 +218,24 @@ describeWithEnv("listings type filter", { db: true }, () => {
         "Easy",
       );
     });
+
+    test("shows each listing's attributes on a multi-listing ticket page", async () => {
+      const listing1 = await createTestListing({ name: "Multi Attribute One" });
+      const listing2 = await createTestListing({ name: "Multi Attribute Two" });
+      const format = await createTestAttributeWithOptions("Format", [
+        "In person",
+      ]);
+      await assignTestAttributeOptions(listing1.id, format.options);
+
+      await expectHtmlResponse(
+        await get(`/ticket/${listing1.slug}+${listing2.slug}`),
+        200,
+        "Multi Attribute One",
+        "Multi Attribute Two",
+        "listing-attributes",
+        "Format",
+        "In person",
+      );
+    });
   });
 });

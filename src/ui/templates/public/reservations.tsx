@@ -791,6 +791,7 @@ const renderListingRow = (
   hideQuantity = false,
   prefill?: TicketPrefill,
   childCtx?: ChildRenderCtx,
+  attributesHtml = "",
 ): string => {
   const { listing, isSoldOut, isClosed } = info;
   const imageHtml = renderListingImage(listing);
@@ -811,6 +812,7 @@ const renderListingRow = (
         ${imageHtml}
         <label>${escapeHtml(listing.name)}</label>
         ${renderListingDescription(listing.description)}
+        ${attributesHtml}
         <span class="sold-out-label">${t("public.sold_out")}</span>
       </div>
     `;
@@ -829,6 +831,7 @@ const renderListingRow = (
       ${imageHtml}
       <label>${escapeHtml(listing.name)}${quantityHtml}</label>
       ${renderListingDescription(listing.description)}
+      ${attributesHtml}
       ${priceHtml}
       ${childBlock}
     </div>
@@ -1458,6 +1461,7 @@ const buildListingRows = (
   hideQuantity: boolean,
   prefill: BookingPrefill | undefined,
   childCtxFor: (info: TicketListing) => ChildRenderCtx | undefined,
+  attributesByListing: ListingAttributesById = new Map(),
 ): string =>
   isSingleListing
     ? renderSingleListingControls(
@@ -1475,6 +1479,7 @@ const buildListingRows = (
             hideQuantity,
             prefill?.listings.get(e.listing.id),
             childCtxFor(e),
+            renderListingAttributes(attributesByListing.get(e.listing.id)),
           ),
         )
         .join("");
@@ -1496,6 +1501,7 @@ const buildPageListingRows = (opts: {
   hideQuantity: boolean;
   prefill?: BookingPrefill | undefined;
   childCtx?: ChildRenderCtx | undefined;
+  attributesByListing?: ListingAttributesById;
 }): string => {
   const membersOf = (pkg: PagePackage): TicketListing[] => {
     const memberIds = new Set(pkg.memberListingIds);
@@ -1553,6 +1559,7 @@ const buildPageListingRows = (opts: {
       opts.hideQuantity,
       opts.prefill,
       (info) => (memberIds.has(info.listing.id) ? undefined : opts.childCtx),
+      opts.attributesByListing ?? new Map(),
     )
   );
 };
@@ -1775,6 +1782,7 @@ export const ticketPage = ({
   // rows (each ×its fixed quantity); a mixed page shows each package as a titled
   // section above the per-listing controls.
   const listingRows = buildPageListingRows({
+    attributesByListing,
     childCtx,
     hideQuantity,
     isSingleListing,

@@ -3,6 +3,7 @@ import { map, pipe } from "#fp";
 import { t } from "#i18n";
 import type { TicketListing } from "#shared/booking/model.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import type { ListingAttributesById } from "#shared/db/attributes.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
@@ -17,6 +18,7 @@ import type { Group, ListingWithCount } from "#shared/types.ts";
 import { Icon, type IconName } from "#templates/components/actions.tsx";
 import { CARD_GRID_CLASS, cardInner } from "#templates/components/card.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
+import { renderListingAttributes } from "./listing-attributes.ts";
 import {
   compareGroupsByName,
   PackagesSection,
@@ -93,9 +95,10 @@ const unavailableCard = (
   imageHtml: string,
   name: string,
   status: string,
+  attributesHtml = "",
 ): string => `<div class="card order-card order-card--unavailable">
         ${cardInner({
-          detailHtml: `<span class="order-card-status">${status}</span>`,
+          detailHtml: `${attributesHtml}<span class="order-card-status">${status}</span>`,
           imageHtml,
           name,
         })}
@@ -108,7 +111,7 @@ const unavailableCard = (
  * non-selectable card so they can't be added to an order.
  */
 const renderOrderCard =
-  (states: OrderGalleryStates) =>
+  (states: OrderGalleryStates, attributesByListing: ListingAttributesById) =>
   (info: TicketListing): string => {
     const { listing, isSoldOut, isClosed } = info;
     const imageHtml = renderListingImage(listing, "card-image", {
@@ -120,16 +123,19 @@ const renderOrderCard =
             listing.can_pay_more ? t("availability.from_prefix") : ""
           }${escapeHtml(formatCurrency(listing.unit_price))}</span>`
         : "";
+    const attributesHtml = renderListingAttributes(
+      attributesByListing.get(listing.id),
+    );
 
     if (isSoldOut || isClosed || isReadOnly()) {
       const status =
         isSoldOut && !isClosed ? t("public.sold_out") : t("public.unavailable");
-      return unavailableCard(imageHtml, listing.name, status);
+      return unavailableCard(imageHtml, listing.name, status, attributesHtml);
     }
 
     const key = listingOptionKey(listing.id);
     return selectableCard({
-      detailHtml: priceHtml,
+      detailHtml: `${priceHtml}${attributesHtml}`,
       fieldName: `${SELECT_PREFIX}${listing.id}`,
       imageHtml,
       key,
@@ -196,12 +202,14 @@ export const orderGalleryPage = (
   nav: PublicNavProps,
   websiteTitle: string,
   introText?: string | null,
+  attributesByListing: ListingAttributesById = new Map(),
 ): string => {
   const orderTitle = t("nav.public.order");
   const title = websiteTitle ? `${orderTitle} - ${websiteTitle}` : orderTitle;
-  const cards = pipe(map(renderOrderCard(states)), (rows) => rows.join(""))(
-    listings,
-  );
+  const cards = pipe(
+    map(renderOrderCard(states, attributesByListing)),
+    (rows) => rows.join(""),
+  )(listings);
   const packageCards = pipe(map(renderOrderPackageCard(states)), (rows) =>
     rows.join(""),
   )(packages.toSorted((a, b) => compareGroupsByName(a.group, b.group)));
