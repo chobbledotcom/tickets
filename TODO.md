@@ -370,3 +370,27 @@ footer.*
   `guideFooter` slot — just pass one once the section exists.
 - **Support** (`/admin/support`) — borderline (it's a contact-the-host form);
   give it a footer only if a support/troubleshooting section is written.
+
+## Test-suite speed — remaining opportunities
+
+*Origin: the test-suite performance pass (lazy Sentry, fast `toContain`,
+migration-suite sharding, `withVirtualBackoff`, `cachedAdminPage`; see the
+Fast Tests section of AGENTS.md). These were identified during profiling but
+deliberately left for later:*
+
+- **Shard `test/lib/db/legacy-migration.test.ts`** (~600 lines, ~13s of
+  sequential full legacy→current migration runs in one file). Same recipe as
+  `test/lib/db/migration-restore/`: move the legacy schema + helpers into a
+  shared module and split the six tests across two or three shard files so
+  `deno test --parallel` spreads them.
+- **Per-file module-graph evaluation.** Every test file re-evaluates the app's
+  module graph (~0.35s each after the lazy-Sentry fix, ~250 files ≈ 80-90s of
+  CPU per run). The biggest remaining import-time chunks are `@libsql/client`
+  (~65ms, needed) and the `#routes` feature tree (~150ms). Any further
+  import-time work moved behind `once()`/dynamic import pays for itself ~250×
+  per run — profile with a `performance.now()` probe around `import("#test-utils")`
+  under `deno test` before and after.
+- **`test/lib/stripe-mock/ports.test.ts` (~4s)** spawns real child processes
+  to test the harness's port handling; each spawn is inherently slow. If it
+  grows, the port-conflict cases could stub the child-process layer the same
+  way the supervisor tests do.
