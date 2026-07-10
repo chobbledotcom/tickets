@@ -230,14 +230,6 @@ a small, isolated assertion-strength improvement.*
   validation error text (or another specific error contract) so the negative path
   is genuine. (Original monolith line 990.)
 
-- **`payment.test.ts` — Stripe fixture uses a `live` key prefix.** The
-  "links the payment id to the configured provider dashboard" test sets
-  `stripe_secret_key: "sk_live_abc"`. The value is synthetic, but the `live`
-  prefix models a production credential and can trip secret scanners. Switch to a
-  `sk_test_...` fixture — note the test also asserts the live dashboard URL
-  (`dashboard.stripe.com/payments/...`), so verify that still holds after the
-  change. (Original monolith line 2092.)
-
 - **`payment.test.ts` — assert payment stays unrefunded after ledger failure.**
   The "surfaces a Stripe refund the ledger could not record" test only checks the
   error flash; its comment says the payment must remain visibly un-refunded. Add a

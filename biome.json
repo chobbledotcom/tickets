@@ -153,7 +153,6 @@
     {
       "includes": [
         "src/shared/db/migrations/schema.ts",
-        "test/lib/server-listing-parents.test.ts",
         "test/lib/server-payments.test.ts",
         "test/lib/square.test.ts",
         "test/lib/stripe.test.ts"
