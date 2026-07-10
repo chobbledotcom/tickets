@@ -13,7 +13,7 @@ import { compact, mapNotNullish, sumOf } from "#fp";
 import { t } from "#i18n";
 import type { AttendeeBooking } from "#routes/admin/attendee-form-model.ts";
 import { formatDateRangeLabel } from "#shared/dates.ts";
-import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { questionTextFlat } from "#templates/admin/questions.tsx";
 import { Badge } from "#templates/components/badge.tsx";

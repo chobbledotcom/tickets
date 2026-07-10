@@ -18,6 +18,10 @@ import {
   runWithQueryLogContext,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
 } from "#shared/db/query-log.ts";
+import {
+  cleanupTestDbPath,
+  createTrackedTestDbFile,
+} from "#test-utils/temp-db-files.ts";
 
 /**
  * withTransaction needs an interactive transaction that shares state with the
@@ -26,7 +30,7 @@ import {
  * up directly rather than using the shared in-memory harness.
  */
 const withFileDb = async (run: () => Promise<void>): Promise<void> => {
-  const path = await Deno.makeTempFile({ suffix: ".db" });
+  const path = await createTrackedTestDbFile(".db");
   const client = createClient({ url: `file:${path}` });
   setDb(client);
   try {
@@ -35,7 +39,7 @@ const withFileDb = async (run: () => Promise<void>): Promise<void> => {
   } finally {
     setDb(null);
     client.close();
-    await Deno.remove(path);
+    cleanupTestDbPath(path);
   }
 };
 

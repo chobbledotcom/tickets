@@ -1,13 +1,10 @@
 import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
-import type { Answer, Question } from "#shared/db/questions.ts";
-import {
-  answersTable,
-  getAttendeeAnswersBatch,
-  questionsTable,
-  saveAttendeeAnswers,
-  setListingQuestions,
-} from "#shared/db/questions.ts";
+import type { Answer, Question } from "#shared/db/question-types.ts";
+import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
+import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
+import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import {
   adminFormPost,

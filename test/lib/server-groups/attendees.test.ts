@@ -161,8 +161,12 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
         "Quentin",
         "quentin@test.com",
       );
-      const { questionsTable, answersTable, setListingQuestions } =
-        await import("#shared/db/questions.ts");
+      const { questionsTable, answersTable } = await import(
+        "#shared/db/questions/tables.ts"
+      );
+      const { setListingQuestions } = await import(
+        "#shared/db/questions/queries.ts"
+      );
       const q = await questionsTable.insert({
         displayType: "radio",
         text: "Meal choice",
@@ -198,8 +202,12 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
         "Dave",
         "dave@test.com",
       );
-      const { questionsTable, answersTable, setListingQuestions } =
-        await import("#shared/db/questions.ts");
+      const { questionsTable, answersTable } = await import(
+        "#shared/db/questions/tables.ts"
+      );
+      const { setListingQuestions } = await import(
+        "#shared/db/questions/queries.ts"
+      );
       const q = await questionsTable.insert({
         displayType: "radio",
         text: "Color",

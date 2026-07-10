@@ -4,7 +4,7 @@ import { getDb, queryAll } from "#shared/db/client.ts";
 import {
   getAttendeeAnswersByQuestion,
   getAttendeeTextAnswers,
-} from "#shared/db/questions.ts";
+} from "#shared/db/questions/attendee-answers/reads.ts";
 import { bookingKey } from "#shared/merge/attendee-merge.ts";
 import {
   createTestListing,

@@ -50,7 +50,7 @@ import {
   formatDateRangeLabel,
 } from "#shared/dates.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import {

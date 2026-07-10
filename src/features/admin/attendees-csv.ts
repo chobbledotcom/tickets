@@ -12,7 +12,7 @@ import { type Column, CSV } from "#shared/csv/index.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
 import { isServicing } from "#shared/db/attendees/kind.ts";
-import type { AttendeeQuestionData } from "#shared/db/questions.ts";
+import type { AttendeeQuestionData } from "#shared/db/questions/attendee-answers/reads.ts";
 import { DEFAULT_TIMEZONE, formatDatetimeShortInTz } from "#shared/timezone.ts";
 import type { Attendee } from "#shared/types.ts";
 

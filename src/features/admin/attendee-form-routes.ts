@@ -77,11 +77,12 @@ import {
   setLogisticsAssignments,
 } from "#shared/db/logistics.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
+import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import {
-  parseQuestionAnswers,
-  type QuestionWithAnswers,
+  type AttendeeAnswerSet,
   saveAttendeeAnswers,
-} from "#shared/db/questions.ts";
+} from "#shared/db/questions/attendee-answers/save.ts";
+import { parseQuestionAnswers } from "#shared/db/questions/parsing.ts";
 import { settings } from "#shared/db/settings.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -397,7 +398,7 @@ const applyEdit = async (
   parsed: ParsedAttendeeForm,
   attendee: Attendee,
   questions: QuestionWithAnswers[],
-  answers: import("#shared/db/questions.ts").AttendeeAnswerSet,
+  answers: AttendeeAnswerSet,
   logisticsPlan: LogisticsPlan,
   existingByKey: Map<string, ListingAttendeeRow>,
 ): Promise<SaveOutcome> => {

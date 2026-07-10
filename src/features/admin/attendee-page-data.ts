@@ -41,11 +41,11 @@ import {
 } from "#shared/db/groups.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings.ts";
+import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import {
   getAttendeeTextAnswers,
   loadAttendeeQuestionData,
-  type QuestionWithAnswers,
-} from "#shared/db/questions.ts";
+} from "#shared/db/questions/attendee-answers/reads.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";

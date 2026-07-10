@@ -4,7 +4,7 @@
  * enough to need a `<div class="prose">` block above the control.
  */
 
-import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { isSimpleMarkdown, renderMarkdown } from "#shared/markdown.ts";

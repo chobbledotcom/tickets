@@ -4,10 +4,10 @@ import type { BuiltSite } from "#shared/db/built-sites.ts";
 import type { ListingInput } from "#shared/db/listings.ts";
 import type {
   Answer,
-  AttendeeQuestionData,
   QuestionDisplayType,
   QuestionWithAnswers,
-} from "#shared/db/questions.ts";
+} from "#shared/db/question-types.ts";
+import type { AttendeeQuestionData } from "#shared/db/questions/attendee-answers/reads.ts";
 import type { EmailEntry, EmailListing } from "#shared/email.ts";
 import { signPriceSync } from "#shared/payment-signature.ts";
 import type { SessionMetadata } from "#shared/payments.ts";

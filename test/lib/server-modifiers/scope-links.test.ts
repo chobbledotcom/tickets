@@ -7,7 +7,7 @@ import {
   modifierGroups,
   modifierListings,
 } from "#shared/db/modifiers.ts";
-import { answersTable, questionsTable } from "#shared/db/questions.ts";
+import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import {
   adminFormPost,

@@ -76,7 +76,7 @@ import {
   hasPromoCodeModifiers,
 } from "#shared/db/modifier-resolve.ts";
 import type { ModifierUsage } from "#shared/db/modifier-usage.ts";
-import { getQuestionsWithListingIds } from "#shared/db/questions.ts";
+import { getQuestionsWithListingIds } from "#shared/db/questions/queries.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import type { FormParams } from "#shared/form-data.ts";
