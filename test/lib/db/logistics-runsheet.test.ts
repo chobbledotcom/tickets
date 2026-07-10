@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import {

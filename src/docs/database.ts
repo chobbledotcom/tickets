@@ -22,7 +22,9 @@
  */
 
 export * from "#shared/db/activityLog.ts";
-export * from "#shared/db/attendees.ts";
+export * from "#shared/db/attendees/api.ts";
+export * from "#shared/db/attendees/pii.ts";
+export * from "#shared/db/attendees/queries.ts";
 export * from "#shared/db/client.ts";
 export * from "#shared/db/common-schema.ts";
 export * from "#shared/db/define-id-table.ts";

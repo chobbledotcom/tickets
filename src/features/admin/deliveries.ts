@@ -18,7 +18,8 @@ import { DELIVERY_FORM, deliveryPage, withAuth } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { addDays, formatDateLabel } from "#shared/dates.ts";
-import { decryptAttendees, getAttendeesByIds } from "#shared/db/attendees.ts";
+import { decryptAttendees } from "#shared/db/attendees/pii.ts";
+import { getAttendeesByIds } from "#shared/db/attendees/queries.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
   type AgentRunLeg,

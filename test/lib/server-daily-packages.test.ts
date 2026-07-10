@@ -102,7 +102,9 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     // The package page stays live, the full date is still rejected by the
     // date-aware submit gate, and the next day books normally.
     const { group, tent } = await dailyPackage("Tight", "tight-pkg");
-    const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+    const { createAttendeeAtomic } = await import(
+      "#shared/db/attendees/api.ts"
+    );
     const { listingsTable } = await import("#shared/db/listings.ts");
     const dateA = bookingDate();
     await listingsTable.update(tent.id, { maxAttendees: 1 });
@@ -160,7 +162,9 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       name: "Pool Camper",
       unitPrice: 0,
     });
-    const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+    const { createAttendeeAtomic } = await import(
+      "#shared/db/attendees/api.ts"
+    );
     const dateA = bookingDate();
     const fill = await createAttendeeAtomic({
       bookings: [{ date: dateA, listingId: camper.id, quantity: 10 }],

@@ -20,10 +20,8 @@ import {
   getListingActivityLog,
   getListingWithActivityLog,
 } from "#shared/db/activityLog.ts";
-import {
-  decryptAttendees,
-  getAttendeeNamesByIds,
-} from "#shared/db/attendees.ts";
+import { decryptAttendees } from "#shared/db/attendees/pii.ts";
+import { getAttendeeNamesByIds } from "#shared/db/attendees/queries.ts";
 import {
   getAllAttributesWithOptions,
   listingAttributeOptions,

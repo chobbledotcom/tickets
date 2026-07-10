@@ -7,14 +7,14 @@ import { redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { deleteAttendee } from "#shared/db/attendees/delete.ts";
+import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
 import {
-  createAttendeeAtomic,
-  decryptAttendeeOrNull,
-  deleteAttendee,
   getAttendeePackageRowsRaw,
   hasActiveBookingLine,
-  updateCheckedIn,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/queries.ts";
+import { updateCheckedIn } from "#shared/db/attendees/update.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import {
   ATTENDEE_DEMO_FIELDS,

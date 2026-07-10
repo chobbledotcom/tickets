@@ -24,7 +24,7 @@ import { costAccount } from "#shared/accounting/accounts.ts";
 import { accountBalance } from "#shared/accounting/queries.ts";
 import type { ListingBooking } from "#shared/db/attendee-types.ts";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import { ATTENDEE_JOIN_SELECT } from "#shared/db/attendees.ts";
+import { ATTENDEE_JOIN_SELECT } from "#shared/db/attendees/queries.ts";
 import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { nowMs } from "#shared/now.ts";
@@ -230,7 +230,7 @@ export const servicingRowsForListing = (
 export const decryptFirstServicingAttendee = async (
   listingId: number,
 ): Promise<Attendee | null> => {
-  const { decryptAttendeeOrNull } = await import("#shared/db/attendees.ts");
+  const { decryptAttendeeOrNull } = await import("#shared/db/attendees/pii.ts");
   const pk = await getTestPrivateKey();
   const rows = await servicingRowsForListing(listingId);
   return decryptAttendeeOrNull(rows[0]!, pk);

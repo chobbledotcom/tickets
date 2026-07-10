@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAttendeeRaw } from "#shared/db/attendees.ts";
+import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import { queryAll } from "#shared/db/client.ts";
 import {
   adminFormPost,

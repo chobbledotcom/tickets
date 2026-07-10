@@ -1,5 +1,5 @@
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 

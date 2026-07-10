@@ -65,7 +65,9 @@ describeWithEnv(
       );
 
       // Verify both attendees were created with correct per-item prices
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const attendees1 = await getAttendeesRaw(listing1.id);
       const attendees2 = await getAttendeesRaw(listing2.id);
       expect(attendees1.length).toBe(1);
@@ -154,7 +156,9 @@ describeWithEnv(
       );
 
       // Verify one attendee record was created (quantity=2 is stored on the record)
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(1);
       expect(attendees[0]!.quantity).toBe(2);

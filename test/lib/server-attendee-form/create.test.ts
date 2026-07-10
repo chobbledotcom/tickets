@@ -151,7 +151,9 @@ describeWithEnv(
           "link@example.com",
         );
         // Load the existing line key for event1
-        const { loadExistingLines } = await import("#shared/db/attendees.ts");
+        const { loadExistingLines } = await import(
+          "#shared/db/attendees/atomic-update.ts"
+        );
         const existing = await loadExistingLines(attendee.id);
         const form = await buildAttendeeEditForm(attendee.id, {
           lines: [
@@ -179,7 +181,7 @@ describeWithEnv(
           name: "E2",
         });
         const { createAttendeeAtomic } = await import(
-          "#shared/db/attendees.ts"
+          "#shared/db/attendees/api.ts"
         );
         const result = await createAttendeeAtomic({
           bookings: [
@@ -194,7 +196,9 @@ describeWithEnv(
         });
         if (!result.success) throw new Error("setup");
         const attendeeId = result.attendees[0]!.id;
-        const { loadExistingLines } = await import("#shared/db/attendees.ts");
+        const { loadExistingLines } = await import(
+          "#shared/db/attendees/atomic-update.ts"
+        );
         const existing = await loadExistingLines(attendeeId);
         const event1Key = existing.find(
           (e) => e.booking.listing_id === event1.id,
@@ -225,7 +229,9 @@ describeWithEnv(
           "Qty",
           "qty@example.com",
         );
-        const { loadExistingLines } = await import("#shared/db/attendees.ts");
+        const { loadExistingLines } = await import(
+          "#shared/db/attendees/atomic-update.ts"
+        );
         const existing = await loadExistingLines(attendee.id);
         const form = await buildAttendeeEditForm(attendee.id, {
           lines: [{ eventId: event.id, key: existing[0]!.key, quantity: 4 }],

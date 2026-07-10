@@ -54,7 +54,7 @@ describeWithEnv(
         const rawToken = location.split("tokens=")[1]!;
         const ticketToken = decodeURIComponent(rawToken);
         const { getAttendeesByTokens } = await import(
-          "#shared/db/attendees.ts"
+          "#shared/db/attendees/tokens.ts"
         );
         const [attendee] = await getAttendeesByTokens([ticketToken]);
         const bookings = attendee!.bookings;

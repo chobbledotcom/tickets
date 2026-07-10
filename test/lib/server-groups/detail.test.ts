@@ -187,7 +187,9 @@ describeWithEnv(
 
       test("group revenue comes from the ledger and survives attendee deletion", async () => {
         const { bookAttendee } = await import("#test-utils");
-        const { deleteAttendee } = await import("#shared/db/attendees.ts");
+        const { deleteAttendee } = await import(
+          "#shared/db/attendees/delete.ts"
+        );
         const group = await createTestGroup({ name: "Rev", slug: "rev-group" });
         const listing = await createTestListing({
           groupId: group.id,

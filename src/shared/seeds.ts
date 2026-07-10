@@ -6,10 +6,8 @@
 import { map, sum } from "#fp";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import {
-  buildAttendeeInsert,
-  encryptAttendeeFields,
-} from "#shared/db/attendees.ts";
+import { buildAttendeeInsert } from "#shared/db/attendees/create.ts";
+import { encryptAttendeeFields } from "#shared/db/attendees/pii.ts";
 import { executeBatch, insert, queryAll, rawSql } from "#shared/db/client.ts";
 import {
   dayCountPriceStatements,

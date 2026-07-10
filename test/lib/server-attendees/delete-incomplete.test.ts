@@ -63,7 +63,9 @@ describeWithEnv(
         )(response);
 
         // Verify attendee was deleted
-        const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
+        const { getAttendeeRaw } = await import(
+          "#shared/db/attendees/queries.ts"
+        );
         const deleted = await getAttendeeRaw(attendee.id);
         expect(deleted).toBeNull();
 
@@ -165,7 +167,9 @@ describeWithEnv(
           "Incomplete registration removed",
         )(response);
 
-        const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
+        const { getAttendeeRaw } = await import(
+          "#shared/db/attendees/queries.ts"
+        );
         const deleted = await getAttendeeRaw(attendee.id);
         expect(deleted).toBeNull();
       });

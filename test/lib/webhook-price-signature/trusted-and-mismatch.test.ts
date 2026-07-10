@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { execute } from "#shared/db/client.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { deleteListing, listingsTable } from "#shared/db/listings.ts";

@@ -7,7 +7,7 @@
 /* jscpd:ignore-start */
 import { sort } from "#fp";
 import { t } from "#i18n";
-import type { AttendeeSort } from "#shared/db/attendees.ts";
+import type { AttendeeSort } from "#shared/db/attendees/queries.ts";
 import type { SystemNote } from "#shared/db/system-notes.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {

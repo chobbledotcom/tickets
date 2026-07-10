@@ -7,13 +7,13 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import {
   getAllAttendeePiiBlobs,
   getAttendeePiiBlobForToken,
   getAttendeePiiBlobsForListings,
   hasActiveBookingLine,
 } from "#shared/db/attendees/queries.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getAgentRunSheet, setLegDone } from "#shared/db/logistics.ts";
 import {

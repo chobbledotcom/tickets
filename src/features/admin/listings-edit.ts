@@ -24,7 +24,7 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import {
   checkGroupCapAfterDurationChange,
   recomputeListingBookingRanges,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/update.ts";
 import {
   anyHiddenPackageGroup,
   getGroupIdsByListingId,

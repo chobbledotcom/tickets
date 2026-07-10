@@ -30,8 +30,8 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { bookingDateFields } from "#routes/public/ticket-payment.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { balanceFinalizeStatement } from "#shared/db/processed-payments.ts";
 import { createSystemNote } from "#shared/db/system-notes.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";

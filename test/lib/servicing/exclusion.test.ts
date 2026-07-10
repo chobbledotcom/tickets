@@ -57,7 +57,7 @@ const createMixedAudience = async () => {
 const decryptNames = async (
   rows: import("#shared/types.ts").Attendee[],
 ): Promise<string[]> => {
-  const { decryptAttendees } = await import("#shared/db/attendees.ts");
+  const { decryptAttendees } = await import("#shared/db/attendees/pii.ts");
   const pk = await getTestPrivateKey();
   return (await decryptAttendees(rows, pk)).map((a) => a.name);
 };

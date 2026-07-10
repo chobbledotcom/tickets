@@ -17,7 +17,7 @@ import {
   overlapsAnyInterval,
 } from "#routes/admin/attendee-logistics-tab.ts";
 import type { LoadedAttendee } from "#routes/admin/attendee-page-data.ts";
-import { getAttendee } from "#shared/db/attendees.ts";
+import { getAttendee } from "#shared/db/attendees/queries.ts";
 import {
   getLogisticsAssignments,
   setLogisticsAssignments,

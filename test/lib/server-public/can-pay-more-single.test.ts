@@ -49,7 +49,9 @@ describeWithEnv(
         expect(response.status).toBe(302);
         const location = response.headers.get("location") || "";
         expect(location).not.toContain("checkout");
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const { getAttendeesRaw } = await import(
+          "#shared/db/attendees/queries.ts"
+        );
         const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
       };
