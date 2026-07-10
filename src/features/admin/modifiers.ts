@@ -3,6 +3,7 @@
  */
 
 /* jscpd:ignore-start */
+import { once } from "#fp";
 import { t } from "#i18n";
 import {
   createRecalculatePageRenderer,
@@ -82,8 +83,8 @@ import {
 } from "#templates/admin/modifiers/pages.tsx";
 import { modifierAggregateFields } from "#templates/fields/aggregate.ts";
 import {
+  getModifierFields,
   type ModifierFormValues,
-  modifierFields,
 } from "#templates/fields/modifier.ts";
 import { withEntityLoader } from "./entity-handlers.ts";
 import { makeMoneyAdjustHandler } from "./money-adjust.ts";
@@ -284,19 +285,19 @@ const modifierValuesError = (values: ModifierFormValues): string | null =>
     ? modifierValueError(values.calc_kind, values.calc_value)
     : null;
 
-const modifiersResource = defineNamedResource<
-  ModifierRow,
-  ModifierInput,
-  number,
-  ModifierFormValues
->({
-  fields: modifierFields,
-  nameField: "name",
-  table: modifiersTable,
-  toInput: extractModifierInput,
-  validate: validateModifier,
-  validateValues: modifierValuesError,
-});
+// Built lazily on first use (never at module load), so `getModifierFields()` —
+// whose picklist option labels resolve through `t()` — stays off the admin
+// routes' cold-start path. `once` caches the resource after the first build.
+const getModifiersResource = once(() =>
+  defineNamedResource<ModifierRow, ModifierInput, number, ModifierFormValues>({
+    fields: getModifierFields(),
+    nameField: "name",
+    table: modifiersTable,
+    toInput: extractModifierInput,
+    validate: validateModifier,
+    validateValues: modifierValuesError,
+  }),
+);
 
 // The list renders the projected total_revenue (Display = Modifier from
 // getAllModifiers), while the resource and the delete page load the stored row
@@ -309,7 +310,7 @@ const crud = createCrudHandlers({
   renderDelete: adminModifierDeletePage,
   renderList: adminModifiersPage,
   renderNew: adminModifierNewPage,
-  resource: modifiersResource,
+  resource: getModifiersResource,
   singular: "Modifier",
 });
 
@@ -413,7 +414,7 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
     if (!aggregates.ok) {
       return errorRedirect(`/admin/modifiers/${id}/edit`, aggregates.error);
     }
-    const result = await modifiersResource.update(id, form);
+    const result = await getModifiersResource().update(id, form);
     if (result.ok) {
       if (aggregates.input) {
         await updateModifierAggregateValues(id, aggregates.input);
