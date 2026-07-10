@@ -77,6 +77,10 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
         `<a href="/admin/listing/${bothListing.id}">Both options</a>`,
       );
       expect(html).toContain("<td>Easy, Hard</td>");
+      // Rows are ordered by listing id (creation order).
+      expect(html.indexOf(">Climbing</a>")).toBeLessThan(
+        html.indexOf(">Both options</a>"),
+      );
     });
 
     test("mutes deactivated listings in the listings table", async () => {
