@@ -19,6 +19,7 @@
  */
 
 import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
+import { benchChildEnv } from "./child-env.ts";
 
 const LATENCIES_MS = [0, 25, 50, 100];
 // Matches what a real deploy bakes in; lets recordScriptVersion() behave
@@ -51,7 +52,8 @@ const prepareDatabase = async (): Promise<void> => {
   setRsaKeySizeForTest(1024);
   setSuppressDebugLogs(true);
 
-  setDb(createClient({ url: Deno.env.get("DB_URL") as string }));
+  // `main` sets DB_URL before calling prepareDatabase.
+  setDb(createClient({ url: Deno.env.get("DB_URL")! }));
   await initDb({ allowMissingSettings: true });
   await settings.setup.complete("benchadmin", "bench-password-123", "GB");
 
@@ -66,7 +68,19 @@ const prepareDatabase = async (): Promise<void> => {
   // Every child then measures the same steady state a production isolate
   // sees: the site is live and some earlier isolate has already pruned.
   const { serveHandler } = await import("#src/serve-app.ts");
-  await (await serveHandler(new Request("http://localhost/"))).text();
+  const response = await serveHandler(new Request("http://localhost/"));
+  await response.text();
+  requireHealthyStatus(response.status, "database preparation request");
+};
+
+/**
+ * A broken site must fail the benchmark, not produce plausible timings —
+ * the production handler turns unhandled errors into error pages, so status
+ * is the only failure signal. `GET /` legitimately redirects (302), so
+ * anything below 400 counts as healthy.
+ */
+const requireHealthyStatus = (status: number, what: string): void => {
+  if (status >= 400) throw new Error(`${what} failed with status ${status}`);
 };
 
 type QueryEvent = { ms: number; sql: string; startOffsetMs: number };
@@ -96,13 +110,17 @@ const runChild = async (
       "scripts/bench/cold-start/first-request-child.ts",
       String(latencyMs),
     ],
-    env,
+    clearEnv: true,
+    env: benchChildEnv(env),
     stderr: "inherit",
     stdout: "piped",
   });
   const { code, stdout } = await command.output();
   if (code !== 0) throw new Error(`child failed for latency ${latencyMs}ms`);
-  return JSON.parse(new TextDecoder().decode(stdout)) as ChildReport;
+  const report = JSON.parse(new TextDecoder().decode(stdout)) as ChildReport;
+  requireHealthyStatus(report.firstStatus, `cold request at ${latencyMs}ms`);
+  requireHealthyStatus(report.secondStatus, `warm request at ${latencyMs}ms`);
+  return report;
 };
 
 const printTimeline = (report: ChildReport): void => {
@@ -156,14 +174,18 @@ const main = async (): Promise<void> => {
   };
   for (const [key, value] of Object.entries(env)) Deno.env.set(key, value);
 
-  log("Preparing migrated, setup-complete database file...");
-  await prepareDatabase();
+  try {
+    log("Preparing migrated, setup-complete database file...");
+    await prepareDatabase();
 
-  const reports: ChildReport[] = [];
-  for (const latency of LATENCIES_MS) {
-    reports.push(await runChild(latency, env));
+    const reports: ChildReport[] = [];
+    for (const latency of LATENCIES_MS) {
+      reports.push(await runChild(latency, env));
+    }
+    printReport(reports);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
   }
-  printReport(reports);
 };
 
 await main();

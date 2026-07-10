@@ -72,13 +72,27 @@ const record = async <T>(sql: string, run: () => Promise<T>): Promise<T> => {
 const statementSql = (statement: InStatement): string =>
   typeof statement === "string" ? statement : statement.sql;
 
+/** Run one `execute` call (either overload) through the delay + timeline. */
+const recordedExecute = (
+  target: Pick<Client, "execute">,
+  statement: InStatement | string,
+  args?: InArgs,
+): Promise<ResultSet> =>
+  record(
+    statementSql(statement),
+    (): Promise<ResultSet> =>
+      typeof statement === "string" && args !== undefined
+        ? target.execute(statement, args)
+        : target.execute(statement as InStatement),
+  );
+
 /** Wrap a transaction so each statement inside it also pays the delay. */
 const wrapTransaction = (tx: Transaction): Transaction =>
   new Proxy(tx, {
     get(target, prop, receiver) {
       if (prop === "execute") {
-        return (statement: InStatement) =>
-          record(statementSql(statement), () => target.execute(statement));
+        return (statement: InStatement | string, args?: InArgs) =>
+          recordedExecute(target, statement, args);
       }
       if (prop === "commit") {
         return () => record("COMMIT", () => target.commit());
@@ -94,13 +108,7 @@ const wrapClient = (client: Client): Client =>
     get(target, prop, receiver) {
       if (prop === "execute") {
         return (statement: InStatement | string, args?: InArgs) =>
-          record(
-            typeof statement === "string" ? statement : statement.sql,
-            (): Promise<ResultSet> =>
-              typeof statement === "string" && args !== undefined
-                ? target.execute(statement, args)
-                : target.execute(statement as InStatement),
-          );
+          recordedExecute(target, statement, args);
       }
       if (prop === "batch") {
         return (statements: InStatement[], mode?: TransactionMode) =>

@@ -31,7 +31,10 @@ describe("cold-start bench string stripping", () => {
     const code = `const a="${long}";const keep=1;const b="${long}";`;
     const result = stripLongStrings(code, 20);
     expect(result.code).toBe(`const a="";const keep=1;const b="";`);
-    expect(result.stripped.length).toBe(2);
+    expect(result.stripped).toEqual([
+      { lengthChars: long.length, startIndex: code.indexOf(`"${long}"`) },
+      { lengthChars: long.length, startIndex: code.lastIndexOf(`"${long}"`) },
+    ]);
   });
 
   test("stripLongStrings leaves short strings alone", () => {

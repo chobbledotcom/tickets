@@ -40,6 +40,12 @@ if (mode === "request") {
   );
   await response.text();
   firstRequestMs = performance.now() - requestStart;
+  // A boot or routing error comes back as an error page, and timing an error
+  // page is not a benchmark result — fail the run instead.
+  if (response.status !== 200) {
+    console.error(`first request failed with status ${response.status}`);
+    Deno.exit(1);
+  }
 }
 
 realLog(JSON.stringify({ firstRequestMs, importMs, runtimeBootMs }));

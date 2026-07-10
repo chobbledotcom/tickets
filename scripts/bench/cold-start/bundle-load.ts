@@ -25,6 +25,7 @@
 
 import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
 import { buildEdgeBundle } from "../../edge-bundle-lib.ts";
+import { benchChildEnv } from "./child-env.ts";
 import {
   median,
   stripBase64Payloads,
@@ -114,12 +115,13 @@ const measureOnce = async (
   if (mode === "request") args.push("request");
   const command = new Deno.Command(Deno.execPath(), {
     args,
-    env: {
+    clearEnv: true,
+    env: benchChildEnv({
       // A valid 32-byte key so the boot checks in "request" mode pass.
       DB_ENCRYPTION_KEY: encodeBase64(
         crypto.getRandomValues(new Uint8Array(32)),
       ),
-    },
+    }),
     stderr: "inherit",
     stdout: "piped",
   });
