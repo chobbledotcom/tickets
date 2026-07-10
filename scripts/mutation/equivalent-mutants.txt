@@ -322,13 +322,13 @@ src/shared/images/codecs.ts:84:3  await ensureCodecs(); → (removed)   # encode
 # `?? notFoundResponse()` fallthrough, so null/undefined and a 404-vs-undefined
 # return are indistinguishable through every reachable caller.
 src/features/admin/modifiers.ts:207:69  return null → return undefined    # childAddOnInputError "no error"; caller uses truthiness, so null and undefined agree
-src/features/admin/modifiers.ts:287:14  name → ""    # modifiersResource.nameField; the CRUD delete verifies the name via cfg.getName (owner-crud.ts), never resource.verifyName, so nameField is unobservable
-src/features/admin/modifiers.ts:334:10  return null → return undefined    # scopeLinksFor "no links"; edit template renders via `links && …` truthiness, so null and undefined agree
-src/features/admin/modifiers.ts:343:45  return null → return undefined    # answerLinksFor "no links"; rendered via truthiness, so null and undefined agree
-src/features/admin/modifiers.ts:362:46  return Promise.resolve(undefined) → return undefined    # non-owner ledger; awaited in Promise.all where undefined and Promise.resolve(undefined) both resolve to undefined
-src/features/admin/modifiers.ts:400:27  return notFoundResponse() → return undefined    # a handler returning undefined hits routeMainApp's `?? notFoundResponse()` → the same 404
-src/features/admin/modifiers.ts:416:38  return notFoundResponse() → return undefined    # same as 400: undefined → routeMainApp `?? notFoundResponse()` → 404
-src/features/admin/modifiers.ts:527:10  return Promise.resolve() → return undefined    # whole-order modifier writes no links; awaited by caller, so undefined and Promise.resolve() agree
+src/features/admin/modifiers.ts:294:14  name → ""    # modifiersResource.nameField; the CRUD delete verifies the name via cfg.getName (owner-crud.ts), never resource.verifyName, so nameField is unobservable
+src/features/admin/modifiers.ts:342:10  return null → return undefined    # scopeLinksFor "no links"; edit template renders via `links && …` truthiness, so null and undefined agree
+src/features/admin/modifiers.ts:351:45  return null → return undefined    # answerLinksFor "no links"; rendered via truthiness, so null and undefined agree
+src/features/admin/modifiers.ts:370:46  return Promise.resolve(undefined) → return undefined    # non-owner ledger; awaited in Promise.all where undefined and Promise.resolve(undefined) both resolve to undefined
+src/features/admin/modifiers.ts:408:27  return notFoundResponse() → return undefined    # a handler returning undefined hits routeMainApp's `?? notFoundResponse()` → the same 404
+src/features/admin/modifiers.ts:424:38  return notFoundResponse() → return undefined    # same as 400: undefined → routeMainApp `?? notFoundResponse()` → 404
+src/features/admin/modifiers.ts:535:10  return Promise.resolve() → return undefined    # whole-order modifier writes no links; awaited by caller, so undefined and Promise.resolve() agree
 
 # group-page-data: groupHasPaidListing's result is consumed only in boolean
 # context (decryptAttendees's paidListing flag and the revenue-row gate), so a
