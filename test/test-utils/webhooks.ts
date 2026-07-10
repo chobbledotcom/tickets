@@ -156,6 +156,26 @@ export const expectWebhookKeptAndRefunded = async (
 };
 
 /**
+ * Locate the sole quantity-0 placeholder on a listing that already carries
+ * other attendees (so `expectKeptAsQuantityZeroAndRefunded`'s "exactly one
+ * attendee" check doesn't apply), assert one exists, and return it — the
+ * shared way both the redirect and webhook sold-out scenarios find the late
+ * buyer's kept placeholder alongside the original attendee.
+ */
+export const findKeptPlaceholder = async (
+  listingId: number,
+): Promise<{ id: number }> => {
+  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  const placeholders = (await getAttendeesRaw(listingId)).filter(
+    (a) => a.quantity === 0,
+  );
+  // The invariant this helper documents: exactly one kept placeholder, so a
+  // duplicate-placeholder regression fails here rather than silently passing.
+  expect(placeholders.length).toBe(1);
+  return placeholders[0]!;
+};
+
+/**
  * Assert a webhook session was filed as a terminal failure: no ticket
  * attendee claimed it, so `processed_payments.attendee_id` stays null with
  * `failure_data` set. The tail check of every "kept and refunded" scenario
