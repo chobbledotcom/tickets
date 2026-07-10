@@ -4,6 +4,7 @@ import { stub } from "@std/testing/mock";
 import {
   bestEffort,
   ErrorCode,
+  errorCodeLabel,
   logError,
   logErrorLocal,
 } from "#shared/logger.ts";
@@ -20,6 +21,20 @@ import { setupErrorSpy } from "#test-utils/error-spy.ts";
 // Outer describe ensures sequential execution — createTestListing() calls
 // handleRequest which sets a request-scoped ID via AsyncLocalStorage.
 // Without sequential ordering, that context can leak into later blocks.
+describe("error code table", () => {
+  // Codes are persisted into the activity log and matched by admin tooling, so
+  // a blanked or duplicated code would corrupt every logged error's identity.
+  test("every code is E_-prefixed, unique, and labelled", () => {
+    const codes = Object.values(ErrorCode);
+    expect(codes.length).toBeGreaterThan(20);
+    expect(new Set(codes).size).toBe(codes.length);
+    for (const code of codes) {
+      expect(code).toMatch(/^E_[A-Z_]+$/);
+      expect(errorCodeLabel[code].length, code).toBeGreaterThan(0);
+    }
+  });
+});
+
 describe("log-error", () => {
   describe("logError", () => {
     const spyRef = setupErrorSpy();
