@@ -12,6 +12,7 @@ import { isRegistrationClosed } from "#routes/format.ts";
 import { parentRequiresChild } from "#routes/public/ticket-payment.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { processBooking } from "#shared/booking.ts";
+import { countsPerDate } from "#shared/capacity-rules.ts";
 import { getAvailableDates } from "#shared/dates.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { anyNonStandaloneChild } from "#shared/db/listing-parents.ts";
@@ -53,15 +54,16 @@ const bookingResultToResponse = (
 };
 
 /**
- * Resolve and validate the booking date for daily listings (a no-op for other
- * listing types). Returns the submitted date, null for non-daily listings, or a
- * 400 response when the date is missing or unavailable.
+ * Resolve and validate the booking date for listings booked per date (a no-op
+ * for date-less listings, whose capacity is one running total). Returns the
+ * submitted date, null for date-less listings, or a 400 response when the date
+ * is missing or unavailable.
  */
 const resolveBookingDate = async (
   listing: ListingWithCount,
   body: Record<string, unknown>,
 ): Promise<string | null | Response> => {
-  if (listing.listing_type !== "daily") return null;
+  if (!countsPerDate(listing.listing_type)) return null;
   const submittedDate = String(body.date ?? "");
   const availableDates = getAvailableDates(listing, await getActiveHolidays());
   if (!submittedDate || !availableDates.includes(submittedDate)) {

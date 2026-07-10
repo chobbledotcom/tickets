@@ -73,6 +73,16 @@ describe("childTicketLimit", () => {
     expect(childTicketLimit(tl(1, 10), dailyChild, noGroups)).toBe(10);
   });
 
+  test("a customisable-days daily child also uses the parent's own limit", () => {
+    // The own-cap counting rules key on listing type alone — customisable
+    // days changes the span a buyer books, never which cap applies.
+    const dailyChild = tl(2, 4, {
+      customisable_days: true,
+      listing_type: "daily",
+    });
+    expect(childTicketLimit(tl(1, 10), dailyChild, noGroups)).toBe(10);
+  });
+
   test("uses the shared group's ticket-pool limit when it's tighter than the child's own limit", () => {
     // PARENT_CHILD_GROUP_UNITS is 2, so a pool of 3 spots fits floor(3/2)=1 ticket.
     const ctx = groupCapacityInfo(

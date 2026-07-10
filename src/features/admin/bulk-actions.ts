@@ -297,6 +297,14 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
       })),
     ),
   ]);
+  // Copy each source listing's attribute selections onto its clone.
+  await executeBatch(
+    cloneInputs.map(({ sourceId }) => ({
+      args: [idMap.get(sourceId)!, sourceId],
+      sql: `INSERT INTO listing_attribute_options (listing_id, option_id)
+            SELECT ?, option_id FROM listing_attribute_options WHERE listing_id = ?`,
+    })),
+  );
 
   // A cloned parent whose remapped edge set fails re-validation is left gateless
   // rather than written; surface those as a warning flash (mirroring the

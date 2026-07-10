@@ -260,13 +260,6 @@ keeps the bundles honest by failing when a route reads a key it didn't declare.
   with no save-time warning. Fix: reject (or warn on) a parent package member
   whose per-order cap is below its pick count.
 
-- **`allocations` metadata length limit.** `enforceMetadataLimits`
-  length-checks `items`, answers, `modifiers`, the entry count and the packed
-  field, but not `allocations` — the fastest-growing field once every pick adds
-  an allocation. A large multi-slot checkout can fail with a raw payment-provider
-  error instead of the app's "book in smaller batches" message. Add
-  `allocations` to the same length guard.
-
 - **Capacity edge cases beyond the shipped model.** The shipped bundle-cap model
   (per-member child caps, sole-child pools, all-children forced demand) covers
   the common configurations but is not a full per-candidate feasibility solver:
@@ -351,11 +344,6 @@ migration-suite sharding, `withVirtualBackoff`, `cachedAdminPage`; see the
 Fast Tests section of AGENTS.md). These were identified during profiling but
 deliberately left for later:*
 
-- **Shard `test/lib/db/legacy-migration.test.ts`** (~600 lines, ~13s of
-  sequential full legacy→current migration runs in one file). Same recipe as
-  `test/lib/db/migration-restore/`: move the legacy schema + helpers into a
-  shared module and split the six tests across two or three shard files so
-  `deno test --parallel` spreads them.
 - **Per-file module-graph evaluation.** Every test file re-evaluates the app's
   module graph (~0.35s each after the lazy-Sentry fix, ~250 files ≈ 80-90s of
   CPU per run). The biggest remaining import-time chunks are `@libsql/client`
@@ -367,6 +355,25 @@ deliberately left for later:*
   to test the harness's port handling; each spawn is inherently slow. If it
   grows, the port-conflict cases could stub the child-process layer the same
   way the supervisor tests do.
+
+---
+
+## Capacity rules — feature-layer adoption (stage 3)
+
+*Origin: the capacity-rules consolidation (`src/shared/capacity-rules.ts`).*
+Stages 1–2 shipped: the declarative `CAPACITY_RULES` table exists, and the SQL
+guard (`src/shared/db/capacity.ts`), the JS preflight
+(`src/shared/db/attendees/capacity.ts`, `update.ts`), and the booking-page
+limits (`booking/model.ts`, `booking/package-cap.ts`) all derive their
+per-date-vs-running-total decisions from it. Stage 3 shipped too: the
+feature-layer capacity-date call sites (`ticket-payment.ts` `bookingDateFields`,
+`qr-book.ts` `buildCheckoutIntent`, `api/listings.ts` child availability,
+`api/booking.ts` `resolveBookingDate`) consult
+`capacityDateFor`/`countsPerDate` instead of branching on
+`listing_type === "daily"` by hand. Only the *capacity-date* decisions belong
+to the table — the remaining calendar/UI daily branches (date pickers,
+sorting, display, duration spans) are date-selection logic and should stay as
+they are. Nothing further planned here.
 
 ---
 

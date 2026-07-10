@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { AttributeWithOptions } from "#shared/db/attributes.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { clearSavedFormData, setSavedFormData } from "#shared/forms.tsx";
 import { ticketPage } from "#templates/public.tsx";
@@ -14,6 +15,17 @@ import {
 } from "./helpers.ts";
 
 registerPublicTemplateHooks();
+
+const attributeWithOptions = (
+  id: number,
+  name: string,
+  optionText: string,
+): AttributeWithOptions => ({
+  id,
+  name,
+  options: [{ attribute_id: id, id: id * 10, sort_order: 0, text: optionText }],
+  sort_order: 0,
+});
 
 describe("ticketPage — packages", () => {
   test("shows all sold out message when every listing is sold out", () => {
@@ -199,5 +211,35 @@ describe("ticketPage — packages", () => {
     expect(html).toContain('name="package_quantity_5"');
     expect(html).toContain("Hidden Bundle");
     expect(html).not.toContain("SecretItem");
+  });
+
+  test("renders attributes on package member rows", () => {
+    const listings = bigAndSmallListings();
+    const html = ticketPage({
+      attributesByListing: new Map([
+        [1, [attributeWithOptions(3, "Format", "Outdoor")]],
+      ]),
+      groupName: "Camp Kit",
+      listings,
+      packages: [pagePackage(5, [1, 2], { quantities: new Map([[2, 1]]) })],
+      slugs: [PKG_SLUG],
+    });
+    expect(html).toContain("Format");
+    expect(html).toContain("Outdoor");
+  });
+
+  test("renders attributes on package sections alongside standalone rows", () => {
+    const listings = bigAndSmallListings();
+    const html = ticketPage({
+      attributesByListing: new Map([
+        [1, [attributeWithOptions(3, "Level", "Beginner")]],
+        [2, [attributeWithOptions(4, "Level", "Advanced")]],
+      ]),
+      listings,
+      packages: [pagePackage(5, [1, 2])],
+      slugs: [PKG_SLUG, "big01", "sml01"],
+    });
+    expect(html).toContain("Beginner");
+    expect(html).toContain("Advanced");
   });
 });

@@ -3,12 +3,14 @@ import { joinStrings, partition } from "#fp";
 import { t } from "#i18n";
 import type { TicketListing } from "#shared/booking/model.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#shared/dates.ts";
+import type { ListingAttributesById } from "#shared/db/attributes.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { Group } from "#shared/types.ts";
 import { Badge } from "#templates/components/badge.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
+import { renderListingAttributes } from "./listing-attributes.ts";
 import {
   compareGroupsByName,
   PackagesSection,
@@ -182,6 +184,7 @@ const renderListingCard =
   (
     childStateOf: (id: number) => ChildCardState,
     dateFilter: DailyDateFilter | null,
+    attributesByListing: ListingAttributesById,
   ) =>
   (info: TicketListing): RenderedCard => {
     const { listing } = info;
@@ -194,6 +197,9 @@ const renderListingCard =
     const descriptionHtml = listing.description
       ? renderMarkdown(listing.description)
       : "";
+    const attributesHtml = renderListingAttributes(
+      attributesByListing.get(listing.id),
+    );
     const cta = renderListingCardCta(
       info,
       childStateOf(listing.id),
@@ -202,7 +208,7 @@ const renderListingCard =
 
     const proseHtml = `<div class="prose"><h2>${escapeHtml(
       listing.name,
-    )}</h2>${dateHtml}${locationHtml}${descriptionHtml}${
+    )}</h2>${dateHtml}${locationHtml}${descriptionHtml}${attributesHtml}${
       cta.insideProse ? cta.html : ""
     }</div>`;
     return {
@@ -221,7 +227,9 @@ const renderGroupCard = (group: Group, soldOut: boolean): string => {
   if (soldOut) {
     return `<div class="prose"><h2>${escapeHtml(
       group.name,
-    )}</h2>${descriptionHtml}${statusBadgeParagraph(t("public.sold_out"))}</div>`;
+    )}</h2>${descriptionHtml}${statusBadgeParagraph(
+      t("public.sold_out"),
+    )}</div>`;
   }
   const linkHtml = isReadOnly()
     ? `<p><strong>${t("public.registration_closed")}</strong></p>`
@@ -246,6 +254,7 @@ export const homepagePage = (
   nav: PublicNavProps,
   soldOutPackageIds: ReadonlySet<number>,
   requestedDate: string | null,
+  attributesByListing: ListingAttributesById = new Map(),
 ): string => {
   const listingsTitle = t("terms.listings");
   const title = websiteTitle
@@ -290,7 +299,7 @@ export const homepagePage = (
       : partition((g: Group) => !soldOutPackageIds.has(g.id))
   )(packageGroups);
   const listingCards = listings.map(
-    renderListingCard(childStateOf, dateFilter),
+    renderListingCard(childStateOf, dateFilter, attributesByListing),
   );
   const [availableCards, unavailableCards] = (
     requestedDate === null

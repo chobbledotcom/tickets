@@ -99,6 +99,7 @@ import packageSlotIdentityMigration from "./migrations/2026-07-05_package_slot_i
 import listingAttendeesEndStartIndexMigration from "./migrations/2026-07-06_listing_attendees_end_start_index.ts";
 import newsPostsMigration from "./migrations/2026-07-06_news_posts.ts";
 import contactAttendeeTokensMigration from "./migrations/2026-07-07_contact_attendee_tokens.ts";
+import listingAttributesMigration from "./migrations/2026-07-09_listing_attributes.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -321,6 +322,8 @@ export const MIGRATIONS: Migration[] = [
   listingAttendeesEndStartIndexMigration,
   // Add the encrypted per-contact list of booked ticket tokens.
   contactAttendeeTokensMigration,
+  // Public listing attributes and their multiple-choice options.
+  listingAttributesMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

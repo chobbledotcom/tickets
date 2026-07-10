@@ -4,7 +4,6 @@
 
 import { map } from "#fp";
 import { t } from "#i18n";
-import type { Child } from "#jsx/jsx-runtime.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { answerTextForm, questionTextForm } from "#routes/admin/questions.ts";
 import type { Answer, QuestionWithAnswers } from "#shared/db/question-types.ts";
@@ -12,7 +11,7 @@ import type {
   AnswerAggregateField,
   AnswerAggregateRecalculation,
 } from "#shared/db/questions/aggregates.ts";
-import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
+import { CsrfForm, renderFields } from "#shared/forms.tsx";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
@@ -32,18 +31,24 @@ import {
 import {
   CheckboxForm,
   CheckboxLabel,
+  IdCheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
 import {
   LinkedItemsCheckboxes,
   toLinkedItemOptions,
 } from "#templates/components/linked-items.tsx";
 import {
-  ReorderArrows,
-  type ReorderProps,
-} from "#templates/components/reorder.tsx";
+  ReorderCell,
+  ReorderTable,
+  reorderLinkTableAt,
+} from "#templates/components/reorder-table.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { answerAggregateFields } from "#templates/fields/aggregate.ts";
+import {
+  type ListingPanelProps,
+  listingChoicePanel,
+} from "./listing-panel-frame.tsx";
 
 /** Render question text flat for admin display: line breaks are replaced with
  * " / " so the text fits on one line in tables, headings, and confirmation
@@ -52,42 +57,6 @@ import { answerAggregateFields } from "#templates/fields/aggregate.ts";
  * that consumes the result. */
 export const questionTextFlat = (text: string): string =>
   text.replace(/\r?\n/g, " / ");
-
-/** Move-up / move-down reorder controls used as the first column of the
- * question and answer tables. `action` builds the move path for a direction. */
-const ReorderControls = ({
-  action,
-  index,
-  count,
-}: ReorderProps): JSX.Element => (
-  <td class={colClass("reorder")}>
-    <ReorderArrows action={action} count={count} index={index} />
-  </td>
-);
-
-/** A reorderable admin table: the scroll wrapper, the shared leading "order"
- *  column header, the caller's remaining column headers, and the row body. The
- *  question and answer tables differ only in their non-order columns, so this
- *  keeps that scaffold (table-scroll → table → thead → order th) in one place. */
-const ReorderTable = ({
-  columns,
-  children,
-}: {
-  columns: Child;
-  children: Child;
-}): JSX.Element => (
-  <div class="table-scroll">
-    <table>
-      <thead>
-        <tr>
-          <th class={colClass("reorder")}>{t("questions.order_column")}</th>
-          {columns}
-        </tr>
-      </thead>
-      <tbody>{children}</tbody>
-    </table>
-  </div>
-);
 
 /** Listings cell for a question row: a count whose title attribute spells out
  * the assigned listing names (comma + space separated), or "All" when the
@@ -133,40 +102,31 @@ export const adminQuestionsPage = (
           <em>{t("questions.no_questions")}</em>
         </p>
       ) : (
-        <ReorderTable
-          columns={
+        reorderLinkTableAt(
+          "/admin/questions",
+          t("questions.order_column"),
+          <>
+            <th>{t("questions.question_column")}</th>
+            <th class={colClass("quantity")}>
+              {t("questions.answers_column")}
+            </th>
+            <th class={colClass("quantity")}>
+              {t("questions.listings_column")}
+            </th>
+          </>,
+          questions,
+          (q) => questionTextFlat(q.text),
+          (q) => (
             <>
-              <th>{t("questions.question_column")}</th>
-              <th class={colClass("quantity")}>
-                {t("questions.answers_column")}
-              </th>
-              <th class={colClass("quantity")}>
-                {t("questions.listings_column")}
-              </th>
-            </>
-          }
-        >
-          {questions.map((q, i) => (
-            <tr>
-              <ReorderControls
-                action={(d) => `/admin/questions/${q.id}/move-${d}`}
-                count={questions.length}
-                index={i}
-              />
-              <td>
-                <a href={`/admin/questions/${q.id}`}>
-                  {questionTextFlat(q.text)}
-                </a>
-              </td>
               <td class={colClass("quantity")}>{q.answers.length}</td>
               <QuestionListingsCell
                 listingNames={listingNames.get(q.id) ?? []}
                 question={q}
                 totalListings={totalListings}
               />
-            </tr>
-          ))}
-        </ReorderTable>
+            </>
+          ),
+        )
       )}
 
       <GuideFooter href="/admin/guide#questions">Questions guide</GuideFooter>
@@ -248,10 +208,11 @@ export const adminQuestionPage = (
                   </th>
                 </>
               }
+              orderLabel={t("questions.order_column")}
             >
               {question.answers.map((a, i) => (
                 <tr>
-                  <ReorderControls
+                  <ReorderCell
                     action={(d) =>
                       `/admin/questions/${question.id}/answers/${a.id}/move-${d}`
                     }
@@ -590,37 +551,39 @@ export const adminAnswerDeletePage = (
  * Rendered as the listing entity page's Questions tab (owner-only). Carries its
  * own error flash for in-place 400 re-renders.
  */
-export const ListingQuestionsPanel = ({
-  listing,
-  allQuestions,
-  assignedIds,
-  error,
-}: {
-  listing: ListingWithCount;
+type ListingQuestionsPanelProps = ListingPanelProps & {
   allQuestions: QuestionWithAnswers[];
   assignedIds: Set<number>;
-  error?: string | undefined;
-}): JSX.Element => (
-  <>
-    <h1>{t("questions.listing.heading", { listing: listing.name })}</h1>
-    <Flash error={error} />
+};
 
-    {allQuestions.length === 0 ? (
+export const ListingQuestionsPanel = (
+  props: ListingQuestionsPanelProps,
+): JSX.Element => {
+  const { allQuestions, assignedIds, error, listing } = props;
+  return listingChoicePanel(
+    t("questions.listing.heading", { listing: listing.name }),
+    error,
+    <p>
+      <a href="/admin/questions">{t("questions.listing.manage")}</a>
+    </p>,
+    allQuestions,
+    () => (
       <p>
         No questions created yet.{" "}
         <a href="/admin/questions">Create questions</a> first.
       </p>
-    ) : (
+    ),
+    (questions) => (
       <CheckboxForm
         action={`/admin/listing/${listing.id}/questions`}
         submitLabel={t("common.save")}
       >
         {map((q: QuestionWithAnswers) => (
-          <CheckboxLabel
-            checked={assignedIds.has(q.id) || undefined}
+          <IdCheckboxLabel
+            checkedIds={assignedIds}
+            id={q.id}
             label={` ${questionTextFlat(q.text)}`}
             name="question_ids"
-            value={String(q.id)}
           >
             <small>
               {" "}
@@ -630,12 +593,9 @@ export const ListingQuestionsPanel = ({
               )}
               )
             </small>
-          </CheckboxLabel>
-        ))(allQuestions)}
+          </IdCheckboxLabel>
+        ))(questions)}
       </CheckboxForm>
-    )}
-    <p>
-      <a href="/admin/questions">{t("questions.listing.manage")}</a>
-    </p>
-  </>
-);
+    ),
+  );
+};

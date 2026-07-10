@@ -235,6 +235,27 @@ article > * {
   margin-bottom: 0;
 }
 
+.listing-attributes {
+  display: grid;
+  gap: calc(var(--space-s) / 2);
+  margin-block: var(--space-s);
+}
+
+.listing-attributes > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 calc(var(--space-s) / 2);
+}
+
+.listing-attributes dt {
+  color: var(--color-text-secondary);
+  font-weight: 700;
+}
+
+.listing-attributes dd {
+  margin: 0;
+}
+
 /* Agent run sheet: the top-level booking list has no bullets or indent; the
    nested job/detail lists drop their bullets but keep their padding so they
    still read as indented sub-lists. */
@@ -2918,7 +2939,10 @@ a.cal-day-selected:active {
   border-color: var(--color-secondary);
 }
 
-.news-gallery-radio:focus-visible + .news-gallery-full + .news-gallery-thumb img {
+.news-gallery-radio:focus-visible
+  + .news-gallery-full
+  + .news-gallery-thumb
+  img {
   outline: 2px solid var(--color-secondary);
   outline-offset: 2px;
 }

@@ -116,8 +116,10 @@ describeWithEnv("AdminNav", {}, () => {
   // link un-highlighted. Each create page now marks its own link active.
   test("each 'Add X' link highlights as active on its create page", () => {
     for (const { createActive, addHref, roles } of addLinkSections) {
+      const topRole = roles[0];
+      if (!topRole) throw new Error(`section ${addHref} declares no roles`);
       const html = String(
-        AdminNav({ active: createActive, session: { adminLevel: roles[0] } }),
+        AdminNav({ active: createActive, session: { adminLevel: topRole } }),
       );
       expect(html, addHref).toContain(`class="active" href="${addHref}"`);
     }

@@ -267,6 +267,7 @@ const ADMIN_NAV: readonly SectionDef[] = [
       },
       { href: "/admin/settings/statuses", labelKey: "nav.sub.statuses" },
       { href: "/admin/privacy", labelKey: "nav.sub.privacy" },
+      { href: "/admin/attributes", labelKey: "terms.attributes" },
       { href: "/admin/questions", labelKey: "terms.questions" },
       { href: "/admin/logistics", labelKey: "nav.logistics" },
       { href: "/admin/emails", labelKey: "nav.emails" },
