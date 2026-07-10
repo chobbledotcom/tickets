@@ -70,8 +70,12 @@ test("ExpectedActualNotice appends the pluralised extra count for many items", (
   expect(html).toContain("(+2 more)");
   expect(html).not.toContain("(+3 more)");
   expect(html).not.toContain("(+1 more)");
-  // Only the first item drives the summary line.
-  expect(html).toContain("<strong>Total</strong>: expected");
+  // Only the first item drives the summary line, so scope the check to the
+  // <summary> to make sure a later item can't satisfy it.
+  const summary = html.match(/<summary>[\s\S]*?<\/summary>/)?.[0];
+  expect(summary).toContain("<strong>Total</strong>: expected");
+  expect(summary).not.toContain("<strong>Subtotal</strong>");
+  expect(summary).not.toContain("<strong>Tax</strong>");
   // The full list renders every item, spacing between the labels and values
   // included.
   expect(html.match(/<li>/g)?.length).toBe(3);
