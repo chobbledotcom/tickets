@@ -12,6 +12,7 @@ import { apiKeysRoutes } from "#routes/admin/api-keys.ts";
 import { attendeeNotesRoutes } from "#routes/admin/attendee-notes.ts";
 import { attendeeRefundRoutes } from "#routes/admin/attendee-refunds.ts";
 import { attendeesRoutes } from "#routes/admin/attendees.ts";
+import { attributesRoutes } from "#routes/admin/attributes.ts";
 import { authRoutes } from "#routes/admin/auth.ts";
 import { backupRoutes } from "#routes/admin/backup.ts";
 import { builderRoutes } from "#routes/admin/builder.ts";
@@ -88,6 +89,7 @@ const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   bulkEmailRoutes,
   holidaysCrud.routes,
   imagesRoutes,
+  attributesRoutes,
   questionsRoutes,
   scannerRoutes,
   seedsRoutes,

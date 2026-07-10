@@ -2,7 +2,7 @@
  * Admin dashboard route
  */
 
-import { compact, unique } from "#fp";
+import { compact, filter, unique } from "#fp";
 import { csvResponse, loadAttendeeLinkRefs } from "#routes/admin/actions.ts";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
 import {
@@ -28,6 +28,7 @@ import {
   getActiveListingStats,
   getNewestAttendeesRaw,
 } from "#shared/db/attendees.ts";
+import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
@@ -35,12 +36,18 @@ import { getAllListings, getListingNamesByIds } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import {
+  attributeFilterGroupsForListings,
+  filterListingsByAttributes,
+  selectedAttributeFiltersFromRequest,
+} from "#shared/listing-attribute-filter.ts";
+import {
   filterListingsByType,
   listingTypeFromRequest,
 } from "#shared/listing-filter.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 /* jscpd:ignore-end */
 import {
   type ActivityLogRefs,
@@ -50,6 +57,7 @@ import {
   adminDashboardPage,
   adminListingsPage,
 } from "#templates/admin/dashboard.tsx";
+import type { ListingAttributeFilterView } from "#templates/admin/listing-attribute-filters.ts";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 
 /** Login page response helper */
@@ -74,6 +82,27 @@ const loadSortedListings = async () => {
     getActiveHolidays(),
   ]);
   return sortListings(listings, holidays);
+};
+
+const loadListingAttributeFilterContext = async (
+  request: Request,
+  filterSource: ListingWithCount[],
+): Promise<ListingAttributeFilterView> => {
+  const attributesByListing = await getSelectedAttributesForListings(
+    filterSource.map((listing) => listing.id),
+  );
+  const attributeFilters = attributeFilterGroupsForListings(
+    filterSource.map((listing) => listing.id),
+    attributesByListing,
+  );
+  return {
+    activeAttributeFilters: selectedAttributeFiltersFromRequest(
+      request,
+      attributeFilters,
+    ),
+    attributeFilters,
+    attributesByListing,
+  };
 };
 
 /**
@@ -107,12 +136,20 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       // builder emits would be rejected by the server. A `bookable_alone` child
       // has its own page, so it stays bookable here.
       const listingIds = sortedListings.map((l) => l.id);
-      const [childIds, hiddenMemberIds, upcomingServicingEvents] =
-        await Promise.all([
-          getNonStandaloneChildIds(listingIds),
-          getHiddenPackageMemberIds(listingIds),
-          getUpcomingServicingEvents(privateKey, todayInTz(settings.timezone)),
-        ]);
+      const activeListings = filter(
+        (listing: ListingWithCount) => listing.active,
+      )(sortedListings);
+      const [
+        childIds,
+        hiddenMemberIds,
+        upcomingServicingEvents,
+        attributeContext,
+      ] = await Promise.all([
+        getNonStandaloneChildIds(listingIds),
+        getHiddenPackageMemberIds(listingIds),
+        getUpcomingServicingEvents(privateKey, todayInTz(settings.timezone)),
+        loadListingAttributeFilterContext(request, activeListings),
+      ]);
       const unbookableIds = new Set([...childIds, ...hiddenMemberIds]);
       return htmlResponse(
         adminDashboardPage(
@@ -127,6 +164,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
           holidays,
           unbookableIds,
           upcomingServicingEvents,
+          attributeContext,
         ),
       );
     },
@@ -137,23 +175,35 @@ const handleAdminGet = (request: Request): Promise<Response> =>
  * gated to content roles (staff + editor); the template renders role-aware
  * columns/links so editors see no financials or forbidden detail links. */
 const handleAdminListingsGet: TypedRouteHandler<"GET /admin/listings"> =
-  contentPage(async (session) =>
-    adminListingsPage(
-      await loadSortedListings(),
+  contentPage(async (session, request) => {
+    const listings = await loadSortedListings();
+    return adminListingsPage(
+      listings,
       session,
       settings.listingColumnOrder,
-    ),
-  );
+      await loadListingAttributeFilterContext(request, listings),
+    );
+  });
 
 /** Handle GET /admin/listings/csv — export every listing (filtered by the same
- * ?type= category filter the listings views use) as a CSV download. */
+ * ?type= category and attribute filters the listings views use) as a CSV
+ * download. The attribute filter context is loaded from the full listing set
+ * (before the type filter narrows it) so an attribute that only exists on a
+ * different listing type is still recognised by selectedAttributeFiltersFromRequest
+ * rather than silently dropped. */
 const handleListingsCsvExport: TypedRouteHandler<"GET /admin/listings/csv"> = (
   request,
 ) =>
   requireSessionOr(request, async () => {
+    const allListings = await loadSortedListings();
     const type = listingTypeFromRequest(request);
-    const listings = filterListingsByType(type)(await loadSortedListings());
-    const csv = generateListingsCsv(listings, settings.timezone);
+    const { activeAttributeFilters, attributesByListing } =
+      await loadListingAttributeFilterContext(request, allListings);
+    const filteredListings = filterListingsByAttributes(
+      activeAttributeFilters,
+      attributesByListing,
+    )(filterListingsByType(type)(allListings));
+    const csv = generateListingsCsv(filteredListings, settings.timezone);
     const suffix = type === "all" ? "" : `_${type}`;
     await logActivity(
       `Listings CSV exported${type === "all" ? "" : ` (type: ${type})`}`,

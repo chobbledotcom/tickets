@@ -28,7 +28,7 @@ import {
   createAuthedHandler,
 } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getAllListings, getListingWithCount } from "#shared/db/listings.ts";
+import { getAllListings } from "#shared/db/listings.ts";
 import { getAllModifiers } from "#shared/db/modifiers.ts";
 import {
   type Answer,
@@ -83,6 +83,7 @@ import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { answerAggregateFields } from "#templates/fields/aggregate.ts";
 
 /* jscpd:ignore-end */
+import { createListingChoicePost } from "./listing-choice-post.ts";
 
 export const questionTextForm = defineForm({
   fields: [
@@ -552,20 +553,12 @@ const handleMoveQuestionUp = moveQuestionHandler(-1);
 /** Handle POST /admin/questions/:id/move-down */
 const handleMoveQuestionDown = moveQuestionHandler(1);
 
-/** Handle POST /admin/listing/:id/questions — the listing entity page's
- * Questions tab (GET) posts here, and the save returns to that tab. */
-const handleListingQuestionsPost = ownerFormById(async (id, _session, form) => {
-  const listing = await getListingWithCount(id);
-  if (!listing) return notFoundResponse();
-  const questionIds = form.getNumberArray("question_ids");
-  await setListingQuestions(id, questionIds);
-  await logActivity(
-    `Questions updated for '${listing.name}' (${questionIds.length} question${
-      questionIds.length !== 1 ? "s" : ""
-    })`,
-    listing,
-  );
-  return redirect(`/admin/listing/${id}/questions`, "Questions updated", true);
+const handleListingQuestionsPost = createListingChoicePost({
+  fieldName: "question_ids",
+  label: "Questions",
+  noun: "question",
+  saveIds: setListingQuestions,
+  tab: "questions",
 });
 
 /** Questions routes */

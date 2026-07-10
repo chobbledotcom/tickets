@@ -5,8 +5,10 @@ import { groups } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   assertPublicHtml,
+  assignTestAttributeOptions,
   createDailyTestListing,
   createTestAttendee,
+  createTestAttributeWithOptions,
   createTestGroup,
   createTestListing,
   deactivateTestListing,
@@ -115,6 +117,20 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       });
       const html = await assertPublicHtml("/order");
       expect(html).toContain("From ");
+    });
+
+    test("shows selected listing attributes on order cards", async () => {
+      const listing = await createTestListing({ name: "Badge Card" });
+      const format = await createTestAttributeWithOptions("Format", ["Online"]);
+      await assignTestAttributeOptions(listing.id, format.options);
+
+      await assertPublicHtml(
+        "/order",
+        "Badge Card",
+        "listing-attributes",
+        "Format",
+        "Online",
+      );
     });
 
     test("marks a sold-out listing as unavailable and non-selectable", async () => {

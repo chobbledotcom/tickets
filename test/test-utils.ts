@@ -11,6 +11,7 @@ export * from "./test-utils/csrf.ts";
 export * from "./test-utils/db.ts";
 export * from "./test-utils/db-helpers/attendee-payments.ts";
 export * from "./test-utils/db-helpers/attendees.ts";
+export * from "./test-utils/db-helpers/attributes.ts";
 export * from "./test-utils/db-helpers/built-sites.ts";
 export * from "./test-utils/db-helpers/groups.ts";
 export * from "./test-utils/db-helpers/holidays.ts";

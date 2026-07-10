@@ -26,7 +26,9 @@ import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.
 import { setListingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import {
+  assignTestAttributeOptions,
   createTestAttendee,
+  createTestAttributeWithOptions,
   createTestListing,
   describeWithEnv,
   expectNoDecryptedAttendees,
@@ -189,6 +191,23 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       // blocked the delete entirely).
       const rows = await queryAll<{ listing_id: number }>(
         "SELECT listing_id FROM listing_questions ORDER BY listing_id",
+      );
+      expect(rows.map((r) => r.listing_id)).toEqual([listing2.id]);
+    });
+
+    test("removes the deleted listing's attribute assignments, keeping other listings'", async () => {
+      const listing1 = await createTestListing({ maxAttendees: 50 });
+      const listing2 = await createTestListing({ maxAttendees: 50 });
+      const attribute = await createTestAttributeWithOptions("Difficulty", [
+        "Easy",
+      ]);
+      await assignTestAttributeOptions(listing1.id, attribute.options);
+      await assignTestAttributeOptions(listing2.id, attribute.options);
+
+      await deleteListing(listing1.id);
+
+      const rows = await queryAll<{ listing_id: number }>(
+        "SELECT listing_id FROM listing_attribute_options ORDER BY listing_id",
       );
       expect(rows.map((r) => r.listing_id)).toEqual([listing2.id]);
     });

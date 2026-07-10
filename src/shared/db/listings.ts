@@ -629,8 +629,8 @@ export const isSlugTaken = (
  * Delete a listing and its own bookings in a single database round-trip.
  *
  * Only the deleted listing's rows are touched: its `listing_attendees` links,
- * its `listing_questions` assignments, its `listing_parents` edges (on either
- * side), its `activity_log` entries, and the listing itself. Attendees are
+ * its `listing_questions`/attribute assignments, its `listing_parents` edges
+ * (on either side), its `activity_log` entries, and the listing itself. Attendees are
  * deliberately left alone — an attendee booked
  * onto another listing keeps that booking (and all of its answers/payments)
  * completely untouched, and an attendee left with no bookings is simply
@@ -654,6 +654,10 @@ export const deleteListing = async (listingId: number): Promise<void> => {
     {
       args: [listingId],
       sql: "DELETE FROM listing_questions WHERE listing_id = ?",
+    },
+    {
+      args: [listingId],
+      sql: "DELETE FROM listing_attribute_options WHERE listing_id = ?",
     },
     {
       // Remove this listing from both sides of every parent/child edge.

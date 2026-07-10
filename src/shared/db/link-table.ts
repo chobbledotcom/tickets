@@ -37,6 +37,13 @@ export type LinkTableSide = {
   addIdsTx: TxIdsWrite;
   /** Remove every row for this key (used before deleting the record). */
   clear: (keyId: number) => Promise<void>;
+  /** Copy all links from one key to another inside an existing write
+   * transaction, so a duplicated record keeps its links atomically. */
+  copyLinksTx: (
+    tx: TxScope,
+    sourceKeyId: number,
+    newKeyId: number,
+  ) => Promise<void>;
   /** The linked ids for a key, ascending. */
   getIds: (keyId: number) => Promise<number[]>;
   /** Replace a key's linked set with exactly `ids` (deduped): delete the key's
@@ -88,6 +95,13 @@ export const linkTableSide = (
       await tx.execute(insertStatement(keyId, deduped));
     },
     clear: (keyId) => deleteByField(table, keyColumn, keyId),
+    copyLinksTx: async (tx, sourceKeyId, newKeyId) => {
+      await tx.execute({
+        args: [newKeyId, sourceKeyId],
+        sql: `INSERT INTO ${table} (${keyColumn}, ${valueColumn})
+              SELECT ?, ${valueColumn} FROM ${table} WHERE ${keyColumn} = ?`,
+      });
+    },
     getIds: (keyId) =>
       queryIdColumn(
         `SELECT ${valueColumn} AS id FROM ${table} WHERE ${keyColumn} = ? ORDER BY ${valueColumn} ASC`,
