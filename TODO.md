@@ -223,12 +223,6 @@ was pure relocation + cpd dedup (the task explicitly required "do NOT change wha
 any test asserts"), so these were left untouched and tracked here instead. Each is
 a small, isolated assertion-strength improvement.*
 
-- **`payment.test.ts` — assert payment stays unrefunded after ledger failure.**
-  The "surfaces a Stripe refund the ledger could not record" test only checks the
-  error flash; its comment says the payment must remain visibly un-refunded. Add a
-  state/UI assertion after the POST so a regression that both flashes an error AND
-  marks the payment refunded cannot pass. (Original monolith lines 2340–2384.)
-
 - **`resend-notification.test.ts` — `setTimeout(resolve, 0)` is race-prone.** The
   "a package member's resend rehydrates every line" test waits for the
   fire-and-forget webhook with a zero-delay timer, which is scheduler-dependent
