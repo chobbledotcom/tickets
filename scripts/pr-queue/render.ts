@@ -17,6 +17,7 @@ const BUCKET_DISPLAY: Record<
 > = {
   ATTENTION: { color: red, label: "NEEDS ATTENTION" },
   DRAFT: { color: dim, label: "DRAFT" },
+  QUEUED: { color: bold, label: "IN MERGE QUEUE" },
   READY: { color: green, label: "READY TO MERGE" },
   WAITING: { color: yellow, label: "WAITING" },
 };
@@ -24,6 +25,7 @@ const BUCKET_DISPLAY: Record<
 /** The order buckets appear in the report (most pressing first). */
 const BUCKET_ORDER: readonly Bucket[] = [
   "ATTENTION",
+  "QUEUED",
   "WAITING",
   "DRAFT",
   "READY",

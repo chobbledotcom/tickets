@@ -39,6 +39,7 @@ query {
         reviewDecision
         updatedAt
         author { login }
+        mergeQueueEntry { state position }
         reviewRequests(first: 20) {
           nodes {
             requestedReviewer {

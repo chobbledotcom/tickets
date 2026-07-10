@@ -9,7 +9,7 @@
  */
 
 /** The "who has the next move" bucket a PR lands in. */
-export type Bucket = "DRAFT" | "ATTENTION" | "WAITING" | "READY";
+export type Bucket = "QUEUED" | "DRAFT" | "ATTENTION" | "WAITING" | "READY";
 
 /** A CI check, flattened out of the GraphQL `CheckRun`/`StatusContext` union. */
 export interface Check {
@@ -32,6 +32,18 @@ export interface UnresolvedComments {
 }
 
 /**
+ * A GitHub merge-queue entry. Present (non-null) only when the PR has been
+ * added to the repo's merge queue — at that point pushing to the branch
+ * disrupts the queue, so the report must surface it loudly.
+ */
+export interface MergeQueueEntry {
+  /** `AWAITING_CHECKS`, `QUEUED`, `MERGEABLE`, or `UNMERGEABLE`. */
+  state: string;
+  /** 1-based position in the queue. */
+  position: number;
+}
+
+/**
  * Everything a {@link PrSignal} reads about a PR, pre-computed once so each
  * signal stays a tiny predicate + sentence. Mirrors `ResolveContext` in
  * `listing-defaults.ts`: the fold builds it, the table entries read it.
@@ -46,6 +58,8 @@ export interface PrContext {
   conflict: boolean;
   behind: boolean;
   blocked: boolean;
+  /** Present when the PR is in GitHub's merge queue — pushing to it disrupts the queue. */
+  mergeQueued: MergeQueueEntry | null;
 }
 
 /**
@@ -86,6 +100,8 @@ export interface GraphQlPr {
   reviewDecision: string | null;
   updatedAt: string;
   author: { login: string } | null;
+  /** Present only when the PR is in GitHub's merge queue. */
+  mergeQueueEntry: MergeQueueEntry | null;
   reviewRequests: {
     nodes: { requestedReviewer: { login: string } | { name: string } | null }[];
   };

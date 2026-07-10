@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { summarizePr } from "../../scripts/pr-queue/summary.ts";
-import type { GraphQlPr } from "../../scripts/pr-queue/types.ts";
+import type {
+  GraphQlPr,
+  MergeQueueEntry,
+} from "../../scripts/pr-queue/types.ts";
 
 /**
  * Build a `GraphQlPr` fixture from high-level options. The default is a clean,
@@ -21,6 +24,8 @@ type PrFixture = {
   mergeable?: string;
   mergeStateStatus?: string;
   reviewDecision?: string | null;
+  /** Present ⇒ the PR is in GitHub's merge queue. */
+  mergeQueueEntry?: MergeQueueEntry;
   /** "none" ⇒ no rollup (unknown checks); otherwise the named checks per state. */
   checks?:
     | "none"
@@ -120,6 +125,7 @@ const makePr = (opts: PrFixture = {}): GraphQlPr => ({
   headRefName: "feature-branch",
   isDraft: opts.draft ?? false,
   mergeable: opts.mergeable ?? "MERGEABLE",
+  mergeQueueEntry: opts.mergeQueueEntry ?? null,
   mergeStateStatus: opts.mergeStateStatus ?? "CLEAN",
   number: 42,
   reviewDecision: opts.reviewDecision ?? null,
@@ -267,6 +273,14 @@ describe("summarizePr", () => {
           checks: { nodes: [{ unrecognized: true }], passing: ["build"] },
         },
       },
+      {
+        bucket: "QUEUED",
+        factContains: "do not push to this branch",
+        name: "a merge-queued PR lands in its own bucket and warns against pushing",
+        opts: {
+          mergeQueueEntry: { position: 1, state: "AWAITING_CHECKS" },
+        },
+      },
     ];
 
     for (const { name, opts, bucket, factContains } of cases) {
@@ -412,6 +426,30 @@ describe("summarizePr", () => {
       expect(s.bucket).toBe("ATTENTION");
       expect(s.facts.some((f) => f.includes("merge conflicts"))).toBe(true);
       expect(s.facts.some((f) => f.includes("no CI checks yet"))).toBe(false);
+    });
+
+    test("merge queue outranks attention — a queued PR with open comments stays QUEUED", () => {
+      const s = summarizePr(
+        makePr({
+          mergeQueueEntry: { position: 1, state: "AWAITING_CHECKS" },
+          threads: [{ author: "chatgpt-codex-connector" }],
+        }),
+      );
+      expect(s.bucket).toBe("QUEUED");
+      expect(
+        s.facts.some((f) => f.includes("do not push to this branch")),
+      ).toBe(true);
+      expect(s.facts.some((f) => f.includes("open comments"))).toBe(true);
+    });
+
+    test("merge-queue fact shows position and human-readable state", () => {
+      const s = summarizePr(
+        makePr({
+          mergeQueueEntry: { position: 3, state: "AWAITING_CHECKS" },
+        }),
+      );
+      expect(s.facts[0]).toContain("position 3");
+      expect(s.facts[0]).toContain("awaiting checks");
     });
   });
 

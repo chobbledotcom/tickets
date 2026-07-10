@@ -34,6 +34,7 @@ import type {
 const BUCKET_RANK: Record<Bucket, number> = {
   ATTENTION: 2,
   DRAFT: 3,
+  QUEUED: 4,
   READY: 0,
   WAITING: 1,
 };
@@ -162,9 +163,17 @@ const commentMessage = ({ comments }: PrContext): string =>
  * The two comment signals are mutually exclusive — current comments are the
  * author's move (ATTENTION); only-outdated comments are the reviewer's move
  * to re-resolve (WAITING) — but both surface the same fact, via
- * {@link commentMessage}.
+ * {@link commentMessage}. The merge-queue signal is WAITING: once a PR is in
+ * GitHub's queue the next move is the queue's, not ours — pushing to the
+ * branch would disrupt it, so the fact says so plainly.
  */
 const PR_SIGNALS: PrSignal[] = [
+  {
+    applies: ({ mergeQueued }) => mergeQueued !== null,
+    bucket: "QUEUED",
+    message: ({ mergeQueued }) =>
+      `is in GitHub's merge queue (position ${mergeQueued?.position}, ${mergeQueued?.state.toLowerCase().replace(/_/g, " ")}) — do not push to this branch`,
+  },
   {
     applies: ({ pr }) => pr.isDraft,
     bucket: "DRAFT",
@@ -245,6 +254,7 @@ const buildContext = (pr: GraphQlPr): PrContext => {
     checks: summarizeChecks(pr),
     comments,
     conflict: pr.mergeable === "CONFLICTING" || pr.mergeStateStatus === "DIRTY",
+    mergeQueued: pr.mergeQueueEntry,
     pr,
     reviewers: requestedReviewers(pr),
     unresolved: countUnresolved(pr),
