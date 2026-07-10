@@ -22,7 +22,8 @@ export const readStream = async (
       return;
     }
     const lines = buffered.split(/\r?\n/);
-    buffered = lines.pop() ?? "";
+    // `split` always yields at least one element, so `pop` is never undefined.
+    buffered = lines.pop()!;
     for (const line of lines) onLine(line);
   };
 

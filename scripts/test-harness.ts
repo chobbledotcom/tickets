@@ -24,6 +24,7 @@ import {
   COVERAGE_OUTPUT_DIR,
   removeOldCoverageOutput,
 } from "./coverage-output.ts";
+import { rethrowUnlessNotFound } from "./not-found.ts";
 import { projectRoot } from "./project-root.ts";
 import { startStripeMock, stripeMockEnv } from "./stripe-mock.ts";
 import { JUNIT_PATH } from "./test-durations.ts";
@@ -181,6 +182,8 @@ export const withTestHarness = async <T>(
 export const runSuiteWithHarness = async (
   useCoverage: boolean,
 ): Promise<number> => {
-  await Deno.remove(JUNIT_PATH).catch(() => {});
+  // Only a missing file is expected here; a real removal failure (e.g.
+  // permissions) must surface rather than leave a stale JUnit file behind.
+  await Deno.remove(JUNIT_PATH).catch(rethrowUnlessNotFound);
   return withTestHarness(() => runTests(["test/"], useCoverage, JUNIT_PATH));
 };

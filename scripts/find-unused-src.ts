@@ -14,6 +14,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { flatMap } from "#fp";
 
 const ROOT = path.resolve(import.meta.dirname!, "..");
 
@@ -155,13 +156,10 @@ const EXPORT_PATTERNS: RegExp[] = [
 ];
 
 /** Extract names from `export { a, b as c }` blocks (not re-exports) */
-const extractBraceExports = (content: string): string[] => {
-  const names: string[] = [];
-  for (const m of content.matchAll(/export\s+\{([^}]+)\}(?!\s*from)/g)) {
-    names.push(...splitAliasedNames(m[1]!));
-  }
-  return names;
-};
+const extractBraceExports = (content: string): string[] =>
+  flatMap((m: RegExpMatchArray) => splitAliasedNames(m[1]!))([
+    ...content.matchAll(/export\s+\{([^}]+)\}(?!\s*from)/g),
+  ]);
 
 /** Extract exported names from a file */
 function extractExports(filePath: string): string[] {

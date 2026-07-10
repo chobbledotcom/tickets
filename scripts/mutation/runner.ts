@@ -19,7 +19,11 @@ import { stripeMockEnv } from "../stripe-mock.ts";
 import { withTestHarness } from "../test-harness.ts";
 import { type AssetRebuilder, createAssetRebuilder } from "./assets.ts";
 import { batchTestFiles } from "./batch.ts";
-import { denoExitCode, onTerminationSignals } from "./child-process.ts";
+import {
+  denoExitCode,
+  offTerminationSignals,
+  onTerminationSignals,
+} from "./child-process.ts";
 import { applyMutant, generateMutants, type Mutant } from "./generate.ts";
 import {
   type IgnoreList,
@@ -592,13 +596,7 @@ const mutate = async (options: MutationOptions): Promise<number> => {
       useHarness: options.useHarness,
     });
   } finally {
-    for (const signal of signals) {
-      try {
-        Deno.removeSignalListener(signal, onSignal);
-      } catch {
-        // matches the add above
-      }
-    }
+    offTerminationSignals(onSignal);
   }
 };
 

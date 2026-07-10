@@ -1,10 +1,7 @@
 import { readStream } from "../stream-lines.ts";
 import { bold, dim, green, red, yellow } from "./colors.ts";
-import {
-  getMergeConflictWarning,
-  runCommand,
-  runInteractiveCommand,
-} from "./merge-warning.ts";
+import { runCommand, runInteractiveCommand, splitCommand } from "./git.ts";
+import { getMergeConflictWarning } from "./merge-warning.ts";
 import { promptToPushCheckedInChanges, shouldPushFromAnswer } from "./push.ts";
 import { getSteps, type Step } from "./steps.ts";
 import {
@@ -48,8 +45,7 @@ const runStep = async (step: Step): Promise<boolean> => {
   const prefix = `  ${step.name} … `;
   write(prefix);
   const start = performance.now();
-  const [command, ...args] = step.cmd;
-  if (!command) throw new Error(`No command configured for ${step.name}`);
+  const [command, args] = splitCommand(step.cmd, `command for ${step.name}`);
 
   const cmd = new Deno.Command(command, {
     args,

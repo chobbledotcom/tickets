@@ -5,49 +5,6 @@ import {
   runGit,
 } from "./git.ts";
 
-export type { CommandResult, RunCommand } from "./git.ts";
-
-/** Split a command into [executable, args], rejecting an empty command. */
-const splitCommand = (cmd: string[]): [string, string[]] => {
-  const [command, ...args] = cmd;
-  if (!command) throw new Error("No command configured");
-  return [command, args];
-};
-
-export const runCommand: RunCommand = async (cmd) => {
-  const [command, args] = splitCommand(cmd);
-  const output = await new Deno.Command(command, {
-    args,
-    stderr: "piped",
-    stdout: "piped",
-  }).output();
-
-  const decoder = new TextDecoder();
-  return {
-    code: output.code,
-    stderr: decoder.decode(output.stderr),
-    stdout: decoder.decode(output.stdout),
-    success: output.success,
-  };
-};
-
-export const runInteractiveCommand: RunCommand = async (cmd) => {
-  const [command, args] = splitCommand(cmd);
-  const status = await new Deno.Command(command, {
-    args,
-    stderr: "inherit",
-    stdin: "inherit",
-    stdout: "inherit",
-  }).spawn().status;
-
-  return {
-    code: status.code,
-    stderr: "",
-    stdout: "",
-    success: status.success,
-  };
-};
-
 export const parseMergeTreeConflictedPaths = (stdout: string): string[] => {
   const lines = stdout.split(/\r?\n/);
   const paths: string[] = [];
