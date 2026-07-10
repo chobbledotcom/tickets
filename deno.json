@@ -28,6 +28,7 @@
     "cli:api": "deno run --allow-env --allow-read --allow-run cli/api.ts",
     "test:quality-audit": "deno run --allow-read scripts/test-quality-audit.ts",
     "mutation": "deno run -A scripts/mutation.ts",
+    "pr-queue": "deno run -A scripts/pr-queue.ts",
     "e2e": "deno run -A --config=e2e-payments/deno.json e2e-payments/src/main.ts"
   },
   "imports": {
