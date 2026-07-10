@@ -1,4 +1,4 @@
-import { hasCapacityRule } from "#shared/capacity-rules.ts";
+import { hasDateLessCap } from "#shared/capacity-rules.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import {
   availableDayCounts,
@@ -198,7 +198,7 @@ export const buildTicketListing = (
   closed: boolean,
   groupRemaining: number | undefined,
 ): TicketListing => {
-  const listingRemaining = hasCapacityRule("dateLessCap")(listing)
+  const listingRemaining = hasDateLessCap(listing)
     ? listing.max_attendees - listing.attendee_count
     : Number.POSITIVE_INFINITY;
   const spotsRemaining =

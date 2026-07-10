@@ -14,7 +14,7 @@ import {
   fixedQuantitiesByListingId,
   packageSubTree,
 } from "#shared/booking/tree.ts";
-import { hasCapacityRule } from "#shared/capacity-rules.ts";
+import { hasDateLessCap } from "#shared/capacity-rules.ts";
 import {
   PARENT_CHILD_GROUP_UNITS,
   sharedGroupRemaining,
@@ -56,9 +56,7 @@ const childOwnTicketLimit = (
   parent: TicketListing,
   child: TicketListing,
 ): number =>
-  hasCapacityRule("dateLessCap")(child.listing)
-    ? child.maxPurchasable
-    : parent.maxPurchasable;
+  hasDateLessCap(child.listing) ? child.maxPurchasable : parent.maxPurchasable;
 
 const groupIdsFor = (
   ctx: GroupCapacityInfo,
@@ -262,7 +260,7 @@ const oneChildNeed = ({
 }: ChildrenToBook): OneChildNeed[] => {
   const sole = children.length === 1 ? children[0]! : null;
   // Only a dateLessCap child has a date-less own limit to count against.
-  return sole && hasCapacityRule("dateLessCap")(sole.listing)
+  return sole && hasDateLessCap(sole.listing)
     ? [
         {
           childId: sole.listing.id,

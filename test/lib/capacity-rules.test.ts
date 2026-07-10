@@ -3,16 +3,14 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   allCapacityFacets,
   applicableCapacityRules,
-  assertOneOwnCapRule,
+  assertCapacityRulesCoherent,
   CAPACITY_RULES,
   type CapacityRule,
   capacityDateFor,
   capacityRuleTypeSql,
-  capacityRuleTypeSqlIn,
   countsPerDate,
-  hasCapacityRule,
+  hasDateLessCap,
   listingTypesWithRule,
-  listingTypesWithRuleIn,
 } from "#shared/capacity-rules.ts";
 
 /** The checks that apply to every listing, whatever its facets. */
@@ -44,25 +42,10 @@ describe("capacity rules", () => {
     });
   });
 
-  describe("hasCapacityRule", () => {
-    const standard = {
-      customisable_days: false,
-      listing_type: "standard",
-    } as const;
-    const daily = { customisable_days: false, listing_type: "daily" } as const;
-
-    test("the own-cap counting rules split by listing type", () => {
-      expect(hasCapacityRule("dateLessCap")(standard)).toBe(true);
-      expect(hasCapacityRule("dateLessCap")(daily)).toBe(false);
-      expect(hasCapacityRule("perDateCap")(standard)).toBe(false);
-      expect(hasCapacityRule("perDateCap")(daily)).toBe(true);
-    });
-
-    test("the shared-pool, parent+child, and admin rules apply to every facet", () => {
+  describe("hasDateLessCap", () => {
+    test("true exactly for the facets carrying the dateLessCap rule", () => {
       for (const facet of allCapacityFacets()) {
-        for (const key of UNIVERSAL) {
-          expect(hasCapacityRule(key)(facet)).toBe(true);
-        }
+        expect(hasDateLessCap(facet)).toBe(facet.listing_type === "standard");
       }
     });
   });
@@ -107,7 +90,7 @@ describe("capacity rules", () => {
       const rules: CapacityRule[] = [
         { appliesTo: (facet) => facet.customisable_days, key: "perDateCap" },
       ];
-      expect(() => listingTypesWithRuleIn(rules)("perDateCap")).toThrow(
+      expect(() => listingTypesWithRule("perDateCap", rules)).toThrow(
         "cannot be keyed by listing type alone",
       );
     });
@@ -125,20 +108,11 @@ describe("capacity rules", () => {
         "t IN ('standard', 'daily')",
       );
     });
-
-    test("rejects a rule that applies to no listing type", () => {
-      const rules: CapacityRule[] = [
-        { appliesTo: () => false, key: "perDateCap" },
-      ];
-      expect(() => capacityRuleTypeSqlIn(rules)("perDateCap", "t")).toThrow(
-        "applies to no listing type",
-      );
-    });
   });
 
-  describe("assertOneOwnCapRule", () => {
+  describe("assertCapacityRulesCoherent", () => {
     test("accepts the production table unchanged", () => {
-      expect(assertOneOwnCapRule(CAPACITY_RULES)).toBe(CAPACITY_RULES);
+      expect(assertCapacityRulesCoherent(CAPACITY_RULES)).toBe(CAPACITY_RULES);
     });
 
     test("rejects a table where a listing would be counted twice", () => {
@@ -146,7 +120,7 @@ describe("capacity rules", () => {
         { appliesTo: () => true, key: "dateLessCap" },
         { appliesTo: () => true, key: "perDateCap" },
       ];
-      expect(() => assertOneOwnCapRule(both)).toThrow(
+      expect(() => assertCapacityRulesCoherent(both)).toThrow(
         "exactly one own-cap counting rule, found 2",
       );
     });
@@ -155,8 +129,18 @@ describe("capacity rules", () => {
       const neither: CapacityRule[] = [
         { appliesTo: () => true, key: "groupPoolCap" },
       ];
-      expect(() => assertOneOwnCapRule(neither)).toThrow(
+      expect(() => assertCapacityRulesCoherent(neither)).toThrow(
         "exactly one own-cap counting rule, found 0",
+      );
+    });
+
+    test("rejects a rule no listing can ever match", () => {
+      const withDeadRule: CapacityRule[] = [
+        { appliesTo: () => true, key: "dateLessCap" },
+        { appliesTo: () => false, key: "groupPoolCap" },
+      ];
+      expect(() => assertCapacityRulesCoherent(withDeadRule)).toThrow(
+        'Capacity rule "groupPoolCap" applies to no listing',
       );
     });
   });
