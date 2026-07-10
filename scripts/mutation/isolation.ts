@@ -26,6 +26,7 @@ import {
   readRunRecords,
   rewriteMutationArgs,
   runLockIsHeld,
+  runStartedRecently,
   selectedRuns,
   withMutationRunLock,
   writeRunRecord,
@@ -49,7 +50,8 @@ const runningProcessStillExists = async (
 ): Promise<boolean> =>
   record.status === "running" &&
   record.pid !== undefined &&
-  processExists(record.pid);
+  processExists(record.pid) &&
+  (runStartedRecently(record) || (await runLockIsHeld(record)));
 
 const liveRunIdSet = async (
   records: MutationRunRecord[],

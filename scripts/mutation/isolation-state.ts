@@ -242,6 +242,23 @@ export const markInterrupted = (
 export const isTerminalRunStatus = (status: MutationRunStatus): boolean =>
   status === "passed" || status === "failed" || status === "interrupted";
 
+/**
+ * How long after a run is marked "running" we still treat it as active for
+ * cleanup, even if the child has not acquired the run lock yet. This covers
+ * the startup window between `spawn()` and the child taking the lock. After
+ * it expires, a running record with a live PID but no lock is stale (the PID
+ * may have been reused by an unrelated process) and can be cleaned.
+ */
+export const RUN_STARTUP_GRACE_MS = 30_000;
+
+export const runStartedRecently = (
+  record: MutationRunRecord,
+  now: Date = new Date(),
+  graceMs: number = RUN_STARTUP_GRACE_MS,
+): boolean =>
+  Date.parse(record.updatedAt) > 0 &&
+  now.getTime() - Date.parse(record.updatedAt) < graceMs;
+
 export const writeRunRecord = async (
   record: MutationRunRecord,
 ): Promise<void> => {

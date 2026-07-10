@@ -17,6 +17,7 @@ import {
   rewriteMutationArgs,
   runLockIsHeld,
   runRoot,
+  runStartedRecently,
   selectedRuns,
   shouldCopySnapshotPath,
   statusForExitCode,
@@ -184,6 +185,22 @@ describe("mutation isolation run records", () => {
     expect(statusForExitCode(0)).toBe("passed");
     expect(statusForExitCode(130)).toBe("interrupted");
     expect(statusForExitCode(2)).toBe("failed");
+  });
+
+  test("treats a run as recently started only within the grace period", () => {
+    const now = new Date("2026-07-10T12:00:00.000Z");
+    const fresh = markRunning(
+      newRunRecord("fresh", [], "/repo", "2026-07-10T11:59:45.000Z"),
+      1,
+      "2026-07-10T11:59:45.000Z",
+    );
+    const stale = markRunning(
+      newRunRecord("stale", [], "/repo", "2026-07-10T11:00:00.000Z"),
+      2,
+      "2026-07-10T11:00:00.000Z",
+    );
+    expect(runStartedRecently(fresh, now)).toBe(true);
+    expect(runStartedRecently(stale, now)).toBe(false);
   });
 
   test("writes, reads, sorts, and ignores broken records", async () => {
@@ -414,6 +431,32 @@ describe("mutation isolation commands", () => {
       expect(await pathExists(stale.root)).toBe(false);
       expect(await pathExists(noPid.root)).toBe(false);
       expect(await pathExists(passed.root)).toBe(false);
+    });
+  });
+
+  test("cleans stale running records whose pid was reused after the grace period", async () => {
+    await withTempDir(async (root) => {
+      const staleReused = markRunning(
+        newRunRecord(
+          "mutation-stale-reused",
+          [],
+          root,
+          "2026-01-01T00:00:00.000Z",
+        ),
+        Deno.pid,
+        "2026-01-01T00:00:00.000Z",
+      );
+      await writeRunRecord(staleReused);
+
+      expect(runStartedRecently(staleReused)).toBe(false);
+
+      expect(
+        await runQuietMutationCommand(
+          ["--clean", "mutation-stale-reused"],
+          root,
+        ),
+      ).toBe(0);
+      expect(await pathExists(staleReused.root)).toBe(false);
     });
   });
 
