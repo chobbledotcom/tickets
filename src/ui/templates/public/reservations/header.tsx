@@ -1,5 +1,7 @@
 import { t } from "#i18n";
 import { formatDatetimeLabel } from "#shared/dates.ts";
+// jscpd:ignore-end
+import type { AttributeWithOptions } from "#shared/db/attributes.ts";
 // jscpd:ignore-start
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
@@ -8,8 +10,8 @@ import type {
   ItemImageProjection,
   ListingWithCount,
 } from "#shared/types.ts";
-// jscpd:ignore-end
 import { Badge } from "#templates/components/badge.tsx";
+import { renderListingAttributes } from "../listing-attributes.ts";
 import { PublicImageGallery, renderListingImage } from "../shared.tsx";
 
 /** Header block shown above the form with listing/group details */
@@ -18,6 +20,7 @@ export const TicketPageHeader = ({
   headerDescription,
   headerImage,
   galleryImages,
+  listingAttributes,
   singleListing,
   pastDays,
 }: {
@@ -25,6 +28,7 @@ export const TicketPageHeader = ({
   headerDescription: string | null | undefined;
   headerImage: ItemImageProjection | null;
   galleryImages: readonly Image[];
+  listingAttributes: AttributeWithOptions[] | undefined;
   singleListing: ListingWithCount | null;
   pastDays: number | null;
 }): JSX.Element => (
@@ -62,6 +66,7 @@ export const TicketPageHeader = ({
           {singleListing.location}
         </p>
       )}
+      <Raw html={renderListingAttributes(listingAttributes)} />
     </div>
   </>
 );

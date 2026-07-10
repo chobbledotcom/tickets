@@ -132,6 +132,28 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
     ).toBe(true);
   });
 
+  /** One more ticket on an already-full standard listing, checked against an
+   * optional cart date — the running total must reject it either way. */
+  const oneMoreOnFullStandardListing = async (
+    date?: string,
+  ): Promise<boolean> => {
+    const listing = await createTestListing({
+      listingType: "standard",
+      maxAttendees: 2,
+    });
+    await bookAttendee(listing, { quantity: 2 });
+    return checkBatchAvailability(
+      [{ listingId: listing.id, quantity: 1 }],
+      date,
+    );
+  };
+
+  test("a dated cart still counts a standard listing's running total", async () => {
+    // A standard listing's rows carry no booking range, so bucketing its
+    // demand per-day would count an empty overlap and admit an over-cap cart.
+    expect(await oneMoreOnFullStandardListing("2026-05-01")).toBe(false);
+  });
+
   test("rejects negative quantities", async () => {
     const listing = await createTestListing({ maxAttendees: 5 });
     expect(
@@ -150,14 +172,7 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
   });
 
   test("rejects a standard listing exceeding total capacity", async () => {
-    const listing = await createTestListing({
-      listingType: "standard",
-      maxAttendees: 2,
-    });
-    await bookAttendee(listing, { quantity: 2 });
-    expect(
-      await checkBatchAvailability([{ listingId: listing.id, quantity: 1 }]),
-    ).toBe(false);
+    expect(await oneMoreOnFullStandardListing()).toBe(false);
   });
 
   test("uses the editable booked quantity for standard listing capacity", async () => {

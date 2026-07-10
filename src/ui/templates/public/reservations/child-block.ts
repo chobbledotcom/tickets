@@ -17,11 +17,13 @@ import {
   childPriceFieldName,
   childQuantityFieldName,
 } from "#shared/booking/tree.ts";
+import type { ListingAttributesById } from "#shared/db/attributes.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
 import { savedFormValue } from "#shared/forms.tsx";
 import type { ListingWithCount } from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
+import { renderListingAttributes } from "../listing-attributes.ts";
 import { childPriceLabel, childPriceMinor } from "./child-price.ts";
 import {
   clampSavedQuantity,
@@ -50,6 +52,8 @@ export type ChildRenderCtx = {
   rendered: Set<number>;
   /** Child tickets already promised to parents on this page. */
   foldReserveByChildId: ReadonlyMap<number, number>;
+  /** Selected listing attributes, for rendering on child options. */
+  attributesByListing: ListingAttributesById;
 };
 
 /** Max parent tickets after checking the children it must book too. */
@@ -155,6 +159,8 @@ type ChildOption = {
   child: TicketListing;
   childDatesById: ReadonlyMap<string, ChildDatesByDayCount>;
   showZero: boolean;
+  /** This child's selected-attributes markup, appended after its price. */
+  attributesHtml: string;
 };
 
 /** The parent id and child listing every child-option renderer derives first. */
@@ -196,7 +202,7 @@ const renderSoleChildOption = (opt: ChildOption): string => {
     : "";
   const label = `${namePart} ${pricePart}`.trim();
   const dateAttrs = childDateAttrs(parentId, opt.child, opt.childDatesById);
-  return `<p class="child-option child-sole" data-sole-parent="${parentId}" data-sole-child="${listing.id}"${dateAttrs}>${label}</p>${priceHtml}`;
+  return `<p class="child-option child-sole" data-sole-parent="${parentId}" data-sole-child="${listing.id}"${dateAttrs}>${label}</p>${priceHtml}${opt.attributesHtml}`;
 };
 
 /** Render one child as a per-unit quantity option (select over `0..childLimit`
@@ -225,7 +231,7 @@ const renderChildOption = (opt: ChildOption, childLimit: number): string => {
         restoredChildQty(parentId, listing.id, childLimit),
       )}</select>`
     : `<select name="${selectName}" disabled><option value="0" selected>0</option></select>`;
-  return `<label class="child-option">${select} ${label}</label>${priceHtml}`;
+  return `<label class="child-option">${select} ${label}</label>${priceHtml}${opt.attributesHtml}`;
 };
 
 /**
@@ -264,6 +270,9 @@ export const renderChildBlock = (
   const options = children
     .map((child) => {
       const opt: ChildOption = {
+        attributesHtml: renderListingAttributes(
+          ctx.attributesByListing.get(child.listing.id),
+        ),
         child,
         childDatesById: ctx.childDatesById,
         parent,
@@ -342,6 +351,7 @@ export const splitChildQuestions = (
   groupRemainingByGroupId: ReadonlyMap<number, number>,
   childDatesById: ReadonlyMap<string, ChildDatesByDayCount>,
   groupIdsByListingId: ReadonlyMap<number, number[]>,
+  attributesByListing: ListingAttributesById,
 ): { pageQuestions: QuestionWithAnswers[]; childCtx?: ChildRenderCtx } => {
   if (!childrenByParentId || childrenByParentId.size === 0) {
     return { pageQuestions: questions };
@@ -354,6 +364,7 @@ export const splitChildQuestions = (
   const pageQuestions = questions.filter(isPageQuestion);
   return {
     childCtx: {
+      attributesByListing,
       childDatesById,
       children: childrenByParentId,
       foldReserveByChildId: foldReserveByChildId(listings, childrenByParentId),

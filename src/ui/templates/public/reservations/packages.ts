@@ -8,7 +8,9 @@ import {
   type BookingNode,
   packageQuantityFieldName,
 } from "#shared/booking/tree.ts";
+import type { ListingAttributesById } from "#shared/db/attributes.ts";
 import { escapeHtml } from "#templates/layout.tsx";
+import { renderListingAttributes } from "../listing-attributes.ts";
 import { renderListingImage } from "../shared.tsx";
 import type { ChildRenderCtx } from "./child-block.ts";
 import { renderChildBlock } from "./child-block.ts";
@@ -28,6 +30,7 @@ const renderPackageMemberRow = (
   info: TicketListing,
   fixedQty: number,
   childCtx: ChildRenderCtx | undefined,
+  attributesHtml = "",
 ): string => `
     <div class="ticket-row package-member">
       ${renderListingImage(info.listing)}
@@ -35,6 +38,7 @@ const renderPackageMemberRow = (
         info.listing.name,
       )} <span class="package-member-qty">&times;${fixedQty}</span></label>
       ${renderListingDescription(info.listing.description)}
+      ${attributesHtml}
       ${childCtx ? renderChildBlock(info, childCtx) : ""}
     </div>
   `;
@@ -49,6 +53,8 @@ type PackageRender = {
   members: TicketListing[];
   limit: number;
   childCtxFor: (memberListingId: number) => ChildRenderCtx | undefined;
+  /** Selected listing attributes, for rendering on member rows. */
+  attributesByListing: ListingAttributesById;
 };
 
 /** One package's booking controls: its "number of packages" selector, then each
@@ -59,6 +65,7 @@ const renderPackageControls = ({
   members,
   limit,
   childCtxFor,
+  attributesByListing,
 }: PackageRender): string => {
   // Every member as `id:fixedQty`, so the client knows which listing-scoped
   // questions to show/require once this package is selected — even when
@@ -84,6 +91,7 @@ const renderPackageControls = ({
             e,
             pkg.quantities.get(e.listing.id) ?? 1,
             childCtxFor(e.listing.id),
+            renderListingAttributes(attributesByListing.get(e.listing.id)),
           ),
         )
         .join("");
@@ -124,6 +132,7 @@ export const buildPageListingRows = (opts: {
   hideQuantity: boolean;
   prefill?: BookingPrefill | undefined;
   childCtx?: ChildRenderCtx | undefined;
+  attributesByListing: ListingAttributesById;
 }): string => {
   const membersOf = (pkg: PagePackage): TicketListing[] => {
     const memberIds = new Set(pkg.memberListingIds);
@@ -143,6 +152,7 @@ export const buildPageListingRows = (opts: {
   };
   // packageLimits carries every page package by construction.
   const renderFor = (pkg: PagePackage): PackageRender => ({
+    attributesByListing: opts.attributesByListing,
     childCtxFor: claimChildCtx,
     limit: opts.packageLimits.get(pkg.groupId)!,
     members: membersOf(pkg),
@@ -174,6 +184,7 @@ export const buildPageListingRows = (opts: {
       opts.hideQuantity,
       opts.prefill,
       (info) => (memberIds.has(info.listing.id) ? undefined : opts.childCtx),
+      opts.attributesByListing,
     )
   );
 };

@@ -10,6 +10,7 @@
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { normalizeDatetime } from "#shared/dates.ts";
+import { copyListingAttributeOptionsTx } from "#shared/db/attributes.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import {
   copyPackageMemberOverridesTx,
@@ -260,15 +261,18 @@ const writeListingGroups = async (
 };
 
 /** Create-only afterWrite: persist the memberships, then — for a duplicate —
- * copy the source's package overrides onto the new membership rows in the SAME
- * transaction, so the duplicate never commits as a live package member at the
- * default price when the override copy fails. */
+ * copy the source's package overrides and attribute selections onto the new
+ * rows in the SAME transaction, so the duplicate never commits as a live
+ * package member at the default price when the override copy fails. */
 const writeCreateListingGroups =
   (form: FormParams) =>
   async (tx: TxScope, id: number, input: ListingInput): Promise<void> => {
     await writeListingGroups(tx, id, input);
     const sourceId = form.getOptionalInt("duplicated_from");
-    if (sourceId !== null) await copyPackageMemberOverridesTx(tx, sourceId, id);
+    if (sourceId !== null) {
+      await copyPackageMemberOverridesTx(tx, sourceId, id);
+      await copyListingAttributeOptionsTx(tx, sourceId, id);
+    }
   };
 
 /**

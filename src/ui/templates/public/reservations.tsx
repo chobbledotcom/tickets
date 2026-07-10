@@ -11,6 +11,7 @@ import {
   type PagePackage,
 } from "#shared/booking/page-packages.ts";
 import { daysAgo } from "#shared/dates.ts";
+import type { ListingAttributesById } from "#shared/db/attributes.ts";
 // jscpd:ignore-start
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
@@ -61,6 +62,8 @@ export type TicketPageOptions = {
   /** The header entity's images, shown as the shared CSS gallery above the
    * form (empty ⇒ falls back to the single header image). */
   galleryImages?: readonly Image[];
+  /** Selected listing attributes, populated only on render paths. */
+  attributesByListing?: ListingAttributesById;
   prefill?: BookingPrefill | undefined;
   /** Override the <form action="…"> URL. Defaults to `/ticket/<slugs>`. */
   actionUrl?: string;
@@ -115,6 +118,7 @@ export const ticketPage = ({
   packages = [],
   packageGroupRemainingByGroupId = new Map(),
   packageMemberGroupIds = new Map(),
+  attributesByListing = new Map(),
 }: TicketPageOptions): string => {
   // The canonical booking tree drives node identity + the stable form field
   // names (via nodeQuantityFieldName/nodePriceFieldName): one node per
@@ -188,12 +192,14 @@ export const ticketPage = ({
     groupRemainingByGroupId,
     childDatesById ?? new Map(),
     groupIdsByListingId,
+    attributesByListing,
   );
 
   // A package page shows one "number of packages" selector plus read-only member
   // rows (each ×its fixed quantity); a mixed page shows each package as a titled
   // section above the per-listing controls.
   const listingRows = buildPageListingRows({
+    attributesByListing,
     childCtx,
     hideQuantity,
     isSingleListing,
@@ -234,6 +240,11 @@ export const ticketPage = ({
           headerDescription={headerDescription}
           headerImage={headerImage}
           headerName={headerName}
+          listingAttributes={
+            singleListing
+              ? attributesByListing.get(singleListing.id)
+              : undefined
+          }
           pastDays={pastDays}
           singleListing={singleListing}
         />

@@ -458,25 +458,25 @@ src/shared/bulk-replace.ts:103:56  $1 00: → "$1 00: mutated"   # same as above
 # its left operand can be the boolean `false`, a defined-but-falsy value,
 # which `??` would return as-is instead of evaluating `.has(date)`; a test
 # covers that case directly.)
-src/shared/booking/model.ts:53:19  === → ==   # parentDates is ReadonlySet<string>|null (no undefined), so === and == agree on null
+src/shared/booking/model.ts:54:19  === → ==   # parentDates is ReadonlySet<string>|null (no undefined), so === and == agree on null
 
 # childHasDateOrStockForDays' `days ?? 1` fallback: normalizeDurationDays
 # (called downstream in isBookingRangeValid) clamps any non-finite or
 # sub-1 value up to 1, so `1`, `0`, and `-1` all normalize identically —
 # and `days || 1` reaches the same clamp for every falsy `days` (null, 0,
 # NaN), agreeing with `days ?? 1` for every value the type permits.
-src/shared/booking/model.ts:66:41  ?? → ||   # every falsy days (null/0/NaN) clamps to 1 downstream either way
-src/shared/booking/model.ts:66:45  1 → 0   # normalizeDurationDays clamps 0 up to 1 anyway
-src/shared/booking/model.ts:66:45  1 → -1   # normalizeDurationDays clamps negatives up to 1 anyway
+src/shared/booking/model.ts:67:41  ?? → ||   # every falsy days (null/0/NaN) clamps to 1 downstream either way
+src/shared/booking/model.ts:67:45  1 → 0   # normalizeDurationDays clamps 0 up to 1 anyway
+src/shared/booking/model.ts:67:45  1 → -1   # normalizeDurationDays clamps negatives up to 1 anyway
 
 # childHasPriceForDays: dayPriceFor returns number|null (no undefined), so
 # !== and != agree on null.
-src/shared/booking/model.ts:74:37  !== → !=   # dayPriceFor(...): number|null (no undefined), so !== and != agree on null
+src/shared/booking/model.ts:75:37  !== → !=   # dayPriceFor(...): number|null (no undefined), so !== and != agree on null
 
 # bookableChildIds: `childrenByParentId?.values()` is either undefined or a
 # live MapIterator, and iterator objects are always truthy — never a
 # falsy-but-defined value — so ?? and || agree.
-src/shared/booking/model.ts:125:38  ?? → ||   # Map#values() is undefined or a truthy iterator object, never falsy-but-defined
+src/shared/booking/model.ts:126:38  ?? → ||   # Map#values() is undefined or a truthy iterator object, never falsy-but-defined
 
 # dayCountsEveryListingSupports' final `.sort((a, b) => a - b)`: the array it
 # sorts is built by spreading `first` (a Set built from availableDayCounts,
@@ -486,29 +486,29 @@ src/shared/booking/model.ts:125:38  ?? → ||   # Map#values() is undefined or a
 # leave an already-sorted array untouched regardless of comparator sign
 # (`[2,3].sort((a,b)=>a+b)` stays `[2, 3]`), so no comparator mutation here
 # is observable for any reachable input.
-src/shared/booking/model.ts:226:22  - → +   # input is always pre-sorted ascending by construction; comparator is never exercised on unsorted data
-src/shared/booking/model.ts:226:22  - → *   # same as above
-src/shared/booking/model.ts:226:22  - → /   # same as above
+src/shared/booking/model.ts:228:22  - → +   # input is always pre-sorted ascending by construction; comparator is never exercised on unsorted data
+src/shared/booking/model.ts:228:22  - → *   # same as above
+src/shared/booking/model.ts:228:22  - → /   # same as above
 
 # keepDayCountsChildrenSupport: `dayCountsChildSupports(child) ?? current`
 # — dayCountsChildSupports returns number[]|null, and arrays are always
 # truthy in JS even when empty, so ?? and || agree for every possible
 # return value.
-src/shared/booking/model.ts:255:49  ?? → ||   # dayCountsChildSupports(): number[]|null, and an array is truthy even when empty
+src/shared/booking/model.ts:257:49  ?? → ||   # dayCountsChildSupports(): number[]|null, and an array is truthy even when empty
 
 # package-cap.ts's groupIdsFor: `ctx.groupIdsByListingId.get(...) ?? []` — a
 # Map#get() on a ReadonlyMap<number, number[]> is either undefined or a
 # truthy array (even an empty array is truthy), so ?? and || agree.
-src/shared/booking/package-cap.ts:60:63  ?? → ||   # groupIdsByListingId.get(): number[]|undefined, and an array is truthy even when empty
+src/shared/booking/package-cap.ts:64:63  ?? → ||   # groupIdsByListingId.get(): number[]|undefined, and an array is truthy even when empty
 
 # smallestLimitedGroupFor: `limitedGroupsFor(...).toSorted(...)[0] ?? null`
 # — array-index access yields the element (an object, always truthy) or
 # undefined for an empty array, so ?? and || agree.
-src/shared/booking/package-cap.ts:150:7  ?? → ||   # array[0]: object|undefined — an object is always truthy, never falsy-but-defined
+src/shared/booking/package-cap.ts:154:7  ?? → ||   # array[0]: object|undefined — an object is always truthy, never falsy-but-defined
 
 # childLimitPart: `limitedGroup === null` — smallestLimitedGroupFor returns
 # `{groupId,remaining} | null` (no undefined case), so === and == agree.
-src/shared/booking/package-cap.ts:163:22  === → ==   # limitedGroup: {groupId,remaining}|null (no undefined), so === and == agree on null
+src/shared/booking/package-cap.ts:167:22  === → ==   # limitedGroup: {groupId,remaining}|null (no undefined), so === and == agree on null
 
 # parentGroupChildLimit: `shared.length === 0`, mutated to `=== -1` — array
 # length is never negative, so this condition is always false either way;
@@ -517,7 +517,7 @@ src/shared/booking/package-cap.ts:163:22  === → ==   # limitedGroup: {groupId,
 # Math.min(Infinity,0) is 0) coincidentally reproduces the same `0` the
 # early return gives for a genuinely empty `shared`, so no input can ever
 # distinguish the two paths' output.
-src/shared/booking/package-cap.ts:170:25  0 → -1   # shared.length is never negative; the empty-array fallback path already returns 0 too
+src/shared/booking/package-cap.ts:174:25  0 → -1   # shared.length is never negative; the empty-array fallback path already returns 0 too
 
 # cache-registry.ts's setsIntersect is private and only ever consumed
 # negated (`!setsIntersect(...)`) inside invalidateCachesForWrite — `!false`
@@ -675,8 +675,8 @@ src/shared/db/logistics.ts:161:51  return null → return undefined   # compact(
 # Group-cap sweep (attendees/update.ts): the boundary-delta accumulator is a
 # Map<string, number>; the only falsy-but-non-null number is 0 and the fallback
 # is 0, so `?? 0` and `|| 0` always agree.
-src/shared/db/attendees/update.ts:193:43  ?? → ||   # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
-src/shared/db/attendees/update.ts:194:39  ?? → ||   # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
+src/shared/db/attendees/update.ts:188:43  ?? → ||   # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
+src/shared/db/attendees/update.ts:189:39  ?? → ||   # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
 
 # DB client (client.ts) — extractUpdateColumns assignment guard.
 src/shared/db/client.ts:58:17  0 → 1   # eqIdx===0 means the fragment starts with "="; slice(0,0) is always "" so the column is dropped by the `if (col)` guard either way — early return and fall-through agree on every input
@@ -710,3 +710,10 @@ src/shared/db/attendees/tokens.ts:159:45  ?? → ||    # resultsInTokenOrder: by
 src/shared/db/attendees/tokens.ts:162:56  ?? → ||    # resultsInTokenOrder: tokenToResult.get() is Result|undefined; Result is always a truthy object (see 159), so ?? and || agree
 src/shared/db/attendees/tokens.ts:175:48  ?? → ||    # tokenResultMap: bookingsByAttendee.get() is Booking[]|undefined; an array is always truthy (even empty), so ?? and || agree
 src/shared/sentry.ts:49:32  ?? → ||    # getSentrySdk(): SentrySdk|null — a loaded module namespace object is always truthy, never falsy-but-non-null, so ?? and || agree
+
+# db/capacity.ts — duration defaults that normalizeDurationDays clamps: a
+# `durationDays` of 0 (the mutant) and 1 (the default) both normalize to a
+# one-day span, so no input can tell the two apart.
+src/shared/db/capacity.ts:40:58  1 → 0    # dateToRange's default duration; normalizeDurationDays clamps 0 up to 1
+src/shared/db/capacity.ts:285:18  1 → 0    # buildCapacityCondition's default duration; same clamp
+src/shared/db/capacity.ts:297:37  1 → 0    # the per-day clause builds each day as a 1-day range; dateToRange normalizes 0 up to 1

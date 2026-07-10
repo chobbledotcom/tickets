@@ -5,9 +5,13 @@ import {
   nodePriceFieldName,
   nodeQuantityFieldName,
 } from "#shared/booking/tree.ts";
+import type { ListingAttributesById } from "#shared/db/attributes.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
+// jscpd:ignore-start
 import { escapeHtml } from "#templates/layout.tsx";
+import { renderListingAttributes } from "../listing-attributes.ts";
 import { renderListingImage } from "../shared.tsx";
+// jscpd:ignore-end
 import {
   type ChildRenderCtx,
   childLimitedMax,
@@ -62,6 +66,7 @@ export const renderListingRow = (
   hideQuantity = false,
   prefill?: TicketPrefill,
   childCtx?: ChildRenderCtx,
+  attributesHtml = "",
 ): string => {
   const { listing, isSoldOut, isClosed } = info;
   const imageHtml = renderListingImage(listing);
@@ -71,6 +76,7 @@ export const renderListingRow = (
       <div class="ticket-row sold-out">
         ${imageHtml}
         <label>${escapeHtml(listing.name)}</label>
+        ${attributesHtml}
         <span class="sold-out-label">${t("public.registration_closed")}</span>
       </div>
     `;
@@ -82,6 +88,7 @@ export const renderListingRow = (
         ${imageHtml}
         <label>${escapeHtml(listing.name)}</label>
         ${renderListingDescription(listing.description)}
+        ${attributesHtml}
         <span class="sold-out-label">${t("public.sold_out")}</span>
       </div>
     `;
@@ -94,6 +101,7 @@ export const renderListingRow = (
       ${imageHtml}
       <label>${escapeHtml(listing.name)}${controls.quantityHtml}</label>
       ${renderListingDescription(listing.description)}
+      ${attributesHtml}
       ${controls.priceHtml}
       ${controls.childBlock}
     </div>
@@ -128,6 +136,7 @@ export const buildListingRows = (
   hideQuantity: boolean,
   prefill: BookingPrefill | undefined,
   childCtxFor: (info: TicketListing) => ChildRenderCtx | undefined,
+  attributesByListing: ListingAttributesById = new Map(),
 ): string =>
   isSingleListing
     ? renderSingleListingControls(
@@ -138,13 +147,17 @@ export const buildListingRows = (
         childCtxFor(listings[0]!),
       )
     : listings
-        .map((e) =>
-          renderListingRow(
+        .map((e) => {
+          const attributesHtml = renderListingAttributes(
+            attributesByListing.get(e.listing.id),
+          );
+          return renderListingRow(
             e,
             nodeByListingId.get(e.listing.id)!,
             hideQuantity,
             prefill?.listings.get(e.listing.id),
             childCtxFor(e),
-          ),
-        )
+            attributesHtml,
+          );
+        })
         .join("");

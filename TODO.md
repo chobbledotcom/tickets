@@ -260,13 +260,6 @@ keeps the bundles honest by failing when a route reads a key it didn't declare.
   with no save-time warning. Fix: reject (or warn on) a parent package member
   whose per-order cap is below its pick count.
 
-- **`allocations` metadata length limit.** `enforceMetadataLimits`
-  length-checks `items`, answers, `modifiers`, the entry count and the packed
-  field, but not `allocations` — the fastest-growing field once every pick adds
-  an allocation. A large multi-slot checkout can fail with a raw payment-provider
-  error instead of the app's "book in smaller batches" message. Add
-  `allocations` to the same length guard.
-
 - **Capacity edge cases beyond the shipped model.** The shipped bundle-cap model
   (per-member child caps, sole-child pools, all-children forced demand) covers
   the common configurations but is not a full per-candidate feasibility solver:
@@ -393,6 +386,26 @@ deliberately left for later:*
   to test the harness's port handling; each spawn is inherently slow. If it
   grows, the port-conflict cases could stub the child-process layer the same
   way the supervisor tests do.
+
+---
+
+## Capacity rules — feature-layer adoption (stage 3)
+
+*Origin: the capacity-rules consolidation (`src/shared/capacity-rules.ts`).*
+Stages 1–2 shipped: the declarative `CAPACITY_RULES` table exists, and the SQL
+guard (`src/shared/db/capacity.ts`), the JS preflight
+(`src/shared/db/attendees/capacity.ts`, `update.ts`), and the booking-page
+limits (`booking/model.ts`, `booking/package-cap.ts`) all derive their
+per-date-vs-running-total decisions from it. A handful of **feature-layer**
+call sites still decide the capacity date by hand with
+`listing_type === "daily"` and could consult `capacityDateFor`/`countsPerDate`
+instead (behaviour-identical, one file each):
+`src/features/public/ticket-payment.ts` (~line 219, the stored booking date),
+`src/features/public/qr-book.ts` (~line 99), `src/features/api/listings.ts`
+(the per-child availability dates, ~lines 122–157), and
+`src/features/api/booking.ts` (~line 64). Only the *capacity-date* decisions
+belong to the table — calendar/UI daily branches (date pickers, sorting,
+display) are date-selection logic and should stay as they are.
 
 ---
 

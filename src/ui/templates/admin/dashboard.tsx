@@ -24,6 +24,7 @@ import type { ServicingEventSummary } from "#shared/db/attendees/servicing.ts";
 import type { ActiveListingStats } from "#shared/db/attendees.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { filterListingsByAttributes } from "#shared/listing-attribute-filter.ts";
 import {
   filterListingsByType,
   type ListingFilter,
@@ -38,6 +39,14 @@ import type {
 } from "#shared/types.ts";
 import { AdminPage, flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { HolidayTable } from "#templates/admin/holidays.tsx";
+import {
+  attributeFilterHref,
+  csvExportHref,
+  emptyAttributeFilterView,
+  type ListingAttributeFilterView,
+  renderAttributeFilterBars,
+  typeFilterHref,
+} from "#templates/admin/listing-attribute-filters.ts";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
@@ -318,10 +327,12 @@ const ListingsTableBlock = ({
   columnKeys,
   filters,
   csvExport = false,
+  csvHref = "/admin/listings/csv",
   headerHtml = "",
   columns = LISTING_TABLE_COLUMNS,
 }: ListingTableArgs & {
   csvExport?: boolean;
+  csvHref?: string;
   headerHtml?: string;
 }): JSX.Element => (
   <div class="table-block">
@@ -331,7 +342,7 @@ const ListingsTableBlock = ({
     />
     {csvExport && (
       <div class="table-actions">
-        <a href="/admin/listings/csv">{t("listings_table.export_csv")}</a>
+        <a href={csvHref}>{t("listings_table.export_csv")}</a>
       </div>
     )}
   </div>
@@ -352,6 +363,7 @@ export const adminDashboardPage = (
   upcomingHolidays: Holiday[] = [],
   unbookableIds: ReadonlySet<number> = new Set(),
   upcomingServicingEvents: ServicingEventSummary[] = [],
+  attributeFilterView: ListingAttributeFilterView = emptyAttributeFilterView(),
 ): string => {
   const { columnKeys, filters } = resolveColumnLayout(
     listingColumnTemplate ?? "",
@@ -372,13 +384,24 @@ export const adminDashboardPage = (
     (e: ListingWithCount) => !unbookableIds.has(e.id),
   )(activeListings);
   const categories = unique(listings.map(listingCategory));
-  const shownListings = filterListingsByType(activeType)(activeListings);
+  const { activeAttributeFilters, attributeFilters, attributesByListing } =
+    attributeFilterView;
+  const shownListings = filterListingsByAttributes(
+    activeAttributeFilters,
+    attributesByListing,
+  )(filterListingsByType(activeType)(activeListings));
   const typeFilterHtml =
     categories.length > 1
       ? renderTypeFilter(activeType, categories, (f) =>
-          f === "all" ? "/admin/" : `/admin/?type=${f}`,
+          typeFilterHref("/admin/", activeAttributeFilters)(f),
         )
       : "";
+  const attributeFilterHtml = renderAttributeFilterBars(
+    attributeFilters,
+    activeAttributeFilters,
+    attributeFilterHref("/admin/", activeType, activeAttributeFilters),
+  );
+  const filterHtml = `${typeFilterHtml}${attributeFilterHtml}`;
 
   return flashAdminPage(t("terms.listings"), "/admin/")(
     session,
@@ -391,7 +414,7 @@ export const adminDashboardPage = (
       <ListingsTableBlock
         columnKeys={columnKeys}
         filters={filters}
-        headerHtml={typeFilterHtml}
+        headerHtml={filterHtml}
         listings={shownListings}
       />
 
@@ -425,6 +448,7 @@ export const adminListingsPage = (
   listings: ListingWithCount[],
   session: AdminSession,
   listingColumnTemplate?: string,
+  attributeFilterView: ListingAttributeFilterView = emptyAttributeFilterView(),
 ): string => {
   // Editors see a money-free, edit-linked table on a fixed order (their saved
   // column template is irrelevant and never references the omitted columns), and
@@ -442,6 +466,17 @@ export const adminListingsPage = (
   const deactivatedListings = filter((e: ListingWithCount) => !e.active)(
     listings,
   );
+  const { activeAttributeFilters, attributeFilters, attributesByListing } =
+    attributeFilterView;
+  const filterByAttribute = filterListingsByAttributes(
+    activeAttributeFilters,
+    attributesByListing,
+  );
+  const attributeFilterHtml = renderAttributeFilterBars(
+    attributeFilters,
+    activeAttributeFilters,
+    attributeFilterHref("/admin/listings", "all", activeAttributeFilters),
+  );
 
   return String(
     <AdminPage
@@ -453,8 +488,10 @@ export const adminListingsPage = (
         columnKeys={columnKeys}
         columns={columns}
         csvExport={!isEditor}
+        csvHref={csvExportHref("all", activeAttributeFilters)}
         filters={filters}
-        listings={activeListings}
+        headerHtml={attributeFilterHtml}
+        listings={filterByAttribute(activeListings)}
       />
 
       {deactivatedListings.length > 0 && (
@@ -462,7 +499,7 @@ export const adminListingsPage = (
           <h2>{t("admin.dashboard.deactivated")}</h2>
           <Raw
             html={renderListingsTableSection(
-              deactivatedListings,
+              filterByAttribute(deactivatedListings),
               columnKeys,
               filters,
               columns,

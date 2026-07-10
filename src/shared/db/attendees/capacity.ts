@@ -6,10 +6,18 @@
  * This file contains the JS preflight (`checkListingAvailability`,
  * `checkBatchAvailabilityImpl`) — the inline SQL safety net lives in
  * `#shared/db/capacity.ts` and runs in the same statement as the INSERT/UPDATE.
+ * Both sides decide per-date vs running-total counting from the same
+ * `#shared/capacity-rules.ts` declaration, so they can never disagree about
+ * which check applies to a listing.
  */
 
 import type { InValue } from "@libsql/client";
 import { filter, map, pipe, sumOf, unique } from "#fp";
+import {
+  capacityDateFor,
+  capacityRuleTypeSql,
+  countsPerDate,
+} from "#shared/capacity-rules.ts";
 import { addDays } from "#shared/dates.ts";
 import type {
   BatchAvailabilityItem,
@@ -71,14 +79,14 @@ export const getGroupRemainingByGroupId = (
         SELECT SUM(listing.booked_quantity)
           FROM listings AS listing
           JOIN group_listings AS groupListing ON groupListing.listing_id = listing.id
-         WHERE groupListing.group_id = groupRow.id AND listing.listing_type != 'daily'
+         WHERE groupListing.group_id = groupRow.id AND ${capacityRuleTypeSql("dateLessCap", "listing.listing_type")}
       ), 0) + COALESCE((
         SELECT SUM(attendee.quantity)
           FROM listing_attendees AS attendee
           JOIN listings AS listing ON listing.id = attendee.listing_id
           JOIN group_listings AS groupListing ON groupListing.listing_id = attendee.listing_id
          WHERE groupListing.group_id = groupRow.id
-           AND listing.listing_type = 'daily'
+           AND ${capacityRuleTypeSql("perDateCap", "listing.listing_type")}
            AND attendee.start_at < ? AND attendee.end_at > ?
       ), 0)`
       : `COALESCE((
@@ -125,21 +133,21 @@ export const getGroupRemainingForSpan = async (
   );
 };
 
-/** Date-less remaining for every capped group reachable from a NON-daily
- * listing in `members`. A daily listing's group remaining is a per-DATE fact —
- * a date-less cumulative count would misreport spots other dates still have —
- * so daily members contribute no date-less pool clamp, exactly like the
- * standalone paths; the authoritative per-date group check runs at booking.
- * Membership maps stay complete for demand computation; only the remaining
- * lookup is filtered. */
+/** Date-less remaining for every capped group reachable from a `dateLessCap`
+ * listing in `members`. A `perDateCap` listing's group remaining is a
+ * per-DATE fact — a date-less cumulative count would misreport spots other
+ * dates still have — so those members contribute no date-less pool clamp,
+ * exactly like the standalone paths; the authoritative per-date group check
+ * runs at booking. Membership maps stay complete for demand computation; only
+ * the remaining lookup is filtered. */
 export const getDatelessGroupRemaining = (
-  members: readonly { id: number; listing_type: string }[],
+  members: readonly { id: number; listing_type: ListingType }[],
   membership: ReadonlyMap<number, number[]>,
 ): Promise<RemainingMap> =>
   getGroupRemainingByGroupId([
     ...new Set(
       members
-        .filter((m) => m.listing_type !== "daily")
+        .filter((m) => !countsPerDate(m.listing_type))
         .flatMap((m) => membership.get(m.id) ?? []),
     ),
   ]);
@@ -182,10 +190,10 @@ const loadMembershipWithGroupIds = async (
 };
 
 /**
- * Per-listing view of group remaining capacity. Daily listings are dropped when
- * `date` is null — their cap is per-date, so a cumulative count would
- * misreport spots that other dates still have. A listing in multiple capped
- * groups reports the tightest group's remaining.
+ * Per-listing view of group remaining capacity. `perDateCap` listings are
+ * dropped when `date` is null — their cap is per-date, so a cumulative count
+ * would misreport spots that other dates still have. A listing in multiple
+ * capped groups reports the tightest group's remaining.
  */
 export const getGroupRemainingByListingId = async (
   listings: ListingForGroupLookup[],
@@ -193,7 +201,7 @@ export const getGroupRemainingByListingId = async (
 ): Promise<RemainingMap> => {
   const candidates = date
     ? listings
-    : listings.filter((e) => e.listing_type !== "daily");
+    : listings.filter((e) => !countsPerDate(e.listing_type));
   const { membership, groupIds } = await loadMembershipWithGroupIds(candidates);
   const groupMap = await getGroupRemainingByGroupId(groupIds, date);
   return minByListingOverGroups(
@@ -397,9 +405,9 @@ export const checkListingAvailability = async (
 ): Promise<boolean> => {
   const listing = await getListingWithCount(listingId);
   if (!listing) return false;
-  // A standard listing's rows carry no booking range, so they'd never match a
-  // date overlap — pass null to count them all as a cumulative total instead.
-  const checkDate = listing.listing_type === "daily" ? (date ?? null) : null;
+  // A dateLessCap listing's rows carry no booking range, so they'd never match
+  // a date overlap — capacityDateFor drops the date to count the running total.
+  const checkDate = capacityDateFor(listing.listing_type, date);
   return (
     await checkLinesCapacity([
       { date: checkDate, durationDays, listingId, quantity },
@@ -431,15 +439,15 @@ const getOrCreateBucket = <K>(
   return bucket;
 };
 
-/** Add one item's demand to a bucket: per-day for a dated daily listing,
- * otherwise a single total. */
+/** Add one item's demand to a bucket: per-day for a dated `perDateCap`
+ * listing, otherwise a single total. */
 const addDemandToBucket = (
   bucket: DemandBucket,
   ev: ListingRow,
   item: BatchAvailabilityItem,
   date: string | null | undefined,
 ): void => {
-  if (ev.listing_type === "daily" && date) {
+  if (countsPerDate(ev.listing_type) && date) {
     for (const day of expandDailyRange(date, item.durationDays ?? 1)) {
       bucket.perDay.set(day, (bucket.perDay.get(day) ?? 0) + item.quantity);
     }
@@ -578,7 +586,7 @@ const groupPerDayRemainingByGroup = async (
               SELECT SUM(listing.booked_quantity)
                 FROM listings AS listing
                 JOIN group_listings AS groupListing ON groupListing.listing_id = listing.id
-               WHERE groupListing.group_id = groupRow.id AND listing.listing_type != 'daily'
+               WHERE groupListing.group_id = groupRow.id AND ${capacityRuleTypeSql("dateLessCap", "listing.listing_type")}
             ), 0) AS base
        FROM groups AS groupRow
      WHERE groupRow.id IN (${inPlaceholders(ids)}) AND groupRow.max_attendees > 0`,
@@ -594,7 +602,7 @@ const groupPerDayRemainingByGroup = async (
      JOIN listings AS listing ON listing.id = attendee.listing_id
      JOIN group_listings AS groupListing ON groupListing.listing_id = attendee.listing_id
      WHERE groupListing.group_id IN (${inPlaceholders(cappedIds)})
-       AND listing.listing_type = 'daily'
+       AND ${capacityRuleTypeSql("perDateCap", "listing.listing_type")}
        AND attendee.start_at < ? AND attendee.end_at > ?`,
     [...cappedIds, endAt, startAt],
   );
@@ -634,7 +642,7 @@ const getListingRemainingMapForRange = async (
   durationDays = 1,
 ): Promise<Map<number, number>> => {
   const usesRange = (l: ListingCapacityRow): boolean =>
-    l.listing_type === "daily" && date !== null;
+    countsPerDate(l.listing_type) && date !== null;
   const daily = filter(usesRange)(listings);
   const totals = filter((l: ListingCapacityRow) => !usesRange(l))(listings);
   const days = date ? expandDailyRange(date, durationDays) : [];

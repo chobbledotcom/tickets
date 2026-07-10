@@ -103,6 +103,36 @@ describe("payment-helpers", () => {
       );
     });
 
+    test("throws PaymentUserError when allocations exceeds limit", () => {
+      // Every package pick adds an allocation, so this field grows fastest; a
+      // large multi-slot checkout must surface the app's batching message, not a
+      // raw provider rejection.
+      const longAllocations = JSON.stringify(
+        Array.from({ length: 40 }, (_, i) => ({ childId: i, parentId: 1 })),
+      );
+      const metadata = {
+        allocations: longAllocations,
+        email: "john@example.com",
+        items: '[{"e":1,"q":1,"p":0}]',
+        name: "John",
+      };
+      expectThrows(
+        () => enforceMetadataLimits(metadata, 255),
+        PaymentUserError,
+        /too many options/i,
+      );
+    });
+
+    test("passes through allocations within the limit", () => {
+      const metadata = {
+        allocations: JSON.stringify([{ childId: 2, parentId: 1 }]),
+        email: "j@x.com",
+        items: '[{"e":1,"q":1,"p":0}]',
+        name: "John",
+      };
+      expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
+    });
+
     test("items within Stripe limit (500) but over Square limit (255)", () => {
       const items = JSON.stringify(
         Array.from({ length: 15 }, (_, i) => ({ e: i, p: 100, q: 1 })),
