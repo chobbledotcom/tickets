@@ -331,7 +331,7 @@ pattern to content string fields.
 
 ## Prioritisation
 
-**Shipped (items 1–7):**
+**Shipped (items 1–8):**
 
 - **Item 1 (admin-page schema)** — the schema, nav.tsx migration, and
   nav.test.tsx migration are done. Remaining: `adminLandingPath` derivation

@@ -173,19 +173,45 @@ describe("edgeFieldError", () => {
     expect(edgeFieldError(parent, child)).toBeNull();
   });
 
-  test("a parent-blaming error resolves to real copy naming the parent, not a raw i18n key", () => {
-    const parent = listing({ months_per_unit: 1, name: "Membership" });
-    const message = edgeFieldError(parent, listing());
-    expect(message).toContain("'Membership'");
-    expect(message).not.toContain("children_err");
-  });
+  // One scenario per rule, each breaking only its own rule, paired with the
+  // listing name its message must blame. Guards that every rule's message
+  // resolves to real interpolated copy — a missing translation would make the
+  // ruleError-based expectations below match the raw-key fallback on both
+  // sides, so these assertions are what catch it.
+  const blamedNameCases: [string, EdgeListing, EdgeListing, string][] = [
+    [
+      "parent renewal",
+      listing({ months_per_unit: 1, name: "Membership" }),
+      listing(),
+      "Membership",
+    ],
+    [
+      "child renewal",
+      listing(),
+      listing({ months_per_unit: 1, name: "Gold Tier" }),
+      "Gold Tier",
+    ],
+    [
+      "daily child under a non-daily parent",
+      listing(),
+      listing({ listing_type: "daily", name: "Cabin" }),
+      "Cabin",
+    ],
+    [
+      "duration mismatch",
+      listing({ duration_days: 3, listing_type: "daily" }),
+      listing({ duration_days: 5, listing_type: "daily", name: "Bell Tent" }),
+      "Bell Tent",
+    ],
+  ];
 
-  test("a child-blaming error resolves to real copy naming the child, not a raw i18n key", () => {
-    const child = listing({ months_per_unit: 1, name: "Gold Tier" });
-    const message = edgeFieldError(listing(), child);
-    expect(message).toContain("'Gold Tier'");
-    expect(message).not.toContain("children_err");
-  });
+  for (const [rule, parent, child, blamed] of blamedNameCases) {
+    test(`the ${rule} error resolves to real copy naming '${blamed}', not a raw i18n key`, () => {
+      const message = edgeFieldError(parent, child);
+      expect(message).toContain(`'${blamed}'`);
+      expect(message).not.toContain("children_err");
+    });
+  }
 
   test("the parent-renewal error when the parent is a renewal tier", () => {
     const parent = listing({ months_per_unit: 1, name: "Membership" });
