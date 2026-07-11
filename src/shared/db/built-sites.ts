@@ -490,6 +490,12 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
   },
   name: "built_sites",
   primaryKey: "id",
+  // The façade's rows are already decrypted (its fromDb is identity), so a
+  // single column's stored value is already its readable value.
+  readColumn: <K extends keyof BuiltSite & string>(
+    _col: K,
+    value: BuiltSite[K],
+  ): Promise<BuiltSite[K]> => Promise.resolve(value),
   // The CRUD adapter is a façade over the raw table — the built-site blob
   // is always reconstructed from BuiltSiteFormInput, so rowToInput just picks
   // the exposed camelCase fields off an already-decrypted BuiltSite.

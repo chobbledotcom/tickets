@@ -8,6 +8,7 @@ import {
   assertPublicHtml,
   expectHtmlResponse,
 } from "#test-utils/assertions.ts";
+import { johnCheckoutSession } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -23,13 +24,7 @@ import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
  *  the shape every /payment/cancel test stubs, differing only in the id and
  *  which listing/package ids the items carry. */
 const cancelSession = (sessionId: string, items: string) =>
-  stubRetrieveCheckoutSession({
-    amountTotal: 0,
-    metadata: { email: "john@example.com", items, name: "John" },
-    paymentIntent: null,
-    paymentStatus: "unpaid",
-    sessionId,
-  });
+  johnCheckoutSession(sessionId, { items, paid: false });
 
 describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
   describe("GET /payment/cancel", () => {

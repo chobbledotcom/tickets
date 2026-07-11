@@ -6,10 +6,8 @@ import {
   buildItemsMetadata,
   extractSessionMetadata,
   packMetadata,
-  SQUARE_METADATA_MAX_ENTRIES,
-  SQUARE_METADATA_MAX_VALUE_LENGTH,
-  STRIPE_METADATA_MAX_VALUE_LENGTH,
 } from "#shared/payment-helpers.ts";
+import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
 import type {
   BookingItem,
@@ -17,6 +15,10 @@ import type {
   SessionMetadata,
 } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+
+// The provider registry is the single source of the caps these tests exercise.
+const SQUARE_CAPS = PAYMENT_PROVIDERS.square.metadata;
+const STRIPE_CAPS = PAYMENT_PROVIDERS.stripe.metadata;
 
 // hmacHash needs the encryption key configured, which describeWithEnv handles.
 describeWithEnv(
@@ -46,7 +48,7 @@ describeWithEnv(
       const metadata = await buildItemsMetadata(
         baseIntent("plain-token-xyz"),
         0,
-        STRIPE_METADATA_MAX_VALUE_LENGTH,
+        STRIPE_CAPS.maxValueLength,
       );
       const expected = await hmacHash("plain-token-xyz");
       // site_token_index is packed into `b` on the wire; the webhook recovers it
@@ -61,7 +63,7 @@ describeWithEnv(
       const metadata = await buildItemsMetadata(
         baseIntent("plain-token-xyz"),
         0,
-        STRIPE_METADATA_MAX_VALUE_LENGTH,
+        STRIPE_CAPS.maxValueLength,
       );
       for (const value of Object.values(metadata)) {
         expect(value.includes("plain-token-xyz")).toBe(false);
@@ -72,7 +74,7 @@ describeWithEnv(
       const metadata = await buildItemsMetadata(
         baseIntent(),
         0,
-        STRIPE_METADATA_MAX_VALUE_LENGTH,
+        STRIPE_CAPS.maxValueLength,
       );
       expect("site_token_index" in metadata).toBe(false);
     });
@@ -102,11 +104,7 @@ describeWithEnv(
       const total = priceCheckout(intent).total;
       // Apply the Square packing step over the signed metadata.
       const wire = packMetadata(
-        await buildItemsMetadata(
-          intent,
-          total,
-          SQUARE_METADATA_MAX_VALUE_LENGTH,
-        ),
+        await buildItemsMetadata(intent, total, SQUARE_CAPS.maxValueLength),
       );
       // Small fields (phone, date, …) are packed on the wire.
       expect("phone" in wire).toBe(false);
@@ -165,14 +163,14 @@ describeWithEnv(
 
     test("omits an over-cap URL and the proof still verifies (not tampered)", async () => {
       const longUrl = `https://example.com/${"x".repeat(
-        SQUARE_METADATA_MAX_VALUE_LENGTH,
+        SQUARE_CAPS.maxValueLength,
       )}`;
       const intent = intentWithUrl(longUrl);
       const total = priceCheckout(intent).total;
       const metadata = await buildItemsMetadata(
         intent,
         total,
-        SQUARE_METADATA_MAX_VALUE_LENGTH,
+        SQUARE_CAPS.maxValueLength,
       );
       // The over-cap URL is dropped from the emitted metadata...
       expect("thank_you_url" in metadata).toBe(false);
@@ -228,15 +226,15 @@ describeWithEnv(
       const metadata = await buildItemsMetadata(
         intent,
         total,
-        SQUARE_METADATA_MAX_VALUE_LENGTH,
-        SQUARE_METADATA_MAX_ENTRIES,
+        SQUARE_CAPS.maxValueLength,
+        SQUARE_CAPS.maxEntries,
       );
       // The short URL is dropped because keeping it would overflow the cap...
       expect("thank_you_url" in metadata).toBe(false);
       // ...and the wire (after Square packs the small fields) is within the cap.
       const wire = packMetadata(metadata);
       expect(Object.keys(wire).length).toBeLessThanOrEqual(
-        SQUARE_METADATA_MAX_ENTRIES,
+        SQUARE_CAPS.maxEntries,
       );
       // The proof signed over the URL-less payload still verifies.
       const { sig, total: signedTotal } = proofParts(metadata);
@@ -257,8 +255,8 @@ describeWithEnv(
       const metadata = await buildItemsMetadata(
         intent,
         total,
-        SQUARE_METADATA_MAX_VALUE_LENGTH,
-        SQUARE_METADATA_MAX_ENTRIES,
+        SQUARE_CAPS.maxValueLength,
+        SQUARE_CAPS.maxEntries,
       );
       expect(metadata.thank_you_url).toBe("https://example.com/thanks");
     });
@@ -270,7 +268,7 @@ describeWithEnv(
       const metadata = await buildItemsMetadata(
         intent,
         total,
-        SQUARE_METADATA_MAX_VALUE_LENGTH,
+        SQUARE_CAPS.maxValueLength,
       );
       expect(metadata.thank_you_url).toBe(url);
       const { sig, total: signedTotal } = proofParts(metadata);
@@ -281,13 +279,8 @@ describeWithEnv(
       expect(await verifyPrice(extracted, signedTotal, sig)).toBe(true);
       // Stripe's larger cap also retains it.
       expect(
-        (
-          await buildItemsMetadata(
-            intent,
-            total,
-            STRIPE_METADATA_MAX_VALUE_LENGTH,
-          )
-        ).thank_you_url,
+        (await buildItemsMetadata(intent, total, STRIPE_CAPS.maxValueLength))
+          .thank_you_url,
       ).toBe(url);
     });
   },
@@ -323,19 +316,17 @@ describe("signed metadata budget", () => {
     const metadata = await buildItemsMetadata(
       intent,
       priceCheckout(intent).total,
-      SQUARE_METADATA_MAX_VALUE_LENGTH,
-      SQUARE_METADATA_MAX_ENTRIES,
+      SQUARE_CAPS.maxValueLength,
+      SQUARE_CAPS.maxEntries,
     );
     // The wire shape (Square packs the small fields into `b`) must fit both caps
     // even with the per-line edge tags and the allocations map present.
     const wire = packMetadata(metadata);
     expect(Object.keys(wire).length).toBeLessThanOrEqual(
-      SQUARE_METADATA_MAX_ENTRIES,
+      SQUARE_CAPS.maxEntries,
     );
     for (const value of Object.values(wire)) {
-      expect(value.length).toBeLessThanOrEqual(
-        SQUARE_METADATA_MAX_VALUE_LENGTH,
-      );
+      expect(value.length).toBeLessThanOrEqual(SQUARE_CAPS.maxValueLength);
     }
     // Package members carry the compact edge tag; the folded child stays untagged.
     const lines = JSON.parse(wire.items ?? "[]") as BookingItem[];

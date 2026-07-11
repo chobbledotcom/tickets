@@ -3,7 +3,11 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { executeBatch, queryAll } from "#shared/db/client.ts";
+import {
+  deleteByFieldStatement,
+  executeBatch,
+  queryAll,
+} from "#shared/db/client.ts";
 import { ticketCountSumExpr } from "#shared/db/migrations/schema/listing-aggregates.ts";
 
 type DeleteAttendeeOptions = { releaseBookings?: boolean };
@@ -45,34 +49,31 @@ const restoreListingContributions = (
            WHERE id = ?`,
   }));
 
+/** The tables holding an attendee's dependent rows, each with the column that
+ * links it to the attendee. Deleted (in this order) before the attendee row. */
+const DEPENDENT_ROW_TARGETS = [
+  { field: "attendee_id", table: "processed_payments" },
+  { field: "attendee_id", table: "attendee_answers" },
+  { field: "attendee_id", table: "listing_attendees" },
+  { field: "attendee_id", table: "system_notes" },
+  { field: "servicing_attendee_id", table: "service_costs" },
+] as const;
+
 /** Delete an attendee and all dependent data tied to the attendee record. */
 const purgeAttendee = (
   attendeeId: number,
   contributions: ListingContribution[],
 ): Promise<void> =>
   executeBatch([
-    {
-      args: [attendeeId],
-      sql: "DELETE FROM processed_payments WHERE attendee_id = ?",
-    },
-    {
-      args: [attendeeId],
-      sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
-    },
-    {
-      args: [attendeeId],
-      sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
-    },
-    {
-      args: [attendeeId],
-      sql: "DELETE FROM system_notes WHERE attendee_id = ?",
-    },
-    {
-      args: [attendeeId],
-      sql: "DELETE FROM service_costs WHERE servicing_attendee_id = ?",
-    },
+    ...DEPENDENT_ROW_TARGETS.map((target) =>
+      deleteByFieldStatement({ ...target, value: attendeeId }),
+    ),
     ...restoreListingContributions(contributions),
-    { args: [attendeeId], sql: "DELETE FROM attendees WHERE id = ?" },
+    deleteByFieldStatement({
+      field: "id",
+      table: "attendees",
+      value: attendeeId,
+    }),
   ]);
 
 /**

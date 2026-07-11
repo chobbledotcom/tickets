@@ -1,3 +1,4 @@
+import type { InValue } from "@libsql/client";
 import { mapParallel } from "#fp";
 import {
   execute,
@@ -52,9 +53,10 @@ export const swapSortOrder = (
 /**
  * Run an id-keyed SELECT, short-circuiting to `[]` (no query) when `ids` is
  * empty. `buildSql` receives the bound `?`-placeholder list for `ids`, so `ids`
- * are the only query args. The base skeleton for the id-map helpers below.
+ * are the only query args. The base skeleton for the id-map helpers below and
+ * for any read that loads rows for a caller-supplied id list.
  */
-const rowsByIds = async <Row>(
+export const rowsByIds = async <Row>(
   ids: number[],
   buildSql: (placeholders: string) => string,
 ): Promise<Row[]> =>
@@ -64,11 +66,11 @@ const rowsByIds = async <Row>(
  * Run an integer-keyed lookup query and turn each row into a `[key, value]`
  * pair via `toEntry`, returning the id-keyed map (empty when `ids` is empty).
  */
-export const mapByIds = async <Row>(
+export const mapByIds = async <Row, Value = number>(
   ids: number[],
   buildSql: (placeholders: string) => string,
-  toEntry: (row: Row) => [number, number],
-): Promise<Map<number, number>> =>
+  toEntry: (row: Row) => [number, Value],
+): Promise<Map<number, Value>> =>
   new Map((await rowsByIds<Row>(ids, buildSql)).map(toEntry));
 
 type NameRow<Raw> = { id: number; name: Raw };
@@ -137,20 +139,22 @@ export const allNamesById = <Raw>(
   );
 
 /**
- * Map each row's `id` to one of its integer columns (`id → column`) for the
- * rows of `table` whose id is in `ids`, optionally narrowed by an extra `where`
- * fragment appended verbatim (e.g. ` AND modifier_id IS NOT NULL`). `alias` is
- * the table's singular-word alias and qualifies the selected columns. `table`,
- * `alias`, `column` and `where` are always internal constants, never user input.
+ * Map each row's `id` to one of its columns (`id → column`) for the rows of
+ * `table` whose id is in `ids`, optionally narrowed by an extra `where`
+ * fragment appended verbatim (e.g. ` AND modifier_id IS NOT NULL`). `Value` is
+ * the column's stored type (a number unless the caller says otherwise —
+ * strings and nullable columns work too). `alias` is the table's singular-word
+ * alias and qualifies the selected columns. `table`, `alias`, `column` and
+ * `where` are always internal constants, never user input.
  */
-export const columnMapByIds = (
+export const columnMapByIds = <Value extends InValue = number>(
   table: string,
   alias: string,
   column: string,
   ids: number[],
   where = "",
-): Promise<Map<number, number>> =>
-  mapByIds<{ id: number; value: number }>(
+): Promise<Map<number, Value>> =>
+  mapByIds<{ id: number; value: Value }, Value>(
     ids,
     (placeholders) =>
       `SELECT ${alias}.id, ${alias}.${column} AS value FROM ${table} AS ${alias} WHERE ${alias}.id IN (${placeholders})${where}`,

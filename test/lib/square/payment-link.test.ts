@@ -4,13 +4,12 @@ import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import type { CreatePaymentLinkInput } from "#shared/square.ts";
 import { squareApi } from "#shared/square.ts";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import { testListing } from "#test-utils/factories.ts";
 import {
-  buyTickets,
   configureSquare,
   expectNoLink,
   linkResult,
-  ticketLine,
   withSquareClient,
 } from "./fixtures.ts";
 import { describeSquare } from "./harness.ts";
@@ -19,8 +18,8 @@ describeSquare(() => {
   describe("createPaymentLink", () => {
     test("returns null when access token not set", async () => {
       await expectNoLink(
-        buyTickets({
-          items: [ticketLine({ name: "Test Listing" })],
+        checkoutIntent({
+          items: [checkoutItem({ name: "Test Listing" })],
           name: "John Doe",
         }),
       );
@@ -29,7 +28,7 @@ describeSquare(() => {
     test("returns null when location ID not configured", async () => {
       await configureSquare();
       // No location ID set
-      await expectNoLink(buyTickets());
+      await expectNoLink(checkoutIntent());
     });
 
     test("constructs correct SDK call for single-listing checkout", async () => {
@@ -38,10 +37,10 @@ describeSquare(() => {
         linkResult("order_abc", "https://square.link/abc"),
         async ({ checkoutCreate }) => {
           const result = await squareApi.createPaymentLink(
-            buyTickets({
+            checkoutIntent({
               email: "jane@example.com",
               items: [
-                ticketLine({
+                checkoutItem({
                   listingId: 7,
                   name: "Concert",
                   quantity: 3,
@@ -107,10 +106,10 @@ describeSquare(() => {
         async ({ checkoutCreate }) => {
           const listing = testListing({ unit_price: 1000 });
           await squareApi.createPaymentLink(
-            buyTickets({
+            checkoutIntent({
               email: "jane@example.com",
               items: [
-                ticketLine({
+                checkoutItem({
                   listingId: listing.id,
                   name: listing.name,
                   quantity: 2,
@@ -139,7 +138,10 @@ describeSquare(() => {
       await withSquareClient(
         linkResult("order_xyz", "https://square.link/xyz"),
         async ({ checkoutCreate }) => {
-          await squareApi.createPaymentLink(buyTickets(), "http://localhost");
+          await squareApi.createPaymentLink(
+            checkoutIntent(),
+            "http://localhost",
+          );
 
           const args = checkoutCreate.calls[0]
             ?.args[0] as CreatePaymentLinkInput;
@@ -161,7 +163,7 @@ describeSquare(() => {
         },
         async () => {
           const result = await squareApi.createPaymentLink(
-            buyTickets(),
+            checkoutIntent(),
             "http://localhost",
           );
           expect(result).toBeNull();

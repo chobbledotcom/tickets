@@ -7,23 +7,18 @@ import {
 import type { SessionMetadata } from "#shared/payments.ts";
 import type { CreatePaymentLinkInput } from "#shared/square.ts";
 import { squareApi } from "#shared/square.ts";
-import {
-  buyTickets,
-  configureSquare,
-  expectNoLink,
-  ticketLine,
-  withSquareClient,
-} from "./fixtures.ts";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { configureSquare, expectNoLink, withSquareClient } from "./fixtures.ts";
 import { describeSquare } from "./harness.ts";
 
 describeSquare(() => {
   describe("createPaymentLink request handling", () => {
     test("returns null when access token not set", async () => {
       await expectNoLink(
-        buyTickets({
+        checkoutIntent({
           items: [
-            ticketLine({ name: "Listing 1" }),
-            ticketLine({
+            checkoutItem({ name: "Listing 1" }),
+            checkoutItem({
               listingId: 2,
               name: "Listing 2",
               quantity: 2,
@@ -39,8 +34,8 @@ describeSquare(() => {
     test("returns null when location ID not configured", async () => {
       await configureSquare();
       await expectNoLink(
-        buyTickets({
-          items: [ticketLine({ name: "Listing 1" })],
+        checkoutIntent({
+          items: [checkoutItem({ name: "Listing 1" })],
           name: "John Doe",
         }),
       );
@@ -57,9 +52,9 @@ describeSquare(() => {
         },
         async () => {
           const result = await squareApi.createPaymentLink(
-            buyTickets({
+            checkoutIntent({
               email: "bob@example.com",
-              items: [ticketLine({ name: "Listing 1" })],
+              items: [checkoutItem({ name: "Listing 1" })],
               name: "Bob Missing",
             }),
             "http://localhost",
@@ -83,17 +78,17 @@ describeSquare(() => {
         },
         async ({ checkoutCreate }) => {
           const result = await squareApi.createPaymentLink(
-            buyTickets({
+            checkoutIntent({
               email: "alice@example.com",
               items: [
-                ticketLine({
+                checkoutItem({
                   listingId: 10,
                   name: "Workshop A",
                   quantity: 2,
                   slug: "workshop-a",
                   unitPrice: 1500,
                 }),
-                ticketLine({
+                checkoutItem({
                   listingId: 20,
                   name: "Gala Dinner",
                   quantity: 1,
@@ -158,7 +153,7 @@ describeSquare(() => {
       await withSquareClient({}, async ({ checkoutCreate }) => {
         // Generate enough items to exceed 255-char serialized metadata
         const items = Array.from({ length: 30 }, (_, i) =>
-          ticketLine({
+          checkoutItem({
             listingId: i + 1,
             name: `Listing ${i + 1}`,
             slug: `listing-${i + 1}`,
@@ -167,7 +162,11 @@ describeSquare(() => {
 
         await expect(
           squareApi.createPaymentLink(
-            buyTickets({ email: "alice@example.com", items, name: "Alice" }),
+            checkoutIntent({
+              email: "alice@example.com",
+              items,
+              name: "Alice",
+            }),
             "https://tickets.example.com",
           ),
         ).rejects.toThrow(PaymentUserError);
@@ -179,8 +178,8 @@ describeSquare(() => {
   });
 
   describe("createPaymentLink with validation errors", () => {
-    const validationIntent = buyTickets({
-      items: [ticketLine({ name: "Test Listing" })],
+    const validationIntent = checkoutIntent({
+      items: [checkoutItem({ name: "Test Listing" })],
       phone: "bad-phone",
     });
 
