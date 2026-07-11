@@ -343,9 +343,15 @@ Add admin routes (**schema-scoped**, so future formats reuse them unchanged):
   - Upload form for the chosen schema, with short instructions and links to
     existing listings/questions.
 - `POST /admin/imports/:schema`
-  - Authenticated multipart upload. Parses, runs the **pure preflight** (resolve +
-    validate + plan, no writes), and runs the write transaction **only if there
-    are no blocking errors**. Redirects to the preflight error report on blocking
+  - Authenticated multipart upload. **Enforce resource limits before buffering**
+    (this route deliberately accepts very wide legacy CSVs, and Bunny isolates have
+    tight memory/CPU budgets): cap the request size before reading the body, and
+    cap rows, columns, cell size, parse duration, and accumulated report size —
+    exceeding any cap rejects the upload with a clear error rather than exhausting
+    the isolate mid-preflight (limits generous enough for the real exports, e.g.
+    the 628-column/226-row sample, with headroom). Then parses, runs the **pure
+    preflight** (resolve + validate + plan, no writes), and runs the write
+    transaction **only if there are no blocking errors**. Redirects to the preflight error report on blocking
     errors; otherwise to the **success report** (`GET .../success?stash=<token>`,
     defined below) — stashing the report (created count *plus the
     skipped/non-creatable rows with their row details*, not just counts) so the
@@ -357,8 +363,14 @@ Add admin routes (**schema-scoped**, so future formats reuse them unchanged):
     — **not** repeated `product` / `status` / `question` params, which the first
     upload of a wide CSV can push past Location/header limits and strand the
     operator. The POST writes the report to the stash and redirects with the token;
-    this GET reads it back. **Store the stash in libsql with a TTL** (a small table
-    + cleanup pass), **not process-local memory:** production runs on Bunny Edge
+    this GET reads it back. **Bind each stash to the initiating admin:** the stash
+    row records the uploader's user id and the GET returns the report only to that
+    admin (the token alone is a bearer secret that can leak via browser history,
+    proxy logs, or referrers — and the report holds row identifiers, headers, and
+    offending values). Serve both report pages with `Cache-Control: no-store` and
+    strict referrer handling, and prefer truncated/redacted offending values where
+    the full value isn't needed to fix the row. **Store the stash in libsql with a
+    TTL** (a small table + cleanup pass), **not process-local memory:** production runs on Bunny Edge
     Scripting, where the POST and the redirected GET can hit different isolates, so
     an in-memory stash would often read back empty (the codebase already handles
     cross-isolate staleness elsewhere). A signed/encrypted self-contained token is
@@ -802,7 +814,11 @@ real-cash reports. Instead:
     (they are what gets posted); if `Total − Received ≠ Balance` the row is a
     **preflight consistency error** (reported with all three figures) so the operator
     reconciles the source, rather than the importer silently posting an outstanding
-    amount that differs from the CSV's `Balance`. Public payability is then gated as
+    amount that differs from the CSV's `Balance`. The check applies to
+    **money-posting candidates only** — a non-capacity-status (quantity-0-only) row
+    posts no legs, so its figures are audit metadata and inconsistency there is a
+    reported warning, not a blocker. (See the paid-then-refunded bullet below for
+    why `event_bookings` carries no refund signal to reconcile against.) Public payability is then gated as
     for any booking — by the resolved status's `is_reservation` flag at the pay page
     — so a reservation import is payable for exactly its outstanding balance, while a
     non-reservation status with a residual balance still records the owed amount
@@ -854,10 +870,18 @@ real-cash reports. Instead:
   outstanding balance, `settleAttendeeBalance` posts a real `external:world →
   attendee` `payment` leg guarded by the projected owed amount — so the *actual*
   later payment is recorded as real cash, even though the historical import wasn't.
-- **A source row that was paid then refunded:** post the owed/paid legs then their
-  reversal under a derived refund event group (mirroring the backfill's
-  full-reversal-for-refunds) so the attendee nets to zero; a plain `Cancelled` row
-  is a quantity-0 ghost and recognises nothing regardless.
+- **A source row that was paid then refunded:** the `event_bookings` export has
+  **no refund column**, so the importer cannot detect "paid then refunded" from
+  `Total`/`Received`/`Balance` alone — such a row appears either as a `Cancelled`
+  row (a quantity-0 ghost that recognises nothing, whatever its figures) or with
+  the refund already **netted out** of `Received` (in which case the figures
+  reconcile and it imports as an ordinary partial/unpaid booking). Rows whose
+  figures *don't* reconcile are exactly the preflight consistency error above —
+  the operator fixes the source. The owed/paid-then-**reversal** posting
+  (mirroring the backfill's full-reversal-for-refunds, under a derived refund
+  event group) is reserved for a future schema whose `SchemaDefinition` includes a
+  **refund detector** (explicit refund columns + a reconciliation equation);
+  `event_bookings` does **not** use it.
 - Preserve raw `Total`/`Received`/`Balance`, payment columns, and modifier columns
   in the durable encrypted audit trail (see
   [Where Legacy Metadata Goes](#where-legacy-metadata-goes)); the import report
@@ -1162,7 +1186,14 @@ bookings imports the rest and reports the skip.
 
 **Write (one guarded transaction, only when the report is clean):**
 
-13. Run one write transaction for all candidates in the plan:
+13. Run one write transaction for all candidates in the plan. **Re-verify the
+    resolved context inside the transaction before writing:** the plan was built
+    from a preflight snapshot, and the referenced listings, statuses, and questions
+    can change between preflight and write (another admin deleting a listing,
+    renaming a status). Cheaply re-check inside the transaction that every resolved
+    id still exists (and the listings are still daily-type); on any drift, abort —
+    the whole file rolls back and the operator re-runs preflight against current
+    state, rather than the importer writing against stale ids. Then:
     - upsert the deduped `strings` rows and resolve their ids (or do this such
       that a rollback removes them);
     - insert attendee, and resolve its **stable id** via a per-attendee lookup
@@ -1723,9 +1754,12 @@ are already in main; only the importer-specific additions in item 6 remain.
      - `booking_imports`: drop the unique `new_id` index; clean up conditionally —
        orphan purge and `deleteAttendee` with `releaseBookings: true` delete the
        mapping; a held delete (`releaseBookings: false`) on these **daily-only**
-       rows also frees/remaps the mapping (the keep-as-tombstone rule is the
-       standard-listing aggregate case, which imports never hit — see the daily
-       held-delete caveat in the cleanup section); and `applyAttendeeMerge` remaps
+       rows frees/remaps the mapping **only when the aggregate contribution is
+       genuinely released** — the current held-delete path *restores*
+       `booked_quantity`/`tickets_count`, and freeing the id in that state would let
+       a re-upload double-count on top of the restored aggregate; if hold-and-restore
+       is kept, the mapping stays a tombstone (see the daily held-delete caveat and
+       the two-axis rule in the cleanup section); and `applyAttendeeMerge` remaps
        source→target (the non-unique `new_id` allows it). Merge must also reverse a
        *discarded conflicting* imported booking's `import_owed`/`import_paid` legs
        (decision 17 only un-bills `sale` legs, which imports don't post — see the

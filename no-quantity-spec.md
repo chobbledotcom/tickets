@@ -158,16 +158,22 @@ literal `0`.
   Compute the check-in stats and the in/out filters over `quantity > 0` rows (the
   ghost still shows in the unfiltered admin roster) — required here, not just a
   secondary defence.
-- **Reverse or block when the last real line becomes no-quantity and money is
-  owed.** The public pay gate (§6a) refuses payment once an attendee has no
-  `quantity > 0` line, but the attendee's owed legs survive in the ledger, so the
-  admin balance page would still project an outstanding, unpayable amount
+- **Reverse the owed legs when the last real line becomes no-quantity.** [SHIPPED
+  — reversal, not block] The public pay gate (§6a) refuses payment once an attendee
+  has no `quantity > 0` line, but the attendee's owed legs survive in the ledger,
+  so the admin balance page would still project an outstanding, unpayable amount
   (`−balanceOf(attendee) > 0`) — a dead balance (there is no `remaining_balance`
-  column to clear; the figure projects from the ledger). When a save would leave an
-  attendee with zero real lines while they still owe, **block it** (the cleanest
-  rule, pairing with the forbid-paid-line rule above) or post a reversal of the
-  owed legs so the projected balance returns to zero (recording the prior value as
-  audit metadata). Never leave stranded owed legs behind a hidden line.
+  column to clear; the figure projects from the ledger). The **resolved behaviour
+  is reversal**, and it is what shipped on the edit path: when a save leaves an
+  attendee with zero real lines, `applyEdit`/`applyCreate` reconcile the projected
+  owed balance to £0 with a `writeoff` adjustment leg — the leg itself is the audit
+  record of the forgiven amount. (Blocking was the alternative; reversal won
+  because a cancellation legitimately forgives the remainder, and the ledger keeps
+  the history.) The **merge** path must implement the **same reversal** when it
+  leaves the target with no real line — that is gap **G4** in §9, and its test must
+  assert the reversal outcome exactly (owed projects £0, a writeoff leg exists),
+  not accept either behaviour. Never leave stranded owed legs behind a hidden
+  line.
 - **No auto-delete — and a "retained line" predicate separate from "booked
   line".** The save path must distinguish a deliberate `quantity = 0` line (box
   checked → keep) from a real removal (the line's explicit remove control →
@@ -247,8 +253,14 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
 - **Group aggregate drift check** (`groupAggregateMismatchItems`,
   `src/ui/templates/admin/groups.tsx`) compares the group's summed `tickets_count`
   (`totalTicketCount`) against `attendees.length`. Once `tickets_count` counts only
-  `quantity > 0` (§3), the **expected** side must match: count only `quantity > 0`
-  rows there (`attendees.filter(quantity > 0).length`), or every group holding a
+  `quantity > 0 AND kind = 'attendee'` (§3), the **expected** side must match: count
+  only real-ticket rows there. The roster load is already kind-scoped — the group
+  page loads via `getAttendeesByListingIds`, whose default `kindScope` filters to
+  `kind = 'attendee'` — so on that input the remaining filter is
+  `attendees.filter(quantity > 0).length`; if the expected side is ever computed
+  from a non-kind-scoped source, it must apply the full shared predicate (both
+  clauses), or a group holding servicing rows reports false drift. Otherwise every
+  group holding a
   no-quantity row shows a bogus tickets_count drift warning. Its `booked_quantity`
   check uses `SUM(quantity)` and its `income` check compares the **ledger-projected**
   income against `calculateTotalRevenue` — a quantity-0 ghost contributes 0 to both
@@ -579,10 +591,12 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   mixed attendee the pay-page product/checkout line and the settlement's
   logged-activity listing land on the real line (settlement itself posts an
   attendee-level ledger payment leg, not a line fold); marking the last real line
-  no-quantity **blocks the save or reverses the now-unpayable owed legs** so the
-  projected balance returns to zero — **via the merge writer as well as the
-  checkbox save** (a merge that removes the last real line reverses/zeroes the owed
-  legs and never carries money into a quantity-0 line).
+  no-quantity **reverses the now-unpayable owed legs** (the resolved behaviour —
+  assert it exactly: the projected owed balance returns to £0 **and** a `writeoff`
+  adjustment leg exists as the audit record; do not accept a block as passing) —
+  **via the merge writer as well as the checkbox save** (a merge that removes the
+  last real line reverses/zeroes the owed legs the same way and never carries money
+  into a quantity-0 line).
 - Admin per-row action guards: a quantity-0 row shows no check-in button, no
   refund / refund-all control, no working re-send-notification (refused on the
   ghost row, **not** retargeted to another listing), and no live customer ticket URL on a quantity-0 row (the
@@ -598,15 +612,17 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
 - Scanner force fallback: a `force=true` scan whose only match for the scanned
   listing is a quantity-0 row is **refused**, not force-checked-in to the
   attendee's other real listing.
-- Public API `POST /api/listings/:slug/book` rejects/ignores `quantity: 0` (no
-  one-ticket booking created).
+- Public API `POST /api/listings/:slug/book` with an explicit `quantity: 0`
+  returns **HTTP 400** and persists **no** booking (assert both the status and the
+  absence of any created row — "ignored" is not a passing outcome for the API
+  path; only the HTML form treats `0` as not-selected).
 - Capacity unaffected (`SUM(quantity)`); orphan purge keeps a quantity-0 attendee.
 
 ## 8. Build order & independence (historical)
 
-This feature stood alone — independent of the CSV importer and of PRs
-#1335/#1332/#1333 — and **shipped as PR #1366** (the servicing-`kind` refinement
-followed). The recommended order below is retained as a record; all four steps are
+This feature stood alone — independent of the CSV importer and of
+PRs #1335, #1332, and #1333 — and **shipped as PR #1366** (the servicing-`kind`
+refinement followed). The recommended order below is retained as a record; all four steps are
 done:
 
 1. `tickets_count` shared predicate + migration + guard test.
