@@ -175,6 +175,13 @@ describeWithEnv(
           async (refund) => {
             await expectStoredRefund(listing.id);
             expect(refund.calls.length).toBe(1);
+            const [attendee] = await getAttendeesRaw(listing.id);
+            const legs = await transfersByAccount(
+              attendeeAccount(attendee!.id),
+            );
+            expect(legs.find(({ kind }) => kind === "refund_cash")?.memo).toBe(
+              "unexpected_error",
+            );
             const record = await isSessionProcessed("cs_crash_store");
             expect(record?.attendee_id).toBeNull();
             expect(record?.failure_data).not.toBe("");

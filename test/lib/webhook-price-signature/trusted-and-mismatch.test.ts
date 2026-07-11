@@ -6,10 +6,12 @@ import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { execute } from "#shared/db/client.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { deleteListing, listingsTable } from "#shared/db/listings.ts";
+import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { prunePayments } from "#shared/db/prune.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { assertJson } from "#test-utils/assertions.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
@@ -110,9 +112,20 @@ describeWithEnv(
       const legsAfter = await transfersByAccount(attendeeAccount(original!.id));
       expect(legsAfter.length).toBe(legsBefore.length);
       expect(legsAfter.some((leg) => leg.kind === "refund_cash")).toBe(false);
-      expect((await isSessionProcessed(session.id))!.attendee_id).toBe(
-        original!.id,
+      const processed = (await isSessionProcessed(session.id))!;
+      expect(processed.attendee_id).toBe(original!.id);
+      const references = await getRefundPaymentReferences(
+        [original!],
+        await getTestPrivateKey(),
       );
+      const replayReference = references
+        .get(original!.id)!
+        .find(({ sessionIds }) => sessionIds.includes(session.id));
+      expect(replayReference).toEqual({
+        providerRefunded: false,
+        reference: "pi_cs_replay_after_prune",
+        sessionIds: [session.id],
+      });
     });
 
     test("a pruned replay whose listing price changed is recovered, not refunded", async () => {
