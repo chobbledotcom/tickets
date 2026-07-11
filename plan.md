@@ -62,6 +62,19 @@ around four rules that the rest of this plan must satisfy:
    stop-at-first-error trickle. See
    [Preflight & Error Reporting](#preflight--error-reporting).
 
+5. **House style (AGENTS.md — "Designing New Systems").** The implementation
+   follows the repo's standards, not a parallel idiom: the `SchemaDefinition` is a
+   **valibot**-modelled typed schema (types/guards/options derived from one
+   declaration, exhaustive `Record` dispatch — never branch-per-case chains); admin
+   pages/forms/tables go through the existing `define*` factories and the
+   entity-pages framework (see the routes section — no hand-rolled dispatchers or
+   bespoke CRUD); the engine arrives as a small directory of single-purpose,
+   **under-~400-line** files with the pure core split from the IO shell, using
+   `#fp` helpers; and it lands with 100% deterministic test coverage, 0% jscpd
+   duplication, and tests that survive the precommit **mutation gate** (changed
+   `src/` files are mutation-tested against the changed tests at a 100% kill
+   rate).
+
 ## Schemas
 
 A **schema** describes one CSV format. The operator chooses one when uploading;
@@ -512,7 +525,10 @@ Extraction order:
    required products when `Equipments` is populated. Preserve those fields as
    free-text answers / notes instead.
 4. Dedupe product names within a booking and convert duplicates to quantity
-   only when we are confident they are repeated whole products.
+   only when we are confident they are repeated whole products. (Count-summing
+   affects **active** `Equipments` lines only — a cancelled row's or quoted block's
+   duplicates still collapse to a single line that is **written at `quantity = 0`**;
+   dedupe must never resurrect capacity on a ghost line.)
 5. A row with **no products at all** — empty `Equipments` *and* no parseable
    `Quoted for Products` block — cannot become a booking (every source booking
    creates at least one `listing_attendees` line, even if quantity-0). Treat such
@@ -1652,9 +1668,12 @@ are already in main; only the importer-specific additions in item 6 remain.
        two imported attendees with a *conflicting* booking and discarding one leaves
        the target's owed balance counted **once** (the discarded booking's
        `import_owed`/`import_paid` legs are reversed, not double-counted by the
-       repoint); a held delete of a daily import frees/remaps the mapping
-       (re-importable, no double-count, since the operational dated row is gone) and
-       an orphan/released delete frees the `old_id`.
+       repoint); a held delete of a **zero-money** daily import frees/remaps the
+       mapping (re-importable, no double-count, since the operational dated row is
+       gone) and an orphan/released delete of a **zero-money** import frees the
+       `old_id` — while a **money-bearing** import keeps its mapping as a tombstone
+       in every delete flow (its import legs make the `(schema, old_id)` event
+       un-replayable; see the cleanup section's two-axis rule).
 
 7. Admin upload route
    - Wire upload form, parser, planner, writer, success/error redirects.
