@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin servicing-event routes.
  */
@@ -15,7 +16,7 @@ import {
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import {
@@ -562,13 +563,13 @@ const redirectServicingResult = async <T extends { id: number; name: string }>(
   }
 };
 
-export const servicingRoutes = defineRoutes({
-  "GET /admin/servicing": handleServicingListGet,
-  "GET /admin/servicing/:id": handleServicingGet,
-  "GET /admin/servicing/new": handleServicingNewGet,
-  "POST /admin/servicing/:id": handleServicingPost,
-  "POST /admin/servicing/:id/cost/:costId": handleServicingCostPost,
-  "POST /admin/servicing/:id/delete": handleServicingDeletePost,
-  "POST /admin/servicing/:id/duplicate": handleServicingDuplicatePost,
-  "POST /admin/servicing/new": handleServicingNewPost,
+export const adminHandlers = handlersFor("servicing")({
+  getServicing: handleServicingListGet,
+  getServicingById: handleServicingGet,
+  getServicingNew: handleServicingNewGet,
+  postServicingById: handleServicingPost,
+  postServicingByIdCostByCostId: handleServicingCostPost,
+  postServicingByIdDelete: handleServicingDeletePost,
+  postServicingByIdDuplicate: handleServicingDuplicatePost,
+  postServicingNew: handleServicingNewPost,
 });

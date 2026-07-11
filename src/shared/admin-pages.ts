@@ -4,8 +4,8 @@ import type {
 } from "#shared/admin-surface/definitions.ts";
 import {
   ADMIN_SURFACE,
-  type AdminRouteId,
-  adminRoute,
+  type AdminDestinationId,
+  adminDestination,
 } from "#shared/admin-surface.ts";
 import type { AdminLevel } from "#shared/types.ts";
 
@@ -26,7 +26,7 @@ const sectionById = (id: AdminSectionId) =>
   ADMIN_SURFACE.sections.find((section) => section.id === id)!;
 
 const navRoutesFor = (section: AdminSectionId) =>
-  ADMIN_SURFACE.routes.filter(
+  ADMIN_SURFACE.destinations.filter(
     (route) => route.section === section && route.nav !== undefined,
   );
 
@@ -34,7 +34,7 @@ const sectionVisible = (
   section: (typeof ADMIN_SURFACE.sections)[number],
   ctx: NavCtx,
 ): boolean => {
-  const landing = adminRoute(section.landing as AdminRouteId);
+  const landing = adminDestination(section.landing as AdminDestinationId);
   return (
     landing.audience.includes(ctx.adminLevel) &&
     (!("visible" in section) || section.visible(ctx))
@@ -42,7 +42,7 @@ const sectionVisible = (
 };
 
 const routeVisible = (
-  route: (typeof ADMIN_SURFACE.routes)[number],
+  route: (typeof ADMIN_SURFACE.destinations)[number],
   ctx: NavCtx,
 ): boolean =>
   route.nav !== undefined &&
@@ -54,7 +54,7 @@ export const visibleTopLevel = (ctx: NavCtx): NavLink[] =>
   ADMIN_SURFACE.sections
     .filter((section) => sectionVisible(section, ctx))
     .map((section) => ({
-      href: adminRoute(section.landing as AdminRouteId).pattern,
+      href: adminDestination(section.landing as AdminDestinationId).pattern,
       labelKey: section.labelKey,
     }));
 
@@ -72,7 +72,7 @@ export const visibleSections = (ctx: NavCtx): NavSection[] =>
           labelKey: route.nav!.labelKey,
         })),
       labelKey: section.labelKey,
-      topHref: adminRoute(section.landing as AdminRouteId).pattern,
+      topHref: adminDestination(section.landing as AdminDestinationId).pattern,
     }));
 
 export interface CreateLinkSection {
@@ -84,7 +84,7 @@ export interface CreateLinkSection {
 }
 
 export const createLinkSections = (): CreateLinkSection[] =>
-  ADMIN_SURFACE.routes
+  ADMIN_SURFACE.destinations
     .filter((route) => route.nav?.kind === "create")
     .map((route) => {
       const section = sectionById(route.section!);
@@ -93,7 +93,8 @@ export const createLinkSections = (): CreateLinkSection[] =>
         createLabelKey: route.nav!.labelKey,
         featureGated: "visible" in section,
         roles: route.audience,
-        sectionPath: adminRoute(section.landing as AdminRouteId).pattern,
+        sectionPath: adminDestination(section.landing as AdminDestinationId)
+          .pattern,
       };
     });
 
@@ -104,7 +105,8 @@ export const entityReturnPath = (
 ): string => {
   const section = ADMIN_SURFACE.sections.find(
     (candidate) =>
-      adminRoute(candidate.landing as AdminRouteId).pattern === sectionPath,
+      adminDestination(candidate.landing as AdminDestinationId).pattern ===
+      sectionPath,
   );
   if (!section || !("detailPath" in section)) return sectionPath;
   const detail = section.detailPath.replace(":id", String(id));
@@ -114,6 +116,6 @@ export const entityReturnPath = (
 };
 
 export const readOnlyGetRoutePatterns = (): readonly string[] =>
-  ADMIN_SURFACE.routes
+  ADMIN_SURFACE.destinations
     .filter((route) => route.intent === "write-form")
     .map((route) => route.pattern);

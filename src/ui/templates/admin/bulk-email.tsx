@@ -17,6 +17,7 @@ import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { ProsePanel } from "#templates/components/prose-panel.tsx";
@@ -173,12 +174,14 @@ export const bulkEmailComposePage = (
                   </a>
                   {state.selectedTemplateId === tpl.id &&
                     ` ${t("bulk_email.template_loaded_marker")}`}{" "}
-                  <a
-                    class="danger small"
-                    href={`/admin/emails/templates/${tpl.id}/delete`}
-                  >
-                    {t("common.delete")}
-                  </a>
+                  <WritableOnly>
+                    <a
+                      class="danger small"
+                      href={`/admin/emails/templates/${tpl.id}/delete`}
+                    >
+                      {t("common.delete")}
+                    </a>
+                  </WritableOnly>
                 </li>
               ))}
             </ul>

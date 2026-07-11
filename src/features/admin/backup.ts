@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin backup/restore routes — owner only
  *
@@ -12,7 +13,7 @@ import { OWNER_MULTIPART, requireOwnerOr, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 /* jscpd:ignore-start */
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 /* jscpd:ignore-end */
 import { clearSessionCookie } from "#shared/cookies.ts";
 import { getEncryptionKeyString } from "#shared/crypto/encryption.ts";
@@ -311,10 +312,10 @@ const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/
   });
 
 /** Backup routes */
-export const backupRoutes = defineRoutes({
-  "GET /admin/backup": handleBackupGet,
-  "GET /admin/backup/download/:filename": handleBackupDownload,
-  "POST /admin/backup/create": handleBackupCreate,
-  "POST /admin/backup/restore": handleBackupRestore,
-  "POST /admin/backup/restore/confirm": handleBackupRestoreConfirm,
+export const adminHandlers = handlersFor("backup")({
+  getBackup: handleBackupGet,
+  getBackupDownloadByFilename: handleBackupDownload,
+  postBackupCreate: handleBackupCreate,
+  postBackupRestore: handleBackupRestore,
+  postBackupRestoreConfirm: handleBackupRestoreConfirm,
 });

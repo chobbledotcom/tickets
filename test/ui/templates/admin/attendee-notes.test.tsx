@@ -10,7 +10,7 @@ import {
   adminAddNotePage,
   adminDeleteNotePage,
 } from "#templates/admin/attendee-notes.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 
 const SESSION: AdminSession = { adminLevel: "owner" };
 
@@ -56,6 +56,17 @@ describe("AttendeeNotesSection", () => {
     // parent fragment) — the "Add a note" affordance now lives beside the page
     // heading (see AddNoteLink), not here.
     expect(AttendeeNotesSection({ notes: [] })).toBeNull();
+  });
+
+  test("hides the delete link in read-only mode", () => {
+    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    try {
+      const html = String(<AttendeeNotesSection notes={[note()]} />);
+      expect(html).toContain("Refunded");
+      expect(html).not.toContain("/admin/attendee/5/note/1/delete");
+    } finally {
+      restore();
+    }
   });
 });
 

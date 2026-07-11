@@ -5,7 +5,7 @@ import {
   adminBuiltSiteEditPage,
   adminBuiltSitesPage,
 } from "#templates/admin/built-sites.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testBuiltSite, testListingWithCount } from "#test-utils/factories.ts";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
@@ -44,6 +44,19 @@ describe("adminBuiltSitesPage", () => {
     expect(html).toContain("Renewal tiers");
     expect(html).toContain("No renewal tier listing is configured");
     expect(html).toContain("won't be able to renew");
+  });
+
+  test("shows site data without write links in read-only mode", () => {
+    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    try {
+      const site = testBuiltSite({ id: 7, name: "Linky", readOnlyFrom: "" });
+      const html = adminBuiltSitesPage([site], TEST_SESSION);
+      expect(html).toContain("Linky");
+      expect(html).not.toContain('href="/admin/built-sites/new"');
+      expect(html).not.toContain('href="/admin/built-sites/7/edit"');
+    } finally {
+      restore();
+    }
   });
 
   test("lists each tier with units sold from attendee_count", () => {

@@ -7,6 +7,23 @@ export const WritableOnly = ({
   children: JSX.Element;
 }): JSX.Element | null => (isReadOnly() ? null : children);
 
+export const WritableLink = ({
+  children,
+  class: className,
+  href,
+}: {
+  children: Child;
+  class?: string;
+  href: string;
+}): JSX.Element =>
+  isReadOnly() ? (
+    <span>{children}</span>
+  ) : (
+    <a class={className} href={href}>
+      {children}
+    </a>
+  );
+
 export const WritableDangerLink = ({
   children,
   href,

@@ -1,58 +1,49 @@
 /**
- * Proves the admin route manifest (ADMIN_AREAS in src/features/admin/index.ts)
- * stays honest as areas and routes change:
+ * Proves the admin surface stays honest as areas and routes change:
  *
- * - every route an area defines lives under `/admin` and under one of the
- *   segments the area declares (a route added under an undeclared segment
- *   would be unreachable — the dispatcher never loads the area for it);
+ * - every schema route lives under `/admin` and a segment its area declares;
  * - every declared segment serves at least one route (no stale entries);
- * - no two areas define the same pattern (so per-segment merge order can
- *   never silently decide which handler wins).
+ * - every lazy module implements exactly its area's route IDs;
+ * - no two route IDs or method/path pairs collide.
  */
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ADMIN_AREA_LOADERS, adminPathSegment } from "#routes/admin/index.ts";
-import type { AdminAreaId } from "#shared/admin-surface/definitions.ts";
 import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
 import { routePathPatternToRegex } from "#shared/route-pattern.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 
-const patternPath = (pattern: string): string => pattern.split(" ")[1] ?? "";
-
-const loadAreaRoutes = async (): Promise<Map<string, string[]>> => {
-  const routesByArea = new Map<string, string[]>();
+const loadAreaHandlers = async (): Promise<Map<string, string[]>> => {
+  const handlersByArea = new Map<string, string[]>();
   for (const [name, area] of Object.entries(ADMIN_AREA_LOADERS)) {
-    routesByArea.set(name, Object.keys(await area.load()));
+    handlersByArea.set(name, Object.keys(await area.load()));
   }
-  return routesByArea;
+  return handlersByArea;
 };
 
 describe("admin route manifest", () => {
-  test("every route falls under /admin and a segment its area declares", async () => {
-    for (const [name, patterns] of await loadAreaRoutes()) {
-      const declared = ADMIN_SURFACE.areas[name as AdminAreaId];
-      for (const pattern of patterns) {
-        const path = patternPath(pattern);
-        expect(path === "/admin" || path.startsWith("/admin/"), pattern).toBe(
-          true,
-        );
-        const segment = adminPathSegment(path);
-        expect(
-          declared,
-          `${name}: ${pattern} (segment "${segment}")`,
-        ).toContain(segment);
-      }
+  test("every route falls under /admin and a segment its area declares", () => {
+    for (const route of ADMIN_SURFACE.routes) {
+      expect(
+        route.pattern === "/admin" || route.pattern.startsWith("/admin/"),
+        route.id,
+      ).toBe(true);
+      const segment = adminPathSegment(route.pattern);
+      expect(
+        ADMIN_SURFACE.areas[route.area],
+        `${route.id}: ${route.method} ${route.pattern}`,
+      ).toContain(segment);
     }
   });
 
-  test("every declared segment serves at least one of its area's routes", async () => {
-    for (const [name, patterns] of await loadAreaRoutes()) {
-      const served = patterns.map((pattern) =>
-        adminPathSegment(patternPath(pattern)),
-      );
-      for (const segment of ADMIN_SURFACE.areas[name as AdminAreaId]) {
+  test("every declared segment serves at least one of its area's routes", () => {
+    for (const [name, segments] of Object.entries(ADMIN_SURFACE.areas)) {
+      const served = ADMIN_SURFACE.routes
+        .filter((route) => route.area === name)
+        .map((route) => adminPathSegment(route.pattern));
+      for (const segment of segments) {
         expect(served, `${name}: stale segment "${segment}"`).toContain(
           segment,
         );
@@ -60,38 +51,43 @@ describe("admin route manifest", () => {
     }
   });
 
-  test("no two areas define the same pattern", async () => {
-    const owners = new Map<string, string>();
-    for (const [name, patterns] of await loadAreaRoutes()) {
-      for (const pattern of patterns) {
-        expect(
-          owners.get(pattern),
-          `${pattern} in both ${owners.get(pattern)} and ${name}`,
-        ).toBeUndefined();
-        owners.set(pattern, name);
-      }
+  test("every lazy area implements exactly its declared route IDs", async () => {
+    for (const [name, handlerIds] of await loadAreaHandlers()) {
+      const routeIds = ADMIN_SURFACE.routes
+        .filter((route) => route.area === name)
+        .map((route) => route.id)
+        .sort();
+      expect(handlerIds.sort(), name).toEqual(routeIds);
     }
   });
 
-  test("every declared write form is handled by its area", async () => {
-    const routesByArea = await loadAreaRoutes();
-    for (const route of ADMIN_SURFACE.routes.filter(
-      (candidate) => candidate.intent === "write-form",
-    )) {
-      const concretePath = route.pattern.replace(
-        /:(\w+)/g,
-        (_, name: string) =>
+  test("route IDs and method/path pairs are unique", () => {
+    const ids = new Set<string>();
+    const patterns = new Set<string>();
+    for (const route of ADMIN_SURFACE.routes) {
+      const methodPath = `${route.method} ${route.pattern}`;
+      expect(ids.has(route.id), route.id).toBe(false);
+      expect(patterns.has(methodPath), methodPath).toBe(false);
+      ids.add(route.id);
+      patterns.add(methodPath);
+    }
+  });
+
+  test("every UI destination is served by a GET route in its area", () => {
+    for (const destination of ADMIN_SURFACE.destinations) {
+      const concretePath = destination.pattern
+        .replace(/:(\w+)/g, (_, name: string) =>
           name === "id" || name.endsWith("Id") ? "1" : "value",
-      );
-      const getPaths = routesByArea
-        .get(route.area)!
-        .filter((pattern) => pattern.startsWith("GET "))
-        .map(patternPath);
+        )
+        .replace(/\/$/, "");
       expect(
-        getPaths.some((path) =>
-          routePathPatternToRegex(path).test(concretePath),
+        ADMIN_SURFACE.routes.some(
+          (route) =>
+            route.area === destination.area &&
+            route.method === "GET" &&
+            routePathPatternToRegex(route.pattern).test(concretePath),
         ),
-        `${route.id}: GET ${route.pattern} has no handler in ${route.area}`,
+        `${destination.id}: GET ${destination.pattern}`,
       ).toBe(true);
     }
   });

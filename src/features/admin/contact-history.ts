@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Editor for a single contact_preferences record, keyed by its HMAC blind
  * index (contact_hash). The attendee page's contact-history panel links here so
@@ -13,7 +14,7 @@ import { t } from "#i18n";
 import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import {
   type ContactRecord,
   fromContactHashParam,
@@ -117,7 +118,7 @@ export const handleContactHistoryPost: TypedRouteHandler<
     return redirect(`/admin/history/${hmac}`, t("contact_history.saved"), true);
   });
 
-export const contactHistoryRoutes = defineRoutes({
-  "GET /admin/history/:hmac": handleContactHistoryGet,
-  "POST /admin/history/:hmac": handleContactHistoryPost,
+export const adminHandlers = handlersFor("contactHistory")({
+  getHistoryByHmac: handleContactHistoryGet,
+  postHistoryByHmac: handleContactHistoryPost,
 });

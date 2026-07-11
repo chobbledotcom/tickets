@@ -1,14 +1,18 @@
+/* jscpd:ignore-start */
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin session management routes
  */
 
 import { OWNER_FORM, ownerPage, withAuth } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import { hashSessionToken } from "#shared/crypto/hashing.ts";
 import { deleteOtherSessions, getAllSessions } from "#shared/db/sessions.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
+
+/* jscpd:ignore-end */
 
 /**
  * Handle GET /admin/sessions
@@ -35,7 +39,7 @@ const handleAdminSessionsPost = (request: Request): Promise<Response> =>
   });
 
 /** Session management routes */
-export const sessionsRoutes = defineRoutes({
-  "GET /admin/sessions": handleAdminSessionsGet,
-  "POST /admin/sessions": handleAdminSessionsPost,
+export const adminHandlers = handlersFor("sessions")({
+  getSessions: handleAdminSessionsGet,
+  postSessions: handleAdminSessionsPost,
 });

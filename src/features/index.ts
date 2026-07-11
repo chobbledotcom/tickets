@@ -38,6 +38,7 @@ import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { getClientIp, parseCookies, parseRequest } from "#routes/url.ts";
 import { readOnlyGetRoutePatterns } from "#shared/admin-pages.ts";
+import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
 import { runWithClientIp } from "#shared/client-context.ts";
 import {
   loadEffectiveDomain,
@@ -252,6 +253,21 @@ const READ_ONLY_GET_PATTERNS = readOnlyGetRoutePatterns().map(
   routePathPatternToRegex,
 );
 
+const READ_ONLY_ADMIN_OPERATIONS = ADMIN_SURFACE.routes
+  .filter((route) => route.method !== "GET" && route.readOnly === "allow")
+  .map((route) => ({
+    method: route.method,
+    pattern: routePathPatternToRegex(route.pattern),
+  }));
+
+const isAdminMutation = (path: string, method: string): boolean =>
+  isMutatingMethod(method) && (path === "/admin" || path.startsWith("/admin/"));
+
+const isAllowedAdminOperation = (path: string, method: string): boolean =>
+  READ_ONLY_ADMIN_OPERATIONS.some(
+    (route) => route.method === method && route.pattern.test(path),
+  );
+
 const isMutatingMethod = (method: string): boolean =>
   method === "DELETE" ||
   method === "PATCH" ||
@@ -263,19 +279,15 @@ const isMutatingMethod = (method: string): boolean =>
  * Any POST/PUT/PATCH/DELETE not matching one of these patterns is blocked.
  *
  * Categories:
- *  - Auth: login / logout
  *  - Billing lifecycle: renewal, balance payment, payment webhook
  *  - Apple Wallet protocol stubs (/v1/*) — must return 200/201, not redirect
  *  - Inbound webhooks: SMS
- *  - Public / owner messaging: join, unsubscribe, contact, admin support
+ *  - Public messaging: join, unsubscribe, contact
  *  - Inter-instance machine endpoint: site credentials
  *  - Scheduled maintenance cron (builder fleet pruning)
- *  - Admin maintenance: backup creation (read-only DB dump)
- *  - On-site ops: check-in (token and admin), scan, refresh-payment, deliveries
+ *  - On-site ops: token check-in
  */
 const READ_ONLY_SAFE_PATHS = [
-  /^\/admin\/login$/,
-  /^\/admin\/logout$/,
   /^\/renew$/,
   /^\/pay\/[^/]+$/,
   /^\/payment\/webhook$/,
@@ -285,15 +297,9 @@ const READ_ONLY_SAFE_PATHS = [
   /^\/join\/[^/]+$/,
   /^\/unsubscribe$/,
   /^\/contact$/,
-  /^\/admin\/support$/,
   /^\/instance\/site-credentials$/,
   /^\/scheduled$/,
-  /^\/admin\/backup\/create$/,
   /^\/checkin\/[^/]+$/,
-  /^\/admin\/listing\/\d+\/attendee\/\d+\/checkin$/,
-  /^\/admin\/listing\/\d+\/scan$/,
-  /^\/admin\/attendees\/\d+\/refresh-payment$/,
-  /^\/admin\/deliveries\/mark$/,
 ];
 
 /**
@@ -313,6 +319,12 @@ const readOnlyGuard = (path: string, method: string): Response | null => {
     for (const pattern of READ_ONLY_GET_PATTERNS) {
       if (pattern.test(path)) return redirectResponse("/read-only");
     }
+  }
+
+  if (isAdminMutation(path, method)) {
+    return isAllowedAdminOperation(path, method)
+      ? null
+      : redirectResponse("/read-only");
   }
 
   // Default-deny: block all mutating requests not on the safe list

@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin routes for per-attendee operator notes.
  *
@@ -18,7 +19,7 @@ import { t } from "#i18n";
 import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getAttendee } from "#shared/db/attendees/queries.ts";
 import {
@@ -153,9 +154,9 @@ const handleDeleteNotePost: TypedRouteHandler<
     );
   });
 
-export const attendeeNotesRoutes = defineRoutes({
-  "GET /admin/attendee/:attendeeId/note": handleAddNoteGet,
-  "GET /admin/attendee/:attendeeId/note/:noteId/delete": handleDeleteNoteGet,
-  "POST /admin/attendee/:attendeeId/note": handleAddNotePost,
-  "POST /admin/attendee/:attendeeId/note/:noteId/delete": handleDeleteNotePost,
+export const adminHandlers = handlersFor("attendeeNotes")({
+  getAttendeeByAttendeeIdNote: handleAddNoteGet,
+  getAttendeeByAttendeeIdNoteByNoteIdDelete: handleDeleteNoteGet,
+  postAttendeeByAttendeeIdNote: handleAddNotePost,
+  postAttendeeByAttendeeIdNoteByNoteIdDelete: handleDeleteNotePost,
 });

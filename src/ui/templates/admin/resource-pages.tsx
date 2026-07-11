@@ -27,6 +27,7 @@ import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage, type TCall } from "#templates/admin/confirm-page.tsx";
+import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import {
   DeleteSection,
   SaveChangesButton,
@@ -80,8 +81,8 @@ export type ResourceList<TEntity> = {
   empty?: Child;
   /** Optional intro markup rendered before the table (e.g. a prose heading). */
   intro?: Child;
-  /** Optional action-row contents (e.g. an "Add" button). */
-  actions?: Child;
+  /** Action-row contents (e.g. an "Add" button). */
+  actions: JSX.Element;
   /** Optional guide link rendered at the very bottom of the list body. */
   guideFooter?: Child;
 };
@@ -142,7 +143,7 @@ export const defineAdminResourcePages = <
         {entities.length > 0 ? dataTable(list.columns)(entities) : list.empty}
         {list.guideFooter}
       </>,
-      list.actions,
+      <WritableOnly>{list.actions}</WritableOnly>,
     );
   };
 

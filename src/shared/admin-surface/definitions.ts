@@ -60,6 +60,52 @@ export type AdminAreaId = keyof typeof ADMIN_SURFACE_AREAS;
 export type AdminAudience = readonly AdminLevel[];
 export type AdminRouteIntent = "view" | "write-form";
 export type AdminNavKind = "landing" | "link" | "create" | "import";
+export type AdminMethod = "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
+
+export type AdminRouteDef = {
+  readonly area: AdminAreaId;
+  readonly id: string;
+  readonly method: AdminMethod;
+  readonly pattern: string;
+  readonly readOnly: "allow" | "block";
+};
+
+const defineAdminRoute =
+  (allowedInReadOnly: (method: AdminMethod) => boolean) =>
+  <
+    Id extends string,
+    Area extends AdminAreaId,
+    Method extends AdminMethod,
+    Pattern extends string,
+  >(
+    id: Id,
+    area: Area,
+    method: Method,
+    pattern: Pattern,
+  ): AdminRouteDef & {
+    readonly area: Area;
+    readonly id: Id;
+    readonly method: Method;
+    readonly pattern: Pattern;
+  } => ({
+    area,
+    id,
+    method,
+    pattern,
+    readOnly: allowedInReadOnly(method) ? "allow" : "block",
+  });
+
+export const route = defineAdminRoute((method) => method === "GET");
+const readOnlyRoute = defineAdminRoute(() => true);
+export const operation = <
+  Id extends string,
+  Area extends AdminAreaId,
+  Pattern extends string,
+>(
+  id: Id,
+  area: Area,
+  pattern: Pattern,
+) => readOnlyRoute(id, area, "POST", pattern);
 
 export const OWNER_AUDIENCE = ["owner"] as const;
 
@@ -108,12 +154,11 @@ export const ADMIN_SECTIONS = [
 
 export type AdminSectionId = (typeof ADMIN_SECTIONS)[number]["id"];
 
-export type AdminRouteDef = {
+export type AdminDestinationDef = {
   readonly area: AdminAreaId;
   readonly audience: AdminAudience;
   readonly id: string;
   readonly intent: AdminRouteIntent;
-  readonly method: "GET";
   readonly nav?: {
     readonly kind: AdminNavKind;
     readonly labelKey: string;
@@ -123,7 +168,7 @@ export type AdminRouteDef = {
   readonly section: AdminSectionId;
 };
 
-const defineRoute =
+const defineDestination =
   (intent: AdminRouteIntent) =>
   <Id extends string, Pattern extends string>(
     id: Id,
@@ -131,13 +176,12 @@ const defineRoute =
     pattern: Pattern,
     audience: AdminAudience,
     section: AdminSectionId,
-    nav?: AdminRouteDef["nav"],
-  ): AdminRouteDef & { readonly id: Id; readonly pattern: Pattern } => ({
+    nav?: AdminDestinationDef["nav"],
+  ): AdminDestinationDef & { readonly id: Id; readonly pattern: Pattern } => ({
     area,
     audience,
     id,
     intent,
-    method: "GET",
     pattern,
     section,
     ...(nav ? { nav } : {}),
@@ -152,14 +196,13 @@ export const view = <Id extends string, Pattern extends string>(
   labelKey: string,
   kind: AdminNavKind = "link",
   visible?: (ctx: AdminSurfaceContext) => boolean,
-): AdminRouteDef & { readonly id: Id; readonly pattern: Pattern } =>
-  defineRoute(kind === "create" || kind === "import" ? "write-form" : "view")(
-    id,
-    area,
-    pattern,
-    audience,
-    section,
-    { kind, labelKey, ...(visible ? { visible } : {}) },
-  );
+): AdminDestinationDef & { readonly id: Id; readonly pattern: Pattern } =>
+  defineDestination(
+    kind === "create" || kind === "import" ? "write-form" : "view",
+  )(id, area, pattern, audience, section, {
+    kind,
+    labelKey,
+    ...(visible ? { visible } : {}),
+  });
 
-export const writeForm = defineRoute("write-form");
+export const writeForm = defineDestination("write-form");

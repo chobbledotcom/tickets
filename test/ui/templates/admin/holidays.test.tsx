@@ -3,7 +3,7 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { AdminSession, Holiday } from "#shared/types.ts";
 import { adminHolidaysPage, holidayPages } from "#templates/admin/holidays.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 
 const session: AdminSession = { adminLevel: "owner" };
 
@@ -46,6 +46,18 @@ describe("adminHolidaysPage (resource factory list page)", () => {
   test("renders the success flash when a success message is passed", () => {
     const html = adminHolidaysPage([], session, "Holiday deleted");
     expect(html).toContain("Holiday deleted");
+  });
+
+  test("shows holiday data without write links in read-only mode", () => {
+    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    try {
+      const html = adminHolidaysPage([holiday], session);
+      expect(html).toContain("Christmas");
+      expect(html).not.toContain('href="/admin/holidays/new"');
+      expect(html).not.toContain('href="/admin/holidays/42/edit"');
+    } finally {
+      restore();
+    }
   });
 });
 

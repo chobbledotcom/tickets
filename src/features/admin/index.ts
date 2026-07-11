@@ -1,7 +1,7 @@
 /**
  * Admin routes — a declarative manifest instead of one merged router.
  *
- * Each admin area declares how to load its route map and which
+ * Each admin area declares how to load its route-ID handlers and which
  * `/admin/<segment>` prefixes it serves. A request loads only the areas that
  * share its segment, so the first admin hit evaluates a handful of modules
  * rather than the whole admin tree. The manifest is pure data at module load;
@@ -12,202 +12,77 @@
  * Layout template when query logging is active, avoiding response body
  * re-reading which intermittently fails on Bunny Edge.
  *
- * `test/lib/admin-route-manifest.test.ts` proves the manifest honest both
- * ways: every route a module defines falls under one of its declared
- * segments, and every declared segment serves at least one route.
+ * `test/lib/admin-route-manifest.test.ts` proves every area implements exactly
+ * its schema route IDs and every declared segment serves at least one route.
  */
 
 import { once } from "#fp";
-import { createRouter, type RouteHandlerFn } from "#routes/router.ts";
+import { routeMapForArea } from "#routes/admin/handlers.ts";
+import { createRouter } from "#routes/router.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
 import type { AdminAreaId } from "#shared/admin-surface/definitions.ts";
 import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
 import { enableFooterDebug } from "#shared/db/query-log.ts";
 import { isStaffRole } from "#shared/types.ts";
 
-type RouteMap = Record<string, RouteHandlerFn>;
+type HandlerMap = Record<string, (...args: never[]) => unknown>;
 
-/** One admin area: its lazy route map plus the `/admin/<segment>` prefixes it serves. */
+/** One admin area's lazy route-ID handlers. */
 export type AdminAreaLoader = {
-  load: () => Promise<RouteMap>;
+  load: () => Promise<HandlerMap>;
 };
 
-/** Declare an area: import its module lazily and pick the route map out of it. */
-const area = <M>(
+/** Declare an area without importing its handlers until that area is requested. */
+const area = <M extends { adminHandlers: HandlerMap }>(
   load: () => Promise<M>,
-  pick: (module: M) => RouteMap,
-): AdminAreaLoader => ({ load: async () => pick(await load()) });
+): AdminAreaLoader => ({ load: async () => (await load()).adminHandlers });
 
 // Import specifiers stay literal so esbuild can still bundle every target.
 export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
-  apiKeys: area(
-    () => import("#routes/admin/api-keys.ts"),
-    (m) => m.apiKeysRoutes,
-  ),
-  attendeeNotes: area(
-    () => import("#routes/admin/attendee-notes.ts"),
-    (m) => m.attendeeNotesRoutes,
-  ),
-  attendeeRefunds: area(
-    () => import("#routes/admin/attendee-refunds.ts"),
-    (m) => m.attendeeRefundRoutes,
-  ),
-  attendees: area(
-    () => import("#routes/admin/attendees.ts"),
-    (m) => m.attendeesRoutes,
-  ),
-  attributes: area(
-    () => import("#routes/admin/attributes.ts"),
-    (m) => m.attributesRoutes,
-  ),
-  auth: area(
-    () => import("#routes/admin/auth.ts"),
-    (m) => m.authRoutes,
-  ),
-  backup: area(
-    () => import("#routes/admin/backup.ts"),
-    (m) => m.backupRoutes,
-  ),
-  builder: area(
-    () => import("#routes/admin/builder.ts"),
-    (m) => m.builderRoutes,
-  ),
-  builtSites: area(
-    () => import("#routes/admin/built-sites.ts"),
-    (m) => m.builtSitesRoutes,
-  ),
-  bulkActions: area(
-    () => import("#routes/admin/bulk-actions.ts"),
-    (m) => m.bulkActionsRoutes,
-  ),
-  bulkEmail: area(
-    () => import("#routes/admin/bulk-email.ts"),
-    (m) => m.bulkEmailRoutes,
-  ),
-  calendar: area(
-    () => import("#routes/admin/calendar.ts"),
-    (m) => m.calendarRoutes,
-  ),
+  apiKeys: area(() => import("#routes/admin/api-keys.ts")),
+  attendeeNotes: area(() => import("#routes/admin/attendee-notes.ts")),
+  attendeeRefunds: area(() => import("#routes/admin/attendee-refunds.ts")),
+  attendees: area(() => import("#routes/admin/attendees.ts")),
+  attributes: area(() => import("#routes/admin/attributes.ts")),
+  auth: area(() => import("#routes/admin/auth.ts")),
+  backup: area(() => import("#routes/admin/backup.ts")),
+  builder: area(() => import("#routes/admin/builder.ts")),
+  builtSites: area(() => import("#routes/admin/built-sites.ts")),
+  bulkActions: area(() => import("#routes/admin/bulk-actions.ts")),
+  bulkEmail: area(() => import("#routes/admin/bulk-email.ts")),
+  calendar: area(() => import("#routes/admin/calendar.ts")),
   catalogTransfer: area(
     () => import("#routes/admin/catalog-transfer/routes.ts"),
-    (m) => m.catalogTransferRoutes,
   ),
-  contactHistory: area(
-    () => import("#routes/admin/contact-history.ts"),
-    (m) => m.contactHistoryRoutes,
-  ),
-  dashboard: area(
-    () => import("#routes/admin/dashboard.ts"),
-    (m) => m.dashboardRoutes,
-  ),
-  debug: area(
-    () => import("#routes/admin/debug.ts"),
-    (m) => m.debugRoutes,
-  ),
-  deliveries: area(
-    () => import("#routes/admin/deliveries.ts"),
-    (m) => m.deliveriesRoutes,
-  ),
-  groups: area(
-    () => import("#routes/admin/groups.ts"),
-    (m) => m.groupsRoutes,
-  ),
-  guide: area(
-    () => import("#routes/admin/guide.ts"),
-    (m) => m.guideRoutes,
-  ),
-  holidays: area(
-    () => import("#routes/admin/holidays.ts"),
-    (m) => m.holidaysCrud.routes,
-  ),
-  images: area(
-    () => import("#routes/admin/images.ts"),
-    (m) => m.imagesRoutes,
-  ),
-  ledger: area(
-    () => import("#routes/admin/ledger.ts"),
-    (m) => m.ledgerRoutes,
-  ),
-  listingQr: area(
-    () => import("#routes/admin/listing-qr.ts"),
-    (m) => m.listingQrRoutes,
-  ),
-  listings: area(
-    () => import("#routes/admin/listings.ts"),
-    (m) => m.listingsRoutes,
-  ),
-  markdownPreview: area(
-    () => import("#routes/admin/markdown-preview.ts"),
-    (m) => m.markdownPreviewRoutes,
-  ),
-  modifiers: area(
-    () => import("#routes/admin/modifiers.ts"),
-    (m) => m.modifiersRoutes,
-  ),
-  news: area(
-    () => import("#routes/admin/news.ts"),
-    (m) => m.newsRoutes,
-  ),
-  privacy: area(
-    () => import("#routes/admin/privacy.ts"),
-    (m) => m.privacyRoutes,
-  ),
-  questions: area(
-    () => import("#routes/admin/questions.ts"),
-    (m) => m.questionsRoutes,
-  ),
-  scanner: area(
-    () => import("#routes/admin/scanner.ts"),
-    (m) => m.scannerRoutes,
-  ),
-  seeds: area(
-    () => import("#routes/admin/seeds.ts"),
-    (m) => m.seedsRoutes,
-  ),
-  servicing: area(
-    () => import("#routes/admin/servicing.tsx"),
-    (m) => m.servicingRoutes,
-  ),
-  sessions: area(
-    () => import("#routes/admin/sessions.ts"),
-    (m) => m.sessionsRoutes,
-  ),
-  settings: area(
-    () => import("#routes/admin/settings.ts"),
-    (m) => m.settingsRoutes,
-  ),
-  settingsLogistics: area(
-    () => import("#routes/admin/settings-logistics.ts"),
-    (m) => m.logisticsRoutes,
-  ),
-  settingsStatuses: area(
-    () => import("#routes/admin/settings-statuses.ts"),
-    (m) => m.attendeeStatusesRoutes,
-  ),
-  site: area(
-    () => import("#routes/admin/site.ts"),
-    (m) => m.siteRoutes,
-  ),
-  sitePages: area(
-    () => import("#routes/admin/site-pages.ts"),
-    (m) => m.sitePagesRoutes,
-  ),
-  sms: area(
-    () => import("#routes/admin/sms.ts"),
-    (m) => m.smsRoutes,
-  ),
-  support: area(
-    () => import("#routes/admin/support.ts"),
-    (m) => m.supportRoutes,
-  ),
-  update: area(
-    () => import("#routes/admin/update.ts"),
-    (m) => m.updateRoutes,
-  ),
-  users: area(
-    () => import("#routes/admin/users.ts"),
-    (m) => m.usersRoutes,
-  ),
+  contactHistory: area(() => import("#routes/admin/contact-history.ts")),
+  dashboard: area(() => import("#routes/admin/dashboard.ts")),
+  debug: area(() => import("#routes/admin/debug.ts")),
+  deliveries: area(() => import("#routes/admin/deliveries.ts")),
+  groups: area(() => import("#routes/admin/groups.ts")),
+  guide: area(() => import("#routes/admin/guide.ts")),
+  holidays: area(() => import("#routes/admin/holidays.ts")),
+  images: area(() => import("#routes/admin/images.ts")),
+  ledger: area(() => import("#routes/admin/ledger.ts")),
+  listingQr: area(() => import("#routes/admin/listing-qr.ts")),
+  listings: area(() => import("#routes/admin/listings.ts")),
+  markdownPreview: area(() => import("#routes/admin/markdown-preview.ts")),
+  modifiers: area(() => import("#routes/admin/modifiers.ts")),
+  news: area(() => import("#routes/admin/news.ts")),
+  privacy: area(() => import("#routes/admin/privacy.ts")),
+  questions: area(() => import("#routes/admin/questions.ts")),
+  scanner: area(() => import("#routes/admin/scanner.ts")),
+  seeds: area(() => import("#routes/admin/seeds.ts")),
+  servicing: area(() => import("#routes/admin/servicing.tsx")),
+  sessions: area(() => import("#routes/admin/sessions.ts")),
+  settings: area(() => import("#routes/admin/settings.ts")),
+  settingsLogistics: area(() => import("#routes/admin/settings-logistics.ts")),
+  settingsStatuses: area(() => import("#routes/admin/settings-statuses.ts")),
+  site: area(() => import("#routes/admin/site.ts")),
+  sitePages: area(() => import("#routes/admin/site-pages.ts")),
+  sms: area(() => import("#routes/admin/sms.ts")),
+  support: area(() => import("#routes/admin/support.ts")),
+  update: area(() => import("#routes/admin/update.ts")),
+  users: area(() => import("#routes/admin/users.ts")),
 };
 
 /** The `/admin/<segment>` part of a path — "" for `/admin` itself. */
@@ -222,17 +97,27 @@ const buildSegmentRouters = (): Record<
   string,
   () => Promise<PathMethodRoute>
 > => {
-  const areasBySegment: Record<string, AdminAreaLoader[]> = {};
+  const areasBySegment: Record<
+    string,
+    Array<{ id: AdminAreaId; loader: AdminAreaLoader }>
+  > = {};
   for (const [id, segments] of Object.entries(ADMIN_SURFACE.areas)) {
     const loader = ADMIN_AREA_LOADERS[id as AdminAreaId];
     for (const segment of segments) {
-      (areasBySegment[segment] ??= []).push(loader);
+      (areasBySegment[segment] ??= []).push({
+        id: id as AdminAreaId,
+        loader,
+      });
     }
   }
   const routers: Record<string, () => Promise<PathMethodRoute>> = {};
   for (const [segment, areas] of Object.entries(areasBySegment)) {
     routers[segment] = once(async () => {
-      const maps = await Promise.all(areas.map(({ load }) => load()));
+      const maps = await Promise.all(
+        areas.map(async ({ id, loader }) =>
+          routeMapForArea(id, await loader.load()),
+        ),
+      );
       return createRouter(Object.assign({}, ...maps));
     });
   }

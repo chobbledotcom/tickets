@@ -1,10 +1,11 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin attendee management routes
  */
 
 import { t } from "#i18n";
 import { redirect } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
@@ -359,29 +360,26 @@ const handleResendNotification = verifiedAttendeeAction(
  * Merge: attendees-merge.ts
  * Refunds: attendee-refunds.ts
  */
-export const attendeesRoutes = defineRoutes({
-  "DELETE /admin/attendees/:attendeeId/delete": handleAttendeeDelete,
-  "GET /admin/attendees": handleAttendeesListGet,
-  "GET /admin/attendees/:attendeeId": (request, { attendeeId }) =>
+export const adminHandlers = handlersFor("attendees")({
+  deleteAttendeesByAttendeeIdDelete: handleAttendeeDelete,
+  getAttendees: handleAttendeesListGet,
+  getAttendeesByAttendeeId: (request, { attendeeId }) =>
     attendeePage.renderTab(request, attendeeId, ""),
-  "GET /admin/attendees/:attendeeId/:tab": (request, { attendeeId, tab }) =>
+  getAttendeesByAttendeeIdByTab: (request, { attendeeId, tab }) =>
     attendeePage.renderTab(request, attendeeId, tab),
-  "GET /admin/attendees/:attendeeId/delete": handleAdminAttendeeDeleteGet,
-  "GET /admin/attendees/:attendeeId/resend-notification":
-    handleAdminResendNotificationGet,
-  "GET /admin/attendees/csv": handleAttendeesCsvExport,
-  "GET /admin/attendees/new": handleAttendeeNewGet,
-  "POST /admin/attendees/:attendeeId": handleAttendeeEditPost,
-  "POST /admin/attendees/:attendeeId/delete": handleAttendeeDelete,
-  "POST /admin/attendees/:attendeeId/logistics": handleAttendeeLogisticsPost,
-  "POST /admin/attendees/:attendeeId/merge": handleMergePost,
-  "POST /admin/attendees/:attendeeId/refresh-payment": handleRefreshPayment,
-  "POST /admin/attendees/:attendeeId/resend-notification":
-    handleResendNotification,
-  "POST /admin/attendees/new": handleAttendeeNewPost,
-  "POST /admin/listing/:listingId/attendee": handleAddAttendee,
-  "POST /admin/listing/:listingId/attendee/:attendeeId/checkin":
-    handleAttendeeCheckin,
-  "POST /admin/listing/:listingId/attendee/:attendeeId/delete-incomplete":
+  getAttendeesByAttendeeIdDelete: handleAdminAttendeeDeleteGet,
+  getAttendeesByAttendeeIdResendNotification: handleAdminResendNotificationGet,
+  getAttendeesCsv: handleAttendeesCsvExport,
+  getAttendeesNew: handleAttendeeNewGet,
+  postAttendeesByAttendeeId: handleAttendeeEditPost,
+  postAttendeesByAttendeeIdDelete: handleAttendeeDelete,
+  postAttendeesByAttendeeIdLogistics: handleAttendeeLogisticsPost,
+  postAttendeesByAttendeeIdMerge: handleMergePost,
+  postAttendeesByAttendeeIdRefreshPayment: handleRefreshPayment,
+  postAttendeesByAttendeeIdResendNotification: handleResendNotification,
+  postAttendeesNew: handleAttendeeNewPost,
+  postListingByListingIdAttendee: handleAddAttendee,
+  postListingByListingIdAttendeeByAttendeeIdCheckin: handleAttendeeCheckin,
+  postListingByListingIdAttendeeByAttendeeIdDeleteIncomplete:
     handleDeleteIncomplete,
 });

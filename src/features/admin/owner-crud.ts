@@ -21,7 +21,6 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
-import type { RouteHandlerFn } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -187,23 +186,16 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
       successRedirect: cfg.listPath,
     });
 
-    const routes = {
-      ...confirmedDelete.routes,
-      [`GET ${cfg.listPath}`]: listGet,
-      [`GET ${cfg.listPath}/new`]: newGet,
-      [`POST ${cfg.listPath}`]: createPost,
-      ...(editGet ? { [`GET ${cfg.listPath}/:id/edit`]: editGet } : {}),
-      [`POST ${cfg.listPath}/:id/edit`]: editPost,
-    } as Record<string, RouteHandlerFn>;
-
     return {
       createPost,
-      deleteRoutes: confirmedDelete.routes,
+      deleteGet: (request: Request, { id }: { id: number }) =>
+        confirmedDelete.get(request, id),
+      deletePost: (request: Request, { id }: { id: number }) =>
+        confirmedDelete.post(request, id),
       editGet,
       editPost,
       listGet,
       newGet,
-      routes,
     };
   };
 }

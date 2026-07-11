@@ -3,6 +3,7 @@
  */
 
 import { t } from "#i18n";
+import { handlersFor } from "#routes/admin/handlers.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { type HolidayInput, holidays } from "#shared/db/holidays.ts";
 import {
@@ -49,4 +50,14 @@ export const holidaysCrud = createOwnerCrudHandlers({
   renderNew: holidayPages.newPage,
   resource: wrapResourceForDemo(holidaysResource, HOLIDAY_DEMO_FIELDS),
   singular: "Holiday",
+});
+
+export const adminHandlers = handlersFor("holidays")({
+  getHolidays: holidaysCrud.listGet,
+  getHolidaysByIdDelete: holidaysCrud.deleteGet,
+  getHolidaysByIdEdit: holidaysCrud.editGet!,
+  getHolidaysNew: holidaysCrud.newGet,
+  postHolidays: holidaysCrud.createPost,
+  postHolidaysByIdDelete: holidaysCrud.deletePost,
+  postHolidaysByIdEdit: holidaysCrud.editPost,
 });

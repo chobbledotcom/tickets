@@ -1,3 +1,5 @@
+/* jscpd:ignore-start */
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin user management routes - owner only
  */
@@ -13,10 +15,9 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
-/* jscpd:ignore-start */
 import { getEffectiveDomain } from "#shared/config.ts";
 import { unwrapKeyWithToken, wrapKeyWithToken } from "#shared/crypto/keys.ts";
 import type { WrappedKey } from "#shared/crypto/sealed.ts";
@@ -391,14 +392,13 @@ const userDelete = createConfirmedHandlers<DisplayUser>({
 });
 
 /** User management routes */
-export const usersRoutes = {
-  ...userDelete.routes,
-  ...defineRoutes({
-    "GET /admin/user/new": handleUserNewGet,
-    "GET /admin/users": handleUsersGet,
-    "GET /admin/users/:id": handleUserManageGet,
-    "GET /admin/users/:id/agents": handleUserAgentsGet,
-    "POST /admin/users": handleUsersPost,
-    "POST /admin/users/:id/agents": handleUserAgentsPost,
-  }),
-};
+export const adminHandlers = handlersFor("users")({
+  getUserNew: handleUserNewGet,
+  getUsers: handleUsersGet,
+  getUsersById: handleUserManageGet,
+  getUsersByIdAgents: handleUserAgentsGet,
+  getUsersByIdDelete: (request, { id }) => userDelete.get(request, id),
+  postUsers: handleUsersPost,
+  postUsersByIdAgents: handleUserAgentsPost,
+  postUsersByIdDelete: (request, { id }) => userDelete.post(request, id),
+});

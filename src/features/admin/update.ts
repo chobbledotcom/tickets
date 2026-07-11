@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin update routes — check for and apply software updates
  * Owner-only access
@@ -5,7 +6,6 @@
 
 import { OWNER_FORM, ownerPage, withAuth } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import { isBunnyCdnEnabled } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -108,9 +108,8 @@ const deployUpdate = async (): Promise<Response> => {
   }
 };
 
-export const updateRoutes = defineRoutes({
-  "GET /admin/update": handleUpdateGet,
-  "POST /admin/update": (r: Request) => withAuth(r, OWNER_FORM, deployUpdate),
-  "POST /admin/update/check": (r: Request) =>
-    withAuth(r, OWNER_FORM, checkForUpdate),
+export const adminHandlers = handlersFor("update")({
+  getUpdate: handleUpdateGet,
+  postUpdate: (r: Request) => withAuth(r, OWNER_FORM, deployUpdate),
+  postUpdateCheck: (r: Request) => withAuth(r, OWNER_FORM, checkForUpdate),
 });

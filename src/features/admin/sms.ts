@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin SMS page — text an attendee via the gateway queue.
  *
@@ -20,7 +21,6 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getAttendeeActivityLog, logActivity } from "#shared/db/activityLog.ts";
 import { setAttendeePhoneIndexIfEmpty } from "#shared/db/attendee-phone-index.ts";
@@ -165,7 +165,7 @@ const sendSms = (
 const handleSmsPost = (request: Request): Promise<Response> =>
   withAuth(request, AUTH_FORM, sendSms);
 
-export const smsRoutes = defineRoutes({
-  "GET /admin/sms": handleSmsGet,
-  "POST /admin/sms": handleSmsPost,
+export const adminHandlers = handlersFor("sms")({
+  getSms: handleSmsGet,
+  postSms: handleSmsPost,
 });

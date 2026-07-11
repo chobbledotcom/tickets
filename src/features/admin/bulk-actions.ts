@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Bulk actions for groups.
  *
@@ -18,7 +19,7 @@ import {
 /* jscpd:ignore-start */
 import { requireSessionOr } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 /* jscpd:ignore-end */
 import {
   applyNameReplacement,
@@ -331,12 +332,12 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
 });
 
 /** Bulk actions routes */
-export const bulkActionsRoutes = defineRoutes({
-  "GET /admin/groups/:id/bulk-actions": handleBulkActionsGet,
-  "GET /admin/groups/:id/bulk-actions/deactivate": handleDeactivateGroupGet,
-  "GET /admin/groups/:id/bulk-actions/duplicate": handleDuplicateGroupGet,
-  "GET /admin/groups/:id/bulk-actions/reactivate": handleReactivateGroupGet,
-  "POST /admin/groups/:id/bulk-actions/deactivate": handleDeactivateGroupPost,
-  "POST /admin/groups/:id/bulk-actions/duplicate": handleDuplicateGroupPost,
-  "POST /admin/groups/:id/bulk-actions/reactivate": handleReactivateGroupPost,
+export const adminHandlers = handlersFor("bulkActions")({
+  getGroupsByIdBulkActions: handleBulkActionsGet,
+  getGroupsByIdBulkActionsDeactivate: handleDeactivateGroupGet,
+  getGroupsByIdBulkActionsDuplicate: handleDuplicateGroupGet,
+  getGroupsByIdBulkActionsReactivate: handleReactivateGroupGet,
+  postGroupsByIdBulkActionsDeactivate: handleDeactivateGroupPost,
+  postGroupsByIdBulkActionsDuplicate: handleDuplicateGroupPost,
+  postGroupsByIdBulkActionsReactivate: handleReactivateGroupPost,
 });

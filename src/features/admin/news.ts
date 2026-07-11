@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin CRUD for news posts, under Site → News. Owner + editor (the shared
  * Site-tab gates in `site-content.ts`). Posts are a flat newest-first list with
@@ -14,7 +15,6 @@ import {
 } from "#routes/admin/confirmation.ts";
 import { SITE_FORM, SITE_MULTIPART } from "#routes/auth.ts";
 import { errorRedirect } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   computeNewsSlugIndex,
@@ -157,18 +157,16 @@ const newsImageHandlers = createItemImageHandlers({
 
 // ─── Routes ─────────────────────────────────────────────────────
 
-export const newsRoutes = {
-  ...postDelete.routes,
-  ...defineRoutes({
-    "GET /admin/site/news": renderList,
-    "GET /admin/site/news/:id": (request, { id }) =>
-      newsPage.renderTab(request, id, ""),
-    "GET /admin/site/news/:id/:tab": (request, { id, tab }) =>
-      newsPage.renderTab(request, id, tab),
-    "GET /admin/site/news/new": renderNew,
-    "POST /admin/site/news": handleCreate,
-    "POST /admin/site/news/:id/edit": handleUpdate,
-    "POST /admin/site/news/:id/images": newsImageHandlers.set,
-    "POST /admin/site/news/:id/images/upload": newsImageHandlers.upload,
-  }),
-};
+export const adminHandlers = handlersFor("news")({
+  getSiteNews: renderList,
+  getSiteNewsById: (request, { id }) => newsPage.renderTab(request, id, ""),
+  getSiteNewsByIdByTab: (request, { id, tab }) =>
+    newsPage.renderTab(request, id, tab),
+  getSiteNewsByIdDelete: (request, { id }) => postDelete.get(request, id),
+  getSiteNewsNew: renderNew,
+  postSiteNews: handleCreate,
+  postSiteNewsByIdDelete: (request, { id }) => postDelete.post(request, id),
+  postSiteNewsByIdEdit: handleUpdate,
+  postSiteNewsByIdImages: newsImageHandlers.set,
+  postSiteNewsByIdImagesUpload: newsImageHandlers.upload,
+});

@@ -4,7 +4,7 @@
  */
 
 import { t } from "#i18n";
-import { adminPath, adminRouteAllowed } from "#shared/admin-surface.ts";
+import { adminDestinationAllowed, adminPath } from "#shared/admin-surface.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { ModifierRow } from "#shared/db/modifiers.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -100,7 +100,7 @@ export const adminModifiersPage = (
               { class: "amount", header: t("modifiers.revenue_column") },
             ]}
             rows={modifiers.map((m) => [
-              adminRouteAllowed(
+              adminDestinationAllowed(
                 "modifierEdit",
                 session.adminLevel,
                 isReadOnly(),

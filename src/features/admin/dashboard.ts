@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin dashboard route
  */
@@ -15,7 +16,7 @@ import {
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
 /* jscpd:ignore-start */
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
   type ActivityLogEntry,
@@ -249,9 +250,9 @@ const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
 );
 
 /** Dashboard routes */
-export const dashboardRoutes = defineRoutes({
-  "GET /admin": handleAdminGet,
-  "GET /admin/listings": handleAdminListingsGet,
-  "GET /admin/listings/csv": handleListingsCsvExport,
-  "GET /admin/log": handleAdminLog,
+export const adminHandlers = handlersFor("dashboard")({
+  getAdmin: handleAdminGet,
+  getListings: handleAdminListingsGet,
+  getListingsCsv: handleListingsCsvExport,
+  getLog: handleAdminLog,
 });

@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin routes for custom questions management (owner-only)
  */
@@ -20,7 +21,6 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 /* jscpd:ignore-start */
 import {
   type AuthedHandlerArgs,
@@ -562,29 +562,25 @@ const handleListingQuestionsPost = createListingChoicePost({
 });
 
 /** Questions routes */
-export const questionsRoutes = {
-  ...questionDelete.routes,
-  ...defineRoutes({
-    "GET /admin/questions": handleQuestionsGet,
-    "GET /admin/questions/:id": handleQuestionGet,
-    "GET /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerGet,
-    "GET /admin/questions/:id/answers/:answerId/edit": handleEditAnswerGet,
-    "GET /admin/questions/:id/answers/:answerId/recalculate":
-      handleAnswerRecalculateGet,
-    "POST /admin/listing/:id/questions": handleListingQuestionsPost,
-    "POST /admin/questions": handleQuestionsPost,
-    "POST /admin/questions/:id/answers": handleAddAnswer,
-    "POST /admin/questions/:id/answers/:answerId/delete":
-      handleDeleteAnswerPost,
-    "POST /admin/questions/:id/answers/:answerId/edit": handleEditAnswerPost,
-    "POST /admin/questions/:id/answers/:answerId/move-down":
-      handleMoveAnswerDown,
-    "POST /admin/questions/:id/answers/:answerId/move-up": handleMoveAnswerUp,
-    "POST /admin/questions/:id/answers/:answerId/recalculate":
-      handleAnswerRecalculatePost,
-    "POST /admin/questions/:id/edit": handleQuestionEdit,
-    "POST /admin/questions/:id/listings": handleQuestionListings,
-    "POST /admin/questions/:id/move-down": handleMoveQuestionDown,
-    "POST /admin/questions/:id/move-up": handleMoveQuestionUp,
-  }),
-};
+export const adminHandlers = handlersFor("questions")({
+  getQuestions: handleQuestionsGet,
+  getQuestionsById: handleQuestionGet,
+  getQuestionsByIdAnswersByAnswerIdDelete: handleDeleteAnswerGet,
+  getQuestionsByIdAnswersByAnswerIdEdit: handleEditAnswerGet,
+  getQuestionsByIdAnswersByAnswerIdRecalculate: handleAnswerRecalculateGet,
+  getQuestionsByIdDelete: (request, { id }) => questionDelete.get(request, id),
+  postListingByIdQuestions: handleListingQuestionsPost,
+  postQuestions: handleQuestionsPost,
+  postQuestionsByIdAnswers: handleAddAnswer,
+  postQuestionsByIdAnswersByAnswerIdDelete: handleDeleteAnswerPost,
+  postQuestionsByIdAnswersByAnswerIdEdit: handleEditAnswerPost,
+  postQuestionsByIdAnswersByAnswerIdMoveDown: handleMoveAnswerDown,
+  postQuestionsByIdAnswersByAnswerIdMoveUp: handleMoveAnswerUp,
+  postQuestionsByIdAnswersByAnswerIdRecalculate: handleAnswerRecalculatePost,
+  postQuestionsByIdDelete: (request, { id }) =>
+    questionDelete.post(request, id),
+  postQuestionsByIdEdit: handleQuestionEdit,
+  postQuestionsByIdListings: handleQuestionListings,
+  postQuestionsByIdMoveDown: handleMoveQuestionDown,
+  postQuestionsByIdMoveUp: handleMoveQuestionUp,
+});
