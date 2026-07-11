@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  type Column,
   type DataColumn,
+  DataTable,
   dataTable,
 } from "#templates/components/data-table.tsx";
 
@@ -72,5 +74,42 @@ describe("dataTable", () => {
     ])(rows);
     String(indexed);
     expect(seen).toEqual({ count: 2, i: 1 });
+  });
+
+  test("wraps the table in a plain table-scroll div by default", () => {
+    const html = String(dataTable(columns)(rows));
+    expect(html).toContain('<div class="table-scroll">');
+  });
+
+  test("renders a tfoot only when foot content is given", () => {
+    expect(String(dataTable(columns)(rows))).not.toContain("<tfoot>");
+
+    const withFoot = String(
+      dataTable(columns)(rows, { foot: <tr>{<td>Total</td>}</tr> }),
+    );
+    expect(withFoot).toContain("<tfoot><tr><td>Total</td></tr></tfoot>");
+  });
+});
+
+describe("DataTable row shapes", () => {
+  const cols: Column[] = [{ header: "H" }];
+
+  test("wraps positional cell arrays in tr/td", () => {
+    const html = String(DataTable({ columns: cols, rows: [["cell-a"]] }));
+    expect(html).toContain("<tbody><tr><td>cell-a</td></tr></tbody>");
+  });
+
+  test("renders pre-built <tr> elements as-is", () => {
+    const html = String(
+      DataTable({ columns: cols, rows: [<tr>{<td>pre</td>}</tr>] }),
+    );
+    expect(html).toContain("<tbody><tr><td>pre</td></tr></tbody>");
+  });
+
+  test("passes a pre-rendered HTML string straight into the tbody", () => {
+    const html = String(
+      DataTable({ columns: cols, rows: "<tr><td>raw</td></tr>" }),
+    );
+    expect(html).toContain("<tbody><tr><td>raw</td></tr></tbody>");
   });
 });
