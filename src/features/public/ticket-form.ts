@@ -58,7 +58,10 @@ const pushToListings = <T>(
     selectedListingIds,
   )) {
     if (!selectedListingIds.has(listingId)) continue;
-    (result[String(listingId)] ??= []).push(value);
+    const key = String(listingId);
+    const list = result[key] ?? [];
+    list.push(value);
+    result[key] = list;
   }
 };
 

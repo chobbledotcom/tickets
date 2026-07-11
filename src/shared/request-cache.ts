@@ -43,16 +43,29 @@ export const requestCache = <T>(
       if (cached) return cached as T[] | Promise<T[]>;
 
       let resolve!: (items: T[]) => void;
-      const promise: Promise<T[]> = new Promise((r) => {
-        resolve = r;
+      let reject!: (error: unknown) => void;
+      const promise: Promise<T[]> = new Promise((res, rej) => {
+        resolve = res;
+        reject = rej;
       });
+      // A fire-and-forget prefetch may leave this promise unobserved; an
+      // unobserved rejection would kill the isolate.
+      promise.catch(() => {});
       store.set(key, promise);
-      const items = await fetchAll();
-      // Replace the promise with the resolved array so future
-      // reads within this request get the array directly.
-      if (store.get(key) === promise) store.set(key, items);
-      resolve(items);
-      return items;
+      try {
+        const items = await fetchAll();
+        // Replace the promise with the resolved array so future
+        // reads within this request get the array directly.
+        if (store.get(key) === promise) store.set(key, items);
+        resolve(items);
+        return items;
+      } catch (error) {
+        // Drop the entry so the next read fetches fresh — a cached
+        // rejection would wedge the whole request.
+        if (store.get(key) === promise) store.delete(key);
+        reject(error);
+        throw error;
+      }
     },
 
     invalidate: (): void => {

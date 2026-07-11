@@ -190,9 +190,6 @@ const handleScanPost: IdRouteHandler = (request, { id }) =>
     return performCheckIn(entry, attendeeName);
   });
 
-/** Pattern matching scan API paths (used by middleware for content-type validation) */
-export const SCAN_API_PATTERN = /^\/admin\/listing\/\d+\/scan$/;
-
 /** Scanner routes */
 export const scannerRoutes = defineRoutes({
   "GET /admin/listing/:id/scanner": handleScannerGet,

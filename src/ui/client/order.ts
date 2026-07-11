@@ -447,7 +447,8 @@ const init = (): void => {
     string,
     Record<string, unknown>
   >;
-  const registry = (global[REGISTRY_KEY] ??= {});
+  const registry = global[REGISTRY_KEY] ?? {};
+  global[REGISTRY_KEY] = registry;
   if (registry[CATALOG.origin]) {
     debugLog("already initialised for", CATALOG.origin);
     return;

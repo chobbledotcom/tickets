@@ -101,22 +101,26 @@ const parseClause = (raw: string): Clause => {
   return clause;
 };
 
+const matchesName = (el: FakeElement, clause: Clause): boolean => {
+  const name = el.attrs.get("name") ?? "";
+  if (clause.namePrefix && !name.startsWith(clause.namePrefix)) return false;
+  if (clause.nameExact && name !== clause.nameExact) return false;
+  return true;
+};
+
+const matchesData = (el: FakeElement, clause: Clause): boolean => {
+  if (!clause.dataKey) return true;
+  const dataVal = el.getAttribute(`data-${clause.dataKey}`);
+  if (dataVal === null) return false;
+  return clause.dataValue === undefined || dataVal === clause.dataValue;
+};
+
 const matchesClause = (el: FakeElement, clause: Clause): boolean => {
   if (clause.tag && el.tag !== clause.tag) return false;
   if (clause.class && !el.classes.has(clause.class)) return false;
   if (clause.type && el.type !== clause.type) return false;
   if (clause.checked && !el.checked) return false;
-  const name = el.attrs.get("name") ?? "";
-  if (clause.namePrefix && !name.startsWith(clause.namePrefix)) return false;
-  if (clause.nameExact && name !== clause.nameExact) return false;
-  if (clause.dataKey) {
-    const dataVal = el.getAttribute(`data-${clause.dataKey}`);
-    if (dataVal === null) return false;
-    if (clause.dataValue !== undefined && dataVal !== clause.dataValue) {
-      return false;
-    }
-  }
-  return true;
+  return matchesName(el, clause) && matchesData(el, clause);
 };
 
 const matchesSelector = (el: FakeElement, selector: string): boolean => {

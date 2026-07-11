@@ -320,6 +320,28 @@ const shardSlice = <T>(items: T[], shard: number, shardCount: number): T[] =>
   items.filter((_, index) => index % shardCount === shard);
 
 /**
+ * Spot-check that every object a migration declares it owns is present in the
+ * live schema again after a drop/restore cycle.
+ */
+const assertOwnedObjectsPresent = async (
+  req: SchemaRequirement,
+): Promise<void> => {
+  for (const table of req.newTables ?? []) {
+    expect((await tableColumns(table)).size).toBeGreaterThan(0);
+  }
+  for (const [table, cols] of Object.entries(req.columns ?? {})) {
+    const present = await tableColumns(table);
+    for (const col of cols) expect(present.has(col)).toBe(true);
+  }
+  for (const index of req.indexes ?? []) {
+    expect(await indexExists(index)).toBe(true);
+  }
+  for (const trigger of req.triggers ?? []) {
+    expect(await triggerExists(trigger)).toBe(true);
+  }
+};
+
+/**
  * Register one shard of the per-migration restore suite: for each additive
  * migration in the shard, drop exactly its owned objects, prove verify()
  * fails, re-run up(), and prove verify() passes with pre-existing data intact.
@@ -360,19 +382,7 @@ export const defineRestoreCasesSuite = (
           expect(await sentinelListingExists()).toBe(true);
 
           // Spot-check that each declared object is actually present again.
-          for (const table of req.newTables ?? []) {
-            expect((await tableColumns(table)).size).toBeGreaterThan(0);
-          }
-          for (const [table, cols] of Object.entries(req.columns ?? {})) {
-            const present = await tableColumns(table);
-            for (const col of cols) expect(present.has(col)).toBe(true);
-          }
-          for (const index of req.indexes ?? []) {
-            expect(await indexExists(index)).toBe(true);
-          }
-          for (const trigger of req.triggers ?? []) {
-            expect(await triggerExists(trigger)).toBe(true);
-          }
+          await assertOwnedObjectsPresent(req);
         });
       }
     },

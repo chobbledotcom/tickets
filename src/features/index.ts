@@ -627,13 +627,10 @@ const prepareRequestEnvironment = async (
   // (enableFooterDebug, after auth). Non-admin requests skip the overhead.
   if (method === "GET" && getPrefix(path) === "admin") enableQueryLog();
 
-  // Kick off the settings-version probe immediately so the tiny query overlaps
-  // the rest of request setup; loadKeys below awaits its result.
-  settings.prefetchVersion();
-
   // Load only the settings this route needs (infra ∪ prefix bundle) in one
-  // targeted query. When the settings version is unchanged since this isolate
-  // last loaded, the cached snapshot is reused with no reload or decryption.
+  // targeted query, awaiting the version probe prefetched in processRequest.
+  // When the version is unchanged since this isolate last loaded, the cached
+  // snapshot is reused with no reload or decryption.
   await settings.loadKeys(settingsForPath(path));
 
   // Schedule DB pruning as fire-and-forget pending work. Each prune task
@@ -782,14 +779,24 @@ const processRequest = async (
     // prepareRequestEnvironment() refines this once settings are loaded.
     seedEffectiveDomainHost(url.href);
 
-    const notActivated = await initializeDatabaseForPath(path);
-    if (notActivated) {
-      return finish(notActivated);
-    }
-
+    // A tracked URL is a pure redirect: answer it before the prefetch and
+    // initDb so the request touches the database not at all.
     const trackingRedirect = trackingParamRedirect(url, method);
     if (trackingRedirect) {
       return finish(trackingRedirect);
+    }
+
+    // Start the settings-version probe so its round trip overlaps the schema
+    // state check below. Not on setup paths: the settings table may not
+    // exist until initDb bootstraps it, and the request cache would share
+    // the probe's still-pending failure with the post-bootstrap loadKeys.
+    if (!isSetupPath(path)) {
+      settings.prefetchVersion();
+    }
+
+    const notActivated = await initializeDatabaseForPath(path);
+    if (notActivated) {
+      return finish(notActivated);
     }
 
     await prepareRequestEnvironment(bufferedRequest, path, method);

@@ -26,6 +26,7 @@ import {
   queryAll,
 } from "#shared/db/client.ts";
 import { recordSettingRead } from "#shared/db/settings-audit.ts";
+import { addPendingWork } from "#shared/pending-work.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 
@@ -79,7 +80,10 @@ export const currentVersion = async (): Promise<number> =>
 /** Start fetching the settings version as early as possible in a request, so
  *  the tiny query overlaps the rest of request setup; loadKeys awaits it. */
 export const prefetchVersion = (): void => {
-  void versionProbe.getAll();
+  // Failure dropped (a fresh install has no settings table; loadKeys
+  // re-fetches). Pending work so early returns that skip loadKeys still
+  // settle the probe before responding — Bunny kills post-response fetches.
+  addPendingWork(versionProbe.getAll().catch(() => {}));
 };
 
 /**
