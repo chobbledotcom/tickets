@@ -130,5 +130,6 @@ What changed:
 - Both benchmarks stay in `scripts/bench/cold-start/` for before/after runs.
 - `test/lib/cold-boot-queries.test.ts` locks the boot query chain — a new
   boot query fails the suite.
-- The boot log reads `App started (123ms)`, so regressions show up in
-  production debug logs.
+- The boot log splits its total into runtime and bundle loading, first-request
+  wait, boot setup, and Sentry initialization, so regressions show up in
+  production debug logs: `App started (123ms: runtime + bundle load 100ms, request wait 2ms, boot setup 1ms, Sentry 20ms)`.
