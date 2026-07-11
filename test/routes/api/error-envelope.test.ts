@@ -7,7 +7,7 @@ import { expectCorsHeaders } from "./helpers.ts";
 describe("jsonError", () => {
   test("wraps the message in the { error } envelope via the given responder", async () => {
     const seen: { data: unknown; status?: number }[] = [];
-    const respond = jsonError((data, status) => {
+    const respond = jsonError((data, status = 200) => {
       seen.push({ data, status });
       return new Response(null, { status });
     });
@@ -18,7 +18,7 @@ describe("jsonError", () => {
 
   test("defaults the status to 400", () => {
     const respond = jsonError(
-      (_data, status) => new Response(null, { status }),
+      (_data, status = 200) => new Response(null, { status }),
     );
     expect(respond("bad input").status).toBe(400);
   });
