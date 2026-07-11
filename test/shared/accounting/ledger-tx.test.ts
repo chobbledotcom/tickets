@@ -64,6 +64,14 @@ describe("db > accounting > ledger-tx", () => {
     expect(await readIncome(1)).toBe(8000);
   });
 
+  test("correct.income lowers income onto a lower target", async () => {
+    await postListingSale({ attendeeId: 1, gross: 5000, listingId: 1 });
+    // Steering down to 2000 posts a negative delta (a write-off debit) — the
+    // reverse direction of the raise above.
+    await inOwnTx(ledgerTx.correct.income)(1, 2000);
+    expect(await readIncome(1)).toBe(2000);
+  });
+
   test("correct.owed lowers what an attendee owes onto the target", async () => {
     // An unpaid sale leaves attendee 1 owing 5000.
     await postTransfers([
@@ -81,11 +89,32 @@ describe("db > accounting > ledger-tx", () => {
     expect(await readOwed(1)).toBe(2000);
   });
 
-  test("correct.modifierRevenue moves a modifier's net revenue onto the target", async () => {
+  test("correct.owed raises what an attendee owes onto a higher target", async () => {
+    await postTransfers([
+      tx({
+        destination: account("revenue", 1),
+        reference: "unpaid-sale",
+        source: account("attendee", 1),
+      }),
+    ]);
+    // Raising owed 5000 → 7000 is the reverse direction: it debits the attendee
+    // (owed moves against the target, so a higher target posts a negative credit).
+    await inOwnTx(ledgerTx.correct.owed)(1, 7000);
+    expect(await readOwed(1)).toBe(7000);
+  });
+
+  test("correct.modifierRevenue raises a modifier's net revenue onto the target", async () => {
     await postModifierLeg({ delta: 1000, modifierId: 3 });
     expect(await readModifierRevenue(3)).toBe(1000);
 
     await inOwnTx(ledgerTx.correct.modifierRevenue)(3, 2500);
     expect(await readModifierRevenue(3)).toBe(2500);
+  });
+
+  test("correct.modifierRevenue lowers a modifier's net revenue onto the target", async () => {
+    await postModifierLeg({ delta: 2500, modifierId: 3 });
+    // The reverse direction: steering revenue down to 1000 posts a negative delta.
+    await inOwnTx(ledgerTx.correct.modifierRevenue)(3, 1000);
+    expect(await readModifierRevenue(3)).toBe(1000);
   });
 });
