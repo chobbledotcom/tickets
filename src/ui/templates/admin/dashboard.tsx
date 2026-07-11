@@ -4,6 +4,7 @@
 
 import { filter, joinStrings, map, pipe, unique } from "#fp";
 import { t } from "#i18n";
+import { adminPath } from "#shared/admin-surface.ts";
 import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
 import {
   type ColumnGenerators,
@@ -240,7 +241,7 @@ const upcomingServicingRow = (event: ServicingEventSummary) => {
   ].filter(Boolean);
   return (
     <li>
-      <WritableLink href={`/admin/servicing/${event.id}`}>
+      <WritableLink href={adminPath("servicingEdit", { id: event.id })}>
         {event.name}
       </WritableLink>{" "}
       <span class="muted">{details.join(" · ")}</span>

@@ -1,4 +1,5 @@
 import { t } from "#i18n";
+import { adminPath } from "#shared/admin-surface.ts";
 import type {
   ListingAggregateField,
   ListingAggregateRecalculation,
@@ -100,7 +101,9 @@ export const ListingAggregateMismatchRow = ({
       ...(isReadOnly()
         ? {}
         : {
-            actionHref: `/admin/listings/recalculate/${listing.id}`,
+            actionHref: adminPath("listingRecalculate", {
+              listingId: listing.id,
+            }),
             actionLabel: t("listings_table.running_totals_error_action"),
           }),
       explanation: t("listings_table.running_totals_error_explanation"),

@@ -209,6 +209,7 @@ describe("adminListingPage details table", () => {
     expect(html).toContain("expected <strong>1</strong>, got");
     expect(html).toContain("Mismatch");
     expect(html).not.toContain("Click for info");
+    expect(html).toContain(`/admin/listings/recalculate/${listing.id}`);
   });
 
   test("shows a running-total mismatch without its repair link in read-only mode", () => {

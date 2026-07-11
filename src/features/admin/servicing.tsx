@@ -17,6 +17,7 @@ import {
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { adminPath } from "#shared/admin-surface.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import {
@@ -298,7 +299,7 @@ const serviceEventListRows = (
     return (
       <tr class="servicing-event" data-servicing="true">
         <td>
-          <WritableLink href={`/admin/servicing/${event.id}`}>
+          <WritableLink href={adminPath("servicingEdit", { id: event.id })}>
             {event.name}
           </WritableLink>
         </td>

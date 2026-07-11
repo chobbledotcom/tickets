@@ -66,6 +66,7 @@ describeWithEnv("AdminNav", {}, () => {
     .filter((route) => route.nav?.kind === "create")
     .map((route) => ({
       route,
+      // Every destination section is declared by the shared ADMIN_SURFACE schema.
       section: ADMIN_SURFACE.sections.find(
         (section) => section.id === route.section,
       )!,
