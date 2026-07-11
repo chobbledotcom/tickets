@@ -149,6 +149,25 @@ describeWithEnv("db > query > id-keyed lookups", { db: true }, () => {
     expect(map.has(beta)).toBe(false);
   });
 
+  test("columnMapByIds carries string columns, not just numbers", async () => {
+    const alpha = await insertStatus("Alpha", 1);
+    const beta = await insertStatus("Beta", 2);
+
+    const map = await columnMapByIds<string>(
+      "attendee_statuses",
+      "status",
+      "name",
+      [alpha, beta],
+    );
+
+    expect(map).toEqual(
+      new Map([
+        [alpha, "Alpha"],
+        [beta, "Beta"],
+      ]),
+    );
+  });
+
   test("columnMapByIds returns an empty map for empty ids", async () => {
     expect(
       await columnMapByIds("attendee_statuses", "status", "sort_order", []),

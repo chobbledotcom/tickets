@@ -23,7 +23,7 @@ import {
   queryOne,
   rowExists,
 } from "#shared/db/client.ts";
-import { nameMapByIds, rowsByIds } from "#shared/db/query.ts";
+import { columnMapByIds, nameMapByIds, rowsByIds } from "#shared/db/query.ts";
 import type { Attendee } from "#shared/types.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 
@@ -511,16 +511,10 @@ export const getAttendeeNamesByIds = (
 
 /** Bounded id → kind lookup for attendee-linked admin surfaces. Empty ids ⇒
  * empty map. Unknown/deleted ids are omitted. */
-export const getAttendeeKindsByIds = async (
+export const getAttendeeKindsByIds = (
   ids: number[],
-): Promise<Map<number, string>> => {
-  const rows = await rowsByIds<{ id: number; kind: string }>(
-    ids,
-    (placeholders) =>
-      `SELECT id, kind FROM attendees WHERE id IN (${placeholders})`,
-  );
-  return new Map(rows.map((row) => [row.id, row.kind]));
-};
+): Promise<Map<number, string>> =>
+  columnMapByIds<string>("attendees", "attendee", "kind", ids);
 
 /**
  * Get an attendee by ID (decrypted)
