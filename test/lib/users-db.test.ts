@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { hashPassword, hmacHash } from "#shared/crypto/hashing.ts";
-import { getDb, insert } from "#shared/db/client.ts";
+import { execute, getDb, insert } from "#shared/db/client.ts";
 import {
   createInvitedUser,
   decryptAdminLevel,
@@ -29,14 +29,14 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const queries: string[] = [];
       const restore = recordQueries(queries);
       try {
-        expect(await getUserAuthFieldsById(1)).toEqual({
-          admin_level: expect.any(String),
-          id: 1,
-        });
-        expect(await getUserAuthFieldsById(1)).toEqual({
-          admin_level: expect.any(String),
-          id: 1,
-        });
+        const before = await getUserAuthFieldsById(1);
+        expect(await decryptAdminLevel(before!)).toBe("owner");
+        await execute("UPDATE users SET admin_level = ? WHERE id = ?", [
+          await encrypt("manager"),
+          1,
+        ]);
+        const after = await getUserAuthFieldsById(1);
+        expect(await decryptAdminLevel(after!)).toBe("manager");
       } finally {
         restore();
       }
