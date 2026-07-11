@@ -458,9 +458,10 @@ PR #1736 relocated ~100 test files to their sources' mirror paths. CodeRabbit
 reviewed the moved content as if new and left two refactor suggestions that are
 valid but bigger than that PR's rename-only remit, so they're recorded here:
 
-- **`test/features/wallet/google.test.ts`** — the four settings-validation
-  tests ("requires Issuer ID", "requires Service Account Email", "requires
-  private key on initial setup", "rejects invalid PEM private key") repeat the
+- **`test/features/admin/settings-wallets.test.ts`** — the four
+  settings-validation tests ("requires Issuer ID", "requires Service Account
+  Email", "requires private key on initial setup", "rejects invalid PEM
+  private key") repeat the
   same login → POST → flash-redirect scaffolding, differing only in the blanked
   field and expected message. Fold them into one table-driven test, following
   the "advanced redirect" cases in
