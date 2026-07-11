@@ -249,6 +249,20 @@ describe("adminListingPage roster and attendees", () => {
     expect(html).toContain('class="danger-text"');
     expect(html).toContain("0 remain");
   });
+
+  test("shows danger-text on the total count for a near-capacity daily listing without a date filter", () => {
+    const dailyListing = testListingWithCount({
+      attendee_count: 91,
+      listing_type: "daily",
+      max_attendees: 100,
+    });
+    const html = renderListingDetail({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing: dailyListing,
+    });
+    expect(html).toContain('class="danger-text">91<');
+  });
 });
 
 describe("adminListingPage optional fields", () => {

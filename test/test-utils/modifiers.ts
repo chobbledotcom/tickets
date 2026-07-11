@@ -116,7 +116,7 @@ const modifierUsageSum =
   async (modifierId: number): Promise<number> => {
     const { rows } = await getDb().execute({
       args: [modifierId],
-      sql: `SELECT COALESCE(SUM(${column}), 0) AS total FROM modifier_usages WHERE modifier_id = ?`,
+      sql: `SELECT COALESCE(SUM(modifierUsage.${column}), 0) AS total FROM modifier_usages AS modifierUsage WHERE modifierUsage.modifier_id = ?`,
     });
     return Number(rows[0]!.total);
   };

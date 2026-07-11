@@ -534,20 +534,6 @@ const buildCheckoutOptions = (
   phone: normalizeCheckoutPhone(intent.phone),
 });
 
-/** Shared setup for payment link creation: resolves config for the assembled
- * (already cap-enforced) metadata. */
-const preparePaymentLink = (
-  metadata: Record<string, string>,
-  label: string,
-): PreparedLink | null => {
-  const config = getPaymentLinkConfig();
-  if (!config) return null;
-
-  logDebug("Square", `Creating ${label}`);
-
-  return { config, metadata };
-};
-
 /** Type for the Square API client returned by createSquareClient */
 export type SquareClient = ReturnType<typeof createSquareClient>;
 
@@ -575,11 +561,21 @@ export const squareApi: {
     // and the signed proof, so the two can never disagree (see #1300).
     const order = priceCheckout(intent);
 
-    const prep = preparePaymentLink(
-      await assembleCheckoutMetadata("square", intent, order.total),
-      `payment link for ${intent.items.length} listing(s)`,
+    // Resolve config before assembling metadata: a missing payment-link
+    // config must return null before an over-cap cart can throw its
+    // "too many listings" user error.
+    const config = getPaymentLinkConfig();
+    if (!config) return null;
+
+    logDebug(
+      "Square",
+      `Creating payment link for ${intent.items.length} listing(s)`,
     );
-    if (!prep) return null;
+
+    const prep: PreparedLink = {
+      config,
+      metadata: await assembleCheckoutMetadata("square", intent, order.total),
+    };
 
     const lineItems = buildProviderLineItems<SquareLineItem>(
       order,

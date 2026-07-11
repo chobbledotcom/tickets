@@ -34,15 +34,10 @@ const submitMultiTicketFormWithStubbedCheckout = async (
   stubSessionId: string,
 ): Promise<void> => {
   const { stubCheckout } = await import("#test-utils/checkout.ts");
-  const { checkout } = stubCheckout(stubSessionId);
+  using _checkout = stubCheckout(stubSessionId).checkout;
   const { expectCheckoutRedirect } = await import("#test-utils/assertions.ts");
   const { submitMultiTicketForm } = await import("#test-utils/csrf.ts");
-  try {
-    const checkoutResponse = await submitMultiTicketForm(slug, formData);
-    expectCheckoutRedirect(checkoutResponse);
-  } finally {
-    checkout.restore();
-  }
+  expectCheckoutRedirect(await submitMultiTicketForm(slug, formData));
 };
 
 /** Fetch both listings' attendees, assert each has exactly one and that

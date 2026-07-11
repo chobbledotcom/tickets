@@ -84,9 +84,9 @@ export const captureCheckoutIntent = async (
 /** Stub the retrieved checkout session as the standard "John" buyer — the
  *  session shape the payment-flow suites share, varying only in the id, the
  *  items, and the agreed total. A paid session (the default) carries signed
- *  metadata and a payment intent (defaulting to `pi_<sessionId>`); pass
- *  `paid: false` for the cancelled variant — unsigned metadata, no payment
- *  intent, and a zero total, as an abandoned checkout retrieves. */
+ *  metadata and a payment intent; pass `paid: false` for the cancelled
+ *  variant — unsigned metadata, no payment intent, and a zero total, as an
+ *  abandoned checkout retrieves. */
 export const johnCheckoutSession = (
   sessionId: string,
   opts:
@@ -95,7 +95,7 @@ export const johnCheckoutSession = (
         paid?: true;
         items: string;
         amountTotal: number;
-        paymentIntent?: string;
+        paymentIntent: string;
       },
 ) =>
   opts.paid === false
@@ -115,7 +115,7 @@ export const johnCheckoutSession = (
         email: "john@example.com",
         items: opts.items,
         name: "John",
-        paymentIntent: opts.paymentIntent ?? `pi_${sessionId}`,
+        paymentIntent: opts.paymentIntent,
         sessionId,
       });
 

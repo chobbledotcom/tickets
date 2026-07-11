@@ -112,14 +112,6 @@ export interface Table<Row, Input> {
   fromDb: (row: Row) => Promise<Row>;
   inputKeyMap: Record<string, string>;
 
-  /** Run one column's declared read transform (e.g. decrypt) on a stored
-   * value — identity when the column declares none or the value is null. For
-   * reading a single column back without building a whole row. */
-  readColumn: <K extends keyof Row & string>(
-    col: K,
-    value: Row[K],
-  ) => Promise<Row[K]>;
-
   /** Insert a new row, returns the created row */
   insert: (input: Input) => Promise<Row>;
   /** Build the INSERT statement without executing it (for transactional callers).
@@ -127,6 +119,14 @@ export interface Table<Row, Input> {
   insertStatement?: (input: Input) => Promise<{ sql: string; args: InValue[] }>;
   name: string;
   primaryKey: keyof Row & string;
+
+  /** Run one column's declared read transform (e.g. decrypt) on a stored
+   * value — identity when the column declares none or the value is null. For
+   * reading a single column back without building a whole row. */
+  readColumn: <K extends keyof Row & string>(
+    col: K,
+    value: Row[K],
+  ) => Promise<Row[K]>;
 
   /**
    * Build an Input object from an existing Row by copying the input-eligible
