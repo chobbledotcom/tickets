@@ -28,7 +28,7 @@ import { qrBookErrorPage } from "#templates/public/errors.tsx";
 import type {
   BookingPrefill,
   TicketPrefill,
-} from "#templates/public/reservations/inputs.ts";
+} from "#templates/public/reservations/types.ts";
 import { getTicketContext, runCheckoutFlow } from "./ticket-payment.ts";
 import { handleTicket } from "./ticket-submit.ts";
 

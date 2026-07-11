@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { MIGRATION_IDS, SCHEMA_HASH } from "#shared/db/migrations.ts";
+import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
+import { SCHEMA_HASH } from "#shared/db/migrations.ts";
 
 describe("db > migrations > schema change guard", () => {
   // If this test fails, SCHEMA was changed. Existing production databases

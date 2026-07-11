@@ -445,6 +445,37 @@ Starting point: each entry's full rationale is in the file next to the line
 numbers above; the mutation harness is `deno task mutation --source <file>
 --test <suite>`.
 
+## Dead-export scanner matches raw text (from PR #1745 review)
+
+`test/lib/code-quality/detectors.ts` scans raw file contents when deciding
+whether an export is used (`IMPORT_CLAUSES` → `isSymbolImported` /
+`importedSymbolsOf`, and `isUsedInSameFile`). A clause-shaped snippet inside a
+comment, JSDoc, or string literal therefore registers a phantom "usage" — a
+CodeRabbit review on PR #1745 pointed out a JSDoc example in that very file
+doing this (fixed by rewording the comment), and the fixture strings in
+`detectors.test.ts` still contribute contrived names like `routeFoo` to the
+test-corpus symbol set. Consequences are mild today: a phantom symbol in the
+src corpus can silently mask a genuinely dead export of the same name; one in
+the test corpus can only make an export look test-used (which then flags it,
+loudly). This is a long-standing property of the whole detector file, not new
+to the dynamic-import clauses.
+
+Proposed fix (the reviewer suggested syntax-aware parsing): a code-only
+preprocessing pass before matching. The file already has the pieces — the
+call-site scanner's `skipString`/`skipComment` lexer helpers skip comments and
+string literals correctly. The pass must drop BOTH comments and ordinary
+string/template-literal contents from the matchable text (a fixture string
+containing `import { foo }` is exactly the stated failure mode), while still
+letting the lazyExport clause see its quoted name — lazyExport names live
+INSIDE a string literal (`…, "routeAdmin")`), so either match the lazyExport
+shape before stripping and stitch its names in, or blank string contents
+except when the lexer sees the string directly in lazyExport's second-argument
+position. Add regression coverage for import-shaped text in a line comment, a
+JSDoc block, and an ordinary string/template literal, plus a lazyExport entry
+that must still be detected after the pass. Out of scope for
+PR #1745 (cold-start work; the detector change there was collateral hardening)
+— the concrete self-match it introduced was fixed in-place instead.
+
 ## Stop patching @std/expect's `toContain` (from PR #1712)
 
 `test/test-utils/fast-expect.ts` globally overrides `@std/expect`'s built-in
@@ -524,18 +555,7 @@ helper) before the brace-depth checks, and add a direct regression test for the
 comment-with-`}`-then-nested-template case asserting `parseArgList` doesn't
 misinterpret the comma.
 
-### 3. `foldOutcomeValid` should assert rejected folds preserve the prior quantity
-
-`test/lib/fold-tree.test.ts` — for the above-cap (rejected) case the validator
-checks `recordedQty !== running`, which only proves the quantity wasn't clamped
-to the attempted total; it doesn't prove the rejected fold left the *prior*
-recorded quantity unchanged.
-
-Fix direction: capture the recorded quantity before calling `foldChild`, thread
-it into `foldOutcomeValid`, and assert exact equality against that pre-fold
-value for rejected outcomes (retaining the accepted-case checks).
-
-### 4. `mutation.ts` CLI value flags should fail fast on a missing value
+### 3. `mutation.ts` CLI value flags should fail fast on a missing value
 
 `scripts/mutation.ts` — in `applyArg`, a recognized value flag (`--source`,
 `--test`, `--timeout`, `--jobs`) with no following token falls through and is

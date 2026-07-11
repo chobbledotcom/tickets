@@ -1,90 +1,46 @@
+/**
+ * Ticket page — register for one or more listings.
+ *
+ * The single entry point that wires together the booking tree, day-count config,
+ * contact fields, package/listing rows, child questions, and the form/header
+ * components into a full rendered page. Single listings show rich details (image,
+ * description, date, location); multiple listings show a compact row layout with
+ * per-listing quantity selectors (or package sections).
+ */
+
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { BuildTreeInput } from "#shared/booking/build-tree.ts";
-import {
-  bookableChildIds,
-  type ChildDatesByDayCount,
-  type TicketListing,
-} from "#shared/booking/model.ts";
+import { bookableChildIds } from "#shared/booking/model.ts";
 import { packageLimitInfo } from "#shared/booking/package-cap.ts";
-import {
-  explicitStandaloneIds,
-  type PagePackage,
-} from "#shared/booking/page-packages.ts";
+import { explicitStandaloneIds } from "#shared/booking/page-packages.ts";
 import { daysAgo } from "#shared/dates.ts";
-import type { ListingAttributesById } from "#shared/db/attributes.ts";
-// jscpd:ignore-start
-import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
-import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
-import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
 import { isReadOnly } from "#shared/env.ts";
-// jscpd:ignore-end
 import { type Field, Flash } from "#shared/forms.tsx";
 import { getIframeMode } from "#shared/iframe.ts";
-import type { Image, ItemImageProjection } from "#shared/types.ts";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { Layout } from "#templates/layout.tsx";
-import { splitChildQuestions } from "./child-block.ts";
-import { buildContactFields } from "./contact-fields.ts";
-import { dayConfig, resolveDayCountPriceFor } from "./day-config.ts";
-import { TicketPageForm, unavailableMessage } from "./form.tsx";
-import { TicketPageHeader } from "./header.tsx";
-import type { BookingPrefill } from "./inputs.ts";
-import { ticketPageHeadExtra } from "./og.ts";
-import { buildPageListingRows } from "./packages.ts";
 import {
   buildPageTree,
   headerListing,
-  type PaidContext,
   packagePageAvailability,
+  unavailableMessage,
+} from "./availability.ts";
+import {
+  buildContactFields,
   pageOrChildPaid,
   pagePaid,
-} from "./page-meta.ts";
-
-/** Quantity values parsed from ticket form */
-export type TicketQuantities = Map<number, number>;
-
-/** Options for the ticket page */
-export type TicketPageOptions = {
-  listings: TicketListing[];
-  slugs: string[];
-  error?: string;
-  dates?: string[];
-  terms?: string | null;
-  questions?: QuestionWithAnswers[];
-  questionListingMap?: QuestionListingMap;
-  baseUrl?: string;
-  groupName?: string;
-  groupDescription?: string;
-  groupImage?: ItemImageProjection;
-  /** The header entity's images, shown as the shared CSS gallery above the
-   * form (empty ⇒ falls back to the single header image). */
-  galleryImages?: readonly Image[];
-  /** Selected listing attributes, populated only on render paths. */
-  attributesByListing?: ListingAttributesById;
-  prefill?: BookingPrefill | undefined;
-  /** Override the <form action="…"> URL. Defaults to `/ticket/<slugs>`. */
-  actionUrl?: string;
-  /** Opt-in add-ons to offer below the questions. */
-  addOns?: AddOnOption[];
-  /** Whether to offer a promo-code field. */
-  promoCodesEnabled?: boolean;
-  /** Parent listing id → its children. Drives the per-parent child selector
-   * rendered under each parent row. */
-  childrenByParentId?: Map<number, TicketListing[]>;
-  /** Daily-child start dates for each parent day count. */
-  childDatesById?: ReadonlyMap<string, ChildDatesByDayCount>;
-  /** Remaining spots for limited groups. */
-  groupRemainingByGroupId?: ReadonlyMap<number, number>;
-  /** Groups each listing belongs to. */
-  groupIdsByListingId?: ReadonlyMap<number, number[]>;
-  /** The package bundles sold on this page, in page order. Each package's
-   * members render under its own count selector instead of per-member
-   * quantities; listings outside every package keep their own controls. */
-  packages?: PagePackage[];
-  /** Remaining spots for package member groups. */
-  packageGroupRemainingByGroupId?: ReadonlyMap<number, number>;
-  packageMemberGroupIds?: ReadonlyMap<number, number[]>;
-};
+} from "./contact-fields.ts";
+import {
+  dayConfig,
+  resolveDayCountPriceFor,
+  splitChildQuestions,
+} from "./day-config.ts";
+import { TicketPageForm, TicketPageHeader } from "./form.tsx";
+import { buildPageListingRows } from "./listing-rows.ts";
+import { ticketPageHeadExtra } from "./og-tags.ts";
+import type { TicketPageOptions } from "./types.ts";
+/* jscpd:ignore-end */
 
 /**
  * Ticket page - register for one or more listings
@@ -148,12 +104,12 @@ export const ticketPage = ({
     ),
   );
   const allClosed = listings.every((e) => e.isClosed);
-  const paidCtx: PaidContext = { addOns, packages, standaloneRowIds };
+  const paidInput = { addOns, listings, packages, standaloneRowIds };
   const fields: Field[] = buildContactFields(
     listings,
     childrenByParentId,
-    pagePaid(listings, paidCtx),
-    pageOrChildPaid(listings, childrenByParentId, paidCtx),
+    pagePaid(paidInput),
+    pageOrChildPaid({ ...paidInput, childrenByParentId }),
   );
   const hasDaily = listings.some((e) => e.listing.listing_type === "daily");
 

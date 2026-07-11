@@ -94,31 +94,8 @@ export const withAuthAndEntity = <T>(
   )(loader);
 
 /**
- * Compose a session-dependent entity loader with auth guards.
- * Returns { get, post } handlers that handle auth + entity loading.
- */
-export const withAuthEntityHandlers =
-  <T>(loader: (id: number) => Promise<T | null>) =>
-  (request: Request, id: number) => ({
-    get: (
-      handler: (
-        request: Request,
-        session: AuthSession,
-        entity: T,
-      ) => Response | Promise<Response>,
-    ) => withSessionAndEntity(loader)(request, id)(handler),
-    post: (
-      handler: (
-        session: AuthSession,
-        form: FormParams,
-        entity: T,
-      ) => Response | Promise<Response>,
-    ) => withAuthAndEntity(loader)(request, id)(handler),
-  });
-
-/**
- * Curried factory for GET/POST entity route handler pairs.
- * Eliminates boilerplate of calling withAuthEntityHandlers twice.
+ * Curried factory for GET/POST entity route handler pairs: auth guard plus
+ * entity loading for both verbs in one call.
  *
  * Usage:
  *   const handlers = createEntityRouteHandlers(loader, p => p.attendeeId);

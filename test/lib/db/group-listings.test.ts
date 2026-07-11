@@ -8,7 +8,7 @@ import {
   setGroupPackageMembers,
   setListingGroups,
 } from "#shared/db/groups.ts";
-import { MIGRATIONS } from "#shared/db/migrations.ts";
+import { loadMigrations } from "#shared/db/migrations.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestGroup,
@@ -16,6 +16,7 @@ import {
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
+const MIGRATIONS = await loadMigrations();
 const sortNums = (ns: number[]): number[] => ns.toSorted((a, b) => a - b);
 
 /** Assert a listing belongs to exactly `ids` (order-independent). */

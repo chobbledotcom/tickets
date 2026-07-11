@@ -1,4 +1,12 @@
+/** Day-count selection config and child-question splitting for the booking form.
+ * `dayConfig` derives the shared "number of days" selector (and per-option
+ * pricing on a single-listing page) from the page's listings; `splitChildQuestions`
+ * splits the page's questions into the page-level set (rendered required) and the
+ * per-parent child render context (child-only questions rendered non-required). */
+
+/* jscpd:ignore-start */
 import {
+  type ChildDatesByDayCount,
   dayCountsEveryListingSupports,
   keepParentDayCountsChildrenSupport,
   packageDayCountsChildrenSupport,
@@ -6,7 +14,14 @@ import {
 } from "#shared/booking/model.ts";
 import { packageBundleTotal } from "#shared/booking/price-tree.ts";
 import type { BookingTree } from "#shared/booking/tree.ts";
+import type { ListingAttributesById } from "#shared/db/attributes.ts";
+import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
+import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
 import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
+import { foldReserveByChildId } from "./child-pricing.ts";
+import type { ChildRenderCtx } from "./types.ts";
+
+/* jscpd:ignore-end */
 
 /** On a customisable PACKAGE page, one whole bundle's price for a given day
  * count: each member node's effective per-unit price for that span (its flat
@@ -74,3 +89,46 @@ export const dayConfig = (
         ),
   hasCustomisable: listings.some((e) => e.listing.customisable_days),
 });
+
+/**
+ * Split the page's questions into the page-level set (rendered required in the main
+ * block) and the per-parent child render context (child-only questions rendered
+ * non-required under their parent). A question shared by a page listing and a child
+ * renders at page level once, so the child ctx's `rendered` set is pre-seeded with
+ * the page question ids. Without parents the page set is unchanged and there is no
+ * child ctx.
+ */
+export const splitChildQuestions = (
+  listings: TicketListing[],
+  questions: QuestionWithAnswers[],
+  questionListingMap: QuestionListingMap | undefined,
+  childrenByParentId: Map<number, TicketListing[]> | undefined,
+  groupRemainingByGroupId: ReadonlyMap<number, number>,
+  childDatesById: ReadonlyMap<string, ChildDatesByDayCount>,
+  groupIdsByListingId: ReadonlyMap<number, number[]>,
+  attributesByListing: ListingAttributesById,
+): { pageQuestions: QuestionWithAnswers[]; childCtx?: ChildRenderCtx } => {
+  if (!childrenByParentId || childrenByParentId.size === 0) {
+    return { pageQuestions: questions };
+  }
+  const pageListingIds = new Set(listings.map((e) => e.listing.id));
+  const isPageQuestion = (q: QuestionWithAnswers): boolean => {
+    const ids = questionListingMap?.get(q.id);
+    return !ids || ids.some((id) => pageListingIds.has(id));
+  };
+  const pageQuestions = questions.filter(isPageQuestion);
+  return {
+    childCtx: {
+      attributesByListing,
+      childDatesById,
+      children: childrenByParentId,
+      foldReserveByChildId: foldReserveByChildId(listings, childrenByParentId),
+      groupIdsByListingId,
+      groupRemainingByGroupId,
+      questionListingMap,
+      questions,
+      rendered: new Set<number>(pageQuestions.map((q) => q.id)),
+    },
+    pageQuestions,
+  };
+};
