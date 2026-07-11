@@ -1,11 +1,15 @@
-import type { Child } from "#jsx/jsx-runtime.ts";
+import { type Child, SafeHtml } from "#jsx/jsx-runtime.ts";
 import { isReadOnly } from "#shared/env.ts";
 
+// Returns an empty SafeHtml (not null) in read-only mode: the JSX factory
+// wraps a component's return value with `new SafeHtml(result)`, so a `null`
+// return serialises to the literal text "null" instead of disappearing.
+// An empty SafeHtml keeps these controls truly hidden on read-only pages.
 export const WritableOnly = ({
   children,
 }: {
   children: JSX.Element;
-}): JSX.Element | null => (isReadOnly() ? null : children);
+}): JSX.Element => (isReadOnly() ? new SafeHtml("") : children);
 
 export const WritableLink = ({
   children,
