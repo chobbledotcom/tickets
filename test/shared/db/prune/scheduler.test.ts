@@ -149,15 +149,11 @@ describeWithEnv("db > prune scheduler", { db: true }, () => {
       ).toISOString();
       await insertFinalizedPayment("sess_marker_failure", old);
       await clearAllLastPruned();
-      const batchStub = stub(getDb(), "batch", () =>
+      using _batchStub = stub(getDb(), "batch", () =>
         Promise.reject(new Error("marker write failed")),
       );
 
-      try {
-        await maybeRunPrunes();
-      } finally {
-        batchStub.restore();
-      }
+      await maybeRunPrunes();
 
       expect(await paymentExists("sess_marker_failure")).toBe(true);
       expect(settings.lastPrunedPayments).toBe("");

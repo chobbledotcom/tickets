@@ -29,8 +29,14 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const queries: string[] = [];
       const restore = recordQueries(queries);
       try {
-        expect((await getUserAuthFieldsById(1))?.id).toBe(1);
-        expect((await getUserAuthFieldsById(1))?.id).toBe(1);
+        expect(await getUserAuthFieldsById(1)).toEqual({
+          admin_level: expect.any(String),
+          id: 1,
+        });
+        expect(await getUserAuthFieldsById(1)).toEqual({
+          admin_level: expect.any(String),
+          id: 1,
+        });
       } finally {
         restore();
       }
