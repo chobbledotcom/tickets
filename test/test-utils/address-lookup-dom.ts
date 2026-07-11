@@ -33,6 +33,13 @@ export const panelSpec = (): ElementSpec => ({
   tag: "div",
 });
 
+/** The differences-notice output element, as an element spec. */
+export const diffSpec = (): ElementSpec => ({
+  data: { addressDiff: "", diffHeading: "Differs:" },
+  hidden: true,
+  tag: "output",
+});
+
 /** Let an async search settle (fetch → json → DOM writes). */
 export const flushLookup = async (): Promise<void> => {
   for (let i = 0; i < 3; i++) {

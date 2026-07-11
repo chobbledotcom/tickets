@@ -197,7 +197,7 @@ descriptors — PRs #1478 and others). A weak-assertion audit script also exists
   mutation cost comes down.
 
 - **Property-based tests (item 5).** `fast-check` is currently used in only one
-  test (`test/lib/fold-tree.test.ts`). Add properties for: slug generation, CSV
+  test (`test/shared/booking/fold-tree.test.ts`). Add properties for: slug generation, CSV
   round-trips (commas / quotes / CRLF), date formatting across timezones, token
   parsers, and URL safety.
 - **Weak-assertion audit lifecycle (item 6).** The script exists but isn't wired
@@ -451,6 +451,26 @@ its test, the `--preload` flag in both runners, and the "Fast Tests" note that
 documents the override. Confirm the suite's slow-test report
 (`SLOW_TEST_THRESHOLD_MS`) doesn't regress. Start points: `fast-expect.ts` for
 what it did and why, and grep `\.toContain(` under `test/` for the call sites.
+
+## Deferred CodeRabbit suggestions from PR #1736 (test-file mirror moves)
+
+PR #1736 relocated ~100 test files to their sources' mirror paths. CodeRabbit
+reviewed the moved content as if new and left two refactor suggestions that are
+valid but bigger than that PR's rename-only remit, so they're recorded here:
+
+- **`test/features/admin/settings-wallets.test.ts`** — the four
+  settings-validation tests ("requires Issuer ID", "requires Service Account
+  Email", "requires private key on initial setup", "rejects invalid PEM
+  private key") repeat the
+  same login → POST → flash-redirect scaffolding, differing only in the blanked
+  field and expected message. Fold them into one table-driven test, following
+  the "advanced redirect" cases in
+  `test/features/admin/settings-helpers/secret.test.ts`.
+- **`test/ui/client/admin/address-lookup/client.test.ts` +
+  `coords-diff.test.ts`** — both files define near-identical `formSpec` and
+  `one` selector helpers for the address-lookup DOM harness. Extract a shared
+  helper under `#test-utils` (or a sibling non-test file in the same folder)
+  and import it from both.
 
 ## Code-quality detector & test-strengthening follow-ups (from PR #1729)
 
