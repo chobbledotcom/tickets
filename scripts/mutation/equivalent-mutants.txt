@@ -880,3 +880,7 @@ src/features/admin/refunds/waves.ts:16:24  0 → 1   # packByReferenceCount's `c
 # the decryptPiiBlob run.
 src/shared/db/attendees/pii.ts:72:17  ?? → ||   # decryptPiiBlob's `blob.la ?? ""`: buildPiiBlob stores `info.lat || undefined`, so blob.la is a non-empty string or undefined — never "". The only falsy value is undefined, so `x ?? ""` and `x || ""` agree on every possible input
 src/shared/db/attendees/pii.ts:73:17  ?? → ||   # decryptPiiBlob's `blob.lo ?? ""`: same as la above — blob.lo is a non-empty string or undefined (buildPiiBlob stores `info.lng || undefined`), so `?? ""` and `|| ""` agree on every input
+
+# Unit-tests-report import attribution (unit-tests-report-imports.ts) — the
+# stem() dir-strip replacement value is unobservable.
+scripts/unit-tests-report-imports.ts:135:23   → "mutated"   # stem()'s first replace strips the directory before every `===` comparison in findMisplacedTests; both sides always have a leading `dir/` (tests live under test/, sources under src/), so the replacement string is prepended to both operands identically — stem(test) === stem(source) is invariant under its value

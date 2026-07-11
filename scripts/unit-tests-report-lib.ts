@@ -94,7 +94,9 @@ export const DEFAULT_OPTIONS: ReportOptions = {
   testRoot: "test",
 };
 
-const hasExemptPrefix = (path: string, prefixes: string[]): boolean =>
+/** Whether a path is on an exempt prefix (an exact match, or inside a
+ *  `dir/`-style prefix). Shared with the import-attribution module. */
+export const hasExemptPrefix = (path: string, prefixes: string[]): boolean =>
   prefixes.some((prefix) => path === prefix || path.startsWith(prefix));
 
 /** Count non-blank lines, so whitespace padding doesn't inflate the ratio. */

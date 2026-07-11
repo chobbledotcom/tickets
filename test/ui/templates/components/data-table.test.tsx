@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  type Column,
   type DataColumn,
+  DataTable,
   dataTable,
 } from "#templates/components/data-table.tsx";
 
@@ -72,5 +74,54 @@ describe("dataTable", () => {
     ])(rows);
     String(indexed);
     expect(seen).toEqual({ count: 2, i: 1 });
+  });
+
+  // The full serialisation for the `columns`/`rows` fixtures, parameterised by
+  // the optional <tfoot> — asserted exactly so a stray node fails.
+  const dtTable = (foot = ""): string =>
+    `<div class="table-scroll"><table>` +
+    `<thead><tr><th>Name</th><th class="col-amount">Amount</th></tr></thead>` +
+    `<tbody><tr><td><a href="/r/1">First</a></td>` +
+    `<td class="col-amount">10</td></tr>` +
+    `<tr><td><a href="/r/2">Second</a></td>` +
+    `<td class="col-amount">20</td></tr></tbody>${foot}</table></div>`;
+
+  test("wraps the table in a plain table-scroll div with no tfoot by default", () => {
+    // No scrollClass/tableClass and no foot — the whole serialisation is fixed.
+    expect(String(dataTable(columns)(rows))).toBe(dtTable());
+  });
+
+  test("renders the tfoot in its exact place when foot content is given", () => {
+    const withFoot = String(
+      dataTable(columns)(rows, { foot: <tr>{<td>Total</td>}</tr> }),
+    );
+    expect(withFoot).toBe(dtTable("<tfoot><tr><td>Total</td></tr></tfoot>"));
+  });
+});
+
+describe("DataTable row shapes", () => {
+  const cols: Column[] = [{ header: "H" }];
+  // The full serialisation for a single "H" column, parameterised by the tbody
+  // contents — asserted exactly so a stray or misplaced node fails the test.
+  const table = (body: string): string =>
+    `<div class="table-scroll"><table><thead><tr><th>H</th></tr></thead>` +
+    `<tbody>${body}</tbody></table></div>`;
+
+  test("wraps positional cell arrays in tr/td", () => {
+    expect(String(DataTable({ columns: cols, rows: [["cell-a"]] }))).toBe(
+      table("<tr><td>cell-a</td></tr>"),
+    );
+  });
+
+  test("renders pre-built <tr> elements as-is", () => {
+    expect(
+      String(DataTable({ columns: cols, rows: [<tr>{<td>pre</td>}</tr>] })),
+    ).toBe(table("<tr><td>pre</td></tr>"));
+  });
+
+  test("passes a pre-rendered HTML string straight into the tbody", () => {
+    expect(
+      String(DataTable({ columns: cols, rows: "<tr><td>raw</td></tr>" })),
+    ).toBe(table("<tr><td>raw</td></tr>"));
   });
 });
