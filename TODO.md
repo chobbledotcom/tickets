@@ -538,3 +538,151 @@ Fix direction: within the depth loop, skip line/block comments (a `skipComment`
 helper) before the brace-depth checks, and add a direct regression test for the
 comment-with-`}`-then-nested-template case asserting `parseArgList` doesn't
 misinterpret the comma.
+
+---
+
+## Restrictions audit — "why can't I combine X with Y?" follow-ups
+
+*Origin: an audit of every place the app refuses a combination a user might
+expect to work, aimed at cutting "why can't I select this?" support queries.
+Each restriction was judged on whether its reason is genuinely insurmountable
+(structure, money-correctness, capacity, privacy, security) or a soft limit
+worth relaxing. The clearest informative wins already shipped — the package
+"which listing and why" messages, the daily-add-on "needs a date" reason, the
+payment-provider "your other key is kept" note, and the free-text "can't set a
+price" note. What's left is captured below, split into rule-relaxations (let
+the combination through) and message/UX fixes (keep the rule, stop the user
+hitting it blind). None is a bug; all are pre-existing, deliberate behaviour.*
+
+### Keep the rule — stop the user hitting it blind
+
+- **SumUp is offered on a currency it can't use.** `src/features/admin/
+  settings-sumup.ts` rejects the key at save when `!isSumupCurrency(settings.
+  currency)`, but the SumUp radio in `src/ui/templates/admin/settings/
+  payment.tsx` is shown to everyone, so the operator only learns after pasting a
+  key — and currency is write-once after `/setup`, so they're cornered. Fix:
+  thread `currency` into `SettingsPageState` (add the field, set it in both
+  builders in `src/features/admin/settings-page.ts` ~lines 40 and 119 from
+  `settings.currency`) and render a note (or disable the radio) when
+  `!isSumupCurrency(currency)` — "SumUp isn't available for your currency (JPY)".
+  Cover both branches in `test/ui/templates/admin/settings.test.ts`. This is the
+  sharpest, highest-value trap; deferred here only because it needs the currency
+  threaded through, not just a copy tweak.
+
+- **An answer's price-modifier dropdown silently omits the operator's modifier.**
+  `src/features/admin/questions.ts` (`answerTriggerModifiers`) only lists
+  `trigger === "answer"` modifiers, so a "+£5" built as *Automatic* or an add-on
+  never appears and reads as a bug. Fix: add a hint by the selector (in the
+  answers UI, `src/ui/templates/admin/questions.tsx`) — "only answer-triggered
+  modifiers appear here; create one on the Modifiers page."
+
+- **Group-homogeneity messages are hardcoded English and terse.**
+  `groupListingTypeError` (`src/shared/db/groups.ts`) returns raw strings ("This
+  group already contains … listings — all listings in a group must be the same
+  type"), so they bypass the `I18N_REPLACEMENTS` rebranding pass and never say
+  *why*. Fix: move them into `src/locales/en/*.json`, add the reason (the group
+  shows one shared date/day-count selector, so members must match), and ideally
+  grey out incompatible listings in the add-listings picker rather than erroring
+  on save. Same treatment for the hardcoded "Customisable days cannot be combined
+  with Allow Pay More" in `src/shared/listings-actions.ts`.
+
+- **Two save-time either/ors would be clearer as disabled controls.**
+  (a) customisable-days vs Allow Pay More (`validateCustomisableDays`,
+  `src/shared/listings-actions.ts`) — the two fields sit in different form
+  sections, so the operator never sees them as related; (b) a paid-default status
+  that is also a reservation (`src/features/admin/settings-statuses.ts` ~line 69)
+  — both checkboxes render side by side. Fix: mutually disable the paired
+  controls client-side with a one-line "why", turning a save-time error into an
+  obvious affordance.
+
+- **"Refund processed but not recorded" reads like a failure.**
+  `src/shared/refund-ledger.ts` only auto-reverses a fully-paid clean account; on
+  a partial/credit/mixed account the provider refund fires but the operator sees
+  `error.refund_not_recorded` ("do not re-refund") with no next step. Fix: link
+  the manual-adjustment page straight from that flash and frame it as "one more
+  step", not an error.
+
+- **A multi-item cart with no shared date/length dies silently.**
+  `dayCountsEveryListingSupports` / `computeSharedDates` (`src/shared/booking/
+  model.ts`, `src/features/public/ticket-payment.ts`) leave the buyer with a bare
+  "No dates/booking lengths are currently available" when two items simply share
+  no common date or duration — undiagnosable mid-checkout. Fix: detect the
+  empty-intersection case and name the conflicting items ("these don't share a
+  common date — book them separately"). Highest buyer-facing value.
+
+- **A manager hits a bare "Forbidden" on owner-only pages.** `src/features/
+  auth.ts` (~line 462) returns plain text for users/statuses/bulk-email/settings.
+  Fix: ensure the nav hides these for managers (the "never render a forbidden
+  link" rule) and give the 403 an "owner-only" hint.
+
+- **A child's duration mismatch with its parent is invisible until you open both
+  day-price tables.** `children_err_child_duration` / `durationsCompatible`
+  (`src/shared/listing-parents-rules.ts`) states the rule but not the clash. Fix:
+  surface the actual mismatch at save time ("parent offers 2–3 days; this child
+  prices only 1").
+
+- **The order gallery advertises availability it can't honour** once required
+  children fold in — already tracked above under *Booking unification →
+  "`/order` live availability: fold required-child demand into options"*. Same
+  fix; cross-referenced here because it's the buyer-facing half of this audit.
+
+### Relax the rule — let the combination through
+
+- **Only one payment provider active at a time.** `getActivePaymentProvider`
+  (`src/shared/payments.ts`) reads a single `payment_provider` setting. This is
+  *not* forced by the webhook — `getWebhookSignatureHeader` already scans every
+  provider's signature header — so the block is the single scalar plus no
+  per-order provider choice. Relaxing needs checkout-time provider selection,
+  header-based webhook dispatch, and a multi-select UI. Reasonable to leave for a
+  single-merchant site; revisit if operators ask.
+
+- **Percentage modifiers capped at 100% even for surcharges.** `validateCalcValue`
+  (`src/shared/price-modifier.ts` ~line 88) checks the magnitude before the
+  charge/discount direction, so a +150% surcharge is wrongly rejected (the cap is
+  only correct for discounts). Fix: pass `direction` into `validateCalcValue` and
+  allow `> 100` when `direction === "charge"`. Small, self-contained; the ×2.5
+  multiplier is the current workaround.
+
+- **A status in use by attendees can't be deleted, with no way out.**
+  `src/features/admin/settings-statuses.ts` (~lines 200–221) blocks the delete
+  outright. Fix: add a "reassign these N attendees to <status>, then delete" flow
+  (the same move already used to retire a default status).
+
+- **The embed widget refuses to add a package to the cart.** `src/ui/client/
+  order.ts` (~line 489) force-navigates away from a package ("it could never
+  combine with other listings"), but the internal cart (`src/features/public/
+  cart.ts`) *does* combine packages with listings. Fix: add the package slug to
+  the running cart and build a multi-slug `/ticket/<slug>+<slug>` URL like the
+  internal gallery.
+
+- **An answer can trigger only one modifier.** `answers.modifier_id` is a scalar
+  (`src/shared/db/questions/aggregates.ts`). Everything downstream already handles
+  arbitrary modifier sets; only the link is one-to-one. Fix: an `answer_modifiers`
+  join table. Low frequency; do on demand.
+
+- **A package can't contain a pay-what-you-want listing.** `packageMemberBlock`
+  (`src/shared/package-membership.ts`) blocks it because a package needs a fixed
+  member price. Relaxable if you define bundle pricing for a pay-more member (use
+  its base price, or let the buyer choose within the bundle) — a semantics
+  decision, not a structural wall.
+
+- **A manager can't edit the public site, but a lower-trust editor can.**
+  `SITE_ADMIN_LEVELS` (`src/shared/types.ts` ~line 556) is `["owner","editor"]`
+  by history. Add `manager` if desired — a pure policy call.
+
+- **Two-level listing nesting (A→B, then B→C).** `childEdgeIneligibility`
+  (`src/features/admin/listings-parents.ts`) caps nesting at one level; the
+  booking fold-tree and `capacity-rules.ts` both assume exactly parent+child.
+  Real work (recursive fold + capacity), not a toggle — build only when a concrete
+  booking needs it. (See also the booking-unification phases above.)
+
+- **Child-scoped opt-in add-ons.** An add-on reachable only through a folded-in
+  child is blocked because "v1 has no child-scoped add-on render/parse path"
+  (`src/features/admin/listings-parents.ts`, `modifier-resolve.ts`). The
+  `bookable_alone` flag is the current escape hatch; the real fix is to build that
+  render/parse path.
+
+- **The same pay-what-you-want add-on under two parents must share one price.**
+  `foldChild` (`src/shared/booking/fold-tree.ts` ~line 281) keys the custom-price
+  map by listing id. Per-allocation pricing would allow different prices; niche,
+  do on demand.

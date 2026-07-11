@@ -209,9 +209,11 @@ describe("adminQuestionPage", () => {
       }),
       TEST_SESSION,
     );
-    // No add-answer form or answer heading — just an explanatory note.
+    // No add-answer form or answer heading — just an explanatory note that also
+    // tells the operator a free-text question can't drive a price.
     expect(html).not.toContain("/admin/questions/1/answers");
     expect(html).toContain("they have no answer options");
+    expect(html).toContain("can't change the price");
   });
 
   test("renders answers in a table with their selection totals", () => {
