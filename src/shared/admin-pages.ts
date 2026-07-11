@@ -9,8 +9,6 @@ import {
 } from "#shared/admin-surface.ts";
 import type { AdminLevel } from "#shared/types.ts";
 
-export type NavCtx = AdminSurfaceContext;
-
 export interface NavLink {
   readonly href: string;
   readonly labelKey: string;
@@ -22,8 +20,9 @@ export interface NavSection {
   readonly topHref: string;
 }
 
-const sectionById = (id: AdminSectionId) =>
-  ADMIN_SURFACE.sections.find((section) => section.id === id)!;
+const landingPattern = (
+  section: Pick<(typeof ADMIN_SURFACE.sections)[number], "landing">,
+): string => adminDestination(section.landing as AdminDestinationId).pattern;
 
 const navRoutesFor = (section: AdminSectionId) =>
   ADMIN_SURFACE.destinations.filter(
@@ -32,7 +31,7 @@ const navRoutesFor = (section: AdminSectionId) =>
 
 const sectionVisible = (
   section: (typeof ADMIN_SURFACE.sections)[number],
-  ctx: NavCtx,
+  ctx: AdminSurfaceContext,
 ): boolean => {
   const landing = adminDestination(section.landing as AdminDestinationId);
   return (
@@ -43,60 +42,37 @@ const sectionVisible = (
 
 const routeVisible = (
   route: (typeof ADMIN_SURFACE.destinations)[number],
-  ctx: NavCtx,
+  ctx: AdminSurfaceContext,
 ): boolean =>
   route.nav !== undefined &&
   route.audience.includes(ctx.adminLevel) &&
   !(ctx.isReadOnly && route.intent === "write-form") &&
   (!("visible" in route.nav) || route.nav.visible(ctx));
 
-export const visibleTopLevel = (ctx: NavCtx): NavLink[] =>
-  ADMIN_SURFACE.sections
-    .filter((section) => sectionVisible(section, ctx))
-    .map((section) => ({
-      href: adminDestination(section.landing as AdminDestinationId).pattern,
-      labelKey: section.labelKey,
-    }));
+const visibleAdminSections = (ctx: AdminSurfaceContext) =>
+  ADMIN_SURFACE.sections.filter((section) => sectionVisible(section, ctx));
 
-export const visibleSections = (ctx: NavCtx): NavSection[] =>
-  ADMIN_SURFACE.sections
-    .filter(
-      (section) =>
-        sectionVisible(section, ctx) && navRoutesFor(section.id).length > 1,
-    )
-    .map((section) => ({
-      items: navRoutesFor(section.id)
+export const visibleTopLevel = (ctx: AdminSurfaceContext): NavLink[] =>
+  visibleAdminSections(ctx).map((section) => ({
+    href: landingPattern(section),
+    labelKey: section.labelKey,
+  }));
+
+export const visibleSections = (ctx: AdminSurfaceContext): NavSection[] =>
+  visibleAdminSections(ctx)
+    .map((section) => ({ routes: navRoutesFor(section.id), section }))
+    .filter(({ routes }) => routes.length > 1)
+    .map(({ routes, section }) => ({
+      items: routes
         .filter((route) => routeVisible(route, ctx))
         .map((route) => ({
           href: route.pattern,
+          // navRoutesFor keeps only destinations with navigation metadata.
           labelKey: route.nav!.labelKey,
         })),
       labelKey: section.labelKey,
-      topHref: adminDestination(section.landing as AdminDestinationId).pattern,
+      topHref: landingPattern(section),
     }));
-
-export interface CreateLinkSection {
-  readonly createHref: string;
-  readonly createLabelKey: string;
-  readonly featureGated: boolean;
-  readonly roles: readonly AdminLevel[];
-  readonly sectionPath: string;
-}
-
-export const createLinkSections = (): CreateLinkSection[] =>
-  ADMIN_SURFACE.destinations
-    .filter((route) => route.nav?.kind === "create")
-    .map((route) => {
-      const section = sectionById(route.section!);
-      return {
-        createHref: route.pattern,
-        createLabelKey: route.nav!.labelKey,
-        featureGated: "visible" in section,
-        roles: route.audience,
-        sectionPath: adminDestination(section.landing as AdminDestinationId)
-          .pattern,
-      };
-    });
 
 export const entityReturnPath = (
   sectionPath: string,
@@ -104,9 +80,7 @@ export const entityReturnPath = (
   id: number,
 ): string => {
   const section = ADMIN_SURFACE.sections.find(
-    (candidate) =>
-      adminDestination(candidate.landing as AdminDestinationId).pattern ===
-      sectionPath,
+    (candidate) => landingPattern(candidate) === sectionPath,
   );
   if (!section || !("detailPath" in section)) return sectionPath;
   const detail = section.detailPath.replace(":id", String(id));

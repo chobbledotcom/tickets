@@ -11,8 +11,7 @@ import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 
-/** Factory for a {@link DisplayUser} with the common defaults. Only `id`,
- *  `adminLevel`, `username`, and `inviteExpired` vary between tests. */
+/** Factory for a {@link DisplayUser} with common defaults. */
 const displayUser = (overrides: Partial<DisplayUser> = {}): DisplayUser => ({
   activated: true,
   adminLevel: "owner",
@@ -112,14 +111,13 @@ describe("adminUserManagePage", () => {
     inviteExpired: false,
     username: "pending",
   };
-  const agent = (agentNames: string[]): DisplayUser => ({
-    activated: true,
-    adminLevel: "agent",
-    agentNames,
-    id: 4,
-    inviteExpired: false,
-    username: "driver",
-  });
+  const agent = (agentNames: string[]): DisplayUser =>
+    displayUser({
+      adminLevel: "agent",
+      agentNames,
+      id: 4,
+      username: "driver",
+    });
 
   test("shows the delete section for another user", () => {
     const html = adminUserManagePage(manager, TEST_SESSION, {

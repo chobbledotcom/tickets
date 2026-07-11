@@ -1,6 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { entityReturnPath, visibleTopLevel } from "#shared/admin-pages.ts";
+import {
+  entityReturnPath,
+  readOnlyGetRoutePatterns,
+  visibleSections,
+  visibleTopLevel,
+} from "#shared/admin-pages.ts";
 import {
   ADMIN_SURFACE,
   adminDestination,
@@ -13,6 +18,15 @@ describe("admin surface paths", () => {
     expect(adminPath("answerEdit", { answerId: 9, id: 42 })).toBe(
       "/admin/questions/42/answers/9/edit",
     );
+  });
+
+  test("fills parameters for server action routes", () => {
+    expect(
+      adminPath("postAttributesByIdOptionsByOptionIdMoveDown", {
+        id: 1,
+        optionId: 10,
+      }),
+    ).toBe("/admin/attributes/1/options/10/move-down");
   });
 
   test("allows write forms only for their audience while writable", () => {
@@ -88,6 +102,50 @@ describe("admin surface paths", () => {
         support: false,
       }).map((link) => link.href),
     ).toContain("/admin/site");
+  });
+
+  test("applies per-link feature visibility", () => {
+    const context = {
+      active: "/admin/settings",
+      adminLevel: "owner" as const,
+      builder: false,
+      hasLogistics: false,
+      isReadOnly: false,
+      showPublicSite: true,
+      storage: false,
+      support: false,
+    };
+    const hidden = visibleSections(context).flatMap((section) => section.items);
+    const visible = visibleSections({
+      ...context,
+      builder: true,
+      support: true,
+    }).flatMap((section) => section.items);
+    expect(hidden.map((link) => link.href)).not.toContain("/admin/built-sites");
+    expect(hidden.map((link) => link.href)).not.toContain("/admin/support");
+    expect(visible.map((link) => link.href)).toContain("/admin/built-sites");
+    expect(visible.map((link) => link.href)).toContain("/admin/support");
+  });
+
+  test("omits sections with no sub-navigation", () => {
+    const sections = visibleSections({
+      active: "/admin/ledger",
+      adminLevel: "owner",
+      builder: false,
+      hasLogistics: false,
+      isReadOnly: false,
+      showPublicSite: true,
+      storage: false,
+      support: false,
+    });
+    expect(sections.map((section) => section.topHref)).not.toContain(
+      "/admin/ledger",
+    );
+  });
+
+  test("derives read-only blocks from destination intent", () => {
+    expect(readOnlyGetRoutePatterns()).toContain("/admin/listing/new");
+    expect(readOnlyGetRoutePatterns()).not.toContain("/admin/listings");
   });
 });
 

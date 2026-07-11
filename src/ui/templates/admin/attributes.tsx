@@ -6,7 +6,7 @@ import {
   attributeNameForm,
   attributeOptionForm,
 } from "#routes/admin/attributes.ts";
-import { adminPath } from "#shared/admin-surface.ts";
+import { type AdminRouteId, adminPath } from "#shared/admin-surface.ts";
 import type {
   AttributeOption,
   AttributeWithOptions,
@@ -27,6 +27,7 @@ import {
   IdCheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
+import type { ReorderDirection } from "#templates/components/reorder.tsx";
 import {
   ReorderLinkRow,
   ReorderTable,
@@ -43,6 +44,11 @@ import { WritableDangerLink, WritableOnly } from "./writable-only.tsx";
 
 export const attributeNameFlat = (name: string): string =>
   name.replace(/\r?\n/g, " / ");
+
+const ATTRIBUTE_OPTION_MOVE_ROUTES = {
+  down: "postAttributesByIdOptionsByOptionIdMoveDown",
+  up: "postAttributesByIdOptionsByOptionIdMoveUp",
+} satisfies Record<ReorderDirection, AdminRouteId>;
 
 export const adminAttributesPage = (
   attributes: AttributeWithOptions[],
@@ -183,7 +189,10 @@ export const adminAttributePage = (
           {attribute.options.map((option, index) => (
             <ReorderLinkRow
               action={(direction) =>
-                `/admin/attributes/${attribute.id}/options/${option.id}/move-${direction}`
+                adminPath(ATTRIBUTE_OPTION_MOVE_ROUTES[direction], {
+                  id: attribute.id,
+                  optionId: option.id,
+                })
               }
               count={attribute.options.length}
               index={index}

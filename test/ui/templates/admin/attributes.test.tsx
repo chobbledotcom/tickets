@@ -24,6 +24,17 @@ beforeAll(async () => {
   await signCsrfToken();
 });
 
+test("attribute option arrows use their declared action routes", () => {
+  const html = adminAttributePage(ATTRIBUTE, SESSION, undefined, {
+    listingCounts: new Map(),
+    listings: [],
+  });
+  expect(html).not.toContain("/options/10/move-up");
+  expect(html).toContain("/options/10/move-down");
+  expect(html).toContain("/options/11/move-up");
+  expect(html).not.toContain("/options/11/move-down");
+});
+
 describe("attribute pages in read-only mode", () => {
   test("keeps the list readable without create or reorder controls", () => {
     const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });

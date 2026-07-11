@@ -9,10 +9,9 @@
  *   Edit       — the group form + per-listing package prices (content roles)
  *   Actions    — export JSON, bulk actions, danger zone: delete
  *
- * The content-only editor role may edit a group but never saw its detail page,
- * so every tab except Edit is staff-gated and an editor's page resolves to just
- * the Edit tab. Sub-action POST handlers (add-listings, edit, delete) keep
- * their own routes in groups.ts; this file owns only the GET surface.
+ * Content editors can use Edit, Images, and the safe entries on Actions. The
+ * staff-only tabs retain their own visibility checks. Sub-action POST handlers
+ * keep their own routes in groups.ts; this file owns only the GET surface.
  */
 
 /* jscpd:ignore-start */
@@ -34,8 +33,7 @@ import {
   loadGroupOverviewPanel,
 } from "./group-page-data.ts";
 
-/** Every tab except Edit was on the staff-only detail page (it decrypts
- * attendee PII), so gate them to staff; an editor's page resolves to Edit. */
+/** Gate tabs that expose attendee PII or staff operations. */
 const staffOnly = (_group: Group, session: AuthSession): boolean =>
   isStaffRole(session.adminLevel);
 
@@ -110,8 +108,7 @@ const actionsTab = (): TabDef<Group> => ({
 /** The tabbed group page. */
 export const groupPage: EntityPage<Group> = defineEntityPage({
   basePath: (id) => `/admin/groups/${id}`,
-  // Editors may edit; every other tab is staff-gated, so an editor's page
-  // resolves to just the Edit tab.
+  // Content editors can edit groups, manage their images, and use safe actions.
   guard: requireContentOr,
   load: (id) => loadGroupForPage(id),
   // A single group is a page *within* the Groups section — highlight the top

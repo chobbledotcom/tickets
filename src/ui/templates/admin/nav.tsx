@@ -12,12 +12,12 @@
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import {
-  type NavCtx,
   type NavLink,
   type NavSection,
   visibleSections,
   visibleTopLevel,
 } from "#shared/admin-pages.ts";
+import type { AdminSurfaceContext } from "#shared/admin-surface/definitions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   getReadOnlyCutoffIso,
@@ -136,7 +136,10 @@ const renderReadOnlyBanner = (
 /** Evaluate all feature flags once per nav render, producing the pure context
  * the schema folds consume. This is the thin IO shell around
  * `admin-pages.ts` — the schema knows nothing about settings, env, or storage. */
-const navCtx = (adminLevel: AdminLevel, active: string): NavCtx => ({
+const navCtx = (
+  adminLevel: AdminLevel,
+  active: string,
+): AdminSurfaceContext => ({
   active,
   adminLevel,
   builder: isBuilderEnabled(),
@@ -158,7 +161,10 @@ const ownsActive = (candidate: Section, active: string): boolean =>
  * resolves the section so its top-level link highlights, and a deeper route
  * (a create page like /admin/listing/new, or a sub-page like /admin/privacy)
  * additionally highlights that sub-nav link — see `sectionLevels`. */
-const resolveSection = (active: string, ctx: NavCtx): Section | null =>
+const resolveSection = (
+  active: string,
+  ctx: AdminSurfaceContext,
+): Section | null =>
   visibleSections(ctx)
     .map(resolveSectionItems)
     .find((candidate) => ownsActive(candidate, active)) ?? null;

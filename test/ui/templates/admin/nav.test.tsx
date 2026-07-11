@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
-import { createLinkSections } from "#shared/admin-pages.ts";
+import { ADMIN_SURFACE, adminDestination } from "#shared/admin-surface.ts";
 import type { AdminLevel } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -62,14 +62,21 @@ describeWithEnv("AdminNav", {}, () => {
    *  and the roles that reach it. Feature-flag-gated sections (Images) are
    *  excluded here — they have dedicated tests that enable the flag. Each pair
    *  lives only in its own section's sub-nav — never on the top-level bar. */
-  const addLinkSections = createLinkSections()
-    .filter((s) => !s.featureGated)
-    .map((s) => ({
-      addHref: s.createHref,
-      addText: t(s.createLabelKey),
-      createActive: s.createHref,
-      roles: s.roles,
-      sectionActive: s.sectionPath,
+  const addLinkSections = ADMIN_SURFACE.destinations
+    .filter((route) => route.nav?.kind === "create")
+    .map((route) => ({
+      route,
+      section: ADMIN_SURFACE.sections.find(
+        (section) => section.id === route.section,
+      )!,
+    }))
+    .filter(({ section }) => !("visible" in section))
+    .map(({ route, section }) => ({
+      addHref: route.pattern,
+      addText: t(route.nav!.labelKey),
+      createActive: route.pattern,
+      roles: route.audience,
+      sectionActive: adminDestination(section.landing).pattern,
     }));
 
   // Regression: the create links used to sit on the top-level nav bar, visible

@@ -1,3 +1,4 @@
+import { mapValues } from "@std/collections";
 import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin built site management routes - owner only
@@ -409,17 +410,10 @@ const builderOnly =
   (request, params, server) =>
     isBuilderEnabled() ? handler(request, params, server) : notFoundResponse();
 
-const gateOnBuilder = <
-  Routes extends Record<string, (...args: never[]) => unknown>,
->(
-  routes: Routes,
-): { [Key in keyof Routes]: RouteHandlerFn } => {
-  const gated = {} as { [Key in keyof Routes]: RouteHandlerFn };
-  for (const key of Object.keys(routes) as Array<keyof Routes>) {
-    gated[key] = builderOnly(routes[key] as RouteHandlerFn);
-  }
-  return gated;
-};
+const gateOnBuilder = <Key extends string>(
+  routes: Record<Key, (...args: never[]) => unknown>,
+): Record<Key, RouteHandlerFn> =>
+  mapValues(routes, (handler) => builderOnly(handler as RouteHandlerFn));
 
 /** Built site routes (all gated on CAN_BUILD_SITES via gateOnBuilder). */
 export const adminHandlers = gateOnBuilder(

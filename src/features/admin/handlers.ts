@@ -28,6 +28,7 @@ export const routeMapForArea = (
       .filter((route) => route.area === area)
       .map((route) => [
         `${route.method} ${route.pattern}`,
+        // Every lazy module passes through handlersFor before this runtime boundary.
         runtimeHandlers[route.id]!,
       ]),
   );

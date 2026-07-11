@@ -7,7 +7,13 @@ import {
   setFlashContext,
   setFlashFormId,
 } from "#shared/flash-context.ts";
-import { CsrfForm, Flash, renderError, renderSuccess } from "#shared/forms.tsx";
+import {
+  CsrfForm,
+  Flash,
+  renderError,
+  renderSuccess,
+  requestFlash,
+} from "#shared/forms.tsx";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
@@ -106,6 +112,16 @@ describe("Flash", () => {
     expect(html).toContain("&lt;script&gt;");
     expect(html).not.toContain("<script>xss");
   });
+});
+
+test("requestFlash renders every message from the request context", () => {
+  const html = runWithFlashContext(() => {
+    setFlashContext({ error: "Bad", info: "Notice", success: "Saved" });
+    return String(requestFlash());
+  });
+  expect(html).toContain("Bad");
+  expect(html).toContain("Notice");
+  expect(html).toContain("Saved");
 });
 
 describe("CsrfForm", () => {

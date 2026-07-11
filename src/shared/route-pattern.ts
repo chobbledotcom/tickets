@@ -5,18 +5,29 @@ export type RouteParamNames<Path extends string> =
       ? Param
       : never;
 
-export const isNumericRouteParam = (name: string): boolean =>
+const isNumericRouteParam = (name: string): boolean =>
   name.endsWith("Id") || name === "id";
 
-export const routeParamPattern = (name: string): string => {
+const routeParamPattern = (name: string): string => {
   if (isNumericRouteParam(name)) return "\\d+";
   if (name === "slug") return "[a-z0-9]+(?:[-_+][a-z0-9]+)*";
   return "[^/]+";
 };
 
-export const routePathPatternToRegex = (pattern: string): RegExp => {
+export const compileRoutePathPattern = (
+  pattern: string,
+): { regex: RegExp; paramNames: string[]; numericParams: Set<string> } => {
+  const paramNames: string[] = [];
+  const numericParams = new Set<string>();
   const regex = pattern
     .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    .replace(/:(\w+)/g, (_, name: string) => routeParamPattern(name));
-  return new RegExp(`^${regex}$`);
+    .replace(/:(\w+)/g, (_, name: string) => {
+      paramNames.push(name);
+      if (isNumericRouteParam(name)) numericParams.add(name);
+      return `(${routeParamPattern(name)})`;
+    });
+  return { numericParams, paramNames, regex: new RegExp(`^${regex}$`) };
 };
+
+export const routePathPatternToRegex = (pattern: string): RegExp =>
+  compileRoutePathPattern(pattern).regex;

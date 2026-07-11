@@ -46,10 +46,8 @@ import {
   loadListingQuestionsPanel,
 } from "./listing-page-management-panels.ts";
 
-/** Tab visibility for the staff-only surfaces (roster, money, actions): the
- *  content-only `editor` role may edit a listing but never saw its detail page,
- *  so every tab except Edit is gated to staff, and an editor's default tab
- *  resolves to Edit. */
+/** Tab visibility for staff-only surfaces such as roster and money. Content
+ * editors can use Edit, Images, and the safe entries on Actions. */
 const staffOnly = (_entity: unknown, session: AuthSession): boolean =>
   isStaffRole(session.adminLevel);
 
@@ -159,8 +157,7 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
   banner: ({ listing }) =>
     Promise.resolve(ListingDeactivatedBanner({ active: listing.active })),
   basePath: (id) => `/admin/listing/${id}`,
-  // The content-only editor role may edit; every other tab is staff-gated, so
-  // an editor's page resolves to just the Edit tab.
+  // Content editors can edit listings, manage their images, and use safe actions.
   guard: requireContentOr,
   load: (id) => loadListingForPage(id),
   // A single listing is a page *within* the Listings section — highlight the

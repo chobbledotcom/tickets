@@ -73,6 +73,15 @@ describe("admin route manifest", () => {
     }
   });
 
+  test("destination and server route IDs do not collide", () => {
+    const destinationIds = new Set<string>(
+      ADMIN_SURFACE.destinations.map((destination) => destination.id),
+    );
+    for (const route of ADMIN_SURFACE.routes) {
+      expect(destinationIds.has(route.id), route.id).toBe(false);
+    }
+  });
+
   test("every UI destination is served by a GET route in its area", () => {
     for (const destination of ADMIN_SURFACE.destinations) {
       const concretePath = destination.pattern

@@ -15,28 +15,36 @@ const ADMIN_DESTINATIONS = [
   ...ADMIN_WRITE_ROUTES_N_Z,
 ] as const;
 
-export type AdminDestinationId = (typeof ADMIN_DESTINATIONS)[number]["id"];
+const ADMIN_PATHS = [...ADMIN_DESTINATIONS, ...ADMIN_ROUTES] as const;
 
-type DestinationFor<Id extends AdminDestinationId> = Extract<
-  (typeof ADMIN_DESTINATIONS)[number],
+export type AdminDestinationId = (typeof ADMIN_DESTINATIONS)[number]["id"];
+export type AdminRouteId = (typeof ADMIN_ROUTES)[number]["id"];
+export type AdminPathId = (typeof ADMIN_PATHS)[number]["id"];
+
+type PathFor<Id extends AdminPathId> = Extract<
+  (typeof ADMIN_PATHS)[number],
   { readonly id: Id }
 >;
-export type AdminPathParams<Id extends AdminDestinationId> = Record<
-  RouteParamNames<DestinationFor<Id>["pattern"]>,
+export type AdminPathParams<Id extends AdminPathId> = Record<
+  RouteParamNames<PathFor<Id>["pattern"]>,
   string | number
 >;
 
+// AdminDestinationId is derived from this list, so the lookup cannot miss.
 export const adminDestination = (id: AdminDestinationId) =>
   ADMIN_DESTINATIONS.find((candidate) => candidate.id === id)!;
 
-export const adminPath = <Id extends AdminDestinationId>(
+// AdminPathId is derived from destinations and routes, so the lookup cannot miss.
+const adminPathDefinition = (id: AdminPathId) =>
+  ADMIN_PATHS.find((candidate) => candidate.id === id)!;
+
+export const adminPath = <Id extends AdminPathId>(
   id: Id,
   params: AdminPathParams<Id>,
 ): string =>
-  adminDestination(id).pattern.replace(
+  adminPathDefinition(id).pattern.replace(
     /:(\w+)/g,
-    (_, name: RouteParamNames<DestinationFor<Id>["pattern"]>) =>
-      String(params[name]),
+    (_, name: RouteParamNames<PathFor<Id>["pattern"]>) => String(params[name]),
   );
 
 export const adminDestinationAllowed = (

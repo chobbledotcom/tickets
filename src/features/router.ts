@@ -5,9 +5,8 @@
 import { reduce } from "#fp";
 import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
 import {
-  isNumericRouteParam,
+  compileRoutePathPattern,
   type RouteParamNames,
-  routeParamPattern,
 } from "#shared/route-pattern.ts";
 
 // =============================================================================
@@ -60,43 +59,6 @@ type CompiledRoute = {
   handler: RouteHandlerFn;
 };
 
-/** Check if a param name refers to a numeric ID */
-/** Param patterns by type - name ending determines pattern */
-const getParamPattern = (name: string): string => {
-  return `(${routeParamPattern(name)})`;
-};
-
-/**
- * Compile a route pattern into a regex
- * Supports :param syntax for path parameters
- * All paths are normalized to strip trailing slashes before matching
- * Examples:
- *   "GET /admin" -> matches /admin
- *   "GET /admin/listing/:id" -> extracts id param from /admin/listing/123
- *   "GET /ticket/:slug" -> extracts slug param like /ticket/my-listing-2024
- */
-const compilePattern = (
-  pattern: string,
-): { regex: RegExp; paramNames: string[]; numericParams: Set<string> } => {
-  const paramNames: string[] = [];
-  const numericParams = new Set<string>();
-
-  // Escape special regex chars except : which we use for params
-  const regexStr = pattern
-    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    .replace(/:(\w+)/g, (_, name) => {
-      paramNames.push(name);
-      if (isNumericRouteParam(name)) numericParams.add(name);
-      return getParamPattern(name);
-    });
-
-  return {
-    numericParams,
-    paramNames,
-    regex: new RegExp(`^${regexStr}$`),
-  };
-};
-
 /**
  * Parse route pattern "METHOD /path" into method and path parts
  */
@@ -142,7 +104,8 @@ const compileRoutes = (
       [pattern, handler]: [string, RouteHandlerFn],
     ) => {
       const { method, path } = parseRoutePattern(pattern);
-      const { regex, paramNames, numericParams } = compilePattern(path);
+      const { regex, paramNames, numericParams } =
+        compileRoutePathPattern(path);
       const methodRoutes = compiled.get(method) ?? [];
       methodRoutes.push({ handler, numericParams, paramNames, regex });
       compiled.set(method, methodRoutes);

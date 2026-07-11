@@ -55,6 +55,7 @@ export const holidaysCrud = createOwnerCrudHandlers({
 export const adminHandlers = handlersFor("holidays")({
   getHolidays: holidaysCrud.listGet,
   getHolidaysByIdDelete: holidaysCrud.deleteGet,
+  // renderEdit is configured above, so the CRUD factory always provides editGet.
   getHolidaysByIdEdit: holidaysCrud.editGet!,
   getHolidaysNew: holidaysCrud.newGet,
   postHolidays: holidaysCrud.createPost,
