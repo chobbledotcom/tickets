@@ -19,7 +19,7 @@
 
 import type { InValue } from "@libsql/client";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
-import { jsonError } from "#routes/api/cors.ts";
+import { apiErrorResponse } from "#routes/api/cors.ts";
 import { ADMIN_API, type AuthPolicy, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
@@ -122,9 +122,6 @@ export const parseOptionalArray = <T>(
   }
   return { input: items, ok: true };
 };
-
-/** JSON `{ error: message }` response for API endpoints (no CORS headers) */
-export const apiErrorResponse = jsonError(jsonResponse);
 
 /** Result of parsing + validating: either the input or a pre-built error response */
 export type ValidatedInput<Input> =

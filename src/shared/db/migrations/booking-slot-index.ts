@@ -1,4 +1,4 @@
-import { SCHEMA } from "./schema.ts";
+import { SCHEMA } from "./schema/index.ts";
 import type { MigrationContext, SchemaRequirement } from "./types.ts";
 
 /** The unique booking-slot index on `listing_attendees`. Widening it (adding a

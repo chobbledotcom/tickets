@@ -8,7 +8,7 @@ import {
   executeBatch,
   queryAll,
 } from "#shared/db/client.ts";
-import { ticketCountSumExpr } from "#shared/db/migrations/schema.ts";
+import { ticketCountSumExpr } from "#shared/db/migrations/schema/listing-aggregates.ts";
 
 type DeleteAttendeeOptions = { releaseBookings?: boolean };
 type ListingContribution = {
