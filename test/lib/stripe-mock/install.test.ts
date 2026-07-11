@@ -10,6 +10,7 @@ import {
   type TestStripeMockPaths,
   wait,
   waitForFile,
+  waitForNoInstallTempDir,
   withFakeCurl,
   withInstallLockHeld,
   withInstallLockOpenFailure,
@@ -124,6 +125,11 @@ describe("stripe-mock install", () => {
                 });
                 await lockWrite.waitForWrite();
                 await waitForFile(paths.binaryPath);
+                // Wait until the install has finished (its temp dir is cleaned
+                // up) so the refresh has been stopped before we release the
+                // held write — that release then runs `scheduleNextRefresh`
+                // with `stopped` already true, the branch that returns early.
+                await waitForNoInstallTempDir(paths.binDir);
                 await wait(1);
                 lockWrite.releaseWrite();
                 await started;

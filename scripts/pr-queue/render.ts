@@ -10,6 +10,18 @@ import { sort } from "#fp";
 import { bold, dim, green, red, yellow } from "../precommit/colors.ts";
 import type { Bucket, PrSummary } from "./types.ts";
 
+/**
+ * Strip C0/C1 control characters (including ESC) from GitHub-sourced text —
+ * titles, branches, authors, repo names, facts — before it lands in the
+ * coloured terminal report. Without this a crafted PR title could inject its
+ * own ANSI escapes to hide or spoof lines; the report adds its own colours
+ * afterwards, so the cleaned values carry no control codes of their own.
+ */
+const isControlChar = (code: number): boolean =>
+  code <= 0x1f || (code >= 0x7f && code <= 0x9f);
+const clean = (value: string): string =>
+  [...value].filter((ch) => !isControlChar(ch.charCodeAt(0))).join("");
+
 /** Display metadata for each bucket: label, colour, and report order. */
 const BUCKET_DISPLAY: Record<
   Bucket,
@@ -50,9 +62,11 @@ const prLines =
   (s: PrSummary): string[] => {
     const stale = now() - new Date(s.updatedAt).getTime() > STALE_AFTER_MS;
     const ageTag = `${ago(s.updatedAt, now)}${stale ? ", stale" : ""}`;
+    const branch = clean(s.branch);
+    const facts = s.facts.map(clean).join("; ");
     return [
-      `  • #${s.number}  ${s.branch}  —  ${s.title}  ${dim(`(by ${s.author}, ${ageTag})`)}`,
-      `    ${yellow(`branch ${s.branch} (PR ${s.number})`)} ${s.facts.join("; ")}.`,
+      `  • #${s.number}  ${branch}  —  ${clean(s.title)}  ${dim(`(by ${clean(s.author)}, ${ageTag})`)}`,
+      `    ${yellow(`branch ${branch} (PR ${s.number})`)} ${facts}.`,
     ];
   };
 
@@ -89,7 +103,7 @@ export const renderReport = (
       `${byBucket[b]?.length ?? 0} ${BUCKET_DISPLAY[b].label.toLowerCase()}`,
   ).join(", ");
   const header = bold(
-    `PR queue — ${repo} — ${summaries.length} open (${counts})`,
+    `PR queue — ${clean(repo)} — ${summaries.length} open (${counts})`,
   );
   const body =
     summaries.length === 0

@@ -47,29 +47,42 @@ const BOT_NAMES: Record<string, string> = {
 const displayName = (login: string): string => BOT_NAMES[login] ?? login;
 
 /**
- * Turn a status-check rollup node into a Check. A GitHub GraphQL boundary
- * adapter — `CheckRun` carries `name`+`status`/`conclusion`, `StatusContext`
- * carries `context`+`state`; both collapse to one shape the rest of the code
- * can switch on.
+ * Turn a status-check rollup node into a failing or still-running Check, or null
+ * when it neither blocks nor is in flight. A GitHub GraphQL boundary adapter —
+ * `CheckRun` carries `name`+`status`/`conclusion`, `StatusContext` carries
+ * `context`+`state`. Only the two states the report acts on (`failure`,
+ * `pending`) are surfaced; a passing/skipped/neutral check drops to null so it
+ * can't be mistaken for either.
  */
 const classifyCheck = (node: Record<string, unknown>): Check | null => {
   if (typeof node.name === "string") {
     const status = String(node.status);
     if (status !== "COMPLETED") return { name: node.name, state: "pending" };
     const conclusion = String(node.conclusion);
-    if (conclusion === "SUCCESS") return { name: node.name, state: "success" };
-    if (["FAILURE", "TIMED_OUT", "ACTION_REQUIRED"].includes(conclusion)) {
+    // GitHub only counts SUCCESS / SKIPPED / NEUTRAL as a passing required check;
+    // every other conclusion (including a cancelled, stale, or startup-failed run)
+    // blocks the merge, so it must read as failing rather than be waved through.
+    if (
+      [
+        "FAILURE",
+        "TIMED_OUT",
+        "ACTION_REQUIRED",
+        "STARTUP_FAILURE",
+        "CANCELLED",
+        "STALE",
+      ].includes(conclusion)
+    ) {
       return { name: node.name, state: "failure" };
     }
-    return { name: node.name, state: "skipped" }; // NEUTRAL / CANCELLED / SKIPPED
+    return null; // SUCCESS / SKIPPED / NEUTRAL — non-blocking
   }
   if (typeof node.context === "string") {
     const state = String(node.state);
-    if (state === "SUCCESS") return { name: node.context, state: "success" };
     if (["FAILURE", "ERROR"].includes(state)) {
       return { name: node.context, state: "failure" };
     }
-    return { name: node.context, state: "pending" };
+    if (state === "SUCCESS") return null;
+    return { name: node.context, state: "pending" }; // PENDING / EXPECTED
   }
   return null;
 };
@@ -96,13 +109,20 @@ const summarizeChecks = (pr: GraphQlPr): Checks => {
  * is on code that has since moved (the reviewer's move to re-resolve).
  */
 type ReviewThread = GraphQlPr["reviewThreads"]["nodes"][number];
+/**
+ * Label for an unresolved thread whose first comment has no author (a deleted
+ * or ghost user). We still count it — an open thread means the PR is not done,
+ * so dropping it silently could show a PR as ready when it isn't.
+ */
+const UNKNOWN_REVIEWER = "an unknown reviewer";
 const aggregateUnresolved = (
   pr: GraphQlPr,
 ): Map<string, { current: number; outdated: number }> =>
   reduce((by, thread: ReviewThread) => {
     if (thread.isResolved) return by;
-    const author = thread.comments.nodes[0]?.author?.login;
-    if (!author) return by;
+    // An empty or missing first-comment author both read as an unknown
+    // reviewer — an open thread must never vanish for want of a login.
+    const author = thread.comments.nodes[0]?.author?.login || UNKNOWN_REVIEWER;
     const entry = by.get(author) ?? { current: 0, outdated: 0 };
     thread.isOutdated ? entry.outdated++ : entry.current++;
     by.set(author, entry);
@@ -111,16 +131,15 @@ const aggregateUnresolved = (
     pr.reviewThreads.nodes,
   );
 
-/** Total current vs outdated open threads, across all commenters. */
-const countUnresolved = (
-  pr: GraphQlPr,
-): { current: number; outdated: number } =>
+/**
+ * Total current (on-the-latest-code) open threads, across all commenters. Only
+ * the current count drives a bucket — an outdated-only thread is the reviewer's
+ * move, detected from the comment phrase, not this count.
+ */
+const countCurrentUnresolved = (pr: GraphQlPr): number =>
   [...aggregateUnresolved(pr).values()].reduce(
-    (acc, e) => ({
-      current: acc.current + e.current,
-      outdated: acc.outdated + e.outdated,
-    }),
-    { current: 0, outdated: 0 },
+    (total, entry) => total + entry.current,
+    0,
   );
 
 /** Human-readable phrase, e.g. "Codex (3 current, 1 outdated)". Drops the zero half. */
@@ -163,16 +182,19 @@ const commentMessage = ({ comments }: PrContext): string =>
  * The two comment signals are mutually exclusive — current comments are the
  * author's move (ATTENTION); only-outdated comments are the reviewer's move
  * to re-resolve (WAITING) — but both surface the same fact, via
- * {@link commentMessage}. The merge-queue signal is WAITING: once a PR is in
- * GitHub's queue the next move is the queue's, not ours — pushing to the
- * branch would disrupt it, so the fact says so plainly.
+ * {@link commentMessage}. The merge-queue signal has its own QUEUED bucket:
+ * once a PR is in GitHub's queue the next move is the queue's, not ours —
+ * pushing to the branch would disrupt it, so the fact says so plainly.
  */
 const PR_SIGNALS: PrSignal[] = [
   {
     applies: ({ mergeQueued }) => mergeQueued !== null,
     bucket: "QUEUED",
+    // mergeQueued is guaranteed non-null here: this signal only reports when its
+    // own `applies` has already passed, so access it directly and let any
+    // invariant violation fail loudly rather than print "position undefined".
     message: ({ mergeQueued }) =>
-      `is in GitHub's merge queue (position ${mergeQueued?.position}, ${mergeQueued?.state.toLowerCase().replace(/_/g, " ")}) — do not push to this branch`,
+      `is in GitHub's merge queue (position ${mergeQueued!.position}, ${mergeQueued!.state.toLowerCase().replace(/_/g, " ")}) — do not push to this branch`,
   },
   {
     applies: ({ pr }) => pr.isDraft,
@@ -184,6 +206,16 @@ const PR_SIGNALS: PrSignal[] = [
     bucket: "WAITING",
     message: () =>
       "GitHub is still computing mergeability — re-run shortly to confirm whether it can merge",
+  },
+  {
+    // mergeable can resolve while the detailed merge state is still UNKNOWN;
+    // that PR isn't ready either, so wait rather than fall through to READY.
+    // Guarded on mergeable so it doesn't double up with the signal above.
+    applies: ({ pr }) =>
+      pr.mergeStateStatus === "UNKNOWN" && pr.mergeable !== "UNKNOWN",
+    bucket: "WAITING",
+    message: () =>
+      "GitHub is still computing the merge state — re-run shortly to confirm whether it can merge",
   },
   {
     applies: ({ conflict }) => conflict,
@@ -204,7 +236,8 @@ const PR_SIGNALS: PrSignal[] = [
   {
     applies: ({ behind }) => behind,
     bucket: "ATTENTION",
-    message: () => "is behind main and needs main merged in",
+    message: ({ baseRef }) =>
+      `is behind ${baseRef} and needs ${baseRef} merged in`,
   },
   {
     applies: ({ blocked }) => blocked,
@@ -219,14 +252,16 @@ const PR_SIGNALS: PrSignal[] = [
       `is waiting on a review from ${reviewers.join(", ")}`,
   },
   {
-    applies: ({ comments, unresolved }) =>
-      comments !== "" && unresolved.current > 0,
+    // A current thread implies a non-empty phrase, so the count alone decides.
+    applies: ({ currentComments }) => currentComments > 0,
     bucket: "ATTENTION",
     message: commentMessage,
   },
   {
-    applies: ({ comments, unresolved }) =>
-      comments !== "" && unresolved.current === 0,
+    // Only-outdated threads: there are open comments (phrase non-empty) but none
+    // on the latest code. The phrase check separates this from a PR with none.
+    applies: ({ comments, currentComments }) =>
+      comments !== "" && currentComments === 0,
     bucket: "WAITING",
     message: commentMessage,
   },
@@ -249,15 +284,16 @@ const PR_SIGNALS: PrSignal[] = [
 const buildContext = (pr: GraphQlPr): PrContext => {
   const comments = commentPhrase(pr);
   return {
+    baseRef: pr.baseRefName,
     behind: pr.mergeStateStatus === "BEHIND",
     blocked: pr.mergeStateStatus === "BLOCKED",
     checks: summarizeChecks(pr),
     comments,
     conflict: pr.mergeable === "CONFLICTING" || pr.mergeStateStatus === "DIRTY",
+    currentComments: countCurrentUnresolved(pr),
     mergeQueued: pr.mergeQueueEntry,
     pr,
     reviewers: requestedReviewers(pr),
-    unresolved: countUnresolved(pr),
   };
 };
 
@@ -292,7 +328,8 @@ const factsFor = (ctx: PrContext): string[] => {
 export const summarizePr = (pr: GraphQlPr): PrSummary => {
   const ctx = buildContext(pr);
   return {
-    author: pr.author?.login ?? "unknown",
+    // A missing or empty author login both read as "unknown".
+    author: pr.author?.login || "unknown",
     branch: pr.headRefName,
     bucket: bucketFor(ctx),
     facts: factsFor(ctx),

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { renderReport } from "../../scripts/pr-queue/render.ts";
-import type { Bucket, PrSummary } from "../../scripts/pr-queue/types.ts";
+import { renderReport } from "../../../scripts/pr-queue/render.ts";
+import type { Bucket, PrSummary } from "../../../scripts/pr-queue/types.ts";
 
 /** A frozen clock so `ago`/stale output is deterministic. 2026-07-10T13:00:00Z. */
 const NOW = Date.UTC(2026, 6, 10, 13); // month is 0-indexed (6 = July)
@@ -24,7 +24,7 @@ describe("renderReport", () => {
     expect(out).toContain("No open pull requests.");
   });
 
-  test("counts each bucket in the header summary", () => {
+  test("the header names every bucket count in order, comma-separated", () => {
     const out = renderReport(
       "o/n",
       [
@@ -33,8 +33,11 @@ describe("renderReport", () => {
       ],
       clock,
     );
-    expect(out).toContain("1 ready to merge");
-    expect(out).toContain("1 needs attention");
+    // Full header pins the count for each bucket (0 for the empty ones), the
+    // ", " separators, and the lower-cased bucket labels all at once.
+    expect(out).toContain(
+      "PR queue — o/n — 2 open (1 needs attention, 0 in merge queue, 0 waiting, 0 draft, 1 ready to merge)",
+    );
   });
 
   test("renders groups in most-pressing-first order regardless of input order", () => {
@@ -71,15 +74,103 @@ describe("renderReport", () => {
     // label and the fact sentence are matched separately rather than as one run.
     expect(out).toContain("branch fix-foo (PR 7)");
     expect(out).toContain("is behind main and needs main merged in.");
+    // The header line names the PR, author, and a "1h ago" age (12:00 vs the
+    // 13:00 clock), with the age immediately followed by the closing paren.
+    expect(out).toContain("(by stefan-burke, 1h ago)");
   });
 
-  test("PRs older than a week are flagged stale", () => {
+  test("multiple facts for one PR are joined with '; ' and end in a full stop", () => {
+    const out = renderReport(
+      "o/n",
+      [
+        summary({
+          bucket: "DRAFT",
+          facts: ["is still a draft", "has failing checks (test)"],
+        }),
+      ],
+      clock,
+    );
+    expect(out).toContain("is still a draft; has failing checks (test).");
+  });
+
+  test("a merge-queued PR renders under the IN MERGE QUEUE group", () => {
+    const out = renderReport(
+      "o/n",
+      [summary({ bucket: "QUEUED", facts: ["is in GitHub's merge queue"] })],
+      clock,
+    );
+    expect(out).toContain("IN MERGE QUEUE (1)");
+  });
+
+  test("the report is a header followed by a blank line before the first group", () => {
+    // renderReport joins its lines with newlines and separates each group with a
+    // leading blank line; this pins both the "\n" join and that blank spacer.
+    const lines = renderReport(
+      "o/n",
+      [summary({ bucket: "READY", number: 1 })],
+      clock,
+    ).split("\n");
+    expect(lines[1]).toBe("");
+    expect(lines.length).toBeGreaterThan(2);
+  });
+
+  test("strips control characters from GitHub-sourced text so a PR can't inject ANSI", () => {
+    // A crafted title/branch/fact carrying its own ESC/bell bytes must not reach
+    // the terminal — the control bytes are removed, the visible text remains.
+    const out = renderReport(
+      "o/n",
+      [
+        summary({
+          branch: "ev\u0007il",
+          bucket: "ATTENTION",
+          facts: ["did \u001b[31msomething\u001b[0m"],
+          number: 9,
+          title: "clear\u001b[2Jscreen",
+        }),
+      ],
+      clock,
+    );
+    // The visible characters remain, with the control bytes removed.
+    expect(out).toContain("evil");
+    expect(out).toContain("clear[2Jscreen");
+    expect(out).toContain("did [31msomething[0m");
+    // The injected raw bytes do not survive: the bell, and the ESC-[2J screen
+    // clear (which the report's own colour codes never contain).
+    expect(out).not.toContain("\u0007");
+    expect(out).not.toContain("\u001b[2J");
+  });
+
+  test("strips C1 control bytes but keeps printable non-ASCII characters", () => {
+    // "café" + a NEL (U+0085, a C1 control) + "menu": the accented é must
+    // survive while the C1 byte is removed, pinning both edges of the range.
+    const out = renderReport(
+      "o/n",
+      [summary({ bucket: "READY", title: "caf\u00e9\u0085menu" })],
+      clock,
+    );
+    expect(out).toContain("caf\u00e9menu");
+    expect(out).not.toContain("\u0085");
+  });
+
+  test("PRs older than a week show a day-count age and are flagged stale", () => {
     const out = renderReport(
       "o/n",
       [summary({ bucket: "WAITING", updatedAt: "2026-06-01T00:00:00Z" })],
       clock,
     );
-    expect(out).toContain("stale");
+    // 2026-06-01 → 2026-07-10T13:00 is 39 days, past the one-week stale line.
+    expect(out).toContain("39d ago, stale");
+  });
+
+  test("a PR updated seconds ago still reads at least '1m ago'", () => {
+    // 30 seconds floors to 0 minutes; the age is clamped up to a minimum of 1.
+    const out = renderReport(
+      "o/n",
+      [summary({ bucket: "READY", updatedAt: "2026-07-10T12:59:30Z" })],
+      clock,
+    );
+    expect(out).toContain("1m ago");
+    expect(out).not.toContain("0m ago");
   });
 
   test("a PR updated today is not flagged stale", () => {

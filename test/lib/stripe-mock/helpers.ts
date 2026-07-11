@@ -262,6 +262,29 @@ export const waitForFile = async (path: string): Promise<void> => {
   }
 };
 
+/**
+ * Wait until the install's `stripe-mock-*` temp directory has been cleaned up.
+ * That removal is the last real-async step before the download flow returns and
+ * runs `stopRefreshingLock` — so once it is gone, the remaining path to the lock
+ * refresh being stopped is pure microtasks. Waiting on it lets a test release a
+ * held refresh write *after* the refresh is stopped, deterministically.
+ */
+export const waitForNoInstallTempDir = async (
+  binDir: string,
+): Promise<void> => {
+  while (true) {
+    let hasTempDir = false;
+    for await (const entry of Deno.readDir(binDir)) {
+      if (entry.isDirectory && entry.name.startsWith("stripe-mock-")) {
+        hasTempDir = true;
+        break;
+      }
+    }
+    if (!hasTempDir) return;
+    await wait(1);
+  }
+};
+
 const runCommand = async (command: Deno.Command): Promise<void> => {
   const result = await command.output();
   expect(result.success).toBe(true);

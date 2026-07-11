@@ -11,10 +11,14 @@
 /** The "who has the next move" bucket a PR lands in. */
 export type Bucket = "QUEUED" | "DRAFT" | "ATTENTION" | "WAITING" | "READY";
 
-/** A CI check, flattened out of the GraphQL `CheckRun`/`StatusContext` union. */
+/**
+ * A CI check the report acts on, flattened out of the GraphQL
+ * `CheckRun`/`StatusContext` union. Only blocking or in-flight checks become a
+ * `Check`; passing/skipped/neutral ones are dropped, so there are just two states.
+ */
 export interface Check {
   name: string;
-  state: "success" | "failure" | "pending" | "skipped";
+  state: "failure" | "pending";
 }
 
 /** A PR's CI checks, reduced to the three things a coordinator cares about. */
@@ -25,20 +29,14 @@ export interface Checks {
   unknown: boolean;
 }
 
-/** Counts of open review threads, split by whether they're on the latest code. */
-export interface UnresolvedComments {
-  current: number;
-  outdated: number;
-}
-
 /**
  * A GitHub merge-queue entry. Present (non-null) only when the PR has been
  * added to the repo's merge queue — at that point pushing to the branch
  * disrupts the queue, so the report must surface it loudly.
  */
 export interface MergeQueueEntry {
-  /** `AWAITING_CHECKS`, `QUEUED`, `MERGEABLE`, or `UNMERGEABLE`. */
-  state: string;
+  /** One of GitHub's `MergeQueueEntryState` values. */
+  state: "AWAITING_CHECKS" | "LOCKED" | "MERGEABLE" | "QUEUED" | "UNMERGEABLE";
   /** 1-based position in the queue. */
   position: number;
 }
@@ -54,12 +52,15 @@ export interface PrContext {
   /** Rendered comment phrase (e.g. "Codex (3 current, 1 outdated)"), "" if none. */
   comments: string;
   reviewers: string[];
-  unresolved: UnresolvedComments;
+  /** Count of open review threads on the latest code (the author's move). */
+  currentComments: number;
   conflict: boolean;
   behind: boolean;
   blocked: boolean;
   /** Present when the PR is in GitHub's merge queue — pushing to it disrupts the queue. */
   mergeQueued: MergeQueueEntry | null;
+  /** The branch this PR merges into (e.g. "main"), named in "behind" facts. */
+  baseRef: string;
 }
 
 /**
@@ -88,6 +89,11 @@ export interface PrSummary {
   facts: string[];
 }
 
+/** `{ hasNextPage }` from a GraphQL connection — true means results were cut off. */
+export interface PageInfo {
+  hasNextPage: boolean;
+}
+
 /** GraphQL response type for a pull request — only the fields we read. */
 export interface GraphQlPr {
   number: number;
@@ -95,17 +101,27 @@ export interface GraphQlPr {
   isDraft: boolean;
   headRefName: string;
   baseRefName: string;
-  mergeable: string;
-  mergeStateStatus: string;
-  reviewDecision: string | null;
+  mergeable: "CONFLICTING" | "MERGEABLE" | "UNKNOWN";
+  mergeStateStatus:
+    | "BEHIND"
+    | "BLOCKED"
+    | "CLEAN"
+    | "DIRTY"
+    | "DRAFT"
+    | "HAS_HOOKS"
+    | "UNKNOWN"
+    | "UNSTABLE";
+  reviewDecision: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
   updatedAt: string;
   author: { login: string } | null;
   /** Present only when the PR is in GitHub's merge queue. */
   mergeQueueEntry: MergeQueueEntry | null;
   reviewRequests: {
+    pageInfo: PageInfo;
     nodes: { requestedReviewer: { login: string } | { name: string } | null }[];
   };
   reviewThreads: {
+    pageInfo: PageInfo;
     nodes: {
       isResolved: boolean;
       isOutdated: boolean;
@@ -117,7 +133,7 @@ export interface GraphQlPr {
       commit: {
         statusCheckRollup: {
           state: string;
-          contexts: { nodes: Record<string, unknown>[] };
+          contexts: { pageInfo: PageInfo; nodes: Record<string, unknown>[] };
         } | null;
       };
     }[];
