@@ -1,10 +1,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import {
   durationsCompatible,
   type EdgeListing,
   edgeFieldError,
 } from "#shared/listing-parents-rules.ts";
+
+/** The i18n message a broken edge rule reports for the named listing — the
+ * same key production formats, so tests assert WHICH rule won (and whose name
+ * it blames) without re-typing the English copy. */
+const ruleError = (messageKey: string, name: string): string =>
+  t(`listings_table.children_err_${messageKey}`, { name });
 
 const listing = (over: Partial<EdgeListing> = {}): EdgeListing => ({
   customisable_days: false,
@@ -166,11 +173,25 @@ describe("edgeFieldError", () => {
     expect(edgeFieldError(parent, child)).toBeNull();
   });
 
+  test("a parent-blaming error resolves to real copy naming the parent, not a raw i18n key", () => {
+    const parent = listing({ months_per_unit: 1, name: "Membership" });
+    const message = edgeFieldError(parent, listing());
+    expect(message).toContain("'Membership'");
+    expect(message).not.toContain("children_err");
+  });
+
+  test("a child-blaming error resolves to real copy naming the child, not a raw i18n key", () => {
+    const child = listing({ months_per_unit: 1, name: "Gold Tier" });
+    const message = edgeFieldError(listing(), child);
+    expect(message).toContain("'Gold Tier'");
+    expect(message).not.toContain("children_err");
+  });
+
   test("the parent-renewal error when the parent is a renewal tier", () => {
     const parent = listing({ months_per_unit: 1, name: "Membership" });
     const child = listing({ name: "Child" });
     expect(edgeFieldError(parent, child)).toBe(
-      "'Membership' is a renewal tier, so it can't require child listings.",
+      ruleError("parent_renewal", "Membership"),
     );
   });
 
@@ -178,7 +199,7 @@ describe("edgeFieldError", () => {
     const parent = listing({ name: "Parent" });
     const child = listing({ months_per_unit: 1, name: "Membership" });
     expect(edgeFieldError(parent, child)).toBe(
-      "'Membership' is a renewal tier, so it can't be a child listing.",
+      ruleError("child_renewal", "Membership"),
     );
   });
 
@@ -186,7 +207,7 @@ describe("edgeFieldError", () => {
     const parent = listing({ listing_type: "standard", name: "Parent" });
     const child = listing({ listing_type: "daily", name: "Cabin" });
     expect(edgeFieldError(parent, child)).toBe(
-      "'Cabin' is a daily listing, so it can only be a child of another daily listing.",
+      ruleError("child_daily", "Cabin"),
     );
   });
 
@@ -216,7 +237,7 @@ describe("edgeFieldError", () => {
       name: "Cabin",
     });
     expect(edgeFieldError(parent, child)).toBe(
-      "'Cabin' can't be booked for the same length as its parent — adjust its duration or day prices to match.",
+      ruleError("child_duration", "Cabin"),
     );
   });
 
@@ -228,7 +249,7 @@ describe("edgeFieldError", () => {
       name: "Child",
     });
     expect(edgeFieldError(parent, child)).toBe(
-      "'Parent' is a renewal tier, so it can't require child listings.",
+      ruleError("parent_renewal", "Parent"),
     );
   });
 
@@ -240,7 +261,7 @@ describe("edgeFieldError", () => {
       name: "Child",
     });
     expect(edgeFieldError(parent, child)).toBe(
-      "'Child' is a renewal tier, so it can't be a child listing.",
+      ruleError("child_renewal", "Child"),
     );
   });
 
@@ -254,7 +275,7 @@ describe("edgeFieldError", () => {
       name: "Cabin",
     });
     expect(edgeFieldError(parent, child)).toBe(
-      "'Cabin' is a daily listing, so it can only be a child of another daily listing.",
+      ruleError("child_daily", "Cabin"),
     );
   });
 });
