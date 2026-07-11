@@ -502,16 +502,16 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
     });
 
     test("appends iframe=true when iframe mode is active", () => {
-      detectIframeMode("https://example.com/?iframe=true");
+      detectIframeMode(new URL("https://example.com/?iframe=true"));
       const response = redirectResponse("/ticket/reserved?tokens=abc");
       expect(response.headers.get("location")).toBe(
         "/ticket/reserved?tokens=abc&iframe=true",
       );
-      detectIframeMode("https://example.com/");
+      detectIframeMode(new URL("https://example.com/"));
     });
 
     test("does not append iframe param when iframe mode is inactive", () => {
-      detectIframeMode("https://example.com/");
+      detectIframeMode(new URL("https://example.com/"));
       const response = redirectResponse("/ticket/test");
       expect(response.headers.get("location")).toBe("/ticket/test");
     });

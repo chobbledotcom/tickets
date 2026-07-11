@@ -61,7 +61,7 @@ const isLocalDevelopmentHost = (domain: string): boolean =>
   isIpv4Loopback(domain);
 
 /** Load the effective domain from DB, falling back to the request URL hostname. */
-export const loadEffectiveDomain = (requestUrl: string): string => {
+export const loadEffectiveDomain = (requestUrl: URL): string => {
   const custom = settings.customDomain;
   const validated = custom ? settings.customDomainLastValidated : null;
   if (custom && validated) {
@@ -84,8 +84,8 @@ export const loadEffectiveDomain = (requestUrl: string): string => {
  * notifications (e.g. ntfy titles) identify the real site. The value is
  * refined later by loadEffectiveDomain() once the custom domain is known.
  */
-export const seedEffectiveDomainHost = (requestUrl: string): void => {
-  effectiveDomainState.domain = new URL(requestUrl).hostname;
+export const seedEffectiveDomainHost = (requestUrl: URL): void => {
+  effectiveDomainState.domain = requestUrl.hostname;
 };
 
 /** Get the effective domain synchronously; DEFAULT_DOMAIN until a request resolves a real one. */

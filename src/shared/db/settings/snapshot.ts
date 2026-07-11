@@ -22,7 +22,7 @@ import {
   type StringSettingKey,
 } from "#shared/settings/registry.ts";
 /* jscpd:ignore-end */
-import { DEFAULT_TIMEZONE } from "#shared/timezone.ts";
+import { DEFAULT_TIMEZONE } from "#shared/timezone-default.ts";
 import type {
   PaymentProviderSetting,
   PaymentProviderType,

@@ -126,11 +126,11 @@ describeWithEnv(
       });
 
       test("does not show image in iframe mode", () => {
-        detectIframeMode("https://example.com/?iframe=true");
+        detectIframeMode(new URL("https://example.com/?iframe=true"));
         const listing = testListingWithCount({ image_url: "listing-img.jpg" });
         const html = renderSingleListing(listing);
         expect(html).not.toContain("listing-img.jpg");
-        detectIframeMode("https://example.com/");
+        detectIframeMode(new URL("https://example.com/"));
       });
     });
 

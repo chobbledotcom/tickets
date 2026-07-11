@@ -33,19 +33,20 @@ describe("currency", () => {
       expect(getDecimalPlaces("KWD")).toBe(3);
     });
 
-    test("falls back to 2 when minimumFractionDigits is undefined", () => {
-      const orig = Intl.NumberFormat.prototype.resolvedOptions;
+    test("throws when Intl omits its guaranteed decimal places", () => {
+      const original = Intl.NumberFormat.prototype.resolvedOptions;
       Intl.NumberFormat.prototype.resolvedOptions = function () {
-        const opts = orig.call(this);
         return {
-          ...opts,
+          ...original.call(this),
           minimumFractionDigits: undefined as unknown as number,
         };
       };
       try {
-        expect(getDecimalPlaces("GBP")).toBe(2);
+        expect(() => getDecimalPlaces("CAD")).toThrow(
+          "Intl omitted currency decimal places for CAD",
+        );
       } finally {
-        Intl.NumberFormat.prototype.resolvedOptions = orig;
+        Intl.NumberFormat.prototype.resolvedOptions = original;
       }
     });
   });

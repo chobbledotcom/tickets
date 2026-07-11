@@ -261,7 +261,7 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/limits.ts:readLimit",
   // Set log suppression directly to avoid env var races between parallel tests
   "shared/logger.ts:setSuppressRequestLogs",
-  "shared/logger.ts:setSuppressDebugLogs",
+  "shared/log-settings.ts:setSuppressDebugLogs",
   // Rethrow errors in tests without env var races
   "shared/test-overrides.ts:setRethrowErrorsForTest",
   // Override BUILD_TIMESTAMP / BUILD_COMMIT in tests (compile-time constants can't be changed otherwise)

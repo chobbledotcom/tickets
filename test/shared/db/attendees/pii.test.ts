@@ -16,10 +16,21 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   buildPiiBlob,
+  decryptAttendeeFields,
+  decryptAttendeeOrNull,
+  decryptAttendees,
+  decryptPiiBlob,
+  encryptAttendeeFields,
+  encryptPiiBlob,
   PII_BLOB_VERSION,
   parsePiiBlob,
 } from "#shared/db/attendees/pii.ts";
-import type { PiiBlob } from "#shared/types.ts";
+import { getDb } from "#shared/db/client.ts";
+import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import type { Attendee, PiiBlob } from "#shared/types.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { testAttendee } from "#test-utils/factories.ts";
 
 // jscpd:ignore-end
 
@@ -69,5 +80,149 @@ describe("servicing §0 — buildPiiBlob with name only produces an all-empty-bu
     expect(baseline.e).toBe("");
     expect(leaked.e).toBe("leaked@example.com");
     expect(leaked.e).not.toBe(baseline.e);
+  });
+});
+
+const samplePii = {
+  address: "5 Ledger Lane",
+  email: "aggie@pii.test",
+  lat: "",
+  lng: "",
+  name: "Aggie Attendee",
+  payment_id: "pay_pii",
+  phone: "07700900123",
+  special_instructions: "leave at door",
+  ticket_token: "tok_pii",
+};
+
+/** The contact-only encrypt input for encryptAttendeeFields. */
+const encInput = {
+  address: samplePii.address,
+  email: samplePii.email,
+  name: samplePii.name,
+  paymentId: samplePii.payment_id,
+  phone: samplePii.phone,
+  pricePaid: 0,
+  special_instructions: samplePii.special_instructions,
+};
+
+describe("PII blob encoding", () => {
+  test("PII_BLOB_VERSION is 1", () => {
+    expect(PII_BLOB_VERSION).toBe(1);
+  });
+
+  test("buildPiiBlob keeps a pinned lat/lng but omits an empty one", () => {
+    const pinned = JSON.parse(
+      buildPiiBlob({ ...samplePii, lat: "1.5", lng: "2.5" }),
+    );
+    expect(pinned.la).toBe("1.5");
+    expect(pinned.lo).toBe("2.5");
+
+    const unpinned = JSON.parse(buildPiiBlob(samplePii));
+    expect("la" in unpinned).toBe(false);
+    expect("lo" in unpinned).toBe(false);
+  });
+
+  test("parsePiiBlob defaults a missing version but preserves an explicit one", () => {
+    expect(parsePiiBlob('{"n":"x"}').v).toBe(PII_BLOB_VERSION);
+    expect(parsePiiBlob('{"n":"x","v":2}').v).toBe(2);
+  });
+});
+
+const encryptSample = (pii = samplePii) =>
+  encryptPiiBlob(buildPiiBlob(pii), settings.publicKey);
+
+const encryptedRow = async (
+  overrides: Partial<Attendee> = {},
+): Promise<Attendee> =>
+  testAttendee({ pii_blob: await encryptSample(), ...overrides });
+
+const roundTrip = async (pii: typeof samplePii, paidListing: boolean) =>
+  decryptPiiBlob(
+    await encryptSample(pii),
+    await getTestPrivateKey(),
+    paidListing,
+  );
+
+describeWithEnv("PII crypto", { db: true }, () => {
+  test("decryptPiiBlob round-trips fields and exposes payment id only when paid", async () => {
+    const pinned = { ...samplePii, lat: "1.5", lng: "2.5" };
+
+    const paid = await roundTrip(pinned, true);
+    expect(paid.name).toBe("Aggie Attendee");
+    expect(paid.lat).toBe("1.5");
+    expect(paid.lng).toBe("2.5");
+    expect(paid.payment_id).toBe("pay_pii");
+
+    const unpaid = await roundTrip(pinned, false);
+    expect(unpaid.payment_id).toBe("");
+  });
+
+  test("decryptPiiBlob returns empty coordinates for an unpinned blob", async () => {
+    const pii = await roundTrip(samplePii, true);
+    expect(pii.lat).toBe("");
+    expect(pii.lng).toBe("");
+  });
+
+  test("encryptAttendeeFields encrypts blank coordinates that decrypt back to empty", async () => {
+    const result = await encryptAttendeeFields(encInput);
+    expect(result).not.toBeNull();
+    const pii = await decryptPiiBlob(
+      result!.encryptedPiiBlob,
+      await getTestPrivateKey(),
+      true,
+    );
+    expect(pii.lat).toBe("");
+    expect(pii.lng).toBe("");
+    expect(pii.payment_id).toBe("pay_pii");
+  });
+
+  test("encryptAttendeeFields returns null when no public key is configured", async () => {
+    await getDb().execute({
+      args: [CONFIG_KEYS.PUBLIC_KEY],
+      sql: "DELETE FROM settings WHERE key = ?",
+    });
+    settings.invalidateCache();
+
+    const result = await encryptAttendeeFields(encInput);
+    expect(result).toBeNull();
+  });
+
+  test("decryptAttendeeFields defaults to paid, surfacing payment id and refunded", async () => {
+    const row = await encryptedRow({ checked_in: false, refunded: true });
+    const decrypted = await decryptAttendeeFields(
+      row,
+      await getTestPrivateKey(),
+    );
+    expect(decrypted.name).toBe("Aggie Attendee");
+    expect(decrypted.payment_id).toBe("pay_pii");
+    expect(decrypted.refunded).toBe(true);
+  });
+
+  test("decryptAttendeeFields hides payment id and forces refunded false when unpaid", async () => {
+    const row = await encryptedRow({ refunded: true });
+    const decrypted = await decryptAttendeeFields(
+      row,
+      await getTestPrivateKey(),
+      false,
+    );
+    expect(decrypted.payment_id).toBe("");
+    expect(decrypted.refunded).toBe(false);
+  });
+
+  test("decryptAttendees decrypts each row, defaulting to paid", async () => {
+    const rows = [await encryptedRow({ refunded: true })];
+    const [decrypted] = await decryptAttendees(rows, await getTestPrivateKey());
+    expect(decrypted!.name).toBe("Aggie Attendee");
+    expect(decrypted!.payment_id).toBe("pay_pii");
+    expect(decrypted!.refunded).toBe(true);
+  });
+
+  test("decryptAttendeeOrNull passes null through and decrypts a row", async () => {
+    const key = await getTestPrivateKey();
+    expect(await decryptAttendeeOrNull(null, key)).toBeNull();
+
+    const decrypted = await decryptAttendeeOrNull(await encryptedRow(), key);
+    expect(decrypted?.name).toBe("Aggie Attendee");
   });
 });

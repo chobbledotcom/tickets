@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Spy, spy } from "@std/testing/mock";
 import * as v from "valibot";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
-import { setSuppressDebugLogs } from "#shared/logger.ts";
+import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import {
   type BookingItem,
   BookingItemsSchema,

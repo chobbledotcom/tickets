@@ -12,10 +12,14 @@
  */
 
 import { encrypt } from "#shared/crypto/encryption.ts";
-import { executeWithoutCacheInvalidation } from "#shared/db/client.ts";
+import {
+  executeBatchWithoutCacheInvalidation,
+  executeWithoutCacheInvalidation,
+} from "#shared/db/client.ts";
 import {
   bumpSettingsVersion,
   getRawCached,
+  settingsVersionIncrement,
   syncCache,
 } from "#shared/db/settings/cache.ts";
 import {
@@ -52,6 +56,25 @@ export const writeRaw = async (key: string, value: string): Promise<void> => {
     s.loaded.add(key);
   });
   await bumpSettingsVersion();
+};
+
+/** Persist several related settings in one transaction and one version bump. */
+export const writeRawBatch = async (
+  values: ReadonlyArray<readonly [key: string, value: string]>,
+): Promise<void> => {
+  if (values.length === 0)
+    throw new Error("Cannot write an empty settings batch");
+  await executeBatchWithoutCacheInvalidation([
+    ...values.map(([key, value]) => settingUpsert(key, value)),
+    settingsVersionIncrement(),
+  ]);
+  recordSettingsLoaded(values.map(([key]) => key));
+  syncCache((state) => {
+    for (const [key, value] of values) {
+      state.values.set(key, value);
+      state.loaded.add(key);
+    }
+  });
 };
 
 /** Delete a setting from the DB, drop it from the raw cache, and bump the

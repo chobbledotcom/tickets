@@ -12,13 +12,32 @@
  */
 
 import { Temporal } from "temporal-polyfill";
+import { lazyRef } from "#fp";
 import { formatIsoForPreview } from "#shared/bulk-replace.ts";
-
-/** Default timezone when none is configured */
-export const DEFAULT_TIMEZONE = "Europe/London";
 
 /** Pad a number to two digits */
 const pad2 = (n: number): string => String(n).padStart(2, "0");
+
+type LongDateFormatter = {
+  formatter: Intl.DateTimeFormat;
+  timezone: string;
+};
+
+const [getLongDateFormatter, setLongDateFormatter] =
+  lazyRef<LongDateFormatter | null>(() => null);
+
+const longDateFormatter = (timezone: string): Intl.DateTimeFormat => {
+  const cached = getLongDateFormatter();
+  if (cached?.timezone === timezone) return cached.formatter;
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    timeZone: timezone,
+    timeZoneName: "short",
+    weekday: "long",
+  });
+  setLongDateFormatter({ formatter, timezone });
+  return formatter;
+};
 
 /** Convert epoch milliseconds to a ZonedDateTime in the given timezone */
 const msToZoned = (ms: number, tz: string): Temporal.ZonedDateTime =>
@@ -112,12 +131,7 @@ export const formatDatetimeInTz = (utcIso: string, tz: string): string => {
   const { year, day, hour, minute } = utcToZoned(utcIso, tz);
 
   // Use Intl for weekday/month names and timezone abbreviation
-  const parts = new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    timeZone: tz,
-    timeZoneName: "short",
-    weekday: "long",
-  }).formatToParts(new Date(utcIso));
+  const parts = longDateFormatter(tz).formatToParts(new Date(utcIso));
 
   const get = (type: string): string =>
     parts.find((p) => p.type === type)!.value;

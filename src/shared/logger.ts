@@ -9,6 +9,7 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { lazyRef } from "#fp";
+import { shouldSuppressDebugLogs } from "#shared/log-settings.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import {
   addPendingWork,
@@ -39,26 +40,6 @@ const shouldSuppressRequestLogs = (): boolean => {
   const override = getSuppressOverride();
   if (override !== null) return override;
   return !!Deno.env.get("TEST_SUPPRESS_REQUEST_LOGS");
-};
-
-/**
- * Module-level override for debug log suppression.
- * Bypasses Deno.env to avoid races between parallel test workers.
- */
-const [getSuppressDebugOverride, setSuppressDebugOverride] = lazyRef<
-  boolean | null
->(() => null);
-
-/** Set module-level debug log suppression (avoids env race in parallel tests). */
-export const setSuppressDebugLogs = (value: boolean | null): void => {
-  setSuppressDebugOverride(value);
-};
-
-/** Check if debug logs should be suppressed */
-const shouldSuppressDebugLogs = (): boolean => {
-  const override = getSuppressDebugOverride();
-  if (override !== null) return override;
-  return !!Deno.env.get("TEST_SUPPRESS_DEBUG_LOGS");
 };
 
 /** Generate a 4-char lowercase hex string */

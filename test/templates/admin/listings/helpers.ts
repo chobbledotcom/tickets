@@ -88,6 +88,6 @@ export const registerListingTemplateHooks = (): void => {
     await signCsrfToken();
   });
   afterEach(() => {
-    detectIframeMode("https://example.com/");
+    detectIframeMode(new URL("https://example.com/"));
   });
 };
