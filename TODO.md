@@ -506,18 +506,7 @@ helper) before the brace-depth checks, and add a direct regression test for the
 comment-with-`}`-then-nested-template case asserting `parseArgList` doesn't
 misinterpret the comma.
 
-### 3. `foldOutcomeValid` should assert rejected folds preserve the prior quantity
-
-`test/lib/fold-tree.test.ts` — for the above-cap (rejected) case the validator
-checks `recordedQty !== running`, which only proves the quantity wasn't clamped
-to the attempted total; it doesn't prove the rejected fold left the *prior*
-recorded quantity unchanged.
-
-Fix direction: capture the recorded quantity before calling `foldChild`, thread
-it into `foldOutcomeValid`, and assert exact equality against that pre-fold
-value for rejected outcomes (retaining the accepted-case checks).
-
-### 4. `mutation.ts` CLI value flags should fail fast on a missing value
+### 3. `mutation.ts` CLI value flags should fail fast on a missing value
 
 `scripts/mutation.ts` — in `applyArg`, a recognized value flag (`--source`,
 `--test`, `--timeout`, `--jobs`) with no following token falls through and is
