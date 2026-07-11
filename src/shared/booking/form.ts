@@ -11,9 +11,21 @@ export const parseCustomPrice = (
   maxPrice: number,
 ) => validatePrice(form.getString(fieldName), minPrice, maxPrice);
 
-/** Format error message for failed attendee creation. */
-export const formatAtomicError = capacityErrorFormatter({
+/** The messages a failed public booking answers with — written once here so
+ * the web form and the JSON API never retype (and drift on) the same copy. */
+export const bookingError = {
+  /** A creation failure that isn't about capacity (e.g. encryption_error). */
   fallback: "Registration failed. Please try again.",
+  /** Out of capacity, with no listing name to point at. */
   generic: "Sorry, not enough spots available",
-  withName: (name) => `Sorry, ${name} no longer has enough spots available`,
-});
+  /** A booking for a date the listing doesn't offer. */
+  invalidDate: "Please select a valid date",
+  /** The payment provider wouldn't open a checkout session. */
+  paymentSessionFailed: "Failed to create payment session",
+  /** Out of capacity on a named listing. */
+  withName: (name: string): string =>
+    `Sorry, ${name} no longer has enough spots available`,
+};
+
+/** Format error message for failed attendee creation. */
+export const formatAtomicError = capacityErrorFormatter(bookingError);

@@ -28,7 +28,6 @@
   "listings_table.days_from_today": "days from today",
   "listings_table.booking_duration": "Booking Duration",
   "listings_table.day_count_with_parens": "day(s)",
-  "listings_table.remain": "remain",
   "listings_table.listing_attendees": "Listing Attendees",
   "listings_table.capacity_per_date": "Capacity of {capacity} applies per date",
   "listings_table.group_attendees": "Group Attendees",

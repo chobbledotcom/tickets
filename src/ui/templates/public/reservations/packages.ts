@@ -16,7 +16,11 @@ import {
   quantityOptions,
   restoredPackageQuantity,
 } from "./inputs.ts";
-import { buildListingRows, renderListingDescription } from "./rows.ts";
+import {
+  buildListingRows,
+  renderListingDescription,
+  soldOutLabel,
+} from "./rows.ts";
 
 /** A package member row: name + fixed per-package quantity, read-only — the
  * buyer chooses the package count, not per-member quantities. A member that is
@@ -104,7 +108,7 @@ const renderPackageSection = (render: PackageRender): string => {
   const heading = `<legend>${escapeHtml(pkg.name)}</legend>`;
   const body =
     limit < 1
-      ? `<span class="sold-out-label">${t("public.sold_out")}</span>`
+      ? soldOutLabel()
       : renderListingDescription(pkg.description) +
         renderPackageControls(render);
   return `<fieldset class="ticket-package${

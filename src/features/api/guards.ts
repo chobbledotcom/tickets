@@ -1,4 +1,4 @@
-import { apiResponse } from "#routes/api/cors.ts";
+import { apiError } from "#routes/api/cors.ts";
 import { LISTING_NOT_FOUND, withActiveListing } from "#routes/api/helpers.ts";
 import { classifyForDiscovery } from "#routes/public/discovery.ts";
 import type { ServerContext } from "#routes/types.ts";
@@ -33,7 +33,7 @@ const guardChildListing = async (
   listing: ListingWithCount,
 ): Promise<{ isSoldOutParent: boolean } | Response> => {
   const { isChild, isSoldOutParent } = await listingDiscoveryState(listing);
-  if (isChild) return apiResponse(LISTING_NOT_FOUND, 404);
+  if (isChild) return apiError(LISTING_NOT_FOUND, 404);
   return { isSoldOutParent };
 };
 

@@ -1,7 +1,6 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import {
   getAttendeeAnswersBatch,
   getAttendeeTextAnswers,
@@ -9,7 +8,6 @@ import {
 import { setListingQuestions } from "#shared/db/questions/queries.ts";
 import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -104,21 +102,8 @@ describeWithEnv(
       // listingTextAnswerIds is exactly what gets serialized into the provider
       // metadata, so a dropped `s` here is the production bug. The earlier
       // free-text test hand-built this metadata and so could never catch it.
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const captured: CheckoutIntent[] = [];
-      const mockCreate = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        (intent: CheckoutIntent) => {
-          captured.push(intent);
-          return Promise.resolve({
-            checkoutUrl: "https://checkout.stripe.com/pay/cs_round_trip",
-            sessionId: "cs_round_trip",
-          });
-        },
-      );
+      const { stubCheckout } = await import("#test-utils/checkout.ts");
+      const { checkout, getCaptured } = stubCheckout("cs_round_trip");
       const { expectCheckoutRedirect } = await import(
         "#test-utils/assertions.ts"
       );
@@ -132,12 +117,12 @@ describeWithEnv(
           }),
         );
       } finally {
-        mockCreate.restore();
+        checkout.restore();
       }
 
       // The resolved ref must carry a real numeric string id, never the
       // undefined that JSON.stringify would silently drop from signed metadata.
-      const refs = captured[0]!.listingTextAnswerIds![String(listing.id)]!;
+      const refs = getCaptured()!.listingTextAnswerIds![String(listing.id)]!;
       expect(refs.length).toBe(1);
       expect(refs[0]!.q).toBe(question.id);
       expect(Number.isInteger(refs[0]!.s)).toBe(true);
@@ -154,7 +139,7 @@ describeWithEnv(
               items: singleItem(listing.id, 1, 1000),
               name: "Round Tripper",
               text_answer_ids: JSON.stringify(
-                captured[0]!.listingTextAnswerIds,
+                getCaptured()!.listingTextAnswerIds,
               ),
             },
             1000,

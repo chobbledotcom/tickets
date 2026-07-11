@@ -14,10 +14,10 @@
 
 import { logDebug } from "#shared/logger.ts";
 import {
-  extractSessionMetadata,
   hasRequiredSessionMetadata,
   toCanonicalIso,
   toCheckoutResult,
+  validatedPaymentSession,
   withCheckoutError,
 } from "#shared/payment-helpers.ts";
 import type {
@@ -127,15 +127,14 @@ export const squarePaymentProvider: PaymentProvider = {
       }
     }
 
-    const createdAt = toCanonicalIso(order.createdAt);
-    return {
+    return validatedPaymentSession({
       amountTotal: Number(order.totalMoney.amount),
-      ...(createdAt !== undefined ? { createdAt } : {}),
+      createdAt: toCanonicalIso(order.createdAt),
       id: order.id,
-      metadata: extractSessionMetadata(metadata),
+      metadata,
       paymentReference,
       paymentStatus,
-    };
+    });
   },
 
   setupWebhookEndpoint(

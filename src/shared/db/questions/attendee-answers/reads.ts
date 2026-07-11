@@ -5,24 +5,21 @@
  * the owner-key-decrypted free-text table cells.
  */
 
-import { groupBy, mapParallel } from "#fp";
+import { groupToMap, mapParallel } from "#fp";
 import { decryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
-import { inPlaceholders, queryAll } from "#shared/db/client.ts";
+import { queryAll } from "#shared/db/client.ts";
+import { rowsByIds } from "#shared/db/query.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { getQuestionsWithListingIds } from "#shared/db/questions/queries.ts";
 import { answersTable } from "#shared/db/questions/tables.ts";
 
 /** Group `(attendee_id, answer_id)` rows into an attendee → answer-ids map. */
-const choiceAnswerMapFromRows = (
-  rows: { attendee_id: number; answer_id: number }[],
-): Map<number, number[]> =>
-  new Map(
-    [...groupBy(rows, (r) => r.attendee_id)].map(
-      ([id, rs]) => [id, rs.map((r) => r.answer_id)] as const,
-    ),
-  );
+const choiceAnswerMapFromRows = groupToMap(
+  (r: { attendee_id: number; answer_id: number }) => r.attendee_id,
+  (r) => r.answer_id,
+);
 
 /** Load `attendee_answers` rows for a set of attendees, restricted to rows where
  * `column` is set (non-null). Returns an empty array for an empty attendee
@@ -34,16 +31,15 @@ const selectAttendeeAnswerRows = <R>(
   selectColumns: string,
   join = "",
 ): Promise<R[]> =>
-  attendeeIds.length === 0
-    ? Promise.resolve([])
-    : queryAll<R>(
-        `SELECT ${selectColumns}
-         FROM attendee_answers AS attendee_answer
-         ${join}
-        WHERE attendee_answer.${column} IS NOT NULL
-          AND attendee_answer.attendee_id IN (${inPlaceholders(attendeeIds)})`,
-        attendeeIds,
-      );
+  rowsByIds<R>(
+    attendeeIds,
+    (placeholders) =>
+      `SELECT ${selectColumns}
+       FROM attendee_answers AS attendee_answer
+       ${join}
+      WHERE attendee_answer.${column} IS NOT NULL
+        AND attendee_answer.attendee_id IN (${placeholders})`,
+  );
 
 const choiceAnswerIdsBatch = async (
   attendeeIds: number[],
@@ -105,14 +101,15 @@ export const getAttendeeTextAnswersBatch = async (
     questionId: row.question_id,
     text: await decryptWithOwnerKey(row.encrypted_text, privateKey),
   }))(rows);
+  const textPairsByAttendee = groupToMap(
+    (d: (typeof decrypted)[number]) => d.attendeeId,
+    (d) => [d.questionId, d.text] as const,
+  )(decrypted);
   return new Map(
-    [...groupBy(decrypted, (d) => d.attendeeId)].map(
-      ([attendeeId, group]) =>
-        [
-          attendeeId,
-          new Map(group.map((d) => [d.questionId, d.text] as const)),
-        ] as const,
-    ),
+    [...textPairsByAttendee].map(([attendeeId, pairs]) => [
+      attendeeId,
+      new Map(pairs),
+    ]),
   );
 };
 
@@ -220,21 +217,12 @@ export const getAttendeeAnswersByQuestion = async (
      WHERE attendeeAnswer.answer_id IS NOT NULL AND attendeeAnswer.attendee_id = ?`,
     [attendeeId],
   );
-  // Decrypt each chosen answer in parallel, then key by question id.
-  const decrypted = await mapParallel(async (row: ChoiceAnswerRow) => {
-    const answer = await answersTable.fromDb({
-      active: true,
-      id: row.answer_id,
-      question_id: row.question_id,
-      sort_order: 0,
-      text: row.answer_text,
-    });
-    return {
-      answerId: row.answer_id,
-      answerText: answer.text,
-      questionId: row.question_id,
-    };
-  })(rows);
+  // Decrypt each chosen answer's text in parallel, then key by question id.
+  const decrypted = await mapParallel(async (row: ChoiceAnswerRow) => ({
+    answerId: row.answer_id,
+    answerText: await answersTable.readColumn("text", row.answer_text),
+    questionId: row.question_id,
+  }))(rows);
   return new Map(
     decrypted.map((d) => [
       d.questionId,

@@ -5,11 +5,44 @@ import {
 } from "#shared/booking/tree.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
-import { savedFormValue } from "#shared/forms.tsx";
+import {
+  renderSelectOptions,
+  type SelectOption,
+  savedFormValue,
+} from "#shared/forms.tsx";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
+
+/** Everything one of the booking form's labeled dropdowns needs: an error box
+ * when there is nothing to choose from, else a label plus a required select
+ * with a placeholder option in front of the choices. */
+type LabeledSelect = {
+  name: string;
+  /** Trusted label HTML (the date selector appends a duration hint). */
+  label: string;
+  placeholder: string;
+  /** Shown instead of the select when there are no options. */
+  emptyError: string;
+  options: SelectOption[];
+};
+
+/** The one shell behind the booking form's date and day-count pickers. */
+const renderLabeledSelect = ({
+  name,
+  label,
+  placeholder,
+  emptyError,
+  options,
+}: LabeledSelect): string =>
+  options.length === 0
+    ? `<div class="error">${emptyError}</div>`
+    : `<label for="${name}">${label}</label>
+       <select name="${name}" id="${name}" required>
+         <option value="">${placeholder}</option>
+         ${renderSelectOptions(options)}
+       </select>`;
 
 /** A date-selector dropdown for daily listings. */
 export const renderDateSelector = (
@@ -17,26 +50,23 @@ export const renderDateSelector = (
   selected = "",
   durationDays = 1,
 ): string =>
-  dates.length === 0
-    ? `<div class="error">${t("public.ticket.no_dates_available")}</div>`
-    : `<label for="date">${t("public.ticket.select_date")}${
-        durationDays > 1
-          ? ` <small>(${t("public.ticket.date_duration_hint", {
-              durationDays,
-            })})</small>`
-          : ""
-      }</label>
-       <select name="date" id="date" required>
-         <option value="">${t("public.ticket.select_date_placeholder")}</option>
-         ${dates
-           .map(
-             (d) =>
-               `<option value="${d}"${d === selected ? " selected" : ""}>${formatDateLabel(
-                 d,
-               )}</option>`,
-           )
-           .join("")}
-       </select>`;
+  renderLabeledSelect({
+    emptyError: t("public.ticket.no_dates_available"),
+    label: `${t("public.ticket.select_date")}${
+      durationDays > 1
+        ? ` <small>(${t("public.ticket.date_duration_hint", {
+            durationDays,
+          })})</small>`
+        : ""
+    }`,
+    name: "date",
+    options: dates.map((d) => ({
+      label: formatDateLabel(d),
+      selected: d === selected,
+      value: d,
+    })),
+    placeholder: t("public.ticket.select_date_placeholder"),
+  });
 
 /** Render the "number of days" selector for customisable-days listings. When a
  * single listing drives the page, each option shows its price for that span.
@@ -45,26 +75,25 @@ export const renderDayCountSelector = (
   counts: number[],
   priceFor?: (days: number) => number | null,
 ): string => {
-  if (counts.length === 0) {
-    return `<div class="error">${t("public.ticket.no_booking_lengths")}</div>`;
-  }
   const selected = savedFormValue("day_count");
-  return `<label for="day_count">${t("public.ticket.number_of_days")}</label>
-       <select name="day_count" id="day_count" required>
-         <option value="">${t("public.ticket.select_placeholder")}</option>
-         ${counts
-           .map((n) => {
-             const price = priceFor?.(n);
-             const suffix =
-               price !== undefined && price !== null
-                 ? ` — ${formatCurrency(price)}`
-                 : "";
-             return `<option value="${n}"${
-               selected === String(n) ? " selected" : ""
-             }>${t("public.ticket.day_option", { count: n })}${suffix}</option>`;
-           })
-           .join("")}
-       </select>`;
+  return renderLabeledSelect({
+    emptyError: t("public.ticket.no_booking_lengths"),
+    label: t("public.ticket.number_of_days"),
+    name: "day_count",
+    options: counts.map((n) => {
+      const price = priceFor?.(n);
+      const suffix =
+        price !== undefined && price !== null
+          ? ` — ${formatCurrency(price)}`
+          : "";
+      return {
+        label: `${t("public.ticket.day_option", { count: n })}${suffix}`,
+        selected: selected === String(n),
+        value: String(n),
+      };
+    }),
+    placeholder: t("public.ticket.select_placeholder"),
+  });
 };
 
 /** A price input for pay-more listings. `required` is the HTML constraint: page
@@ -121,14 +150,13 @@ export const renderTermsAndCheckbox = (terms: string): string => {
 
 /** An `<option>` list `0..max` for a quantity selector, with `selected` chosen. */
 export const quantityOptions = (max: number, selected: number): string =>
-  Array.from({ length: max + 1 }, (_, i) => i)
-    .map(
-      (n) =>
-        `<option value="${n}"${
-          n === selected ? " selected" : ""
-        }>${n}</option>`,
-    )
-    .join("");
+  renderSelectOptions(
+    Array.from({ length: max + 1 }, (_, i) => ({
+      label: String(i),
+      selected: i === selected,
+      value: String(i),
+    })),
+  );
 
 /** Per-listing pre-fill applied when scanning a signed QR link */
 export type TicketPrefill = {

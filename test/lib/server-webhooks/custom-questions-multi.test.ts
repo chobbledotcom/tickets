@@ -1,7 +1,6 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import {
   getAttendeeAnswersBatch,
@@ -34,21 +33,11 @@ const submitMultiTicketFormWithStubbedCheckout = async (
   formData: Record<string, string>,
   stubSessionId: string,
 ): Promise<void> => {
-  const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
-  const mockCreate = stub(stripePaymentProvider, "createCheckoutSession", () =>
-    Promise.resolve({
-      checkoutUrl: `https://checkout.stripe.com/pay/${stubSessionId}`,
-      sessionId: stubSessionId,
-    }),
-  );
+  const { stubCheckout } = await import("#test-utils/checkout.ts");
+  using _checkout = stubCheckout(stubSessionId).checkout;
   const { expectCheckoutRedirect } = await import("#test-utils/assertions.ts");
   const { submitMultiTicketForm } = await import("#test-utils/csrf.ts");
-  try {
-    const checkoutResponse = await submitMultiTicketForm(slug, formData);
-    expectCheckoutRedirect(checkoutResponse);
-  } finally {
-    mockCreate.restore();
-  }
+  expectCheckoutRedirect(await submitMultiTicketForm(slug, formData));
 };
 
 /** Fetch both listings' attendees, assert each has exactly one and that
