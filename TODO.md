@@ -277,32 +277,6 @@ keeps the bundles honest by failing when a route reads a key it didn't declare.
   computing bundle caps for several packages in one pass over shared capacity
   maps — worthwhile only if a page with many package links shows up hot.
 
-## Standalone child selector suppressed for sold-out / hidden package members
-
-`src/ui/templates/public/reservations/packages.ts` — `buildPageListingRows`
-derives `memberIds` from `packageMemberIds(opts.packages)` (every package's
-members), then suppresses the child selector on any standalone row whose listing
-is in that set (a rendered package member carries the one selector). But a
-**sold-out** package (`limit < 1`) renders a sold-out card with no member rows,
-and a `hideListings` package renders no member rows either — so their members'
-child selectors are never rendered in the package section. If such a member is
-ALSO a standalone parent whose own row is still bookable, its child selector is
-suppressed on both paths, so a buyer can't satisfy its multi-choice child
-requirements.
-
-CodeRabbit flagged this on PR #1693; it is pre-existing behaviour (verbatim from
-the original monolith), not introduced by the template split, so it's out of
-scope for that mechanical refactor. Fix: build the suppression set from only the
-packages that actually render member rows (skip `pkg.hideListings` and
-`packageLimits.get(pkg.groupId)! < 1`), so standalone parents whose package rows
-were omitted keep `opts.childCtx`. Ships with a regression test that books a
-standalone parent whose sibling-capacity sold-out package hid its member row and
-asserts the child selector still renders. (Note the `hideListings` half may be
-unreachable — the code assumes only visible packages contain parents — so verify
-that invariant before widening the fix.)
-
----
-
 ## Test-suite speed — remaining opportunities
 
 *Origin: the test-suite performance pass (lazy Sentry, fast `toContain`,
