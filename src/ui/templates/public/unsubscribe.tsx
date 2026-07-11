@@ -13,6 +13,8 @@ import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
+import { PageLayout } from "#templates/components/page-layout.tsx";
+import { ProseSection } from "#templates/components/prose-section.tsx";
 import { Layout } from "#templates/layout.tsx";
 /* jscpd:ignore-end */
 
@@ -24,23 +26,6 @@ export type UnsubscribeState = {
   error?: string | undefined;
   info?: string | undefined;
 };
-
-/** A `<div class="prose">` section led by an `<h2>` heading, wrapping the
- *  page-specific body. Shared by the admin attendee-details block and the
- *  public forget/contact-preferences section, so the wrapper markup can't
- *  drift between admin and public. */
-export const ProseSection = ({
-  children,
-  heading,
-}: {
-  children?: Child;
-  heading: string;
-}): JSX.Element => (
-  <div class="prose">
-    <h2>{heading}</h2>
-    {children}
-  </div>
-);
 
 /** A hidden form field paired with the form's submit button — the shared tail
  *  of the unsubscribe action forms and the admin check-in form. */
@@ -87,7 +72,7 @@ const ToggleForm = ({
 );
 
 const ForgetSection = ({ hash }: { hash: string }): JSX.Element => (
-  <ProseSection heading={t("unsubscribe.forget_heading")}>
+  <ProseSection title={t("unsubscribe.forget_heading")}>
     <p>{t("unsubscribe.forget_explainer")}</p>
     <ToggleForm
       action="forget"
@@ -104,39 +89,41 @@ export const unsubscribePage = (state: UnsubscribeState): string => {
     : t("unsubscribe.email_preferences");
   return String(
     <Layout title={title}>
-      <h1>{t("unsubscribe.email_preferences")}</h1>
-      <Flash {...flashProps(state.error, state.success, state.info)} />
-      {!state.hash ? (
-        <div class="prose">
-          <p>{t("unsubscribe.invalid_link")}</p>
-        </div>
-      ) : (
-        <>
-          {state.unsubscribed ? (
-            <div class="prose">
-              <p>
-                <Raw html={t("unsubscribe.unsubscribed_message")} />
-              </p>
-              <p>{t("unsubscribe.changed_mind")}</p>
-              <ToggleForm
-                action="resubscribe"
-                hash={state.hash}
-                label={t("unsubscribe.resubscribe_button")}
-              />
-            </div>
-          ) : (
-            <div class="prose">
-              <p>{t("unsubscribe.subscribed_message")}</p>
-              <ToggleForm
-                action="unsubscribe"
-                hash={state.hash}
-                label={t("unsubscribe.unsubscribe_button")}
-              />
-            </div>
-          )}
-          <ForgetSection hash={state.hash} />
-        </>
-      )}
+      <PageLayout className="public-page">
+        <h1>{t("unsubscribe.email_preferences")}</h1>
+        <Flash {...flashProps(state.error, state.success, state.info)} />
+        {!state.hash ? (
+          <div class="prose">
+            <p>{t("unsubscribe.invalid_link")}</p>
+          </div>
+        ) : (
+          <>
+            {state.unsubscribed ? (
+              <div class="prose">
+                <p>
+                  <Raw html={t("unsubscribe.unsubscribed_message")} />
+                </p>
+                <p>{t("unsubscribe.changed_mind")}</p>
+                <ToggleForm
+                  action="resubscribe"
+                  hash={state.hash}
+                  label={t("unsubscribe.resubscribe_button")}
+                />
+              </div>
+            ) : (
+              <div class="prose">
+                <p>{t("unsubscribe.subscribed_message")}</p>
+                <ToggleForm
+                  action="unsubscribe"
+                  hash={state.hash}
+                  label={t("unsubscribe.unsubscribe_button")}
+                />
+              </div>
+            )}
+            <ForgetSection hash={state.hash} />
+          </>
+        )}
+      </PageLayout>
     </Layout>,
   );
 };

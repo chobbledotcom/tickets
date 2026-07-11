@@ -9,7 +9,11 @@ import {
   AttendeeBookingsTable,
   BookingStatusBadges,
 } from "#templates/admin/attendee-detail.tsx";
-import { attendeeSummaryRows } from "#templates/admin/attendee-page.tsx";
+import {
+  attendeeBanner,
+  attendeeSummaryRows,
+} from "#templates/admin/attendee-page.tsx";
+import { PaymentDetails } from "#templates/admin/attendees.tsx";
 import { renderSection } from "#templates/admin/entity-pages.tsx";
 import { expectListingRowQuantity } from "#test-utils/assertions.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
@@ -119,6 +123,60 @@ describe("attendee summary section", () => {
     expect(html).toContain("white-space:pre-wrap");
     expect(html).toContain("1 High St\nTownsville");
     expect(html).toContain("Step free\nNut allergy");
+  });
+});
+
+describe("attendee page blocks", () => {
+  test("keeps the status and notes in one related banner block", () => {
+    const html = String(
+      attendeeBanner({
+        attendee: testAttendee({ status_id: 1 }),
+        notes: [
+          {
+            attendee_id: 1,
+            created: "2026-07-11T10:00:00.000Z",
+            id: 1,
+            note: "Bring identification",
+            type: "owner",
+          },
+        ],
+        statuses: [
+          {
+            id: 1,
+            is_paid_default: false,
+            is_public_default: true,
+            is_reservation: false,
+            name: "Confirmed",
+            reservation_amount: "0",
+            sort_order: 0,
+          },
+          {
+            id: 2,
+            is_paid_default: true,
+            is_public_default: false,
+            is_reservation: false,
+            name: "Paid",
+            reservation_amount: "0",
+            sort_order: 1,
+          },
+        ],
+      }),
+    );
+
+    expect(html).toContain(
+      '<div class="page-block attendee-banner"><div class="prose attendee-status">',
+    );
+    expect(html).toContain("Status: Confirmed");
+    expect(html).toContain("Bring identification");
+  });
+
+  test("omits the payment block when the attendee has no payment", () => {
+    expect(
+      PaymentDetails({
+        attendee: testAttendee({ payment_id: "" }),
+        showBalanceLink: true,
+      }),
+    ).toBeNull();
   });
 });
 

@@ -18,6 +18,7 @@ import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { AdminNav, type NavActive } from "#templates/admin/nav.tsx";
+import { PageLayout } from "#templates/components/page-layout.tsx";
 import { Layout } from "#templates/layout.tsx";
 /* jscpd:ignore-end */
 
@@ -53,9 +54,11 @@ export const AdminPage = ({
 }: AdminPageProps): JSX.Element => (
   <Layout {...(theme !== undefined ? { theme } : {})} title={title}>
     <AdminNav active={active} session={session} />
-    {flash}
-    {actions !== undefined && <p class="actions">{actions}</p>}
-    {children}
+    <PageLayout className="admin-page">
+      {flash}
+      {actions !== undefined && <p class="actions">{actions}</p>}
+      {children}
+    </PageLayout>
   </Layout>
 );
 

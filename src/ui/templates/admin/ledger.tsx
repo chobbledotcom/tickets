@@ -50,6 +50,7 @@ import {
   SubmitButton,
 } from "#templates/components/actions.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
+import { PageBlock } from "#templates/components/page-layout.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
@@ -604,7 +605,7 @@ export const AccountStatementSection = ({
   returnUrl: string;
   fullLedgerHref?: string | undefined;
 }): JSX.Element => (
-  <div class="table-controls">
+  <PageBlock>
     <AccountStatementHeading account={account} lines={lines} names={names} />
     <AccountStatementActions
       account={account}
@@ -618,7 +619,7 @@ export const AccountStatementSection = ({
       names={names}
       returnUrl={returnUrl}
     />
-  </div>
+  </PageBlock>
 );
 
 export const EmbeddedAccountStatementSection = ({
@@ -632,7 +633,7 @@ export const EmbeddedAccountStatementSection = ({
   returnUrl: string;
   fullLedgerHref?: string | undefined;
 }): JSX.Element => (
-  <section id={id}>
+  <PageBlock id={id}>
     <h2>{t("admin.ledger.statement_heading")}</h2>
     <AccountStatementSection
       account={ledger.account}
@@ -641,7 +642,7 @@ export const EmbeddedAccountStatementSection = ({
       names={ledger.names}
       returnUrl={returnUrl}
     />
-  </section>
+  </PageBlock>
 );
 
 /** The whole filter state the ledger page round-trips through the query string:
@@ -829,7 +830,7 @@ export const adminLedgerPage = (
       title={t("admin.ledger.heading")}
     >
       <LedgerStats data={data} />
-      <div class="table-controls">
+      <PageBlock>
         <div class="ledger-date-range">
           {map(
             (side: RangeSide): SafeHtml => (
@@ -853,7 +854,7 @@ export const adminLedgerPage = (
           />
         )}
         {data.truncated && <p>{t("admin.ledger.recent")}</p>}
-      </div>
+      </PageBlock>
       <GuideFooter href="/admin/guide#ledger">
         {t("admin.ledger.guide")}
       </GuideFooter>

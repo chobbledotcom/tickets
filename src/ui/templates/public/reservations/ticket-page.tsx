@@ -19,6 +19,7 @@ import { isReadOnly } from "#shared/env.ts";
 import { type Field, Flash } from "#shared/forms.tsx";
 import { getIframeMode } from "#shared/iframe.ts";
 import { ErrorNote } from "#templates/components/error.tsx";
+import { PageLayout } from "#templates/components/page-layout.tsx";
 import { Layout } from "#templates/layout.tsx";
 import {
   buildPageTree,
@@ -187,48 +188,52 @@ export const ticketPage = ({
       headExtra={headExtra}
       title={title}
     >
-      {headerName && !inIframe && (
-        <TicketPageHeader
-          galleryImages={galleryImages}
-          headerDescription={headerDescription}
-          headerImage={headerImage}
-          headerName={headerName}
-          listingAttributes={
-            singleListing
-              ? attributesByListing.get(singleListing.id)
-              : undefined
-          }
-          pastDays={pastDays}
-          singleListing={singleListing}
-        />
-      )}
-      <Flash error={error} />
+      <PageLayout className="public-page">
+        {headerName && !inIframe && (
+          <TicketPageHeader
+            galleryImages={galleryImages}
+            headerDescription={headerDescription}
+            headerImage={headerImage}
+            headerName={headerName}
+            listingAttributes={
+              singleListing
+                ? attributesByListing.get(singleListing.id)
+                : undefined
+            }
+            pastDays={pastDays}
+            singleListing={singleListing}
+          />
+        )}
+        <Flash error={error} />
 
-      {allUnavailable || isReadOnly() ? (
-        <ErrorNote>{unavailableMessage(allClosed, isSingleListing)}</ErrorNote>
-      ) : (
-        <TicketPageForm
-          actionUrl={actionUrl}
-          addOns={addOns}
-          dates={dates}
-          dayCountPriceFor={dayCountPriceFor}
-          dayCounts={dayCounts}
-          durationDays={dateDurationDays}
-          fields={fields}
-          hasCustomisable={hasCustomisable}
-          hasDaily={hasDaily}
-          hideQuantity={hideQuantity}
-          isPackage={singlePackagePage}
-          isSingleListing={isSingleListing}
-          listingRows={listingRows}
-          prefill={prefill}
-          promoCodesEnabled={promoCodesEnabled}
-          questionListingMap={questionListingMap}
-          questions={pageQuestions}
-          slugs={slugs}
-          terms={terms}
-        />
-      )}
+        {allUnavailable || isReadOnly() ? (
+          <ErrorNote>
+            {unavailableMessage(allClosed, isSingleListing)}
+          </ErrorNote>
+        ) : (
+          <TicketPageForm
+            actionUrl={actionUrl}
+            addOns={addOns}
+            dates={dates}
+            dayCountPriceFor={dayCountPriceFor}
+            dayCounts={dayCounts}
+            durationDays={dateDurationDays}
+            fields={fields}
+            hasCustomisable={hasCustomisable}
+            hasDaily={hasDaily}
+            hideQuantity={hideQuantity}
+            isPackage={singlePackagePage}
+            isSingleListing={isSingleListing}
+            listingRows={listingRows}
+            prefill={prefill}
+            promoCodesEnabled={promoCodesEnabled}
+            questionListingMap={questionListingMap}
+            questions={pageQuestions}
+            slugs={slugs}
+            terms={terms}
+          />
+        )}
+      </PageLayout>
     </Layout>,
   );
 };

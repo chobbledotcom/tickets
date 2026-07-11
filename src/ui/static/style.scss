@@ -216,15 +216,27 @@ article > * {
   margin-block: 0;
 }
 
-/* Vertical stack: flex column with standard gap */
-.stack {
+/* Explicit page composition: large gaps separate peer regions, while the
+   standard gap keeps the related parts inside each region together. */
+.page-layout,
+.page-block {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  width: 100%;
+}
+
+.page-layout {
+  gap: var(--space-lg);
+}
+
+.page-block {
   gap: var(--space-m);
 }
 
-.stack-sm > * {
-  margin: 0;
+.page-layout > *,
+.page-block > * {
+  margin-block: 0;
 }
 
 .prose > :first-child {
@@ -1407,7 +1419,6 @@ output.success {
 
 /* Per-attendee operator/system notes */
 .attendee-notes {
-  margin-bottom: var(--space-l);
   /* The notes banner sits above the tab strip on every attendee tab, so pin it
      too: switching tabs keeps the same alerts in place instead of re-fading
      them in on each navigation. */
@@ -2822,20 +2833,6 @@ a.cal-day-selected:active {
 
 .filter-row select {
   max-width: 15rem;
-}
-
-/* Stack a table with its controls/action rows, evenly spaced. Pinned to the
-   full container width: as a flex-column these groups would otherwise size to
-   their widest child, and a `.table-scroll` holding a `white-space: nowrap`
-   table reports that whole nowrap width as its content size — so without an
-   explicit width the group grows to the table's full width and pushes the page
-   sideways on mobile instead of letting the inner `.table-scroll` scroll. */
-.table-controls,
-.table-block {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-m);
-  width: 100%;
 }
 
 /* Link/button rows attached to a table.

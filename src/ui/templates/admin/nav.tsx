@@ -269,3 +269,12 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => {
     </>
   );
 };
+
+/** Staff navigation for pages that agents can also open with their own header. */
+export const StaffAdminNav = ({
+  active,
+  session,
+}: AdminNavProps): JSX.Element | null =>
+  session.adminLevel === "agent" ? null : (
+    <AdminNav active={active} session={session} />
+  );

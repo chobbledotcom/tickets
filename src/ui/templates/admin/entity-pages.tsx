@@ -22,6 +22,7 @@ import { ActivityLogTable } from "#templates/admin/activityLog.tsx";
 import { AdminNav, type NavActive } from "#templates/admin/nav.tsx";
 import { ActionButton, type IconName } from "#templates/components/actions.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
+import { PageBlock, PageLayout } from "#templates/components/page-layout.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** One row of a read-only summary table. `href` renders the value as a link
@@ -203,28 +204,27 @@ export interface EntityPageView {
   title: string;
 }
 
-/** The whole entity page: title → banner → tab strip → active tab's
- * sections, in order. The panel is a `<section>` (flex column with the
- * standard gap) and each rendered section sits in its own `.table-controls`
- * group, so a heading and its table/actions stay bound together with even
- * spacing. Sections that render nothing are dropped rather than left as empty
- * groups. */
+/** The whole entity page: title → banner → tab strip → active tab's sections,
+ * in order. Peer regions use page spacing; each section keeps its related
+ * heading, table, and actions together as one block. Empty sections disappear. */
 export const entityPageView = (view: EntityPageView): string =>
   String(
     <Layout title={view.title}>
       <AdminNav active={view.navActive} session={view.session} />
-      {getFlashFormId() === undefined && requestFlash()}
-      <div class="prose entity-header">
-        <h1>{view.title}</h1>
-        {view.proseExtra}
-      </div>
-      {view.banner}
-      <TabStrip tabs={view.tabs} />
-      <section class="entity-tab-panel">
-        {compact(view.sections.map(renderSection)).map((section) => (
-          <div class="table-controls">{section}</div>
-        ))}
-      </section>
-      {view.guideFooter}
+      <PageLayout className="entity-page">
+        {getFlashFormId() === undefined && requestFlash()}
+        <div class="prose entity-header">
+          <h1>{view.title}</h1>
+          {view.proseExtra}
+        </div>
+        {view.banner}
+        <TabStrip tabs={view.tabs} />
+        <PageLayout className="entity-tab-panel">
+          {compact(view.sections.map(renderSection)).map((section) => (
+            <PageBlock>{section}</PageBlock>
+          ))}
+        </PageLayout>
+        {view.guideFooter}
+      </PageLayout>
     </Layout>,
   );

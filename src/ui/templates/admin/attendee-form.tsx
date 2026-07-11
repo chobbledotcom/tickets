@@ -745,7 +745,7 @@ export const AttendeeFormPanel = ({
  * (below the heading) goes in `prose`; the page body (below the prose block)
  * goes in `children`. Shared by the create form and the contact-history editor.
  */
-export const AttendeesPageLayout = (props: {
+export const AttendeesPage = (props: {
   active?: string;
   children: JSX.Element;
   prose?: JSX.Element;

@@ -10,6 +10,7 @@
  */
 
 import type { Child } from "#jsx/jsx-runtime.ts";
+import { PageBlock } from "#templates/components/page-layout.tsx";
 
 export const ProseSection = ({
   title,
@@ -22,11 +23,11 @@ export const ProseSection = ({
   /** Extra content rendered after the `.prose` block, still inside the section. */
   footer?: Child;
 }): JSX.Element => (
-  <section>
+  <PageBlock>
     <div class="prose">
       <h2>{title}</h2>
       {children}
     </div>
     {footer}
-  </section>
+  </PageBlock>
 );

@@ -34,6 +34,7 @@ import { operationsSections } from "#templates/admin/guide/operations.tsx";
 import { paymentsSections } from "#templates/admin/guide/payments.tsx";
 import { ticketsSections } from "#templates/admin/guide/tickets.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { PageLayout } from "#templates/components/page-layout.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** The whole guide as one ordered list of sections. */
@@ -75,11 +76,13 @@ const guideShell = ({
 }: GuideShellProps): JSX.Element => (
   <Layout bodyClass="guide" title={title}>
     <AdminNav active={active} session={session} />
-    <div class="prose">
-      <h2>{heading}</h2>
-      {proseExtra}
-    </div>
-    {sections}
+    <PageLayout>
+      <div class="prose">
+        <h2>{heading}</h2>
+        {proseExtra}
+      </div>
+      {sections}
+    </PageLayout>
   </Layout>
 );
 

@@ -13,6 +13,7 @@ import {
   leveledNav,
   nodeLis,
 } from "#templates/components/nav.tsx";
+import { PageLayout } from "#templates/components/page-layout.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /** Everything {@link PublicNav} renders: the settings-driven page flags, the
@@ -242,9 +243,11 @@ export const publicSeoPage =
     const { title, headExtra } = seoPageHead(page, websiteTitle);
     return String(
       <Layout headExtra={headExtra} title={title}>
-        <PublicNav {...nav} />
-        {showHeading && <h1>{page.name}</h1>}
-        {body}
+        <PageLayout className="public-page">
+          <PublicNav {...nav} />
+          {showHeading && <h1>{page.name}</h1>}
+          {body}
+        </PageLayout>
       </Layout>,
     );
   };
@@ -304,10 +307,12 @@ export const publicPage =
   (body: Child): string =>
     String(
       <Layout headExtra={headExtra} title={title}>
-        {websiteTitle && <h1>{websiteTitle}</h1>}
-        <PublicNav {...nav} />
-        {body}
-        {showLoginFooter && <LoginFooter />}
+        <PageLayout className="public-page">
+          {websiteTitle && <h1>{websiteTitle}</h1>}
+          <PublicNav {...nav} />
+          {body}
+          {showLoginFooter && <LoginFooter />}
+        </PageLayout>
       </Layout>,
     );
 
@@ -320,11 +325,13 @@ export const prosePage =
   (prose: Child, afterProse?: Child): string =>
     String(
       <Layout title={title}>
-        <div class="prose">
-          <h1>{heading}</h1>
-          {prose}
-        </div>
-        {afterProse}
+        <PageLayout className="public-page">
+          <div class="prose">
+            <h1>{heading}</h1>
+            {prose}
+          </div>
+          {afterProse}
+        </PageLayout>
       </Layout>,
     );
 

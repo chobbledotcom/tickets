@@ -67,12 +67,12 @@ describe("FormSections", () => {
 });
 
 describe("StackDetails", () => {
-  test("wraps its children in a stack inside a details element", () => {
+  test("keeps its related children in a page block inside the details", () => {
     const html = String(
       StackDetails({ children: "inner", summary: "Summary here" }),
     );
     expect(html).toBe(
-      '<details><summary>Summary here</summary><div class="stack">inner</div></details>',
+      '<details><summary>Summary here</summary><div class="page-block">inner</div></details>',
     );
   });
 });

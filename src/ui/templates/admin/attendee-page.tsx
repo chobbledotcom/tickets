@@ -22,6 +22,7 @@ import type { SummaryRow } from "#templates/admin/entity-pages.tsx";
 import { MaybeButtonLink } from "#templates/components/actions.tsx";
 import { dataTable } from "#templates/components/data-table.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
+import { PageBlock, PageLayout } from "#templates/components/page-layout.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
 import { quantityLabel } from "#templates/public/order-summary.tsx";
 
@@ -139,7 +140,7 @@ const ContactRecordSection = ({
 }): JSX.Element => {
   const { hashParam, record } = channel;
   return (
-    <section>
+    <PageBlock>
       <div class="prose">
         <h4>{label}</h4>
         {record.lastContact && (
@@ -165,7 +166,7 @@ const ContactRecordSection = ({
           {t("attendee_form.edit_contact_record")}
         </a>
       </p>
-    </section>
+    </PageBlock>
   );
 };
 
@@ -247,21 +248,25 @@ export const ContactHistory = ({
 }): JSX.Element => {
   const hasEmail = Boolean(attendee.email);
   return (
-    <article>
-      {/* Heading, "no X on file" lines and the summary counts are one prose
-          chunk; the bookings table and record panels follow. */}
-      <div class="prose">
-        <h3>{t("attendee_form.contact_history")}</h3>
-        {!contactRecords.email && <p>{t("attendee_form.no_email_on_file")}</p>}
-        {!contactRecords.phone && <p>{t("attendee_form.no_phone_on_file")}</p>}
-        <ContactSummary
-          contactRecords={contactRecords}
-          previousBookings={previousBookings}
-        />
-      </div>
-      {previousBookings.length > 0 && (
-        <PreviousBookingsTable bookings={previousBookings} />
-      )}
+    <PageLayout>
+      <PageBlock>
+        <div class="prose">
+          <h3>{t("attendee_form.contact_history")}</h3>
+          {!contactRecords.email && (
+            <p>{t("attendee_form.no_email_on_file")}</p>
+          )}
+          {!contactRecords.phone && (
+            <p>{t("attendee_form.no_phone_on_file")}</p>
+          )}
+          <ContactSummary
+            contactRecords={contactRecords}
+            previousBookings={previousBookings}
+          />
+        </div>
+        {previousBookings.length > 0 && (
+          <PreviousBookingsTable bookings={previousBookings} />
+        )}
+      </PageBlock>
       {contactRecords.email && (
         <ContactRecordSection
           channel={contactRecords.email}
@@ -291,7 +296,7 @@ export const ContactHistory = ({
           </MaybeButtonLink>
         </p>
       )}
-    </article>
+    </PageLayout>
   );
 };
 
@@ -311,7 +316,7 @@ export const attendeeBanner = ({
 }): JSX.Element => {
   const status = statuses.find((s) => s.id === attendee.status_id);
   return (
-    <>
+    <PageBlock className="attendee-banner">
       {statuses.length > 1 && (
         <div class="prose attendee-status">
           <h2>
@@ -322,6 +327,6 @@ export const attendeeBanner = ({
         </div>
       )}
       <AttendeeNotesSection notes={notes} />
-    </>
+    </PageBlock>
   );
 };

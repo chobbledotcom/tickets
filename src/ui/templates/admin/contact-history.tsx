@@ -14,7 +14,7 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AttendeesPageLayout } from "#templates/admin/attendee-form.tsx";
+import { AttendeesPage } from "#templates/admin/attendee-form.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 /* jscpd:ignore-end */
@@ -55,7 +55,7 @@ export const contactHistoryPage = ({
   formError,
 }: ContactHistoryPageData): string =>
   String(
-    <AttendeesPageLayout
+    <AttendeesPage
       prose={
         <>
           <p>{t("contact_history.description")}</p>
@@ -133,5 +133,5 @@ export const contactHistoryPage = ({
           </button>
         </p>
       </CsrfForm>
-    </AttendeesPageLayout>,
+    </AttendeesPage>,
   );

@@ -7,7 +7,9 @@ import { getIframeMode } from "#shared/iframe.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { Icon } from "#templates/components/actions.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
+import { PageLayout } from "#templates/components/page-layout.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { simplePublicPage } from "#templates/public/shared.tsx";
 
 /**
  * Payment page - redirects to Stripe Checkout
@@ -20,25 +22,25 @@ export const paymentPage = (
 ): string =>
   String(
     <Layout title={t("payment.title")}>
-      <h1>{t("payment.complete_your_payment")}</h1>
-
-      <aside>
-        <p>
-          <strong>{t("payment.name_label")}</strong> {attendee.name}
-        </p>
-        <p>
-          <strong>{t("payment.email_label")}</strong> {attendee.email}
-        </p>
-        <p>
-          <strong>{t("payment.amount_label")}</strong> {formattedPrice}
-        </p>
-      </aside>
-
-      <p>{t("payment.stripe_instructions")}</p>
-      <a class="btn" href={checkoutUrl}>
-        <Icon name="credit-card" />
-        <span>{t("payment.pay_now")}</span>
-      </a>
+      <PageLayout>
+        <h1>{t("payment.complete_your_payment")}</h1>
+        <aside>
+          <p>
+            <strong>{t("payment.name_label")}</strong> {attendee.name}
+          </p>
+          <p>
+            <strong>{t("payment.email_label")}</strong> {attendee.email}
+          </p>
+          <p>
+            <strong>{t("payment.amount_label")}</strong> {formattedPrice}
+          </p>
+        </aside>
+        <p>{t("payment.stripe_instructions")}</p>
+        <a class="btn" href={checkoutUrl}>
+          <Icon name="credit-card" />
+          <span>{t("payment.pay_now")}</span>
+        </a>
+      </PageLayout>
     </Layout>,
   );
 
@@ -69,36 +71,38 @@ export const successPage = ({
         : {})}
       title={t("payment.success.title")}
     >
-      <div
-        data-payment-result={paid ? "success" : undefined}
-        data-scroll-into-view={inIframe || undefined}
-      >
-        <div class="prose">
-          <h1>{t("payment.success.heading")}</h1>
-          {fromEmail ? (
+      <PageLayout>
+        <div
+          data-payment-result={paid ? "success" : undefined}
+          data-scroll-into-view={inIframe || undefined}
+        >
+          <div class="prose">
+            <h1>{t("payment.success.heading")}</h1>
+            {fromEmail ? (
+              <p>
+                <small>
+                  <i>{t("payment.success.email_notice", { fromEmail })}</i>
+                </small>
+              </p>
+            ) : null}
+          </div>
+          {ticketUrl ? (
             <p>
-              <small>
-                <i>{t("payment.success.email_notice", { fromEmail })}</i>
-              </small>
+              <a href={ticketUrl} rel="noopener" target="_blank">
+                {t("payment.success.view_ticket")}
+              </a>
             </p>
           ) : null}
+          {thankYouUrl ? (
+            <>
+              <p>{t("payment.success.redirecting")}</p>
+              <p>
+                <a href={thankYouUrl}>{t("payment.success.redirect_link")}</a>
+              </p>
+            </>
+          ) : null}
         </div>
-        {ticketUrl ? (
-          <p>
-            <a href={ticketUrl} rel="noopener" target="_blank">
-              {t("payment.success.view_ticket")}
-            </a>
-          </p>
-        ) : null}
-        {thankYouUrl ? (
-          <>
-            <p>{t("payment.success.redirecting")}</p>
-            <p>
-              <a href={thankYouUrl}>{t("payment.success.redirect_link")}</a>
-            </p>
-          </>
-        ) : null}
-      </div>
+      </PageLayout>
     </Layout>,
   );
 };
@@ -112,27 +116,29 @@ export const paymentCancelPage = (
 ): string =>
   String(
     <Layout title={t("payment.cancel.title")}>
-      <div data-payment-result="cancel">
-        <div class="prose">
-          <h1>{t("payment.cancel.heading")}</h1>
-          <p>{t("payment.cancel.message")}</p>
-        </div>
-        {/* No retry link when the listing has lost its own booking page mid-
+      <PageLayout>
+        <div data-payment-result="cancel">
+          <div class="prose">
+            <h1>{t("payment.cancel.heading")}</h1>
+            <p>{t("payment.cancel.message")}</p>
+          </div>
+          {/* No retry link when the listing has lost its own booking page mid-
             checkout (now a non-standalone child or hidden package member): the
             /ticket/<slug> link would 404. Offer a way home instead. */}
-        <p>
-          {ticketUrl ? (
-            <a class="btn outline" href={ticketUrl}>
-              <Icon name="rotate-ccw" />
-              <span>{t("payment.cancel.try_again")}</span>
-            </a>
-          ) : (
-            <a class="btn outline" href="/">
-              <span>{t("payment.cancel.return_home")}</span>
-            </a>
-          )}
-        </p>
-      </div>
+          <p>
+            {ticketUrl ? (
+              <a class="btn outline" href={ticketUrl}>
+                <Icon name="rotate-ccw" />
+                <span>{t("payment.cancel.try_again")}</span>
+              </a>
+            ) : (
+              <a class="btn outline" href="/">
+                <span>{t("payment.cancel.return_home")}</span>
+              </a>
+            )}
+          </p>
+        </div>
+      </PageLayout>
     </Layout>,
   );
 
@@ -140,16 +146,18 @@ export const paymentCancelPage = (
  * Payment error page
  */
 export const paymentErrorPage = (message: string): string =>
-  String(
-    <Layout title={t("payment.error.title")}>
-      <h1>{t("payment.error.heading")}</h1>
+  simplePublicPage(
+    t("payment.error.title"),
+    t("payment.error.heading"),
+  )(
+    <>
       <ErrorAlert>
         <p>{message}</p>
       </ErrorAlert>
       <p>
         <a href="/">{t("payment.error.return_home")}</a>
       </p>
-    </Layout>,
+    </>,
   );
 
 /**
@@ -159,28 +167,33 @@ export const paymentErrorPage = (message: string): string =>
 export const checkoutPopupPage = (checkoutUrl: string): string =>
   String(
     <Layout bodyClass="iframe" title={t("payment.popup.title")}>
-      <div data-checkout-popup={escapeHtml(checkoutUrl)} data-scroll-into-view>
-        <p>{t("payment.popup.instructions")}</p>
-        <p>
-          <a
-            class="btn"
-            data-open-checkout
-            href={checkoutUrl}
-            rel="noopener"
-            target="_blank"
-          >
-            <Icon name="credit-card" />
-            <span>{t("payment.popup.pay_now")}</span>
-          </a>
-        </p>
-        <div data-checkout-waiting hidden>
-          <p>{t("payment.popup.waiting")}</p>
+      <PageLayout>
+        <div
+          data-checkout-popup={escapeHtml(checkoutUrl)}
+          data-scroll-into-view
+        >
+          <p>{t("payment.popup.instructions")}</p>
           <p>
-            <a href={checkoutUrl} rel="noopener" target="_blank">
-              <small>{t("payment.popup.window_hint")}</small>
+            <a
+              class="btn"
+              data-open-checkout
+              href={checkoutUrl}
+              rel="noopener"
+              target="_blank"
+            >
+              <Icon name="credit-card" />
+              <span>{t("payment.popup.pay_now")}</span>
             </a>
           </p>
+          <div data-checkout-waiting hidden>
+            <p>{t("payment.popup.waiting")}</p>
+            <p>
+              <a href={checkoutUrl} rel="noopener" target="_blank">
+                <small>{t("payment.popup.window_hint")}</small>
+              </a>
+            </p>
+          </div>
         </div>
-      </div>
+      </PageLayout>
     </Layout>,
   );

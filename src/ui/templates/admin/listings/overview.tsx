@@ -13,6 +13,7 @@ import {
   renderDetailRows,
 } from "#templates/admin/detail-rows.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
+import { PageLayout } from "#templates/components/page-layout.tsx";
 import { attendeeStatsForListing } from "./attendees.tsx";
 import { listingCapacityRowsFor } from "./capacity-rows.tsx";
 import { ListingDetailsTable } from "./details.tsx";
@@ -112,7 +113,7 @@ export const ListingOverviewPanel = (
     labelSuffix: dailySuffix,
   });
   return (
-    <>
+    <PageLayout>
       <ListingDetailsTable
         aggregateRecalculation={aggregateRecalculation}
         allowedDomain={allowedDomain}
@@ -135,6 +136,6 @@ export const ListingOverviewPanel = (
         <ListingLedgerSection ledger={ledger} listingId={listing.id} />
       )}
       <AttendeeNotesSummary names={noteNames} notes={systemNotes} />
-    </>
+    </PageLayout>
   );
 };

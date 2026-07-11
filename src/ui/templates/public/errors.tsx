@@ -2,6 +2,7 @@ import { t } from "#i18n";
 import { getRenewalUrl } from "#shared/env.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { PageLayout } from "#templates/components/page-layout.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import { simplePublicPage } from "./shared.tsx";
 
@@ -26,10 +27,12 @@ const errorPage =
   (body: Child): string =>
     String(
       <Layout headExtra={headExtra} title={t(titleKey)}>
-        <div class="prose">
-          <h1>{t(headingKey)}</h1>
-          {body}
-        </div>
+        <PageLayout>
+          <div class="prose">
+            <h1>{t(headingKey)}</h1>
+            {body}
+          </div>
+        </PageLayout>
       </Layout>,
     );
 
@@ -39,7 +42,9 @@ const errorPage =
 export const notFoundPage = (): string =>
   String(
     <Layout title={t("public.not_found.title")}>
-      <h1>{t("public.not_found.heading")}</h1>
+      <PageLayout>
+        <h1>{t("public.not_found.heading")}</h1>
+      </PageLayout>
     </Layout>,
   );
 
@@ -172,16 +177,18 @@ export const readOnlyPage = (): string => {
   const renewalUrl = getRenewalUrl();
   return String(
     <Layout title={t("public.read_only.title")}>
-      <p>
-        {t("public.read_only.message")}
-        {renewalUrl && (
-          <Raw
-            html={` <a href="${escapeHtml(renewalUrl)}">${t(
-              "public.read_only.renew_now",
-            )}</a>`}
-          />
-        )}
-      </p>
+      <PageLayout>
+        <p>
+          {t("public.read_only.message")}
+          {renewalUrl && (
+            <Raw
+              html={` <a href="${escapeHtml(renewalUrl)}">${t(
+                "public.read_only.renew_now",
+              )}</a>`}
+            />
+          )}
+        </p>
+      </PageLayout>
     </Layout>,
   );
 };

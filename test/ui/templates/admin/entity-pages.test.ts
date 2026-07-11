@@ -246,12 +246,13 @@ describe("entityPageView", () => {
     expect(html).not.toContain('role="tab"');
   });
 
-  test("panel is a <section>; each section sits in its own .table-controls group", () => {
+  test("groups the page and each tab section with the shared spacing components", () => {
     const html = entityPageView(view);
-    expect(html).toContain('<section class="entity-tab-panel">');
-    // The one rendered section is wrapped in exactly one grouping div.
-    expect(html).toContain('<div class="table-controls">');
-    expect((html.match(/class="table-controls"/g) ?? []).length).toBe(1);
+    expect(html).toContain('<div class="page-layout entity-page">');
+    expect(html).toContain('<div class="page-layout entity-tab-panel">');
+    expect(html).toContain('<div class="page-block">');
+    expect((html.match(/class="page-block"/g) ?? []).length).toBe(1);
+    expect(html).not.toContain('class="table-controls"');
   });
 
   test("a section that renders nothing is dropped, not left as an empty group", () => {
@@ -267,7 +268,7 @@ describe("entityPageView", () => {
         },
       ],
     });
-    // Only the summary yields a group — the null section leaves no empty one.
-    expect((html.match(/class="table-controls"/g) ?? []).length).toBe(1);
+    // Only the summary yields a block — the null section leaves no empty one.
+    expect((html.match(/class="page-block"/g) ?? []).length).toBe(1);
   });
 });

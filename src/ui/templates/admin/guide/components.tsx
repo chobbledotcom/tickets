@@ -7,9 +7,12 @@
  * the Column Order section.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { PageBlock } from "#templates/components/page-layout.tsx";
+/* jscpd:ignore-end */
 
 /** Host-level configuration info passed from the route */
 export type GuideHostConfig = {
@@ -30,10 +33,10 @@ export const Section = ({
   title: string;
   children?: Child;
 }): JSX.Element => (
-  <div class="stack-md column">
+  <PageBlock>
     <h3 id={id}>{title}</h3>
     {children}
-  </div>
+  </PageBlock>
 );
 
 export const Q = ({

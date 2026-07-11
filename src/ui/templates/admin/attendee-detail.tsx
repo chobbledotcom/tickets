@@ -19,6 +19,7 @@ import { questionTextFlat } from "#templates/admin/questions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
+import { PageBlock } from "#templates/components/page-layout.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 
 /** One key/value row of a detail table. */
@@ -108,7 +109,7 @@ export const AttendeeBookingsTable = ({
     }
   }
   return (
-    <>
+    <PageBlock>
       <h3>{t("terms.bookings")}</h3>
       <DataTable
         columns={[
@@ -161,7 +162,7 @@ export const AttendeeBookingsTable = ({
           }) ?? "—",
         ])}
       />
-    </>
+    </PageBlock>
   );
 };
 
@@ -189,13 +190,13 @@ export const AttendeeAnswersTable = ({
   })(questions);
   if (answered.length === 0) return null;
   return (
-    <>
+    <PageBlock>
       <h3>{t("attendee_detail.answers")}</h3>
       <DetailTable>
         {answered.map((row) => (
           <DetailTableRow label={row.question}>{row.answer}</DetailTableRow>
         ))}
       </DetailTable>
-    </>
+    </PageBlock>
   );
 };

@@ -8,6 +8,7 @@
  */
 
 import { ActionButton } from "#templates/components/actions.tsx";
+import { PageLayout } from "#templates/components/page-layout.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 export const SuccessCompletePage = ({
@@ -23,16 +24,18 @@ export const SuccessCompletePage = ({
 }): string =>
   String(
     <Layout title={title}>
-      <h1>{heading}</h1>
-      <div class="success" role="alert">
-        {messages.map((message) => (
-          <p>{message}</p>
-        ))}
-      </div>
-      <p class="actions">
-        <ActionButton href="/admin/login" icon="log-in">
-          {loginLink}
-        </ActionButton>
-      </p>
+      <PageLayout>
+        <h1>{heading}</h1>
+        <div class="success" role="alert">
+          {messages.map((message) => (
+            <p>{message}</p>
+          ))}
+        </div>
+        <p class="actions">
+          <ActionButton href="/admin/login" icon="log-in">
+            {loginLink}
+          </ActionButton>
+        </p>
+      </PageLayout>
     </Layout>,
   );
