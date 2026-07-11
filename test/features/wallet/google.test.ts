@@ -28,13 +28,11 @@ const configureGoogleWallet = async () => {
   ]);
 };
 
-const ensureCreds = (): void => {
-  generateGoogleTestCreds();
-};
-
 describeWithEnv("google wallet route (/gwallet/:token)", { db: true }, () => {
-  beforeEach(async () => {
-    await ensureCreds();
+  beforeEach(() => {
+    // Pre-build the once()-cached test credentials so no single test pays
+    // the keygen cost mid-assertion.
+    generateGoogleTestCreds();
   });
 
   test("returns 404 when Google Wallet is not configured", async () => {
@@ -116,8 +114,8 @@ describeWithEnv("google wallet route (/gwallet/:token)", { db: true }, () => {
 });
 
 describeWithEnv("ticket view google wallet link", { db: true }, () => {
-  beforeEach(async () => {
-    await ensureCreds();
+  beforeEach(() => {
+    generateGoogleTestCreds();
   });
 
   test("does not show google wallet link when not configured", async () => {
@@ -139,8 +137,8 @@ describeWithEnv("ticket view google wallet link", { db: true }, () => {
 });
 
 describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
-  beforeEach(async () => {
-    await ensureCreds();
+  beforeEach(() => {
+    generateGoogleTestCreds();
   });
 
   testRequiresAuth("/admin/settings/google-wallet", {
@@ -318,7 +316,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
 
 /** Set all Google Wallet env vars and return restore function */
 const setGoogleWalletEnvVars = async () => {
-  await ensureCreds();
+  generateGoogleTestCreds();
   return setTestEnv({
     GOOGLE_WALLET_ISSUER_ID: "9876543210",
     GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL:
@@ -371,8 +369,8 @@ describeWithEnv(
     },
   },
   () => {
-    beforeEach(async () => {
-      await ensureCreds();
+    beforeEach(() => {
+      generateGoogleTestCreds();
     });
 
     test("hasGoogleWalletConfig returns true with env vars when DB not configured", async () => {

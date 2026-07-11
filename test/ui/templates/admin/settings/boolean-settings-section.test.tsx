@@ -32,11 +32,15 @@ describe("booleanSettingsSection", () => {
   test("checks the yes radio when the state is on and the no radio when off", () => {
     const onHtml = String(section({ enabled: true }));
     const offHtml = String(section({ enabled: false }));
-    expect(onHtml).toContain('value="true"');
-    expect(offHtml).toContain('value="false"');
-    // Both render both options; the checked state is what differs.
-    expect(onHtml).toContain("checked");
-    expect(offHtml).toContain("checked");
+    const yesRadio =
+      '<input checked name="test_enabled" type="radio" value="true">';
+    const noRadio =
+      '<input checked name="test_enabled" type="radio" value="false">';
+    // Both render both options; exactly one carries checked, on the right side.
+    expect(onHtml).toContain(yesRadio);
+    expect(onHtml).not.toContain(noRadio);
+    expect(offHtml).toContain(noRadio);
+    expect(offHtml).not.toContain(yesRadio);
   });
 
   test("falls back to common.save when submitLabel is omitted", () => {

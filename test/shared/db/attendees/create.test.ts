@@ -30,6 +30,16 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
+/** Narrow a createBookingAtomic result to the successful shape, or fail the test. */
+const expectBookingOk = (
+  result: Awaited<ReturnType<typeof createBookingAtomic>>,
+) => {
+  if (result === "sold-out" || !result.success) {
+    throw new Error("expected ok");
+  }
+  return result;
+};
+
 const OCCURRED_AT = "2026-06-24T00:00:00.000Z";
 
 const line = (
@@ -128,7 +138,7 @@ const expectCapacityExceeded = async (
 /** The stored ledger_event_group stamp on an attendee's booking row. */
 const storedEventGroup = async (attendeeId: number): Promise<string> => {
   const row = await queryOne<{ ledger_event_group: string }>(
-    "SELECT ledger_event_group FROM listing_attendees WHERE attendee_id = ?",
+    "SELECT ledger_event_group FROM listing_attendees AS attendee WHERE attendee_id = ?",
     [attendeeId],
   );
   return row!.ledger_event_group;
@@ -158,11 +168,8 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
 
     const result = await createBookingAtomic(paidInput(listing.id, 600), plan);
 
-    expect(result).not.toBe("sold-out");
-    if (result === "sold-out" || !result.success) {
-      throw new Error("expected ok");
-    }
-    const attendeeId = result.attendees[0]!.id;
+    const ok = expectBookingOk(result);
+    const attendeeId = ok.attendees[0]!.id;
     // Gross revenue recognised, surcharge billed, and the £6 paid clears the
     // balance to zero — the legs were posted with the real attendee id.
     expect(await accountBalance(revenueAccount(listing.id))).toBe(500);
@@ -244,13 +251,11 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       plan,
     );
 
-    if (result === "sold-out" || !result.success) {
-      throw new Error("expected ok");
-    }
-    expect(result.attendees.length).toBe(1);
+    const ok = expectBookingOk(result);
+    expect(ok.attendees.length).toBe(1);
     // No money moved, no event-group stamp written.
     expect((await allTransfers()).length).toBe(0);
-    expect(await storedEventGroup(result.attendees[0]!.id)).toBe("");
+    expect(await storedEventGroup(ok.attendees[0]!.id)).toBe("");
   });
 
   test("postBookingLegsTx stamps a one-leg owed booking's event group", async () => {
@@ -270,9 +275,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       },
       plan,
     );
-    if (result === "sold-out" || !result.success)
-      throw new Error("expected ok");
-    const attendeeId = result.attendees[0]!.id;
+    const attendeeId = expectBookingOk(result).attendees[0]!.id;
 
     const legs = await mapBooking({
       amountPaid: 0,
@@ -304,9 +307,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       },
       plan,
     );
-    if (result === "sold-out" || !result.success)
-      throw new Error("expected ok");
-    const attendeeId = result.attendees[0]!.id;
+    const attendeeId = expectBookingOk(result).attendees[0]!.id;
     const transfersBefore = (await allTransfers()).length;
 
     await withTransaction((tx) => postBookingLegsTx(tx, attendeeId, []));
@@ -397,10 +398,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     );
 
     // Greedy create: the open listing's booking landed, the full one didn't.
-    if (result === "sold-out" || !result.success) {
-      throw new Error("expected ok");
-    }
-    expect(result.attendees.length).toBe(1);
+    expect(expectBookingOk(result).attendees.length).toBe(1);
     // The all-bookings-landed guard held back every leg and the finalize, so the
     // caller's ensureAllBookings can roll the partial booking back cleanly.
     expect((await allTransfers()).length).toBe(0);

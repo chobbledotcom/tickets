@@ -157,17 +157,22 @@ describe("address lookup fills the pin inputs", () => {
   };
 
   test("choosing a located address fills lat/lng and fires input events", async () => {
-    let inputs = 0;
+    let latInputs = 0;
+    let lngInputs = 0;
     const { form, lat, lng } = await searchAndChoose(LOCATED);
     // Listen late is fine — re-choose to observe the events.
     lat.addEventListener("input", () => {
-      inputs += 1;
+      latInputs += 1;
+    });
+    lng.addEventListener("input", () => {
+      lngInputs += 1;
     });
     expect(lat.value).toBe("51.503396");
     expect(lng.value).toBe("-0.127640");
     const select = form.querySelector("[data-address-results]")!;
     select.dispatch("change");
-    expect(inputs).toBe(1);
+    expect(latInputs).toBe(1);
+    expect(lngInputs).toBe(1);
   });
 
   test("an unlocated address clears a previously saved pin", async () => {

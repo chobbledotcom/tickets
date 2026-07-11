@@ -149,8 +149,11 @@ describeWithEnv("backup", { db: true }, () => {
         new TextDecoder().decode(files["manifest.json"]!),
       );
       expect(manifest.schemaHash).toBe(SCHEMA_HASH);
-      expect(manifest.latestUpdate).toBeTruthy();
-      expect(manifest.timestamp).toBeTruthy();
+      expect(manifest.latestUpdate).toBe(LATEST_UPDATE);
+      // A real instant, ISO-8601 formatted — not just any non-empty string.
+      expect(new Date(manifest.timestamp).toISOString()).toBe(
+        manifest.timestamp,
+      );
       expect(manifest.tables.listings).toBe(1);
     });
   });

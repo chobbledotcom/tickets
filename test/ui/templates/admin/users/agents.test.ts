@@ -49,7 +49,9 @@ describe("adminUserNewPage agent selector", () => {
 });
 
 describe("adminUserAgentsPage", () => {
-  const agentUser: DisplayUser = {
+  // The user whose agent assignments the page edits (distinct from the
+  // agentUser factory above, which builds display-row fixtures).
+  const editedUser: DisplayUser = {
     activated: true,
     adminLevel: "agent",
     id: 7,
@@ -58,7 +60,7 @@ describe("adminUserAgentsPage", () => {
   };
 
   test("pre-checks the agents already assigned", () => {
-    const html = adminUserAgentsPage(agentUser, AGENTS, new Set([2]), SESSION);
+    const html = adminUserAgentsPage(editedUser, AGENTS, new Set([2]), SESSION);
     expect(html).toContain("Assigned agents for driver");
     expect(html).toContain('action="/admin/users/7/agents"');
     // Van 2 (id 2) is checked, Van 1 (id 1) is not.
@@ -72,7 +74,7 @@ describe("adminUserAgentsPage", () => {
   });
 
   test("prompts to add agents when none exist", () => {
-    const html = adminUserAgentsPage(agentUser, [], new Set(), SESSION);
+    const html = adminUserAgentsPage(editedUser, [], new Set(), SESSION);
     expect(html).toContain("No logistics agents exist yet");
   });
 });

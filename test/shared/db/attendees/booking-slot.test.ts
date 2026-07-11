@@ -132,16 +132,9 @@ describe("db > attendees > booking-slot", () => {
 
     test("explicit parentListingId 0 and undefined are the same slot", () => {
       // undefined and 0 both normalise to 0 in the key — same slot, still a duplicate.
-      const undefinedParent: number | undefined = undefined;
       expect(
         hasDuplicateBookingSlot([
-          {
-            date: "2026-07-01",
-            listingId: 7,
-            ...(undefinedParent !== undefined
-              ? { parentListingId: undefinedParent }
-              : {}),
-          },
+          { date: "2026-07-01", listingId: 7 },
           { date: "2026-07-01", listingId: 7, parentListingId: 0 },
         ]),
       ).toBe(true);

@@ -207,31 +207,27 @@ export const attendeeExists = async (id: number): Promise<boolean> => {
 export const oldOrphanIso = (): string =>
   new Date(nowMs() - 365 * 24 * 60 * 60 * 1000).toISOString();
 
-export const clearAllLastPruned = async (): Promise<void> => {
-  await settings.update.lastPrunedPayments("");
-  await settings.update.lastPrunedSessions("");
-  await settings.update.lastPrunedLogins("");
-  await settings.update.lastPrunedTokens("");
-  await settings.update.lastPrunedSumup("");
-  await settings.update.lastPrunedStrings("");
-  await settings.update.lastPrunedContacts("");
-  await settings.update.lastPrunedAddresses("");
-  await settings.update.lastPrunedInvites("");
-  await settings.update.lastPrunedOrphans("");
-};
+/** Every last-pruned stamp the scheduler tracks, one setter per table. */
+const LAST_PRUNED_SETTERS = [
+  settings.update.lastPrunedPayments,
+  settings.update.lastPrunedSessions,
+  settings.update.lastPrunedLogins,
+  settings.update.lastPrunedTokens,
+  settings.update.lastPrunedSumup,
+  settings.update.lastPrunedStrings,
+  settings.update.lastPrunedContacts,
+  settings.update.lastPrunedAddresses,
+  settings.update.lastPrunedInvites,
+  settings.update.lastPrunedOrphans,
+];
 
 export const setAllLastPruned = async (value: string): Promise<void> => {
-  await settings.update.lastPrunedPayments(value);
-  await settings.update.lastPrunedSessions(value);
-  await settings.update.lastPrunedLogins(value);
-  await settings.update.lastPrunedTokens(value);
-  await settings.update.lastPrunedSumup(value);
-  await settings.update.lastPrunedStrings(value);
-  await settings.update.lastPrunedContacts(value);
-  await settings.update.lastPrunedAddresses(value);
-  await settings.update.lastPrunedInvites(value);
-  await settings.update.lastPrunedOrphans(value);
+  for (const setStamp of LAST_PRUNED_SETTERS) {
+    await setStamp(value);
+  }
 };
+
+export const clearAllLastPruned = (): Promise<void> => setAllLastPruned("");
 
 export const expectFreshPrunedTimestampAfterRun = async (
   getLastPruned: () => string,

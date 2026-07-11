@@ -646,7 +646,16 @@ describe("toDesiredLines", () => {
       }),
     );
     expect(desired).toHaveLength(1);
-    expect(desired[0]).toMatchObject({ exists: true, quantity: 0 });
+    expect(desired[0]).toEqual({
+      date: null,
+      durationDays: 1,
+      exists: true,
+      key: "1|",
+      listingId: 1,
+      packageGroupId: 0,
+      parentListingId: 0,
+      quantity: 0,
+    });
   });
 
   test("each line books its own path — two rows of one listing stay two", () => {

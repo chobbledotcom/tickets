@@ -111,14 +111,40 @@ describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
   });
 
   test("different requests get different IDs", () => {
-    const ids: string[] = [];
-    for (let i = 0; i < 10; i++) {
-      runWithRequestId(() => {
-        ids.push(getRequestId());
-      });
+    // Feed each call a distinct fixed value, so the distinct-ids contract is
+    // proven deterministically rather than left to a lucky random draw.
+    let draw = 0;
+    const counted = stub(
+      crypto,
+      "getRandomValues",
+      <T extends ArrayBufferView | null>(array: T): T => {
+        draw += 1;
+        new DataView((array as Uint8Array).buffer).setUint16(0, draw);
+        return array;
+      },
+    );
+    try {
+      const ids: string[] = [];
+      for (let i = 0; i < 10; i++) {
+        runWithRequestId(() => {
+          ids.push(getRequestId());
+        });
+      }
+      expect(ids).toEqual([
+        "0001",
+        "0002",
+        "0003",
+        "0004",
+        "0005",
+        "0006",
+        "0007",
+        "0008",
+        "0009",
+        "000a",
+      ]);
+    } finally {
+      counted.restore();
     }
-    const unique = new Set(ids);
-    expect(unique.size).toBeGreaterThan(1);
   });
 
   test("no prefix outside request context", () => {

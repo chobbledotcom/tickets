@@ -222,7 +222,8 @@ describe("saved form data", () => {
       runWithSavedFormContext(async () => {
         const form = new FormParams(`name=${name}`);
         setSavedFormData(form);
-        await new Promise((r) => setTimeout(r, 20));
+        // Yield so the two scopes interleave — no real timer needed.
+        await Promise.resolve();
         return getSavedFormData()?.getString("name");
       });
     const [a, b] = await Promise.all([request("Alice"), request("Bob")]);

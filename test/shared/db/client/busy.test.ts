@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { DatabaseBusyError, execute, setDb } from "#shared/db/client.ts";
+import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 
 /**
  * The write-lock retry: a statement that loses SQLite's single write lock
@@ -13,14 +14,6 @@ import { DatabaseBusyError, execute, setDb } from "#shared/db/client.ts";
  */
 describe("db > client write-lock retry", () => {
   const busyError = (): Error => new Error("SQLITE_BUSY: database is locked");
-  const emptyResultSet = (): ResultSet => ({
-    columns: [],
-    columnTypes: [],
-    lastInsertRowid: undefined,
-    rows: [],
-    rowsAffected: 0,
-    toJSON: () => ({}),
-  });
   const clientWith = (run: () => Promise<ResultSet>): Client =>
     ({ execute: run }) as unknown as Client;
 

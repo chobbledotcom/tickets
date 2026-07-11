@@ -1,4 +1,4 @@
-import type { ResultSet, TransactionMode } from "@libsql/client";
+import type { TransactionMode } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { returnsNext, stub } from "@std/testing/mock";
@@ -9,16 +9,7 @@ import {
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-
-/** A minimal libsql ResultSet for stubbed batch calls. */
-const emptyResultSet = (): ResultSet => ({
-  columns: [],
-  columnTypes: [],
-  lastInsertRowid: undefined,
-  rows: [],
-  rowsAffected: 0,
-  toJSON: () => ({}),
-});
+import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 
 /**
  * Batch execution: the transaction mode routes a batch to a replica ("read")

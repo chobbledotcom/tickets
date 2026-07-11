@@ -259,7 +259,7 @@ describe("getDefaultDbProvider", () => {
   });
 
   test("returns bunny for any other configured value", () => {
-    withEnv({ DEFAULT_DB_HOST: "bunny" }, () => {
+    withEnv({ DEFAULT_DB_HOST: "some-unrecognised-host" }, () => {
       expect(getDefaultDbProvider()).toBe("bunny");
     });
   });
