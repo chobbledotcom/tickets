@@ -104,27 +104,24 @@ const withReferencedRow = async (
   if (row) await fn(row);
 };
 
-/** Handle a delivery (`sms:delivered`) or failure (`sms:failed`) status event. */
-const handleStatus = (
-  event: string,
-  payload: Record<string, unknown>,
-): Promise<void> =>
-  withReferencedRow(payload, async (row) => {
-    const note =
-      event === "sms:delivered"
-        ? "SMS delivered"
-        : `SMS failed: ${str(payload.reason) || "unknown"}`;
-    await logActivity(note, row.listing_id, row.attendee_id);
-    await deleteSmsMessage(row.id);
-  });
+/** Build a status-event handler: logs `note(payload)` against the referenced
+ * message's attendee, then drops the row (its status is settled). The delivered
+ * and failed events share this shape and differ only in the note they log. */
+const handleStatus =
+  (note: (payload: Record<string, unknown>) => string) =>
+  (payload: Record<string, unknown>): Promise<void> =>
+    withReferencedRow(payload, async (row) => {
+      await logActivity(note(payload), row.listing_id, row.attendee_id);
+      await deleteSmsMessage(row.id);
+    });
 
 const inboundWebhookId = (payload: Record<string, unknown>): string =>
   str(payload.messageId) || str(payload.id);
 
 const handleReceived = async (
   payload: Record<string, unknown>,
-  passphrase: string,
 ): Promise<void> => {
+  const passphrase = settings.smsGatewayPassphrase;
   if (!(await claimProcessedSmsInbound(inboundWebhookId(payload)))) return;
   const message = await tryDecrypt(str(payload.message), passphrase);
   const sender = await tryDecrypt(str(payload.sender), passphrase);
@@ -132,6 +129,21 @@ const handleReceived = async (
     await computePhoneIndex(sender),
   );
   await logActivity(`SMS received: ${message}`, null, attendeeId);
+};
+
+/** What to do for each gateway event we track, keyed by the envelope's event
+ * name. An event not in this table is acknowledged without action — the
+ * gateway may send kinds we don't record, so the envelope schema deliberately
+ * keeps `event` an open string rather than a picklist. */
+const smsEventHandlers: Record<
+  string,
+  (payload: Record<string, unknown>) => Promise<void>
+> = {
+  "sms:delivered": handleStatus(() => "SMS delivered"),
+  "sms:failed": handleStatus(
+    (payload) => `SMS failed: ${str(payload.reason) || "unknown"}`,
+  ),
+  "sms:received": handleReceived,
 };
 
 /** Handle POST /sms/webhook */
@@ -154,11 +166,7 @@ export const handleSmsWebhook = async (request: Request): Promise<Response> => {
   if (!parsed.success) return apiErrorResponse("Invalid payload");
 
   const { event, payload } = parsed.output;
-  if (event === "sms:delivered" || event === "sms:failed") {
-    await handleStatus(event, payload);
-  } else if (event === "sms:received") {
-    await handleReceived(payload, settings.smsGatewayPassphrase);
-  }
+  await smsEventHandlers[event]?.(payload);
 
   // Backstop cleanup for rows whose delivery webhook never arrived.
   const retentionCutoff = new Date(nowMs() - RETENTION_MS).toISOString();
