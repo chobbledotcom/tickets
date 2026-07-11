@@ -5,7 +5,6 @@ import {
   clearSessionTokens,
   decryptSessionTokens,
   finalizeSession,
-  getProcessedAttendeeId,
   isSessionProcessed,
   reserveSession,
   STALE_RESERVATION_MS,
@@ -186,30 +185,6 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       const record = await isSessionProcessed("cs_clear_noop");
       expect(record?.ticket_tokens).toBe("");
       expect(record?.attendee_id).toBe(ctx.attendeeId);
-    });
-  });
-
-  describe("getProcessedAttendeeId", () => {
-    test("returns null for unprocessed session", async () => {
-      expect(await getProcessedAttendeeId("cs_never_processed")).toBeNull();
-    });
-
-    test("returns null for reserved-but-not-finalized session", async () => {
-      await reserveSession("cs_reserved_only");
-      expect(await getProcessedAttendeeId("cs_reserved_only")).toBeNull();
-    });
-
-    test("returns attendee ID after finalization", async () => {
-      await reserveSession("cs_finalized_attendee");
-      await finalizeSession(
-        "cs_finalized_attendee",
-        ctx.attendeeId,
-        ["tok-test"],
-        "pi_cs_finalized_attendee",
-      );
-      expect(await getProcessedAttendeeId("cs_finalized_attendee")).toBe(
-        ctx.attendeeId,
-      );
     });
   });
 

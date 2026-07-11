@@ -175,6 +175,16 @@ describeWithEnv("PII crypto", { db: true }, () => {
     expect(pii.lat).toBe("");
     expect(pii.lng).toBe("");
     expect(pii.payment_id).toBe("pay_pii");
+    expect(pii.ticket_token).toMatch(/^[0-9A-F]{10}$/);
+  });
+
+  test("repeated payment references still receive unique ticket tokens", async () => {
+    const [first, second] = await Promise.all([
+      encryptAttendeeFields(encInput),
+      encryptAttendeeFields(encInput),
+    ]);
+
+    expect(first!.ticketToken).not.toBe(second!.ticketToken);
   });
 
   test("encryptAttendeeFields returns null when no public key is configured", async () => {

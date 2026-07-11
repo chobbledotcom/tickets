@@ -2,6 +2,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import {
+  finalizeSession,
+  reserveSession,
+} from "#shared/db/processed-payments.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
   expectHtmlResponse,
@@ -231,12 +235,20 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         unitPrice: 1000,
       });
 
-      // Create attendee as if payment was already processed (using atomic to simulate production flow)
-      await bookAttendee(listing, {
+      const booked = await bookAttendee(listing, {
         email: "john@example.com",
         name: "John",
         paymentId: "pi_test_123",
       });
+      if (!booked.success) throw new Error("Expected replay fixture booking");
+      const attendee = booked.attendees[0]!;
+      await reserveSession("cs_test_paid");
+      await finalizeSession(
+        "cs_test_paid",
+        attendee.id,
+        [attendee.ticket_token],
+        "pi_test_123",
+      );
 
       await withMocks(
         () =>
@@ -246,12 +258,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             mockRequest("/payment/success?session_id=cs_test_paid"),
           );
 
-          // Capacity check will now fail since we already have the attendee
-          // This is expected - in the new flow, replaying creates a duplicate attempt
-          // which fails the capacity check if listing is near full
-          // For idempotent behavior, we'd need to check payment_intent uniqueness
-          // Response is either a 302 redirect (with tokens) or 200 (direct render for replay)
-          expect([200, 302]).toContain(response.status);
+          expectRedirect(response, /^\/payment\/success\?tokens=.+$/);
         },
         resetStripeClient,
       );

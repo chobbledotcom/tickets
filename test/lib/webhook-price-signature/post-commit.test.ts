@@ -1,12 +1,21 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { handleRequest } from "#routes";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { releaseReservation } from "#shared/db/processed-payments.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
+import {
+  assertJson,
+  expectRedirect,
+  followRedirect,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { singleItem } from "#test-utils/factories.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 import {
+  redirectRequest,
   runWebhook,
   setupWithListing,
   signedMeta,
@@ -21,8 +30,12 @@ describeWithEnv(
       resetStripeClient();
     });
 
-    test("never refunds a booking when post-commit processing throws", async () => {
+    test("recovers the ticket when post-commit processing throws", async () => {
       const listing = await setupWithListing();
+      const sessionId = "cs_post_commit_failure";
+      const metadata = signedMeta(1000, {
+        items: singleItem(listing.id, 1, 1000),
+      });
       const createBooking = attendeesApi.createBookingAtomic;
       const failAfterCommit = stub(
         attendeesApi,
@@ -47,26 +60,63 @@ describeWithEnv(
           return result;
         },
       );
+      const retrieve = stubRetrieveCheckoutSession({
+        amountTotal: 1000,
+        metadata,
+        paymentIntent: `pi_${sessionId}`,
+        sessionId,
+      });
+
+      try {
+        await runWebhook({ id: sessionId, metadata }, async (refund) => {
+          await assertJson(webhookRequest(), 200, (json) => {
+            expect(json.processed).toBe(true);
+          });
+          expect(refund.calls.length).toBe(0);
+          const attendees = await getAttendeesRaw(listing.id);
+          expect(attendees.map(({ quantity }) => quantity)).toEqual([1]);
+
+          const redirect = await redirectRequest(sessionId);
+          expectRedirect(redirect, /^\/payment\/success\?tokens=.+$/);
+          const page = await followRedirect(redirect, handleRequest);
+          expect(await page.text()).toContain("Click here to view your ticket");
+        });
+      } finally {
+        retrieve.restore();
+        failAfterCommit.restore();
+      }
+    });
+
+    test("does not refund when an unexpected failure loses its reservation", async () => {
+      const listing = await setupWithListing();
+      const sessionId = "cs_missing_reservation_failure";
+      const failWithoutReservation = stub(
+        attendeesApi,
+        "createBookingAtomic",
+        async () => {
+          await releaseReservation(sessionId);
+          throw new Error("synthetic ambiguous failure");
+        },
+      );
 
       try {
         await runWebhook(
           {
-            id: "cs_post_commit_failure",
+            id: sessionId,
             metadata: signedMeta(1000, {
               items: singleItem(listing.id, 1, 1000),
             }),
           },
           async (refund) => {
             await expect(webhookRequest()).rejects.toThrow(
-              "synthetic post-commit failure",
+              "synthetic ambiguous failure",
             );
             expect(refund.calls.length).toBe(0);
-            const attendees = await getAttendeesRaw(listing.id);
-            expect(attendees.map(({ quantity }) => quantity)).toEqual([1]);
+            expect(await getAttendeesRaw(listing.id)).toEqual([]);
           },
         );
       } finally {
-        failAfterCommit.restore();
+        failWithoutReservation.restore();
       }
     });
   },

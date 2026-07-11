@@ -3,10 +3,10 @@
  *
  * Uses a two-phase locking pattern to prevent duplicate attendee creation:
  * 1. reserveSession() - Claims the session with NULL attendee_id
- * 2. createBookingAtomic() with batchFinalizeStatement() inside the same batch
- *    - Creates the attendee and sets attendee_id atomically, closing the crash
- *    window between creation and a separate finalize call.
- * 3. (webhook only) setSessionTicketTokens() - Persists replay tokens.
+ * 2. setSessionTicketTokens() stores the token before booking can commit.
+ * 3. createBookingAtomic() with batchFinalizeStatement() inside the same batch
+ *    - Creates the attendee and stores its id atomically, closing the crash
+ *    window before a separate finalize call while preserving the token.
  *
  * If reserveSession fails (session already claimed), we check if it's:
  * - Finalized (attendee_id set) → return success with existing attendee
@@ -292,12 +292,9 @@ export const parseSessionFailure = async (
   }
 };
 
-/**
- * Store encrypted ticket tokens on an already-finalized session so later
- * webhook replays can return them. Separated from batchFinalizeStatement so
- * token encryption never holds the write lock open. No-op if the session was
- * pruned.
- */
+/** Store encrypted ticket tokens before a booking can commit, so an error after
+ * the atomic write can still return the ticket. A failed booking remains
+ * unresolved and never exposes these tokens through the replay path. */
 export const setSessionTicketTokens = async (
   sessionId: string,
   ticketTokens: string[],
@@ -327,15 +324,4 @@ export const clearSessionTokens = async (sessionId: string): Promise<void> => {
     sessionId,
     "UPDATE processed_payments SET ticket_tokens = '' WHERE payment_session_id = ?",
   );
-};
-
-/**
- * Get the attendee ID for an already-processed session
- * Used to return success for idempotent webhook retries
- */
-export const getProcessedAttendeeId = async (
-  sessionId: string,
-): Promise<number | null> => {
-  const result = await isSessionProcessed(sessionId);
-  return result?.attendee_id ?? null;
 };

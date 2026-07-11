@@ -14,7 +14,6 @@ import {
   encryptWithOwnerKey,
 } from "#shared/crypto/keys.ts";
 import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { generateTicketToken } from "#shared/crypto/utils.ts";
 import type {
   AttendeePii,
   EncryptedAttendeeData,
@@ -23,6 +22,7 @@ import type {
 } from "#shared/db/attendee-types.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowIso } from "#shared/now.ts";
+import { currentPaymentTicketTokenOrCreate } from "#shared/payment-ticket-token.ts";
 import type { Attendee, ContactInfo, PiiBlob } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
@@ -130,7 +130,7 @@ export const encryptAttendeeFields = async (
   const publicKeyJwk = settings.publicKey;
   if (!publicKeyJwk) return null;
 
-  const ticketToken = generateTicketToken();
+  const ticketToken = currentPaymentTicketTokenOrCreate();
   // Bookings never carry a pinned location — lat/lng are admin-side only.
   const piiJson = buildPiiBlob({
     ...contactFields(input),

@@ -213,8 +213,6 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/square.ts:resetSquareClient",
   // Test helper for creating signed Square webhook payloads
   "shared/square.ts:constructTestWebhookEvent",
-  // Convenience wrapper for idempotency checks (production uses isSessionProcessed directly)
-  "shared/db/processed-payments.ts:getProcessedAttendeeId",
   // Test setup helper for creating finalized sessions; production now uses
   // finalizeSessionStatement inside the attendee-creation transaction instead.
   "shared/db/processed-payments.ts:finalizeSession",
