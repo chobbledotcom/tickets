@@ -9,7 +9,7 @@ import {
   SectionFieldset,
   StackDetails,
 } from "#templates/components/aggregate-sections.tsx";
-import { setupTestEncryptionKey } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 beforeAll(async () => {
   setupTestEncryptionKey();

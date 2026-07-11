@@ -2,7 +2,6 @@
  * Middleware functions for request processing
  */
 
-import { SCAN_API_PATTERN } from "#routes/admin/scanner.ts";
 import { encodeBody } from "#routes/response.ts";
 import {
   getEmbedHosts,
@@ -117,6 +116,9 @@ export const isEmbeddablePath = (path: string): boolean =>
 export const isWebhookPath = (path: string): boolean =>
   path === "/payment/webhook" || path === "/sms/webhook";
 
+/** Pattern matching scan API paths (the scanner posts JSON check-ins) */
+const SCAN_API_PATTERN = /^\/admin\/listing\/\d+\/scan$/;
+
 /** Pattern for public API paths */
 const API_PATH_PATTERN = /^\/api\//;
 
@@ -124,8 +126,8 @@ const API_PATH_PATTERN = /^\/api\//;
 const WALLET_WEBSERVICE_PATTERN = /^\/v1\//;
 
 /**
- * Check if path is a JSON API endpoint.
- * Patterns are exported from their respective route modules.
+ * Check if path is a JSON API endpoint. The patterns live here so this
+ * always-loaded middleware never drags route modules into boot for a regex.
  */
 export const isJsonApiPath = (path: string): boolean =>
   SCAN_API_PATTERN.test(path) ||

@@ -21,6 +21,7 @@ import type {
 import {
   deleteByFieldBatch,
   execute,
+  inPlaceholders,
   insert,
   queryAll,
 } from "#shared/db/client.ts";
@@ -42,9 +43,7 @@ const USER_SELECT = `SELECT ${USER_COLUMNS} FROM users ORDER BY id ASC`;
  * `getByKey`/`getByKeys` path. */
 const fetchUsersByIndex = (keys: string[]): Promise<User[]> =>
   queryAll<User>(
-    `SELECT ${USER_COLUMNS} FROM users WHERE username_index IN (${keys
-      .map(() => "?")
-      .join(", ")})`,
+    `SELECT ${USER_COLUMNS} FROM users WHERE username_index IN (${inPlaceholders(keys)})`,
     keys,
   );
 

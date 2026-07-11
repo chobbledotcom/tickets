@@ -26,11 +26,11 @@ import {
 } from "#routes/api/payment-processing/index.ts";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
+import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
 import {
   htmlResponse,
   jsonResponse,
-  paymentErrorResponse,
   plainResponse,
   redirectResponse,
 } from "#routes/response.ts";

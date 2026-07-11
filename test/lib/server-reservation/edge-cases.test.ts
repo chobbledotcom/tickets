@@ -8,16 +8,19 @@ import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
-import { describeWithEnv, mockRequest } from "#test-utils";
+import { captureCheckoutIntent } from "#test-utils/checkout.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 import {
-  captureCheckoutIntent,
+  modifierUsageAmount,
+  modifierUsageCount,
+} from "#test-utils/modifiers.ts";
+import {
   createProgrammeCharge,
   createSave10Promo,
   expectRefundedPlaceholder,
   latestAttendee,
   modifierRefs,
-  modifierUsageAmount,
-  modifierUsageCount,
   setPublicReservation,
   setupReservationListing,
   stubPaidSession,

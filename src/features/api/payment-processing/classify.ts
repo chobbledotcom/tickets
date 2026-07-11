@@ -10,7 +10,7 @@ import type {
   SessionValidation,
   SignedVerdict,
 } from "#routes/api/webhook-types.ts";
-import { paymentErrorResponse } from "#routes/response.ts";
+import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
 import {

@@ -18,11 +18,11 @@ import {
   redirect,
 } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import {
-  decryptAttendees,
   getAttendeeKindsByIds,
   getAttendeeNamesByIds,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/queries.ts";
 import { getListingWithAttendeesRaw } from "#shared/db/listings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";

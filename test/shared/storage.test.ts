@@ -28,15 +28,14 @@ import {
 } from "#shared/storage.ts";
 import { setDeleteOverride } from "#shared/test-overrides.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  describeWithEnv,
-  expectWebpContainer,
-  makeTestPng,
   withBunnyDeleteCapture,
   withBunnyStorageStub,
   withLocalStorageEnabled,
   withStorageDisabled,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
+import { expectWebpContainer, makeTestPng } from "#test-utils/test-image.ts";
 
 describeWithEnv(
   "storage",

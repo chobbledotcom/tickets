@@ -24,13 +24,11 @@ import {
   syncReadOnlyFrom,
   validateSiteAssignmentConfig,
 } from "#shared/site-assignment.ts";
-import {
-  createTestListing,
-  describeWithEnv,
-  makeTestEntry,
-  setTestEnv,
-  validEmail,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { validEmail } from "#test-utils/email.ts";
+import { setTestEnv } from "#test-utils/env.ts";
+import { makeTestEntry } from "#test-utils/factories.ts";
 
 const stubBuildSiteSuccess = (onCall?: (input: BuildSiteInput) => void) => {
   let counter = 0;
@@ -65,7 +63,9 @@ const stubEdgeSecretSuccess = () =>
  *  need this exact teardown. */
 const deactivateAllTierListings = async (): Promise<void> => {
   const { getAllListings } = await import("#shared/db/listings.ts");
-  const { deactivateTestListing } = await import("#test-utils");
+  const { deactivateTestListing } = await import(
+    "#test-utils/db-helpers/listings.ts"
+  );
   const listings = await getAllListings();
   for (const ev of listings) {
     if (ev.months_per_unit > 0 && ev.purchase_only && ev.hidden && ev.active) {
@@ -796,7 +796,7 @@ describeWithEnv(
 
 describe("syncReadOnlyFrom with non-numeric bunny hostingId", () => {
   test("returns error when bunny hostingId is not a valid number", async () => {
-    const { testBuiltSite } = await import("#test-utils");
+    const { testBuiltSite } = await import("#test-utils/factories.ts");
     const site = testBuiltSite({
       hostingId: "not-a-number",
       hostingProvider: "bunny",

@@ -7,16 +7,9 @@ const GATE_SCRIPT_MARKER = "          script: |\n";
 const GATE_SCRIPT_INDENT = "            ";
 
 type GatePayload = {
-  comment?: {
+  issue?: {
     author_association?: string;
     body?: string;
-  };
-  issue?: {
-    number?: number;
-    pull_request?: unknown;
-  };
-  pull_request?: {
-    number?: number;
   };
 };
 
@@ -29,29 +22,6 @@ type GateContext = {
   };
 };
 
-type PullCheck = {
-  owner: string;
-  pull_number: number;
-  repo: string;
-};
-
-type Pull = {
-  base: {
-    repo?: { full_name?: string } | null;
-  };
-  head: {
-    repo?: { full_name?: string } | null;
-  };
-};
-
-type GateGithub = {
-  rest: {
-    pulls: {
-      get: (check: PullCheck) => Promise<{ data: Pull }>;
-    };
-  };
-};
-
 type GateCore = {
   info: (message: string) => void;
   setOutput: (name: string, value: string) => void;
@@ -59,7 +29,7 @@ type GateCore = {
 
 type GateFunction = (
   context: GateContext,
-  github: GateGithub,
+  github: unknown,
   core: GateCore,
 ) => Promise<void>;
 
@@ -93,18 +63,8 @@ const gateScriptFrom = (workflow: string): string => {
     .join("\n");
 };
 
-const sameRepositoryPull: Pull = {
-  base: { repo: { full_name: "chobbledotcom/tickets" } },
-  head: { repo: { full_name: "chobbledotcom/tickets" } },
-};
-
-const runGate = async (
-  payload: GatePayload,
-  eventName = "issue_comment",
-  pull = sameRepositoryPull,
-) => {
+const runGate = async (payload: GatePayload, eventName = "issues") => {
   const outputs = new Map<string, string>();
-  const pullNumbers: number[] = [];
   const script = gateScriptFrom(await readWorkflow());
   const gate = new AsyncFunction("context", "github", "core", script);
   const context: GateContext = {
@@ -112,31 +72,20 @@ const runGate = async (
     payload,
     repo: { owner: "chobbledotcom", repo: "tickets" },
   };
-  const github: GateGithub = {
-    rest: {
-      pulls: {
-        get: (check) => {
-          pullNumbers.push(check.pull_number);
-          return Promise.resolve({ data: pull });
-        },
-      },
-    },
-  };
   const core: GateCore = {
     info: () => undefined,
     setOutput: (name, value) => outputs.set(name, value),
   };
 
-  await gate(context, github, core);
+  await gate(context, {}, core);
 
   return {
-    pullNumbers,
     shouldRun: outputs.get("should_run") === "true",
   };
 };
 
 describe("OpenCode workflow", () => {
-  test("grants the token scopes needed before checkout and PR checks", async () => {
+  test("grants the token scopes needed before checkout", async () => {
     const workflow = await readWorkflow();
 
     expect(workflow).toContain("contents: read");
@@ -144,14 +93,19 @@ describe("OpenCode workflow", () => {
     expect(workflow).toContain("pull-requests: read");
   });
 
-  test("checks the command token and same-repository PR before using secrets", async () => {
+  test("only triggers on newly opened issues", async () => {
+    const workflow = await readWorkflow();
+
+    expect(workflow).toContain("issues:\n    types: [opened]");
+    expect(workflow).not.toContain("issue_comment:");
+    expect(workflow).not.toContain("pull_request_review_comment:");
+  });
+
+  test("checks the command token before using secrets", async () => {
     const workflow = await readWorkflow();
 
     expect(workflow).not.toContain("contains(github.event.comment.body");
     expect(workflow).toContain("OPEN_CODE_COMMAND");
-    expect(workflow).toContain("github.rest.pulls.get");
-    expect(workflow).toContain("pull.head.repo?.full_name");
-    expect(workflow).toContain("pull.base.repo?.full_name");
     expect(workflow).toContain("steps.gate.outputs.should_run == 'true'");
 
     const gatePosition = positionOf(workflow, "name: Check OpenCode request");
@@ -164,30 +118,48 @@ describe("OpenCode workflow", () => {
     expect(gatePosition).toBeLessThan(keyPosition);
   });
 
-  test("runs when a trusted PR comment mentions OpenCode inline", async () => {
+  test("runs when a trusted issue mentions OpenCode inline", async () => {
     const result = await runGate({
-      comment: {
+      issue: {
         author_association: "OWNER",
-        body: "Delete the stale branch /oc",
+        body: "Please investigate this bug /oc",
       },
-      issue: { number: 42, pull_request: {} },
     });
 
     expect(result.shouldRun).toBe(true);
-    expect(result.pullNumbers).toEqual([42]);
   });
 
-  test("runs for trusted OpenCode comments on normal issues", async () => {
+  test("runs for trusted issues opening with the OpenCode command", async () => {
     const result = await runGate({
-      comment: {
+      issue: {
         author_association: "MEMBER",
         body: "/opencode summarize the problem",
       },
-      issue: { number: 84 },
     });
 
     expect(result.shouldRun).toBe(true);
-    expect(result.pullNumbers).toEqual([]);
+  });
+
+  test("ignores issues without the OpenCode command", async () => {
+    const result = await runGate({
+      issue: {
+        author_association: "OWNER",
+        body: "Just a regular issue with no command",
+      },
+    });
+
+    expect(result.shouldRun).toBe(false);
+  });
+
+  test("ignores the OpenCode command from untrusted authors", async () => {
+    const result = await runGate({
+      issue: {
+        author_association: "NONE",
+        body: "/oc do something",
+      },
+    });
+
+    expect(result.shouldRun).toBe(false);
   });
 
   test("pins actions and the OpenCode binary to immutable commits and releases", async () => {

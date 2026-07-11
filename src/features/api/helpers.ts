@@ -1,7 +1,7 @@
-import { apiResponse } from "#routes/api/cors.ts";
+import { apiError, apiResponse } from "#routes/api/cors.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { getClientIp } from "#routes/url.ts";
-import { parseCustomPrice } from "#shared/booking/form.ts";
+import { bookingError, parseCustomPrice } from "#shared/booking/form.ts";
 import { bookingLimiter } from "#shared/db/booking-attempts.ts";
 import { isHiddenPackageMember } from "#shared/db/groups.ts";
 import { getListingWithCountBySlug } from "#shared/db/listings.ts";
@@ -9,7 +9,40 @@ import { FormParams } from "#shared/form-data.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 
-const LISTING_NOT_FOUND = { error: "Listing not found" } as const;
+const LISTING_NOT_FOUND = "Listing not found";
+
+/** The public booking JSON body for a booking that was created: the ticket
+ * link plus any balance left to collect. Shared by the standalone and folded
+ * booking paths so the two spell the contract one way. */
+export const bookingSuccessResponse = (attendee: {
+  remaining_balance: number;
+  ticket_token: string;
+}): Response =>
+  apiResponse({
+    booking: {
+      // Outstanding balance in minor units; 0 when fully paid, positive when
+      // the booking was taken without collecting payment (no provider), so
+      // the integration knows the amount left to collect from the buyer.
+      amountOwed: attendee.remaining_balance,
+      ticketToken: attendee.ticket_token,
+      ticketUrl: `/t/${attendee.ticket_token}`,
+    },
+  });
+
+/** The public booking JSON body sending the buyer to the payment provider's
+ * hosted checkout page to finish paying. */
+export const checkoutResponse = (checkoutUrl: string): Response =>
+  apiResponse({ booking: { checkoutUrl } });
+
+/** 409 for a booking that no longer fits the remaining spots. */
+export const soldOutResponse = (): Response =>
+  apiError(bookingError.generic, 409);
+
+/** Map a failed checkout-session creation to a response: the provider's own
+ * message when it gave one (a 400 the buyer can act on), otherwise the
+ * generic 500. */
+export const checkoutFailedResponse = (error?: string): Response =>
+  error ? apiError(error) : apiError(bookingError.paymentSessionFailed, 500);
 
 /** Resolve a booking's `quantity` field from a JSON body — defaults to 1 for
  * absent/malformed values, rejects an explicit 0 (the admin-only no-quantity
@@ -20,7 +53,7 @@ export const resolvePositiveQuantity = (
 ): number | Response => {
   const parsedQuantity = parseNonNegativeInt(String(body.quantity ?? "1"));
   if (parsedQuantity === 0) {
-    return apiResponse({ error: "Quantity must be at least 1" }, 400);
+    return apiError("Quantity must be at least 1");
   }
   return parsedQuantity ?? 1;
 };
@@ -42,9 +75,7 @@ export const resolveCustomPrice = (
     listing.unit_price,
     listing.max_price,
   );
-  return priceResult.ok
-    ? priceResult.price
-    : apiResponse({ error: priceResult.error }, 400);
+  return priceResult.ok ? priceResult.price : apiError(priceResult.error);
 };
 
 /** Look up an active listing by slug, returning a 404 response if
@@ -56,9 +87,9 @@ export const findActiveListing = async (
   slug: string,
 ): Promise<ListingWithCount | Response> => {
   const listing = await getListingWithCountBySlug(slug);
-  if (!listing?.active) return apiResponse(LISTING_NOT_FOUND, 404);
+  if (!listing?.active) return apiError(LISTING_NOT_FOUND, 404);
   return (await isHiddenPackageMember(listing.id))
-    ? apiResponse(LISTING_NOT_FOUND, 404)
+    ? apiError(LISTING_NOT_FOUND, 404)
     : listing;
 };
 
@@ -69,7 +100,7 @@ export const parseApiJsonBody = async (
   try {
     return await request.json();
   } catch {
-    return apiResponse({ error: "Invalid JSON body" }, 400);
+    return apiError("Invalid JSON body");
   }
 };
 
@@ -133,10 +164,7 @@ export const checkBookingRateLimit = async (
 ): Promise<Response | null> => {
   const ip = getClientIp(request, server);
   if (await bookingLimiter.isLimited(ip)) {
-    return apiResponse(
-      { error: "Too many booking attempts. Please try again later." },
-      429,
-    );
+    return apiError("Too many booking attempts. Please try again later.", 429);
   }
   await bookingLimiter.record(ip);
   return null;

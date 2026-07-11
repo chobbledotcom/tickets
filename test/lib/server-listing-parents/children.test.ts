@@ -1,20 +1,20 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#shared/db/listing-parents.ts";
+import { getListingActivityLog } from "#test-utils/activity-log.ts";
+import { expectFlash } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
-  createTestListing,
-  describeWithEnv,
-  expectFlash,
-  getListingActivityLog,
   listingEditPageHtml,
   listingRosterPageHtml,
   postChildren,
-} from "#test-utils";
+} from "#test-utils/parents.ts";
 import { linkedParentChild } from "./helpers.ts";
 
 /** The rendered edit-page HTML for the first attendee of a booking result. */
 const attendeeEditHtml = async (result: unknown): Promise<string> => {
-  const { adminGet } = await import("#test-utils");
+  const { adminGet } = await import("#test-utils/session.ts");
   const attendee = (result as { success: true; attendees: { id: number }[] })
     .attendees[0]!;
   const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
@@ -147,7 +147,9 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
   });
 
   test("editing an attendee who booked only a parent warns its child is missing (usability #6)", async () => {
-    const { bookAttendee } = await import("#test-utils");
+    const { bookAttendee } = await import(
+      "#test-utils/db-helpers/attendee-payments.ts"
+    );
     const { parent } = await linkedParentChild();
     // bookAttendee writes through the atomic path (no gate), creating exactly the
     // lone-parent state an admin manual add would.
@@ -159,7 +161,9 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
   });
 
   test("editing an attendee who booked both parent and child shows no missing-child warning", async () => {
-    const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+    const { createAttendeeAtomic } = await import(
+      "#shared/db/attendees/api.ts"
+    );
     const { parent, child } = await linkedParentChild();
     // Both lines booked on the one attendee — the gate is satisfied.
     const result = await createAttendeeAtomic({

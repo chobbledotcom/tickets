@@ -6,24 +6,28 @@ import { handleRequest } from "#routes";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
   assertPublicHtml,
-  awaitTestRequest,
-  bookTwoListings,
-  createTestAttendeeWithToken,
-  createTestListing,
-  describeWithEnv,
   expectAttendeeCounts,
-  expectBookOneEachRejected,
   expectCheckoutRedirect,
   expectFlash,
   expectReservedRedirectWithTokens,
+} from "#test-utils/assertions.ts";
+import {
+  bookTwoListings,
+  expectBookOneEachRejected,
   getTicketCsrfToken,
-  mockFormRequest,
-  mockRequest,
-  setTestEnv,
-  setupStripe,
   submitMultiTicketForm,
   submitTicketForm,
-} from "#test-utils";
+} from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { setTestEnv } from "#test-utils/env.ts";
+import {
+  awaitTestRequest,
+  mockFormRequest,
+  mockRequest,
+} from "#test-utils/mocks.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -229,7 +233,7 @@ describeWithEnv(
         });
 
         // Mock atomic create to fail (simulates race condition / capacity exceeded)
-        const { attendeesApi } = await import("#shared/db/attendees.ts");
+        const { attendeesApi } = await import("#shared/db/attendees/api.ts");
         // A free order with a ledger order goes through createBookingAtomic; a plain
         // one through createAttendeeAtomic. Fail both so the create-fails path is
         // exercised regardless of which the free reservation picks.

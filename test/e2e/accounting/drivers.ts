@@ -2,30 +2,33 @@ import { expect } from "@std/expect";
 import { afterEach } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
-  adminFormPost,
-  adminGet,
-  createTestAttendeeDirect,
-  createTestListing,
-  describeWithEnv,
   expectHtmlResponse,
   expectRedirect,
   followRedirect,
+} from "#test-utils/assertions.ts";
+import { extractInputValue } from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { signMeta, singleItem } from "#test-utils/factories.ts";
+import { postListingSale } from "#test-utils/ledger.ts";
+import {
+  mockFormRequest,
   mockProviderType,
   mockRequest,
-  signMeta,
-  singleItem,
+  withMocks,
+} from "#test-utils/mocks.ts";
+import {
+  adminFormPost,
+  adminGet,
   testCookie,
   testCsrfToken,
-  withMocks,
-} from "#test-utils";
-import { extractInputValue } from "#test-utils/csrf.ts";
-import { postListingSale } from "#test-utils/ledger.ts";
-import { mockFormRequest } from "#test-utils/mocks.ts";
+} from "#test-utils/session.ts";
 
 /** Run the shared "e2e: accounting lifecycle" suite body under a db env,
  *  resetting the Stripe client between tests. */

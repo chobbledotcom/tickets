@@ -8,11 +8,9 @@ import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
-import {
-  hasCheckedInput,
-  setupTestEncryptionKey,
-  validEmail,
-} from "#test-utils";
+import { hasCheckedInput } from "#test-utils/csrf.ts";
+import { validEmail } from "#test-utils/email.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 

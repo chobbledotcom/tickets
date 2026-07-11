@@ -20,7 +20,7 @@ import {
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { addDays } from "#shared/dates.ts";
+import { addDays, VALID_DAY_NAMES } from "#shared/dates.ts";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import {
   ATTENDEE_JOIN_SELECT,
@@ -61,7 +61,7 @@ import {
   TICKET_COUNTS_PREDICATE,
   ticketCountPredicateFor,
   ticketCountSumExpr,
-} from "#shared/db/migrations/schema.ts";
+} from "#shared/db/migrations/schema/listing-aggregates.ts";
 import { nameMapByIds } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
 import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
@@ -82,7 +82,6 @@ import {
   normalizeDurationDays,
   parseDayPrices,
 } from "#shared/types.ts";
-import { VALID_DAY_NAMES } from "#templates/fields/validators.ts";
 
 /** Default bookable days (all days of the week) */
 export const DEFAULT_BOOKABLE_DAYS: string[] = [...VALID_DAY_NAMES];

@@ -10,7 +10,7 @@ import {
   validatePhone,
   validateSpecialInstructions,
 } from "#templates/fields/validators.ts";
-import { expectInvalid, expectValid } from "#test-utils";
+import { expectInvalid, expectValid } from "#test-utils/validation.ts";
 
 // Helper: get the names of fields in order
 const fieldNames = (setting: string, isPaid = false): string[] =>

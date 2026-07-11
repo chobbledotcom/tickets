@@ -17,6 +17,7 @@ import type { AdminSession } from "#shared/types.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
 import { markAdminFooter } from "#templates/admin/footer.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { GuideFooter } from "#templates/components/actions.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
@@ -62,6 +63,8 @@ export type DeliveryLegView = {
   kind: "start" | "end";
   /** Name of the logistics agent (van/crew) this leg belongs to. */
   agentName: string;
+  /** Calendar date of this leg (YYYY-MM-DD), matching the run-sheet day. */
+  date: string;
   /** Logistics time label ("" when unset). */
   time: string;
   done: boolean;
@@ -131,6 +134,7 @@ const LegItem = ({
         value={String(booking.listingId)}
       />
       <input name="kind" type="hidden" value={leg.kind} />
+      <input name="date" type="hidden" value={leg.date} />
       <input name="done" type="hidden" value={leg.done ? "0" : "1"} />
       <button type="submit">
         {leg.done ? t("deliveries.mark_not_done") : t("deliveries.mark_done")}
@@ -247,5 +251,13 @@ export const agentDeliveriesPage = (
           </section>
         ))
       )}
+      {/* Agent-only drivers are not staff, so GuideFooter renders nothing for
+          them; owners and managers get the link to the logistics guide. */}
+      <GuideFooter
+        adminLevel={session.adminLevel}
+        href="/admin/guide#logistics"
+      >
+        {t("deliveries.guide_link")}
+      </GuideFooter>
     </Layout>,
   );

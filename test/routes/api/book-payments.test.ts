@@ -2,13 +2,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import * as v from "valibot";
+import { PublicListingSchema } from "#test-utils/api-schemas.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import {
   createDailyTestListing,
-  createTestAttendeeDirect,
   createTestListing,
-  PublicListingSchema,
-  setupStripe,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 import {
   bookForToken,
@@ -60,7 +60,9 @@ describePublicApi(() => {
       // The response surfaces the owed amount so integrations can collect it.
       expect(body.booking?.amountOwed).toBe(1000);
 
-      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const { getAttendeesByTokens } = await import(
+        "#shared/db/attendees/tokens.ts"
+      );
       const [attendee] = await getAttendeesByTokens([token!]);
       // Nothing collected up front, full £10.00 booking value owed. price_paid
       // projects the gross sale leg (£10 billed), not cash collected — the
@@ -87,7 +89,9 @@ describePublicApi(() => {
       const token = body.booking?.ticketToken;
       expect(body.booking?.checkoutUrl).toBeUndefined();
 
-      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const { getAttendeesByTokens } = await import(
+        "#shared/db/attendees/tokens.ts"
+      );
       const [attendee] = await getAttendeesByTokens([token!]);
       expect(attendee?.remaining_balance).toBe(0);
     });
@@ -238,7 +242,9 @@ describePublicApi(() => {
       });
       expect(response.status).toBe(200);
 
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees[0]!.quantity).toBe(1);
     });
@@ -283,7 +289,7 @@ describePublicApi(() => {
     });
 
     test("returns 500 on encryption error for free listing", async () => {
-      const { attendeesApi } = await import("#shared/db/attendees.ts");
+      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
       const listing = await createTestListing({ maxAttendees: 10 });
       const mockCreate = stub(attendeesApi, "createAttendeeAtomic", () =>
         Promise.resolve({

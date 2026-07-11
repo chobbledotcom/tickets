@@ -16,17 +16,15 @@ import { getLogisticsAssignments } from "#shared/db/logistics.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { FormParams } from "#shared/form-data.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  adminGet,
   attendeeLineFields,
-  awaitTestRequest,
-  createTestListing,
-  describeWithEnv,
   getAttendeesRaw,
-  getTestSession,
-  testListingWithCount,
-} from "#test-utils";
-import { mockFormRequest } from "#test-utils/mocks.ts";
+} from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { testListingWithCount } from "#test-utils/factories.ts";
+import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { adminGet, getTestSession } from "#test-utils/session.ts";
 
 /** Build a booked editor line for the given listing. */
 const bookedLine = (

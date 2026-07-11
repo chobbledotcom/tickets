@@ -14,11 +14,12 @@ import {
   retrieveCheckoutSession,
   verifyWebhookSignature,
 } from "#shared/stripe.ts";
-import { createTestDb, resetDb, testListing, withMocks } from "#test-utils";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { testListing } from "#test-utils/factories.ts";
+import { withMocks } from "#test-utils/mocks.ts";
 import {
   type CreatedSessionParams,
-  checkout,
-  line,
   lineFor,
   signedHeader,
   stripeClient,
@@ -116,7 +117,7 @@ describeStripe("stripe", () => {
       // First create a session using intent-based flow
       const listing = testListing({ unit_price: 1000 });
       const createdSession = await createCheckoutSession(
-        checkout({
+        checkoutIntent({
           email: "john@example.com",
           items: [lineFor(listing)],
           name: "John Doe",
@@ -138,7 +139,7 @@ describeStripe("stripe", () => {
 
       const listing = testListing({ max_quantity: 5, unit_price: 1000 });
       const session = await createCheckoutSession(
-        checkout({
+        checkoutIntent({
           email: "john@example.com",
           items: [lineFor(listing, 2)],
           name: "John Doe",
@@ -180,9 +181,9 @@ describeStripe("stripe", () => {
 
     test("returns null when stripe key not set", async () => {
       const result = await createCheckoutSession(
-        checkout({
+        checkoutIntent({
           email: "john@example.com",
-          items: [line({ name: "Test", slug: "test-listing" })],
+          items: [checkoutItem({ name: "Test", slug: "test-listing" })],
           name: "John",
         }),
         "http://localhost",
@@ -205,7 +206,7 @@ describeStripe("stripe", () => {
         async (createSpy) => {
           const listing = testListing({ unit_price: 1000 });
           await createCheckoutSession(
-            checkout({
+            checkoutIntent({
               email: "jane@example.com",
               items: [lineFor(listing)],
               name: "Jane",
@@ -241,7 +242,7 @@ describeStripe("stripe", () => {
         async (createSpy) => {
           const listing = testListing({ unit_price: 1000 });
           await createCheckoutSession(
-            checkout({
+            checkoutIntent({
               email: "jane@example.com",
               items: [lineFor(listing, 2)],
               name: "Jane",

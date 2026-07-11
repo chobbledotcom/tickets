@@ -19,7 +19,7 @@ import {
   applyDemoOverrides,
   SITE_CONTACT_DEMO_FIELDS,
   SITE_HOME_DEMO_FIELDS,
-} from "#shared/demo.ts";
+} from "#shared/demo/overrides.ts";
 import { defineForm } from "#shared/forms.tsx";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {

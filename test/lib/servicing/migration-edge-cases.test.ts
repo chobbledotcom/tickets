@@ -11,15 +11,12 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { getDb } from "#shared/db/client.ts";
-import { SCHEMA } from "#shared/db/migrations/schema.ts";
+import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
 import { MIGRATIONS } from "#shared/db/migrations.ts";
-import {
-  createServicingHold,
-  createTestListing,
-  describeWithEnv,
-  indexExists,
-  kindOf,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { indexExists } from "#test-utils/migrations.ts";
+import { createServicingHold, kindOf } from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 

@@ -4,12 +4,10 @@ import { stub } from "@std/testing/mock";
 import * as v from "valibot";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
-import {
-  createTestListing,
-  describeWithEnv,
-  jsonRequest,
-  PublicListingSchema,
-} from "#test-utils";
+import { PublicListingSchema } from "#test-utils/api-schemas.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { jsonRequest } from "#test-utils/mocks.ts";
 
 /** Parse JSON response */
 export const jsonBody = (
@@ -101,7 +99,7 @@ export const expectBookedTo = async (
   targetId: number,
   otherId: number,
 ): Promise<void> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
   expect((await getAttendeesRaw(targetId)).length).toBe(1);
   expect((await getAttendeesRaw(otherId)).length).toBe(0);
 };

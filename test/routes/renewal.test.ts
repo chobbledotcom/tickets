@@ -6,18 +6,17 @@ import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import { builtSites, insertBuiltSite } from "#shared/db/built-sites.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
-import { stripePaymentProvider } from "#shared/stripe-provider.ts";
+import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import { stubCheckout } from "#test-utils/checkout.ts";
+import { extractCsrfToken } from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { provisionTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import {
   createTestListing,
   deactivateTestListing,
-  describeWithEnv,
-  expectHtmlResponse,
-  extractCsrfToken,
-  mockFormRequest,
-  mockRequest,
-  provisionTestBuiltSite,
-  setupStripe,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
+import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 const setupRenewalSite = async () => {
   await insertBuiltSite(
@@ -239,15 +238,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       );
       const csrf = extractCsrfToken(await getResponse.text())!;
 
-      const mockCreate = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        () =>
-          Promise.resolve({
-            checkoutUrl: "https://checkout.stripe.com/renew",
-            sessionId: "cs_renew_test",
-          }),
-      );
+      const { checkout, getCaptured } = stubCheckout("cs_renew_test");
 
       try {
         const response = await handleRequest(
@@ -260,15 +251,14 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         );
         expect(response.status).toBe(302);
 
-        const intent = mockCreate.calls[0]!
-          .args[0] as import("#shared/payments.ts").CheckoutIntent;
+        const intent = getCaptured()!;
         expect(intent.siteToken).toBe(token);
         expect(intent.items).toHaveLength(1);
         expect(intent.items[0]!.listingId).toBe(tier.id);
         expect(intent.items[0]!.quantity).toBe(3);
         expect(intent.items[0]!.unitPrice).toBe(500);
       } finally {
-        mockCreate.restore();
+        checkout.restore();
       }
     });
 
@@ -300,15 +290,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         ).text(),
       )!;
 
-      const mockCreate = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        () =>
-          Promise.resolve({
-            checkoutUrl: "https://checkout.stripe.com/multi",
-            sessionId: "cs_multi",
-          }),
-      );
+      const { checkout, getCaptured } = stubCheckout("cs_multi");
 
       try {
         await handleRequest(
@@ -320,13 +302,12 @@ describeWithEnv("routes > renewal", { db: true }, () => {
             [`quantity_${annual.id}`]: "1",
           }),
         );
-        const intent = mockCreate.calls[0]!
-          .args[0] as import("#shared/payments.ts").CheckoutIntent;
+        const intent = getCaptured()!;
         expect(intent.siteToken).toBe(token);
         const ids = intent.items.map((i) => i.listingId).sort();
         expect(ids).toEqual([monthly.id, annual.id].sort());
       } finally {
-        mockCreate.restore();
+        checkout.restore();
       }
     });
 
@@ -388,15 +369,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       });
       const { token } = await setupRenewalSite();
 
-      const mockCreate = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        () =>
-          Promise.resolve({
-            checkoutUrl: "https://checkout.stripe.com/should-not-run",
-            sessionId: "cs_should_not_run",
-          }),
-      );
+      const { checkout, calls } = stubCheckout("cs_should_not_run");
 
       try {
         const response = await handleRequest(
@@ -409,9 +382,9 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         // Standard ticket-form behavior: missing CSRF → redirect back to the
         // form (no payment session created).
         expect(response.status).toBe(302);
-        expect(mockCreate.calls.length).toBe(0);
+        expect(calls()).toBe(0);
       } finally {
-        mockCreate.restore();
+        checkout.restore();
       }
     });
   });

@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
-import { wait } from "#test-utils";
+import { wait } from "#test-utils/mocks.ts";
 import { installLockPath } from "../../../scripts/stripe-mock/install.ts";
 import {
   STRIPE_MOCK_FAILED_TO_START,

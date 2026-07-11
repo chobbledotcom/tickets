@@ -8,15 +8,15 @@ import {
   uploadRaw,
 } from "#shared/storage.ts";
 import { setDeleteOverride } from "#shared/test-overrides.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { TEST_STORAGE_ZONE } from "#test-utils/internal.ts";
 import {
-  describeWithEnv,
   installUrlHandler,
   mockRequest,
-  TEST_STORAGE_ZONE,
-  testCookie,
   withFetchMock,
   withLocalStorageEnabled,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
+import { testCookie } from "#test-utils/session.ts";
 
 describeWithEnv("backup routes", { db: true }, () => {
   describe("GET /admin/backup", () => {

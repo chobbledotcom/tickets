@@ -15,7 +15,7 @@
  */
 
 import { runMutationInSnapshot } from "./mutation/isolation.ts";
-import { runCommand } from "./precommit/merge-warning.ts";
+import { runCommand } from "./precommit/git.ts";
 import { runMutationStep } from "./precommit/mutation-step.ts";
 
 /** Per-mutant timeout floor; mirrors `deno task mutation`'s default. */

@@ -89,7 +89,6 @@ export const DEFAULT_OPTIONS: ReportOptions = {
     "test/scripts/",
     "test/test-utils/",
     "test/setup.ts",
-    "test/test-utils.ts",
   ],
   srcRoot: "src",
   testRoot: "test",

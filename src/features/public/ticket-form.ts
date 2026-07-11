@@ -21,7 +21,7 @@ import { mergeListingFields } from "#shared/listing-fields.ts";
 import type { ListingFields } from "#shared/types.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { extractContact } from "#templates/fields/ticket.ts";
-import { ticketPage } from "#templates/public/reservations.tsx";
+import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import type { ListingQty, TicketCtx } from "./types.ts";
 
 /** Parse and validate a quantity value from a raw string, capping at max */
@@ -58,7 +58,10 @@ const pushToListings = <T>(
     selectedListingIds,
   )) {
     if (!selectedListingIds.has(listingId)) continue;
-    (result[String(listingId)] ??= []).push(value);
+    const key = String(listingId);
+    const list = result[key] ?? [];
+    list.push(value);
+    result[key] = list;
   }
 };
 

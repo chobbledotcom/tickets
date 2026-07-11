@@ -1,4 +1,9 @@
-import type { RunCommand } from "./merge-warning.ts";
+import {
+  commandValue,
+  isInsideWorkTree,
+  type RunCommand,
+  runGit,
+} from "./git.ts";
 
 export interface PushPromptContext {
   branchName: string;
@@ -13,18 +18,6 @@ interface PromptToPushOptions {
   push: RunCommand;
   run: RunCommand;
 }
-
-const runGit = (run: RunCommand, args: string[]) => run(["git", ...args]);
-
-const commandValue = async (
-  run: RunCommand,
-  args: string[],
-): Promise<string | undefined> => {
-  const result = await runGit(run, args);
-  if (!result.success) return undefined;
-  const value = result.stdout.trim();
-  return value || undefined;
-};
 
 const commandNumber = async (
   run: RunCommand,
@@ -64,8 +57,7 @@ const getUnpushedCommitCount = async (
 export const getPushPromptContext = async (
   run: RunCommand,
 ): Promise<PushPromptContext | undefined> => {
-  const inWorkTree = await runGit(run, ["rev-parse", "--is-inside-work-tree"]);
-  if (!inWorkTree.success) return undefined;
+  if (!(await isInsideWorkTree(run))) return undefined;
 
   const status = await runGit(run, ["status", "--porcelain"]);
   if (!status.success || status.stdout.trim()) return undefined;

@@ -1,11 +1,12 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { expectCapturedItemPriced } from "#test-utils/checkout.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   bookParent,
-  createTestListing,
-  describeWithEnv,
   expectFoldedLine,
   expectRejectedBooking,
   expectReserved,
@@ -13,8 +14,7 @@ import {
   makeParent,
   parentField,
   postCalculate,
-} from "#test-utils";
-import { expectCapturedItemPriced } from "../server-reservation/helpers.ts";
+} from "#test-utils/parents.ts";
 import { firstBookableDate, stubCheckoutIntent } from "./helpers.ts";
 
 // jscpd:ignore-end

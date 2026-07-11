@@ -18,19 +18,21 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeeKindsByIds } from "#shared/db/attendees.ts";
+import { getAttendeeKindsByIds } from "#shared/db/attendees/queries.ts";
 import { getAttendeesByListingIds } from "#shared/db/listings.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
-  awaitTestRequest,
   createDailyTestListing,
-  createServicingHold,
-  createTestGroup,
   createTestListing,
-  describeWithEnv,
+} from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
+import {
+  createServicingHold,
   expectServicingLink,
-  getTestSession,
   renderAdminPage,
-} from "#test-utils";
+} from "#test-utils/servicing.ts";
+import { getTestSession } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 

@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { testAttendee, testGroup, testListingWithCount } from "#test-utils";
+import {
+  testAttendee,
+  testGroup,
+  testListingWithCount,
+} from "#test-utils/factories.ts";
 
 import {
   registerListingTemplateHooks,

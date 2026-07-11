@@ -9,7 +9,8 @@ import {
   setQuestionListings,
 } from "#shared/db/questions/queries.ts";
 import { swapQuestionOrder } from "#shared/db/questions/sort-order.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   createOrderedQuestionPair,
   createQuestion,

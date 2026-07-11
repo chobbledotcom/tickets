@@ -7,6 +7,7 @@ import {
   resetCacheRegistry,
 } from "#shared/cache-registry.ts";
 import {
+  deleteByFieldStatement,
   execute,
   executeUpdate,
   extractUpdateColumns,
@@ -19,7 +20,8 @@ import {
   setDb,
   update,
 } from "#shared/db/client.ts";
-import { describeWithEnv, setTestEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setTestEnv } from "#test-utils/env.ts";
 
 /** A minimal libsql ResultSet for stubbed execute/batch calls. */
 const emptyResultSet = (): ResultSet => ({
@@ -163,6 +165,16 @@ describeWithEnv("db > client", { db: true }, () => {
     const client1 = getDb();
     const client2 = getDb();
     expect(client1).toBe(client2);
+  });
+
+  test("deleteByFieldStatement builds the DELETE for one table, field and value", () => {
+    const stmt = deleteByFieldStatement({
+      field: "user_id",
+      table: "sessions",
+      value: 7,
+    });
+    expect(stmt.sql).toBe("DELETE FROM sessions WHERE user_id = ?");
+    expect(stmt.args).toEqual([7]);
   });
 
   test("insert builds sql and args from record", () => {

@@ -11,8 +11,11 @@ import {
   stripeApi,
 } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
-import { setTestEnv, testListing, withMocks } from "#test-utils";
-import { checkout, line, lineFor, stripeClient } from "./fixtures.ts";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { setTestEnv } from "#test-utils/env.ts";
+import { testListing } from "#test-utils/factories.ts";
+import { withMocks } from "#test-utils/mocks.ts";
+import { lineFor, stripeClient } from "./fixtures.ts";
 import { describeStripe } from "./harness.ts";
 
 describeStripe("stripe-provider", () => {
@@ -38,7 +41,7 @@ describeStripe("stripe-provider", () => {
         async () => {
           const listing = testListing({ unit_price: 1000 });
           const result = await stripePaymentProvider.createCheckoutSession(
-            checkout({
+            checkoutIntent({
               email: "john@example.com",
               items: [lineFor(listing)],
               name: "John",
@@ -515,7 +518,7 @@ describeStripe("stripe-provider", () => {
           ),
         async () => {
           const result = await stripePaymentProvider.createCheckoutSession(
-            checkout({ email: "jane@example.com", name: "Jane" }),
+            checkoutIntent({ email: "jane@example.com", name: "Jane" }),
             "http://localhost:3000",
           );
           expect(result).toBeNull();
@@ -529,14 +532,14 @@ describeStripe("stripe-provider", () => {
       await settings.update.stripe.secretKey("sk_test_mock");
       // Generate enough items to exceed 500-char serialized metadata
       const items = Array.from({ length: 40 }, (_, i) =>
-        line({
+        checkoutItem({
           listingId: i + 1,
           name: `Listing ${i + 1}`,
           slug: `listing-${i + 1}`,
         }),
       );
       const result = await stripePaymentProvider.createCheckoutSession(
-        checkout({ email: "alice@example.com", items, name: "Alice" }),
+        checkoutIntent({ email: "alice@example.com", items, name: "Alice" }),
         "http://localhost:3000",
       );
       expect(result).not.toBeNull();
@@ -553,7 +556,7 @@ describeStripe("stripe-provider", () => {
         Promise.reject(new TypeError("unexpected"));
       try {
         const result = await stripePaymentProvider.createCheckoutSession(
-          checkout({ email: "john@example.com", name: "John" }),
+          checkoutIntent({ email: "john@example.com", name: "John" }),
           "http://localhost:3000",
         );
         expect(result).toBeNull();

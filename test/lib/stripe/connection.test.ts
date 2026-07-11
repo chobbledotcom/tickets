@@ -13,10 +13,10 @@ import {
   testStripeConnection,
   verifyWebhookSignature,
 } from "#shared/stripe.ts";
-import { testListing, withMocks } from "#test-utils";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { testListing } from "#test-utils/factories.ts";
+import { withMocks } from "#test-utils/mocks.ts";
 import {
-  checkout,
-  line,
   lineFor,
   noWebhooks,
   okBalance,
@@ -298,7 +298,7 @@ describeStripe("stripe", () => {
     test("includes phone in metadata when provided", async () => {
       const listing = testListing({ unit_price: 1000 });
       await expectSessionCreated(
-        checkout({
+        checkoutIntent({
           email: "john@example.com",
           items: [lineFor(listing)],
           name: "John Doe",
@@ -312,7 +312,7 @@ describeStripe("stripe", () => {
     test("creates checkout session without customer_email when email is empty", async () => {
       const listing = testListing({ unit_price: 1000 });
       await expectSessionCreated(
-        checkout({
+        checkoutIntent({
           email: "",
           items: [lineFor(listing)],
           name: "No Email User",
@@ -325,11 +325,11 @@ describeStripe("stripe", () => {
   describe("createCheckoutSession", () => {
     test("creates multi-checkout session with phone metadata", async () => {
       await expectSessionCreated(
-        checkout({
+        checkoutIntent({
           email: "jane@example.com",
           items: [
-            line({ name: "Listing A", quantity: 2, slug: "listing-a" }),
-            line({
+            checkoutItem({ name: "Listing A", quantity: 2, slug: "listing-a" }),
+            checkoutItem({
               listingId: 2,
               name: "Listing B",
               slug: "listing-b",
@@ -344,9 +344,9 @@ describeStripe("stripe", () => {
 
     test("returns null when stripe key not set", async () => {
       const result = await createCheckoutSession(
-        checkout({
+        checkoutIntent({
           email: "jane@example.com",
-          items: [line({ name: "Listing A", slug: "listing-a" })],
+          items: [checkoutItem({ name: "Listing A", slug: "listing-a" })],
           name: "Jane Doe",
         }),
         "http://localhost:3000",
@@ -356,11 +356,11 @@ describeStripe("stripe", () => {
 
     test("creates multi-checkout session without customer_email when email is empty", async () => {
       await expectSessionCreated(
-        checkout({
+        checkoutIntent({
           email: "",
           items: [
-            line({ name: "Listing A", slug: "listing-a" }),
-            line({
+            checkoutItem({ name: "Listing A", slug: "listing-a" }),
+            checkoutItem({
               listingId: 2,
               name: "Listing B",
               quantity: 2,

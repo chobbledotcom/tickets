@@ -3,19 +3,17 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { getNoteRows, getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
-import {
-  assertJson,
-  describeWithEnv,
-  getTestPrivateKey,
-  setupStripe,
-  singleItem,
-  webhookMeta,
-} from "#test-utils";
+import { assertJson } from "#test-utils/assertions.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { setupStripe } from "#test-utils/settings.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 import {
   expectAcknowledgedIgnore,
   expectNoAttendees,
@@ -27,7 +25,6 @@ import {
   setupWithListing,
   signedMeta,
   stubRefundOk,
-  stubRetrievedSession,
   webhookRequest,
 } from "./helpers.ts";
 
@@ -163,7 +160,7 @@ describeWithEnv(
       // while the quantity-0 placeholder store (createAttendeeAtomic) keeps working
       // — so a signed payment that hits an unexpected error after the charge is kept
       // at quantity 0 and refunded, not crash-looped over money already taken.
-      const { attendeesApi } = await import("#shared/db/attendees.ts");
+      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
       const boom = stub(attendeesApi, "createBookingAtomic", () =>
         Promise.reject(new Error("synthetic create failure")),
       );
@@ -309,10 +306,11 @@ describeWithEnv(
         price_proof: `1000.${"A".repeat(44)}`,
       };
       const refund = stubRefundOk();
-      const retrieve = stubRetrievedSession({
-        amount_total: 1000,
-        id: "cs_foreign_redirect",
+      const retrieve = stubRetrieveCheckoutSession({
+        amountTotal: 1000,
         metadata,
+        paymentIntent: "pi_cs_foreign_redirect",
+        sessionId: "cs_foreign_redirect",
       });
       try {
         const response = await redirectRequest("cs_foreign_redirect");

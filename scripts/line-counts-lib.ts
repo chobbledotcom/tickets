@@ -1,3 +1,5 @@
+import { walkFiles } from "./walk-files.ts";
+
 type LineCount = {
   files: number;
   lines: number;
@@ -68,17 +70,6 @@ const formatLineCounts = (rows: LineCountRow[]): string =>
     ...rows.map(formatRow),
     formatRow(totalLineCount(rows)),
   ].join("\n");
-
-async function* walkFiles(directory: string): AsyncGenerator<string> {
-  for await (const entry of Deno.readDir(directory)) {
-    const path = `${directory}/${entry.name}`;
-    if (entry.isDirectory) {
-      yield* walkFiles(path);
-      continue;
-    }
-    yield path;
-  }
-}
 
 const collectLineCounts = async (
   roots: readonly string[],

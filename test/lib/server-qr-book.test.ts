@@ -25,41 +25,37 @@ import {
 } from "#shared/qr-token.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { stubCheckout } from "#test-utils/checkout.ts";
+import { hasInputWithValue, submitTicketForm } from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import {
-  awaitTestRequest,
   createDailyTestListing,
   createTestListing,
-  describeWithEnv,
-  getAttendeesRaw,
-  hasInputWithValue,
+} from "#test-utils/db-helpers/listings.ts";
+import {
+  awaitTestRequest,
   mockProviderType,
   mockRequest,
-  setupStripe,
-  submitTicketForm,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 const qrBookPath = (slug: string, token: string): string =>
   `/ticket/${slug}/qr-book?t=${encodeURIComponent(token)}`;
 
-/** Stub Stripe as the active provider with a canned checkout URL */
-const stubStripe = (checkoutUrl = "https://stripe.example/checkout") => {
+/** Stub Stripe as the active provider, capturing the checkout intent through
+ *  the shared {@link stubCheckout}. */
+const stubStripe = () => {
   const providerStub = stub(paymentsApi, "getConfiguredProvider", () =>
     mockProviderType("stripe"),
   );
-  const checkoutStub = stub(
-    stripePaymentProvider,
-    "createCheckoutSession",
-    () =>
-      Promise.resolve({
-        checkoutUrl,
-        sessionId: "cs_test_123",
-      }),
-  );
+  const { calls, checkout, getCaptured } = stubCheckout("cs_test_123");
   return {
-    checkoutStub,
+    calls,
+    getCaptured,
     restore: () => {
       providerStub.restore();
-      checkoutStub.restore();
+      checkout.restore();
     },
   };
 };
@@ -91,7 +87,7 @@ const expectStripeRedirect = (
 ): void => {
   expect(response.status).toBe(302);
   expect(response.headers.get("location")).toContain("stripe.example");
-  expect(stripe.checkoutStub.calls.length).toBe(1);
+  expect(stripe.calls()).toBe(1);
 };
 
 /** Assert the most recent Stripe checkout session was created with a single
@@ -103,8 +99,7 @@ const expectStripeCheckoutAtPrice = (
   expectedUnitPrice: number,
 ): void => {
   expect(response.status).toBe(302);
-  const intent = stripe.checkoutStub.calls[0]!.args[0];
-  expect(intent.items[0]!.unitPrice).toBe(expectedUnitPrice);
+  expect(stripe.getCaptured()!.items[0]!.unitPrice).toBe(expectedUnitPrice);
 };
 
 /** Scan a listing's QR-book link (token built from `payload`) and return the response. */
@@ -287,8 +282,8 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
       await scanWithStripe(listing, async ({ response, stripe }) => {
         expect(response.status).toBe(302);
         expect(response.headers.get("location")).toContain("stripe.example");
-        expect(stripe.checkoutStub.calls.length).toBe(1);
-        const intent = stripe.checkoutStub.calls[0]!.args[0];
+        expect(stripe.calls()).toBe(1);
+        const intent = stripe.getCaptured()!;
         expect(intent.name).toBe("Ada");
         expect(intent.items[0]!.unitPrice).toBe(1000);
         expect(intent.items[0]!.quantity).toBe(1);
@@ -306,7 +301,7 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
       await scanWithStripe(listing, async ({ response, stripe }) => {
         // The visitor must choose a day count, so the form renders instead.
         expect(response.status).toBe(200);
-        expect(stripe.checkoutStub.calls.length).toBe(0);
+        expect(stripe.calls()).toBe(0);
         expect(await response.text()).toContain('name="day_count"');
       });
     });
@@ -375,7 +370,7 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
       });
       await scanWithStripe(listing, async ({ response, stripe }) => {
         expect(response.status).toBe(200);
-        expect(stripe.checkoutStub.calls.length).toBe(0);
+        expect(stripe.calls()).toBe(0);
       });
     });
 
@@ -394,7 +389,7 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
           qrBookPath(listing.slug, token),
         );
         expect(response.status).toBe(200);
-        expect(stripe.checkoutStub.calls.length).toBe(0);
+        expect(stripe.calls()).toBe(0);
       });
     });
 
@@ -414,7 +409,7 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
           qrBookPath(listing.slug, token),
         );
         expect(response.status).toBe(302);
-        const intent = stripe.checkoutStub.calls[0]!.args[0];
+        const intent = stripe.getCaptured()!;
         expect(intent.date).toBe(tomorrow);
       });
     });
@@ -462,8 +457,8 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
         });
         // Response is a 302 redirect to Stripe
         expect(response.status).toBe(302);
-        expect(stripe.checkoutStub.calls.length).toBe(1);
-        const intent = stripe.checkoutStub.calls[0]!.args[0];
+        expect(stripe.calls()).toBe(1);
+        const intent = stripe.getCaptured()!;
         expect(intent.items[0]!.unitPrice).toBe(overridePrice);
       });
     });
@@ -558,7 +553,7 @@ describeWithEnv("qr-book scan handler > parent gate", { db: true }, () => {
       const response = await awaitTestRequest(qrBookPath(tokenSlug, token));
       // The child gate forces the form path so prepareOrder can fold the child.
       expect(response.status).toBe(200);
-      expect(stripe.checkoutStub.calls.length).toBe(0);
+      expect(stripe.calls()).toBe(0);
     } finally {
       stripe.restore();
     }

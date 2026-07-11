@@ -1,13 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  adminGet,
-  awaitTestRequest,
-  createTestManagerSession,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { adminGet, createTestManagerSession } from "#test-utils/session.ts";
 import { seedListingWithAttendees } from "./helpers.ts";
 
 describeWithEnv("server bulk email > links", { db: true }, () => {

@@ -1,5 +1,4 @@
 import { expect } from "@std/expect";
-import { stub } from "@std/testing/mock";
 import {
   attendeeStatuses,
   getPublicDefaultStatus,
@@ -9,15 +8,12 @@ import { pricePaidFromLedger } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { settings } from "#shared/db/settings.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
-import { stripeApi } from "#shared/stripe.ts";
-import { stripePaymentProvider } from "#shared/stripe-provider.ts";
-import {
-  createTestListing,
-  setupStripe,
-  signMeta,
-  submitTicketForm,
-} from "#test-utils";
+import { submitTicketForm } from "#test-utils/csrf.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { signMeta } from "#test-utils/factories.ts";
+import { modifierUsageCount } from "#test-utils/modifiers.ts";
+import { setupStripe } from "#test-utils/settings.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
 /** Turn the seeded public-default status into a reservation charging `amount`. */
 export const setPublicReservation = async (amount: string): Promise<number> => {
@@ -38,17 +34,12 @@ export const stubPaidSession = (
   metadata: Record<string, string>,
   amountTotal: number,
 ) =>
-  stub(stripeApi, "retrieveCheckoutSession", () =>
-    Promise.resolve({
-      amount_total: amountTotal,
-      id,
-      metadata: signMeta(metadata, amountTotal),
-      payment_intent: `pi_${id}`,
-      payment_status: "paid",
-    } as unknown as Awaited<
-      ReturnType<typeof stripeApi.retrieveCheckoutSession>
-    >),
-  );
+  stubRetrieveCheckoutSession({
+    amountTotal,
+    metadata: signMeta(metadata, amountTotal),
+    paymentIntent: `pi_${id}`,
+    sessionId: id,
+  });
 
 /** The most recently created attendee's plaintext reservation columns. */
 export const latestAttendee = async (): Promise<{
@@ -84,16 +75,6 @@ export const latestAttendee = async (): Promise<{
 
 export const attendeeCount = async (): Promise<number> => {
   const { rows } = await getDb().execute("SELECT COUNT(*) AS c FROM attendees");
-  return Number(rows[0]!.c);
-};
-
-export const modifierUsageCount = async (
-  modifierId: number,
-): Promise<number> => {
-  const { rows } = await getDb().execute({
-    args: [modifierId],
-    sql: "SELECT COALESCE(SUM(quantity), 0) AS c FROM modifier_usages WHERE modifier_id = ?",
-  });
   return Number(rows[0]!.c);
 };
 
@@ -153,45 +134,8 @@ export const totalContactActivity = async (): Promise<{
   };
 };
 
-export const modifierUsageAmount = async (
-  modifierId: number,
-): Promise<number> => {
-  const { rows } = await getDb().execute({
-    args: [modifierId],
-    sql: "SELECT COALESCE(SUM(amount_applied), 0) AS c FROM modifier_usages WHERE modifier_id = ?",
-  });
-  return Number(rows[0]!.c);
-};
-
 export const modifierRefs = (id: number, quantity = 1): string =>
   JSON.stringify([{ i: id, q: quantity }]);
-
-/** Stub the checkout-session provider and capture the intent it was called
- * with — the shared "inspect what checkout would have charged" fixture
- * behind every test that never actually completes a paid session. The optional
- * `sessionId` labels the captured intent (defaults to `"cs_test"`). Returns
- * `checkout` (the mock, for `restore()`), `getCaptured()` (the intent handed
- * over), and `calls()` (how many times the provider was reached) so the
- * sold-out preflight case can assert it was never called. */
-export const stubCheckout = (sessionId = "cs_test") => {
-  let captured: CheckoutIntent | undefined;
-  const checkout = stub(
-    stripePaymentProvider,
-    "createCheckoutSession",
-    (intent: CheckoutIntent) => {
-      captured = intent;
-      return Promise.resolve({
-        checkoutUrl: "https://stripe.example/checkout",
-        sessionId,
-      });
-    },
-  );
-  return {
-    calls: () => checkout.calls.length,
-    checkout,
-    getCaptured: () => captured,
-  };
-};
 
 /** Submit a plain buyer order for one unit of `listing` — the default
  * quantity/email/name shape shared by every test that completes a real
@@ -217,43 +161,6 @@ export const addServiceCharge = () =>
     direction: "charge",
     name: "Service charge",
   });
-
-/** Submit a buyer's ticket form through a stubbed checkout provider, assert
- * the redirect succeeded, and return the checkout intent it captured — the
- * shared "what would checkout have charged" flow behind every test that
- * inspects the outgoing intent rather than completing a paid session. */
-export const captureCheckoutIntent = async (
-  listing: { id: number; slug: string },
-  fields: Record<string, string> = {},
-): Promise<CheckoutIntent | undefined> => {
-  const { checkout, getCaptured } = stubCheckout();
-  try {
-    const response = await submitTicketForm(listing.slug, {
-      [`quantity_${listing.id}`]: "1",
-      email: "buyer@example.com",
-      name: "Buyer",
-      ...fields,
-    });
-    expect([302, 303]).toContain(response.status);
-    return getCaptured();
-  } finally {
-    checkout.restore();
-  }
-};
-
-/** Find the captured intent's line item for `listing` and assert its
- *  `unitPrice` — the shared "this folded line was charged X" check behind
- *  every test that inspects the outgoing intent's per-line prices. Pass the
- *  captured intent (`getCaptured()`), the listing whose price to check, and the
- *  expected unit price in the smallest currency unit (e.g. pence). */
-export const expectCapturedItemPriced = (
-  intent: CheckoutIntent | undefined,
-  listing: { id: number },
-  unitPrice: number,
-): void => {
-  const item = intent?.items.find((i) => i.listingId === listing.id);
-  expect(item?.unitPrice).toBe(unitPrice);
-};
 
 /** Create a modifier that only applies when the buyer opts in (an add-on),
  * rather than one folded automatically into every booking. */
@@ -333,7 +240,7 @@ export const expectRefundedPlaceholder = async (
   responseText: string,
 ): Promise<Array<{ id: number }>> => {
   expect(responseText).toContain("saved your details");
-  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
   const attendees = await getAttendeesRaw(listing.id);
   expect(attendees.length).toBe(1);
   // The placeholder posts no sale leg, so the still-sold-out add-on is not

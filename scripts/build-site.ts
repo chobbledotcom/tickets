@@ -13,6 +13,7 @@
  */
 
 import { builderApi } from "#shared/builder.ts";
+import { runBuildEdge } from "./run-build-edge.ts";
 
 const [siteName] = Deno.args;
 if (!siteName) {
@@ -29,12 +30,7 @@ const repoRoot = new URL("..", import.meta.url).pathname;
 const bundlePath = `${repoRoot}bunny-script.ts`;
 
 console.log("Building edge bundle…");
-const build = await new Deno.Command(Deno.execPath(), {
-  args: ["task", "build:edge"],
-  cwd: repoRoot,
-  stderr: "inherit",
-  stdout: "inherit",
-}).output();
+const build = await runBuildEdge(repoRoot);
 if (!build.success) {
   console.error("build:edge failed");
   Deno.exit(build.code);

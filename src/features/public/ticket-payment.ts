@@ -3,11 +3,8 @@
  */
 
 import { compact } from "#fp";
-import {
-  checkoutResponse,
-  errorRedirect,
-  notFoundResponse,
-} from "#routes/response.ts";
+import { checkoutResponse } from "#routes/payment-response.ts";
+import { errorRedirect, notFoundResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import {
   type BuildTreeInput,
@@ -49,14 +46,14 @@ import type {
   LineBooking,
   ListingBooking,
 } from "#shared/db/attendee-types.ts";
-import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import {
   checkBatchAvailability,
   createAttendeeAtomic,
   createBookingAtomic,
-  ensureAllBookings,
-  getDatelessGroupRemaining,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/api.ts";
+import { getDatelessGroupRemaining } from "#shared/db/attendees/capacity.ts";
+import { ensureAllBookings } from "#shared/db/attendees/create.ts";
+import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import {
   getGroupIdsByListingIds,
   getHiddenPackageMemberIds,

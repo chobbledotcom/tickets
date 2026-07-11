@@ -4,18 +4,20 @@ import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
-  awaitTestRequest,
-  describeWithEnv,
   expectFlash,
   expectRedirect,
-  extractCsrfToken,
   FLASH_TEST_ID,
   flashCookieHeader,
   getHeader,
+} from "#test-utils/assertions.ts";
+import { extractCsrfToken } from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  awaitTestRequest,
   installRecordingFetch,
   mockFormRequest,
   mockRequest,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
 
 const BOTPOISON_ENV = {
   BOTPOISON_PUBLIC_KEY: "pk_test_public",

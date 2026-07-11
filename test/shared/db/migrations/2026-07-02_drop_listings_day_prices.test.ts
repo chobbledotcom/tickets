@@ -3,7 +3,8 @@ import { it as test } from "@std/testing/bdd";
 import { getDb, queryAll } from "#shared/db/client.ts";
 import dropListingsDayPricesMigration from "#shared/db/migrations/2026-07-02_drop_listings_day_prices.ts";
 import { recreateTable } from "#shared/db/migrations/schema-sync.ts";
-import { buildMigrationContext, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { buildMigrationContext } from "#test-utils/migrations.ts";
 
 // The migration's up() reads the live schema and rebuilds listings; getDb is real
 // by default, recreateTable does the column drop.

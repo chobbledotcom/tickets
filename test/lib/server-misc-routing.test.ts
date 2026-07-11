@@ -19,20 +19,21 @@ import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { runWithRequestId } from "#shared/logger.ts";
 import {
-  createTestDb,
-  createTestListing,
-  describeWithEnv,
   expectHtmlResponse,
   expectRedirect,
   expectRedirectWithFlash,
-  getEmbeddableTicketResponse,
   getHeader,
+} from "#test-utils/assertions.ts";
+import { createTestDb, describeWithEnv, resetDb } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { getEmbeddableTicketResponse } from "#test-utils/db-helpers/misc.ts";
+import {
   mockFormRequest,
   mockRequest,
-  resetDb,
-  testCookie,
   withExpectedError,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
+import { recordQueries } from "#test-utils/record-queries.ts";
+import { testCookie } from "#test-utils/session.ts";
 
 describeWithEnv("server (misc: security and routing)", { db: true }, () => {
   const getTicketPageResponse = getEmbeddableTicketResponse;
@@ -136,7 +137,7 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
         expect(match?.[1]).toBe(expected);
       };
 
-      const coreDirectives: Array<[string, string]> = [
+      const coreDirectives: [string, string][] = [
         ["default-src", "'self'"],
         // The Logistics map loads its tiles straight from OpenStreetMap.
         ["img-src", "'self' https://tile.openstreetmap.org"],
@@ -595,6 +596,22 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
         expect(response.headers.get("location")).toBe(
           "/ticket/my-listing?iframe=true",
         );
+      });
+
+      test("answers a tracked URL without touching the database", async () => {
+        // The redirect is pure URL work; a prefetch started for it would be
+        // a query nothing awaits, in flight after the response returns.
+        const seen: string[] = [];
+        const restore = recordQueries(seen);
+        try {
+          const response = await handleRequest(
+            mockRequest("/ticket/my-listing?utm_source=facebook"),
+          );
+          expect(response.status).toBe(301);
+        } finally {
+          restore();
+        }
+        expect(seen).toEqual([]);
       });
 
       test("does not redirect POST requests with tracking params", async () => {

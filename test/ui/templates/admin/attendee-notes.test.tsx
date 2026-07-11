@@ -10,7 +10,7 @@ import {
   adminAddNotePage,
   adminDeleteNotePage,
 } from "#templates/admin/attendee-notes.tsx";
-import { setupTestEncryptionKey } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 const SESSION: AdminSession = { adminLevel: "owner" };
 

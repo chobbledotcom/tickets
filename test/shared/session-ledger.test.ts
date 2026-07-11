@@ -12,11 +12,9 @@ import {
   bookingLedgerDisposition,
   classifyBookingLedger,
 } from "#shared/session-ledger.ts";
-import {
-  createPaidTestAttendee,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { tx } from "#test-utils/ledger.ts";
 
 /**

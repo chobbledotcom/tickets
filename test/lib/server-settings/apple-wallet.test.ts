@@ -4,19 +4,16 @@ import { unzipSync } from "fflate";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import {
-  adminGet,
-  awaitTestRequest,
-  createTestAttendeeWithToken,
-  describeWithEnv,
   expectFlashRedirect,
   getHeader,
-  mockFormRequest,
-  setTestEnv,
-  testCookie,
-  testCsrfToken,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
 import { configureAppleWallet, generateTestCerts } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+import { setTestEnv } from "#test-utils/env.ts";
+import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 /** Reuse cached certs for all wallet configuration */
 const testCerts = generateTestCerts();

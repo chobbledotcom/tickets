@@ -2,11 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   consumeModifierStock,
-  describeWithEnv,
   modifierUsageAmount,
-} from "#test-utils";
+} from "#test-utils/modifiers.ts";
 
 const makeModifier = (stock: number | null) =>
   modifiersTable.insert({

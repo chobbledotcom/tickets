@@ -1,5 +1,7 @@
 import { isAbsolute, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { toDisplayPath } from "./project-root.ts";
+import { readStream } from "./stream-lines.ts";
 
 type Location = {
   file: string;
@@ -122,38 +124,68 @@ const readYamlBlockScalar = (
   return stripCommonIndent(block).trimEnd();
 };
 
-const parseYamlTapDiagnostic = (text: string): TapDiagnostic | undefined => {
-  const lines = text.split(/\r?\n/);
-  const diagnostic: TapDiagnostic = {};
-
+const parseYamlMessage = (lines: string[]): string | undefined => {
   for (let index = 0; index < lines.length; index++) {
     const match = lines[index]?.match(/^(\s*)message:\s*(.*)$/);
     if (!match) continue;
     const value = match[2]?.trim() ?? "";
     const baseIndent = (match[1] ?? "").length;
-    diagnostic.message =
-      value.startsWith("|") || value.startsWith(">")
-        ? readYamlBlockScalar(lines, index, baseIndent)
-        : parseYamlScalar(value);
-    break;
+    return value.startsWith("|") || value.startsWith(">")
+      ? readYamlBlockScalar(lines, index, baseIndent)
+      : parseYamlScalar(value);
   }
+  return undefined;
+};
 
+type AtFieldAssign = (
+  at: NonNullable<TapDiagnostic["at"]>,
+  value: string,
+) => void;
+
+const AT_FIELD_ASSIGNERS: Record<string, AtFieldAssign | undefined> = {
+  column: (at, value) => {
+    at.column = Number(value);
+  },
+  file: (at, value) => {
+    at.file = value;
+  },
+  line: (at, value) => {
+    at.line = Number(value);
+  },
+};
+
+const assignAtField = (
+  at: NonNullable<TapDiagnostic["at"]>,
+  key: string,
+  value: string,
+): void => {
+  AT_FIELD_ASSIGNERS[key]?.(at, value);
+};
+
+const parseYamlAt = (lines: string[]): TapDiagnostic["at"] | undefined => {
   const atIndex = lines.findIndex((line) => /^(\s*)at:\s*$/.test(line));
-  if (atIndex !== -1) {
-    const atIndent = leadingWhitespaceLength(lines[atIndex] ?? "");
-    const at: TapDiagnostic["at"] = {};
-    for (const line of lines.slice(atIndex + 1)) {
-      if (line.trim() && leadingWhitespaceLength(line) <= atIndent) break;
-      const match = line.match(/^\s*(file|line|column):\s*(.*)$/);
-      if (!match) continue;
-      const key = match[1];
-      const value = parseYamlScalar(match[2] ?? "");
-      if (key === "file") at.file = value;
-      if (key === "line") at.line = Number(value);
-      if (key === "column") at.column = Number(value);
-    }
-    diagnostic.at = at;
+  if (atIndex === -1) return undefined;
+
+  const atIndent = leadingWhitespaceLength(lines[atIndex] ?? "");
+  const at: NonNullable<TapDiagnostic["at"]> = {};
+  for (const line of lines.slice(atIndex + 1)) {
+    if (line.trim() && leadingWhitespaceLength(line) <= atIndent) break;
+    const match = line.match(/^\s*(file|line|column):\s*(.*)$/);
+    if (!match) continue;
+    assignAtField(at, match[1] ?? "", parseYamlScalar(match[2] ?? ""));
   }
+  return at;
+};
+
+const parseYamlTapDiagnostic = (text: string): TapDiagnostic | undefined => {
+  const lines = text.split(/\r?\n/);
+  const diagnostic: TapDiagnostic = {};
+
+  const message = parseYamlMessage(lines);
+  if (message !== undefined) diagnostic.message = message;
+
+  const at = parseYamlAt(lines);
+  if (at !== undefined) diagnostic.at = at;
 
   return diagnostic.message || diagnostic.at ? diagnostic : undefined;
 };
@@ -186,12 +218,6 @@ const countMatches = (text: string, re: RegExp): number => {
   let count = 0;
   for (const _match of text.matchAll(re)) count++;
   return count;
-};
-
-const toDisplayPath = (cwd: string, file: string): string => {
-  if (!isAbsolute(file)) return file.replace(/^\.\//, "");
-  const rel = relative(cwd, file);
-  return rel.startsWith("..") ? file : rel || ".";
 };
 
 const locationFromDiagnostic = (
@@ -465,51 +491,6 @@ export class CompactTapReporter {
   }
 }
 
-const readLines = async (
-  stream: ReadableStream<Uint8Array>,
-  onLine: (line: string) => void,
-): Promise<void> => {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let buffered = "";
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffered += decoder.decode(value, { stream: true });
-      const lines = buffered.split(/\r?\n/);
-      buffered = lines.pop() ?? "";
-      for (const line of lines) onLine(line);
-    }
-  } finally {
-    buffered += decoder.decode();
-    if (buffered) onLine(buffered);
-    reader.releaseLock();
-  }
-};
-
-const readText = async (
-  stream: ReadableStream<Uint8Array>,
-): Promise<string> => {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let text = "";
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      text += decoder.decode(value, { stream: true });
-    }
-  } finally {
-    text += decoder.decode();
-    reader.releaseLock();
-  }
-
-  return text;
-};
-
 const usefulStderr = (stderr: string): string =>
   stderr
     .split(/\r?\n/)
@@ -569,10 +550,10 @@ export const runCompactDenoTest = async (
     hideProgress: Boolean(options.env.CI || options.env.GITHUB_ACTIONS),
   });
 
-  const stdoutTask = readLines(child.stdout, (line) =>
+  const stdoutTask = readStream(child.stdout, (line) =>
     reporter.consumeLine(line),
   );
-  const stderrTask = readText(child.stderr);
+  const stderrTask = readStream(child.stderr);
   const status = await child.status;
   await stdoutTask;
   const stderrText = await stderrTask;

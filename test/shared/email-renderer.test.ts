@@ -12,13 +12,11 @@ import {
   resetEngine,
   validateTemplate,
 } from "#shared/email-renderer.ts";
-import {
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-  makeTestEntry as makeEntry,
-  useSetting,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
+import { useSetting } from "#test-utils/settings.ts";
 
 /** Reload settings + build template data from one entry and render the
  *  confirmation email. Collapses the shared `invalidateCache` + `loadKeys` +

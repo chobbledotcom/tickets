@@ -3,11 +3,9 @@ import { describe, it as test } from "@std/testing/bdd";
 import { bodyToCreateInput, bodyToUpdateInput } from "#routes/admin/api.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
-import {
-  createTestListing,
-  describeWithEnv,
-  testListingWithCount,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { testListingWithCount } from "#test-utils/factories.ts";
 
 describeWithEnv("Admin API - Listings", { db: true }, () => {
   describe("bodyToCreateInput", () => {
@@ -68,7 +66,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
     test("maps the use_defaults flag both ways and omits it when absent", async () => {
       // true/false both round-trip (so the API can opt in *and* out), and an
       // absent flag stays absent rather than defaulting to either value.
-      const cases: Array<[boolean | undefined, boolean | undefined]> = [
+      const cases: [boolean | undefined, boolean | undefined][] = [
         [true, true],
         [false, false],
         [undefined, undefined],

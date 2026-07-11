@@ -2,7 +2,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
-import { createTestNewsPost, describeWithEnv, mockRequest } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 
 const fetchNewsRss = () => handleRequest(mockRequest("/feeds/news.rss"));
 

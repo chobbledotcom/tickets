@@ -9,13 +9,13 @@ import {
   requireSiteOr,
   withSession,
 } from "#routes/auth.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAgentSession,
   createTestEditorSession,
   createTestManagerSession,
-  describeWithEnv,
   testCookie,
-} from "#test-utils";
+} from "#test-utils/session.ts";
 
 /** A session guard: authenticates, checks role, and either runs the handler
  *  with the session or returns an auth-failure response. */

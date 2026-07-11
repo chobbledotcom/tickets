@@ -191,6 +191,21 @@ export const groupBy = <T, K>(
 };
 
 /**
+ * Group rows by a key, keeping only the chosen value from each row.
+ * Same ordering guarantee as {@link groupBy}: keys appear in first-occurrence
+ * order and each value list preserves input order.
+ */
+export const groupToMap =
+  <T, K, V>(keyOf: (row: T) => K, valueFrom: (row: T) => V) =>
+  (rows: readonly T[]): Map<K, V[]> =>
+    new Map(
+      [...groupBy(rows, keyOf)].map(([key, group]) => [
+        key,
+        group.map(valueFrom),
+      ]),
+    );
+
+/**
  * Remove null and undefined values from array
  */
 export const compact = <T>(array: (T | null | undefined)[]): T[] =>

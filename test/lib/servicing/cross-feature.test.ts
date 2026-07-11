@@ -10,11 +10,11 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createServicingHold,
-  describeWithEnv,
   expectLogisticsDisabled,
-} from "#test-utils";
+} from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 

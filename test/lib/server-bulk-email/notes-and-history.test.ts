@@ -12,20 +12,16 @@ import {
 } from "#shared/db/contact-preferences.ts";
 import { recordBooking } from "#shared/db/contact-tokens.ts";
 import { settings } from "#shared/db/settings.ts";
-import {
-  adminFormPost,
-  adminGet,
-  describeWithEnv,
-  expectHtmlResponse,
-  expectRedirect,
-  getTestPrivateKey,
-  useFetchStub,
-} from "#test-utils";
+import { expectHtmlResponse, expectRedirect } from "#test-utils/assertions.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   buildAttendeeEditForm,
   createTestAttendeeDirect,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { useFetchStub } from "#test-utils/mocks.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { seedDraft, seedListingWithAttendees, useResend } from "./helpers.ts";
 
 describeWithEnv("server bulk email > notes and history", { db: true }, () => {
@@ -77,7 +73,9 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       listingId: number,
       email: string,
     ): Promise<void> => {
-      const { loadExistingLines } = await import("#shared/db/attendees.ts");
+      const { loadExistingLines } = await import(
+        "#shared/db/attendees/atomic-update.ts"
+      );
       const existing = await loadExistingLines(placeholderId);
       await adminFormPost(
         `/admin/attendees/${placeholderId}`,
@@ -214,7 +212,9 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       );
       // Give the first booking a status so its name shows in the table.
       const status = await attendeeStatuses.table.insert({ name: "Confirmed" });
-      const { updateAttendeeStatus } = await import("#shared/db/attendees.ts");
+      const { updateAttendeeStatus } = await import(
+        "#shared/db/attendees/update.ts"
+      );
       await updateAttendeeStatus(first.id, status.id);
 
       const html = await (
@@ -250,7 +250,9 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       );
       // ...then one is edited down to a no-quantity line (its token stays on the
       // contact, but it no longer represents a booked ticket).
-      const { loadExistingLines } = await import("#shared/db/attendees.ts");
+      const { loadExistingLines } = await import(
+        "#shared/db/attendees/atomic-update.ts"
+      );
       const existing = await loadExistingLines(emptied.id);
       const form = await buildAttendeeEditForm(emptied.id, {
         email: "empty@example.com",

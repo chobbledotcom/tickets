@@ -1,18 +1,20 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  adminFormPost,
-  adminGet,
-  awaitTestRequest,
-  createTestListing,
-  createTestManagerSession,
-  describeWithEnv,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
   expectStatus,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
+import {
+  adminFormPost,
+  adminGet,
+  createTestManagerSession,
+} from "#test-utils/session.ts";
 import { addAnswer, createQuestion } from "./helpers.ts";
 
 describeWithEnv("server (admin questions)", { db: true }, () => {
@@ -197,10 +199,14 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("shows answers on detail page", async () => {
       const id = await createQuestion("Pick a number");
-      await addAnswer(id, "One");
+      const answerId = await addAnswer(id, "One");
       await addAnswer(id, "Two");
       const response = await adminGet(`/admin/questions/${id}`);
-      await expectHtmlResponse(response, 200, "One", "Two");
+      const body = await expectHtmlResponse(response, 200, "One", "Two");
+      // Each answer links through to its own edit page.
+      expect(body).toContain(
+        `<a href="/admin/questions/${id}/answers/${answerId}/edit">One</a>`,
+      );
     });
   });
 

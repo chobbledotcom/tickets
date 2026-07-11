@@ -11,8 +11,9 @@
  * failure message only when the assertion actually fails — and truncates a
  * huge value there so the error stays readable.
  *
- * Imported for its side effect by `test/test-utils.ts`, so every suite that
- * uses `#test-utils` gets the fast matcher automatically.
+ * Loaded via `deno test --preload` (wired up in `scripts/test-harness.ts` and
+ * `scripts/mutation/runner.ts`), so every test isolate installs the fast
+ * matcher automatically.
  */
 import { expect } from "@std/expect";
 

@@ -67,6 +67,7 @@ import {
   SaveChangesButton,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { GroupCapacityMeter } from "#templates/components/capacity.tsx";
 import { DataTable, textColumns } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import {
@@ -399,16 +400,11 @@ const GroupAttendeesRow = ({
       </tr>
     );
   }
-  const remaining = Math.max(0, group.max_attendees - attendeeCount);
-  const overCap = attendeeCount >= group.max_attendees;
-  const nearCap = attendeeCount >= group.max_attendees * 0.9;
   return (
     <tr>
       <th>{t("groups.group_attendees")}</th>
       <td>
-        <span class={overCap || nearCap ? "danger-text" : ""}>
-          {attendeeCount} / {group.max_attendees} &mdash; {remaining} remain
-        </span>{" "}
+        <GroupCapacityMeter count={attendeeCount} max={group.max_attendees} />{" "}
         <small>across all listings in the group</small>
       </td>
     </tr>

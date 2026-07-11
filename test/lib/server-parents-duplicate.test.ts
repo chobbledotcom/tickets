@@ -8,21 +8,22 @@ import {
   setGroupPackageMembers,
 } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
+import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
-  adminFormPost,
-  baseListingForm,
-  createTestGroup,
   createTestListing,
-  describeWithEnv,
   duplicateTestListing,
-  expectFlashRedirect,
-  getTestSession,
+} from "#test-utils/db-helpers/listings.ts";
+import { baseListingForm } from "#test-utils/factories.ts";
+import { mockMultipartRequest } from "#test-utils/mocks.ts";
+import {
   insertModifier,
   linkModifierListing,
-  makeParent,
-  mockMultipartRequest,
   patchModifier,
-} from "#test-utils";
+} from "#test-utils/modifiers.ts";
+import { makeParent } from "#test-utils/parents.ts";
+import { adminFormPost, getTestSession } from "#test-utils/session.ts";
 
 /** A group member child wired as a child of an outside (non-member) parent.
  * The group name varies between tests; everything else is identical. */
@@ -437,7 +438,7 @@ describeWithEnv(
       const childCopy = copies.find((l) => l.name === "Cloned add-on")!;
 
       const { handleRequest } = await import("#routes");
-      const { mockRequest } = await import("#test-utils");
+      const { mockRequest } = await import("#test-utils/mocks.ts");
       const response = await handleRequest(
         mockRequest(`/ticket/${childCopy.slug}`),
       );

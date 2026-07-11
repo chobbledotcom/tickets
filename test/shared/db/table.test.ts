@@ -2,7 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { listingsTable } from "#shared/db/listings.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const enc = (v: string) => Promise.resolve(`enc:${v}`);
 const dec = (v: string) => Promise.resolve(v.replace("enc:", ""));
@@ -112,6 +113,35 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     expect(await def.write?.(null)).toBe(null);
     expect(await def.read?.(null)).toBe(null);
     await assertEncRoundTrip(def);
+  });
+
+  test("readColumn runs the column's read transform on one stored value", async () => {
+    const { col, defineTable } = await import("#shared/db/table.ts");
+    type Row = { id: number; text: string };
+    const table = defineTable<Row, { text: string }>({
+      name: "listings",
+      primaryKey: "id",
+      schema: {
+        id: col.generated<number>(),
+        text: col.encrypted(enc, dec),
+      },
+    });
+    expect(await table.readColumn("text", "enc:hello")).toBe("hello");
+  });
+
+  test("readColumn returns the value as-is for null values and columns with no read transform", async () => {
+    const { col, defineTable } = await import("#shared/db/table.ts");
+    type Row = { id: number; note: string | null };
+    const table = defineTable<Row, { note: string | null }>({
+      name: "listings",
+      primaryKey: "id",
+      schema: {
+        id: col.generated<number>(),
+        note: col.encryptedNullable(col.encrypted(enc, dec)),
+      },
+    });
+    expect(await table.readColumn("note", null)).toBe(null);
+    expect(await table.readColumn("id", 7)).toBe(7);
   });
 
   test("defineTable.findAll returns all rows", async () => {

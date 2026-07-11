@@ -281,25 +281,39 @@ export const countRows = async (table: string): Promise<number> => {
   return row!.n;
 };
 
+/** One delete-rows-matching-a-field target: which table, matched on which
+ * field, for which value. */
+export type DeleteByFieldTarget = {
+  table: string;
+  field: string;
+  value: InValue;
+};
+
+/** Build the DELETE statement for one {@link DeleteByFieldTarget} — for batches
+ * that mix these deletes with other statements. */
+export const deleteByFieldStatement = ({
+  table,
+  field,
+  value,
+}: DeleteByFieldTarget): { sql: string; args: InValue[] } => ({
+  args: [value],
+  sql: `DELETE FROM ${table} WHERE ${field} = ?`,
+});
+
 /** Delete rows matching a field value */
 export const deleteByField = async (
   table: string,
   field: string,
   value: InValue,
 ): Promise<void> => {
-  await execute(`DELETE FROM ${table} WHERE ${field} = ?`, [value]);
+  const { args, sql } = deleteByFieldStatement({ field, table, value });
+  await execute(sql, args);
 };
 
 /** Delete rows from multiple tables in a single batch transaction */
 export const deleteByFieldBatch = (
-  deletes: Array<{ table: string; field: string; value: InValue }>,
-): Promise<void> =>
-  executeBatch(
-    deletes.map(({ table, field, value }) => ({
-      args: [value],
-      sql: `DELETE FROM ${table} WHERE ${field} = ?`,
-    })),
-  );
+  deletes: DeleteByFieldTarget[],
+): Promise<void> => executeBatch(deletes.map(deleteByFieldStatement));
 
 /**
  * Reset selected aggregate columns from trusted SQL expressions. Each
@@ -332,9 +346,10 @@ export type SqlStatement = { sql: string; args: InValue[] };
  * committed; if the batch throws (rollback) it is skipped, so a cache is never
  * cleared for a write that did not land.
  */
-const trackedBatch = async (
+const runBatch = async (
   statements: SqlStatement[],
   mode: TransactionMode,
+  invalidate: boolean,
 ): Promise<ResultSet[]> => {
   const start = performance.now();
   // Batch writes serialize against the single SQLite writer like any other write,
@@ -351,16 +366,28 @@ const trackedBatch = async (
   }
   for (const stmt of statements) {
     void logCompletedSql(stmt.sql);
-    invalidateForSql(stmt.sql);
+    if (invalidate) invalidateForSql(stmt.sql);
   }
   return results;
+};
+
+/**
+ * Write without firing cache invalidation. Reserved for plaintext
+ * bookkeeping rows (script-version markers) no cache ever holds — written
+ * concurrently with requests, the normal path would wipe the settings
+ * snapshot the request just loaded.
+ */
+export const executeBatchWithoutCacheInvalidation = async (
+  statements: SqlStatement[],
+): Promise<void> => {
+  await runBatch(statements, "write", false);
 };
 
 /** Create a batch executor for a given transaction mode */
 const batchFor =
   (mode: TransactionMode) =>
   (statements: SqlStatement[]): Promise<ResultSet[]> =>
-    trackedBatch(statements, mode);
+    runBatch(statements, mode, true);
 
 /** Execute multiple read queries in a single round-trip using Turso batch API. */
 export const queryBatch = batchFor("read");

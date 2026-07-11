@@ -9,7 +9,7 @@ import {
   type DeliveryDayGroup,
   type DeliveryLegView,
 } from "#templates/admin/deliveries.tsx";
-import { setupTestEncryptionKey } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 /** Agent-class session so the page renders the agent header (no staff nav). */
 const agentSession: AdminSession = { adminLevel: "agent" };
@@ -35,6 +35,7 @@ beforeAll(async () => {
 
 const leg = (over: Partial<DeliveryLegView> = {}): DeliveryLegView => ({
   agentName: "Van 1",
+  date: "2026-06-16",
   done: false,
   kind: "start",
   time: "09:00",
@@ -99,6 +100,7 @@ describe("agentDeliveriesPage", () => {
     expect(html).toContain("https://wa.me/447700900000");
     expect(html).toContain('action="/admin/deliveries/mark"');
     expect(html).toContain('value="start"');
+    expect(html).toContain('name="date" type="hidden" value="2026-06-16"');
     expect(html).toContain("Mark done");
     // The ticket token the customer can quote is shown.
     expect(html).toContain("<strong>Token:</strong> TOKEN123");

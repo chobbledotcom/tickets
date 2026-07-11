@@ -15,7 +15,7 @@ import {
   serializeListingDefaults,
   setListingDefaultFields,
 } from "#shared/listing-defaults.ts";
-import { testListing } from "#test-utils";
+import { testListing } from "#test-utils/factories.ts";
 
 const messages = en as Record<string, string>;
 

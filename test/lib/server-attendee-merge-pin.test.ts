@@ -7,17 +7,15 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendee, updateAttendeePII } from "#shared/db/attendees.ts";
+import { getAttendee } from "#shared/db/attendees/queries.ts";
+import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import type { Attendee } from "#shared/types.ts";
-import {
-  adminFormPost,
-  adminGet,
-  createTestAttendeeDirect,
-  createTestListing,
-  describeWithEnv,
-  extractInputValue,
-  getTestPrivateKey,
-} from "#test-utils";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { extractInputValue } from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 /** Set an attendee's address and pin through the production PII writer. */
 const setAddressAndPin = (

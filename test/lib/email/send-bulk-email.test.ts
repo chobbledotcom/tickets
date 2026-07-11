@@ -8,7 +8,8 @@ import {
   type EmailConfig,
   sendBulkEmails,
 } from "#shared/email.ts";
-import { useFetchStub, validEmail } from "#test-utils";
+import { validEmail } from "#test-utils/email.ts";
+import { useFetchStub } from "#test-utils/mocks.ts";
 
 const config: EmailConfig = {
   apiKey: "re_key",

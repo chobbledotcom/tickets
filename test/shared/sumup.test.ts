@@ -14,7 +14,8 @@ import {
   sumupApi,
   testSumupConnection,
 } from "#shared/sumup.ts";
-import { createTestDb, resetDb, withMocks } from "#test-utils";
+import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { withMocks } from "#test-utils/mocks.ts";
 
 /** Methods the fake SumUp client may implement for a given test. */
 type FakeParts = {

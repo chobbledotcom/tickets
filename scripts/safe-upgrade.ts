@@ -112,6 +112,39 @@ async function fetchJsrVersions(
   return versions;
 }
 
+/**
+ * Split an "npm:"/"jsr:" specifier into its package name and version range.
+ * Returns an error string when the specifier is malformed or unrecognized.
+ */
+function parsePackageSpecifier(
+  specifier: string,
+): { pkgName: string; versionRange: string } | { error: string } {
+  if (!specifier.startsWith("npm:") && !specifier.startsWith("jsr:")) {
+    return { error: "unknown registry" };
+  }
+  const withoutPrefix = specifier.slice(4);
+  const atIdx = withoutPrefix.lastIndexOf("@");
+  if (atIdx <= 0) {
+    return { error: "no version specifier found" };
+  }
+  return {
+    pkgName: withoutPrefix.slice(0, atIdx),
+    versionRange: withoutPrefix.slice(atIdx + 1),
+  };
+}
+
+/** Fetch all stable versions for a package from its registry. */
+function fetchVersionsFor(
+  registry: "npm" | "jsr",
+  pkgName: string,
+): Promise<VersionInfo[]> {
+  if (registry === "npm") {
+    return fetchNpmVersions(pkgName);
+  }
+  const [scope, name] = pkgName.replace("@", "").split("/");
+  return fetchJsrVersions(scope, name);
+}
+
 async function checkUpgrade(
   name: string,
   specifier: string,
@@ -129,32 +162,12 @@ async function checkUpgrade(
   };
 
   try {
-    let pkgName: string;
-    let versionRange: string;
-
-    if (specifier.startsWith("npm:")) {
-      // npm:@scope/name@version or npm:name@version
-      const withoutPrefix = specifier.slice(4);
-      const atIdx = withoutPrefix.lastIndexOf("@");
-      if (atIdx <= 0) {
-        result.error = "no version specifier found";
-        return result;
-      }
-      pkgName = withoutPrefix.slice(0, atIdx);
-      versionRange = withoutPrefix.slice(atIdx + 1);
-    } else if (specifier.startsWith("jsr:")) {
-      const withoutPrefix = specifier.slice(4);
-      const atIdx = withoutPrefix.lastIndexOf("@");
-      if (atIdx <= 0) {
-        result.error = "no version specifier found";
-        return result;
-      }
-      pkgName = withoutPrefix.slice(0, atIdx);
-      versionRange = withoutPrefix.slice(atIdx + 1);
-    } else {
-      result.error = "unknown registry";
+    const parsedSpecifier = parsePackageSpecifier(specifier);
+    if ("error" in parsedSpecifier) {
+      result.error = parsedSpecifier.error;
       return result;
     }
+    const { pkgName, versionRange } = parsedSpecifier;
 
     const parsed = parseVersionSpec(versionRange);
     if (!parsed) {
@@ -163,13 +176,7 @@ async function checkUpgrade(
     }
     result.currentVersion = parsed.version;
 
-    let allVersions: VersionInfo[];
-    if (result.registry === "npm") {
-      allVersions = await fetchNpmVersions(pkgName);
-    } else {
-      const [scope, name] = pkgName.replace("@", "").split("/");
-      allVersions = await fetchJsrVersions(scope, name);
-    }
+    const allVersions = await fetchVersionsFor(result.registry, pkgName);
 
     // Sort all stable versions descending — no semver range filtering,
     // we want the latest version overall (like `deno outdated --update --latest`)
@@ -240,60 +247,71 @@ async function main() {
     (r) => r.newVersion === null && r.error === null,
   );
 
-  // Print results
-  if (upToDate.length > 0) {
-    console.log(`Up to date (${upToDate.length}):`);
-    for (const r of upToDate) {
-      console.log(`  ${r.name} @ ${r.currentVersion}`);
-    }
-    console.log("");
-  }
+  printUpToDate(upToDate);
+  printUpgrades(upgrades, minAgeDays);
+  printErrors(errors);
 
-  if (upgrades.length > 0) {
-    console.log(`Upgrades available (${upgrades.length}):`);
-    for (const r of upgrades) {
-      const age = Math.floor(
-        (Date.now() - r.newPublishedAt!.getTime()) / (1000 * 60 * 60 * 24),
-      );
-      console.log(
-        `  ${r.name}: ${r.currentVersion} -> ${r.newVersion} (${age} days old)`,
-      );
-      if (r.skippedNewer) {
-        console.log(
-          `    ⚠ skipped ${r.skippedNewer} (too recent, < ${minAgeDays} days)`,
-        );
-      }
-    }
-    console.log("");
-  }
-
-  if (errors.length > 0) {
-    console.log(`Errors (${errors.length}):`);
-    for (const r of errors) {
-      console.log(`  ${r.name}: ${r.error}`);
-    }
-    console.log("");
-  }
-
-  // Apply upgrades
-  if (upgrades.length > 0 && !dryRun) {
-    let denoJsonText = await Deno.readTextFile(DENO_JSON_PATH);
-    for (const r of upgrades) {
-      // Replace the full specifier, updating to ^newVersion
-      const oldSpec = r.currentSpec;
-      const versionPart = oldSpec.slice(oldSpec.lastIndexOf("@") + 1);
-      const newSpec = oldSpec.replace(versionPart, `^${r.newVersion}`);
-      denoJsonText = denoJsonText.replace(
-        JSON.stringify(oldSpec),
-        JSON.stringify(newSpec),
-      );
-    }
-    await Deno.writeTextFile(DENO_JSON_PATH, denoJsonText);
-    console.log(`Updated deno.json with ${upgrades.length} upgrade(s)`);
-    console.log("Run 'deno task precommit' to verify everything still works");
-  } else if (upgrades.length === 0) {
+  if (upgrades.length === 0) {
     console.log("Everything is up to date!");
+  } else if (!dryRun) {
+    await applyUpgrades(upgrades);
   }
+}
+
+function printUpToDate(upToDate: UpgradeResult[]): void {
+  if (upToDate.length === 0) return;
+  console.log(`Up to date (${upToDate.length}):`);
+  for (const r of upToDate) {
+    console.log(`  ${r.name} @ ${r.currentVersion}`);
+  }
+  console.log("");
+}
+
+function printUpgrades(upgrades: UpgradeResult[], minAgeDays: number): void {
+  if (upgrades.length === 0) return;
+  console.log(`Upgrades available (${upgrades.length}):`);
+  for (const r of upgrades) {
+    // checkUpgrade sets newPublishedAt alongside newVersion, and callers filter
+    // `upgrades` on newVersion !== null, so newPublishedAt is guaranteed present.
+    const age = Math.floor(
+      (Date.now() - r.newPublishedAt!.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    console.log(
+      `  ${r.name}: ${r.currentVersion} -> ${r.newVersion} (${age} days old)`,
+    );
+    if (r.skippedNewer) {
+      console.log(
+        `    ⚠ skipped ${r.skippedNewer} (too recent, < ${minAgeDays} days)`,
+      );
+    }
+  }
+  console.log("");
+}
+
+function printErrors(errors: UpgradeResult[]): void {
+  if (errors.length === 0) return;
+  console.log(`Errors (${errors.length}):`);
+  for (const r of errors) {
+    console.log(`  ${r.name}: ${r.error}`);
+  }
+  console.log("");
+}
+
+async function applyUpgrades(upgrades: UpgradeResult[]): Promise<void> {
+  let denoJsonText = await Deno.readTextFile(DENO_JSON_PATH);
+  for (const r of upgrades) {
+    // Replace the full specifier, updating to ^newVersion
+    const oldSpec = r.currentSpec;
+    const versionPart = oldSpec.slice(oldSpec.lastIndexOf("@") + 1);
+    const newSpec = oldSpec.replace(versionPart, `^${r.newVersion}`);
+    denoJsonText = denoJsonText.replace(
+      JSON.stringify(oldSpec),
+      JSON.stringify(newSpec),
+    );
+  }
+  await Deno.writeTextFile(DENO_JSON_PATH, denoJsonText);
+  console.log(`Updated deno.json with ${upgrades.length} upgrade(s)`);
+  console.log("Run 'deno task precommit' to verify everything still works");
 }
 
 main();

@@ -14,7 +14,7 @@ import { queryOne } from "#shared/db/client.ts";
 import { pruneAddressCache } from "#shared/db/prune.ts";
 import { ADDRESS_CACHE_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 const ADDRESSES = [
   {

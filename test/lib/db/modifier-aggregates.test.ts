@@ -13,8 +13,9 @@ import {
   resetModifierAggregateFields,
   updateModifierAggregateValues,
 } from "#shared/db/modifiers.ts";
-import { describeWithEnv, insertModifierUsage } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { postModifierLeg } from "#test-utils/ledger.ts";
+import { insertModifierUsage } from "#test-utils/modifiers.ts";
 import { readModifierAggregates as aggregates } from "./migration-test-helpers.ts";
 
 /**

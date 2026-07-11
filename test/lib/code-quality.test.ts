@@ -242,8 +242,8 @@ const ALLOWED_TEST_HOOKS: string[] = [
   // Detach the global Sentry client between test files
   "shared/sentry.ts:resetSentryForTest",
   // Reset cached demo mode between tests
-  "shared/demo.ts:resetDemoMode",
-  "shared/demo.ts:setDemoModeForTest",
+  "shared/demo/mode.ts:resetDemoMode",
+  "shared/demo/mode.ts:setDemoModeForTest",
   // Reset cached Liquid engine between tests (currency changes need fresh filters)
   "shared/email-renderer.ts:resetEngine",
   // Skip login delay in tests without env var races
@@ -395,6 +395,36 @@ describe("code quality", () => {
   });
 
   /**
+   * Scan one file set line by line, collecting violations via a detector.
+   * Skips code-quality's own files so its rule literals never self-flag.
+   */
+  const collectLineViolations = (
+    files: string[],
+    contents: Map<string, string>,
+    detect: (
+      relativePath: string,
+      line: string,
+      lineNum: number,
+    ) => string | null,
+  ): string[] => {
+    const violations: string[] = [];
+    for (const file of files) {
+      const relativePath = repoRelative(file);
+      if (isCodeQualityFile(relativePath)) continue;
+      // ensureLoaded() populates `contents` from this same `files` list, so
+      // every file requested here is guaranteed present.
+      const lines = contents.get(file)!.split("\n");
+      let lineNum = 0;
+      for (const line of lines) {
+        lineNum++;
+        const v = detect(relativePath, line, lineNum);
+        if (v) violations.push(v);
+      }
+    }
+    return violations;
+  };
+
+  /**
    * Scan src and test files line by line, collecting violations via a detector.
    * Test code is held to the same line-level standards as production code.
    * Returns the combined violation list.
@@ -407,23 +437,10 @@ describe("code quality", () => {
     ) => string | null,
   ): Promise<string[]> => {
     await ensureLoaded();
-    const violations: string[] = [];
-    const scan = (files: string[], contents: Map<string, string>): void => {
-      for (const file of files) {
-        const relativePath = repoRelative(file);
-        if (isCodeQualityFile(relativePath)) continue;
-        const lines = contents.get(file)!.split("\n");
-        let lineNum = 0;
-        for (const line of lines) {
-          lineNum++;
-          const v = detect(relativePath, line, lineNum);
-          if (v) violations.push(v);
-        }
-      }
-    };
-    scan(srcFiles, srcContents);
-    scan(testFiles, testContents);
-    return violations;
+    return [
+      ...collectLineViolations(srcFiles, srcContents, detect),
+      ...collectLineViolations(testFiles, testContents, detect),
+    ];
   };
 
   describe("no aliasing", () => {

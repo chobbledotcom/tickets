@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createImageFromUpload } from "#routes/admin/image-upload.ts";
-import { withStorageDisabled } from "#test-utils";
+import { withStorageDisabled } from "#test-utils/mocks.ts";
 
 const uploadForm = (): FormData => {
   const form = new FormData();

@@ -1,17 +1,16 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
-  adminFormPost,
-  adminGet,
-  createTestListing,
-  describeWithEnv,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
   expectStatus,
-  getAllActivityLog,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { addAnswer, createQuestion } from "./helpers.ts";
 
 describeWithEnv("server (admin questions)", { db: true }, () => {
@@ -73,13 +72,17 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const response = await adminGet(
         `/admin/questions/${qId}/answers/${aId}/edit`,
       );
-      await expectHtmlResponse(
+      const html = await expectHtmlResponse(
         response,
         200,
         "Editable",
         "Surcharge tier",
         'name="modifier_id"',
       );
+      // The shared child-edit frame: a back link to the question and a small
+      // context line naming it.
+      expect(html).toContain(`href="/admin/questions/${qId}"`);
+      expect(html).toContain("Answer for: Edit answer page");
     });
 
     test("updates the answer text and redirects to the question", async () => {
@@ -271,7 +274,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       listingId: number,
       answerId: number,
     ): Promise<void> => {
-      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+      const { createAttendeeAtomic } = await import(
+        "#shared/db/attendees/api.ts"
+      );
       const { saveAttendeeAnswers } = await import(
         "#shared/db/questions/attendee-answers/save.ts"
       );

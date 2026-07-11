@@ -3,17 +3,16 @@ import { it as test } from "@std/testing/bdd";
 import {
   applyAttendeeAtomicEdit,
   createAttendeeAtomic,
-  getAttendee,
-  getAttendeesRaw,
-  loadExistingLines,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/api.ts";
+import { loadExistingLines } from "#shared/db/attendees/atomic-update.ts";
+import { getAttendee, getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
-  bookAttendee,
   createDailyTestListing,
   createTestListing,
-  describeWithEnv,
-} from "#test-utils";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
+} from "#test-utils/db-helpers/listings.ts";
 
 /** Encrypt a minimal PII blob for the test attendee. Reuses the production
  * encryptPiiBlob path so the resulting blob decrypts correctly. */
@@ -94,7 +93,7 @@ const expectRejected = (
 
 /** Assert each listing currently has the expected number of attendee rows. */
 const expectRawCounts = async (
-  pairs: Array<[{ id: number }, number]>,
+  pairs: [{ id: number }, number][],
 ): Promise<void> => {
   for (const [listing, count] of pairs) {
     expect((await getAttendeesRaw(listing.id)).length).toBe(count);

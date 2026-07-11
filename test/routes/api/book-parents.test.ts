@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
-import { makeParent, setupStripe } from "#test-utils";
+import type { CheckoutIntent } from "#shared/payments.ts";
+import { stubCheckout } from "#test-utils/checkout.ts";
+import { makeParent } from "#test-utils/parents.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 import {
   bookForToken,
@@ -21,34 +23,20 @@ describePublicApi(() => {
       return { slug: parent.slug };
     };
 
-    /** Stub the checkout session to a fixed success, book `slug` (asserting the
-     *  order is taken), and return the intent the route handed the provider so a
-     *  folded field can be asserted. */
-    const captureCheckoutIntent = async (
+    /** Book `slug` through the shared checkout stub (asserting the order is
+     *  taken) and return the intent the route handed the provider so a folded
+     *  field can be asserted. */
+    const captureBookingIntent = async (
       slug: string,
-    ): Promise<Record<string, unknown>> => {
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      let captured: Record<string, unknown> = {};
-      const mockCreate = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        (intent) => {
-          captured = intent as unknown as Record<string, unknown>;
-          return Promise.resolve({
-            checkoutUrl: "https://checkout.test/session",
-            sessionId: "sess_test",
-          });
-        },
-      );
+    ): Promise<CheckoutIntent | undefined> => {
+      const { checkout, getCaptured } = stubCheckout("sess_test");
       try {
         const { response } = await bookListing(slug);
         expect(response.status).toBe(200);
       } finally {
-        mockCreate.restore();
+        checkout.restore();
       }
-      return captured;
+      return getCaptured();
     };
 
     test("returns a checkout URL for a parent whose child is paid", async () => {
@@ -108,7 +96,9 @@ describePublicApi(() => {
         parent: { maxAttendees: 10, unitPrice: 0 },
       });
       const { body } = await bookListing(parent.slug);
-      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const { getAttendeesByTokens } = await import(
+        "#shared/db/attendees/tokens.ts"
+      );
       const [attendee] = await getAttendeesByTokens([
         body.booking!.ticketToken!,
       ]);
@@ -124,8 +114,8 @@ describePublicApi(() => {
         children: [{ maxAttendees: 10, unitPrice: 500 }],
         parent: { maxAttendees: 10, unitPrice: 1000 },
       });
-      const intent = await captureCheckoutIntent(parent.slug);
-      expect(intent.allocations).toEqual([
+      const intent = await captureBookingIntent(parent.slug);
+      expect(intent?.allocations).toEqual([
         { childId: child.id, parentId: parent.id, qty: 1 },
       ]);
     });
@@ -206,7 +196,9 @@ describePublicApi(() => {
     test("books no attendees when conflicting child prices are rejected", async () => {
       const { parent, child } = await parentWithTwoUnitPayMoreChild();
       await bookTwoChildEntries(parent.slug, child, [30, 20]);
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       expect((await getAttendeesRaw(child.id)).length).toBe(0);
       expect((await getAttendeesRaw(parent.id)).length).toBe(0);
     });
@@ -237,7 +229,9 @@ describePublicApi(() => {
       const { response } = await bookListing(parent.slug);
       expect(response.status).toBe(200);
 
-      const { getListingActivityLog } = await import("#test-utils");
+      const { getListingActivityLog } = await import(
+        "#test-utils/activity-log.ts"
+      );
       const parentLog = await getListingActivityLog(parent.id);
       const childLog = await getListingActivityLog(child.id);
       expect(parentLog.some((e) => /registered/i.test(e.message))).toBe(true);
@@ -257,8 +251,8 @@ describePublicApi(() => {
           unitPrice: 0,
         },
       });
-      const intent = await captureCheckoutIntent(parent.slug);
-      expect(intent.thankYouUrl).toBe("https://example.com/thanks");
+      const intent = await captureBookingIntent(parent.slug);
+      expect(intent?.thankYouUrl).toBe("https://example.com/thanks");
     });
 
     test("omits the thank-you URL when the parent has none", async () => {
@@ -266,8 +260,8 @@ describePublicApi(() => {
       // success handler's default single-listing rule still applies otherwise.
       await setupStripe();
       const parent = await parentWithPaidChild();
-      const intent = await captureCheckoutIntent(parent.slug);
-      expect(intent.thankYouUrl).toBeUndefined();
+      const intent = await captureBookingIntent(parent.slug);
+      expect(intent?.thankYouUrl).toBeUndefined();
     });
   });
 });

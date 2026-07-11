@@ -9,6 +9,10 @@ import { relative } from "@std/path";
 import { processExists, stopProcess, stopProcessNow } from "../process.ts";
 import { projectRoot } from "../project-root.ts";
 import {
+  offTerminationSignals,
+  onTerminationSignals,
+} from "./child-process.ts";
+import {
   copyMutationSnapshot,
   createRunId,
   formatRunList,
@@ -145,6 +149,27 @@ const childArgs = (
   ...rewriteMutationArgs(root, snapshotRoot, args),
 ];
 
+const forceStopChild = (child: Deno.ChildProcess | null): never => {
+  if (child) stopProcessNow(child);
+  Deno.exit(130);
+};
+
+const killChildQuietly = (child: Deno.ChildProcess | null): void => {
+  if (!child) return;
+  try {
+    child.kill();
+  } catch {
+    // It may already have exited.
+  }
+};
+
+const settleRecord = (
+  record: MutationRunRecord,
+  interrupted: boolean,
+  code: number,
+): MutationRunRecord =>
+  interrupted ? markInterrupted(record) : markFinished(record, code);
+
 export const runMutationInSnapshot = async (
   args: string[],
   root = projectRoot,
@@ -156,27 +181,11 @@ export const runMutationInSnapshot = async (
   let child: Deno.ChildProcess | null = null;
   let interrupted = false;
   const stopChild = (): void => {
-    if (interrupted) {
-      if (child) stopProcessNow(child);
-      Deno.exit(130);
-    }
+    if (interrupted) forceStopChild(child);
     interrupted = true;
-    if (child) {
-      try {
-        child.kill();
-      } catch {
-        // It may already have exited.
-      }
-    }
+    killChildQuietly(child);
   };
-  const signals: Deno.Signal[] = ["SIGINT", "SIGTERM"];
-  for (const signal of signals) {
-    try {
-      Deno.addSignalListener(signal, stopChild);
-    } catch {
-      // Signal handling is platform-dependent; the child still owns cleanup.
-    }
-  }
+  onTerminationSignals(stopChild);
 
   let exitCode = 1;
   try {
@@ -208,18 +217,14 @@ export const runMutationInSnapshot = async (
 
     if (child !== null) {
       const status = await child.status;
-      record = interrupted
-        ? markInterrupted(record)
-        : markFinished(record, status.code);
+      record = settleRecord(record, interrupted, status.code);
       await writeRunRecord(record);
       exitCode = interrupted ? 130 : status.code;
     }
   } catch (error) {
     if (child !== null) await stopProcess(child, 250);
     exitCode = interrupted ? 130 : 1;
-    record = interrupted
-      ? markInterrupted(record)
-      : markFinished(record, exitCode);
+    record = settleRecord(record, interrupted, exitCode);
     try {
       await writeRunRecord(record);
     } catch {
@@ -227,13 +232,7 @@ export const runMutationInSnapshot = async (
     }
     console.error(error instanceof Error ? error.message : String(error));
   }
-  for (const signal of signals) {
-    try {
-      Deno.removeSignalListener(signal, stopChild);
-    } catch {
-      // Matches the add above.
-    }
-  }
+  offTerminationSignals(stopChild);
   return exitCode;
 };
 
@@ -246,16 +245,25 @@ const listRuns = async (root = projectRoot): Promise<number> => {
   return 0;
 };
 
-const killRuns = async (
+/** Run `body` over the runs matching `target`, or report + return 1 if none. */
+const withSelectedRuns = async (
   target: string,
-  force: boolean,
-  root = projectRoot,
+  root: string,
+  body: (records: MutationRunRecord[]) => Promise<number>,
 ): Promise<number> => {
   const records = selectedRuns(await readRunRecords(root), target);
   if (records.length === 0) {
     console.error(`No isolated mutation run matched ${target}.`);
     return 1;
   }
+  return body(records);
+};
+
+const signalMatchedRuns = async (
+  records: MutationRunRecord[],
+  force: boolean,
+  target: string,
+): Promise<number> => {
   const signalled = await Promise.all(
     records.map(async (record) =>
       (await signalRun(record, force)) ? record : null,
@@ -272,15 +280,19 @@ const killRuns = async (
   return 0;
 };
 
-const cleanRuns = async (
+const killRuns = (
   target: string,
+  force: boolean,
   root = projectRoot,
+): Promise<number> =>
+  withSelectedRuns(target, root, (records) =>
+    signalMatchedRuns(records, force, target),
+  );
+
+const removeMatchedRuns = async (
+  records: MutationRunRecord[],
+  target: string,
 ): Promise<number> => {
-  const records = selectedRuns(await readRunRecords(root), target);
-  if (records.length === 0) {
-    console.error(`No isolated mutation run matched ${target}.`);
-    return 1;
-  }
   const { removable, skipped } = await cleanableRuns(records);
   const removeResults = await Promise.all(removable.map(removeRun));
   const removed = removeResults
@@ -312,6 +324,11 @@ const cleanRuns = async (
   }
   return 0;
 };
+
+const cleanRuns = (target: string, root = projectRoot): Promise<number> =>
+  withSelectedRuns(target, root, (records) =>
+    removeMatchedRuns(records, target),
+  );
 
 export const runIsolatedMutationCommand = async (
   args: string[],

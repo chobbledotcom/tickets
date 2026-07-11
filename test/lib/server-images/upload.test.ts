@@ -4,20 +4,20 @@ import { handleRequest } from "#routes";
 import { getImagesForItem } from "#shared/db/images.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { MAX_IMAGE_SIZE } from "#shared/limits.ts";
+import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { PDF_BYTES } from "#test-utils/factories.ts";
 import {
   cdnOkResponse,
-  describeWithEnv,
-  expectFlashRedirect,
   installUrlHandler,
-  makeTestPng,
   mockMultipartRequest,
   mockRequest,
-  PDF_BYTES,
-  setupListingAndLogin,
   withFetchMock,
   withStorageDisabled,
   withStorageMock,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
+import { setupListingAndLogin } from "#test-utils/session.ts";
+import { makeTestPng } from "#test-utils/test-image.ts";
 import { expectImageErrorRedirect, linkStoredImage } from "./helpers.ts";
 
 /** Submit an item Images-tab multipart request with an image file attached. */

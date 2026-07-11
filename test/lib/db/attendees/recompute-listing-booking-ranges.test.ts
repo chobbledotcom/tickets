@@ -1,15 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  createAttendeeAtomic,
-  recomputeListingBookingRanges,
-} from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { recomputeListingBookingRanges } from "#shared/db/attendees/update.ts";
 import { getDb } from "#shared/db/client.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,
   createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
 
 const getRow = async (listingId: number) => {
   const res = await getDb().execute({

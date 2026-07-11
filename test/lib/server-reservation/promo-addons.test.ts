@@ -3,17 +3,20 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
-import { describeWithEnv, mockRequest } from "#test-utils";
+import { captureCheckoutIntent } from "#test-utils/checkout.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 import {
-  captureCheckoutIntent,
+  modifierUsageAmount,
+  modifierUsageCount,
+} from "#test-utils/modifiers.ts";
+import {
   createOptionalAddOn,
   createProgrammeCharge,
   createSave10Promo,
   expectRefundedPlaceholder,
   latestAttendee,
   modifierRefs,
-  modifierUsageAmount,
-  modifierUsageCount,
   setupReservationListing,
   stubPaidSession,
 } from "./helpers.ts";

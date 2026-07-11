@@ -11,7 +11,8 @@ import {
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
-import { describeWithEnv, setupStripe } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 describeWithEnv("isPaymentsEnabled", { db: true }, () => {
   test("returns false when no provider is configured", () => {

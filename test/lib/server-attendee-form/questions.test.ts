@@ -1,18 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { setListingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
-import {
-  adminFormPost,
-  awaitTestRequest,
-  buildAttendeeEditForm,
-  createTestListing,
-  describeWithEnv,
-  testCookie,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { buildAttendeeEditForm } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { adminFormPost, testCookie } from "#test-utils/session.ts";
 
 describeWithEnv(
   "server (unified attendee form) — custom questions",

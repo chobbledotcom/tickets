@@ -159,5 +159,6 @@
   "attendee_form.date_required": "A start date is required for the booked daily listings",
   "attendee_form.balance_paid_but_owes": "This attendee is in a paid status but still owes {amount}.",
   "attendee_form.balance_reservation_unpaid": "This reservation has no balance recorded, but {amount} of the order is still unpaid.",
-  "attendee_form.balance_reservation_paid": "This reservation is fully paid — consider moving it to a paid status."
+  "attendee_form.balance_reservation_paid": "This reservation is fully paid — consider moving it to a paid status.",
+  "attendees_list.guide_link": "Attendee list guide"
 }

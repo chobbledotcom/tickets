@@ -10,12 +10,10 @@ import {
   reserveSession,
   STALE_RESERVATION_MS,
 } from "#shared/db/processed-payments.ts";
-import {
-  createTestAttendee,
-  createTestListing,
-  describeWithEnv,
-  useProcessedPaymentsAttendee,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { useProcessedPaymentsAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** Perform the full two-phase reserve+finalize as production code does */
 const processSession = async (

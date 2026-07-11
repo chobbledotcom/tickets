@@ -5,7 +5,8 @@ import {
   signAttachmentUrl,
   verifyAttachmentUrl,
 } from "#shared/attachment-url.ts";
-import { matchGroup, setupTestEncryptionKey } from "#test-utils";
+import { matchGroup } from "#test-utils/assertions.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 describe("signAttachmentUrl", () => {
   let fakeTime: FakeTime;

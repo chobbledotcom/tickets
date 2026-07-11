@@ -6,17 +6,17 @@ import { getDb } from "#shared/db/client.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
   assertPublicHtml,
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
   expectHtmlResponse,
-  makeParent,
-  mockRequest,
-  setupStripe,
-  singleItem,
-  stubRetrieveCheckoutSession,
-  withMocks,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { johnCheckoutSession } from "#test-utils/checkout.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { singleItem } from "#test-utils/factories.ts";
+import { mockRequest, withMocks } from "#test-utils/mocks.ts";
+import { makeParent } from "#test-utils/parents.ts";
+import { setupStripe } from "#test-utils/settings.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -24,13 +24,7 @@ import {
  *  the shape every /payment/cancel test stubs, differing only in the id and
  *  which listing/package ids the items carry. */
 const cancelSession = (sessionId: string, items: string) =>
-  stubRetrieveCheckoutSession({
-    amountTotal: 0,
-    metadata: { email: "john@example.com", items, name: "John" },
-    paymentIntent: null,
-    paymentStatus: "unpaid",
-    sessionId,
-  });
+  johnCheckoutSession(sessionId, { items, paid: false });
 
 describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
   describe("GET /payment/cancel", () => {

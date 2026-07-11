@@ -12,7 +12,8 @@ import {
   getQuestionsWithListingIds,
   setListingQuestions,
 } from "#shared/db/questions/queries.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   addAnswer,
   createAttendee,

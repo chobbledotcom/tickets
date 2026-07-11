@@ -8,15 +8,12 @@ import {
   getSmsMessageByProviderId,
   recordSmsMessage,
 } from "#shared/db/sms-messages.ts";
-import {
-  adminFormPost,
-  adminGet,
-  createTestAttendeeDirect,
-  createTestListing,
-  describeWithEnv,
-  getAttendeeActivityLog,
-  getTestPrivateKey,
-} from "#test-utils";
+import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 const PHONE = "+447700900123";
 

@@ -2,7 +2,7 @@
 import { filter, joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { formatDatetimeShort } from "#shared/dates.ts";
-import { CsrfForm, renderFields } from "#shared/forms.tsx";
+import { CsrfForm, renderFields, renderSelectOptions } from "#shared/forms.tsx";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
@@ -149,17 +149,18 @@ const DateSelector = ({
   dateFilter: string | null;
   dates: DateOption[];
 }): string => {
-  const options = [
-    `<option value="${rosterHref(listingId, activeFilter, null)}"${
-      !dateFilter ? " selected" : ""
-    }>${t("listings_table.all_dates")}</option>`,
-    ...dates.map(
-      (d) =>
-        `<option value="${rosterHref(listingId, activeFilter, d.value)}"${
-          dateFilter === d.value ? " selected" : ""
-        }>${d.label}</option>`,
-    ),
-  ].join("");
+  const options = renderSelectOptions([
+    {
+      label: t("listings_table.all_dates"),
+      selected: !dateFilter,
+      value: rosterHref(listingId, activeFilter, null),
+    },
+    ...dates.map((d) => ({
+      label: d.label,
+      selected: dateFilter === d.value,
+      value: rosterHref(listingId, activeFilter, d.value),
+    })),
+  ]);
   return `<select data-nav-select aria-label="${t(
     "listings_table.filter_by_date",
   )}">${options}</select>`;

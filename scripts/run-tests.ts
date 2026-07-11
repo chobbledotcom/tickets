@@ -8,8 +8,8 @@
 
 import { COVERAGE_OUTPUT_DIR } from "./coverage-output.ts";
 import { projectRoot } from "./project-root.ts";
-import { JUNIT_PATH, readSlowTestsReport } from "./test-durations.ts";
-import { runTests, withTestHarness } from "./test-harness.ts";
+import { readSlowTestsReport } from "./test-durations.ts";
+import { runSuiteWithHarness } from "./test-harness.ts";
 
 type CoverageMetricFailure = {
   covered: number;
@@ -66,16 +66,19 @@ const formatRanges = (nums: number[]): string => {
   const ranges: string[] = [];
   let start = sorted[0]!;
   let end = start;
+  const flushRange = (): void => {
+    ranges.push(start === end ? String(start) : `${start}-${end}`);
+  };
   for (const line of sorted.slice(1)) {
     if (line === end + 1) {
       end = line;
       continue;
     }
-    ranges.push(start === end ? String(start) : `${start}-${end}`);
+    flushRange();
     start = line;
     end = line;
   }
-  ranges.push(start === end ? String(start) : `${start}-${end}`);
+  flushRange();
   return ranges.join(", ");
 };
 
@@ -206,20 +209,17 @@ const githubAnnotationEntries = (
 ): { file: string; line: number; message: string }[] => {
   const entries: { file: string; line: number; message: string }[] = [];
   for (const failure of failures) {
-    for (const line of failure.lines?.uncovered ?? []) {
-      entries.push({
-        file: failure.file,
-        line,
-        message: `line coverage missing at ${failure.file}:${line}`,
-      });
-    }
-    for (const line of failure.branches?.uncovered ?? []) {
-      entries.push({
-        file: failure.file,
-        line,
-        message: `branch coverage missing at ${failure.file}:${line}`,
-      });
-    }
+    const pushUncovered = (kind: string, lines: number[] | undefined): void => {
+      for (const line of lines ?? []) {
+        entries.push({
+          file: failure.file,
+          line,
+          message: `${kind} coverage missing at ${failure.file}:${line}`,
+        });
+      }
+    };
+    pushUncovered("line", failure.lines?.uncovered);
+    pushUncovered("branch", failure.branches?.uncovered);
   }
   return entries;
 };
@@ -320,12 +320,7 @@ const checkCoverage = async (): Promise<void> => {
 /** Main: run the whole suite inside the harness, then enforce coverage */
 const main = async (): Promise<void> => {
   const useCoverage = Deno.args.includes("--coverage");
-  // Remove any stale JUnit file so a killed run can't surface a previous run's
-  // timings; `deno test --junit-path` rewrites it on a completed run.
-  await Deno.remove(JUNIT_PATH).catch(() => {});
-  const exitCode = await withTestHarness(() =>
-    runTests(["test/"], useCoverage, JUNIT_PATH),
-  );
+  const exitCode = await runSuiteWithHarness(useCoverage);
 
   if (exitCode !== 0) Deno.exit(exitCode);
   if (useCoverage) await checkCoverage();

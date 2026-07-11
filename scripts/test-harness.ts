@@ -24,8 +24,10 @@ import {
   COVERAGE_OUTPUT_DIR,
   removeOldCoverageOutput,
 } from "./coverage-output.ts";
+import { rethrowUnlessNotFound } from "./not-found.ts";
 import { projectRoot } from "./project-root.ts";
 import { startStripeMock, stripeMockEnv } from "./stripe-mock.ts";
+import { JUNIT_PATH } from "./test-durations.ts";
 
 const verboseHarness = Deno.env.get("TICKETS_TEST_HARNESS_VERBOSE") === "1";
 
@@ -83,6 +85,14 @@ const buildDenoTestArgs = (
     "--allow-sys",
     "--allow-ffi",
     "--parallel",
+    // Install the fast `toContain` override (test/test-utils/fast-expect.ts) in
+    // every test isolate. Deno runs each test file in its own isolate — and
+    // spreads them across worker processes under --parallel — so a side-effect
+    // import in one file never reaches the others. --preload runs the module
+    // before every test module, giving the whole suite the fast matcher without
+    // each file having to import it. See fast-expect.ts for why it exists.
+    "--preload",
+    "./test/test-utils/fast-expect.ts",
     // Expose `globalThis.gc` so the test DB layer can reclaim libsql's
     // file-descriptor leak (a fresh client per test + every interactive
     // transaction leaks an fd that close() never releases — only GC does). Under
@@ -169,4 +179,19 @@ export const withTestHarness = async <T>(
     }
     await cleanupStaticAssets();
   }
+};
+
+/**
+ * Run the whole `test/` suite inside the harness, emitting per-test timings to
+ * the shared JUnit path. Any stale JUnit file is removed first so a killed prior
+ * run can't surface its timings; `deno test --junit-path` rewrites it on a
+ * completed run.
+ */
+export const runSuiteWithHarness = async (
+  useCoverage: boolean,
+): Promise<number> => {
+  // Only a missing file is expected here; a real removal failure (e.g.
+  // permissions) must surface rather than leave a stale JUnit file behind.
+  await Deno.remove(JUNIT_PATH).catch(rethrowUnlessNotFound);
+  return withTestHarness(() => runTests(["test/"], useCoverage, JUNIT_PATH));
 };

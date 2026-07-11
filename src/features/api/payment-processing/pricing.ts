@@ -9,8 +9,8 @@
 import { sumOf } from "#fp";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import {
-  priceChangedSpec,
   type RefundSpec,
+  refundSpec,
 } from "#routes/api/payment-processing/refunds.ts";
 import type { BookingIntent } from "#routes/api/webhook-types.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
@@ -114,7 +114,7 @@ export const paidPricingRefund = (
   // refunds rather than completing.
   for (const { listing, expectedPrice } of validatedItems) {
     if (expectedPrice === null) {
-      return priceChangedSpec(
+      return refundSpec("price_changed")(
         `Package member listing ${listing.id} is no longer part of its package`,
       );
     }
@@ -129,13 +129,13 @@ export const paidPricingRefund = (
   // mismatches. expectedPrice is non-null by the fail-closed loop above.
   for (const { item, listing, expectedPrice } of validatedItems) {
     if (hasPriceMismatch(item.p, expectedPrice!, listing, 0, item.q)) {
-      return priceChangedSpec(
+      return refundSpec("price_changed")(
         `Per-item price mismatch for listing ${listing.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${listing.can_pay_more})`,
       );
     }
   }
   if (pricedOrder.total !== agreed) {
-    return priceChangedSpec(
+    return refundSpec("price_changed")(
       `Re-derived total ${pricedOrder.total} differs from signed total ${agreed}`,
     );
   }

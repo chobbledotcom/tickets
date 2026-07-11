@@ -1,7 +1,6 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import {
   getAttendeeAnswersBatch,
@@ -11,17 +10,16 @@ import { setListingQuestions } from "#shared/db/questions/queries.ts";
 import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { signedMeta } from "#test-utils/factories.ts";
+import { mockWebhookRequest } from "#test-utils/mocks.ts";
+import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
-  createTestListing,
-  describeWithEnv,
   expectWebhookProcessed,
-  mockWebhookRequest,
-  setupStripe,
-  signedMeta,
-  stubWebhookVerify,
-} from "#test-utils";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
+} from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -35,22 +33,11 @@ const submitMultiTicketFormWithStubbedCheckout = async (
   formData: Record<string, string>,
   stubSessionId: string,
 ): Promise<void> => {
-  const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
-  const mockCreate = stub(stripePaymentProvider, "createCheckoutSession", () =>
-    Promise.resolve({
-      checkoutUrl: `https://checkout.stripe.com/pay/${stubSessionId}`,
-      sessionId: stubSessionId,
-    }),
-  );
-  const { submitMultiTicketForm, expectCheckoutRedirect } = await import(
-    "#test-utils"
-  );
-  try {
-    const checkoutResponse = await submitMultiTicketForm(slug, formData);
-    expectCheckoutRedirect(checkoutResponse);
-  } finally {
-    mockCreate.restore();
-  }
+  const { stubCheckout } = await import("#test-utils/checkout.ts");
+  using _checkout = stubCheckout(stubSessionId).checkout;
+  const { expectCheckoutRedirect } = await import("#test-utils/assertions.ts");
+  const { submitMultiTicketForm } = await import("#test-utils/csrf.ts");
+  expectCheckoutRedirect(await submitMultiTicketForm(slug, formData));
 };
 
 /** Fetch both listings' attendees, assert each has exactly one and that
@@ -60,7 +47,7 @@ const expectSharedAttendee = async (
   listing1Id: number,
   listing2Id: number,
 ): Promise<number> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
   const att1 = await getAttendeesRaw(listing1Id);
   const att2 = await getAttendeesRaw(listing2Id);
   expect(att1.length).toBe(1);
@@ -134,7 +121,9 @@ describeWithEnv(
         expect(response.status).toBe(200);
 
         // Verify answers were saved for the created attendee
-        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const { getAttendeesRaw } = await import(
+          "#shared/db/attendees/queries.ts"
+        );
         const attendees = await getAttendeesRaw(listing1.id);
         expect(attendees.length).toBe(1);
         const answerMap = await getAttendeeAnswersBatch([attendees[0]!.id], {

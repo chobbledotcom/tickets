@@ -6,7 +6,8 @@ import {
   listingChildren,
 } from "#shared/db/listing-parents.ts";
 import { listingsTable } from "#shared/db/listings.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv(
   "db > listing-parents > getNonStandaloneChildIds",
