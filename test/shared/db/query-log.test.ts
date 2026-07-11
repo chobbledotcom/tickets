@@ -21,7 +21,7 @@ import {
 // `import("#shared/logger.ts")` in the N+1 guard and the SQL system-log
 // mirror is a cache hit — keeping their fire-and-forget flush deterministic
 // rather than time-dependent.
-import { setSuppressDebugLogs } from "#shared/logger.ts";
+import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 
 describe("query-log", () => {
   describe("enableQueryLog", () => {

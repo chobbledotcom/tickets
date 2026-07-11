@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Spy, spy, stub } from "@std/testing/mock";
+import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import {
   createRequestTimer,
   logDebug,
   logRequest,
-  setSuppressDebugLogs,
   setSuppressRequestLogs,
 } from "#shared/logger.ts";
 

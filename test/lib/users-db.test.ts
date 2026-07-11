@@ -2,12 +2,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { hashPassword, hmacHash } from "#shared/crypto/hashing.ts";
-import { getDb, insert } from "#shared/db/client.ts";
+import { execute, getDb, insert } from "#shared/db/client.ts";
 import {
   createInvitedUser,
   decryptAdminLevel,
   decryptUsername,
   getAllUsers,
+  getUserAuthFieldsById,
   getUserByUsername,
   invalidateUsersCache,
   isInviteExpired,
@@ -20,9 +21,35 @@ import {
   assertAdminPasswordVerifies,
 } from "#test-utils/db-helpers/misc.ts";
 import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
+import { recordQueries } from "#test-utils/record-queries.ts";
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("users CRUD", () => {
+    test("reads authentication fields fresh for every authorization", async () => {
+      const queries: string[] = [];
+      const restore = recordQueries(queries);
+      try {
+        const before = await getUserAuthFieldsById(1);
+        expect(await decryptAdminLevel(before!)).toBe("owner");
+        await execute("UPDATE users SET admin_level = ? WHERE id = ?", [
+          await encrypt("manager"),
+          1,
+        ]);
+        const after = await getUserAuthFieldsById(1);
+        expect(await decryptAdminLevel(after!)).toBe("manager");
+      } finally {
+        restore();
+      }
+      expect(
+        queries.filter((sql) =>
+          sql.includes("SELECT id, admin_level FROM users"),
+        ),
+      ).toEqual([
+        "SELECT id, admin_level FROM users WHERE id = ? LIMIT 1",
+        "SELECT id, admin_level FROM users WHERE id = ? LIMIT 1",
+      ]);
+    });
+
     test("createTestDbWithSetup creates the owner user", async () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();

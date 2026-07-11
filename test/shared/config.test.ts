@@ -95,22 +95,22 @@ describeWithEnv("getEffectiveDomain", { db: true }, () => {
   });
 
   test("seedEffectiveDomainHost sets the request hostname before settings load", () => {
-    seedEffectiveDomainHost("https://listing.example.com/ticket/abc");
+    seedEffectiveDomainHost(new URL("https://listing.example.com/ticket/abc"));
     expect(getEffectiveDomain()).toBe("listing.example.com");
   });
 
   test("loadEffectiveDomain refines the seeded host with the validated custom domain", async () => {
     await settings.update.customDomain("tickets.example.com");
     await settings.update.customDomainLastValidated();
-    seedEffectiveDomainHost("https://mysite.bunny.run/");
+    seedEffectiveDomainHost(new URL("https://mysite.bunny.run/"));
     expect(getEffectiveDomain()).toBe("mysite.bunny.run");
 
-    loadEffectiveDomain("https://mysite.bunny.run/");
+    loadEffectiveDomain(new URL("https://mysite.bunny.run/"));
     expect(getEffectiveDomain()).toBe("tickets.example.com");
   });
 
   test("loadEffectiveDomain falls back to the request hostname when nothing is configured", () => {
-    const result = loadEffectiveDomain("https://mysite.bunny.run/");
+    const result = loadEffectiveDomain(new URL("https://mysite.bunny.run/"));
     expect(result).toBe("mysite.bunny.run");
     expect(getEffectiveDomain()).toBe("mysite.bunny.run");
   });
@@ -118,14 +118,14 @@ describeWithEnv("getEffectiveDomain", { db: true }, () => {
   test("returns the custom domain when it is set AND validated in the DB", async () => {
     await settings.update.customDomain("tickets.example.com");
     await settings.update.customDomainLastValidated();
-    expect(loadEffectiveDomain("https://mysite.bunny.run/")).toBe(
+    expect(loadEffectiveDomain(new URL("https://mysite.bunny.run/"))).toBe(
       "tickets.example.com",
     );
   });
 
   test("falls back to request hostname when custom domain is set but unvalidated", async () => {
     await settings.update.customDomain("tickets.example.com");
-    expect(loadEffectiveDomain("https://mysite.bunny.run/")).toBe(
+    expect(loadEffectiveDomain(new URL("https://mysite.bunny.run/"))).toBe(
       "mysite.bunny.run",
     );
   });
@@ -133,18 +133,18 @@ describeWithEnv("getEffectiveDomain", { db: true }, () => {
   test("reflects clearing the custom domain after it was previously validated", async () => {
     await settings.update.customDomain("tickets.example.com");
     await settings.update.customDomainLastValidated();
-    loadEffectiveDomain("https://mysite.bunny.run/");
+    loadEffectiveDomain(new URL("https://mysite.bunny.run/"));
     expect(getEffectiveDomain()).toBe("tickets.example.com");
 
     await settings.update.customDomain("");
-    expect(loadEffectiveDomain("https://mysite.bunny.run/")).toBe(
+    expect(loadEffectiveDomain(new URL("https://mysite.bunny.run/"))).toBe(
       "mysite.bunny.run",
     );
   });
 
   test("uses the bunny subdomain when it is set and no custom domain is configured", async () => {
     await settings.update.bunnySubdomain("mylisting.tickets.example.com");
-    expect(loadEffectiveDomain("https://mysite.bunny.run/")).toBe(
+    expect(loadEffectiveDomain(new URL("https://mysite.bunny.run/"))).toBe(
       "mylisting.tickets.example.com",
     );
   });
@@ -153,7 +153,7 @@ describeWithEnv("getEffectiveDomain", { db: true }, () => {
     await settings.update.bunnySubdomain("mylisting.tickets.example.com");
     await settings.update.customDomain("tickets.example.com");
     await settings.update.customDomainLastValidated();
-    expect(loadEffectiveDomain("https://mysite.bunny.run/")).toBe(
+    expect(loadEffectiveDomain(new URL("https://mysite.bunny.run/"))).toBe(
       "tickets.example.com",
     );
   });
@@ -161,7 +161,7 @@ describeWithEnv("getEffectiveDomain", { db: true }, () => {
   test("bunny subdomain is used when custom domain is set but not validated", async () => {
     await settings.update.bunnySubdomain("mylisting.tickets.example.com");
     await settings.update.customDomain("tickets.example.com");
-    expect(loadEffectiveDomain("https://mysite.bunny.run/")).toBe(
+    expect(loadEffectiveDomain(new URL("https://mysite.bunny.run/"))).toBe(
       "mylisting.tickets.example.com",
     );
   });
@@ -174,7 +174,7 @@ describeWithEnv("getEffectiveDomain", { db: true }, () => {
   test("resetEffectiveDomain clears the cached value back to 'localhost'", async () => {
     await settings.update.customDomain("tickets.example.com");
     await settings.update.customDomainLastValidated();
-    loadEffectiveDomain("https://mysite.bunny.run/");
+    loadEffectiveDomain(new URL("https://mysite.bunny.run/"));
     expect(getEffectiveDomain()).toBe("tickets.example.com");
 
     resetEffectiveDomain();

@@ -16,8 +16,9 @@ registerPublicTemplateHooks();
 
 describe("ticketPage listing date and location", () => {
   const renderTicket = (ev: ListingWithCount, opts?: { iframe?: boolean }) => {
-    if (opts?.iframe) detectIframeMode("https://example.com/?iframe=true");
-    else detectIframeMode("https://example.com/");
+    if (opts?.iframe) {
+      detectIframeMode(new URL("https://example.com/?iframe=true"));
+    } else detectIframeMode(new URL("https://example.com/"));
     return ticketPage({
       dates: [],
       listings: [buildTicketListing(ev, false, undefined)],

@@ -368,6 +368,20 @@ look.
   fail-closed behaviour. See the "Respect the subrequest budget" guidance in
   AGENTS.md.
 
+## Request performance: consolidate AsyncLocalStorage scopes
+
+`src/features/index.ts` enters eleven nested request scopes for locale, client
+IP, request ID, request cache, query logging, flash, session memoization, iframe
+mode, CSRF, saved form data, and settings auditing. Replace them with one typed
+`RequestContext` in one `AsyncLocalStorage`; retain domain methods where they add
+behavior, but migrate every internal caller with no aliases or compatibility
+wrappers. Preserve direct-render test behavior, production-disabled audit cost,
+and concurrent/nested request isolation for every mutable field. Pending work
+and storage overrides have different lifetimes and need a separate decision.
+Benchmark before and after: the synthetic result was about 38us/request for
+eleven scopes versus 2us for one. This needs a dedicated PR because it crosses
+eleven state modules and their concurrency contracts.
+
 ## Cross-request pending work vs. restore (from PR #1714)
 
 PR #1714 makes the restore-confirm handler drain its own request's pending

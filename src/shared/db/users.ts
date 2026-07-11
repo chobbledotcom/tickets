@@ -76,7 +76,6 @@ const usersCache = createKeyedCache<User>({
   keyOf: (u) => u.username_index,
   ttlMs: USERS_CACHE_TTL_MS,
 });
-
 /**
  * Callbacks fired on every users-cache invalidation, so derived caches (e.g.
  * the superuser account-state cache) can clear in lockstep with user writes.

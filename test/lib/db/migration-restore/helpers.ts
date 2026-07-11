@@ -18,6 +18,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#shared/db/client.ts";
+import { verifyCurrentAppSchema } from "#shared/db/migrations/schema-sync.ts";
 import {
   initDb,
   invalidateInitDbCache,
@@ -34,6 +35,22 @@ import { seedPreDropLedgerColumns } from "../migration-test-helpers.ts";
 const MIGRATIONS = await loadMigrations();
 export const migrationById = (id: string): Migration =>
   MIGRATIONS.find((m) => m.id === id)!;
+
+// Current-schema verification covers ordinary migrations. These four also
+// enforce removed legacy tables or the exact booking-slot index definition.
+const POST_CHAIN_MIGRATION_VERIFIER_IDS = [
+  "2026-06-14_rename_events_to_listings",
+  "2026-06-18_contact_preferences",
+  "2026-06-23_attendee_order_parent",
+  "2026-07-05_package_slot_identity",
+] as const;
+
+const verifyMigratedSchema = async (): Promise<void> => {
+  await verifyCurrentAppSchema();
+  for (const id of POST_CHAIN_MIGRATION_VERIFIER_IDS) {
+    await migrationById(id).verify();
+  }
+};
 
 export const tableColumns = async (table: string): Promise<Set<string>> => {
   const result = await getDb().execute(
@@ -435,9 +452,7 @@ export const defineChainSuite = (shard: number, shardCount: number): void => {
 
           await initDb();
 
-          for (const migration of MIGRATIONS) {
-            await migration.verify();
-          }
+          await verifyMigratedSchema();
           await assertPopulatedFixtureSurvived(baseMigration.id);
         });
       }

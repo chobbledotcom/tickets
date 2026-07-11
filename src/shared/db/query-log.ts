@@ -16,6 +16,7 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { lazyRef, map, pipe, reduce, sort } from "#fp";
+import { shouldSuppressDebugLogs } from "#shared/log-settings.ts";
 
 /** A single logged query */
 export type QueryLogEntry = {
@@ -206,6 +207,7 @@ const notifyN1Violation = async (detail: string): Promise<void> => {
  * {@link notifyN1Violation}.
  */
 export const logCompletedSql = async (sql: string): Promise<void> => {
+  if (shouldSuppressDebugLogs()) return;
   const { logDebug } = await import("#shared/logger.ts");
   logDebug("SQL", sql.replace(/\s+/g, " ").trim());
 };

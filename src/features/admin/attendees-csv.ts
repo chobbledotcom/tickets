@@ -6,6 +6,7 @@
  * pure {@link CSV.generate}.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { type Column, CSV } from "#shared/csv/index.ts";
@@ -13,8 +14,10 @@ import { toMajorUnits } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
 import { isServicing } from "#shared/db/attendees/kind.ts";
 import type { AttendeeQuestionData } from "#shared/db/questions/attendee-answers/reads.ts";
-import { DEFAULT_TIMEZONE, formatDatetimeShortInTz } from "#shared/timezone.ts";
+import { formatDatetimeShortInTz } from "#shared/timezone.ts";
+import { DEFAULT_TIMEZONE } from "#shared/timezone-default.ts";
 import type { Attendee } from "#shared/types.ts";
+/* jscpd:ignore-end */
 
 /** Listing-level fields optionally prefixed to an attendee export. */
 export type CsvListingInfo = {

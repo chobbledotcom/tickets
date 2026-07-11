@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import {
-  DEFAULT_TIMEZONE,
   dayStartEpochMs,
   epochMsToTzDate,
   formatDatetimeInTz,
@@ -13,6 +12,7 @@ import {
   todayInTz,
   utcToLocalInput,
 } from "#shared/timezone.ts";
+import { DEFAULT_TIMEZONE } from "#shared/timezone-default.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 
 describe("timezone", () => {
