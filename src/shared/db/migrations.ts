@@ -25,13 +25,12 @@ import { recordScriptVersion } from "#shared/update.ts";
 import { MIGRATION_IDS, MIGRATION_REGISTRY } from "./migrations/registry.ts";
 import { EVENT_TO_LISTING_RENAME_PLAN } from "./migrations/rename-plan.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
+import { SCHEMA, SCHEMA_HASH } from "./migrations/schema/index.ts";
+import { TRIGGERS } from "./migrations/schema/triggers.ts";
 import {
   LATEST_UPDATE,
-  SCHEMA,
-  SCHEMA_HASH,
   SCHEMA_MIGRATIONS_TABLE,
-  TRIGGERS,
-} from "./migrations/schema.ts";
+} from "./migrations/schema/version.ts";
 import {
   applySchemaChanges,
   backfillAnswerAggregates,
@@ -50,11 +49,8 @@ import {
 import type { Migration, MigrationContext } from "./migrations/types.ts";
 import { additive, verifyRequirement } from "./migrations/verify.ts";
 
-export {
-  LATEST_UPDATE,
-  SCHEMA_HASH,
-  SCHEMA_TABLE_NAMES,
-} from "./migrations/schema.ts";
+export { SCHEMA_HASH, SCHEMA_TABLE_NAMES } from "./migrations/schema/index.ts";
+export { LATEST_UPDATE } from "./migrations/schema/version.ts";
 export type { Migration, SchemaRequirement } from "./migrations/types.ts";
 
 // ─── Helpers ────────────────────────────────────────────────────

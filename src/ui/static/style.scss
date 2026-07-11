@@ -2214,8 +2214,9 @@ button.secondary:hover,
   gap: var(--space-s);
 }
 
-/* The Chobble link grows to fill, the utility links stay their natural width. */
-.admin-footer-top > a {
+/* The Chobble link's span grows to fill, keeping the link itself only as wide
+   as its text; the utility links stay their natural width. */
+.admin-footer-brand {
   flex: 1 1 auto;
   min-width: 0;
 }

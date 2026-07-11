@@ -9,7 +9,7 @@
  * migration registered in `MIGRATIONS`.
  *
  * Implementation contract (implemented — this describes the shipped behavior):
- *   - `#shared/db/migrations/schema.ts` declares the `kind` column
+ *   - `#shared/db/migrations/schema/tables-attendees.ts` declares the `kind` column
  *     (`TEXT NOT NULL DEFAULT 'attendee'`) on `attendees` plus
  *     `idx_attendees_kind` in that table's `indexes`.
  *   - `#shared/db/migrations/2026-06-24_attendees_kind.ts` is a
@@ -25,7 +25,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { createBackupZip, restoreFromZip } from "#shared/db/backup.ts";
 import { getDb } from "#shared/db/client.ts";
-import { SCHEMA } from "#shared/db/migrations/schema.ts";
+import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
 import { loadMigrations } from "#shared/db/migrations.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";

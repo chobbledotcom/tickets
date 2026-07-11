@@ -1,28 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { apiError, jsonError } from "#routes/api/cors.ts";
-import { apiErrorResponse } from "#shared/rest/crud-api.ts";
+import { apiError, apiErrorResponse } from "#routes/api/cors.ts";
 import { expectCorsHeaders } from "./helpers.ts";
-
-describe("jsonError", () => {
-  test("wraps the message in the { error } envelope via the given responder", async () => {
-    const seen: { data: unknown; status?: number }[] = [];
-    const respond = jsonError((data, status = 200) => {
-      seen.push({ data, status });
-      return new Response(null, { status });
-    });
-    const response = respond("boom", 418);
-    expect(response.status).toBe(418);
-    expect(seen).toEqual([{ data: { error: "boom" }, status: 418 }]);
-  });
-
-  test("defaults the status to 400", () => {
-    const respond = jsonError(
-      (_data, status = 200) => new Response(null, { status }),
-    );
-    expect(respond("bad input").status).toBe(400);
-  });
-});
 
 describe("apiError", () => {
   test("responds with the envelope, the status, and CORS headers", async () => {
@@ -30,6 +9,12 @@ describe("apiError", () => {
     expect(response.status).toBe(404);
     expectCorsHeaders(response);
     expect(await response.json()).toEqual({ error: "Listing not found" });
+  });
+
+  test("defaults the status to 400", async () => {
+    const response = apiError("bad input");
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "bad input" });
   });
 });
 

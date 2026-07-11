@@ -10,6 +10,7 @@
  */
 
 import * as v from "valibot";
+import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { constantTimeEqual } from "#shared/crypto/utils.ts";
@@ -27,7 +28,6 @@ import {
   type SmsMessageRow,
 } from "#shared/db/sms-messages.ts";
 import { nowMs } from "#shared/now.ts";
-import { apiErrorResponse } from "#shared/rest/crud-api.ts";
 import { decryptField } from "#shared/sms/e2e.ts";
 import { computePhoneIndex } from "#shared/sms/phone-index.ts";
 
