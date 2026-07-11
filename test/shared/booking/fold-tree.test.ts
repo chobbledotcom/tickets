@@ -14,6 +14,7 @@ import {
   resolveChildSelections,
   resolvedByNodeKey,
 } from "#shared/booking/fold-tree.ts";
+import { formatAtomicError } from "#shared/booking/form.ts";
 import {
   buildTicketListing,
   type TicketListing,
@@ -64,18 +65,19 @@ const freshState = () => ({
 
 /** Validate a single foldChild outcome against the running total and cap:
  * within the cap the fold must be accepted and the running quantity recorded;
- * above the cap it must be rejected (never clamped) and the recorded quantity
- * left exactly as it was before this fold. */
+ * above the cap it must be rejected with the capacity error (never clamped) and
+ * the recorded quantity left exactly as it was before this fold. */
 const foldOutcomeValid = (
   error: ReturnType<typeof foldChild>,
   recordedQty: number | undefined,
   prevRecordedQty: number | undefined,
   running: number,
   max: number,
+  capacityError: string,
 ): boolean =>
   running <= max
     ? error === null && recordedQty === running
-    : error !== null && recordedQty === prevRecordedQty;
+    : error === capacityError && recordedQty === prevRecordedQty;
 
 /** Mirror the production adapter's steps, purely (no DB; holidays default none):
  * build the tree, resolve each node's availability, run the walk. */
@@ -525,6 +527,10 @@ describe("fold selection algebra (property-based)", () => {
         }),
         (max, qtys) => {
           const child = line(1, { max_attendees: max, max_quantity: max });
+          const capacityError = formatAtomicError(
+            "capacity_exceeded",
+            child.listing.name,
+          );
           const state = freshState();
           let running = 0;
           for (const q of qtys) {
@@ -538,6 +544,7 @@ describe("fold selection algebra (property-based)", () => {
                 prevQty,
                 running,
                 max,
+                capacityError,
               )
             ) {
               return false;
