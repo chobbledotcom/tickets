@@ -53,6 +53,12 @@ export interface EdgeBundleOptions {
   guards?: EdgeBundleGuard[];
   /** Emit the finished bundle (write files, copy the map, …) and return. */
   emit: (ctx: EdgeBundleContext) => Promise<void>;
+  /** Reuse already-built client bundles instead of rebuilding them (for the
+   * benchmarks that bundle several entry points back to back). */
+  skipClientBuild?: boolean;
+  /** Inline empty strings instead of the real asset bodies — for benchmark
+   * builds that measure what the inlined payloads themselves cost. */
+  emptyInlinedAssets?: boolean;
 }
 
 const JS = "application/javascript; charset=utf-8";
@@ -225,7 +231,7 @@ export const buildEdgeBundle = async (
   const { label, entryPoint, outfile, transformContent, guards } = options;
 
   // --- Step 1: Build client bundles ---
-  await buildStaticAssets();
+  if (!options.skipClientBuild) await buildStaticAssets();
 
   // --- Step 2: Build the edge bundle ---
 
@@ -236,6 +242,9 @@ export const buildEdgeBundle = async (
   const rawCss = await Deno.readTextFile("./src/ui/static/style.css");
   const minifiedCss = await minifyCss(rawCss);
   const staticAssets = await readStaticAssets(minifiedCss);
+  const inlinedAssets = options.emptyInlinedAssets
+    ? Object.fromEntries(Object.keys(staticAssets).map((key) => [key, ""]))
+    : staticAssets;
 
   // Build timestamp — always the current time. Used both as BUILD_TIMESTAMP
   // and (formatted) as the release tag in release builds, so the two always match.
@@ -255,7 +264,7 @@ export const buildEdgeBundle = async (
     platform: "browser",
     plugins: [
       shimBareNodeCryptoPlugin,
-      inlineAssetsPlugin(buildIso, buildTs, staticAssets),
+      inlineAssetsPlugin(buildIso, buildTs, inlinedAssets),
       inlineWasmPlugin,
       ...denoPlugins({
         configPath: fromFileUrl(new URL("../deno.json", import.meta.url)),

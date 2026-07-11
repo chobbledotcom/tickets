@@ -26,7 +26,7 @@ const makePassData = (
 });
 
 const findTextModule = (
-  obj: { textModulesData: Array<Record<string, string>> },
+  obj: { textModulesData: Record<string, string>[] },
   id: string,
 ): Record<string, string> =>
   obj.textModulesData.find((m) => m.id === id) as Record<string, string>;

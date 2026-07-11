@@ -46,9 +46,12 @@ describe("servicing §0 — capacity overlap predicate is half-open", () => {
   const day = "2026-06-24";
   const { startAt, endAt } = dateToRange(day);
 
-  const cases: Array<
-    [label: string, start: string, end: string, expected: boolean]
-  > = [
+  const cases: [
+    label: string,
+    start: string,
+    end: string,
+    expected: boolean,
+  ][] = [
     ["entire span is the day itself", startAt, endAt, true],
     [
       "a one-hour slice within the day",

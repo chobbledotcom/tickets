@@ -10,6 +10,7 @@ import { type Spy, spy } from "@std/testing/mock";
 export const setupErrorSpy = (): {
   readonly calls: Spy["calls"];
   lastMessage: () => string | undefined;
+  contains: (needle: string) => boolean;
 } => {
   let errorSpy: Spy;
   beforeEach(() => {
@@ -22,6 +23,8 @@ export const setupErrorSpy = (): {
     get calls() {
       return errorSpy.calls;
     },
+    contains: (needle: string) =>
+      errorSpy.calls.some((call) => String(call.args[0]).includes(needle)),
     lastMessage: () => errorSpy.calls.at(-1)?.args[0] as string | undefined,
   };
 };

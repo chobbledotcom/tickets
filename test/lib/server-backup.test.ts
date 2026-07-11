@@ -1,10 +1,17 @@
+import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { zipSync } from "fflate";
 import { handleRequest } from "#routes";
 import { backupDir, createBackupZip } from "#shared/db/backup.ts";
+import { getDb } from "#shared/db/client.ts";
+import { invalidateInitDbCache } from "#shared/db/migrations.ts";
 import { downloadRaw, uploadRaw } from "#shared/storage.ts";
-import { recordScriptVersion, setBuildCommitForTest } from "#shared/update.ts";
+import {
+  readRecordedScriptCommit,
+  recordScriptVersion,
+  setBuildCommitForTest,
+} from "#shared/update.ts";
 import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
 import {
   expectFlashRedirect,
@@ -15,6 +22,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, withStorageDisabled } from "#test-utils/mocks.ts";
+import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
 import {
   adminFormPost,
   adminGet,
@@ -361,6 +369,84 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
       );
       expect(restored).toBeDefined();
       expect(restored!.name).toBe("Restore Me");
+    });
+
+    /** Withhold the boot marker read's result — a slow production round
+     *  trip — until the restore replay starts (or a grace timer, since the
+     *  pre-restore flush leaves nothing else to release it). */
+    const delayMarkerReadUntilReplay = (): (() => void) => {
+      const real = getDb();
+      let release = (): void => {};
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const timer = setTimeout(release, 150);
+      const isMarkerRead = (statement: InStatement | string): boolean =>
+        typeof statement !== "string" &&
+        Array.isArray(statement.args) &&
+        statement.args.includes("current_script_version");
+      const holdMarkerRead = async (statement: InStatement) => {
+        const result = await real.execute(statement);
+        await released;
+        return result;
+      };
+      const restore = wrapDbClient({
+        batch: (statements) => {
+          if (
+            statements.some((s) => statementSql(s) === "DELETE FROM settings")
+          ) {
+            release();
+          }
+        },
+        execute: (statement) =>
+          isMarkerRead(statement)
+            ? holdMarkerRead(statement as InStatement)
+            : null,
+      });
+      return () => {
+        clearTimeout(timer);
+        release();
+        restore();
+      };
+    };
+
+    test("a deploy's first request cannot clobber the commit a restore reports", async () => {
+      // A new deploy's first request IS the restore POST: initDb's queued
+      // marker write, still in flight when the replay runs, would land after
+      // it and stamp the running commit over the restored one.
+      const backupSha = "0123456789abcdef0123456789abcdef01234567";
+      const deploySha = "89abcdef0123456789abcdef0123456789abcdef";
+      setBuildCommitForTest(backupSha);
+      try {
+        await getTestSession(); // ensure session row is in DB before backup
+        await recordScriptVersion();
+        const zipData = await createBackupZip();
+        await uploadRaw(zipData, "restore-pending-race.zip");
+
+        setBuildCommitForTest(deploySha);
+        invalidateInitDbCache();
+        const restoreClient = delayMarkerReadUntilReplay();
+        try {
+          const { response } = await adminFormPost(
+            "/admin/backup/restore/confirm",
+            {
+              backup_filename: "restore-pending-race.zip",
+              confirm_identifier: RESTORE_CONFIRM_PHRASE,
+            },
+          );
+          // Read before the follow-up request, whose initDb legitimately
+          // restamps the running build.
+          expect(await readRecordedScriptCommit()).toBe(backupSha);
+          await expectFlashRedirect(
+            "/admin/login",
+            expect.stringContaining(backupSha),
+          )(response);
+        } finally {
+          restoreClient();
+        }
+      } finally {
+        setBuildCommitForTest(null);
+      }
     });
 
     test("surfaces the full recorded commit so the operator can redeploy the code", async () => {

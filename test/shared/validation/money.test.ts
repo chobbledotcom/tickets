@@ -14,10 +14,7 @@ import { testWithSetting } from "#test-utils/settings.ts";
 /** Build a table-driven describe for one currency-aware parser. */
 const parserTable =
   (parse: (raw: string) => number | null) =>
-  (
-    currency: SettingsData["currency"],
-    rows: Array<[string, number | null]>,
-  ) => {
+  (currency: SettingsData["currency"], rows: [string, number | null][]) => {
     for (const [input, expected] of rows) {
       testWithSetting(
         `${currency}: ${JSON.stringify(input)} → ${expected}`,
@@ -38,7 +35,7 @@ const parserTable =
 describe("parsePositiveMinorUnits", () => {
   const table = (
     currency: SettingsData["currency"],
-    rows: Array<[string, number | null]>,
+    rows: [string, number | null][],
   ): void => {
     for (const [input, expected] of rows) {
       testWithSetting(
@@ -252,7 +249,7 @@ describe("validatePrice (bounded public/QR price)", () => {
 describe("exceedsCurrencyPrecision (already-parsed major-unit amount)", () => {
   const table = (
     currency: SettingsData["currency"],
-    rows: Array<[number, boolean]>,
+    rows: [number, boolean][],
   ) => {
     for (const [value, expected] of rows) {
       testWithSetting(

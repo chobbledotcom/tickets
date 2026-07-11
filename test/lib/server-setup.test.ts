@@ -1,3 +1,4 @@
+import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -32,6 +33,11 @@ import {
   withExpectedError,
   withMocks,
 } from "#test-utils/mocks.ts";
+import {
+  recordQueries,
+  statementSql,
+  wrapDbClient,
+} from "#test-utils/record-queries.ts";
 import { reloginAsAdmin } from "#test-utils/session.ts";
 
 describeWithEnv("server (setup)", { db: true }, () => {
@@ -88,6 +94,75 @@ describeWithEnv("server (setup)", { db: true }, () => {
           503,
           "This site has not been activated yet",
         );
+      });
+
+      test("the not-activated response waits for the version prefetch to settle", async () => {
+        // An unactivated site never reaches loadKeys, so the pending-work
+        // flush must settle the prefetch before the 503 goes out (the edge
+        // runtime kills queries that outlive the response).
+        await resetToBrandNewDatabase();
+
+        const real = getDb();
+        let release = (): void => {};
+        const released = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const holdProbe = async (statement: InStatement) => {
+          await released;
+          return real.execute(statement);
+        };
+        const restore = wrapDbClient({
+          batch: () => {},
+          execute: (statement) =>
+            statementSql(statement).startsWith("SELECT value FROM settings")
+              ? holdProbe(statement as InStatement)
+              : null,
+        });
+        try {
+          let settled = false;
+          const inFlight = (async () => {
+            const response = await handleRequest(mockRequest("/"));
+            settled = true;
+            return response;
+          })();
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          expect(settled).toBe(false);
+          release();
+          await expectHtmlResponse(
+            await inFlight,
+            503,
+            "This site has not been activated yet",
+          );
+        } finally {
+          release();
+          restore();
+        }
+      });
+
+      test("does not probe the settings version before setup bootstraps the schema", async () => {
+        // On a setup path the settings table may not exist yet, and the
+        // request cache would share a still-pending probe failure with the
+        // loadKeys read that renders the page.
+        await resetToBrandNewDatabase();
+
+        const seen: string[] = [];
+        const restore = recordQueries(seen);
+        try {
+          const response = await handleRequest(mockRequest("/setup/"));
+          expect(response.status).toBe(200);
+        } finally {
+          restore();
+        }
+
+        const schemaBootstrap = seen.findIndex((sql) =>
+          sql.includes("CREATE TABLE"),
+        );
+        expect(schemaBootstrap).toBeGreaterThan(-1);
+        expect(
+          seen
+            .slice(0, schemaBootstrap)
+            .filter((sql) => sql.startsWith("SELECT value FROM settings")),
+        ).toEqual([]);
       });
 
       test("returns not-activated page without bootstrapping a missing settings table", async () => {

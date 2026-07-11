@@ -27,7 +27,18 @@ import { initSentry } from "#shared/sentry.ts";
 /** The port the local dev entry listens on: PORT when set, else 3000. */
 export const devServerPort = (): number => Number(getEnv("PORT") || 3000);
 
+/** After Sentry init resolves, log the isolate's real boot time
+ *  (performance.now() counts from process start). */
+const logStartedAfter = async (
+  sentryReady: Promise<boolean>,
+): Promise<boolean> => {
+  const ready = await sentryReady;
+  logDebug("Setup", `App started (${Math.round(performance.now())}ms)`);
+  return ready;
+};
+
 const initialize = once((): Promise<boolean> => {
+  // Throws synchronously, before `once` memoizes — a failed boot is retried.
   validateBootChecks();
   // Start Sentry error reporting (no-op unless SENTRY_URL is configured).
   // Loads the SDK lazily; the returned promise is awaited before serving so
@@ -36,8 +47,7 @@ const initialize = once((): Promise<boolean> => {
   // In production a request must never be killed by the N+1 guard: report it
   // to the error log instead of throwing (dev/test keep the default throw).
   setN1GuardNotifyOnly(true);
-  logDebug("Setup", "App started");
-  return sentryReady;
+  return logStartedAfter(sentryReady);
 });
 
 /**

@@ -38,7 +38,7 @@ const siteNames = async (response: Response): Promise<string[]> => {
 };
 
 /** One eligible site (script id + read-only creds) per update channel. */
-const TIERED_SITES: ReadonlyArray<[name: string, tier: UpdateTier]> = [
+const TIERED_SITES: readonly [name: string, tier: UpdateTier][] = [
   ["AlphaSite", "alpha"],
   ["BetaSite", "beta"],
   ["ReleaseSite", "release"],

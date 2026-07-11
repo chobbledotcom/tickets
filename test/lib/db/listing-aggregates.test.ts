@@ -55,7 +55,7 @@ describe("tickets_count shared predicate guard", () => {
   // reference it, or the recalculate/repair flow would fight the triggers. This
   // asserts the shared predicate appears at every site (incl. both listings.ts
   // queries), so a future edit can't silently drop it from one of them.
-  const ticketCountSites: Array<[name: string, sql: string]> = [
+  const ticketCountSites: [name: string, sql: string][] = [
     ...TRIGGERS.filter((t) =>
       t.name.startsWith("trg_listing_attendees_aggregates_"),
     ).map((t): [string, string] => [t.name, t.sql]),

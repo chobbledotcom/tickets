@@ -5,9 +5,8 @@
 import { buildFlashCookie, type FlashLevel } from "#shared/cookies.ts";
 import { stashForm } from "#shared/form-stash.ts";
 import { getSavedFormData } from "#shared/forms.tsx";
-import { appendIframeParam, getIframeMode } from "#shared/iframe.ts";
+import { appendIframeParam } from "#shared/iframe.ts";
 import { getRequestId } from "#shared/logger.ts";
-import { checkoutPopupPage, paymentErrorPage } from "#templates/payment.tsx";
 import {
   databaseBusyPage,
   migrationInProgressPage,
@@ -51,12 +50,6 @@ export const rateLimitedResponse = (): Response =>
   htmlResponse(rateLimitedPage(), 429);
 
 /**
- * Create payment error response
- */
-export const paymentErrorResponse = (message: string, status = 400): Response =>
-  htmlResponse(paymentErrorPage(message), status);
-
-/**
  * Create temporary error response (e.g. transient CDN failures)
  * Returns a styled page with auto-refresh so the user retries automatically
  */
@@ -88,17 +81,6 @@ export const siteNotActivatedResponse = (): Response =>
  */
 export const migrationInProgressResponse = (): Response =>
   htmlResponse(migrationInProgressPage(), 503);
-
-/**
- * Respond with checkout: popup page in iframe mode, 302 redirect otherwise.
- * Stripe Checkout cannot run inside iframes, so we show a page that opens
- * the checkout URL in a popup window instead.
- * Reads iframe mode from the per-request store (set by detectIframeMode).
- */
-export const checkoutResponse = (checkoutUrl: string): Response =>
-  getIframeMode()
-    ? htmlResponse(checkoutPopupPage(checkoutUrl))
-    : redirectResponse(checkoutUrl);
 
 /**
  * Create bare 302 redirect response (no message).

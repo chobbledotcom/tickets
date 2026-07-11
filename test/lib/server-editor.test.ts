@@ -65,7 +65,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const listing = await createTestListing();
       const group = await createTestGroup();
 
-      const allowed: Array<[string, string]> = [
+      const allowed: [string, string][] = [
         ["listings index", "/admin/listings"],
         ["new listing", "/admin/listing/new"],
         ["edit listing", `/admin/listing/${listing.id}/edit`],
@@ -113,7 +113,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
     test("editor renders every Site → Pages screen and can create; manager is 403", async () => {
       const { cookie } = await createTestEditorSession();
       const page = await createTestSitePage("role-matrix");
-      const screens: Array<[string, string]> = [
+      const screens: [string, string][] = [
         ["pages list", "/admin/site/pages"],
         ["new page", "/admin/site/pages/new"],
         ["edit page", `/admin/site/pages/${page.id}/edit`],
@@ -158,7 +158,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const listing = await createTestListing();
       const group = await createTestGroup();
 
-      const forbidden: Array<[string, string]> = [
+      const forbidden: [string, string][] = [
         ["attendee CSV", `/admin/listing/${listing.id}/attendees.csv`],
         ["listings CSV", "/admin/listings/csv"],
         ["attendees", "/admin/attendees"],

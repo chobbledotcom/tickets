@@ -277,32 +277,6 @@ keeps the bundles honest by failing when a route reads a key it didn't declare.
   computing bundle caps for several packages in one pass over shared capacity
   maps — worthwhile only if a page with many package links shows up hot.
 
-## Standalone child selector suppressed for sold-out / hidden package members
-
-`src/ui/templates/public/reservations/packages.ts` — `buildPageListingRows`
-derives `memberIds` from `packageMemberIds(opts.packages)` (every package's
-members), then suppresses the child selector on any standalone row whose listing
-is in that set (a rendered package member carries the one selector). But a
-**sold-out** package (`limit < 1`) renders a sold-out card with no member rows,
-and a `hideListings` package renders no member rows either — so their members'
-child selectors are never rendered in the package section. If such a member is
-ALSO a standalone parent whose own row is still bookable, its child selector is
-suppressed on both paths, so a buyer can't satisfy its multi-choice child
-requirements.
-
-CodeRabbit flagged this on PR #1693; it is pre-existing behaviour (verbatim from
-the original monolith), not introduced by the template split, so it's out of
-scope for that mechanical refactor. Fix: build the suppression set from only the
-packages that actually render member rows (skip `pkg.hideListings` and
-`packageLimits.get(pkg.groupId)! < 1`), so standalone parents whose package rows
-were omitted keep `opts.childCtx`. Ships with a regression test that books a
-standalone parent whose sibling-capacity sold-out package hid its member row and
-asserts the child selector still renders. (Note the `hideListings` half may be
-unreachable — the code assumes only visible packages contain parents — so verify
-that invariant before widening the fix.)
-
----
-
 ## Test-suite speed — remaining opportunities
 
 *Origin: the test-suite performance pass (lazy Sentry, fast `toContain`,
@@ -393,6 +367,31 @@ look.
   and group the package-pricing loads, preserving the existing validation and
   fail-closed behaviour. See the "Respect the subrequest budget" guidance in
   AGENTS.md.
+
+## Cold start: lazy-load the migration implementations (from PR #1714)
+
+*Origin: `docs/cold-start.md`.* `src/shared/db/migrations.ts` statically
+imports every per-migration module (~70 files) — the bulk of the remaining
+~120 eager `#shared/db/*` modules. A steady-state boot only needs each
+migration's *id* plus `LATEST_UPDATE`/`SCHEMA_HASH`; the fix is a registry of
+`{ id, load: () => import(...) }` pairs awaited only on the migration path.
+Deferred: it touches every migration module and `runMigrations`' control flow
+(see the load-bearing baseline test in `test/shared/db/migrations.test.ts`)
+for a slice of ~80ms of CPU. Re-measure with
+`scripts/bench/cold-start/bundle-load.ts` before and after.
+
+## Cross-request pending work vs. restore (from PR #1714)
+
+PR #1714 makes the restore-confirm handler drain its own request's pending
+work before `restoreFromZip()`, so a queued script-version write can't land
+after the replay and clobber the restored commit. Residual window (Codex):
+pending work is scoped per request, so when a *concurrent* request ran
+`initDb()` its queued marker write is invisible to the restore's flush.
+Requires a cold deploy-boot racing an owner restore on one isolate; impact is
+only the flash's commit hint. Fix direction: an isolate-level in-flight set
+in `src/shared/pending-work.ts` + `flushAllPendingWork()` for the restore
+path; extend the race harness in `test/lib/server-backup.test.ts` ("a
+deploy's first request cannot clobber...") with a concurrent cold GET.
 
 ## Equivalent-mutant entries challenged by review (from PR #1717)
 
