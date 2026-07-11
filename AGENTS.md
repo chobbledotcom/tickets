@@ -64,6 +64,7 @@ as-is and skips the download, so `deno task test`, `deno task test:files`, and
 - **Keep files under ~400 lines**: When refactoring a file, aim to keep it under 400 lines — and if hitting that target means splitting one file into several, so be it: a new file is cheaper than an overloaded one. When you end up with a handful of files all about the same thing, group them in a folder and give them shorter names that don't repeat the folder's name (`ledger/project.ts`, not `ledger/ledger-project.ts` — see the `src/shared/ledger/` and `src/shared/db/attendees/` examples in [Modularised](#modularised)). While you're at it, use the split as a chance to separate pure from non-pure code — push the data-in/data-out logic into its own file and keep the IO in a thin shell (see [Pure, functional](#pure-functional)). **The same 400-line limit applies to test files**, and matters just as much: smaller, more specific test files let us run mutation tests far faster, because a source file's mutants only need to run against the narrow test file that covers it, not one giant suite. Biome enforces a hard 1,000-line ceiling as a lint error (`nursery.noExcessiveLinesPerFile` in `biome.json`); files that predate the rule are grandfathered in a `biome.json` override list — when you split one, delete its entry, and never add a new entry. (Expect a known side effect when splitting: jscpd cannot fully scan very large files, so a split routinely *surfaces* duplication that was silently passing inside the monolith — budget for extracting helpers, not just moving tests.)
 - **Good citizen — fix what you spot**: If you notice a bug, a coverage gap, or a flaky/fragile test while working — even in code you were not asked to touch and did not write — fix it in passing rather than stepping around it. A green build you helped produce is your responsibility too.
 - **Every bug fix ships with a regression test**: Never fix a bug without also adding a test that fails before the fix and passes after it. The test must exercise the real bug — reproduce the exact condition that was broken so it would have caught the original defect — not merely touch the changed lines for coverage. Write the failing test first, confirm it fails for the right reason, then apply the fix and watch it go green. This locks the bug out for good and proves the fix actually addresses it.
+- **Offensive, not defensive, programming**: Fail loudly and immediately instead of tolerating bad states — never suppress, default away, or paper over an error. See [Offensive Programming](#offensive-programming--never-suppress-errors) for the full rules.
 - **Trust application invariants**: Do not design normal code paths around database states the application says are impossible. If an impossible state is observed, raise it as an error and repair the data explicitly rather than silently accepting or normalising it.
 - **Don't defend against the impossible**: Do not add fallbacks, placeholders, or `try/catch`es for failures that can only happen when a foundational system is already broken — the encryption/data key won't decrypt, the database has vanished, a core invariant the app guarantees is violated. You will never reach such a branch without the whole app already being down: you cannot render a page whose data won't decrypt, because the *same* key protects the attendee's own PII, so the request dies long before your guard runs. Such a guard only hides a system-wide failure behind an untestable, never-exercised branch (and a coverage gap). Let it throw, loudly. Reserve resilience for failures that genuinely occur in normal operation — a flaky network call, a provider timeout, a refund that already settled, a write that lost a race. Be confident in our own systems.
 - **One path for one-or-many — a single item is an array of one**: Don't write a separate "single" code path beside a "multiple" one (no `getThing(id)` next to `getThings(ids)`, no `length === 1` branch that renders/loads/books differently from the N-item case). Model the operation over a collection once and call it with an array of one when there's a single item; derive the singular answer from the array result (`(await getHiddenPackageMemberIds([id])).size > 0`). A thin singular wrapper that *delegates* to the array implementation is fine (it's still one path); two parallel implementations that can drift are not. The multi-group membership refactor is the reference: a listing's groups are always an array, never a special-cased single `group_id`. This keeps behaviour identical for 1 and N, and kills the class of bug where the single case is fixed but the batch case isn't (or vice-versa).
@@ -78,6 +79,68 @@ as-is and skips the download, so `deno task test`, `deno task test:files`, and
 - **Answer every PR review thread you address**: When a pull request review leaves comments — from an automated reviewer (e.g. Codex) or a human — reply to **each** thread directly with a concise, proper note: how it was resolved (the mechanism + the regression test that locks it), or why it is not actionable/incorrect. Do this even when the commit message already explains the change — an open thread reads as unaddressed, so close the loop on the thread itself. This is a deliberate exception to general GitHub-comment frugality: resolution replies on review threads are expected, not noise. Keep each reply tight (a few sentences), and reference the fixing commit. **If a suggestion is valid but outside the current job's scope**, do not silently drop it — record it in `TODO.md` with enough context for a future person to pick it up without re-reading the PR (the file/path it concerns, what the reviewer proposed, why it's genuinely out of scope here, and a starting point), then reply on the thread pointing to the TODO entry. Scope is a real boundary, not an excuse to lose good ideas.
 - **Finish by rewriting the PR name and description**: Once a feature is done, revisit its pull request and update the name and description to match what was actually built. A PR often starts life with a WIP or work-in-flight title; the finished PR should be thorough but written in simple, concise, understandable, non-technical language — the same plain language we want in our code, comments, and method names. Someone without a CS degree should be able to read the PR and know what changed, why, and what it means for the people using the site.
 - **Final check**: Run `deno task precommit` (via `mise exec -- deno task precommit` when using the pinned toolchain) before finishing any job with code or documentation changes. It is the only check that mirrors CI exactly — it typechecks the **test** files too, so `deno check <src>` plus `test:files` is not a substitute (a test-only type error will pass locally and still break CI).
+
+## Offensive Programming — Never Suppress Errors
+
+This codebase practices
+[offensive programming](https://en.wikipedia.org/wiki/Offensive_programming),
+not defensive programming. Defensive code tolerates bad states to keep
+running; offensive code makes bad states impossible to miss. A loud failure is
+almost always better than a silent wrong answer — the crash points at the bug,
+while a swallowed error corrupts data far from the cause. "Trust application
+invariants" and "Don't defend against the impossible" in
+[Preferences](#preferences) are this same philosophy; the rules below are how
+it applies to everyday error handling.
+
+- **Let errors propagate.** Do not silence, swallow, or paper over them. Do
+  not wrap code in `try`/`catch` just to "make it more robust" — robustness
+  comes from correct assumptions, not from hiding broken ones.
+- **A missing expected field from structured external data is a HARD no to
+  default away.** JSON API response, database row, config, env var, webhook
+  payload, fetch result, file/CLI output — if the field is
+  documented/expected, missing means something is wrong upstream, and the
+  program must fail there, not invent a value. Validate at the boundary with a
+  valibot schema and pass typed values inward (`src/features/api/sms-webhook.ts`);
+  where a schema is overkill, check and throw the way `parseMessageId` does
+  (`src/shared/sms/gateway.ts` — a gateway response without a message id
+  throws, it does not return `""`) and `getDb` does for a missing `DB_URL`
+  (`src/shared/db/client.ts`).
+- **Don't use `??` / `||` / `?.` / `!` to make a missing value someone else's
+  problem.** Coercing `null`/`undefined` into `""`, `0`, or `[]` to keep the
+  pipeline moving converts a detectable failure into corrupt data. These
+  operators are for *genuinely optional* values (next bullet), not for
+  quieting the type checker. The same goes for `as` casts that assert a shape
+  the data hasn't been checked against — parse, don't pretend.
+- **No empty `catch`, no catch-and-continue.** Only catch when there is a real
+  recovery path, catch at the narrowest point that has one, and re-raise (or
+  log + re-raise) otherwise. Good catches look like `parseMessageId` — a
+  `JSON.parse` of an external response caught and rethrown as a specific,
+  contextful error — or a boundary handler turning an invalid webhook payload
+  into a 400. A `catch {}` whose body ignores the error is acceptable only
+  when the fallback *is* the documented behavior, stated in a comment (e.g.
+  `tryDecrypt` in `src/features/api/sms-webhook.ts`, whose contract is
+  "fall back to the raw value if it isn't encrypted").
+- **A function that looks something up, resolves, computes, or finds something
+  must THROW when it can't** — never return `null` / `""` / `0` / `-1` / `[]`
+  as a "not found" sentinel — unless "not found" is a genuinely expected,
+  documented outcome the caller branches on. This is the case that keeps
+  recurring: a helper iterates looking for a value (an id, a match, a record)
+  and falls off the end. The right tail is
+  `throw new Error(...context naming what was being looked up, and in what...)`
+  — see `src/shared/dates.ts` (`Invalid ${label}: ${value}`) and
+  `src/shared/slug.ts` (throws when candidates are exhausted) — not a silent
+  sentinel that leaks downstream. If every caller is structured so the value
+  must exist (inputs already filtered to guarantee it), the miss is a bug:
+  surface it loudly.
+- **Defaults, optional chaining, `catch`, and nullable returns are acceptable
+  only when the absence is genuinely expected and semantically meaningful.**
+  An optional query-string parameter (`searchParams.get(key) ?? ""` in
+  `src/features/url.ts`), an accumulator's first visit
+  (`totals.get(key) ?? 0`), a record that may legitimately not exist yet. In
+  that case, name it for what it is — the `*OrNull` suffix
+  (`decryptAttendeeOrNull`, `firstRowOrNull`) and a `| null` return type are
+  the house convention — and comment why the absence is expected, so a reader
+  can tell a deliberate branch from a suppressed failure.
 
 ## Designing New Systems
 
