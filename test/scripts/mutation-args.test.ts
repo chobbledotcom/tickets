@@ -1,0 +1,205 @@
+import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
+import { DEFAULT_TIMEOUT, parseArgs } from "../../scripts/mutation/args.ts";
+
+describe("parseArgs", () => {
+  test("defaults the per-mutant timeout to ten seconds", () => {
+    expect(DEFAULT_TIMEOUT).toBe(10_000);
+  });
+
+  test("returns defaults for no arguments", () => {
+    const parsed = parseArgs([]);
+    expect(parsed).toEqual({
+      error: null,
+      exhaustive: false,
+      help: false,
+      sources: [],
+      tests: [],
+      timeout: DEFAULT_TIMEOUT,
+      useHarness: false,
+    });
+  });
+
+  test("reads the first two positionals as source then test globs", () => {
+    const parsed = parseArgs(["src/a.ts", "test/a.test.ts"]);
+    expect(parsed.sources).toEqual(["src/a.ts"]);
+    expect(parsed.tests).toEqual(["test/a.test.ts"]);
+    expect(parsed.error).toBeNull();
+  });
+
+  test("treats a lone positional as the source glob only", () => {
+    const parsed = parseArgs(["src/a.ts"]);
+    expect(parsed.sources).toEqual(["src/a.ts"]);
+    expect(parsed.tests).toEqual([]);
+    expect(parsed.error).toBeNull();
+  });
+
+  test("reads --source and --test flag form with values", () => {
+    const parsed = parseArgs([
+      "--source",
+      "src/a.ts",
+      "--test",
+      "test/a.test.ts",
+    ]);
+    expect(parsed.sources).toEqual(["src/a.ts"]);
+    expect(parsed.tests).toEqual(["test/a.test.ts"]);
+    expect(parsed.error).toBeNull();
+  });
+
+  test("collects repeated --source/--test flags", () => {
+    const parsed = parseArgs([
+      "--source",
+      "a.ts",
+      "--source",
+      "b.ts",
+      "--test",
+      "t.ts",
+    ]);
+    expect(parsed.sources).toEqual(["a.ts", "b.ts"]);
+    expect(parsed.tests).toEqual(["t.ts"]);
+    expect(parsed.error).toBeNull();
+  });
+
+  test("accepts --test-only flag form", () => {
+    const parsed = parseArgs(["--test", "t.ts"]);
+    expect(parsed.tests).toEqual(["t.ts"]);
+    expect(parsed.sources).toEqual([]);
+    expect(parsed.error).toBeNull();
+  });
+
+  // Regression (PR #1729, item 3): a value flag with no following token used to
+  // fall through and be collected as a positional, surfacing later as a
+  // misleading "no files matched" glob error. It must now fail fast with a
+  // clear usage error and NOT swallow the flag as a value.
+  const valueFlags = ["--source", "--test", "--jobs", "--timeout"];
+  for (const flag of valueFlags) {
+    test(`reports a clear error when ${flag} has no value`, () => {
+      const parsed = parseArgs([flag]);
+      expect(parsed.error).toBe(`Missing value for ${flag}.`);
+      // The flag was not swallowed anywhere as if it were a value.
+      expect(parsed.sources).toEqual([]);
+      expect(parsed.tests).toEqual([]);
+      expect(parsed.batchJobs).toBeUndefined();
+      expect(parsed.timeout).toBe(DEFAULT_TIMEOUT);
+    });
+  }
+
+  test("still reads a value flag that does have a following value", () => {
+    const parsed = parseArgs(["--source", "src/a.ts", "--test", "t.ts"]);
+    expect(parsed.error).toBeNull();
+    expect(parsed.sources).toEqual(["src/a.ts"]);
+  });
+
+  test("sets --exhaustive", () => {
+    const parsed = parseArgs(["--exhaustive"]);
+    expect(parsed.exhaustive).toBe(true);
+  });
+
+  test("sets --harness", () => {
+    const parsed = parseArgs(["--harness"]);
+    expect(parsed.useHarness).toBe(true);
+  });
+
+  test("sets help with -h", () => {
+    const parsed = parseArgs(["-h"]);
+    expect(parsed.help).toBe(true);
+  });
+
+  test("sets help with --help", () => {
+    const parsed = parseArgs(["--help"]);
+    expect(parsed.help).toBe(true);
+  });
+
+  test("parses --jobs as a number", () => {
+    const parsed = parseArgs([
+      "--source",
+      "a.ts",
+      "--test",
+      "t.ts",
+      "--jobs",
+      "4",
+    ]);
+    expect(parsed.batchJobs).toBe(4);
+    expect(parsed.error).toBeNull();
+  });
+
+  test("parses --timeout as a number", () => {
+    const parsed = parseArgs([
+      "--source",
+      "a.ts",
+      "--test",
+      "t.ts",
+      "--timeout",
+      "5000",
+    ]);
+    expect(parsed.timeout).toBe(5000);
+    expect(parsed.error).toBeNull();
+  });
+
+  test("accepts a zero --timeout as the non-negative boundary", () => {
+    const parsed = parseArgs(["--source", "a.ts", "--timeout", "0"]);
+    expect(parsed.timeout).toBe(0);
+    expect(parsed.error).toBeNull();
+  });
+
+  test("accepts a --jobs of one as the positive boundary", () => {
+    const parsed = parseArgs(["--source", "a.ts", "--jobs", "1"]);
+    expect(parsed.batchJobs).toBe(1);
+    expect(parsed.error).toBeNull();
+  });
+
+  test("rejects a non-integer --jobs", () => {
+    const parsed = parseArgs(["--source", "a.ts", "--jobs", "2.5"]);
+    expect(parsed.error).toBe("Invalid --jobs: expected a positive integer.");
+  });
+
+  test("rejects a non-positive --jobs", () => {
+    const parsed = parseArgs(["--source", "a.ts", "--jobs", "0"]);
+    expect(parsed.error).toBe("Invalid --jobs: expected a positive integer.");
+  });
+
+  test("rejects a negative --timeout", () => {
+    const parsed = parseArgs(["--source", "a.ts", "--timeout", "-5"]);
+    expect(parsed.error).toBe(
+      "Invalid --timeout: expected a non-negative number of milliseconds.",
+    );
+  });
+
+  test("rejects a non-numeric --timeout", () => {
+    const parsed = parseArgs(["--source", "a.ts", "--timeout", "abc"]);
+    expect(parsed.error).toBe(
+      "Invalid --timeout: expected a non-negative number of milliseconds.",
+    );
+  });
+
+  test("rejects too many positional arguments", () => {
+    const parsed = parseArgs(["a.ts", "b.ts", "c.ts"]);
+    // Anchored: a bare `.toContain` would still pass if the message were
+    // accidentally prefixed (e.g. `error += …` leaving a `null` prefix).
+    expect(parsed.error).toMatch(/^Too many positional arguments \(3\)\./);
+  });
+
+  test("rejects positionals mixed with --source flag form", () => {
+    const parsed = parseArgs(["--source", "a.ts", "x.ts", "y.ts"]);
+    expect(parsed.error).toMatch(
+      /^Unexpected positional argument\(s\) alongside --source\/--test: x\.ts, y\.ts\./,
+    );
+    // The advisory middle clause is part of the message, not dropped.
+    expect(parsed.error).toContain("A glob likely expanded to multiple files");
+  });
+
+  test("rejects positionals mixed with --test flag form", () => {
+    const parsed = parseArgs(["--test", "t.ts", "stray.ts"]);
+    expect(parsed.error).toMatch(/^Unexpected positional argument\(s\)/);
+  });
+
+  test("keeps the first error when a later --timeout is also invalid", () => {
+    const parsed = parseArgs(["a.ts", "b.ts", "c.ts", "--timeout", "-5"]);
+    expect(parsed.error).toContain("Too many positional arguments (3)");
+  });
+
+  test("keeps the first error when a later --jobs is also invalid", () => {
+    const parsed = parseArgs(["a.ts", "b.ts", "c.ts", "--jobs", "0"]);
+    expect(parsed.error).toContain("Too many positional arguments (3)");
+  });
+});
