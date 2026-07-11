@@ -197,7 +197,7 @@ descriptors — PRs #1478 and others). A weak-assertion audit script also exists
   mutation cost comes down.
 
 - **Property-based tests (item 5).** `fast-check` is currently used in only one
-  test (`test/lib/fold-tree.test.ts`). Add properties for: slug generation, CSV
+  test (`test/shared/booking/fold-tree.test.ts`). Add properties for: slug generation, CSV
   round-trips (commas / quotes / CRLF), date formatting across timezones, token
   parsers, and URL safety.
 - **Weak-assertion audit lifecycle (item 6).** The script exists but isn't wired

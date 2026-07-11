@@ -39,7 +39,7 @@ import {
   refundCashAmounts,
   refundLegsOf,
   sessionReference,
-} from "./refund-ledger-helpers.ts";
+} from "./refund-ledger/helpers.ts";
 
 // -- recordAttendeeRefund (integration) ---------------------------------- //
 
