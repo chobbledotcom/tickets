@@ -26,13 +26,14 @@ import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { createBackupZip, restoreFromZip } from "#shared/db/backup.ts";
 import { getDb } from "#shared/db/client.ts";
 import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
-import { MIGRATIONS } from "#shared/db/migrations.ts";
+import { loadMigrations } from "#shared/db/migrations.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { indexExists } from "#test-utils/migrations.ts";
 import { createTestServicingEvent, kindOf } from "#test-utils/servicing.ts";
 
+const MIGRATIONS = await loadMigrations();
 // jscpd:ignore-end
 
 const MIGRATION_ID = "2026-06-24_attendees_kind";

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
-import { MIGRATIONS } from "#shared/db/migrations.ts";
+import { loadMigrations } from "#shared/db/migrations.ts";
 import {
   adjustModifierRevenue,
   getActiveModifiers,
@@ -18,6 +18,7 @@ import { postModifierLeg } from "#test-utils/ledger.ts";
 import { insertModifierUsage } from "#test-utils/modifiers.ts";
 import { readModifierAggregates as aggregates } from "./migration-test-helpers.ts";
 
+const MIGRATIONS = await loadMigrations();
 /**
  * The modifiers count columns (total_uses, usage_count) are maintained by
  * triggers on modifier_usages. These tests drive the triggers directly with raw
