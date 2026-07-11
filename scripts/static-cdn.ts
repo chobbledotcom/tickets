@@ -24,7 +24,7 @@ const CDN_ENV_KEYS = [
   "CDN_BUNNY_PULL_ZONE_ID",
 ] as const;
 
-export const STATIC_CDN_REQUEST_TIMEOUT_MS = 30_000;
+const STATIC_CDN_REQUEST_TIMEOUT_MS = 30_000;
 
 const cleanCdnUrl = (raw: string): string => {
   const url = new URL(raw);

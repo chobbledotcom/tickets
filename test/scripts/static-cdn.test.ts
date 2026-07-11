@@ -4,7 +4,6 @@ import { FakeTime } from "@std/testing/time";
 import {
   loadStaticCdnConfig,
   publishStaticCdnAssets,
-  STATIC_CDN_REQUEST_TIMEOUT_MS,
 } from "../../scripts/static-cdn.ts";
 
 const CONFIG = {
@@ -31,6 +30,11 @@ const WASM_ASSET = {
   contentType: "application/wasm",
   filename: "jpegDec.wasm",
 };
+const STALLED_REQUESTS = [
+  { method: "PUT", stage: "upload" },
+  { method: "POST", stage: "purge" },
+  { method: "GET", stage: "verification" },
+] as const;
 
 const successfulFetcher =
   (assets: readonly (typeof STYLE_ASSET)[]): typeof fetch =>
@@ -145,10 +149,6 @@ describe("loadStaticCdnConfig", () => {
 });
 
 describe("publishStaticCdnAssets", () => {
-  test("bounds every Bunny request to 30 seconds", () => {
-    expect(STATIC_CDN_REQUEST_TIMEOUT_MS).toBe(30_000);
-  });
-
   test("uploads one immutable release and returns its public URLs", async () => {
     const requests: Request[] = [];
     const fetcher: typeof fetch = (input, init) => {
@@ -296,37 +296,81 @@ describe("publishStaticCdnAssets", () => {
     ).rejects.toThrow("style.css does not match the uploaded file");
   });
 
-  test("aborts a stalled Bunny request after 30 seconds", async () => {
-    using time = new FakeTime();
-    let error: unknown;
-    let settled = false;
-    const publishing = publishStaticCdnAssets(
+  test("allows Bunny requests to complete before the deadline", async () => {
+    const fetcher: typeof fetch = (_input, init) => {
+      const signal = init?.signal;
+      if (!signal) throw new Error("Expected bounded Bunny request");
+      const response =
+        init?.method === undefined
+          ? new Response(STYLE_ASSET.bytes)
+          : new Response(null, { status: 201 });
+      return new Promise((resolve, reject) => {
+        const onAbort = (): void => {
+          clearTimeout(timer);
+          reject(signal.reason);
+        };
+        const timer = setTimeout(() => {
+          signal.removeEventListener("abort", onAbort);
+          resolve(response);
+        }, 5);
+        signal.addEventListener("abort", onAbort, { once: true });
+      });
+    };
+
+    const published = await publishStaticCdnAssets(
       CONFIG,
       [STYLE_ASSET],
-      (_input, init) =>
-        new Promise((_resolve, reject) => {
+      fetcher,
+    );
+    expect(published.urls[STYLE_ASSET.filename]).toContain("/style.css");
+  });
+
+  for (const { method: stalledMethod, stage } of STALLED_REQUESTS) {
+    test(`aborts a stalled ${stage} request after 30 seconds`, async () => {
+      using time = new FakeTime();
+      const started = Promise.withResolvers<void>();
+      let error: unknown;
+      let settled = false;
+      const publishing = publishStaticCdnAssets(
+        CONFIG,
+        [STYLE_ASSET],
+        (_input, init) => {
+          const method = init?.method ?? "GET";
+          if (method !== stalledMethod) {
+            return Promise.resolve(
+              method === "GET"
+                ? new Response(STYLE_ASSET.bytes)
+                : new Response(null, { status: 201 }),
+            );
+          }
           const signal = init?.signal;
           if (!signal) throw new Error("Expected bounded Bunny request");
-          signal.addEventListener("abort", () => reject(signal.reason), {
-            once: true,
+          const stalled = new Promise<Response>((_resolve, reject) => {
+            signal.addEventListener("abort", () => reject(signal.reason), {
+              once: true,
+            });
           });
-        }),
-    );
-    const observed = publishing
-      .catch((caught: unknown) => {
-        error = caught;
-      })
-      .finally(() => {
-        settled = true;
-      });
+          started.resolve();
+          return stalled;
+        },
+      );
+      const observed = publishing
+        .catch((caught: unknown) => {
+          error = caught;
+        })
+        .finally(() => {
+          settled = true;
+        });
 
-    await time.tickAsync(29_999);
-    expect(settled).toBe(false);
-    await time.tickAsync(1);
-    await observed;
-    if (!(error instanceof DOMException)) {
-      throw new Error("Expected timeout DOMException");
-    }
-    expect(error.name).toBe("TimeoutError");
-  });
+      await started.promise;
+      await time.tickAsync(29_999);
+      expect(settled).toBe(false);
+      await time.tickAsync(1);
+      await observed;
+      if (!(error instanceof DOMException)) {
+        throw new Error(`Expected ${stage} timeout DOMException`);
+      }
+      expect(error.name).toBe("TimeoutError");
+    });
+  }
 });
