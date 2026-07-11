@@ -66,16 +66,22 @@
       "style": {
         "noNonNullAssertion": "off",
         "noUnusedTemplateLiteral": "error",
+        "useConsistentArrayType": {
+          "level": "error",
+          "options": {
+            "syntax": "shorthand"
+          }
+        },
         "useConst": "error",
         "useTemplate": "error"
       },
       "suspicious": {
-        "noAssignInExpressions": "off",
+        "noAssignInExpressions": "error",
         "noConsole": "error",
         "noDoubleEquals": "error",
         "noExplicitAny": "off",
         "noFocusedTests": "error",
-        "noImplicitAnyLet": "off",
+        "noImplicitAnyLet": "error",
         "noSkippedTests": "error",
         "noVar": "error"
       }
@@ -86,14 +92,6 @@
       "includes": ["test/**/*.js", "test/**/*.ts", "test/**/*.tsx"],
       "linter": {
         "rules": {
-          "complexity": {
-            "noExcessiveCognitiveComplexity": {
-              "level": "error",
-              "options": {
-                "maxAllowedComplexity": 30
-              }
-            }
-          },
           "correctness": {
             "noUnusedFunctionParameters": "off",
             "noUnusedVariables": "off"
@@ -123,13 +121,8 @@
       "includes": ["scripts/**/*.ts"],
       "linter": {
         "rules": {
-          "complexity": {
-            "noExcessiveCognitiveComplexity": "off"
-          },
           "suspicious": {
-            "noAssignInExpressions": "off",
-            "noConsole": "off",
-            "noImplicitAnyLet": "off"
+            "noConsole": "off"
           }
         }
       }
@@ -151,10 +144,7 @@
       }
     },
     {
-      "includes": [
-        "src/shared/db/migrations/schema.ts",
-        "src/ui/templates/public/reservations.tsx"
-      ],
+      "includes": ["src/shared/db/migrations/schema.ts"],
       "linter": {
         "rules": {
           "nursery": {

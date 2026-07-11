@@ -2,13 +2,12 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllUsers } from "#shared/db/users.ts";
 import {
-  adminFormPost,
-  adminGet,
-  describeWithEnv,
   expectFlashRedirect,
   expectHtmlResponse,
-  TEST_ADMIN_USERNAME,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("GET /admin/users/:id/delete", () => {

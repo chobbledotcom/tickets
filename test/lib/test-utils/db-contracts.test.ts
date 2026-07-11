@@ -2,36 +2,47 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import { getListingWithActivityLog } from "#test-utils/activity-log.ts";
+import { attendeeLineIndex } from "#test-utils/assertions.ts";
+import { createReservedAttendee } from "#test-utils/balance.ts";
+import { getTestDataKey, getTestPrivateKey } from "#test-utils/crypto.ts";
 import {
-  attendeeLineIndex,
-  buildAttendeeEditForm,
-  createTestAgentSession,
-  createTestAttendee,
-  createTestBuiltSite,
   createTestDb,
   createTestDbWithSetup,
-  createTestListing,
-  createTestManagerSession,
-  getListingWithActivityLog,
-  getTestDataKey,
-  getTestPrivateKey,
-  lineIndexOnPage,
-  loginAsAdmin,
-  openAttendeeEditor,
   resetDb,
-  setTestSession,
+} from "#test-utils/db.ts";
+import {
+  buildAttendeeEditForm,
+  createTestAttendee,
+} from "#test-utils/db-helpers/attendees.ts";
+import {
+  createTestBuiltSite,
+  updateTestBuiltSite,
+} from "#test-utils/db-helpers/built-sites.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  lineIndexOnPage,
+  openAttendeeEditor,
   setupAndLogin,
+  ticketTokenOnPage,
+} from "#test-utils/e2e.ts";
+import {
+  setTestSession,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
-  testWithSetting,
-  ticketTokenOnPage,
-  updateTestBuiltSite,
-  useSetting,
-  wait,
-  withSetting,
+} from "#test-utils/internal.ts";
+import { wait } from "#test-utils/mocks.ts";
+import {
+  createTestAgentSession,
+  createTestManagerSession,
+  loginAsAdmin,
   withTestSession,
-} from "#test-utils";
-import { createReservedAttendee } from "#test-utils/balance.ts";
+} from "#test-utils/session.ts";
+import {
+  testWithSetting,
+  useSetting,
+  withSetting,
+} from "#test-utils/settings.ts";
 import { lastLogMessage } from "#test-utils/settings-handlers.ts";
 
 describe("test-utils — db-backed & settings contracts", () => {

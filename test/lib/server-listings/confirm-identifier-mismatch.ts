@@ -2,11 +2,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import {
-  adminFormPost,
   expectFlash,
   followRedirectWithFlash,
-  setupListingAndLogin,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
 
 /**
  * Shared behavior between the deactivate and reactivate confirmation forms: a

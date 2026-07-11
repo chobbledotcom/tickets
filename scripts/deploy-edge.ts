@@ -2,6 +2,7 @@
 
 import { fromFileUrl } from "@std/path";
 import { type FetchTextResult, runDeployEdge } from "./deploy-edge-lib.ts";
+import { runBuildEdge } from "./run-build-edge.ts";
 
 const repoRoot = fromFileUrl(new URL("..", import.meta.url));
 const bundlePath = fromFileUrl(new URL("../bunny-script.ts", import.meta.url));
@@ -16,17 +17,6 @@ const fetchText = async (
     status: response.status,
     text: await response.text(),
   };
-};
-
-const runBuildEdge = async (cwd: string) => {
-  const build = await new Deno.Command(Deno.execPath(), {
-    args: ["task", "build:edge"],
-    cwd,
-    stderr: "inherit",
-    stdout: "inherit",
-  }).output();
-
-  return { code: build.code, success: build.success };
 };
 
 const exitCode = await runDeployEdge({

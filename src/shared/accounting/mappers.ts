@@ -219,7 +219,7 @@ export const mapBooking = async (
  * `postedBy` is the actor (an admin id or "system").
  */
 export type RefundFacts = {
-  readonly orderLegs: ReadonlyArray<Transfer>;
+  readonly orderLegs: readonly Transfer[];
   readonly occurredAt: string;
   readonly postedBy?: string;
   /** Optional PII-free reason code stamped on every refund leg (e.g. why an

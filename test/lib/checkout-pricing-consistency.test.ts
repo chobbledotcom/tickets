@@ -22,15 +22,15 @@ import type {
   ModifierSpec,
 } from "#shared/payments.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   checkoutItem,
-  describeWithEnv,
   insertModifier,
   linkModifierAnswer,
   linkModifierListing,
   patchModifier,
-  useSetting,
-} from "#test-utils";
+} from "#test-utils/modifiers.ts";
+import { useSetting } from "#test-utils/settings.ts";
 
 /**
  * The public checkout and the webhook must price the same cart identically: the
@@ -104,6 +104,79 @@ const expectConsistent = async (
   const web = priceCheckout(pricingIntent(items, webhookSpecs, opts.overrides));
   expect(web.total).toBe(pub.total);
   expect(web.modifierApplications).toEqual(pub.modifierApplications);
+};
+
+/** A repeatable PRNG bundle so a failing property iteration is reproducible
+ * from its seed. */
+type Rng = {
+  rand: () => number;
+  pick: <T>(xs: readonly T[]) => T;
+  randInt: (lo: number, hi: number) => number;
+};
+
+const makeRng = (initialSeed: number): Rng => {
+  let seed = initialSeed;
+  const rand = () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  };
+  const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)]!;
+  const randInt = (lo: number, hi: number) =>
+    lo + Math.floor(rand() * (hi - lo + 1));
+  return { pick, rand, randInt };
+};
+
+/** A random 1-3 item cart with distinct listings and per-unit prices. */
+const randomItems = (rng: Rng): CheckoutItem[] =>
+  Array.from({ length: rng.randInt(1, 3) }, (_, i) =>
+    checkoutItem({
+      listingId: i + 1,
+      quantity: rng.randInt(1, 3),
+      slug: `gen-${i}`,
+      unitPrice: rng.randInt(10, 60) * 100,
+    }),
+  );
+
+/** A random calc value in the range appropriate for the given calc kind. */
+const randomCalcValue = (
+  kind: "fixed" | "percent" | "multiply",
+  rng: Rng,
+): number => {
+  if (kind === "multiply") return rng.pick([1.25, 1.5, 2]);
+  if (kind === "percent") return rng.randInt(5, 25);
+  return rng.randInt(1, 5);
+};
+
+/** Insert a random modifier set for one property iteration, returning the
+ * optional-trigger add-on quantities and any promo code that was assigned. */
+const generateModifiers = async (
+  rng: Rng,
+  iter: number,
+): Promise<{ addOns: Map<number, number>; code: string | undefined }> => {
+  const addOns = new Map<number, number>();
+  let code: string | undefined;
+  for (let m = 0; m < rng.randInt(0, 4); m++) {
+    const kind = rng.pick(["fixed", "percent", "multiply"] as const);
+    const inserted = await insertModifier({
+      calcKind: kind,
+      calcValue: randomCalcValue(kind, rng),
+      direction: rng.pick(["charge", "discount"] as const),
+      name: `gen-${iter}-${m}`,
+      stock: rng.pick([null, 5]),
+    });
+    const trigger = rng.pick(["automatic", "optional", "code"] as const);
+    const patch: Record<string, string | number> = {
+      min_visits: rng.pick([0, 0, 1]),
+      trigger,
+    };
+    if (trigger === "optional") addOns.set(inserted.id, rng.randInt(1, 3));
+    if (trigger === "code") {
+      code = "PROMO";
+      patch.code_index = await hmacHash(normalizeCode("PROMO"));
+    }
+    await patchModifier(inserted.id, patch);
+  }
+  return { addOns, code };
 };
 
 const parkingFixedSurchargeExpectConsistent = async (
@@ -368,14 +441,7 @@ describeWithEnv(
 
     test("property: random modifier mixes re-price identically on both paths", async () => {
       // A repeatable PRNG so a failure is reproducible from the seed.
-      let seed = 0x5eed1234;
-      const rand = () => {
-        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-        return seed / 0x7fffffff;
-      };
-      const pick = <T>(xs: T[]): T => xs[Math.floor(rand() * xs.length)]!;
-      const randInt = (lo: number, hi: number) =>
-        lo + Math.floor(rand() * (hi - lo + 1));
+      const rng = makeRng(0x5eed1234);
       const db = getDb();
 
       for (let iter = 0; iter < 40; iter++) {
@@ -383,45 +449,10 @@ describeWithEnv(
         await db.execute("DELETE FROM modifier_usages");
         await db.execute("DELETE FROM modifiers");
 
-        const items = Array.from({ length: randInt(1, 3) }, (_, i) =>
-          checkoutItem({
-            listingId: i + 1,
-            quantity: randInt(1, 3),
-            slug: `gen-${i}`,
-            unitPrice: randInt(10, 60) * 100,
-          }),
-        );
+        const items = randomItems(rng);
+        const { addOns, code } = await generateModifiers(rng, iter);
 
-        const addOns = new Map<number, number>();
-        let code: string | undefined;
-        for (let m = 0; m < randInt(0, 4); m++) {
-          const kind = pick(["fixed", "percent", "multiply"] as const);
-          const inserted = await insertModifier({
-            calcKind: kind,
-            calcValue:
-              kind === "multiply"
-                ? pick([1.25, 1.5, 2])
-                : kind === "percent"
-                  ? randInt(5, 25)
-                  : randInt(1, 5),
-            direction: pick(["charge", "discount"] as const),
-            name: `gen-${iter}-${m}`,
-            stock: pick([null, 5]),
-          });
-          const trigger = pick(["automatic", "optional", "code"] as const);
-          const patch: Record<string, string | number> = {
-            min_visits: pick([0, 0, 1]),
-            trigger,
-          };
-          if (trigger === "optional") addOns.set(inserted.id, randInt(1, 3));
-          if (trigger === "code") {
-            code = "PROMO";
-            patch.code_index = await hmacHash(normalizeCode("PROMO"));
-          }
-          await patchModifier(inserted.id, patch);
-        }
-
-        const ctx = { visits: randInt(0, 2) };
+        const ctx = { visits: rng.randInt(0, 2) };
         const specs = await resolveModifiers(items, {
           addOns,
           ...(code !== undefined ? { code } : {}),

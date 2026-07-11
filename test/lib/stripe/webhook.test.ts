@@ -11,12 +11,12 @@ import {
   stripeApi,
   verifyWebhookSignature,
 } from "#shared/stripe.ts";
+import { setTestEnv } from "#test-utils/env.ts";
 import {
   installUrlHandler,
-  setTestEnv,
   urlFromFetchInput,
   withFetchMock,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
 import { signedHeader } from "./fixtures.ts";
 import { describeStripe } from "./harness.ts";
 

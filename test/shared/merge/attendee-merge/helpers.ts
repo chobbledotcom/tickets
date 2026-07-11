@@ -4,7 +4,7 @@ import {
   WORLD,
 } from "#shared/accounting/accounts.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
-import { LISTING_ATTENDEE_ROW_COLS } from "#shared/db/attendees.ts";
+import { LISTING_ATTENDEE_ROW_COLS } from "#shared/db/attendees/queries.ts";
 import { queryAll } from "#shared/db/client.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
@@ -19,8 +19,9 @@ import type {
   AttendeeMergeDiff,
 } from "#shared/merge/attendee-merge-types.ts";
 import type { ContactInfo } from "#shared/types.ts";
-import { bookTestAttendee, createTestListing } from "#test-utils";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** Create a test attendee on a single listing. */
 export const createAttendee = (

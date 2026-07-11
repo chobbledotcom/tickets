@@ -40,8 +40,10 @@ import {
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import type { TicketListing } from "#shared/booking/model.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
-import { getGroupRemainingForSpan } from "#shared/db/attendees/capacity.ts";
-import { getListingRemainingForRange } from "#shared/db/attendees.ts";
+import {
+  getGroupRemainingForSpan,
+  getListingRemainingForRange,
+} from "#shared/db/attendees/capacity.ts";
 import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
 import {
   getGroupIdsByListingIds,

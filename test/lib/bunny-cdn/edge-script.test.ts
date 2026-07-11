@@ -2,13 +2,13 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  describeWithEnv,
   stubFetchJson,
   stubFetchRecorder,
   stubFetchStatus,
   withMocks,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
 
 /** Build an edge script API response */
 const edgeScriptResponse = (

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { pairEntriesByListing } from "#routes/api/payment-processing/create.ts";
-import { testListingWithCount } from "#test-utils";
+import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** A validated item carries a listing (the only field the pairing reads). */
 const item = (id: number) => ({ listing: testListingWithCount({ id }) });

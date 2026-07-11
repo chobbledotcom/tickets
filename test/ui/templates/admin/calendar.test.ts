@@ -13,9 +13,9 @@ import type { DatePickerDate } from "#templates/date-picker.tsx";
 import {
   expectTestAttendeeCsvColumns,
   selectOptionLabels,
-  setupTestEncryptionKey,
-  testAttendee,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testAttendee } from "#test-utils/factories.ts";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 

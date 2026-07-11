@@ -1,11 +1,9 @@
 import { expect } from "@std/expect";
 import { afterAll, describe, test } from "@std/testing/bdd";
 import { getStorageBackend, isStorageEnabled } from "#shared/storage.ts";
-import {
-  describeWithEnv,
-  getTestStoragePath,
-  withStorageDisabled,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { getTestStoragePath } from "#test-utils/internal.ts";
+import { withStorageDisabled } from "#test-utils/mocks.ts";
 
 const dirExists = (path: string): boolean => {
   try {

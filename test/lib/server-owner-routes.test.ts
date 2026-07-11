@@ -1,12 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import {
-  createTestManagerSession,
-  describeWithEnv,
-  mockFormRequest,
-  mockRequest,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { createTestManagerSession } from "#test-utils/session.ts";
 
 describeWithEnv("server (owner-only route authorization)", { db: true }, () => {
   const ownerOnlyGetRoutes = [

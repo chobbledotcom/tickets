@@ -11,7 +11,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { insertBuiltSite, type UpdateTier } from "#shared/db/built-sites.ts";
-import { describeWithEnv, mockRequest, setTestEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setTestEnv } from "#test-utils/env.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 
 const KEY = "instance-key-0123456789abcdef0123456789abcdef";
 
@@ -36,7 +38,7 @@ const siteNames = async (response: Response): Promise<string[]> => {
 };
 
 /** One eligible site (script id + read-only creds) per update channel. */
-const TIERED_SITES: ReadonlyArray<[name: string, tier: UpdateTier]> = [
+const TIERED_SITES: readonly [name: string, tier: UpdateTier][] = [
   ["AlphaSite", "alpha"],
   ["BetaSite", "beta"],
   ["ReleaseSite", "release"],

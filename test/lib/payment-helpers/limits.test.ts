@@ -7,7 +7,7 @@ import {
   packMetadata,
 } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
-import { expectThrows } from "#test-utils";
+import { expectThrows } from "#test-utils/assertions.ts";
 
 describe("payment-helpers", () => {
   describe("enforceMetadataLimits", () => {

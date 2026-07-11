@@ -1,6 +1,7 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
+import type { AttributeListingRow } from "#routes/admin/attribute-page-data.ts";
 import {
   attributeNameForm,
   attributeOptionForm,
@@ -12,6 +13,7 @@ import type {
 import { CsrfForm } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
+import { childEditPage } from "#templates/admin/child-edit-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
   BackButton,
@@ -22,8 +24,9 @@ import {
   FormSections,
   IdCheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
+import { DataTable } from "#templates/components/data-table.tsx";
 import {
-  ReorderCell,
+  ReorderLinkRow,
   ReorderTable,
   reorderLinkTableAt,
 } from "#templates/components/reorder-table.tsx";
@@ -77,52 +80,53 @@ export const adminAttributesPage = (
     </>,
   );
 
-const OptionRow = ({
-  attribute,
-  option,
-  index,
+/** The listings that use an attribute (or one of its options), each linking to
+ * the listing's admin page. Deactivated listings render muted, like the item
+ * pickers. The options column (which of the attribute's options each listing
+ * selected) only makes sense at attribute level, so it is opt-in. */
+const AttributeListingsTable = ({
+  listings,
+  emptyText,
+  showOptions,
 }: {
-  attribute: AttributeWithOptions;
-  option: AttributeOption;
-  index: number;
-}): JSX.Element => (
-  <tr>
-    <ReorderCell
-      action={(direction) =>
-        `/admin/attributes/${attribute.id}/options/${option.id}/move-${direction}`
-      }
-      count={attribute.options.length}
-      index={index}
+  listings: AttributeListingRow[];
+  emptyText: string;
+  showOptions: boolean;
+}): JSX.Element =>
+  listings.length === 0 ? (
+    <p>
+      <em>{emptyText}</em>
+    </p>
+  ) : (
+    <DataTable
+      columns={[
+        { header: t("terms.listing") },
+        ...(showOptions ? [{ header: t("attributes.options_column") }] : []),
+      ]}
+      rows={listings.map((listing) => [
+        <a
+          class={listing.active ? undefined : "muted"}
+          href={`/admin/listing/${listing.id}`}
+        >
+          {listing.name}
+        </a>,
+        ...(showOptions ? [listing.optionTexts.join(", ")] : []),
+      ])}
     />
-    <td>
-      <CsrfForm
-        action={`/admin/attributes/${attribute.id}/options/${option.id}/edit`}
-      >
-        <input
-          aria-label={t("attributes.option_text_label")}
-          name="text"
-          required
-          type="text"
-          value={option.text}
-        />
-        <SubmitButton icon="save">{t("common.save")}</SubmitButton>
-      </CsrfForm>
-    </td>
-    <td class={colClass("actions")}>
-      <a
-        class="danger"
-        href={`/admin/attributes/${attribute.id}/options/${option.id}/delete`}
-      >
-        {t("common.delete")}
-      </a>
-    </td>
-  </tr>
-);
+  );
+
+/** The data the attribute detail page shows beyond the attribute itself: how
+ * many listings use each option, and which listings use the attribute. */
+export type AttributePageData = {
+  listingCounts: Map<number, number>;
+  listings: AttributeListingRow[];
+};
 
 export const adminAttributePage = (
   attribute: AttributeWithOptions,
   session: AdminSession,
-  error?: string,
+  error: string | undefined,
+  data: AttributePageData,
 ): string =>
   errorAdminPage(
     t("attributes.detail_title", { name: attributeNameFlat(attribute.name) }),
@@ -157,20 +161,96 @@ export const adminAttributePage = (
           columns={
             <>
               <th>{t("attributes.option_column")}</th>
-              <th class={colClass("actions")}>{t("common.actions")}</th>
+              <th class={colClass("quantity")}>
+                {t("attributes.listings_column")}
+              </th>
             </>
           }
           orderLabel={t("attributes.order_column")}
         >
           {attribute.options.map((option, index) => (
-            <OptionRow attribute={attribute} index={index} option={option} />
+            <ReorderLinkRow
+              action={(direction) =>
+                `/admin/attributes/${attribute.id}/options/${option.id}/move-${direction}`
+              }
+              count={attribute.options.length}
+              href={`/admin/attributes/${attribute.id}/options/${option.id}/edit`}
+              index={index}
+              label={option.text}
+            >
+              <td class={colClass("quantity")}>
+                {data.listingCounts.get(option.id) ?? 0}
+              </td>
+            </ReorderLinkRow>
           ))}
         </ReorderTable>
       )}
 
+      <h2>{t("attributes.listings.heading")}</h2>
+      <AttributeListingsTable
+        emptyText={t("attributes.listings.none")}
+        listings={data.listings}
+        showOptions={true}
+      />
+
       <p>
         <a class="danger" href={`/admin/attributes/${attribute.id}/delete`}>
           {t("attributes.delete.link")}
+        </a>
+      </p>
+    </>,
+  );
+
+/** Option edit page: a back link to the attribute, the editable option text,
+ * the listings that have this option set, and the delete action. Ordering
+ * still lives on the attribute page. */
+export const adminAttributeOptionEditPage = (
+  attribute: AttributeWithOptions,
+  option: AttributeOption,
+  session: AdminSession,
+  error: string | undefined,
+  listings: AttributeListingRow[],
+): string =>
+  childEditPage({
+    active: "/admin/attributes",
+    backHref: `/admin/attributes/${attribute.id}`,
+    backLabel: t("attributes.edit_option.back_to_attribute"),
+    context: t("attributes.edit_option.attribute_context", {
+      name: attributeNameFlat(attribute.name),
+    }),
+    formAction: `/admin/attributes/${attribute.id}/options/${option.id}/edit`,
+    heading: t("attributes.edit_option.heading"),
+    title: t("attributes.edit_option.title"),
+  })(
+    session,
+    error,
+    <>
+      <Raw html={attributeOptionForm.render({ text: option.text })} />
+      <SubmitButton icon="save">
+        {t("attributes.edit_option.save")}
+      </SubmitButton>
+    </>,
+    <>
+      <h2>{t("attributes.edit_option.listings_heading")}</h2>
+      <p>
+        <small>
+          {t("attributes.edit_option.listings_count", {
+            count: listings.length,
+          })}
+        </small>
+      </p>
+      <AttributeListingsTable
+        emptyText={t("attributes.edit_option.listings_none")}
+        listings={listings}
+        showOptions={false}
+      />
+
+      <p>
+        <a
+          class="danger"
+          href={`/admin/attributes/${attribute.id}/options/${option.id}/delete`}
+        >
+          {t("attributes.delete_option.link")}
         </a>
       </p>
     </>,
@@ -304,6 +384,10 @@ export const ListingAttributesPanel = (
                   />
                 ))
               ),
+            // The row-based checkbox layout the logistics tab's user selector
+            // uses, so an attribute's options flow as a wrapping row under its
+            // legend instead of stacking one per line.
+            className: "checkboxes listing-section",
             legend: attribute.name,
           }))}
         />

@@ -16,7 +16,7 @@ import type {
   CheckoutIntent,
   SessionMetadata,
 } from "#shared/payments.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 // hmacHash needs the encryption key configured, which describeWithEnv handles.
 describeWithEnv(

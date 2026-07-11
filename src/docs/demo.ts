@@ -7,5 +7,7 @@
  * @module
  */
 
-export * from "#shared/demo.ts";
+export * from "#shared/demo/mode.ts";
+export * from "#shared/demo/overrides.ts";
+export * from "#shared/demo/samples.ts";
 export * from "#shared/seeds.ts";

@@ -3,7 +3,8 @@ import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
 import { settings } from "#shared/db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import { expectStatus, mockRequest } from "#test-utils";
+import { expectStatus } from "#test-utils/assertions.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 
 /** Shared helpers for the server (public order) test files. Not itself a
  * test file. */

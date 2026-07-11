@@ -127,7 +127,7 @@ export type DependsOnEntry =
  */
 export const registerDependencies = (
   ownTable: string,
-  deps: ReadonlyArray<DependsOnEntry>,
+  deps: readonly DependsOnEntry[],
   invalidate: () => void,
 ): void => {
   registerTableInvalidation([ownTable], invalidate);

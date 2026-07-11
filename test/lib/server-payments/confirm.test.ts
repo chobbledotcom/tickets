@@ -4,20 +4,18 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
-  bookAttendee,
-  createTestListing,
-  describeWithEnv,
   expectHtmlResponse,
   expectRedirect,
   followRedirect,
-  makeParent,
-  mockRequest,
-  setupStripe,
-  signMeta,
-  singleItem,
-  stubRetrieveCheckoutSession,
-  withMocks,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { signMeta, singleItem } from "#test-utils/factories.ts";
+import { mockRequest, withMocks } from "#test-utils/mocks.ts";
+import { makeParent } from "#test-utils/parents.ts";
+import { setupStripe } from "#test-utils/settings.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -104,7 +102,9 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
 
           // Verify attendee was created with encrypted PII blob
-          const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+          const { getAttendeesRaw } = await import(
+            "#shared/db/attendees/queries.ts"
+          );
           const attendees = await getAttendeesRaw(listing.id);
           expect(attendees.length).toBe(1);
           expect(attendees[0]?.pii_blob).not.toBe("");
@@ -285,7 +285,9 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           expect(response.status).toBe(200);
 
           // Verify attendee was created with correct quantity
-          const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+          const { getAttendeesRaw } = await import(
+            "#shared/db/attendees/queries.ts"
+          );
           const attendees = await getAttendeesRaw(listing.id);
           expect(attendees.length).toBe(1);
           expect(attendees[0]?.quantity).toBe(3);

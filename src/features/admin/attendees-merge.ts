@@ -8,16 +8,18 @@ import { createEntityRouteHandlers } from "#routes/admin/entity-handlers.ts";
 import type { AttendeeRouteParams } from "#routes/entity.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
-  ATTENDEE_LEFT_JOIN_SELECT,
   decryptAttendeeOrNull,
   decryptAttendees,
-  getAttendeesByTokens,
+} from "#shared/db/attendees/pii.ts";
+import {
+  ATTENDEE_LEFT_JOIN_SELECT,
   LISTING_ATTENDEE_ROW_COLS,
-  type ListingAttendeeRow,
-  updateAttendeePII,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/queries.ts";
+import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
+import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
 import { syncAttendeeContactTokens } from "#shared/db/contact-tokens.ts";
 import { getQuestionsWithListingIds } from "#shared/db/questions/queries.ts";
@@ -223,7 +225,7 @@ const updateTargetPiiFromDecision = async (
 };
 
 /** Build labeled count strings from summary fields, omitting zero-count entries */
-const mergeCountParts = (fields: Array<[number, string]>): string[] =>
+const mergeCountParts = (fields: [number, string][]): string[] =>
   pipe(
     filter(([count]: [number, string]) => count > 0),
     map(([count, label]) => `${count} ${label}`),
@@ -231,7 +233,7 @@ const mergeCountParts = (fields: Array<[number, string]>): string[] =>
 
 /** The booking-movement counts every merge message leads with, before each
  *  surface adds its own (the log is fuller; the flash is a short confirmation). */
-const bookingMoveParts = (summary: MergeSummary): Array<[number, string]> => [
+const bookingMoveParts = (summary: MergeSummary): [number, string][] => [
   [summary.bookingsMoved, "booking(s) moved"],
   [summary.bookingsSkipped, "booking(s) skipped"],
 ];

@@ -14,7 +14,8 @@ import {
   verifyPassword,
 } from "#shared/crypto/hashing.ts";
 import { toBase64 } from "#shared/crypto/utils.ts";
-import { describeWithEnv, setupTestEncryptionKey } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 describe("password hashing", () => {
   // Pin the fast test iteration count explicitly: when this file lands first

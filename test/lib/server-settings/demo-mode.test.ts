@@ -2,14 +2,11 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
-import { setDemoModeForTest } from "#shared/demo.ts";
-import {
-  describeWithEnv,
-  expectFlash,
-  mockFormRequest,
-  testCookie,
-  testCsrfToken,
-} from "#test-utils";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
+import { expectFlash } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockFormRequest } from "#test-utils/mocks.ts";
+import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin settings)", { db: true }, () => {
   describe("demo mode restrictions", () => {

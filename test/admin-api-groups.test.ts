@@ -13,19 +13,21 @@ import {
 } from "#shared/db/groups.ts";
 import { getListing } from "#shared/db/listings.ts";
 import {
-  apiRequest,
   assertApiDeleteOk,
   assertJson,
-  createTestGroup,
-  createTestListing,
-  createTestManagerSession,
-  describeWithEnv,
   expectRejectsEmptyName,
-  mockRequest,
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
+import {
+  apiRequest,
+  createTestManagerSession,
   requestAsSession,
   testCookie,
   testCsrfToken,
-} from "#test-utils";
+} from "#test-utils/session.ts";
 
 /** Create a package group with one member carrying a `price` override via the
  * JSON API, returning the group. */
@@ -562,7 +564,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
     test("PUT rejects malformed package members (bad id, price, or quantity)", async () => {
       const { group, listing } = await groupWithMember("BadMembers");
-      const cases: Array<[Record<string, unknown>, string]> = [
+      const cases: [Record<string, unknown>, string][] = [
         [{ listing_id: -1, price: 100 }, "listing_id"],
         [{ listing_id: listing.id, price: -5 }, "price"],
         [{ listing_id: listing.id, price: 100, quantity: 0 }, "quantity"],
@@ -712,7 +714,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
     test("PUT rejects malformed day_prices (shape, keys, and values)", async () => {
       const { group, listing } = await groupWithMember("BadDayPrices");
-      const cases: Array<Record<string, unknown>> = [
+      const cases: Record<string, unknown>[] = [
         { day_prices: [1500], listing_id: listing.id, price: null },
         { day_prices: { "0": 1500 }, listing_id: listing.id, price: null },
         { day_prices: { "2": -1 }, listing_id: listing.id, price: null },

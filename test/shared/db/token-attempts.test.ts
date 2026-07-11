@@ -21,7 +21,7 @@ import {
   TOKEN_LOCKOUT_MS,
   TOKEN_WINDOW_MS,
 } from "#shared/limits.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 const makeTokens = (prefix: string, count: number): string[] =>
   Array.from({ length: count }, (_, i) => `${prefix}-${i}`);

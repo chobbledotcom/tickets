@@ -11,13 +11,12 @@ import {
 } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
-  describeWithEnv,
   expectHtmlResponse,
   expectRedirect,
   followRedirectWithFlash,
-  mockFormRequest,
-  mockRequest,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 
 const getUnsubscribe = (query = ""): Promise<Response> =>
   handleRequest(mockRequest(`/unsubscribe${query}`));

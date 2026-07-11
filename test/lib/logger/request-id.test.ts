@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
-import { spy } from "@std/testing/mock";
+import { spy, stub } from "@std/testing/mock";
 import {
   ErrorCode,
   getRequestId,
@@ -10,7 +10,7 @@ import {
   runWithRequestId,
   setSuppressRequestLogs,
 } from "#shared/logger.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
   beforeEach(() => {
@@ -25,6 +25,23 @@ describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
     runWithRequestId(() => {
       expect(getRequestId()).toMatch(/^[0-9a-f]{4}$/);
     });
+  });
+
+  test("pads a small random value to exactly four hex chars", () => {
+    // A zeroed buffer forces the shortest possible hex ("0"), so the id is
+    // all padding — the case a lucky random draw would never pin down.
+    const zeroed = stub(
+      crypto,
+      "getRandomValues",
+      <T extends ArrayBufferView | null>(array: T): T => array,
+    );
+    try {
+      runWithRequestId(() => {
+        expect(getRequestId()).toBe("0000");
+      });
+    } finally {
+      zeroed.restore();
+    }
   });
 
   test("getRequestId returns empty string outside request context", () => {

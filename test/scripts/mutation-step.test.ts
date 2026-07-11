@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type {
-  CommandResult,
-  RunCommand,
-} from "../../scripts/precommit/merge-warning.ts";
+import type { CommandResult, RunCommand } from "../../scripts/precommit/git.ts";
 import {
   type ChangedFiles,
   changedFiles,
@@ -72,7 +69,7 @@ describe("partitionChanged", () => {
       "deno.json",
       "scripts/precommit-mutation.ts",
       "src/styles/app.scss",
-      "test/test-utils.ts",
+      "test/test-utils/db.ts",
     ]);
     expect(result).toEqual({ sources: [], tests: [] });
   });

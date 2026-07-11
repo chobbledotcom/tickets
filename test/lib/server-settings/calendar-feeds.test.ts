@@ -1,12 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import {
-  adminFormPost,
-  describeWithEnv,
-  expectFlash,
-  testRequiresAuth,
-} from "#test-utils";
+import { expectFlash, testRequiresAuth } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin settings: calendar feeds)", { db: true }, () => {
   describe("POST /admin/settings/calendar-feeds", () => {

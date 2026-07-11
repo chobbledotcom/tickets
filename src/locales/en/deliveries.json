@@ -18,5 +18,6 @@
   "deliveries.marked_done": "Marked done",
   "deliveries.marked_not_done": "Marked not done",
   "deliveries.not_yours": "That delivery is not assigned to you",
-  "deliveries.invalid_request": "Invalid request"
+  "deliveries.invalid_request": "Invalid request",
+  "deliveries.guide_link": "Logistics guide"
 }

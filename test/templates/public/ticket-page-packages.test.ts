@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { AttributeWithOptions } from "#shared/db/attributes.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { clearSavedFormData, setSavedFormData } from "#shared/forms.tsx";
-import { ticketPage } from "#templates/public/reservations.tsx";
+import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import {
   bigAndSmallListings,
   evenSplitPackages,
@@ -164,6 +164,50 @@ describe("ticketPage — packages", () => {
     // No count selector for any package on the page.
     expect(html).not.toContain('name="package_quantity');
     expect(html).toContain("Sorry, all listings are sold out.");
+  });
+
+  test("keeps a standalone parent's child selector when its package is sold out", () => {
+    // Listing 1 is a bookable standalone row AND a member of a package whose
+    // OTHER member (listing 2) is full, so the whole bundle is sold out and its
+    // section renders no member rows. Its child selector must still render on
+    // the standalone row — otherwise a buyer can't satisfy the parent's child
+    // requirement. Regression: the suppression set used to include members of
+    // packages that render no member rows (sold-out or hide-listings).
+    const parent = ticketListing({
+      attendee_count: 0,
+      id: 1,
+      max_attendees: 100,
+      max_quantity: 5,
+      name: "Tent",
+      slug: "tent1",
+    });
+    const soldOutSibling = ticketListing({
+      attendee_count: 100,
+      id: 2,
+      max_attendees: 100,
+      name: "Chair",
+      slug: "chr12",
+    });
+    const child = ticketListing({
+      attendee_count: 0,
+      id: 3,
+      max_attendees: 100,
+      max_quantity: 5,
+      name: "Add-on",
+      slug: "add01",
+    });
+    const html = ticketPage({
+      childDatesById: new Map(),
+      childrenByParentId: new Map([[1, [child]]]),
+      listings: [parent, soldOutSibling, child],
+      packages: [pagePackage(5, [1, 2], { name: "Camp Kit" })],
+      slugs: [PKG_SLUG, "tent1"],
+    });
+    // The bundle is sold out (its sibling member is full)…
+    expect(html).toContain('class="ticket-package sold-out"');
+    // …but the standalone parent keeps its own row and its child selector.
+    expect(html).toContain('name="quantity_1"');
+    expect(html).toContain('data-parent-id="1"');
   });
 
   test("caps the package by a SECOND capped group the members share", () => {

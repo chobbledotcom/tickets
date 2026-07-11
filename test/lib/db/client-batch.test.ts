@@ -8,7 +8,7 @@ import {
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 /** A minimal libsql ResultSet for stubbed batch calls. */
 const emptyResultSet = (): ResultSet => ({

@@ -2,7 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { listingsTable } from "#shared/db/listings.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const enc = (v: string) => Promise.resolve(`enc:${v}`);
 const dec = (v: string) => Promise.resolve(v.replace("enc:", ""));

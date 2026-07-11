@@ -1,20 +1,22 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
-  adminFormPost,
-  adminGet,
-  createTestListing,
-  describeWithEnv,
   expectFlashRedirect,
   expectHtmlResponse,
   expectStatus,
-  getAllActivityLog,
-  mockFormRequest,
+  testRequiresAuth,
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { mockFormRequest } from "#test-utils/mocks.ts";
+import {
+  adminFormPost,
+  adminGet,
   testCookie,
   testCsrfToken,
-  testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/session.ts";
 import { addAnswer, createQuestion } from "./helpers.ts";
 
 describeWithEnv("server (admin questions)", { db: true }, () => {
@@ -151,14 +153,19 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const qId = await createQuestion("Dietary needs?");
       await addAnswer(qId, "Vegetarian");
       await addAnswer(qId, "Vegan");
+      const soloId = await createQuestion("Bringing a plus one?");
+      await addAnswer(soloId, "Yes");
 
       const response = await adminGet(`/admin/listing/${listing.id}/questions`);
-      await expectHtmlResponse(
+      const body = await expectHtmlResponse(
         response,
         200,
         "Question Listing",
         "Dietary needs?",
       );
+      // Each question's checkbox summarises its answers, pluralised by count.
+      expect(body).toContain("(2 options: Vegetarian, Vegan)");
+      expect(body).toContain("(1 option: Yes)");
     });
 
     test("shows assigned questions as checked", async () => {

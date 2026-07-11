@@ -4,18 +4,18 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { setSuppressDebugLogs } from "#shared/logger.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  checkoutSessionEvent,
   createTestListing,
   deactivateTestListing,
-  describeWithEnv,
-  mockWebhookRequest,
-  setupStripe,
-  signedMeta,
-  singleItem,
+} from "#test-utils/db-helpers/listings.ts";
+import { signedMeta, singleItem } from "#test-utils/factories.ts";
+import { mockWebhookRequest } from "#test-utils/mocks.ts";
+import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
+import {
+  checkoutSessionEvent,
   stubRefundPayment,
-  stubWebhookVerify,
-} from "#test-utils";
+} from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -23,7 +23,7 @@ import {
  *  it's tagged to that listing — the shared lookup both refund-logging tests
  *  end with, before checking their own message substring. */
 const findRefundActivityEntry = async (listingId: number) => {
-  const { getListingActivityLog } = await import("#test-utils");
+  const { getListingActivityLog } = await import("#test-utils/activity-log.ts");
   const entries = await getListingActivityLog(listingId);
   const refundEntry = entries.find((e) =>
     e.message.includes("Automatic refund"),

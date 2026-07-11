@@ -8,11 +8,11 @@ type LargestRemainderAllocationOptions = {
   tieBreaker?: (index: number) => number;
 };
 
-const sumNumbers = (values: ReadonlyArray<number>): number =>
+const sumNumbers = (values: readonly number[]): number =>
   values.reduce((total, value) => total + value, 0);
 
 const largestRemainderIndexes = (
-  shares: ReadonlyArray<number>,
+  shares: readonly number[],
   count: number,
   options: LargestRemainderOptions = {},
 ): Set<number> => {
@@ -33,7 +33,7 @@ const largestRemainderIndexes = (
 };
 
 export const largestRemainderAllocation = (
-  weights: ReadonlyArray<number>,
+  weights: readonly number[],
   amount: number,
   options: LargestRemainderAllocationOptions = {},
 ): number[] => {

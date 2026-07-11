@@ -9,8 +9,9 @@ import {
   setLogisticsAssignments,
 } from "#shared/db/logistics.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import { createTestAttendee, createTestListing } from "#test-utils";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const newAttendee = async (): Promise<{
   attendeeId: number;

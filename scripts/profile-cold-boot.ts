@@ -15,23 +15,44 @@ interface Timing {
 
 const timings: Timing[] = [];
 
+const recordTiming = <T>(name: string, start: number, result: T): T => {
+  timings.push({ duration: performance.now() - start, name });
+  return result;
+};
+
 const measure = async <T>(name: string, fn: () => Promise<T>): Promise<T> => {
   const start = performance.now();
-  const result = await fn();
-  const duration = performance.now() - start;
-  timings.push({ duration, name });
-  return result;
+  return recordTiming(name, start, await fn());
 };
 
 const measureSync = <T>(name: string, fn: () => T): T => {
   const start = performance.now();
-  const result = fn();
-  const duration = performance.now() - start;
-  timings.push({ duration, name });
-  return result;
+  return recordTiming(name, start, fn());
 };
 
 const log = console.log.bind(console);
+
+/**
+ * Time a cached call: one cold `call()` (queries + caches) then five warm ones,
+ * logging the first-call cost, the warm average, and the speedup.
+ */
+const profileCaching = async (call: () => Promise<unknown>): Promise<void> => {
+  const firstStart = performance.now();
+  await call();
+  const firstDuration = performance.now() - firstStart;
+  log(`  First call (queries DB + caches): ${firstDuration.toFixed(2)}ms`);
+
+  const cachedTimings: number[] = [];
+  for (let i = 0; i < 5; i++) {
+    const start = performance.now();
+    await call();
+    cachedTimings.push(performance.now() - start);
+  }
+  const avgCached =
+    cachedTimings.reduce((a, b) => a + b, 0) / cachedTimings.length;
+  log(`  Cached calls (avg of 5): ${avgCached.toFixed(4)}ms`);
+  log(`  ✅ ${(firstDuration / avgCached).toFixed(0)}x faster with caching!\n`);
+};
 
 const printReport = () => {
   log(`\n${"=".repeat(60)}`);
@@ -127,23 +148,7 @@ const main = async () => {
   log("Testing isSetupComplete() caching:\n");
 
   // First call after setup - should query DB and cache
-  const firstStart = performance.now();
-  await settings.setup.isComplete();
-  const firstDuration = performance.now() - firstStart;
-  log(`  First call (queries DB + caches): ${firstDuration.toFixed(2)}ms\n`);
-
-  // Subsequent calls - should return cached value instantly
-  const cachedTimings: number[] = [];
-  for (let i = 0; i < 5; i++) {
-    const start = performance.now();
-    await settings.setup.isComplete();
-    const duration = performance.now() - start;
-    cachedTimings.push(duration);
-  }
-  const avgCached =
-    cachedTimings.reduce((a, b) => a + b, 0) / cachedTimings.length;
-  log(`  Cached calls (avg of 5): ${avgCached.toFixed(4)}ms`);
-  log(`  ✅ ${(firstDuration / avgCached).toFixed(0)}x faster with caching!\n`);
+  await profileCaching(() => settings.setup.isComplete());
 
   // Test session caching
   log("Testing session caching (10s TTL):\n");
@@ -152,28 +157,7 @@ const main = async () => {
   // Create a session
   await createSession("test-token", "test-csrf", Date.now() + 3600000);
 
-  // First call - queries DB and caches
-  const sessionStart1 = performance.now();
-  await getSession("test-token");
-  const sessionDuration1 = performance.now() - sessionStart1;
-  log(`  First call (queries DB + caches): ${sessionDuration1.toFixed(2)}ms`);
-
-  // Cached calls
-  const sessionTimings: number[] = [];
-  for (let i = 0; i < 5; i++) {
-    const start = performance.now();
-    await getSession("test-token");
-    const duration = performance.now() - start;
-    sessionTimings.push(duration);
-  }
-  const avgSession =
-    sessionTimings.reduce((a, b) => a + b, 0) / sessionTimings.length;
-  log(`  Cached calls (avg of 5): ${avgSession.toFixed(4)}ms`);
-  log(
-    `  ✅ ${(sessionDuration1 / avgSession).toFixed(
-      0,
-    )}x faster with caching!\n`,
-  );
+  await profileCaching(() => getSession("test-token"));
 
   // Network latency reality check
   log("=".repeat(60));

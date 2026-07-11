@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeBatch, getDb, queryBatch } from "#shared/db/client.ts";
 import { initDb, invalidateInitDbCache } from "#shared/db/migrations.ts";
-import { createTestListing } from "#test-utils";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** Run many plain SQL strings as a single batched write round-trip. */
 export const executeStatements = (sqls: readonly string[]): Promise<void> =>

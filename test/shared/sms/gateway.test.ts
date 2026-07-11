@@ -9,7 +9,7 @@ import {
   getSmsGatewayConfig,
   sendEncryptedMessage,
 } from "#shared/sms/gateway.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 const PASS = "test-passphrase";
 
@@ -32,12 +32,12 @@ const fakeFetch =
   };
 
 const recordingFetch = (
-  responseFor: (calls: Array<[string, RequestInit | undefined]>) => FetchResult,
+  responseFor: (calls: [string, RequestInit | undefined][]) => FetchResult,
 ): {
-  calls: Array<[string, RequestInit | undefined]>;
+  calls: [string, RequestInit | undefined][];
   fetchImpl: (url: string, init?: RequestInit) => Promise<FetchResult>;
 } => {
-  const calls: Array<[string, RequestInit | undefined]> = [];
+  const calls: [string, RequestInit | undefined][] = [];
   return {
     calls,
     fetchImpl: (url, init) => {

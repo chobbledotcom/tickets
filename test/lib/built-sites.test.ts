@@ -16,7 +16,7 @@ import {
   UPDATE_TIERS,
   updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 const formBlob = async (
   input: Parameters<typeof builtSitesCrudTable.toDbValues>[0],

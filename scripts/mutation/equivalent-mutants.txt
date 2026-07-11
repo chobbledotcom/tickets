@@ -43,6 +43,7 @@ src/shared/site-assignment.ts:370:34  ?? → ||    # available[idx]: object|unde
 src/shared/site-assignment.ts:392:34  ?? → ||    # getEmailConfig(): EmailConfig|null
 src/shared/site-assignment.ts:416:53  ?? → ||    # parseEmail(): ValidEmail|null, always truthy or null
 src/shared/ledger/project.ts:19:41  ?? → ||    # allBalances: Map<string,number>.get; the only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0
+src/shared/listing-parents-rules.ts:124:4  ?? → ||    # find()?.error(): an i18n message is never "", so only undefined reaches the fallback either way
 src/shared/ledger/project.ts:37:49  ?? → ||    # balanceOf: same Map<string,number>.get fallback; 0 ?? 0 === 0 || 0
 src/shared/ledger/reconcile.ts:71:29  ?? → ||    # IDENTITY_FIELDS kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/ledger/reconcile.ts:113:56  ?? → ||   # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
@@ -78,8 +79,8 @@ src/features/public/ticket-payment.ts:873:47  ?? → ||   # packageMaps?.quantit
 # Parent/child curried atoms (shared.tsx).
 src/ui/templates/public/shared.tsx:318:41  ?? → ||   # span: null or a duration ≥1, never falsy-non-null; null??1===null||1
 
-# Parent/child per-unit render (reservations.tsx).
-src/ui/templates/public/reservations.tsx:1546:50  ?? → ||   # addOns?.some(...) is boolean|undefined; ?? and || agree on every boolean and on undefined
+# Parent/child per-unit render (reservations page-meta.ts).
+src/ui/templates/public/reservations/page-meta.ts:66:55  ?? → ||   # addOns?.some(...) is boolean|undefined; ?? and || agree on every boolean and on undefined
 
 # Attendee phone blind-index (attendee-phone-index.ts).
 src/shared/db/attendee-phone-index.ts:36:17  ?? → ||   # row?.id is undefined or an AUTOINCREMENT id (≥1, never 0), so ?? and || agree
@@ -822,3 +823,29 @@ src/shared/sentry.ts:49:32  ?? → ||    # getSentrySdk(): SentrySdk|null — a 
 src/shared/db/capacity.ts:40:58  1 → 0    # dateToRange's default duration; normalizeDurationDays clamps 0 up to 1
 src/shared/db/capacity.ts:285:18  1 → 0    # buildCapacityCondition's default duration; same clamp
 src/shared/db/capacity.ts:297:37  1 → 0    # the per-day clause builds each day as a 1-day range; dateToRange normalizes 0 up to 1
+
+# dates.ts — provably-equivalent survivors from the whole-file run over the
+# dates suites. Each is unobservable through every export that reaches the line.
+src/shared/dates.ts:51:24  0 → 1    # DAYS_IN_MONTH[0] is a 1-indexing placeholder; daysInMonth's month is always getUTCMonth()+1 (1-12), so index 0 is never read
+src/shared/dates.ts:210:33  1 → 0    # getBookableStartDates' customisable duration override; normalizeDurationDays clamps 0 up to 1, so 0 and 1 are the same one-day span
+src/shared/dates.ts:217:21  || → &&    # parseIsoDateParam: with && a null value falls through to `new Date("nullT00:00:00Z")`, which is NaN and returns null — the same result the short-circuit produced
+src/shared/dates.ts:427:26  1 → 0    # bookedRangeLabel's fallbackDurationDays default is only observed through the `> 1` guard and the `- 1` behind it; 0 and 1 both fail the guard identically
+src/shared/dates.ts:451:19   → "mutated"    # widestDatedEntry's initial widestEnd is only compared while `widest !== null`, by which point it has been overwritten by a real end value
+src/shared/dates.ts:454:47  ?? → ||    # end_date is string|null; String(null ?? "") and String(null || "") agree, and for every string s (including "") String(s ?? "") === String(s || "")
+src/shared/dates.ts:414:21  1 → 0    # bookedSpanDays' `diffDays > 1 ? diffDays : 1`: diffDays is Math.round (an integer), and at the only differing input (diffDays === 1) both comparisons yield 1
+src/shared/dates.ts:432:30  1 → 0    # bookedRangeLabel's `fallbackDurationDays > 1` guard: at the only differing input (fallback === 1) the mutant computes lastDay = addDays(date, 0) = date, and the `lastDay > date` check then produces the same single-day label the null branch does
+
+# Admin segment dispatch (admin/index.ts) — two provably-equivalent survivors
+# from the routeAdmin/adminPathSegment run over the manifest + footer suites.
+src/features/admin/index.ts:257:21  ?? → ||   # `path.split("/")[2] ?? ""`: the RHS is "" and the only falsy string is "", so `x ?? ""` and `x || ""` agree on every string|undefined input
+src/features/admin/index.ts:299:55  return null → return undefined   # routeAdmin's only consumer folds the result with `?? notFoundResponse()` (features/index.ts routeMainApp), and ?? treats null and undefined identically
+
+# Logger (logger.ts) — two provably-equivalent survivors from the run over the
+# logger suites.
+src/shared/logger.ts:314:27  = → +=   # errorPersistGuard.active is always false at this line (the guard early-returns otherwise), and false + true === 1 — read only for truthiness, exactly like true; the finally still resets it to false
+src/shared/logger.ts:321:69  ?? → ||   # context.listingId is number|undefined and listing ids are positive autoincrement integers, so the LHS is never a falsy non-null value — ?? and || agree on every input
+src/shared/logger.ts:77:70  ?? → ||   # getRequestId's `getStore() ?? ""`: the RHS is "" and the only falsy string is "", so `x ?? ""` and `x || ""` agree on every string|undefined input
+
+# Admin refund waves (refunds/waves.ts) — one provably-equivalent survivor from
+# the packByReferenceCount run.
+src/features/admin/refunds/waves.ts:16:24  0 → 1   # packByReferenceCount's `currentCount` init: the first iteration always hits `!wave` (waves is empty, so waves[-1] is undefined), which short-circuits the `|| currentCount + refs > budget` before currentCount is read; every later iteration reassigns it first, so the initial value is never observed

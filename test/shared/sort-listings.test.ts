@@ -4,11 +4,8 @@ import { addDays } from "#shared/dates.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { Holiday, ListingWithCount } from "#shared/types.ts";
-import {
-  describeWithEnv,
-  testListing,
-  testListingWithCount,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { testListing, testListingWithCount } from "#test-utils/factories.ts";
 
 const today = () => todayInTz("UTC");
 

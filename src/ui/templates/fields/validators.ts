@@ -9,7 +9,7 @@
 
 import * as v from "valibot";
 import { t } from "#i18n";
-import { DAY_NAMES } from "#shared/dates.ts";
+import { VALID_DAY_NAMES } from "#shared/dates.ts";
 import { isUpdateTier } from "#shared/db/built-sites.ts";
 import type { Field } from "#shared/forms.tsx";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -123,9 +123,6 @@ export const validateListingType = (value: string): string | null => {
 /** Validate a built site's update channel (alpha/beta/release) */
 export const validateUpdateTier = (value: string): string | null =>
   isUpdateTier(value) ? null : t("fields.validation.update_tier");
-
-/** Valid day names for bookable_days (Monday-first for display) */
-export const VALID_DAY_NAMES = [...DAY_NAMES.slice(1), DAY_NAMES[0]!];
 
 /** Check if a string is a valid day name */
 const isValidDayName = (s: string): boolean =>

@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { adminListingRecalculatePage } from "#templates/admin/listings/aggregates.tsx";
 import { adminListingNewPage } from "#templates/admin/listings/form-pages.tsx";
-import { testGroup, testListingWithCount } from "#test-utils";
+import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
 
 import {
   editPanelHtml,

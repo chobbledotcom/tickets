@@ -27,7 +27,7 @@ import {
   listingsTable,
 } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
-import { isDemoMode } from "#shared/demo.ts";
+import { isDemoMode } from "#shared/demo/mode.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms.tsx";
 import {

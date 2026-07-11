@@ -3,13 +3,15 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
 import {
-  adminGet,
-  createTestListing,
-  deactivateTestListing,
-  describeWithEnv,
   expectHtmlResponse,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  createTestListing,
+  deactivateTestListing,
+} from "#test-utils/db-helpers/listings.ts";
+import { adminGet } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 

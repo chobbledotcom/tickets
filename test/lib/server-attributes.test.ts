@@ -8,20 +8,26 @@ import {
   setListingAttributeOptions,
 } from "#shared/db/attributes.ts";
 import {
-  adminFormPost,
-  adminGet,
-  assignTestAttributeOptions,
-  createTestAttributeWithOptions,
-  createTestListing,
-  describeWithEnv,
-  duplicateTestListing,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
   expectStatus,
-  getTestSession,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  assignTestAttributeOptions,
+  createTestAttributeWithOptions,
+} from "#test-utils/db-helpers/attributes.ts";
+import {
+  createTestListing,
+  duplicateTestListing,
+} from "#test-utils/db-helpers/listings.ts";
+import {
+  adminFormPost,
+  adminGet,
+  getTestSession,
+} from "#test-utils/session.ts";
 
 const postRepeatedOptions = async (
   path: string,
@@ -179,6 +185,16 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
         "In-person",
         "Online",
       ]);
+
+      // Moving it back down restores the original order.
+      await adminFormPost(
+        `/admin/attributes/${id}/options/${second.id}/move-down`,
+      );
+      const restored = (await getAttributeWithOptions(id))!;
+      expect(restored.options.map((option) => option.text)).toEqual([
+        "Online",
+        "In-person",
+      ]);
     });
 
     test("returns 404 or redirects when changing a missing or invalid option", async () => {
@@ -201,7 +217,7 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
         ).response,
       );
       await expectFlashRedirect(
-        `/admin/attributes/${attribute.id}`,
+        `/admin/attributes/${attribute.id}/options/${option.id}/edit`,
         expect.any(String),
         false,
       )(
@@ -347,6 +363,8 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
           attribute.options[1]!.id
         }"`,
       );
+      // Each attribute's options render as a row-based checkbox fieldset.
+      expect(html).toContain('<fieldset class="checkboxes listing-section">');
     });
 
     test("shows attributes that do not have options yet", async () => {

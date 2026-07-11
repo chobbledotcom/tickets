@@ -6,7 +6,7 @@ import {
   constructTestWebhookEvent,
   verifyWebhookSignature,
 } from "#shared/square.ts";
-import { createTestDb, resetDb } from "#test-utils";
+import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { describeSquare } from "./harness.ts";
 
 describeSquare(() => {

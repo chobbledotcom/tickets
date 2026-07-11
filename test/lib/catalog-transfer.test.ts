@@ -17,11 +17,9 @@ import { listingChildren, listingParents } from "#shared/db/listing-parents.ts";
 import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
 import { getListing } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
-import {
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** Unwrap a successful export, failing if it returned null or an
  * (unexpected-in-these-tests) {@link CatalogExportError}. */

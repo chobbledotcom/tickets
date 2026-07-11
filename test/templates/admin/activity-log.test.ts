@@ -7,7 +7,8 @@ import {
   adminGlobalActivityLogPage,
   adminListingActivityLogPage,
 } from "#templates/admin/activityLog.tsx";
-import { setupTestEncryptionKey, testListingWithCount } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testListingWithCount } from "#test-utils/factories.ts";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 

@@ -405,6 +405,12 @@ const NON_CALL_KEYWORDS = new Set([
 const isIdentChar = (c: string): boolean => /[\w$]/.test(c);
 const isIdentStart = (c: string): boolean => /[A-Za-z_$]/.test(c);
 const isWhitespace = (c: string): boolean => /\s/.test(c);
+const isQuote = (c: string | undefined): boolean =>
+  c === '"' || c === "'" || c === "`";
+const isOpenBracket = (c: string | undefined): boolean =>
+  c === "(" || c === "[" || c === "{";
+const isCloseBracket = (c: string | undefined): boolean =>
+  c === ")" || c === "]" || c === "}";
 
 /**
  * Skip a string or template literal starting at the opening quote `start`.
@@ -412,6 +418,27 @@ const isWhitespace = (c: string): boolean => /\s/.test(c);
  * substitutions are skipped wholesale (including nested strings) so a `)` or
  * `,` inside them never leaks into argument parsing.
  */
+/**
+ * Skip a template `${…}` substitution whose `$` is at `start` (so `content[start]`
+ * is `$` and `content[start + 1]` is `{`). Returns the index just past the
+ * matching `}`, skipping nested strings so their braces don't unbalance the count.
+ */
+const skipTemplateSubstitution = (content: string, start: number): number => {
+  let depth = 1;
+  let j = start + 2;
+  while (j < content.length && depth > 0) {
+    const d = content[j];
+    if (d === "{") depth++;
+    else if (d === "}") depth--;
+    else if (d === '"' || d === "'" || d === "`") {
+      j = skipString(content, j);
+      continue;
+    }
+    j++;
+  }
+  return j;
+};
+
 export const skipString = (content: string, start: number): number => {
   const quote = content[start];
   let j = start + 1;
@@ -423,18 +450,7 @@ export const skipString = (content: string, start: number): number => {
     }
     if (c === quote) return j + 1;
     if (quote === "`" && c === "$" && content[j + 1] === "{") {
-      let depth = 1;
-      j += 2;
-      while (j < content.length && depth > 0) {
-        const d = content[j];
-        if (d === "{") depth++;
-        else if (d === "}") depth--;
-        else if (d === '"' || d === "'" || d === "`") {
-          j = skipString(content, j);
-          continue;
-        }
-        j++;
-      }
+      j = skipTemplateSubstitution(content, j);
       continue;
     }
     j++;
@@ -463,6 +479,18 @@ export const skipComment = (content: string, i: number): number => {
 };
 
 /**
+ * If a comment or a string/template literal begins at `i`, return the index just
+ * past it; otherwise return `i` unchanged. Comments are checked before strings,
+ * matching the tokenizer order used elsewhere in this file.
+ */
+const skipCommentOrString = (content: string, i: number): number => {
+  const pastComment = skipComment(content, i);
+  if (pastComment !== i) return pastComment;
+  if (isQuote(content[i])) return skipString(content, i);
+  return i;
+};
+
+/**
  * Parse a comma-separated argument list whose opening `(` is at `open`.
  * Returns the trimmed top-level arguments and the index of the closing `)`.
  * Nested brackets, strings and comments are skipped so only top-level commas
@@ -477,18 +505,14 @@ export const parseArgList = (
   let cur = open + 1;
   let p = open + 1;
   while (p < content.length && depth > 0) {
-    const skipped = skipComment(content, p);
+    const skipped = skipCommentOrString(content, p);
     if (skipped !== p) {
       p = skipped;
       continue;
     }
     const d = content[p];
-    if (d === '"' || d === "'" || d === "`") {
-      p = skipString(content, p);
-      continue;
-    }
-    if (d === "(" || d === "[" || d === "{") depth++;
-    else if (d === ")" || d === "]" || d === "}") {
+    if (isOpenBracket(d)) depth++;
+    else if (isCloseBracket(d)) {
       depth--;
       if (depth === 0) {
         args.push(content.slice(cur, p).trim());
@@ -720,23 +744,56 @@ const matchBrace = (code: string, open: number): number => {
 /** The `{`/`}` offsets of an interface body starting after its name at `pos`,
  * or null. Skips an optional `<…>` type-parameter/`extends` clause; a `=` or
  * `;` before the body means this wasn't an interface declaration. */
+/** Change in angle-bracket nesting depth contributed by the char at `i`:
+ * `+1` for `<`, `-1` for a `>` that is not part of an arrow `=>`, else `0`. */
+const angleDepthDelta = (code: string, i: number): number => {
+  const c = code[i];
+  if (c === "<") return 1;
+  if (c === ">" && code[i - 1] !== "=") return -1;
+  return 0;
+};
+
 const parseInterfaceBody = (
   code: string,
   pos: number,
 ): { open: number; close: number } | null => {
   let depth = 0;
   for (let i = pos; i < code.length; i++) {
+    depth += angleDepthDelta(code, i);
+    if (depth !== 0) continue;
     const c = code[i];
-    if (c === "<") depth++;
-    else if (c === ">") {
-      if (code[i - 1] !== "=") depth--;
-    } else if (depth === 0 && c === "{") {
+    if (c === "{") {
       const close = matchBrace(code, i);
       return close === -1 ? null : { close, open: i };
-    } else if (depth === 0 && (c === ";" || c === "=")) return null;
+    }
+    if (c === ";" || c === "=") return null;
   }
   return null;
 };
+
+/**
+ * From index `i` — where `code[i]` is `<` — skip a balanced `<…>` type-parameter
+ * clause and return the index just after its closing `>`. If `code[i]` is not
+ * `<`, returns `i` unchanged. An unbalanced clause consumes to end of input.
+ */
+const skipTypeParams = (code: string, i: number): number => {
+  if (code[i] !== "<") return i;
+  let depth = 0;
+  let j = i;
+  for (; j < code.length; j++) {
+    if (code[j] === "<") depth++;
+    else if (code[j] === ">" && --depth === 0) {
+      j++;
+      break;
+    }
+  }
+  return j;
+};
+
+/** Whether the character following a `type X = { … }` body may legitimately
+ * terminate the alias (end of input, `;`, or a line break). */
+const isTypeAliasBodyEnd = (after: string | undefined): boolean =>
+  !after || after === ";" || after === "\n" || after === "\r";
 
 /** Advance past whitespace in `code` from `i`. */
 const skipSpace = (code: string, i: number): number => {
@@ -755,20 +812,7 @@ const parseTypeAliasBody = (
   code: string,
   pos: number,
 ): { open: number; close: number } | null => {
-  let i = skipSpace(code, pos);
-  if (code[i] === "<") {
-    let depth = 0;
-    for (; i < code.length; i++) {
-      if (code[i] === "<") depth++;
-      else if (code[i] === ">") {
-        depth--;
-        if (depth === 0) {
-          i++;
-          break;
-        }
-      }
-    }
-  }
+  let i = skipTypeParams(code, skipSpace(code, pos));
   i = skipSpace(code, i);
   if (code[i] !== "=") return null;
   i = skipSpace(code, i + 1);
@@ -777,8 +821,7 @@ const parseTypeAliasBody = (
   if (close === -1) return null;
   let k = close + 1;
   while (k < code.length && (code[k] === " " || code[k] === "\t")) k++;
-  const after = code[k];
-  if (after && after !== ";" && after !== "\n" && after !== "\r") return null;
+  if (!isTypeAliasBodyEnd(code[k])) return null;
   return { close, open: i };
 };
 
@@ -805,8 +848,8 @@ export const splitTypeMembers = (
   };
   for (let i = innerStart; i < innerEnd; i++) {
     const c = code[i];
-    if (c === "{" || c === "(" || c === "[" || c === "<") depth++;
-    else if (c === "}" || c === ")" || c === "]") depth--;
+    if (isOpenBracket(c) || c === "<") depth++;
+    else if (isCloseBracket(c)) depth--;
     else if (c === ">") {
       if (code[i - 1] !== "=") depth--;
     } else if (depth === 0 && (c === ";" || c === ",")) push(i);

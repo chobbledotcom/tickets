@@ -18,7 +18,8 @@ import {
   LISTING_TABLE_COLUMNS,
 } from "#shared/columns/listing-columns.ts";
 import { escapeHtml } from "#templates/layout.tsx";
-import { setupTestEncryptionKey, testListingWithCount } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testListingWithCount } from "#test-utils/factories.ts";
 
 setupTestEncryptionKey();
 

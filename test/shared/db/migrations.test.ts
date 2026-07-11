@@ -23,20 +23,20 @@ import {
   markCurrentSchemaMigrationPending,
   markMigrationsForRerun,
 } from "#test/lib/db/migration-test-helpers.ts";
+import { describeWithEnv, invalidateTestDbCache } from "#test-utils/db.ts";
 import {
   assertSchemaEmpty,
-  describeWithEnv,
-  invalidateTestDbCache,
   schemaMarkerKeys,
   settingsTableExists,
-  stubNtfyFetch,
   tableExists,
-} from "#test-utils";
+} from "#test-utils/migrations.ts";
+import { stubNtfyFetch } from "#test-utils/mocks.ts";
+import { recordQueries } from "#test-utils/record-queries.ts";
 
 describeWithEnv("db > migrations", { db: true }, () => {
   describe("initDb version check", () => {
     const resultSet = (
-      rows: Array<Record<string, unknown>>,
+      rows: Record<string, unknown>[],
       rowsAffected = 0,
     ): ResultSet => ({
       columns: [],
@@ -167,6 +167,41 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
       expect(await schemaMigrationsTableExists()).toBe(true);
       expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
+    });
+
+    test("initDb does not re-baseline over an orphaned history row", async () => {
+      // A restored backup may carry a row for a renamed migration id;
+      // counting it would send every cold boot down the baseline reconcile.
+      await getDb().execute({
+        args: ["2020-01-01_renamed_away_long_ago", "orphan", "2020-01-01"],
+        sql: "INSERT INTO schema_migrations (id, description, applied_at) VALUES (?, ?, ?)",
+      });
+      invalidateInitDbCache();
+
+      const seen: string[] = [];
+      const restore = recordQueries(seen);
+      try {
+        await initDb();
+      } finally {
+        restore();
+        await getDb().execute({
+          args: ["2020-01-01_renamed_away_long_ago"],
+          sql: "DELETE FROM schema_migrations WHERE id = ?",
+        });
+      }
+
+      // The one probe answers everything; the baseline reconcile's
+      // CREATE TABLE + SELECT id pair must not run.
+      expect(
+        seen.filter((sql) => sql.includes("applied_migrations")).length,
+      ).toBe(1);
+      expect(
+        seen.filter(
+          (sql) =>
+            sql.includes("CREATE TABLE") ||
+            sql.includes("SELECT id FROM schema_migrations"),
+        ),
+      ).toEqual([]);
     });
 
     test("runs a schema-hash-neutral data migration on a site upgrading from the previous release", async () => {

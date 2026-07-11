@@ -12,13 +12,13 @@ import {
   resetEffectiveDomain,
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  describeWithEnv,
   stubFetchRecorder,
   stubFetchStatus,
   withMockBunnyCdnApi,
   withMocks,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
 
 /** Register the standard test subdomain under a 204 fetch stub, asserting the
  * canonical success result. */

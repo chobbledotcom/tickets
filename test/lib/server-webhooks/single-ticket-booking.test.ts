@@ -2,16 +2,15 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { resetStripeClient } from "#shared/stripe.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { signedMeta, singleItem } from "#test-utils/factories.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
-  createTestListing,
-  describeWithEnv,
   expectAttendeeCreatedWithPiiBlob,
   expectWebhookProcessed,
-  setupStripe,
-  signedMeta,
-  singleItem,
-} from "#test-utils";
+} from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -84,7 +83,7 @@ describeWithEnv("server webhooks > single-ticket booking", { db: true }, () => {
       }),
     );
 
-    const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+    const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
     const { attendeeAccount } = await import("#shared/accounting/accounts.ts");
     const { transfersByAccount } = await import(
       "#shared/accounting/queries.ts"

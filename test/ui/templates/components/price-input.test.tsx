@@ -5,7 +5,7 @@ import {
   moneyStep,
   PriceInput,
 } from "#templates/components/price-input.tsx";
-import { testWithSetting } from "#test-utils";
+import { testWithSetting } from "#test-utils/settings.ts";
 
 describe("moneyStep", () => {
   testWithSetting(

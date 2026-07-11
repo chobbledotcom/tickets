@@ -6,8 +6,9 @@ import {
   EUROPEAN_REGIONS,
   STORAGE_REGION,
 } from "#shared/bunny-db.ts";
-import { describeWithEnv, withMocks } from "#test-utils";
 import { testCreateDatabaseReturnsErrorOn403 } from "#test-utils/builder-mocks.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { withMocks } from "#test-utils/mocks.ts";
 
 describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
   const dbCreateFetch = (dbId: string, fallback: (url: string) => Response) =>
@@ -145,6 +146,26 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
   test("createDatabase uses AccessKey header", async () => {
     const headers: string[] = [];
 
+    const respondForHeaderTest = (url: string): Response => {
+      if (url.endsWith("/v2/databases")) {
+        return new Response(JSON.stringify({ db_id: "db_hdr" }), {
+          status: 200,
+        });
+      }
+      if (url.includes("/v2/databases/db_hdr") && !url.includes("/auth")) {
+        return new Response(
+          JSON.stringify({
+            db: { db_id: "db_hdr", name: "H", url: "libsql://h.net" },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/auth/generate")) {
+        return new Response(JSON.stringify({ token: "t" }), { status: 200 });
+      }
+      return new Response("", { status: 500 });
+    };
+
     await withMocks(
       () =>
         stub(
@@ -156,32 +177,7 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
               ?.AccessKey;
             if (accessKey) headers.push(accessKey);
 
-            if (url.endsWith("/v2/databases")) {
-              return Promise.resolve(
-                new Response(JSON.stringify({ db_id: "db_hdr" }), {
-                  status: 200,
-                }),
-              );
-            }
-            if (
-              url.includes("/v2/databases/db_hdr") &&
-              !url.includes("/auth")
-            ) {
-              return Promise.resolve(
-                new Response(
-                  JSON.stringify({
-                    db: { db_id: "db_hdr", name: "H", url: "libsql://h.net" },
-                  }),
-                  { status: 200 },
-                ),
-              );
-            }
-            if (url.includes("/auth/generate")) {
-              return Promise.resolve(
-                new Response(JSON.stringify({ token: "t" }), { status: 200 }),
-              );
-            }
-            return Promise.resolve(new Response("", { status: 500 }));
+            return Promise.resolve(respondForHeaderTest(url));
           },
         ),
       async () => {

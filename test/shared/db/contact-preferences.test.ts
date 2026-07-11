@@ -24,7 +24,8 @@ import {
   unsubscribeHash,
 } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
-import { describeWithEnv, getTestPrivateKey } from "#test-utils";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 const rowFor = (
   hash: string,

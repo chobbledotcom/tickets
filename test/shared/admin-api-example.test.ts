@@ -16,7 +16,7 @@ import {
   type EndpointDoc,
   PUBLIC_API_ENDPOINTS,
 } from "#shared/admin-api-example.ts";
-import { PublicListingSchema } from "#test-utils";
+import { PublicListingSchema } from "#test-utils/api-schemas.ts";
 
 describe("admin API example", () => {
   test("toAdminListing output matches the documented example", () => {

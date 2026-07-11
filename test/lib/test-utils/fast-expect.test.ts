@@ -6,7 +6,7 @@
  */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import "#test-utils"; // installs the fast toContain override
+import "#test-utils/fast-expect.ts"; // installs the fast toContain override
 
 const failureMessage = (assert: () => void): string => {
   try {

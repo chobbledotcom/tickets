@@ -10,14 +10,16 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingRemainingForRange } from "#shared/db/attendees/capacity.ts";
 import { getDb } from "#shared/db/client.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,
-  createServicingHold,
   createTestListing,
+} from "#test-utils/db-helpers/listings.ts";
+import {
+  createServicingHold,
   createTestServicingEvent,
-  describeWithEnv,
   renderAdminPage,
-} from "#test-utils";
+} from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 

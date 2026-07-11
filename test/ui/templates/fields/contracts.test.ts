@@ -17,8 +17,8 @@ import {
   extractContact,
   type TicketFormValues,
 } from "#templates/fields/ticket.ts";
-import { expectInvalid } from "#test-utils";
 import { byName, hasField } from "#test-utils/fields.ts";
+import { expectInvalid } from "#test-utils/validation.ts";
 
 describe("fields contracts", () => {
   describe("field lookup helpers", () => {
@@ -118,7 +118,7 @@ describe("fields contracts", () => {
   describe("required flags across the settings/auth factories", () => {
     // Each factory's fields are all required; a `required: true -> false` mutant
     // on any of them flips one of these to false.
-    const cases: Array<[string, Field[]]> = [
+    const cases: [string, Field[]][] = [
       ["login", getLoginFields()],
       ["setup", getSetupFields()],
       ["stripe key", getStripeKeyFields()],

@@ -1,12 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  adminFormPost,
-  adminGet,
-  awaitTestRequest,
-  createTestBuiltSite,
-  deleteTestBuiltSite,
-  describeWithEnv,
   expectActivityLogShows,
   expectFlash,
   expectFlashRedirect,
@@ -14,11 +8,17 @@ import {
   expectStatus,
   FLASH_TEST_ID,
   flashCookieHeader,
-  testBuiltSite,
-  testCookie,
   testRequiresAuth,
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  createTestBuiltSite,
+  deleteTestBuiltSite,
   updateTestBuiltSite,
-} from "#test-utils";
+} from "#test-utils/db-helpers/built-sites.ts";
+import { testBuiltSite } from "#test-utils/factories.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 
 const builtSitesTestEnv = {
   db: true,
@@ -126,7 +126,12 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     });
 
     test("lists qualifying tiers with units sold from real attendee data", async () => {
-      const { createTestListing, bookAttendee } = await import("#test-utils");
+      const { bookAttendee } = await import(
+        "#test-utils/db-helpers/attendee-payments.ts"
+      );
+      const { createTestListing } = await import(
+        "#test-utils/db-helpers/listings.ts"
+      );
       const tier = await createTestListing({
         hidden: true,
         maxAttendees: 100,

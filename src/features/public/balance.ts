@@ -7,7 +7,8 @@
  */
 
 import { withCsrfForm } from "#routes/csrf.ts";
-import { checkoutResponse, htmlResponse } from "#routes/response.ts";
+import { checkoutResponse } from "#routes/payment-response.ts";
+import { htmlResponse } from "#routes/response.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { verifyBalanceToken } from "#shared/balance-link.ts";

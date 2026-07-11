@@ -4,17 +4,15 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
-  adminFormPost,
-  adminGet,
-  describeAdminSettings,
   expectFlash,
   expectHtmlResponse,
-  getAllActivityLog,
-  mockFormRequest,
-  testCookie,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { mockFormRequest } from "#test-utils/mocks.ts";
+import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
+import { describeAdminSettings } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 

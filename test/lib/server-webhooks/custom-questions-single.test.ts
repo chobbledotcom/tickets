@@ -11,17 +11,16 @@ import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { signedMeta, singleItem } from "#test-utils/factories.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
-  createTestListing,
-  describeWithEnv,
   expectWebhookProcessed,
-  getAllActivityLog,
-  setupStripe,
-  signedMeta,
-  singleItem,
-} from "#test-utils";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
+} from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -73,7 +72,9 @@ describeWithEnv(
         }),
       );
 
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(1);
 
@@ -118,9 +119,10 @@ describeWithEnv(
           });
         },
       );
-      const { submitTicketForm, expectCheckoutRedirect } = await import(
-        "#test-utils"
+      const { expectCheckoutRedirect } = await import(
+        "#test-utils/assertions.ts"
       );
+      const { submitTicketForm } = await import("#test-utils/csrf.ts");
       try {
         expectCheckoutRedirect(
           await submitTicketForm(listing.slug, {
@@ -162,7 +164,9 @@ describeWithEnv(
         }),
       );
 
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(1);
       const textAnswers = await getAttendeeTextAnswers(
@@ -219,7 +223,9 @@ describeWithEnv(
         }),
       );
 
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(1);
 

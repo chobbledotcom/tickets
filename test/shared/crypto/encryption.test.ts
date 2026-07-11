@@ -13,11 +13,11 @@ import {
 import { generateDataKey } from "#shared/crypto/keys.ts";
 import type { EnvKeyEncrypted, KeyEncrypted } from "#shared/crypto/sealed.ts";
 import { toBase64 } from "#shared/crypto/utils.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   clearTestEncryptionKey,
-  describeWithEnv,
   setupTestEncryptionKey,
-} from "#test-utils";
+} from "#test-utils/env.ts";
 
 describeWithEnv("encryption", { encryptionKey: true }, () => {
   describe("validateEncryptionKey", () => {

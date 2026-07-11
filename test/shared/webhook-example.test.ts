@@ -24,7 +24,7 @@ import {
   WEBHOOK_EXAMPLE_JSON,
   WEBHOOK_EXAMPLE_PAYLOAD,
 } from "#shared/webhook-example.ts";
-import { createTestDbWithSetup, resetDb } from "#test-utils";
+import { createTestDbWithSetup, resetDb } from "#test-utils/db.ts";
 
 /** Extract the domain from the example ticket_url (e.g. "https://x.com/t/..." → "x.com") */
 const exampleDomain = new URL(WEBHOOK_EXAMPLE_PAYLOAD.ticket_url).hostname;

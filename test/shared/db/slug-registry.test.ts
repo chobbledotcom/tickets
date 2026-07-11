@@ -2,11 +2,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { computeSitePageSlugIndex, sitePages } from "#shared/db/site-pages.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
-import {
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const makePage = async (slug: string) =>
   sitePages.table.insert({

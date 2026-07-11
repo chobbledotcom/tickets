@@ -25,17 +25,7 @@ import {
   isTestPath,
   toJsonReport,
 } from "./unit-tests-report-lib.ts";
-
-async function* walkFiles(directory: string): AsyncGenerator<string> {
-  for await (const entry of Deno.readDir(directory)) {
-    const path = `${directory}/${entry.name}`;
-    if (entry.isDirectory) {
-      yield* walkFiles(path);
-      continue;
-    }
-    yield path;
-  }
-}
+import { walkFiles } from "./walk-files.ts";
 
 const collect = async (
   root: string,

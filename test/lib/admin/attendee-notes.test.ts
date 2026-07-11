@@ -2,14 +2,14 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { getNoteRows, getNotesForAttendee } from "#shared/db/system-notes.ts";
+import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   adminFormPost,
   adminGet,
-  describeWithEnv,
-  expectRedirectWithFlash,
-  getTestPrivateKey,
   setupAdminTest,
-} from "#test-utils";
+} from "#test-utils/session.ts";
 
 describeWithEnv("admin > attendee notes routes", { db: true }, () => {
   test("GET renders the add-note form for an existing attendee", async () => {

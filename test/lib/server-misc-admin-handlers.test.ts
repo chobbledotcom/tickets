@@ -2,17 +2,16 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ActionHandlerConfig } from "#routes/admin/actions.ts";
 import { FormParams } from "#shared/form-data.ts";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
+import { expectFlash } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
-  createTestListing,
-  describeWithEnv,
-  expectFlash,
-  getAllActivityLog,
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
-  testCookie,
-  testCsrfToken,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
+import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
   describe("routes/admin/utils.ts (helper factories)", () => {
@@ -574,7 +573,9 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const { loadAttendeeQuestionData } = await import(
         "#shared/db/questions/attendee-answers/reads.ts"
       );
-      const { createTestAttendeeDirect } = await import("#test-utils");
+      const { createTestAttendeeDirect } = await import(
+        "#test-utils/db-helpers/attendees.ts"
+      );
 
       const listing = await createTestListing({ maxAttendees: 10 });
       const { attendee } = await createTestAttendeeDirect(
@@ -594,7 +595,9 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const { loadAttendeeQuestionData } = await import(
         "#shared/db/questions/attendee-answers/reads.ts"
       );
-      const { createTestAttendeeDirect } = await import("#test-utils");
+      const { createTestAttendeeDirect } = await import(
+        "#test-utils/db-helpers/attendees.ts"
+      );
       const { answersTable, listingQuestionsTable, questionsTable } =
         await import("#shared/db/questions/tables.ts");
 

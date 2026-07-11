@@ -9,12 +9,9 @@ import {
   sortAttendeeRows,
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
-import {
-  hasInputWithValue,
-  setupTestEncryptionKey,
-  testAttendee,
-  testRadioQuestion,
-} from "#test-utils";
+import { hasInputWithValue } from "#test-utils/csrf.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testAttendee, testRadioQuestion } from "#test-utils/factories.ts";
 
 const ALLOWED_DOMAIN = "example.com";
 

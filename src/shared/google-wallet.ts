@@ -111,7 +111,7 @@ export const buildListingTicketObject = (
   data: WalletPassData,
   creds: GoogleWalletCredentials,
 ): Record<string, unknown> => {
-  const textModules: Array<Record<string, unknown>> = [];
+  const textModules: Record<string, unknown>[] = [];
 
   if (data.attendeeDate) {
     textModules.push({

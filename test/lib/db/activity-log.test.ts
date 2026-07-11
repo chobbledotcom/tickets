@@ -17,11 +17,9 @@ import {
 import { execute, queryOne } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowIso } from "#shared/now.ts";
-import {
-  createTestListing,
-  describeWithEnv,
-  withTestSession,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withTestSession } from "#test-utils/session.ts";
 
 /** Raw (still-encrypted) stored message for an activity-log row. */
 const rawMessage = async (id: number): Promise<string> =>

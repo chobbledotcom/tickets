@@ -3,19 +3,20 @@ import { beforeEach, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import {
-  awaitTestRequest,
-  createTestAttendeeWithToken,
-  describeWithEnv,
   expectFlashRedirect,
   expectHtml,
   expectRedirect,
-  fetchAliceTicketPageBody,
-  loginAsAdmin,
-  mockFormRequest,
-  setTestEnv,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
 import { generateGoogleTestCreds } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  createTestAttendeeWithToken,
+  fetchAliceTicketPageBody,
+} from "#test-utils/db-helpers/attendees.ts";
+import { setTestEnv } from "#test-utils/env.ts";
+import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { loginAsAdmin } from "#test-utils/session.ts";
 
 /** Configure all Google Wallet settings in the database */
 const configureGoogleWallet = async () => {

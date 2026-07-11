@@ -6,12 +6,12 @@ import {
   GroupEditPanel,
   GroupOverviewPanel,
 } from "#templates/admin/groups.tsx";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
-  setupTestEncryptionKey,
   testAttendee,
   testGroup,
   testListingWithCount,
-} from "#test-utils";
+} from "#test-utils/factories.ts";
 
 beforeAll(async () => {
   setupTestEncryptionKey();
