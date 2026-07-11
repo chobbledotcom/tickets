@@ -30,6 +30,7 @@ import {
 import type { TicketCtx } from "#routes/public/types.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
+import { bookingError } from "#shared/booking/form.ts";
 import {
   bookableChildIds,
   packageDayCountsChildrenSupport,
@@ -250,7 +251,7 @@ const resolvePackageOrder = async (
   if (ctx.dates.length > 0) {
     const submitted = String(body.date ?? "");
     if (!ctx.dates.includes(submitted)) {
-      return apiError("Please select a valid date");
+      return apiError(bookingError.invalidDate);
     }
     date = submitted;
   }

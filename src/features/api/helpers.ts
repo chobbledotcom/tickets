@@ -1,7 +1,7 @@
 import { apiError, apiResponse } from "#routes/api/cors.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { getClientIp } from "#routes/url.ts";
-import { parseCustomPrice } from "#shared/booking/form.ts";
+import { bookingError, parseCustomPrice } from "#shared/booking/form.ts";
 import { bookingLimiter } from "#shared/db/booking-attempts.ts";
 import { isHiddenPackageMember } from "#shared/db/groups.ts";
 import { getListingWithCountBySlug } from "#shared/db/listings.ts";
@@ -36,13 +36,13 @@ export const checkoutResponse = (checkoutUrl: string): Response =>
 
 /** 409 for a booking that no longer fits the remaining spots. */
 export const soldOutResponse = (): Response =>
-  apiError("Sorry, not enough spots available", 409);
+  apiError(bookingError.generic, 409);
 
 /** Map a failed checkout-session creation to a response: the provider's own
  * message when it gave one (a 400 the buyer can act on), otherwise the
  * generic 500. */
 export const checkoutFailedResponse = (error?: string): Response =>
-  error ? apiError(error) : apiError("Failed to create payment session", 500);
+  error ? apiError(error) : apiError(bookingError.paymentSessionFailed, 500);
 
 /** Resolve a booking's `quantity` field from a JSON body — defaults to 1 for
  * absent/malformed values, rejects an explicit 0 (the admin-only no-quantity

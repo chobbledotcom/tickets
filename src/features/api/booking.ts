@@ -15,6 +15,7 @@ import {
 import { isRegistrationClosed } from "#routes/format.ts";
 import { parentRequiresChild } from "#routes/public/ticket-payment.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import { bookingError } from "#shared/booking/form.ts";
 import { processBooking } from "#shared/booking.ts";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import { getAvailableDates } from "#shared/dates.ts";
@@ -42,7 +43,7 @@ const bookingResultToResponse = (
     case "creation_failed":
       return result.reason === "capacity_exceeded"
         ? soldOutResponse()
-        : apiError("Registration failed. Please try again.", 500);
+        : apiError(bookingError.fallback, 500);
   }
 };
 
@@ -60,7 +61,7 @@ const resolveBookingDate = async (
   const submittedDate = String(body.date ?? "");
   const availableDates = getAvailableDates(listing, await getActiveHolidays());
   if (!submittedDate || !availableDates.includes(submittedDate)) {
-    return apiError("Please select a valid date");
+    return apiError(bookingError.invalidDate);
   }
   return submittedDate;
 };
