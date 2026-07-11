@@ -90,9 +90,7 @@ describeWithEnv(
     const signUrl = async (
       listingId: number,
       attendeeId: number,
-    ): Promise<string> => {
-      return await signAttachmentUrl(listingId, attendeeId);
-    };
+    ): Promise<string> => await signAttachmentUrl(listingId, attendeeId);
 
     /** Mock CDN fetch to return encrypted data with isolated storage config */
     const withCdnMock = (

@@ -48,7 +48,7 @@ export const errorMessage = (err: unknown): string =>
 export const toCanonicalIso = (
   value: string | undefined,
 ): string | undefined => {
-  if (value === undefined) return undefined;
+  if (value === undefined) return;
   const ms = Date.parse(value);
   return Number.isNaN(ms) ? undefined : new Date(ms).toISOString();
 };

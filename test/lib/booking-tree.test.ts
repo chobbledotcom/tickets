@@ -22,7 +22,7 @@ import {
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { treePackage as pkg } from "./package-cap-fixtures.ts";
 
-const resolved = (overrides = {}, closed = false, groupRemaining = undefined) =>
+const resolved = (overrides = {}, closed = false, groupRemaining?: number) =>
   buildTicketListing(testListingWithCount(overrides), closed, groupRemaining);
 
 describe("booking tree — node identity (nodeKey scheme)", () => {

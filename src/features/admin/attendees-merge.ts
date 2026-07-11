@@ -423,7 +423,7 @@ const parseBookingDecisions = (
 const toMoneyChoice = (raw: string): MergeMoneyChoice | undefined => {
   if (raw === "credit") return "credit";
   if (raw === "writeoff") return "writeoff";
-  return undefined;
+  return;
 };
 
 /** Parse money decisions from form (only conflicting items); a blank choice is

@@ -399,7 +399,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
           if (sql.includes("INSERT INTO settings")) {
             return Promise.reject(new Error("temporary libsql write failure"));
           }
-          return undefined;
+          return;
         }),
         async () => {
           await expect(initDb()).rejects.toThrow(

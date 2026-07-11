@@ -36,8 +36,8 @@ const debugLog = (...args: unknown[]): void => {
 };
 
 interface CartLine {
-  slug: string;
   quantity: number;
+  slug: string;
 }
 
 /** Type guard for a stored cart line — used to reject corrupt/foreign values

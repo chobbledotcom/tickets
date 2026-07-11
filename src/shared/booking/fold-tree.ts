@@ -216,7 +216,7 @@ const childCustomPrice = (
   child: TicketListing,
   form: FormParams,
 ): number | { error: string } | undefined => {
-  if (!child.listing.can_pay_more) return undefined;
+  if (!child.listing.can_pay_more) return;
   const result = parseCustomPrice(
     form,
     childPriceFieldName(parentId, child.listing.id),

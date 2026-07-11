@@ -544,13 +544,8 @@ export const expectHtmlEscaped = (html: string): void => {
   expect(html).toContain("&lt;script&gt;");
 };
 
-export const matchGroup = (
-  text: string,
-  pattern: RegExp,
-  group = 1,
-): string => {
-  return text.match(pattern)![group]!;
-};
+export const matchGroup = (text: string, pattern: RegExp, group = 1): string =>
+  text.match(pattern)![group]!;
 
 /** Visible text labels of every `<option>` inside the `<select
  *  aria-label="…">` dropdown, in document order. Includes disabled and prompt

@@ -111,7 +111,7 @@ const isSuccessfulInput = (tag: string): boolean => {
 
 const formInputEntry = (tag: string): FormEntry | undefined => {
   const name = controlName(tag);
-  if (!name || !isSuccessfulInput(tag)) return undefined;
+  if (!name || !isSuccessfulInput(tag)) return;
   const defaultValue = ["checkbox", "radio"].includes(inputType(tag))
     ? "on"
     : "";
@@ -121,7 +121,7 @@ const formInputEntry = (tag: string): FormEntry | undefined => {
 const formTextareaEntry = (tag: string): FormEntry | undefined => {
   const openTag = tag.match(/^<textarea\b[^>]*>/i)![0];
   const name = controlName(openTag);
-  if (!name || isDisabled(openTag)) return undefined;
+  if (!name || isDisabled(openTag)) return;
   const value = tag.match(/^<textarea\b[^>]*>([\s\S]*?)<\/textarea>$/i)![1]!;
   return [decodeEntities(name), decodeEntities(value)];
 };
@@ -131,7 +131,7 @@ const optionEntry = (
   optionTag: string,
 ): FormEntry | undefined => {
   const name = controlName(selectTag);
-  if (!name || isDisabled(optionTag)) return undefined;
+  if (!name || isDisabled(optionTag)) return;
   const text = stripTags(optionTag.match(/>([\s\S]*?)<\/option>$/i)![1]!);
   return [decodeEntities(name), controlValue(optionTag, decodeEntities(text))];
 };

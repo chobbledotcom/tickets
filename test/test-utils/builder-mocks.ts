@@ -24,9 +24,9 @@ export const MOCK_DB_RESULT = {
 };
 
 interface ReleaseOptions {
-  name?: string;
-  assetUrl?: string;
   assets?: unknown[];
+  assetUrl?: string;
+  name?: string;
 }
 
 /** A GitHub `releases/latest` JSON response carrying one downloadable asset. */
@@ -66,17 +66,17 @@ export const stubBuilderFetch = (
   });
 
 interface BuildSiteMockOptions {
+  createDbResult?: CreateDbResult;
+  createResult?: CreateResult;
   defaultHostname?: string;
-  pullZoneId?: number;
-  scriptId?: number;
   encryptionKey?: string;
   onOther?: (url: string) => Response;
-  releaseOpts?: ReleaseOptions;
-  createResult?: CreateResult;
   publishResult?: BunnyResult;
+  pullZoneId?: number;
+  releaseOpts?: ReleaseOptions;
+  scriptId?: number;
   secretResult?: BunnyResult;
   updatePullZoneResult?: BunnyResult;
-  createDbResult?: CreateDbResult;
 }
 
 /**

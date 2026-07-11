@@ -60,7 +60,7 @@ type EasypostcodesEntry = v.InferOutput<
  * location. */
 const entryMatch = (entry: EasypostcodesEntry): AddressMatch | undefined => {
   const line = entry.envelopeAddress?.summaryLine;
-  if (line === undefined) return undefined;
+  if (line === undefined) return;
   const located = Boolean(entry.latitude && entry.longitude);
   return {
     lat: located ? entry.latitude! : "",

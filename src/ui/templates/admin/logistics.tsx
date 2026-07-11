@@ -113,9 +113,9 @@ export const logisticsAgentToFieldValues = (
 
 /** A user that can be assigned to drive a logistics agent. */
 export interface AgentUserOption {
+  adminLevel: AdminLevel;
   id: number;
   username: string;
-  adminLevel: AdminLevel;
 }
 
 /** Checkbox list for picking which users drive this logistics agent. Any user

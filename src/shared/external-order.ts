@@ -14,15 +14,15 @@ import type { ListingType } from "#shared/types.ts";
  * widget serializes, so the public `/order.js` route can load it with a narrow
  * query instead of decrypting every field of every listing. */
 export interface CatalogSourceListing {
-  id: number;
-  slug: string;
-  name: string;
-  unit_price: number;
-  listing_type: ListingType;
-  customisable_days: boolean;
-  can_pay_more: boolean;
   active: boolean;
+  can_pay_more: boolean;
+  customisable_days: boolean;
   hidden: boolean;
+  id: number;
+  listing_type: ListingType;
+  name: string;
+  slug: string;
+  unit_price: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -80,8 +80,8 @@ export const resolveAllowOrigin = (
 /** A listing the visitor can add to the cart. */
 export interface CatalogListing {
   id: number;
-  slug: string;
   name: string;
+  slug: string;
   /** Minor units (pence/cents). For pay-what-you-want this is the minimum. */
   unitPrice: number;
   /** True when a final price needs a checkout-only input (date, day count, or
@@ -94,20 +94,20 @@ export interface CatalogListing {
  * all-or-nothing at fixed quantities), so it carries no price — the widget links
  * straight to the package page, where the bundle is priced. */
 export interface CatalogPackage {
-  slug: string;
   name: string;
+  slug: string;
 }
 
 export interface Catalog {
-  origin: string;
   currency: string;
-  decimalPlaces: number;
-  generatedAt: string;
   /** When true, the served widget emits verbose `console.debug` output so an
    * integrator can see add-to-cart enhancement, cart state, and navigation as
    * it happens. Toggled per request with `?debug=true` on `/order.js`. */
   debug: boolean;
+  decimalPlaces: number;
+  generatedAt: string;
   listings: Record<string, CatalogListing>;
+  origin: string;
   /** Bookable package groups keyed by group slug. A `data-add-listing` link to
    * one of these navigates straight to `/ticket/<slug>` instead of adding a cart
    * line. Empty when the site has no bookable packages. */

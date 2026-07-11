@@ -63,7 +63,6 @@ export interface DescribeEnvOptions {
   db?: boolean;
   encryptionKey?: boolean;
   env?: Record<string, string | undefined>;
-  triggers?: boolean;
   /**
    * Establish an image-storage backend for every test in the suite, instead of
    * wrapping each body in `withStorageEnabled` / `withLocalStorageEnabled`:
@@ -74,6 +73,7 @@ export interface DescribeEnvOptions {
    * scope (e.g. `withStorageDisabled`), which wins over the suite's env default.
    */
   storage?: "cdn" | "local";
+  triggers?: boolean;
 }
 
 // The temp dir backing `storage: "local"`; set per test in describeWithEnv's

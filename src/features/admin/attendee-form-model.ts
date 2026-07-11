@@ -310,9 +310,7 @@ export const resolveSharedDates = (
 // ---------------------------------------------------------------------------
 
 /** Parse one quantity field value: blank/invalid → null, else the integer. */
-const parseQuantity = (raw: string): number | null => {
-  return parseNonNegativeInt(raw);
-};
+const parseQuantity = (raw: string): number | null => parseNonNegativeInt(raw);
 
 /** The packages each listing can book through, with each path's per-unit
  * price override (null = no override — the listing's own price applies):

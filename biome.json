@@ -4,6 +4,7 @@
     "actions": {
       "source": {
         "useSortedAttributes": "on",
+        "useSortedInterfaceMembers": "on",
         "useSortedKeys": "on",
         "useSortedProperties": "on"
       }
@@ -42,9 +43,17 @@
         "noForEach": "error",
         "noStaticOnlyClass": "error",
         "noThisInStatic": "error",
+        "noUselessStringConcat": "error",
+        "noUselessTernary": "error",
         "noUselessThisAlias": "error",
+        "noUselessUndefined": "error",
         "useArrowFunction": "error",
-        "useFlatMap": "error"
+        "useDateNow": "error",
+        "useFlatMap": "error",
+        "useLiteralKeys": "error",
+        "useOptionalChain": "error",
+        "useRegexLiterals": "error",
+        "useWhile": "error"
       },
       "correctness": {
         "noUnusedFunctionParameters": "error",
@@ -66,14 +75,26 @@
       "style": {
         "noNonNullAssertion": "off",
         "noUnusedTemplateLiteral": "error",
+        "noUselessElse": "error",
+        "noYodaExpression": "error",
+        "useAsConstAssertion": "error",
+        "useCollapsedElseIf": "error",
         "useConsistentArrayType": {
           "level": "error",
           "options": {
             "syntax": "shorthand"
           }
         },
+        "useConsistentArrowReturn": "error",
         "useConst": "error",
-        "useTemplate": "error"
+        "useExponentiationOperator": "error",
+        "useNumberNamespace": "error",
+        "useShorthandAssign": "error",
+        "useShorthandFunctionType": "error",
+        "useSingleVarDeclarator": "error",
+        "useTemplate": "error",
+        "useThrowNewError": "error",
+        "useTrimStartEnd": "error"
       },
       "suspicious": {
         "noAssignInExpressions": "error",

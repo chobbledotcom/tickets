@@ -37,14 +37,14 @@ export interface Question {
 
 /** An answer option for a question */
 export interface Answer {
-  id: number;
-  question_id: number;
-  sort_order: number;
-  text: string; // encrypted
   /** Deactivated answers are hidden on the public booking form; the admin edit
    * form still shows one an attendee already selected so it isn't silently
    * dropped on the next save. */
   active: boolean;
+  id: number;
+  question_id: number;
+  sort_order: number;
+  text: string; // encrypted
 }
 
 /** Question with its answer options (decrypted) */

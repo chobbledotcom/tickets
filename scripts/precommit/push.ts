@@ -24,7 +24,7 @@ const commandNumber = async (
   args: string[],
 ): Promise<number | undefined> => {
   const value = await commandValue(run, args);
-  if (!value) return undefined;
+  if (!value) return;
   const count = Number(value);
   return Number.isFinite(count) ? count : undefined;
 };
@@ -57,16 +57,16 @@ const getUnpushedCommitCount = async (
 export const getPushPromptContext = async (
   run: RunCommand,
 ): Promise<PushPromptContext | undefined> => {
-  if (!(await isInsideWorkTree(run))) return undefined;
+  if (!(await isInsideWorkTree(run))) return;
 
   const status = await runGit(run, ["status", "--porcelain"]);
-  if (!status.success || status.stdout.trim()) return undefined;
+  if (!status.success || status.stdout.trim()) return;
 
   const commitMessage = await commandValue(run, ["log", "-1", "--format=%B"]);
-  if (!commitMessage) return undefined;
+  if (!commitMessage) return;
 
   const unpushedCommits = await getUnpushedCommitCount(run);
-  if (!unpushedCommits || unpushedCommits < 1) return undefined;
+  if (!unpushedCommits || unpushedCommits < 1) return;
 
   const originUrl = await commandValue(run, ["remote", "get-url", "origin"]);
   const branchName = await commandValue(run, [
@@ -74,7 +74,7 @@ export const getPushPromptContext = async (
     "--abbrev-ref",
     "HEAD",
   ]);
-  if (!originUrl || !branchName || branchName === "HEAD") return undefined;
+  if (!originUrl || !branchName || branchName === "HEAD") return;
 
   return {
     branchName,

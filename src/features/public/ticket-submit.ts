@@ -436,7 +436,7 @@ export const parseQuantityPrefill = (
     }
   }
   const date = parseIsoDateParam(params.get("date"));
-  if (map.size === 0 && date === null) return undefined;
+  if (map.size === 0 && date === null) return;
   return { listings: map, ...(date !== null ? { date } : {}) };
 };
 

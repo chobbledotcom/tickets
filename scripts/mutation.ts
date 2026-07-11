@@ -18,6 +18,7 @@
  */
 
 import { globToRegExp, join, normalize, SEPARATOR } from "@std/path";
+import { DEFAULT_TIMEOUT, parseArgs } from "./mutation/args.ts";
 import { runIsolatedMutationCommand } from "./mutation/isolation.ts";
 import {
   MUTATION_RUN_ID_ENV,
@@ -26,8 +27,6 @@ import {
   MUTATION_WORK_ROOT_ENV,
   withMutationRunLock,
 } from "./mutation/isolation-state.ts";
-
-const DEFAULT_TIMEOUT = 10_000;
 
 const USAGE = `Usage:
   deno task mutation <source-glob> <test-glob> [options]
@@ -48,117 +47,6 @@ Options:
 Examples:
   deno task mutation src/shared/dates.ts test/lib/dates.test.ts
   deno task mutation 'src/lib/forms/*.ts' 'test/lib/forms/*.test.ts' --exhaustive`;
-
-interface ParsedArgs {
-  error: string | null;
-  batchJobs?: number;
-  exhaustive: boolean;
-  help: boolean;
-  sources: string[];
-  tests: string[];
-  timeout: number;
-  useHarness: boolean;
-}
-
-type ValueFlagApply = (parsed: ParsedArgs, value: string) => void;
-
-/** Options that take a value; maps the flag to how it records `next` on `parsed`. */
-const VALUE_FLAGS: Record<string, ValueFlagApply | undefined> = {
-  "--jobs": (parsed, value) => {
-    parsed.batchJobs = Number(value);
-  },
-  "--source": (parsed, value) => parsed.sources.push(value),
-  "--test": (parsed, value) => parsed.tests.push(value),
-  "--timeout": (parsed, value) => {
-    parsed.timeout = Number(value);
-  },
-};
-
-/**
- * Apply a single argument to `parsed` (or collect it as positional). Returns
- * true when it also consumed `next` as the flag's value.
- */
-const applyArg = (
-  parsed: ParsedArgs,
-  positional: string[],
-  arg: string,
-  next: string | undefined,
-): boolean => {
-  if (arg === "--exhaustive") parsed.exhaustive = true;
-  else if (arg === "--harness") parsed.useHarness = true;
-  else if (arg === "-h" || arg === "--help") parsed.help = true;
-  else if (VALUE_FLAGS[arg] !== undefined && next !== undefined) {
-    VALUE_FLAGS[arg]?.(parsed, next);
-    return true;
-  } else positional.push(arg);
-  return false;
-};
-
-/** Fold positional arguments into `parsed`, recording an error on misuse. */
-const applyPositionals = (parsed: ParsedArgs, positional: string[]): void => {
-  const usedFlagForm = parsed.sources.length > 0 || parsed.tests.length > 0;
-  if (usedFlagForm) {
-    // Flag-form was used: positionals are not part of the grammar. Any leftover
-    // means a glob expanded past the single value --source/--test consumed
-    // (e.g. `--source src/*.ts` → src/a.ts src/b.ts …), which would silently
-    // narrow the run. Reject rather than drop the extras.
-    if (positional.length > 0) {
-      const stray = positional.join(", ");
-      parsed.error =
-        `Unexpected positional argument(s) alongside --source/--test: ${stray}. ` +
-        "A glob likely expanded to multiple files — quote it " +
-        `(e.g. --source 'src/lib/forms/*.ts') or pass repeated --source/--test flags.`;
-    }
-    return;
-  }
-  if (positional[0] !== undefined) parsed.sources.push(positional[0]);
-  if (positional[1] !== undefined) parsed.tests.push(positional[1]);
-  if (positional.length > 2) {
-    parsed.error =
-      `Too many positional arguments (${positional.length}). Quote your globs ` +
-      `so the shell can't expand them — e.g. 'src/lib/forms/*.ts' ` +
-      `'test/lib/forms/*.test.ts' — or pass repeated --source/--test flags.`;
-  }
-};
-
-/** Validate the parsed numeric options, recording the first error found. */
-const validateNumericArgs = (parsed: ParsedArgs): void => {
-  if (!Number.isFinite(parsed.timeout) || parsed.timeout < 0) {
-    parsed.error ??=
-      "Invalid --timeout: expected a non-negative number of milliseconds.";
-  }
-  const invalidJobs =
-    parsed.batchJobs !== undefined &&
-    (!Number.isInteger(parsed.batchJobs) || parsed.batchJobs <= 0);
-  if (invalidJobs) {
-    parsed.error ??= "Invalid --jobs: expected a positive integer.";
-  }
-};
-
-const parseArgs = (args: string[]): ParsedArgs => {
-  const parsed: ParsedArgs = {
-    error: null,
-    exhaustive: false,
-    help: false,
-    sources: [],
-    tests: [],
-    timeout: DEFAULT_TIMEOUT,
-    useHarness: false,
-  };
-  const positional: string[] = [];
-  let index = 0;
-  while (index < args.length) {
-    const arg = args[index];
-    if (arg !== undefined) {
-      const consumedNext = applyArg(parsed, positional, arg, args[index + 1]);
-      if (consumedNext) index += 1;
-    }
-    index += 1;
-  }
-  applyPositionals(parsed, positional);
-  validateNumericArgs(parsed);
-  return parsed;
-};
 
 /** Glob metacharacters; a path segment with none is a fixed directory name. */
 const GLOB_CHARS = /[*?{}[\]]/;

@@ -68,7 +68,7 @@ export const resolveCustomPrice = (
   listing: ListingWithCount,
   form: FormParams,
 ): number | undefined | Response => {
-  if (!listing.can_pay_more) return undefined;
+  if (!listing.can_pay_more) return;
   const priceResult = parseCustomPrice(
     form,
     "customPrice",

@@ -146,7 +146,7 @@ export const computeListingTextAnswerIdMap = async (
   ctx: TicketCtx,
   info: AnswerInfo,
 ): Promise<CheckoutIntent["listingTextAnswerIds"]> => {
-  if (info.textAnswers.length === 0) return undefined;
+  if (info.textAnswers.length === 0) return;
   const stringIds = await getOrCreateStringIds(
     info.textAnswers.map((answer) => answer.text),
   );
