@@ -126,8 +126,12 @@ plan was first written and have **since merged into main**:
   "no quantity" checkbox + save-path guards, and the operational/public/marketing
   exclusions all exist. The importer is a **consumer** of it (it writes
   `quantity = 0` lines); only the *importer-specific* additions remain to build
-  (see Phase 6). Its surface-by-surface audit is
-  [`no-quantity-spec.md`](./no-quantity-spec.md).
+  (see Phase 6). The feature's surface-by-surface behaviour is locked in by its
+  own test suite (`test/lib/no-quantity-audit.test.ts`,
+  `test/e2e/no-quantity.test.ts`, and the shared-predicate guard tests). One
+  shipped gap matters here: the **merge writer has no whole-result owed-leg
+  reversal** (the edit path reconciles a no-real-lines attendee's owed balance to
+  £0 with a `writeoff` leg; the merge does not) — see the merge notes below.
 - **Contact/attendee notes rework** landed as a per-attendee **`system_notes`**
   table (owner-public-key-encrypted `owner` notes + DB-key `system` notes) plus
   per-contact `/admin/history/:hmac` records. The original plan's single
@@ -752,23 +756,23 @@ quantity-0-only booking, see [Financial Mapping](#financial-mapping)), add nothi
 to `booked_quantity` (`SUM`), and the attendee keeps a real line so it is **not** an
 orphan and its products stay structured/matched.
 
-> **`quantity = 0` is a cross-cutting feature with a large blast radius, so it has
-> its own standalone spec — [`no-quantity-spec.md`](./no-quantity-spec.md).** That
-> feature has now **shipped as PR #1366**: the shared `TICKET_COUNTS_PREDICATE`
+> **`quantity = 0` is a cross-cutting feature that shipped as PR #1366** ("Add
+> no-quantity booking lines"): the shared `TICKET_COUNTS_PREDICATE`
 > (`quantity > 0 AND kind = 'attendee'`), the owner "no quantity" checkbox +
-> save-path guards, and the full reader/writer/action exclusions all exist. **The
-> importer is a consumer of it** — it writes `quantity = 0` lines; only the
-> *importer-specific* additions remain (see Phase 6). This plan deliberately does
-> **not** re-document those surfaces, so they can't drift between the two files.
+> save-path guards, and the full reader/writer/action exclusions all exist in
+> main, locked in by the feature's own tests. **The importer is a consumer of
+> it** — it writes `quantity = 0` lines; only the *importer-specific* additions
+> remain (see Phase 6). This plan deliberately does **not** re-document those
+> shipped surfaces, so it can't drift from the code.
 
 ## Quantity-0 Sentinel: Reader/Writer Audit
 
-Moved to the standalone spec — see
-[`no-quantity-spec.md` §6](./no-quantity-spec.md). Rule of thumb: operational,
-public, and capacity surfaces exclude `quantity = 0`; admin record/detail views
-keep the rows but guard their per-row actions (check-in, refund, resend). The spec
-enumerates every audited surface and is the source of truth; this importer plan
-intentionally does not duplicate it.
+Shipped with the no-quantity feature (#1366); the code and its tests
+(`test/lib/no-quantity-audit.test.ts`, `test/e2e/no-quantity.test.ts`) are the
+source of truth. Rule of thumb: operational, public, and capacity surfaces exclude
+`quantity = 0`; admin record/detail views keep the rows but guard their per-row
+actions (check-in, refund, resend). This importer plan intentionally does not
+duplicate the surface list.
 
 ## Financial Mapping
 
@@ -981,12 +985,12 @@ Setup contract (operator's responsibility, mirrors products/statuses):
   question must still be assigned (so it renders on the admin edit form and isn't
   dropped on save), but the flag keeps it off the public booking form. For a
   cancelled/quoted import whose every matched line is `quantity = 0`, assignment
-  alone still isn't enough unless the no-quantity feature keeps quantity-0 lines
-  in the edit-form question loading — see
-  [`no-quantity-spec.md`](./no-quantity-spec.md) §6c ("edit-form custom-question
-  loading"): the edit form must not filter its questions/answers to
-  `quantity > 0`, or a no-quantity-only attendee's imported answers drop on the
-  first save.
+  alone still isn't enough unless the edit form keeps quantity-0 lines in its
+  question loading — which the shipped feature does: `loadQuestionsForExisting`
+  (`src/features/admin/attendee-page-data.ts`) derives its listing ids from **all**
+  of the attendee's bookings with no quantity predicate. That must stay so — a
+  `quantity > 0` filter there would silently drop a no-quantity-only attendee's
+  imported answers on the first save.
 
 Resolution (pure, before any writes):
 
@@ -1600,8 +1604,10 @@ Semantic-correctness tests (verified against live behaviour):
 - No-quantity **feature** behaviour — checkbox round-trip, the `tickets_count`
   aggregate change (insert/update/delete + recalc-drift), exclusion from the
   operational/public/marketing surfaces, and the public-form + JSON API guard — is
-  covered by [`no-quantity-spec.md`](./no-quantity-spec.md) §7 and not retested
-  here. The importer tests assume that feature and assert imports flow through it:
+  covered by the shipped feature's own suite (`test/lib/no-quantity-audit.test.ts`,
+  `test/e2e/no-quantity.test.ts`, the shared-predicate guard tests) and not
+  retested here. The importer tests assume that feature and assert imports flow
+  through it:
 - An imported cancelled/quoted attendee (quantity-0 only) is absent from the daily
   calendar, ICS feed, bulk email, logistics, and ticket/check-in flows, yet still
   shows in the admin per-listing and group-detail rosters with the "no quantity"
@@ -1658,9 +1664,9 @@ them: phases 2–5 and 7 are the generic engine, while the `event_bookings`
 `SchemaDefinition` + the schema registry are built alongside phase 3 (they supply
 the column mappings, parsers, and resolver config the engine consumes — no schema
 literals in the engine). One cross-dependency to call out: the transactional
-writer (item 5) emits `quantity = 0` lines, so it depends on the no-quantity guards
-from [`no-quantity-spec.md`](./no-quantity-spec.md) — which **shipped as #1366** and
-are already in main; only the importer-specific additions in item 6 remain.
+writer (item 5) emits `quantity = 0` lines, so it depends on the no-quantity
+guards — which **shipped as #1366** and are already in main; only the
+importer-specific additions in item 6 remain.
 
 1. Schema and import-map helper
    - Add `booking_imports` (migration sequenced after
@@ -1704,11 +1710,10 @@ are already in main; only the importer-specific additions in item 6 remain.
 5. Transactional writer
    - **Relies on the no-quantity feature (shipped as #1366).** It writes
      `quantity = 0` lines (cancelled and interested-in/quoted products), which
-     depend on the shipped `TICKET_COUNTS_PREDICATE` and the reader/writer/action
-     guards in [`no-quantity-spec.md`](./no-quantity-spec.md) — all now in main, so
-     imported ghost rows stay out of `tickets_count` and the
-     token/calendar/email/logistics surfaces. Build the importer-specific additions
-     in item 6 alongside the writer.
+     depend on the shipped `TICKET_COUNTS_PREDICATE` and reader/writer/action
+     guards — all in main, so imported ghost rows stay out of `tickets_count` and
+     the token/calendar/email/logistics surfaces. Build the importer-specific
+     additions in item 6 alongside the writer.
    - Resolve candidate text answers to string ids **inside the guarded
      transaction** (or clean up newly-created `used_count = 0` strings on
      failure) — not via the stock out-of-transaction `getOrCreateStringIds`.
@@ -1733,15 +1738,14 @@ are already in main; only the importer-specific additions in item 6 remain.
      count toward capacity).
    - Prove whole-file rollback (attendees, lines, text answers, new strings,
      audit records, visit counts, import map all gone).
-6. No-quantity feature (**shipped as PR #1366** — consume it, per
-   [`no-quantity-spec.md`](./no-quantity-spec.md))
+6. No-quantity feature (**shipped as PR #1366** — consume it)
    - The importer writes `quantity = 0` lines; the whole no-quantity feature is
      **already in main**: the `tickets_count` aggregate change (shared
      `TICKET_COUNTS_PREDICATE = "quantity > 0 AND kind = 'attendee'"` + guard test +
      migration), the owner "no quantity" checkbox and save path (forbid converting a
      line with money recognised against it in the ledger), the full
      reader/writer/action audit, and the public form + JSON API guard. All of that —
-     and its tests — lives in main and the spec; don't restate it here.
+     and its tests — lives in main; don't restate it here.
    - Importer-specific work that remains (NOT part of the shipped no-quantity work):
      - Add a **staff-only / import-only flag** to free-text questions (a PR #1335
        addition) so import-only legacy columns render on the admin edit form but
@@ -1842,9 +1846,9 @@ are already in main; only the importer-specific additions in item 6 remain.
   `settleAttendeeBalance` `MIN(id)` income-fold disappeared with `price_paid`.
 - Quantity-0 (cancelled/quoted) imports are excluded from operational, public, and
   marketing surfaces but kept in admin record/detail views (with the "no quantity"
-  indicator, per-row actions guarded). The full surface-by-surface audit belongs to
-  the no-quantity feature — [`no-quantity-spec.md`](./no-quantity-spec.md) §6 — and
-  is not duplicated here.
+  indicator, per-row actions guarded). The full surface-by-surface audit shipped
+  with the no-quantity feature (#1366) and lives in its code and tests; it is not
+  duplicated here.
 - The writer records **both** the visit count **and** the source booking count for
   confirmed (real-quantity) imported bookings only, since it bypasses
   `createAttendeeAtomic`/`recordOrderActivity`. `recordOrderActivity` bumps `visits`
@@ -1916,7 +1920,9 @@ are already in main; only the importer-specific additions in item 6 remain.
   per-listing amount-paid projects `> 0`): refund or retarget the charge first.
   Don't silently detach the line from its ledger legs — that drops income **and**
   strands the charge, since the quantity-0 refund guards then hide/refuse the row
-  (see `no-quantity-spec.md` §4). Only a line with no money recognised against it
+  (the shipped save-path guard: `isPaymentLockedLine` + `validatePaidNoQuantity` +
+  the server-side `hasPaidLine` re-check). Only a line with no money recognised
+  against it
   (e.g. an imported cancelled/quoted ghost line, which posts no legs) may become
   no-quantity.
   - **Imported-money caveat (importer-specific guard extension).** The shipped
@@ -1927,10 +1933,12 @@ are already in main; only the importer-specific additions in item 6 remain.
     paid £0) is invisible to both the paid-line guard and the no-real-line
     owed-reversal, so the checkbox/merge path could ghost its last real line and
     strand the `import_owed`/`import_paid` legs on an all-ghost attendee. Before the
-    importer is enabled, extend the no-quantity ghosting guard (and the merge
-    whole-result reversal — `no-quantity-spec.md` §9 G4) to also detect a line whose
-    `ledger_event_group` carries **import** legs and block/reverse them, not just
-    `sale` legs.
+    importer is enabled, extend the no-quantity ghosting guard — **and implement the
+    merge writer's whole-result owed-leg reversal, which the shipped feature still
+    lacks** (the edit path reconciles a no-real-lines attendee's owed balance to £0
+    with a `writeoff` leg; `applyAttendeeMerge` has no equivalent step) — to also
+    detect a line whose `ledger_event_group` carries **import** legs and
+    block/reverse them, not just `sale` legs.
 - The importer **only imports products that match `daily`-type listings**; a
   product matching a `standard`-type listing is a blocking setup error. An
   *empty, ungrouped* standard listing can be converted to daily in place, but
