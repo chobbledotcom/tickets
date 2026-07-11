@@ -608,6 +608,29 @@ export const extractSessionMetadata = (
   };
 };
 
+/**
+ * Assemble the one ValidatedPaymentSession shape every provider adapter
+ * returns. Owns the createdAt rule — the key is left out entirely when the
+ * provider gave no usable timestamp — and normalizes the guarded wire metadata
+ * into the canonical shape. `metadata` must already have passed
+ * hasRequiredSessionMetadata (or come from our own staged checkout row).
+ */
+export const validatedPaymentSession = (fields: {
+  amountTotal: number;
+  createdAt: string | undefined;
+  id: string;
+  metadata: SessionMetadata;
+  paymentReference: string;
+  paymentStatus: ValidatedPaymentSession["paymentStatus"];
+}): ValidatedPaymentSession => ({
+  amountTotal: fields.amountTotal,
+  ...(fields.createdAt !== undefined ? { createdAt: fields.createdAt } : {}),
+  id: fields.id,
+  metadata: extractSessionMetadata(fields.metadata),
+  paymentReference: fields.paymentReference,
+  paymentStatus: fields.paymentStatus,
+});
+
 export const parseWebhookPayload = (
   payload: string,
   errorCode: ErrorCodeType,
