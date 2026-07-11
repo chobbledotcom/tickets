@@ -6,7 +6,7 @@ import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import {
   postBooking,
   sessionReference,
-} from "#test/shared/refund-ledger-helpers.ts";
+} from "#test/shared/refund-ledger/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
