@@ -5,7 +5,7 @@
  *
  *   unreserved → reserved → (finalized success | terminal failure)
  *
- * via the steps: validate → reserve → process → record-outcome.
+ * via validate → reserve → process → record-outcome.
  *
  * 1. validate  — `validatePaidSession` (classify.ts) confirms with the provider
  *    that the session is paid and `classifySession` proves (via a signed price
@@ -14,23 +14,14 @@
  * 2. reserve   — `processPaymentSession` claims the idempotency lock
  *    (`reserveSession`); a conflict replays the already-recorded outcome
  *    (`handleReservationConflict`) instead of re-processing.
- * 3. process   — `processReservedSession`, holding the lock, turns the signed
- *    session into either a real ticket (`createAttendeeForSession`) / a settled
- *    balance (`settleBalanceSession`), or — for ANY reason it can't be honoured
- *    (charge mismatch, a price edited mid-checkout, a sold-out extra, a full
- *    event, a since-deleted listing, or an unexpected error after the charge) —
- *    a quantity-0 placeholder that is refunded (`storeRefundedBooking`), so a
- *    paid customer is never dropped.
+ * 3. process   — `processReservedSession` creates a ticket, settles a balance,
+ *    or stores and refunds a quantity-0 placeholder when the paid booking cannot
+ *    be honoured before its atomic write commits.
  * 4. record-outcome — `processPaymentSession` records a handled failure as the
  *    session's terminal outcome (`markSessionFailed`) so a later redirect/webhook
  *    replays the same result, or releases the reservation when a real refund
  *    failed so the next provider redelivery re-attempts it.
  *
- * The HTTP plumbing (redirect + webhook handlers, routing) lives in
- * `webhooks.ts` and calls into this module. The steps above are split across
- * sibling files (metadata, classify, cancel, refunds, items, package-pricing,
- * pricing, create, store-refund); this file is the orchestration that wires
- * them into the two-phase locked lifecycle.
  */
 
 import {
@@ -67,6 +58,7 @@ import type {
 import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
 import { type PricedOrder, priceCheckout } from "#shared/checkout-pricing.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
+import { queryOnePrimary } from "#shared/db/client.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import {
   finalizeSessionIfUnresolved,
@@ -76,23 +68,19 @@ import {
   releaseReservation,
   reserveSession,
   setSessionTicketTokens,
+  UNRESOLVED_RESERVATION,
 } from "#shared/db/processed-payments.ts";
-import { logDebug } from "#shared/logger.ts";
 import { bookingLedgerDisposition } from "#shared/session-ledger.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 
 type SessionProcessorOptions = { storeTokens?: boolean };
 
-/** The shared shape of the two-phase session processors: reserve/process a paid
- * session by id, given its validated data, and resolve to a {@link
- * PaymentResult}. */
 type SessionProcessor = (
   sessionId: string,
   data: ValidatedSession,
   options?: SessionProcessorOptions,
 ) => Promise<PaymentResult>;
 
-/** Handle the "already reserved" branch of reserveSession */
 const handleReservationConflict = async (
   intent: BookingIntent,
   existing: ProcessedPayment,
@@ -103,12 +91,9 @@ const handleReservationConflict = async (
       attendee_id: existing.attendee_id,
     });
   }
-  // A recorded terminal failure replays the same handled outcome (refund
-  // already issued, sold out, price changed) without re-validating or
-  // re-refunding. failure_data is encrypted, so this read is async.
+  // Replay an encrypted terminal outcome without revalidating or refunding.
   const failure = await parseSessionFailure(existing.failure_data);
   if (failure) return { ...failure, success: false };
-  // Otherwise reserved but not finalized — another request is mid-flight.
   return {
     error: "Payment is being processed. Please wait a moment and refresh.",
     status: 409,
@@ -116,77 +101,60 @@ const handleReservationConflict = async (
   };
 };
 
-/**
- * Replay a payment session the ledger already records as resolved to
- * `attendeeId`: heal the fresh reservation at that attendee — token-safely, so a
- * racing delivery's finalized tokens survive (see {@link
- * finalizeSessionIfUnresolved}) — and return success. NEVER refunds: the money is
- * already in the ledger against this attendee. Tokens come back empty, so the
- * redirect renders directly from the attendee. Shared by the booking-replay and
- * balance-replay preflights.
- */
-const replaySuccess = async (
-  sessionId: string,
-  attendeeId: number,
-  listingId: number,
-  paymentReference = "",
-): Promise<PaymentResult> => {
+/** Heal a fresh reservation from the ledger's attendee, preserving any tokens
+ * finalized by a racing delivery. The recorded money is never refunded. */
+type ReplaySuccessInput = {
+  attendeeId: number;
+  listingId: number;
+  paymentReference: string;
+  sessionId: string;
+};
+
+const replaySuccess = async ({
+  attendeeId,
+  listingId,
+  paymentReference,
+  sessionId,
+}: ReplaySuccessInput): Promise<PaymentResult> => {
   await finalizeSessionIfUnresolved(sessionId, attendeeId, paymentReference);
-  logDebug("Payment", `Replayed already-ledgered session ${sessionId}`);
   return sessionSuccess(attendeeId, listingId);
 };
 
-/**
- * Acknowledge a session the ledger already accounts for but whose booking is
- * gone — an operator deleted the attendee (its sale/payment legs remain) or it
- * was a refunded quantity-0 placeholder. The money is already recorded, so we
- * neither refund again nor recreate the booking: return a terminal handled
- * outcome (200 — the webhook acks it, the redirect shows it as processed) and
- * leave the orphaned ledger rows for the operator to reconcile.
- */
+/** Acknowledge recorded money whose booking is gone without refunding again or
+ * recreating it; its orphaned ledger rows remain for operator reconciliation. */
 const alreadyHandledSession = (
   sessionId: string,
   listingId: number,
 ): PaymentFailureResult => ({
   detail: `Ledger already records session ${sessionId} with no live booking (listing ${listingId})`,
   error: "This payment has already been processed.",
-  status: 200,
   success: false,
 });
 
-/**
- * The booking-session ledger preflight: the durable ledger — not the prunable
- * processed_payments row — is the source of truth for "already honoured", so
- * before validating, pricing, or refunding, resolve what it already records.
- * Returns the replay outcome for a session it has seen (a live booking replays as
- * success; an orphaned one is acknowledged), or null for a session it has never
- * recorded (process it fresh). The single guard that stops a late replay — after
- * the idempotency row is pruned or lost to a stale-reservation cleanup — from
- * refunding a live ticket via the deleted-listing, price-change, inactive-listing,
- * or capacity refund paths below.
- */
+/** Resolve a booking against the durable ledger before any validation, pricing,
+ * or refund path. This protects live tickets after their idempotency row is lost. */
 const replaySessionFromLedger = async (
   sessionId: string,
   listingId: number,
-): Promise<PaymentResult | null> => {
+  paymentReference: string,
+): Promise<PaymentResult | false> => {
   const disposition = await bookingLedgerDisposition(sessionId);
   switch (disposition.status) {
     case "unrecorded":
-      return null;
+      return false;
     case "booked":
-      return replaySuccess(sessionId, disposition.attendeeId, listingId);
+      return replaySuccess({
+        attendeeId: disposition.attendeeId,
+        listingId,
+        paymentReference,
+        sessionId,
+      });
     case "orphaned":
       return alreadyHandledSession(sessionId, listingId);
   }
 };
 
-/**
- * The balance-settlement counterpart of {@link replaySessionFromLedger}: replay a
- * balance session whose payment leg the ledger already records (its idempotency
- * row was pruned or lost), or null to settle it fresh. The attendee is known from
- * the proof-bound intent, so — unlike the booking path — there is no orphaned
- * case to resolve.
- */
+/** Replay a balance payment already recorded by the ledger, or settle it fresh. */
 const replayBalanceFromLedger = async (
   sessionId: string,
   attendeeId: number,
@@ -194,19 +162,37 @@ const replayBalanceFromLedger = async (
   paymentReference: string,
 ): Promise<PaymentResult | null> =>
   (await eventGroupHasLegs(await balanceEventGroup(sessionId)))
-    ? replaySuccess(sessionId, attendeeId, listingId, paymentReference)
+    ? replaySuccess({ attendeeId, listingId, paymentReference, sessionId })
     : null;
 
-/**
- * Process a session we have just reserved (holding the lock). A signed session
- * either becomes a real ticket or — for ANY reason we can't honour it (charge
- * mismatch, a price edited mid-checkout, a sold-out extra, a full event, a
- * since-deleted listing, or an unexpected error after the charge) — is kept as a
- * quantity-0 placeholder and refunded, so a paid customer is never dropped. Every
- * failure returned here is a handled terminal outcome; processPaymentSession
- * records it so a later redirect/webhook replays the same result instead of
- * re-running refunds or stalling behind the idempotency lock.
- */
+/** Refund an unexpected create failure only while its primary reservation is
+ * still unresolved. A finalized or ambiguous row may own a live ticket. */
+const storeUnexpectedRefund = async (
+  session: ValidatedSession["session"],
+  intent: BookingIntent,
+  placeholders: ReturnType<typeof placeholderBookings>,
+  error: unknown,
+): Promise<PaymentFailureResult> => {
+  const unresolved = await queryOnePrimary<{ present: number }>(
+    `SELECT 1 AS present FROM processed_payments
+     WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
+    [session.id],
+  );
+  if (unresolved === null) {
+    throw error;
+  }
+  return storeRefundedBooking(
+    session,
+    intent,
+    placeholders,
+    refundSpec("unexpected_error")(
+      `Unexpected error completing session ${session.id}: ${String(error)}`,
+    ),
+  );
+};
+
+/** Process a reserved session into a ticket or handled terminal outcome. Errors
+ * after an atomic booking commit propagate rather than refunding a live ticket. */
 const processReservedSession: SessionProcessor = async (
   sessionId,
   data,
@@ -241,8 +227,12 @@ const processReservedSession: SessionProcessor = async (
   // or refund path runs below — so a late delivery (after the prunable idempotency
   // row is gone) never refunds a live ticket via the deleted-listing, price-change,
   // inactive-listing, or capacity paths, nor double-books it.
-  const replay = await replaySessionFromLedger(sessionId, signedListingId);
-  if (replay) return replay;
+  const replay = await replaySessionFromLedger(
+    sessionId,
+    signedListingId,
+    session.paymentReference,
+  );
+  if (replay !== false) return replay;
 
   // Phase 2: Validate listings.
   const validated = await validateAllItems(session, intent);
@@ -308,14 +298,9 @@ const processReservedSession: SessionProcessor = async (
       pricedOrder,
     );
   } catch (error) {
-    return storeRefundedBooking(
-      session,
-      intent,
-      placeholders,
-      refundSpec("unexpected_error")(
-        `Unexpected error completing session ${session.id}: ${String(error)}`,
-      ),
-    );
+    // The atomic create may have committed before result handling or the client
+    // threw. Recheck its reservation on the primary before moving money.
+    return storeUnexpectedRefund(session, intent, placeholders, error);
   }
   if (!honoured.ok) {
     return storeRefundedBooking(
