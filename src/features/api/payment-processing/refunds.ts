@@ -139,6 +139,13 @@ const priceMismatchRefund = (
 ): Promise<PaymentResult> =>
   refundAndFail(session, PRICE_CHANGED_MESSAGE, listingId, 409, detail);
 
+/** The internal log line for a charge that didn't match our signed total. */
+const chargedVsSigned = (
+  session: ValidatedPaymentSession,
+  agreed: number,
+): string =>
+  `Provider charged ${session.amountTotal} but signed total was ${agreed}`;
+
 /**
  * Refund a session the provider charged for an amount other than our signed
  * total. Defers the alert so a slow ntfy never delays the money.
@@ -151,7 +158,7 @@ export const refuseMismatch = (
   addPendingWork(sendNtfyError(ErrorCode.WEBHOOK_PRICE_SIGNATURE));
   return priceMismatchRefund(
     session,
-    `Provider charged ${session.amountTotal} but signed total was ${agreed}`,
+    chargedVsSigned(session, agreed),
     listingId,
   );
 };
@@ -169,54 +176,64 @@ export type RefundSpec = {
   notify?: ErrorCodeType;
 };
 
-export const priceChangedSpec = (detail: string): RefundSpec => ({
-  code: "price_changed",
-  detail,
-  reason: "the listing price changed while they were paying",
-});
+/**
+ * Every reason we keep-and-refund a signed booking, as one table: the
+ * operator-facing phrase for the system note, plus (where the failure means a
+ * broken promise rather than plain bad luck) the alert to page. Unexpected
+ * errors and removed listings page because someone should look; a full event
+ * or a sold-out extra is normal operation.
+ */
+const REFUND_REASONS = {
+  capacity_full: { reason: "the event filled up while they were paying" },
+  charge_mismatch: {
+    notify: ErrorCode.WEBHOOK_PRICE_SIGNATURE,
+    reason: "the amount charged did not match the agreed total",
+  },
+  listing_removed: {
+    notify: ErrorCode.PAYMENT_SESSION,
+    reason: "the listing was removed while they were paying",
+  },
+  price_changed: {
+    reason: "the listing price changed while they were paying",
+  },
+  sold_out: {
+    reason: "an add-on or extra they chose sold out while they were paying",
+  },
+  unexpected_error: {
+    notify: ErrorCode.PAYMENT_SESSION,
+    reason: "an unexpected error stopped the booking being completed",
+  },
+} as const satisfies Record<string, { reason: string; notify?: ErrorCodeType }>;
 
+export type RefundCode = keyof typeof REFUND_REASONS;
+
+/** Build the RefundSpec for a reason code: the table supplies the note phrase
+ *  and any alert, the caller supplies the internal log line (ids/prices, never
+ *  PII). */
+export const refundSpec =
+  (code: RefundCode) =>
+  (detail: string): RefundSpec => ({
+    code,
+    detail,
+    ...REFUND_REASONS[code],
+  });
+
+/** A payment the provider charged for a different amount than our signed total. */
 export const chargeMismatchSpec = (
   session: ValidatedPaymentSession,
   agreed: number,
-): RefundSpec => ({
-  code: "charge_mismatch",
-  detail: `Provider charged ${session.amountTotal} but signed total was ${agreed}`,
-  notify: ErrorCode.WEBHOOK_PRICE_SIGNATURE,
-  reason: "the amount charged did not match the agreed total",
-});
-
-export const soldOutSpec = (detail: string): RefundSpec => ({
-  code: "sold_out",
-  detail,
-  reason: "an add-on or extra they chose sold out while they were paying",
-});
-
-export const capacitySpec = (detail: string): RefundSpec => ({
-  code: "capacity_full",
-  detail,
-  reason: "the event filled up while they were paying",
-});
-
-/** A signed booking that threw an unexpected error after the charge — kept and
- *  refunded rather than crash-looping the webhook over a paid customer. */
-export const unexpectedErrorSpec = (detail: string): RefundSpec => ({
-  code: "unexpected_error",
-  detail,
-  notify: ErrorCode.PAYMENT_SESSION,
-  reason: "an unexpected error stopped the booking being completed",
-});
+): RefundSpec =>
+  refundSpec("charge_mismatch")(chargedVsSigned(session, agreed));
 
 /** A signed booking whose listing was deleted between checkout and payment:
  *  nothing left to honour, but we keep a quantity-0 ghost so the customer (and
  *  their refund) is never lost. */
 export const deletedListingSpec = (
   session: ValidatedPaymentSession,
-): RefundSpec => ({
-  code: "listing_removed",
-  detail: `Listing not found for a signed session (session=${session.id})`,
-  notify: ErrorCode.PAYMENT_SESSION,
-  reason: "the listing was removed while they were paying",
-});
+): RefundSpec =>
+  refundSpec("listing_removed")(
+    `Listing not found for a signed session (session=${session.id})`,
+  );
 
 /**
  * The PII-free system note for a stored-but-refunded booking. Explains in plain
