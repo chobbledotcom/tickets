@@ -218,6 +218,13 @@ describe("adminFooterHtml", () => {
     expect(html).toContain("Chobble Tickets</a>");
   });
 
+  test("wraps the Chobble link in a span so it doesn't stretch the row", () => {
+    const html = adminFooterHtml(null, "owner");
+    expect(html).toContain(
+      '<span class="admin-footer-brand"><a href="https://github.com/chobbledotcom/tickets">Chobble Tickets</a></span>',
+    );
+  });
+
   test("staff see log, guide, and logout links separated by dots", () => {
     const html = adminFooterHtml(null, "owner");
     expect(html).toContain('<div class="admin-footer-links">');
