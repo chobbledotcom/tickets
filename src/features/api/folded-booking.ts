@@ -1,7 +1,14 @@
 import * as v from "valibot";
 import { sumOf } from "#fp";
-import { apiError, apiResponse } from "#routes/api/cors.ts";
-import { resolveCustomPrice, toFormParams } from "#routes/api/helpers.ts";
+import { apiError } from "#routes/api/cors.ts";
+import {
+  bookingSuccessResponse,
+  checkoutFailedResponse,
+  checkoutResponse,
+  resolveCustomPrice,
+  soldOutResponse,
+  toFormParams,
+} from "#routes/api/helpers.ts";
 import {
   type ApiChildSelection,
   ChildrenSchema,
@@ -237,18 +244,14 @@ export const completeFoldedBooking = async (
       date,
       fold.dayCount,
     );
-    if (!available) {
-      return apiError("Sorry, not enough spots available", 409);
-    }
+    if (!available) return soldOutResponse();
     const provider = (await getActivePaymentProvider())!;
     const baseUrl = getBaseUrl(request);
     const result = await provider.createCheckoutSession(intent, baseUrl);
-    if (!result) {
-      return apiError("Failed to create payment session", 500);
-    }
+    if (!result) return checkoutFailedResponse();
     return "error" in result
-      ? apiError(result.error)
-      : apiResponse({ booking: { checkoutUrl: result.checkoutUrl } });
+      ? checkoutFailedResponse(result.error)
+      : checkoutResponse(result.checkoutUrl);
   }
   // Free, or provider-less paid (owes the full value). An owed order must record
   // its gross sale legs in the ledger at creation — the outstanding balance
@@ -270,23 +273,14 @@ export const completeFoldedBooking = async (
     modifierUsages: [],
     remainingBalance,
   });
-  if (!reservation.success) {
-    return apiError("Sorry, not enough spots available", 409);
-  }
+  if (!reservation.success) return soldOutResponse();
   // Notify only after stock is committed, exactly like the standalone API booking
   // (`processBooking`) and the web free path (`handleFreePath`) do after
   // `createFreeReservation`: without this the folded free/provider-less
   // parent booking silently skips the confirmation email, registration webhook,
   // and activity log every other booking path fires.
   await logAndNotifyRegistration(reservation.entries);
-  const attendee = reservation.entries[0]!.attendee;
-  return apiResponse({
-    booking: {
-      amountOwed: attendee.remaining_balance,
-      ticketToken: attendee.ticket_token,
-      ticketUrl: `/t/${attendee.ticket_token}`,
-    },
-  });
+  return bookingSuccessResponse(reservation.entries[0]!.attendee);
 };
 
 /**

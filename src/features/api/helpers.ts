@@ -1,4 +1,4 @@
-import { apiError } from "#routes/api/cors.ts";
+import { apiError, apiResponse } from "#routes/api/cors.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { getClientIp } from "#routes/url.ts";
 import { parseCustomPrice } from "#shared/booking/form.ts";
@@ -10,6 +10,39 @@ import type { ListingWithCount } from "#shared/types.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 
 const LISTING_NOT_FOUND = "Listing not found";
+
+/** The public booking JSON body for a booking that was created: the ticket
+ * link plus any balance left to collect. Shared by the standalone and folded
+ * booking paths so the two spell the contract one way. */
+export const bookingSuccessResponse = (attendee: {
+  remaining_balance: number;
+  ticket_token: string;
+}): Response =>
+  apiResponse({
+    booking: {
+      // Outstanding balance in minor units; 0 when fully paid, positive when
+      // the booking was taken without collecting payment (no provider), so
+      // the integration knows the amount left to collect from the buyer.
+      amountOwed: attendee.remaining_balance,
+      ticketToken: attendee.ticket_token,
+      ticketUrl: `/t/${attendee.ticket_token}`,
+    },
+  });
+
+/** The public booking JSON body sending the buyer to the payment provider's
+ * hosted checkout page to finish paying. */
+export const checkoutResponse = (checkoutUrl: string): Response =>
+  apiResponse({ booking: { checkoutUrl } });
+
+/** 409 for a booking that no longer fits the remaining spots. */
+export const soldOutResponse = (): Response =>
+  apiError("Sorry, not enough spots available", 409);
+
+/** Map a failed checkout-session creation to a response: the provider's own
+ * message when it gave one (a 400 the buyer can act on), otherwise the
+ * generic 500. */
+export const checkoutFailedResponse = (error?: string): Response =>
+  error ? apiError(error) : apiError("Failed to create payment session", 500);
 
 /** Resolve a booking's `quantity` field from a JSON body — defaults to 1 for
  * absent/malformed values, rejects an explicit 0 (the admin-only no-quantity

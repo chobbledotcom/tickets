@@ -1,10 +1,14 @@
-import { apiError, apiResponse } from "#routes/api/cors.ts";
+import { apiError } from "#routes/api/cors.ts";
 import { processParentApiBooking } from "#routes/api/folded-booking.ts";
 import {
+  bookingSuccessResponse,
   checkBookingRateLimit,
+  checkoutFailedResponse,
+  checkoutResponse,
   parseApiJsonBody,
   resolveCustomPrice,
   resolvePositiveQuantity,
+  soldOutResponse,
   toFormParams,
   withActiveListing,
 } from "#routes/api/helpers.ts";
@@ -28,27 +32,16 @@ const bookingResultToResponse = (
 ): Response => {
   switch (result.type) {
     case "success":
-      return apiResponse({
-        booking: {
-          // Outstanding balance in minor units; 0 when fully paid, positive when
-          // the booking was taken without collecting payment (no provider), so
-          // the integration knows the amount left to collect from the buyer.
-          amountOwed: result.attendee.remaining_balance,
-          ticketToken: result.attendee.ticket_token,
-          ticketUrl: `/t/${result.attendee.ticket_token}`,
-        },
-      });
+      return bookingSuccessResponse(result.attendee);
     case "checkout":
-      return apiResponse({ booking: { checkoutUrl: result.checkoutUrl } });
+      return checkoutResponse(result.checkoutUrl);
     case "sold_out":
-      return apiError("Sorry, not enough spots available", 409);
+      return soldOutResponse();
     case "checkout_failed":
-      return result.error
-        ? apiError(result.error)
-        : apiError("Failed to create payment session", 500);
+      return checkoutFailedResponse(result.error);
     case "creation_failed":
       return result.reason === "capacity_exceeded"
-        ? apiError("Sorry, not enough spots available", 409)
+        ? soldOutResponse()
         : apiError("Registration failed. Please try again.", 500);
   }
 };
