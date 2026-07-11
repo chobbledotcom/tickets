@@ -68,31 +68,57 @@ export const durationsCompatible = (
     : childDuration === parentFixedDuration(parent);
 };
 
+/** One edge rule: `rejects` says whether a parent/child pairing breaks it, and
+ * `error` builds its user-facing message. */
+type EdgeRule = {
+  readonly error: (parent: EdgeListing, child: EdgeListing) => string;
+  readonly rejects: (parent: EdgeListing, child: EdgeListing) => boolean;
+};
+
+/** A message builder for the rules whose error names the child. */
+const childError =
+  (messageKey: string) =>
+  (_parent: EdgeListing, child: EdgeListing): string =>
+    t(`listings_table.${messageKey}`, { name: child.name });
+
+/** Every parent→child field rule as data, most fundamental first — the order IS
+ * the precedence: the first rule a pairing breaks decides the error, so a
+ * pairing that breaks several reports the deepest one. A renewal tier can't be
+ * a parent, then can't be a child, then a daily child needs a daily parent,
+ * then the child's span must match the one it inherits. Adding a rule is one
+ * new entry in its precedence slot, never another `if` arm. */
+const EDGE_ERROR_RULES: readonly EdgeRule[] = [
+  {
+    error: (parent) =>
+      t("listings_table.children_err_parent_renewal", { name: parent.name }),
+    rejects: (parent) => parent.months_per_unit > 0,
+  },
+  {
+    error: childError("children_err_child_renewal"),
+    rejects: (_parent, child) => child.months_per_unit > 0,
+  },
+  {
+    error: childError("children_err_child_daily"),
+    rejects: (parent, child) =>
+      child.listing_type === "daily" && parent.listing_type !== "daily",
+  },
+  {
+    error: childError("children_err_child_duration"),
+    rejects: (parent, child) => !durationsCompatible(parent, child),
+  },
+];
+
 /**
  * The user-facing error for a single parent→child edge whose listing *fields*
- * are incompatible (renewal tier on either side, a daily child under a non-daily
- * parent, or a span the child can't match), or null when the edge is allowed.
- * Field-only: structural nesting is checked separately by the editor.
+ * are incompatible — the first {@link EDGE_ERROR_RULES} entry the pairing
+ * breaks — or null when the edge is allowed. Field-only: structural nesting is
+ * checked separately by the editor.
  */
 export const edgeFieldError = (
   parent: EdgeListing,
   child: EdgeListing,
-): string | null => {
-  if (parent.months_per_unit > 0) {
-    return t("listings_table.children_err_parent_renewal", {
-      name: parent.name,
-    });
-  }
-  if (child.months_per_unit > 0) {
-    return t("listings_table.children_err_child_renewal", { name: child.name });
-  }
-  if (child.listing_type === "daily" && parent.listing_type !== "daily") {
-    return t("listings_table.children_err_child_daily", { name: child.name });
-  }
-  if (!durationsCompatible(parent, child)) {
-    return t("listings_table.children_err_child_duration", {
-      name: child.name,
-    });
-  }
-  return null;
-};
+): string | null =>
+  EDGE_ERROR_RULES.find((rule) => rule.rejects(parent, child))?.error(
+    parent,
+    child,
+  ) ?? null;
