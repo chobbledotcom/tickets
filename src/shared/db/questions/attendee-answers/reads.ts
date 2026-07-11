@@ -5,7 +5,7 @@
  * the owner-key-decrypted free-text table cells.
  */
 
-import { groupBy, mapParallel } from "#fp";
+import { groupToMap, mapParallel } from "#fp";
 import { decryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
@@ -15,14 +15,10 @@ import { getQuestionsWithListingIds } from "#shared/db/questions/queries.ts";
 import { answersTable } from "#shared/db/questions/tables.ts";
 
 /** Group `(attendee_id, answer_id)` rows into an attendee → answer-ids map. */
-const choiceAnswerMapFromRows = (
-  rows: { attendee_id: number; answer_id: number }[],
-): Map<number, number[]> =>
-  new Map(
-    [...groupBy(rows, (r) => r.attendee_id)].map(
-      ([id, rs]) => [id, rs.map((r) => r.answer_id)] as const,
-    ),
-  );
+const choiceAnswerMapFromRows = groupToMap(
+  (r: { attendee_id: number; answer_id: number }) => r.attendee_id,
+  (r) => r.answer_id,
+);
 
 /** Load `attendee_answers` rows for a set of attendees, restricted to rows where
  * `column` is set (non-null). Returns an empty array for an empty attendee
@@ -105,14 +101,15 @@ export const getAttendeeTextAnswersBatch = async (
     questionId: row.question_id,
     text: await decryptWithOwnerKey(row.encrypted_text, privateKey),
   }))(rows);
+  const textPairsByAttendee = groupToMap(
+    (d: (typeof decrypted)[number]) => d.attendeeId,
+    (d) => [d.questionId, d.text] as const,
+  )(decrypted);
   return new Map(
-    [...groupBy(decrypted, (d) => d.attendeeId)].map(
-      ([attendeeId, group]) =>
-        [
-          attendeeId,
-          new Map(group.map((d) => [d.questionId, d.text] as const)),
-        ] as const,
-    ),
+    [...textPairsByAttendee].map(([attendeeId, pairs]) => [
+      attendeeId,
+      new Map(pairs),
+    ]),
   );
 };
 

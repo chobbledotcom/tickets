@@ -7,7 +7,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { filter, groupBy, map, mapParallel, reduce } from "#fp";
+import { filter, groupBy, groupToMap, map, mapParallel, reduce } from "#fp";
 import {
   executeBatch,
   inPlaceholders,
@@ -150,11 +150,10 @@ export const getAllQuestionListingIds = async (): Promise<
     `SELECT question_id, listing_id FROM listing_questions
      ORDER BY question_id, listing_id`,
   );
-  return new Map(
-    [...groupBy(rows, (r) => r.question_id)].map(
-      ([qid, rs]) => [qid, rs.map((r) => r.listing_id)] as const,
-    ),
-  );
+  return groupToMap(
+    (r: (typeof rows)[number]) => r.question_id,
+    (r) => r.listing_id,
+  )(rows);
 };
 
 /** Get the IDs of the listings a question is assigned to */
