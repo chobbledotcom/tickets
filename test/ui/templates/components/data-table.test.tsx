@@ -77,39 +77,51 @@ describe("dataTable", () => {
   });
 
   test("wraps the table in a plain table-scroll div by default", () => {
+    // No scrollClass and no tableClass — the wrapper opens exactly here.
     const html = String(dataTable(columns)(rows));
-    expect(html).toContain('<div class="table-scroll">');
+    expect(html.startsWith('<div class="table-scroll"><table><thead>')).toBe(
+      true,
+    );
   });
 
-  test("renders a tfoot only when foot content is given", () => {
-    expect(String(dataTable(columns)(rows))).not.toContain("<tfoot>");
+  test("renders a tfoot, in its exact place, only when foot content is given", () => {
+    // Without foot the table closes straight after the body — no tfoot node.
+    expect(
+      String(dataTable(columns)(rows)).endsWith("</tbody></table></div>"),
+    ).toBe(true);
 
     const withFoot = String(
       dataTable(columns)(rows, { foot: <tr>{<td>Total</td>}</tr> }),
     );
-    expect(withFoot).toContain("<tfoot><tr><td>Total</td></tr></tfoot>");
+    expect(withFoot).toContain(
+      "</tbody><tfoot><tr><td>Total</td></tr></tfoot></table></div>",
+    );
   });
 });
 
 describe("DataTable row shapes", () => {
   const cols: Column[] = [{ header: "H" }];
+  // The full serialisation for a single "H" column, parameterised by the tbody
+  // contents — asserted exactly so a stray or misplaced node fails the test.
+  const table = (body: string): string =>
+    `<div class="table-scroll"><table><thead><tr><th>H</th></tr></thead>` +
+    `<tbody>${body}</tbody></table></div>`;
 
   test("wraps positional cell arrays in tr/td", () => {
-    const html = String(DataTable({ columns: cols, rows: [["cell-a"]] }));
-    expect(html).toContain("<tbody><tr><td>cell-a</td></tr></tbody>");
+    expect(String(DataTable({ columns: cols, rows: [["cell-a"]] }))).toBe(
+      table("<tr><td>cell-a</td></tr>"),
+    );
   });
 
   test("renders pre-built <tr> elements as-is", () => {
-    const html = String(
-      DataTable({ columns: cols, rows: [<tr>{<td>pre</td>}</tr>] }),
-    );
-    expect(html).toContain("<tbody><tr><td>pre</td></tr></tbody>");
+    expect(
+      String(DataTable({ columns: cols, rows: [<tr>{<td>pre</td>}</tr>] })),
+    ).toBe(table("<tr><td>pre</td></tr>"));
   });
 
   test("passes a pre-rendered HTML string straight into the tbody", () => {
-    const html = String(
-      DataTable({ columns: cols, rows: "<tr><td>raw</td></tr>" }),
-    );
-    expect(html).toContain("<tbody><tr><td>raw</td></tr></tbody>");
+    expect(
+      String(DataTable({ columns: cols, rows: "<tr><td>raw</td></tr>" })),
+    ).toBe(table("<tr><td>raw</td></tr>"));
   });
 });
