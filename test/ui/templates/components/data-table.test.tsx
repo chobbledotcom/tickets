@@ -76,26 +76,26 @@ describe("dataTable", () => {
     expect(seen).toEqual({ count: 2, i: 1 });
   });
 
-  test("wraps the table in a plain table-scroll div by default", () => {
-    // No scrollClass and no tableClass — the wrapper opens exactly here.
-    const html = String(dataTable(columns)(rows));
-    expect(html.startsWith('<div class="table-scroll"><table><thead>')).toBe(
-      true,
-    );
+  // The full serialisation for the `columns`/`rows` fixtures, parameterised by
+  // the optional <tfoot> — asserted exactly so a stray node fails.
+  const dtTable = (foot = ""): string =>
+    `<div class="table-scroll"><table>` +
+    `<thead><tr><th>Name</th><th class="col-amount">Amount</th></tr></thead>` +
+    `<tbody><tr><td><a href="/r/1">First</a></td>` +
+    `<td class="col-amount">10</td></tr>` +
+    `<tr><td><a href="/r/2">Second</a></td>` +
+    `<td class="col-amount">20</td></tr></tbody>${foot}</table></div>`;
+
+  test("wraps the table in a plain table-scroll div with no tfoot by default", () => {
+    // No scrollClass/tableClass and no foot — the whole serialisation is fixed.
+    expect(String(dataTable(columns)(rows))).toBe(dtTable());
   });
 
-  test("renders a tfoot, in its exact place, only when foot content is given", () => {
-    // Without foot the table closes straight after the body — no tfoot node.
-    expect(
-      String(dataTable(columns)(rows)).endsWith("</tbody></table></div>"),
-    ).toBe(true);
-
+  test("renders the tfoot in its exact place when foot content is given", () => {
     const withFoot = String(
       dataTable(columns)(rows, { foot: <tr>{<td>Total</td>}</tr> }),
     );
-    expect(withFoot).toContain(
-      "</tbody><tfoot><tr><td>Total</td></tr></tfoot></table></div>",
-    );
+    expect(withFoot).toBe(dtTable("<tfoot><tr><td>Total</td></tr></tfoot>"));
   });
 });
 
