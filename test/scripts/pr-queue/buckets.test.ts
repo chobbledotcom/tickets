@@ -119,6 +119,32 @@ describe("summarizePr buckets and facts", () => {
     expect(s.facts).toEqual(["is behind develop and needs develop merged in"]);
   });
 
+  describe("truncated connections never read as authoritative READY", () => {
+    const TRUNCATION_FACT =
+      "has more review threads, reviewers, or checks than were fetched — re-run to see the full picture";
+    const truncationCases: Array<{ name: string; opts: PrFixture }> = [
+      {
+        name: "truncated review threads wait instead of READY",
+        opts: { truncated: { threads: true } },
+      },
+      {
+        name: "truncated requested reviewers wait instead of READY",
+        opts: { truncated: { reviewers: true } },
+      },
+      {
+        name: "truncated CI checks wait instead of READY",
+        opts: { truncated: { checks: true } },
+      },
+    ];
+    for (const { name, opts } of truncationCases) {
+      test(name, () => {
+        const s = summarizePr(makePr(opts));
+        expect(s.bucket).toBe("WAITING");
+        expect(s.facts).toEqual([TRUNCATION_FACT]);
+      });
+    }
+  });
+
   test("merge state UNKNOWN does not double up while mergeability is also unknown", () => {
     const s = summarizePr(
       makePr({ mergeable: "UNKNOWN", mergeStateStatus: "UNKNOWN" }),

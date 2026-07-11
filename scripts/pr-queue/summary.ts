@@ -278,7 +278,24 @@ const PR_SIGNALS: PrSignal[] = [
     bucket: "WAITING",
     message: () => "has no CI checks yet",
   },
+  {
+    // GitHub returned more of this PR's threads, reviewers, or checks than we
+    // fetched, so an omitted open comment or failing check could otherwise let
+    // it read as READY. Never present truncated data as authoritative — wait.
+    applies: ({ truncated }) => truncated,
+    bucket: "WAITING",
+    message: () =>
+      "has more review threads, reviewers, or checks than were fetched — re-run to see the full picture",
+  },
 ];
+
+/** True when GitHub cut off any of this PR's connections at its first page. */
+const hasTruncatedConnection = (pr: GraphQlPr): boolean =>
+  pr.reviewThreads.pageInfo.hasNextPage ||
+  pr.reviewRequests.pageInfo.hasNextPage ||
+  (pr.commits.nodes[0]?.commit.statusCheckRollup?.contexts.pageInfo
+    .hasNextPage ??
+    false);
 
 /** Build the pre-computed context every signal reads, from one raw PR. */
 const buildContext = (pr: GraphQlPr): PrContext => {
@@ -294,6 +311,7 @@ const buildContext = (pr: GraphQlPr): PrContext => {
     mergeQueued: pr.mergeQueueEntry,
     pr,
     reviewers: requestedReviewers(pr),
+    truncated: hasTruncatedConnection(pr),
   };
 };
 

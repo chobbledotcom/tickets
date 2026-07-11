@@ -46,6 +46,8 @@ export type PrFixture = {
       };
   threads?: ThreadFixture[];
   reviewers?: ReviewerFixture[];
+  /** Mark a connection's `pageInfo.hasNextPage` true (GitHub truncated it). */
+  truncated?: { threads?: boolean; reviewers?: boolean; checks?: boolean };
 };
 
 export const checkRun = (
@@ -62,6 +64,7 @@ export const statusContext = (
 
 const buildChecks = (
   checks: NonNullable<PrFixture["checks"]>,
+  checksTruncated: boolean,
 ): GraphQlPr["commits"]["nodes"][number]["commit"]["statusCheckRollup"] => {
   if (checks === "none") return null;
   const passing = (checks.passing ?? []).map((name) =>
@@ -100,7 +103,7 @@ const buildChecks = (
   const hasFailures = failing.length + ctxFailing.length + ctxError.length > 0;
   const hasPending = pending.length + ctxPending.length > 0;
   return {
-    contexts: { nodes, pageInfo: { hasNextPage: false } },
+    contexts: { nodes, pageInfo: { hasNextPage: checksTruncated } },
     state: hasFailures ? "FAILURE" : hasPending ? "PENDING" : "SUCCESS",
   };
 };
@@ -112,7 +115,10 @@ export const makePr = (opts: PrFixture = {}): GraphQlPr => ({
     nodes: [
       {
         commit: {
-          statusCheckRollup: buildChecks(opts.checks ?? { passing: ["test"] }),
+          statusCheckRollup: buildChecks(
+            opts.checks ?? { passing: ["test"] },
+            opts.truncated?.checks ?? false,
+          ),
         },
       },
     ],
@@ -128,7 +134,7 @@ export const makePr = (opts: PrFixture = {}): GraphQlPr => ({
     nodes: (opts.reviewers ?? []).map((r) =>
       "absent" in r ? { requestedReviewer: null } : { requestedReviewer: r },
     ),
-    pageInfo: { hasNextPage: false },
+    pageInfo: { hasNextPage: opts.truncated?.reviewers ?? false },
   },
   reviewThreads: {
     nodes: (opts.threads ?? []).map((t) => ({
@@ -138,7 +144,7 @@ export const makePr = (opts: PrFixture = {}): GraphQlPr => ({
       isOutdated: t.outdated ?? false,
       isResolved: t.resolved ?? false,
     })),
-    pageInfo: { hasNextPage: false },
+    pageInfo: { hasNextPage: opts.truncated?.threads ?? false },
   },
   title: "Some PR",
   updatedAt: "2026-07-10T12:00:00Z",

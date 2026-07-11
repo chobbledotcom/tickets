@@ -10,6 +10,7 @@
  * understated count. This module is pure, so it is unit-tested directly.
  */
 
+import { compact, flatMap } from "#fp";
 import type { GraphQlPr } from "./types.ts";
 
 /** How many nodes we ask for from each connection in the single query. */
@@ -24,6 +25,20 @@ export const PAGE_SIZES = {
 const latestChecks = (pr: GraphQlPr) =>
   pr.commits.nodes[0]?.commit.statusCheckRollup?.contexts ?? null;
 
+/** The truncation warnings a single PR contributes, in connection order. */
+const prWarnings = (pr: GraphQlPr): string[] =>
+  compact([
+    pr.reviewThreads.pageInfo.hasNextPage
+      ? `PR #${pr.number}: more than ${PAGE_SIZES.threads} review threads — some open comments may be missing.`
+      : null,
+    pr.reviewRequests.pageInfo.hasNextPage
+      ? `PR #${pr.number}: more than ${PAGE_SIZES.reviewers} requested reviewers — some may be missing.`
+      : null,
+    latestChecks(pr)?.pageInfo.hasNextPage
+      ? `PR #${pr.number}: more than ${PAGE_SIZES.checks} checks — its CI status may be incomplete.`
+      : null,
+  ]);
+
 /**
  * One warning line per connection that GitHub says has more pages than we
  * fetched — so a partial report announces what it left out instead of showing
@@ -32,29 +47,11 @@ const latestChecks = (pr: GraphQlPr) =>
 export const truncationWarnings = (
   prs: GraphQlPr[],
   morePrs: boolean,
-): string[] => {
-  const warnings: string[] = [];
-  if (morePrs) {
-    warnings.push(
-      `More than ${PAGE_SIZES.prs} open PRs — only the ${PAGE_SIZES.prs} most recently updated are shown; older ones are omitted.`,
-    );
-  }
-  for (const pr of prs) {
-    if (pr.reviewThreads.pageInfo.hasNextPage) {
-      warnings.push(
-        `PR #${pr.number}: more than ${PAGE_SIZES.threads} review threads — some open comments may be missing.`,
-      );
-    }
-    if (pr.reviewRequests.pageInfo.hasNextPage) {
-      warnings.push(
-        `PR #${pr.number}: more than ${PAGE_SIZES.reviewers} requested reviewers — some may be missing.`,
-      );
-    }
-    if (latestChecks(pr)?.pageInfo.hasNextPage) {
-      warnings.push(
-        `PR #${pr.number}: more than ${PAGE_SIZES.checks} checks — its CI status may be incomplete.`,
-      );
-    }
-  }
-  return warnings;
-};
+): string[] => [
+  ...(morePrs
+    ? [
+        `More than ${PAGE_SIZES.prs} open PRs — only the ${PAGE_SIZES.prs} most recently updated are shown; older ones are omitted.`,
+      ]
+    : []),
+  ...flatMap(prWarnings)(prs),
+];

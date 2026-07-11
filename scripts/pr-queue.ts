@@ -20,6 +20,7 @@
 
 import { PAGE_SIZES, truncationWarnings } from "./pr-queue/pagination.ts";
 import { renderReport } from "./pr-queue/render.ts";
+import { sanitizeSummary, stripControlChars } from "./pr-queue/sanitize.ts";
 import { summarizePr } from "./pr-queue/summary.ts";
 import type { GraphQlPr, PrSummary } from "./pr-queue/types.ts";
 import { red, yellow } from "./precommit/colors.ts";
@@ -200,19 +201,23 @@ const fetchQueue = async (
   name: string,
 ): Promise<{ prs: GraphQlPr[]; morePrs: boolean }> => {
   const data = await runGraphQL(QUERY, { name, owner });
-  const pullRequests = (
+  // `runGraphQL` already exits on any GraphQL error, so a successful response for
+  // a real repo always carries `repository.pullRequests`. Read it directly (no
+  // optional chaining or empty default) so a malformed payload throws loudly
+  // instead of being presented as an empty "0 open" queue.
+  const { pullRequests } = (
     data as {
-      repository?: {
-        pullRequests?: {
+      repository: {
+        pullRequests: {
           pageInfo: { hasNextPage: boolean };
           nodes: GraphQlPr[];
         };
       };
     }
-  ).repository?.pullRequests;
-  const prs = pullRequests?.nodes ?? [];
+  ).repository;
+  const prs = pullRequests.nodes;
   await refetchUnknownMergeability(owner, name, prs);
-  return { morePrs: pullRequests?.pageInfo.hasNextPage ?? false, prs };
+  return { morePrs: pullRequests.pageInfo.hasNextPage, prs };
 };
 
 /** Resolve the repo owner/name from `--repo`, else `gh repo view`. */
@@ -220,8 +225,11 @@ const resolveRepo = async (
   override?: string,
 ): Promise<{ owner: string; name: string } | null> => {
   if (override) {
-    const [owner, name] = override.split("/");
-    if (!owner || !name) {
+    const parts = override.split("/");
+    const [owner, name] = parts;
+    // Exactly two non-empty segments: reject "owner/name/extra" so a stray
+    // path can't silently target owner/name.
+    if (parts.length !== 2 || !owner || !name) {
       console.error(red(`--repo must be "owner/name", got "${override}"`));
       return null;
     }
@@ -260,13 +268,14 @@ const parseArgs = (
   let help = false;
   let json = false;
   let repo: string | undefined;
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
+  const rest = [...args];
+  while (rest.length > 0) {
+    const arg = rest.shift();
     if (arg === "--json") json = true;
     else if (arg === "--repo") {
       // Reject a trailing "--repo" with no value rather than silently falling
       // back to repo auto-detection and hiding the user's typo.
-      const value = args[++i];
+      const value = rest.shift();
       if (value === undefined) {
         console.error(red("--repo requires a value"));
         Deno.exit(2);
@@ -291,8 +300,13 @@ const main = async (): Promise<void> => {
   for (const warning of truncationWarnings(prs, morePrs)) {
     console.error(yellow(`⚠ ${warning}`));
   }
+  // Strip control characters once, before either output mode — so a crafted PR
+  // title can't inject ANSI into the terminal report or into `--json` piped to
+  // a terminal (JSON.stringify leaves C1 bytes unescaped).
+  const repoLabel = stripControlChars(`${repo.owner}/${repo.name}`);
   const summaries: PrSummary[] = prs
     .map(summarizePr)
+    .map(sanitizeSummary)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
   if (json) {
@@ -301,7 +315,7 @@ const main = async (): Promise<void> => {
         {
           open: summaries.length,
           pullRequests: summaries,
-          repo: `${repo.owner}/${repo.name}`,
+          repo: repoLabel,
         },
         null,
         2,
@@ -309,7 +323,7 @@ const main = async (): Promise<void> => {
     );
     return;
   }
-  console.log(renderReport(`${repo.owner}/${repo.name}`, summaries));
+  console.log(renderReport(repoLabel, summaries));
 };
 
 main();

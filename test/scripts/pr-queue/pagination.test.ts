@@ -4,8 +4,11 @@ import { truncationWarnings } from "../../../scripts/pr-queue/pagination.ts";
 import type { GraphQlPr } from "../../../scripts/pr-queue/types.ts";
 import { makePr } from "./fixtures.ts";
 
+// makePr() always builds a commit with a check rollup for callers in this file,
+// so these are non-null assertions rather than optional chaining (which would
+// add an unreachable branch under the repo's 100% coverage requirement).
 const rollupContexts = (pr: GraphQlPr) =>
-  pr.commits.nodes[0]?.commit.statusCheckRollup?.contexts;
+  pr.commits.nodes[0]!.commit.statusCheckRollup!.contexts;
 
 // The warnings quote the fetched page sizes verbatim, so they are pinned as
 // literals here (not re-derived from PAGE_SIZES) — otherwise a mutant that
@@ -39,9 +42,7 @@ describe("truncationWarnings", () => {
 
   test("warns per PR when its checks are truncated", () => {
     const pr = makePr();
-    const contexts = rollupContexts(pr);
-    if (!contexts) throw new Error("fixture must have a check rollup");
-    contexts.pageInfo.hasNextPage = true;
+    rollupContexts(pr).pageInfo.hasNextPage = true;
     expect(truncationWarnings([pr], false)).toEqual([
       "PR #42: more than 50 checks — its CI status may be incomplete.",
     ]);
@@ -52,15 +53,15 @@ describe("truncationWarnings", () => {
     expect(truncationWarnings([pr], false)).toEqual([]);
   });
 
-  test("collects every truncated connection across the queue", () => {
+  test("collects every truncated connection across the queue, in order", () => {
     const withThreads = makePr();
     withThreads.reviewThreads.pageInfo.hasNextPage = true;
     const withReviewers = makePr();
     withReviewers.reviewRequests.pageInfo.hasNextPage = true;
-    const warnings = truncationWarnings([withThreads, withReviewers], true);
-    expect(warnings).toHaveLength(3);
-    expect(warnings[0]).toContain("More than");
-    expect(warnings[1]).toContain("review threads");
-    expect(warnings[2]).toContain("requested reviewers");
+    expect(truncationWarnings([withThreads, withReviewers], true)).toEqual([
+      "More than 60 open PRs — only the 60 most recently updated are shown; older ones are omitted.",
+      "PR #42: more than 100 review threads — some open comments may be missing.",
+      "PR #42: more than 20 requested reviewers — some may be missing.",
+    ]);
   });
 });

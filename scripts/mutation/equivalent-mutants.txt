@@ -837,13 +837,19 @@ scripts/pr-queue/summary.ts:166:24  return null → return undefined    # reques
 # scripts/pr-queue/render.ts — Object.groupBy leaves a bucket key undefined when
 # empty and a non-empty array otherwise, so neither `??` operand is ever
 # falsy-but-non-null (an empty group has no key, never a length-0 array).
-scripts/pr-queue/render.ts:103:29  ?? → ||    # byBucket[b]?.length: number|undefined; a present group has length>=1, so only falsy value is undefined === fallback 0
-scripts/pr-queue/render.ts:112:36  ?? → ||    # byBucket[b]: array|undefined; an array is always truthy, so ?? and || agree
+scripts/pr-queue/render.ts:93:29  ?? → ||    # byBucket[b]?.length: number|undefined; a present group has length>=1, so only falsy value is undefined === fallback 0
+scripts/pr-queue/render.ts:102:36  ?? → ||    # byBucket[b]: array|undefined; an array is always truthy, so ?? and || agree
 
 # scripts/pr-queue/pagination.ts — the rollup contexts connection is an object
 # or (via optional chaining) undefined; an object is always truthy, so the
 # `?? null` fallback and `|| null` agree on every value it can hold.
-scripts/pr-queue/pagination.ts:25:58  ?? → ||    # statusCheckRollup?.contexts: object|undefined; object is truthy, so ?? and || agree
+scripts/pr-queue/pagination.ts:26:58  ?? → ||    # statusCheckRollup?.contexts: object|undefined; object is truthy, so ?? and || agree
+
+# scripts/pr-queue/summary.ts — hasTruncatedConnection's `<boolean|undefined> ?? false`:
+# for a boolean the only falsy-non-null value is `false`, and `false ?? false`
+# === `false || false` === false, so ?? and || agree on every value.
+scripts/pr-queue/summary.ts:297:17  ?? → ||    # hasNextPage is boolean|undefined; false ?? false === false || false, so ?? and || agree
+
 # dates.ts — provably-equivalent survivors from the whole-file run over the
 # dates suites. Each is unobservable through every export that reaches the line.
 src/shared/dates.ts:51:24  0 → 1    # DAYS_IN_MONTH[0] is a 1-indexing placeholder; daysInMonth's month is always getUTCMonth()+1 (1-12), so index 0 is never read

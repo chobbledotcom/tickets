@@ -114,44 +114,6 @@ describe("renderReport", () => {
     expect(lines.length).toBeGreaterThan(2);
   });
 
-  test("strips control characters from GitHub-sourced text so a PR can't inject ANSI", () => {
-    // A crafted title/branch/fact carrying its own ESC/bell bytes must not reach
-    // the terminal — the control bytes are removed, the visible text remains.
-    const out = renderReport(
-      "o/n",
-      [
-        summary({
-          branch: "ev\u0007il",
-          bucket: "ATTENTION",
-          facts: ["did \u001b[31msomething\u001b[0m"],
-          number: 9,
-          title: "clear\u001b[2Jscreen",
-        }),
-      ],
-      clock,
-    );
-    // The visible characters remain, with the control bytes removed.
-    expect(out).toContain("evil");
-    expect(out).toContain("clear[2Jscreen");
-    expect(out).toContain("did [31msomething[0m");
-    // The injected raw bytes do not survive: the bell, and the ESC-[2J screen
-    // clear (which the report's own colour codes never contain).
-    expect(out).not.toContain("\u0007");
-    expect(out).not.toContain("\u001b[2J");
-  });
-
-  test("strips C1 control bytes but keeps printable non-ASCII characters", () => {
-    // "café" + a NEL (U+0085, a C1 control) + "menu": the accented é must
-    // survive while the C1 byte is removed, pinning both edges of the range.
-    const out = renderReport(
-      "o/n",
-      [summary({ bucket: "READY", title: "caf\u00e9\u0085menu" })],
-      clock,
-    );
-    expect(out).toContain("caf\u00e9menu");
-    expect(out).not.toContain("\u0085");
-  });
-
   test("PRs older than a week show a day-count age and are flagged stale", () => {
     const out = renderReport(
       "o/n",

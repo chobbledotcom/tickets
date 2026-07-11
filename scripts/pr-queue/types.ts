@@ -61,6 +61,8 @@ export interface PrContext {
   mergeQueued: MergeQueueEntry | null;
   /** The branch this PR merges into (e.g. "main"), named in "behind" facts. */
   baseRef: string;
+  /** GitHub cut off one of this PR's connections, so its data may be incomplete. */
+  truncated: boolean;
 }
 
 /**
