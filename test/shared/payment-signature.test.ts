@@ -58,7 +58,8 @@ const excludedKeys: [string, Record<string, string>][] = [
 /** Tiny deterministic PRNG so the fuzz loop is repeatable. */
 const lcg = (seed: number) => () => {
   seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-  return seed / 0x7fffffff;
+  // Divide by 2^31 (not 2^31-1) so the result stays in [0, 1).
+  return seed / 0x80000000;
 };
 
 describeWithEnv("payment price signature", { encryptionKey: true }, () => {
