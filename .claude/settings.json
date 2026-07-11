@@ -26,9 +26,8 @@
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
-      "Bash(git show:*)",
-      "Bash(git branch:*)",
-      "Bash(git fetch:*)"
+      "Bash(git branch --show-current)",
+      "Bash(git fetch origin:*)"
     ]
   },
   "hooks": {
@@ -37,7 +36,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./setup.sh",
+            "command": "./setup.sh && { D=\"$HOME/.deno/bin/deno\"; if [ -x \"$D\" ]; then mkdir -p \"$HOME/.local/bin\" && ln -sf \"$D\" \"$HOME/.local/bin/deno\"; [ -n \"${CLAUDE_ENV_FILE:-}\" ] && printf 'export PATH=\"%s/.local/bin:%s/.deno/bin:$PATH\"\\n' \"$HOME\" \"$HOME\" >> \"$CLAUDE_ENV_FILE\"; fi; } || true",
             "timeout": 300,
             "statusMessage": "Installing pinned Deno toolchain and caching deps..."
           }
