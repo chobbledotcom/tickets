@@ -368,22 +368,6 @@ look.
   fail-closed behaviour. See the "Respect the subrequest budget" guidance in
   AGENTS.md.
 
-## Cold start: lazy-load the migration implementations (from PR #1714)
-
-*Origin: `docs/cold-start.md`.* `src/shared/db/migrations.ts` statically
-imports every per-migration module (~70 files) — the bulk of the remaining
-~120 eager `#shared/db/*` modules. A steady-state boot only needs each
-migration's *id* and description plus `LATEST_UPDATE`/`SCHEMA_HASH`; the fix is
-a metadata registry of `{ id, description, load: () => import(...) }` entries
-awaited only for pending migrations. Fresh setup must seal migration history
-from metadata without loading implementations, while migration tests need an
-explicit implementation loader. Confirm esbuild preserves deferred evaluation
-in Bunny's single-file bundle rather than folding imports back into eager work.
-Deferred: it touches every migration module and `runMigrations`' control flow
-(see the load-bearing baseline test in `test/shared/db/migrations.test.ts`)
-for a slice of ~80ms of CPU. Re-measure with
-`scripts/bench/cold-start/bundle-load.ts` before and after.
-
 ## Request performance: consolidate AsyncLocalStorage scopes
 
 `src/features/index.ts` enters eleven nested request scopes for locale, client
