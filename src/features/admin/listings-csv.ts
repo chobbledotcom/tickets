@@ -3,16 +3,20 @@
  * the cell) and hands the listings and columns to the pure {@link CSV.generate}.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { type Column, CSV } from "#shared/csv/index.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { listingCategory, listingFilterLabel } from "#shared/listing-filter.ts";
-import { DEFAULT_TIMEZONE, formatDatetimeShortInTz } from "#shared/timezone.ts";
+import { formatDatetimeShortInTz } from "#shared/timezone.ts";
+import { DEFAULT_TIMEZONE } from "#shared/timezone-default.ts";
 import {
   availableDayCounts,
   dayPriceFor,
   type ListingWithCount,
 } from "#shared/types.ts";
+
+/* jscpd:ignore-end */
 
 /** Format a min–max price span (minor units), collapsing to a single value
  * when both ends are equal. */

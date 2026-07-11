@@ -8,7 +8,6 @@
 
 import type { Liquid } from "liquidjs";
 import { lazyRef, map, sumOf } from "#fp";
-import { createBaseLiquidEngine } from "#shared/currency.ts";
 import { bookedRangeLabel, widestDatedEntry } from "#shared/dates.ts";
 import {
   type PackageDisplay,
@@ -16,6 +15,7 @@ import {
 } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { EmailEntry } from "#shared/email.ts";
+import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   type ContactInfo,

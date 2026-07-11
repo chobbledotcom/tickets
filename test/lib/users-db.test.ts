@@ -2,12 +2,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { hashPassword, hmacHash } from "#shared/crypto/hashing.ts";
-import { getDb, insert } from "#shared/db/client.ts";
+import { execute, getDb, insert } from "#shared/db/client.ts";
 import {
   createInvitedUser,
   decryptAdminLevel,
   decryptUsername,
   getAllUsers,
+  getUserAuthFieldsById,
   getUserByUsername,
   invalidateUsersCache,
   isInviteExpired,
@@ -20,9 +21,76 @@ import {
   assertAdminPasswordVerifies,
 } from "#test-utils/db-helpers/misc.ts";
 import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
+import { recordQueries } from "#test-utils/record-queries.ts";
+
+const recordedAuthReads = async (
+  id: number,
+): Promise<{ queries: string[]; results: unknown[] }> => {
+  const queries: string[] = [];
+  const restore = recordQueries(queries);
+  try {
+    return {
+      queries,
+      results: [
+        await getUserAuthFieldsById(id),
+        await getUserAuthFieldsById(id),
+      ],
+    };
+  } finally {
+    restore();
+  }
+};
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("users CRUD", () => {
+    test("caches the minimal authentication fields by user ID", async () => {
+      const { queries, results } = await recordedAuthReads(1);
+
+      expect(results[0]).toEqual(results[1]);
+      expect(results[0]).toEqual({
+        admin_level: expect.any(String),
+        id: 1,
+      });
+      expect(
+        queries.filter((sql) =>
+          sql.includes("SELECT id, admin_level FROM users"),
+        ),
+      ).toEqual(["SELECT id, admin_level FROM users WHERE id = ? LIMIT 1"]);
+    });
+
+    test("caches a missing authentication user", async () => {
+      const { queries, results } = await recordedAuthReads(999);
+
+      expect(results).toEqual([null, null]);
+      expect(
+        queries.filter((sql) =>
+          sql.includes("SELECT id, admin_level FROM users"),
+        ),
+      ).toEqual(["SELECT id, admin_level FROM users WHERE id = ? LIMIT 1"]);
+    });
+
+    test("invalidates cached authentication fields after a user write", async () => {
+      await getUserAuthFieldsById(1);
+      await execute("UPDATE users SET admin_level = ? WHERE id = ?", [
+        await encrypt("manager"),
+        1,
+      ]);
+
+      const queries: string[] = [];
+      const restore = recordQueries(queries);
+      try {
+        const user = await getUserAuthFieldsById(1);
+        expect(await decryptAdminLevel(user!)).toBe("manager");
+      } finally {
+        restore();
+      }
+      expect(
+        queries.filter((sql) =>
+          sql.includes("SELECT id, admin_level FROM users"),
+        ),
+      ).toEqual(["SELECT id, admin_level FROM users WHERE id = ? LIMIT 1"]);
+    });
+
     test("createTestDbWithSetup creates the owner user", async () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();

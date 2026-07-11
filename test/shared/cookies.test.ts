@@ -88,7 +88,7 @@ describe("buildSessionCookie", () => {
   });
 
   test("keeps loopback request hosts in dev cookie mode", () => {
-    seedEffectiveDomainHost("http://127.0.0.1:38123/admin/");
+    seedEffectiveDomainHost(new URL("http://127.0.0.1:38123/admin/"));
     const cookie = buildSessionCookie("test-token");
     expect(cookie).toContain("session=test-token");
     expectDevCookieAttributes(cookie);

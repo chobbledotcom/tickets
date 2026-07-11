@@ -18,7 +18,7 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
-  detectIframeMode("https://example.com/");
+  detectIframeMode(new URL("https://example.com/"));
 });
 
 describe("paymentPage", () => {
@@ -135,11 +135,11 @@ describe("successPage", () => {
   });
 
   test("includes iframe-resizer child script in iframe mode", () => {
-    detectIframeMode("https://example.com/?iframe=true");
+    detectIframeMode(new URL("https://example.com/?iframe=true"));
     const html = successPage({ ticketUrl: "/t/abc123" });
     expect(html).toContain("iframe-resizer-child.js");
     expect(html).toContain('class="iframe"');
-    detectIframeMode("https://example.com/");
+    detectIframeMode(new URL("https://example.com/"));
   });
 
   test("excludes iframe-resizer child script when not in iframe mode", () => {
@@ -149,10 +149,10 @@ describe("successPage", () => {
   });
 
   test("includes scroll-into-view marker in iframe mode", () => {
-    detectIframeMode("https://example.com/?iframe=true");
+    detectIframeMode(new URL("https://example.com/?iframe=true"));
     const html = successPage({ ticketUrl: "/t/abc123" });
     expect(html).toContain("data-scroll-into-view");
-    detectIframeMode("https://example.com/");
+    detectIframeMode(new URL("https://example.com/"));
   });
 
   test("excludes scroll-into-view marker when not in iframe mode", () => {

@@ -19,11 +19,8 @@ const iframeScope = createRequestScoped<{ value: boolean }>(() => ({
 export const runWithIframeContext = <T>(fn: () => T): T => iframeScope.run(fn);
 
 /** Detect iframe mode from a request URL and store it for the current request */
-export const detectIframeMode = (url: string): void => {
-  if (!URL.canParse(url)) throw new TypeError("Invalid iframe detection URL");
-
-  iframeScope.current().value =
-    new URL(url).searchParams.get("iframe") === "true";
+export const detectIframeMode = (url: URL): void => {
+  iframeScope.current().value = url.searchParams.get("iframe") === "true";
 };
 
 /** Get the current request's iframe mode */

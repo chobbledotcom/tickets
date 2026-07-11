@@ -27,7 +27,7 @@ const prepareDatabase = async (): Promise<void> => {
   const { settings } = await import("#shared/db/settings.ts");
   const { setFastPbkdf2ForTest } = await import("#shared/crypto/hashing.ts");
   const { setRsaKeySizeForTest } = await import("#shared/crypto/keys.ts");
-  const { setSuppressDebugLogs } = await import("#shared/logger.ts");
+  const { setSuppressDebugLogs } = await import("#shared/log-settings.ts");
   const {
     recordScriptVersion,
     setBuildCommitForTest,

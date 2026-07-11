@@ -3,6 +3,7 @@ import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import type { PasswordHash, WrappedKey } from "#shared/crypto/sealed.ts";
 import { execute, getDb } from "#shared/db/client.ts";
+import { writeRawBatch } from "#shared/db/settings/raw-writes.ts";
 import {
   ALL_SETTINGS_KEYS,
   bumpSettingsVersion,
@@ -43,6 +44,25 @@ describeWithEnv("db > settings", { db: true }, () => {
       await settings.loadKeys(["key"]);
       const value = settings.getCachedRaw("key");
       expect(value).toBe("value2");
+    });
+
+    test("writes several raw settings with one shared version bump", async () => {
+      const before = await getCurrentSettingsVersion();
+
+      await writeRawBatch([
+        ["batch_one", "first"],
+        ["batch_two", "second"],
+      ]);
+
+      expect(settings.getCachedRaw("batch_one")).toBe("first");
+      expect(settings.getCachedRaw("batch_two")).toBe("second");
+      expect(await getCurrentSettingsVersion()).toBe(before + 1);
+    });
+
+    test("rejects an empty raw settings batch", async () => {
+      await expect(writeRawBatch([])).rejects.toThrow(
+        "Cannot write an empty settings batch",
+      );
     });
 
     test("settings table writes invalidate the loaded settings cache", async () => {

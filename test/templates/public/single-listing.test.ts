@@ -42,8 +42,9 @@ describe("ticketPage (single listing)", () => {
       }[];
     },
   ) => {
-    if (opts?.iframe) detectIframeMode("https://example.com/?iframe=true");
-    else detectIframeMode("https://example.com/");
+    if (opts?.iframe) {
+      detectIframeMode(new URL("https://example.com/?iframe=true"));
+    } else detectIframeMode(new URL("https://example.com/"));
     return ticketPage({
       ...(opts?.baseUrl !== undefined ? { baseUrl: opts.baseUrl } : {}),
       dates: opts?.dates ?? [],

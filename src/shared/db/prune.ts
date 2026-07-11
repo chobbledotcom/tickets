@@ -36,6 +36,8 @@
 
 import { execute } from "#shared/db/client.ts";
 import { purgeOrphanedAttendees } from "#shared/db/orphan-attendees.ts";
+import { writeRawBatch } from "#shared/db/settings/raw-writes.ts";
+import { setSnapshotField } from "#shared/db/settings/snapshot.ts";
 import { settings } from "#shared/db/settings.ts";
 import { pruneExpiredInvites } from "#shared/db/users.ts";
 import {
@@ -53,6 +55,7 @@ import {
 import { logDebug } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
 import { orphanRetentionCutoffIso } from "#shared/orphan-retention.ts";
+import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 
 /**
  * Build a pruner that deletes rows older than `retentionMs`, binding an
@@ -193,75 +196,86 @@ const isDue = (lastMs: number, now: number): boolean =>
   now - lastMs >= PRUNE_INTERVAL_MS;
 
 type PruneTask = {
+  field: Parameters<typeof setSnapshotField>[0];
+  key: string;
   name: string;
   lastRaw: string;
-  writeLast: (value: string) => Promise<void>;
   run: () => Promise<number>;
 };
 
 const PRUNE_TASKS = (): PruneTask[] => [
   {
+    field: "last_pruned_payments",
+    key: CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
     lastRaw: settings.lastPrunedPayments,
     name: "processed_payments",
     run: prunePayments,
-    writeLast: settings.update.lastPrunedPayments,
   },
   {
+    field: "last_pruned_sumup",
+    key: CONFIG_KEYS.LAST_PRUNED_SUMUP,
     lastRaw: settings.lastPrunedSumup,
     name: "sumup_checkouts",
     run: pruneSumupCheckouts,
-    writeLast: settings.update.lastPrunedSumup,
   },
   {
+    field: "last_pruned_strings",
+    key: CONFIG_KEYS.LAST_PRUNED_STRINGS,
     lastRaw: settings.lastPrunedStrings,
     name: "strings",
     run: pruneUnusedStrings,
-    writeLast: settings.update.lastPrunedStrings,
   },
   {
+    field: "last_pruned_sessions",
+    key: CONFIG_KEYS.LAST_PRUNED_SESSIONS,
     lastRaw: settings.lastPrunedSessions,
     name: "sessions",
     run: pruneSessions,
-    writeLast: settings.update.lastPrunedSessions,
   },
   {
+    field: "last_pruned_logins",
+    key: CONFIG_KEYS.LAST_PRUNED_LOGINS,
     lastRaw: settings.lastPrunedLogins,
     name: "login_attempts",
     run: pruneLoginAttempts,
-    writeLast: settings.update.lastPrunedLogins,
   },
   {
+    field: "last_pruned_tokens",
+    key: CONFIG_KEYS.LAST_PRUNED_TOKENS,
     lastRaw: settings.lastPrunedTokens,
     name: "token_attempts",
     run: pruneTokenAttempts,
-    writeLast: settings.update.lastPrunedTokens,
   },
   {
+    field: "last_pruned_contacts",
+    key: CONFIG_KEYS.LAST_PRUNED_CONTACTS,
     lastRaw: settings.lastPrunedContacts,
     name: "contact_preferences",
     run: pruneContacts,
-    writeLast: settings.update.lastPrunedContacts,
   },
   {
+    field: "last_pruned_addresses",
+    key: CONFIG_KEYS.LAST_PRUNED_ADDRESSES,
     lastRaw: settings.lastPrunedAddresses,
     name: "address_cache",
     run: pruneAddressCache,
-    writeLast: settings.update.lastPrunedAddresses,
   },
   {
+    field: "last_pruned_invites",
+    key: CONFIG_KEYS.LAST_PRUNED_INVITES,
     lastRaw: settings.lastPrunedInvites,
     name: "expired_invites",
     run: pruneExpiredInvites,
-    writeLast: settings.update.lastPrunedInvites,
   },
   // Opt-in: scheduled only while the owner leaves automatic orphan purging on.
   ...(settings.autoPurgeOrphans
     ? [
         {
+          field: "last_pruned_orphans" as const,
+          key: CONFIG_KEYS.LAST_PRUNED_ORPHANS,
           lastRaw: settings.lastPrunedOrphans,
           name: "orphan_attendees",
           run: pruneOrphanAttendees,
-          writeLast: settings.update.lastPrunedOrphans,
         },
       ]
     : []),
@@ -272,9 +286,8 @@ const PRUNE_TASKS = (): PruneTask[] => [
  * requests don't double-run), then delete. Errors are caught and logged so
  * one failing task can't block the others or surface to the user.
  */
-const runTask = async (task: PruneTask, now: number): Promise<void> => {
+const runTask = async (task: PruneTask): Promise<void> => {
   try {
-    await task.writeLast(String(now));
     const deleted = await task.run();
     if (deleted > 0) {
       logDebug("Prune", `${task.name}: deleted ${deleted} rows`);
@@ -294,5 +307,13 @@ export const maybeRunPrunes = async (): Promise<void> => {
     isDue(parseLastPrunedMs(t.lastRaw), now),
   );
   if (due.length === 0) return;
-  await Promise.all(due.map((t) => runTask(t, now)));
+  const value = String(now);
+  try {
+    await writeRawBatch(due.map((task) => [task.key, value] as const));
+  } catch (error) {
+    logDebug("Prune", `marker batch failed: ${String(error)}`);
+    return;
+  }
+  for (const task of due) setSnapshotField(task.field, value);
+  await Promise.all(due.map(runTask));
 };

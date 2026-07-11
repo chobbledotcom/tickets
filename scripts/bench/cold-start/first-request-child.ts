@@ -15,10 +15,8 @@ import {
   type TransactionMode,
 } from "@libsql/client";
 import { setDb } from "#shared/db/client.ts";
-import {
-  setSuppressDebugLogs,
-  setSuppressRequestLogs,
-} from "#shared/logger.ts";
+import { setSuppressDebugLogs } from "#shared/log-settings.ts";
+import { setSuppressRequestLogs } from "#shared/logger.ts";
 import {
   setBuildCommitForTest,
   setBuildTimestampForTest,

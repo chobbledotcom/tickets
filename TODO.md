@@ -373,12 +373,30 @@ look.
 *Origin: `docs/cold-start.md`.* `src/shared/db/migrations.ts` statically
 imports every per-migration module (~70 files) — the bulk of the remaining
 ~120 eager `#shared/db/*` modules. A steady-state boot only needs each
-migration's *id* plus `LATEST_UPDATE`/`SCHEMA_HASH`; the fix is a registry of
-`{ id, load: () => import(...) }` pairs awaited only on the migration path.
+migration's *id* and description plus `LATEST_UPDATE`/`SCHEMA_HASH`; the fix is
+a metadata registry of `{ id, description, load: () => import(...) }` entries
+awaited only for pending migrations. Fresh setup must seal migration history
+from metadata without loading implementations, while migration tests need an
+explicit implementation loader. Confirm esbuild preserves deferred evaluation
+in Bunny's single-file bundle rather than folding imports back into eager work.
 Deferred: it touches every migration module and `runMigrations`' control flow
 (see the load-bearing baseline test in `test/shared/db/migrations.test.ts`)
 for a slice of ~80ms of CPU. Re-measure with
 `scripts/bench/cold-start/bundle-load.ts` before and after.
+
+## Request performance: consolidate AsyncLocalStorage scopes
+
+`src/features/index.ts` enters eleven nested request scopes for locale, client
+IP, request ID, request cache, query logging, flash, session memoization, iframe
+mode, CSRF, saved form data, and settings auditing. Replace them with one typed
+`RequestContext` in one `AsyncLocalStorage`; retain domain methods where they add
+behavior, but migrate every internal caller with no aliases or compatibility
+wrappers. Preserve direct-render test behavior, production-disabled audit cost,
+and concurrent/nested request isolation for every mutable field. Pending work
+and storage overrides have different lifetimes and need a separate decision.
+Benchmark before and after: the synthetic result was about 38us/request for
+eleven scopes versus 2us for one. This needs a dedicated PR because it crosses
+eleven state modules and their concurrency contracts.
 
 ## Cross-request pending work vs. restore (from PR #1714)
 

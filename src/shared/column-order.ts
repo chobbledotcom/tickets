@@ -10,7 +10,7 @@
  *   {{price | currency}}              →  "£25.00"
  */
 
-import { createBaseLiquidEngine } from "#shared/currency.ts";
+import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
 
 // ---------------------------------------------------------------------------
 // Types

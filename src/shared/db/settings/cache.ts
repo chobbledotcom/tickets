@@ -24,6 +24,7 @@ import { registerCache } from "#shared/cache-registry.ts";
 import {
   executeWithoutCacheInvalidation,
   queryAll,
+  type SqlStatement,
 } from "#shared/db/client.ts";
 import { recordSettingRead } from "#shared/db/settings-audit.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
@@ -93,12 +94,16 @@ export const prefetchVersion = (): void => {
  * and, crucially, does not recurse through `writeRaw`, so a bump never bumps
  * again.
  */
-export const bumpSettingsVersion = async (): Promise<void> => {
-  await executeWithoutCacheInvalidation(
+export const settingsVersionIncrement = (): SqlStatement => ({
+  args: [CONFIG_KEYS.SETTINGS_VERSION],
+  sql:
     "INSERT INTO settings (key, value) VALUES (?, '1') " +
-      "ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1",
-    [CONFIG_KEYS.SETTINGS_VERSION],
-  );
+    "ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1",
+});
+
+export const bumpSettingsVersion = async (): Promise<void> => {
+  const { sql, args } = settingsVersionIncrement();
+  await executeWithoutCacheInvalidation(sql, args);
 };
 
 /** Read a raw string from the cache. Returns null if missing or cache not loaded. */

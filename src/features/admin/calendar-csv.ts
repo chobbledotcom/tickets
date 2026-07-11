@@ -6,6 +6,7 @@
  * ones and handed to the pure {@link CSV.generate}.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   csvDateRange,
@@ -20,8 +21,10 @@ import {
   type LogisticsAssignment,
 } from "#shared/db/logistics.ts";
 import { appleMapsUrl, googleMapsUrl } from "#shared/maps.ts";
-import { DEFAULT_TIMEZONE, formatDatetimeShortInTz } from "#shared/timezone.ts";
+import { formatDatetimeShortInTz } from "#shared/timezone.ts";
+import { DEFAULT_TIMEZONE } from "#shared/timezone-default.ts";
 import type { Attendee } from "#shared/types.ts";
+/* jscpd:ignore-end */
 
 /** Attendee with associated listing info for calendar CSV. */
 export type CalendarAttendee = Attendee & {
