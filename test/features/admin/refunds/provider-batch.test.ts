@@ -49,8 +49,6 @@ describeWithEnv(
   { db: true },
   () => {
     const errors = setupErrorSpy();
-    const loggedContains = (needle: string): boolean =>
-      errors.calls.some((call) => String(call.args[0]).includes(needle));
 
     test("tallies refunded, failed and errored candidates in one batch", async () => {
       await postBooking({ attendeeId: 11, eventId: "sess-11" });
@@ -70,12 +68,12 @@ describeWithEnv(
         failedCount: 1,
         refundedCount: 1,
       });
-      expect(loggedContains("Admin bulk refund failed for attendee 12")).toBe(
+      expect(errors.contains("Admin bulk refund failed for attendee 12")).toBe(
         true,
       );
       // The errored candidate's references are joined with ", ".
       expect(
-        loggedContains(
+        errors.contains(
           "Admin bulk refund errored for attendee 13, payments pi_boom, pi_two",
         ),
       ).toBe(true);

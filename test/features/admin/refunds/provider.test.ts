@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
+import { refundCandidateAtProvider } from "#routes/admin/refunds/provider.ts";
 import {
   combineRefundOutcomes,
   packByReferenceCount,
-  refundCandidateAtProvider,
-} from "#routes/admin/refunds/provider.ts";
+} from "#routes/admin/refunds/waves.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
@@ -145,8 +145,6 @@ describe("combineRefundOutcomes", () => {
 
 describe("admin refund provider", () => {
   const errors = setupErrorSpy();
-  const loggedContains = (needle: string): boolean =>
-    errors.calls.some((call) => String(call.args[0]).includes(needle));
 
   test("counts a reference already marked refunded without calling the provider", async () => {
     let refundCalls = 0;
@@ -240,7 +238,7 @@ describe("admin refund provider", () => {
     expect(marker.marked).toEqual(["pi_ok"]);
     // A multi-reference candidate that did not fully refund is logged.
     expect(
-      loggedContains(
+      errors.contains(
         "Admin refund did not complete every payment for attendee 42",
       ),
     ).toBe(true);
@@ -256,7 +254,7 @@ describe("admin refund provider", () => {
 
     expect(result.outcome).toBe("failed");
     expect(
-      loggedContains(
+      errors.contains(
         "Admin refund did not complete every payment for attendee 42",
       ),
     ).toBe(false);
@@ -286,7 +284,7 @@ describe("admin refund provider", () => {
 
     expect(result.outcome).toBe("refunded");
     expect(
-      loggedContains(
+      errors.contains(
         "Admin refund did not complete every payment for attendee 42",
       ),
     ).toBe(false);
