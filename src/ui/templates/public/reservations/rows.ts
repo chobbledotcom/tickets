@@ -31,6 +31,11 @@ export const renderListingDescription = (description: string): string =>
     ? `<div class="description-compact">${renderMarkdown(description)}</div>`
     : "";
 
+/** The dimmed badge shown in place of booking controls — "Sold out" unless a
+ * caller passes other copy (the closed row shows "Registration closed"). */
+export const soldOutLabel = (text: string = t("public.sold_out")): string =>
+  `<span class="sold-out-label">${text}</span>`;
+
 /** Render quantity selector for an listing row.
  *
  * An optional per-listing `prefill` pre-selects the quantity (clamped to the
@@ -77,7 +82,7 @@ export const renderListingRow = (
         ${imageHtml}
         <label>${escapeHtml(listing.name)}</label>
         ${attributesHtml}
-        <span class="sold-out-label">${t("public.registration_closed")}</span>
+        ${soldOutLabel(t("public.registration_closed"))}
       </div>
     `;
   }
@@ -89,7 +94,7 @@ export const renderListingRow = (
         <label>${escapeHtml(listing.name)}</label>
         ${renderListingDescription(listing.description)}
         ${attributesHtml}
-        <span class="sold-out-label">${t("public.sold_out")}</span>
+        ${soldOutLabel()}
       </div>
     `;
   }
