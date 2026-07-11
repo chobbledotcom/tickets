@@ -4,8 +4,8 @@ import {
   attendeeStatuses,
   getPaidDefaultStatus,
 } from "#shared/db/attendee-statuses.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   getContactRecord,
@@ -13,19 +13,18 @@ import {
   saveContactRecord,
   toContactHashParam,
 } from "#shared/db/contact-preferences.ts";
+import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { hasSelectedOption } from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  adminFormPost,
-  adminGet,
   attendeeLineFields,
   buildAttendeeEditForm,
   createTestAttendee,
-  createTestListing,
-  describeWithEnv,
-  expectHtmlResponse,
-  getTestPrivateKey,
-  hasSelectedOption,
-} from "#test-utils";
+} from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(
   "server (unified attendee form) — status, balance & tabs",

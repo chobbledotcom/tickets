@@ -9,20 +9,14 @@
  */
 
 import {
-  JUNIT_PATH,
   readSlowTestsReport,
   SLOW_TEST_THRESHOLD_MS,
 } from "./test-durations.ts";
-import { runTests, withTestHarness } from "./test-harness.ts";
+import { runSuiteWithHarness } from "./test-harness.ts";
 
 /** Main: run the suite, then fail if any test exceeded the slow-test threshold. */
 const main = async (): Promise<void> => {
-  // Remove any stale JUnit file so a killed prior run can't surface its
-  // timings; `deno test --junit-path` rewrites it on a completed run.
-  await Deno.remove(JUNIT_PATH).catch(() => {});
-  const exitCode = await withTestHarness(() =>
-    runTests(["test/"], false, JUNIT_PATH),
-  );
+  const exitCode = await runSuiteWithHarness(false);
 
   // Propagate a suite failure before judging timings: a failed run may have
   // written an incomplete JUnit file, whose timings would be misleading.

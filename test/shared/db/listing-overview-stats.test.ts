@@ -4,7 +4,7 @@ import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
-import { decryptAttendees } from "#shared/db/attendees.ts";
+import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { execute } from "#shared/db/client.ts";
 import { getListingOverviewStats } from "#shared/db/listing-overview-stats.ts";
 import {
@@ -21,13 +21,13 @@ import {
   overviewStatsFromAttendees,
   overviewStatsFromDbStats,
 } from "#templates/admin/listings/overview.tsx";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createPaidAttendeeWithoutLedger,
   createPaidTestAttendee,
-  createTestListing,
-  describeWithEnv,
-  getTestPrivateKey,
-} from "#test-utils";
+} from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale, postWriteoffAdjustment } from "#test-utils/ledger.ts";
 
 const checkIn = (attendeeId: number, listingId: number): Promise<unknown> =>

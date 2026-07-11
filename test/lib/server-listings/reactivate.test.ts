@@ -3,15 +3,16 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import {
-  adminFormPost,
   assertAdminHtml,
+  expectFlashRedirect,
+  testRequiresAuth,
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
   createTestListing,
   deactivateTestListing,
-  describeWithEnv,
-  expectFlashRedirect,
-  setupListingAndLogin,
-  testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
+import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
 import { testConfirmIdentifierMismatch } from "./confirm-identifier-mismatch.ts";
 
 // jscpd:ignore-end

@@ -26,7 +26,8 @@ import {
   pairStringIds,
 } from "#shared/db/questions/strings.ts";
 import { questionsTable } from "#shared/db/questions/tables.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   addAnswer,
   createAttendee,

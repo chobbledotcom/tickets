@@ -14,7 +14,7 @@ import {
 } from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import type { ListingBooking } from "#shared/db/attendee-types.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   enableQueryLog,
@@ -22,7 +22,8 @@ import {
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   seedPreDropLedgerColumns,
   stampHistoricalPricePaid,

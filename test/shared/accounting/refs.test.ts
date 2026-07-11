@@ -5,7 +5,7 @@ import {
   legReference,
   type RefPart,
 } from "#shared/accounting/refs.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("accounting > refs", { encryptionKey: true }, () => {
   describe("eventGroup", () => {

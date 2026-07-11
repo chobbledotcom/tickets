@@ -9,7 +9,7 @@ import {
   parseSignedMinorUnits,
   validatePrice,
 } from "#shared/validation/money.ts";
-import { testWithSetting } from "#test-utils";
+import { testWithSetting } from "#test-utils/settings.ts";
 
 /** Build a table-driven describe for one currency-aware parser. */
 const parserTable =

@@ -13,15 +13,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getDb, queryOne } from "#shared/db/client.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   createServicingHold,
-  createTestListing,
-  describeWithEnv,
   kindOf,
   servicingRowsForListing,
-} from "#test-utils";
+} from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 
@@ -107,7 +107,7 @@ describeWithEnv(
       // The upcoming-events table on the admin home must exclude real
       // attendees even when they're future-dated — it's a servicing-only view.
       await createTestListing({ maxAttendees: 10, name: "L" });
-      const { createRealAttendee } = await import("#test-utils");
+      const { createRealAttendee } = await import("#test-utils/servicing.ts");
       const { attendee } = await createRealAttendee(
         "Future Real",
         "f@example.com",
@@ -126,7 +126,7 @@ describeWithEnv(
         listing: { name: "L" },
         name: "Future Service",
       });
-      const { renderAdminPage } = await import("#test-utils");
+      const { renderAdminPage } = await import("#test-utils/servicing.ts");
       const body = await renderAdminPage("/admin/");
       expect(body).toContain(`/admin/servicing/${service.id}`);
       expect(body).not.toContain(`/admin/servicing/${attendee.id}`);

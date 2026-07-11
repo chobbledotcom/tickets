@@ -14,12 +14,10 @@ import {
   finalizeSession as finalizePaymentSession,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
-import {
-  bookAttendee,
-  createTestListing,
-  describeWithEnv,
-  getTestPrivateKey,
-} from "#test-utils";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("db > payment references", { db: true }, () => {
   test("encrypts non-empty references and leaves empty references empty", async () => {

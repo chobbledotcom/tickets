@@ -11,7 +11,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { DEMO_LISTING_NAMES } from "#shared/demo.ts";
+import { DEMO_LISTING_NAMES } from "#shared/demo/samples.ts";
 import {
   openAttendeeEditor,
   setupAndLogin,

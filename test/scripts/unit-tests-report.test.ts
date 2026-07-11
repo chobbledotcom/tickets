@@ -305,7 +305,6 @@ describe("DEFAULT_OPTIONS and DEFAULT_LIMIT", () => {
       "test/scripts/",
       "test/test-utils/",
       "test/setup.ts",
-      "test/test-utils.ts",
     ]);
   });
 });

@@ -18,12 +18,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeePiiBlobForToken } from "#shared/db/attendees/queries.ts";
-import {
-  awaitTestRequest,
-  createServicingHold,
-  createTestAttendeeWithToken,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { createServicingHold } from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 

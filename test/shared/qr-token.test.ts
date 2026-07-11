@@ -19,7 +19,7 @@ import {
   signQrBookToken,
   verifyQrBookToken,
 } from "#shared/qr-token.ts";
-import { setupTestEncryptionKey } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 describe("qr-token", () => {
   beforeEach(() => {

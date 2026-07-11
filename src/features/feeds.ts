@@ -18,7 +18,7 @@ import {
 } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { decryptAttendees } from "#shared/db/attendees.ts";
+import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import {
   getAllListings,
   getAttendeesByListingIds,

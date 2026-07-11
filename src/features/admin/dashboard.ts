@@ -22,12 +22,10 @@ import {
   getAllActivityLog,
   logActivity,
 } from "#shared/db/activityLog.ts";
+import { decryptAttendees } from "#shared/db/attendees/pii.ts";
+import { getNewestAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getUpcomingServicingEvents } from "#shared/db/attendees/servicing.ts";
-import {
-  decryptAttendees,
-  getActiveListingStats,
-  getNewestAttendeesRaw,
-} from "#shared/db/attendees.ts";
+import { getActiveListingStats } from "#shared/db/attendees/stats.ts";
 import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";

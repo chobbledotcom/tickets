@@ -2,7 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getSettingsNagItems } from "#shared/settings-nags.ts";
 import { SettingsNagBanner } from "#templates/admin/settings-nag-banner.tsx";
-import { describeWithEnv, withSetting } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { withSetting } from "#test-utils/settings.ts";
 
 describeWithEnv(
   "SettingsNagBanner",

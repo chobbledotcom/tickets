@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDatelessGroupRemaining } from "#shared/db/attendees.ts";
+import { getDatelessGroupRemaining } from "#shared/db/attendees/capacity.ts";
 import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
-  createTestGroup,
   createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv(
   "db > attendees > getDatelessGroupRemaining",

@@ -17,8 +17,8 @@ import {
   extractContact,
   type TicketFormValues,
 } from "#templates/fields/ticket.ts";
-import { expectInvalid } from "#test-utils";
 import { byName, hasField } from "#test-utils/fields.ts";
+import { expectInvalid } from "#test-utils/validation.ts";
 
 describe("fields contracts", () => {
   describe("field lookup helpers", () => {

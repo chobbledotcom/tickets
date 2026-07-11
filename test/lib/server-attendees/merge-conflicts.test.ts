@@ -4,16 +4,15 @@ import { describe, it as test } from "@std/testing/bdd";
 // jscpd:ignore-end
 import { queryAll } from "#shared/db/client.ts";
 import {
-  adminFormPost,
-  adminGet,
-  createTestAttendeeDirect,
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { createDualPackageAttendee, dualPackageRows } from "./helpers.ts";
 import {
   assignMergeAnswers,

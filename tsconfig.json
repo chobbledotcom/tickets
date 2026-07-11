@@ -18,7 +18,6 @@
     "jsxImportSource": "#jsx",
     "paths": {
       "#fp": ["./src/fp.ts"],
-      "#test-utils": ["./src/test-utils/index.ts"],
       "#test-utils/*": ["./src/test-utils/*"],
       "#src/*": ["./src/*"],
       "#test/*": ["./test/*"],

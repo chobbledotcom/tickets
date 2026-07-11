@@ -24,7 +24,7 @@ import {
   LedgerTable,
   resolveAccountLabel,
 } from "#templates/admin/ledger.tsx";
-import { setTestEnv, setupTestEncryptionKey } from "#test-utils";
+import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 
 const SESSION = { adminLevel: "owner" as const };
 

@@ -1,6 +1,8 @@
 #!/usr/bin/env -S deno run --allow-read
 
 import { relative } from "node:path";
+import { lineColumnAt } from "./line-column.ts";
+import { walkFiles } from "./walk-files.ts";
 
 type Finding = {
   column: number;
@@ -34,12 +36,6 @@ const WEAK_ASSERTION_PATTERNS: { message: string; pattern: RegExp }[] = [
       /expect\s*\([^)]*(?:&&|\|\||===|!==|>=|<=|>|<)[^)]*\)\s*\.\s*toBe\s*\(\s*(?:true|false)\s*\)/g,
   },
 ];
-
-const lineColumnAt = (content: string, index: number) => {
-  const before = content.slice(0, index);
-  const lines = before.split("\n");
-  return { column: lines.at(-1)!.length + 1, line: lines.length };
-};
 
 const testBlockRanges = (content: string): { end: number; start: number }[] => {
   const ranges: { end: number; start: number }[] = [];
@@ -98,21 +94,13 @@ const auditFile = async (path: string): Promise<Finding[]> => {
   ];
 };
 
-const collectTestFiles = async (directory: string): Promise<string[]> => {
+const testFiles = async (): Promise<string[]> => {
   const files: string[] = [];
-  for await (const entry of Deno.readDir(directory)) {
-    const path = `${directory}/${entry.name}`;
-    if (entry.isDirectory) {
-      files.push(...(await collectTestFiles(path)));
-      continue;
-    }
-    if (entry.isFile && TEST_FILE_PATTERN.test(path)) files.push(path);
+  for await (const path of walkFiles("test")) {
+    if (TEST_FILE_PATTERN.test(path)) files.push(path);
   }
-  return files;
+  return files.sort();
 };
-
-const testFiles = async (): Promise<string[]> =>
-  (await collectTestFiles("test")).sort();
 
 const formatFinding = (finding: Finding): string =>
   `${relative(

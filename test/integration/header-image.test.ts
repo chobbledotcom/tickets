@@ -1,12 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import {
-  adminGet,
-  assertAdminHtml,
-  describeWithEnv,
-  expectHtmlResponse,
-} from "#test-utils";
+import { assertAdminHtml, expectHtmlResponse } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("integration: header image in layout", { db: true }, () => {
   test("no header image rendered by default", async () => {

@@ -5,7 +5,8 @@ import { routeBalance } from "#routes/public/balance.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
-import { describeWithEnv, mockRequest } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 import {
   createNonReservation,
   createReserved,

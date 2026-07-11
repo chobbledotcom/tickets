@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { imagesTable } from "#shared/db/images.ts";
 import { listingsTable } from "#shared/db/listings.ts";
-import { setDemoModeForTest } from "#shared/demo.ts";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import {
@@ -11,24 +11,23 @@ import {
   RESET_PHRASE_MISMATCH_ERROR,
 } from "#templates/admin/database-reset.tsx";
 import {
-  adminGet,
   assertPublicHtml,
-  createTestListing,
-  describeWithEnv,
   expectDatabaseResetRedirect,
   expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
-  extractCsrfToken,
+} from "#test-utils/assertions.ts";
+import { extractCsrfToken } from "#test-utils/csrf.ts";
+import { describeWithEnv, invalidateTestDbCache } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { TEST_STORAGE_ZONE } from "#test-utils/internal.ts";
+import {
   installUrlHandler,
-  invalidateTestDbCache,
   mockFormRequest,
   mockRequest,
-  TEST_STORAGE_ZONE,
-  testCookie,
-  testCsrfToken,
   withFetchMock,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
+import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 describeWithEnv("server (demo reset)", { db: true }, () => {
   beforeEach(() => {

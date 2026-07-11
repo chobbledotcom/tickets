@@ -3,15 +3,15 @@ import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { getDb } from "#shared/db/client.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
+import { assertPublicHtml } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
   adminGet,
-  assertPublicHtml,
-  awaitTestRequest,
   createTestManagerSession,
-  describeWithEnv,
-  getAllActivityLog,
-} from "#test-utils";
+} from "#test-utils/session.ts";
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("navigation", () => {

@@ -27,14 +27,11 @@ import { createBackupZip, restoreFromZip } from "#shared/db/backup.ts";
 import { getDb } from "#shared/db/client.ts";
 import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
 import { MIGRATIONS } from "#shared/db/migrations.ts";
-import {
-  createTestAttendeeDirect,
-  createTestListing,
-  createTestServicingEvent,
-  describeWithEnv,
-  indexExists,
-  kindOf,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { indexExists } from "#test-utils/migrations.ts";
+import { createTestServicingEvent, kindOf } from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 

@@ -8,12 +8,12 @@ import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
 import { getClientIp } from "#routes/url.ts";
 import type { WalletPassData } from "#shared/apple-wallet.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import {
-  type AttendeeWithBookings,
-  decryptAttendees,
-  getAttendeesByTokens,
-  type ListingAttendeeRow,
-} from "#shared/db/attendees.ts";
+import type {
+  AttendeeWithBookings,
+  ListingAttendeeRow,
+} from "#shared/db/attendee-types.ts";
+import { decryptAttendees } from "#shared/db/attendees/pii.ts";
+import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import { packageDisplaysForRows } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";

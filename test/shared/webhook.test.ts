@@ -11,17 +11,19 @@ import {
   type WebhookListing,
   type WebhookPayload,
 } from "#shared/webhook.ts";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   createTestDbWithSetup,
-  createTestListing,
   describeWithEnv,
-  type EmailEntry,
-  getAllActivityLog,
+  resetDb,
+} from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
   makeTestAttendee as makeAttendee,
   makeTestEntry as makeEntry,
   makeTestListing as makeListing,
-  resetDb,
-} from "#test-utils";
+} from "#test-utils/factories.ts";
+import type { EmailEntry } from "#test-utils/internal.ts";
 
 /** Default single-entry registration (free listing, default attendee) */
 const defaultEntries = (): EmailEntry[] => [makeEntry()];

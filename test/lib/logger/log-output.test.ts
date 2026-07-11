@@ -100,6 +100,19 @@ describe("logDebug", () => {
     expect(debugSpy.calls.length).toBe(0);
   });
 
+  test("falls back to the TEST_SUPPRESS_DEBUG_LOGS env var when no override is set", () => {
+    const previous = Deno.env.get("TEST_SUPPRESS_DEBUG_LOGS");
+    setSuppressDebugLogs(null);
+    Deno.env.set("TEST_SUPPRESS_DEBUG_LOGS", "1");
+    try {
+      logDebug("Migration", "Step 1");
+      expect(debugSpy.calls.length).toBe(0);
+    } finally {
+      if (previous === undefined) Deno.env.delete("TEST_SUPPRESS_DEBUG_LOGS");
+      else Deno.env.set("TEST_SUPPRESS_DEBUG_LOGS", previous);
+    }
+  });
+
   test("emits output when setSuppressDebugLogs(false)", () => {
     logDebug("Migration", "Step 1");
     expect(debugSpy.calls.length).toBe(1);

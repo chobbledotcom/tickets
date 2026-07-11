@@ -8,11 +8,9 @@ import {
   isSlugTaken,
   listingsTable,
 } from "#shared/db/listings.ts";
-import {
-  createTestAttendee,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   describe("CRUD", () => {

@@ -1,8 +1,6 @@
-import {
-  bookAttendee,
-  createDailyTestListing,
-  createTestGroup,
-} from "#test-utils";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /**
  * Two daily listings in one capped group, each booked on its own day.

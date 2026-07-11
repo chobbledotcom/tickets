@@ -7,7 +7,7 @@ import {
   unwrapKey,
 } from "#shared/crypto/keys.ts";
 import type { KeyEncrypted, PasswordHash } from "#shared/crypto/sealed.ts";
-import { getAttendee } from "#shared/db/attendees.ts";
+import { getAttendee } from "#shared/db/attendees/queries.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   clearLoginAttempts,
@@ -17,15 +17,17 @@ import {
 import { createSession, getSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#shared/db/users.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   assertAdminPasswordRejects,
   assertAdminPasswordVerifies,
-  bookAttendee,
-  createTestListing,
-  describeWithEnv,
+} from "#test-utils/db-helpers/misc.ts";
+import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
-} from "#test-utils";
+} from "#test-utils/internal.ts";
 
 describeWithEnv("db > auth", { db: true }, () => {
   describe("admin password", () => {

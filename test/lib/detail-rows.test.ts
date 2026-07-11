@@ -15,7 +15,7 @@ import {
   sizeQuestionAnswerData,
   testAttendee,
   unselectedAnswerQuestionData,
-} from "#test-utils";
+} from "#test-utils/factories.ts";
 
 describe("detail-rows", () => {
   describe("renderDetailRows", () => {

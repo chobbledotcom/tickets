@@ -16,13 +16,11 @@ import {
   type TokenEntry,
 } from "#routes/tickets/token-utils.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import {
-  type AttendeeWithBookings,
-  decryptAttendees,
-  getAttendeesByTokens,
-  getAttendeesRaw,
-  updateCheckedIn,
-} from "#shared/db/attendees.ts";
+import type { AttendeeWithBookings } from "#shared/db/attendee-types.ts";
+import { decryptAttendees } from "#shared/db/attendees/pii.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
+import { updateCheckedIn } from "#shared/db/attendees/update.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {

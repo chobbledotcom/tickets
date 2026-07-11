@@ -1,16 +1,14 @@
 import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
-import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import {
-  createTestAttendee,
-  createTestListing,
-  getTestSession,
-  mockFormRequest,
-} from "#test-utils";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { mockFormRequest } from "#test-utils/mocks.ts";
+import { getTestSession } from "#test-utils/session.ts";
 
 type AttendeeRow = Awaited<ReturnType<typeof getAttendeesRaw>>[number];
 

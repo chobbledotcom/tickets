@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { rethrowUnlessNotFound } from "../not-found.ts";
 import { projectRoot } from "../project-root.ts";
 
 const STRIPE_MOCK_VERSION = "0.188.0";
@@ -22,6 +23,10 @@ export type StripeMockPaths = {
   binDir: string;
   binaryPath: string;
 };
+
+/** Ensure the bin directory (and any parents) exists. */
+export const ensureBinDir = (paths: StripeMockPaths): Promise<void> =>
+  Deno.mkdir(paths.binDir, { recursive: true });
 
 export type StripeMockCommands = {
   chmod: string;
@@ -194,7 +199,7 @@ const removeLockIfOwned = async (
       await Deno.remove(lockPath);
     }
   } catch (error) {
-    if (!(error instanceof Deno.errors.NotFound)) throw error;
+    rethrowUnlessNotFound(error);
   }
 };
 
@@ -269,9 +274,9 @@ const withInstallLock = async <T>(
   options: StripeMockInstallOptions,
   body: () => Promise<T>,
 ): Promise<T> => {
-  await Deno.mkdir(paths.binDir, { recursive: true });
   const lockPath = installLockPath(paths);
   const settings = installLockSettings(options);
+  await ensureBinDir(paths);
   const lock = await acquireInstallLock(lockPath, settings);
   const stopRefreshingLock = startInstallLockRefresh(
     lockPath,

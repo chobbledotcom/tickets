@@ -20,7 +20,7 @@ import {
 } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { updateCheckedIn } from "#shared/db/attendees.ts";
+import { updateCheckedIn } from "#shared/db/attendees/update.ts";
 import { settings } from "#shared/db/settings.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";

@@ -7,19 +7,20 @@ import { setListingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import {
-  adminFormPost,
-  awaitTestRequest,
-  buildAttendeeEditForm,
-  createTestAttendee,
-  createTestAttendeeDirect,
-  createTestListing,
   expectFlash,
   expectHtmlResponse,
   FLASH_TEST_ID,
   flashCookieHeader,
+} from "#test-utils/assertions.ts";
+import {
+  buildAttendeeEditForm,
+  createTestAttendee,
+  createTestAttendeeDirect,
   getAttendeesRaw,
-  mockFormRequest,
-} from "#test-utils";
+} from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 /** A listing (100 spots by default) plus one attendee booked onto it ("John
  *  Doe" by default). The single most repeated setup across the attendee admin
@@ -252,7 +253,7 @@ export const createDualPackageAttendee = async (
   name: string,
   email: string,
 ): Promise<Attendee> => {
-  const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+  const { createAttendeeAtomic } = await import("#shared/db/attendees/api.ts");
   const made = await createAttendeeAtomic({
     bookings: [
       { listingId, packageGroupId: groupId, quantity: 2 },

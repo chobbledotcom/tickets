@@ -6,7 +6,8 @@ import {
 } from "#shared/columns/attendee-columns.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { AttendeeColumnOpts } from "#templates/attendee-table.tsx";
-import { setupTestEncryptionKey, testAttendee } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testAttendee } from "#test-utils/factories.ts";
 import {
   makeAttendeeRow as makeRow,
   attendeeColumnOpts as opts,

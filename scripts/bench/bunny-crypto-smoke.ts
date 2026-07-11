@@ -13,6 +13,13 @@ const KEY = crypto.getRandomValues(new Uint8Array(32));
 const SAMPLE = "attendee-pii-value-12345@example.com";
 const ITERS = 2000;
 
+/** Run `body` ITERS times and return the elapsed milliseconds. */
+const timeLoop = async (body: () => Promise<void> | void): Promise<number> => {
+  const t0 = performance.now();
+  for (let i = 0; i < ITERS; i++) await body();
+  return performance.now() - t0;
+};
+
 // --- crypto.subtle (current approach) ---
 const subtleKey = await crypto.subtle.importKey(
   "raw",
@@ -85,19 +92,14 @@ const run = async (): Promise<Result> => {
     out.subtleDecryptsNode = dec.decode(await subtleDec(n.iv, n.ct)) === SAMPLE;
 
     // 4) Micro-bench (small payload, the hot path)
-    let t0 = performance.now();
-    for (let i = 0; i < ITERS; i++) {
+    const subtleMs = await timeLoop(async () => {
       const x = await subtleEnc(pt);
       await subtleDec(x.iv, x.ct);
-    }
-    const subtleMs = performance.now() - t0;
-
-    t0 = performance.now();
-    for (let i = 0; i < ITERS; i++) {
+    });
+    const nodeMs = await timeLoop(() => {
       const x = nodeEnc(pt);
       nodeDec(x.iv, x.ct);
-    }
-    const nodeMs = performance.now() - t0;
+    });
 
     out.iterations = ITERS;
     out.subtle_us_per_op = +((subtleMs * 1000) / ITERS).toFixed(2);

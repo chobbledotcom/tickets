@@ -6,16 +6,17 @@ import {
 } from "#shared/db/attributes.ts";
 import type { Listing } from "#shared/types.ts";
 import {
-  adminFormPost,
-  adminGet,
-  assignTestAttributeOptions,
-  createTestAttributeWithOptions,
-  createTestListing,
-  describeWithEnv,
   expectHtmlResponse,
   expectStatus,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  assignTestAttributeOptions,
+  createTestAttributeWithOptions,
+} from "#test-utils/db-helpers/attributes.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 /** One attribute ("Difficulty": Easy/Hard) and one listing that selected only
  * the Easy option — the fixture both detail pages are asserted against. */
@@ -56,6 +57,10 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
       // Easy is set on one listing; Hard on none.
       expect(html).toContain('<td class="col-quantity">1</td>');
       expect(html).toContain('<td class="col-quantity">0</td>');
+      // The attribute's own delete action stays on its detail page.
+      expect(html).toContain(
+        `<a class="danger" href="/admin/attributes/${attribute.id}/delete">`,
+      );
     });
 
     test("lists each listing using the attribute with its selected options", async () => {
@@ -77,6 +82,12 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
         `<a href="/admin/listing/${bothListing.id}">Both options</a>`,
       );
       expect(html).toContain("<td>Easy, Hard</td>");
+      // Rows are ordered by listing id (creation order).
+      const climbingIndex = html.indexOf(">Climbing</a>");
+      const bothOptionsIndex = html.indexOf(">Both options</a>");
+      expect(climbingIndex).toBeGreaterThanOrEqual(0);
+      expect(bothOptionsIndex).toBeGreaterThanOrEqual(0);
+      expect(climbingIndex).toBeLessThan(bothOptionsIndex);
     });
 
     test("mutes deactivated listings in the listings table", async () => {

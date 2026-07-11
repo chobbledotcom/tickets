@@ -2,26 +2,25 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { revenueAccount } from "#shared/accounting/accounts.ts";
 import { accountBalance } from "#shared/accounting/queries.ts";
-import {
-  createAttendeeAtomic,
-  getAttendeesRaw,
-  loadExistingLines,
-} from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { loadExistingLines } from "#shared/db/attendees/atomic-update.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import type { Group, Listing } from "#shared/types.ts";
+import { attendeeLineIndex } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   type AttendeeLineInput,
-  adminFormPost,
-  adminGet,
   attendeeLineFields,
-  attendeeLineIndex,
   buildAttendeeEditForm,
-  createTestGroup,
+} from "#test-utils/db-helpers/attendees.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
   createTestListing,
   deactivateTestListing,
-  describeWithEnv,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 /**
  * The row-per-path attendee editor: every stored booking row renders as its

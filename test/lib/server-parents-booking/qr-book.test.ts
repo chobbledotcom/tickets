@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
-import { describeWithEnv, makeParent } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { makeParent } from "#test-utils/parents.ts";
 
 describeWithEnv(
   "server > parents booking — QR book",

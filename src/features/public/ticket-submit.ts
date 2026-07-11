@@ -22,12 +22,15 @@ import { parseIsoDateParam } from "#shared/dates.ts";
 import {
   getGroupRemainingByListingId,
   getSharedGroupCapacities,
-} from "#shared/db/attendees.ts";
+} from "#shared/db/attendees/capacity.ts";
 import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
 import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getImagesForItem } from "#shared/db/images.ts";
-import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
+import {
+  ATTENDEE_DEMO_FIELDS,
+  applyDemoOverrides,
+} from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
@@ -39,7 +42,7 @@ import {
 import type {
   BookingPrefill,
   TicketPrefill,
-} from "#templates/public/reservations.tsx";
+} from "#templates/public/reservations/inputs.ts";
 import {
   applyBookingPageParentSoldOut,
   childCapacityInfo,

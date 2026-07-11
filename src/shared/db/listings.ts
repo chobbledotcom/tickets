@@ -20,7 +20,7 @@ import {
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { addDays } from "#shared/dates.ts";
+import { addDays, VALID_DAY_NAMES } from "#shared/dates.ts";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import {
   ATTENDEE_JOIN_SELECT,
@@ -82,7 +82,6 @@ import {
   normalizeDurationDays,
   parseDayPrices,
 } from "#shared/types.ts";
-import { VALID_DAY_NAMES } from "#templates/fields/validators.ts";
 
 /** Default bookable days (all days of the week) */
 export const DEFAULT_BOOKABLE_DAYS: string[] = [...VALID_DAY_NAMES];

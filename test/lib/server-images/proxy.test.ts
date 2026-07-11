@@ -2,15 +2,15 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { encryptBytes } from "#shared/crypto/encryption.ts";
+import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { JPEG_HEADER } from "#test-utils/factories.ts";
 import {
-  describeWithEnv,
-  expectHtmlResponse,
-  JPEG_HEADER,
   mockRequest,
   withCdnProxy,
   withExpectedError,
   withStorageDisabled,
-} from "#test-utils";
+} from "#test-utils/mocks.ts";
 
 /** Reusable proxy route test path */
 const PROXY_PATH = "/image/abc123-def4-5678-9abc-def012345678";

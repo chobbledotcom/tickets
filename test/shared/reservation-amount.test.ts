@@ -7,7 +7,7 @@ import {
   RESERVATION_AMOUNT_HINT,
   validateReservationAmount,
 } from "#shared/reservation-amount.ts";
-import { testWithSetting } from "#test-utils";
+import { testWithSetting } from "#test-utils/settings.ts";
 
 describe("reservation-amount", () => {
   describe("parseReservationAmount", () => {

@@ -7,12 +7,9 @@ import {
   toMinorUnits,
 } from "#shared/currency.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
-import {
-  createTestDbWithSetup,
-  resetDb,
-  setupTestEncryptionKey,
-  testWithSetting,
-} from "#test-utils";
+import { createTestDbWithSetup, resetDb } from "#test-utils/db.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testWithSetting } from "#test-utils/settings.ts";
 
 describe("currency", () => {
   describe("getDecimalPlaces", () => {

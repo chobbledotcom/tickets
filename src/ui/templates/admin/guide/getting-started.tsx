@@ -18,4 +18,9 @@ export const gettingStartedSections = (): GuideSection[] => [
     entries: [faq("test_after_changing_settings"), faq("report_bug")],
     titleKey: "testing_your_system",
   },
+  {
+    entries: [faq("contact_support"), faq("support_page_availability")],
+    id: "support",
+    titleKey: "getting_help",
+  },
 ];

@@ -4,7 +4,7 @@
  * All testable logic is in stripe-mock.ts
  */
 
-import { setupTestEncryptionKey } from "#test-utils";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
   startStripeMock,
   stripeMockEnv,

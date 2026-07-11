@@ -28,14 +28,11 @@ import {
 } from "#shared/db/attendees/queries.ts";
 import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import { getListingWithAttendeesRaw } from "#shared/db/listings.ts";
-import {
-  createServicingHold,
-  createTestAttendeeDirect,
-  createTestListing,
-  describeWithEnv,
-  getTestPrivateKey,
-  renderAdminPage,
-} from "#test-utils";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createServicingHold, renderAdminPage } from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 
@@ -57,7 +54,7 @@ const createMixedAudience = async () => {
 const decryptNames = async (
   rows: import("#shared/types.ts").Attendee[],
 ): Promise<string[]> => {
-  const { decryptAttendees } = await import("#shared/db/attendees.ts");
+  const { decryptAttendees } = await import("#shared/db/attendees/pii.ts");
   const pk = await getTestPrivateKey();
   return (await decryptAttendees(rows, pk)).map((a) => a.name);
 };

@@ -2,17 +2,15 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
-  adminGet,
-  describeAdminSettings,
   expectFlash,
   expectHtmlResponse,
-  getAllActivityLog,
-  mockFormRequest,
-  testCookie,
-  testCsrfToken,
   testRequiresAuth,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { mockFormRequest } from "#test-utils/mocks.ts";
+import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
+import { describeAdminSettings } from "#test-utils/settings.ts";
 
 describeAdminSettings(() => {
   describe("POST /admin/settings/booking-fee", () => {

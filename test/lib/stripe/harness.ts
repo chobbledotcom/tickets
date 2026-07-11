@@ -1,11 +1,7 @@
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { resetStripeClient } from "#shared/stripe.ts";
-import {
-  createTestDb,
-  describeWithEnv,
-  resetDb,
-  resetTestSlugCounter,
-} from "#test-utils";
+import { createTestDb, describeWithEnv, resetDb } from "#test-utils/db.ts";
+import { resetTestSlugCounter } from "#test-utils/internal.ts";
 
 /**
  * Wraps a group of Stripe tests with the shared environment and database

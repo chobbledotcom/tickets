@@ -2,22 +2,25 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { validateGroupListingType } from "#shared/db/groups.ts";
-import { setDemoModeForTest } from "#shared/demo.ts";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
   assertAdminHtml,
-  awaitTestRequest,
-  createTestGroup,
-  createTestListing,
-  createTestManagerSession,
-  describeWithEnv,
   expectFlash,
   expectFlashRedirect,
   expectStatus,
-  mockFormRequest,
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  createTestGroup,
+  updateTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import {
+  createTestManagerSession,
   testCookie,
   testCsrfToken,
-  updateTestGroup,
-} from "#test-utils";
+} from "#test-utils/session.ts";
 
 describeWithEnv(
   "server (admin groups) — actions & validation",

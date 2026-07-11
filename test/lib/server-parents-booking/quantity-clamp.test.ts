@@ -1,12 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { Listing } from "#shared/types.ts";
-import {
-  createTestGroup,
-  describeWithEnv,
-  makeParent,
-  ticketGet,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { makeParent, ticketGet } from "#test-utils/parents.ts";
 
 /** Slice the `<select>` options substring for `marker` out of a rendered
  *  booking page body — assert the marker is present first (so a missing

@@ -9,7 +9,7 @@ import {
   PRUNE_PAYMENTS_RETENTION_MS,
 } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeExists,
   clearAllLastPruned,

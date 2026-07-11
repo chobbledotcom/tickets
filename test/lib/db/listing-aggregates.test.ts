@@ -21,7 +21,8 @@ import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
 import { BACKFILL_LISTING_AGGREGATES_SQL } from "#shared/db/migrations/schema-sync.ts";
 import { MIGRATIONS } from "#shared/db/migrations.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { readListingAggregates as aggregates } from "./migration-test-helpers.ts";
 

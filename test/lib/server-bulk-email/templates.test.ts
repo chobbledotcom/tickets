@@ -13,14 +13,13 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
 import {
-  adminFormPost,
-  adminGet,
-  describeWithEnv,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
   expectRedirect,
-} from "#test-utils";
+} from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { seedDraft } from "./helpers.ts";
 
 const seedTemplate = async (subject: string, body: string) => {

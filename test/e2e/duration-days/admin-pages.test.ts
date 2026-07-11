@@ -2,25 +2,27 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import {
-  adminFormPost,
-  awaitTestRequest,
-  bookAttendee,
-  createDailyTestListing,
-  describeWithEnv,
   expectFlashRedirect,
   expectListingActivityLogContains,
   expectListingActivityLogLacks,
-  rawListingRange,
-  setupListingAndLogin,
+} from "#test-utils/assertions.ts";
+import { describeWithEnv, rawListingRange } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import {
+  createDailyTestListing,
   updateTestListing,
-} from "#test-utils";
+} from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
 import { twoGroupedListingsBookedOnAdjacentDays } from "./helpers.ts";
 
 describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
   describe("public ticket page", () => {
     test("shows booking duration hint for multi-day daily listings", async () => {
       const { buildTicketListing } = await import("#shared/booking/model.ts");
-      const { ticketPage } = await import("#templates/public/reservations.tsx");
+      const { ticketPage } = await import(
+        "#templates/public/reservations/ticket-page.tsx"
+      );
       const listing = await createDailyTestListing({
         durationDays: 3,
         maxAttendees: 10,
@@ -36,7 +38,9 @@ describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
 
     test("no duration hint for single-day daily listings", async () => {
       const { buildTicketListing } = await import("#shared/booking/model.ts");
-      const { ticketPage } = await import("#templates/public/reservations.tsx");
+      const { ticketPage } = await import(
+        "#templates/public/reservations/ticket-page.tsx"
+      );
       const listing = await createDailyTestListing({ maxAttendees: 10 });
       const fresh = (await getListingWithCount(listing.id))!;
       const html = ticketPage({

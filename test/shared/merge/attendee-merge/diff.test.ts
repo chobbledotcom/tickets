@@ -10,7 +10,9 @@ import { getDb } from "#shared/db/client.ts";
 import { setListingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { bookingKey } from "#shared/merge/attendee-merge.ts";
-import { bookAttendee, createTestListing, describeWithEnv } from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   buildMergeDiff,
   createMergePair,

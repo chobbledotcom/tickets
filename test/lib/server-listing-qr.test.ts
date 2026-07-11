@@ -6,12 +6,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { handleTicketQrGet } from "#routes/public/ticket-routes.ts";
-import {
-  createTestGroup,
-  createTestListing,
-  describeWithEnv,
-  mockRequest,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 
 describeWithEnv("ticket QR code", { db: true }, () => {
   const expectQrCode = async (response: Response) => {

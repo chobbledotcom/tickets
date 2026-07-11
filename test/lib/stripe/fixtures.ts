@@ -3,7 +3,7 @@ import { settings } from "#shared/db/settings.ts";
 import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
 import { getStripeClient } from "#shared/stripe.ts";
 import type { Listing } from "#shared/types.ts";
-import { withMocks } from "#test-utils";
+import { withMocks } from "#test-utils/mocks.ts";
 
 type StripeClient = NonNullable<Awaited<ReturnType<typeof getStripeClient>>>;
 

@@ -14,7 +14,7 @@ import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
-import { ActionButton } from "#templates/components/actions.tsx";
+import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import type { DataColumn } from "#templates/components/data-table.tsx";
 import { ProseIntro } from "#templates/components/prose-heading.tsx";
@@ -154,6 +154,11 @@ export const statusPages = defineAdminResourcePages<AttendeeStatus>({
       </ActionButton>
     ),
     columns: statusColumns,
+    guideFooter: (
+      <GuideFooter href="/admin/guide#attendee-statuses">
+        {t("statuses.guide_link")}
+      </GuideFooter>
+    ),
     intro: <ProseIntro html={t("statuses.attendee_statuses_description")} />,
   },
   renderFields: renderStatusFields,

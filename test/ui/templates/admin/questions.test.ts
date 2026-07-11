@@ -16,8 +16,8 @@ import {
   ListingQuestionsPanel,
   questionTextFlat,
 } from "#templates/admin/questions.tsx";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
-  setupTestEncryptionKey,
   singleAnswerSizeQuestionData,
   sizeQuestionAnswerData,
   smallLargeAnswers,
@@ -25,7 +25,7 @@ import {
   testListingWithCount,
   testQuestion,
   unselectedAnswerQuestionData,
-} from "#test-utils";
+} from "#test-utils/factories.ts";
 
 const TEST_LISTINGS = [
   testListingWithCount({ id: 1, name: "Spring Gig" }),

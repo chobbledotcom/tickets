@@ -7,7 +7,10 @@ import { clearFormStash, takeForm } from "#shared/form-stash.ts";
 import { clearSavedFormData, setSavedFormData } from "#shared/forms.tsx";
 import { FORM_STASH_MAX_BYTES } from "#shared/limits.ts";
 import { fail, ok } from "#shared/response.ts";
-import { expectRedirectWithFlash, parseFlashCookie } from "#test-utils";
+import {
+  expectRedirectWithFlash,
+  parseFlashCookie,
+} from "#test-utils/assertions.ts";
 
 describe("ok", () => {
   test("returns a 302 redirect with success flash cookie", () => {

@@ -28,11 +28,9 @@ import {
   resetListingAggregateFields,
 } from "#shared/db/listings.ts";
 import { TICKET_COUNTS_PREDICATE } from "#shared/db/migrations/schema/listing-aggregates.ts";
-import {
-  createServicingHold,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createServicingHold } from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 

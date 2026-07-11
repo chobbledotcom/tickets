@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { formatDeadlineLabel, isProvisioned } from "#shared/renewal-helpers.ts";
-import { testBuiltSite } from "#test-utils";
+import { testBuiltSite } from "#test-utils/factories.ts";
 
 describe("isProvisioned", () => {
   test("returns true when renewalTokenIndex is set", () => {

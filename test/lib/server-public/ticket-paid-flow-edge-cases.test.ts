@@ -4,18 +4,20 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
-  bookAttendee,
-  bookOneEachViaTicketForm,
-  createTestListing,
-  describeWithEnv,
-  expectBookOneEachRejected,
   expectCheckoutRedirect,
   expectHtmlResponse,
   expectReservedRedirectWithTokens,
-  setupStripe,
+} from "#test-utils/assertions.ts";
+import {
+  bookOneEachViaTicketForm,
+  expectBookOneEachRejected,
   submitMultiTicketForm,
   submitTicketForm,
-} from "#test-utils";
+} from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -175,7 +177,7 @@ describeWithEnv(
 
         // Mock checkBatchAvailability via attendeesApi to return false,
         // simulating a race condition where listing sells out between page load and check
-        const { attendeesApi } = await import("#shared/db/attendees.ts");
+        const { attendeesApi } = await import("#shared/db/attendees/api.ts");
         const mockBatch = stub(attendeesApi, "checkBatchAvailability", () =>
           Promise.resolve(false),
         );

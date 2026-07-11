@@ -37,22 +37,22 @@ import { emptyRange } from "#shared/accounting/range.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { account } from "#shared/ledger/account.ts";
+import { parseFlashCookie } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   adminPost,
   createDatedServicingScenario,
   createServicingHold,
-  createTestAttendeeDirect,
-  createTestListing,
   deleteServicingEvent,
-  describeWithEnv,
   editServiceCost,
   expectCostAfterRecording,
   expectRejects,
   listingCostOf,
-  parseFlashCookie,
   recordServiceCost,
   renderAdminPage,
-} from "#test-utils";
+} from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 

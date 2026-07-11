@@ -12,19 +12,21 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,
-  createServicingHold,
   createTestListing,
+} from "#test-utils/db-helpers/listings.ts";
+import { withPoisonedTransactionExecute } from "#test-utils/db-poison.ts";
+import {
+  createServicingHold,
   createTestServicingEvent,
-  describeWithEnv,
   expectRejects,
   getServicingEvent,
-  getTestPrivateKey,
   servicingRowsForListing,
   updateServicingEvent,
-  withPoisonedTransactionExecute,
-} from "#test-utils";
+} from "#test-utils/servicing.ts";
 
 // jscpd:ignore-end
 
@@ -202,8 +204,11 @@ describeWithEnv(
       // Standard listings have start_at = null, exercising the restore path's
       // null-date branch (desiredLinesFromExisting handles a null start_at by
       // setting date to null — the restore must not break on it).
-      const { createTestServicingEvent, createTestListing } = await import(
-        "#test-utils"
+      const { createTestListing } = await import(
+        "#test-utils/db-helpers/listings.ts"
+      );
+      const { createTestServicingEvent } = await import(
+        "#test-utils/servicing.ts"
       );
       const listing = await createTestListing({
         maxAttendees: 10,

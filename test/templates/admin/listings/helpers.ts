@@ -8,7 +8,7 @@ import {
   overviewStatsFromAttendees,
 } from "#templates/admin/listings/overview.tsx";
 import { ListingRosterPanel } from "#templates/admin/listings/roster.tsx";
-import { setTestEnv, setupTestEncryptionKey } from "#test-utils";
+import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 
 export const TEST_SESSION = { adminLevel: "owner" as const };
 

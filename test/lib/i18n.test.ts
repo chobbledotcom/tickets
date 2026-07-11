@@ -10,7 +10,7 @@ import {
   t,
 } from "#i18n";
 import en from "#locales/en/index.ts";
-import { setTestEnv } from "#test-utils";
+import { setTestEnv } from "#test-utils/env.ts";
 
 describe("i18n", () => {
   describe("t", () => {
