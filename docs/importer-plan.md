@@ -1193,19 +1193,29 @@ bookings imports the rest and reports the skip.
 **Write (one guarded transaction, only when the report is clean):**
 
 13. Run one write transaction for all candidates in the plan. **Re-verify the
-    resolved context inside the transaction before writing:** the plan was built
-    from a preflight snapshot, and the referenced listings, statuses, and questions
-    can change between preflight and write (another admin deleting a listing,
-    renaming a status). Re-check inside the transaction the **same fields the
-    resolver matched on**, not just id existence: each listing still exists, is
-    still daily-type, still normalizes to the matched name, and (fixed-duration)
-    still has the matched `duration_days`; each status still normalizes to the
-    matched name with the same `is_reservation`/`is_paid_default` flags; each
-    question is still `free_text`, still assigned to the booking's listings, and
-    still carries the required staff-only visibility. On any drift, abort — the
+    resolved context inside the transaction before writing — by re-running the
+    resolvers, not by field-checking the chosen rows:** the plan was built from a
+    preflight snapshot, and the setup can change between preflight and write
+    (another admin deleting, renaming, re-flagging, or **adding** a listing /
+    status / question). Ambiguity is a property of the **whole current setup set**,
+    not of the chosen row — a duplicate status or question name, or a new listing
+    that makes a slash-token ambiguous, leaves the originally chosen row's own
+    fields intact while the documented resolver would now block. So: load a fresh
+    snapshot **through the transaction**, re-run the same pure resolvers over it,
+    and require **identical results** — the same unique match for every product /
+    status / question (no new ambiguity, no lost match), the same rule branches
+    satisfied under **current** state (the question still `free_text` with the
+    required staff-only visibility and still `assign_all` **or** assigned to ≥1
+    matched listing — the same rule as preflight, not a bare assignment check; the
+    listing still daily-type, and the CSV span still valid against the listing's
+    **current** `customisable_days`/`duration_days` — a listing switched from
+    customisable to fixed must re-pass the fixed-duration span gate), and the same
+    status `is_reservation`/`is_paid_default` flags. Any difference aborts — the
     whole file rolls back and the operator re-runs preflight against current
     state, rather than the importer writing against setup that no longer matches
-    the CSV. Then:
+    the CSV. (Reusing the pure resolver on a fresh snapshot keeps this one code
+    path, per the shared-interface rule — no parallel "recheck" logic to drift.)
+    Then:
     - upsert the deduped `strings` rows and resolve their ids (or do this such
       that a rollback removes them);
     - insert attendee, and resolve its **stable id** via a per-attendee lookup
