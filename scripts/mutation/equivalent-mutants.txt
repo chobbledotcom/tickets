@@ -875,3 +875,8 @@ src/shared/logger.ts:77:70  ?? → ||   # getRequestId's `getStore() ?? ""`: the
 # Admin refund waves (refunds/waves.ts) — one provably-equivalent survivor from
 # the packByReferenceCount run.
 src/features/admin/refunds/waves.ts:16:24  0 → 1   # packByReferenceCount's `currentCount` init: the first iteration always hits `!wave` (waves is empty, so waves[-1] is undefined), which short-circuits the `|| currentCount + refs > budget` before currentCount is read; every later iteration reassigns it first, so the initial value is never observed
+
+# Attendee PII (db/attendees/pii.ts) — two provably-equivalent survivors from
+# the decryptPiiBlob run.
+src/shared/db/attendees/pii.ts:72:17  ?? → ||   # decryptPiiBlob's `blob.la ?? ""`: buildPiiBlob stores `info.lat || undefined`, so blob.la is a non-empty string or undefined — never "". The only falsy value is undefined, so `x ?? ""` and `x || ""` agree on every possible input
+src/shared/db/attendees/pii.ts:73:17  ?? → ||   # decryptPiiBlob's `blob.lo ?? ""`: same as la above — blob.lo is a non-empty string or undefined (buildPiiBlob stores `info.lng || undefined`), so `?? ""` and `|| ""` agree on every input
