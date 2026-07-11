@@ -217,21 +217,12 @@ export const getAttendeeAnswersByQuestion = async (
      WHERE attendeeAnswer.answer_id IS NOT NULL AND attendeeAnswer.attendee_id = ?`,
     [attendeeId],
   );
-  // Decrypt each chosen answer in parallel, then key by question id.
-  const decrypted = await mapParallel(async (row: ChoiceAnswerRow) => {
-    const answer = await answersTable.fromDb({
-      active: true,
-      id: row.answer_id,
-      question_id: row.question_id,
-      sort_order: 0,
-      text: row.answer_text,
-    });
-    return {
-      answerId: row.answer_id,
-      answerText: answer.text,
-      questionId: row.question_id,
-    };
-  })(rows);
+  // Decrypt each chosen answer's text in parallel, then key by question id.
+  const decrypted = await mapParallel(async (row: ChoiceAnswerRow) => ({
+    answerId: row.answer_id,
+    answerText: await answersTable.readColumn("text", row.answer_text),
+    questionId: row.question_id,
+  }))(rows);
   return new Map(
     decrypted.map((d) => [
       d.questionId,

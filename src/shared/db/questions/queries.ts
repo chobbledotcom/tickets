@@ -45,16 +45,17 @@ const decryptQuestion = async (
   rawText: string,
   rawAnswers: Answer[],
 ): Promise<QuestionWithAnswers> => {
-  const [question, ...answers] = await Promise.all([
-    questionsTable.fromDb({
-      assign_all: assignAll,
-      display_type: displayType,
-      id,
-      text: rawText,
-    }),
-    ...map((a: Answer) => answersTable.fromDb(a))(rawAnswers),
+  const [text, answers] = await Promise.all([
+    questionsTable.readColumn("text", rawText),
+    mapParallel((a: Answer) => answersTable.fromDb(a))(rawAnswers),
   ]);
-  return { ...question, answers };
+  return {
+    answers,
+    assign_all: assignAll,
+    display_type: displayType,
+    id,
+    text,
+  };
 };
 
 /** Group flat joined rows into QuestionWithAnswers[], preserving row order.
