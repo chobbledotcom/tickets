@@ -7,6 +7,11 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import type { getActivePaymentProvider } from "#shared/payments.ts";
 import { recordAttendeeRefundsBatch } from "#shared/refund-ledger.ts";
 import type { RefundCandidate } from "./candidates.ts";
+import {
+  combineRefundOutcomes,
+  packByReferenceCount,
+  type RefundOutcome,
+} from "./waves.ts";
 
 type RefundProvider = Pick<
   NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
@@ -15,8 +20,6 @@ type RefundProvider = Pick<
 type MarkReturnedReferences = (
   references: readonly RefundPaymentReference[],
 ) => Promise<void>;
-
-type RefundOutcome = "refunded" | "failed" | "errored";
 
 export type RefundCounts = {
   refundedCount: number;
@@ -32,30 +35,6 @@ export type RefundCounts = {
  * reference count and each candidate's own references are chunked to this too.
  * The refresh-payment status check reuses it to bound its own fan-out. */
 export const PROVIDER_REFUND_CONCURRENCY = 5;
-
-/** Pack candidates into waves whose combined charge references stay within
- * `budget`, so each concurrently-processed wave issues at most ~`budget`
- * provider subrequests. A single candidate carrying more references than the
- * budget forms its own wave; its references are chunked inside
- * {@link refundCandidateAtProvider}. */
-const packByReferenceCount =
-  (budget: number) =>
-  (candidates: RefundCandidate[]): RefundCandidate[][] => {
-    const waves: RefundCandidate[][] = [];
-    let currentCount = 0;
-    for (const candidate of candidates) {
-      const refs = candidate.references.length;
-      const wave = waves[waves.length - 1];
-      if (!wave || currentCount + refs > budget) {
-        waves.push([candidate]);
-        currentCount = refs;
-      } else {
-        wave.push(candidate);
-        currentCount += refs;
-      }
-    }
-    return waves;
-  };
 
 const refundReferenceAtProvider = async (
   provider: RefundProvider,
@@ -85,12 +64,6 @@ const refundReferenceAtProvider = async (
     });
     return "errored";
   }
-};
-
-const combineRefundOutcomes = (outcomes: RefundOutcome[]): RefundOutcome => {
-  if (outcomes.includes("errored")) return "errored";
-  if (outcomes.includes("failed")) return "failed";
-  return "refunded";
 };
 
 export const refundCandidateAtProvider = async (
