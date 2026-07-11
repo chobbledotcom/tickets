@@ -19,7 +19,7 @@ export const apiResponse = (data: unknown, status = 200): Response => {
 /** Turn a JSON responder into an error responder: the returned function wraps
  * a message in the shared `{ error: message }` envelope (400 unless told
  * otherwise), so every API error body is spelled in one place. */
-export const jsonError =
+const jsonError =
   (respond: (data: unknown, status?: number) => Response) =>
   (message: string, status = 400): Response =>
     respond({ error: message }, status);
