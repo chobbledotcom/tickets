@@ -7,9 +7,16 @@
  * mutations bind through this project's `#…` import-map aliases — a fresh
  * subprocess recompiles the changed file, so the tests run against the mutant.
  *
- * A mutant is "killed" when the tests fail, "survived" when they still pass
- * (a gap in the tests), or "timed-out" when the mutation caused a hang (which
- * counts as detected).
+ * Before the tests, each mutant runs through cheap static gates — a Biome lint
+ * and a `deno check` type-check — that kill it outright if the mutation
+ * produces forbidden code or a type error (either would fail the build, so the
+ * mutant could never ship). Static checks are much faster than a full test run,
+ * so ruling a mutant out this way skips the tests entirely; see createStaticGates.
+ *
+ * A mutant is "killed" when a static gate rejects it or the tests fail,
+ * "survived" when it clears every gate and the tests still pass (a gap in the
+ * tests), or "timed-out" when the mutation caused a hang (which counts as
+ * detected).
  */
 
 import { dim, green, red, yellow } from "../precommit/colors.ts";
@@ -90,17 +97,32 @@ const resolveBiome = async (): Promise<{ bin: string; pre: string[] }> => {
 };
 
 /**
- * Biome linter for the mutation gate. `exit(file)` returns the raw `biome lint`
- * exit code (0 = clean) for the file's *current on-disk contents*.
+ * A cheap static check run over a mutated file *before* the tests. Its `exit`
+ * is the check's exit code (0 = clean) for the file's current on-disk contents.
  *
- * A non-zero exit is read as "the mutation introduced a diagnostic" (the mutant
- * produces code the project forbids and could never pass review, so we count it
- * as detected — see evaluateMutant). That reading is only sound once the runner
- * has confirmed, per file, that the *unmutated* target lints clean (see the
- * baseline probe in runMutants): otherwise a broken Biome (uncached npm
- * fallback, unreadable config, a crash) or a pre-existing lint error in the
- * target would fail every mutant and report a bogus 100%. Two restrictions keep
- * a passing mutant from ever *masking* a genuine survivor:
+ * A non-zero exit is read as "the mutation introduced a diagnostic" — the
+ * mutant produces code the project forbids or that would not build, so it could
+ * never pass review, and we count it as detected (killed) without spending a
+ * full test run on it (see evaluateMutant). Static gates are ordered cheapest
+ * first, so a `deno test` is reached only for mutants that survive every one.
+ *
+ * That reading is only sound once the runner has confirmed, per file, that the
+ * *unmutated* target passes the gate (see the baseline probe in runMutants):
+ * otherwise a broken tool or a pre-existing failure in the target would fail
+ * every mutant and report a bogus 100%. `label` names the gate in that probe's
+ * message and `remedy` tells the operator how to make the target clean again.
+ */
+interface StaticGate {
+  /** The gate's exit code for the file's current on-disk contents (0 = clean). */
+  exit(file: string): Promise<number>;
+  /** Short name shown in the baseline-probe failure message (e.g. "lint"). */
+  label: string;
+  /** Advice printed when the *unmutated* target fails this gate. */
+  remedy: string[];
+}
+
+/**
+ * Biome lint gate. A passing mutant must never *mask* a genuine survivor, so:
  *   - error-severity only (plain `biome lint`, never `--error-on-warnings`):
  *     the `noExcessiveCognitiveComplexity` *warning* can trip when an
  *     `&&`/`||`/`??` swap changes a borderline function's operator mix, and
@@ -110,12 +132,7 @@ const resolveBiome = async (): Promise<{ bin: string; pre: string[] }> => {
  * The rule this reliably catches is `noDoubleEquals` — every `=== → ==` and
  * `!== → !=` mutant produces forbidden `==`/`!=` and dies here without a test.
  */
-interface MutantLinter {
-  /** `biome lint` exit code for the file's current on-disk contents (0 = clean). */
-  exit(file: string): Promise<number>;
-}
-
-const createLinter = async (): Promise<MutantLinter> => {
+const createLinter = async (): Promise<StaticGate> => {
   const { bin, pre } = await resolveBiome();
   return {
     exit: async (file: string): Promise<number> => {
@@ -133,8 +150,55 @@ const createLinter = async (): Promise<MutantLinter> => {
       }).output();
       return code;
     },
+    label: "lint",
+    remedy: [
+      "The mutation lint gate needs a lint-clean target and a working Biome.",
+      "Run `deno task lint` and fix any errors (precommit runs lint:ci first;",
+      "a standalone `deno task mutation` does not), then retry.",
+    ],
   };
 };
+
+/**
+ * TypeScript type-check gate. `deno check <file>` type-checks the mutated file
+ * and its import graph; a non-zero exit means the mutation introduced a type
+ * error. The project must type-check to build, so such a mutant could never
+ * ship — count it as detected without running the tests. Type-checking is far
+ * cheaper than a full `deno test` (the baseline probe warms the module cache by
+ * checking the unmutated file first, so per-mutant checks re-type only the one
+ * changed file), which is exactly why it runs before the tests.
+ *
+ * Unlike the lint gate there is no warning/formatting nuance to guard against:
+ * `deno check` reports type errors only, and *every* type error is a build
+ * failure, so killing on one can never mask a survivor the tests should catch.
+ * A `.js` mutation target (client-bundle source) type-checks clean and simply
+ * falls through to the test path.
+ */
+const createTypeChecker = (): StaticGate => ({
+  exit: (file: string): Promise<number> =>
+    denoExitCode(["check", file], {
+      cwd: projectRoot,
+      stderr: "null",
+      stdout: "null",
+    }),
+  label: "type-check",
+  remedy: [
+    "The mutation type-check gate needs a type-clean target and a working deno.",
+    "Run `deno task typecheck` and fix any errors (precommit typechecks first;",
+    "a standalone `deno task mutation` does not), then retry.",
+  ],
+});
+
+/**
+ * The static gates run over each mutant before the tests, cheapest first: the
+ * per-file Biome lint (no module graph), then the `deno check` type-check
+ * (graph, but cache-warmed). A mutant reaches `deno test` only if it survives
+ * both.
+ */
+const createStaticGates = async (): Promise<StaticGate[]> => [
+  await createLinter(),
+  createTypeChecker(),
+];
 
 /** Run one `deno test` process over `batch`, returning its exit code. */
 const runTestBatch = (batch: string[], signal: AbortSignal): Promise<number> =>
@@ -266,17 +330,20 @@ const evaluateMutant = async (
   timeoutMs: number,
   batchJobs: number,
   assets: MutantAssetHooks | null,
-  lint: MutantLinter,
+  gates: StaticGate[],
   abortSignal: AbortSignal,
 ): Promise<Status> => {
   await Deno.writeTextFile(file, applyMutant(original, mutant));
   try {
-    // A mutant that produces code the linter rejects (e.g. `==` under
-    // noDoubleEquals) is detected statically — killed before we spend a full
-    // test run on it. The unmutated target is verified lint-clean per file
-    // (see runMutants), so a non-zero exit here is a mutation-introduced
-    // diagnostic, not a broken Biome. See createLinter for the full rationale.
-    if ((await lint.exit(file)) !== 0) return "killed";
+    // A mutant that produces code a static gate rejects — `==` under Biome's
+    // noDoubleEquals, or a type error under `deno check` — is detected
+    // statically, killed before we spend a full test run on it. The unmutated
+    // target is verified clean per gate per file (see runMutants), so a
+    // non-zero exit here is a mutation-introduced diagnostic, not a broken
+    // tool. Gates run cheapest first; see createStaticGates for the rationale.
+    for (const gate of gates) {
+      if ((await gate.exit(file)) !== 0) return "killed";
+    }
     // A mutant that breaks the client-bundle build must not be tested against a
     // stale baseline asset (the tests would pass and it would falsely survive).
     // A failed build means the mutation is detected, so count it as killed.
@@ -404,32 +471,35 @@ const establishBaseline = async (
 };
 
 /**
- * Probe that the *unmutated* target lints clean before its mutants run, and
- * report loudly if not. The lint gate can only tell a mutation-introduced
- * diagnostic apart from a broken Biome or an already-dirty target if the
- * unmutated file lints clean. The file on disk is the original here (restored
- * after every mutant), so probe it once per file. A non-zero exit means the
- * gate can't be trusted — precommit runs `lint:ci` before mutation, but a
+ * Probe that the *unmutated* target passes every static gate before its mutants
+ * run, and report loudly if not. A gate can only tell a mutation-introduced
+ * diagnostic apart from a broken tool or an already-dirty target if the
+ * unmutated file passes it. The file on disk is the original here (restored
+ * after every mutant), so probe it once per file per gate — the type-check
+ * probe also warms the module cache, so the file's per-mutant `deno check`s
+ * re-type only the one changed file. A non-zero exit means that gate can't be
+ * trusted — precommit typechecks and runs `lint:ci` before mutation, but a
  * standalone `deno task mutation` does not — so the caller aborts rather than
- * record every mutant as a bogus lint-kill. Probing the target itself (not a
+ * record every mutant as a bogus static kill. Probing the target itself (not a
  * fixed path) also means a run that mutates this very file never reprobes a
  * path that is currently holding a mutant.
  */
 const isUnmutatedTargetDirty = async (
   plan: FileMutationPlan,
-  lint: MutantLinter,
+  gates: StaticGate[],
 ): Promise<boolean> => {
   if (plan.mutants.length === 0) return false;
-  if ((await lint.exit(plan.file)) === 0) return false;
-  console.error(red(`\nThe unmutated ${rel(plan.file)} does not lint clean.`));
-  console.error(
-    "The mutation lint gate needs a lint-clean target and a working Biome.",
-  );
-  console.error(
-    "Run `deno task lint` and fix any errors (precommit runs lint:ci first;",
-  );
-  console.error("a standalone `deno task mutation` does not), then retry.");
-  return true;
+  for (const gate of gates) {
+    if ((await gate.exit(plan.file)) === 0) continue;
+    console.error(
+      red(
+        `\nThe unmutated ${rel(plan.file)} does not pass the ${gate.label} gate.`,
+      ),
+    );
+    for (const line of gate.remedy) console.error(line);
+    return true;
+  }
+  return false;
 };
 
 /** Print the running progress line for a mutant, on the cadence the loop uses. */
@@ -462,7 +532,7 @@ const reportMutantProgress = (
 
 interface MutantLoopContext {
   counts: Record<Status, number>;
-  lint: MutantLinter;
+  gates: StaticGate[];
   perMutantTimeout: number;
   totalMutants: number;
 }
@@ -473,7 +543,7 @@ const evaluatePlanMutants = async (
   opts: RunMutantsOptions,
   ctx: MutantLoopContext,
 ): Promise<void> => {
-  const { counts, lint, perMutantTimeout, totalMutants } = ctx;
+  const { counts, gates, perMutantTimeout, totalMutants } = ctx;
   const {
     abortSignal,
     batchJobs,
@@ -494,7 +564,7 @@ const evaluatePlanMutants = async (
       perMutantTimeout,
       batchJobs,
       plan.assets,
-      lint,
+      gates,
       abortSignal,
     );
     originals.delete(plan.file);
@@ -571,7 +641,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   const rebuilder: AssetRebuilder | null = useHarness
     ? await createAssetRebuilder()
     : null;
-  const lint = await createLinter();
+  const gates = await createStaticGates();
 
   // Hoisted out of the try block: the ignore-list staleness check after it
   // needs each plan's original source to regenerate the --exhaustive mutant
@@ -594,10 +664,10 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
 
     for (const plan of plans) {
       if (isAborted()) break;
-      if (await isUnmutatedTargetDirty(plan, lint)) return 1;
+      if (await isUnmutatedTargetDirty(plan, gates)) return 1;
       await evaluatePlanMutants(plan, opts, {
         counts,
-        lint,
+        gates,
         perMutantTimeout,
         totalMutants,
       });
