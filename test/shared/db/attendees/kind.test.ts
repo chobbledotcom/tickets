@@ -33,18 +33,20 @@ describe("servicing §0 — kind guard helper classifies rows", () => {
   }
 
   test("isServicing is a type guard: narrows to SERVICING_KIND only when true", () => {
-    const kind: string | null = SERVICING_KIND;
-    // A type guard must narrow so the narrowed value is assignable to the
-    // SERVICING_KIND literal — this fails to compile if the predicate is not
-    // declared as a `kind is "servicing"`.
-    if (isServicing(kind)) {
-      const _proof: typeof SERVICING_KIND = kind;
-      expect(_proof).toBe(SERVICING_KIND);
-    } else {
-      // servicing kind must take the true branch
-      throw new Error(
-        "isServicing should narrow SERVICING_KIND to the servicing branch",
-      );
-    }
+    const kinds: (string | null)[] = [SERVICING_KIND, ATTENDEE_KIND];
+    const outcomes = kinds.map((kind) => {
+      // A type guard must narrow so the narrowed value is assignable to the
+      // SERVICING_KIND literal — this fails to compile if the predicate is
+      // not declared as a `kind is "servicing"`.
+      if (isServicing(kind)) {
+        const _proof: typeof SERVICING_KIND = kind;
+        return _proof;
+      }
+      return `not-servicing:${kind}`;
+    });
+    expect(outcomes).toEqual([
+      SERVICING_KIND,
+      `not-servicing:${ATTENDEE_KIND}`,
+    ]);
   });
 });

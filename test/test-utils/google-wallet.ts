@@ -20,7 +20,6 @@ export const configureGoogleWallet = async (): Promise<void> => {
 
 /** Set all Google Wallet env vars and return restore function */
 export const setGoogleWalletEnvVars = async (): Promise<() => void> => {
-  generateGoogleTestCreds();
   return setTestEnv({
     GOOGLE_WALLET_ISSUER_ID: "9876543210",
     GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL:
