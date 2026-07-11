@@ -28,12 +28,7 @@ import {
   SELECT_PREFIX,
   START_DATE_FIELD,
 } from "#shared/order-select.ts";
-import {
-  buildItemsMetadata,
-  enforceMetadataLimits,
-  STRIPE_METADATA_MAX_ENTRIES,
-  STRIPE_METADATA_MAX_VALUE_LENGTH,
-} from "#shared/payment-helpers.ts";
+import { assembleCheckoutMetadata } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
@@ -251,16 +246,7 @@ const completePaidCheckout = async (
   sessionId: string,
 ): Promise<void> => {
   const total = priceCheckout(intent).total;
-  const metadata = enforceMetadataLimits(
-    await buildItemsMetadata(
-      intent,
-      total,
-      STRIPE_METADATA_MAX_VALUE_LENGTH,
-      STRIPE_METADATA_MAX_ENTRIES,
-    ),
-    STRIPE_METADATA_MAX_VALUE_LENGTH,
-    STRIPE_METADATA_MAX_ENTRIES,
-  );
+  const metadata = await assembleCheckoutMetadata("stripe", intent, total);
   const verifyStub = await stubWebhookVerify({
     data: {
       object: {
