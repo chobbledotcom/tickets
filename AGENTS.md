@@ -105,12 +105,16 @@ it applies to everyday error handling.
   (`src/shared/sms/gateway.ts` — a gateway response without a message id
   throws, it does not return `""`) and `getDb` does for a missing `DB_URL`
   (`src/shared/db/client.ts`).
-- **Don't use `??` / `||` / `?.` / `!` to make a missing value someone else's
+- **Don't use `??` / `||` / `?.` to make a missing value someone else's
   problem.** Coercing `null`/`undefined` into `""`, `0`, or `[]` to keep the
   pipeline moving converts a detectable failure into corrupt data. These
   operators are for *genuinely optional* values (next bullet), not for
-  quieting the type checker. The same goes for `as` casts that assert a shape
-  the data hasn't been checked against — parse, don't pretend.
+  papering over a value that should always exist. Unchecked assertions — the
+  non-null `!` and `as` casts that claim a shape the data hasn't been checked
+  against — are a different trap: they run no code at all, they just tell
+  TypeScript to stop checking, so the failure surfaces wherever the
+  impossible value is first touched instead of where it went missing. Parse,
+  don't pretend.
 - **No empty `catch`, no catch-and-continue.** Only catch when there is a real
   recovery path, catch at the narrowest point that has one, and re-raise (or
   log + re-raise) otherwise. Good catches look like `parseMessageId` — a
@@ -122,14 +126,14 @@ it applies to everyday error handling.
   "fall back to the raw value if it isn't encrypted").
 - **A function that looks something up, resolves, computes, or finds something
   must THROW when it can't** — never return `null` / `""` / `0` / `-1` / `[]`
-  as a "not found" sentinel — unless "not found" is a genuinely expected,
+  as a "not found" stand-in — unless "not found" is a genuinely expected,
   documented outcome the caller branches on. This is the case that keeps
   recurring: a helper iterates looking for a value (an id, a match, a record)
   and falls off the end. The right tail is
   `throw new Error(...context naming what was being looked up, and in what...)`
   — see `src/shared/dates.ts` (`Invalid ${label}: ${value}`) and
   `src/shared/slug.ts` (throws when candidates are exhausted) — not a silent
-  sentinel that leaks downstream. If every caller is structured so the value
+  stand-in that leaks downstream. If every caller is structured so the value
   must exist (inputs already filtered to guarantee it), the miss is a bug:
   surface it loudly.
 - **Defaults, optional chaining, `catch`, and nullable returns are acceptable
