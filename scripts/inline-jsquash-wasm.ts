@@ -5,6 +5,9 @@ import { ASSETS, readAsset } from "../src/shared/images/wasm-assets.ts";
 
 type ExportAsset = Pick<(typeof ASSETS)[number], "exportName">;
 
+export const wasmFilename = (asset: ExportAsset): string =>
+  `${asset.exportName}.wasm`;
+
 const IMAGES_DIR = fromFileUrl(
   new URL("../src/shared/images", import.meta.url),
 );
@@ -46,10 +49,32 @@ export const buildModule = <Entry extends ExportAsset>(
       `export const ${asset.exportName} = () => ${asset.exportName}Bytes;`,
     );
   }
-  return lines.join("\n");
+  return lines.join(";");
 };
 
 export const buildPackageModule = (): string => buildModule(ASSETS, readAsset);
+
+export const buildRemoteModule = <Entry extends ExportAsset>(
+  assets: readonly Entry[],
+  urls: Record<string, string>,
+): string => {
+  const lines = [
+    "const load = async (url) => {",
+    "  const response = await fetch(url);",
+    '  if (!response.ok) throw new Error("Failed to load image codec " + url + ": HTTP " + response.status);',
+    "  return new Uint8Array(await response.arrayBuffer());",
+    "};",
+  ];
+  for (const asset of assets) {
+    const filename = wasmFilename(asset);
+    const url = urls[filename];
+    if (!url) throw new Error(`Missing published WASM URL for ${filename}`);
+    lines.push(
+      `export const ${asset.exportName} = () => load(${JSON.stringify(url)});`,
+    );
+  }
+  return lines.join(";");
+};
 
 export const createPlugin = (
   moduleSource: () => string | Promise<string>,

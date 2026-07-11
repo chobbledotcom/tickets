@@ -12,9 +12,9 @@ import {
 } from "#test/test-utils/test-image.ts";
 
 describe("pickEncoderBytes", () => {
-  test("selects the SIMD build when SIMD is supported, scalar otherwise", () => {
-    const simdBytes = pickEncoderBytes(true);
-    const scalarBytes = pickEncoderBytes(false);
+  test("selects the SIMD build when SIMD is supported, scalar otherwise", async () => {
+    const simdBytes = await pickEncoderBytes(true);
+    const scalarBytes = await pickEncoderBytes(false);
     expect(scalarBytes.length).toBeGreaterThan(0);
     // The SIMD build is a distinct, larger binary — pins which arm is which.
     expect(simdBytes.length).toBeGreaterThan(scalarBytes.length);

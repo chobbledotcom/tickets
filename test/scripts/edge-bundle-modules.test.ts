@@ -77,7 +77,29 @@ describe("buildAssetPathsModule", () => {
       [
         `export const CSS_PATH = "/style.css?ts=1234";`,
         `export const EMBED_JS_PATH = "/embed.js";`,
+        "export const ASSET_CDN_ORIGIN = null;",
       ].join("\n"),
+    );
+  });
+
+  test("bakes published CDN URLs and origin into the bundle", () => {
+    expect(
+      buildAssetPathsModule(PATH_DEFS, 1234, {
+        origin: "https://assets.example.com",
+        urls: {
+          "style.css": "https://assets.example.com/assets/release/style.css",
+        },
+      }),
+    ).toContain(
+      `export const CSS_PATH = "https://assets.example.com/assets/release/style.css";`,
+    );
+    expect(
+      buildAssetPathsModule(PATH_DEFS, 1234, {
+        origin: "https://assets.example.com",
+        urls: {},
+      }),
+    ).toContain(
+      `export const ASSET_CDN_ORIGIN = "https://assets.example.com";`,
     );
   });
 });
@@ -90,6 +112,12 @@ const STATIC_ASSETS = {
   "admin.js": "console.log(1)",
   "favicon.svg": "<svg/>",
   "order.js": "widget-source",
+};
+const CDN_ASSETS = {
+  origin: "https://assets.example.com",
+  urls: {
+    "admin.js": "https://assets.example.com/assets/release/admin.js",
+  },
 };
 
 describe("buildAssetsModule", () => {
@@ -119,6 +147,15 @@ describe("buildAssetsModule", () => {
     const out = buildAssetsModule(ASSET_DEFS, STATIC_ASSETS);
     expect(out).toContain(`const orderJsBody = "widget-source";`);
     expect(out).toContain("export const orderWidgetBody = () => orderJsBody;");
+  });
+
+  test("redirects published assets without embedding their bodies", () => {
+    const out = buildAssetsModule(ASSET_DEFS, STATIC_ASSETS, CDN_ASSETS);
+    expect(out).not.toContain("console.log(1)");
+    expect(out).toContain(
+      `export const handleAdminJs = () => Response.redirect("https://assets.example.com/assets/release/admin.js", 302);`,
+    );
+    expect(out).toContain(`const v0 = "<svg/>";`);
   });
 
   test("produces exactly the vars, cache header, handlers, and widget, newline-joined", () => {
