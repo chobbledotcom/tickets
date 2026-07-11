@@ -1,12 +1,68 @@
-import { filter, mapNotNullish, pipe } from "#fp";
+/** Pure child capacity and pricing helpers: the effective max a parent can book
+ * once its children are counted, the questions still owed by a child, the
+ * per-child price (fixed, inherited, or "from" under a customisable parent), and
+ * the per-child capacity a parent selector can reserve. Callers fetch; this
+ * module computes. */
+
+/* jscpd:ignore-start */
+import { filter, flatMap, mapNotNullish, pipe, reduce } from "#fp";
 import { t } from "#i18n";
-import { childDaysFromParent } from "#shared/booking/model.ts";
+import {
+  childDaysFromParent,
+  type TicketListing,
+} from "#shared/booking/model.ts";
+import {
+  packageChildTicketLimits,
+  packageLimitInfo,
+} from "#shared/booking/package-cap.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import {
   availableDayCounts,
   dayPriceFor,
   type ListingWithCount,
 } from "#shared/types.ts";
+import { answerableQuestion } from "./questions.tsx";
+import type { ChildRenderCtx } from "./types.ts";
+/* jscpd:ignore-end */
+
+/** Max parent tickets after checking the children it must book too. */
+export const childLimitedMax = (
+  info: TicketListing,
+  childCtx: ChildRenderCtx | undefined,
+): number => {
+  if (!childCtx) return info.maxPurchasable;
+  const limits = packageChildTicketLimits(
+    packageLimitInfo(
+      [info],
+      childCtx.children,
+      childCtx.groupRemainingByGroupId,
+      childCtx.groupIdsByListingId,
+    ),
+  );
+  const childLimit = limits.get(info.listing.id);
+  const ownMax =
+    childLimit === undefined
+      ? info.maxPurchasable
+      : Math.min(info.maxPurchasable, childLimit);
+  // Hold back child tickets the parent selector can already spend.
+  const reserved = childCtx.foldReserveByChildId.get(info.listing.id) ?? 0;
+  return Math.max(0, ownMax - reserved);
+};
+
+/** The questions assigned to a child listing, in page order, that have not yet
+ * been rendered on the page (deduped across siblings/parent via `rendered`). */
+export const childQuestionsToRender = (
+  childId: number,
+  ctx: ChildRenderCtx,
+): QuestionWithAnswers[] =>
+  ctx.questions.filter((q) => {
+    if (ctx.rendered.has(q.id) || !answerableQuestion(q)) return false;
+    const ids = ctx.questionListingMap?.get(q.id);
+    // No listing map ⇒ applies to every selected listing (assign_all); otherwise
+    // only when this child is among its listings.
+    return !ids || ids.includes(childId);
+  });
 
 /** The duration a customisable child inherits at no-JS render, or null when the
  * parent is itself customisable (the buyer hasn't yet chosen a day count, so
@@ -83,4 +139,28 @@ export const childPriceLabel = (
     });
   }
   return `(${formatCurrency(price)})`;
+};
+
+/** For every child that a PAGE parent folds, the capacity to reserve from that
+ * child's own standalone row: the sum of each such parent's own `maxPurchasable`.
+ * A parent books at most that many units, each folding at most one unit of this
+ * child, so holding back the sum guarantees the standalone row plus the parents'
+ * folds can never exceed the child's capacity. Only parents present on the page
+ * (they render a selector) reserve; a child with no page parent maps to nothing. */
+export const foldReserveByChildId = (
+  listings: TicketListing[],
+  childrenByParentId: Map<number, TicketListing[]>,
+): Map<number, number> => {
+  // Each parent contributes one (childId, maxPurchasable) pair per child it
+  // folds; summing those pairs gives the total to hold back per child.
+  const reserves = flatMap((parent: TicketListing) =>
+    (childrenByParentId.get(parent.listing.id) ?? []).map(
+      (child) => [child.listing.id, parent.maxPurchasable] as const,
+    ),
+  )(listings);
+  return reduce(
+    (acc, [childId, reserve]: readonly [number, number]) =>
+      acc.set(childId, (acc.get(childId) ?? 0) + reserve),
+    new Map<number, number>(),
+  )(reserves);
 };

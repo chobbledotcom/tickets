@@ -1,10 +1,9 @@
 import type {
-  Migration,
+  MigrationBuilder,
   MigrationContext,
   SchemaRequirement,
 } from "./types.ts";
 
-type MigrationBuilder = (context: MigrationContext) => Migration;
 type SchemaMigrationAfter = (context: MigrationContext) => Promise<void>;
 
 const hasEntries = (values: readonly unknown[] | undefined): boolean =>

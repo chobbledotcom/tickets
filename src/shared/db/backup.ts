@@ -13,10 +13,10 @@
 import { unzipSync, zipSync } from "fflate";
 import { chunk, compact } from "#fp";
 import { executeBatch, queryAll } from "#shared/db/client.ts";
+import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
 import {
   clearAllCaches,
   LATEST_UPDATE,
-  MIGRATION_IDS,
   rebuildWipedSchema,
   resetDatabase,
   SCHEMA_HASH,

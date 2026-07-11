@@ -32,6 +32,9 @@ export type AdditiveMigration = Omit<Migration, "verify"> & {
   requires: SchemaRequirement;
 };
 
+/** The default export of every dated migration module. */
+export type MigrationBuilder = (context: MigrationContext) => Migration;
+
 export type MigrationContext = {
   additive: (migration: AdditiveMigration) => Migration;
   applySchemaChanges: () => Promise<void>;

@@ -23,7 +23,7 @@ import {
   initDb,
   invalidateInitDbCache,
   LATEST_UPDATE,
-  MIGRATIONS,
+  loadMigrations,
   type Migration,
   SCHEMA_HASH,
   type SchemaRequirement,
@@ -32,6 +32,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { indexExists } from "#test-utils/migrations.ts";
 import { seedPreDropLedgerColumns } from "../migration-test-helpers.ts";
 
+const MIGRATIONS = await loadMigrations();
 export const migrationById = (id: string): Migration =>
   MIGRATIONS.find((m) => m.id === id)!;
 

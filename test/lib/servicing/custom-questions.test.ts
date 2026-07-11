@@ -16,7 +16,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#shared/db/client.ts";
-import { getQuestionsWithListingIds } from "#shared/db/questions/queries.ts";
+import {
+  getQuestionsWithListingIds,
+  setQuestionListings,
+} from "#shared/db/questions/queries.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -30,7 +33,7 @@ import {
 const attachQuestion = async (
   listingId: number,
 ): Promise<{ questionId: number; answerId: number }> => {
-  const { answersTable, listingQuestionsTable, questionsTable } = await import(
+  const { answersTable, questionsTable } = await import(
     "#shared/db/questions/tables.ts"
   );
   const question = await questionsTable.insert({
@@ -43,11 +46,7 @@ const attachQuestion = async (
     sortOrder: 0,
     text: "Vaillant",
   });
-  await listingQuestionsTable.insert({
-    listingId,
-    questionId: question.id,
-    sortOrder: 0,
-  });
+  await setQuestionListings(question.id, [listingId]);
   const questionId = question.id;
   const answerId = answer.id;
   return { answerId, questionId };

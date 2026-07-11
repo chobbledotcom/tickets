@@ -1,3 +1,8 @@
+/** Custom question rendering for the booking form. A question control is emitted
+ * for each answerable question, with the buyer's submitted value restored on a
+ * validation re-render. */
+
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
@@ -7,6 +12,7 @@ import {
   questionFieldset,
   questionWrapper,
 } from "#templates/components/question-text.tsx";
+/* jscpd:ignore-end */
 
 /** Render one question control. `required` is the HTML constraint: page listings
  * emit required controls; folded child questions render non-required (the server

@@ -5,8 +5,10 @@ import {
   invalidateCachesForTable,
   invalidateCachesForWrite,
   registerCache,
+  registerCacheReset,
   registerDependencies,
   registerTableInvalidation,
+  resetAllCaches,
   resetCacheRegistry,
 } from "#shared/cache-registry.ts";
 
@@ -254,6 +256,49 @@ describe("cache-registry", () => {
     });
   });
 
+  describe("resetAllCaches", () => {
+    test("fires every table-registered invalidator and every reset hook", () => {
+      let tableCalls = 0;
+      let hookCalls = 0;
+      registerTableInvalidation(["listings"], () => {
+        tableCalls++;
+      });
+      registerCacheReset(() => {
+        hookCalls++;
+      });
+      resetAllCaches();
+      expect(tableCalls).toBe(1);
+      expect(hookCalls).toBe(1);
+    });
+
+    test("fires an invalidator registered against several tables only once", () => {
+      let calls = 0;
+      registerTableInvalidation(["listings", "listing_attendees"], () => {
+        calls++;
+      });
+      resetAllCaches();
+      expect(calls).toBe(1);
+    });
+
+    test("fires a column-gated invalidator too — a full reset ignores gates", () => {
+      let calls = 0;
+      registerTableInvalidation(
+        ["listings"],
+        () => {
+          calls++;
+        },
+        { whenColumns: ["name"] },
+      );
+      resetAllCaches();
+      expect(calls).toBe(1);
+    });
+
+    test("is a no-op when nothing is registered", () => {
+      resetAllCaches();
+      expect(getAllCacheStats()).toEqual([]);
+    });
+  });
+
   describe("resetCacheRegistry", () => {
     test("clears registered cache-stat providers", () => {
       registerCache(() => ({ entries: 1, name: "widgets" }));
@@ -271,6 +316,16 @@ describe("cache-registry", () => {
         columns: new Set(),
         verb: "insert",
       });
+      expect(calls).toBe(0);
+    });
+
+    test("clears registered reset hooks", () => {
+      let calls = 0;
+      registerCacheReset(() => {
+        calls++;
+      });
+      resetCacheRegistry();
+      resetAllCaches();
       expect(calls).toBe(0);
     });
   });

@@ -47,16 +47,6 @@ export interface Answer {
   active: boolean;
 }
 
-/** Link between listing and question. Membership only — display order comes
- * from the question's own `sort_order`, not from this row. The `sort_order`
- * column is retained but unused (legacy per-listing ordering). */
-export interface ListingQuestion {
-  listing_id: number;
-  id: number;
-  question_id: number;
-  sort_order: number;
-}
-
 /** Question with its answer options (decrypted) */
 export type QuestionWithAnswers = Omit<Question, "assign_all"> & {
   answers: Answer[];

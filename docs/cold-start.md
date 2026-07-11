@@ -51,11 +51,30 @@ no-big-strings      3.08MB     173.4ms               —
 | `index.ts` → `#templates/public.tsx` barrel (for `readOnlyPage`) | **Fixed** — imports `public/errors.tsx` directly |
 | `response.ts` → payment templates | **Fixed** — split into `payment-response.ts`, loaded only by lazy payment routes |
 | `auth.ts` → csrf → email renderer | **Already lazy** (type-only import) |
-| `db/migrations.ts` → ~70 migration modules | **Deferred** — see `TODO.md` |
+| `db/migrations.ts` → ~70 migration modules | **Fixed** — second pass below |
 
 Review guardrail: nothing under `src/features/*` (beyond the boot plumbing)
 or `src/ui/templates/*` (beyond read-only/system pages) should be reachable
 by static import from `src/serve-app.ts`.
+
+### Eager import edges, second pass (312 → 189 modules)
+
+Counted as `deno info` static-import reachability from `src/serve-app.ts`
+(the first pass counted bundled modules; by this count its result was 312).
+
+| Edge | Status |
+| --- | --- |
+| `auth.ts` → settings-nags → `superuser.ts` → `email.ts` (for one send) | **Fixed** — `sendEmail` loads on demand, so the every-request auth path stops dragging the email renderer, SVG tickets/QR, and the whole listings + accounting/ledger stack (~40 modules) |
+| `db/migrations.ts` → 72 dated migration modules | **Fixed** — `migrations/registry.ts` holds `{ id, load }` pairs; the boot probe reads only ids, the implementations (and the domain modules they import, ~80 in total) load on the rare migration/fresh-install path. `test/shared/db/migration-registry.test.ts` locks registry ids to the loaded migrations |
+| `db/migrations.ts` → 7 cache modules (for `clearAllCaches`) | **Fixed** — caches self-register with `cache-registry.ts` when their module loads; `clearAllCaches` sweeps the registry instead of importing every cache |
+
+Measured effect (interleaved fresh-process medians on one container): full
+bundle import ~239ms → ~234ms. The parse share is untouched (the lazy code
+still ships), and the surviving eager evaluation is dominated by
+`@libsql/client` and the settings/auth core the first request genuinely
+needs — the app-code slice of eager eval is now close to its floor. The
+durable win is structural: the migration implementations and the email stack
+cannot silently re-enter the boot graph without failing the counts above.
 
 ## Benchmark 2: the first request's database chain (`first-request.ts`)
 

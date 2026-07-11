@@ -122,35 +122,6 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       expect(await postResponse.text()).toBe("post:16:x");
     });
 
-    test("withAuthEntityHandlers wires GET and POST flows", async () => {
-      const { withAuthEntityHandlers } = await import(
-        "#routes/admin/entity-handlers.ts"
-      );
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-
-      const handlers = withAuthEntityHandlers((id) => Promise.resolve({ id }));
-
-      const getResponse = await handlers(
-        mockRequest("/admin/attendees/33", { headers: { cookie } }),
-        33,
-      ).get((_request, _session, entity) => new Response(`get:${entity.id}`));
-      expect(await getResponse.text()).toBe("get:33");
-
-      const postResponse = await handlers(
-        mockFormRequest(
-          "/admin/attendees/33",
-          { csrf_token: csrfToken, name: "posted" },
-          cookie,
-        ),
-        33,
-      ).post(
-        (_session, form, entity) =>
-          new Response(`post:${entity.id}:${form.getString("name")}`),
-      );
-      expect(await postResponse.text()).toBe("post:33:posted");
-    });
-
     const runActionHandler = async (
       config: ActionHandlerConfig,
       path: string,
@@ -598,19 +569,19 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const { createTestAttendeeDirect } = await import(
         "#test-utils/db-helpers/attendees.ts"
       );
-      const { answersTable, listingQuestionsTable, questionsTable } =
-        await import("#shared/db/questions/tables.ts");
+      const { answersTable, questionsTable } = await import(
+        "#shared/db/questions/tables.ts"
+      );
+      const { setQuestionListings } = await import(
+        "#shared/db/questions/queries.ts"
+      );
 
       const listing = await createTestListing({ maxAttendees: 10 });
       const question = await questionsTable.insert({
         displayType: "radio",
         text: "Food preference",
       });
-      await listingQuestionsTable.insert({
-        listingId: listing.id,
-        questionId: question.id,
-        sortOrder: 0,
-      });
+      await setQuestionListings(question.id, [listing.id]);
       await answersTable.insert({
         questionId: question.id,
         sortOrder: 0,
