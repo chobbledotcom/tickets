@@ -5,7 +5,7 @@ import {
 } from "#shared/booking/tree.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
-import { savedFormValue } from "#shared/forms.tsx";
+import { renderSelectOptions, savedFormValue } from "#shared/forms.tsx";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
@@ -28,14 +28,13 @@ export const renderDateSelector = (
       }</label>
        <select name="date" id="date" required>
          <option value="">${t("public.ticket.select_date_placeholder")}</option>
-         ${dates
-           .map(
-             (d) =>
-               `<option value="${d}"${d === selected ? " selected" : ""}>${formatDateLabel(
-                 d,
-               )}</option>`,
-           )
-           .join("")}
+         ${renderSelectOptions(
+           dates.map((d) => ({
+             label: formatDateLabel(d),
+             selected: d === selected,
+             value: d,
+           })),
+         )}
        </select>`;
 
 /** Render the "number of days" selector for customisable-days listings. When a
@@ -52,18 +51,20 @@ export const renderDayCountSelector = (
   return `<label for="day_count">${t("public.ticket.number_of_days")}</label>
        <select name="day_count" id="day_count" required>
          <option value="">${t("public.ticket.select_placeholder")}</option>
-         ${counts
-           .map((n) => {
+         ${renderSelectOptions(
+           counts.map((n) => {
              const price = priceFor?.(n);
              const suffix =
                price !== undefined && price !== null
                  ? ` — ${formatCurrency(price)}`
                  : "";
-             return `<option value="${n}"${
-               selected === String(n) ? " selected" : ""
-             }>${t("public.ticket.day_option", { count: n })}${suffix}</option>`;
-           })
-           .join("")}
+             return {
+               label: `${t("public.ticket.day_option", { count: n })}${suffix}`,
+               selected: selected === String(n),
+               value: String(n),
+             };
+           }),
+         )}
        </select>`;
 };
 
@@ -121,14 +122,13 @@ export const renderTermsAndCheckbox = (terms: string): string => {
 
 /** An `<option>` list `0..max` for a quantity selector, with `selected` chosen. */
 export const quantityOptions = (max: number, selected: number): string =>
-  Array.from({ length: max + 1 }, (_, i) => i)
-    .map(
-      (n) =>
-        `<option value="${n}"${
-          n === selected ? " selected" : ""
-        }>${n}</option>`,
-    )
-    .join("");
+  renderSelectOptions(
+    Array.from({ length: max + 1 }, (_, i) => ({
+      label: String(i),
+      selected: i === selected,
+      value: String(i),
+    })),
+  );
 
 /** Per-listing pre-fill applied when scanning a signed QR link */
 export type TicketPrefill = {

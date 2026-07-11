@@ -118,16 +118,23 @@ type FieldValidationResult =
   | { valid: true; value: string | number | null }
   | { valid: false; error: string };
 
-/** Render select options HTML */
-const renderSelectOptions = (
-  options: readonly { value: string; label: string }[],
-  selectedValue: string,
-): string =>
+/** One entry in a select's option list. */
+export type SelectOption = {
+  value: string;
+  label: string;
+  /** Marks this entry as the chosen one. */
+  selected?: boolean;
+};
+
+/** Render a select's option list, escaping every value and label. The one
+ * builder behind every dropdown — booking-page selectors, admin filters, and
+ * the form framework's own select fields all share it. */
+export const renderSelectOptions = (options: readonly SelectOption[]): string =>
   options
     .map(
       (opt) =>
         `<option value="${escapeHtml(opt.value)}"${
-          opt.value === selectedValue ? " selected" : ""
+          opt.selected ? " selected" : ""
         }>${escapeHtml(opt.label)}</option>`,
     )
     .join("");
@@ -220,7 +227,9 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
     return rawField(
       `<select name="${escapeHtml(field.name)}" id="${escapeHtml(
         field.id ?? field.name,
-      )}">${renderSelectOptions(field.options, value)}</select>`,
+      )}">${renderSelectOptions(
+        field.options.map((opt) => ({ ...opt, selected: opt.value === value })),
+      )}</select>`,
     );
   }
   if (field.type === "checkbox-group" && field.options) {
