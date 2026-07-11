@@ -9,12 +9,8 @@
  */
 
 import type { InValue } from "@libsql/client";
-import {
-  inPlaceholders,
-  queryAll,
-  type SqlStatement,
-} from "#shared/db/client.ts";
-import { mapByIds } from "#shared/db/query.ts";
+import type { SqlStatement } from "#shared/db/client.ts";
+import { mapByIds, rowsByIds } from "#shared/db/query.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** One modifier consumed by an order: the modifier, how many, and the amount
@@ -113,9 +109,10 @@ export const anyModifierSoldOut = async (
   const ids = usages.map((u) => u.modifierId);
   if (ids.length === 0) return false;
   const used = await modifierUsedQuantities(ids);
-  const rows = await queryAll<{ id: number; stock: number | null }>(
-    `SELECT id, stock FROM modifiers WHERE id IN (${inPlaceholders(ids)})`,
+  const rows = await rowsByIds<{ id: number; stock: number | null }>(
     ids,
+    (placeholders) =>
+      `SELECT id, stock FROM modifiers WHERE id IN (${placeholders})`,
   );
   const stockById = new Map(rows.map((r) => [r.id, r.stock]));
   return usages.some((u) => {

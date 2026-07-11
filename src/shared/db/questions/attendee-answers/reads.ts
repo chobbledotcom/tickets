@@ -9,7 +9,8 @@ import { groupToMap, mapParallel } from "#fp";
 import { decryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
-import { inPlaceholders, queryAll } from "#shared/db/client.ts";
+import { queryAll } from "#shared/db/client.ts";
+import { rowsByIds } from "#shared/db/query.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { getQuestionsWithListingIds } from "#shared/db/questions/queries.ts";
 import { answersTable } from "#shared/db/questions/tables.ts";
@@ -30,16 +31,15 @@ const selectAttendeeAnswerRows = <R>(
   selectColumns: string,
   join = "",
 ): Promise<R[]> =>
-  attendeeIds.length === 0
-    ? Promise.resolve([])
-    : queryAll<R>(
-        `SELECT ${selectColumns}
-         FROM attendee_answers AS attendee_answer
-         ${join}
-        WHERE attendee_answer.${column} IS NOT NULL
-          AND attendee_answer.attendee_id IN (${inPlaceholders(attendeeIds)})`,
-        attendeeIds,
-      );
+  rowsByIds<R>(
+    attendeeIds,
+    (placeholders) =>
+      `SELECT ${selectColumns}
+       FROM attendee_answers AS attendee_answer
+       ${join}
+      WHERE attendee_answer.${column} IS NOT NULL
+        AND attendee_answer.attendee_id IN (${placeholders})`,
+  );
 
 const choiceAnswerIdsBatch = async (
   attendeeIds: number[],

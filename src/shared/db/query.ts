@@ -52,9 +52,10 @@ export const swapSortOrder = (
 /**
  * Run an id-keyed SELECT, short-circuiting to `[]` (no query) when `ids` is
  * empty. `buildSql` receives the bound `?`-placeholder list for `ids`, so `ids`
- * are the only query args. The base skeleton for the id-map helpers below.
+ * are the only query args. The base skeleton for the id-map helpers below and
+ * for any read that loads rows for a caller-supplied id list.
  */
-const rowsByIds = async <Row>(
+export const rowsByIds = async <Row>(
   ids: number[],
   buildSql: (placeholders: string) => string,
 ): Promise<Row[]> =>

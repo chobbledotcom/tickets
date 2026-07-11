@@ -23,7 +23,7 @@ import {
   queryOne,
   rowExists,
 } from "#shared/db/client.ts";
-import { nameMapByIds } from "#shared/db/query.ts";
+import { nameMapByIds, rowsByIds } from "#shared/db/query.ts";
 import type { Attendee } from "#shared/types.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 
@@ -480,18 +480,15 @@ export const getAttendeeRaw = (id: number): Promise<Attendee | null> => {
  * and only reads each attendee's contact fields. Returns an empty array for no
  * ids. Decrypt with decryptAttendees before display.
  */
-export const getAttendeesByIds = (ids: number[]): Promise<Attendee[]> => {
-  if (ids.length === 0) return Promise.resolve([]);
-  return queryAll<Attendee>(
-    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
+export const getAttendeesByIds = (ids: number[]): Promise<Attendee[]> =>
+  rowsByIds<Attendee>(
+    ids,
+    (placeholders) =>
+      `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees AS attendee
      LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-     WHERE attendee.kind = '${ATTENDEE_KIND}' AND attendee.id IN (${inPlaceholders(
-       ids,
-     )})`,
-    ids,
+     WHERE attendee.kind = '${ATTENDEE_KIND}' AND attendee.id IN (${placeholders})`,
   );
-};
 
 /**
  * Bounded id → name lookup for the given attendees, decrypting only the name
@@ -517,11 +514,10 @@ export const getAttendeeNamesByIds = (
 export const getAttendeeKindsByIds = async (
   ids: number[],
 ): Promise<Map<number, string>> => {
-  if (ids.length === 0) return new Map();
-  const rows = await queryAll<{ id: number; kind: string }>(
-    `SELECT id, kind FROM attendees
-     WHERE id IN (${inPlaceholders(ids)})`,
+  const rows = await rowsByIds<{ id: number; kind: string }>(
     ids,
+    (placeholders) =>
+      `SELECT id, kind FROM attendees WHERE id IN (${placeholders})`,
   );
   return new Map(rows.map((row) => [row.id, row.kind]));
 };
