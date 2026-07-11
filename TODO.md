@@ -433,12 +433,16 @@ to the dynamic-import clauses.
 Proposed fix (the reviewer suggested syntax-aware parsing): a code-only
 preprocessing pass before matching. The file already has the pieces — the
 call-site scanner's `skipString`/`skipComment` lexer helpers skip comments and
-string literals correctly. Caveat that shapes the design: lazyExport names
-live INSIDE string literals (`…, "routeAdmin")`), so strings cannot be
-stripped wholesale — strip comments only (walking with the existing lexer so
-`//` inside a string doesn't truncate code), and keep strings for the
-lazyExport alternative. Add regression coverage for import-shaped text in a
-line comment, a JSDoc block, and a template/string literal. Out of scope for
+string literals correctly. The pass must drop BOTH comments and ordinary
+string/template-literal contents from the matchable text (a fixture string
+containing `import { foo }` is exactly the stated failure mode), while still
+letting the lazyExport clause see its quoted name — lazyExport names live
+INSIDE a string literal (`…, "routeAdmin")`), so either match the lazyExport
+shape before stripping and stitch its names in, or blank string contents
+except when the lexer sees the string directly in lazyExport's second-argument
+position. Add regression coverage for import-shaped text in a line comment, a
+JSDoc block, and an ordinary string/template literal, plus a lazyExport entry
+that must still be detected after the pass. Out of scope for
 PR #1745 (cold-start work; the detector change there was collateral hardening)
 — the concrete self-match it introduced was fixed in-place instead.
 
