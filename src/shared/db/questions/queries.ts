@@ -17,7 +17,9 @@ import {
 import type { Answer, QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 
-/** Flat row from a question ← LEFT JOIN answers query */
+/** Flat row from a question ← LEFT JOIN answers query. `q_assign_all` is the
+ * stored form (INTEGER 0/1) — {@link decryptQuestion} turns it into a boolean
+ * via the column's read transform. */
 type JoinedRow = {
   q_id: number;
   q_assign_all: boolean;
@@ -45,13 +47,14 @@ const decryptQuestion = async (
   rawText: string,
   rawAnswers: Answer[],
 ): Promise<QuestionWithAnswers> => {
-  const [text, answers] = await Promise.all([
+  const [text, assign_all, answers] = await Promise.all([
     questionsTable.readColumn("text", rawText),
+    questionsTable.readColumn("assign_all", assignAll),
     mapParallel((a: Answer) => answersTable.fromDb(a))(rawAnswers),
   ]);
   return {
     answers,
-    assign_all: assignAll,
+    assign_all,
     display_type: displayType,
     id,
     text,
