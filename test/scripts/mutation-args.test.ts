@@ -90,9 +90,60 @@ describe("parseArgs", () => {
     expect(parsed.sources).toEqual(["src/a.ts"]);
   });
 
+  // A following *option* is not a value — `--source --test t.ts` means the
+  // source glob was forgotten, so it must report the missing value rather than
+  // swallow `--test` as the source.
+  test("treats a following value flag as a missing value", () => {
+    const parsed = parseArgs(["--source", "--test", "t.ts"]);
+    expect(parsed.error).toBe("Missing value for --source.");
+    expect(parsed.sources).toEqual([]);
+  });
+
+  test("treats a following boolean flag as a missing value", () => {
+    const parsed = parseArgs(["--source", "--exhaustive"]);
+    expect(parsed.error).toBe("Missing value for --source.");
+  });
+
+  test("keeps the first missing-value error when two flags both lack a value", () => {
+    const parsed = parseArgs(["--source", "--test"]);
+    expect(parsed.error).toBe("Missing value for --source.");
+  });
+
+  // A token that names an Object.prototype member must be an ordinary
+  // positional, never a phantom flag — a plain-object lookup would resolve
+  // `__proto__`/`constructor`/`toString` to inherited values (and crash when
+  // one is invoked as a handler).
+  for (const token of ["__proto__", "constructor", "toString"]) {
+    test(`treats the prototype-named token ${token} as a positional`, () => {
+      const parsed = parseArgs([token, "a.test.ts"]);
+      expect(parsed.error).toBeNull();
+      expect(parsed.sources).toEqual([token]);
+      expect(parsed.tests).toEqual(["a.test.ts"]);
+    });
+  }
+
+  test("rejects an empty --timeout value instead of reading it as zero", () => {
+    const parsed = parseArgs(["--source", "a.ts", "--timeout", ""]);
+    expect(parsed.error).toBe(
+      "Invalid --timeout: expected a non-negative number of milliseconds.",
+    );
+  });
+
+  test("rejects a whitespace-only --jobs value", () => {
+    const parsed = parseArgs(["--source", "a.ts", "--jobs", " "]);
+    expect(parsed.error).toBe("Invalid --jobs: expected a positive integer.");
+  });
+
   test("sets --exhaustive", () => {
     const parsed = parseArgs(["--exhaustive"]);
     expect(parsed.exhaustive).toBe(true);
+  });
+
+  test("does not swallow the token after a boolean flag", () => {
+    const parsed = parseArgs(["--exhaustive", "src.ts", "test.ts"]);
+    expect(parsed.exhaustive).toBe(true);
+    expect(parsed.sources).toEqual(["src.ts"]);
+    expect(parsed.tests).toEqual(["test.ts"]);
   });
 
   test("sets --harness", () => {
@@ -201,5 +252,17 @@ describe("parseArgs", () => {
   test("keeps the first error when a later --jobs is also invalid", () => {
     const parsed = parseArgs(["a.ts", "b.ts", "c.ts", "--jobs", "0"]);
     expect(parsed.error).toContain("Too many positional arguments (3)");
+  });
+
+  // A missing value spotted mid-parse must survive the positional pass — the
+  // stray-positional and too-many-positional messages must not overwrite it.
+  test("keeps a missing-value error over a stray flag-form positional", () => {
+    const parsed = parseArgs(["a.ts", "--source", "src.ts", "--jobs"]);
+    expect(parsed.error).toBe("Missing value for --jobs.");
+  });
+
+  test("keeps a missing-value error over a too-many-positionals error", () => {
+    const parsed = parseArgs(["a.ts", "b.ts", "c.ts", "--jobs"]);
+    expect(parsed.error).toBe("Missing value for --jobs.");
   });
 });
