@@ -4,6 +4,8 @@
  * the debug footer reads them at render time.
  */
 
+import { unique } from "#fp";
+
 /** A single cache's stats snapshot */
 export type CacheStat = {
   readonly name: string;
@@ -81,13 +83,11 @@ export const registerCacheReset = (reset: Invalidator): void => {
  * it has no cache to clear.
  */
 export const resetAllCaches = (): void => {
-  const seen = new Set<Registration>();
-  for (const registrations of invalidatorsByTable.values()) {
-    for (const registration of registrations) {
-      if (seen.has(registration)) continue;
-      seen.add(registration);
-      registration.invalidate();
-    }
+  const registrations = [...invalidatorsByTable.values()].flatMap((set) => [
+    ...set,
+  ]);
+  for (const registration of unique(registrations)) {
+    registration.invalidate();
   }
   for (const reset of resetHooks) reset();
 };

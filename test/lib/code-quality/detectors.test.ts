@@ -341,18 +341,34 @@ describe("isSymbolImported", () => {
       ),
     ).toBe(true);
   });
+
+  test("does not count an alias target as usage of an unrelated export", () => {
+    expect(
+      isSymbolImported(
+        "renamed",
+        'const { foo: renamed } = await import("./x.ts");',
+      ),
+    ).toBe(false);
+    expect(
+      isSymbolImported("baz", 'import { bar as baz } from "./x.ts";'),
+    ).toBe(false);
+  });
+
+  test("reads through an inline type keyword to the imported name", () => {
+    expect(
+      isSymbolImported("Foo", 'import { type Foo, bar } from "./x.ts";'),
+    ).toBe(true);
+  });
 });
 
 describe("importedSymbolsOf", () => {
-  test("collects every word inside named import clauses across the corpus", () => {
+  test("collects each import item's source-side name across the corpus", () => {
     const corpus = mapOf([
       ["a.ts", 'import { foo, bar as baz } from "./x.ts";\nconst y = 1;'],
       ["b.ts", 'import {\n  quux,\n} from "./y.ts";'],
     ]);
-    const symbols = importedSymbolsOf(corpus);
-    // "as" is a word inside the braces too — the same over-match the original
-    // per-symbol regex had, kept for exact parity (no export is named "as").
-    expect([...symbols].sort()).toEqual(["as", "bar", "baz", "foo", "quux"]);
+    // `bar as baz` names the export `bar`; the alias `baz` must not count.
+    expect(importedSymbolsOf(corpus)).toEqual(new Set(["bar", "foo", "quux"]));
   });
 
   test("ignores words outside import clauses, matching isSymbolImported", () => {
@@ -365,7 +381,14 @@ describe("importedSymbolsOf", () => {
     const corpus = mapOf([
       ["a.ts", 'const { lazyThing } = await import("./x.ts");'],
     ]);
-    expect(importedSymbolsOf(corpus).has("lazyThing")).toBe(true);
+    expect(importedSymbolsOf(corpus)).toEqual(new Set(["lazyThing"]));
+  });
+
+  test("collects only the source-side name of an aliased dynamic import", () => {
+    const corpus = mapOf([
+      ["a.ts", 'const { foo: renamed } = await import("./x.ts");'],
+    ]);
+    expect(importedSymbolsOf(corpus)).toEqual(new Set(["foo"]));
   });
 
   test("tokenizes a corpus only once, serving repeat queries from the cache", () => {

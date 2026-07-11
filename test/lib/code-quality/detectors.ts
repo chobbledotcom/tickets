@@ -16,6 +16,7 @@
  */
 
 import { join } from "node:path";
+import { compact } from "#fp";
 
 /* -------------------------------------------------------------------------- *
  * File discovery                                                             *
@@ -248,9 +249,24 @@ export const isUsedInSameFile = (
 const IMPORT_CLAUSES =
   /import\s*\{([^}]*)\}|(?:const|let|var)\s*\{([^{}]*)\}\s*=\s*await\s+import\(|lazyExport\(\s*\(\)\s*=>\s*import\([^)]+\),\s*"(\w+)"/g;
 
-/** The imported names one IMPORT_CLAUSES match carries. */
-const clauseWords = (clause: RegExpMatchArray): string =>
-  clause[1] ?? clause[2] ?? clause[3] ?? "";
+/**
+ * The source-side names one IMPORT_CLAUSES match pulls in: the first word of
+ * each comma-separated brace item (skipping an inline `type` keyword). Alias
+ * targets deliberately don't count — `foo as bar` and `foo: bar` both name
+ * the export `foo`, and counting the local alias would let an unrelated
+ * export that happens to be called `bar` look used.
+ */
+const clauseNames = (clause: RegExpMatchArray): string[] => {
+  const lazyExportName = clause[3];
+  if (lazyExportName !== undefined) return [lazyExportName];
+  // Exactly one alternative matches, so one brace group is always present.
+  const braced = (clause[1] ?? clause[2])!;
+  return compact(
+    braced
+      .split(",")
+      .map((item) => item.replace(/^\s*type\s+/, "").match(/\w+/)?.[0]),
+  );
+};
 
 /** Whether `content` imports `symbolName` via a named `import { … }` clause,
  * a destructured `await import(…)`, or a `lazyExport` name. */
@@ -259,7 +275,7 @@ export const isSymbolImported = (
   content: string,
 ): boolean => {
   for (const clause of content.matchAll(IMPORT_CLAUSES)) {
-    if (new RegExp(`\\b${symbolName}\\b`).test(clauseWords(clause))) {
+    if (clauseNames(clause).includes(symbolName)) {
       return true;
     }
   }
@@ -267,12 +283,12 @@ export const isSymbolImported = (
 };
 
 /**
- * Every word an IMPORT_CLAUSES clause pulls in, anywhere in the given file
- * contents. One pass over the corpus builds a set that answers
+ * Every source-side name an IMPORT_CLAUSES clause pulls in, anywhere in the
+ * given file contents. One pass over the corpus builds a set that answers
  * `isSymbolImported` for every symbol at once — the per-symbol regex scan was
  * O(exports × files) over the whole tree and dominated this suite's runtime.
  * Matching stays identical to {@link isSymbolImported}: the same clause
- * shapes, with each `\w+` they carry counted as an imported word.
+ * shapes, the same {@link clauseNames} extraction.
  *
  * Keyed by the contents Map instance (built once per scan), so the corpus is
  * only tokenized the first time it is queried.
@@ -287,8 +303,8 @@ export const importedSymbolsOf = (
   const symbols = new Set<string>();
   for (const content of contents.values()) {
     for (const clause of content.matchAll(IMPORT_CLAUSES)) {
-      for (const word of clauseWords(clause).matchAll(/\w+/g)) {
-        symbols.add(word[0]);
+      for (const name of clauseNames(clause)) {
+        symbols.add(name);
       }
     }
   }
