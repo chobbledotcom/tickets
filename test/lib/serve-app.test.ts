@@ -54,16 +54,27 @@ describeWithEnv("serve-app", { db: true }, () => {
         expect(second.status).toBe(200);
 
         // One boot for both requests — and the failed boot above was retried
-        // rather than memoized. The line carries how long the isolate took
-        // to boot, e.g. "App started (10ms)".
+        // rather than memoized. The phases account for the whole boot time.
         const bootLogs = logSpy.calls.filter((call) =>
           call.args.some(
             (arg) =>
               String(arg).includes("Setup") &&
-              /App started \(\d+ms\)/.test(String(arg)),
+              String(arg).includes("App started"),
           ),
         );
         expect(bootLogs.length).toBe(1);
+        const message = bootLogs[0]?.args.map(String).join(" ");
+        const match =
+          /App started \((?<total>\d+)ms: runtime \+ bundle load (?<runtimeLoad>\d+)ms, request wait (?<wait>\d+)ms, boot setup (?<boot>\d+)ms, Sentry (?<sentry>\d+)ms\)/.exec(
+            message ?? "",
+          );
+        if (!match?.groups) throw new Error(`Invalid boot log: ${message}`);
+        const groups = match.groups;
+        const total = Number(groups.total);
+        const phases = ["runtimeLoad", "wait", "boot", "sentry"].map((name) =>
+          Number(groups[name]),
+        );
+        expect(phases.reduce((sum, duration) => sum + duration, 0)).toBe(total);
       } finally {
         logSpy.restore();
         setSuppressDebugLogs(true);
