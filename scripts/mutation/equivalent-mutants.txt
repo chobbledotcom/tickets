@@ -108,7 +108,7 @@ src/features/admin/attendee-page-data.ts:238:65  ?? → ||   # preselectedQty.ge
 src/features/admin/attendee-page-data.ts:333:12  return null → return undefined   # compact removes both null and undefined warning slots
 src/features/admin/attendee-page-data.ts:354:47  1 → 0   # standard bookings pass date:null, so buildCapacityCondition ignores durationDays entirely
 src/features/admin/attendee-page-data.ts:381:42  ?? → ||   # totalByListing.get(): number|undefined; the only falsy number is 0, and the fallback is also 0
-src/features/tickets/token-utils.ts:222:44  ?? → ||   # (attendees[i]?.bookings ?? []): ListingAttendeeRow[]|undefined — an array is always truthy, undefined→[] either way
+src/features/tickets/token-utils.ts:228:44  ?? → ||   # (attendees[i]?.bookings ?? []): ListingAttendeeRow[]|undefined — an array is always truthy, undefined→[] either way
 
 # Ticket form parsing (ticket-form.ts): `?? → ||` where the operand is an array,
 # an object, a Map.get number (only falsy-non-null is 0, 0??0===0||0), or a
@@ -849,3 +849,7 @@ src/shared/logger.ts:77:70  ?? → ||   # getRequestId's `getStore() ?? ""`: the
 # Admin refund waves (refunds/waves.ts) — one provably-equivalent survivor from
 # the packByReferenceCount run.
 src/features/admin/refunds/waves.ts:16:24  0 → 1   # packByReferenceCount's `currentCount` init: the first iteration always hits `!wave` (waves is empty, so waves[-1] is undefined), which short-circuits the `|| currentCount + refs > budget` before currentCount is read; every later iteration reassigns it first, so the initial value is never observed
+
+# Ticket token utils (tickets/token-utils.ts) — one provably-equivalent survivor
+# from the extractTokenSegment run.
+src/features/tickets/token-utils.ts:120:20  ?? → ||   # extractTokenSegment's `match?.[1] ?? null`: the regex is `^/prefix/(.+)$`, so capture group 1 is always a non-empty (truthy) string when the match succeeds, and undefined when it fails — `?? null` and `|| null` agree on every input
