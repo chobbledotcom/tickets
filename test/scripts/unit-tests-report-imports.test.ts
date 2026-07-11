@@ -5,7 +5,7 @@ import {
   formatMisplacedSection,
   type MisplacedTest,
   parseImportSpecifiers,
-  resolveImportToSource,
+  resolveImportToSourceOrNull,
   resolveTestImports,
 } from "../../scripts/unit-tests-report-imports.ts";
 import { options } from "./unit-tests-report-fixtures.ts";
@@ -65,6 +65,16 @@ describe("parseImportSpecifiers", () => {
     ]);
   });
 
+  test("skips type-query dynamic imports (typeof and member access)", () => {
+    // Both forms are erased at runtime, so neither names code under test.
+    const text = [
+      'type M = typeof import("#shared/db/table.ts");',
+      'const row = {} as import("#shared/db/attendee-types.ts").Row;',
+      'const mod = await import("#routes/wallet/google.ts");',
+    ].join("\n");
+    expect(parseImportSpecifiers(text)).toEqual(["#routes/wallet/google.ts"]);
+  });
+
   test("skips type-only import and export statements", () => {
     // A type import is erased at runtime, so it doesn't name the code under test.
     const text = [
@@ -80,28 +90,32 @@ describe("parseImportSpecifiers", () => {
   });
 });
 
-describe("resolveImportToSource", () => {
+describe("resolveImportToSourceOrNull", () => {
   test("maps a directory alias's tail onto the source root", () => {
-    expect(resolveImportToSource("#shared/email.ts", importMap, "src")).toBe(
-      "src/shared/email.ts",
-    );
+    expect(
+      resolveImportToSourceOrNull("#shared/email.ts", importMap, "src"),
+    ).toBe("src/shared/email.ts");
   });
 
   test("prefers the longest matching alias so a nested dir wins", () => {
     // Both "#shared/" and "#shared/db/" match; the specific one must win.
     expect(
-      resolveImportToSource("#shared/db/client.ts", importMap, "src"),
+      resolveImportToSourceOrNull("#shared/db/client.ts", importMap, "src"),
     ).toBe("src/shared/db/client.ts");
   });
 
   test("maps an exact alias to its whole target", () => {
-    expect(resolveImportToSource("#fp", importMap, "src")).toBe("src/fp.ts");
+    expect(resolveImportToSourceOrNull("#fp", importMap, "src")).toBe(
+      "src/fp.ts",
+    );
   });
 
   test("does not treat an exact alias as a directory prefix", () => {
     // "#fp" is exact, so a deeper specifier under it resolves to nothing rather
     // than being glued onto the file target ("src/fp.ts/x.ts").
-    expect(resolveImportToSource("#fp/x.ts", importMap, "src")).toBeNull();
+    expect(
+      resolveImportToSourceOrNull("#fp/x.ts", importMap, "src"),
+    ).toBeNull();
   });
 
   test("the longest directory alias wins even when targets diverge", () => {
@@ -111,17 +125,19 @@ describe("resolveImportToSource", () => {
     // Targets are different lengths from their aliases, so ordering by alias
     // length (correct) and by target length (a mutation) give different winners.
     const diverging = { "#a/": "./src/xx/", "#a/b/": "./src/y/" };
-    expect(resolveImportToSource("#a/b/c.ts", diverging, "src")).toBe(
+    expect(resolveImportToSourceOrNull("#a/b/c.ts", diverging, "src")).toBe(
       "src/y/c.ts",
     );
   });
 
   test("returns null for a non-source specifier", () => {
-    expect(resolveImportToSource("valibot", importMap, "src")).toBeNull();
+    expect(resolveImportToSourceOrNull("valibot", importMap, "src")).toBeNull();
     expect(
-      resolveImportToSource("#test-utils/db.ts", importMap, "src"),
+      resolveImportToSourceOrNull("#test-utils/db.ts", importMap, "src"),
     ).toBeNull();
-    expect(resolveImportToSource("#unknown", importMap, "src")).toBeNull();
+    expect(
+      resolveImportToSourceOrNull("#unknown", importMap, "src"),
+    ).toBeNull();
   });
 });
 

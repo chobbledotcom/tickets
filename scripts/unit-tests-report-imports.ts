@@ -52,10 +52,16 @@ export type MisplacedTest = {
 const STATIC_IMPORT_RE =
   /\b(?:import|export)\s+(?!type\b)[\s\S]*?from\s*["']([^"']+)["']/g;
 
-/** Dynamic `import("…")` specifiers. Many tests load the module under test with
- *  `await import(...)` after setting up their environment, so a source-under-test
- *  is frequently a dynamic import rather than a static one. */
-const DYNAMIC_IMPORT_RE = /\bimport\s*\(\s*["']([^"']+)["']/g;
+/** Runtime dynamic `import("…")` specifiers. Many tests load the module under
+ *  test with `await import(...)` after setting up their environment, so a
+ *  source-under-test is frequently a dynamic import rather than a static one.
+ *  The lookbehind skips `typeof import("x")` and the lookahead skips
+ *  `import("x").Member` — both TypeScript type-query forms that are erased at
+ *  runtime, so they don't name code a test exercises. (No runtime dynamic import
+ *  in this suite is followed directly by a member access, so the lookahead can't
+ *  drop a real one.) */
+const DYNAMIC_IMPORT_RE =
+  /(?<!\btypeof )\bimport\s*\(\s*["']([^"']+)["']\s*\)(?!\s*\.)/g;
 
 /** Drop line and block comments so a commented-out or documented import
  *  specifier can't be mistaken for a real one. Import specifiers never contain
@@ -90,7 +96,7 @@ const aliasOwns = (alias: string, spec: string): boolean =>
  * the specifier, the longest (most specific) one wins — picked by a linear scan
  * so the result never depends on entry order.
  */
-export const resolveImportToSource = (
+export const resolveImportToSourceOrNull = (
   spec: string,
   importMap: Record<string, string>,
   srcRoot: string,
@@ -117,7 +123,7 @@ export const resolveTestImports = (
 ): string[] => [
   ...new Set(
     parseImportSpecifiers(text)
-      .map((spec) => resolveImportToSource(spec, importMap, srcRoot))
+      .map((spec) => resolveImportToSourceOrNull(spec, importMap, srcRoot))
       .filter((path): path is string => path !== null),
   ),
 ];
@@ -161,6 +167,12 @@ export const findMisplacedTests = (
     testable.map((path) => [path, mirrorPrefix(path, options)]),
   );
 
+  // A for-of with guard `continue`s (a form AGENTS.md sanctions alongside
+  // filter/map): the eligibility chain threads computed values —
+  // subjects → source → prefix — that a filter/map split would either recompute
+  // or funnel through a nullish-dropping map, which makes the guards'
+  // `null`-returns equivalent mutants. The loop keeps every guard individually
+  // mutation-killable.
   const misplaced: MisplacedTest[] = [];
   for (const test of tests) {
     if (hasExemptPrefix(test.path, options.exemptTestPrefixes)) continue;

@@ -18,7 +18,7 @@
 import {
   findMisplacedTests,
   formatMisplacedSection,
-  resolveImportToSource,
+  resolveImportToSourceOrNull,
   resolveTestImports,
   type TestImports,
 } from "./unit-tests-report-imports.ts";
@@ -35,14 +35,22 @@ import {
 } from "./unit-tests-report-lib.ts";
 import { walkFiles } from "./walk-files.ts";
 
-const collect = async (
+/** A test file with both its line count (for the ratio report) and the `src/`
+ *  paths it imports (for the misplaced-test worklist). */
+type TestFile = FileLines & TestImports;
+
+/** Walk `root`, keep the files matching `keep`, and build a record from each
+ *  file's path and text — read once. A shared walker for both trees: sources
+ *  build a plain `FileLines`, tests also fold in their resolved imports. */
+const collect = async <T extends FileLines>(
   root: string,
   keep: (path: string) => boolean,
-): Promise<FileLines[]> => {
-  const files: FileLines[] = [];
+  build: (path: string, text: string) => T,
+): Promise<T[]> => {
+  const files: T[] = [];
   for await (const path of walkFiles(root)) {
     if (!keep(path)) continue;
-    files.push({ lines: countLines(await Deno.readTextFile(path)), path });
+    files.push(build(path, await Deno.readTextFile(path)));
   }
   return files;
 };
@@ -53,44 +61,31 @@ const readImportMap = async (): Promise<Record<string, string>> => {
   return config.imports;
 };
 
-/** A test file with both its line count (for the ratio report) and the `src/`
- *  paths it imports (for the misplaced-test worklist). */
-type TestFile = FileLines & TestImports;
-
-/** Walk the test tree once, reading each file a single time to produce both its
- *  line count and its resolved imports. */
-const collectTests = async (
-  root: string,
-  importMap: Record<string, string>,
-  srcRoot: string,
-): Promise<TestFile[]> => {
-  const tests: TestFile[] = [];
-  for await (const path of walkFiles(root)) {
-    if (!isTestPath(path)) continue;
-    const text = await Deno.readTextFile(path);
-    tests.push({
-      imports: resolveTestImports(text, importMap, srcRoot),
-      lines: countLines(text),
-      path,
-    });
-  }
-  return tests;
-};
-
 if (import.meta.main) {
   const args = new Set(Deno.args);
   const options = DEFAULT_OPTIONS;
   const importMap = await readImportMap();
-  const sources = await collect(options.srcRoot, isSourcePath);
-  const tests = await collectTests(
-    options.testRoot,
-    importMap,
+  const sources = await collect(
     options.srcRoot,
+    isSourcePath,
+    (path, text) => ({
+      lines: countLines(text),
+      path,
+    }),
+  );
+  const tests = await collect<TestFile>(
+    options.testRoot,
+    isTestPath,
+    (path, text) => ({
+      imports: resolveTestImports(text, importMap, options.srcRoot),
+      lines: countLines(text),
+      path,
+    }),
   );
   const report = buildReport(sources, tests, options);
   // `#routes` is the app entry point; a test importing it is integration, not a
   // single-source unit, so it never counts as a misplaced mirror.
-  const appEntry = resolveImportToSource(
+  const appEntry = resolveImportToSourceOrNull(
     "#routes",
     importMap,
     options.srcRoot,
