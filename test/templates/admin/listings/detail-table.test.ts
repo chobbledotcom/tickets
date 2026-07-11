@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { setTestEnv } from "#test-utils/env.ts";
 import {
   testAttendee,
   testGroup,
@@ -117,6 +118,16 @@ describe("adminListingPage duration display", () => {
 
 describe("adminListingPage details table", () => {
   const listing = testListingWithCount({ attendee_count: 2 });
+  const renderMismatch = (): string =>
+    renderListingDetail({
+      aggregateRecalculation: {
+        booked_quantity: { current: 2, recalculated: 1 },
+        tickets_count: { current: 0, recalculated: 0 },
+      },
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+    });
 
   test("renders listing name", () => {
     const html = renderListingDetail({
@@ -193,19 +204,22 @@ describe("adminListingPage details table", () => {
   });
 
   test("shows a running-total mismatch in the details table", () => {
-    const html = renderListingDetail({
-      aggregateRecalculation: {
-        booked_quantity: { current: 2, recalculated: 1 },
-        tickets_count: { current: 0, recalculated: 0 },
-      },
-      allowedDomain: "localhost",
-      attendees: [],
-      listing,
-    });
+    const html = renderMismatch();
     expect(html).toContain("Running total check");
     expect(html).toContain("expected <strong>1</strong>, got");
     expect(html).toContain("Mismatch");
     expect(html).not.toContain("Click for info");
+  });
+
+  test("shows a running-total mismatch without its repair link in read-only mode", () => {
+    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    try {
+      const html = renderMismatch();
+      expect(html).toContain("Running total check");
+      expect(html).not.toContain(`/admin/listings/recalculate/${listing.id}`);
+    } finally {
+      restore();
+    }
   });
 
   test("renders no Group Attendees row when groupContext is omitted", () => {

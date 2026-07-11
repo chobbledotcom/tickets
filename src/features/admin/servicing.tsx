@@ -51,6 +51,7 @@ import type { ListingWithCount } from "#shared/types.ts";
 import { parsePositiveMinorUnits } from "#shared/validation/money.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { WritableLink } from "#templates/admin/writable-only.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
@@ -297,7 +298,9 @@ const serviceEventListRows = (
     return (
       <tr class="servicing-event" data-servicing="true">
         <td>
-          <a href={`/admin/servicing/${event.id}`}>{event.name}</a>
+          <WritableLink href={`/admin/servicing/${event.id}`}>
+            {event.name}
+          </WritableLink>
         </td>
         <td>{event.date === null ? "" : formatDateLabel(event.date)}</td>
         <td>{listingsCell}</td>

@@ -47,6 +47,7 @@ import {
   renderAttributeFilterBars,
   typeFilterHref,
 } from "#templates/admin/listing-attribute-filters.ts";
+import { WritableLink } from "#templates/admin/writable-only.tsx";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
@@ -239,7 +240,9 @@ const upcomingServicingRow = (event: ServicingEventSummary) => {
   ].filter(Boolean);
   return (
     <li>
-      <a href={`/admin/servicing/${event.id}`}>{event.name}</a>{" "}
+      <WritableLink href={`/admin/servicing/${event.id}`}>
+        {event.name}
+      </WritableLink>{" "}
       <span class="muted">{details.join(" · ")}</span>
     </li>
   );
