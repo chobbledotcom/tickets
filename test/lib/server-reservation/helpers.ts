@@ -1,5 +1,4 @@
 import { expect } from "@std/expect";
-import { stub } from "@std/testing/mock";
 import {
   attendeeStatuses,
   getPublicDefaultStatus,
@@ -9,11 +8,11 @@ import { pricePaidFromLedger } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { settings } from "#shared/db/settings.ts";
-import { stripeApi } from "#shared/stripe.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
 /** Turn the seeded public-default status into a reservation charging `amount`. */
 export const setPublicReservation = async (amount: string): Promise<number> => {
@@ -34,17 +33,12 @@ export const stubPaidSession = (
   metadata: Record<string, string>,
   amountTotal: number,
 ) =>
-  stub(stripeApi, "retrieveCheckoutSession", () =>
-    Promise.resolve({
-      amount_total: amountTotal,
-      id,
-      metadata: signMeta(metadata, amountTotal),
-      payment_intent: `pi_${id}`,
-      payment_status: "paid",
-    } as unknown as Awaited<
-      ReturnType<typeof stripeApi.retrieveCheckoutSession>
-    >),
-  );
+  stubRetrieveCheckoutSession({
+    amountTotal,
+    metadata: signMeta(metadata, amountTotal),
+    paymentIntent: `pi_${id}`,
+    sessionId: id,
+  });
 
 /** The most recently created attendee's plaintext reservation columns. */
 export const latestAttendee = async (): Promise<{

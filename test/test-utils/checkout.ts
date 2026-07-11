@@ -3,6 +3,7 @@ import { stub } from "@std/testing/mock";
 import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { submitTicketForm } from "./csrf.ts";
+import { stubRetrieveCheckoutSession } from "./webhooks.ts";
 
 /** A checkout line item with sensible defaults; override any field. */
 export const checkoutItem = (
@@ -79,6 +80,44 @@ export const captureCheckoutIntent = async (
     checkout.restore();
   }
 };
+
+/** Stub the retrieved checkout session as the standard "John" buyer — the
+ *  session shape the payment-flow suites share, varying only in the id, the
+ *  items, and the agreed total. A paid session (the default) carries signed
+ *  metadata and a payment intent (defaulting to `pi_<sessionId>`); pass
+ *  `paid: false` for the cancelled variant — unsigned metadata, no payment
+ *  intent, and a zero total, as an abandoned checkout retrieves. */
+export const johnCheckoutSession = (
+  sessionId: string,
+  opts:
+    | { paid: false; items: string }
+    | {
+        paid?: true;
+        items: string;
+        amountTotal: number;
+        paymentIntent?: string;
+      },
+) =>
+  opts.paid === false
+    ? stubRetrieveCheckoutSession({
+        amountTotal: 0,
+        metadata: {
+          email: "john@example.com",
+          items: opts.items,
+          name: "John",
+        },
+        paymentIntent: null,
+        paymentStatus: "unpaid",
+        sessionId,
+      })
+    : stubRetrieveCheckoutSession({
+        amountTotal: opts.amountTotal,
+        email: "john@example.com",
+        items: opts.items,
+        name: "John",
+        paymentIntent: opts.paymentIntent ?? `pi_${sessionId}`,
+        sessionId,
+      });
 
 /** Find the captured intent's line item for `listing` and assert its
  *  `unitPrice` — the shared "this folded line was charged X" check behind
