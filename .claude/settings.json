@@ -12,6 +12,7 @@
       "Bash(deno task cpd)",
       "Bash(deno task precommit)",
       "Bash(deno task precommit:*)",
+      "Bash(deno task mutation)",
       "Bash(deno task mutation:*)",
       "Bash(deno task line-counts)",
       "Bash(deno task find-unused-src)",
