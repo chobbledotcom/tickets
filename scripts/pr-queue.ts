@@ -18,6 +18,7 @@
  *   deno task pr-queue -- --repo owner/name   # inspect another repo
  */
 
+import { reduce } from "#fp";
 import { PAGE_SIZES, truncationWarnings } from "./pr-queue/pagination.ts";
 import { renderReport } from "./pr-queue/render.ts";
 import { sanitizeSummary, stripControlChars } from "./pr-queue/sanitize.ts";
@@ -224,13 +225,20 @@ const fetchQueue = async (
 const resolveRepo = async (
   override?: string,
 ): Promise<{ owner: string; name: string } | null> => {
-  if (override) {
+  // Distinguish "no --repo" (undefined) from an explicit empty value: `--repo ""`
+  // must reach the validation error, not silently fall back to auto-detection.
+  if (override !== undefined) {
     const parts = override.split("/");
     const [owner, name] = parts;
     // Exactly two non-empty segments: reject "owner/name/extra" so a stray
     // path can't silently target owner/name.
     if (parts.length !== 2 || !owner || !name) {
-      console.error(red(`--repo must be "owner/name", got "${override}"`));
+      // The raw value is echoed to the terminal, so strip control bytes first.
+      console.error(
+        red(
+          `--repo must be "owner/name", got "${stripControlChars(override)}"`,
+        ),
+      );
       return null;
     }
     return { name, owner };
@@ -243,7 +251,9 @@ const resolveRepo = async (
   const [owner, name] = nameWithOwner.split("/");
   if (!owner || !name) {
     console.error(
-      red(`Unexpected repo name "${nameWithOwner}" (expected "owner/name")`),
+      red(
+        `Unexpected repo name "${stripControlChars(nameWithOwner)}" (expected "owner/name")`,
+      ),
     );
     return null;
   }
@@ -261,33 +271,41 @@ Options:
   -h, --help          Show this help.`);
 };
 
+/**
+ * Fold the CLI args left-to-right into a config. `awaitingRepo` carries the
+ * one-token lookahead: the token after "--repo" is its value, whatever it looks
+ * like. A trailing "--repo" leaves `awaitingRepo` set, which {@link parseArgs}
+ * turns into an error rather than a silent fall-back to auto-detection.
+ */
+type ArgsAcc = {
+  help: boolean;
+  json: boolean;
+  repo?: string;
+  awaitingRepo: boolean;
+};
+const foldArg = (acc: ArgsAcc, arg: string): ArgsAcc => {
+  if (acc.awaitingRepo) return { ...acc, awaitingRepo: false, repo: arg };
+  if (arg === "--json") return { ...acc, json: true };
+  if (arg === "--repo") return { ...acc, awaitingRepo: true };
+  if (arg === "-h" || arg === "--help") return { ...acc, help: true };
+  console.error(red(`Unknown argument: ${stripControlChars(arg)}`));
+  return Deno.exit(2);
+};
+
 /** Parse CLI args into a ({ json, repo }) config, exiting on unknown flags. */
 const parseArgs = (
   args: string[],
 ): { help: boolean; json: boolean; repo?: string | undefined } => {
-  let help = false;
-  let json = false;
-  let repo: string | undefined;
-  const rest = [...args];
-  while (rest.length > 0) {
-    const arg = rest.shift();
-    if (arg === "--json") json = true;
-    else if (arg === "--repo") {
-      // Reject a trailing "--repo" with no value rather than silently falling
-      // back to repo auto-detection and hiding the user's typo.
-      const value = rest.shift();
-      if (value === undefined) {
-        console.error(red("--repo requires a value"));
-        Deno.exit(2);
-      }
-      repo = value;
-    } else if (arg === "-h" || arg === "--help") help = true;
-    else {
-      console.error(red(`Unknown argument: ${arg}`));
-      Deno.exit(2);
-    }
+  const parsed = reduce(foldArg, {
+    awaitingRepo: false,
+    help: false,
+    json: false,
+  } as ArgsAcc)(args);
+  if (parsed.awaitingRepo) {
+    console.error(red("--repo requires a value"));
+    Deno.exit(2);
   }
-  return { help, json, repo };
+  return { help: parsed.help, json: parsed.json, repo: parsed.repo };
 };
 
 const main = async (): Promise<void> => {
