@@ -23,8 +23,8 @@ const definePageGroup =
     </Tag>
   );
 
-/** Separates the peer regions that make up a page or a large page panel. */
-export const PageLayout = definePageGroup("page-layout");
+/** Separates peer regions inside a substantial page panel. */
+export const PageRegions = definePageGroup("page-regions");
 
 /** Keeps contextually related content, such as a heading and table, together. */
 export const PageBlock = definePageGroup("page-block");

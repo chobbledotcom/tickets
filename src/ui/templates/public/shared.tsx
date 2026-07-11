@@ -13,7 +13,6 @@ import {
   leveledNav,
   nodeLis,
 } from "#templates/components/nav.tsx";
-import { PageLayout } from "#templates/components/page-layout.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /** Everything {@link PublicNav} renders: the settings-driven page flags, the
@@ -242,12 +241,14 @@ export const publicSeoPage =
   (body: Child): string => {
     const { title, headExtra } = seoPageHead(page, websiteTitle);
     return String(
-      <Layout headExtra={headExtra} title={title}>
-        <PublicNav {...nav} />
-        <PageLayout className="public-page">
-          {showHeading && <h1>{page.name}</h1>}
-          {body}
-        </PageLayout>
+      <Layout
+        beforeContent={<PublicNav {...nav} />}
+        contentClassName="public-page"
+        headExtra={headExtra}
+        title={title}
+      >
+        {showHeading && <h1>{page.name}</h1>}
+        {body}
       </Layout>,
     );
   };
@@ -306,13 +307,19 @@ export const publicPage =
   ) =>
   (body: Child): string =>
     String(
-      <Layout headExtra={headExtra} title={title}>
-        {websiteTitle && <h1>{websiteTitle}</h1>}
-        <PublicNav {...nav} />
-        <PageLayout className="public-page">
-          {body}
-          {showLoginFooter && <LoginFooter />}
-        </PageLayout>
+      <Layout
+        beforeContent={
+          <>
+            {websiteTitle && <h1>{websiteTitle}</h1>}
+            <PublicNav {...nav} />
+          </>
+        }
+        contentClassName="public-page"
+        headExtra={headExtra}
+        title={title}
+      >
+        {body}
+        {showLoginFooter && <LoginFooter />}
       </Layout>,
     );
 
@@ -324,14 +331,12 @@ export const prosePage =
   (title: string, heading: string) =>
   (prose: Child, afterProse?: Child): string =>
     String(
-      <Layout title={title}>
-        <PageLayout className="public-page">
-          <div class="prose">
-            <h1>{heading}</h1>
-            {prose}
-          </div>
-          {afterProse}
-        </PageLayout>
+      <Layout contentClassName="public-page" title={title}>
+        <div class="prose">
+          <h1>{heading}</h1>
+          {prose}
+        </div>
+        {afterProse}
       </Layout>,
     );
 

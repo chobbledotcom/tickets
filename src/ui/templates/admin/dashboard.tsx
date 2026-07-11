@@ -51,7 +51,7 @@ import {
 import { WritableLink } from "#templates/admin/writable-only.tsx";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
-import { PageBlock } from "#templates/components/page-layout.tsx";
+import { PageBlock } from "#templates/components/page-structure.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
 
 /** The dashboard's quick-create actions — shortcuts to add a listing or an

@@ -218,7 +218,7 @@ article > * {
 
 /* Explicit page composition: large gaps separate peer regions, while the
    standard gap keeps the related parts inside each region together. */
-.page-layout,
+.page-regions,
 .page-block {
   display: flex;
   flex-direction: column;
@@ -226,7 +226,7 @@ article > * {
   width: 100%;
 }
 
-.page-layout {
+.page-regions {
   gap: var(--space-lg);
 }
 
@@ -234,7 +234,7 @@ article > * {
   gap: var(--space-m);
 }
 
-.page-layout > *,
+.page-regions > *,
 .page-block > * {
   margin-block: 0;
 }
@@ -691,11 +691,10 @@ input[type="submit"],
   gap: var(--space-m);
 }
 
-/* A page's guide link, pinned to the bottom of the body and set apart from the
-   content above it with a top border and generous spacing. */
+/* A page's guide link, pinned to the bottom of the body. Its page-region parent
+   supplies the separation from the content above it. */
 .guide-footer {
   border-top: 1px solid var(--color-bg-secondary);
-  margin-top: var(--space-l);
   padding-top: var(--space-m);
 }
 

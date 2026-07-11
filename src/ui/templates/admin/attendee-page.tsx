@@ -22,7 +22,10 @@ import type { SummaryRow } from "#templates/admin/entity-pages.tsx";
 import { MaybeButtonLink } from "#templates/components/actions.tsx";
 import { dataTable } from "#templates/components/data-table.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
-import { PageBlock, PageLayout } from "#templates/components/page-layout.tsx";
+import {
+  PageBlock,
+  PageRegions,
+} from "#templates/components/page-structure.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
 import { quantityLabel } from "#templates/public/order-summary.tsx";
 
@@ -248,7 +251,7 @@ export const ContactHistory = ({
 }): JSX.Element => {
   const hasEmail = Boolean(attendee.email);
   return (
-    <PageLayout>
+    <PageRegions>
       <PageBlock>
         <div class="prose">
           <h3>{t("attendee_form.contact_history")}</h3>
@@ -296,7 +299,7 @@ export const ContactHistory = ({
           </MaybeButtonLink>
         </p>
       )}
-    </PageLayout>
+    </PageRegions>
   );
 };
 

@@ -75,7 +75,10 @@ import {
   toLinkedItemOptions,
 } from "#templates/components/linked-items.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
-import { PageBlock, PageLayout } from "#templates/components/page-layout.tsx";
+import {
+  PageBlock,
+  PageRegions,
+} from "#templates/components/page-structure.tsx";
 import {
   getGroupCreateFields,
   getGroupFields,
@@ -516,7 +519,7 @@ export const GroupOverviewPanel = ({
   });
 
   return (
-    <PageLayout>
+    <PageRegions>
       <article>
         <DetailTable>
           <tr>
@@ -569,7 +572,7 @@ export const GroupOverviewPanel = ({
           </SubmitButton>
         </CsrfForm>
       )}
-    </PageLayout>
+    </PageRegions>
   );
 };
 

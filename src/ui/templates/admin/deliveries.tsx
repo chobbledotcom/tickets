@@ -19,7 +19,6 @@ import { markAdminFooter } from "#templates/admin/footer.tsx";
 import { StaffAdminNav } from "#templates/admin/nav.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
-import { PageLayout } from "#templates/components/page-layout.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -208,53 +207,52 @@ export const agentDeliveriesPage = (
   dateNav: DeliveriesDateNav | null,
 ): string =>
   String(
-    <Layout title={t("deliveries.title")}>
-      <StaffAdminNav active="/admin/deliveries" session={session} />
-      <PageLayout>
-        {session.adminLevel === "agent" && <AgentHeader />}
-        <Flash {...flashProps(opts.error, opts.success)} />
-        {/* The route supplies a picker only for staff; agents get null and so
+    <Layout
+      beforeContent={
+        <StaffAdminNav active="/admin/deliveries" session={session} />
+      }
+      title={t("deliveries.title")}
+    >
+      {session.adminLevel === "agent" && <AgentHeader />}
+      <Flash {...flashProps(opts.error, opts.success)} />
+      {/* The route supplies a picker only for staff; agents get null and so
             stay pinned to today and tomorrow. */}
-        {dateNav && <DeliveriesDatePicker nav={dateNav} />}
-        {opts.noAgents ? (
-          <p>
-            <em>{t("deliveries.no_agents")}</em>
-          </p>
-        ) : groups.every((group) => group.bookings.length === 0) ? (
-          <p>
-            <em>{t("deliveries.none_scheduled")}</em>
-          </p>
-        ) : (
-          groups.map((group) => (
-            <section class="delivery-day">
-              <div class="prose">
-                <h2>{group.heading}</h2>
-                {group.bookings.length === 0 ? (
-                  <p>
-                    <em>{t("deliveries.nothing_scheduled")}</em>
-                  </p>
-                ) : (
-                  <ul class="delivery-bookings">
-                    {group.bookings.map((booking) => (
-                      <BookingCard
-                        booking={booking}
-                        phonePrefix={phonePrefix}
-                      />
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </section>
-          ))
-        )}
-        {/* Agent-only drivers are not staff, so GuideFooter renders nothing for
+      {dateNav && <DeliveriesDatePicker nav={dateNav} />}
+      {opts.noAgents ? (
+        <p>
+          <em>{t("deliveries.no_agents")}</em>
+        </p>
+      ) : groups.every((group) => group.bookings.length === 0) ? (
+        <p>
+          <em>{t("deliveries.none_scheduled")}</em>
+        </p>
+      ) : (
+        groups.map((group) => (
+          <section class="delivery-day">
+            <div class="prose">
+              <h2>{group.heading}</h2>
+              {group.bookings.length === 0 ? (
+                <p>
+                  <em>{t("deliveries.nothing_scheduled")}</em>
+                </p>
+              ) : (
+                <ul class="delivery-bookings">
+                  {group.bookings.map((booking) => (
+                    <BookingCard booking={booking} phonePrefix={phonePrefix} />
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
+        ))
+      )}
+      {/* Agent-only drivers are not staff, so GuideFooter renders nothing for
             them; owners and managers get the link to the logistics guide. */}
-        <GuideFooter
-          adminLevel={session.adminLevel}
-          href="/admin/guide#logistics"
-        >
-          {t("deliveries.guide_link")}
-        </GuideFooter>
-      </PageLayout>
+      <GuideFooter
+        adminLevel={session.adminLevel}
+        href="/admin/guide#logistics"
+      >
+        {t("deliveries.guide_link")}
+      </GuideFooter>
     </Layout>,
   );

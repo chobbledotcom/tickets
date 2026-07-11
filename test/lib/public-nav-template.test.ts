@@ -94,7 +94,7 @@ describe("PublicNav (leaf-current render)", () => {
 
     expect(html).toContain('<h1>Website</h1><div class="admin-nav-group">');
     expect(html).toContain(
-      '</nav></div><div class="page-layout public-page"><p>Page body</p></div>',
+      '</nav></div><div class="page-regions public-page"><p>Page body</p></div>',
     );
   });
 });
@@ -133,7 +133,7 @@ describe("sitePagePage (nav-model race)", () => {
     );
     expect(html).toContain("<h1>Racy Page</h1>");
     expect(html).toContain(
-      '</nav></div><div class="page-layout public-page"><h1>Racy Page</h1>',
+      '</nav></div><div class="page-regions public-page"><h1>Racy Page</h1>',
     );
     expect(html).toContain("<strong>here</strong>");
     expect(html).not.toContain('class="page-items"');

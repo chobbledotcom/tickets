@@ -53,6 +53,11 @@ export const expectPortOpen = async (port: number): Promise<void> => {
   conn.close();
 };
 
+export const expectPortAvailable = (port: number): void => {
+  const listener = Deno.listen({ hostname: "127.0.0.1", port });
+  listener.close();
+};
+
 export const expectStartFails = async (
   options: StartOptions,
   message?: string,

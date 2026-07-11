@@ -78,6 +78,7 @@ src/features/public/ticket-payment.ts:873:47  ?? → ||   # packageMaps?.quantit
 
 # Parent/child curried atoms (shared.tsx).
 src/ui/templates/public/shared.tsx:318:41  ?? → ||   # span: null or a duration ≥1, never falsy-non-null; null??1===null||1
+src/ui/templates/layout.tsx:48:30  ?? → ||   # Theme is "light"|"dark" or undefined, so every present value is truthy
 
 # Parent/child per-unit render (reservations contact-fields.ts).
 src/ui/templates/public/reservations/contact-fields.ts:107:51  ?? → ||   # addOns?.some(...) is boolean|undefined; ?? and || agree on every boolean and on undefined

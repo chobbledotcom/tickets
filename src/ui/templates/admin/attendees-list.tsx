@@ -24,7 +24,7 @@ import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
 import { AttendeeTableBlock } from "#templates/admin/attendee-table-block.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
-import { PageBlock } from "#templates/components/page-layout.tsx";
+import { PageBlock } from "#templates/components/page-structure.tsx";
 import {
   SelectField,
   type SelectOption,

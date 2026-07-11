@@ -8,7 +8,7 @@ import {
   EmbeddedAccountStatementSection,
 } from "#templates/admin/ledger.tsx";
 import { ActionButton } from "#templates/components/actions.tsx";
-import { PageBlock } from "#templates/components/page-layout.tsx";
+import { PageBlock } from "#templates/components/page-structure.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 
 const signedCurrency = (value: number): string =>

@@ -8,7 +8,7 @@ import { CsrfForm } from "#shared/forms.tsx";
 import { DomainPaymentWebhookWarning } from "#templates/admin/settings/domain-payment-warning.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
-import { PageBlock } from "#templates/components/page-layout.tsx";
+import { PageBlock } from "#templates/components/page-structure.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
 /* jscpd:ignore-end */
 

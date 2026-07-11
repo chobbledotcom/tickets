@@ -10,7 +10,7 @@
  */
 
 import type { Child } from "#jsx/jsx-runtime.ts";
-import { PageBlock } from "#templates/components/page-layout.tsx";
+import { PageBlock } from "#templates/components/page-structure.tsx";
 
 export const ProseSection = ({
   title,

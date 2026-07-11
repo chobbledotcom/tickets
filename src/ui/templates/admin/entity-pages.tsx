@@ -19,11 +19,14 @@ import { getFlashFormId } from "#shared/flash-context.ts";
 import { requestFlash } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { ActivityLogTable } from "#templates/admin/activityLog.tsx";
-import { AdminNav, type NavActive } from "#templates/admin/nav.tsx";
+import { AdminPage } from "#templates/admin/admin-page.tsx";
+import type { NavActive } from "#templates/admin/nav.tsx";
 import { ActionButton, type IconName } from "#templates/components/actions.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
-import { PageBlock, PageLayout } from "#templates/components/page-layout.tsx";
-import { Layout } from "#templates/layout.tsx";
+import {
+  PageBlock,
+  PageRegions,
+} from "#templates/components/page-structure.tsx";
 
 /** One row of a read-only summary table. `href` renders the value as a link
  * (`external` adds target=_blank); neither ⇒ plain content. Omit a row
@@ -209,22 +212,24 @@ export interface EntityPageView {
  * heading, table, and actions together as one block. Empty sections disappear. */
 export const entityPageView = (view: EntityPageView): string =>
   String(
-    <Layout title={view.title}>
-      <AdminNav active={view.navActive} session={view.session} />
-      <PageLayout className="entity-page">
-        {getFlashFormId() === undefined && requestFlash()}
-        <div class="prose entity-header">
-          <h1>{view.title}</h1>
-          {view.proseExtra}
-        </div>
-        {view.banner}
-        <TabStrip tabs={view.tabs} />
-        <PageLayout className="entity-tab-panel">
-          {compact(view.sections.map(renderSection)).map((section) => (
-            <PageBlock>{section}</PageBlock>
-          ))}
-        </PageLayout>
-        {view.guideFooter}
-      </PageLayout>
-    </Layout>,
+    <AdminPage
+      active={view.navActive}
+      contentClassName="entity-page"
+      session={view.session}
+      title={view.title}
+    >
+      {getFlashFormId() === undefined && requestFlash()}
+      <div class="prose entity-header">
+        <h1>{view.title}</h1>
+        {view.proseExtra}
+      </div>
+      {view.banner}
+      <TabStrip tabs={view.tabs} />
+      <PageRegions className="entity-tab-panel">
+        {compact(view.sections.map(renderSection)).map((section) => (
+          <PageBlock>{section}</PageBlock>
+        ))}
+      </PageRegions>
+      {view.guideFooter}
+    </AdminPage>,
   );

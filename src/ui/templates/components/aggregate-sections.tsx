@@ -3,7 +3,7 @@ import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { adminRecalculatePage } from "#templates/admin/recalculate.tsx";
 import { type IconName, SubmitButton } from "#templates/components/actions.tsx";
-import { PageBlock } from "#templates/components/page-layout.tsx";
+import { PageBlock } from "#templates/components/page-structure.tsx";
 
 type StackBaseProps = {
   children: Child;

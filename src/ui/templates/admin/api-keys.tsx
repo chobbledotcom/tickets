@@ -21,7 +21,7 @@ import {
 } from "#templates/components/actions.tsx";
 import { DataTable, textColumns } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
-import { PageBlock } from "#templates/components/page-layout.tsx";
+import { PageBlock } from "#templates/components/page-structure.tsx";
 
 /* jscpd:ignore-end */
 

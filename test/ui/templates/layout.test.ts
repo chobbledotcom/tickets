@@ -1,9 +1,21 @@
 import { expect } from "@std/expect";
-import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { CSS_PATH, JS_PATH } from "#shared/asset-paths.ts";
+import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
+import {
+  CSS_PATH,
+  IFRAME_RESIZER_CHILD_JS_PATH,
+  JS_PATH,
+} from "#shared/asset-paths.ts";
 import { buildTicketListing } from "#shared/booking/model.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { settings } from "#shared/db/settings.ts";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
+import {
+  consumeFlash,
+  runWithFlashContext,
+  setFlashContext,
+} from "#shared/flash-context.ts";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { getImageProxyUrl } from "#shared/storage.ts";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -32,7 +44,13 @@ const expectRenewalLink = async (): Promise<void> => {
 
 beforeAll(async () => {
   setupTestEncryptionKey();
+  setDemoModeForTest(false);
   await signCsrfToken();
+});
+
+afterEach(() => {
+  settings.clearTestOverrides();
+  setDemoModeForTest(false);
 });
 
 describe("asset-paths", () => {
@@ -62,6 +80,106 @@ describe("Layout skip navigation", () => {
     expect(html).toContain("Skip to content");
     expect(html).toContain('id="main-content"');
     expect(html).toContain('tabindex="-1"');
+  });
+
+  test("keeps global chrome direct while grouping page regions", () => {
+    const html = String(
+      Layout({
+        beforeContent: Raw({ html: '<nav class="example-nav">Menu</nav>' }),
+        children: Raw({ html: "<h1>Heading</h1><p>Body</p>" }),
+        contentClassName: "example-page",
+        title: "Test",
+      }),
+    );
+
+    expect(html).toContain(
+      '<main id="main-content" tabindex="-1"><nav class="example-nav">Menu</nav><div class="page-regions example-page"><h1>Heading</h1><p>Body</p></div></main>',
+    );
+  });
+});
+
+describe("Layout document shell", () => {
+  test("renders the required document metadata and stylesheet contracts", () => {
+    const html = String(Layout({ children: "", title: "Test" }));
+
+    expect(html.slice(0, "<!DOCTYPE html>".length)).toBe("<!DOCTYPE html>");
+    expect(html).toContain(
+      '<meta charset="UTF-8"><meta content="width=device-width, initial-scale=1.0" name="viewport">',
+    );
+    expect(html).toContain(`<link href="${CSS_PATH}" rel="stylesheet">`);
+    expect(html).toContain(
+      `<link href="/custom.css?v=${settings.version}" rel="stylesheet">`,
+    );
+  });
+
+  test("renders head extras as markup", () => {
+    const extra = '<meta content="raw" name="test-extra">';
+    const html = String(
+      Layout({ children: "", headExtra: extra, title: "Test" }),
+    );
+
+    expect(html).toContain(extra);
+    expect(html).not.toContain("&lt;meta");
+  });
+
+  test("applies an explicit body class without adding the iframe script", () => {
+    const html = String(
+      Layout({ bodyClass: "example-page", children: "", title: "Test" }),
+    );
+
+    expect(html).toContain('<body class="example-page">');
+    expect(html).not.toContain(IFRAME_RESIZER_CHILD_JS_PATH);
+  });
+
+  test("adds the iframe script only for an iframe body class", () => {
+    const html = String(
+      Layout({ bodyClass: "example iframe", children: "", title: "Test" }),
+    );
+
+    expect(html).toContain('<body class="example iframe">');
+    expect(html).toContain(
+      `<script src="${IFRAME_RESIZER_CHILD_JS_PATH}"></script>`,
+    );
+  });
+
+  test("renders the configured header image with decorative semantics", () => {
+    settings.setForTest({ header_image_url: "header.jpg" });
+    const html = String(Layout({ children: "", title: "Test" }));
+
+    expect(html).toContain(
+      `<img alt="" class="header-image" src="${getImageProxyUrl("header.jpg")}">`,
+    );
+  });
+
+  test("renders the demo banner only in demo mode", () => {
+    const normalHtml = String(Layout({ children: "", title: "Test" }));
+    setDemoModeForTest(true);
+    const demoHtml = String(Layout({ children: "", title: "Test" }));
+
+    expect(normalHtml).not.toContain('class="demo-banner"');
+    expect(demoHtml).toContain('class="demo-banner"');
+  });
+
+  test("renders an unconsumed request flash before the page content", () => {
+    const html = runWithFlashContext(() => {
+      setFlashContext({ success: "Saved from context" });
+      return String(Layout({ children: "Page body", title: "Test" }));
+    });
+
+    expect(html).toContain(
+      '<div class="success" role="alert">Saved from context</div><div class="page-regions">Page body</div>',
+    );
+  });
+
+  test("does not repeat a consumed request flash", () => {
+    const html = runWithFlashContext(() => {
+      setFlashContext({ error: "Already shown" });
+      consumeFlash();
+      return String(Layout({ children: "Page body", title: "Test" }));
+    });
+
+    expect(html).not.toContain("Already shown");
+    expect(html).toContain('<div class="page-regions">Page body</div>');
   });
 });
 

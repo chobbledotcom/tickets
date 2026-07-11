@@ -50,7 +50,7 @@ import {
   SubmitButton,
 } from "#templates/components/actions.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
-import { PageBlock } from "#templates/components/page-layout.tsx";
+import { PageBlock } from "#templates/components/page-structure.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";

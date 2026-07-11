@@ -7,7 +7,6 @@ import { t } from "#i18n";
 import { joinForm } from "#routes/join.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { PageLayout } from "#templates/components/page-layout.tsx";
 import { SuccessCompletePage } from "#templates/components/success-complete-page.tsx";
 import { Layout } from "#templates/layout.tsx";
 import { simplePublicPage } from "#templates/public/shared.tsx";
@@ -23,17 +22,15 @@ export const joinPage = (
 ): string =>
   String(
     <Layout title={t("join.set_password.title")}>
-      <PageLayout>
-        <CsrfForm action={`/join/${code}`}>
-          <div class="prose">
-            <h1>{t("join.set_password.welcome", { username })}</h1>
-            <p>{t("join.set_password.instructions")}</p>
-          </div>
-          <Flash error={error} />
-          <Raw html={joinForm.render()} />
-          <button type="submit">{t("join.set_password.submit")}</button>
-        </CsrfForm>
-      </PageLayout>
+      <CsrfForm action={`/join/${code}`}>
+        <div class="prose">
+          <h1>{t("join.set_password.welcome", { username })}</h1>
+          <p>{t("join.set_password.instructions")}</p>
+        </div>
+        <Flash error={error} />
+        <Raw html={joinForm.render()} />
+        <button type="submit">{t("join.set_password.submit")}</button>
+      </CsrfForm>
     </Layout>,
   );
 

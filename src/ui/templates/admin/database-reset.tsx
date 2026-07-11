@@ -6,7 +6,6 @@
 import { t } from "#i18n";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { BackButton, SubmitButton } from "#templates/components/actions.tsx";
-import { PageLayout } from "#templates/components/page-layout.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** Confirmation phrase that must be typed to reset the database */
@@ -61,14 +60,12 @@ export const ResetDatabaseForm = ({
 export const demoResetPage = (error?: string): string =>
   String(
     <Layout title={t("settings.advanced.database_reset.heading")}>
-      <PageLayout>
-        <Flash error={error} />
-        <ResetDatabaseForm action="/demo/reset" />
-        <p>
-          <BackButton href="/admin">
-            {t("settings.advanced.database_reset.back_to_login")}
-          </BackButton>
-        </p>
-      </PageLayout>
+      <Flash error={error} />
+      <ResetDatabaseForm action="/demo/reset" />
+      <p>
+        <BackButton href="/admin">
+          {t("settings.advanced.database_reset.back_to_login")}
+        </BackButton>
+      </p>
     </Layout>,
   );

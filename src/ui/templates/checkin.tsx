@@ -14,7 +14,6 @@ import {
   AttendeeTable,
   type AttendeeTableRow,
 } from "#templates/attendee-table.tsx";
-import { PageLayout } from "#templates/components/page-layout.tsx";
 import { Layout } from "#templates/layout.tsx";
 import { simplePublicPage } from "./public/shared.tsx";
 import { SubmitWithHidden } from "./public/unsubscribe.tsx";
@@ -49,30 +48,28 @@ export const checkinAdminPage = (
 
   return String(
     <Layout title={t("admin.checkin.title")}>
-      <PageLayout>
-        <CsrfForm action={checkinPath}>
-          <h1>{t("admin.checkin.heading")}</h1>
-          <Flash success={message} />
-          <SubmitWithHidden
-            buttonClass={buttonClass}
-            label={buttonLabel}
-            name="check_in"
-            value={nextValue}
-          />
-        </CsrfForm>
-        <div class="table-scroll">
-          <Raw
-            html={AttendeeTable({
-              allowedDomain,
-              phonePrefix,
-              returnUrl: checkinPath,
-              rows: tableRows,
-              showDate,
-              showListing: true,
-            })}
-          />
-        </div>
-      </PageLayout>
+      <CsrfForm action={checkinPath}>
+        <h1>{t("admin.checkin.heading")}</h1>
+        <Flash success={message} />
+        <SubmitWithHidden
+          buttonClass={buttonClass}
+          label={buttonLabel}
+          name="check_in"
+          value={nextValue}
+        />
+      </CsrfForm>
+      <div class="table-scroll">
+        <Raw
+          html={AttendeeTable({
+            allowedDomain,
+            phonePrefix,
+            returnUrl: checkinPath,
+            rows: tableRows,
+            showDate,
+            showListing: true,
+          })}
+        />
+      </div>
     </Layout>,
   );
 };

@@ -18,7 +18,6 @@ import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { AdminNav, type NavActive } from "#templates/admin/nav.tsx";
-import { PageLayout } from "#templates/components/page-layout.tsx";
 import { Layout } from "#templates/layout.tsx";
 /* jscpd:ignore-end */
 
@@ -26,6 +25,9 @@ export type AdminPageProps = {
   title: string;
   session: AdminSession;
   active: NavActive;
+  bodyClass?: string;
+  /** Page identity/custom-CSS hook; defaults to admin-page. */
+  contentClassName?: string;
   /** Optional page theme forwarded to <Layout> — the settings/debug pages
    *  preview the site's saved theme (`s.theme`) rather than the viewer's. */
   theme?: Theme;
@@ -47,18 +49,23 @@ export const AdminPage = ({
   title,
   session,
   active,
+  bodyClass,
+  contentClassName,
   theme,
   flash,
   actions,
   children,
 }: AdminPageProps): JSX.Element => (
-  <Layout {...(theme !== undefined ? { theme } : {})} title={title}>
-    <AdminNav active={active} session={session} />
-    <PageLayout className="admin-page">
-      {flash}
-      {actions !== undefined && <p class="actions">{actions}</p>}
-      {children}
-    </PageLayout>
+  <Layout
+    beforeContent={<AdminNav active={active} session={session} />}
+    {...(bodyClass !== undefined ? { bodyClass } : {})}
+    contentClassName={contentClassName ?? "admin-page"}
+    {...(theme !== undefined ? { theme } : {})}
+    title={title}
+  >
+    {flash}
+    {actions !== undefined && <p class="actions">{actions}</p>}
+    {children}
   </Layout>
 );
 

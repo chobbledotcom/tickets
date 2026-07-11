@@ -254,8 +254,8 @@ describe("entityPageView", () => {
         { html: Raw({ html: "<p>Second section</p>" }), kind: "custom" },
       ],
     });
-    expect(html).toContain('<div class="page-layout entity-page">');
-    expect(html).toContain('<div class="page-layout entity-tab-panel">');
+    expect(html).toContain('<div class="page-regions entity-page">');
+    expect(html).toContain('<div class="page-regions entity-tab-panel">');
     expect(html).toContain('<div class="page-block">');
     expect((html.match(/class="page-block"/g) ?? []).length).toBe(2);
     expect(html).toContain("Second section");

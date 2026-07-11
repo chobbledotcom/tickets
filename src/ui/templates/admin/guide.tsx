@@ -15,6 +15,7 @@
 import { t } from "#i18n";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
+import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { accountsSections } from "#templates/admin/guide/accounts.tsx";
 import {
   type GuideHostConfig,
@@ -33,9 +34,6 @@ import {
 import { operationsSections } from "#templates/admin/guide/operations.tsx";
 import { paymentsSections } from "#templates/admin/guide/payments.tsx";
 import { ticketsSections } from "#templates/admin/guide/tickets.tsx";
-import { AdminNav } from "#templates/admin/nav.tsx";
-import { PageLayout } from "#templates/components/page-layout.tsx";
-import { Layout } from "#templates/layout.tsx";
 
 /** The whole guide as one ordered list of sections. */
 export const guideSections = (hostConfig?: GuideHostConfig): GuideSection[] => [
@@ -52,10 +50,8 @@ export const guideSections = (hostConfig?: GuideHostConfig): GuideSection[] => [
 ];
 
 /**
- * Shared shell for the guide pages: the Layout + AdminNav + prose heading that
+ * Shared shell for the guide pages: the admin shell plus the prose heading that
  * both `adminGuidePage` and `adminFormattingHelpPage` wrap their sections in.
- * `AdminPage` (admin-page.tsx) is intentionally not reused here because it does
- * not support `bodyClass`.
  */
 type GuideShellProps = {
   active: string;
@@ -74,16 +70,19 @@ const guideShell = ({
   session,
   title,
 }: GuideShellProps): JSX.Element => (
-  <Layout bodyClass="guide" title={title}>
-    <AdminNav active={active} session={session} />
-    <PageLayout>
-      <div class="prose">
-        <h2>{heading}</h2>
-        {proseExtra}
-      </div>
-      {sections}
-    </PageLayout>
-  </Layout>
+  <AdminPage
+    active={active}
+    bodyClass="guide"
+    contentClassName="guide-page"
+    session={session}
+    title={title}
+  >
+    <div class="prose">
+      <h2>{heading}</h2>
+      {proseExtra}
+    </div>
+    {sections}
+  </AdminPage>
 );
 
 export const adminGuidePage = (

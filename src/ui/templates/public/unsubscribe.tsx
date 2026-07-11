@@ -13,7 +13,6 @@ import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
-import { PageLayout } from "#templates/components/page-layout.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 import { Layout } from "#templates/layout.tsx";
 /* jscpd:ignore-end */
@@ -88,42 +87,40 @@ export const unsubscribePage = (state: UnsubscribeState): string => {
     ? `${t("unsubscribe.email_preferences")} - ${settings.websiteTitle}`
     : t("unsubscribe.email_preferences");
   return String(
-    <Layout title={title}>
-      <PageLayout className="public-page">
-        <h1>{t("unsubscribe.email_preferences")}</h1>
-        <Flash {...flashProps(state.error, state.success, state.info)} />
-        {!state.hash ? (
-          <div class="prose">
-            <p>{t("unsubscribe.invalid_link")}</p>
-          </div>
-        ) : (
-          <>
-            {state.unsubscribed ? (
-              <div class="prose">
-                <p>
-                  <Raw html={t("unsubscribe.unsubscribed_message")} />
-                </p>
-                <p>{t("unsubscribe.changed_mind")}</p>
-                <ToggleForm
-                  action="resubscribe"
-                  hash={state.hash}
-                  label={t("unsubscribe.resubscribe_button")}
-                />
-              </div>
-            ) : (
-              <div class="prose">
-                <p>{t("unsubscribe.subscribed_message")}</p>
-                <ToggleForm
-                  action="unsubscribe"
-                  hash={state.hash}
-                  label={t("unsubscribe.unsubscribe_button")}
-                />
-              </div>
-            )}
-            <ForgetSection hash={state.hash} />
-          </>
-        )}
-      </PageLayout>
+    <Layout contentClassName="public-page" title={title}>
+      <h1>{t("unsubscribe.email_preferences")}</h1>
+      <Flash {...flashProps(state.error, state.success, state.info)} />
+      {!state.hash ? (
+        <div class="prose">
+          <p>{t("unsubscribe.invalid_link")}</p>
+        </div>
+      ) : (
+        <>
+          {state.unsubscribed ? (
+            <div class="prose">
+              <p>
+                <Raw html={t("unsubscribe.unsubscribed_message")} />
+              </p>
+              <p>{t("unsubscribe.changed_mind")}</p>
+              <ToggleForm
+                action="resubscribe"
+                hash={state.hash}
+                label={t("unsubscribe.resubscribe_button")}
+              />
+            </div>
+          ) : (
+            <div class="prose">
+              <p>{t("unsubscribe.subscribed_message")}</p>
+              <ToggleForm
+                action="unsubscribe"
+                hash={state.hash}
+                label={t("unsubscribe.unsubscribe_button")}
+              />
+            </div>
+          )}
+          <ForgetSection hash={state.hash} />
+        </>
+      )}
     </Layout>,
   );
 };
