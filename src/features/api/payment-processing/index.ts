@@ -128,6 +128,7 @@ const alreadyHandledSession = (
 ): PaymentFailureResult => ({
   detail: `Ledger already records session ${sessionId} with no live booking (listing ${listingId})`,
   error: "This payment has already been processed.",
+  status: 200,
   success: false,
 });
 
