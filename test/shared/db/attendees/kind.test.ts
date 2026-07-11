@@ -1,27 +1,11 @@
 /**
- * Servicing §0 — pure unit tests for the kind guard + the kind-aware admin ref
- * link builder.
- *
- * These pin the two small predicates the rest of the feature is built from:
- *
- *   • `isServicing(kind)` — true only for `kind='servicing'`. Every customer
- *     surface branches on this to exclude servicing holds.
- *   • `attendeeAdminPath({ id, kind })` — the single pure link builder the
- *     activity log, calendar, and homepage service-events table all call so
- *     a servicing row links to `/admin/servicing/:id` and a customer row to
- *     `/admin/attendees/:id`. No second copy of this dispatch may exist
- *     (§20 "activity log and calendar share one kind-aware link builder").
- *
- * Implementation contract these tests assume (test-first — code not yet written):
- *   - `src/shared/db/attendees/kind.ts` exports `isServicing`,
- *     `SERVICING_KIND = "servicing"`, `ATTENDEE_KIND = "attendee"`.
- *   - `src/shared/attendee-links.ts` exports `attendeeAdminPath`.
+ * Servicing §0 — the kind guard predicate. `isServicing(kind)` is true only
+ * for `kind='servicing'`; every customer surface branches on this to exclude
+ * servicing holds. The kind-aware ref link builder built on top of it is
+ * covered in `test/shared/attendee-links.test.ts`.
  */
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { attendeeAdminPath } from "#shared/attendee-links.ts";
-// jscpd:ignore-end
 import {
   ATTENDEE_KIND,
   isServicing,
@@ -62,25 +46,5 @@ describe("servicing §0 — kind guard helper classifies rows", () => {
         "isServicing should narrow SERVICING_KIND to the servicing branch",
       );
     }
-  });
-});
-
-describe("servicing §0 — kind-aware ref link routing", () => {
-  const cases: [label: string, kind: string, expectedPath: string][] = [
-    ["servicing row", SERVICING_KIND, "/admin/servicing/42"],
-    ["attendee row", ATTENDEE_KIND, "/admin/attendees/42"],
-    ["unknown kind defaults to attendee route", "bogus", "/admin/attendees/42"],
-  ];
-
-  for (const [label, kind, expectedPath] of cases) {
-    test(`${label} ⇒ ${expectedPath}`, () => {
-      expect(attendeeAdminPath({ id: 42, kind })).toBe(expectedPath);
-    });
-  }
-
-  test("the two kinds never produce the same route (mutation: swapping the kinds changes both URLs)", () => {
-    const servicingPath = attendeeAdminPath({ id: 7, kind: SERVICING_KIND });
-    const attendeePath = attendeeAdminPath({ id: 7, kind: ATTENDEE_KIND });
-    expect(servicingPath).not.toBe(attendeePath);
   });
 });
