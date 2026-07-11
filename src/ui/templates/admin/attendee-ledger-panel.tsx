@@ -16,7 +16,7 @@ import type { OrderSummary } from "#shared/db/attendees/balance.ts";
 import {
   type AccountLedgerData,
   AccountStatementSection,
-} from "#templates/admin/ledger.tsx";
+} from "#templates/admin/ledger/statement.tsx";
 
 export type AttendeeLedgerView = {
   status: AttendeeStatus | null;

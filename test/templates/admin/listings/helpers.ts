@@ -2,6 +2,7 @@ import { afterEach, beforeAll } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { attendeeNameMap } from "#shared/db/system-notes.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
+import { listingLedgerHref } from "#shared/ledger-links.ts";
 import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
 import {
   ListingOverviewPanel,
@@ -43,7 +44,7 @@ export const renderListingDetail = (
       isHiddenPackageMember: opts.isHiddenPackageMember,
       ledger: opts.ledger,
       ledgerHref: opts.revenueBreakdown
-        ? `/admin/ledger?listing=${opts.listing.id}`
+        ? listingLedgerHref(opts.listing.id)
         : undefined,
       listing: opts.listing,
       // The Overview now takes precomputed stats + note-author names instead of

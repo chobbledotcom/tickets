@@ -44,6 +44,7 @@ import {
   loadNotesForListing,
   type SystemNote,
 } from "#shared/db/system-notes.ts";
+import { listingLedgerHref } from "#shared/ledger-links.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   type Attendee,
@@ -231,9 +232,7 @@ export const loadListingOverviewPanel = async (
     groupContext,
     isChild,
     isHiddenPackageMember,
-    ...(canViewLedger
-      ? { ledgerHref: `/admin/ledger?listing=${listing.id}` }
-      : {}),
+    ...(canViewLedger ? { ledgerHref: listingLedgerHref(listing.id) } : {}),
     listing,
     noteNames,
     ...(questionData !== undefined ? { questionData } : {}),

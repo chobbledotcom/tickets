@@ -13,47 +13,40 @@
  * plain "<Entity> #<id>" text with no link, mirroring the activity log.
  */
 
-import * as v from "valibot";
-import { map } from "#fp";
 import { t } from "#i18n";
 import {
-  ATTENDEE,
-  COST,
   isRowAccountType,
   isSingletonAccountType,
-  REVENUE,
   type RowAccountType,
   type SingletonAccountType,
-  WRITEOFF_TYPE,
 } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
 import {
   isManualLedgerTransfer,
-  type ManualLedgerEntryOption,
-  type ManualLedgerEntryType,
-  manualEntrySpecByType,
   manualLedgerEntryOptionsFor,
 } from "#shared/accounting/manual-entries.ts";
 import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { ConfirmForm, CsrfForm } from "#shared/forms.tsx";
-import type { SafeHtml } from "#shared/jsx/jsx-runtime.ts";
-import { sameAccount } from "#shared/ledger/account.ts";
-import type { StatementLine } from "#shared/ledger/project.ts";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
+import { listingLedgerHref } from "#shared/ledger-links.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
+import { AdminPage } from "#templates/admin/admin-page.tsx";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import {
-  ActionButton,
-  GuideFooter,
-  SubmitButton,
-} from "#templates/components/actions.tsx";
+  LedgerDateRange,
+  type LedgerFilterData,
+  LedgerViewToggle,
+  ScopeFilter,
+} from "#templates/admin/ledger/filter.tsx";
+import {
+  humanAmount,
+  humanDescription,
+} from "#templates/admin/ledger/formatting.tsx";
+import { GuideFooter } from "#templates/components/actions.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
-import { PriceInput } from "#templates/components/price-input.tsx";
+import { ReorderTable } from "#templates/components/reorder-table.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
-import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
 
 /**
  * Display names for the row-backed account legs the ledger renders, each a
@@ -67,13 +60,6 @@ export interface LedgerNames {
   listings: Map<number, string>;
   modifiers: Map<number, string>;
 }
-
-/** An empty {@link LedgerNames}, for surfaces with no rows to label yet. */
-export const emptyLedgerNames = (): LedgerNames => ({
-  attendees: new Map(),
-  listings: new Map(),
-  modifiers: new Map(),
-});
 
 /** The resolved presentation of one account leg: the text to show, and its
  * filtered ledger href (absent for singletons and deleted entities). */
@@ -99,7 +85,7 @@ const ROW_ACCOUNT_KINDS: Record<RowAccountType, RowAccountKind> = {
   },
   cost: {
     fallbackKey: "admin.ledger.fallback.revenue",
-    href: (id) => `/admin/ledger?listing=${id}`,
+    href: listingLedgerHref,
     names: (refs) => refs.listings,
   },
   modifier: {
@@ -109,7 +95,7 @@ const ROW_ACCOUNT_KINDS: Record<RowAccountType, RowAccountKind> = {
   },
   revenue: {
     fallbackKey: "admin.ledger.fallback.revenue",
-    href: (id) => `/admin/ledger?listing=${id}`,
+    href: listingLedgerHref,
     names: (refs) => refs.listings,
   },
 };
@@ -155,17 +141,22 @@ export const resolveAccountLabel = (
     : { href: kind.href(id), text: name };
 };
 
+/** The plain display text for an account (no link), for headings/captions. */
+export const accountLabelText = (
+  account: AccountRef,
+  names: LedgerNames,
+): string => resolveAccountLabel(account, names).text;
+
 /** One resolved account leg as cell content: a link when the entity exists,
  * plain (escaped) text otherwise. Interpolated (`{accountCell(...)}`) rather than
  * a `<Component/>` so the plain-text case can stay un-wrapped, like the activity
  * log's bare link cells. */
-const accountCell = (
-  account: AccountRef,
-  names: LedgerNames,
-): JSX.Element | string => {
-  const { text, href } = resolveAccountLabel(account, names);
-  return href === undefined ? text : <a href={href}>{text}</a>;
-};
+export const accountCellFor =
+  (names: LedgerNames) =>
+  (account: AccountRef): JSX.Element | string => {
+    const { text, href } = resolveAccountLabel(account, names);
+    return href === undefined ? text : <a href={href}>{text}</a>;
+  };
 
 /** A path-safe return URL is threaded into edit/add forms so mutations can send
  * the operator back to the exact statement or filtered ledger they came from. */
@@ -184,12 +175,15 @@ export const ledgerEntryAddHref = (
 ): string =>
   withReturnUrl(`/admin/ledger/${account.type}/${account.id}/add`, returnUrl);
 
-const canAddLedgerEntry = (account: AccountRef, names: LedgerNames): boolean =>
+export const canAddLedgerEntry = (
+  account: AccountRef,
+  names: LedgerNames,
+): boolean =>
   !isReadOnly() &&
   manualLedgerEntryOptionsFor(account).length > 0 &&
   resolveAccountLabel(account, names).href !== undefined;
 
-const amountCell = (
+export const amountCell = (
   transfer: Transfer,
   label: string,
   returnUrl?: string,
@@ -207,14 +201,14 @@ const kindLabel = (transfer: Transfer): string => transfer.kind || "—";
 
 /** One column of a ledger-style table: its header key, how a row renders into
  * its cell, and an optional alignment class applied to both. */
-type LedgerColumn<Row> = {
+export type LedgerColumn<Row> = {
   headerKey: string;
   cell: (row: Row) => JSX.Element | string;
   class?: string;
 };
 
 /** The right-aligned money column shape shared by every ledger table. */
-const amountColumn = <Row,>(
+export const amountColumn = <Row,>(
   headerKey: string,
   cell: (row: Row) => JSX.Element | string,
 ): LedgerColumn<Row> => ({ cell, class: colClass("amount"), headerKey });
@@ -225,43 +219,38 @@ const amountColumn = <Row,>(
  * empty-state colspan derives from the spec's length, so it can never drift
  * from the column count the way a hand-written `colspan="4"` could.
  */
-const LedgerColumnsTable = <Row,>({
+export const LedgerColumnsTable = <Row,>({
   columns,
   rows,
 }: {
   columns: LedgerColumn<Row>[];
   rows: Row[];
 }): JSX.Element => (
-  <div class="table-scroll">
-    <table>
-      <thead>
+  <ReorderTable
+    columns={columns.map((column) => (
+      <th class={column.class}>{t(column.headerKey)}</th>
+    ))}
+    orderLabel=""
+    reorder={false}
+  >
+    {rows.length > 0 ? (
+      rows.map((row) => (
         <tr>
           {columns.map((column) => (
-            <th class={column.class}>{t(column.headerKey)}</th>
+            <td class={column.class}>{column.cell(row)}</td>
           ))}
         </tr>
-      </thead>
-      <tbody>
-        {rows.length > 0 ? (
-          rows.map((row) => (
-            <tr>
-              {columns.map((column) => (
-                <td class={column.class}>{column.cell(row)}</td>
-              ))}
-            </tr>
-          ))
-        ) : (
-          <tr>
-            <td colspan={columns.length}>{t("admin.ledger.empty")}</td>
-          </tr>
-        )}
-      </tbody>
-    </table>
-  </div>
+      ))
+    ) : (
+      <tr>
+        <td colspan={columns.length}>{t("admin.ledger.empty")}</td>
+      </tr>
+    )}
+  </ReorderTable>
 );
 
 /** The shared leading column: a transfer's business time. */
-const timeColumn = <Row,>(
+export const timeColumn = <Row,>(
   occurredAt: (row: Row) => string,
 ): LedgerColumn<Row> => ({
   cell: (row) => formatDatetimeShort(occurredAt(row)),
@@ -272,451 +261,73 @@ const timeColumn = <Row,>(
  * The historical transfer list: every leg as From → To with its kind, time, and
  * amount. Scrollable on narrow screens like the other admin tables.
  */
-export const LedgerTable = ({
-  transfers,
-  names,
-  returnUrl,
-}: {
+type TransferTableData = {
   transfers: Transfer[];
   names: LedgerNames;
   returnUrl?: string;
-}): JSX.Element =>
-  LedgerColumnsTable({
-    columns: [
-      timeColumn((transfer: Transfer) => transfer.occurredAt),
+};
+
+type TransferColumns = (
+  accountCell: (account: AccountRef) => JSX.Element | string,
+  returnUrl: string | undefined,
+) => LedgerColumn<Transfer>[];
+
+const makeTransferTable =
+  (columns: TransferColumns) =>
+  ({ transfers, names, returnUrl }: TransferTableData): JSX.Element =>
+    LedgerColumnsTable({
+      columns: columns(accountCellFor(names), returnUrl),
+      rows: transfers,
+    });
+
+const transferColumns = (
+  activity: LedgerColumn<Transfer>[],
+  amountLabel: (transfer: Transfer) => string,
+  returnUrl: string | undefined,
+): LedgerColumn<Transfer>[] => [
+  timeColumn((transfer: Transfer) => transfer.occurredAt),
+  ...activity,
+  amountColumn<Transfer>("admin.ledger.col.amount", (transfer) =>
+    amountCell(transfer, amountLabel(transfer), returnUrl),
+  ),
+];
+
+export const LedgerTable = makeTransferTable((accountCell, returnUrl) =>
+  transferColumns(
+    [
       { cell: kindLabel, headerKey: "admin.ledger.col.event" },
       {
         cell: (transfer) => (
           <>
-            {accountCell(transfer.source, names)} &rarr;{" "}
-            {accountCell(transfer.destination, names)}
+            {accountCell(transfer.source)} &rarr;{" "}
+            {accountCell(transfer.destination)}
           </>
         ),
         headerKey: "admin.ledger.col.from_to",
       },
-      amountColumn<Transfer>("admin.ledger.col.amount", (transfer) =>
-        amountCell(transfer, formatCurrency(transfer.amount), returnUrl),
-      ),
     ],
-    rows: transfers,
-  });
-
-const humanAccount = (transfer: Transfer, type: string): AccountRef | null => {
-  if (transfer.source.type === type) return transfer.source;
-  if (transfer.destination.type === type) return transfer.destination;
-  return null;
-};
-
-const sentenceWithAccount = (
-  key: string,
-  account: AccountRef | null,
-  names: LedgerNames,
-): JSX.Element =>
-  account ? (
-    <>
-      {t(key)} {accountCell(account, names)}
-    </>
-  ) : (
-    <span>{t(key)}</span>
-  );
-
-const fallbackHumanDescription = (
-  transfer: Transfer,
-  names: LedgerNames,
-): JSX.Element => (
-  <>
-    {t("admin.ledger.human.transfer_from")}{" "}
-    {accountCell(transfer.source, names)} {t("admin.ledger.human.transfer_to")}{" "}
-    {accountCell(transfer.destination, names)}
-  </>
+    (transfer) => formatCurrency(transfer.amount),
+    returnUrl,
+  ),
 );
 
-const saleDescription = (
-  transfer: Transfer,
-  names: LedgerNames,
-): JSX.Element => (
-  <>
-    {accountCell(transfer.source, names)} {t("admin.ledger.human.booked")}{" "}
-    {accountCell(transfer.destination, names)}
-  </>
-);
-
-const adjustmentDescription = (
-  transfer: Transfer,
-  names: LedgerNames,
-): JSX.Element => {
-  if (
-    transfer.source.type === ATTENDEE &&
-    transfer.destination.type === WRITEOFF_TYPE
-  ) {
-    return sentenceWithAccount(
-      "admin.ledger.human.manual_attendee_charge",
-      transfer.source,
-      names,
-    );
-  }
-  if (
-    transfer.source.type === WRITEOFF_TYPE &&
-    transfer.destination.type === ATTENDEE
-  ) {
-    return sentenceWithAccount(
-      "admin.ledger.human.manual_attendee_writeoff",
-      transfer.destination,
-      names,
-    );
-  }
-  if (transfer.source.type === WRITEOFF_TYPE) {
-    return sentenceWithAccount(
-      "admin.ledger.human.adjustment_increase",
-      transfer.destination,
-      names,
-    );
-  }
-  if (transfer.destination.type === WRITEOFF_TYPE) {
-    return sentenceWithAccount(
-      "admin.ledger.human.adjustment_reduce",
-      transfer.source,
-      names,
-    );
-  }
-  return fallbackHumanDescription(transfer, names);
-};
-
-const humanDescription = (
-  transfer: Transfer,
-  names: LedgerNames,
-): JSX.Element => {
-  switch (transfer.kind) {
-    case KIND.sale:
-      return saleDescription(transfer, names);
-    case KIND.payment:
-      return sentenceWithAccount(
-        "admin.ledger.human.payment",
-        humanAccount(transfer, ATTENDEE),
-        names,
-      );
-    case KIND.refundCash:
-      return sentenceWithAccount(
-        "admin.ledger.human.refund_cash",
-        humanAccount(transfer, ATTENDEE),
-        names,
-      );
-    case KIND.refundSale:
-      return sentenceWithAccount(
-        "admin.ledger.human.refund_sale",
-        humanAccount(transfer, REVENUE),
-        names,
-      );
-    case KIND.fee:
-      return <>{t("admin.ledger.human.fee")}</>;
-    case KIND.refundFee:
-      return <>{t("admin.ledger.human.refund_fee")}</>;
-    case KIND.serviceCost:
-      return sentenceWithAccount(
-        transfer.source.type === COST
-          ? "admin.ledger.human.service_cost"
-          : "admin.ledger.human.service_cost_reduction",
-        humanAccount(transfer, COST),
-        names,
-      );
-    case KIND.adjustment:
-      return adjustmentDescription(transfer, names);
-    default: {
-      const spec =
-        manualEntrySpecByType[transfer.kind as ManualLedgerEntryType];
-      if (!spec) return fallbackHumanDescription(transfer, names);
-      return sentenceWithAccount(
-        spec.descriptionKey,
-        humanAccount(transfer, spec.accountType),
-        names,
-      );
-    }
-  }
-};
-
-/** How one plain-language row changed the business figure it describes. */
-const humanAmount = (transfer: Transfer): number => {
-  if (
-    transfer.kind === KIND.refundCash ||
-    transfer.kind === KIND.refundFee ||
-    transfer.kind === KIND.refundSale ||
-    transfer.kind === "manual_listing_cost" ||
-    transfer.kind === "manual_attendee_writeoff" ||
-    transfer.kind === "manual_modifier_reduction"
-  ) {
-    return -transfer.amount;
-  }
-  if (transfer.kind === KIND.serviceCost) {
-    return transfer.source.type === COST ? -transfer.amount : transfer.amount;
-  }
-  if (transfer.kind === KIND.adjustment) {
-    return transfer.destination.type === WRITEOFF_TYPE
-      ? -transfer.amount
-      : transfer.amount;
-  }
-  if (transfer.kind === KIND.modifier) {
-    return transfer.destination.type === "modifier"
-      ? transfer.amount
-      : -transfer.amount;
-  }
-  return transfer.amount;
-};
-
-export const HumanLedgerTable = ({
-  transfers,
-  names,
-  returnUrl,
-}: {
-  transfers: Transfer[];
-  names: LedgerNames;
-  returnUrl?: string;
-}): JSX.Element =>
-  LedgerColumnsTable({
-    columns: [
-      timeColumn((transfer: Transfer) => transfer.occurredAt),
+export const HumanLedgerTable = makeTransferTable((accountCell, returnUrl) =>
+  transferColumns(
+    [
       {
-        cell: (transfer) => humanDescription(transfer, names),
+        cell: (transfer) => humanDescription(transfer, accountCell),
         headerKey: "admin.ledger.col.activity",
       },
-      amountColumn<Transfer>("admin.ledger.col.amount", (transfer) =>
-        amountCell(
-          transfer,
-          formatSignedCurrency(humanAmount(transfer)),
-          returnUrl,
-        ),
-      ),
     ],
-    rows: transfers,
-  });
-
-/** The signed delta of a statement line, formatted with an explicit sign so a
- * credit and a debit of the same magnitude never read alike. */
-/**
- * Whether an account's statement figures should be shown with their sign
- * flipped. The ledger stores an attendee's account as a liability — a booking
- * debits it negative, a payment credits it back toward zero — which is correct
- * double-entry but reads backwards to a non-accountant: they expect a charge to
- * show as a positive amount owed and a payment to bring it down. So an attendee
- * statement negates its signed deltas and running balance; every other account
- * (revenue, modifier, the singletons) keeps its native ledger sign. */
-const isReversedAccount = (account: AccountRef): boolean =>
-  account.type === ATTENDEE || account.type === COST;
-
-/** A statement figure (signed delta or running balance) as shown for an account,
- * flipping its sign for the {@link isReversedAccount reversed} attendee view. The
- * `value !== 0` guard keeps a zero figure from becoming negative zero, which
- * would render as a stray "-£0". */
-const shownFigure = (value: number, account: AccountRef): number =>
-  isReversedAccount(account) && value !== 0 ? -value : value;
-
-/** The counterparty on a statement line: the OTHER account on the leg (the
- * source when this account received, else the destination). */
-const counterparty = (line: StatementLine, account: AccountRef): AccountRef =>
-  sameAccount(line.transfer.destination, account)
-    ? line.transfer.source
-    : line.transfer.destination;
-
-/**
- * One account's running-balance statement: each leg as a counterparty plus the
- * signed delta and the balance after it. The account's own label and final
- * balance are shown by the caller as a heading; this is just the table.
- */
-export const AccountStatementTable = ({
-  account,
-  lines,
-  names,
-  returnUrl,
-}: {
-  account: AccountRef;
-  lines: StatementLine[];
-  names: LedgerNames;
-  returnUrl?: string;
-}): JSX.Element =>
-  LedgerColumnsTable({
-    columns: [
-      timeColumn((line: StatementLine) => line.transfer.occurredAt),
-      {
-        cell: (line) => humanDescription(line.transfer, names),
-        headerKey: "admin.ledger.col.activity",
-      },
-      {
-        cell: (line) => accountCell(counterparty(line, account), names),
-        headerKey: "admin.ledger.col.counterparty",
-      },
-      amountColumn<StatementLine>("admin.ledger.col.delta", (line) =>
-        amountCell(
-          line.transfer,
-          formatSignedCurrency(shownFigure(line.signed, account)),
-          returnUrl,
-        ),
-      ),
-      amountColumn<StatementLine>("admin.ledger.col.balance", (line) =>
-        formatCurrency(shownFigure(line.running, account)),
-      ),
-    ],
-    rows: lines,
-  });
-
-/** The plain display text for an account (no link), for headings/captions. */
-export const accountLabelText = (
-  account: AccountRef,
-  names: LedgerNames,
-): string => resolveAccountLabel(account, names).text;
-
-/**
- * An account's heading: its display label and its current (final) balance. The
- * balance is the last statement line's running total, or zero for an account
- * with no history. Shared by the standalone statement page and the attendee
- * panel, so both read the balance the same way.
- */
-export const AccountStatementHeading = ({
-  account,
-  lines,
-  names,
-}: {
-  account: AccountRef;
-  lines: StatementLine[];
-  names: LedgerNames;
-}): JSX.Element => {
-  const balance = lines.length > 0 ? lines[lines.length - 1]!.running : 0;
-  const balanceKey =
-    account.type === ATTENDEE
-      ? "admin.ledger.amount_owed"
-      : account.type === COST
-        ? "admin.ledger.total_costs"
-        : account.type === REVENUE
-          ? "admin.ledger.income_balance"
-          : "admin.ledger.balance";
-  return (
-    <p class="ledger-balance">
-      <strong>{accountLabelText(account, names)}</strong>{" "}
-      {t(balanceKey, {
-        amount: formatSignedCurrency(shownFigure(balance, account), false),
-      })}
-    </p>
-  );
-};
-
-export type AccountLedgerData = {
-  account: AccountRef;
-  lines: StatementLine[];
-  names: LedgerNames;
-};
-
-const AccountStatementActions = ({
-  account,
-  names,
-  fullLedgerHref,
-  returnUrl,
-}: {
-  account: AccountRef;
-  names: LedgerNames;
-  fullLedgerHref?: string | undefined;
-  returnUrl: string;
-}): JSX.Element | null => {
-  const showAdd = canAddLedgerEntry(account, names);
-  if (!showAdd && !fullLedgerHref) return null;
-  return (
-    <p class="table-action-btns">
-      {showAdd && (
-        <ActionButton href={ledgerEntryAddHref(account, returnUrl)} icon="plus">
-          {t("admin.ledger.add.link")}
-        </ActionButton>
-      )}
-      {fullLedgerHref && (
-        <ActionButton href={fullLedgerHref}>
-          {t("attendee_detail.view_full_ledger")}
-        </ActionButton>
-      )}
-    </p>
-  );
-};
-
-/**
- * The full per-account statement section (heading + table), reused by the
- * standalone statement page and the embedded attendee panel so both render the
- * account's balance and history identically.
- */
-export const AccountStatementSection = ({
-  account,
-  lines,
-  names,
-  returnUrl,
-  fullLedgerHref,
-}: {
-  account: AccountRef;
-  lines: StatementLine[];
-  names: LedgerNames;
-  returnUrl: string;
-  fullLedgerHref?: string | undefined;
-}): JSX.Element => (
-  <div class="table-controls">
-    <AccountStatementHeading account={account} lines={lines} names={names} />
-    <AccountStatementActions
-      account={account}
-      fullLedgerHref={fullLedgerHref}
-      names={names}
-      returnUrl={returnUrl}
-    />
-    <AccountStatementTable
-      account={account}
-      lines={lines}
-      names={names}
-      returnUrl={returnUrl}
-    />
-  </div>
+    (transfer) => formatSignedCurrency(humanAmount(transfer)),
+    returnUrl,
+  ),
 );
-
-export const EmbeddedAccountStatementSection = ({
-  id,
-  ledger,
-  returnUrl,
-  fullLedgerHref,
-}: {
-  id?: string;
-  ledger: AccountLedgerData;
-  returnUrl: string;
-  fullLedgerHref?: string | undefined;
-}): JSX.Element => (
-  <section id={id}>
-    <h2>{t("admin.ledger.statement_heading")}</h2>
-    <AccountStatementSection
-      account={ledger.account}
-      fullLedgerHref={fullLedgerHref}
-      lines={ledger.lines}
-      names={ledger.names}
-      returnUrl={returnUrl}
-    />
-  </section>
-);
-
-/** The whole filter state the ledger page round-trips through the query string:
- *  a `from`/`to` day range, an optional listing/group scope, and each picker's
- *  currently-paged month (so stepping months survives a reload). */
-export type LedgerFilterState = {
-  from: string | null;
-  groupId: number | null;
-  to: string | null;
-  listingId: number | null;
-  fromMonth: string | null;
-  toMonth: string | null;
-  view: LedgerViewMode;
-};
-
-/** The two renderings of the transfer list — plain-language and double-entry —
- *  round-tripped through the `?view=` param. Picklist so the type, the param
- *  parse, and the toggle all derive from one declaration. */
-export const LedgerViewModeSchema = v.picklist(["human", "dual"]);
-export type LedgerViewMode = v.InferOutput<typeof LedgerViewModeSchema>;
-
-/** One option for the listing or group scope filter. */
-export type LedgerListingOption = { id: number; name: string };
-export type LedgerGroupOption = { id: number; name: string };
 
 /** Everything the (render-only) ledger page needs: the visible transfers and
  *  their name lookup, the range-scoped stats, the current filter state, and the
  *  data the two date pickers + listing select render from. */
-export type LedgerPageData = {
+export type LedgerPageData = LedgerFilterData & {
   transfers: Transfer[];
   names: LedgerNames;
   truncated: boolean;
@@ -724,160 +335,24 @@ export type LedgerPageData = {
   /** Scope heading above the stats table — the listing name when scoped to one,
    *  null for the whole-business view (which needs no heading). */
   statsHeading: string | null;
-  filters: LedgerFilterState;
-  dates: DatePickerDate[];
-  today: string;
-  listings: LedgerListingOption[];
-  groups: LedgerGroupOption[];
   returnUrl: string;
 };
 
-/** Build a `/admin/ledger` URL from the current filters plus an override of any
- *  subset of them. A null/absent field drops its query param, so clearing the
- *  `from` date (override `{ from: null }`) yields a link without it. */
-const ledgerHref = (
-  filters: LedgerFilterState,
-  overrides: Partial<LedgerFilterState>,
-  fragment = "",
-): string => {
-  const merged = { ...filters, ...overrides };
-  const params = new URLSearchParams();
-  if (merged.from) params.set("from", merged.from);
-  if (merged.to) params.set("to", merged.to);
-  if (merged.listingId !== null) {
-    params.set("listing", String(merged.listingId));
-  } else if (merged.groupId !== null) {
-    params.set("group", String(merged.groupId));
-  }
-  if (merged.view === "dual") params.set("view", "dual");
-  if (merged.fromMonth) params.set("fromCal", merged.fromMonth);
-  if (merged.toMonth) params.set("toCal", merged.toMonth);
-  const qs = params.toString();
-  return `/admin/ledger${qs ? `?${qs}` : ""}${fragment}`;
-};
-
-/** One side of the date-range filter: which filter fields it reads and writes,
- *  so the two pickers share one renderer differing only by these accessors. */
-type RangeSide = {
-  anchorId: string;
-  labelKey: string;
-  pick: (f: LedgerFilterState) => { date: string | null; month: string | null };
-  setDate: (v: string | null) => Partial<LedgerFilterState>;
-  setMonth: (m: string) => Partial<LedgerFilterState>;
-};
-
-const RANGE_SIDES: RangeSide[] = [
-  {
-    anchorId: "ledger-from",
-    labelKey: "admin.ledger.filter.from",
-    pick: (f) => ({ date: f.from, month: f.fromMonth }),
-    setDate: (v) => ({ from: v }),
-    setMonth: (m) => ({ fromMonth: m }),
-  },
-  {
-    anchorId: "ledger-to",
-    labelKey: "admin.ledger.filter.to",
-    pick: (f) => ({ date: f.to, month: f.toMonth }),
-    setDate: (v) => ({ to: v }),
-    setMonth: (m) => ({ toMonth: m }),
-  },
-];
-
-/** One labelled date picker bound to one side of the range; both reuse the same
- *  `/admin/calendar` {@link DatePicker}, scoped to a unique anchor id. */
-const RangeField = ({
-  data,
-  side,
-}: {
-  data: LedgerPageData;
-  side: RangeSide;
-}): SafeHtml => {
-  const current = side.pick(data.filters);
-  const fragment = `#${side.anchorId}`;
-  return (
-    <div class="ledger-date-field">
-      <strong>{t(side.labelKey)}</strong>
-      {DatePicker({
-        anchorId: side.anchorId,
-        ariaLabel: t(side.labelKey),
-        clearHref: ledgerHref(data.filters, side.setDate(null), fragment),
-        dates: data.dates,
-        dayHref: (v) => ledgerHref(data.filters, side.setDate(v), fragment),
-        monthHref: (m) => ledgerHref(data.filters, side.setMonth(m), fragment),
-        selected: current.date,
-        today: data.today,
-        viewMonth: current.month,
-      })}
-    </div>
+export const adminLedgerShell = (
+  titleKey: string,
+  session: AdminSession,
+  children: Child,
+): string =>
+  String(
+    <AdminPage active="/admin/ledger" session={session} title={t(titleKey)}>
+      {children}
+    </AdminPage>,
   );
-};
-
-/** The scope filter: everything, one listing, or one group's current listings. */
-const ScopeFilter = ({ data }: { data: LedgerPageData }): SafeHtml => (
-  <p class="table-action-btns">
-    {t("admin.ledger.filter.scope")}:
-    <select aria-label={t("admin.ledger.filter.scope")} data-nav-select>
-      <option
-        selected={
-          data.filters.listingId === null && data.filters.groupId === null
-        }
-        value={ledgerHref(data.filters, { groupId: null, listingId: null })}
-      >
-        {t("admin.ledger.filter.all")}
-      </option>
-      <optgroup label={t("admin.ledger.filter.listings")}>
-        {map(
-          (listing: LedgerListingOption): SafeHtml => (
-            <option
-              selected={data.filters.listingId === listing.id}
-              value={ledgerHref(data.filters, {
-                groupId: null,
-                listingId: listing.id,
-              })}
-            >
-              {listing.name}
-            </option>
-          ),
-        )(data.listings)}
-      </optgroup>
-      <optgroup label={t("admin.ledger.filter.groups")}>
-        {map(
-          (group: LedgerGroupOption): SafeHtml => (
-            <option
-              selected={data.filters.groupId === group.id}
-              value={ledgerHref(data.filters, {
-                groupId: group.id,
-                listingId: null,
-              })}
-            >
-              {group.name}
-            </option>
-          ),
-        )(data.groups)}
-      </optgroup>
-    </select>
-  </p>
-);
-
-/** The view toggle renders every mode from the picklist: the active one as
- *  plain bold text (never a dead link to itself), the rest as links. */
-const LedgerViewToggle = ({ data }: { data: LedgerPageData }): SafeHtml => (
-  <p class="table-action-btns">
-    {LedgerViewModeSchema.options.map((mode) => {
-      const label = t(`admin.ledger.view.${mode}`);
-      return data.filters.view === mode ? (
-        <strong>{label}</strong>
-      ) : (
-        <a href={ledgerHref(data.filters, { view: mode })}>{label}</a>
-      );
-    })}
-  </p>
-);
 
 /** The range-scoped stats table: a key/value figure table, headed by the
  *  listing name when scoped to one listing (the whole-business view needs no
  *  heading — the page title already says "Ledger"). */
-const LedgerStats = ({ data }: { data: LedgerPageData }): SafeHtml => (
+const LedgerStats = ({ data }: { data: LedgerPageData }): JSX.Element => (
   <>
     {data.statsHeading && <h2>{data.statsHeading}</h2>}
     <DetailTable rows={data.stats} />
@@ -894,21 +369,13 @@ export const adminLedgerPage = (
   data: LedgerPageData,
   session: AdminSession,
 ): string =>
-  String(
-    <AdminPage
-      active="/admin/ledger"
-      session={session}
-      title={t("admin.ledger.heading")}
-    >
+  adminLedgerShell(
+    "admin.ledger.heading",
+    session,
+    <>
       <LedgerStats data={data} />
       <div class="table-controls">
-        <div class="ledger-date-range">
-          {map(
-            (side: RangeSide): SafeHtml => (
-              <RangeField data={data} side={side} />
-            ),
-          )(RANGE_SIDES)}
-        </div>
+        <LedgerDateRange data={data} />
         <ScopeFilter data={data} />
         <LedgerViewToggle data={data} />
         {data.filters.view === "dual" ? (
@@ -929,172 +396,5 @@ export const adminLedgerPage = (
       <GuideFooter href="/admin/guide#ledger">
         {t("admin.ledger.guide")}
       </GuideFooter>
-    </AdminPage>,
-  );
-
-/**
- * One account's statement page: the account heading + balance and its full
- * running-balance statement. The nav already links back to the ledger, so no
- * separate back link is shown.
- */
-export const adminAccountStatementPage = (
-  account: AccountRef,
-  lines: StatementLine[],
-  names: LedgerNames,
-  session: AdminSession,
-): string =>
-  String(
-    <AdminPage
-      active="/admin/ledger"
-      session={session}
-      title={t("admin.ledger.statement_heading")}
-    >
-      <AccountStatementSection
-        account={account}
-        lines={lines}
-        names={names}
-        returnUrl={`/admin/ledger/${account.type}/${account.id}`}
-      />
-    </AdminPage>,
-  );
-
-export type LedgerEntryFormValues = {
-  amount: string;
-  occurredAt: string;
-  entryType?: string | undefined;
-};
-
-export type LedgerEntryAddOption = ManualLedgerEntryOption & {
-  label: string;
-  hint: string;
-};
-
-const LedgerEntryFields = ({
-  values,
-}: {
-  values: LedgerEntryFormValues;
-}): JSX.Element => (
-  <>
-    <label>
-      {t("admin.ledger.form.amount")}
-      <PriceInput min="0" name="amount" required value={values.amount} />
-    </label>
-    <label>
-      {t("admin.ledger.form.occurred_at")}
-      <input
-        name="occurred_at"
-        required
-        type="datetime-local"
-        value={values.occurredAt}
-      />
-    </label>
-  </>
-);
-
-export const adminLedgerEntryAddPage = ({
-  account,
-  names,
-  options,
-  values,
-  returnUrl,
-  session,
-  error,
-}: {
-  account: AccountRef;
-  names: LedgerNames;
-  options: LedgerEntryAddOption[];
-  values: LedgerEntryFormValues;
-  returnUrl: string;
-  session: AdminSession;
-  error?: string | undefined;
-}): string =>
-  errorAdminPage(t("admin.ledger.add.heading"), "/admin/ledger")(
-    session,
-    error,
-  )(
-    <CsrfForm action={`/admin/ledger/${account.type}/${account.id}/add`}>
-      <h1>{t("admin.ledger.add.heading")}</h1>
-      <p>
-        {t("admin.ledger.add.account")}{" "}
-        <strong>{accountLabelText(account, names)}</strong>
-      </p>
-      <input name="return_url" type="hidden" value={returnUrl} />
-      <label>
-        {t("admin.ledger.add.type")}
-        <select name="entry_type" required>
-          {options.map((option) => (
-            <option
-              selected={values.entryType === option.type}
-              value={option.type}
-            >
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <ul>
-        {options.map((option) => (
-          <li>
-            <strong>{option.label}:</strong> {option.hint}
-          </li>
-        ))}
-      </ul>
-      <LedgerEntryFields values={values} />
-      <SubmitButton icon="plus">{t("admin.ledger.add.submit")}</SubmitButton>
-      <p>
-        <ActionButton href={returnUrl} variant="secondary">
-          {t("common.cancel")}
-        </ActionButton>
-      </p>
-    </CsrfForm>,
-  );
-
-export const adminLedgerEntryEditPage = ({
-  transfer,
-  names,
-  values,
-  returnUrl,
-  session,
-  error,
-}: {
-  transfer: Transfer;
-  names: LedgerNames;
-  values: LedgerEntryFormValues;
-  returnUrl: string;
-  session: AdminSession;
-  error?: string | undefined;
-}): string =>
-  errorAdminPage(t("admin.ledger.edit.heading"), "/admin/ledger")(
-    session,
-    error,
-  )(
-    <>
-      <h1>{t("admin.ledger.edit.heading")}</h1>
-      <p>{humanDescription(transfer, names)}</p>
-      <CsrfForm action={`/admin/ledger/entries/${transfer.id}/edit`}>
-        <input name="return_url" type="hidden" value={returnUrl} />
-        <LedgerEntryFields values={values} />
-        <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
-      </CsrfForm>
-      <ConfirmForm
-        action={`/admin/ledger/entries/${transfer.id}/delete`}
-        buttonText={t("admin.ledger.delete.submit")}
-        label={t("admin.ledger.delete.label")}
-        name={formatCurrency(transfer.amount)}
-        returnUrl={returnUrl}
-      >
-        <h2>{t("admin.ledger.delete.heading")}</h2>
-        <p>{t("admin.ledger.delete.warning")}</p>
-        <p>
-          {t("admin.ledger.delete.confirm_prompt", {
-            amount: formatCurrency(transfer.amount),
-          })}
-        </p>
-      </ConfirmForm>
-      <p>
-        <ActionButton href={returnUrl} variant="secondary">
-          {t("common.cancel")}
-        </ActionButton>
-      </p>
     </>,
   );

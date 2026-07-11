@@ -10,7 +10,7 @@ import type {
   ListingWithCount,
 } from "#shared/types.ts";
 import type { CheckedInStats } from "#templates/admin/detail-rows.tsx";
-import type { AccountLedgerData } from "#templates/admin/ledger.tsx";
+import type { AccountLedgerData } from "#templates/admin/ledger/statement.tsx";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 
 export type DateOption = { value: string; label: string };

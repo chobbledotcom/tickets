@@ -43,12 +43,13 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import { CsrfForm, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { listingLedgerHref } from "#shared/ledger-links.ts";
 import {
   selectedListingQuantities,
   selectedStartDate,
 } from "#shared/order-select.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import { isOwner, type ListingWithCount } from "#shared/types.ts";
 import { parsePositiveMinorUnits } from "#shared/validation/money.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
@@ -263,8 +264,8 @@ const renderServicingPage = ({
                   { header: "Actions" },
                 ]}
                 rows={costs.map((cost) => [
-                  session.adminLevel === "owner" ? (
-                    <a href={`/admin/ledger?listing=${cost.listingId}`}>
+                  isOwner(session) ? (
+                    <a href={listingLedgerHref(cost.listingId)}>
                       {listingNames.get(cost.listingId)}
                     </a>
                   ) : (
@@ -283,8 +284,8 @@ const renderServicingPage = ({
                       />
                       <SubmitButton icon="save">Edit</SubmitButton>
                     </CsrfForm>
-                    {session.adminLevel === "owner" && (
-                      <a href={`/admin/ledger?listing=${cost.listingId}`}>
+                    {isOwner(session) && (
+                      <a href={listingLedgerHref(cost.listingId)}>
                         View in ledger
                       </a>
                     )}

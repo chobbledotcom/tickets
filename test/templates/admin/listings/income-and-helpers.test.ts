@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { account } from "#shared/ledger/account.ts";
-import { emptyLedgerNames } from "#templates/admin/ledger.tsx";
 import { nearCapacity } from "#templates/admin/listings/aggregates.tsx";
 import { completePaymentAttendees } from "#templates/admin/listings/attendees.tsx";
 import { overviewStatsFromDbStats } from "#templates/admin/listings/overview.tsx";
@@ -161,8 +160,9 @@ describe("adminListingPage income & ledger breakdown", () => {
         account: account("revenue", 7),
         lines: [],
         names: {
-          ...emptyLedgerNames(),
+          attendees: new Map(),
           listings: new Map([[7, listing.name]]),
+          modifiers: new Map(),
         },
       },
       listing,

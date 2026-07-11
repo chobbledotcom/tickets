@@ -34,10 +34,18 @@ describeWithEnv(
           name: "Detail Allow",
           slug: "detail-allow",
         });
+        await createTestListing({
+          groupId: group.id,
+          name: "Paid manager listing",
+          unitPrice: 1000,
+        });
         const response = await awaitTestRequest(`/admin/groups/${group.id}`, {
           cookie: await createTestManagerSession("mgr-detail"),
         });
         expectStatus(200)(response);
+        expect(await response.text()).not.toContain(
+          `/admin/ledger?group=${group.id}`,
+        );
       });
 
       test("returns 404 for non-existent group", async () => {
@@ -53,6 +61,7 @@ describeWithEnv(
         const listing = await createTestListing({
           groupId: group.id,
           name: "Grouped Listing",
+          unitPrice: 1000,
         });
 
         const response = await adminGet(`/admin/groups/${group.id}`);
@@ -73,6 +82,7 @@ describeWithEnv(
           "data-listings=",
           "Embed Iframe",
           "iframe",
+          `href="/admin/ledger?group=${group.id}"`,
         );
       });
 

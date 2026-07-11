@@ -106,19 +106,25 @@ import { parsePositiveMinorUnits } from "#shared/validation/money.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import {
-  type AccountLedgerData,
-  adminAccountStatementPage,
   adminLedgerEntryAddPage,
   adminLedgerEntryEditPage,
-  adminLedgerPage,
   type LedgerEntryAddOption,
   type LedgerEntryFormValues,
+} from "#templates/admin/ledger/entry-pages.tsx";
+import {
   type LedgerFilterState,
   type LedgerGroupOption,
   type LedgerListingOption,
-  type LedgerNames,
   type LedgerViewMode,
   LedgerViewModeSchema,
+} from "#templates/admin/ledger/filter.tsx";
+import {
+  type AccountLedgerData,
+  adminAccountStatementPage,
+} from "#templates/admin/ledger/statement.tsx";
+import {
+  adminLedgerPage,
+  type LedgerNames,
   rowAccountNames,
 } from "#templates/admin/ledger.tsx";
 import type { DatePickerDate } from "#templates/date-picker.tsx";
@@ -297,6 +303,8 @@ const buildStats = async (
     const costs = sumOf((listing: ListingWithCount) => listing.cost)(
       groupListings,
     );
+    // The caller only scopes to a group it found in this same cached map, so the
+    // lookup always resolves.
     return {
       heading: groupNames.get(groupId)!,
       rows: [

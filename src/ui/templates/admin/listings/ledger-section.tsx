@@ -5,7 +5,7 @@ import type { ListingWithCount } from "#shared/types.ts";
 import {
   type AccountLedgerData,
   EmbeddedAccountStatementSection,
-} from "#templates/admin/ledger.tsx";
+} from "#templates/admin/ledger/statement.tsx";
 import {
   MoneySummary,
   type MoneySummaryRow,

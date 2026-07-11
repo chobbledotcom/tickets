@@ -695,11 +695,13 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     const first = await seededSale("Morning show", 2500);
     const second = await seededSale("Evening show", 3500);
     await assignListingsToGroup([first.listingId, second.listingId], group.id);
+    await seededSale("Outside group", 1000);
     const response = await adminGet(`/admin/ledger?group=${group.id}`);
     const html = await response.text();
     expect(html).toContain("<h2>Festival package</h2>");
     expect(html).toContain("Total income earned");
     expect(html).toContain("+£60");
+    expect(html).not.toContain("+£70");
     expect(html).toContain(
       `<option selected value="/admin/ledger?group=${group.id}">Festival package</option>`,
     );
