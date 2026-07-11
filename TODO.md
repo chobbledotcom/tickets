@@ -481,7 +481,7 @@ what it did and why, and grep `\.toContain(` under `test/` for the call sites.
 ## Code-quality detector & test-strengthening follow-ups (from PR #1729)
 
 *Origin: CodeRabbit review of PR #1729, deferred as out of scope for that
-complexity-only refactor (which had to preserve behavior). All three are
+complexity-only refactor (which had to preserve behavior). All of these are
 pre-existing behaviors carried over unchanged from `main`, not regressions.*
 
 ### 1. `skipTypeParams` should not treat the `>` in `=>` as a closing angle bracket
@@ -522,3 +522,28 @@ recorded quantity unchanged.
 Fix direction: capture the recorded quantity before calling `foldChild`, thread
 it into `foldOutcomeValid`, and assert exact equality against that pre-fold
 value for rejected outcomes (retaining the accepted-case checks).
+
+### 4. `mutation.ts` CLI value flags should fail fast on a missing value
+
+`scripts/mutation.ts` — in `applyArg`, a recognized value flag (`--source`,
+`--test`, `--timeout`, `--jobs`) with no following token falls through and is
+collected as a positional, so it surfaces later as a misleading glob/file error
+instead of a clear CLI usage error. (Matches `main`'s original `next !==
+undefined` guard behavior — pre-existing.)
+
+Fix direction: in `applyArg`, when `VALUE_FLAGS[arg]` exists but `next` is
+`undefined`, raise a clear "missing value for <flag>" usage error rather than
+pushing the flag to `positional`; keep consuming/returning true when a value is
+present.
+
+### 5. Seeded PRNG `rand()` can return exactly 1
+
+`test/lib/checkout-pricing-consistency.test.ts` — `makeRng`'s `rand` returns
+`seed / 0x7fffffff`, which is `1` when `seed === 0x7fffffff`. That lets `pick`
+index one past the array and `randInt` return `hi + 1`. Astronomically unlikely
+for the fixed seeds in use (and identical to `main`), but incorrect.
+
+Fix direction: normalize with `seed / 0x80000000` (or clamp below 1). Note this
+changes the seeded sequence, so re-baseline any hardcoded expectations and
+confirm the property test still passes; best landed on its own so the corpus
+shift is reviewed deliberately.
