@@ -445,7 +445,9 @@ tiers**, and the write decision keys off the first:
 
 - **Already-imported** rows (their `(schema, old_id)` is in the map) — skipped.
 - **Non-creatable** rows — zero products, so no line could be written — skipped.
-- Informational warnings (e.g. a non-reservation `Balance` kept as audit-only).
+- Informational warnings (e.g. a residual `Balance` on a non-reservation status —
+  posted faithfully to the ledger for the admin record, just never publicly
+  payable; see [Financial Mapping](#financial-mapping)).
 
 These are **not** things to fix; blocking the whole upload over one blank or
 already-imported row would be wrong. They're listed (on the success page and in
@@ -507,11 +509,15 @@ Extraction order:
 
 1. Use `Equipments` as authoritative when it is populated. These are
    actually-booked products and become real lines (`quantity >= 1`) — **unless the
-   row's `Status` is `Cancelled`, in which case every matched line is
-   `quantity = 0` regardless of `Equipments`** (see Status Mapping). Apply the
-   status verdict after extraction so a cancelled booking never consumes capacity
-   or leaks into public/operational surfaces, even with a populated `Equipments`
-   field.
+   row's source `Status` is a non-capacity status, in which case every matched
+   line is `quantity = 0` regardless of `Equipments`** (see Status Mapping). The
+   `SchemaDefinition` declares which **source** status values are non-capacity —
+   for `event_bookings` that is `Cancelled` **and `Quote`**: a quote-status row
+   with a populated `Equipments` field was quoted for those items, not booked, and
+   capacity is status-blind, so importing it as real lines would consume calendar
+   capacity (and post money legs) for an unconfirmed booking. Apply the status
+   verdict after extraction so such a row never consumes capacity or leaks into
+   public/operational surfaces, even with a populated `Equipments` field.
 2. If `Equipments` is empty, parse `Operator Notes` blocks of the form
    `Quoted for Products: -- Product A -- Product B -- Products (xN) ...` as a
    fallback and report that fallback in the import summary. These are
@@ -624,7 +630,7 @@ Suggested field mapping:
 | `Booking ID` | `booking_imports.old_id` | Required, unique per CSV. |
 | created attendee id | `booking_imports.new_id` | Write only after attendee creation succeeds. |
 | `Date Booked` | attendee `created` | Parse the source booking date into `attendees.created` so admin "newest" views and calendar/list/CSV exports order imports by when they were originally booked, not import time. A missing or unparseable `Date Booked` is **non-fatal** — fall back to import time, **not** a blocking source-data error (`Date Booked` is a required *column*, but its *value* is optional). **Two id-ordered surfaces must also change** (they order by `a.id`, and imports get fresh ids despite old `created`): the dashboard `getNewestAttendeesRaw` (`ORDER BY a.id DESC`) and the `/admin/attendees` browser + CSV `getAttendeesPage` (`ORDER BY a.id ASC/DESC`, paginated). Switch both to order by `created` with `id` as the next key (`ORDER BY a.created DESC, a.id DESC`; ascending for the `oldest` variant), backed by a composite index on `(created, id)`. **`getAttendeesPage` JOINs `listing_attendees` and returns one row per booking line**, so a multi-listing import has several rows sharing `created`+`id`; add a stable booking-line tiebreaker (`ea.listing_id`, `ea.start_at`) after `a.id` for that query so OFFSET pagination and CSV export are deterministic (apply the same key to `getNewestAttendeesRaw` if it also joins per line). |
-| `Customer Name` | attendee `name` | If blank, decide whether to reject or use `Imported booking {id}`. |
+| `Customer Name` | attendee `name` | **A blank name is a blocking source-data error** (reported with row + column; the operator fills it in the CSV and re-uploads). The admin edit form requires `name` on every save, so importing blank would defer the failure to the first edit, and inventing a placeholder would violate "never guess". |
 | `Email` | attendee `email` | Import the raw source value, including invalid or concatenated emails. Add importer-specific support so these rows do not get rejected or split. **Accepted tradeoff:** the edit form renders `email` as `type="email"` and POST runs `validateEmail`, so the first admin re-save of an imported row with an invalid/concatenated email is blocked until the operator fixes or clears it; the importer does not relax the edit path or relocate the raw value (decision: keep raw). |
 | `Mobile`, `Telephone` | attendee `phone` | Prefer mobile; append alternate phone to a free-text answer / notes if both exist. |
 | delivery address fields | attendee `address` | More useful for hire/logistics than contact address. |
@@ -705,7 +711,10 @@ booking with no lines would be auto-purged as an orphan, see
 [orphan note](#all-or-nothing-write-strategy)) and generalises to "interested-in"
 products. The importer writes a quantity-0 line for:
 
-- **Cancelled rows** — every matched product on a `Cancelled` booking.
+- **Non-capacity-status rows** — every matched product on a booking whose source
+  `Status` is one the schema declares non-capacity (`event_bookings`: `Cancelled`
+  and `Quote`) — including a quote-status row's populated `Equipments`, which was
+  quoted for, not booked.
 - **Interested-in / quoted products** — products parsed from the `Quoted for
   Products` notes block (matched to real listing names like `Equipments`, but
   stored at `quantity = 0` because the customer was only quoted, not booked).
@@ -760,9 +769,10 @@ real-cash reports. Instead:
   the **attendee** account, one event group, dated to the source business time,
   with import-specific `kind`s (e.g. `import_owed` / `import_paid`, so they never
   match the live `sale`/`payment`/`refund_cash` report buckets). A
-  **quantity-0-only** import (a `Cancelled` row, or a quote with only
-  interested-in lines) posts **nothing** — it recognises no money, so its owed
-  balance projects as £0 and it is never publicly payable:
+  **quantity-0-only** import (any non-capacity-status row — `Cancelled` or `Quote`,
+  whatever its `Equipments` — or a quote with only interested-in lines) posts
+  **nothing** — it recognises no money, so its owed balance projects as £0 and it
+  is never publicly payable:
   - **owed:** `attendee → imported:default` for the order **`Total`** — the
     attendee owes the full booking price.
   - **paid:** `imported:default → attendee` for **`Received`** — the historically
@@ -848,9 +858,12 @@ Use the source `Status` column.
   behaviour. If a source `Status` matches more than one local status, block the
   upload as an ambiguous-setup error rather than picking a row — the same rule as
   free-text questions.
-- Import cancelled rows too, but give them **zero-quantity booking lines**, not
-  capacity-bearing ones. A source row with `Status` = `Cancelled` becomes an
-  attendee with the matching local `Cancelled` status, and its matched products
+- Import cancelled and quote-status rows too, but give them **zero-quantity
+  booking lines**, not capacity-bearing ones. The `SchemaDefinition` declares which
+  **source** `Status` values are non-capacity (`event_bookings`: `Cancelled` and
+  `Quote` — a quote was prepared, not booked, and capacity is status-blind, so a
+  real line would consume calendar capacity for an unconfirmed booking). Such a row
+  becomes an attendee with its matching local status, and its matched products
   are written as `listing_attendees` lines with `quantity = 0` (see
   [Zero-Quantity Booking Lines](#zero-quantity-no-quantity-booking-lines)). The
   listing-aggregate triggers add `NEW.quantity` to `booked_quantity`, so a
@@ -1074,9 +1087,14 @@ Target algorithm — a **pure preflight** that accumulates the full report, then
    prior history just to skip the few ids in this file).
 4. Classify against the import map (scoped to the active schema): **skip** rows
    whose `(schema, old_id)` is already mapped.
-5. Among the **remaining** (unskipped) candidates, record duplicate `old_id`s as
-   source-data errors — *after* the skip, so a re-upload whose duplicates are all
-   already-imported skips them harmlessly instead of blocking the new rows.
+5. Record duplicate `old_id`s as source-data errors — but evaluated only over rows
+   that are still **creatable candidates** after the import-map skip (step 4) *and*
+   the non-creatable classification (step 6): a re-upload whose duplicates are all
+   already-imported skips them harmlessly, and a duplicate contributed only by a
+   skipped or non-creatable (zero-products/blank) row must not block the valid row
+   that shares its id. Two *creatable* rows sharing an `old_id` remain a blocking
+   error — the importer can't tell which is authoritative. (Listed here in reading
+   order; the check runs once the candidate set is final.)
 6. Resolve products for the remaining rows. A row that resolves to **zero**
    products is **non-creatable** (no line could be written) — recorded and dropped
    from the candidate set. Unmatched names, `standard`-type matches, and names
@@ -1143,8 +1161,11 @@ bookings imports the rest and reports the skip.
       with ≥1 real (`quantity > 0`) line. Build one transfer group per booking
       (`attendee → imported:default` for `Total`, `imported:default → attendee` for
       `Received`, zero-amount legs dropped, `eventId` derived from `(schema,
-      old_id)`, dated to `Date Booked`) and post it via **`postTransfersTx(tx,
-      legs)`** — the tx-scoped primitive — **inside this transaction**, so a rollback
+      old_id)`, `occurredAt` = the booking's **resolved** created timestamp — the
+      parsed `Date Booked`, or its import-time fallback when the value is
+      missing/unparseable, i.e. the exact value written to `attendees.created`, so
+      an optional-value row can't feed `postTransfersTx` an invalid date) and post
+      it via **`postTransfersTx(tx, legs)`** — the tx-scoped primitive — **inside this transaction**, so a rollback
       unwinds the legs. (Not `postTransferGroups`, which self-commits its own batch
       and would survive the rollback — see Financial Mapping.)
       Stamp each inserted line's `ledger_event_group` with the booking's event
@@ -1154,16 +1175,20 @@ bookings imports the rest and reports the skip.
     - insert `attendee_answers(attendee_id, question_id, string_id)` text-answer
       rows using the resolved string ids;
     - persist the raw audit-trail fields to their durable encrypted destination;
-    - record a visit for candidates that have ≥1 real (`quantity > 0`) line, so
-      imported repeat customers aren't treated as first-time visitors by
-      visit-gated modifiers — but **not** for cancelled or quote-only
-      (quantity-0-only) candidates. Do **not** reuse `recordOrderActivity` /
-      `recordVisit` as-is: they set `last_activity = nowMs()`, which makes an old
+    - record a visit **and** the admin booking count for candidates that have ≥1
+      real (`quantity > 0`) line — `recordOrderActivity` bumps both `visits` and
+      the per-source booking count, so incrementing only `visits` would leave
+      `/admin/history/:hmac` omitting imported bookings (see the resolved
+      decision) — but **not** for cancelled or quote-only (quantity-0-only)
+      candidates. Do **not** reuse `recordOrderActivity` / `recordVisit` /
+      `recordBooking` as-is: they set `last_activity = nowMs()`, which makes an old
       imported booking look freshly active to `pruneContacts`. Increment `visits`
-      using the **source booking date** (`Date Booked`) while keeping the **newer**
-      timestamp — `last_activity = MAX(existing.last_activity, source)` — so import
-      never moves a recently-active contact backwards into prune range nor
-      refreshes a stale one;
+      and `admin_booking_count` (imports are admin-initiated) using the **source
+      booking date** (`Date Booked`, with the same import-time fallback as
+      `created`) while keeping the **newer** timestamp —
+      `last_activity = MAX(existing.last_activity, source)` — so import never moves
+      a recently-active contact backwards into prune range nor refreshes a stale
+      one;
     - insert `booking_imports(schema, old_id, new_id)` — always write the active
       schema (the `schema` key column is `NOT NULL` and `(schema, old_id)` is the
       idempotency key).
@@ -1496,6 +1521,9 @@ Semantic-correctness tests (verified against live behaviour):
   referenced listings' `booked_quantity` unchanged.
 - A quote row (empty `Equipments` with a `Quoted for Products` block) imports its
   interested-in products as `quantity = 0` lines matched to real listings.
+- A `Quote`-status row with a **populated** `Equipments` field also imports every
+  matched product as `quantity = 0` (non-capacity status — quoted, not booked) and
+  posts **no** ledger legs, leaving `booked_quantity` and the ledger untouched.
 - An imported attendee with only quantity-0 lines is **not** treated as an orphan
   and survives an orphan auto-purge run (its `attendee_answers` and
   `booking_imports` row also survive).
@@ -1700,10 +1728,15 @@ are already in main; only the importer-specific additions in item 6 remain.
 - Missing source statuses block the upload before writes, like missing products.
   A source status matching more than one local status (names aren't unique) is an
   ambiguous-setup error, not a silent pick.
-- Cancelled rows, and interested-in/quoted products parsed from notes, import as
+- Rows whose source `Status` is schema-declared **non-capacity** (`event_bookings`:
+  `Cancelled` and `Quote` — including a quote-status row's populated `Equipments`),
+  and interested-in/quoted products parsed from notes, import as
   `listing_attendees` lines with `quantity = 0` (not omitted), leaving a real,
   matched line that keeps the attendee from being auto-purged as an orphan.
-  Confirmed `Equipments` products get real quantities. Owners see/edit this as a
+  Confirmed `Equipments` products on capacity statuses get real quantities.
+- A blank `Customer Name` is a **blocking source-data error** (row + column in the
+  report): the edit form requires `name` on every save, so importing blank defers
+  the failure to the first edit, and inventing a placeholder would guess. Owners see/edit this as a
   per-line "no quantity" checkbox (a proxy for `quantity == 0`, quantity input
   hidden by CSS); the save path keeps deliberate quantity-0 lines and only
   deletes on an explicit removal. (Alternative rejected: omitting lines for
