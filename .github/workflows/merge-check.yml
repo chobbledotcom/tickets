@@ -1,0 +1,28 @@
+name: Merge Check
+
+on:
+  push:
+    branches-ignore: [main]
+
+concurrency:
+  group: merge-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  merge-check:
+    runs-on: ubicloud-standard-2
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check branch merges cleanly into main
+        run: |
+          git config user.email "ci@example.com"
+          git config user.name "CI"
+          git fetch origin main
+          git merge --no-commit --no-ff origin/main
