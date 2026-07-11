@@ -149,6 +149,27 @@ const childArgs = (
   ...rewriteMutationArgs(root, snapshotRoot, args),
 ];
 
+const forceStopChild = (child: Deno.ChildProcess | null): never => {
+  if (child) stopProcessNow(child);
+  Deno.exit(130);
+};
+
+const killChildQuietly = (child: Deno.ChildProcess | null): void => {
+  if (!child) return;
+  try {
+    child.kill();
+  } catch {
+    // It may already have exited.
+  }
+};
+
+const settleRecord = (
+  record: MutationRunRecord,
+  interrupted: boolean,
+  code: number,
+): MutationRunRecord =>
+  interrupted ? markInterrupted(record) : markFinished(record, code);
+
 export const runMutationInSnapshot = async (
   args: string[],
   root = projectRoot,
@@ -160,18 +181,9 @@ export const runMutationInSnapshot = async (
   let child: Deno.ChildProcess | null = null;
   let interrupted = false;
   const stopChild = (): void => {
-    if (interrupted) {
-      if (child) stopProcessNow(child);
-      Deno.exit(130);
-    }
+    if (interrupted) forceStopChild(child);
     interrupted = true;
-    if (child) {
-      try {
-        child.kill();
-      } catch {
-        // It may already have exited.
-      }
-    }
+    killChildQuietly(child);
   };
   onTerminationSignals(stopChild);
 
@@ -205,18 +217,14 @@ export const runMutationInSnapshot = async (
 
     if (child !== null) {
       const status = await child.status;
-      record = interrupted
-        ? markInterrupted(record)
-        : markFinished(record, status.code);
+      record = settleRecord(record, interrupted, status.code);
       await writeRunRecord(record);
       exitCode = interrupted ? 130 : status.code;
     }
   } catch (error) {
     if (child !== null) await stopProcess(child, 250);
     exitCode = interrupted ? 130 : 1;
-    record = interrupted
-      ? markInterrupted(record)
-      : markFinished(record, exitCode);
+    record = settleRecord(record, interrupted, exitCode);
     try {
       await writeRunRecord(record);
     } catch {

@@ -62,6 +62,19 @@ const freshState = () => ({
   selectedListingIds: new Set<number>(),
 });
 
+/** Validate a single foldChild outcome against the running total and cap:
+ * within the cap the fold must be accepted and the quantity recorded; above
+ * the cap it must be rejected (never clamped) and the quantity left unchanged. */
+const foldOutcomeValid = (
+  error: ReturnType<typeof foldChild>,
+  recordedQty: number | undefined,
+  running: number,
+  max: number,
+): boolean =>
+  running <= max
+    ? error === null && recordedQty === running
+    : error !== null && recordedQty !== running;
+
 /** Mirror the production adapter's steps, purely (no DB; holidays default none):
  * build the tree, resolve each node's availability, run the walk. */
 const foldOf = (
@@ -515,12 +528,12 @@ describe("fold selection algebra (property-based)", () => {
           for (const q of qtys) {
             const error = foldChild(state, child, q, 1, PARENT_ID, undefined);
             running += q;
-            if (running <= max) {
-              if (error !== null) return false;
-              if (state.quantities.get(1) !== running) return false;
-            } else {
-              return error !== null && state.quantities.get(1) !== running;
+            if (
+              !foldOutcomeValid(error, state.quantities.get(1), running, max)
+            ) {
+              return false;
             }
+            if (running > max) return true;
           }
           return true;
         },

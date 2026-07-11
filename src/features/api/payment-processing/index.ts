@@ -298,7 +298,7 @@ const processReservedSession: SessionProcessor = async (
   // booking at quantity 0 and refunds rather than dropping a paid customer: a
   // structured sold-out/capacity/encryption result, OR an unexpected throw after
   // the charge (which would otherwise crash-loop the webhook over paid money).
-  let honoured;
+  let honoured: Awaited<ReturnType<typeof createAttendeeForSession>>;
   try {
     honoured = await createAttendeeForSession(
       session,
