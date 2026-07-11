@@ -15,6 +15,8 @@ import { compact } from "#fp";
 import { t } from "#i18n";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { TabLink } from "#shared/entity-pages/core.ts";
+import { getFlashFormId } from "#shared/flash-context.ts";
+import { requestFlash } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { ActivityLogTable } from "#templates/admin/activityLog.tsx";
 import { AdminNav, type NavActive } from "#templates/admin/nav.tsx";
@@ -211,6 +213,7 @@ export const entityPageView = (view: EntityPageView): string =>
   String(
     <Layout title={view.title}>
       <AdminNav active={view.navActive} session={view.session} />
+      {getFlashFormId() === undefined && requestFlash()}
       <div class="prose entity-header">
         <h1>{view.title}</h1>
         {view.proseExtra}

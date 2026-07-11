@@ -1,8 +1,10 @@
 import { t } from "#i18n";
+import { adminPath } from "#shared/admin-surface.ts";
 import type {
   ListingAggregateField,
   ListingAggregateRecalculation,
 } from "#shared/db/listings.ts";
+import { isReadOnly } from "#shared/env.ts";
 import type { FieldValues } from "#shared/forms.tsx";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import {
@@ -97,8 +99,14 @@ export const ListingAggregateMismatchRow = ({
   return ExpectedActualTableRow({
     header: t("listings_table.running_total_check"),
     notice: {
-      actionHref: `/admin/listings/recalculate/${listing.id}`,
-      actionLabel: t("listings_table.running_totals_error_action"),
+      ...(isReadOnly()
+        ? {}
+        : {
+            actionHref: adminPath("listingRecalculate", {
+              listingId: listing.id,
+            }),
+            actionLabel: t("listings_table.running_totals_error_action"),
+          }),
       explanation: t("listings_table.running_totals_error_explanation"),
       items,
       title: t("listings_table.running_totals_error_title"),

@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin routes for listing attributes.
  */
@@ -15,7 +16,6 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import {
   type AuthedHandlerArgs,
   createAuthedFormRoute,
@@ -365,25 +365,23 @@ const handleListingAttributesPost = createListingChoicePost({
   tab: "attributes",
 });
 
-export const attributesRoutes = {
-  ...attributeDelete.routes,
-  ...defineRoutes({
-    "GET /admin/attributes": handleAttributesGet,
-    "GET /admin/attributes/:id": handleAttributeGet,
-    "GET /admin/attributes/:id/options/:optionId/delete": handleDeleteOptionGet,
-    "GET /admin/attributes/:id/options/:optionId/edit": handleEditOptionGet,
-    "POST /admin/attributes": handleAttributesPost,
-    "POST /admin/attributes/:id/edit": handleAttributeEdit,
-    "POST /admin/attributes/:id/move-down": moveAttributeHandler(1),
-    "POST /admin/attributes/:id/move-up": moveAttributeHandler(-1),
-    "POST /admin/attributes/:id/options": handleAddOption,
-    "POST /admin/attributes/:id/options/:optionId/delete":
-      handleDeleteOptionPost,
-    "POST /admin/attributes/:id/options/:optionId/edit": handleEditOptionPost,
-    "POST /admin/attributes/:id/options/:optionId/move-down":
-      moveOptionHandler(1),
-    "POST /admin/attributes/:id/options/:optionId/move-up":
-      moveOptionHandler(-1),
-    "POST /admin/listing/:id/attributes": handleListingAttributesPost,
-  }),
-};
+export const adminHandlers = handlersFor("attributes")({
+  getAttributes: handleAttributesGet,
+  getAttributesById: handleAttributeGet,
+  getAttributesByIdDelete: (request, { id }) =>
+    attributeDelete.get(request, id),
+  getAttributesByIdOptionsByOptionIdDelete: handleDeleteOptionGet,
+  getAttributesByIdOptionsByOptionIdEdit: handleEditOptionGet,
+  postAttributes: handleAttributesPost,
+  postAttributesByIdDelete: (request, { id }) =>
+    attributeDelete.post(request, id),
+  postAttributesByIdEdit: handleAttributeEdit,
+  postAttributesByIdMoveDown: moveAttributeHandler(1),
+  postAttributesByIdMoveUp: moveAttributeHandler(-1),
+  postAttributesByIdOptions: handleAddOption,
+  postAttributesByIdOptionsByOptionIdDelete: handleDeleteOptionPost,
+  postAttributesByIdOptionsByOptionIdEdit: handleEditOptionPost,
+  postAttributesByIdOptionsByOptionIdMoveDown: moveOptionHandler(1),
+  postAttributesByIdOptionsByOptionIdMoveUp: moveOptionHandler(-1),
+  postListingByIdAttributes: handleListingAttributesPost,
+});

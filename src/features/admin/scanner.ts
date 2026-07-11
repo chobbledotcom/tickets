@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * QR scanner routes for admin check-in
  * GET /admin/listing/:id/scanner - Scanner page with camera UI
@@ -9,7 +10,6 @@ import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import { requireSessionOr, SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
 import { htmlResponse, jsonResponse } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import {
   decryptTokenEntries,
   resolveEntries,
@@ -191,7 +191,7 @@ const handleScanPost: IdRouteHandler = (request, { id }) =>
   });
 
 /** Scanner routes */
-export const scannerRoutes = defineRoutes({
-  "GET /admin/listing/:id/scanner": handleScannerGet,
-  "POST /admin/listing/:id/scan": handleScanPost,
+export const adminHandlers = handlersFor("scanner")({
+  getListingByIdScanner: handleScannerGet,
+  postListingByIdScan: handleScanPost,
 });

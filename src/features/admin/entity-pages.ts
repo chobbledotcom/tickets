@@ -27,6 +27,7 @@ import type { AuthSession, SessionGuard } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import type { AdminRouteIntent } from "#shared/admin-surface/definitions.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import {
   resolveTabSlug,
@@ -35,6 +36,7 @@ import {
   tabLinks,
   tabPath,
 } from "#shared/entity-pages/core.ts";
+import { isReadOnly } from "#shared/env.ts";
 import {
   entityPageView,
   type LoadedSection,
@@ -71,6 +73,7 @@ export interface ActionDef<E> {
   descriptionKey?: string;
   href: (entity: E, ctx: PageCtx) => string;
   icon?: IconName;
+  intent?: AdminRouteIntent;
   labelKey: string;
   visible?: (entity: E, session: AuthSession) => boolean;
 }
@@ -110,6 +113,7 @@ export type Section<E> =
  * `visible` is evaluated server-side and IS authorization: a hidden tab is
  * absent from the strip and 404s when named directly. */
 export interface TabDef<E> {
+  intent?: AdminRouteIntent;
   labelKey: string;
   sections: readonly Section<E>[];
   slug: string;
@@ -147,7 +151,11 @@ const resolveActions = <E>(
   ctx: PageCtx,
 ): ResolvedAction[] =>
   actions
-    .filter((action) => action.visible?.(entity, ctx.session) !== false)
+    .filter(
+      (action) =>
+        !(isReadOnly() && action.intent === "write-form") &&
+        action.visible?.(entity, ctx.session) !== false,
+    )
     .map((action) => ({
       danger: action.danger === true,
       descriptionKey: action.descriptionKey,
@@ -245,7 +253,9 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
     const tabStates: TabState[] = def.tabs.map((tab) => ({
       labelKey: tab.labelKey,
       slug: tab.slug,
-      visible: tab.visible?.(entity, session) !== false,
+      visible:
+        !(isReadOnly() && tab.intent === "write-form") &&
+        tab.visible?.(entity, session) !== false,
     }));
     const activeSlug = resolveTabSlug(tabStates, requestedTab);
     if (activeSlug === null) return notFoundResponse();

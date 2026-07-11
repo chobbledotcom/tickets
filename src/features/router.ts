@@ -4,6 +4,10 @@
 
 import { reduce } from "#fp";
 import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
+import {
+  compileRoutePathPattern,
+  type RouteParamNames,
+} from "#shared/route-pattern.ts";
 
 // =============================================================================
 // Type-level route param inference
@@ -14,14 +18,6 @@ type ExtractPath<S extends string> = S extends `${string} ${infer Path}`
   ? Path
   : S;
 
-/** Recursively extract param names from a URL path pattern */
-type ExtractParamNames<Path extends string> =
-  Path extends `${string}:${infer Param}/${infer Rest}`
-    ? Param | ExtractParamNames<`/${Rest}`>
-    : Path extends `${string}:${infer Param}`
-      ? Param
-      : never;
-
 /** Infer runtime type from param name (mirrors isNumericParam convention) */
 type InferParamType<Name extends string> = Name extends `${string}Id`
   ? number
@@ -31,7 +27,7 @@ type InferParamType<Name extends string> = Name extends `${string}Id`
 
 /** Build typed params object from a route pattern string */
 export type RouteParamsFor<Pattern extends string> = {
-  [K in ExtractParamNames<ExtractPath<Pattern>>]: InferParamType<K>;
+  [K in RouteParamNames<ExtractPath<Pattern>>]: InferParamType<K>;
 };
 
 /** Route handler with params inferred from the route pattern */
@@ -61,51 +57,6 @@ type CompiledRoute = {
   paramNames: string[];
   numericParams: Set<string>;
   handler: RouteHandlerFn;
-};
-
-/** Check if a param name refers to a numeric ID */
-const isNumericParam = (name: string): boolean =>
-  name.endsWith("Id") || name === "id";
-
-/** Param patterns by type - name ending determines pattern */
-const getParamPattern = (name: string): string => {
-  // Params ending in Id match digits only (e.g., listingId, attendeeId)
-  if (isNumericParam(name)) return "(\\d+)";
-  // Slugs match lowercase alphanumeric with hyphens/underscores and + (for multi-listing URLs)
-  if (name === "slug") return "([a-z0-9]+(?:[-_+][a-z0-9]+)*)";
-  // Default: match any non-slash characters
-  return "([^/]+)";
-};
-
-/**
- * Compile a route pattern into a regex
- * Supports :param syntax for path parameters
- * All paths are normalized to strip trailing slashes before matching
- * Examples:
- *   "GET /admin" -> matches /admin
- *   "GET /admin/listing/:id" -> extracts id param from /admin/listing/123
- *   "GET /ticket/:slug" -> extracts slug param like /ticket/my-listing-2024
- */
-const compilePattern = (
-  pattern: string,
-): { regex: RegExp; paramNames: string[]; numericParams: Set<string> } => {
-  const paramNames: string[] = [];
-  const numericParams = new Set<string>();
-
-  // Escape special regex chars except : which we use for params
-  const regexStr = pattern
-    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    .replace(/:(\w+)/g, (_, name) => {
-      paramNames.push(name);
-      if (isNumericParam(name)) numericParams.add(name);
-      return getParamPattern(name);
-    });
-
-  return {
-    numericParams,
-    paramNames,
-    regex: new RegExp(`^${regexStr}$`),
-  };
 };
 
 /**
@@ -153,7 +104,8 @@ const compileRoutes = (
       [pattern, handler]: [string, RouteHandlerFn],
     ) => {
       const { method, path } = parseRoutePattern(pattern);
-      const { regex, paramNames, numericParams } = compilePattern(path);
+      const { regex, paramNames, numericParams } =
+        compileRoutePathPattern(path);
       const methodRoutes = compiled.get(method) ?? [];
       methodRoutes.push({ handler, numericParams, paramNames, regex });
       compiled.set(method, methodRoutes);

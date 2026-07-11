@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin routes for catalog import/export.
  *
@@ -22,7 +23,7 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { adminCatalogImportPage } from "#templates/admin/catalog-transfer.tsx";
@@ -159,9 +160,9 @@ const handleImportPost: TypedRouteHandler<"POST /admin/catalog/import"> = (
   });
 
 /** Catalog import/export routes. */
-export const catalogTransferRoutes = defineRoutes({
-  "GET /admin/catalog/import": handleImportGet,
-  "GET /admin/groups/:id/export.json": handleGroupExport,
-  "GET /admin/listing/:id/export.json": handleListingExport,
-  "POST /admin/catalog/import": handleImportPost,
+export const adminHandlers = handlersFor("catalogTransfer")({
+  getCatalogImport: handleImportGet,
+  getGroupsByIdExportJson: handleGroupExport,
+  getListingByIdExportJson: handleListingExport,
+  postCatalogImport: handleImportPost,
 });

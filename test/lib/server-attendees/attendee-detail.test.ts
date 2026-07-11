@@ -9,6 +9,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { setTestEnv } from "#test-utils/env.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
@@ -43,6 +44,24 @@ describeWithEnv(
         expect(html).toContain('class="active" href="/admin/attendees"');
         expect(html).not.toContain('href="/admin/attendees/new"');
         expect(html).not.toContain("admin-subnav");
+      });
+
+      test("the attendee page hides the add-note link in read-only mode", async () => {
+        const { attendee } = await setupListingAndAttendee();
+        const restore = setTestEnv({
+          READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
+        });
+        try {
+          const response = await adminGet(`/admin/attendees/${attendee.id}`);
+          expect(response.status).toBe(200);
+          const html = await response.text();
+          expect(html).toContain("Attendee: John Doe");
+          expect(html).not.toContain(
+            `/admin/attendee/${attendee.id}/note?return_url=`,
+          );
+        } finally {
+          restore();
+        }
       });
 
       test("shows edit form with prefilled attendee data", async () => {

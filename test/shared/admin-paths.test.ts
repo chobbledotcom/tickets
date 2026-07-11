@@ -1,6 +1,153 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { entityReturnPath } from "#shared/admin-pages.ts";
+import {
+  entityReturnPath,
+  readOnlyGetRoutePatterns,
+  visibleSections,
+  visibleTopLevel,
+} from "#shared/admin-pages.ts";
+import {
+  ADMIN_SURFACE,
+  adminDestination,
+  adminDestinationAllowed,
+  adminPath,
+} from "#shared/admin-surface.ts";
+
+describe("admin surface paths", () => {
+  test("fills every named route parameter", () => {
+    expect(adminPath("answerEdit", { answerId: 9, id: 42 })).toBe(
+      "/admin/questions/42/answers/9/edit",
+    );
+  });
+
+  test("fills parameters for server action routes", () => {
+    expect(
+      adminPath("postAttributesByIdOptionsByOptionIdMoveDown", {
+        id: 1,
+        optionId: 10,
+      }),
+    ).toBe("/admin/attributes/1/options/10/move-down");
+  });
+
+  test("allows write forms only for their audience while writable", () => {
+    expect(adminDestinationAllowed("modifierEdit", "manager", false)).toBe(
+      true,
+    );
+    expect(adminDestinationAllowed("modifierEdit", "editor", false)).toBe(
+      false,
+    );
+    expect(adminDestinationAllowed("modifierEdit", "owner", true)).toBe(false);
+  });
+
+  test("allows view routes in read-only mode", () => {
+    expect(adminDestinationAllowed("modifiers", "manager", true)).toBe(true);
+  });
+
+  test("marks ordinary GET routes readable", () => {
+    expect(
+      ADMIN_SURFACE.routes.find((route) => route.id === "getSettings"),
+    ).toEqual({
+      area: "settings",
+      id: "getSettings",
+      method: "GET",
+      pattern: "/admin/settings",
+      readOnly: "allow",
+    });
+  });
+
+  test("marks ordinary mutations blocked", () => {
+    expect(
+      ADMIN_SURFACE.routes.find((route) => route.id === "postSettingsEmail"),
+    ).toEqual({
+      area: "settings",
+      id: "postSettingsEmail",
+      method: "POST",
+      pattern: "/admin/settings/email",
+      readOnly: "block",
+    });
+  });
+
+  test("keeps the complete top-level section order", () => {
+    expect(ADMIN_SURFACE.sections.map((section) => section.id)).toEqual([
+      "home",
+      "listings",
+      "calendar",
+      "servicing",
+      "attendees",
+      "users",
+      "groups",
+      "images",
+      "modifiers",
+      "ledger",
+      "site",
+      "settings",
+    ]);
+  });
+
+  test("uses link and view defaults for ordinary destinations", () => {
+    expect(adminDestination("sessions").nav?.kind).toBe("link");
+    expect(adminDestination("modifiers").intent).toBe("view");
+  });
+
+  test("shows the Site section to editors when the public site is hidden", () => {
+    expect(
+      visibleTopLevel({
+        active: "/admin",
+        adminLevel: "editor",
+        builder: false,
+        hasLogistics: false,
+        isReadOnly: false,
+        showPublicSite: false,
+        storage: false,
+        support: false,
+      }).map((link) => link.href),
+    ).toContain("/admin/site");
+  });
+
+  test("applies per-link feature visibility", () => {
+    const context = {
+      active: "/admin/settings",
+      adminLevel: "owner" as const,
+      builder: false,
+      hasLogistics: false,
+      isReadOnly: false,
+      showPublicSite: true,
+      storage: false,
+      support: false,
+    };
+    const hidden = visibleSections(context).flatMap((section) => section.items);
+    const visible = visibleSections({
+      ...context,
+      builder: true,
+      support: true,
+    }).flatMap((section) => section.items);
+    expect(hidden.map((link) => link.href)).not.toContain("/admin/built-sites");
+    expect(hidden.map((link) => link.href)).not.toContain("/admin/support");
+    expect(visible.map((link) => link.href)).toContain("/admin/built-sites");
+    expect(visible.map((link) => link.href)).toContain("/admin/support");
+  });
+
+  test("omits sections with no sub-navigation", () => {
+    const sections = visibleSections({
+      active: "/admin/ledger",
+      adminLevel: "owner",
+      builder: false,
+      hasLogistics: false,
+      isReadOnly: false,
+      showPublicSite: true,
+      storage: false,
+      support: false,
+    });
+    expect(sections.map((section) => section.topHref)).not.toContain(
+      "/admin/ledger",
+    );
+  });
+
+  test("derives read-only blocks from destination intent", () => {
+    expect(readOnlyGetRoutePatterns()).toContain("/admin/listing/new");
+    expect(readOnlyGetRoutePatterns()).not.toContain("/admin/listings");
+  });
+});
 
 describe("entityReturnPath (role-aware detail vs edit redirect)", () => {
   test("editors are sent to the edit form (they can't open the detail page)", () => {

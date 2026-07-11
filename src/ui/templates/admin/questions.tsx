@@ -6,11 +6,13 @@ import { map } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { answerTextForm, questionTextForm } from "#routes/admin/questions.ts";
+import { adminPath } from "#shared/admin-surface.ts";
 import type { Answer, QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type {
   AnswerAggregateField,
   AnswerAggregateRecalculation,
 } from "#shared/db/questions/aggregates.ts";
+import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm, renderFields } from "#shared/forms.tsx";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
@@ -38,6 +40,7 @@ import {
   ReorderLinkRow,
   ReorderTable,
   reorderLinkTableAt,
+  writableReorderProps,
 } from "#templates/components/reorder-table.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
@@ -46,6 +49,7 @@ import {
   type ListingPanelProps,
   listingChoicePanel,
 } from "./listing-panel-frame.tsx";
+import { WritableDangerLink, WritableOnly } from "./writable-only.tsx";
 
 /** Render question text flat for admin display: line breaks are replaced with
  * " / " so the text fits on one line in tables, headings, and confirmation
@@ -77,6 +81,62 @@ const QuestionListingsCell = ({
   );
 };
 
+const QuestionListingAssignment = ({
+  allListings,
+  assignedListingIds,
+  question,
+}: {
+  allListings: ListingWithCount[];
+  assignedListingIds: Set<number>;
+  question: QuestionWithAnswers;
+}): JSX.Element => {
+  if (allListings.length === 0) {
+    return (
+      <p>
+        <em>No listings yet.</em>
+      </p>
+    );
+  }
+  const listingText = question.assign_all
+    ? t("questions.all_listings")
+    : allListings
+        .filter((listing) => assignedListingIds.has(listing.id))
+        .map((listing) => listing.name)
+        .join(", ");
+  if (isReadOnly()) {
+    return <p>{listingText}</p>;
+  }
+  return (
+    <CsrfForm
+      action={`/admin/questions/${question.id}/listings`}
+      id="question-listings"
+    >
+      <LinkedItemsCheckboxes
+        groups={[
+          {
+            label: t("terms.listings"),
+            options: toLinkedItemOptions(allListings, assignedListingIds),
+          },
+        ]}
+        heading={
+          question.assign_all
+            ? ({ type }) => t("questions.linked_all_listings", { type })
+            : undefined
+        }
+        leading={
+          <CheckboxLabel
+            checked={question.assign_all || undefined}
+            label={t("questions.assign_all_listings")}
+            name="assign_all"
+          />
+        }
+        name="listing_ids"
+      />
+      <SubmitButton icon="save">{t("questions.save_listings")}</SubmitButton>
+    </CsrfForm>
+  );
+};
+
 /** List all questions in a reorderable table, mirroring the listings table:
  * reorder arrows in the first column, then the question, its answer count, and
  * the listings it applies to. */
@@ -89,10 +149,12 @@ export const adminQuestionsPage = (
 ): string =>
   errorAdminPage(t("questions.title"), "/admin/questions")(session, error)(
     <>
-      <CsrfForm action="/admin/questions" id="new-question">
-        <Raw html={questionTextForm.render()} />
-        <SubmitButton icon="plus">{t("questions.add_submit")}</SubmitButton>
-      </CsrfForm>
+      <WritableOnly>
+        <CsrfForm action="/admin/questions" id="new-question">
+          <Raw html={questionTextForm.render()} />
+          <SubmitButton icon="plus">{t("questions.add_submit")}</SubmitButton>
+        </CsrfForm>
+      </WritableOnly>
 
       {questions.length === 0 ? (
         <p>
@@ -123,6 +185,7 @@ export const adminQuestionsPage = (
               />
             </>
           ),
+          !isReadOnly(),
         )
       )}
 
@@ -149,27 +212,29 @@ export const adminQuestionPage = (
     <>
       <h1>{questionTextFlat(question.text)}</h1>
 
-      <CsrfForm action={`/admin/questions/${question.id}/edit`}>
-        <Raw html={questionTextForm.field("text").render(question.text)} />
-        {question.display_type === "free_text" ? (
-          // Free-text questions can't become choice questions (it would orphan
-          // any stored text answers), so lock the type rather than offering it.
-          <input name="display_type" type="hidden" value="free_text" />
-        ) : (
-          <label>
-            Display as
-            <SelectField
-              name="display_type"
-              options={[
-                { label: "Radio buttons", value: "radio" },
-                { label: "Select box", value: "select" },
-              ]}
-              value={question.display_type}
-            />
-          </label>
-        )}
-        <SubmitButton icon="save">{t("questions.edit.update")}</SubmitButton>
-      </CsrfForm>
+      <WritableOnly>
+        <CsrfForm action={`/admin/questions/${question.id}/edit`}>
+          <Raw html={questionTextForm.field("text").render(question.text)} />
+          {question.display_type === "free_text" ? (
+            // Free-text questions can't become choice questions (it would orphan
+            // any stored text answers), so lock the type rather than offering it.
+            <input name="display_type" type="hidden" value="free_text" />
+          ) : (
+            <label>
+              Display as
+              <SelectField
+                name="display_type"
+                options={[
+                  { label: "Radio buttons", value: "radio" },
+                  { label: "Select box", value: "select" },
+                ]}
+                value={question.display_type}
+              />
+            </label>
+          )}
+          <SubmitButton icon="save">{t("questions.edit.update")}</SubmitButton>
+        </CsrfForm>
+      </WritableOnly>
 
       {question.display_type === "free_text" ? (
         <p>
@@ -181,15 +246,17 @@ export const adminQuestionPage = (
       ) : (
         <>
           <h2>{t("questions.edit.answers_heading")}</h2>
-          <CsrfForm
-            action={`/admin/questions/${question.id}/answers`}
-            id="add-answer"
-          >
-            <Raw html={answerTextForm.render()} />
-            <SubmitButton icon="plus">
-              {t("questions.edit.add_answer")}
-            </SubmitButton>
-          </CsrfForm>
+          <WritableOnly>
+            <CsrfForm
+              action={`/admin/questions/${question.id}/answers`}
+              id="add-answer"
+            >
+              <Raw html={answerTextForm.render()} />
+              <SubmitButton icon="plus">
+                {t("questions.edit.add_answer")}
+              </SubmitButton>
+            </CsrfForm>
+          </WritableOnly>
 
           {question.answers.length === 0 ? (
             <p>
@@ -206,6 +273,7 @@ export const adminQuestionPage = (
                 </>
               }
               orderLabel={t("questions.order_column")}
+              reorder={!isReadOnly()}
             >
               {question.answers.map((a, i) => (
                 <ReorderLinkRow
@@ -213,9 +281,14 @@ export const adminQuestionPage = (
                     `/admin/questions/${question.id}/answers/${a.id}/move-${d}`
                   }
                   count={question.answers.length}
-                  href={`/admin/questions/${question.id}/answers/${a.id}/edit`}
                   index={i}
                   label={a.text}
+                  {...writableReorderProps(
+                    adminPath("answerEdit", {
+                      answerId: a.id,
+                      id: question.id,
+                    }),
+                  )}
                 >
                   <td class={colClass("quantity")}>
                     {answerCounts?.get(a.id) ?? 0}
@@ -228,50 +301,17 @@ export const adminQuestionPage = (
       )}
 
       <h2>{t("questions.assign_to_listings")}</h2>
-      {allListings.length === 0 ? (
-        <p>
-          <em>No listings yet.</em>
-        </p>
-      ) : (
-        <CsrfForm
-          action={`/admin/questions/${question.id}/listings`}
-          id="question-listings"
-        >
-          <LinkedItemsCheckboxes
-            groups={[
-              {
-                label: t("terms.listings"),
-                options: toLinkedItemOptions(allListings, assignedListingIds),
-              },
-            ]}
-            // assign_all applies the question to every listing regardless of the
-            // individually-ticked ids (which may be empty), so show "(all)"
-            // rather than a misleading count of the stored id set.
-            heading={
-              question.assign_all
-                ? ({ type }) => t("questions.linked_all_listings", { type })
-                : undefined
-            }
-            leading={
-              <CheckboxLabel
-                checked={question.assign_all || undefined}
-                label={t("questions.assign_all_listings")}
-                name="assign_all"
-              />
-            }
-            name="listing_ids"
-          />
-          <SubmitButton icon="save">
-            {t("questions.save_listings")}
-          </SubmitButton>
-        </CsrfForm>
-      )}
+      <QuestionListingAssignment
+        allListings={allListings}
+        assignedListingIds={assignedListingIds}
+        question={question}
+      />
 
-      <p>
-        <a class="danger" href={`/admin/questions/${question.id}/delete`}>
-          {t("questions.delete.link")}
-        </a>
-      </p>
+      <WritableDangerLink
+        href={adminPath("questionDelete", { id: question.id })}
+      >
+        {t("questions.delete.link")}
+      </WritableDangerLink>
     </>,
   );
 

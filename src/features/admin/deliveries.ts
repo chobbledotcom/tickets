@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Delivery run sheet routes.
  *
@@ -21,7 +22,6 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { addDays, formatDateLabel } from "#shared/dates.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getAttendeesByIds } from "#shared/db/attendees/queries.ts";
@@ -276,7 +276,7 @@ const handleDeliveriesMark = (request: Request): Promise<Response> =>
   });
 
 /** Delivery agent routes. */
-export const deliveriesRoutes = defineRoutes({
-  "GET /admin/deliveries": handleDeliveriesGet,
-  "POST /admin/deliveries/mark": handleDeliveriesMark,
+export const adminHandlers = handlersFor("deliveries")({
+  getDeliveries: handleDeliveriesGet,
+  postDeliveriesMark: handleDeliveriesMark,
 });

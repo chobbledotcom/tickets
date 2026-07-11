@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin price-modifier management routes — accessible to owners and managers.
  */
@@ -20,7 +21,7 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import { modifierAccount } from "#shared/accounting/accounts.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
@@ -579,17 +580,18 @@ const handleAnswerLinks: TypedRouteHandler<
   );
 
 /** Modifier routes */
-export const modifiersRoutes = {
-  ...crud.routes,
-  ...defineRoutes({
-    "GET /admin/modifiers/:id/edit": handleEditGet,
-    "GET /admin/modifiers/recalculate/:modifierId":
-      handleModifierRecalculateGet,
-    "POST /admin/modifiers/:id/answers": handleAnswerLinks,
-    "POST /admin/modifiers/:id/edit": handleEditPost,
-    "POST /admin/modifiers/:id/links": handleScopeLinks,
-    "POST /admin/modifiers/:id/revenue": handleRevenueAdjust,
-    "POST /admin/modifiers/recalculate/:modifierId":
-      handleModifierRecalculatePost,
-  }),
-};
+export const adminHandlers = handlersFor("modifiers")({
+  getModifiers: crud.listGet,
+  getModifiersByIdDelete: crud.deleteGet,
+
+  getModifiersByIdEdit: handleEditGet,
+  getModifiersNew: crud.newGet,
+  getModifiersRecalculateByModifierId: handleModifierRecalculateGet,
+  postModifiers: crud.createPost,
+  postModifiersByIdAnswers: handleAnswerLinks,
+  postModifiersByIdDelete: crud.deletePost,
+  postModifiersByIdEdit: handleEditPost,
+  postModifiersByIdLinks: handleScopeLinks,
+  postModifiersByIdRevenue: handleRevenueAdjust,
+  postModifiersRecalculateByModifierId: handleModifierRecalculatePost,
+});

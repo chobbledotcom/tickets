@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin calendar view routes
  */
@@ -17,7 +18,6 @@ import {
 } from "#routes/admin/calendar-csv.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import {
@@ -427,7 +427,7 @@ const handleAdminCalendarExport = (request: Request) =>
   });
 
 /** Calendar routes */
-export const calendarRoutes = defineRoutes({
-  "GET /admin/calendar": handleAdminCalendarGet,
-  "GET /admin/calendar/export": handleAdminCalendarExport,
+export const adminHandlers = handlersFor("calendar")({
+  getCalendar: handleAdminCalendarGet,
+  getCalendarExport: handleAdminCalendarExport,
 });

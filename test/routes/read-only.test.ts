@@ -115,6 +115,17 @@ describeWithEnv(
       // the schema derivation catches them automatically now.
       "/admin/servicing/new",
       "/admin/modifiers/new",
+      "/admin/modifiers/42/edit",
+      "/admin/modifiers/42/delete",
+      "/admin/modifiers/recalculate/42",
+      "/admin/attributes/42/delete",
+      "/admin/attributes/42/options/9/edit",
+      "/admin/attributes/42/options/9/delete",
+      "/admin/questions/42/delete",
+      "/admin/questions/42/answers/9/edit",
+      "/admin/questions/42/answers/9/delete",
+      "/admin/questions/42/answers/9/recalculate",
+      "/admin/catalog/import",
       "/admin/user/new",
     ];
     for (const path of getRedirectPaths) {

@@ -24,6 +24,7 @@ import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 
@@ -76,14 +77,16 @@ const NoteBox = ({ note }: { note: SystemNote }): JSX.Element => {
       class={isSystem ? "system-note system-note-alert" : "system-note"}
       role={isSystem ? "alert" : undefined}
     >
-      <a
-        aria-label={t("notes.delete")}
-        class="system-note-dismiss"
-        href={deleteNoteUrl(note, attendeeUrl(note.attendee_id))}
-        title={t("notes.delete")}
-      >
-        ×
-      </a>
+      <WritableOnly>
+        <a
+          aria-label={t("notes.delete")}
+          class="system-note-dismiss"
+          href={deleteNoteUrl(note, attendeeUrl(note.attendee_id))}
+          title={t("notes.delete")}
+        >
+          ×
+        </a>
+      </WritableOnly>
       {isSystem && (
         <span class="system-note-tag">{t("notes.system_label")}</span>
       )}

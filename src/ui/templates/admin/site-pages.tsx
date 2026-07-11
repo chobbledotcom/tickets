@@ -24,6 +24,7 @@ import {
   contentEditPanel,
   deleteConfirmPage,
 } from "#templates/admin/site-content.tsx";
+import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { ReorderArrows } from "#templates/components/reorder.tsx";
@@ -61,17 +62,21 @@ const Arrows = ({
   index: number;
   count: number;
 }): JSX.Element => (
-  <span class="reorder">
-    <ReorderArrows
-      action={(d) => `${base}/move-${d}`}
-      count={count}
-      index={index}
-    />
-  </span>
+  <WritableOnly>
+    <span class="reorder">
+      <ReorderArrows
+        action={(d) => `${base}/move-${d}`}
+        count={count}
+        index={index}
+      />
+    </span>
+  </WritableOnly>
 );
 
 const DeleteLink = ({ id }: { id: number }): JSX.Element => (
-  <a href={`${LIST}/${id}/delete`}>{t("common.delete")}</a>
+  <WritableOnly>
+    <a href={`${LIST}/${id}/delete`}>{t("common.delete")}</a>
+  </WritableOnly>
 );
 
 /** A reorderable table: the order-arrow cell first, then the caller's cells,
@@ -116,7 +121,9 @@ export const adminSitePagesListPage = (
         {reorderableTable({
           base: (page) => `${LIST}/${page.id}`,
           cells: (page) => [
-            <a href={`${LIST}/${page.id}/edit`}>{page.name}</a>,
+            <WritableLink href={`${LIST}/${page.id}/edit`}>
+              {page.name}
+            </WritableLink>,
             <code>/page/{page.slug}</code>,
             <DeleteLink id={page.id} />,
           ],
@@ -133,7 +140,9 @@ export const adminSitePagesListPage = (
                 { header: "" },
               ]}
               rows={model.nested.map(({ page, parentName }) => [
-                <a href={`${LIST}/${page.id}/edit`}>{page.name}</a>,
+                <WritableLink href={`${LIST}/${page.id}/edit`}>
+                  {page.name}
+                </WritableLink>,
                 parentName,
                 <DeleteLink id={page.id} />,
               ])}

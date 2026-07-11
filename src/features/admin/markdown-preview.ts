@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Markdown preview endpoint.
  *
@@ -13,7 +14,6 @@
 
 import { CONTENT_FORM, withAuth } from "#routes/auth.ts";
 import { htmlResponse } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 
@@ -28,6 +28,6 @@ const handleMarkdownPreviewPost = (request: Request): Promise<Response> =>
   });
 
 /** Markdown preview routes */
-export const markdownPreviewRoutes = defineRoutes({
-  "POST /admin/markdown-preview": handleMarkdownPreviewPost,
+export const adminHandlers = handlersFor("markdownPreview")({
+  postMarkdownPreview: handleMarkdownPreviewPost,
 });

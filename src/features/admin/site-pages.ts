@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin CRUD for user-created content Pages, under Site → Pages. Owner + editor
  * (SITE_FORM / requireSiteOr), hand-wired because create must assign a root
@@ -17,7 +18,6 @@ import {
 } from "#routes/admin/confirmation.ts";
 import { SITE_FORM, SITE_MULTIPART, withAuth } from "#routes/auth.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { groupExists } from "#shared/db/groups.ts";
 import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
@@ -325,27 +325,23 @@ const pageImageHandlers = createItemImageHandlers({
 
 // ─── Routes ─────────────────────────────────────────────────────
 
-export const sitePagesRoutes = {
-  ...pageDelete.routes,
-  ...defineRoutes({
-    "GET /admin/site/pages": renderList,
-    "GET /admin/site/pages/:id": (request, { id }) =>
-      sitePageEntityPage.renderTab(request, id, ""),
-    "GET /admin/site/pages/:id/:tab": (request, { id, tab }) =>
-      sitePageEntityPage.renderTab(request, id, tab),
-    "GET /admin/site/pages/new": renderNew,
-    "POST /admin/site/pages": handleCreate,
-    "POST /admin/site/pages/:id/edit": handleUpdate,
-    "POST /admin/site/pages/:id/images": pageImageHandlers.set,
-    "POST /admin/site/pages/:id/images/upload": pageImageHandlers.upload,
-    "POST /admin/site/pages/:id/items": handleAddItem,
-    "POST /admin/site/pages/:id/items/:itemType/:itemId/move-down":
-      moveItem("down"),
-    "POST /admin/site/pages/:id/items/:itemType/:itemId/move-up":
-      moveItem("up"),
-    "POST /admin/site/pages/:id/items/:itemType/:itemId/remove":
-      handleRemoveItem,
-    "POST /admin/site/pages/:id/move-down": moveRoot("down"),
-    "POST /admin/site/pages/:id/move-up": moveRoot("up"),
-  }),
-};
+export const adminHandlers = handlersFor("sitePages")({
+  getSitePages: renderList,
+  getSitePagesById: (request, { id }) =>
+    sitePageEntityPage.renderTab(request, id, ""),
+  getSitePagesByIdByTab: (request, { id, tab }) =>
+    sitePageEntityPage.renderTab(request, id, tab),
+  getSitePagesByIdDelete: (request, { id }) => pageDelete.get(request, id),
+  getSitePagesNew: renderNew,
+  postSitePages: handleCreate,
+  postSitePagesByIdDelete: (request, { id }) => pageDelete.post(request, id),
+  postSitePagesByIdEdit: handleUpdate,
+  postSitePagesByIdImages: pageImageHandlers.set,
+  postSitePagesByIdImagesUpload: pageImageHandlers.upload,
+  postSitePagesByIdItems: handleAddItem,
+  postSitePagesByIdItemsByItemTypeByItemIdMoveDown: moveItem("down"),
+  postSitePagesByIdItemsByItemTypeByItemIdMoveUp: moveItem("up"),
+  postSitePagesByIdItemsByItemTypeByItemIdRemove: handleRemoveItem,
+  postSitePagesByIdMoveDown: moveRoot("down"),
+  postSitePagesByIdMoveUp: moveRoot("up"),
+});

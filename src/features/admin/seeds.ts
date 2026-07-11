@@ -1,3 +1,5 @@
+/* jscpd:ignore-start */
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin seed data routes - populate database with sample listings and attendees
  */
@@ -5,11 +7,11 @@
 import { OWNER_FORM, ownerPage, withAuth } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms.tsx";
 import { createSeeds, SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
 import { adminSeedsPage } from "#templates/admin/seeds.tsx";
+/* jscpd:ignore-end */
 
 /** Max listings that can be created in a single seed operation */
 export const MAX_SEED_LISTINGS = 30;
@@ -80,7 +82,7 @@ const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = (request) =>
   });
 
 /** Seeds routes */
-export const seedsRoutes = defineRoutes({
-  "GET /admin/seeds": handleSeedsGet,
-  "POST /admin/seeds": handleSeedsPost,
+export const adminHandlers = handlersFor("seeds")({
+  getSeeds: handleSeedsGet,
+  postSeeds: handleSeedsPost,
 });

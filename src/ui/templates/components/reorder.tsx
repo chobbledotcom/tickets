@@ -10,8 +10,10 @@ import { CsrfForm } from "#shared/forms.tsx";
 /** The reorder inputs shared by {@link ReorderArrows} and the per-table cells
  *  that wrap it (e.g. `ReorderControls` in questions.tsx): a direction-to-path
  *  builder plus the row's `index` within `count` rows. */
+export type ReorderDirection = "up" | "down";
+
 export type ReorderProps = {
-  action: (direction: "up" | "down") => string;
+  action: (direction: ReorderDirection) => string;
   index: number;
   count: number;
 };
@@ -26,8 +28,8 @@ const ArrowButton = ({
   direction,
   title,
 }: {
-  action: (direction: "up" | "down") => string;
-  direction: "up" | "down";
+  action: (direction: ReorderDirection) => string;
+  direction: ReorderDirection;
   title?: string | undefined;
 }): JSX.Element => (
   <CsrfForm action={action(direction)} class="inline">

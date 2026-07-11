@@ -22,6 +22,7 @@ import {
   contentEditPanel,
   deleteConfirmPage,
 } from "#templates/admin/site-content.tsx";
+import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 
@@ -50,9 +51,13 @@ export const adminNewsListPage = (
           { header: "" },
         ]}
         rows={posts.map((post) => [
-          <a href={`${LIST}/${post.id}/edit`}>{post.name}</a>,
+          <WritableLink href={`${LIST}/${post.id}/edit`}>
+            {post.name}
+          </WritableLink>,
           formatDatetimeShort(post.created),
-          <a href={`${LIST}/${post.id}/delete`}>{t("common.delete")}</a>,
+          <WritableOnly>
+            <a href={`${LIST}/${post.id}/delete`}>{t("common.delete")}</a>
+          </WritableOnly>,
         ])}
       />
     ),

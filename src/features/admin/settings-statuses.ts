@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin routes for managing attendee statuses (owner-only).
  *
@@ -21,7 +22,6 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 /* jscpd:ignore-end */
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -235,14 +235,14 @@ const moveHandler = (direction: -1 | 1) =>
     return redirect(LIST_PATH, "Status moved", true);
   });
 
-export const attendeeStatusesRoutes = defineRoutes({
-  "GET /admin/settings/statuses": listGet,
-  "GET /admin/settings/statuses/:id/delete": deleteGet,
-  "GET /admin/settings/statuses/:id/edit": editGet,
-  "GET /admin/settings/statuses/new": newGet,
-  "POST /admin/settings/statuses": createPost,
-  "POST /admin/settings/statuses/:id/delete": deletePost,
-  "POST /admin/settings/statuses/:id/edit": editPost,
-  "POST /admin/settings/statuses/:id/move-down": moveHandler(1),
-  "POST /admin/settings/statuses/:id/move-up": moveHandler(-1),
+export const adminHandlers = handlersFor("settingsStatuses")({
+  getSettingsStatuses: listGet,
+  getSettingsStatusesByIdDelete: deleteGet,
+  getSettingsStatusesByIdEdit: editGet,
+  getSettingsStatusesNew: newGet,
+  postSettingsStatuses: createPost,
+  postSettingsStatusesByIdDelete: deletePost,
+  postSettingsStatusesByIdEdit: editPost,
+  postSettingsStatusesByIdMoveDown: moveHandler(1),
+  postSettingsStatusesByIdMoveUp: moveHandler(-1),
 });

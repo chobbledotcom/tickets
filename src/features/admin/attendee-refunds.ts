@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin attendee refund routes (single + bulk)
  */
@@ -12,7 +13,6 @@ import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
 import {
@@ -302,9 +302,9 @@ const handleAdminRefundAllPost = (
   );
 
 /** Attendee refund routes */
-export const attendeeRefundRoutes = defineRoutes({
-  "GET /admin/attendees/:attendeeId/refund": handleAdminAttendeeRefundGet,
-  "GET /admin/listing/:id/refund-all": handleAdminRefundAllGet,
-  "POST /admin/attendees/:attendeeId/refund": handleAttendeeRefund,
-  "POST /admin/listing/:id/refund-all": handleAdminRefundAllPost,
+export const adminHandlers = handlersFor("attendeeRefunds")({
+  getAttendeesByAttendeeIdRefund: handleAdminAttendeeRefundGet,
+  getListingByIdRefundAll: handleAdminRefundAllGet,
+  postAttendeesByAttendeeIdRefund: handleAttendeeRefund,
+  postListingByIdRefundAll: handleAdminRefundAllPost,
 });

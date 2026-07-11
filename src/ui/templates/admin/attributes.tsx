@@ -6,10 +6,12 @@ import {
   attributeNameForm,
   attributeOptionForm,
 } from "#routes/admin/attributes.ts";
+import { type AdminRouteId, adminPath } from "#shared/admin-surface.ts";
 import type {
   AttributeOption,
   AttributeWithOptions,
 } from "#shared/db/attributes.ts";
+import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
@@ -25,20 +27,28 @@ import {
   IdCheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
+import type { ReorderDirection } from "#templates/components/reorder.tsx";
 import {
   ReorderLinkRow,
   ReorderTable,
   reorderLinkTableAt,
+  writableReorderProps,
 } from "#templates/components/reorder-table.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import {
   type ListingPanelProps,
   listingChoicePanel,
 } from "./listing-panel-frame.tsx";
+import { WritableDangerLink, WritableOnly } from "./writable-only.tsx";
 /* jscpd:ignore-end */
 
 export const attributeNameFlat = (name: string): string =>
   name.replace(/\r?\n/g, " / ");
+
+const ATTRIBUTE_OPTION_MOVE_ROUTES = {
+  down: "postAttributesByIdOptionsByOptionIdMoveDown",
+  up: "postAttributesByIdOptionsByOptionIdMoveUp",
+} satisfies Record<ReorderDirection, AdminRouteId>;
 
 export const adminAttributesPage = (
   attributes: AttributeWithOptions[],
@@ -47,10 +57,12 @@ export const adminAttributesPage = (
 ): string =>
   errorAdminPage(t("attributes.title"), "/admin/attributes")(session, error)(
     <>
-      <CsrfForm action="/admin/attributes" id="new-attribute">
-        <Raw html={attributeNameForm.render()} />
-        <SubmitButton icon="plus">{t("attributes.add_submit")}</SubmitButton>
-      </CsrfForm>
+      <WritableOnly>
+        <CsrfForm action="/admin/attributes" id="new-attribute">
+          <Raw html={attributeNameForm.render()} />
+          <SubmitButton icon="plus">{t("attributes.add_submit")}</SubmitButton>
+        </CsrfForm>
+      </WritableOnly>
 
       {attributes.length === 0 ? (
         <p>
@@ -71,6 +83,7 @@ export const adminAttributesPage = (
           (attribute) => (
             <td class={colClass("quantity")}>{attribute.options.length}</td>
           ),
+          !isReadOnly(),
         )
       )}
 
@@ -138,19 +151,23 @@ export const adminAttributePage = (
     <>
       <h1>{attributeNameFlat(attribute.name)}</h1>
 
-      <CsrfForm action={`/admin/attributes/${attribute.id}/edit`}>
-        <Raw html={attributeNameForm.render({ name: attribute.name })} />
-        <SubmitButton icon="save">{t("attributes.update")}</SubmitButton>
-      </CsrfForm>
+      <WritableOnly>
+        <CsrfForm action={`/admin/attributes/${attribute.id}/edit`}>
+          <Raw html={attributeNameForm.render({ name: attribute.name })} />
+          <SubmitButton icon="save">{t("attributes.update")}</SubmitButton>
+        </CsrfForm>
+      </WritableOnly>
 
       <h2>{t("attributes.options_heading")}</h2>
-      <CsrfForm
-        action={`/admin/attributes/${attribute.id}/options`}
-        id="new-attribute-option"
-      >
-        <Raw html={attributeOptionForm.render()} />
-        <SubmitButton icon="plus">{t("attributes.add_option")}</SubmitButton>
-      </CsrfForm>
+      <WritableOnly>
+        <CsrfForm
+          action={`/admin/attributes/${attribute.id}/options`}
+          id="new-attribute-option"
+        >
+          <Raw html={attributeOptionForm.render()} />
+          <SubmitButton icon="plus">{t("attributes.add_option")}</SubmitButton>
+        </CsrfForm>
+      </WritableOnly>
 
       {attribute.options.length === 0 ? (
         <p>
@@ -167,16 +184,25 @@ export const adminAttributePage = (
             </>
           }
           orderLabel={t("attributes.order_column")}
+          reorder={!isReadOnly()}
         >
           {attribute.options.map((option, index) => (
             <ReorderLinkRow
               action={(direction) =>
-                `/admin/attributes/${attribute.id}/options/${option.id}/move-${direction}`
+                adminPath(ATTRIBUTE_OPTION_MOVE_ROUTES[direction], {
+                  id: attribute.id,
+                  optionId: option.id,
+                })
               }
               count={attribute.options.length}
-              href={`/admin/attributes/${attribute.id}/options/${option.id}/edit`}
               index={index}
               label={option.text}
+              {...writableReorderProps(
+                adminPath("attributeOptionEdit", {
+                  id: attribute.id,
+                  optionId: option.id,
+                }),
+              )}
             >
               <td class={colClass("quantity")}>
                 {data.listingCounts.get(option.id) ?? 0}
@@ -193,11 +219,11 @@ export const adminAttributePage = (
         showOptions={true}
       />
 
-      <p>
-        <a class="danger" href={`/admin/attributes/${attribute.id}/delete`}>
-          {t("attributes.delete.link")}
-        </a>
-      </p>
+      <WritableDangerLink
+        href={adminPath("attributeDelete", { id: attribute.id })}
+      >
+        {t("attributes.delete.link")}
+      </WritableDangerLink>
     </>,
   );
 

@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin ledger routes: owner-only ledger views plus the narrow maintenance
  * forms for owner-entered corrections.
@@ -46,7 +47,7 @@ import {
   redirect,
 } from "#routes/response.ts";
 /* jscpd:ignore-end */
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import {
   ATTENDEE,
   COST,
@@ -691,12 +692,12 @@ export const handleLedgerEntryDeletePost: TypedRouteHandler<"POST /admin/ledger/
   postedTransferRoute(deletePostedTransfer);
 
 /** Ledger routes (owner-only). */
-export const ledgerRoutes = defineRoutes({
-  "GET /admin/ledger": handleLedgerGet,
-  "GET /admin/ledger/:type/:ref": handleAccountStatementGet,
-  "GET /admin/ledger/:type/:ref/add": handleLedgerEntryAddGet,
-  "GET /admin/ledger/entries/:id/edit": handleLedgerEntryEditGet,
-  "POST /admin/ledger/:type/:ref/add": handleLedgerEntryAddPost,
-  "POST /admin/ledger/entries/:id/delete": handleLedgerEntryDeletePost,
-  "POST /admin/ledger/entries/:id/edit": handleLedgerEntryEditPost,
+export const adminHandlers = handlersFor("ledger")({
+  getLedger: handleLedgerGet,
+  getLedgerByTypeByRef: handleAccountStatementGet,
+  getLedgerByTypeByRefAdd: handleLedgerEntryAddGet,
+  getLedgerEntriesByIdEdit: handleLedgerEntryEditGet,
+  postLedgerByTypeByRefAdd: handleLedgerEntryAddPost,
+  postLedgerEntriesByIdDelete: handleLedgerEntryDeletePost,
+  postLedgerEntriesByIdEdit: handleLedgerEntryEditPost,
 });

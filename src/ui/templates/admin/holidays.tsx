@@ -13,6 +13,7 @@ import { entityToFieldValues, renderFields } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Holiday } from "#shared/types.ts";
 import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
+import { WritableLink } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import {
   type DataColumn,
@@ -25,7 +26,9 @@ import { getHolidayFields } from "#templates/fields/admin.ts";
 const holidayColumns: DataColumn<Holiday>[] = [
   {
     cell: (holiday) => (
-      <a href={`/admin/holidays/${holiday.id}/edit`}>{holiday.name}</a>
+      <WritableLink href={`/admin/holidays/${holiday.id}/edit`}>
+        {holiday.name}
+      </WritableLink>
     ),
     header: t("common.name"),
   },

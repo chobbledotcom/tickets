@@ -26,7 +26,6 @@ import {
 } from "#routes/admin/entity-pages.ts";
 import { type AuthSession, requireContentOr } from "#routes/auth.ts";
 import { targetQuery } from "#shared/bulk-email-targets.ts";
-import { isReadOnly } from "#shared/env.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { isContentRole, isPaidListing, isStaffRole } from "#shared/types.ts";
 import { ListingDeactivatedBanner } from "#templates/admin/listings/overview.tsx";
@@ -47,10 +46,8 @@ import {
   loadListingQuestionsPanel,
 } from "./listing-page-management-panels.ts";
 
-/** Tab visibility for the staff-only surfaces (roster, money, actions): the
- *  content-only `editor` role may edit a listing but never saw its detail page,
- *  so every tab except Edit is gated to staff, and an editor's default tab
- *  resolves to Edit. */
+/** Tab visibility for staff-only surfaces such as roster and money. Content
+ * editors can use Edit, Images, and the safe entries on Actions. */
 const staffOnly = (_entity: unknown, session: AuthSession): boolean =>
   isStaffRole(session.adminLevel);
 
@@ -67,8 +64,8 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
   {
     href: (entity) => actionUrl(entity, "duplicate"),
     icon: "plus",
+    intent: "write-form",
     labelKey: "listings_table.duplicate",
-    visible: () => !isReadOnly(),
   },
   {
     // A JSON export download (see catalog-transfer). Content-gated like the tab,
@@ -81,6 +78,7 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
     href: ({ listing }) =>
       `/admin/emails${targetQuery({ kind: "listing", listingId: listing.id })}`,
     icon: "arrow-right",
+    intent: "write-form",
     labelKey: "common.email",
     // Owner-only, and only when there is someone to email — the compose page
     // 404s for a listing target with zero recipients, so a link without
@@ -92,6 +90,7 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
     danger: true,
     href: (entity) => actionUrl(entity, "refund-all"),
     icon: "credit-card",
+    intent: "write-form",
     labelKey: "listings_table.refund_all",
     // Refunds only apply to a paid listing (the same gate the action bar used),
     // and moving money is staff-only — an editor never sees this button.
@@ -102,6 +101,7 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
     danger: true,
     href: (entity) => actionUrl(entity, "deactivate"),
     icon: "x",
+    intent: "write-form",
     labelKey: "listings_table.deactivate",
     visible: (entity, session) =>
       staffOnly(entity, session) && entity.listing.active,
@@ -109,6 +109,7 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
   {
     href: (entity) => actionUrl(entity, "reactivate"),
     icon: "rotate-ccw",
+    intent: "write-form",
     labelKey: "listings_table.reactivate",
     visible: (entity, session) =>
       staffOnly(entity, session) && !entity.listing.active,
@@ -117,6 +118,7 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
     danger: true,
     href: (entity) => actionUrl(entity, "delete"),
     icon: "trash-2",
+    intent: "write-form",
     labelKey: "common.delete",
     visible: staffOnly,
   },
@@ -138,13 +140,24 @@ const overviewTab: TabDef<LoadedListing> = {
   visible: staffOnly,
 };
 
+const ownerWriteTab = (
+  slug: string,
+  labelKey: string,
+  load: (entity: LoadedListing) => Promise<JSX.Element>,
+): TabDef<LoadedListing> => ({
+  intent: "write-form",
+  labelKey,
+  sections: [{ kind: "custom", load }],
+  slug,
+  visible: (_entity, session) => session.adminLevel === "owner",
+});
+
 /** The tabbed listing page. */
 export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
   banner: ({ listing }) =>
     Promise.resolve(ListingDeactivatedBanner({ active: listing.active })),
   basePath: (id) => `/admin/listing/${id}`,
-  // The content-only editor role may edit; every other tab is staff-gated, so
-  // an editor's page resolves to just the Edit tab.
+  // Content editors can edit listings, manage their images, and use safe actions.
   guard: requireContentOr,
   load: (id) => loadListingForPage(id),
   // A single listing is a page *within* the Listings section — highlight the
@@ -175,6 +188,7 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
         staffOnly(entity, session) && !entity.listing.purchase_only,
     },
     {
+      intent: "write-form",
       labelKey: "entity.tab.edit",
       sections: [
         {
@@ -187,39 +201,26 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
       // global guard redirects the edit route to /read-only. Hide the tab then
       // rather than render a link that immediately bounces (and so an editor's
       // bare-URL default can't resolve onto an un-editable form).
-      visible: () => !isReadOnly(),
     },
     {
+      intent: "write-form",
       labelKey: "entity.tab.images",
       sections: [{ kind: "custom", load: loadListingImagesPanel }],
       slug: "images",
-      visible: () => !isReadOnly() && isStorageEnabled(),
+      visible: () => isStorageEnabled(),
     },
+    ownerWriteTab(
+      "attributes",
+      "entity.tab.attributes",
+      loadListingAttributesPanel,
+    ),
+    ownerWriteTab(
+      "questions",
+      "entity.tab.questions",
+      loadListingQuestionsPanel,
+    ),
     {
-      labelKey: "entity.tab.attributes",
-      sections: [
-        {
-          kind: "custom",
-          load: (entity) => loadListingAttributesPanel(entity),
-        },
-      ],
-      slug: "attributes",
-      visible: (_entity, session) => session.adminLevel === "owner",
-    },
-    {
-      labelKey: "entity.tab.questions",
-      sections: [
-        {
-          kind: "custom",
-          load: (entity) => loadListingQuestionsPanel(entity),
-        },
-      ],
-      slug: "questions",
-      // The questions route is owner-only; visibility IS authorization, so a
-      // non-owner never sees (or can name) the tab.
-      visible: (_entity, session) => session.adminLevel === "owner",
-    },
-    {
+      intent: "write-form",
       labelKey: "entity.tab.qr",
       sections: [
         { kind: "custom", load: (entity) => loadListingQrPanel(entity) },
@@ -233,8 +234,7 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
       visible: (entity, session) =>
         staffOnly(entity, session) &&
         !entity.isChild &&
-        !entity.isHiddenPackageMember &&
-        !isReadOnly(),
+        !entity.isHiddenPackageMember,
     },
     {
       labelKey: "entity.tab.activity",

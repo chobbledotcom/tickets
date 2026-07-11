@@ -12,7 +12,6 @@ import {
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
 import { requireSiteOr } from "#routes/auth.ts";
-import { isReadOnly } from "#shared/env.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import type { ImageUseItemType } from "#shared/types.ts";
 import { contentGuideFooter } from "#templates/admin/site-content.tsx";
@@ -21,9 +20,7 @@ import { loadItemImagesPanel } from "./item-images.ts";
 /** The Edit (and Items) tabs mutate the entity, so they hide in read-only mode
  * — their POSTs bounce to /read-only there, so a bare-URL default must not
  * resolve onto an un-editable form. */
-export const siteContentEditVisible = (): boolean => !isReadOnly();
-const imagesVisible = (): boolean =>
-  siteContentEditVisible() && isStorageEnabled();
+const imagesVisible = (): boolean => isStorageEnabled();
 
 /** One Site content editor's page definition. `E` is the stored entity (it
  * carries its own numeric `id`); `extraTabs` slot in between Edit and Images
@@ -49,6 +46,7 @@ export const defineSiteContentPage = <E extends { id: number }>(
   def: SiteContentPageDef<E>,
 ): EntityPage<E> => {
   const editTab: TabDef<E> = {
+    intent: "write-form",
     labelKey: "entity.tab.edit",
     sections: [
       {
@@ -57,9 +55,9 @@ export const defineSiteContentPage = <E extends { id: number }>(
       },
     ],
     slug: "edit",
-    visible: siteContentEditVisible,
   };
   const imagesTab: TabDef<E> = {
+    intent: "write-form",
     labelKey: "entity.tab.images",
     sections: [
       {
@@ -75,9 +73,11 @@ export const defineSiteContentPage = <E extends { id: number }>(
     danger: true,
     href: (entity) => `${def.basePath(entity.id)}/delete`,
     icon: "trash-2",
+    intent: "write-form",
     labelKey: def.deleteLabelKey,
   };
   const actionsTab: TabDef<E> = {
+    intent: "write-form",
     labelKey: "entity.tab.actions",
     sections: [
       {
@@ -90,7 +90,6 @@ export const defineSiteContentPage = <E extends { id: number }>(
     // Delete is the only action, and the delete confirmation GET is itself
     // blocked in read-only mode (READ_ONLY_GET_PATTERNS) — so hide the whole
     // tab rather than render a link that immediately bounces to /read-only.
-    visible: siteContentEditVisible,
   };
   return defineEntityPage({
     basePath: def.basePath,

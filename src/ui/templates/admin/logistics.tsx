@@ -25,6 +25,7 @@ import type {
 import { successAdminPage } from "#templates/admin/admin-page.tsx";
 import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
 import { booleanSettingsSection } from "#templates/admin/settings/boolean-settings-section.tsx";
+import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import {
   CheckboxFieldset,
@@ -50,7 +51,9 @@ const HasLogisticsForm = booleanSettingsSection<boolean>({
 const agentColumns: DataColumn<LogisticsAgent>[] = [
   {
     cell: (agent) => (
-      <a href={`/admin/logistics/${agent.id}/edit`}>{agent.name}</a>
+      <WritableLink href={`/admin/logistics/${agent.id}/edit`}>
+        {agent.name}
+      </WritableLink>
     ),
     header: t("common.name"),
   },
@@ -66,15 +69,17 @@ const AgentsSection = (agents: LogisticsAgent[]): JSX.Element => (
     ) : (
       dataTable(agentColumns)(agents)
     )}
-    <CsrfForm action="/admin/logistics">
-      <SectionFieldset
-        className="listing-section"
-        legend={t("logistics.add_agent")}
-      >
-        <Raw html={renderFields(logisticsAgentFields)} />
-      </SectionFieldset>
-      <SubmitButton icon="plus">{t("logistics.add_agent")}</SubmitButton>
-    </CsrfForm>
+    <WritableOnly>
+      <CsrfForm action="/admin/logistics">
+        <SectionFieldset
+          className="listing-section"
+          legend={t("logistics.add_agent")}
+        >
+          <Raw html={renderFields(logisticsAgentFields)} />
+        </SectionFieldset>
+        <SubmitButton icon="plus">{t("logistics.add_agent")}</SubmitButton>
+      </CsrfForm>
+    </WritableOnly>
   </article>
 );
 
@@ -92,7 +97,7 @@ export const adminLogisticsPage = (
     successMessage,
   )(
     <>
-      {HasLogisticsForm(settings.hasLogistics)}
+      <WritableOnly>{HasLogisticsForm(settings.hasLogistics)}</WritableOnly>
       {settings.hasLogistics && AgentsSection(agents)}
       <GuideFooter href="/admin/guide#logistics">
         {t("logistics.guide_link")}

@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Privacy page routes (owner-only).
  *
@@ -10,7 +11,6 @@
 import { t } from "#i18n";
 import { OWNER_FORM, ownerPage } from "#routes/auth.ts";
 import { errorRedirect, infoRedirect, redirect } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
@@ -102,8 +102,8 @@ const handleErasePost = createAuthedHandler({
 });
 
 /** Privacy routes */
-export const privacyRoutes = defineRoutes({
-  "GET /admin/privacy": handlePrivacyGet,
-  "POST /admin/privacy/erase": handleErasePost,
-  "POST /admin/privacy/orphans": handleOrphansPost,
+export const adminHandlers = handlersFor("privacy")({
+  getPrivacy: handlePrivacyGet,
+  postPrivacyErase: handleErasePost,
+  postPrivacyOrphans: handleOrphansPost,
 });

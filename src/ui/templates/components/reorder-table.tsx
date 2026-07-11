@@ -1,9 +1,15 @@
 import type { Child } from "#jsx/jsx-runtime.ts";
+import { isReadOnly } from "#shared/env.ts";
 import {
   ReorderArrows,
   type ReorderProps,
 } from "#templates/components/reorder.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
+
+export const writableReorderProps = (
+  href: string,
+): { href?: string; reorder: boolean } =>
+  isReadOnly() ? { reorder: false } : { href, reorder: true };
 
 export const ReorderCell = ({
   action,
@@ -24,16 +30,16 @@ export const ReorderLinkRow = ({
   href,
   index,
   label,
+  reorder = true,
 }: ReorderProps & {
   children?: Child;
-  href: string;
+  href?: string | undefined;
   label: Child;
+  reorder?: boolean;
 }): JSX.Element => (
   <tr>
-    <ReorderCell action={action} count={count} index={index} />
-    <td>
-      <a href={href}>{label}</a>
-    </td>
+    {reorder && <ReorderCell action={action} count={count} index={index} />}
+    <td>{href ? <a href={href}>{label}</a> : label}</td>
     {children}
   </tr>
 );
@@ -45,8 +51,9 @@ export const reorderLinkTableAt = <T extends { id: number }>(
   items: T[],
   label: (item: T) => Child,
   children: (item: T) => Child,
+  reorder = true,
 ): JSX.Element => (
-  <ReorderTable columns={columns} orderLabel={orderLabel}>
+  <ReorderTable columns={columns} orderLabel={orderLabel} reorder={reorder}>
     {items.map((item, index) => (
       <ReorderLinkRow
         action={(direction) => `${path}/${item.id}/move-${direction}`}
@@ -54,6 +61,7 @@ export const reorderLinkTableAt = <T extends { id: number }>(
         href={`${path}/${item.id}`}
         index={index}
         label={label(item)}
+        reorder={reorder}
       >
         {children(item)}
       </ReorderLinkRow>
@@ -65,16 +73,18 @@ export const ReorderTable = ({
   columns,
   children,
   orderLabel,
+  reorder = true,
 }: {
   columns: Child;
   children: Child;
   orderLabel: string;
+  reorder?: boolean;
 }): JSX.Element => (
   <div class="table-scroll">
     <table>
       <thead>
         <tr>
-          <th class={colClass("reorder")}>{orderLabel}</th>
+          {reorder && <th class={colClass("reorder")}>{orderLabel}</th>}
           {columns}
         </tr>
       </thead>
