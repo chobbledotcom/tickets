@@ -11,6 +11,7 @@ import {
   temporaryErrorPage,
 } from "#templates/public/errors.tsx";
 import { registerPublicTemplateHooks } from "#test/templates/public/helpers.ts";
+import { setTestEnv } from "#test-utils/env.ts";
 
 registerPublicTemplateHooks();
 
@@ -84,17 +85,14 @@ describe("databaseBusyPage", () => {
 });
 
 describe("readOnlyPage", () => {
-  // Capture and restore RENEWAL_URL so these env mutations don't leak into
-  // other tests, whatever the value was (or wasn't) beforehand.
+  // Set RENEWAL_URL through the worker-local overlay (not the shared process
+  // env, which parallel test files read) and restore it afterwards.
   const withRenewalUrl = (value: string | undefined, run: () => void): void => {
-    const original = Deno.env.get("RENEWAL_URL");
-    if (value === undefined) Deno.env.delete("RENEWAL_URL");
-    else Deno.env.set("RENEWAL_URL", value);
+    const restore = setTestEnv({ RENEWAL_URL: value });
     try {
       run();
     } finally {
-      if (original === undefined) Deno.env.delete("RENEWAL_URL");
-      else Deno.env.set("RENEWAL_URL", original);
+      restore();
     }
   };
 
