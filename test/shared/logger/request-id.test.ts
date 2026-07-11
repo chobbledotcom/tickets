@@ -124,12 +124,9 @@ describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
       },
     );
     try {
-      const ids: string[] = [];
-      for (let i = 0; i < 10; i++) {
-        runWithRequestId(() => {
-          ids.push(getRequestId());
-        });
-      }
+      const ids = Array.from({ length: 10 }, () =>
+        runWithRequestId(getRequestId),
+      );
       expect(ids).toEqual([
         "0001",
         "0002",
