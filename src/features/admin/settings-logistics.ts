@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin logistics settings + logistics-agent management — owner only.
  *
@@ -19,7 +20,6 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 /* jscpd:ignore-end */
 import { invalidateListingsCache } from "#shared/db/listings.ts";
@@ -161,9 +161,13 @@ const handleAgentEditPost: IdRouteHandler = (request, { id }) =>
 
 /** Logistics settings + agent routes. The edit routes override the generic
  * CRUD ones to also manage which users drive the agent. */
-export const logisticsRoutes = defineRoutes({
-  ...crud.routes,
-  "GET /admin/logistics/:id/edit": handleAgentEditGet,
-  "POST /admin/logistics/:id/edit": handleAgentEditPost,
-  "POST /admin/logistics/has-logistics": handleHasLogisticsPost,
+export const adminHandlers = handlersFor("settingsLogistics")({
+  getLogistics: crud.listGet,
+  getLogisticsByIdDelete: crud.deleteGet,
+  getLogisticsByIdEdit: handleAgentEditGet,
+  getLogisticsNew: crud.newGet,
+  postLogistics: crud.createPost,
+  postLogisticsByIdDelete: crud.deletePost,
+  postLogisticsByIdEdit: handleAgentEditPost,
+  postLogisticsHasLogistics: handleHasLogisticsPost,
 });

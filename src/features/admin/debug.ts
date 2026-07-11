@@ -1,10 +1,11 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin debug route - shows configuration status for troubleshooting
  * Owner-only access enforced via requireOwnerOr
  */
 
 import { ownerPage } from "#routes/auth.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import {
   isValidPemCertificate,
   isValidPemPrivateKey,
@@ -255,6 +256,6 @@ const handleAdminDebugGet: TypedRouteHandler<"GET /admin/debug"> = ownerPage(
 );
 
 /** Debug routes */
-export const debugRoutes = defineRoutes({
-  "GET /admin/debug": handleAdminDebugGet,
+export const adminHandlers = handlersFor("debug")({
+  getDebug: handleAdminDebugGet,
 });

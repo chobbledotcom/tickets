@@ -1,3 +1,5 @@
+import { mapValues } from "@std/collections";
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin built site management routes - owner only
  */
@@ -408,27 +410,28 @@ const builderOnly =
   (request, params, server) =>
     isBuilderEnabled() ? handler(request, params, server) : notFoundResponse();
 
-const gateOnBuilder = (
-  routes: Record<string, RouteHandlerFn>,
-): Record<string, RouteHandlerFn> =>
-  Object.fromEntries(
-    Object.entries(routes).map(([route, handler]) => [
-      route,
-      builderOnly(handler),
-    ]),
-  );
+const gateOnBuilder = <Key extends string>(
+  routes: Record<Key, (...args: never[]) => unknown>,
+): Record<Key, RouteHandlerFn> =>
+  mapValues(routes, (handler) => builderOnly(handler as RouteHandlerFn));
 
 /** Built site routes (all gated on CAN_BUILD_SITES via gateOnBuilder). */
-export const builtSitesRoutes = gateOnBuilder({
-  ...crud.routes,
-  "GET /admin/built-sites": handleBuiltSitesListGet,
-  // Override the CRUD-provided edit GET to pick up flash messages.
-  "GET /admin/built-sites/:id/edit": handleEditGet,
-  "POST /admin/built-sites/:id/add-secrets": handleAddSecrets,
-  "POST /admin/built-sites/:id/bump-deadline": handleBumpDeadline,
-  "POST /admin/built-sites/:id/override-deadline": handleOverrideDeadline,
-  "POST /admin/built-sites/:id/provision-renewal": handleProvisionRenewal,
-  "POST /admin/built-sites/:id/re-sync-deadline": handleReSyncDeadline,
-  "POST /admin/built-sites/:id/rotate-renewal-token": handleRotateToken,
-  "POST /admin/built-sites/:id/update": handleUpdateSite,
-});
+export const adminHandlers = gateOnBuilder(
+  handlersFor("builtSites")({
+    getBuiltSites: handleBuiltSitesListGet,
+    getBuiltSitesByIdDelete: crud.deleteGet,
+    // Override the CRUD-provided edit GET to pick up flash messages.
+    getBuiltSitesByIdEdit: handleEditGet,
+    getBuiltSitesNew: crud.newGet,
+    postBuiltSites: crud.createPost,
+    postBuiltSitesByIdAddSecrets: handleAddSecrets,
+    postBuiltSitesByIdBumpDeadline: handleBumpDeadline,
+    postBuiltSitesByIdDelete: crud.deletePost,
+    postBuiltSitesByIdEdit: crud.editPost,
+    postBuiltSitesByIdOverrideDeadline: handleOverrideDeadline,
+    postBuiltSitesByIdProvisionRenewal: handleProvisionRenewal,
+    postBuiltSitesByIdReSyncDeadline: handleReSyncDeadline,
+    postBuiltSitesByIdRotateRenewalToken: handleRotateToken,
+    postBuiltSitesByIdUpdate: handleUpdateSite,
+  }),
+);

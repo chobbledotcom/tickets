@@ -7,12 +7,11 @@ import {
   adminUsersPage,
   type DisplayUser,
 } from "#templates/admin/users.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 
-/** Factory for a {@link DisplayUser} with the common defaults. Only `id`,
- *  `adminLevel`, `username`, and `inviteExpired` vary between tests. */
+/** Factory for a {@link DisplayUser} with common defaults. */
 const displayUser = (overrides: Partial<DisplayUser> = {}): DisplayUser => ({
   activated: true,
   adminLevel: "owner",
@@ -112,6 +111,13 @@ describe("adminUserManagePage", () => {
     inviteExpired: false,
     username: "pending",
   };
+  const agent = (agentNames: string[]): DisplayUser =>
+    displayUser({
+      adminLevel: "agent",
+      agentNames,
+      id: 4,
+      username: "driver",
+    });
 
   test("shows the delete section for another user", () => {
     const html = adminUserManagePage(manager, TEST_SESSION, {
@@ -128,30 +134,32 @@ describe("adminUserManagePage", () => {
   });
 
   test("shows edit-agents link and assigned agent names for an agent user", () => {
-    const agent: DisplayUser = {
-      activated: true,
-      adminLevel: "agent",
-      agentNames: ["Van 1"],
-      id: 4,
-      inviteExpired: false,
-      username: "driver",
-    };
-    const html = adminUserManagePage(agent, TEST_SESSION, { currentUserId: 1 });
+    const html = adminUserManagePage(agent(["Van 1"]), TEST_SESSION, {
+      currentUserId: 1,
+    });
     expect(html).toContain('href="/admin/users/4/agents"');
     expect(html).toContain("Van 1");
   });
 
   test("shows a placeholder when an agent user has no assigned agents", () => {
-    const agent: DisplayUser = {
-      activated: true,
-      adminLevel: "agent",
-      agentNames: [],
-      id: 4,
-      inviteExpired: false,
-      username: "driver",
-    };
-    const html = adminUserManagePage(agent, TEST_SESSION, { currentUserId: 1 });
+    const html = adminUserManagePage(agent([]), TEST_SESSION, {
+      currentUserId: 1,
+    });
     expect(html).toContain("No agents assigned");
+  });
+
+  test("hides agent and delete actions in read-only mode", () => {
+    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    try {
+      const html = adminUserManagePage(agent(["Van 1"]), TEST_SESSION, {
+        currentUserId: 1,
+      });
+      expect(html).toContain("driver");
+      expect(html).not.toContain('href="/admin/users/4/agents"');
+      expect(html).not.toContain('href="/admin/users/4/delete"');
+    } finally {
+      restore();
+    }
   });
 });
 

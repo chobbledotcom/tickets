@@ -9,10 +9,9 @@
  *   Edit       — the group form + per-listing package prices (content roles)
  *   Actions    — export JSON, bulk actions, danger zone: delete
  *
- * The content-only editor role may edit a group but never saw its detail page,
- * so every tab except Edit is staff-gated and an editor's page resolves to just
- * the Edit tab. Sub-action POST handlers (add-listings, edit, delete) keep
- * their own routes in groups.ts; this file owns only the GET surface.
+ * Content editors can use Edit, Images, and the safe entries on Actions. The
+ * staff-only tabs retain their own visibility checks. Sub-action POST handlers
+ * keep their own routes in groups.ts; this file owns only the GET surface.
  */
 
 /* jscpd:ignore-start */
@@ -24,7 +23,6 @@ import {
 } from "#routes/admin/entity-pages.ts";
 import { type AuthSession, requireContentOr } from "#routes/auth.ts";
 /* jscpd:ignore-end */
-import { isReadOnly } from "#shared/env.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { type Group, isContentRole, isStaffRole } from "#shared/types.ts";
 import {
@@ -35,8 +33,7 @@ import {
   loadGroupOverviewPanel,
 } from "./group-page-data.ts";
 
-/** Every tab except Edit was on the staff-only detail page (it decrypts
- * attendee PII), so gate them to staff; an editor's page resolves to Edit. */
+/** Gate tabs that expose attendee PII or staff operations. */
 const staffOnly = (_group: Group, session: AuthSession): boolean =>
   isStaffRole(session.adminLevel);
 
@@ -48,7 +45,9 @@ const panelTab = (
   labelKey: string,
   load: (group: Group) => Promise<JSX.Element>,
   visible: (group: Group, session: AuthSession) => boolean,
+  intent?: "view" | "write-form",
 ): TabDef<Group> => ({
+  ...(intent ? { intent } : {}),
   labelKey,
   sections: [{ kind: "custom", load }],
   slug,
@@ -70,16 +69,18 @@ const GROUP_ACTIONS: readonly ActionDef<Group>[] = [
   {
     href: (group) => `/admin/groups/${group.id}/bulk-actions`,
     icon: "hammer",
+    intent: "write-form",
     labelKey: "groups.detail.bulk_actions",
     // Bulk actions mutate the group's listings, so hide the link in read-only
     // mode (matching the old detail nav, which only showed it when writable)
     // and restrict it to staff now that editors reach this tab too.
-    visible: (group, session) => staffOnly(group, session) && !isReadOnly(),
+    visible: staffOnly,
   },
   {
     danger: true,
     href: (group) => `/admin/groups/${group.id}/delete`,
     icon: "trash-2",
+    intent: "write-form",
     labelKey: "groups.detail.delete_group",
     visible: staffOnly,
   },
@@ -89,8 +90,8 @@ const GROUP_ACTIONS: readonly ActionDef<Group>[] = [
  * redirects the edit route to /read-only, so rather than render a link that
  * immediately bounces (and so an editor's bare-URL default can't resolve onto an
  * un-editable form), hide the tab. */
-const editVisible = (): boolean => !isReadOnly();
-const imagesVisible = (): boolean => editVisible() && isStorageEnabled();
+const editVisible = (): boolean => true;
+const imagesVisible = (): boolean => isStorageEnabled();
 
 /** The Actions tab: the plain export/bulk links plus the delete danger zone.
  * Open to editors too — they may only use Export, since Bulk actions and
@@ -107,8 +108,7 @@ const actionsTab = (): TabDef<Group> => ({
 /** The tabbed group page. */
 export const groupPage: EntityPage<Group> = defineEntityPage({
   basePath: (id) => `/admin/groups/${id}`,
-  // Editors may edit; every other tab is staff-gated, so an editor's page
-  // resolves to just the Edit tab.
+  // Content editors can edit groups, manage their images, and use safe actions.
   guard: requireContentOr,
   load: (id) => loadGroupForPage(id),
   // A single group is a page *within* the Groups section — highlight the top
@@ -122,12 +122,19 @@ export const groupPage: EntityPage<Group> = defineEntityPage({
       loadGroupAttendeesPanel,
       staffOnly,
     ),
-    panelTab("edit", "entity.tab.edit", loadGroupEditPanel, editVisible),
+    panelTab(
+      "edit",
+      "entity.tab.edit",
+      loadGroupEditPanel,
+      editVisible,
+      "write-form",
+    ),
     panelTab(
       "images",
       "entity.tab.images",
       loadGroupImagesPanel,
       imagesVisible,
+      "write-form",
     ),
     actionsTab(),
   ],

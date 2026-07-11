@@ -16,7 +16,7 @@ import {
   ListingQuestionsPanel,
   questionTextFlat,
 } from "#templates/admin/questions.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
   singleAnswerSizeQuestionData,
   sizeQuestionAnswerData,
@@ -127,6 +127,19 @@ describe("adminQuestionsPage", () => {
   test("renders error message when provided", () => {
     const html = adminQuestionsPage([], TEST_SESSION, "Something went wrong");
     expect(html).toContain("Something went wrong");
+  });
+
+  test("keeps the list readable without write controls in read-only mode", () => {
+    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    try {
+      const html = adminQuestionsPage([colourQuestion], TEST_SESSION);
+      expect(html).toContain("Favourite colour?");
+      expect(html).toContain('href="/admin/questions/1"');
+      expect(html).not.toContain('id="new-question"');
+      expect(html).not.toContain("/admin/questions/1/move-");
+    } finally {
+      restore();
+    }
   });
 });
 
@@ -243,6 +256,30 @@ describe("adminQuestionPage", () => {
     const html = adminQuestionPage(q, TEST_SESSION);
     expect(html).toContain("/answers/11/move-up");
     expect(html).toContain("/answers/11/move-down");
+  });
+
+  test("keeps question details readable without write controls in read-only mode", () => {
+    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    try {
+      const html = adminQuestionPage(
+        { ...question, assign_all: false },
+        TEST_SESSION,
+        undefined,
+        new Map([[10, 5]]),
+        TEST_LISTINGS,
+        new Set([1]),
+      );
+      expect(html).toContain("T-shirt size?");
+      expect(html).toContain("<p>Spring Gig</p>");
+      expect(html).not.toContain("<p>Summer Gig</p>");
+      expect(html).not.toContain('action="/admin/questions/1/listings"');
+      expect(html).not.toContain('action="/admin/questions/1/edit"');
+      expect(html).not.toContain("/admin/questions/1/answers/10/edit");
+      expect(html).not.toContain("/admin/questions/1/delete");
+      expect(html).not.toContain("/answers/10/move-");
+    } finally {
+      restore();
+    }
   });
 
   test("renders empty state when no listings exist", () => {

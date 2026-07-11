@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin servicing-event routes.
  */
@@ -15,7 +16,8 @@ import {
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
+import { adminPath } from "#shared/admin-surface.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import {
@@ -50,6 +52,7 @@ import type { ListingWithCount } from "#shared/types.ts";
 import { parsePositiveMinorUnits } from "#shared/validation/money.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { WritableLink } from "#templates/admin/writable-only.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
@@ -296,7 +299,9 @@ const serviceEventListRows = (
     return (
       <tr class="servicing-event" data-servicing="true">
         <td>
-          <a href={`/admin/servicing/${event.id}`}>{event.name}</a>
+          <WritableLink href={adminPath("servicingEdit", { id: event.id })}>
+            {event.name}
+          </WritableLink>
         </td>
         <td>{event.date === null ? "" : formatDateLabel(event.date)}</td>
         <td>{listingsCell}</td>
@@ -562,13 +567,13 @@ const redirectServicingResult = async <T extends { id: number; name: string }>(
   }
 };
 
-export const servicingRoutes = defineRoutes({
-  "GET /admin/servicing": handleServicingListGet,
-  "GET /admin/servicing/:id": handleServicingGet,
-  "GET /admin/servicing/new": handleServicingNewGet,
-  "POST /admin/servicing/:id": handleServicingPost,
-  "POST /admin/servicing/:id/cost/:costId": handleServicingCostPost,
-  "POST /admin/servicing/:id/delete": handleServicingDeletePost,
-  "POST /admin/servicing/:id/duplicate": handleServicingDuplicatePost,
-  "POST /admin/servicing/new": handleServicingNewPost,
+export const adminHandlers = handlersFor("servicing")({
+  getServicing: handleServicingListGet,
+  getServicingById: handleServicingGet,
+  getServicingNew: handleServicingNewGet,
+  postServicingById: handleServicingPost,
+  postServicingByIdCostByCostId: handleServicingCostPost,
+  postServicingByIdDelete: handleServicingDeletePost,
+  postServicingByIdDuplicate: handleServicingDuplicatePost,
+  postServicingNew: handleServicingNewPost,
 });

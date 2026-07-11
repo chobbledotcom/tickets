@@ -14,6 +14,7 @@ import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
+import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import type { DataColumn } from "#templates/components/data-table.tsx";
@@ -55,12 +56,16 @@ const moveControls = (s: AttendeeStatus, i: number, count: number) => (
  *  controls as one typed column. */
 const statusColumns: DataColumn<AttendeeStatus>[] = [
   {
-    cell: (s, i, rows) => moveControls(s, i, rows.length),
+    cell: (s, i, rows) => (
+      <WritableOnly>{moveControls(s, i, rows.length)}</WritableOnly>
+    ),
     class: "reorder",
     header: t("statuses.order_header"),
   },
   {
-    cell: (s) => <a href={`${LIST_PATH}/${s.id}/edit`}>{s.name}</a>,
+    cell: (s) => (
+      <WritableLink href={`${LIST_PATH}/${s.id}/edit`}>{s.name}</WritableLink>
+    ),
     header: t("common.name"),
   },
   { cell: (s) => statusBadges(s), header: t("statuses.flags_header") },

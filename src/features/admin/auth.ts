@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin authentication routes - login and logout
  */
@@ -14,7 +15,6 @@ import {
 } from "#routes/auth.ts";
 import { parseFormData } from "#routes/csrf.ts";
 import { redirect } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { getClientIp, parseCookies } from "#routes/url.ts";
 import {
@@ -199,9 +199,9 @@ const handleLoginGet = async (request: Request): Promise<Response> => {
 const handleLogoutGet = anyUserPage((session) => adminLogoutPage(session));
 
 /** Authentication routes */
-export const authRoutes = defineRoutes({
-  "GET /admin/login": handleLoginGet,
-  "GET /admin/logout": handleLogoutGet,
-  "POST /admin/login": handleAdminLogin,
-  "POST /admin/logout": handleAdminLogout,
+export const adminHandlers = handlersFor("auth")({
+  getLogin: handleLoginGet,
+  getLogout: handleLogoutGet,
+  postLogin: handleAdminLogin,
+  postLogout: handleAdminLogout,
 });

@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin site page editor routes - manage public site content.
  * Access: owner + editor (managers stay excluded — see SITE_ADMIN_LEVELS).
@@ -10,7 +11,6 @@ import {
 import { type AuthSession, requireSiteOr, SITE_FORM } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { isBotpoisonEnabled } from "#shared/config.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { MAX_WEBSITE_TITLE_LENGTH } from "#shared/db/settings/constants.ts";
@@ -230,13 +230,13 @@ const handleSiteOrderPost = settingsHandler({
 });
 
 /** Site editor routes */
-export const siteRoutes = defineRoutes({
-  "GET /admin/site": siteGetRoute(renderHomePage),
-  "GET /admin/site/contact": siteGetRoute(renderContactPage),
-  "GET /admin/site/order": handleSiteOrderGet,
-  "POST /admin/site": handleSiteHomePost,
-  "POST /admin/site/contact": handleSiteContactPost,
-  "POST /admin/site/contact/form": handleSiteContactFormTogglePost,
-  "POST /admin/site/order": handleSiteOrderPost,
-  "POST /admin/site/order/toggle": handleSiteOrderTogglePost,
+export const adminHandlers = handlersFor("site")({
+  getSite: siteGetRoute(renderHomePage),
+  getSiteContact: siteGetRoute(renderContactPage),
+  getSiteOrder: handleSiteOrderGet,
+  postSite: handleSiteHomePost,
+  postSiteContact: handleSiteContactPost,
+  postSiteContactForm: handleSiteContactFormTogglePost,
+  postSiteOrder: handleSiteOrderPost,
+  postSiteOrderToggle: handleSiteOrderTogglePost,
 });

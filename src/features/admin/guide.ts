@@ -1,10 +1,10 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin guide route
  */
 
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { contentPage, sessionPage } from "#routes/auth.ts";
-import { defineRoutes } from "#routes/router.ts";
 import {
   getBunnyDnsSubdomainSuffix,
   isBunnyDnsEnabled,
@@ -47,7 +47,7 @@ const handleAdminFormattingGet = contentPage((session) =>
 );
 
 /** Guide routes */
-export const guideRoutes = defineRoutes({
-  "GET /admin/formatting": handleAdminFormattingGet,
-  "GET /admin/guide": handleAdminGuideGet,
+export const adminHandlers = handlersFor("guide")({
+  getFormatting: handleAdminFormattingGet,
+  getGuide: handleAdminGuideGet,
 });

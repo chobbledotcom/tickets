@@ -45,6 +45,7 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getNotesForAttendee } from "#shared/db/system-notes.ts";
+import { isReadOnly } from "#shared/env.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
@@ -218,15 +219,19 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
   // top-level link, but never re-open the section's "Add" sub-nav beside it.
   navActive: { section: "/admin/attendees" },
   proseExtra: ({ attendee }) =>
-    Promise.resolve(AddNoteLink({ attendeeId: attendee.id })),
+    Promise.resolve(
+      isReadOnly() ? null : AddNoteLink({ attendeeId: attendee.id }),
+    ),
   tabs: [
     overviewTab,
     {
+      intent: "write-form",
       labelKey: "entity.tab.edit",
       sections: [{ kind: "custom", load: loadEditPanel }],
       slug: "edit",
     },
     {
+      intent: "write-form",
       labelKey: "entity.tab.logistics",
       sections: [{ kind: "custom", load: loadLogisticsPanel }],
       slug: "logistics",
@@ -261,6 +266,7 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
       slug: "activity",
     },
     {
+      intent: "write-form",
       labelKey: "entity.tab.actions",
       sections: [
         {

@@ -19,7 +19,6 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
-import type { RouteHandlerFn } from "#routes/router.ts";
 import { type AuthedBase, createAuthedHandler } from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -188,8 +187,6 @@ export type ConfirmedHandlerConfig<T, TSession = AuthSession> = {
 export type ConfirmedHandlers = {
   get: (request: Request, id: number) => Promise<Response>;
   post: (request: Request, id: number) => Promise<Response>;
-  /** Pre-built route entries ready to spread into a route definition */
-  routes: Record<string, RouteHandlerFn>;
 };
 
 /** Resolve auth option to concrete guard functions */
@@ -288,19 +285,5 @@ export const createConfirmedHandlers = <T, TSession = AuthSession>(
       return redirect(resolveRedirect(result, id), config.successMessage, true);
     });
 
-  // Extract param name from path pattern for route handlers
-  const paramName = config.path.match(/:(\w+)/)!.at(1)!;
-  const toRoute =
-    (fn: (req: Request, id: number) => Promise<Response>): RouteHandlerFn =>
-    (req, params) =>
-      fn(req, params[paramName] as number);
-
-  return {
-    get,
-    post,
-    routes: {
-      [`GET ${config.path}`]: toRoute(get),
-      [`POST ${config.path}`]: toRoute(post),
-    },
-  };
+  return { get, post };
 };

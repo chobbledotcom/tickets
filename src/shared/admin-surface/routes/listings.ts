@@ -1,0 +1,101 @@
+import { route } from "#shared/admin-surface/definitions.ts";
+
+export const routes = [
+  route(
+    "getListingByIdDeactivate",
+    "listings",
+    "GET",
+    "/admin/listing/:id/deactivate",
+  ),
+  route(
+    "postListingByIdDeactivate",
+    "listings",
+    "POST",
+    "/admin/listing/:id/deactivate",
+  ),
+  route(
+    "getListingByIdReactivate",
+    "listings",
+    "GET",
+    "/admin/listing/:id/reactivate",
+  ),
+  route(
+    "postListingByIdReactivate",
+    "listings",
+    "POST",
+    "/admin/listing/:id/reactivate",
+  ),
+  route("getListingByIdDelete", "listings", "GET", "/admin/listing/:id/delete"),
+  route(
+    "postListingByIdDelete",
+    "listings",
+    "POST",
+    "/admin/listing/:id/delete",
+  ),
+  route(
+    "deleteListingByIdDelete",
+    "listings",
+    "DELETE",
+    "/admin/listing/:id/delete",
+  ),
+  route("getListingById", "listings", "GET", "/admin/listing/:id"),
+  route("getListingByIdByTab", "listings", "GET", "/admin/listing/:id/:tab"),
+  route(
+    "getListingByIdAttendeesCsv",
+    "listings",
+    "GET",
+    "/admin/listing/:id/attendees.csv",
+  ),
+  route(
+    "getListingByIdDuplicate",
+    "listings",
+    "GET",
+    "/admin/listing/:id/duplicate",
+  ),
+  route("getListingByIdExport", "listings", "GET", "/admin/listing/:id/export"),
+  route("getListingNew", "listings", "GET", "/admin/listing/new"),
+  route(
+    "getListingsRecalculateByListingId",
+    "listings",
+    "GET",
+    "/admin/listings/recalculate/:listingId",
+  ),
+  route("postListing", "listings", "POST", "/admin/listing"),
+  route(
+    "postListingByIdAttachmentDelete",
+    "listings",
+    "POST",
+    "/admin/listing/:id/attachment/delete",
+  ),
+  route(
+    "postListingByIdChildren",
+    "listings",
+    "POST",
+    "/admin/listing/:id/children",
+  ),
+  route("postListingByIdEdit", "listings", "POST", "/admin/listing/:id/edit"),
+  route(
+    "postListingByIdImages",
+    "listings",
+    "POST",
+    "/admin/listing/:id/images",
+  ),
+  route(
+    "postListingByIdImagesUpload",
+    "listings",
+    "POST",
+    "/admin/listing/:id/images/upload",
+  ),
+  route(
+    "postListingByIdIncome",
+    "listings",
+    "POST",
+    "/admin/listing/:id/income",
+  ),
+  route(
+    "postListingsRecalculateByListingId",
+    "listings",
+    "POST",
+    "/admin/listings/recalculate/:listingId",
+  ),
+] as const;

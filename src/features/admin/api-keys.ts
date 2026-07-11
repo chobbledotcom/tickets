@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin API key management routes
  */
@@ -8,7 +9,7 @@ import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import {
   ADMIN_API_ENDPOINTS,
   PUBLIC_API_ENDPOINTS,
@@ -165,12 +166,13 @@ const handleApiDocsGet: TypedRouteHandler<"GET /admin/api-keys/docs"> = (
     ),
   );
 
-export const apiKeysRoutes = {
-  ...apiKeyDelete.routes,
-  ...defineRoutes({
-    "GET /admin/api-keys": handleApiKeysGet,
-    "GET /admin/api-keys/:apiKeyId": handleApiKeyManageGet,
-    "GET /admin/api-keys/docs": handleApiDocsGet,
-    "POST /admin/api-keys": handleApiKeysPost,
-  }),
-};
+export const adminHandlers = handlersFor("apiKeys")({
+  getApiKeys: handleApiKeysGet,
+  getApiKeysByApiKeyId: handleApiKeyManageGet,
+  getApiKeysByApiKeyIdDelete: (request, { apiKeyId }) =>
+    apiKeyDelete.get(request, apiKeyId),
+  getApiKeysDocs: handleApiDocsGet,
+  postApiKeys: handleApiKeysPost,
+  postApiKeysByApiKeyIdDelete: (request, { apiKeyId }) =>
+    apiKeyDelete.post(request, apiKeyId),
+});

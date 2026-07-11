@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Bulk email routes — compose, preview, send, and template management.
  * Owner-only.
@@ -27,7 +28,6 @@ import {
   notFoundResponse,
   redirectResponse,
 } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import {
   type BulkEmailTarget,
   buildBulkPayload,
@@ -461,11 +461,14 @@ const templateDelete = createConfirmedHandlers<{ id: number; subject: string }>(
   },
 );
 
-export const bulkEmailRoutes = defineRoutes({
-  ...templateDelete.routes,
-  "GET /admin/emails": handleComposeGet,
-  "GET /admin/emails/preview": handlePreviewGet,
-  "POST /admin/emails/preview": handlePreviewPost,
-  "POST /admin/emails/send": handleSendPost,
-  "POST /admin/emails/templates": handleTemplateSavePost,
+export const adminHandlers = handlersFor("bulkEmail")({
+  getEmails: handleComposeGet,
+  getEmailsPreview: handlePreviewGet,
+  getEmailsTemplatesByIdDelete: (request, { id }) =>
+    templateDelete.get(request, id),
+  postEmailsPreview: handlePreviewPost,
+  postEmailsSend: handleSendPost,
+  postEmailsTemplates: handleTemplateSavePost,
+  postEmailsTemplatesByIdDelete: (request, { id }) =>
+    templateDelete.post(request, id),
 });

@@ -15,6 +15,7 @@ import {
   flashAdminPage,
 } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import {
   ActionButton,
   DeleteSection,
@@ -185,22 +186,26 @@ export const adminUserManagePage = (
 
       <p class="actions">
         {user.adminLevel === "agent" && (
-          <ActionButton
-            href={`/admin/users/${user.id}/agents`}
-            variant="secondary"
-          >
-            {t("users.agents.edit_link")}
-          </ActionButton>
+          <WritableOnly>
+            <ActionButton
+              href={`/admin/users/${user.id}/agents`}
+              variant="secondary"
+            >
+              {t("users.agents.edit_link")}
+            </ActionButton>
+          </WritableOnly>
         )}
       </p>
 
       {user.id !== opts.currentUserId && (
-        <DeleteSection
-          heading={t("common.delete")}
-          href={`/admin/users/${user.id}/delete`}
-        >
-          {t("users.delete_user.submit")}
-        </DeleteSection>
+        <WritableOnly>
+          <DeleteSection
+            heading={t("common.delete")}
+            href={`/admin/users/${user.id}/delete`}
+          >
+            {t("users.delete_user.submit")}
+          </DeleteSection>
+        </WritableOnly>
       )}
     </>,
   );

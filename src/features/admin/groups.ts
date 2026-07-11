@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin group management routes - accessible to owners and managers
  */
@@ -9,7 +10,7 @@ import {
   createCrudHandlers,
 } from "#routes/admin/owner-crud.ts";
 import { redirect } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -454,28 +455,26 @@ const groupImageHandlers = createItemImageHandlers({
 });
 
 /** Group routes */
-export const groupsRoutes = {
-  // List/new/create/edit are content-gated (editors included)…
-  ...content.routes,
-  // …but group deletion stays staff-only — override the content delete routes.
-  ...staffCrud.deleteRoutes,
+export const adminHandlers = handlersFor("groups")({
+  getGroups: content.listGet,
+
+  // The detail + edit pages are one tabbed entity page now: `/admin/groups/:id`
+  // is its Overview, `/admin/groups/:id/:tab` its other tabs (attendees, edit,
+  // actions). Per-tab authorization lives in the page definition (group-page.ts);
+  // literal sub-routes below (add-listings, and delete/export/bulk-actions in
+  // their own files) are matched ahead of the `:tab` wildcard. The edit POST is
+  // still the generic CRUD route — groupsResource handles package prices + the
+  // invariant via validate/afterWrite.
+  getGroupsById: (request, { id }) => groupPage.renderTab(request, id, ""),
+  getGroupsByIdByTab: (request, { id, tab }) =>
+    groupPage.renderTab(request, id, tab),
+  getGroupsByIdDelete: staffCrud.deleteGet,
   // Create uses the auto-generated-slug resource.
-  "GET /admin/groups/new": contentCreate.newGet,
-  "POST /admin/groups": contentCreate.createPost,
-  ...defineRoutes({
-    // The detail + edit pages are one tabbed entity page now: `/admin/groups/:id`
-    // is its Overview, `/admin/groups/:id/:tab` its other tabs (attendees, edit,
-    // actions). Per-tab authorization lives in the page definition (group-page.ts);
-    // literal sub-routes below (add-listings, and delete/export/bulk-actions in
-    // their own files) are matched ahead of the `:tab` wildcard. The edit POST is
-    // still the generic CRUD route — groupsResource handles package prices + the
-    // invariant via validate/afterWrite.
-    "GET /admin/groups/:id": (request, { id }) =>
-      groupPage.renderTab(request, id, ""),
-    "GET /admin/groups/:id/:tab": (request, { id, tab }) =>
-      groupPage.renderTab(request, id, tab),
-    "POST /admin/groups/:id/add-listings": handleAddListingsToGroup,
-    "POST /admin/groups/:id/images": groupImageHandlers.set,
-    "POST /admin/groups/:id/images/upload": groupImageHandlers.upload,
-  }),
-};
+  getGroupsNew: contentCreate.newGet,
+  postGroups: contentCreate.createPost,
+  postGroupsByIdAddListings: handleAddListingsToGroup,
+  postGroupsByIdDelete: staffCrud.deletePost,
+  postGroupsByIdEdit: content.editPost,
+  postGroupsByIdImages: groupImageHandlers.set,
+  postGroupsByIdImagesUpload: groupImageHandlers.upload,
+});

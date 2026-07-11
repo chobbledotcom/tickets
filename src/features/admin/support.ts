@@ -1,3 +1,4 @@
+import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin Support page routes — let the site operator message the platform host.
  *
@@ -15,7 +16,6 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
@@ -67,7 +67,7 @@ const handleSupportPost = (request: Request): Promise<Response> =>
   withAuth(request, OWNER_FORM, (_session, form) => submitSupportMessage(form));
 
 /** Support routes */
-export const supportRoutes = defineRoutes({
-  "GET /admin/support": handleSupportGet,
-  "POST /admin/support": handleSupportPost,
+export const adminHandlers = handlersFor("support")({
+  getSupport: handleSupportGet,
+  postSupport: handleSupportPost,
 });

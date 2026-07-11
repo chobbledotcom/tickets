@@ -4,8 +4,10 @@
  */
 
 import { t } from "#i18n";
+import { adminDestinationAllowed, adminPath } from "#shared/admin-surface.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { ModifierRow } from "#shared/db/modifiers.ts";
+import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Modifier } from "#shared/types.ts";
@@ -98,7 +100,15 @@ export const adminModifiersPage = (
               { class: "amount", header: t("modifiers.revenue_column") },
             ]}
             rows={modifiers.map((m) => [
-              <a href={`/admin/modifiers/${m.id}/edit`}>{m.name}</a>,
+              adminDestinationAllowed(
+                "modifierEdit",
+                session.adminLevel,
+                isReadOnly(),
+              ) ? (
+                <a href={adminPath("modifierEdit", { id: m.id })}>{m.name}</a>
+              ) : (
+                m.name
+              ),
               ruleSummary(m),
               m.total_uses,
               m.usage_count,

@@ -572,6 +572,11 @@ export const Flash = ({
   );
 };
 
+export const requestFlash = (): JSX.Element | null => {
+  const { error, info, success } = getFlash();
+  return <Flash error={error} info={info} success={success} />;
+};
+
 /**
  * Render error message if present
  */
