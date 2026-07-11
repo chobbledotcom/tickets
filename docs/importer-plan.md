@@ -283,7 +283,9 @@ Add one table for import idempotency:
 The importer does **not** add the `strings` table or the `attendee_answers`
 `question_id`/`string_id` columns — those arrive with PR #1335's migration
 `2026-06-20_free_text_questions`. Besides `booking_imports`, the importer adds one
-more table: a **short-lived missing-setup stash** (token PK, **encrypted** payload,
+more table: a **short-lived missing-setup stash** (token PK, uploader
+`user_id` — the admin-binding column the report GETs enforce, see Proposed Routes
+And UI — **encrypted** payload,
 created/expires) so the POST→`/missing` redirect survives Bunny's cross-isolate
 runtime (see Proposed Routes And UI). Encrypt the payload at rest: it holds the
 missing product / status / question names and internal column headers (potential
@@ -661,7 +663,7 @@ Suggested field mapping:
 | --- | --- | --- |
 | `Booking ID` | `booking_imports.old_id` | Required, unique per CSV. |
 | created attendee id | `booking_imports.new_id` | Write only after attendee creation succeeds. |
-| `Date Booked` | attendee `created` | Parse the source booking date into `attendees.created` so admin "newest" views and calendar/list/CSV exports order imports by when they were originally booked, not import time. A missing or unparseable `Date Booked` is **non-fatal** — fall back to import time, **not** a blocking source-data error (`Date Booked` is a required *column*, but its *value* is optional). **Two id-ordered surfaces must also change** (they order by `a.id`, and imports get fresh ids despite old `created`): the dashboard `getNewestAttendeesRaw` (`ORDER BY a.id DESC`) and the `/admin/attendees` browser + CSV `getAttendeesPage` (`ORDER BY a.id ASC/DESC`, paginated). Switch both to order by `created` with `id` as the next key (`ORDER BY a.created DESC, a.id DESC`; ascending for the `oldest` variant), backed by a composite index on `(created, id)`. **`getAttendeesPage` JOINs `listing_attendees` and returns one row per booking line**, so a multi-listing import has several rows sharing `created`+`id`; add a stable booking-line tiebreaker (`ea.listing_id`, `ea.start_at`) after `a.id` for that query so OFFSET pagination and CSV export are deterministic (apply the same key to `getNewestAttendeesRaw` if it also joins per line). |
+| `Date Booked` | attendee `created` | Parse the source booking date into `attendees.created` so admin "newest" views and calendar/list/CSV exports order imports by when they were originally booked, not import time. A missing or unparseable `Date Booked` is **non-fatal** — fall back to import time, **not** a blocking source-data error (`Date Booked` is a required *column*, but its *value* is optional). **Two id-ordered surfaces must also change** (they order by `a.id`, and imports get fresh ids despite old `created`): the dashboard `getNewestAttendeesRaw` (`ORDER BY a.id DESC`) and the `/admin/attendees` browser + CSV `getAttendeesPage` (`ORDER BY a.id ASC/DESC`, paginated). Switch both to order by `created` with `id` as the next key (`ORDER BY a.created DESC, a.id DESC`; ascending for the `oldest` variant), backed by a composite index on `(created, id)`. **`getAttendeesPage` JOINs `listing_attendees` and returns one row per booking line**, so a multi-listing import has several rows sharing `created`+`id`; add a stable booking-line tiebreaker after `a.id` for that query, ending in a **unique** key — `ea.listing_id`, `ea.start_at`, then `ea.id` (the line's own PK; needed because the unique slot includes `parent_listing_id`, so package/folded child rows can tie on `listing_id` + `start_at`) — so OFFSET pagination and CSV export are deterministic (apply the same key to `getNewestAttendeesRaw` if it also joins per line). |
 | `Customer Name` | attendee `name` | **A blank name is a blocking source-data error** (reported with row + column; the operator fills it in the CSV and re-uploads). The admin edit form requires `name` on every save, so importing blank would defer the failure to the first edit, and inventing a placeholder would violate "never guess". |
 | `Email` | attendee `email` | Import the raw source value, including invalid or concatenated emails. Add importer-specific support so these rows do not get rejected or split. **Accepted tradeoff:** the edit form renders `email` as `type="email"` and POST runs `validateEmail`, so the first admin re-save of an imported row with an invalid/concatenated email is blocked until the operator fixes or clears it; the importer does not relax the edit path or relocate the raw value (decision: keep raw). |
 | `Mobile`, `Telephone` | attendee `phone` | Prefer mobile; append alternate phone to a free-text answer / notes if both exist. |
@@ -1191,13 +1193,29 @@ bookings imports the rest and reports the skip.
 **Write (one guarded transaction, only when the report is clean):**
 
 13. Run one write transaction for all candidates in the plan. **Re-verify the
-    resolved context inside the transaction before writing:** the plan was built
-    from a preflight snapshot, and the referenced listings, statuses, and questions
-    can change between preflight and write (another admin deleting a listing,
-    renaming a status). Cheaply re-check inside the transaction that every resolved
-    id still exists (and the listings are still daily-type); on any drift, abort —
-    the whole file rolls back and the operator re-runs preflight against current
-    state, rather than the importer writing against stale ids. Then:
+    resolved context inside the transaction before writing — by re-running the
+    resolvers, not by field-checking the chosen rows:** the plan was built from a
+    preflight snapshot, and the setup can change between preflight and write
+    (another admin deleting, renaming, re-flagging, or **adding** a listing /
+    status / question). Ambiguity is a property of the **whole current setup set**,
+    not of the chosen row — a duplicate status or question name, or a new listing
+    that makes a slash-token ambiguous, leaves the originally chosen row's own
+    fields intact while the documented resolver would now block. So: load a fresh
+    snapshot **through the transaction**, re-run the same pure resolvers over it,
+    and require **identical results** — the same unique match for every product /
+    status / question (no new ambiguity, no lost match), the same rule branches
+    satisfied under **current** state (the question still `free_text` with the
+    required staff-only visibility and still `assign_all` **or** assigned to ≥1
+    matched listing — the same rule as preflight, not a bare assignment check; the
+    listing still daily-type, and the CSV span still valid against the listing's
+    **current** `customisable_days`/`duration_days` — a listing switched from
+    customisable to fixed must re-pass the fixed-duration span gate), and the same
+    status `is_reservation`/`is_paid_default` flags. Any difference aborts — the
+    whole file rolls back and the operator re-runs preflight against current
+    state, rather than the importer writing against setup that no longer matches
+    the CSV. (Reusing the pure resolver on a fresh snapshot keeps this one code
+    path, per the shared-interface rule — no parallel "recheck" logic to drift.)
+    Then:
     - upsert the deduped `strings` rows and resolve their ids (or do this such
       that a rollback removes them);
     - insert attendee, and resolve its **stable id** via a per-attendee lookup
@@ -1776,11 +1794,14 @@ importer-specific additions in item 6 remain.
        the target's owed balance counted **once** (the discarded booking's
        `import_owed`/`import_paid` legs are reversed, not double-counted by the
        repoint); a held delete of a **zero-money** daily import frees/remaps the
-       mapping (re-importable, no double-count, since the operational dated row is
-       gone) and an orphan/released delete of a **zero-money** import frees the
-       `old_id` — while a **money-bearing** import keeps its mapping as a tombstone
-       in every delete flow (its import legs make the `(schema, old_id)` event
-       un-replayable; see the cleanup section's two-axis rule).
+       mapping **only on the aggregate-released branch** (the dated row is gone
+       *and* the aggregate contribution was genuinely released — if the
+       hold-and-restore path kept the aggregate, assert the mapping stays a
+       tombstone instead, or a re-upload double-counts on top of the restored
+       aggregate) and an orphan/released delete of a **zero-money** import frees
+       the `old_id` — while a **money-bearing** import keeps its mapping as a
+       tombstone in every delete flow (its import legs make the `(schema, old_id)`
+       event un-replayable; see the cleanup section's two-axis rule).
 
 7. Admin upload route
    - Wire upload form, parser, planner, writer, success/error redirects.
