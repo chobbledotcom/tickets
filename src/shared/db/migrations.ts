@@ -12,16 +12,9 @@
  */
 
 import type { Client } from "@libsql/client";
-import { lazyRef } from "#fp";
-import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
+import { lazyRef, once } from "#fp";
+import { resetAllCaches } from "#shared/cache-registry.ts";
 import { executeBatch, getDb, inPlaceholders } from "#shared/db/client.ts";
-import { groups } from "#shared/db/groups.ts";
-import { holidays } from "#shared/db/holidays.ts";
-import { invalidateListingsCache } from "#shared/db/listings.ts";
-import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import { resetSessionCache } from "#shared/db/sessions.ts";
-import { settings } from "#shared/db/settings.ts";
-import { invalidateUsersCache } from "#shared/db/users.ts";
 import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
@@ -29,80 +22,8 @@ import { sendNtfyError } from "#shared/ntfy.ts";
 import { addPendingWork, hasPendingWorkScope } from "#shared/pending-work.ts";
 import { retryWithBackoff } from "#shared/retry.ts";
 import { recordScriptVersion } from "#shared/update.ts";
-import currentSchemaMigration from "./migrations/2026-06-11_current_schema.ts";
-import sumupCheckoutsMigration from "./migrations/2026-06-12_sumup_checkouts.ts";
-import eventAttendeesOverlapIndexMigration from "./migrations/2026-06-13_event_attendees_overlap_index.ts";
-import attendeeStatusesMigration from "./migrations/2026-06-14_attendee_statuses.ts";
-import emailPreferencesMigration from "./migrations/2026-06-14_email_preferences.ts";
-import listingCustomisableDaysMigration from "./migrations/2026-06-14_listing_customisable_days.ts";
-import questionSortOrderMigration from "./migrations/2026-06-14_question_sort_order.ts";
-import renameEventsToListingsMigration, {
-  EVENT_TO_LISTING_RENAME_PLAN,
-} from "./migrations/2026-06-14_rename_events_to_listings.ts";
-import activityLogListingIdIndexMigration from "./migrations/2026-06-15_activity_log_listing_id_index.ts";
-import agentUsersMigration from "./migrations/2026-06-16_agent_users.ts";
-import attendeePhoneIndexMigration from "./migrations/2026-06-16_attendee_phone_index.ts";
-import emailTemplatesMigration from "./migrations/2026-06-16_email_templates.ts";
-import listingAggregatesMigration from "./migrations/2026-06-16_listing_aggregates.ts";
-import logisticsAgentsMigration from "./migrations/2026-06-16_logistics_agents.ts";
-import modifiersMigration from "./migrations/2026-06-16_modifiers.ts";
-import processedPaymentsFailureDataMigration from "./migrations/2026-06-16_processed_payments_failure_data.ts";
-import smsMessagesMigration from "./migrations/2026-06-16_sms_messages.ts";
-import modifierAggregatesMigration from "./migrations/2026-06-17_modifier_aggregates.ts";
-import modifierCodeMigration from "./migrations/2026-06-17_modifier_code.ts";
-import processedSmsInboundMigration from "./migrations/2026-06-17_processed_sms_inbound.ts";
-import answerModifiersMigration from "./migrations/2026-06-18_answer_modifiers.ts";
-import contactPreferencesMigration from "./migrations/2026-06-18_contact_preferences.ts";
-import modifierMinVisitsMigration from "./migrations/2026-06-18_modifier_min_visits.ts";
-import questionAssignAllMigration from "./migrations/2026-06-18_question_assign_all.ts";
-import questionDisplayTypeMigration from "./migrations/2026-06-18_question_display_type.ts";
-import answerAggregatesMigration from "./migrations/2026-06-19_answer_aggregates.ts";
-import builtSitesLastPrunedMigration from "./migrations/2026-06-19_built_sites_last_pruned.ts";
-import answerActiveMigration from "./migrations/2026-06-20_answer_active.ts";
-import contactBookingCountsMigration from "./migrations/2026-06-20_contact_booking_counts.ts";
-import freeTextQuestionsMigration from "./migrations/2026-06-20_free_text_questions.ts";
-import stringCreatedMigration from "./migrations/2026-06-20_string_created.ts";
-import userKekV2Migration from "./migrations/2026-06-20_user_kek_v2.ts";
-import listingParentsMigration from "./migrations/2026-06-21_listing_parents.ts";
-import transfersMigration from "./migrations/2026-06-21_transfers.ts";
-import backfillTransfersMigration from "./migrations/2026-06-22_backfill_transfers.ts";
-import dropAttendeesPricePaidMigration from "./migrations/2026-06-22_drop_attendees_price_paid.ts";
-import dropAttendeesRemainingBalanceMigration from "./migrations/2026-06-22_drop_attendees_remaining_balance.ts";
-import dropListingAttendeePricePaidMigration from "./migrations/2026-06-22_drop_listing_attendee_price_paid.ts";
-import dropListingAttendeeRefundedMigration from "./migrations/2026-06-22_drop_listing_attendee_refunded.ts";
-import dropListingIncomeMigration from "./migrations/2026-06-22_drop_listing_income.ts";
-import dropModifiersTotalRevenueMigration from "./migrations/2026-06-22_drop_modifiers_total_revenue.ts";
-import dropTransfersCurrencyMigration from "./migrations/2026-06-22_drop_transfers_currency.ts";
-import listingAttendeeLedgerEventGroupMigration from "./migrations/2026-06-22_listing_attendee_ledger_event_group.ts";
-import transfersTimeIntMigration from "./migrations/2026-06-22_transfers_time_int.ts";
-import attendeeOrderParentMigration from "./migrations/2026-06-23_attendee_order_parent.ts";
-import systemNotesMigration from "./migrations/2026-06-23_system_notes.ts";
-import ticketCountNoQuantityMigration from "./migrations/2026-06-23_ticket_count_no_quantity.ts";
-import attendeesKindMigration from "./migrations/2026-06-24_attendees_kind.ts";
-import builtSitesUpdatesMigration from "./migrations/2026-06-24_built_sites_updates.ts";
-import listingAttendeeLedgerEventGroupIndexMigration from "./migrations/2026-06-25_listing_attendee_ledger_event_group_index.ts";
-import attendeesKindNotNullMigration from "./migrations/2026-06-26_attendees_kind_not_null.ts";
-import serviceCostsMigration from "./migrations/2026-06-27_service_costs.ts";
-import groupListingsMigration from "./migrations/2026-06-28_group_listings.ts";
-import listingUseDefaultsMigration from "./migrations/2026-06-28_listing_use_defaults.ts";
-import attendeePackageGroupMigration from "./migrations/2026-06-29_attendee_package_group.ts";
-import packageQuantitiesMigration from "./migrations/2026-06-29_package_quantities.ts";
-import listingPricesMigration from "./migrations/2026-07-01_listing_prices.ts";
-import sitePagesMigration from "./migrations/2026-07-01_site_pages.ts";
-import bookableAloneMigration from "./migrations/2026-07-02_bookable_alone.ts";
-import dropListingsDayPricesMigration from "./migrations/2026-07-02_drop_listings_day_prices.ts";
-import groupFlatPricesMigration from "./migrations/2026-07-02_group_flat_prices.ts";
-import attendeeListingsTagMigration from "./migrations/2026-07-03_attendee_listings_tag.ts";
-import listingImageThumbMigration from "./migrations/2026-07-03_listing_image_thumb.ts";
-import addressCacheMigration from "./migrations/2026-07-05_address_cache.ts";
-import firstClassImagesMigration from "./migrations/2026-07-05_first_class_images.ts";
-import packageSlotIdentityMigration from "./migrations/2026-07-05_package_slot_identity.ts";
-import listingAttendeesEndStartIndexMigration from "./migrations/2026-07-06_listing_attendees_end_start_index.ts";
-import newsPostsMigration from "./migrations/2026-07-06_news_posts.ts";
-import contactAttendeeTokensMigration from "./migrations/2026-07-07_contact_attendee_tokens.ts";
-import processedPaymentsPaymentReferenceMigration from "./migrations/2026-07-07_processed_payments_payment_reference.ts";
-import listingAttributesMigration from "./migrations/2026-07-09_listing_attributes.ts";
-import processedPaymentsAttendeeIndexMigration from "./migrations/2026-07-10_processed_payments_attendee_index.ts";
+import { MIGRATION_IDS, MIGRATION_REGISTRY } from "./migrations/registry.ts";
+import { EVENT_TO_LISTING_RENAME_PLAN } from "./migrations/rename-plan.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -239,7 +160,7 @@ const probeWithoutHistory = (): Promise<DbProbe> =>
 /** Read the schema state AND count the recorded migration history in one
  *  round trip — every isolate's first request pays for this. */
 const probeDbState = (): Promise<DbProbe> => {
-  const ids = MIGRATIONS.map((migration) => migration.id);
+  const ids = MIGRATION_IDS;
   return runProbeQuery(
     `${SCHEMA_MARKERS_SQL} UNION ALL SELECT 'applied_migrations', ` +
       `CAST(COUNT(*) AS TEXT) FROM ${SCHEMA_MIGRATIONS_TABLE} ` +
@@ -271,6 +192,16 @@ const syncCurrentSchema = async (): Promise<void> => {
   );
 };
 
+/** Seed the default attendee status. Loaded on demand: only migration,
+ *  fresh-install, and restore paths need it, and a static import would put the
+ *  attendee-statuses module into every cold start's eager graph. */
+const ensureDefaultAttendeeStatus = async (): Promise<void> => {
+  const { ensureDefaultAttendeeStatus: seedDefaultStatus } = await import(
+    "#shared/db/attendee-statuses.ts"
+  );
+  await seedDefaultStatus();
+};
+
 const migrationContext: MigrationContext = {
   additive,
   applySchemaChanges,
@@ -289,116 +220,19 @@ const migrationContext: MigrationContext = {
   verifyRequirement,
 };
 
-export const MIGRATIONS: Migration[] = [
-  currentSchemaMigration,
-  sumupCheckoutsMigration,
-  eventAttendeesOverlapIndexMigration,
-  renameEventsToListingsMigration,
-  questionSortOrderMigration,
-  emailPreferencesMigration,
-  listingCustomisableDaysMigration,
-  attendeeStatusesMigration,
-  activityLogListingIdIndexMigration,
-  logisticsAgentsMigration,
-  emailTemplatesMigration,
-  agentUsersMigration,
-  processedPaymentsFailureDataMigration,
-  listingAggregatesMigration,
-  modifiersMigration,
-  modifierCodeMigration,
-  smsMessagesMigration,
-  processedSmsInboundMigration,
-  attendeePhoneIndexMigration,
-  modifierAggregatesMigration,
-  contactPreferencesMigration,
-  modifierMinVisitsMigration,
-  questionDisplayTypeMigration,
-  answerModifiersMigration,
-  questionAssignAllMigration,
-  answerAggregatesMigration,
-  builtSitesLastPrunedMigration,
-  freeTextQuestionsMigration,
-  stringCreatedMigration,
-  answerActiveMigration,
-  contactBookingCountsMigration,
-  userKekV2Migration,
-  listingParentsMigration,
-  transfersMigration,
-  transfersTimeIntMigration,
-  // Adds order_token + parent_listing_id to listing_attendees. Ordered BEFORE the
-  // ledger migrations that REBUILD listing_attendees, so those rebuilds (which
-  // copy from the current SCHEMA — already carrying these columns) find them.
-  attendeeOrderParentMigration,
-  dropTransfersCurrencyMigration,
-  listingAttendeeLedgerEventGroupMigration,
-  backfillTransfersMigration,
-  dropListingIncomeMigration,
-  dropListingAttendeeRefundedMigration,
-  dropListingAttendeePricePaidMigration,
-  dropAttendeesPricePaidMigration,
-  dropAttendeesRemainingBalanceMigration,
-  dropModifiersTotalRevenueMigration,
-  systemNotesMigration,
-  // Runs after drop_listing_income so the trigger rebuild lands on top of the
-  // income-free bodies: re-counts tickets_count as quantity > 0 only.
-  ticketCountNoQuantityMigration,
-  builtSitesUpdatesMigration,
-  attendeesKindMigration,
-  // Pure index add (idempotent CREATE INDEX IF NOT EXISTS via syncIndexes);
-  // order-independent, appended last.
-  listingAttendeeLedgerEventGroupIndexMigration,
-  attendeesKindNotNullMigration,
-  serviceCostsMigration,
-  // Pure additive column add (use_defaults on listings); from main.
-  listingUseDefaultsMigration,
-  groupListingsMigration,
-  packageQuantitiesMigration,
-  // Stamps package_group_id on each booking row of a package order, so tickets
-  // and emails group by the persisted id rather than membership equality.
-  attendeePackageGroupMigration,
-  // From main: two new tables for user-created content pages (additive).
-  sitePagesMigration,
-  // From main: listing_prices table + backfill from unit_price/day_prices.
-  listingPricesMigration,
-  // From main: pure additive column add (bookable_alone on listings).
-  bookableAloneMigration,
-  // Move the flat package override off group_listings into listing_prices'
-  // "group" dimension and drop the column — package pricing now lives entirely
-  // in listing_prices.
-  groupFlatPricesMigration,
-  // Move per-day-count prices off listings.day_prices into listing_prices'
-  // "day_count" dimension and drop the column — only unit_price stays a column.
-  dropListingsDayPricesMigration,
-  // Data-only: rewrite {{listing}} → {{listings}} in the stored attendee
-  // column-order template, matching the renamed grouped Listings column.
-  attendeeListingsTagMigration,
-  // Historical no-op: image thumbnails now live on first-class image records.
-  listingImageThumbMigration,
-  // Widen the unique booking-slot index with package_group_id so overlapping
-  // package paths keep one row each.
-  packageSlotIdentityMigration,
-  // Create reusable image records plus ordered item uses.
-  firstClassImagesMigration,
-  // Create the encrypted address-lookup result cache.
-  addressCacheMigration,
-  // Create news posts for the public news system.
-  newsPostsMigration,
-  // Add the cross-listing (end_at, start_at) index behind the Logistics
-  // tab's Other Attendees overlap query.
-  listingAttendeesEndStartIndexMigration,
-  // Store every provider charge reference for later full-account refunds.
-  processedPaymentsPaymentReferenceMigration,
-  // Add the encrypted per-contact list of booked ticket tokens.
-  contactAttendeeTokensMigration,
-  // Public listing attributes and their multiple-choice options.
-  listingAttributesMigration,
-  // Index processed_payments by attendee for roster/export/refund lookups.
-  processedPaymentsAttendeeIndexMigration,
-].map((build) => build(migrationContext));
-
-export const MIGRATION_IDS: string[] = MIGRATIONS.map(
-  (migration) => migration.id,
-);
+/**
+ * Load and build every migration, in run order. Deliberately lazy (and cached
+ * after the first call): a steady-state boot only ever needs the migration
+ * *ids* for its probe, so the ~70 dated migration modules — and the domain
+ * modules they import — stay out of the cold-start graph and load only on the
+ * rare request that has real migration work (or a fresh install) to do.
+ */
+export const loadMigrations = once(async (): Promise<Migration[]> => {
+  const modules = await Promise.all(
+    MIGRATION_REGISTRY.map((migration) => migration.load()),
+  );
+  return modules.map((module) => module.default(migrationContext));
+});
 
 /** Seed and stamp a freshly created schema: the default attendee status, the
  *  schema markers, and every migration recorded as applied — so the next boot
@@ -407,7 +241,7 @@ export const MIGRATION_IDS: string[] = MIGRATIONS.map(
 const sealFreshSchema = async (): Promise<void> => {
   await ensureDefaultAttendeeStatus();
   await writeSchemaMarkers();
-  await markMigrationsApplied(MIGRATIONS);
+  await markMigrationsApplied(await loadMigrations());
 };
 
 /**
@@ -515,9 +349,19 @@ const writeSchemaMarkers = async (): Promise<void> => {
   });
 };
 
-const baselineCurrentSchemaIfNeeded = async (): Promise<void> => {
+/** The migrations whose ids are not yet recorded as applied, in run order.
+ *  Checks the ids first so the implementations only load when at least one
+ *  migration is actually missing. */
+const missingMigrations = async (): Promise<Migration[]> => {
   const applied = await getAppliedMigrationIds();
-  const missing = MIGRATIONS.filter((migration) => !applied.has(migration.id));
+  if (MIGRATION_IDS.every((id) => applied.has(id))) return [];
+  return (await loadMigrations()).filter(
+    (migration) => !applied.has(migration.id),
+  );
+};
+
+const baselineCurrentSchemaIfNeeded = async (): Promise<void> => {
+  const missing = await missingMigrations();
   if (missing.length === 0) return;
 
   await verifyCurrentAppSchema();
@@ -526,11 +370,6 @@ const baselineCurrentSchemaIfNeeded = async (): Promise<void> => {
     `Baselining ${missing.length} already-applied migration(s)`,
   );
   await markMigrationsApplied(missing);
-};
-
-const pendingMigrations = async (): Promise<Migration[]> => {
-  const applied = await getAppliedMigrationIds();
-  return MIGRATIONS.filter((migration) => !applied.has(migration.id));
 };
 
 /**
@@ -753,7 +592,7 @@ const requireAllowedInitialDbState = (
  *  restored database), so a steady-state boot pays no extra round trips. */
 const finishIfUpToDate = async (probe: DbProbe): Promise<boolean> => {
   if (probe.state !== "up_to_date") return false;
-  if (probe.appliedMigrations !== MIGRATIONS.length) {
+  if (probe.appliedMigrations !== MIGRATION_IDS.length) {
     await baselineCurrentSchemaIfNeeded();
   }
   return true;
@@ -785,7 +624,7 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
       return;
     }
 
-    const pending = await pendingMigrations();
+    const pending = await missingMigrations();
     if (pending.length === 0) {
       await restoreStaleSchemaMarkers();
       return;
@@ -822,17 +661,15 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
  *  restore from backup) so stale reads cannot outlive the current isolate
  *  lifecycle. Both resetDatabase (in its finally block, so even a partial-drop
  *  failure invalidates caches) and restoreFromSql (after executeBatch completes)
- *  use this to guarantee a consistent post-operation view. */
+ *  use this to guarantee a consistent post-operation view.
+ *
+ *  The caches themselves register with the cache registry when their modules
+ *  load (a lazily-loaded module that never ran has no cache to clear), so this
+ *  needs no static import of any cache module — only the per-isolate initDb
+ *  ready-client cache lives here. */
 export const clearAllCaches = (): void => {
   invalidateInitDbCache();
-  settings.invalidateCache();
-  settings.setup.clearCache();
-  resetSessionCache();
-  invalidateUsersCache();
-  invalidateListingsCache();
-  holidays.invalidate();
-  groups.cache.invalidate();
-  logisticsAgents.invalidate();
+  resetAllCaches();
 };
 
 /**

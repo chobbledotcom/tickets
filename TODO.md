@@ -368,18 +368,6 @@ look.
   fail-closed behaviour. See the "Respect the subrequest budget" guidance in
   AGENTS.md.
 
-## Cold start: lazy-load the migration implementations (from PR #1714)
-
-*Origin: `docs/cold-start.md`.* `src/shared/db/migrations.ts` statically
-imports every per-migration module (~70 files) — the bulk of the remaining
-~120 eager `#shared/db/*` modules. A steady-state boot only needs each
-migration's *id* plus `LATEST_UPDATE`/`SCHEMA_HASH`; the fix is a registry of
-`{ id, load: () => import(...) }` pairs awaited only on the migration path.
-Deferred: it touches every migration module and `runMigrations`' control flow
-(see the load-bearing baseline test in `test/shared/db/migrations.test.ts`)
-for a slice of ~80ms of CPU. Re-measure with
-`scripts/bench/cold-start/bundle-load.ts` before and after.
-
 ## Cross-request pending work vs. restore (from PR #1714)
 
 PR #1714 makes the restore-confirm handler drain its own request's pending

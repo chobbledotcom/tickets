@@ -308,6 +308,39 @@ describe("isSymbolImported", () => {
       false,
     );
   });
+
+  test("detects a destructured dynamic import", () => {
+    expect(
+      isSymbolImported(
+        "foo",
+        'const { foo: renamed } = await import("./x.ts");',
+      ),
+    ).toBe(true);
+  });
+
+  test("returns false when a dynamic import destructures other symbols", () => {
+    expect(
+      isSymbolImported("foo", 'const { bar } = await import("./x.ts");'),
+    ).toBe(false);
+  });
+
+  test("detects a lazyExport route-table entry by its quoted name", () => {
+    expect(
+      isSymbolImported(
+        "routeFoo",
+        'lazyExport(() => import("#routes/foo.ts"), "routeFoo"),',
+      ),
+    ).toBe(true);
+  });
+
+  test("detects a lazyExport entry split across lines", () => {
+    expect(
+      isSymbolImported(
+        "routeFoo",
+        'lazyExport(\n  () => import("#routes/foo.ts"),\n  "routeFoo",\n),',
+      ),
+    ).toBe(true);
+  });
 });
 
 describe("importedSymbolsOf", () => {
@@ -326,6 +359,13 @@ describe("importedSymbolsOf", () => {
     const corpus = mapOf([["a.ts", "const loose = 1;\nexport { loose };"]]);
     expect(importedSymbolsOf(corpus).has("loose")).toBe(false);
     expect(isSymbolImported("loose", "const loose = 1;")).toBe(false);
+  });
+
+  test("collects symbols pulled in via destructured dynamic imports", () => {
+    const corpus = mapOf([
+      ["a.ts", 'const { lazyThing } = await import("./x.ts");'],
+    ]);
+    expect(importedSymbolsOf(corpus).has("lazyThing")).toBe(true);
   });
 
   test("tokenizes a corpus only once, serving repeat queries from the cache", () => {

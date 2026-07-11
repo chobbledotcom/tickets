@@ -19,7 +19,7 @@ import {
 } from "#shared/db/migrations/schema.ts";
 import {
   LATEST_UPDATE,
-  MIGRATIONS,
+  loadMigrations,
   SCHEMA_HASH,
 } from "#shared/db/migrations.ts";
 import { resetSessionCache } from "#shared/db/sessions.ts";
@@ -59,6 +59,7 @@ import {
   createTrackedTestDbFile,
 } from "#test-utils/temp-db-files.ts";
 
+const MIGRATIONS = await loadMigrations();
 type SchemaEntry = (typeof SCHEMA)[number];
 type SchemaIndex = NonNullable<SchemaEntry[1]["indexes"]>[number];
 
