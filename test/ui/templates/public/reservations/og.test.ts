@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { buildOgTags } from "#templates/public/reservations/og.ts";
+import { buildOgTags } from "#templates/public/reservations/og-tags.ts";
 
 import { registerPublicTemplateHooks } from "#test/templates/public/helpers.ts";
 

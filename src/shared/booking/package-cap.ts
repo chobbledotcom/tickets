@@ -46,6 +46,22 @@ export const packageLimitInfo = (
   ...groupCapacityInfo(groupRemainingByGroupId, groupIdsByListingId),
 });
 
+/** Each page package's whole-bundle limit, keyed by group id. Builds the
+ * page-level {@link PackageLimitInfo} once and maps each package over
+ * {@link pagePackageBundleLimit}, so callers stop re-stating the four
+ * limit-info arguments per call site. */
+export const pageBundleLimits = (
+  tree: BookingTree,
+  packages: readonly TreePackage[],
+  page: PackageLimitInfo,
+): Map<number, number> =>
+  new Map(
+    packages.map((pkg) => [
+      pkg.groupId,
+      pagePackageBundleLimit(tree, pkg, page),
+    ]),
+  );
+
 export const childCanBeBooked: (child: TicketListing) => boolean =
   childPassesAllChecks([childActive, childOpen, childInStock]);
 
