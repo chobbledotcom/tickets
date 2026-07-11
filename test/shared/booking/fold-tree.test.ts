@@ -14,6 +14,7 @@ import {
   resolveChildSelections,
   resolvedByNodeKey,
 } from "#shared/booking/fold-tree.ts";
+import { formatAtomicError } from "#shared/booking/form.ts";
 import {
   buildTicketListing,
   type TicketListing,
@@ -63,17 +64,20 @@ const freshState = () => ({
 });
 
 /** Validate a single foldChild outcome against the running total and cap:
- * within the cap the fold must be accepted and the quantity recorded; above
- * the cap it must be rejected (never clamped) and the quantity left unchanged. */
+ * within the cap the fold must be accepted and the running quantity recorded;
+ * above the cap it must be rejected with the capacity error (never clamped) and
+ * the recorded quantity left exactly as it was before this fold. */
 const foldOutcomeValid = (
   error: ReturnType<typeof foldChild>,
   recordedQty: number | undefined,
+  prevRecordedQty: number | undefined,
   running: number,
   max: number,
+  capacityError: string,
 ): boolean =>
   running <= max
     ? error === null && recordedQty === running
-    : error !== null && recordedQty !== running;
+    : error === capacityError && recordedQty === prevRecordedQty;
 
 /** Mirror the production adapter's steps, purely (no DB; holidays default none):
  * build the tree, resolve each node's availability, run the walk. */
@@ -523,13 +527,25 @@ describe("fold selection algebra (property-based)", () => {
         }),
         (max, qtys) => {
           const child = line(1, { max_attendees: max, max_quantity: max });
+          const capacityError = formatAtomicError(
+            "capacity_exceeded",
+            child.listing.name,
+          );
           const state = freshState();
           let running = 0;
           for (const q of qtys) {
+            const prevQty = state.quantities.get(1);
             const error = foldChild(state, child, q, 1, PARENT_ID, undefined);
             running += q;
             if (
-              !foldOutcomeValid(error, state.quantities.get(1), running, max)
+              !foldOutcomeValid(
+                error,
+                state.quantities.get(1),
+                prevQty,
+                running,
+                max,
+                capacityError,
+              )
             ) {
               return false;
             }
