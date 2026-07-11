@@ -2,7 +2,7 @@
  * Ticket-token lookups for attendees.
  */
 
-import { groupBy, map, unique } from "#fp";
+import { groupToMap, map, unique } from "#fp";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import type {
@@ -60,17 +60,6 @@ const bookingRowWithoutAttendee = (
   start_at: row.start_at,
 });
 
-const rowsByAttendeeId = <Row extends { attendee_id: number }, Booking>(
-  rows: Row[],
-  withoutAttendee: (row: Row) => Booking,
-): Map<number, Booking[]> =>
-  new Map(
-    [...groupBy(rows, (row) => row.attendee_id)].map(([attendeeId, group]) => [
-      attendeeId,
-      group.map(withoutAttendee),
-    ]),
-  );
-
 const bookingRowsByAttendeeIds = async (
   attendeeIds: number[],
 ): Promise<Map<number, ListingAttendeeRow[]>> => {
@@ -85,7 +74,10 @@ const bookingRowsByAttendeeIds = async (
     attendeeIds,
   );
 
-  return rowsByAttendeeId(rows, bookingRowWithoutAttendee);
+  return groupToMap(
+    (row: BookingRowWithAttendee) => row.attendee_id,
+    bookingRowWithoutAttendee,
+  )(rows);
 };
 
 const PREVIOUS_BOOKING_LINE_COLS = `${listingAttendeeColumn("listing_id")}, ${listingAttendeeColumn("quantity")}, ${pricePaidFromLedger(
@@ -116,7 +108,10 @@ const previousBookingLinesByAttendeeIds = async (
     attendeeIds,
   );
 
-  return rowsByAttendeeId(rows, previousBookingLineWithoutAttendee);
+  return groupToMap(
+    (row: RowWithAttendee<PreviousBookingLine>) => row.attendee_id,
+    previousBookingLineWithoutAttendee,
+  )(rows);
 };
 
 type TokenIndexedRow = { ticket_token_index: BlindIndex };

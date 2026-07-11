@@ -14,6 +14,10 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { ErrorCodeType, LogCategory } from "#shared/logger.ts";
 import { logDebug, logError } from "#shared/logger.ts";
+import {
+  PAYMENT_PROVIDERS,
+  type PaymentProviderMeta,
+} from "#shared/payment-providers.ts";
 import { signPriceSync } from "#shared/payment-signature.ts";
 import type {
   BookingIntent,
@@ -26,7 +30,7 @@ import type {
   WebhookEvent,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
-import type { ContactInfo } from "#shared/types.ts";
+import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
 
 /** Extract a human-readable message from an unknown caught value */
 export const errorMessage = (err: unknown): string =>
@@ -306,6 +310,34 @@ export const buildItemsMetadata = async (
 };
 
 /**
+ * Build a checkout's signed metadata the way the given provider needs it, with
+ * the caps read from the provider registry: build the logical shape within the
+ * per-value and entry caps, pack the small fields into one entry when the
+ * provider needs that to fit, and enforce the caps on the shape that reaches
+ * the wire. SumUp's caps are unbounded (its metadata is stored locally, never
+ * sent to the provider), which makes the enforcement a no-op for it.
+ */
+export const assembleCheckoutMetadata = async (
+  providerType: PaymentProviderType,
+  intent: CheckoutIntent,
+  total: number,
+): Promise<Record<string, string>> => {
+  const caps: PaymentProviderMeta["metadata"] =
+    PAYMENT_PROVIDERS[providerType].metadata;
+  const built = await buildItemsMetadata(
+    intent,
+    total,
+    caps.maxValueLength,
+    caps.maxEntries,
+  );
+  return enforceMetadataLimits(
+    caps.packs ? packMetadata(built) : built,
+    caps.maxValueLength,
+    caps.maxEntries,
+  );
+};
+
+/**
  * Compact the resolved modifier specs to id/quantity references for metadata.
  *
  * Every trigger (automatic, code, opt-in add-on, and answer) is carried the
@@ -402,19 +434,6 @@ export const withCheckoutError = async (
     return null;
   }
 };
-
-/** Stripe metadata constraint: each value max 500 characters */
-export const STRIPE_METADATA_MAX_VALUE_LENGTH = 500;
-
-/** Stripe metadata constraint: max 50 entries. */
-export const STRIPE_METADATA_MAX_ENTRIES = 50;
-
-/** Square metadata constraint: each value max 255 characters */
-export const SQUARE_METADATA_MAX_VALUE_LENGTH = 255;
-
-/** Square metadata constraint: max 10 entries — the tightest provider cap, and
- * the reason small fields are packed into one `b` entry (see packMetadata). */
-export const SQUARE_METADATA_MAX_ENTRIES = 10;
 
 /**
  * Small, bounded booking fields collapsed into a single packed `b` entry.
@@ -607,6 +626,29 @@ export const extractSessionMetadata = (
     thank_you_url: get("thank_you_url"),
   };
 };
+
+/**
+ * Assemble the one ValidatedPaymentSession shape every provider adapter
+ * returns. Owns the createdAt rule — the key is left out entirely when the
+ * provider gave no usable timestamp — and normalizes the guarded wire metadata
+ * into the canonical shape. `metadata` must already have passed
+ * hasRequiredSessionMetadata (or come from our own staged checkout row).
+ */
+export const validatedPaymentSession = (fields: {
+  amountTotal: number;
+  createdAt: string | undefined;
+  id: string;
+  metadata: SessionMetadata;
+  paymentReference: string;
+  paymentStatus: ValidatedPaymentSession["paymentStatus"];
+}): ValidatedPaymentSession => ({
+  amountTotal: fields.amountTotal,
+  ...(fields.createdAt !== undefined ? { createdAt: fields.createdAt } : {}),
+  id: fields.id,
+  metadata: extractSessionMetadata(fields.metadata),
+  paymentReference: fields.paymentReference,
+  paymentStatus: fields.paymentStatus,
+});
 
 export const parseWebhookPayload = (
   payload: string,

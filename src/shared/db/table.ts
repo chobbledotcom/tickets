@@ -120,6 +120,14 @@ export interface Table<Row, Input> {
   name: string;
   primaryKey: keyof Row & string;
 
+  /** Run one column's declared read transform (e.g. decrypt) on a stored
+   * value — identity when the column declares none or the value is null. For
+   * reading a single column back without building a whole row. */
+  readColumn: <K extends keyof Row & string>(
+    col: K,
+    value: Row[K],
+  ) => Promise<Row[K]>;
+
   /**
    * Build an Input object from an existing Row by copying the input-eligible
    * columns and translating keys through `inputKeyMap`. Lets callers spread
@@ -209,16 +217,26 @@ export const defineTable = <Row, Input = Row>(
   ): unknown =>
     (input as Record<string, unknown>)[inputKeyMap[dbCol] as string];
 
+  // Run one column's read transform on a stored value (identity when the
+  // column declares none or the value is null) — the per-column read logic
+  // shared by fromDb and the single-column readColumn.
+  const readColumn = async <K extends keyof Row & string>(
+    col: K,
+    value: Row[K],
+  ): Promise<Row[K]> => {
+    const def = schema[col];
+    if (def.read && value !== null) {
+      return (await def.read(value as never)) as Row[K];
+    }
+    return value;
+  };
+
   // Transform a row from DB (apply read transforms)
   const fromDb = async (row: Row): Promise<Row> => {
-    const entries = await mapParallel(async (col: keyof Row & string) => {
-      const def = schema[col];
-      const value = row[col];
-      if (def.read && value !== null) {
-        return [col, await def.read(value as never)] as const;
-      }
-      return [col, value] as const;
-    })(allColumns);
+    const entries = await mapParallel(
+      async (col: keyof Row & string) =>
+        [col, await readColumn(col, row[col])] as const,
+    )(allColumns);
     return Object.fromEntries(entries) as Row;
   };
 
@@ -406,6 +424,7 @@ export const defineTable = <Row, Input = Row>(
     insertStatement,
     name,
     primaryKey,
+    readColumn,
     rowToInput,
     schema,
     toDbValues,

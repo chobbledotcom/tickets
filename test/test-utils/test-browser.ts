@@ -55,9 +55,10 @@ const regexCollect = <T>(
   transform: (m: RegExpExecArray) => T,
 ): T[] => {
   const results: T[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(html)) !== null) {
+  let m = re.exec(html);
+  while (m !== null) {
     results.push(transform(m));
+    m = re.exec(html);
   }
   return results;
 };

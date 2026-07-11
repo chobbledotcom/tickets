@@ -283,6 +283,11 @@ describeWithEnv("built-sites", { db: true }, () => {
       expect(result).toEqual(site);
     });
 
+    test("readColumn returns the stored value unchanged", async () => {
+      const value = await builtSitesCrudTable.readColumn("name", "Test");
+      expect(value).toBe("Test");
+    });
+
     test("inputKeyMap exposes form-facing fields", () => {
       expect(builtSitesCrudTable.inputKeyMap).toEqual({
         assignable: "assignable",

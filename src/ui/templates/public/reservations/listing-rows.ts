@@ -34,10 +34,14 @@ import type { BookingPrefill, ChildRenderCtx, TicketPrefill } from "./types.ts";
 /* jscpd:ignore-end */
 
 /** Description HTML for a listing row. */
-const renderListingDescription = (description: string): string =>
+export const renderListingDescription = (description: string): string =>
   description
     ? `<div class="description-compact">${renderMarkdown(description)}</div>`
     : "";
+
+/** The sold-out / closed badge shown on an unavailable listing row. */
+export const soldOutLabel = (text: string = t("public.sold_out")): string =>
+  `<span class="sold-out-label">${text}</span>`;
 
 /** Render quantity selector for an listing row.
  *
@@ -86,7 +90,7 @@ const renderListingRow = (
         ${imageHtml}
         <label>${escapeHtml(listing.name)}</label>
         ${attributesHtml}
-        <span class="sold-out-label">${t("public.registration_closed")}</span>
+        ${soldOutLabel(t("public.registration_closed"))}
       </div>
     `;
   }
@@ -98,7 +102,7 @@ const renderListingRow = (
         <label>${escapeHtml(listing.name)}</label>
         ${renderListingDescription(listing.description)}
         ${attributesHtml}
-        <span class="sold-out-label">${t("public.sold_out")}</span>
+        ${soldOutLabel()}
       </div>
     `;
   }
@@ -206,7 +210,7 @@ const renderPackageSection = (input: PackageRenderInput): string => {
   const heading = `<legend>${escapeHtml(pkg.name)}</legend>`;
   const body =
     limit < 1
-      ? `<span class="sold-out-label">${t("public.sold_out")}</span>`
+      ? soldOutLabel()
       : renderListingDescription(pkg.description) +
         renderPackageControls(input);
   return `<fieldset class="ticket-package${

@@ -7,6 +7,7 @@ import {
   filter,
   firstMatch,
   flatMap,
+  groupToMap,
   lazyRef,
   map,
   once,
@@ -431,6 +432,40 @@ describe("fp", () => {
       expect(freshResult).toEqual([1, 2, 3]);
       // Now the cache IS populated with fresh data
       expect(cache.size()).toBe(3);
+    });
+  });
+
+  describe("groupToMap", () => {
+    test("groups rows by key, keeping only the chosen value from each row", () => {
+      const rows = [
+        { listing: 20, question: 1 },
+        { listing: 30, question: 2 },
+        { listing: 10, question: 1 },
+      ];
+      const listingsByQuestion = groupToMap(
+        (r: { question: number; listing: number }) => r.question,
+        (r) => r.listing,
+      )(rows);
+      expect(listingsByQuestion).toEqual(
+        new Map([
+          [1, [20, 10]],
+          [2, [30]],
+        ]),
+      );
+    });
+
+    test("keeps keys in first-occurrence order and returns an empty map for no rows", () => {
+      const rows = [
+        { k: "b", v: 1 },
+        { k: "a", v: 2 },
+        { k: "b", v: 3 },
+      ];
+      const grouped = groupToMap(
+        (r: { k: string; v: number }) => r.k,
+        (r) => r.v,
+      );
+      expect([...grouped(rows).keys()]).toEqual(["b", "a"]);
+      expect(grouped([])).toEqual(new Map());
     });
   });
 

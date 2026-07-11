@@ -6,6 +6,7 @@ import {
   type Field,
   renderField,
   renderFields,
+  renderSelectOptions,
   setSavedFormData,
 } from "#shared/forms.tsx";
 
@@ -386,5 +387,30 @@ describe("renderFields with saved form data", () => {
     ]);
     expect(html).toContain('value="GB"');
     expect(html).not.toContain('value="US"');
+  });
+});
+
+describe("renderSelectOptions", () => {
+  test("renders each entry, marking only the chosen one", () => {
+    const html = renderSelectOptions([
+      { label: "One", value: "1" },
+      { label: "Two", selected: true, value: "2" },
+    ]);
+    expect(html).toBe(
+      '<option value="1">One</option><option value="2" selected>Two</option>',
+    );
+  });
+
+  test("escapes both value and label", () => {
+    const html = renderSelectOptions([
+      { label: "Fish & Chips <hot>", value: 'a"&b' },
+    ]);
+    expect(html).toBe(
+      '<option value="a&quot;&amp;b">Fish &amp; Chips &lt;hot&gt;</option>',
+    );
+  });
+
+  test("renders nothing for an empty list", () => {
+    expect(renderSelectOptions([])).toBe("");
   });
 });

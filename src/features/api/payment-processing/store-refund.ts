@@ -16,11 +16,11 @@ import {
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import {
-  capacitySpec,
+  type RefundCode,
   type RefundSpec,
   refundAndFail,
   refundedNoteText,
-  soldOutSpec,
+  refundSpec,
   tryRefund,
 } from "#routes/api/payment-processing/refunds.ts";
 import type {
@@ -215,13 +215,20 @@ export const storeRefundedBooking = async (
   };
 };
 
-/** The placeholder refund reason for a booking we tried but couldn't honour: a
- *  sold-out extra reads differently from a full event, and anything else
- *  (capacity, or the broken-system encryption_error we don't special-case) is
- *  treated as "the event filled up". */
+/** The refund reason code for each way a booking we tried can fail: a sold-out
+ *  extra reads differently from a full event, and the broken-system
+ *  encryption_error we don't special-case is treated as "the event filled up". */
+const FAILURE_REFUND_CODES: Record<
+  Extract<HonourResult, { ok: false }>["reason"],
+  RefundCode
+> = {
+  capacity_exceeded: "capacity_full",
+  encryption_error: "capacity_full",
+  sold_out: "sold_out",
+};
+
+/** The placeholder refund reason for a booking we tried but couldn't honour. */
 export const specForFailure = (
   failure: Extract<HonourResult, { ok: false }>,
 ): RefundSpec =>
-  failure.reason === "sold_out"
-    ? soldOutSpec(failure.detail)
-    : capacitySpec(failure.detail);
+  refundSpec(FAILURE_REFUND_CODES[failure.reason])(failure.detail);

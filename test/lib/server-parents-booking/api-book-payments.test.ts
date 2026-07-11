@@ -1,5 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import {
+  expectCapturedItemPriced,
+  stubCheckout,
+} from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { bookableStartDates } from "#test-utils/db-helpers/listings.ts";
@@ -10,10 +14,6 @@ import {
   makeParent,
 } from "#test-utils/parents.ts";
 import { enablePublicApi, setupStripe } from "#test-utils/settings.ts";
-import {
-  expectCapturedItemPriced,
-  stubCheckout,
-} from "../server-reservation/helpers.ts";
 
 /** A pay-more parent (£10 unit price, £50 max) with a free add-on child — the
  *  scenario behind both parent-`customPrice` tests (the accepted £30 and the

@@ -48,8 +48,8 @@ import {
 import {
   chargeMismatchSpec,
   deletedListingSpec,
+  refundSpec,
   refuseMismatch,
-  unexpectedErrorSpec,
 } from "#routes/api/payment-processing/refunds.ts";
 import {
   datelessGhostBookings,
@@ -298,7 +298,7 @@ const processReservedSession: SessionProcessor = async (
   // booking at quantity 0 and refunds rather than dropping a paid customer: a
   // structured sold-out/capacity/encryption result, OR an unexpected throw after
   // the charge (which would otherwise crash-loop the webhook over paid money).
-  let honoured;
+  let honoured: Awaited<ReturnType<typeof createAttendeeForSession>>;
   try {
     honoured = await createAttendeeForSession(
       session,
@@ -312,7 +312,7 @@ const processReservedSession: SessionProcessor = async (
       session,
       intent,
       placeholders,
-      unexpectedErrorSpec(
+      refundSpec("unexpected_error")(
         `Unexpected error completing session ${session.id}: ${String(error)}`,
       ),
     );

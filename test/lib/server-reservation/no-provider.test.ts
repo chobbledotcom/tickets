@@ -6,10 +6,12 @@ import { resetStripeClient } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
-  createOptionalAddOn,
-  latestAttendee,
   modifierUsageAmount,
   modifierUsageCount,
+} from "#test-utils/modifiers.ts";
+import {
+  createOptionalAddOn,
+  latestAttendee,
   submitBuyerOrder,
 } from "./helpers.ts";
 

@@ -1,8 +1,9 @@
 import { stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
-import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
+import type { CheckoutItem } from "#shared/payments.ts";
 import { getStripeClient } from "#shared/stripe.ts";
 import type { Listing } from "#shared/types.ts";
+import { checkoutItem } from "#test-utils/checkout.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 type StripeClient = NonNullable<Awaited<ReturnType<typeof getStripeClient>>>;
@@ -20,38 +21,15 @@ export const stripeClient = async (
   return (await getStripeClient())!;
 };
 
-/** One checkout line with easy-to-override defaults. */
-export const line = (overrides: Partial<CheckoutItem> = {}): CheckoutItem => ({
-  listingId: 1,
-  name: "Evt",
-  quantity: 1,
-  slug: "evt",
-  unitPrice: 1000,
-  ...overrides,
-});
-
 /** A checkout line that mirrors a listing's id, name, slug, and price. */
-export const lineFor = (listing: Listing, quantity = 1): CheckoutItem => ({
-  listingId: listing.id,
-  name: listing.name,
-  quantity,
-  slug: listing.slug,
-  unitPrice: listing.unit_price,
-});
-
-/** A checkout intent with sensible defaults; override any field. */
-export const checkout = (
-  overrides: Partial<CheckoutIntent> = {},
-): CheckoutIntent => ({
-  address: "",
-  date: null,
-  email: "buyer@example.com",
-  items: [line()],
-  name: "Buyer",
-  phone: "",
-  special_instructions: "",
-  ...overrides,
-});
+export const lineFor = (listing: Listing, quantity = 1): CheckoutItem =>
+  checkoutItem({
+    listingId: listing.id,
+    name: listing.name,
+    quantity,
+    slug: listing.slug,
+    unitPrice: listing.unit_price,
+  });
 
 /**
  * The shape of the checkout params Stripe's `sessions.create` receives — just

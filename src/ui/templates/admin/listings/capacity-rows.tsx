@@ -1,6 +1,11 @@
 import { t } from "#i18n";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { ListingWithCount } from "#shared/types.ts";
+import {
+  CapacityMeter,
+  capacityLevel,
+  GroupCapacityMeter,
+} from "#templates/components/capacity.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import type { GroupContext } from "./types.ts";
 
@@ -43,27 +48,28 @@ const AttendeeCountDisplay = (
   const { listing, isDaily, dateFilter, adjustedCount, completeQuantitySum } =
     props;
   if (isDaily && dateFilter) {
-    const overLimit = completeQuantitySum >= listing.max_attendees;
     return (
-      <span class={overLimit ? "danger-text" : ""}>
-        {completeQuantitySum} / {listing.max_attendees} {"\u2014"}{" "}
-        {listing.max_attendees - completeQuantitySum}{" "}
-        {t("listings_table.remain")}
-      </span>
+      <CapacityMeter
+        count={completeQuantitySum}
+        danger={
+          capacityLevel(completeQuantitySum, listing.max_attendees).overLimit
+        }
+        max={listing.max_attendees}
+      />
     );
   }
-  const nearLimit = adjustedCount >= listing.max_attendees * 0.9;
+  const level = capacityLevel(adjustedCount, listing.max_attendees);
+  if (isDaily) {
+    return (
+      <span class={level.nearLimit ? "danger-text" : ""}>{adjustedCount}</span>
+    );
+  }
   return (
-    <span class={nearLimit ? "danger-text" : ""}>
-      {adjustedCount}
-      {!isDaily && (
-        <>
-          {" "}
-          / {listing.max_attendees} {"\u2014"}{" "}
-          {listing.max_attendees - adjustedCount} {t("listings_table.remain")}
-        </>
-      )}
-    </span>
+    <CapacityMeter
+      count={adjustedCount}
+      danger={level.nearLimit}
+      max={listing.max_attendees}
+    />
   );
 };
 
@@ -102,9 +108,6 @@ export const GroupAttendeesRow = ({
   groupAttendeeCount: number;
   dailySuffix: string;
 }): JSX.Element => {
-  const remaining = Math.max(0, group.max_attendees - groupAttendeeCount);
-  const overLimit = groupAttendeeCount >= group.max_attendees;
-  const nearLimit = groupAttendeeCount >= group.max_attendees * 0.9;
   return (
     <tr>
       <th>
@@ -112,10 +115,10 @@ export const GroupAttendeesRow = ({
         {dailySuffix}
       </th>
       <td>
-        <span class={overLimit || nearLimit ? "danger-text" : ""}>
-          {groupAttendeeCount} / {group.max_attendees} {"\u2014"} {remaining}{" "}
-          {t("listings_table.remain")}
-        </span>{" "}
+        <GroupCapacityMeter
+          count={groupAttendeeCount}
+          max={group.max_attendees}
+        />{" "}
         <small>
           {t("listings_table.across_all_listings_in")}{" "}
           <a href={`/admin/groups/${group.id}`}>{group.name}</a>

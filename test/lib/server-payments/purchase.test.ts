@@ -5,11 +5,11 @@ import { stub } from "@std/testing/mock";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
+import { stubCheckout } from "#test-utils/checkout.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -18,26 +18,6 @@ import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
-
-/** Stub `createCheckoutSession` to a fixed successful result while capturing
- *  the intent it was handed — the shape every "carries X into the checkout
- *  intent" test needs, differing only in the returned session id and what it
- *  asserts about the captured intent. */
-const captureCheckoutIntent = (sessionId: string) => {
-  const captured: { intent?: CheckoutIntent } = {};
-  const mock = stub(
-    stripePaymentProvider,
-    "createCheckoutSession",
-    (intent: CheckoutIntent) => {
-      captured.intent = intent;
-      return Promise.resolve({
-        checkoutUrl: "https://stripe.test/checkout",
-        sessionId,
-      });
-    },
-  );
-  return { captured, mock };
-};
 
 describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
   describe("payment routes", () => {
@@ -196,7 +176,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         thankYouUrl: "https://example.com/thanks",
       });
 
-      const { captured, mock } = captureCheckoutIntent("cs_customisable_web");
+      const { checkout, getCaptured } = stubCheckout("cs_customisable_web");
 
       try {
         const response = await submitTicketForm(listing.slug, {
@@ -207,10 +187,10 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
         expect(response.status).toBe(302);
         // The chosen span and its price are carried into the checkout intent.
-        expect(captured.intent?.dayCount).toBe(2);
-        expect(captured.intent?.items[0]?.unitPrice).toBe(1800);
+        expect(getCaptured()?.dayCount).toBe(2);
+        expect(getCaptured()?.items[0]?.unitPrice).toBe(1800);
       } finally {
-        mock.restore();
+        checkout.restore();
       }
     });
 
@@ -256,7 +236,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         sql: "UPDATE modifiers SET trigger = ?, code_index = ? WHERE id = ?",
       });
 
-      const { captured, mock } = captureCheckoutIntent("cs_modifiers_web");
+      const { checkout, getCaptured } = stubCheckout("cs_modifiers_web");
 
       try {
         const response = await submitTicketForm(listing.slug, {
@@ -269,7 +249,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
         expect(response.status).toBe(302);
         const byId = new Map(
-          (captured.intent?.modifiers ?? []).map((m) => [m.id, m]),
+          (getCaptured()?.modifiers ?? []).map((m) => [m.id, m]),
         );
         // The add-on is applied at the chosen quantity, the promo at quantity 1,
         // and the unselected add-on is absent.
@@ -277,7 +257,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         expect(byId.get(promo.id)?.quantity).toBe(1);
         expect(byId.has(skippedAddOn.id)).toBe(false);
       } finally {
-        mock.restore();
+        checkout.restore();
       }
     });
 

@@ -1,4 +1,4 @@
-import { apiResponse } from "#routes/api/cors.ts";
+import { apiError, apiResponse } from "#routes/api/cors.ts";
 import {
   applyChildSelectionsToForm,
   completeFoldedBooking,
@@ -30,6 +30,7 @@ import {
 import type { TicketCtx } from "#routes/public/types.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
+import { bookingError } from "#shared/booking/form.ts";
 import {
   bookableChildIds,
   packageDayCountsChildrenSupport,
@@ -59,7 +60,7 @@ import {
 import type { Group } from "#shared/types.ts";
 import { extractContact } from "#templates/fields/ticket.ts";
 
-const PACKAGE_NOT_FOUND = { error: "Package not found" } as const;
+const PACKAGE_NOT_FOUND = "Package not found";
 
 /** The ctx, group, limit, and tree a package endpoint needs once its slug
  * resolves to a bookable bundle — the loaded shape {@link withPackageContext}
@@ -107,7 +108,7 @@ const loadPackageContext = async (
 const loadPackageContextOr404 = async (
   slug: string,
 ): Promise<PackageContext | Response> =>
-  (await loadPackageContext(slug)) ?? apiResponse(PACKAGE_NOT_FOUND, 404);
+  (await loadPackageContext(slug)) ?? apiError(PACKAGE_NOT_FOUND, 404);
 
 /** Load a bookable package by slug, or respond with the package-not-found 404 —
  * shared by the GET and POST package endpoints via {@link withSlugLoaded} so the
@@ -206,10 +207,7 @@ const applyPackageChildSelections = (
   for (const [parentSlug, perParent] of byParent) {
     const member = ctx.listings.find((e) => e.listing.slug === parentSlug);
     if (!member) {
-      return apiResponse(
-        { error: `'${parentSlug}' is not a member of this package.` },
-        400,
-      );
+      return apiError(`'${parentSlug}' is not a member of this package.`);
     }
     const error = applyChildSelectionsToForm(
       form,
@@ -253,7 +251,7 @@ const resolvePackageOrder = async (
   if (ctx.dates.length > 0) {
     const submitted = String(body.date ?? "");
     if (!ctx.dates.includes(submitted)) {
-      return apiResponse({ error: "Please select a valid date" }, 400);
+      return apiError(bookingError.invalidDate);
     }
     date = submitted;
   }
@@ -269,7 +267,7 @@ const resolvePackageOrder = async (
     standIns,
   );
   if ("error" in dayResult) {
-    return apiResponse({ error: dayResult.error }, 400);
+    return apiError(dayResult.error);
   }
   return { date, dayCount: dayResult.dayCount, form, packageQty, quantities };
 };
@@ -312,12 +310,8 @@ export const handleBookPackage = async (
 
   const selections = parseApiChildSelections(body, PackageChildrenSchema);
   if (selections === null) {
-    return apiResponse(
-      {
-        error:
-          "Provide a `children` array of { parent, slug, quantity } choosing each member's add-ons.",
-      },
-      400,
+    return apiError(
+      "Provide a `children` array of { parent, slug, quantity } choosing each member's add-ons.",
     );
   }
   const selectionError = applyPackageChildSelections(form, ctx, selections);

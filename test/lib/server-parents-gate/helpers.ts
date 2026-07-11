@@ -104,7 +104,7 @@ export const makeDailyGroupWithFiller = async (): Promise<{
  */
 export const stubCheckoutIntent = async (sessionId: string) => {
   const { setupStripe } = await import("#test-utils/settings.ts");
-  const { stubCheckout } = await import("../server-reservation/helpers.ts");
+  const { stubCheckout } = await import("#test-utils/checkout.ts");
   await setupStripe();
   return stubCheckout(sessionId);
 };

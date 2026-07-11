@@ -451,3 +451,61 @@ its test, the `--preload` flag in both runners, and the "Fast Tests" note that
 documents the override. Confirm the suite's slow-test report
 (`SLOW_TEST_THRESHOLD_MS`) doesn't regress. Start points: `fast-expect.ts` for
 what it did and why, and grep `\.toContain(` under `test/` for the call sites.
+
+## Code-quality detector & test-strengthening follow-ups (from PR #1729)
+
+*Origin: CodeRabbit review of PR #1729, deferred as out of scope for that
+complexity-only refactor (which had to preserve behavior). All of these are
+pre-existing behaviors carried over unchanged from `main`, not regressions.*
+
+### 1. `skipTypeParams` should not treat the `>` in `=>` as a closing angle bracket
+
+`test/lib/code-quality/detectors.ts` — `skipTypeParams` counts every `>` as a
+type-parameter close, so a type alias whose params contain an arrow default,
+e.g. `type A<T = () => void> = { ... }`, is parsed as ending at the arrow and
+`parseTypeAliasBody` silently ignores the (valid) alias. The sibling helper
+`angleDepthDelta` already handles this token correctly (it ignores a `>`
+preceded by `=`).
+
+Fix direction: reuse `angleDepthDelta` in `skipTypeParams`. Note the naive
+rewrite reintroduces an unreachable `return i` fall-through that fails the
+repo's 100% line/branch coverage gate — so the fix must be paired with a
+covering test that exercises an arrow-in-type-param alias (and keep the
+fall-through on the covered path, as the current loop-with-`break` form does).
+
+### 2. `skipTemplateSubstitution` should skip comment contents
+
+`test/lib/code-quality/detectors.ts` — the template-substitution scanner tracks
+brace depth but does not skip comments, so a `}` inside a comment inside a
+`${...}` prematurely closes the substitution; a later nested backtick can then
+end the outer template early and leak commas into `parseArgList`. Repro shape:
+`` `${/* } */ `x,y`}` ``.
+
+Fix direction: within the depth loop, skip line/block comments (a `skipComment`
+helper) before the brace-depth checks, and add a direct regression test for the
+comment-with-`}`-then-nested-template case asserting `parseArgList` doesn't
+misinterpret the comma.
+
+### 3. `foldOutcomeValid` should assert rejected folds preserve the prior quantity
+
+`test/lib/fold-tree.test.ts` — for the above-cap (rejected) case the validator
+checks `recordedQty !== running`, which only proves the quantity wasn't clamped
+to the attempted total; it doesn't prove the rejected fold left the *prior*
+recorded quantity unchanged.
+
+Fix direction: capture the recorded quantity before calling `foldChild`, thread
+it into `foldOutcomeValid`, and assert exact equality against that pre-fold
+value for rejected outcomes (retaining the accepted-case checks).
+
+### 4. `mutation.ts` CLI value flags should fail fast on a missing value
+
+`scripts/mutation.ts` — in `applyArg`, a recognized value flag (`--source`,
+`--test`, `--timeout`, `--jobs`) with no following token falls through and is
+collected as a positional, so it surfaces later as a misleading glob/file error
+instead of a clear CLI usage error. (Matches `main`'s original `next !==
+undefined` guard behavior — pre-existing.)
+
+Fix direction: in `applyArg`, when `VALUE_FLAGS[arg]` exists but `next` is
+`undefined`, raise a clear "missing value for <flag>" usage error rather than
+pushing the flag to `positional`; keep consuming/returning true when a value is
+present.
