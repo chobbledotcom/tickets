@@ -54,6 +54,18 @@ describe("parseImportSpecifiers", () => {
     expect(parseImportSpecifiers(text)).toEqual(["#fp"]);
   });
 
+  test("still finds an import when a comment sits between `from` and the path", () => {
+    // Comment stripping must remove the comment, not replace it with text: a
+    // leftover word between `from` and the specifier would stop the specifier
+    // being recognised (`from mutated "x"` matches nothing).
+    expect(
+      parseImportSpecifiers('import { x } from /* note */ "#shared/real.ts";'),
+    ).toEqual(["#shared/real.ts"]);
+    expect(
+      parseImportSpecifiers('import { y } from // note\n"#shared/other.ts";'),
+    ).toEqual(["#shared/other.ts"]);
+  });
+
   test("captures dynamic import() specifiers alongside static ones", () => {
     const text = [
       'import { settings } from "#shared/db/settings.ts";',
