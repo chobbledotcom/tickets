@@ -84,24 +84,36 @@ describe("databaseBusyPage", () => {
 });
 
 describe("readOnlyPage", () => {
-  test("includes the renewal link when RENEWAL_URL is set", () => {
-    Deno.env.set("RENEWAL_URL", "https://example.com/renew");
+  // Capture and restore RENEWAL_URL so these env mutations don't leak into
+  // other tests, whatever the value was (or wasn't) beforehand.
+  const withRenewalUrl = (value: string | undefined, run: () => void): void => {
+    const original = Deno.env.get("RENEWAL_URL");
+    if (value === undefined) Deno.env.delete("RENEWAL_URL");
+    else Deno.env.set("RENEWAL_URL", value);
     try {
+      run();
+    } finally {
+      if (original === undefined) Deno.env.delete("RENEWAL_URL");
+      else Deno.env.set("RENEWAL_URL", original);
+    }
+  };
+
+  test("includes the renewal link when RENEWAL_URL is set", () => {
+    withRenewalUrl("https://example.com/renew", () => {
       const html = readOnlyPage();
       expect(html).toContain("This site is in read-only mode.");
       expect(html).toContain(
         '<a href="https://example.com/renew">Renew now</a>',
       );
-    } finally {
-      Deno.env.delete("RENEWAL_URL");
-    }
+    });
   });
 
   test("omits the renewal link when RENEWAL_URL is unset", () => {
-    Deno.env.delete("RENEWAL_URL");
-    const html = readOnlyPage();
-    expect(html).toContain("This site is in read-only mode.");
-    expect(html).not.toContain("Renew now");
+    withRenewalUrl(undefined, () => {
+      const html = readOnlyPage();
+      expect(html).toContain("This site is in read-only mode.");
+      expect(html).not.toContain("Renew now");
+    });
   });
 });
 
