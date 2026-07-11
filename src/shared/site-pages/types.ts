@@ -44,14 +44,14 @@ export interface Forest {
 
 /** A node in the rendered nav tree — nothing DB-shaped. */
 export interface NavNode {
-  key: TargetKey;
-  href: string;
-  label: string;
-  /** false ⇒ render as text, not a link. */
-  live: boolean;
   /** on the current node's ancestor chain (incl. the current node). */
   active: boolean;
   children: readonly NavNode[];
+  href: string;
+  key: TargetKey;
+  label: string;
+  /** false ⇒ render as text, not a link. */
+  live: boolean;
 }
 
 /** One stacked submenu level: the items of one active-chain page. */
@@ -66,14 +66,14 @@ export interface NavLevel {
 
 /** The full view model the templates render. */
 export interface NavModel {
-  /** Root page nodes, ordered — spliced between Listings and Contact. */
-  rootPageNodes: readonly NavNode[];
-  /** Stacked ancestor sibling-sets for the active chain, root-first, each
-   * labelled by its page; empty when the current target has no parent page. */
-  submenuLevels: readonly NavLevel[];
   /** Which root page to highlight, or null when off-tree. */
   activeRootId: number | null;
   /** The current PAGE target's own items — what `/page/:slug` lists below its
    * content. Empty for a leaf/off-tree/absent current. */
   currentChildren: readonly NavNode[];
+  /** Root page nodes, ordered — spliced between Listings and Contact. */
+  rootPageNodes: readonly NavNode[];
+  /** Stacked ancestor sibling-sets for the active chain, root-first, each
+   * labelled by its page; empty when the current target has no parent page. */
+  submenuLevels: readonly NavLevel[];
 }

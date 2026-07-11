@@ -50,8 +50,8 @@ Examples:
   deno task mutation 'src/lib/forms/*.ts' 'test/lib/forms/*.test.ts' --exhaustive`;
 
 interface ParsedArgs {
-  error: string | null;
   batchJobs?: number;
+  error: string | null;
   exhaustive: boolean;
   help: boolean;
   sources: string[];

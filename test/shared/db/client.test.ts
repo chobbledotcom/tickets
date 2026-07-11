@@ -182,7 +182,7 @@ describeWithEnv("db > client", { db: true }, () => {
       email: "a@b.com",
       name: "Alice",
     });
-    expect(stmt.sql).toBe("INSERT INTO users (email, name)" + " VALUES (?, ?)");
+    expect(stmt.sql).toBe("INSERT INTO users (email, name) VALUES (?, ?)");
     expect(stmt.args).toEqual(["a@b.com", "Alice"]);
   });
 
@@ -221,7 +221,7 @@ describeWithEnv("db > client", { db: true }, () => {
     });
     await getDb().execute(stmt);
     const row = await getDb().execute(
-      "SELECT value FROM settings" + " WHERE key = 'insert_test'",
+      "SELECT value FROM settings WHERE key = 'insert_test'",
     );
     expect(row.rows[0]!.value).toBe("works");
   });
@@ -233,7 +233,7 @@ describeWithEnv("db > client", { db: true }, () => {
       { id: 4, kind: "attendee" },
     );
     expect(stmt.sql).toBe(
-      "UPDATE attendees SET pii_blob = ?" + " WHERE id = ? AND kind = ?",
+      "UPDATE attendees SET pii_blob = ? WHERE id = ? AND kind = ?",
     );
     expect(stmt.args).toEqual(["encrypted", 4, "attendee"]);
   });

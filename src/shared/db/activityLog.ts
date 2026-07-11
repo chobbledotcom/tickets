@@ -45,10 +45,10 @@ export type StoredLogMessage = OwnerKeyEncrypted | EnvKeyEncrypted;
 
 /** Activity log entry as callers see it: the message decrypted to plaintext. */
 export interface ActivityLogEntry {
-  created: string;
-  listing_id: number | null;
   attendee_id: number | null;
+  created: string;
   id: number;
+  listing_id: number | null;
   message: string;
 }
 
@@ -203,14 +203,13 @@ export const getAllActivityLog = (limit = 100): Promise<ActivityLogEntry[]> =>
 export const getAttendeeActivityLog = async (
   attendeeId: number,
   limit = 100,
-): Promise<ActivityLogEntry[]> => {
-  return decryptLogRows(
+): Promise<ActivityLogEntry[]> =>
+  decryptLogRows(
     await queryAll<StoredActivityLogEntry>(
       `SELECT ${ACTIVITY_LOG_COLUMNS} FROM activity_log WHERE attendee_id = ? ORDER BY id DESC LIMIT ?`,
       [attendeeId, limit],
     ),
   );
-};
 
 /** Result type for listing + activity log batch query */
 export type ListingWithActivityLog = {

@@ -107,26 +107,24 @@ export const GroupAttendeesRow = ({
   group: GroupContext["group"];
   groupAttendeeCount: number;
   dailySuffix: string;
-}): JSX.Element => {
-  return (
-    <tr>
-      <th>
-        {t("listings_table.group_attendees")}
-        {dailySuffix}
-      </th>
-      <td>
-        <GroupCapacityMeter
-          count={groupAttendeeCount}
-          max={group.max_attendees}
-        />{" "}
-        <small>
-          {t("listings_table.across_all_listings_in")}{" "}
-          <a href={`/admin/groups/${group.id}`}>{group.name}</a>
-        </small>
-      </td>
-    </tr>
-  );
-};
+}): JSX.Element => (
+  <tr>
+    <th>
+      {t("listings_table.group_attendees")}
+      {dailySuffix}
+    </th>
+    <td>
+      <GroupCapacityMeter
+        count={groupAttendeeCount}
+        max={group.max_attendees}
+      />{" "}
+      <small>
+        {t("listings_table.across_all_listings_in")}{" "}
+        <a href={`/admin/groups/${group.id}`}>{group.name}</a>
+      </small>
+    </td>
+  </tr>
+);
 
 export const ListingCapacityRows = (
   props: ListingCapacityRowsProps,

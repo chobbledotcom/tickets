@@ -464,15 +464,14 @@ export const attendeeIdByLedgerEventGroup = async (
  * Used for payment callbacks and webhooks where decryption is not needed
  * Returns the attendee with encrypted fields (id, listing_id, quantity are plaintext)
  */
-export const getAttendeeRaw = (id: number): Promise<Attendee | null> => {
-  return queryOne<Attendee>(
+export const getAttendeeRaw = (id: number): Promise<Attendee | null> =>
+  queryOne<Attendee>(
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees AS attendee
      LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
      WHERE attendee.id = ? AND attendee.kind = '${ATTENDEE_KIND}'`,
     [id],
   );
-};
 
 /**
  * Get attendees by ID without decrypting PII, one row per (attendee, booking).

@@ -14,8 +14,8 @@ export type AssetDef = [string, string, string, string];
 
 /** A post-build assertion on the bundle text; `test` truthy aborts the build. */
 export interface EdgeBundleGuard {
-  test: (content: string) => boolean;
   message: string;
+  test: (content: string) => boolean;
 }
 
 /** Build the inline build-info module with timestamp and commit SHA. */

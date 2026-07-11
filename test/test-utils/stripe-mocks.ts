@@ -27,10 +27,10 @@ export const stubRefundPayment = (
   stub(stripeApi, "refundPayment", () => Promise.resolve(result as never));
 
 interface StripeMockOptions {
-  /** The checkout session `retrieveCheckoutSession` returns. */
-  session: StripeCheckoutFields;
   /** The refund result `refundPayment` returns (default: `{ id: "re_test" }`). */
   refundResult?: { id: string } | null;
+  /** The checkout session `retrieveCheckoutSession` returns. */
+  session: StripeCheckoutFields;
 }
 
 /** The mock objects `withStripeMocks` exposes to its body. */

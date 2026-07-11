@@ -15,9 +15,9 @@ export type StepSummary = (
 export interface Step {
   cmd: string[];
   filterOutput?: (stdout: string, stderr: string) => string;
+  name: string;
   progress?: (line: string) => string | undefined;
   summary?: StepSummary;
-  name: string;
 }
 
 export const getSteps = (): Step[] => {

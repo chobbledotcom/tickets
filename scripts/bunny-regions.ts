@@ -11,15 +11,15 @@
  */
 
 interface BunnyRegion {
+  group: string;
   id: string;
   name: string;
-  group: string;
 }
 
 interface BunnyConfig {
-  storage_region_available: BunnyRegion[];
   primary_regions: BunnyRegion[];
   replica_regions: BunnyRegion[];
+  storage_region_available: BunnyRegion[];
 }
 
 const apiKey = Deno.env.get("BUNNY_API_KEY");

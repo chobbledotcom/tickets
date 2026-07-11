@@ -59,7 +59,7 @@ const parseAttrs = (attrs: string): Record<string, string> => {
 };
 
 const toDurationMs = (time: string | undefined): number | undefined => {
-  if (time === undefined) return undefined;
+  if (time === undefined) return;
   const seconds = Number.parseFloat(time);
   return Number.isFinite(seconds) ? Math.round(seconds * 1000) : undefined;
 };
@@ -73,7 +73,7 @@ export const parseJunitDurations = (xml: string): TestDuration[] =>
     const attrs = parseAttrs(match[1]!);
     const name = attrs.name;
     const durationMs = toDurationMs(attrs.time);
-    if (name === undefined || durationMs === undefined) return undefined;
+    if (name === undefined || durationMs === undefined) return;
     const classname = attrs.classname;
     const file =
       classname && isUserFile(classname)

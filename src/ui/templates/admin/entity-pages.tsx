@@ -26,20 +26,20 @@ import { Layout } from "#templates/layout.tsx";
  * (`external` adds target=_blank); neither ⇒ plain content. Omit a row
  * entirely rather than rendering a dead link. */
 export interface SummaryRow {
+  external?: boolean;
+  href?: string;
   labelKey: string;
   value: JSX.Element | string;
-  href?: string;
-  external?: boolean;
 }
 
 /** An operator action with its predicates already evaluated and its href
  * already minted — plain data the renderer can draw without thinking. */
 export interface ResolvedAction {
-  labelKey: string;
+  danger: boolean;
   descriptionKey?: string | undefined;
   href: string;
   icon?: IconName | undefined;
-  danger: boolean;
+  labelKey: string;
 }
 
 /** The active tab's sections with all IO already done — the renderer's whole
@@ -186,19 +186,19 @@ const TabStrip = ({ tabs }: { tabs: TabLink[] }): JSX.Element => (
 
 /** Everything the page shell needs, all IO already done. */
 export interface EntityPageView {
-  title: string;
-  navActive: NavActive;
-  session: AdminSession;
-  /** Optional extra content rendered inside the prose block, right after the
-   *  `<h1>` (e.g. the attendee page's "Add a note" link). */
-  proseExtra?: JSX.Element | null;
   banner: JSX.Element | null;
-  tabs: TabLink[];
-  sections: LoadedSection[];
   /** Optional guide link rendered at the very bottom of the body, matching the
    *  `GuideFooter` every other admin page uses (e.g. the Site content editors'
    *  "Guide: pages, news & images" link). */
   guideFooter?: JSX.Element | null;
+  navActive: NavActive;
+  /** Optional extra content rendered inside the prose block, right after the
+   *  `<h1>` (e.g. the attendee page's "Add a note" link). */
+  proseExtra?: JSX.Element | null;
+  sections: LoadedSection[];
+  session: AdminSession;
+  tabs: TabLink[];
+  title: string;
 }
 
 /** The whole entity page: title → banner → tab strip → active tab's

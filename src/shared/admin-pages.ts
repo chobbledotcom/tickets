@@ -27,15 +27,15 @@ import {
  * itself stays free of IO. `adminLevel` is included so a predicate can vary
  * by role (e.g. Site is always visible to editors). */
 export interface NavCtx {
-  readonly adminLevel: AdminLevel;
-  readonly isReadOnly: boolean;
-  readonly storage: boolean;
-  readonly builder: boolean;
-  readonly support: boolean;
-  readonly showPublicSite: boolean;
-  readonly hasLogistics: boolean;
   /** The route the current page declares as its `active` value. */
   readonly active: string;
+  readonly adminLevel: AdminLevel;
+  readonly builder: boolean;
+  readonly hasLogistics: boolean;
+  readonly isReadOnly: boolean;
+  readonly showPublicSite: boolean;
+  readonly storage: boolean;
+  readonly support: boolean;
 }
 
 /** One resolved top-level link (before i18n label resolution). */
@@ -50,19 +50,19 @@ export interface NavLink {
 
 /** One resolved section: a top-level link plus its visible sub-nav items. */
 export interface NavSection {
-  readonly topHref: string;
-  readonly labelKey: string;
   readonly items: readonly NavLink[];
+  readonly labelKey: string;
+  readonly topHref: string;
 }
 
 /** One sub-nav entry in the schema. */
 interface SubNavDef {
   readonly href: string;
-  readonly labelKey: string;
   /** "create" links drop out in read-only mode. "import" links do too —
    * they lead to a mutating upload flow that can't be completed in
    * read-only mode. "link" entries always show. Defaults to "link". */
   readonly kind?: "link" | "create" | "import";
+  readonly labelKey: string;
   /** When false, the link is omitted entirely. */
   readonly visible?: (ctx: NavCtx) => boolean;
 }
@@ -71,22 +71,14 @@ interface SubNavDef {
 interface SectionDef {
   /** The section's landing route (e.g. "/admin/listings"). */
   readonly basePath: string;
+  /** The parametric route for this entity's detail/view page
+   * (e.g. "/admin/listing/:id"). When present, {@link entityReturnPath}
+   * uses it to decide where a user should land after saving — the detail
+   * page, or the edit page if the viewer's role can't open the detail
+   * page (see {@link staffOnlyDetail}). */
+  readonly detailPath?: string;
   /** i18n key for the section label. */
   readonly labelKey: string;
-  /** Which roles may see this section. */
-  readonly roles: readonly AdminLevel[];
-  /** When false, the section is omitted from both the top-level bar and the
-   * section list. Predicate has access to the full {@link NavCtx} so it can
-   * vary by role (Site is always visible to editors) or by active route
-   * (Site stays visible on its own pages even when the public site is off,
-   * so the desktop sub-nav has a parent to nest under). */
-  readonly visible?: (ctx: NavCtx) => boolean;
-  /** Sub-nav entries. The first entry matching the basePath is the landing
-   * link — it's used for section resolution but filtered from rendering
-   * (via `sectionLevels` in nav.tsx) when its href AND label match the
-   * section's. A sub-nav with a distinctly-named landing link (e.g. Site's
-   * "Homepage") stays visible in the rendered sub-nav. */
-  readonly subNav?: readonly SubNavDef[];
   /** Parametric route patterns for mutating GET pages within this section —
    * edit forms, delete confirmation pages, duplicate pages, and create
    * pages that are NOT also in the subNav (e.g. Site pages/news create
@@ -94,16 +86,24 @@ interface SectionDef {
    * The read-only guard derives its GET blocklist from these plus the
    * subNav create-link hrefs — see {@link readOnlyGetRoutePatterns}. */
   readonly mutatingGetRoutes?: readonly string[];
-  /** The parametric route for this entity's detail/view page
-   * (e.g. "/admin/listing/:id"). When present, {@link entityReturnPath}
-   * uses it to decide where a user should land after saving — the detail
-   * page, or the edit page if the viewer's role can't open the detail
-   * page (see {@link staffOnlyDetail}). */
-  readonly detailPath?: string;
+  /** Which roles may see this section. */
+  readonly roles: readonly AdminLevel[];
   /** True when the detail page decrypts PII that editors can't see, so
    * editors must be redirected to the edit form instead of the detail
    * page after a save. {@link entityReturnPath} applies this rule. */
   readonly staffOnlyDetail?: boolean;
+  /** Sub-nav entries. The first entry matching the basePath is the landing
+   * link — it's used for section resolution but filtered from rendering
+   * (via `sectionLevels` in nav.tsx) when its href AND label match the
+   * section's. A sub-nav with a distinctly-named landing link (e.g. Site's
+   * "Homepage") stays visible in the rendered sub-nav. */
+  readonly subNav?: readonly SubNavDef[];
+  /** When false, the section is omitted from both the top-level bar and the
+   * section list. Predicate has access to the full {@link NavCtx} so it can
+   * vary by role (Site is always visible to editors) or by active route
+   * (Site stays visible on its own pages even when the public site is off,
+   * so the desktop sub-nav has a parent to nest under). */
+  readonly visible?: (ctx: NavCtx) => boolean;
 }
 
 /** True when the active route is within the Site section. */
@@ -346,10 +346,6 @@ export const visibleSections = (ctx: NavCtx): NavSection[] => {
  * section's sub-nav and drops out in read-only mode. Exposed so tests and the
  * read-only pattern list can iterate the full set without re-deriving it. */
 export interface CreateLinkSection {
-  /** The section's landing route (e.g. "/admin/listings"). */
-  readonly sectionPath: string;
-  /** Which roles may see this section (and thus its create link). */
-  readonly roles: readonly AdminLevel[];
   /** The create link's href (e.g. "/admin/listing/new"). */
   readonly createHref: string;
   /** The create link's i18n label key (e.g. "nav.sub.add"). */
@@ -358,6 +354,10 @@ export interface CreateLinkSection {
    * storage). Tests that don't enable the flag should skip these — they have
    * dedicated tests that do. */
   readonly featureGated: boolean;
+  /** Which roles may see this section (and thus its create link). */
+  readonly roles: readonly AdminLevel[];
+  /** The section's landing route (e.g. "/admin/listings"). */
+  readonly sectionPath: string;
 }
 
 /** Every "create" link in the schema — the "Add X" / "Invite" links that

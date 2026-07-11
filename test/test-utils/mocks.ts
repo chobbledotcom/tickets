@@ -114,24 +114,22 @@ export const mockWebhookRequest = (
 export const mockSetupFormRequest = (
   data: Record<string, string>,
   csrfToken: string,
-): Request => {
-  return mockFormRequest("/setup", {
+): Request =>
+  mockFormRequest("/setup", {
     accept_agreement: "yes",
     ...data,
     csrf_token: csrfToken,
   });
-};
 
 export const mockTicketFormRequest = (
   slug: string,
   data: Record<string, string>,
   csrfToken: string,
-): Request => {
-  return mockFormRequest(`/ticket/${slug}`, {
+): Request =>
+  mockFormRequest(`/ticket/${slug}`, {
     ...data,
     csrf_token: csrfToken,
   });
-};
 
 export const urlFromFetchInput = (input: string | URL | Request): string =>
   typeof input === "string"

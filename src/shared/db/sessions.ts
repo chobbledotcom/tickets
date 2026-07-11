@@ -31,17 +31,17 @@ registerCache(() => ({ entries: sessionCache.size, name: "sessions" }));
  */
 const getCachedSession = (token: string): Session | null | undefined => {
   const entry = sessionCache.get(token);
-  if (!entry) return undefined;
+  if (!entry) return;
 
   if (Date.now() - entry.cachedAt > SESSION_CACHE_TTL_MS) {
     sessionCache.delete(token);
-    return undefined;
+    return;
   }
 
   // Also check if the session itself has expired
   if (entry.session && Date.now() > entry.session.expires) {
     sessionCache.delete(token);
-    return undefined;
+    return;
   }
 
   return entry.session;

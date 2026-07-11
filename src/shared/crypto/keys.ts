@@ -113,12 +113,11 @@ const WRAPPED_KEY_PREFIX = "wk:1:";
 /**
  * Generate a random 256-bit symmetric key for data encryption
  */
-export const generateDataKey = (): Promise<CryptoKey> => {
-  return crypto.subtle.generateKey({ length: 256, name: "AES-GCM" }, true, [
+export const generateDataKey = (): Promise<CryptoKey> =>
+  crypto.subtle.generateKey({ length: 256, name: "AES-GCM" }, true, [
     "encrypt",
     "decrypt",
   ]);
-};
 
 /**
  * Export a CryptoKey and encrypt it with a wrapping key using AES-GCM.
@@ -471,9 +470,7 @@ export const getPrivateKeyFromSession = async (
 export const decryptWithOwnerKey = (
   encrypted: OwnerKeyEncrypted,
   privateKey: CryptoKey,
-): Promise<string> => {
-  return hybridDecrypt(encrypted, privateKey);
-};
+): Promise<string> => hybridDecrypt(encrypted, privateKey);
 
 /**
  * Invalidate keys caches when the encryption key changes.

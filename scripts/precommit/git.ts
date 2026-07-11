@@ -1,7 +1,7 @@
 export interface CommandResult {
   code: number;
-  stdout: string;
   stderr: string;
+  stdout: string;
   success: boolean;
 }
 
@@ -65,7 +65,7 @@ export const commandValue = async (
   args: string[],
 ): Promise<string | undefined> => {
   const result = await runGit(run, args);
-  if (!result.success) return undefined;
+  if (!result.success) return;
   const value = result.stdout.trim();
   return value || undefined;
 };

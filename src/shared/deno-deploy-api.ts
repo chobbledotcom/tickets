@@ -22,15 +22,15 @@ interface CreateAppResponse {
 }
 
 interface GetAppResponse {
+  env_vars?: Record<string, { value: string; is_secret: boolean }>;
   id: string;
   slug: string;
-  env_vars?: Record<string, { value: string; is_secret: boolean }>;
 }
 
 interface DeploymentResponse {
-  id: string;
   domains?: string[];
   hostnames?: string[];
+  id: string;
 }
 
 /** Headers for all Deno Deploy API requests. */

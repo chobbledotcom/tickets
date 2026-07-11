@@ -45,10 +45,10 @@ const parseLine = (line: string): string | null => {
 };
 
 export interface IgnoreList {
-  /** Unique entry keys, for the membership check during evaluation. */
-  keys: Set<string>;
   /** Every parsed entry in file order, keeping duplicates for validation. */
   entries: string[];
+  /** Unique entry keys, for the membership check during evaluation. */
+  keys: Set<string>;
 }
 
 /** Load the ignore-list (empty when the file is absent). */

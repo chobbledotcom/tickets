@@ -87,11 +87,11 @@ const resolveLink = ({ href, labelKey }: NavLink): NavItem => ({
 /** The resolved menu for the active section: which top-level link to highlight,
  * an accessible name for its sub-nav, and its items. */
 interface Section {
-  /** Top-level link highlighted for this section (the page may live deeper). */
-  topHref: string;
+  items: NavItem[];
   /** Accessible name for this section's sub-nav (mobile) landmark. */
   label: string;
-  items: NavItem[];
+  /** Top-level link highlighted for this section (the page may live deeper). */
+  topHref: string;
 }
 
 /** Resolve a schema section to a renderable section (labels resolved). */

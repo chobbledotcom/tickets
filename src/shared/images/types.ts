@@ -10,8 +10,8 @@
 /** Decoded RGBA image: `data` is `width * height * 4` bytes, row-major. */
 export interface RawImage {
   data: Uint8ClampedArray;
-  width: number;
   height: number;
+  width: number;
 }
 
 /** One WebP output variant: cap the width at `maxWidth`, encode at `quality`. */

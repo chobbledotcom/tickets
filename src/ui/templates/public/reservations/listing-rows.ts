@@ -78,7 +78,7 @@ const renderListingRow = (
   hideQuantity = false,
   prefill?: TicketPrefill,
   childCtx?: ChildRenderCtx,
-  attributes: AttributeWithOptions[] | undefined = undefined,
+  attributes?: AttributeWithOptions[],
 ): string => {
   const { listing, isSoldOut, isClosed } = info;
   const imageHtml = renderListingImage(listing);
@@ -136,7 +136,7 @@ const renderPackageMemberRow = (
   info: TicketListing,
   fixedQty: number,
   childCtx: ChildRenderCtx | undefined,
-  attributes: AttributeWithOptions[] | undefined = undefined,
+  attributes?: AttributeWithOptions[],
 ): string => `
     <div class="ticket-row package-member">
       ${renderListingImage(info.listing)}
@@ -300,7 +300,7 @@ export const buildPageListingRows = (opts: {
   const claimChildCtx = (
     memberListingId: number,
   ): ChildRenderCtx | undefined => {
-    if (claimedChildParents.has(memberListingId)) return undefined;
+    if (claimedChildParents.has(memberListingId)) return;
     claimedChildParents.add(memberListingId);
     return opts.childCtx;
   };

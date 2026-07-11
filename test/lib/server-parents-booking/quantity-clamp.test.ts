@@ -24,8 +24,8 @@ const selectOptions = (body: string, marker: string): string => {
 const parentWithChildrenSharingCappedGroup = (
   cap: number,
   parentMaxQuantity: number,
-): Promise<{ parent: Listing }> => {
-  return (async () => {
+): Promise<{ parent: Listing }> =>
+  (async () => {
     const childGroup = await createTestGroup({
       maxAttendees: cap,
       name: "Add-on pool",
@@ -38,7 +38,6 @@ const parentWithChildrenSharingCappedGroup = (
       parent: { maxAttendees: 50, maxQuantity: parentMaxQuantity },
     });
   })();
-};
 
 describeWithEnv(
   "server > parents booking — quantity clamp on render",

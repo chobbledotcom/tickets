@@ -109,19 +109,18 @@ const siteGetRoute =
     });
 
 /** Render homepage editor with current state */
-const renderHomePage: PageRenderer = (session, error, success) => {
-  return adminSiteHomePage(
+const renderHomePage: PageRenderer = (session, error, success) =>
+  adminSiteHomePage(
     session,
     settings.websiteTitle,
     settings.homepageText,
     error,
     success,
   );
-};
 
 /** Render contact editor with current state */
-const renderContactPage: PageRenderer = (session, error, success) => {
-  return adminSiteContactPage(
+const renderContactPage: PageRenderer = (session, error, success) =>
+  adminSiteContactPage(
     session,
     settings.contactPageText,
     {
@@ -132,7 +131,6 @@ const renderContactPage: PageRenderer = (session, error, success) => {
     error,
     success,
   );
-};
 
 /** Handle POST /admin/site - save homepage */
 const handleSiteHomePost = settingsHandler<{ title: string; text: string }>({

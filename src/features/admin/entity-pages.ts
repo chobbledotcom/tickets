@@ -50,29 +50,29 @@ export type EntityId = number | string;
 
 /** Per-request context handed to every loader and href builder. */
 export interface PageCtx {
-  session: AuthSession;
-  /** The canonical URL of the active tab — what sub-actions return to. */
-  returnUrl: string;
-  /** Mint a sibling tab's URL (e.g. an Overview preview linking to the full
-   * Activity tab). The only sanctioned way to build a tab URL. */
-  tabHref: (slug: string) => string;
-  /** The request's query string (e.g. a `return_url` a caller threaded in). */
-  query: URLSearchParams;
   /** The request's origin (for absolute links, e.g. the customer pay link).
    * Empty on POST failure re-renders, which never build absolute links. */
   baseUrl: string;
+  /** The request's query string (e.g. a `return_url` a caller threaded in). */
+  query: URLSearchParams;
+  /** The canonical URL of the active tab — what sub-actions return to. */
+  returnUrl: string;
+  session: AuthSession;
+  /** Mint a sibling tab's URL (e.g. an Overview preview linking to the full
+   * Activity tab). The only sanctioned way to build a tab URL. */
+  tabHref: (slug: string) => string;
 }
 
 /** An operator action. `visible` must gate on the SAME condition the target
  * route enforces — a forbidden or dead action link is never rendered. */
 export interface ActionDef<E> {
-  labelKey: string;
-  descriptionKey?: string;
-  icon?: IconName;
-  href: (entity: E, ctx: PageCtx) => string;
-  visible?: (entity: E, session: AuthSession) => boolean;
   /** Renders in the visually separated danger zone (delete, deactivate…). */
   danger?: boolean;
+  descriptionKey?: string;
+  href: (entity: E, ctx: PageCtx) => string;
+  icon?: IconName;
+  labelKey: string;
+  visible?: (entity: E, session: AuthSession) => boolean;
 }
 
 /**
@@ -110,34 +110,34 @@ export type Section<E> =
  * `visible` is evaluated server-side and IS authorization: a hidden tab is
  * absent from the strip and 404s when named directly. */
 export interface TabDef<E> {
-  slug: string;
   labelKey: string;
-  visible?: (entity: E, session: AuthSession) => boolean;
   sections: readonly Section<E>[];
+  slug: string;
+  visible?: (entity: E, session: AuthSession) => boolean;
 }
 
 /** One entity's whole page, as data. */
 export interface EntityPageDef<E, Id extends EntityId = number> {
+  /** Always-visible region above the tab strip (alerts, notes, status). */
+  banner?: (entity: E, ctx: PageCtx) => Promise<JSX.Element | null>;
   /** Concrete base URL for an id — URL minting only, never a route pattern. */
   basePath: (id: Id) => string;
-  titleOf: (entity: E) => string;
+  /** The GET auth floor — the weakest role that may see any tab. */
+  guard: SessionGuard<AuthSession>;
+  /** A guide link rendered at the very bottom of the body via `GuideFooter`,
+   *  matching every other admin page (e.g. the Site content editors). */
+  guideFooter?: (entity: E, ctx: PageCtx) => Promise<JSX.Element | null>;
+  load: (id: Id, session: AuthSession) => Promise<E | null>;
   /** What the admin nav marks active. A single-item entity page passes
    * `{ section }` so the section's top link highlights without re-opening its
    * "Add" sub-nav; a page that IS a real section route (e.g. the Site content
    * editors, whose route is itself a sub-nav item) passes a plain route string. */
   navActive: NavActive;
-  /** The GET auth floor — the weakest role that may see any tab. */
-  guard: SessionGuard<AuthSession>;
-  load: (id: Id, session: AuthSession) => Promise<E | null>;
-  /** Always-visible region above the tab strip (alerts, notes, status). */
-  banner?: (entity: E, ctx: PageCtx) => Promise<JSX.Element | null>;
   /** Extra content rendered inside the prose block beside the page `<h1>`
    *  (e.g. the attendee page's "Add a note" link). */
   proseExtra?: (entity: E, ctx: PageCtx) => Promise<JSX.Element | null>;
-  /** A guide link rendered at the very bottom of the body via `GuideFooter`,
-   *  matching every other admin page (e.g. the Site content editors). */
-  guideFooter?: (entity: E, ctx: PageCtx) => Promise<JSX.Element | null>;
   tabs: readonly TabDef<E>[];
+  titleOf: (entity: E) => string;
 }
 
 /** Evaluate an action list's predicates and mint each href. */
@@ -194,27 +194,27 @@ const loadSection = async <E>(
  * failure re-renders) and an optional replacement for the active tab's
  * sections (the failing form, submitted values and errors intact). */
 export interface RenderPageOpts<E> {
-  status?: number;
-  sections?: (entity: E, ctx: PageCtx) => Promise<LoadedSection[]>;
-  query?: URLSearchParams;
   baseUrl?: string;
+  query?: URLSearchParams;
+  sections?: (entity: E, ctx: PageCtx) => Promise<LoadedSection[]>;
+  status?: number;
 }
 
 /** The bound page: `renderTab` for the two GET routes, `renderPage` for
  * POST failure re-renders, `path` for minting tab URLs everywhere else. */
 export interface EntityPage<E, Id extends EntityId = number> {
-  renderTab: (
-    request: Request,
-    id: Id,
-    requestedTab: string,
-  ) => Promise<Response>;
+  path: (id: Id, slug?: string) => string;
   renderPage: (
     session: AuthSession,
     id: Id,
     requestedTab: string,
     opts?: RenderPageOpts<E>,
   ) => Promise<Response>;
-  path: (id: Id, slug?: string) => string;
+  renderTab: (
+    request: Request,
+    id: Id,
+    requestedTab: string,
+  ) => Promise<Response>;
 }
 
 /** Resolve one of the page's optional element slots (banner, guide footer,

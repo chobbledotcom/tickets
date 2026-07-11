@@ -201,8 +201,8 @@ export const allocateReservationDeposit = (
 const allocateProportionally = (
   units: AllocationUnit[],
   total: number,
-): number[] => {
-  return largestRemainderAllocation(
+): number[] =>
+  largestRemainderAllocation(
     units.map((unit) => unit.capacity),
     total,
     {
@@ -210,4 +210,3 @@ const allocateProportionally = (
       tieBreaker: (index) => units[index]!.originalIndex,
     },
   );
-};

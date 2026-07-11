@@ -229,7 +229,7 @@ export const firstMatch = async <T>(
     const value = await produce();
     if (value !== undefined) return value;
   }
-  return undefined;
+  return;
 };
 
 /**
@@ -430,10 +430,10 @@ export const ttlCache = <K, V>(
     },
     get: (key: K): V | undefined => {
       const entry = cache.get(key);
-      if (!entry) return undefined;
+      if (!entry) return;
       if (now() - entry.cachedAt > ttlMs) {
         cache.delete(key);
-        return undefined;
+        return;
       }
       return entry.value;
     },
