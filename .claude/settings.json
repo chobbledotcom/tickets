@@ -1,7 +1,59 @@
 {
   "permissions": {
     "allow": [
-      "mcp__Claude_Code_Remote__send_later"
+      "mcp__Claude_Code_Remote__send_later",
+      "Bash(./setup.sh)",
+      "Bash(mise install)",
+      "Bash(deno task test)",
+      "Bash(deno task test:*)",
+      "Bash(deno task typecheck)",
+      "Bash(deno task lint)",
+      "Bash(deno task lint:ci)",
+      "Bash(deno task cpd)",
+      "Bash(deno task precommit)",
+      "Bash(deno task precommit:*)",
+      "Bash(deno task mutation:*)",
+      "Bash(deno task line-counts)",
+      "Bash(deno task find-unused-src)",
+      "Bash(mise exec -- deno task test)",
+      "Bash(mise exec -- deno task test:*)",
+      "Bash(mise exec -- deno task typecheck)",
+      "Bash(mise exec -- deno task lint)",
+      "Bash(mise exec -- deno task lint:ci)",
+      "Bash(mise exec -- deno task cpd)",
+      "Bash(mise exec -- deno task precommit)",
+      "Bash(mise exec -- deno task precommit:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git fetch:*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./setup.sh",
+            "timeout": 300,
+            "statusMessage": "Installing pinned Deno toolchain and caching deps..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath // empty' | { read -r f; case \"$f\" in *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs|*.json|*.jsonc|*.css) D=$(command -v deno || echo \"$HOME/.deno/bin/deno\"); \"$D\" run -A scripts/biome.ts check --write \"$f\" ;; esac; } 2>/dev/null || true"
+          }
+        ]
+      }
     ]
   }
 }
