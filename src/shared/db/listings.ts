@@ -61,7 +61,7 @@ import {
   TICKET_COUNTS_PREDICATE,
   ticketCountPredicateFor,
   ticketCountSumExpr,
-} from "#shared/db/migrations/schema.ts";
+} from "#shared/db/migrations/schema/listing-aggregates.ts";
 import { nameMapByIds } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
 import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
