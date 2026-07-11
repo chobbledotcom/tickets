@@ -243,8 +243,8 @@ export const publicSeoPage =
     const { title, headExtra } = seoPageHead(page, websiteTitle);
     return String(
       <Layout headExtra={headExtra} title={title}>
+        <PublicNav {...nav} />
         <PageLayout className="public-page">
-          <PublicNav {...nav} />
           {showHeading && <h1>{page.name}</h1>}
           {body}
         </PageLayout>
@@ -307,9 +307,9 @@ export const publicPage =
   (body: Child): string =>
     String(
       <Layout headExtra={headExtra} title={title}>
+        {websiteTitle && <h1>{websiteTitle}</h1>}
+        <PublicNav {...nav} />
         <PageLayout className="public-page">
-          {websiteTitle && <h1>{websiteTitle}</h1>}
-          <PublicNav {...nav} />
           {body}
           {showLoginFooter && <LoginFooter />}
         </PageLayout>

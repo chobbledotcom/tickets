@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   buildForest,
   buildNavModel,
@@ -8,7 +9,11 @@ import {
 } from "#shared/site-pages/core.ts";
 import type { TargetMap } from "#shared/site-pages/types.ts";
 import type { SitePage, SitePageItem, SitePageNavRow } from "#shared/types.ts";
-import { PublicNav, type PublicNavProps } from "#templates/public/shared.tsx";
+import {
+  PublicNav,
+  type PublicNavProps,
+  publicPage,
+} from "#templates/public/shared.tsx";
 import { sitePagePage } from "#templates/public/site-page.tsx";
 
 // ---------------------------------------------------------------------------
@@ -79,6 +84,19 @@ describe("PublicNav (leaf-current render)", () => {
     expect(html).toContain("<span>Leaf Listing</span>");
     expect(html).not.toContain('href="/ticket/leaf"');
   });
+
+  test("stays a direct main child beside the public page layout", () => {
+    const html = publicPage(
+      "Example",
+      "Website",
+      props(true),
+    )(Raw({ html: "<p>Page body</p>" }));
+
+    expect(html).toContain('<h1>Website</h1><div class="admin-nav-group">');
+    expect(html).toContain(
+      '</nav></div><div class="page-layout public-page"><p>Page body</p></div>',
+    );
+  });
 });
 
 describe("sitePagePage (nav-model race)", () => {
@@ -114,6 +132,9 @@ describe("sitePagePage (nav-model race)", () => {
       "",
     );
     expect(html).toContain("<h1>Racy Page</h1>");
+    expect(html).toContain(
+      '</nav></div><div class="page-layout public-page"><h1>Racy Page</h1>',
+    );
     expect(html).toContain("<strong>here</strong>");
     expect(html).not.toContain('class="page-items"');
   });

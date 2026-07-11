@@ -313,11 +313,13 @@ export const attendeeBanner = ({
   attendee: Attendee;
   statuses: AttendeeStatus[];
   notes: SystemNote[];
-}): JSX.Element => {
+}): JSX.Element | null => {
+  const showStatus = statuses.length > 1;
+  if (!showStatus && notes.length === 0) return null;
   const status = statuses.find((s) => s.id === attendee.status_id);
   return (
     <PageBlock className="attendee-banner">
-      {statuses.length > 1 && (
+      {showStatus && (
         <div class="prose attendee-status">
           <h2>
             {t("attendee_form.status_heading", {
