@@ -4,6 +4,11 @@
 
 import { reduce } from "#fp";
 import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
+import {
+  isNumericRouteParam,
+  type RouteParamNames,
+  routeParamPattern,
+} from "#shared/route-pattern.ts";
 
 // =============================================================================
 // Type-level route param inference
@@ -14,14 +19,6 @@ type ExtractPath<S extends string> = S extends `${string} ${infer Path}`
   ? Path
   : S;
 
-/** Recursively extract param names from a URL path pattern */
-type ExtractParamNames<Path extends string> =
-  Path extends `${string}:${infer Param}/${infer Rest}`
-    ? Param | ExtractParamNames<`/${Rest}`>
-    : Path extends `${string}:${infer Param}`
-      ? Param
-      : never;
-
 /** Infer runtime type from param name (mirrors isNumericParam convention) */
 type InferParamType<Name extends string> = Name extends `${string}Id`
   ? number
@@ -31,7 +28,7 @@ type InferParamType<Name extends string> = Name extends `${string}Id`
 
 /** Build typed params object from a route pattern string */
 export type RouteParamsFor<Pattern extends string> = {
-  [K in ExtractParamNames<ExtractPath<Pattern>>]: InferParamType<K>;
+  [K in RouteParamNames<ExtractPath<Pattern>>]: InferParamType<K>;
 };
 
 /** Route handler with params inferred from the route pattern */
@@ -64,17 +61,9 @@ type CompiledRoute = {
 };
 
 /** Check if a param name refers to a numeric ID */
-const isNumericParam = (name: string): boolean =>
-  name.endsWith("Id") || name === "id";
-
 /** Param patterns by type - name ending determines pattern */
 const getParamPattern = (name: string): string => {
-  // Params ending in Id match digits only (e.g., listingId, attendeeId)
-  if (isNumericParam(name)) return "(\\d+)";
-  // Slugs match lowercase alphanumeric with hyphens/underscores and + (for multi-listing URLs)
-  if (name === "slug") return "([a-z0-9]+(?:[-_+][a-z0-9]+)*)";
-  // Default: match any non-slash characters
-  return "([^/]+)";
+  return `(${routeParamPattern(name)})`;
 };
 
 /**
@@ -97,7 +86,7 @@ const compilePattern = (
     .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
     .replace(/:(\w+)/g, (_, name) => {
       paramNames.push(name);
-      if (isNumericParam(name)) numericParams.add(name);
+      if (isNumericRouteParam(name)) numericParams.add(name);
       return getParamPattern(name);
     });
 

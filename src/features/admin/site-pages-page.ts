@@ -12,15 +12,13 @@ import {
   sitePageEditPanel,
   sitePageItemsPanel,
 } from "#templates/admin/site-pages.tsx";
-import {
-  defineSiteContentPage,
-  siteContentEditVisible,
-} from "./site-content-page.ts";
+import { defineSiteContentPage } from "./site-content-page.ts";
 import { buildEditModel } from "./site-pages-data.ts";
 
 /** The page's contents manager. Edit-like (it mutates the page), so it hides in
  * read-only mode alongside the Edit tab. */
 const itemsTab: TabDef<SitePage> = {
+  intent: "write-form",
   labelKey: "entity.tab.items",
   sections: [
     {
@@ -29,7 +27,6 @@ const itemsTab: TabDef<SitePage> = {
     },
   ],
   slug: "items",
-  visible: siteContentEditVisible,
 };
 
 /** The tabbed site-page page. */

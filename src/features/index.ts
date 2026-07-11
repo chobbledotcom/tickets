@@ -90,6 +90,7 @@ import {
 } from "#shared/logger.ts";
 import { addPendingWork, flushPendingWork } from "#shared/pending-work.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
+import { routePathPatternToRegex } from "#shared/route-pattern.ts";
 import { runWithSessionContext } from "#shared/session-context.ts";
 import { getRethrowErrors } from "#shared/test-overrides.ts";
 import { readOnlyPage } from "#templates/public/errors.tsx";
@@ -244,20 +245,12 @@ const lazyRoute =
 /** Read-only mode message */
 const READ_ONLY_MESSAGE = "This site is in read-only mode";
 
-/** Convert a route pattern (using `:id` for numeric, `:type`/`:ref` for string
- * params) into a regex that matches concrete paths. Derived from the
- * admin-page schema so new sections' create/edit routes are blocked
- * automatically — no hand-maintained list to keep in sync. */
-const routePatternToRegex = (pattern: string): RegExp =>
-  new RegExp(
-    `^${pattern.replace(/:id/g, "\\d+").replace(/:[a-zA-Z_]+/g, "[^/]+")}$`,
-  );
-
 /** GET routes that redirect to /read-only when visited in read-only mode —
  * the create/edit/delete/duplicate form pages. Derived from the admin-page
  * schema's create links and mutatingGetRoutes. */
-const READ_ONLY_GET_PATTERNS =
-  readOnlyGetRoutePatterns().map(routePatternToRegex);
+const READ_ONLY_GET_PATTERNS = readOnlyGetRoutePatterns().map(
+  routePathPatternToRegex,
+);
 
 const isMutatingMethod = (method: string): boolean =>
   method === "DELETE" ||

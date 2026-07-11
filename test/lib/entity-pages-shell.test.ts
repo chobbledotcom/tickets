@@ -7,7 +7,7 @@ import {
 } from "#routes/admin/entity-pages.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 
 beforeAll(() => {
   setupTestEncryptionKey();
@@ -38,6 +38,7 @@ const ACTIONS: readonly ActionDef<Fixture>[] = [
   {
     danger: true,
     href: (entity) => `/admin/widgets/${entity.id}/delete`,
+    intent: "write-form",
     labelKey: "attendee_form.action_delete",
   },
 ];
@@ -93,6 +94,12 @@ const def: EntityPageDef<Fixture> = {
         },
       ],
       slug: "actions",
+    },
+    {
+      intent: "write-form",
+      labelKey: "entity.tab.edit",
+      sections: [],
+      slug: "edit",
     },
     {
       labelKey: "entity.tab.ledger",
@@ -156,6 +163,17 @@ describe("defineEntityPage", () => {
     expect(html).toContain("entity-danger-zone");
     // The custom section received the tab's canonical URL as returnUrl.
     expect(html).toContain("<p>Widget @ /admin/widgets/7/actions</p>");
+  });
+
+  test("read-only mode hides write-form tabs and actions", async () => {
+    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    try {
+      const actions = await page.renderPage(SESSION, 7, "actions");
+      expect(await actions.text()).not.toContain("/admin/widgets/7/delete");
+      expect((await page.renderPage(SESSION, 7, "edit")).status).toBe(404);
+    } finally {
+      restore();
+    }
   });
 
   test("a sections override replaces the tab's content at the given status", async () => {

@@ -66,12 +66,13 @@ describe("adminModifiersPage", () => {
     expect(html).toContain("No modifiers configured");
   });
 
-  test("hides create actions in read-only mode but keeps the edit link", () => {
+  test("hides create and edit actions in read-only mode", () => {
     const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     try {
       const html = adminModifiersPage([mod()], SESSION);
       expect(html).not.toContain("Add Modifier");
-      expect(html).toContain("/admin/modifiers/1/edit");
+      expect(html).not.toContain("/admin/modifiers/1/edit");
+      expect(html).toContain("Modifier");
     } finally {
       restore();
     }

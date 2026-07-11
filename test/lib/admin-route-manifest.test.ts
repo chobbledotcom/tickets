@@ -12,7 +12,10 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { ADMIN_AREAS, adminPathSegment } from "#routes/admin/index.ts";
+import { ADMIN_AREA_LOADERS, adminPathSegment } from "#routes/admin/index.ts";
+import type { AdminAreaId } from "#shared/admin-surface/definitions.ts";
+import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
+import { routePathPatternToRegex } from "#shared/route-pattern.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 
@@ -20,7 +23,7 @@ const patternPath = (pattern: string): string => pattern.split(" ")[1] ?? "";
 
 const loadAreaRoutes = async (): Promise<Map<string, string[]>> => {
   const routesByArea = new Map<string, string[]>();
-  for (const [name, area] of Object.entries(ADMIN_AREAS)) {
+  for (const [name, area] of Object.entries(ADMIN_AREA_LOADERS)) {
     routesByArea.set(name, Object.keys(await area.load()));
   }
   return routesByArea;
@@ -29,7 +32,7 @@ const loadAreaRoutes = async (): Promise<Map<string, string[]>> => {
 describe("admin route manifest", () => {
   test("every route falls under /admin and a segment its area declares", async () => {
     for (const [name, patterns] of await loadAreaRoutes()) {
-      const declared = ADMIN_AREAS[name]!.segments;
+      const declared = ADMIN_SURFACE.areas[name as AdminAreaId];
       for (const pattern of patterns) {
         const path = patternPath(pattern);
         expect(path === "/admin" || path.startsWith("/admin/"), pattern).toBe(
@@ -49,7 +52,7 @@ describe("admin route manifest", () => {
       const served = patterns.map((pattern) =>
         adminPathSegment(patternPath(pattern)),
       );
-      for (const segment of ADMIN_AREAS[name]!.segments) {
+      for (const segment of ADMIN_SURFACE.areas[name as AdminAreaId]) {
         expect(served, `${name}: stale segment "${segment}"`).toContain(
           segment,
         );
@@ -67,6 +70,29 @@ describe("admin route manifest", () => {
         ).toBeUndefined();
         owners.set(pattern, name);
       }
+    }
+  });
+
+  test("every declared write form is handled by its area", async () => {
+    const routesByArea = await loadAreaRoutes();
+    for (const route of ADMIN_SURFACE.routes.filter(
+      (candidate) => candidate.intent === "write-form",
+    )) {
+      const concretePath = route.pattern.replace(
+        /:(\w+)/g,
+        (_, name: string) =>
+          name === "id" || name.endsWith("Id") ? "1" : "value",
+      );
+      const getPaths = routesByArea
+        .get(route.area)!
+        .filter((pattern) => pattern.startsWith("GET "))
+        .map(patternPath);
+      expect(
+        getPaths.some((path) =>
+          routePathPatternToRegex(path).test(concretePath),
+        ),
+        `${route.id}: GET ${route.pattern} has no handler in ${route.area}`,
+      ).toBe(true);
     }
   });
 
