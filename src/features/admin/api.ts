@@ -11,6 +11,7 @@ import { t } from "#i18n";
 import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
+import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import type { TxScope } from "#shared/db/client.ts";
@@ -43,7 +44,6 @@ import {
   validateListingInput,
 } from "#shared/listings-actions.ts";
 import {
-  apiErrorResponse,
   bodyNumber,
   type DeleteBody,
   defineCrudApi,

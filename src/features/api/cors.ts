@@ -27,6 +27,12 @@ export const jsonError =
 /** JSON `{ error: message }` response with CORS headers */
 export const apiError = jsonError(apiResponse);
 
+/** JSON `{ error: message }` response for API endpoints (no CORS headers).
+ * Lives here rather than in the CRUD API module so lightweight edge routes
+ * (e.g. the SMS webhook) can build error envelopes without evaluating the
+ * admin CRUD/auth import graph. */
+export const apiErrorResponse = jsonError(jsonResponse);
+
 /** CORS preflight response */
 export const handleOptions = (): Response =>
   new Response(null, { headers: CORS_HEADERS, status: 204 });

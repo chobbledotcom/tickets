@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { apiError, jsonError } from "#routes/api/cors.ts";
-import { apiErrorResponse } from "#shared/rest/crud-api.ts";
+import { apiError, apiErrorResponse, jsonError } from "#routes/api/cors.ts";
 import { expectCorsHeaders } from "./helpers.ts";
 
 describe("jsonError", () => {
