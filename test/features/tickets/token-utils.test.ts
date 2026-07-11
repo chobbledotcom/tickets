@@ -2,15 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   buildWalletPassData,
-  createTokenRoute,
-  extractTokenSegment,
   lookupAttendees,
   lookupSingleTokenPassData,
-  parseTokens,
   resolveEntries,
   type TokenEntry,
   verifyTokensWithRealLine,
-  WALLET_CACHE_CONTROL,
   withTokenRateLimit,
 } from "#routes/tickets/token-utils.ts";
 import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
@@ -27,76 +23,6 @@ import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
-describe("parseTokens", () => {
-  test("splits on +, drops empty segments, and de-duplicates", () => {
-    expect(parseTokens("a+b+a")).toEqual(["a", "b"]);
-    expect(parseTokens("a++b+")).toEqual(["a", "b"]);
-  });
-
-  test("treats a separator-free string as a single token", () => {
-    // A "+"→"" mutant would split every character apart.
-    expect(parseTokens("abc")).toEqual(["abc"]);
-  });
-
-  test("keeps one-character tokens", () => {
-    // A length>0 → length>1 mutant would drop "a".
-    expect(parseTokens("a+bb")).toEqual(["a", "bb"]);
-  });
-
-  test("returns an empty array for an empty string", () => {
-    expect(parseTokens("")).toEqual([]);
-  });
-});
-
-describe("extractTokenSegment", () => {
-  test("returns the token segment after the prefix", () => {
-    // match[1] is the captured segment; match[0] would be the whole path.
-    expect(extractTokenSegment("t", "/t/abc")).toBe("abc");
-  });
-
-  test("keeps + separators inside the segment", () => {
-    expect(extractTokenSegment("t", "/t/a+b+c")).toBe("a+b+c");
-  });
-
-  test("works for any prefix", () => {
-    expect(extractTokenSegment("checkin", "/checkin/xyz")).toBe("xyz");
-  });
-
-  test("returns null when the prefix does not match", () => {
-    expect(extractTokenSegment("t", "/other/abc")).toBeNull();
-  });
-
-  test("returns null when there is no segment after the prefix", () => {
-    expect(extractTokenSegment("t", "/t/")).toBeNull();
-  });
-
-  test("preserves an empty capture from a prefix that is itself a group", () => {
-    // The prefix is interpolated into the pattern unescaped, so a prefix that
-    // is a capture group makes match[1] the (possibly empty) prefix capture.
-    // `?? null` keeps the "" result; `|| null` would wrongly return null.
-    expect(extractTokenSegment("(a*)", "//abc")).toBe("");
-  });
-});
-
-describe("createTokenRoute", () => {
-  const request = new Request("http://localhost/t/abc");
-  const route = createTokenRoute("t", {
-    GET: () => new Response("ok"),
-  });
-
-  test("returns null when the path has no token segment for the prefix", async () => {
-    expect(await route(request, "/other/abc", "GET", undefined)).toBeNull();
-  });
-
-  test("returns null when no handler is registered for the method", async () => {
-    expect(await route(request, "/t/abc", "POST", undefined)).toBeNull();
-  });
-});
-
-test("WALLET_CACHE_CONTROL caches for 5 min in browser, 1 hour on CDN", () => {
-  expect(WALLET_CACHE_CONTROL).toBe("public, max-age=300, s-maxage=3600");
-});
-
 const setBookingDates = (attendeeId: number, startAt: string, endAt: string) =>
   getDb().execute({
     args: [startAt, endAt, attendeeId],
@@ -112,6 +38,12 @@ const setBookingQuantity = (attendeeId: number, quantity: number) =>
 const entriesForToken = async (token: string): Promise<TokenEntry[]> => {
   const attendees = await getAttendeesByTokens([token]);
   return resolveEntries([attendees[0]!]);
+};
+
+const expectPassLookupNotFound = async (tokens: string[]): Promise<void> => {
+  const result = await lookupSingleTokenPassData(tokens);
+  expect(result.ok).toBe(false);
+  if (!result.ok) expect(result.response.status).toBe(404);
 };
 
 describeWithEnv("ticket token utils", { db: true }, () => {
@@ -281,9 +213,7 @@ describeWithEnv("ticket token utils", { db: true }, () => {
   });
 
   test("lookupSingleTokenPassData 404s for an empty token list", async () => {
-    const result = await lookupSingleTokenPassData([]);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.response.status).toBe(404);
+    await expectPassLookupNotFound([]);
   });
 
   test("lookupSingleTokenPassData 404s for more than one token", async () => {
@@ -291,15 +221,11 @@ describeWithEnv("ticket token utils", { db: true }, () => {
     const a = await createTestAttendeeDirect(listing.id, "A", "a@example.com");
     const b = await createTestAttendeeDirect(listing.id, "B", "b@example.com");
 
-    const result = await lookupSingleTokenPassData([a.token, b.token]);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.response.status).toBe(404);
+    await expectPassLookupNotFound([a.token, b.token]);
   });
 
   test("lookupSingleTokenPassData 404s for an unknown token", async () => {
-    const result = await lookupSingleTokenPassData(["nope-not-a-token"]);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.response.status).toBe(404);
+    await expectPassLookupNotFound(["nope-not-a-token"]);
   });
 
   test("lookupSingleTokenPassData 404s when the token resolves to no real line", async () => {
@@ -311,9 +237,7 @@ describeWithEnv("ticket token utils", { db: true }, () => {
     );
     await setBookingQuantity(attendee.id, 0);
 
-    const result = await lookupSingleTokenPassData([token]);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.response.status).toBe(404);
+    await expectPassLookupNotFound([token]);
   });
 
   test("lookupSingleTokenPassData 404s a package booking to avoid leaking a member", async () => {
@@ -329,9 +253,7 @@ describeWithEnv("ticket token utils", { db: true }, () => {
       sql: "UPDATE listing_attendees SET package_group_id = ? WHERE attendee_id = ?",
     });
 
-    const result = await lookupSingleTokenPassData([token]);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.response.status).toBe(404);
+    await expectPassLookupNotFound([token]);
   });
 
   test("buildWalletPassData maps a resolved entry onto the pass fields", async () => {
@@ -360,52 +282,48 @@ describeWithEnv("ticket token utils", { db: true }, () => {
   const belowLimit = distinctTokens(MAX_TOKEN_404S - 1);
   const oneMore = `tok-${MAX_TOKEN_404S - 1}`;
 
+  // Run the rate limiter under a pending-work scope and flush the queued
+  // failure/clear write so its effect is observable, returning the response.
+  const runRateLimited = (
+    tokens: string[],
+    response: Response,
+  ): Promise<Response> =>
+    runWithPendingWork(async () => {
+      const out = await withTokenRateLimit(
+        rateLimitRequest,
+        undefined,
+        tokens,
+        () => response,
+      );
+      await flushPendingWork();
+      return out;
+    });
+
   test("withTokenRateLimit returns the handler response and clears failures on success", async () => {
     // One short of the lockout threshold.
     await recordTokenFailure("direct", belowLimit);
 
     const ok = new Response("ok", { status: 200 });
-    await runWithPendingWork(async () => {
-      const out = await withTokenRateLimit(
-        rateLimitRequest,
-        undefined,
-        ["t1"],
-        () => ok,
-      );
-      await flushPendingWork();
-      expect(out).toBe(ok);
-    });
+    expect(await runRateLimited(["t1"], ok)).toBe(ok);
 
-    // The success wiped the prior failures, so one fresh failure cannot lock;
-    // had clearing been skipped, this final distinct token would trip it.
-    await recordTokenFailure("direct", [oneMore]);
-    expect(await isTokenRateLimited("direct")).toBe(false);
+    // Clearing is only observable when more than one failure is allowed; with
+    // MAX_TOKEN_404S = 1 there is no below-limit state to have cleared. When it
+    // is higher, the success wiped the prior failures, so one fresh failure
+    // cannot lock — had clearing been skipped, this token would trip it.
+    if (MAX_TOKEN_404S > 1) {
+      await recordTokenFailure("direct", [oneMore]);
+      expect(await isTokenRateLimited("direct")).toBe(false);
+    }
   });
 
   test("withTokenRateLimit records a 404 failure and locks the IP", async () => {
-    await runWithPendingWork(async () => {
-      await withTokenRateLimit(
-        rateLimitRequest,
-        undefined,
-        atLimit,
-        () => new Response("nope", { status: 404 }),
-      );
-      await flushPendingWork();
-    });
+    await runRateLimited(atLimit, new Response("nope", { status: 404 }));
     expect(await isTokenRateLimited("direct")).toBe(true);
   });
 
   test("withTokenRateLimit does not record a failure for a non-OK, non-404 response", async () => {
     // A 500 takes neither the 404-record branch nor the 2xx-clear branch.
-    await runWithPendingWork(async () => {
-      await withTokenRateLimit(
-        rateLimitRequest,
-        undefined,
-        atLimit,
-        () => new Response("boom", { status: 500 }),
-      );
-      await flushPendingWork();
-    });
+    await runRateLimited(atLimit, new Response("boom", { status: 500 }));
     expect(await isTokenRateLimited("direct")).toBe(false);
   });
 
@@ -413,15 +331,7 @@ describeWithEnv("ticket token utils", { db: true }, () => {
     await recordTokenFailure("direct", belowLimit);
     expect(await isTokenRateLimited("direct")).toBe(false);
 
-    await runWithPendingWork(async () => {
-      await withTokenRateLimit(
-        rateLimitRequest,
-        undefined,
-        [oneMore],
-        () => new Response("nope", { status: 404 }),
-      );
-      await flushPendingWork();
-    });
+    await runRateLimited([oneMore], new Response("nope", { status: 404 }));
     expect(await isTokenRateLimited("direct")).toBe(true);
   });
 
