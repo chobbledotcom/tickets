@@ -2,6 +2,7 @@ export interface StaticCdnConfig {
   accountKey: string;
   cdnUrl: string;
   pullZoneId: string;
+  storageHost: string;
   storageKey: string;
   storageName: string;
 }
@@ -23,6 +24,18 @@ const CDN_ENV_KEYS = [
   "CDN_BUNNY_STORAGE_ZONE_KEY",
   "CDN_BUNNY_PULL_ZONE_ID",
 ] as const;
+const BUNNY_STORAGE_HOSTS = [
+  "storage.bunnycdn.com",
+  "uk.storage.bunnycdn.com",
+  "ny.storage.bunnycdn.com",
+  "la.storage.bunnycdn.com",
+  "sg.storage.bunnycdn.com",
+  "se.storage.bunnycdn.com",
+  "br.storage.bunnycdn.com",
+  "jh.storage.bunnycdn.com",
+  "syd.storage.bunnycdn.com",
+] as const;
+const DEFAULT_BUNNY_STORAGE_HOST = BUNNY_STORAGE_HOSTS[0];
 
 const STATIC_CDN_REQUEST_TIMEOUT_MS = 30_000;
 
@@ -62,6 +75,16 @@ export const loadStaticCdnConfig = (
     string,
     string,
   ];
+  const configuredStorageHost = env.CDN_BUNNY_STORAGE_HOST;
+  const storageHost =
+    configuredStorageHost === undefined || configuredStorageHost.trim() === ""
+      ? DEFAULT_BUNNY_STORAGE_HOST
+      : configuredStorageHost.trim();
+  if (!BUNNY_STORAGE_HOSTS.some((host) => host === storageHost)) {
+    throw new Error(
+      `CDN_BUNNY_STORAGE_HOST must be one of: ${BUNNY_STORAGE_HOSTS.join(", ")}`,
+    );
+  }
   if (!/^[A-Za-z0-9_-]+$/.test(storageName)) {
     throw new Error("CDN_BUNNY_STORAGE_ZONE_NAME must be a storage zone name");
   }
@@ -72,6 +95,7 @@ export const loadStaticCdnConfig = (
     accountKey,
     cdnUrl: cleanCdnUrl(cdnUrl),
     pullZoneId,
+    storageHost,
     storageKey,
     storageName,
   };
@@ -145,7 +169,7 @@ const upload = async (
 ): Promise<void> => {
   await checkedFetch(
     fetcher,
-    `https://storage.bunnycdn.com/${config.storageName}/${objectPath}`,
+    `https://${config.storageHost}/${config.storageName}/${objectPath}`,
     {
       body: asset.bytes as BodyInit,
       headers: {

@@ -590,7 +590,10 @@ public object byte-for-byte, then bakes
 those public URLs and their CSP origin into the edge script. They must not be
 added to the running Bunny script. With all four absent, assets stay embedded;
 a partial set fails the build. Site-bound assets such as `embed.js` and the
-dynamic `/order.js` body remain in each script.
+dynamic `/order.js` body remain in each script. `CDN_BUNNY_STORAGE_HOST` is an
+optional fifth build secret for the storage zone's primary region, using the
+hostname shown on Bunny's Storage **Access** page (for example,
+`uk.storage.bunnycdn.com`). It defaults to Frankfurt's `storage.bunnycdn.com`.
 
 ### Required (configure in Bunny dashboard)
 

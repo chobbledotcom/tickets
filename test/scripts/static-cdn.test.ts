@@ -10,6 +10,7 @@ const CONFIG = {
   accountKey: "account-secret",
   cdnUrl: "https://assets.example.com/static",
   pullZoneId: "12345",
+  storageHost: "storage.bunnycdn.com",
   storageKey: "storage-secret",
   storageName: "tickets-assets",
 };
@@ -34,6 +35,16 @@ const STALLED_REQUESTS = [
   { method: "PUT", stage: "upload" },
   { method: "POST", stage: "purge" },
   { method: "GET", stage: "verification" },
+] as const;
+const REGIONAL_STORAGE_HOSTS = [
+  "uk.storage.bunnycdn.com",
+  "ny.storage.bunnycdn.com",
+  "la.storage.bunnycdn.com",
+  "sg.storage.bunnycdn.com",
+  "se.storage.bunnycdn.com",
+  "br.storage.bunnycdn.com",
+  "jh.storage.bunnycdn.com",
+  "syd.storage.bunnycdn.com",
 ] as const;
 
 const successfulFetcher =
@@ -76,6 +87,34 @@ describe("loadStaticCdnConfig", () => {
         CDN_URL: "https://assets.example.com/static///",
       }),
     ).toEqual(CONFIG);
+  });
+
+  for (const storageHost of REGIONAL_STORAGE_HOSTS) {
+    test(`accepts the ${storageHost} Bunny storage host`, () => {
+      expect(
+        loadStaticCdnConfig({
+          ...ENV,
+          CDN_BUNNY_STORAGE_HOST: storageHost,
+        }),
+      ).toEqual({ ...CONFIG, storageHost });
+    });
+  }
+
+  test("defaults a blank storage host to Frankfurt", () => {
+    expect(
+      loadStaticCdnConfig({ ...ENV, CDN_BUNNY_STORAGE_HOST: " " }),
+    ).toEqual(CONFIG);
+  });
+
+  test("rejects an unknown Bunny storage host", () => {
+    expect(() =>
+      loadStaticCdnConfig({
+        ...ENV,
+        CDN_BUNNY_STORAGE_HOST: "storage.example.com",
+      }),
+    ).toThrow(
+      "CDN_BUNNY_STORAGE_HOST must be one of: storage.bunnycdn.com, uk.storage.bunnycdn.com, ny.storage.bunnycdn.com, la.storage.bunnycdn.com, sg.storage.bunnycdn.com, se.storage.bunnycdn.com, br.storage.bunnycdn.com, jh.storage.bunnycdn.com, syd.storage.bunnycdn.com",
+    );
   });
 
   test("rejects a partial CDN configuration", () => {
@@ -226,6 +265,27 @@ describe("publishStaticCdnAssets", () => {
     expect(reversed.urls).toEqual(original.urls);
     expect(changed.urls[STYLE_ASSET.filename]).not.toBe(
       original.urls[STYLE_ASSET.filename],
+    );
+  });
+
+  test("uploads through the configured regional Bunny host", async () => {
+    let uploadUrl = "";
+    await publishStaticCdnAssets(
+      { ...CONFIG, storageHost: "uk.storage.bunnycdn.com" },
+      [STYLE_ASSET],
+      (input, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "PUT") uploadUrl = String(input);
+        return Promise.resolve(
+          method === "GET"
+            ? new Response(STYLE_ASSET.bytes)
+            : new Response(null, { status: 201 }),
+        );
+      },
+    );
+
+    expect(uploadUrl).toMatch(
+      /^https:\/\/uk\.storage\.bunnycdn\.com\/tickets-assets\/static\/assets\/[a-f0-9]{64}\/style\.css$/,
     );
   });
 

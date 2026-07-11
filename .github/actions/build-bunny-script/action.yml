@@ -13,6 +13,9 @@ inputs:
   cdn_bunny_storage_zone_key:
     description: Optional access key for the static asset Storage zone.
     required: false
+  cdn_bunny_storage_host:
+    description: Optional regional Bunny Storage hostname. Defaults to Frankfurt.
+    required: false
   cdn_bunny_pull_zone_id:
     description: Optional pull-zone id purged after static asset uploads.
     required: false
@@ -33,5 +36,6 @@ runs:
         CDN_URL: ${{ inputs.cdn_url }}
         CDN_BUNNY_STORAGE_ZONE_NAME: ${{ inputs.cdn_bunny_storage_zone_name }}
         CDN_BUNNY_STORAGE_ZONE_KEY: ${{ inputs.cdn_bunny_storage_zone_key }}
+        CDN_BUNNY_STORAGE_HOST: ${{ inputs.cdn_bunny_storage_host }}
         CDN_BUNNY_PULL_ZONE_ID: ${{ inputs.cdn_bunny_pull_zone_id }}
         BUNNY_ACCESS_KEY: ${{ inputs.bunny_access_key }}
