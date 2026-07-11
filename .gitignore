@@ -31,7 +31,8 @@ ARCHITECTURE.md
 deploy/certs/*.pem
 .i18n-work/
 .jscpd-*
-.claude/
+.claude/*
+!.claude/settings.json
 
 # Test artifacts from storage tests run without LOCAL_STORAGE_PATH set
 /undefined/
