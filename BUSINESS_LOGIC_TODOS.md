@@ -173,152 +173,72 @@ consolidate them, but the list is stable and low-risk.
 
 ## 5. Form field options derived from picklist schemas
 
-**Problem.** Several form field definitions hand-maintain option arrays that
-duplicate the declared valibot picklist schemas. The schema exports `.options`
-but the form fields re-type the list. These can drift:
+**Status: Shipped.** The `picklistOptions(schema, labelKeyPrefix)` helper
+(`src/ui/templates/fields/picklist-options.ts`) builds a field's `options`
+list from any picklist schema's `.options`, labelling each value via
+`${labelKeyPrefix}.${value}`. Every field the table above named now derives
+from its schema: `listing_type` and the contact `fields` checkbox group
+(`fields/listing.ts` — `ListingTypeSchema`/`ContactFieldSchema`), all four
+modifier selects (`fields/modifier.ts` — `CalcKindSchema`,
+`ModifierDirectionSchema`, `ModifierTriggerSchema`, `ModifierScopeSchema`),
+and `admin_level` (`fields/admin.ts` — `AdminLevelSchema`). Adding an enum
+member surfaces in the form the moment its translation exists.
 
-| Field | Schema source | Hand-maintained in form |
-|---|---|---|
-| `listing_type` | `ListingTypeSchema.options` (`types.ts:122`) | `getListingFields` options (`listing-fields.ts:43–44`) |
-| `fields` (contact) | `CONTACT_FIELDS` (`types.ts:71`) | `getListingFields` options (`listing-fields.ts:141–147`) |
-| `calc_kind` | `CalcKindSchema.options` (`price-modifier.ts:19`) | `modifierFields` options (`modifier.ts:33–37`) |
-| `direction` | `ModifierDirectionSchema.options` (`price-modifier.ts:25`) | `modifierFields` options (`modifier.ts:44–47`) |
-| `trigger` | `ModifierTriggerSchema.options` (`price-modifier.ts:31`) | `modifierFields` options (`modifier.ts:68–73`) |
-| `scope` | `ModifierScopeSchema.options` (`price-modifier.ts:44`) | `modifierFields` options (`modifier.ts:88–93`) |
-| `admin_level` | `AdminLevelSchema.options` (`types.ts:541`) | `getInviteUserFields` options (`admin.ts:288–293`) |
-
-Tests re-derive the lists too (`listing.test.ts:259–265` re-spells the contact
-fields, `listing.test.ts:278–284` hardcodes `"standard"/"daily"`).
-
-**Plan.** Create a shared helper that builds a field's `<option>` list from
-any picklist schema's `.options`, with an i18n label key template:
-
-```typescript
-export const picklistOptions = <T extends string>(
-  schema: v.PicklistSchema<T>,
-  labelKeyPrefix: string,
-): { value: T; label: string }[] =>
-  schema.options.map((value) => ({ value, label: t(`${labelKeyPrefix}.${value}`) }));
-```
-
-Replace every hand-maintained option array with `picklistOptions(Schema,
-"fields.listing.type")` etc. Tests import `.options` directly from the schema
-instead of re-typing the values. Adding a new enum member propagates to the
-form AND the test automatically.
-
-**Exemplar:** `CONTACT_FIELDS` is already used this way in `types.ts:71`
-(`ContactFieldSchema.options` exported as `CONTACT_FIELDS`). The task is to
-make every other picklist form field follow the same path. The
-`content-form-fields.ts` shared builders (composed by news + site-pages) are
-the structural model for how field-building functions become reusable.
-
-**Also:** the modifier `calc_value` field's inline `validate`
-(`modifier.ts:60–61`) only checks finiteness; the kind-specific bounds
-(`percent ≤ 100`, `multiply > 0`) live in `validateCalcValue`
-(`price-modifier.ts:84–98`) which is not wired to the field. A test exercising
-the field alone misses these bounds. Wire `validateCalcValue(kind, value)`
-through the field's context-built validator (the `defineForm`/`defineResource`
-plumbing supports context-built validators per `app-forms.ts:99–101`).
+The `calc_value` bounds concern is addressed at the save boundary:
+`validateModifier` (`src/features/admin/modifiers.ts`) runs
+`modifierValueError`, which applies the kind-aware `validateCalcValue` rules
+plus a currency-precision guard, so a crafted POST can't bypass them. The
+field's inline `validate` stays a cheap finiteness pre-check for immediate
+feedback.
 
 ---
 
 ## 6. Price-rule precedence as a declarative ordered list
 
-**Problem.** The precedence `OVERRIDE > PAY_MORE > DAY_PRICE > BASE` is
-documented as a comment (`booking/tree.ts:43–60`) and implemented as an
-if/else in `derivePriceRule` (`build-tree.ts:68–88`) plus a switch in
-`effectivePrice` (`price-tree.ts:61–80`). Adding a 5th rule (e.g. an
-"EARLY_BIRD" tier) means editing the switch AND the comment AND the if-chain,
-with a silent-fallthrough risk if one site is missed. This is the
-"hand-rolled dispatcher" the AGENTS.md warns against.
-
-**Plan.** Model price rules as a `Record<PriceRuleKind, evaluator>` with an
-explicit `PRECEDENCE` order (an ordered array of `PriceRuleKind`), so the
-precedence is a compile-enforced data fact and `effectivePrice` becomes a fold:
-
-```typescript
-const PRICE_RULE_EVALUATORS: Record<PriceRuleKind, (ctx) => number> = {
-  OVERRIDE: (ctx) => ctx.rule.amountMinor,
-  DAY_PRICE: (ctx) => ctx.rule.overrides?.get(ctx.dayCount) ?? dayPriceFor(ctx.listing, ctx.dayCount) ?? 0,
-  PAY_MORE: (ctx) => ctx.customPrices.get(ctx.listing.id) ?? ctx.listing.unit_price,
-  BASE: (ctx) => ctx.customPrices.get(ctx.listing.id) ?? ctx.listing.unit_price,
-};
-
-export const effectivePrice = (layer: PriceLayer, ctx: PriceCtx): number =>
-  PRICE_RULE_EVALUATORS[layer.kind](ctx);
-```
-
-A new kind is a compile error in the `Record` until both the evaluator and the
-precedence entry exist.
-
-**Exemplar:** `LISTING_DEFAULT_FIELDS` with its per-field `appliesTo` predicate
-replaced inline if/else chains — same shape, applied to price rules.
+**Status: Shipped.** `src/shared/booking/price-tree.ts` models each tier as a
+`PriceRuleSpec` (`appliesTo` / `build` / `evaluate`) in the exhaustive
+`PRICE_RULES` map keyed by `PriceRuleKind`, and the precedence is the
+`PRICE_RULE_PRECEDENCE` ordered array (`OVERRIDE > PAY_MORE > DAY_PRICE >
+BASE`). The `orderedKinds` helper makes the precedence list exhaustive at
+compile time, so a new tier added to the `PriceRule` union is a type error in
+BOTH tables until it has a spec and a precedence slot — no silent
+fall-through. `selectPriceRule` is the one selector shared by the tree
+builder's `derivePriceRule` (`build-tree.ts`) and `packageMemberPriceRule`
+(webhooks, payment revalidation), and `effectivePrice` dispatches through the
+same table's `evaluate`.
 
 ---
 
 ## 7. Edge compatibility error precedence as a data table
 
-**Problem.** `edgeFieldError` (`listing-parents-rules.ts:77–98`) is a hand-coded
-if-chain encoding a **strict precedence ordering**: parent-renewal >
-child-renewal > daily-type > duration. The precedence lives only as the textual
-order of the `if`s. Tests (`listing-parents-rules.test.ts:223–259`) re-derive
-each pairwise relationship explicitly, and hardcode the full English error
-strings (duplicating the i18n message). Adding a 5th edge rule is a fifth `if`
-arm.
-
-**Plan.** Model the edge rules as an ordered array of `{ check: (parent,
-child) => boolean, messageKey: (name: string) => string }`. The fold returns
-the first match (honouring precedence), or null:
-
-```typescript
-const EDGE_ERROR_RULES = [
-  { applies: (p) => p.months_per_unit > 0, messageKey: (name) => t("listings_table.children_err_parent_renewal", { name }) },
-  { applies: (_p, c) => c.months_per_unit > 0, messageKey: (name) => t("listings_table.children_err_child_renewal", { name }) },
-  { applies: (_p, c) => c.listing_type === "daily" && p.listing_type !== "daily", messageKey: (name) => t("listings_table.children_err_child_daily", { name }) },
-  { applies: (p, c) => !durationsCompatible(p, c), messageKey: (name) => t("listings_table.children_err_child_duration", { name }) },
-] as const;
-
-export const edgeFieldError = (parent, child) =>
-  EDGE_ERROR_RULES.find(r => r.applies(parent, child))?.messageKey(child.name) ?? null;
-```
-
-The precedence tests can then assert against the table's ordering rather than
-each pairwise relationship — and test that the table is exhaustive (every
-check has a covering test).
-
-**Exemplar:** `LISTING_DEFAULT_FIELDS` — an ordered array of entries each
-carrying a predicate and a label key, folded by `resolveListingDefaults`. Same
-shape, different domain.
+**Status: Shipped.** `edgeFieldError` (`listing-parents-rules.ts`) is now a
+fold over `EDGE_ERROR_RULES` — an ordered array of `{ rejects, error }`
+entries whose order IS the precedence (parent-renewal > child-renewal >
+daily-type > duration): the first rule a pairing breaks decides the error, or
+null when the edge is allowed. Each rule carries its own message builder (a
+shared `childError` factory covers the child-blaming rules; the parent-renewal
+rule names the parent), so adding a 5th rule is one new entry in its
+precedence slot, never another `if` arm. The tests
+(`test/shared/listing-parents-rules.test.ts`) build expected messages from the
+same i18n keys via `t()` instead of re-typing the English copy, with guards
+that the resolved messages are real interpolated copy (naming the blamed
+listing) rather than raw-key fallbacks.
 
 ---
 
 ## 8. Capacity rules — consolidate into one declarative reference
 
-**Problem.** Capacity is the most scattered business concern. The rules live
-across six files (booking/model.ts, capacity-tree.ts, package-cap.ts,
-db/attendees/capacity.ts, db/capacity.ts, limits.ts) with no single declarative
-table a reader can consult. The daily-vs-standard branching is enforced by
-filtering listings out of certain queries rather than by a per-listing-type
-rule table. Each rule is individually tested, but the interactions are
-implicit.
-
-**Plan.** This is the most complex item and may be staged:
-
-- **Stage 1 — a `CAPACITY_RULES` data table** that declares, per listing-type
-  facet (`daily` vs `standard`, `customisable_days` true/false), which capacity
-  checks apply: `dateLessCap`, `perDateCap`, `groupPoolCap`,
-  `parentChildUnits`, `adminOverbookBypass`. A pure `applicableCapacityRules
-  (listing)` function returns the active rule set. This makes the daily-vs-
-  standard branching explicit and additive rather than buried in `if`s.
-- **Stage 2 — fold the JS preflight and the SQL guard** over the same rule set,
-  so the invariant ("the JS preflight and the inline SQL must never disagree
-  about capacity", `db/attendees/capacity.ts:1–9`) is enforced by sharing the
-  declaration rather than by a comment.
-
-**Exemplar:** The `BookingNode` union of facets (`booking/tree.ts:81–98`) is
-the codebase's reference for modelling a domain as a typed data structure. A
-capacity-rules table is a simpler version: a flat array of facets + an
-`appliesTo` predicate per rule (mirroring `LISTING_DEFAULT_FIELDS`).
+**Status: Shipped.** `src/shared/capacity-rules.ts` is the pure declarative
+table: each `CapacityRule` (`dateLessCap`, `perDateCap`, `groupPoolCap`,
+`parentChildUnits`, `adminOverbookBypass`) carries an `appliesTo` predicate
+over the listing facets (`listing_type` × `customisable_days`), and
+`allCapacityFacets()` enumerates every combination for exhaustive tests. Both
+enforcement surfaces derive from the same declaration (stage 2): the inline
+SQL guard builds its type predicates from `capacityRuleTypeSql`
+(`src/shared/db/capacity.ts`), and the JS preflight
+(`src/shared/db/attendees/capacity.ts`) imports the same rules — so the
+preflight and the write-time guard can never disagree about which check
+applies.
 
 ---
 
@@ -411,7 +331,7 @@ pattern to content string fields.
 
 ## Prioritisation
 
-**Shipped (items 1–4):**
+**Shipped (items 1–8):**
 
 - **Item 1 (admin-page schema)** — the schema, nav.tsx migration, and
   nav.test.tsx migration are done. Remaining: `adminLandingPath` derivation
@@ -423,12 +343,21 @@ pattern to content string fields.
 - **Item 3 (limits unification)** — done; `MAX_IMAGE_SIZE` bug fixed.
 - **Item 4 (read-only patterns)** — `READ_ONLY_GET_PATTERNS` is schema-derived;
   3 gaps fixed. `READ_ONLY_SAFE_PATHS` remains hand-maintained (stable, low-risk).
+- **Item 5 (picklist form options)** — `picklistOptions` derives every listing,
+  modifier, and invite-user select from its valibot schema; `calc_value`
+  bounds enforced at save via `modifierValueError`.
+- **Item 6 (price-rule precedence)** — `PRICE_RULES` + `PRICE_RULE_PRECEDENCE`
+  in `price-tree.ts`; `selectPriceRule`/`effectivePrice` share the one table,
+  exhaustiveness compile-enforced by `orderedKinds`.
+- **Item 7 (edge error precedence)** — `EDGE_ERROR_RULES` ordered table folded
+  by `edgeFieldError`; tests derive messages from the i18n keys.
+- **Item 8 (capacity rules)** — `capacity-rules.ts` is the declarative table;
+  the JS preflight and the inline SQL guard both derive from it.
 
-**Remaining (items 5–11):**
+**Remaining (items 9–11):**
 
-Items 5, 6, 7, 9, 10, and 11 are independent, medium-size refactors that can be
-done in any order. Item 8 (capacity rules) is the most complex and should be
-staged last.
+Items 9, 10, and 11 are independent, small refactors that can be done in any
+order.
 
 When taking any item, follow the codebase conventions: put the schema in
 `src/shared/` (pure, data-in/data-out), keep the IO shell thin, and migrate
