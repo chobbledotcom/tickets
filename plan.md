@@ -322,9 +322,14 @@ Attendee notes / legacy metadata storage:
   the **owner public key** (`createOwnerNote`), so the keyless import write path
   can persist them with no unwrapped private key, exactly like the free-text string
   writes. The writer must still fold the note inserts into its own guarded
-  transaction (not call `createOwnerNote` per row) and must **block** any import
-  carrying unmapped audit fields rather than dropping them — never import with data
-  loss. The destination is **decided** (`system_notes` owner notes); see
+  transaction — **`createOwnerNote` cannot be called at all here**: it inserts via
+  the global `execute` path with no transaction parameter, so a note written
+  through it would survive the import's rollback as an orphaned encrypted record.
+  Encrypt the note text with the owner public key up front (outside the write
+  lock), then execute the `system_notes` INSERT statements **inside the importer's
+  transaction** (a tx-scoped variant of the helper, mirroring `postTransfersTx`).
+  The writer must also **block** any import carrying unmapped audit fields rather
+  than dropping them — never import with data loss. The destination is **decided** (`system_notes` owner notes); see
   [Where Legacy Metadata Goes](#where-legacy-metadata-goes).
 
 ## Proposed Routes And UI
@@ -594,7 +599,18 @@ Product matching:
 - **Every matched listing must be `daily`-type.** A product that matches a
   `standard`-type listing is a **blocking setup error** (listed on the
   missing-setup page), not an import. Verify the type at resolution, before any
-  writes. Whether the standard listing can be made daily depends on its data and
+  writes.
+- **Fixed-duration daily listings must match the source span.** A daily listing
+  with `customisable_days = false` treats its `duration_days` as fixed: the admin
+  create path books that duration, and a later listing-edit save runs
+  `recomputeListingBookingRanges`, which **rewrites every dated row's `end_at`**
+  from the listing's `duration_days`. So importing a legacy multi-day hire onto a
+  1-day fixed daily listing would silently truncate (or expand) it on the next
+  listing edit. Preflight gate: for a fixed-duration listing, the source
+  `Delivery`→`Collection` span must **equal** the listing's `duration_days`;
+  a mismatch is a blocking setup error telling the operator to enable
+  **customisable days** on the listing (or fix the listing/source) — never import
+  a span the listing's fixed duration will later rewrite. Whether the standard listing can be made daily depends on its data and
   its group: an *empty, ungrouped* standard listing can be converted in place, but
   conversion is **unsafe** when (a) the listing **has existing bookings** — its
   undated rows would drop off the daily calendar/capacity, which only consider
@@ -812,6 +828,17 @@ real-cash reports. Instead:
   main added) with the booking's event group, tying each line to its booking's
   legs; per-listing amount-paid then projects to £0, which is the intended
   "listings cost zero".
+- **Teach the balance summaries the import-paid projection.** `getAttendeeOrderSummary`
+  derives `depositPaid` from the **per-line** `pricePaidFromLedger` (sale legs
+  only) and `fullPrice = depositPaid + owed`, so with no change a fully-paid £100
+  import would show *paid £0 / full £0* on the admin balance panel and the
+  `/pay/:token` recap, and a part-paid import would show paid £0 with "full price"
+  equal to just the remainder. Extend the summary (and any surface deriving
+  amount-paid the same way) with an **attendee-level import-aware projection** —
+  the sum of the attendee's `import_paid` credits (`imported:default → attendee`
+  legs) folded into `depositPaid`, with `Total` (owed + paid) as the full price —
+  and add a regression covering the fully-paid and part-paid import cases on both
+  pages.
 - **Post inside the all-or-nothing import transaction via `postTransfersTx`.** Build
   one transfer group per booking and post it with **`postTransfersTx(tx, legs)`** —
   the tx-scoped primitive that executes its inserts **through the importer's own
@@ -1174,7 +1201,11 @@ bookings imports the rest and reports the skip.
       nothing;
     - insert `attendee_answers(attendee_id, question_id, string_id)` text-answer
       rows using the resolved string ids;
-    - persist the raw audit-trail fields to their durable encrypted destination;
+    - persist the raw audit-trail fields to their durable encrypted destination —
+      the per-attendee `system_notes` owner note, written as INSERT statements
+      **inside this transaction** (owner-public-key encryption done up front;
+      **not** the standalone `createOwnerNote`, which executes outside any caller
+      transaction and would survive a rollback);
     - record a visit **and** the admin booking count for candidates that have ≥1
       real (`quantity > 0`) line — `recordOrderActivity` bumps both `visits` and
       the per-source booking count, so incrementing only `visits` would leave
@@ -1341,6 +1372,14 @@ Implementation notes:
     target-precedence (`mergedTextAnswers` → `saveAttendeeAnswers`), so an imported
     source's legacy `string_id` answers are adopted, not dropped. The importer only
     needs a **test** asserting this holds for an imported source, not new merge code.
+  - **Audit notes (`system_notes`):** **not** handled by main — `applyAttendeeMerge`
+    raw-deletes the source attendee and never touches `system_notes`, so the
+    imported audit trail (stored as a `system_notes` owner note) would be left
+    orphaned on the deleted source id. The merge must **repoint the source's
+    `system_notes` rows to the target** (`UPDATE system_notes SET attendee_id =
+    targetId WHERE attendee_id = sourceId`, in the same transaction — the
+    `booking_imports` remap's sibling), with a test that a merged imported source's
+    audit note survives on the target.
 - The `attendee_answers` XOR/validation triggers will `ABORT` a malformed answer
   row (e.g. both `answer_id` and `string_id` set). The importer only ever writes
   the text-answer shape (`answer_id` NULL, `question_id` + `string_id` set), so a
@@ -1543,9 +1582,11 @@ Semantic-correctness tests (verified against live behaviour):
   (`−balanceOf(attendee)`); settling it posts a real `external:world → attendee`
   leg against the **attendee** account (guarded on the projected owed amount), so
   a *mixed* attendee needs no lower-id-line targeting at all.
-- Imported visit counts: a confirmed (real-quantity) import increments the
-  customer's visit counter; a cancelled/quote-only import does not; a rolled-back
-  import leaves none.
+- Imported visit and booking counts: a confirmed (real-quantity) import increments
+  the customer's visit counter **and** `admin_booking_count` (assert both — an
+  implementation could pass a visits-only test while `/admin/history/:hmac` still
+  omits imported bookings); a cancelled/quote-only import increments neither; a
+  rolled-back import leaves both untouched.
 - **Imported daily hires land on the right operational dates:** an imported
   booking on a daily listing appears on the day-calendar
   (`getDailyListingAttendeesByDate`) at its `Delivery Date` (the line's
@@ -1898,8 +1939,16 @@ are already in main; only the importer-specific additions in item 6 remain.
   the mapping (free the `old_id`); a **held** delete (`releaseBookings: false`)
   keeps the mapping as a tombstone **only for aggregate-held standard listings** —
   but imports are **daily-only**, where a held delete removes the dated row the
-  calendar/capacity read, so it frees/remaps instead (see the daily held-delete
-  caveat) rather than stranding a re-import forever. `applyAttendeeMerge` **remaps**
+  calendar/capacity read, so it should free/remap instead (see the daily
+  held-delete caveat) rather than stranding a re-import forever. **Conditional on
+  actually releasing the aggregate:** the current held-delete path *restores*
+  `booked_quantity`/`tickets_count` after deleting the rows
+  (`ATTENDEE_LISTING_CONTRIBUTIONS_SQL`), and a re-upload of a freed `old_id`
+  inserts new rows whose triggers add quantity **on top of** that restored
+  aggregate — double-counting. So free/remap only when the daily import's
+  aggregate contribution is genuinely released (skip the restore for these rows,
+  or release it as part of the cleanup); if the hold-and-restore behaviour is
+  kept, the mapping must stay a tombstone. `applyAttendeeMerge` **remaps**
   the source's mapping to the target (never drops it), which the non-unique
   `new_id` now allows.
 - Attendee merge **adopting free-text (`string_id`) answers** is **already handled

@@ -665,5 +665,12 @@ above is done and was verified against current `main`.
   single-refund and resend **links** still render on a ghost-only attendee's Actions
   tab (harmless — the route refuses them — but not hidden as specified).
 
-_(None of these blocks the CSV importer, which only **writes** quantity-0 lines;
-they are polish/robustness items on the shipped feature.)_
+_(None of these blocks the CSV importer's **quantity-0 writing** — they are
+polish/robustness items on the shipped feature as it stands. **One exception
+becomes a hard importer prerequisite:** once imports post money as
+`import_owed`/`import_paid` legs, the ghosting guard and the merge reversal must
+be extended to detect **import** ledger groups — `pricePaidFromLedger` sees only
+`sale` legs, so a fully-paid import projects paid £0/owed £0 and would slip both
+guards, stranding money legs on an all-ghost attendee. That extension (building on
+G4's mechanism) must land **before the importer is enabled** — see the importer
+plan's imported-money caveat.)_
