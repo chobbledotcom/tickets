@@ -552,7 +552,9 @@ worth relaxing. The clearest informative wins already shipped — the package
 payment-provider "your other key is kept" note, and the free-text "can't set a
 price" note. What's left is captured below, split into rule-relaxations (let
 the combination through) and message/UX fixes (keep the rule, stop the user
-hitting it blind). None is a bug; all are pre-existing, deliberate behaviour.*
+hitting it blind). All are pre-existing behaviour — deliberate design choices,
+except the percentage-surcharge cap noted below, which is a latent correctness
+bug (harmless today because of the multiplier workaround).*
 
 ### Keep the rule — stop the user hitting it blind
 

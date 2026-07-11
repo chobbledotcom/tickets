@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import {
   packageChildEdgeError,
   packageMemberBlock,
@@ -77,41 +78,37 @@ describe("packageMemberBlock", () => {
 });
 
 describe("packageMemberBlockError", () => {
+  // Each case asserts the complete localized message: which key the block maps
+  // to AND that the listing name interpolates into it.
   test("names the listing and the pay-what-you-want reason", () => {
-    const message = packageMemberBlockError("Balloon Ride", "pay_more");
-    expect(message).toContain("Packages cannot contain");
-    expect(message).toContain("Balloon Ride");
-    expect(message).toContain("Allow Pay More");
+    expect(packageMemberBlockError("Balloon Ride", "pay_more")).toBe(
+      t("error.package_member_pay_more", { name: "Balloon Ride" }),
+    );
   });
 
   test("names the listing and the add-on reason", () => {
-    const message = packageMemberBlockError("Face Paint", "is_addon");
-    expect(message).toContain("Packages cannot contain");
-    expect(message).toContain("Face Paint");
-    expect(message).toContain("add-on");
+    expect(packageMemberBlockError("Face Paint", "is_addon")).toBe(
+      t("error.package_member_is_addon", { name: "Face Paint" }),
+    );
   });
 
   test("names the listing and the hidden-gate reason", () => {
-    const message = packageMemberBlockError(
-      "Day Pass",
-      "gates_children_hidden",
+    expect(packageMemberBlockError("Day Pass", "gates_children_hidden")).toBe(
+      t("error.package_member_gates_children_hidden", { name: "Day Pass" }),
     );
-    expect(message).toContain("Packages cannot contain");
-    expect(message).toContain("Day Pass");
-    expect(message).toContain("hidden");
   });
 });
 
 describe("packageChildEdgeError", () => {
   test("explains a hidden-package parent gaining children", () => {
-    const message = packageChildEdgeError("gate_in_hidden");
-    expect(message).toContain("hidden package");
-    expect(message).toContain("add-ons");
+    expect(packageChildEdgeError("gate_in_hidden")).toBe(
+      t("error.package_gate_in_hidden"),
+    );
   });
 
   test("explains a package member chosen as a child", () => {
-    const message = packageChildEdgeError("child_is_member");
-    expect(message).toContain("belongs to a package");
-    expect(message).toContain("add-on");
+    expect(packageChildEdgeError("child_is_member")).toBe(
+      t("error.package_child_is_member"),
+    );
   });
 });

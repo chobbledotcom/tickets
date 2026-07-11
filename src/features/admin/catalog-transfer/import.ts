@@ -15,16 +15,14 @@ import * as v from "valibot";
 import { mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
-import {
-  generateUniqueGroupSlug,
-  packageMembersError,
-} from "#routes/admin/groups.ts";
+import { generateUniqueGroupSlug } from "#routes/admin/groups.ts";
 import { writeRowInTransaction } from "#shared/db/client.ts";
 import {
   type GroupInput,
   getGroupIdsByListingIds,
   getGroupsById,
   groups,
+  packageMembersError,
 } from "#shared/db/groups.ts";
 import {
   getChildListingIds,

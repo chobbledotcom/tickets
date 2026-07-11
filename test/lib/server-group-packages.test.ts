@@ -5,6 +5,7 @@
 // those modules are exercised by their real covering tests.
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import {
   assignListingsToGroup,
@@ -597,7 +598,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       }),
       400,
       (body) => {
-        expect(body.error).toContain("hidden package");
+        expect(body.error).toBe(t("error.package_gate_in_hidden"));
       },
     );
   });
@@ -621,7 +622,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       }),
       400,
       (body) => {
-        expect(body.error).toContain("belongs to a package");
+        expect(body.error).toBe(t("error.package_child_is_member"));
       },
     );
   });
@@ -641,7 +642,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     );
     await expectFlashRedirect(
       `/admin/listing/${parent.id}/edit`,
-      expect.stringContaining("belongs to a package"),
+      t("error.package_child_is_member"),
       false,
     )(response);
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
@@ -674,7 +675,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     );
     await expectFlashRedirect(
       `/admin/listing/${memberListing.id}/edit`,
-      expect.stringContaining("hidden package"),
+      t("error.package_gate_in_hidden"),
       false,
     )(response);
     expect(await listingChildren.getIds(memberListing.id)).toEqual([]);

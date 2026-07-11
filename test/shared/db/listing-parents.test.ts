@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import {
   anyNonStandaloneChild,
   edgeIncompatibilityAfterChange,
@@ -296,11 +297,12 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       const error = await edgeIncompatibilityAfterChange(
         edge(childA.id, { listing_type: "daily", name: "Daily add-on" }),
       );
-      // Specifically the daily-direction error: swapping the arguments would read
-      // the standard parent as a compatible standard child and return null.
-      expect(error).toContain("can only be a child of another daily listing");
-      // …and it explains WHY, so the operator isn't left guessing.
-      expect(error).toContain("takes its date and length from the parent");
+      // Specifically the daily-direction error (naming the child and explaining
+      // WHY): swapping the arguments would read the standard parent as a
+      // compatible standard child and return null.
+      expect(error).toBe(
+        t("listings_table.children_err_child_daily", { name: "Daily add-on" }),
+      );
     });
 
     test("ignores edges whose opposite endpoint no longer exists", async () => {

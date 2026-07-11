@@ -24,12 +24,12 @@ import {
   hasPackageBookings,
   isGroupSlugTaken,
   type PackageMemberInput,
+  packageMembersError,
   resetGroupListings,
   setGroupPackageMembers,
   validateGroupListingType,
 } from "#shared/db/groups.ts";
 import { clearImageUsesForItemStatement } from "#shared/db/images.ts";
-import { edgeIdsTouchingMany } from "#shared/db/listing-parents.ts";
 import { getListing } from "#shared/db/listings.ts";
 import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
 import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
@@ -38,11 +38,6 @@ import {
   wrapResourceForDemo,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import {
-  type PackageMemberBlock,
-  packageMemberBlock,
-  packageMemberBlockError,
-} from "#shared/package-membership.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import type { AdminSession, DayPrices, Group } from "#shared/types.ts";
@@ -79,46 +74,6 @@ type GroupValidator = (
 const validateGroupSlug: GroupValidator = async (input, id) => {
   const taken = await isGroupSlugTaken(input.slug, id);
   return taken ? t("error.slug_in_use_group") : null;
-};
-
-/** The first member of `listings` that can't be packaged, paired with the
- * reason it's blocked — or null when every listing is a valid member. Judged
- * against ONE batched edge load (two queries for the whole member list, never
- * one per member). The pricing/add-on/hidden-gate rules themselves live in the
- * shared {@link packageMemberBlock}. Generic over the listing shape so the
- * caller gets its own row back (with the name) to build the error. */
-const firstUnpackageableMember = async <
-  L extends { id: number; can_pay_more: boolean },
->(
-  listings: readonly L[],
-  hideListings: boolean | undefined,
-): Promise<{ listing: L; block: PackageMemberBlock } | null> => {
-  const edges = await edgeIdsTouchingMany(listings.map((l) => l.id));
-  for (const listing of listings) {
-    const block = packageMemberBlock(
-      listing,
-      edges.get(listing.id)!,
-      hideListings,
-    );
-    if (block) return { block, listing };
-  }
-  return null;
-};
-
-/** The member-naming package error for the first listing in `listings` that
- * can't be a package member (pay-what-you-want, an add-on of another listing,
- * or — on a hidden package — a member gating its own children), or null when
- * every listing is a valid member. The one place every package save (group
- * form, add-listings, listing form/API, catalog import) turns an unpackageable
- * member into its user-facing message. */
-export const packageMembersError = async (
-  listings: readonly { id: number; can_pay_more: boolean; name: string }[],
-  hideListings: boolean | undefined,
-): Promise<string | null> => {
-  const offender = await firstUnpackageableMember(listings, hideListings);
-  return offender
-    ? packageMemberBlockError(offender.listing.name, offender.block)
-    : null;
 };
 
 /** Reject marking a group as a package when any current member can't be packaged
