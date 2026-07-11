@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { type Spy, spy } from "@std/testing/mock";
 import * as v from "valibot";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
+import { setSuppressDebugLogs } from "#shared/logger.ts";
 import {
   type BookingItem,
   BookingItemsSchema,
@@ -47,6 +49,14 @@ describe("booking line validation", () => {
     accepts(validItem); // neither
     rejects({ ...validItem, k: "p" }); // k without r
     rejects({ ...validItem, r: 1 }); // r without k
+  });
+
+  test("the paired-edge-tag rejection carries its explanatory message", () => {
+    const result = v.safeParse(BookingItemsSchema, [{ ...validItem, k: "p" }]);
+    expect(result.success).toBe(false);
+    expect(result.issues?.map((issue) => issue.message)).toContain(
+      "edge tag k and r must both be present or both absent",
+    );
   });
 
   test("the listing id (e) must be a positive integer", () => {
@@ -104,8 +114,32 @@ describe("BookingItemsSchema", () => {
 });
 
 describeWithEnv("getActivePaymentProvider", { db: true }, () => {
+  let debugSpy: Spy;
+  const debugLogged = (needle: string): boolean =>
+    debugSpy.calls.some((call) => String(call.args[0]).includes(needle));
+
+  beforeEach(() => {
+    setSuppressDebugLogs(false);
+    debugSpy = spy(console, "debug");
+  });
+  afterEach(() => {
+    debugSpy.restore();
+    setSuppressDebugLogs(null);
+  });
+
   test("returns null when no provider is configured", async () => {
     expect(await getActivePaymentProvider()).toBeNull();
+    expect(
+      debugLogged("[Payment] No payment provider configured in settings"),
+    ).toBe(true);
+  });
+
+  test("logs the provider it resolves under the Payment category", async () => {
+    await settings.update.paymentProvider("stripe");
+    await getActivePaymentProvider();
+    expect(debugLogged("[Payment] Resolving payment provider: stripe")).toBe(
+      true,
+    );
   });
 
   test("returns null for a provider type the module doesn't recognise", async () => {
