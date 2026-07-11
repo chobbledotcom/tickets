@@ -53,17 +53,26 @@ const readImportMap = async (): Promise<Record<string, string>> => {
   return config.imports;
 };
 
-/** Every test file paired with the `src/` paths it imports. */
-const collectTestImports = async (
+/** A test file with both its line count (for the ratio report) and the `src/`
+ *  paths it imports (for the misplaced-test worklist). */
+type TestFile = FileLines & TestImports;
+
+/** Walk the test tree once, reading each file a single time to produce both its
+ *  line count and its resolved imports. */
+const collectTests = async (
   root: string,
   importMap: Record<string, string>,
   srcRoot: string,
-): Promise<TestImports[]> => {
-  const tests: TestImports[] = [];
+): Promise<TestFile[]> => {
+  const tests: TestFile[] = [];
   for await (const path of walkFiles(root)) {
     if (!isTestPath(path)) continue;
     const text = await Deno.readTextFile(path);
-    tests.push({ imports: resolveTestImports(text, importMap, srcRoot), path });
+    tests.push({
+      imports: resolveTestImports(text, importMap, srcRoot),
+      lines: countLines(text),
+      path,
+    });
   }
   return tests;
 };
@@ -73,8 +82,7 @@ if (import.meta.main) {
   const options = DEFAULT_OPTIONS;
   const importMap = await readImportMap();
   const sources = await collect(options.srcRoot, isSourcePath);
-  const tests = await collect(options.testRoot, isTestPath);
-  const testImports = await collectTestImports(
+  const tests = await collectTests(
     options.testRoot,
     importMap,
     options.srcRoot,
@@ -88,7 +96,7 @@ if (import.meta.main) {
     options.srcRoot,
   )!;
   const misplaced = findMisplacedTests(
-    testImports,
+    tests,
     sources.map((source) => source.path),
     options,
     appEntry,

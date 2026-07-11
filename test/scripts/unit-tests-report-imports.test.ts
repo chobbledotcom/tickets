@@ -43,6 +43,38 @@ describe("parseImportSpecifiers", () => {
     expect(parseImportSpecifiers('import "./setup.ts";')).toEqual([]);
   });
 
+  test("ignores specifiers that appear inside line or block comments", () => {
+    const text = [
+      'import { a } from "#fp";',
+      '// import { old } from "#shared/gone.ts";',
+      "/*",
+      ' export { b } from "#shared/also-gone.ts";',
+      "*/",
+    ].join("\n");
+    expect(parseImportSpecifiers(text)).toEqual(["#fp"]);
+  });
+
+  test("captures dynamic import() specifiers alongside static ones", () => {
+    const text = [
+      'import { settings } from "#shared/db/settings.ts";',
+      'const mod = await import("#routes/wallet/google.ts");',
+    ].join("\n");
+    expect(parseImportSpecifiers(text)).toEqual([
+      "#shared/db/settings.ts",
+      "#routes/wallet/google.ts",
+    ]);
+  });
+
+  test("skips type-only import and export statements", () => {
+    // A type import is erased at runtime, so it doesn't name the code under test.
+    const text = [
+      'import type { Listing } from "#shared/types.ts";',
+      'export type { Foo } from "#shared/foo.ts";',
+      'import { real } from "#shared/real.ts";',
+    ].join("\n");
+    expect(parseImportSpecifiers(text)).toEqual(["#shared/real.ts"]);
+  });
+
   test("returns nothing for text with no imports", () => {
     expect(parseImportSpecifiers("const x = 1;")).toEqual([]);
   });

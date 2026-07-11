@@ -46,12 +46,36 @@ export type MisplacedTest = {
   basenameMatch: boolean;
 };
 
-/** Every `from "…"` specifier in a source text (static imports and re-exports). */
-const IMPORT_RE = /(?:import|export)[\s\S]*?from\s*["']([^"']+)["']/g;
+/** Static `import … from "…"` and re-export `… from "…"` specifiers. The
+ *  `(?!type\b)` skips `import type` / `export type`: those are erased at runtime,
+ *  so they don't identify the code a test exercises. */
+const STATIC_IMPORT_RE =
+  /\b(?:import|export)\s+(?!type\b)[\s\S]*?from\s*["']([^"']+)["']/g;
 
-/** Pull the import/re-export specifiers out of a file's text. */
-export const parseImportSpecifiers = (text: string): string[] =>
-  [...text.matchAll(IMPORT_RE)].map((match) => match[1]!);
+/** Dynamic `import("…")` specifiers. Many tests load the module under test with
+ *  `await import(...)` after setting up their environment, so a source-under-test
+ *  is frequently a dynamic import rather than a static one. */
+const DYNAMIC_IMPORT_RE = /\bimport\s*\(\s*["']([^"']+)["']/g;
+
+/** Drop line and block comments so a commented-out or documented import
+ *  specifier can't be mistaken for a real one. Import specifiers never contain
+ *  a double slash, so stripping line comments can't truncate a real alias. */
+const stripComments = (text: string): string =>
+  text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+
+/** Capture group 1 of every match of `re` in `text`. */
+const captures = (re: RegExp, text: string): string[] =>
+  [...text.matchAll(re)].map((match) => match[1]!);
+
+/** Pull the specifiers out of a file's text — static, re-export, and dynamic
+ *  imports — ignoring comments and type-only imports. */
+export const parseImportSpecifiers = (text: string): string[] => {
+  const code = stripComments(text);
+  return [
+    ...captures(STATIC_IMPORT_RE, code),
+    ...captures(DYNAMIC_IMPORT_RE, code),
+  ];
+};
 
 /** Whether `alias` maps `spec`: a directory alias (`#shared/`) owns anything
  *  beneath it; an exact alias (`#fp`) owns only the specifier itself. */
