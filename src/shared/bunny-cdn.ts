@@ -121,7 +121,7 @@ const extractBunnyErrorKey = (text: string): string | undefined => {
     const json = JSON.parse(text) as { ErrorKey?: string };
     return json.ErrorKey;
   } catch {
-    return undefined;
+    return;
   }
 };
 

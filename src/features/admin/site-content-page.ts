@@ -27,19 +27,19 @@ const imagesVisible = (): boolean => isStorageEnabled();
  * (Pages uses this for its Items manager). */
 export interface SiteContentPageDef<E extends { id: number }> {
   basePath: (id: number) => string;
-  load: (id: number) => Promise<E | null>;
-  navActive: string;
-  titleOf: (entity: E) => string;
-  /** The image-use type for this entity's Images tab. */
-  itemType: ImageUseItemType;
-  /** The Edit tab's fields form. */
-  editPanel: (entity: E) => JSX.Element;
   /** The locale key for the delete action on the Actions tab. */
   deleteLabelKey: string;
+  /** The Edit tab's fields form. */
+  editPanel: (entity: E) => JSX.Element;
+  extraTabs?: readonly TabDef<E>[];
   /** A guide section anchor (e.g. "public-site") linked in the page's guide
    * footer, so the operator can jump to the relevant help. */
   guideAnchor: string;
-  extraTabs?: readonly TabDef<E>[];
+  /** The image-use type for this entity's Images tab. */
+  itemType: ImageUseItemType;
+  load: (id: number) => Promise<E | null>;
+  navActive: string;
+  titleOf: (entity: E) => string;
 }
 
 export const defineSiteContentPage = <E extends { id: number }>(

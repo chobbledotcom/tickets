@@ -232,7 +232,7 @@ const saveServicingAnswers = (
       );
 
 const durationDaysFromRow = (row: ListingAttendeeRow): number | undefined => {
-  if (!row.start_at || !row.end_at) return undefined;
+  if (!row.start_at || !row.end_at) return;
   const ms = new Date(row.end_at).getTime() - new Date(row.start_at).getTime();
   return normalizeDurationDays(Math.round(ms / 86_400_000));
 };

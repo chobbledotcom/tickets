@@ -16,12 +16,12 @@
 /** One nav entry. The public site-pages `NavNode` is structurally one of
  * these; the admin nav lifts its link schema into them. */
 export interface LeveledNavNode {
+  /** Highlighted; on desktop the next submenu level nests beneath it. */
+  active: boolean;
   href: string;
   label: string;
   /** false ⇒ render as text, not a link (never a dead link). */
   live: boolean;
-  /** Highlighted; on desktop the next submenu level nests beneath it. */
-  active: boolean;
 }
 
 /** One stacked submenu level: one mobile bar / one desktop nesting step. */

@@ -308,12 +308,6 @@ export interface PaymentProvider {
   /** The webhook event type name that indicates a completed checkout */
   readonly checkoutCompletedEventType: string;
 
-  /** Whether incoming webhooks carry a verifiable signature. Providers that
-   * sign their webhooks (Stripe, Square) set this true so the endpoint rejects
-   * unsigned requests. Providers whose webhooks are unsigned (SumUp) set this
-   * false and instead establish authenticity by re-fetching from the API. */
-  readonly requiresWebhookSignature: boolean;
-
   /**
    * Create a checkout session for one or more listings.
    * Returns a session ID and hosted checkout URL, or null on failure.
@@ -337,6 +331,12 @@ export interface PaymentProvider {
    * @returns true if refund succeeded, false otherwise
    */
   refundPayment(paymentReference: string): Promise<boolean>;
+
+  /** Whether incoming webhooks carry a verifiable signature. Providers that
+   * sign their webhooks (Stripe, Square) set this true so the endpoint rejects
+   * unsigned requests. Providers whose webhooks are unsigned (SumUp) set this
+   * false and instead establish authenticity by re-fetching from the API. */
+  readonly requiresWebhookSignature: boolean;
 
   /**
    * Resolve a validated session from a webhook event.

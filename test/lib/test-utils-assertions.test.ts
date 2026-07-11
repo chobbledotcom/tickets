@@ -31,9 +31,9 @@ describeWithEnv("test-utils/assertions", { db: true }, () => {
       headers: { location: "/admin" },
       status: 302,
     });
-    const result = await followRedirectWithFlash(response, (request) => {
-      return Promise.resolve(new Response(request.url));
-    });
+    const result = await followRedirectWithFlash(response, (request) =>
+      Promise.resolve(new Response(request.url)),
+    );
     expect(await result.text()).toBe("http://localhost/admin");
   });
 });

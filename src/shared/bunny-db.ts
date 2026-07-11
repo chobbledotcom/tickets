@@ -56,8 +56,8 @@ interface GenerateTokenResponse {
 
 export interface CreateDatabaseResult {
   dbId: string;
-  dbUrl: string;
   dbToken: string;
+  dbUrl: string;
 }
 
 /** Headers for all Bunny Database API requests. */

@@ -53,7 +53,7 @@ await Deno.stderr.write(stderr);
 const allOutput =
   new TextDecoder().decode(stdout) + new TextDecoder().decode(stderr);
 const infoMatch = /Found (\d+) info\./.exec(allOutput);
-const infoCount = infoMatch ? parseInt(infoMatch[1] ?? "0", 10) : 0;
+const infoCount = infoMatch ? Number.parseInt(infoMatch[1] ?? "0", 10) : 0;
 if (infoCount > 0) {
   console.error(
     `Lint failed: ${infoCount} info-level diagnostic${

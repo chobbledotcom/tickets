@@ -170,14 +170,14 @@ export const loadAttendeeQuestionData = async (
   attendeeIds: number[],
   privateKey?: CryptoKey,
 ): Promise<AttendeeQuestionData | undefined> => {
-  if (attendeeIds.length === 0 || listingIds.length === 0) return undefined;
+  if (attendeeIds.length === 0 || listingIds.length === 0) return;
   const [{ questions }, answers] = await Promise.all([
     getQuestionsWithListingIds(listingIds),
     privateKey
       ? getAttendeeAnswersBatch(attendeeIds, { privateKey, texts: true })
       : getAttendeeAnswersBatch(attendeeIds, { texts: false }),
   ]);
-  if (questions.length === 0) return undefined;
+  if (questions.length === 0) return;
   // `texts: false` returns a plain choice-answer Map; `texts: true` returns the
   // choice map plus decrypted free-text answers for the table cells.
   return answers instanceof Map

@@ -20,7 +20,7 @@ export const parseMergeTreeConflictedPaths = (stdout: string): string[] => {
 export const getMergeConflictWarning = async (
   run: RunCommand,
 ): Promise<string | undefined> => {
-  if (!(await isInsideWorkTree(run))) return undefined;
+  if (!(await isInsideWorkTree(run))) return;
 
   const originUrl = await commandValue(run, ["remote", "get-url", "origin"]);
   const head = await commandValue(run, ["rev-parse", "--verify", "HEAD"]);
@@ -36,7 +36,7 @@ export const getMergeConflictWarning = async (
   ]);
   const candidateTree = await commandValue(run, ["write-tree"]);
   if (!originUrl || !head || !originMain || !mergeBase || !candidateTree) {
-    return undefined;
+    return;
   }
 
   const result = await runGit(run, [
@@ -48,10 +48,10 @@ export const getMergeConflictWarning = async (
     candidateTree,
     "origin/main",
   ]);
-  if (result.code !== 1) return undefined;
+  if (result.code !== 1) return;
 
   const conflictCount = parseMergeTreeConflictedPaths(result.stdout).length;
-  if (conflictCount === 0) return undefined;
+  if (conflictCount === 0) return;
 
   return `Heads up - this branch has ${conflictCount} merge conflicts against ${originUrl}`;
 };

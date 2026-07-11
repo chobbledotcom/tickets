@@ -145,7 +145,7 @@ type StripeConfig = NonNullable<ConstructorParameters<typeof Stripe>[1]>;
  */
 const getMockConfigImpl = (): StripeConfig | undefined => {
   const mockHost = getEnv("STRIPE_MOCK_HOST");
-  if (!mockHost) return undefined;
+  if (!mockHost) return;
 
   const mockPort = Number.parseInt(getEnv("STRIPE_MOCK_PORT") || "12111", 10);
   return {

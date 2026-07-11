@@ -62,12 +62,12 @@ export const adminSiteHomePage = (
 
 /** State of the optional public contact form feature */
 interface ContactFormState {
+  /** Whether Botpoison spam protection is configured (env keys set) */
+  botpoisonEnabled: boolean;
   /** Whether the owner has enabled the form */
   enabled: boolean;
   /** Whether a business email is set (required for delivery) */
   hasBusinessEmail: boolean;
-  /** Whether Botpoison spam protection is configured (env keys set) */
-  botpoisonEnabled: boolean;
 }
 
 /** Spam-protection status note: Botpoison is an optional enhancement. */

@@ -186,11 +186,11 @@ const buildLogisticsCsvContext = async (
   attendees: CalendarAttendeeRow[],
   agents: { id: number; name: string }[],
 ): Promise<CalendarLogisticsCsv | undefined> => {
-  if (!settings.hasLogistics) return undefined;
+  if (!settings.hasLogistics) return;
   const listingIds = new Set(
     listings.filter((l) => l.uses_logistics).map((l) => l.id),
   );
-  if (!attendees.some((a) => listingIds.has(a.listing_id))) return undefined;
+  if (!attendees.some((a) => listingIds.has(a.listing_id))) return;
   const rows = await getLogisticsAssignmentsForAttendees(
     attendeeIds(attendees),
   );

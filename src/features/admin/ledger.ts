@@ -588,10 +588,10 @@ type PostedTransferHandler = (
   form: FormParams,
 ) => Response | Promise<Response>;
 
-const postedTransferRoute = (handler: PostedTransferHandler) => {
-  return (request: Request, params: { id: number }): Promise<Response> =>
+const postedTransferRoute =
+  (handler: PostedTransferHandler) =>
+  (request: Request, params: { id: number }): Promise<Response> =>
     ownerPostedTransferForm(request, params.id, handler);
-};
 
 export const handleLedgerEntryAddGet: TypedRouteHandler<"GET /admin/ledger/:type/:ref/add"> =
   ownerTypeRefHtml(async (request, session, { type, ref }) => {

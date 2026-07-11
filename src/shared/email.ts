@@ -297,7 +297,7 @@ export const sendEmail = async (
       code: ErrorCode.EMAIL_SEND,
       detail: `unknown provider: ${config.provider}`,
     });
-    return undefined;
+    return;
   }
   try {
     const { ok, status } = await sendRequest(buildRequest(config, msg));
@@ -313,7 +313,7 @@ export const sendEmail = async (
       code: ErrorCode.EMAIL_SEND,
       detail: error instanceof Error ? error.message : String(error),
     });
-    return undefined;
+    return;
   }
 };
 
@@ -648,11 +648,10 @@ export const sendBulkEmails = async (
 export const sendTestEmail = async (
   config: EmailConfig,
   to: ValidEmail,
-): Promise<number | undefined> => {
-  return await sendEmail(config, {
+): Promise<number | undefined> =>
+  await sendEmail(config, {
     html: `<p>${t("fields.email.test_body")}</p>`,
     subject: t("fields.email.test_subject"),
     text: t("fields.email.test_body"),
     to,
   });
-};

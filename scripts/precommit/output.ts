@@ -44,5 +44,5 @@ export const testProgressFromLine = (line: string): string | undefined => {
   if (done?.[1]) return `(${done[1]} done)`;
 
   if (line.trim() === "Checking coverage...") return "(checking coverage)";
-  return undefined;
+  return;
 };

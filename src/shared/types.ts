@@ -312,7 +312,7 @@ export const sharedGroupRemaining = (
     childGroupIds,
     remainingByGroupId,
   );
-  if (shared.length === 0) return undefined;
+  if (shared.length === 0) return;
   return Math.min(...shared.map((g) => remainingByGroupId.get(g)!));
 };
 
@@ -390,6 +390,12 @@ export interface Listing extends ItemImageProjection {
   assign_built_site: boolean;
   attachment_name: string;
   attachment_url: string;
+  /** When true, a listing that is also a child (offered under one or more
+   * parents) keeps its OWN standalone booking page, catalog entry and API
+   * eligibility, instead of existing only as a foldable add-on. Default false
+   * ⇒ being a child strips standalone existence, the historic behaviour. The
+   * hidden-package-member arm of the gate still outranks this flag. */
+  bookable_alone: boolean;
   bookable_days: string[];
   can_pay_more: boolean;
   closes_at: string | null;
@@ -398,16 +404,19 @@ export interface Listing extends ItemImageProjection {
   date: string; // encrypted UTC ISO datetime or empty string
   day_prices: DayPrices;
   description: string;
-  listing_type: ListingType;
+  duration_days: number;
   fields: ListingFields;
   hidden: boolean;
   id: number;
+  initial_site_months: number;
+  listing_type: ListingType;
   location: string; // encrypted or empty string
   max_attendees: number;
   max_price: number;
   max_quantity: number;
   maximum_days_after: number;
   minimum_days_before: number;
+  months_per_unit: number;
   name: string;
   non_transferable: boolean;
   purchase_only: boolean;
@@ -415,24 +424,15 @@ export interface Listing extends ItemImageProjection {
   slug_index: BlindIndex;
   thank_you_url: string;
   unit_price: number;
-  webhook_url: string;
-  months_per_unit: number;
-  initial_site_months: number;
-  duration_days: number;
-  /** When true (and logistics is enabled) this listing is dropped off and
-   * collected from the customer, so its attendees carry logistics agents. */
-  uses_logistics: boolean;
   /** When true, the fields covered by the operator's listing defaults are
    * inherited live from settings rather than this row's own stored values
    * (see {@link resolveListingDefaults}). A single per-listing flag, never a
    * per-field one, so a stored `false` is never ambiguous. */
   use_defaults: boolean;
-  /** When true, a listing that is also a child (offered under one or more
-   * parents) keeps its OWN standalone booking page, catalog entry and API
-   * eligibility, instead of existing only as a foldable add-on. Default false
-   * ⇒ being a child strips standalone existence, the historic behaviour. The
-   * hidden-package-member arm of the gate still outranks this flag. */
-  bookable_alone: boolean;
+  /** When true (and logistics is enabled) this listing is dropped off and
+   * collected from the customer, so its attendees carry logistics agents. */
+  uses_logistics: boolean;
+  webhook_url: string;
 }
 
 export interface Image {
@@ -453,30 +453,34 @@ export interface LogisticsAgent {
  * Many-to-many: a user may cover several agents and an agent may have several
  * users. */
 export interface UserLogisticsAgent {
+  agent_id: number;
   id: number;
   user_id: number;
-  agent_id: number;
 }
 
 export interface Attendee extends ContactInfo {
-  /** Latitude the operator pinned for the address ("" = not pinned). Lives in
-   * the encrypted pii_blob and is only ever written from the admin side. */
-  lat: string;
-  /** Longitude the operator pinned for the address ("" = not pinned). */
-  lng: string;
   attachment_downloads: number;
   checked_in: boolean;
   created: string;
   date: string | null;
-  kind: string;
   /** Exclusive end of the booked range (YYYY-MM-DD, the midnight after the last
    * booked day), derived from `listing_attendees.end_at`. Null for date-less
    * (standard) bookings. Lets render paths show each booking's true span — which
    * varies per booking on customisable-days listings — instead of assuming the
    * listing's duration. */
   end_date: string | null;
-  listing_id: number;
   id: number;
+  kind: string;
+  /** Latitude the operator pinned for the address ("" = not pinned). Lives in
+   * the encrypted pii_blob and is only ever written from the admin side. */
+  lat: string;
+  listing_id: number;
+  /** Longitude the operator pinned for the address ("" = not pinned). */
+  lng: string;
+  /** The package group this booking row belongs to (0 = not a package). Stamped
+   * on every row of a package order so tickets/emails group the order under the
+   * package by this persisted id. */
+  package_group_id: number;
   payment_id: string;
   /** Owner-key-encrypted PII blob as stored; "" only on a just-created
    * in-memory echo (see buildAttendeeResult), never in the database. */
@@ -486,17 +490,13 @@ export interface Attendee extends ContactInfo {
   refunded: boolean;
   /** Remaining balance owed in minor units (plaintext); 0 when fully paid. */
   remaining_balance: number;
-  /** Owner-defined status id (plaintext); null for legacy/default. */
-  status_id: number | null;
   /** When true, each delivered listing this attendee books carries its own
    * drop-off/collection agents; when false a single pair applies to them all. */
   split_logistics_agents: boolean;
+  /** Owner-defined status id (plaintext); null for legacy/default. */
+  status_id: number | null;
   ticket_token: string;
   ticket_token_index: BlindIndex;
-  /** The package group this booking row belongs to (0 = not a package). Stamped
-   * on every row of a package order so tickets/emails group the order under the
-   * package by this persisted id. */
-  package_group_id: number;
 }
 
 /** Short keys used in the PII blob JSON to minimize encrypted payload size */
@@ -684,8 +684,8 @@ export const isImageUseItemType = guardFor(ImageUseItemTypeSchema);
 
 export interface ImageUse {
   image_id: number;
-  item_type: ImageUseItemType;
   item_id: number;
+  item_type: ImageUseItemType;
   sort_order: number;
 }
 
@@ -699,17 +699,23 @@ export type SitePageItemType = v.InferOutput<typeof SitePageItemTypeSchema>;
 /** Type guard: is this string a valid {@link SitePageItemType}? */
 export const isSitePageItemType = guardFor(SitePageItemTypeSchema);
 
-/** A user-created content page. All free-text columns are stored encrypted;
- * `slug_index` is the plaintext HMAC blind index, `sort_order` positions the
- * page among root-level pages. */
-export interface SitePage {
+/** The fields shared by every named, slugged content record whose free-text
+ * columns are stored encrypted: the body/meta blobs, the display name, and the
+ * `/slug` permalink paired with its plaintext HMAC blind index (`slug_index`).
+ * Both site pages and news posts build on this. */
+export interface EncryptedContentRecord {
+  content: string;
   id: number;
+  meta_description: string;
+  meta_title: string;
+  name: string;
   slug: string;
   slug_index: BlindIndex;
-  name: string;
-  meta_title: string;
-  meta_description: string;
-  content: string;
+}
+
+/** A user-created content page. Adds `sort_order`, which positions the page
+ * among root-level pages. */
+export interface SitePage extends EncryptedContentRecord {
   sort_order: number;
 }
 
@@ -724,9 +730,9 @@ export type SitePageNavRow = Pick<
 /** One ordered membership edge: `item` (of `item_type`) sits inside `page_id`
  * at `sort_order`. Keyed on the composite `(page_id, item_type, item_id)`. */
 export interface SitePageItem {
-  page_id: number;
-  item_type: SitePageItemType;
   item_id: number;
+  item_type: SitePageItemType;
+  page_id: number;
   sort_order: number;
 }
 
@@ -735,16 +741,9 @@ export interface SitePageItem {
  * newest-first ordering and the RSS pubDate never need a scan-and-decrypt.
  * `slug` is the `/news/:slug` permalink (auto-generated from the created date
  * and the name at creation, then immutable); `slug_index` is its blind index. */
-export interface NewsPost {
-  id: number;
+export interface NewsPost extends EncryptedContentRecord {
   created: string;
-  slug: string;
-  slug_index: BlindIndex;
-  name: string;
-  meta_title: string;
-  meta_description: string;
   snippet: string;
-  content: string;
 }
 
 /** The narrow list projection — id, created, slug, name, snippet — for readers
@@ -763,33 +762,33 @@ export type NewsPostCard = NewsPostSummary & ItemImageProjection;
  * is the positive magnitude the owner entered (a fixed amount in major currency
  * units, a percentage, or a multiplier); `direction` chooses charge vs discount. */
 export interface Modifier {
-  id: number;
-  name: string;
+  active: boolean;
   calc_kind: CalcKind;
   calc_value: number;
-  direction: ModifierDirection;
-  active: boolean;
-  trigger: ModifierTrigger;
   /** Promo code (trigger = "code"), shown to the owner; "" for other triggers. */
   code: string;
   /** Blind index (HMAC) of the normalised code, for public code lookup; null
    * when the modifier has no code. */
   code_index: string | null;
-  scope: ModifierScope;
+  direction: ModifierDirection;
+  id: number;
   /** Minimum in-scope subtotal (minor units) for the modifier to apply. */
   min_subtotal: number;
   /** Minimum prior bookings required for the modifier to apply. */
   min_visits: number;
+  name: string;
+  scope: ModifierScope;
   /** Remaining-stock cap, or null for unlimited. Consumed monotonically. */
   stock: number | null;
-  /** Trigger-maintained SUM(quantity) over this modifier's usage rows. */
-  total_uses: number;
-  /** Trigger-maintained COUNT of this modifier's usage rows. */
-  usage_count: number;
   /** Projected from the transfers ledger as `balanceOf(modifier:M)` — the
    * modifier account's net effect on revenue (surcharges in, discounts out),
    * read directly, in minor units. */
   total_revenue: number;
+  /** Trigger-maintained SUM(quantity) over this modifier's usage rows. */
+  total_uses: number;
+  trigger: ModifierTrigger;
+  /** Trigger-maintained COUNT of this modifier's usage rows. */
+  usage_count: number;
 }
 
 export interface ListingWithCount extends Listing {

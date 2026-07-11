@@ -19,12 +19,12 @@ export const DEFAULT_ATTENDEE_STATUS_NAME = "Confirmed";
 /** A status an attendee can be in. */
 export interface AttendeeStatus {
   id: number;
-  sort_order: number;
-  name: string; // encrypted at rest
-  is_public_default: boolean;
   is_paid_default: boolean;
+  is_public_default: boolean;
   is_reservation: boolean;
+  name: string; // encrypted at rest
   reservation_amount: string;
+  sort_order: number;
 }
 
 /** Create/update input (camelCase). */

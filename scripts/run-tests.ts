@@ -96,7 +96,7 @@ const metricFailure = (
   const foundMatch = record.match(new RegExp(`${foundKey}:(\\d+)`));
   const hitText = hitMatch?.[1];
   const foundText = foundMatch?.[1];
-  if (!hitText || !foundText) return undefined;
+  if (!hitText || !foundText) return;
   const covered = Number.parseInt(hitText, 10);
   const total = Number.parseInt(foundText, 10);
   return covered < total ? { covered, total, uncovered } : undefined;
@@ -125,7 +125,7 @@ const extractRecordSource = (
 /** Check both line and branch coverage for a single lcov record */
 const checkRecord = (record: string): CoverageFailure | undefined => {
   const source = extractRecordSource(record);
-  if (!source) return undefined;
+  if (!source) return;
 
   const lines = metricFailure(
     record,
@@ -139,7 +139,7 @@ const checkRecord = (record: string): CoverageFailure | undefined => {
     "BRF",
     extractUncoveredBranchLines(record),
   );
-  if (!lines && !branches) return undefined;
+  if (!lines && !branches) return;
   return {
     ...source,
     ...(branches ? { branches } : {}),

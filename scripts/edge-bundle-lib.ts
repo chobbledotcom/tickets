@@ -34,31 +34,31 @@ import { inlineWasmPlugin } from "./inline-jsquash-wasm.ts";
 export type { EdgeBundleGuard } from "./edge-bundle-modules.ts";
 
 export interface EdgeBundleContext {
-  /** The final bundle text (after `transformContent`). */
-  content: string;
   /** ISO build timestamp baked into the bundle; reused for the release tag. */
   buildIso: string;
+  /** The final bundle text (after `transformContent`). */
+  content: string;
 }
 
 export interface EdgeBundleOptions {
-  /** Human label used in guard messages and the completion log ("Edge"/"Deploy"). */
-  label: string;
-  /** Entry point to bundle, e.g. `"./src/edge.ts"`. */
-  entryPoint: string;
-  /** Basename esbuild writes under `./dist`, e.g. `"edge.js"`. */
-  outfile: string;
-  /** Transform the raw `dist/<outfile>` text before guards run (e.g. rename the source-map link). */
-  transformContent?: (raw: string) => string;
-  /** Extra assertions beyond the shared React-runtime guard. */
-  guards?: EdgeBundleGuard[];
   /** Emit the finished bundle (write files, copy the map, …) and return. */
   emit: (ctx: EdgeBundleContext) => Promise<void>;
-  /** Reuse already-built client bundles instead of rebuilding them (for the
-   * benchmarks that bundle several entry points back to back). */
-  skipClientBuild?: boolean;
   /** Inline empty strings instead of the real asset bodies — for benchmark
    * builds that measure what the inlined payloads themselves cost. */
   emptyInlinedAssets?: boolean;
+  /** Entry point to bundle, e.g. `"./src/edge.ts"`. */
+  entryPoint: string;
+  /** Extra assertions beyond the shared React-runtime guard. */
+  guards?: EdgeBundleGuard[];
+  /** Human label used in guard messages and the completion log ("Edge"/"Deploy"). */
+  label: string;
+  /** Basename esbuild writes under `./dist`, e.g. `"edge.js"`. */
+  outfile: string;
+  /** Reuse already-built client bundles instead of rebuilding them (for the
+   * benchmarks that bundle several entry points back to back). */
+  skipClientBuild?: boolean;
+  /** Transform the raw `dist/<outfile>` text before guards run (e.g. rename the source-map link). */
+  transformContent?: (raw: string) => string;
 }
 
 const JS = "application/javascript; charset=utf-8";

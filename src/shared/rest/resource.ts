@@ -77,10 +77,12 @@ export interface ResourceConfig<
   Id = InValue,
   Values extends FieldValues = FieldValues,
 > {
-  fields: Field[];
-  nameField?: keyof Row & string;
-  /** Custom delete function (e.g., to delete related records first) */
-  onDelete?: (id: InValue) => Promise<void>;
+  /** Run after a successful create/update has committed, keyed on the row id.
+   * Unlike `afterWrite` (which shares the write transaction), this fires
+   * post-commit — for reconciling a derived table (e.g. listing_prices) that the
+   * transactional `insertStatement`/`updateStatement` path would otherwise
+   * bypass along with the {@link Table} wrapper. */
+  afterCommit?: (id: number) => Promise<void>;
   /** Side-effect run after a successful create/update with the written row's
    * id, the parsed input, and the raw form — e.g. to persist join-table rows (a
    * listing's groups) or dynamic inputs (a group's per-listing package prices)
@@ -93,12 +95,10 @@ export interface ResourceConfig<
     input: Input,
     form: FormParams,
   ) => Promise<void>;
-  /** Run after a successful create/update has committed, keyed on the row id.
-   * Unlike `afterWrite` (which shares the write transaction), this fires
-   * post-commit — for reconciling a derived table (e.g. listing_prices) that the
-   * transactional `insertStatement`/`updateStatement` path would otherwise
-   * bypass along with the {@link Table} wrapper. */
-  afterCommit?: (id: number) => Promise<void>;
+  fields: Field[];
+  nameField?: keyof Row & string;
+  /** Custom delete function (e.g., to delete related records first) */
+  onDelete?: (id: InValue) => Promise<void>;
   table: Table<Row, Input>;
   toInput: (values: Values) => Input | Promise<Input>;
   /** Custom validation (e.g., check uniqueness). Return error message or null. */

@@ -134,7 +134,7 @@ const parseYamlMessage = (lines: string[]): string | undefined => {
       ? readYamlBlockScalar(lines, index, baseIndent)
       : parseYamlScalar(value);
   }
-  return undefined;
+  return;
 };
 
 type AtFieldAssign = (
@@ -164,7 +164,7 @@ const assignAtField = (
 
 const parseYamlAt = (lines: string[]): TapDiagnostic["at"] | undefined => {
   const atIndex = lines.findIndex((line) => /^(\s*)at:\s*$/.test(line));
-  if (atIndex === -1) return undefined;
+  if (atIndex === -1) return;
 
   const atIndent = leadingWhitespaceLength(lines[atIndex] ?? "");
   const at: NonNullable<TapDiagnostic["at"]> = {};
@@ -224,7 +224,7 @@ const locationFromDiagnostic = (
   cwd: string,
   diagnostic: TapDiagnostic,
 ): Location | undefined => {
-  if (!diagnostic.at?.file) return undefined;
+  if (!diagnostic.at?.file) return;
   return {
     column: diagnostic.at.column,
     file: toDisplayPath(cwd, diagnostic.at.file),
@@ -259,7 +259,7 @@ const locationFromStack = (
       line: Number(match.slice(lineSplit + 1, columnSplit)),
     };
   }
-  return undefined;
+  return;
 };
 
 export const hasReporterArg = (args: string[]): boolean =>
@@ -315,13 +315,13 @@ export const estimateTapEventCount = async (
   args: string[],
 ): Promise<number | undefined> => {
   const fileArgs = collectFileArgs(args);
-  if (fileArgs.length === 0) return undefined;
+  if (fileArgs.length === 0) return;
 
   const files: string[] = [];
   for (const arg of fileArgs) {
     await walkTestFiles(isAbsolute(arg) ? arg : `${cwd}/${arg}`, files);
   }
-  if (files.length === 0) return undefined;
+  if (files.length === 0) return;
 
   let count = 0;
   for (const file of files) {

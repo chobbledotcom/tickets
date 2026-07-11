@@ -489,7 +489,7 @@ const createPaymentLinkImpl = (
 const normalizeCheckoutPhone = (
   phone: string | undefined,
 ): string | undefined => {
-  if (!phone) return undefined;
+  if (!phone) return;
   return normalizePhone(phone, settings.phonePrefix);
 };
 

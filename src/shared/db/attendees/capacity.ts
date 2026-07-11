@@ -281,7 +281,7 @@ export async function getGroupRemainingForListing(
   date: string | null = null,
 ): Promise<number | undefined> {
   const listing = await listingForCapacity(listingOrId);
-  if (!listing) return undefined;
+  if (!listing) return;
   const map = await getGroupRemainingByListingId([listing], date);
   return map.get(listing.id);
 }
@@ -702,7 +702,7 @@ export async function getListingRemainingForRange(
     return getListingRemainingMapForRange(listingsOrId, date, durationDays);
   }
   const listing = await getListingWithCount(listingsOrId);
-  if (!listing) return undefined;
+  if (!listing) return;
   const remaining = await getListingRemainingMapForRange(
     [listing],
     date,

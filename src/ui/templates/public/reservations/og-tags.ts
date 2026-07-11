@@ -57,7 +57,7 @@ export const ticketPageHeadExtra = (
   slugs: string[],
   baseUrl: string | undefined,
 ): string | undefined => {
-  if (!headerImage || !headerName || !baseUrl) return undefined;
+  if (!headerImage || !headerName || !baseUrl) return;
   return buildOgTags(
     {
       description: headerDescription,

@@ -85,16 +85,16 @@ const toggleLink = (view: EditorView): void => {
 };
 
 export interface ToolbarItem {
+  /** Whether the button is highlighted for the given state. */
+  isActive: (state: EditorState) => boolean;
   /** Stable identifier, also the button's `md-toolbar-<key>` modifier class. */
   key: string;
   /** Accessible name (title + aria-label). */
   label: string;
-  /** Visible button text. */
-  text: string;
   /** Invoked on click. */
   run: (view: EditorView) => void;
-  /** Whether the button is highlighted for the given state. */
-  isActive: (state: EditorState) => boolean;
+  /** Visible button text. */
+  text: string;
 }
 
 export const TOOLBAR_ITEMS: ToolbarItem[] = [

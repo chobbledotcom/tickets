@@ -159,13 +159,13 @@ interface Queryable {
   querySelectorAll(selector: string): ArrayLike<QueryNode>;
 }
 interface QueryNode extends Queryable {
-  textContent: string;
+  click(): void;
+  dispatchEvent(event: unknown): boolean;
+  getAttribute(name: string): string | null;
   hidden: boolean;
   open: boolean;
+  textContent: string;
   type: string;
-  getAttribute(name: string): string | null;
-  dispatchEvent(event: unknown): boolean;
-  click(): void;
 }
 
 const hostEl = (h: Harness) => h.document.querySelector("[data-chobble-order]");

@@ -30,7 +30,7 @@ const logBracket = (asPromise = false) => {
     () => {
       log.push("release");
       if (asPromise) return Promise.resolve();
-      return undefined;
+      return;
     },
   );
   return { log, withResource };

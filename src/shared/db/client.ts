@@ -224,9 +224,7 @@ const firstRowOrNull = <T>(result: ResultSet): T | null => {
 export const queryOne = async <T>(
   sql: string,
   args?: InValue[],
-): Promise<T | null> => {
-  return firstRowOrNull<T>(await execute(sql, args));
-};
+): Promise<T | null> => firstRowOrNull<T>(await execute(sql, args));
 
 /**
  * Query a single row on the primary (read-your-writes), returning null if not

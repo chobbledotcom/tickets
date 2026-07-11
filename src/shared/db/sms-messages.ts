@@ -18,11 +18,11 @@ import {
 import { nowIso } from "#shared/now.ts";
 
 export interface SmsMessageRow {
-  id: number;
   attendee_id: number;
+  created: string;
+  id: number;
   listing_id: number;
   provider_id: string;
-  created: string;
 }
 
 const COLUMNS = "id, attendee_id, listing_id, provider_id, created";

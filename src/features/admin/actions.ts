@@ -167,7 +167,7 @@ export const createActionHandler = <TSession = AuthSession>(
         : AUTH_FORM;
 
   const resolveListingId = (form: FormParams): number | undefined => {
-    if (config.listingId === undefined) return undefined;
+    if (config.listingId === undefined) return;
     return typeof config.listingId === "function"
       ? config.listingId(form)
       : config.listingId;

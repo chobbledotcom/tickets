@@ -640,8 +640,8 @@ export const assignBuiltSite = (
   siteId: number,
   attendeeId: number,
   listingId: number,
-): Promise<BuiltSite | null> => {
-  return withBuiltSiteForUpdate(siteId, async () => {
+): Promise<BuiltSite | null> =>
+  withBuiltSiteForUpdate(siteId, async () => {
     const row = (await builtSites.table.update(siteId, {
       assignable: 0,
       assignedAttendeeId: attendeeId,
@@ -649,7 +649,6 @@ export const assignBuiltSite = (
     })) as BuiltSiteRow;
     return rowToBuiltSite(row);
   });
-};
 
 /** Look up a built site by renewal token index (HMAC blind index) */
 export const getBuiltSiteByRenewalTokenIndex = async (
@@ -672,8 +671,8 @@ export const updateBuiltSiteRenewalState = (
     readOnlyFrom?: string;
     renewalToken?: string;
   },
-): Promise<BuiltSite | null> => {
-  return withBuiltSiteForUpdate(siteId, async (existing) => {
+): Promise<BuiltSite | null> =>
+  withBuiltSiteForUpdate(siteId, async (existing) => {
     const token = updates.renewalToken ?? existing.renewalToken ?? undefined;
     const row = (await builtSites.table.update(siteId, {
       siteData: buildSiteDataBlobFromInput({
@@ -689,4 +688,3 @@ export const updateBuiltSiteRenewalState = (
     })) as BuiltSiteRow;
     return rowToBuiltSite(row);
   });
-};

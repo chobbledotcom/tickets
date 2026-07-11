@@ -85,7 +85,7 @@ const GROUP_EXPORT_EXCLUDED = ["slug", "slug_index"] as const;
 const dayPricesToRecord = (
   dayPrices: ReadonlyMap<number, number> | undefined,
 ): Record<string, number> | undefined => {
-  if (!dayPrices || dayPrices.size === 0) return undefined;
+  if (!dayPrices || dayPrices.size === 0) return;
   const record: Record<string, number> = {};
   for (const [day, price] of dayPrices) record[String(day)] = price;
   return record;

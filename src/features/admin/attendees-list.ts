@@ -53,9 +53,8 @@ const parseSort = (request: Request): AttendeeSort => {
 };
 
 /** Parse the ?page= param into a zero-based, non-negative page index */
-const parsePage = (request: Request): number => {
-  return parsePositiveInt(getSearchParam(request, "page")) ?? 0;
-};
+const parsePage = (request: Request): number =>
+  parsePositiveInt(getSearchParam(request, "page")) ?? 0;
 
 /**
  * Parse the ?listing= filter. Returns the listing id only when it matches a

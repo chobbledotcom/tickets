@@ -117,8 +117,8 @@ const buildChildAvailability = (
   parent: ListingWithCount,
   date: string | undefined,
   quantity: number,
-): Promise<{ slug: string; available: boolean }[] | null> => {
-  return mapParentChildren(parent, async (child) => {
+): Promise<{ slug: string; available: boolean }[] | null> =>
+  mapParentChildren(parent, async (child) => {
     let childDateAvail = true;
     if (child.listing_type === "daily" && date) {
       childDateAvail = getBookableStartDates(
@@ -140,7 +140,6 @@ const buildChildAvailability = (
       slug: child.slug,
     };
   });
-};
 
 /** GET /api/listings/:slug/availability — check if spots are available */
 export const handleCheckAvailability = withGuardedListing(

@@ -11,10 +11,10 @@ import { filter, map, pipe } from "#fp";
 
 /** One tab after its visibility predicate has been evaluated. */
 export interface TabState {
-  /** URL segment under the entity's base path; "" is the default tab. */
-  slug: string;
   /** Locale key for the strip label. */
   labelKey: string;
+  /** URL segment under the entity's base path; "" is the default tab. */
+  slug: string;
   /** Whether the current viewer may see this tab. A hidden tab is absent
    * from the strip AND 404s when named directly — visibility here is
    * authorization, not decoration. */
@@ -23,9 +23,9 @@ export interface TabState {
 
 /** One rendered tab-strip link. */
 export interface TabLink {
+  active: boolean;
   href: string;
   labelKey: string;
-  active: boolean;
 }
 
 /** The canonical URL of a tab — the one place tab URLs are minted. */
