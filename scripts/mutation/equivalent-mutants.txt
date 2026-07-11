@@ -849,7 +849,3 @@ src/shared/logger.ts:77:70  ?? → ||   # getRequestId's `getStore() ?? ""`: the
 # Admin refund waves (refunds/waves.ts) — one provably-equivalent survivor from
 # the packByReferenceCount run.
 src/features/admin/refunds/waves.ts:16:24  0 → 1   # packByReferenceCount's `currentCount` init: the first iteration always hits `!wave` (waves is empty, so waves[-1] is undefined), which short-circuits the `|| currentCount + refs > budget` before currentCount is read; every later iteration reassigns it first, so the initial value is never observed
-
-# Ticket token utils (tickets/token-utils.ts) — one provably-equivalent survivor
-# from the extractTokenSegment run.
-src/features/tickets/token-utils.ts:120:20  ?? → ||   # extractTokenSegment's `match?.[1] ?? null`: the regex is `^/prefix/(.+)$`, so capture group 1 is always a non-empty (truthy) string when the match succeeds, and undefined when it fails — `?? null` and `|| null` agree on every input

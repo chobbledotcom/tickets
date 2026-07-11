@@ -19,6 +19,7 @@ import {
   isTokenRateLimited,
   recordTokenFailure,
 } from "#shared/db/token-attempts.ts";
+import { MAX_TOKEN_404S } from "#shared/limits.ts";
 import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -67,6 +68,13 @@ describe("extractTokenSegment", () => {
 
   test("returns null when there is no segment after the prefix", () => {
     expect(extractTokenSegment("t", "/t/")).toBeNull();
+  });
+
+  test("preserves an empty capture from a prefix that is itself a group", () => {
+    // The prefix is interpolated into the pattern unescaped, so a prefix that
+    // is a capture group makes match[1] the (possibly empty) prefix capture.
+    // `?? null` keeps the "" result; `|| null` would wrongly return null.
+    expect(extractTokenSegment("(a*)", "//abc")).toBe("");
   });
 });
 
@@ -164,6 +172,22 @@ describeWithEnv("ticket token utils", { db: true }, () => {
     expect(entry!.attendee.end_date).toBeNull();
   });
 
+  test("resolveEntries returns no entries when the attendee has no bookings", async () => {
+    const listing = await createTestListing({ maxAttendees: 10 });
+    const { attendee, token } = await createTestAttendeeDirect(
+      listing.id,
+      "No booking",
+      "nobooking@example.com",
+    );
+    await getDb().execute({
+      args: [attendee.id],
+      sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
+    });
+
+    const attendees = await getAttendeesByTokens([token]);
+    expect(await resolveEntries([attendees[0]!])).toEqual([]);
+  });
+
   test("resolveEntries drops a zero-quantity booking even with a valid listing", async () => {
     const listing = await createTestListing({ maxAttendees: 10 });
     const { attendee, token } = await createTestAttendeeDirect(
@@ -259,6 +283,7 @@ describeWithEnv("ticket token utils", { db: true }, () => {
   test("lookupSingleTokenPassData 404s for an empty token list", async () => {
     const result = await lookupSingleTokenPassData([]);
     expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.response.status).toBe(404);
   });
 
   test("lookupSingleTokenPassData 404s for more than one token", async () => {
@@ -268,11 +293,13 @@ describeWithEnv("ticket token utils", { db: true }, () => {
 
     const result = await lookupSingleTokenPassData([a.token, b.token]);
     expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.response.status).toBe(404);
   });
 
   test("lookupSingleTokenPassData 404s for an unknown token", async () => {
     const result = await lookupSingleTokenPassData(["nope-not-a-token"]);
     expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.response.status).toBe(404);
   });
 
   test("lookupSingleTokenPassData 404s when the token resolves to no real line", async () => {
@@ -286,6 +313,7 @@ describeWithEnv("ticket token utils", { db: true }, () => {
 
     const result = await lookupSingleTokenPassData([token]);
     expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.response.status).toBe(404);
   });
 
   test("lookupSingleTokenPassData 404s a package booking to avoid leaking a member", async () => {
@@ -303,6 +331,7 @@ describeWithEnv("ticket token utils", { db: true }, () => {
 
     const result = await lookupSingleTokenPassData([token]);
     expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.response.status).toBe(404);
   });
 
   test("buildWalletPassData maps a resolved entry onto the pass fields", async () => {
@@ -323,10 +352,20 @@ describeWithEnv("ticket token utils", { db: true }, () => {
   });
 
   const rateLimitRequest = new Request("http://localhost/t/abc");
+  // Distinct token lists sized off the configurable lockout threshold, so the
+  // tests hold whatever MAX_TOKEN_404S is set to.
+  const distinctTokens = (count: number): string[] =>
+    Array.from({ length: count }, (_, i) => `tok-${i}`);
+  const atLimit = distinctTokens(MAX_TOKEN_404S);
+  const belowLimit = distinctTokens(MAX_TOKEN_404S - 1);
+  const oneMore = `tok-${MAX_TOKEN_404S - 1}`;
 
   test("withTokenRateLimit returns the handler response and clears failures on success", async () => {
+    // One short of the lockout threshold.
+    await recordTokenFailure("direct", belowLimit);
+
+    const ok = new Response("ok", { status: 200 });
     await runWithPendingWork(async () => {
-      const ok = new Response("ok", { status: 200 });
       const out = await withTokenRateLimit(
         rateLimitRequest,
         undefined,
@@ -336,6 +375,11 @@ describeWithEnv("ticket token utils", { db: true }, () => {
       await flushPendingWork();
       expect(out).toBe(ok);
     });
+
+    // The success wiped the prior failures, so one fresh failure cannot lock;
+    // had clearing been skipped, this final distinct token would trip it.
+    await recordTokenFailure("direct", [oneMore]);
+    expect(await isTokenRateLimited("direct")).toBe(false);
   });
 
   test("withTokenRateLimit records a 404 failure and locks the IP", async () => {
@@ -343,7 +387,7 @@ describeWithEnv("ticket token utils", { db: true }, () => {
       await withTokenRateLimit(
         rateLimitRequest,
         undefined,
-        ["a", "b", "c", "d", "e"],
+        atLimit,
         () => new Response("nope", { status: 404 }),
       );
       await flushPendingWork();
@@ -351,13 +395,14 @@ describeWithEnv("ticket token utils", { db: true }, () => {
     expect(await isTokenRateLimited("direct")).toBe(true);
   });
 
-  test("withTokenRateLimit does not record a failure for a non-404 response", async () => {
+  test("withTokenRateLimit does not record a failure for a non-OK, non-404 response", async () => {
+    // A 500 takes neither the 404-record branch nor the 2xx-clear branch.
     await runWithPendingWork(async () => {
       await withTokenRateLimit(
         rateLimitRequest,
         undefined,
-        ["a", "b", "c", "d", "e"],
-        () => new Response("ok", { status: 200 }),
+        atLimit,
+        () => new Response("boom", { status: 500 }),
       );
       await flushPendingWork();
     });
@@ -365,14 +410,14 @@ describeWithEnv("ticket token utils", { db: true }, () => {
   });
 
   test("withTokenRateLimit counts a single-token 404 toward the limit", async () => {
-    await recordTokenFailure("direct", ["a", "b", "c", "d"]);
+    await recordTokenFailure("direct", belowLimit);
     expect(await isTokenRateLimited("direct")).toBe(false);
 
     await runWithPendingWork(async () => {
       await withTokenRateLimit(
         rateLimitRequest,
         undefined,
-        ["e"],
+        [oneMore],
         () => new Response("nope", { status: 404 }),
       );
       await flushPendingWork();
@@ -381,7 +426,7 @@ describeWithEnv("ticket token utils", { db: true }, () => {
   });
 
   test("withTokenRateLimit short-circuits to 429 without running the handler", async () => {
-    await recordTokenFailure("direct", ["a", "b", "c", "d", "e"]);
+    await recordTokenFailure("direct", atLimit);
     let ran = false;
     const out = await withTokenRateLimit(
       rateLimitRequest,
