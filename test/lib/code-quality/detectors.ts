@@ -243,8 +243,11 @@ export const isUsedInSameFile = (
  * The three clause shapes that pull a named symbol in from another module: a
  * static `import { … } from`, a destructured lazy load
  * `const { … } = await import(…)` (how cold-start-sensitive paths defer heavy
- * modules), and the route table's `lazyExport(() => import(…), "name")`,
- * which names the export it will read as a quoted string.
+ * modules), and the route table's lazyExport entries, which name the export
+ * they will read as a quoted string after the thunk. (No inline lazyExport
+ * example here on purpose: this scanner reads raw source text, so a matchable
+ * example in this very comment would register a phantom imported symbol —
+ * see TODO.md "Dead-export scanner matches raw text".)
  */
 const IMPORT_CLAUSES =
   /import\s*\{([^}]*)\}|(?:const|let|var)\s*\{([^{}]*)\}\s*=\s*await\s+import\(|lazyExport\(\s*\(\)\s*=>\s*import\([^)]+\),\s*"(\w+)"/g;
