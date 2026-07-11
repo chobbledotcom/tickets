@@ -597,7 +597,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       }),
       400,
       (body) => {
-        expect(body.error).toContain("Packages cannot contain");
+        expect(body.error).toContain("hidden package");
       },
     );
   });
@@ -621,7 +621,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       }),
       400,
       (body) => {
-        expect(body.error).toContain("Packages cannot contain");
+        expect(body.error).toContain("belongs to a package");
       },
     );
   });
@@ -641,7 +641,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     );
     await expectFlashRedirect(
       `/admin/listing/${parent.id}/edit`,
-      expect.stringContaining("Packages cannot contain"),
+      expect.stringContaining("belongs to a package"),
       false,
     )(response);
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
@@ -674,7 +674,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     );
     await expectFlashRedirect(
       `/admin/listing/${memberListing.id}/edit`,
-      expect.stringContaining("Packages cannot contain"),
+      expect.stringContaining("hidden package"),
       false,
     )(response);
     expect(await listingChildren.getIds(memberListing.id)).toEqual([]);

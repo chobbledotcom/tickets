@@ -36,6 +36,7 @@ import {
 import { allNamesById, queryAndMap } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
+import type { PackageChildEdgeBlock } from "#shared/package-membership.ts";
 import type {
   DayPrices,
   Group,
@@ -385,21 +386,21 @@ export const isHiddenPackageMember = async (
   listingId: number,
 ): Promise<boolean> => (await getHiddenPackageMemberIds([listingId])).size > 0;
 
-/** Whether adding child edges would violate the package invariant: the parent is
- * joining/in a HIDDEN package group (a visible package renders the member's
- * child selector, so a member gating children is fine there), or any chosen
+/** Which package invariant adding child edges would violate, or null when the
+ * edges are fine: `gate_in_hidden` when the parent is joining/in a HIDDEN
+ * package group (a visible package renders the member's child selector, so a
+ * member gating children is fine there), or `child_is_member` when any chosen
  * child is itself a package member (a package member is only ever sold as part
  * of its bundle, never folded under another parent). An empty `childIds`
  * (clearing children) is never a conflict. */
 export const packageChildEdgeConflict = async (
   parentGroupIds: readonly number[],
   childIds: readonly number[],
-): Promise<boolean> => {
-  if (childIds.length === 0) return false;
-  return (
-    (await anyHiddenPackageGroup(parentGroupIds)) ||
-    (await anyListingInPackageGroup(childIds))
-  );
+): Promise<PackageChildEdgeBlock | null> => {
+  if (childIds.length === 0) return null;
+  if (await anyHiddenPackageGroup(parentGroupIds)) return "gate_in_hidden";
+  if (await anyListingInPackageGroup(childIds)) return "child_is_member";
+  return null;
 };
 
 /** Package-group display info for grouping a booking's lines under the package

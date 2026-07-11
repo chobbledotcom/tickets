@@ -38,14 +38,14 @@ import {
   wrapResourceForDemo,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import {
+  type PackageMemberBlock,
+  packageMemberBlock,
+  packageMemberBlockError,
+} from "#shared/package-membership.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
-import type {
-  AdminSession,
-  DayPrices,
-  Group,
-  ListingType,
-} from "#shared/types.ts";
+import type { AdminSession, DayPrices, Group } from "#shared/types.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
 import {
   adminGroupDeletePage,
@@ -81,67 +81,57 @@ const validateGroupSlug: GroupValidator = async (input, id) => {
   return taken ? t("error.slug_in_use_group") : null;
 };
 
-/** A package prices each member individually and the buyer picks a single
- * package quantity, so every member needs an operator-set price: only
- * `can_pay_more` listings (price chosen by the buyer at booking time) cannot be
- * packaged. Daily and customisable-day members are fine — the group invariant
- * (see validateGroupListingType) keeps a group's members homogeneous, so a
- * dated package books every member from one shared date/day-count selector. */
-const isPackageable = (listing: {
-  listing_type: ListingType;
-  customisable_days: boolean;
-  can_pay_more: boolean;
-}): boolean => !listing.can_pay_more;
-
-/** Whether a listing can be a package member (see {@link isPackageable} for the
- * pricing rule). A member that is itself another listing's add-on CHILD can
- * never be packaged — a package member is only sold as part of its bundle. A
- * member that gates its own children (is a PARENT) is fine on a VISIBLE package
- * (the package page renders its child selector like any parent row) but not on
- * a hidden one, where members are collapsed to the package name and a child
- * selector would leak them. */
-const isPackageableMember = (
-  listing: {
-    id: number;
-    listing_type: ListingType;
-    customisable_days: boolean;
-    can_pay_more: boolean;
-  },
-  edges: { childIds: number[]; parentIds: number[] },
-  // Undefined (an input that omitted the flag) reads as "not hidden".
+/** The first member of `listings` that can't be packaged, paired with the
+ * reason it's blocked — or null when every listing is a valid member. Judged
+ * against ONE batched edge load (two queries for the whole member list, never
+ * one per member). The pricing/add-on/hidden-gate rules themselves live in the
+ * shared {@link packageMemberBlock}. Generic over the listing shape so the
+ * caller gets its own row back (with the name) to build the error. */
+const firstUnpackageableMember = async <
+  L extends { id: number; can_pay_more: boolean },
+>(
+  listings: readonly L[],
   hideListings: boolean | undefined,
-): boolean => {
-  if (!isPackageable(listing)) return false;
-  if (edges.parentIds.length > 0) return false;
-  return !(hideListings && edges.childIds.length > 0);
+): Promise<{ listing: L; block: PackageMemberBlock } | null> => {
+  const edges = await edgeIdsTouchingMany(listings.map((l) => l.id));
+  for (const listing of listings) {
+    const block = packageMemberBlock(
+      listing,
+      edges.get(listing.id)!,
+      hideListings,
+    );
+    if (block) return { block, listing };
+  }
+  return null;
 };
 
-/** Whether every listing can be a package member, judged against ONE batched
- * edge load (two queries for the whole member list, never per member). */
-export const allPackageableMembers = async (
-  listings: readonly Parameters<typeof isPackageableMember>[0][],
+/** The member-naming package error for the first listing in `listings` that
+ * can't be a package member (pay-what-you-want, an add-on of another listing,
+ * or — on a hidden package — a member gating its own children), or null when
+ * every listing is a valid member. The one place every package save (group
+ * form, add-listings, listing form/API, catalog import) turns an unpackageable
+ * member into its user-facing message. */
+export const packageMembersError = async (
+  listings: readonly { id: number; can_pay_more: boolean; name: string }[],
   hideListings: boolean | undefined,
-): Promise<boolean> => {
-  const edges = await edgeIdsTouchingMany(listings.map((l) => l.id));
-  return listings.every((listing) =>
-    isPackageableMember(listing, edges.get(listing.id)!, hideListings),
-  );
+): Promise<string | null> => {
+  const offender = await firstUnpackageableMember(listings, hideListings);
+  return offender
+    ? packageMemberBlockError(offender.listing.name, offender.block)
+    : null;
 };
 
 /** Reject marking a group as a package when any current member can't be packaged
- * (see {@link isPackageableMember}) — including hiding a package whose member
- * gates children. A falsy `isPackage` is always fine. Returns an error message,
- * or null when valid. */
+ * (see {@link packageMembersError}) — including hiding a package whose member
+ * gates children. A falsy `isPackage` is always fine. Returns a member-naming
+ * error message, or null when valid. */
 const validatePackageCompatibility = async (
   groupId: number,
   isPackage: boolean | undefined,
   hideListings: boolean | undefined,
 ): Promise<string | null> => {
   if (!isPackage) return null;
-  const listings = await getListingsByGroupId(groupId);
-  return (await allPackageableMembers(listings, hideListings))
-    ? null
-    : t("error.package_incompatible_listing");
+  return packageMembersError(await getListingsByGroupId(groupId), hideListings);
 };
 
 /** Error when the group is a HIDDEN package with sold tickets. Booking rows
@@ -414,11 +404,12 @@ const validateListingTypesForGroup = async (
     );
     if (typeError) return typeError;
   }
-  if (
-    group.is_package &&
-    !(await allPackageableMembers(listings, group.hide_package_listings))
-  ) {
-    return t("error.package_incompatible_listing");
+  if (group.is_package) {
+    const packageError = await packageMembersError(
+      listings,
+      group.hide_package_listings,
+    );
+    if (packageError) return packageError;
   }
   return null;
 };
