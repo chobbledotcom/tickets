@@ -622,8 +622,10 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
 
 This feature stood alone — independent of the CSV importer and of
 PRs #1335, #1332, and #1333 — and **shipped as PR #1366** (the servicing-`kind`
-refinement followed). The recommended order below is retained as a record; all four steps are
-done:
+refinement followed). The recommended order below is retained as a record. The
+baseline feature steps are complete — with the caveat that step 3's §6b merge
+writer still lacks the owed-leg reversal (tracked as gap **G4** in §9, and an
+importer prerequisite per the §9 footnote), alongside the other §9 gaps:
 
 1. `tickets_count` shared predicate + migration + guard test.
 2. Edit-form "no quantity" checkbox + save path (incl. the §4 paid-line guard).
