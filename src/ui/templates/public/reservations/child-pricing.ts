@@ -5,7 +5,7 @@
  * module computes. */
 
 /* jscpd:ignore-start */
-import { filter, mapNotNullish, pipe } from "#fp";
+import { filter, flatMap, mapNotNullish, pipe, reduce } from "#fp";
 import { t } from "#i18n";
 import {
   childDaysFromParent,
@@ -151,16 +151,16 @@ export const foldReserveByChildId = (
   listings: TicketListing[],
   childrenByParentId: Map<number, TicketListing[]>,
 ): Map<number, number> => {
-  const reserve = new Map<number, number>();
-  for (const parent of listings) {
-    const children = childrenByParentId.get(parent.listing.id);
-    if (!children) continue;
-    for (const child of children) {
-      reserve.set(
-        child.listing.id,
-        (reserve.get(child.listing.id) ?? 0) + parent.maxPurchasable,
-      );
-    }
-  }
-  return reserve;
+  // Each parent contributes one (childId, maxPurchasable) pair per child it
+  // folds; summing those pairs gives the total to hold back per child.
+  const reserves = flatMap((parent: TicketListing) =>
+    (childrenByParentId.get(parent.listing.id) ?? []).map(
+      (child) => [child.listing.id, parent.maxPurchasable] as const,
+    ),
+  )(listings);
+  return reduce(
+    (acc, [childId, reserve]: readonly [number, number]) =>
+      acc.set(childId, (acc.get(childId) ?? 0) + reserve),
+    new Map<number, number>(),
+  )(reserves);
 };

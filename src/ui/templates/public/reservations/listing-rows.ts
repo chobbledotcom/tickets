@@ -6,10 +6,7 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { TicketListing } from "#shared/booking/model.ts";
-import {
-  type PagePackage,
-  packageMemberIds,
-} from "#shared/booking/page-packages.ts";
+import type { PagePackage } from "#shared/booking/page-packages.ts";
 import {
   type BookingNode,
   nodePriceFieldName,
@@ -320,7 +317,6 @@ export const buildPageListingRows = (opts: {
   const packageSections = opts.packages
     .map((pkg) => renderPackageSection(packageInput(pkg)))
     .join("");
-  const memberIds = packageMemberIds(opts.packages);
   const standalone = opts.listings.filter((info) =>
     opts.standaloneRowIds.has(info.listing.id),
   );
@@ -339,7 +335,13 @@ export const buildPageListingRows = (opts: {
       opts.isSingleListing && opts.packages.length === 0,
       opts.hideQuantity,
       opts.prefill,
-      (info) => (memberIds.has(info.listing.id) ? undefined : opts.childCtx),
+      // Suppress the child block only on rows whose child selector a package
+      // section ACTUALLY rendered (claimed). A sold-out or hidden package never
+      // calls claimChildCtx, so a standalone parent that is also its member must
+      // keep its own child selector — otherwise the buyer sees no child choice
+      // at all for a still-bookable standalone path.
+      (info) =>
+        claimedChildParents.has(info.listing.id) ? undefined : opts.childCtx,
       attributesByListing,
     )
   );

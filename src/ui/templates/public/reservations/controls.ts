@@ -34,9 +34,9 @@ export const renderDateSelector = (
           ${dates
             .map(
               (d) =>
-                `<option value="${d}"${d === selected ? " selected" : ""}>${formatDateLabel(
-                  d,
-                )}</option>`,
+                `<option value="${escapeHtml(d)}"${
+                  d === selected ? " selected" : ""
+                }>${formatDateLabel(d)}</option>`,
             )
             .join("")}
        </select>`;

@@ -3,6 +3,7 @@
  * sold-out check, and the lone header listing whose details head the page. */
 
 /* jscpd:ignore-start */
+import { reduce } from "#fp";
 import { t } from "#i18n";
 import {
   type BuildTreeInput,
@@ -84,15 +85,15 @@ export const buildPageTree = (
 } => {
   const tree = buildBookingTree(input);
   const standaloneRowIds = standaloneListingIds(tree);
-  const nodeByListingId = new Map<number, BookingNode>();
-  for (const node of tree.nodes) {
-    if (
-      !nodeByListingId.has(node.listingId) ||
-      node.quantityRule.kind === "BUYER_CHOICE"
-    ) {
-      nodeByListingId.set(node.listingId, node);
+  // A BUYER_CHOICE node wins over any earlier node for the same listing id
+  // (a dual-path listing resolves to its standalone node, not its member node);
+  // every other kind keeps the first node seen.
+  const nodeByListingId = reduce((acc, node: BookingNode) => {
+    if (!acc.has(node.listingId) || node.quantityRule.kind === "BUYER_CHOICE") {
+      acc.set(node.listingId, node);
     }
-  }
+    return acc;
+  }, new Map<number, BookingNode>())([...tree.nodes]);
   return {
     nodeByListingId,
     singlePackagePage: packageCount === 1 && standaloneRowIds.size === 0,
