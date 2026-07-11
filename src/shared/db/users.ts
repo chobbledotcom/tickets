@@ -2,7 +2,6 @@
  * Users table operations
  */
 
-import { lazyRef, ttlCache } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import {
   hashPassword,
@@ -31,7 +30,7 @@ import {
   registerCache,
   registerTableInvalidation,
 } from "#shared/db/common-schema.ts";
-import { now, nowMs } from "#shared/now.ts";
+import { now } from "#shared/now.ts";
 import { type AdminLevel, isAdminLevel, type User } from "#shared/types.ts";
 
 const USER_COLUMNS =
@@ -77,14 +76,6 @@ const usersCache = createKeyedCache<User>({
   keyOf: (u) => u.username_index,
   ttlMs: USERS_CACHE_TTL_MS,
 });
-const userAuthCache = ttlCache<number, UserAuthFields | null>(
-  USERS_CACHE_TTL_MS,
-  nowMs,
-);
-const [getAuthCacheGeneration, setAuthCacheGeneration] = lazyRef<number>(
-  () => 0,
-);
-
 /**
  * Callbacks fired on every users-cache invalidation, so derived caches (e.g.
  * the superuser account-state cache) can clear in lockstep with user writes.
@@ -104,8 +95,6 @@ registerCache(() => ({ entries: usersCache.size(), name: "users" }));
 /** Invalidate the users cache (for testing or after writes). */
 export const invalidateUsersCache = (): void => {
   usersCache.invalidate();
-  userAuthCache.clear();
-  setAuthCacheGeneration(getAuthCacheGeneration() + 1);
   for (const listener of usersInvalidationListeners) listener();
 };
 
@@ -283,15 +272,8 @@ export const getUserById = (id: number): Promise<User | null> =>
 /** Get the minimal encrypted user fields needed to authenticate a session. */
 export const getUserAuthFieldsById = async (
   id: number,
-): Promise<UserAuthFields | null> => {
-  const cached = userAuthCache.get(id);
-  if (cached !== undefined) return cached;
-  const generation = getAuthCacheGeneration();
-  const user =
-    (await queryAll<UserAuthFields>(USER_AUTH_SELECT, [id]))[0] ?? null;
-  if (generation === getAuthCacheGeneration()) userAuthCache.set(id, user);
-  return user;
-};
+): Promise<UserAuthFields | null> =>
+  (await queryAll<UserAuthFields>(USER_AUTH_SELECT, [id]))[0] ?? null;
 
 /**
  * Check if a username is already taken
