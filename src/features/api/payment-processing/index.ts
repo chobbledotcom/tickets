@@ -36,10 +36,10 @@ import {
   checkoutIntentForSession,
   paidPricingRefund,
 } from "#routes/api/payment-processing/pricing.ts";
+import { recoverOrRefundUnexpectedCreate } from "#routes/api/payment-processing/recovery.ts";
 import {
   chargeMismatchSpec,
   deletedListingSpec,
-  refundSpec,
   refuseMismatch,
 } from "#routes/api/payment-processing/refunds.ts";
 import {
@@ -57,8 +57,8 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
 import { type PricedOrder, priceCheckout } from "#shared/checkout-pricing.ts";
+import { generateTicketToken } from "#shared/crypto/utils.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
-import { queryOnePrimary } from "#shared/db/client.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import {
   finalizeSessionIfUnresolved,
@@ -68,8 +68,8 @@ import {
   releaseReservation,
   reserveSession,
   setSessionTicketTokens,
-  UNRESOLVED_RESERVATION,
 } from "#shared/db/processed-payments.ts";
+import { withPaymentTicketToken } from "#shared/payment-ticket-token.ts";
 import { bookingLedgerDisposition } from "#shared/session-ledger.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 
@@ -134,15 +134,16 @@ const alreadyHandledSession = (
 
 /** Resolve a booking against the durable ledger before any validation, pricing,
  * or refund path. This protects live tickets after their idempotency row is lost. */
-const replaySessionFromLedger = async (
+/** Returns null when the ledger has not recorded this session yet. */
+const replaySessionFromLedgerOrNull = async (
   sessionId: string,
   listingId: number,
   paymentReference: string,
-): Promise<PaymentResult | false> => {
+): Promise<PaymentResult | null> => {
   const disposition = await bookingLedgerDisposition(sessionId);
   switch (disposition.status) {
     case "unrecorded":
-      return false;
+      return null;
     case "booked":
       return replaySuccess({
         attendeeId: disposition.attendeeId,
@@ -166,39 +167,12 @@ const replayBalanceFromLedger = async (
     ? replaySuccess({ attendeeId, listingId, paymentReference, sessionId })
     : null;
 
-/** Refund an unexpected create failure only while its primary reservation is
- * still unresolved. A finalized or ambiguous row may own a live ticket. */
-const storeUnexpectedRefund = async (
-  session: ValidatedSession["session"],
-  intent: BookingIntent,
-  placeholders: ReturnType<typeof placeholderBookings>,
-  error: unknown,
-): Promise<PaymentFailureResult> => {
-  const unresolved = await queryOnePrimary<{ present: number }>(
-    `SELECT 1 AS present FROM processed_payments
-     WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
-    [session.id],
-  );
-  if (unresolved === null) {
-    throw error;
-  }
-  return storeRefundedBooking(
-    session,
-    intent,
-    placeholders,
-    refundSpec("unexpected_error")(
-      `Unexpected error completing session ${session.id}: ${String(error)}`,
-    ),
-  );
-};
-
 /** Process a reserved session into a ticket or handled terminal outcome. Errors
  * after an atomic booking commit propagate rather than refunding a live ticket. */
-const processReservedSession: SessionProcessor = async (
-  sessionId,
-  data,
-  options,
-) => {
+const processReservedSession = async (
+  sessionId: string,
+  data: ValidatedSession,
+): Promise<PaymentResult> => {
   const { session, intent, verdict } = data;
   const signedListingId = intent.items[0]!.e;
 
@@ -228,12 +202,12 @@ const processReservedSession: SessionProcessor = async (
   // or refund path runs below — so a late delivery (after the prunable idempotency
   // row is gone) never refunds a live ticket via the deleted-listing, price-change,
   // inactive-listing, or capacity paths, nor double-books it.
-  const replay = await replaySessionFromLedger(
+  const replay = await replaySessionFromLedgerOrNull(
     sessionId,
     signedListingId,
     session.paymentReference,
   );
-  if (replay !== false) return replay;
+  if (replay !== null) return replay;
 
   // Phase 2: Validate listings.
   const validated = await validateAllItems(session, intent);
@@ -289,19 +263,28 @@ const processReservedSession: SessionProcessor = async (
   // booking at quantity 0 and refunds rather than dropping a paid customer: a
   // structured sold-out/capacity/encryption result, OR an unexpected throw after
   // the charge (which would otherwise crash-loop the webhook over paid money).
+  const preparedTicketToken = generateTicketToken();
+  await setSessionTicketTokens(sessionId, [preparedTicketToken]);
   let honoured: Awaited<ReturnType<typeof createAttendeeForSession>>;
   try {
-    honoured = await createAttendeeForSession(
-      session,
-      intent,
-      validatedItems,
-      pricingIntent,
-      pricedOrder,
+    honoured = await withPaymentTicketToken(preparedTicketToken, () =>
+      createAttendeeForSession(
+        session,
+        intent,
+        validatedItems,
+        pricingIntent,
+        pricedOrder,
+      ),
     );
   } catch (error) {
     // The atomic create may have committed before result handling or the client
     // threw. Recheck its reservation on the primary before moving money.
-    return storeUnexpectedRefund(session, intent, placeholders, error);
+    return recoverOrRefundUnexpectedCreate(
+      session,
+      intent,
+      placeholders,
+      error,
+    );
   }
   if (!honoured.ok) {
     return storeRefundedBooking(
@@ -317,11 +300,6 @@ const processReservedSession: SessionProcessor = async (
   await saveSessionAnswers(createdEntries, intent);
   const firstAttendee = createdEntries[0]!;
   const ticketToken = firstAttendee.attendee.ticket_token;
-
-  // Persist the ticket token for webhook replay when the caller needs it.
-  if (options?.storeTokens !== false) {
-    await setSessionTicketTokens(sessionId, [ticketToken]);
-  }
 
   const codeSpecs = modifierSpecs.filter((s) => s.trigger === "code");
   if (codeSpecs.length > 0) {
@@ -343,7 +321,7 @@ const processReservedSession: SessionProcessor = async (
 export const processPaymentSession: SessionProcessor = async (
   sessionId,
   data,
-  options,
+  _options,
 ) => {
   // Phase 1: Reserve the session (claim the lock)
   const reservation = await reserveSession(sessionId);
@@ -351,7 +329,7 @@ export const processPaymentSession: SessionProcessor = async (
     return handleReservationConflict(data.intent, reservation.existing);
   }
 
-  const result = await processReservedSession(sessionId, data, options);
+  const result = await processReservedSession(sessionId, data);
 
   // A refund of a real payment that FAILED must stay retryable, and the very
   // next provider redelivery should re-attempt it. Releasing the reservation

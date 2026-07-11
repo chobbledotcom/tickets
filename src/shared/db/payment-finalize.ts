@@ -37,7 +37,7 @@ export const batchFinalizeStatement = async (
     sessionId,
     ...guard.args,
   ],
-  sql: `UPDATE processed_payments SET attendee_id = ${attendeeIdSql}, ticket_tokens = '', payment_reference = ?
+  sql: `UPDATE processed_payments SET attendee_id = ${attendeeIdSql}, payment_reference = ?
         WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION} AND ${guard.sql}`,
 });
 
