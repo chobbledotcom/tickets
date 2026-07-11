@@ -137,11 +137,16 @@ describe("stripe-mock install", () => {
                 await lockWrite.waitForWrite();
                 await waitForFile(readyPath);
                 await Deno.writeTextFile(goPath, "");
-                // The temp dir is still present on the first poll (curl has only
-                // just been released), so this covers the "found" branch and
-                // then waits until the install cleans it up — by which point the
-                // refresh has been stopped.
-                await waitForNoInstallTempDir(paths.binDir);
+                // Right after the gate opens the binary does not exist yet (the
+                // download is only just starting) while the temp dir still does,
+                // so these two waits deterministically exercise both the file
+                // wait's retry loop and the temp-dir poll's "found" branch. They
+                // resolve once the install finishes and cleans up — by which
+                // point the refresh has been stopped.
+                await Promise.all([
+                  waitForFile(paths.binaryPath),
+                  waitForNoInstallTempDir(paths.binDir),
+                ]);
                 await wait(1);
                 // Releasing now runs `scheduleNextRefresh` with `stopped` true.
                 lockWrite.releaseWrite();
