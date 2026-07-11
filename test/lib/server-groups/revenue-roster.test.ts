@@ -55,7 +55,7 @@ describeWithEnv(
         expect(html).toContain("Free-Standalone Member");
         // The override makes the package paid, so the page treats it as paid: the
         // revenue row shows (a non-package or no-override group would hide it).
-        expect(html).toContain("Total Revenue");
+        expect(html).toContain("Total income earned");
       });
 
       test("decrypts the roster for a package paid only via a per-day override", async () => {
@@ -105,7 +105,7 @@ describeWithEnv(
 
         const response = await adminGet(`/admin/groups/${group.id}`);
         expectStatus(200)(response);
-        expect(await response.text()).toContain("Total Revenue");
+        expect(await response.text()).toContain("Total income earned");
       });
 
       test("hides revenue for a package whose free member has no override", async () => {

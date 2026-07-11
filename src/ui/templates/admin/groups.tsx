@@ -54,6 +54,7 @@ import {
   type ExpectedActualItem,
   ExpectedActualTableRow,
 } from "#templates/admin/expected-actual.tsx";
+import { MoneySummary } from "#templates/admin/money-summary.tsx";
 import {
   PublicTicketLink,
   UnavailablePublicUrlRow,
@@ -328,6 +329,8 @@ const buildAttendeeRows = (
 const totalAttendeeCount = sumOf((e: ListingWithCount) => e.attendee_count);
 const totalTicketCount = sumOf((e: ListingWithCount) => e.tickets_count);
 const totalIncome = sumOf((e: ListingWithCount) => e.income);
+const totalCost = sumOf((e: ListingWithCount) => e.cost);
+const totalProfit = sumOf((e: ListingWithCount) => e.profit);
 
 const groupAggregateMismatchItems = (
   listings: ListingWithCount[],
@@ -473,6 +476,7 @@ export const GroupOverviewPanel = ({
   attendees,
   allowedDomain,
   hasPaidListing,
+  ledgerHref,
   shareable,
   questionData,
 }: {
@@ -482,6 +486,7 @@ export const GroupOverviewPanel = ({
   attendees: Attendee[];
   allowedDomain: string;
   hasPaidListing: boolean;
+  ledgerHref?: string | undefined;
   shareable: boolean;
   questionData?: TableQuestionData;
 }): JSX.Element => {
@@ -504,7 +509,7 @@ export const GroupOverviewPanel = ({
   const sharedRows = buildSharedDetailRows({
     attendeeCount: totalCount,
     attendees,
-    hasPaidListing,
+    hasPaidListing: false,
     maxCapacity: 0,
     // Revenue comes from the ledger (the listings' projected income), not a sum
     // over the loaded attendees: bookings since deleted still count, and a
@@ -543,6 +548,33 @@ export const GroupOverviewPanel = ({
           <Raw html={renderDetailRows(sharedRows)} />
         </DetailTable>
       </article>
+
+      {hasPaidListing && (
+        <article>
+          <MoneySummary
+            ledgerHref={ledgerHref}
+            ledgerLabel={t("groups.money.view_ledger")}
+            note={t("groups.money.note")}
+            rows={[
+              {
+                amount: totalIncome(listings),
+                label: t("groups.money.income"),
+              },
+              {
+                amount: -totalCost(listings),
+                label: t("groups.money.costs"),
+              },
+              {
+                amount: totalProfit(listings),
+                label: t("groups.money.profit"),
+                signed: false,
+                subtotal: true,
+              },
+            ]}
+            title={t("groups.money.heading")}
+          />
+        </article>
+      )}
 
       <h2>{t("terms.listings")}</h2>
       <div class="table-scroll">

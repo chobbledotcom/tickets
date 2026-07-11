@@ -42,6 +42,9 @@ export const renderListingDetail = (
       isChild: opts.isChild,
       isHiddenPackageMember: opts.isHiddenPackageMember,
       ledger: opts.ledger,
+      ledgerHref: opts.revenueBreakdown
+        ? `/admin/ledger?listing=${opts.listing.id}`
+        : undefined,
       listing: opts.listing,
       // The Overview now takes precomputed stats + note-author names instead of
       // the raw attendee list; derive them from the fixture's attendees so these

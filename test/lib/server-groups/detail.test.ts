@@ -202,13 +202,13 @@ describeWithEnv(
         const attendeeId = result.attendees[0]!.id;
 
         const before = await adminGet(`/admin/groups/${group.id}`);
-        await expectHtmlResponse(before, 200, "Total Revenue", "£25");
+        await expectHtmlResponse(before, 200, "Total income earned", "£25");
 
         // Deleting the attendee purges its rows but not the ledger sale leg, so the
         // ledger-projected revenue still counts it — an attendee-sum would not.
         await deleteAttendee(attendeeId);
         const after = await adminGet(`/admin/groups/${group.id}`);
-        await expectHtmlResponse(after, 200, "Total Revenue", "£25");
+        await expectHtmlResponse(after, 200, "Total income earned", "£25");
       });
 
       test("shows hidden status on detail page when group is hidden", async () => {

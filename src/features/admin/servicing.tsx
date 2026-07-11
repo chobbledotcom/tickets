@@ -225,6 +225,10 @@ const renderServicingPage = ({
               Delete Service Event
             </SubmitButton>
           </CsrfForm>
+          <h2>Money out</h2>
+          <p>
+            Record what this service event cost, against the listing it served.
+          </p>
           <CsrfForm action={`/admin/servicing/${event.id}`}>
             <input
               name="cost_idempotency_key"
@@ -249,29 +253,42 @@ const renderServicingPage = ({
           </CsrfForm>
           {costs.length > 0 && (
             <>
-              <h2>Recorded costs</h2>
+              <h2>Recorded outgoings</h2>
               <DataTable
                 columns={[
                   { header: "Listing" },
                   { header: "Date" },
                   { class: "amount", header: "Amount" },
                   { header: "Memo" },
-                  { header: "Edit" },
+                  { header: "Actions" },
                 ]}
                 rows={costs.map((cost) => [
-                  listingNames.get(cost.listingId),
+                  session.adminLevel === "owner" ? (
+                    <a href={`/admin/ledger?listing=${cost.listingId}`}>
+                      {listingNames.get(cost.listingId)}
+                    </a>
+                  ) : (
+                    listingNames.get(cost.listingId)
+                  ),
                   formatDateLabel(cost.date.slice(0, 10)),
                   formatCurrency(cost.amount),
                   cost.memo,
-                  <CsrfForm
-                    action={`/admin/servicing/${event.id}/cost/${cost.id}`}
-                  >
-                    <PriceInput
-                      name="amount"
-                      value={toMajorUnits(cost.amount)}
-                    />
-                    <SubmitButton icon="save">Edit</SubmitButton>
-                  </CsrfForm>,
+                  <>
+                    <CsrfForm
+                      action={`/admin/servicing/${event.id}/cost/${cost.id}`}
+                    >
+                      <PriceInput
+                        name="amount"
+                        value={toMajorUnits(cost.amount)}
+                      />
+                      <SubmitButton icon="save">Edit</SubmitButton>
+                    </CsrfForm>
+                    {session.adminLevel === "owner" && (
+                      <a href={`/admin/ledger?listing=${cost.listingId}`}>
+                        View in ledger
+                      </a>
+                    )}
+                  </>,
                 ])}
               />
             </>

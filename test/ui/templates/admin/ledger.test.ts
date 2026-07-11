@@ -75,7 +75,7 @@ describe("resolveAccountLabel", () => {
   test("links a row-backed account to its entity by name", () => {
     const refs = names({ attendees: new Map([[7, "Ada Lovelace"]]) });
     expect(resolveAccountLabel(account("attendee", 7), refs)).toEqual({
-      href: "/admin/attendees/7",
+      href: "/admin/ledger/attendee/7",
       text: "Ada Lovelace",
     });
   });
@@ -85,11 +85,11 @@ describe("resolveAccountLabel", () => {
       listings: new Map([[3, "Summer Concert"]]),
     });
     expect(resolveAccountLabel(account("revenue", 3), refs)).toEqual({
-      href: "/admin/listing/3",
+      href: "/admin/ledger?listing=3",
       text: "Summer Concert",
     });
     expect(resolveAccountLabel(account("cost", 3), refs)).toEqual({
-      href: "/admin/listing/3",
+      href: "/admin/ledger?listing=3",
       text: "Summer Concert",
     });
   });
@@ -99,7 +99,7 @@ describe("resolveAccountLabel", () => {
       modifiers: new Map([[5, "Early bird"]]),
     });
     expect(resolveAccountLabel(account("modifier", 5), refs)).toEqual({
-      href: "/admin/modifiers/5/edit",
+      href: "/admin/ledger/modifier/5",
       text: "Early bird",
     });
   });
@@ -146,8 +146,8 @@ describe("LedgerTable", () => {
     expect(html).toContain("<th>Time</th>");
     expect(html).toContain("sale");
     // Both legs resolve to links, joined by an arrow (rendered as the glyph).
-    expect(html).toContain('<a href="/admin/attendees/1">Ada</a>');
-    expect(html).toContain('<a href="/admin/listing/1">Concert</a>');
+    expect(html).toContain('<a href="/admin/ledger/attendee/1">Ada</a>');
+    expect(html).toContain('<a href="/admin/ledger?listing=1">Concert</a>');
     expect(html).toContain("→");
     expect(html).toContain(formatCurrency(2500));
   });
@@ -334,8 +334,20 @@ describe("HumanLedgerTable", () => {
             source: account("modifier", 1),
           }),
           transfer({
-            destination: account("revenue", 1),
+            destination: account("external", "world"),
             id: 17,
+            kind: "service_cost",
+            source: account("cost", 1),
+          }),
+          transfer({
+            destination: account("cost", 1),
+            id: 18,
+            kind: "service_cost",
+            source: account("external", "world"),
+          }),
+          transfer({
+            destination: account("revenue", 1),
+            id: 19,
             kind: "future_kind",
             source: account("attendee", 1),
           }),
@@ -359,6 +371,8 @@ describe("HumanLedgerTable", () => {
       "Cost paid outside checkout for",
       "Modifier income added for",
       "Modifier income reduced for",
+      "Service cost recorded for",
+      "Service cost reduced for",
     ]) {
       expect(html).toContain(phrase);
     }
@@ -366,11 +380,16 @@ describe("HumanLedgerTable", () => {
     expect(html).toContain("Concert");
     expect(html).toContain("Helmet hire");
     expect(html).toContain(
-      'Payment received for <a href="/admin/attendees/1">Ada</a>',
+      'Payment received for <a href="/admin/ledger/attendee/1">Ada</a>',
     );
     expect(html).toContain(
-      'Manual correction reduced <a href="/admin/listing/1">Concert</a>',
+      'Manual correction reduced <a href="/admin/ledger?listing=1">Concert</a>',
     );
+    const rows = html.split("<tr>");
+    expect(rows[2]).toContain("+£50");
+    expect(rows[4]).toContain("−£50");
+    expect(rows[18]).toContain("−£50");
+    expect(rows[19]).toContain("+£50");
   });
 
   test("uses attendee-balance wording for adjustment legs against writeoff", () => {
@@ -399,6 +418,32 @@ describe("HumanLedgerTable", () => {
     expect(html).toContain("Ada");
     expect(html).not.toContain("Manual correction reduced");
     expect(html).not.toContain("Manual correction increased");
+  });
+
+  test("shows modifier income as positive and discounts as negative", () => {
+    const modifier = account("modifier", 1);
+    const html = String(
+      HumanLedgerTable({
+        names: names({ modifiers: new Map([[1, "Helmet hire"]]) }),
+        transfers: [
+          transfer({
+            destination: modifier,
+            id: 1,
+            kind: "modifier",
+            source: account("attendee", 1),
+          }),
+          transfer({
+            destination: account("attendee", 1),
+            id: 2,
+            kind: "modifier",
+            source: modifier,
+          }),
+        ],
+      }),
+    );
+    const rows = html.split("<tr>");
+    expect(rows[2]).toContain("+£50");
+    expect(rows[3]).toContain("−£50");
   });
 });
 
@@ -430,9 +475,9 @@ describe("AccountStatementTable", () => {
     const html = String(
       AccountStatementTable({ account: acct, lines: lines(), names: refs }),
     );
-    expect(html).toContain("<th>Counterparty</th>");
+    expect(html).toContain("<th>Other side</th>");
     // Leg 1: counterparty is the revenue listing (this account is the source).
-    expect(html).toContain('<a href="/admin/listing/1">Concert</a>');
+    expect(html).toContain('<a href="/admin/ledger?listing=1">Concert</a>');
     // Leg 2: counterparty is the card/bank singleton (this account received).
     expect(html).toContain("Card / bank");
     // The ledger stores the sale as a -5000 debit and the payment as a +5000
@@ -440,7 +485,7 @@ describe("AccountStatementTable", () => {
     // as a +5000 charge and the payment as a -5000 reduction.
     const rows = html.split("<tr>");
     expect(rows[2]).toContain(`+${formatCurrency(5000)}`); // sale: charge owed
-    expect(rows[3]).toContain(`-${formatCurrency(5000)}`); // payment: brings it down
+    expect(rows[3]).toContain(`−${formatCurrency(5000)}`); // payment: brings it down
     // Running balance climbs to the +5000 owed after the sale, then settles at 0.
     expect(rows[2]).toContain(`>${formatCurrency(5000)}<`);
     expect(rows[3]).toContain(`>${formatCurrency(0)}<`);
@@ -467,7 +512,40 @@ describe("AccountStatementTable", () => {
     // Revenue received the sale: a +5000 credit and a +5000 running balance,
     // unflipped.
     expect(html).toContain(`+${formatCurrency(5000)}`);
-    expect(html).not.toContain(`-${formatCurrency(5000)}`);
+    expect(html).not.toContain(`−${formatCurrency(5000)}`);
+  });
+
+  test("shows servicing costs as positive outgoings and reductions as negative", () => {
+    const cost = account("cost", 1);
+    const html = String(
+      AccountStatementTable({
+        account: cost,
+        lines: statementFor(cost)([
+          transfer({
+            amount: 5000,
+            destination: account("external", "world"),
+            id: 1,
+            kind: "service_cost",
+            source: cost,
+          }),
+          transfer({
+            amount: 2000,
+            destination: cost,
+            id: 2,
+            kind: "service_cost",
+            source: account("external", "world"),
+          }),
+        ]),
+        names: names({ listings: new Map([[1, "Concert"]]) }),
+      }),
+    );
+    const rows = html.split("<tr>");
+    expect(rows[2]).toContain("Service cost recorded for");
+    expect(rows[2]).toContain("+£50");
+    expect(rows[2]).toContain(">£50<");
+    expect(rows[3]).toContain("Service cost reduced for");
+    expect(rows[3]).toContain("−£20");
+    expect(rows[3]).toContain(">£30<");
   });
 
   test("renders the empty state row spanning all five columns", () => {
@@ -505,7 +583,7 @@ describe("AccountStatementTable", () => {
   test("does not link manual statement deltas without a return URL", () => {
     const html = renderStatement();
     expect(html).not.toContain("/admin/ledger/entries/1/edit");
-    expect(html).toContain(`-${formatCurrency(5000)}`);
+    expect(html).toContain(`−${formatCurrency(5000)}`);
   });
 
   test("does not link checkout-event statement deltas to the maintenance route", () => {
@@ -527,6 +605,7 @@ describe("adminLedgerPage", () => {
   const NO_FILTERS: LedgerFilterState = {
     from: null,
     fromMonth: null,
+    groupId: null,
     listingId: null,
     to: null,
     toMonth: null,
@@ -540,6 +619,7 @@ describe("adminLedgerPage", () => {
       { label: "Sat 20 June 2026", selectable: true, value: "2026-06-20" },
     ],
     filters: NO_FILTERS,
+    groups: [{ id: 2, name: "Festival package" }],
     listings: [{ id: 1, name: "Summer Concert" }],
     names: names(),
     returnUrl: "/admin/ledger",
@@ -568,11 +648,12 @@ describe("adminLedgerPage", () => {
     expect(html).toContain('id="ledger-from"');
     expect(html).toContain('id="ledger-to"');
     // The by-listing select lists every listing plus the "all" option.
-    expect(html).toContain("All listings");
+    expect(html).toContain("Everything");
     expect(html).toContain("Summer Concert");
     expect(html).toContain(
-      '<option selected value="/admin/ledger">All listings</option>',
+      '<option selected value="/admin/ledger">Everything</option>',
     );
+    expect(html).toContain("Festival package");
   });
 
   test("heads the stats with the listing name when scoped to one listing", () => {
@@ -602,6 +683,20 @@ describe("adminLedgerPage", () => {
     expect(html).toContain(
       '<option selected value="/admin/ledger?listing=1">Summer Concert</option>',
     );
+  });
+
+  test("preselects a group and keeps its ledger scope in links", () => {
+    const html = adminLedgerPage(
+      pageData({
+        filters: { ...NO_FILTERS, groupId: 2 },
+        statsHeading: "Festival package",
+      }),
+      SESSION,
+    );
+    expect(html).toContain(
+      '<option selected value="/admin/ledger?group=2">Festival package</option>',
+    );
+    expect(html).toContain("<h2>Festival package</h2>");
   });
 
   test("day links carry the from/to filters and the other side's state", () => {
@@ -664,12 +759,12 @@ describe("adminAccountStatementPage", () => {
     ]);
     const html = adminAccountStatementPage(acct, lines, refs, SESSION);
     expect(html).toContain("Ada Lovelace");
-    expect(html).toContain(`Balance: ${formatCurrency(5000)}`);
-    expect(html).not.toContain(`Balance: -${formatCurrency(5000)}`);
+    expect(html).toContain(`Amount still owed: ${formatCurrency(5000)}`);
+    expect(html).not.toContain(`Amount still owed: −${formatCurrency(5000)}`);
     // The nav links back to the ledger; no separate back-link arrow is shown.
     expect(html).toContain('href="/admin/ledger"');
     expect(html).not.toContain("&larr;");
-    expect(html).toContain('<th class="col-amount">Balance</th>');
+    expect(html).toContain('<th class="col-amount">Running total</th>');
     expect(html).toContain(
       'href="/admin/ledger/attendee/7/add?return_url=%2Fadmin%2Fledger%2Fattendee%2F7"',
     );
@@ -678,7 +773,7 @@ describe("adminAccountStatementPage", () => {
 
   test("shows a zero balance for an account with no history", () => {
     const html = adminAccountStatementPage(acct, [], names(), SESSION);
-    expect(html).toContain(`Balance: ${formatCurrency(0)}`);
+    expect(html).toContain(`Amount still owed: ${formatCurrency(0)}`);
     expect(html).toContain("No transfers recorded yet");
     expect(html).not.toContain("/admin/ledger/attendee/7/add");
   });

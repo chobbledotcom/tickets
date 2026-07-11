@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
-import {
-  LEDGER_DISPLAY_LIMIT,
-  pickerDatesFromBounds,
-} from "#routes/admin/ledger.ts";
+import { it as test } from "@std/testing/bdd";
+import { LEDGER_DISPLAY_LIMIT } from "#routes/admin/ledger.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import {
   MANUAL_ATTENDEE_CHARGE,
@@ -17,6 +14,7 @@ import {
 import { allTransfers } from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import { assignListingsToGroup } from "#shared/db/groups.ts";
 import { adjustListingIncome } from "#shared/db/listings.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { account } from "#shared/ledger/account.ts";
@@ -28,6 +26,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   postAttendeeRefund,
@@ -133,10 +132,10 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     expect(html).toContain("Ledger");
     // The sale leg credits the listing's revenue account, linked by its name.
     expect(html).toContain("Summer Concert");
-    expect(html).toContain("/admin/listing/");
+    expect(html).toContain("/admin/ledger?listing=");
     // The attendee leg resolves to a link too (name decrypted with the key).
     expect(html).toContain("Ada Lovelace");
-    expect(html).toContain("/admin/attendees/");
+    expect(html).toContain("/admin/ledger/attendee/");
     // Kinds from the mapped booking show in the Event column.
     expect(html).toContain("sale");
   });
@@ -632,10 +631,10 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     // The by-listing filter offers the whole-business "All listings" scope, and
     // the four business-wide totals render beneath it (no scope heading — the
     // page is already titled "Ledger").
-    expect(html).toContain("All listings");
-    expect(html).not.toContain("<h2>All listings</h2>");
-    expect(html).toContain("Total income");
-    expect(html).toContain("Total due");
+    expect(html).toContain("Everything");
+    expect(html).not.toContain("<h2>Everything</h2>");
+    expect(html).toContain("Total income earned");
+    expect(html).toContain("Customer balances due");
     expect(html).toContain("Total refunded");
     expect(html).toContain("Booking fees");
     // Two range pickers with unique anchor ids, plus the by-listing select.
@@ -683,18 +682,44 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     const html = await response.text();
     // The stats switch to the per-listing breakdown, headed by the listing name.
     expect(html).toContain("Gross ticket sales");
-    expect(html).toContain("Recognised income");
-    expect(html).toContain("Net balance in ledger");
+    expect(html).toContain("Total income earned");
+    expect(html).toContain("Net after refunds and costs");
     // The by-listing select is preselected to this listing.
     expect(html).toContain(
       `<option selected value="/admin/ledger?listing=${listingId}">`,
     );
   });
 
+  test("scoping to a group combines its current listings", async () => {
+    const group = await createTestGroup({ name: "Festival package" });
+    const first = await seededSale("Morning show", 2500);
+    const second = await seededSale("Evening show", 3500);
+    await assignListingsToGroup([first.listingId, second.listingId], group.id);
+    const response = await adminGet(`/admin/ledger?group=${group.id}`);
+    const html = await response.text();
+    expect(html).toContain("<h2>Festival package</h2>");
+    expect(html).toContain("Total income earned");
+    expect(html).toContain("+£60");
+    expect(html).toContain(
+      `<option selected value="/admin/ledger?group=${group.id}">Festival package</option>`,
+    );
+  });
+
+  test("an empty group scope never falls back to the whole ledger", async () => {
+    await seededSale("Unrelated show", 2500);
+    const group = await createTestGroup({ name: "Empty group" });
+    const response = await adminGet(`/admin/ledger?group=${group.id}`);
+    const html = await response.text();
+    expect(html).toContain("<h2>Empty group</h2>");
+    expect(html).toContain("No transfers recorded yet");
+  });
+
   test("lists every listing in the by-listing select, name-sorted", async () => {
     // Two listings exercise the sort comparator and prove both appear as options.
     await seededSale("Zither Workshop", 2500);
     await seededSale("Accordion Night", 2500);
+    await createTestGroup({ name: "Winter package" });
+    await createTestGroup({ name: "Autumn package" });
     const response = await adminGet("/admin/ledger");
     const html = await response.text();
     expect(html).toContain("Zither Workshop");
@@ -702,6 +727,9 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     // Sorted A→Z, so Accordion's option precedes Zither's.
     expect(html.indexOf("Accordion Night")).toBeLessThan(
       html.indexOf("Zither Workshop"),
+    );
+    expect(html.indexOf("Autumn package")).toBeLessThan(
+      html.indexOf("Winter package"),
     );
   });
 
@@ -794,11 +822,11 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     const response = await adminGet(`/admin/ledger/attendee/${attendeeId}`);
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("Account statement");
+    expect(html).toContain("Money history");
     // The attendee's own label heads the page; a fully-paid sale nets to zero.
     expect(html).toContain("Ada Lovelace");
-    expect(html).toContain("Balance:");
-    expect(html).toContain('<th class="col-amount">Balance</th>');
+    expect(html).toContain("Amount still owed:");
+    expect(html).toContain('<th class="col-amount">Running total</th>');
     // The sale's counterparty is the listing revenue account, linked by name.
     expect(html).toContain("Gala");
   });
@@ -840,7 +868,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     expect(response.status).toBe(404);
   });
 
-  test("resolves a real modifier's name and links its leg to the edit page", async () => {
+  test("resolves a real modifier's name and links its leg to its money history", async () => {
     // A real modifier row exists, so the historical list resolves its name and
     // links the modifier leg to /admin/modifiers/<id>/edit.
     const modifier = await modifiersTable.insert({
@@ -854,7 +882,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain("Booking surcharge");
-    expect(html).toContain(`/admin/modifiers/${modifier.id}/edit`);
+    expect(html).toContain(`/admin/ledger/modifier/${modifier.id}`);
   });
 
   test("falls back to 'Modifier #<id>' when no modifier row exists", async () => {
@@ -862,7 +890,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     const response = await adminGet("/admin/ledger/modifier/1");
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("Account statement");
+    expect(html).toContain("Money history");
     // No modifier row exists, so the account falls back to "Modifier #1".
     expect(html).toContain("Modifier #1");
   });
@@ -896,7 +924,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     const response = await adminGet("/admin/ledger/writeoff/default");
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("Account statement");
+    expect(html).toContain("Money history");
     // The writeoff singleton renders its label, not a raw "writeoff:default".
     expect(html).toContain("Write-off");
     // The correction's counterparty is the listing's revenue account.
@@ -923,7 +951,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     const html = await response.text();
     expect(html).toContain("Grace Hopper");
     // A full refund nets to zero, so the final running balance is zero.
-    expect(html).toContain("Balance:");
+    expect(html).toContain("Amount still owed:");
   });
 
   test("404s on an unknown account type", async () => {
@@ -934,43 +962,5 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
   test("404s on a non-positive row id", async () => {
     const response = await adminGet("/admin/ledger/attendee/0");
     expect(response.status).toBe(404);
-  });
-});
-
-describe("pickerDatesFromBounds", () => {
-  const ms = (iso: string): number => new Date(iso).getTime();
-
-  test("is empty when the ledger has no transfers", () => {
-    expect(pickerDatesFromBounds(null, "2026-06-21", "UTC")).toEqual([]);
-  });
-
-  test("runs from the earliest transfer to the latest when it is after today", () => {
-    const dates = pickerDatesFromBounds(
-      { maxMs: ms("2026-06-22T00:00:00Z"), minMs: ms("2026-06-20T00:00:00Z") },
-      "2026-06-21",
-      "UTC",
-    );
-    // End follows the latest transfer (the 22nd), not today (the 21st).
-    expect(dates.map((d) => d.value)).toEqual([
-      "2026-06-20",
-      "2026-06-21",
-      "2026-06-22",
-    ]);
-    expect(dates.every((d) => d.selectable)).toBe(true);
-  });
-
-  test("extends the end to today when the latest transfer is older", () => {
-    const dates = pickerDatesFromBounds(
-      { maxMs: ms("2026-06-20T00:00:00Z"), minMs: ms("2026-06-20T00:00:00Z") },
-      "2026-06-23",
-      "UTC",
-    );
-    // End follows today (the 23rd), so a future bound stays pickable.
-    expect(dates.map((d) => d.value)).toEqual([
-      "2026-06-20",
-      "2026-06-21",
-      "2026-06-22",
-      "2026-06-23",
-    ]);
   });
 });

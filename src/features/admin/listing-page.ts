@@ -128,7 +128,11 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
 const overviewTab: TabDef<LoadedListing> = {
   labelKey: "entity.tab.overview",
   sections: [
-    { kind: "custom", load: (entity) => loadListingOverviewPanel(entity) },
+    {
+      kind: "custom",
+      load: (entity, ctx) =>
+        loadListingOverviewPanel(entity, ctx.session.adminLevel === "owner"),
+    },
     {
       kind: "activity",
       load: (entity) => loadListingActivityPreview(entity),

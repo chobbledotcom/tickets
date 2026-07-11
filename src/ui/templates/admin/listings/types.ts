@@ -28,6 +28,7 @@ type ListingPanelSharedOptions = {
   groupContext?: GroupContext | undefined;
   revenueBreakdown?: ListingRevenueBreakdown | undefined;
   ledger?: AccountLedgerData | undefined;
+  ledgerHref?: string | undefined;
   isChild?: boolean | undefined;
   isHiddenPackageMember?: boolean | undefined;
   systemNotes?: SystemNote[] | undefined;

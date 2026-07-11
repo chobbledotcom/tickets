@@ -28,7 +28,7 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  */
 
 import * as v from "valibot";
-import { mapNotNullish, sort, unique } from "#fp";
+import { mapNotNullish, sort, sumOf, unique } from "#fp";
 import { t } from "#i18n";
 import { loadAttendeeNames } from "#routes/admin/actions.ts";
 /* jscpd:ignore-start */
@@ -74,9 +74,14 @@ import {
   visibleTransfers,
 } from "#shared/accounting/queries.ts";
 import type { LedgerRange } from "#shared/accounting/range.ts";
-import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
+import {
+  formatCurrency,
+  formatSignedCurrency,
+  toMajorUnits,
+} from "#shared/currency.ts";
 import { addDays, dateRange, formatDateLabel } from "#shared/dates.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { getAllGroupNames, getListingsByGroupId } from "#shared/db/groups.ts";
 import {
   getAllListings,
   getListingNamesByIds,
@@ -109,6 +114,7 @@ import {
   type LedgerEntryAddOption,
   type LedgerEntryFormValues,
   type LedgerFilterState,
+  type LedgerGroupOption,
   type LedgerListingOption,
   type LedgerNames,
   type LedgerViewMode,
@@ -194,6 +200,11 @@ const listingParam = (params: URLSearchParams): number | null => {
   return value ? parsePositiveIntId(value) : null;
 };
 
+const groupParam = (params: URLSearchParams): number | null => {
+  const value = params.get("group");
+  return value ? parsePositiveIntId(value) : null;
+};
+
 /** Parse the `?view=` mode via its picklist, defaulting to the human view. */
 const viewParam = (params: URLSearchParams): LedgerViewMode => {
   const parsed = v.safeParse(LedgerViewModeSchema, params.get("view"));
@@ -240,9 +251,9 @@ const buildPickerDates = async (
   pickerDatesFromBounds(await transferActivityBounds(), today, tz);
 
 /** A single key/value stats row, currying the currency formatting at each call. */
-const moneyRow = (key: string, amount: number): DetailRow => ({
+const moneyRow = (key: string, amount: number, signed = false): DetailRow => ({
   key: t(key),
-  value: formatCurrency(amount),
+  value: formatSignedCurrency(amount, signed),
 });
 
 /** The range-scoped stats and their heading. "All listings" shows the four
@@ -251,38 +262,59 @@ const moneyRow = (key: string, amount: number): DetailRow => ({
 const buildStats = async (
   range: LedgerRange,
   listingId: number | null,
+  groupId: number | null,
   listings: ListingWithCount[],
+  groupListings: ListingWithCount[],
+  groupNames: Map<number, string>,
 ): Promise<{ rows: DetailRow[]; heading: string | null }> => {
-  if (listingId === null) {
-    const totals = await ledgerTotals(range);
-    // No heading for the whole-business view — the page is already titled
-    // "Ledger", so an "All listings" heading only repeats that. A listing-scoped
-    // view still names the listing (below) so the figures' scope stays clear.
+  if (listingId !== null) {
+    const breakdown = await listingRevenueBreakdown(listingId, range);
+    // The caller only scopes to a listing it found in this same cached list, so
+    // the lookup always resolves.
+    const listing = listings.find((entry) => entry.id === listingId)!;
     return {
-      heading: null,
+      heading: listing.name,
       rows: [
-        moneyRow("admin.ledger.stats.income", totals.income),
-        moneyRow("admin.ledger.stats.due", totals.due),
-        moneyRow("admin.ledger.stats.refunded", totals.refunded),
-        moneyRow("admin.ledger.stats.fees", totals.fees),
+        moneyRow("admin.ledger.stats.gross_sales", breakdown.grossSales, true),
+        moneyRow(
+          "admin.ledger.stats.recognised_income",
+          breakdown.recognisedIncome,
+          true,
+        ),
+        moneyRow("admin.ledger.stats.servicing_costs", -listing.cost, true),
+        moneyRow("admin.ledger.stats.refunded", -breakdown.refunds, true),
+        moneyRow(
+          "admin.ledger.stats.net_after_costs",
+          breakdown.netBalance - listing.cost,
+        ),
       ],
     };
   }
-  const breakdown = await listingRevenueBreakdown(listingId, range);
-  // The caller only scopes to a listing it found in this same cached list, so the
-  // lookup always resolves — trust that invariant rather than guard an
-  // impossible miss.
-  const listing = listings.find((entry) => entry.id === listingId)!;
+  if (groupId !== null) {
+    const income = sumOf((listing: ListingWithCount) => listing.income)(
+      groupListings,
+    );
+    const costs = sumOf((listing: ListingWithCount) => listing.cost)(
+      groupListings,
+    );
+    return {
+      heading: groupNames.get(groupId)!,
+      rows: [
+        moneyRow("admin.ledger.stats.recognised_income", income, true),
+        moneyRow("admin.ledger.stats.servicing_costs", -costs, true),
+        moneyRow("admin.ledger.stats.income_less_costs", income - costs),
+      ],
+    };
+  }
+  const totals = await ledgerTotals(range);
+  // No heading for the whole-business view — the page is already titled Ledger.
   return {
-    heading: listing.name,
+    heading: null,
     rows: [
-      moneyRow("admin.ledger.stats.gross_sales", breakdown.grossSales),
-      moneyRow(
-        "admin.ledger.stats.recognised_income",
-        breakdown.recognisedIncome,
-      ),
-      moneyRow("admin.ledger.stats.refunded", breakdown.refunds),
-      moneyRow("admin.ledger.stats.net_balance", breakdown.netBalance),
+      moneyRow("admin.ledger.stats.income", totals.income, true),
+      moneyRow("admin.ledger.stats.due", totals.due),
+      moneyRow("admin.ledger.stats.refunded", -totals.refunded, true),
+      moneyRow("admin.ledger.stats.fees", totals.fees, true),
     ],
   };
 };
@@ -306,16 +338,34 @@ export const handleLedgerGet: TypedRouteHandler<"GET /admin/ledger"> = (
     const today = todayInTz(tz);
     const range = filterRange(from, to, tz);
 
-    const listings = await getAllListings();
+    const [listings, groupNames] = await Promise.all([
+      getAllListings(),
+      getAllGroupNames(),
+    ]);
     const requested = listingParam(params);
     const listingId =
       requested !== null && listings.some((listing) => listing.id === requested)
         ? requested
         : null;
+    const requestedGroup = groupParam(params);
+    const groupId =
+      listingId === null &&
+      requestedGroup !== null &&
+      groupNames.has(requestedGroup)
+        ? requestedGroup
+        : null;
+    const groupListings =
+      groupId === null ? [] : await getListingsByGroupId(groupId);
+    const listingIds =
+      listingId === null
+        ? groupId === null
+          ? null
+          : groupListings.map((listing) => listing.id)
+        : [listingId];
 
     const fetched = await visibleTransfers(
       range,
-      listingId,
+      listingIds,
       LEDGER_DISPLAY_LIMIT + 1,
     );
     const truncated = fetched.length > LEDGER_DISPLAY_LIMIT;
@@ -325,7 +375,14 @@ export const handleLedgerGet: TypedRouteHandler<"GET /admin/ledger"> = (
 
     const [names, stats, dates] = await Promise.all([
       loadLedgerNames(transfers),
-      buildStats(range, listingId, listings),
+      buildStats(
+        range,
+        listingId,
+        groupId,
+        listings,
+        groupListings,
+        groupNames,
+      ),
       buildPickerDates(tz, today),
     ]);
 
@@ -333,10 +390,15 @@ export const handleLedgerGet: TypedRouteHandler<"GET /admin/ledger"> = (
       (a: LedgerListingOption, b: LedgerListingOption) =>
         a.name.localeCompare(b.name),
     )(listings.map((listing) => ({ id: listing.id, name: listing.name })));
+    const groupOptions: LedgerGroupOption[] = sort(
+      (a: LedgerGroupOption, b: LedgerGroupOption) =>
+        a.name.localeCompare(b.name),
+    )([...groupNames].map(([id, name]) => ({ id, name })));
 
     const filters: LedgerFilterState = {
       from,
       fromMonth: monthParam(params, "fromCal"),
+      groupId,
       listingId,
       to,
       toMonth: monthParam(params, "toCal"),
@@ -348,6 +410,7 @@ export const handleLedgerGet: TypedRouteHandler<"GET /admin/ledger"> = (
         {
           dates,
           filters,
+          groups: groupOptions,
           listings: listingOptions,
           names,
           returnUrl: url.pathname + url.search,

@@ -18,6 +18,7 @@ import { map } from "#fp";
 import { t } from "#i18n";
 import {
   ATTENDEE,
+  COST,
   isRowAccountType,
   isSingletonAccountType,
   REVENUE,
@@ -33,7 +34,7 @@ import {
   manualEntrySpecByType,
   manualLedgerEntryOptionsFor,
 } from "#shared/accounting/manual-entries.ts";
-import { formatCurrency } from "#shared/currency.ts";
+import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { ConfirmForm, CsrfForm } from "#shared/forms.tsx";
@@ -74,12 +75,12 @@ export const emptyLedgerNames = (): LedgerNames => ({
   modifiers: new Map(),
 });
 
-/** The resolved presentation of one account leg: the text to show, and the
- * detail-page href to link it to (absent for singletons and deleted entities). */
+/** The resolved presentation of one account leg: the text to show, and its
+ * filtered ledger href (absent for singletons and deleted entities). */
 type AccountLabel = { text: string; href?: string };
 
 /** One row-backed account type's resolver config: which names map to read, the
- * detail-page base path, and the i18n key for the "#<id>" deleted-entity
+ * ledger path, and the i18n key for the "#<id>" deleted-entity
  * fallback. Currying over this keeps the three row-backed types identical. */
 type RowAccountKind = {
   names: (refs: LedgerNames) => Map<number, string>;
@@ -93,22 +94,22 @@ type RowAccountKind = {
 const ROW_ACCOUNT_KINDS: Record<RowAccountType, RowAccountKind> = {
   attendee: {
     fallbackKey: "admin.ledger.fallback.attendee",
-    href: (id) => `/admin/attendees/${id}`,
+    href: (id) => `/admin/ledger/attendee/${id}`,
     names: (refs) => refs.attendees,
   },
   cost: {
     fallbackKey: "admin.ledger.fallback.revenue",
-    href: (id) => `/admin/listing/${id}`,
+    href: (id) => `/admin/ledger?listing=${id}`,
     names: (refs) => refs.listings,
   },
   modifier: {
     fallbackKey: "admin.ledger.fallback.modifier",
-    href: (id) => `/admin/modifiers/${id}/edit`,
+    href: (id) => `/admin/ledger/modifier/${id}`,
     names: (refs) => refs.modifiers,
   },
   revenue: {
     fallbackKey: "admin.ledger.fallback.revenue",
-    href: (id) => `/admin/listing/${id}`,
+    href: (id) => `/admin/ledger?listing=${id}`,
     names: (refs) => refs.listings,
   },
 };
@@ -130,7 +131,7 @@ const SINGLETON_LABEL_KEYS: Record<SingletonAccountType, string> = {
 };
 
 /**
- * Resolve an account reference to its display text and optional detail link.
+ * Resolve an account reference to its display text and optional ledger link.
  * Singletons (`external:world`, `fee_income:booking`, `writeoff:*`) get a
  * friendly i18n name and never link. Row-backed accounts link to their entity by
  * name; when the id is absent from `names` (a deleted entity that kept its ledger
@@ -410,6 +411,14 @@ const humanDescription = (
       return <>{t("admin.ledger.human.fee")}</>;
     case KIND.refundFee:
       return <>{t("admin.ledger.human.refund_fee")}</>;
+    case KIND.serviceCost:
+      return sentenceWithAccount(
+        transfer.source.type === COST
+          ? "admin.ledger.human.service_cost"
+          : "admin.ledger.human.service_cost_reduction",
+        humanAccount(transfer, COST),
+        names,
+      );
     case KIND.adjustment:
       return adjustmentDescription(transfer, names);
     default: {
@@ -423,6 +432,34 @@ const humanDescription = (
       );
     }
   }
+};
+
+/** How one plain-language row changed the business figure it describes. */
+const humanAmount = (transfer: Transfer): number => {
+  if (
+    transfer.kind === KIND.refundCash ||
+    transfer.kind === KIND.refundFee ||
+    transfer.kind === KIND.refundSale ||
+    transfer.kind === "manual_listing_cost" ||
+    transfer.kind === "manual_attendee_writeoff" ||
+    transfer.kind === "manual_modifier_reduction"
+  ) {
+    return -transfer.amount;
+  }
+  if (transfer.kind === KIND.serviceCost) {
+    return transfer.source.type === COST ? -transfer.amount : transfer.amount;
+  }
+  if (transfer.kind === KIND.adjustment) {
+    return transfer.destination.type === WRITEOFF_TYPE
+      ? -transfer.amount
+      : transfer.amount;
+  }
+  if (transfer.kind === KIND.modifier) {
+    return transfer.destination.type === "modifier"
+      ? transfer.amount
+      : -transfer.amount;
+  }
+  return transfer.amount;
 };
 
 export const HumanLedgerTable = ({
@@ -442,7 +479,11 @@ export const HumanLedgerTable = ({
         headerKey: "admin.ledger.col.activity",
       },
       amountColumn<Transfer>("admin.ledger.col.amount", (transfer) =>
-        amountCell(transfer, formatCurrency(transfer.amount), returnUrl),
+        amountCell(
+          transfer,
+          formatSignedCurrency(humanAmount(transfer)),
+          returnUrl,
+        ),
       ),
     ],
     rows: transfers,
@@ -450,9 +491,6 @@ export const HumanLedgerTable = ({
 
 /** The signed delta of a statement line, formatted with an explicit sign so a
  * credit and a debit of the same magnitude never read alike. */
-const signedAmount = (signed: number): string =>
-  `${signed < 0 ? "-" : "+"}${formatCurrency(Math.abs(signed))}`;
-
 /**
  * Whether an account's statement figures should be shown with their sign
  * flipped. The ledger stores an attendee's account as a liability — a booking
@@ -462,7 +500,7 @@ const signedAmount = (signed: number): string =>
  * statement negates its signed deltas and running balance; every other account
  * (revenue, modifier, the singletons) keeps its native ledger sign. */
 const isReversedAccount = (account: AccountRef): boolean =>
-  account.type === "attendee";
+  account.type === ATTENDEE || account.type === COST;
 
 /** A statement figure (signed delta or running balance) as shown for an account,
  * flipping its sign for the {@link isReversedAccount reversed} attendee view. The
@@ -498,8 +536,8 @@ export const AccountStatementTable = ({
     columns: [
       timeColumn((line: StatementLine) => line.transfer.occurredAt),
       {
-        cell: (line) => kindLabel(line.transfer),
-        headerKey: "admin.ledger.col.event",
+        cell: (line) => humanDescription(line.transfer, names),
+        headerKey: "admin.ledger.col.activity",
       },
       {
         cell: (line) => accountCell(counterparty(line, account), names),
@@ -508,7 +546,7 @@ export const AccountStatementTable = ({
       amountColumn<StatementLine>("admin.ledger.col.delta", (line) =>
         amountCell(
           line.transfer,
-          signedAmount(shownFigure(line.signed, account)),
+          formatSignedCurrency(shownFigure(line.signed, account)),
           returnUrl,
         ),
       ),
@@ -541,11 +579,19 @@ export const AccountStatementHeading = ({
   names: LedgerNames;
 }): JSX.Element => {
   const balance = lines.length > 0 ? lines[lines.length - 1]!.running : 0;
+  const balanceKey =
+    account.type === ATTENDEE
+      ? "admin.ledger.amount_owed"
+      : account.type === COST
+        ? "admin.ledger.total_costs"
+        : account.type === REVENUE
+          ? "admin.ledger.income_balance"
+          : "admin.ledger.balance";
   return (
     <p class="ledger-balance">
       <strong>{accountLabelText(account, names)}</strong>{" "}
-      {t("admin.ledger.balance", {
-        amount: formatCurrency(shownFigure(balance, account)),
+      {t(balanceKey, {
+        amount: formatSignedCurrency(shownFigure(balance, account), false),
       })}
     </p>
   );
@@ -645,10 +691,11 @@ export const EmbeddedAccountStatementSection = ({
 );
 
 /** The whole filter state the ledger page round-trips through the query string:
- *  a `from`/`to` day range, an optional by-listing scope, and each picker's
+ *  a `from`/`to` day range, an optional listing/group scope, and each picker's
  *  currently-paged month (so stepping months survives a reload). */
 export type LedgerFilterState = {
   from: string | null;
+  groupId: number | null;
   to: string | null;
   listingId: number | null;
   fromMonth: string | null;
@@ -662,8 +709,9 @@ export type LedgerFilterState = {
 export const LedgerViewModeSchema = v.picklist(["human", "dual"]);
 export type LedgerViewMode = v.InferOutput<typeof LedgerViewModeSchema>;
 
-/** One option for the by-listing filter select. */
+/** One option for the listing or group scope filter. */
 export type LedgerListingOption = { id: number; name: string };
+export type LedgerGroupOption = { id: number; name: string };
 
 /** Everything the (render-only) ledger page needs: the visible transfers and
  *  their name lookup, the range-scoped stats, the current filter state, and the
@@ -680,6 +728,7 @@ export type LedgerPageData = {
   dates: DatePickerDate[];
   today: string;
   listings: LedgerListingOption[];
+  groups: LedgerGroupOption[];
   returnUrl: string;
 };
 
@@ -697,6 +746,8 @@ const ledgerHref = (
   if (merged.to) params.set("to", merged.to);
   if (merged.listingId !== null) {
     params.set("listing", String(merged.listingId));
+  } else if (merged.groupId !== null) {
+    params.set("group", String(merged.groupId));
   }
   if (merged.view === "dual") params.set("view", "dual");
   if (merged.fromMonth) params.set("fromCal", merged.fromMonth);
@@ -761,28 +812,49 @@ const RangeField = ({
   );
 };
 
-/** The by-listing filter: a nav-select preselected to the current scope ("All
- *  listings" or one listing), each option navigating to the scoped ledger. */
-const ListingFilter = ({ data }: { data: LedgerPageData }): SafeHtml => (
+/** The scope filter: everything, one listing, or one group's current listings. */
+const ScopeFilter = ({ data }: { data: LedgerPageData }): SafeHtml => (
   <p class="table-action-btns">
-    {t("admin.ledger.filter.listing")}:
-    <select aria-label={t("admin.ledger.filter.listing")} data-nav-select>
+    {t("admin.ledger.filter.scope")}:
+    <select aria-label={t("admin.ledger.filter.scope")} data-nav-select>
       <option
-        selected={data.filters.listingId === null}
-        value={ledgerHref(data.filters, { listingId: null })}
+        selected={
+          data.filters.listingId === null && data.filters.groupId === null
+        }
+        value={ledgerHref(data.filters, { groupId: null, listingId: null })}
       >
-        {t("admin.ledger.filter.all_listings")}
+        {t("admin.ledger.filter.all")}
       </option>
-      {map(
-        (listing: LedgerListingOption): SafeHtml => (
-          <option
-            selected={data.filters.listingId === listing.id}
-            value={ledgerHref(data.filters, { listingId: listing.id })}
-          >
-            {listing.name}
-          </option>
-        ),
-      )(data.listings)}
+      <optgroup label={t("admin.ledger.filter.listings")}>
+        {map(
+          (listing: LedgerListingOption): SafeHtml => (
+            <option
+              selected={data.filters.listingId === listing.id}
+              value={ledgerHref(data.filters, {
+                groupId: null,
+                listingId: listing.id,
+              })}
+            >
+              {listing.name}
+            </option>
+          ),
+        )(data.listings)}
+      </optgroup>
+      <optgroup label={t("admin.ledger.filter.groups")}>
+        {map(
+          (group: LedgerGroupOption): SafeHtml => (
+            <option
+              selected={data.filters.groupId === group.id}
+              value={ledgerHref(data.filters, {
+                groupId: group.id,
+                listingId: null,
+              })}
+            >
+              {group.name}
+            </option>
+          ),
+        )(data.groups)}
+      </optgroup>
     </select>
   </p>
 );
@@ -813,8 +885,8 @@ const LedgerStats = ({ data }: { data: LedgerPageData }): SafeHtml => (
 );
 
 /**
- * The operator ledger page: range-scoped stats, a from/to date-range filter and
- * a by-listing select, then the visible transfer list (newest first, cash legs
+ * The operator ledger page: range-scoped stats, dates, listing/group scope, then
+ * the visible transfer list (newest first, cash legs
  * hidden). `truncated` surfaces a "showing recent" note when older transfers
  * were dropped, like the global log.
  */
@@ -837,7 +909,7 @@ export const adminLedgerPage = (
             ),
           )(RANGE_SIDES)}
         </div>
-        <ListingFilter data={data} />
+        <ScopeFilter data={data} />
         <LedgerViewToggle data={data} />
         {data.filters.view === "dual" ? (
           <LedgerTable

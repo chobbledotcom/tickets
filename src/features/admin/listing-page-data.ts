@@ -200,11 +200,10 @@ const noteAuthorNames = async (
  *  and the attendee-notes summary. Reads only collated aggregates — the listing's
  *  individual attendee rows are never loaded or decrypted here (see
  *  {@link getListingOverviewStats}). */
-export const loadListingOverviewPanel = async ({
-  listing,
-  isChild,
-  isHiddenPackageMember,
-}: LoadedListing): Promise<JSX.Element> => {
+export const loadListingOverviewPanel = async (
+  { listing, isChild, isHiddenPackageMember }: LoadedListing,
+  canViewLedger = false,
+): Promise<JSX.Element> => {
   // Housekeeping the old detail view ran on every load: clear reservations
   // whose payment window lapsed, concurrently with the page's own reads.
   const [
@@ -232,6 +231,9 @@ export const loadListingOverviewPanel = async ({
     groupContext,
     isChild,
     isHiddenPackageMember,
+    ...(canViewLedger
+      ? { ledgerHref: `/admin/ledger?listing=${listing.id}` }
+      : {}),
     listing,
     noteNames,
     ...(questionData !== undefined ? { questionData } : {}),

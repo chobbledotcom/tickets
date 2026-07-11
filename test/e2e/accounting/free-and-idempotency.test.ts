@@ -209,17 +209,17 @@ describeAccounting(() => {
     );
     // Every reconciliation row is labelled and signed, so the difference between
     // the two income figures is self-evident on the page.
-    expect(article).toContain("Income &amp; ledger");
+    expect(article).toContain("Money in and out");
     expect(article).toContain("Gross ticket sales");
     expect(article).toContain(signedCurrency(5000)); // +£50 gross sales
     expect(article).toContain("Manual adjustments");
     expect(article).toContain(signedCurrency(-1000)); // −£10 write-down
-    expect(article).toContain("Recognised income");
+    expect(article).toContain("Total income earned");
     expect(article).toContain(formatCurrency(4000)); // £40 recognised
     expect(article).toContain("Refunds");
     expect(article).toContain(signedCurrency(-5000)); // −£50 refunded
-    expect(article).toContain("Net balance in ledger");
-    expect(article).toContain(formatCurrency(-1000)); // −£10 net ledger balance
+    expect(article).toContain("Net after refunds and costs");
+    expect(article).toContain(signedCurrency(-1000)); // −£10 net
     // And it links through to the listing-scoped ledger view.
     expect(article).toContain(`/admin/ledger?listing=${listing.id}`);
   });

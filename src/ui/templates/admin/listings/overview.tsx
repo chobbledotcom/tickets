@@ -88,6 +88,7 @@ export const ListingOverviewPanel = (
     groupContext,
     revenueBreakdown,
     ledger,
+    ledgerHref,
     isChild = false,
     isHiddenPackageMember = false,
     systemNotes = [],
@@ -128,6 +129,7 @@ export const ListingOverviewPanel = (
       {revenueBreakdown && (
         <ListingIncomeLedgerSection
           breakdown={revenueBreakdown}
+          ledgerHref={ledgerHref}
           listing={listing}
         />
       )}
