@@ -21,11 +21,13 @@ const [getCachedCurrencyFormat, setCachedCurrencyFormat] =
 const currencyFormat = (code: string): CurrencyFormat => {
   const cached = getCachedCurrencyFormat();
   if (cached?.code === code) return cached;
-  const places =
-    new Intl.NumberFormat("en", {
-      currency: code,
-      style: "currency",
-    }).resolvedOptions().minimumFractionDigits ?? 2;
+  const places = new Intl.NumberFormat("en", {
+    currency: code,
+    style: "currency",
+  }).resolvedOptions().minimumFractionDigits;
+  if (places === undefined) {
+    throw new Error(`Intl omitted currency decimal places for ${code}`);
+  }
   const format = {
     code,
     divisor: 10 ** places,

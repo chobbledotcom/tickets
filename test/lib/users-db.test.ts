@@ -21,7 +21,11 @@ import {
   assertAdminPasswordVerifies,
 } from "#test-utils/db-helpers/misc.ts";
 import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
-import { recordQueries } from "#test-utils/record-queries.ts";
+import {
+  recordQueries,
+  statementSql,
+  wrapDbClient,
+} from "#test-utils/record-queries.ts";
 
 const recordedAuthReads = async (
   id: number,
@@ -89,6 +93,50 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           sql.includes("SELECT id, admin_level FROM users"),
         ),
       ).toEqual(["SELECT id, admin_level FROM users WHERE id = ? LIMIT 1"]);
+    });
+
+    test("does not cache an authentication read invalidated while in flight", async () => {
+      invalidateUsersCache();
+      const real = getDb();
+      const started = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
+      let authReads = 0;
+      const restore = wrapDbClient({
+        batch: () => {},
+        execute: (statement) => {
+          if (
+            !statementSql(statement).includes(
+              "SELECT id, admin_level FROM users",
+            )
+          ) {
+            return null;
+          }
+          authReads++;
+          const run = () =>
+            typeof statement === "string"
+              ? real.execute(statement)
+              : real.execute(statement);
+          if (authReads > 1) return run();
+          return (async () => {
+            started.resolve();
+            await release.promise;
+            return run();
+          })();
+        },
+      });
+
+      try {
+        const firstRead = getUserAuthFieldsById(1);
+        await started.promise;
+        invalidateUsersCache();
+        release.resolve();
+        expect((await firstRead)?.id).toBe(1);
+        expect((await getUserAuthFieldsById(1))?.id).toBe(1);
+      } finally {
+        restore();
+      }
+
+      expect(authReads).toBe(2);
     });
 
     test("createTestDbWithSetup creates the owner user", async () => {

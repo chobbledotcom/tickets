@@ -35,6 +35,8 @@ import { seedPreDropLedgerColumns } from "../migration-test-helpers.ts";
 export const migrationById = (id: string): Migration =>
   MIGRATIONS.find((m) => m.id === id)!;
 
+// Current-schema verification covers ordinary migrations. These four also
+// enforce removed legacy tables or the exact booking-slot index definition.
 const POST_CHAIN_MIGRATION_VERIFIER_IDS = [
   "2026-06-14_rename_events_to_listings",
   "2026-06-18_contact_preferences",

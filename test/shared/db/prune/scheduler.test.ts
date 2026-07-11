@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import { getDb } from "#shared/db/client.ts";
 import { maybeRunPrunes } from "#shared/db/prune.ts";
@@ -140,6 +141,26 @@ describeWithEnv("db > prune scheduler", { db: true }, () => {
       await maybeRunPrunes();
 
       expect(await paymentExists("sess_isolation")).toBe(false);
+    });
+
+    test("does not prune when the marker batch cannot be written", async () => {
+      const old = new Date(
+        nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000,
+      ).toISOString();
+      await insertFinalizedPayment("sess_marker_failure", old);
+      await clearAllLastPruned();
+      const batchStub = stub(getDb(), "batch", () =>
+        Promise.reject(new Error("marker write failed")),
+      );
+
+      try {
+        await maybeRunPrunes();
+      } finally {
+        batchStub.restore();
+      }
+
+      expect(await paymentExists("sess_marker_failure")).toBe(true);
+      expect(settings.lastPrunedPayments).toBe("");
     });
 
     test("treats an invalid last-pruned value as never-run", async () => {
