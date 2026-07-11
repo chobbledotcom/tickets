@@ -118,7 +118,10 @@ const makeRng = (initialSeed: number): Rng => {
   let seed = initialSeed;
   const rand = () => {
     seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-    return seed / 0x7fffffff;
+    // Divide by 2^31 (not 2^31-1) so the result is always in [0, 1): at
+    // seed === 0x7fffffff the old divisor returned exactly 1, letting `pick`
+    // index past the array and `randInt` return hi + 1.
+    return seed / 0x80000000;
   };
   const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)]!;
   const randInt = (lo: number, hi: number) =>
