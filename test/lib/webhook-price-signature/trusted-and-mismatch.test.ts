@@ -10,22 +10,22 @@ import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { prunePayments } from "#shared/db/prune.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
-import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 import {
   expectProcessed,
   expectReplayOutcome,
   expectStoredRefund,
   expectStoredRefundRecord,
+  redirectRequest,
   runWebhook,
   setupPackage,
   setupWithListing,
   signedMeta,
-  webhookRequest,
 } from "./helpers.ts";
 
 const pruneReplayRowWithoutRefundReference = async (sessionId: string) => {
@@ -167,13 +167,27 @@ describeWithEnv(
       // acknowledge without refunding or recreating a ghost.
       await deleteListing(listing.id);
 
-      await runWebhook(session, async (refund) => {
-        await assertJson(webhookRequest(), 200, (json) => {
-          expect(json.processed).toBe(false);
-          expect(json.error).toContain("already been processed");
-        });
-        expect(refund.calls.length).toBe(0);
+      const retrieve = stubRetrieveCheckoutSession({
+        amountTotal: 1000,
+        metadata: session.metadata,
+        paymentIntent: `pi_${session.id}`,
+        sessionId: session.id,
       });
+      try {
+        await runWebhook(session, async (refund) => {
+          const first = await redirectRequest(session.id);
+          expect(first.status).toBe(200);
+          expect(await first.text()).toContain("already been processed");
+
+          const replay = await redirectRequest(session.id);
+          expect(replay.status).toBe(200);
+          expect(await replay.text()).toContain("already been processed");
+
+          expect(refund.calls.length).toBe(0);
+        });
+      } finally {
+        retrieve.restore();
+      }
       // No placeholder ghost was created for the orphaned replay.
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
