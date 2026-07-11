@@ -10,6 +10,7 @@ import {
   type TestStripeMockPaths,
   wait,
   waitForFile,
+  waitForNoInstallTempDir,
   withFakeCurl,
   withInstallLockHeld,
   withInstallLockOpenFailure,
@@ -99,6 +100,14 @@ const expectDownloadWithLockCleanup = async (
 describe("stripe-mock install", () => {
   test("downloads a missing binary before trying to start it", async () => {
     const fakeArchive = await createFakeArchive();
+    // A gate around the fake download: curl signals `readyPath` once it is
+    // running (so the install's temp dir provably exists) and then blocks until
+    // the test creates `goPath`. Holding the download open like this lets the
+    // test release the lock-refresh write only after the refresh has stopped,
+    // so `scheduleNextRefresh` runs with `stopped` already true — deterministically.
+    const gate = await Deno.makeTempDir();
+    const readyPath = join(gate, "curl-ready");
+    const goPath = join(gate, "curl-go");
 
     try {
       await withTempStripeMockPaths(async (paths) => {
@@ -111,7 +120,8 @@ describe("stripe-mock install", () => {
                 '  echo "missing --fail" >&2',
                 "  exit 7",
                 "fi",
-                "sleep 0.05",
+                `: > ${JSON.stringify(readyPath)}`,
+                `while [ ! -e ${JSON.stringify(goPath)} ]; do sleep 0.01; done`,
                 `cat ${JSON.stringify(fakeArchive.archivePath)}`,
               ].join("\n"),
               async (curl) => {
@@ -122,9 +132,23 @@ describe("stripe-mock install", () => {
                   maxAttempts: 3,
                   paths,
                 });
+                // Hold the lock-refresh write, then wait for curl to be running
+                // (its temp dir now exists) before letting the download finish.
                 await lockWrite.waitForWrite();
-                await waitForFile(paths.binaryPath);
+                await waitForFile(readyPath);
+                await Deno.writeTextFile(goPath, "");
+                // Right after the gate opens the binary does not exist yet (the
+                // download is only just starting) while the temp dir still does,
+                // so these two waits deterministically exercise both the file
+                // wait's retry loop and the temp-dir poll's "found" branch. They
+                // resolve once the install finishes and cleans up — by which
+                // point the refresh has been stopped.
+                await Promise.all([
+                  waitForFile(paths.binaryPath),
+                  waitForNoInstallTempDir(paths.binDir),
+                ]);
                 await wait(1);
+                // Releasing now runs `scheduleNextRefresh` with `stopped` true.
                 lockWrite.releaseWrite();
                 await started;
               },
@@ -138,6 +162,7 @@ describe("stripe-mock install", () => {
       });
     } finally {
       await fakeArchive.cleanup();
+      await Deno.remove(gate, { recursive: true });
     }
   });
 
