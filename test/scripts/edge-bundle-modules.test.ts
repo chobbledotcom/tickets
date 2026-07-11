@@ -83,22 +83,17 @@ describe("buildAssetPathsModule", () => {
   });
 
   test("bakes published CDN URLs and origin into the bundle", () => {
-    expect(
-      buildAssetPathsModule(PATH_DEFS, 1234, {
-        origin: "https://assets.example.com",
-        urls: {
-          "style.css": "https://assets.example.com/assets/release/style.css",
-        },
-      }),
-    ).toContain(
+    const paths = buildAssetPathsModule(PATH_DEFS, 1234, {
+      origin: "https://assets.example.com",
+      urls: {
+        "style.css": "https://assets.example.com/assets/release/style.css",
+      },
+    });
+    expect(paths).toContain(
       `export const CSS_PATH = "https://assets.example.com/assets/release/style.css";`,
     );
-    expect(
-      buildAssetPathsModule(PATH_DEFS, 1234, {
-        origin: "https://assets.example.com",
-        urls: {},
-      }),
-    ).toContain(
+    expect(paths).toContain(`export const EMBED_JS_PATH = "/embed.js";`);
+    expect(paths).toContain(
       `export const ASSET_CDN_ORIGIN = "https://assets.example.com";`,
     );
   });

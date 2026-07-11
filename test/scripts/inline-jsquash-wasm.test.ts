@@ -124,11 +124,6 @@ describe("buildRemoteModule", () => {
         "webpEnc.wasm": "https://assets.example.com/release/webpEnc.wasm",
       },
     );
-    expect(source).toContain(
-      `export const jpegDec = () => load("https://assets.example.com/release/jpegDec.wasm");`,
-    );
-    expect(source).toContain("if (!response.ok) throw new Error");
-    expect(source).toContain("new Uint8Array(await response.arrayBuffer())");
     const originalFetch = globalThis.fetch;
     const requested: string[] = [];
     globalThis.fetch = (input) => {
@@ -141,6 +136,24 @@ describe("buildRemoteModule", () => {
       expect(requested).toEqual([
         "https://assets.example.com/release/webpEnc.wasm",
       ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("reports the URL and status when published wasm cannot load", async () => {
+    const url = "https://assets.example.com/release/webpEnc.wasm";
+    const source = buildRemoteModule([{ exportName: "webpEnc" }] as const, {
+      "webpEnc.wasm": url,
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = () =>
+      Promise.resolve(new Response(null, { status: 503 }));
+    try {
+      const generated = await importGeneratedModule(source);
+      await expect(generated.webpEnc()).rejects.toThrow(
+        `Failed to load image codec ${url}: HTTP 503`,
+      );
     } finally {
       globalThis.fetch = originalFetch;
     }

@@ -380,8 +380,8 @@ src/features/admin/questions.ts:559:24  return notFoundResponse() → return und
 # operand exists to coerce.
 # The generated WASM modules terminate every statement with punctuation, so
 # joining their source lines with "" or ";" parses and behaves identically.
-scripts/inline-jsquash-wasm.ts:52:21  ; → ""    # inline module remains semicolon/brace delimited
-scripts/inline-jsquash-wasm.ts:76:21  ; → ""    # remote module remains semicolon/brace delimited
+scripts/inline-jsquash-wasm.ts:53:21  ; → ""    # inline module remains semicolon/brace delimited
+scripts/inline-jsquash-wasm.ts:75:38  ; → ""    # remote module remains semicolon/brace delimited
 
 # sort-listings.ts's tier constants (0/1/2 for no-date-standard/dated-
 # standard/daily) and the "date === ''" empty-date sentinel: Array.sort only

@@ -24,13 +24,15 @@ const CDN_ENV_KEYS = [
   "CDN_BUNNY_PULL_ZONE_ID",
 ] as const;
 
+export const STATIC_CDN_REQUEST_TIMEOUT_MS = 30_000;
+
 const cleanCdnUrl = (raw: string): string => {
   const url = new URL(raw);
   if (url.protocol !== "https:") throw new Error("CDN_URL must use HTTPS");
   if (url.username || url.password || url.search || url.hash) {
     throw new Error("CDN_URL must be a clean HTTPS base URL");
   }
-  return url.toString().replace(/\/$/, "");
+  return url.toString().replace(/\/+$/, "");
 };
 
 export const loadStaticCdnConfig = (
@@ -45,8 +47,12 @@ export const loadStaticCdnConfig = (
   if (present !== CDN_ENV_KEYS.length) {
     throw new Error(`${CDN_ENV_KEYS.join(", ")} must all be set together`);
   }
-  const accountKey = env.BUNNY_ACCESS_KEY?.trim();
-  if (!accountKey) {
+  const rawAccountKey = env.BUNNY_ACCESS_KEY;
+  if (rawAccountKey === undefined) {
+    throw new Error("BUNNY_ACCESS_KEY is required to purge the static CDN");
+  }
+  const accountKey = rawAccountKey.trim();
+  if (accountKey === "") {
     throw new Error("BUNNY_ACCESS_KEY is required to purge the static CDN");
   }
 
@@ -77,7 +83,16 @@ const checkedFetch = async (
   init: RequestInit | undefined,
   failure: string,
 ): Promise<Response> => {
-  const response = await fetcher(input, init);
+  const signals = [
+    AbortSignal.timeout(STATIC_CDN_REQUEST_TIMEOUT_MS),
+    init?.signal,
+  ].filter(
+    (signal): signal is AbortSignal => signal !== null && signal !== undefined,
+  );
+  const response = await fetcher(input, {
+    ...init,
+    signal: AbortSignal.any(signals),
+  });
   if (!response.ok) {
     throw new Error(`${failure}: HTTP ${response.status}`);
   }

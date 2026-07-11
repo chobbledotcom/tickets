@@ -78,7 +78,9 @@ export const decodeImage = async (
   mime: DecodableMime,
 ): Promise<RawImage> => {
   const codecs = await ensureCodecs();
-  return codecs.decode[mime](data.buffer as ArrayBuffer);
+  const start = data.byteOffset;
+  const encoded = data.buffer.slice(start, start + data.byteLength);
+  return codecs.decode[mime](encoded as ArrayBuffer);
 };
 
 /** Encode RGBA pixels to WebP at the given quality (0–100). */

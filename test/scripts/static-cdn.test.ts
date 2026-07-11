@@ -1,8 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import {
   loadStaticCdnConfig,
   publishStaticCdnAssets,
+  STATIC_CDN_REQUEST_TIMEOUT_MS,
 } from "../../scripts/static-cdn.ts";
 
 const CONFIG = {
@@ -61,6 +63,15 @@ describe("loadStaticCdnConfig", () => {
 
   test("normalizes a complete CDN configuration", () => {
     expect(loadStaticCdnConfig(ENV)).toEqual(CONFIG);
+  });
+
+  test("normalizes repeated trailing slashes in the CDN base", () => {
+    expect(
+      loadStaticCdnConfig({
+        ...ENV,
+        CDN_URL: "https://assets.example.com/static///",
+      }),
+    ).toEqual(CONFIG);
   });
 
   test("rejects a partial CDN configuration", () => {
@@ -125,9 +136,19 @@ describe("loadStaticCdnConfig", () => {
       loadStaticCdnConfig({ ...ENV, BUNNY_ACCESS_KEY: undefined }),
     ).toThrow("BUNNY_ACCESS_KEY is required to purge the static CDN");
   });
+
+  test("rejects a whitespace-only account key", () => {
+    expect(() =>
+      loadStaticCdnConfig({ ...ENV, BUNNY_ACCESS_KEY: "   " }),
+    ).toThrow("BUNNY_ACCESS_KEY is required to purge the static CDN");
+  });
 });
 
 describe("publishStaticCdnAssets", () => {
+  test("bounds every Bunny request to 30 seconds", () => {
+    expect(STATIC_CDN_REQUEST_TIMEOUT_MS).toBe(30_000);
+  });
+
   test("uploads one immutable release and returns its public URLs", async () => {
     const requests: Request[] = [];
     const fetcher: typeof fetch = (input, init) => {
@@ -157,18 +178,20 @@ describe("publishStaticCdnAssets", () => {
       "https://assets.example.com/static/assets/5a3cb7a61a83b08341ffe60fc6697818e1b4ecfba94a4df75f975f05c0368397/jpegDec.wasm",
     );
     expect(requests.length).toBe(5);
-    expect(requests[0]?.method).toBe("PUT");
-    expect(requests[0]?.headers.get("accesskey")).toBe("storage-secret");
-    expect(requests[0]?.headers.get("content-type")).toBe(
+    const cssUploadUrl =
+      "https://storage.bunnycdn.com/tickets-assets/static/assets/" +
+      "5a3cb7a61a83b08341ffe60fc6697818e1b4ecfba94a4df75f975f05c0368397/style.css";
+    const cssUpload = requests.find(({ url }) => url === cssUploadUrl);
+    if (!cssUpload) throw new Error("Expected style.css upload request");
+    expect(cssUpload.method).toBe("PUT");
+    expect(cssUpload.headers.get("accesskey")).toBe("storage-secret");
+    expect(cssUpload.headers.get("content-type")).toBe(
       "text/css; charset=utf-8",
     );
-    expect(requests[0]?.headers.get("checksum")).toBe(
+    expect(cssUpload.headers.get("checksum")).toBe(
       "7C98040A541657584690AE2A1CC3B42A8B53B159CC60C5D3ABBFECBAEAC6C94A",
     );
-    expect(requests[0]?.url).toBe(
-      "https://storage.bunnycdn.com/tickets-assets/static/" +
-        published.urls["style.css"]?.split("/static/")[1],
-    );
+    expect(cssUpload.url).toBe(cssUploadUrl);
     expect(requests[2]?.url).toBe(
       "https://api.bunny.net/pullzone/12345/purgeCache",
     );
@@ -271,5 +294,39 @@ describe("publishStaticCdnAssets", () => {
         verificationFetcher(new Response("different")),
       ),
     ).rejects.toThrow("style.css does not match the uploaded file");
+  });
+
+  test("aborts a stalled Bunny request after 30 seconds", async () => {
+    using time = new FakeTime();
+    let error: unknown;
+    let settled = false;
+    const publishing = publishStaticCdnAssets(
+      CONFIG,
+      [STYLE_ASSET],
+      (_input, init) =>
+        new Promise((_resolve, reject) => {
+          const signal = init?.signal;
+          if (!signal) throw new Error("Expected bounded Bunny request");
+          signal.addEventListener("abort", () => reject(signal.reason), {
+            once: true,
+          });
+        }),
+    );
+    const observed = publishing
+      .catch((caught: unknown) => {
+        error = caught;
+      })
+      .finally(() => {
+        settled = true;
+      });
+
+    await time.tickAsync(29_999);
+    expect(settled).toBe(false);
+    await time.tickAsync(1);
+    await observed;
+    if (!(error instanceof DOMException)) {
+      throw new Error("Expected timeout DOMException");
+    }
+    expect(error.name).toBe("TimeoutError");
   });
 });

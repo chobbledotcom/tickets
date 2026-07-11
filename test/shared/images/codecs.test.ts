@@ -30,6 +30,21 @@ describe("decodeImage", () => {
     expect(decoded.data.length).toBe(20 * 12 * 4);
   });
 
+  test("decodes only the bytes inside a subarray view", async () => {
+    const png = await makeTestPng(18, 11);
+    const padded = new Uint8Array(png.length + 2);
+    padded[0] = 255;
+    padded.set(png, 1);
+    padded[padded.length - 1] = 255;
+
+    const decoded = await decodeImage(
+      padded.subarray(1, padded.length - 1),
+      "image/png",
+    );
+    expect(decoded.width).toBe(18);
+    expect(decoded.height).toBe(11);
+  });
+
   test("decodes JPEG bytes via the image/jpeg codec", async () => {
     const png = await makeTestPng(20, 12);
     const rgba = await decodeImage(png, "image/png");

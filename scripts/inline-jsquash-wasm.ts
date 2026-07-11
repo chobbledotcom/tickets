@@ -1,6 +1,7 @@
 import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
 import { fromFileUrl } from "@std/path";
 import type { OnLoadResult, OnResolveResult, Plugin } from "esbuild";
+import { map } from "#fp";
 import { ASSETS, readAsset } from "../src/shared/images/wasm-assets.ts";
 
 type ExportAsset = Pick<(typeof ASSETS)[number], "exportName">;
@@ -65,15 +66,13 @@ export const buildRemoteModule = <Entry extends ExportAsset>(
     "  return new Uint8Array(await response.arrayBuffer());",
     "};",
   ];
-  for (const asset of assets) {
+  const exports = map((asset: Entry) => {
     const filename = wasmFilename(asset);
     const url = urls[filename];
     if (!url) throw new Error(`Missing published WASM URL for ${filename}`);
-    lines.push(
-      `export const ${asset.exportName} = () => load(${JSON.stringify(url)});`,
-    );
-  }
-  return lines.join(";");
+    return `export const ${asset.exportName} = () => load(${JSON.stringify(url)});`;
+  })([...assets]);
+  return [...lines, ...exports].join(";");
 };
 
 export const createPlugin = (
