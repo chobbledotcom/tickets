@@ -121,18 +121,18 @@ describe("ticketPage — fields & form", () => {
   });
 
   test("appends ?iframe=true to form action in iframe mode", () => {
-    detectIframeMode("https://example.com/?iframe=true");
+    detectIframeMode(new URL("https://example.com/?iframe=true"));
     const html = singleListingPageHtml();
     expect(html).toContain('action="/ticket/ab12c?iframe=true"');
     expect(html).toContain('class="iframe"');
-    detectIframeMode("https://example.com/");
+    detectIframeMode(new URL("https://example.com/"));
   });
 
   test("includes iframe-resizer child script in iframe mode", () => {
-    detectIframeMode("https://example.com/?iframe=true");
+    detectIframeMode(new URL("https://example.com/?iframe=true"));
     const html = singleListingPageHtml();
     expect(html).toContain("iframe-resizer-child.js");
-    detectIframeMode("https://example.com/");
+    detectIframeMode(new URL("https://example.com/"));
   });
 
   test("excludes iframe-resizer child script without iframe mode", () => {

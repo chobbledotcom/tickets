@@ -16,7 +16,7 @@ import {
   runWithQueryLogContext,
   trackQuery,
 } from "#shared/db/query-log.ts";
-import { setSuppressDebugLogs } from "#shared/logger.ts";
+import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { devServerPort, serveHandler } from "#src/serve-app.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setTestEnv } from "#test-utils/env.ts";

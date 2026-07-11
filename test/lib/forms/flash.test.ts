@@ -126,7 +126,7 @@ test("requestFlash renders every message from the request context", () => {
 
 describe("CsrfForm", () => {
   afterEach(() => {
-    detectIframeMode("https://example.com/");
+    detectIframeMode(new URL("https://example.com/"));
   });
 
   test("renders POST form with action and CSRF token", () => {
@@ -214,14 +214,14 @@ describe("CsrfForm", () => {
   });
 
   test("appends ?iframe=true to action when in iframe mode", () => {
-    detectIframeMode("https://example.com/?iframe=true");
+    detectIframeMode(new URL("https://example.com/?iframe=true"));
     expect(String(CsrfForm({ action: "/ticket/test" }))).toContain(
       'action="/ticket/test?iframe=true"',
     );
   });
 
   test("does not append iframe param outside iframe mode", () => {
-    detectIframeMode("https://example.com/");
+    detectIframeMode(new URL("https://example.com/"));
     const html = String(CsrfForm({ action: "/ticket/test" }));
     expect(html).toContain('action="/ticket/test"');
     expect(html).not.toContain("iframe");

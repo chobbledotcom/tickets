@@ -16,16 +16,17 @@ import {
 import {
   LISTING_AGGREGATE_WRITE_COLUMNS,
   TICKET_COUNTS_PREDICATE,
-  TRIGGERS,
-} from "#shared/db/migrations/schema.ts";
+} from "#shared/db/migrations/schema/listing-aggregates.ts";
+import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
 import { BACKFILL_LISTING_AGGREGATES_SQL } from "#shared/db/migrations/schema-sync.ts";
-import { MIGRATIONS } from "#shared/db/migrations.ts";
+import { loadMigrations } from "#shared/db/migrations.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { readListingAggregates as aggregates } from "./migration-test-helpers.ts";
 
+const MIGRATIONS = await loadMigrations();
 const refundPostedSale = (
   listingId: number,
   attendeeId: number,

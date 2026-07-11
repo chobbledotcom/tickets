@@ -19,6 +19,7 @@ import {
 import type { RecalculateRow } from "#templates/admin/recalculate.tsx";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 import { recalculatePageRenderer } from "#templates/components/aggregate-sections.tsx";
+import { capacityLevel } from "#templates/components/capacity.tsx";
 import { listingAggregateFields } from "#templates/fields/aggregate.ts";
 
 export {
@@ -34,7 +35,7 @@ export const buildAnswerSummaryRows = (
 ): string => renderDetailRows(buildAnswerSummaryDetailRows(questionData));
 
 export const nearCapacity = (listing: ListingWithCount): boolean =>
-  listing.attendee_count >= listing.max_attendees * 0.9;
+  capacityLevel(listing.attendee_count, listing.max_attendees).nearLimit;
 
 const listingAggregateFormatters: Record<
   ListingAggregateField,

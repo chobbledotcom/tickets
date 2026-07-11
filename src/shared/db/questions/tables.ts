@@ -1,11 +1,13 @@
 /**
- * Table definitions for custom questions, answers, and their listing links.
+ * Table definitions for custom questions and their answers. The
+ * `listing_questions` link table has no definition here: production reads and
+ * writes it only through the raw SQL in `questions/queries.ts`
+ * (`setQuestionListings` and the membership joins).
  */
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type {
   Answer,
-  ListingQuestion,
   Question,
   QuestionDisplayType,
 } from "#shared/db/question-types.ts";
@@ -59,24 +61,5 @@ export const answersTable = defineTable<Answer, AnswerInput>({
     id: generatedId,
     ...questionIdAndSortOrder,
     text: encryptedText,
-  },
-});
-
-type ListingQuestionInput = {
-  listingId: number;
-  questionId: number;
-  sortOrder: number;
-};
-
-export const listingQuestionsTable = defineTable<
-  ListingQuestion,
-  ListingQuestionInput
->({
-  name: "listing_questions",
-  primaryKey: "id",
-  schema: {
-    id: col.generated<number>(),
-    listing_id: col.simple<number>(),
-    ...questionIdAndSortOrder,
   },
 });

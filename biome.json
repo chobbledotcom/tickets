@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.8/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
   "assist": {
     "actions": {
       "source": {
@@ -76,12 +76,12 @@
         "useTemplate": "error"
       },
       "suspicious": {
-        "noAssignInExpressions": "off",
+        "noAssignInExpressions": "error",
         "noConsole": "error",
         "noDoubleEquals": "error",
         "noExplicitAny": "off",
         "noFocusedTests": "error",
-        "noImplicitAnyLet": "off",
+        "noImplicitAnyLet": "error",
         "noSkippedTests": "error",
         "noVar": "error"
       }
@@ -92,14 +92,6 @@
       "includes": ["test/**/*.js", "test/**/*.ts", "test/**/*.tsx"],
       "linter": {
         "rules": {
-          "complexity": {
-            "noExcessiveCognitiveComplexity": {
-              "level": "error",
-              "options": {
-                "maxAllowedComplexity": 30
-              }
-            }
-          },
           "correctness": {
             "noUnusedFunctionParameters": "off",
             "noUnusedVariables": "off"
@@ -129,13 +121,8 @@
       "includes": ["scripts/**/*.ts"],
       "linter": {
         "rules": {
-          "complexity": {
-            "noExcessiveCognitiveComplexity": "off"
-          },
           "suspicious": {
-            "noAssignInExpressions": "off",
-            "noConsole": "off",
-            "noImplicitAnyLet": "off"
+            "noConsole": "off"
           }
         }
       }
@@ -152,16 +139,6 @@
         "rules": {
           "suspicious": {
             "noTemplateCurlyInString": "off"
-          }
-        }
-      }
-    },
-    {
-      "includes": ["src/shared/db/migrations/schema.ts"],
-      "linter": {
-        "rules": {
-          "nursery": {
-            "noExcessiveLinesPerFile": "off"
           }
         }
       }

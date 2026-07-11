@@ -29,18 +29,24 @@ import {
 export const businessTime = (session: ValidatedPaymentSession): string =>
   session.createdAt ?? nowIso();
 
-/** Parse per-listing answer IDs from metadata JSON string.
- * Returns undefined for empty input. The JSON was serialized by our own
- * buildMetadata, so we trust the structure. */
-const parseListingAnswerIds = (
-  json: string,
-): Record<string, number[]> | undefined =>
-  json ? (JSON.parse(json) as Record<string, number[]>) : undefined;
+/** Read one optional JSON metadata field: parse it when present, or hand back
+ * the field's own fallback when empty. The JSON was serialized by our own
+ * buildMetadata, so we trust the structure (parseBookingItems is the deliberate
+ * schema-validated exception). */
+const jsonMetaField =
+  <T>(fallback: T) =>
+  (json: string): T =>
+    json ? (JSON.parse(json) as T) : fallback;
 
-const parseListingTextAnswerIds = (
-  json: string,
-): Record<string, TextAnswerRef[]> | undefined =>
-  json ? (JSON.parse(json) as Record<string, TextAnswerRef[]>) : undefined;
+/** Per-listing answer IDs; undefined when the checkout sent none. */
+const parseListingAnswerIds = jsonMetaField<
+  Record<string, number[]> | undefined
+>(undefined);
+
+/** Per-listing free-text answer references; undefined when none. */
+const parseListingTextAnswerIds = jsonMetaField<
+  Record<string, TextAnswerRef[]> | undefined
+>(undefined);
 
 /**
  * Parse booking items from metadata JSON. Returns null when the JSON is
@@ -66,13 +72,13 @@ const parseBookingItems = (itemsJson: string): BookingItem[] | null => {
   return result.success ? result.output : null;
 };
 
-/** Parse the compact modifier references from session metadata. Our own JSON,
- * round-tripped through the provider; absent (empty) means no modifiers. */
-const parseModifierRefs = (json: string): ModifierRef[] =>
-  json ? (JSON.parse(json) as ModifierRef[]) : [];
+/** The compact modifier references; absent (empty) means no modifiers. */
+const parseModifierRefs = jsonMetaField<ModifierRef[]>([]);
 
-const parseAllocations = (json: string): ChildAllocation[] | undefined =>
-  json ? (JSON.parse(json) as ChildAllocation[]) : undefined;
+/** Child ticket allocations; undefined when the checkout sent none. */
+const parseAllocations = jsonMetaField<ChildAllocation[] | undefined>(
+  undefined,
+);
 
 /**
  * Extract booking intent from session metadata.

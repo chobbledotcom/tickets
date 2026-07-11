@@ -602,8 +602,8 @@ const trackingParamRedirect = (url: URL, method: string): Response | null => {
  * Populate flash context from keyed cookie (flash ID in URL).
  * Returns flashId when a flash was set so the caller can clear the cookie later.
  */
-const applyFlashFromCookie = (request: Request): string | null => {
-  const flashId = new URL(request.url).searchParams.get("flash");
+const applyFlashFromCookie = (request: Request, url: URL): string | null => {
+  const flashId = url.searchParams.get("flash");
   const flashRaw = flashId
     ? parseCookies(request).get(`flash_${flashId}`)
     : null;
@@ -623,7 +623,7 @@ const applyFlashFromCookie = (request: Request): string | null => {
  * These are per-request setup tasks that must happen before routing.
  */
 const prepareRequestEnvironment = async (
-  request: Request,
+  url: URL,
   path: string,
   method: string,
 ): Promise<void> => {
@@ -654,18 +654,19 @@ const prepareRequestEnvironment = async (
   addPendingWork(maybeBackfillActivityLog());
 
   // Load effective domain (custom_domain from DB if set, else request hostname)
-  loadEffectiveDomain(request.url);
+  loadEffectiveDomain(url);
 };
 
 /** Route the request and attach security headers / flash cookie clearing */
 const routeAndFinalize = async (
   request: Request,
+  url: URL,
   path: string,
   method: string,
   server: ServerContext | undefined,
 ): Promise<Response> => {
   const embeddable = isEmbeddablePath(path);
-  const consumedFlashId = applyFlashFromCookie(request);
+  const consumedFlashId = applyFlashFromCookie(request, url);
 
   const response = await handleRequestInternal(request, path, method, server);
 
@@ -737,7 +738,7 @@ const processRequest = async (
 ): Promise<Response> => {
   const { url, path, method } = parseRequest(request);
   const getElapsed = createRequestTimer();
-  detectIframeMode(request.url);
+  detectIframeMode(url);
   clearSavedFormData();
 
   // The public layout links /custom.css on every page, including the system
@@ -782,7 +783,7 @@ const processRequest = async (
     // database, so errors during migration (e.g. on the first request after a
     // cold boot) identify the real site instead of falling back to "localhost".
     // prepareRequestEnvironment() refines this once settings are loaded.
-    seedEffectiveDomainHost(url.href);
+    seedEffectiveDomainHost(url);
 
     // A tracked URL is a pure redirect: answer it before the prefetch and
     // initDb so the request touches the database not at all.
@@ -804,14 +805,14 @@ const processRequest = async (
       return finish(notActivated);
     }
 
-    await prepareRequestEnvironment(bufferedRequest, path, method);
+    await prepareRequestEnvironment(url, path, method);
 
     if (!isValidContentType(bufferedRequest, path)) {
       return finish(contentTypeRejectionResponse());
     }
 
     response = finish(
-      await routeAndFinalize(bufferedRequest, path, method, server),
+      await routeAndFinalize(bufferedRequest, url, path, method, server),
     );
     // Dev/test safety net: prove this route declared every setting it read.
     // No-op in production (audit scope is never entered).

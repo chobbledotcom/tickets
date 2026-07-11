@@ -25,10 +25,10 @@ import {
 } from "#shared/db/modifiers.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
+import { checkoutItem } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
-  checkoutItem,
   consumeModifierStock,
   insertModifier,
   linkModifierGroup,

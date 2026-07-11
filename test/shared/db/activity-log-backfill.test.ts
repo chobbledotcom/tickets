@@ -12,7 +12,7 @@ import { getAllActivityLog, logActivity } from "#shared/db/activityLog.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { ACTIVITY_LOG_BACKFILL_INTERVAL_MS } from "#shared/limits.ts";
-import { setSuppressDebugLogs } from "#shared/logger.ts";
+import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { nowIso } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withTestSession } from "#test-utils/session.ts";

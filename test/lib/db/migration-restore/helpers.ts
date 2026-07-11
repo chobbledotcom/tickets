@@ -18,11 +18,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#shared/db/client.ts";
+import { verifyCurrentAppSchema } from "#shared/db/migrations/schema-sync.ts";
 import {
   initDb,
   invalidateInitDbCache,
   LATEST_UPDATE,
-  MIGRATIONS,
+  loadMigrations,
   type Migration,
   SCHEMA_HASH,
   type SchemaRequirement,
@@ -31,8 +32,25 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { indexExists } from "#test-utils/migrations.ts";
 import { seedPreDropLedgerColumns } from "../migration-test-helpers.ts";
 
+const MIGRATIONS = await loadMigrations();
 export const migrationById = (id: string): Migration =>
   MIGRATIONS.find((m) => m.id === id)!;
+
+// Current-schema verification covers ordinary migrations. These four also
+// enforce removed legacy tables or the exact booking-slot index definition.
+const POST_CHAIN_MIGRATION_VERIFIER_IDS = [
+  "2026-06-14_rename_events_to_listings",
+  "2026-06-18_contact_preferences",
+  "2026-06-23_attendee_order_parent",
+  "2026-07-05_package_slot_identity",
+] as const;
+
+const verifyMigratedSchema = async (): Promise<void> => {
+  await verifyCurrentAppSchema();
+  for (const id of POST_CHAIN_MIGRATION_VERIFIER_IDS) {
+    await migrationById(id).verify();
+  }
+};
 
 export const tableColumns = async (table: string): Promise<Set<string>> => {
   const result = await getDb().execute(
@@ -320,6 +338,28 @@ const shardSlice = <T>(items: T[], shard: number, shardCount: number): T[] =>
   items.filter((_, index) => index % shardCount === shard);
 
 /**
+ * Spot-check that every object a migration declares it owns is present in the
+ * live schema again after a drop/restore cycle.
+ */
+const assertOwnedObjectsPresent = async (
+  req: SchemaRequirement,
+): Promise<void> => {
+  for (const table of req.newTables ?? []) {
+    expect((await tableColumns(table)).size).toBeGreaterThan(0);
+  }
+  for (const [table, cols] of Object.entries(req.columns ?? {})) {
+    const present = await tableColumns(table);
+    for (const col of cols) expect(present.has(col)).toBe(true);
+  }
+  for (const index of req.indexes ?? []) {
+    expect(await indexExists(index)).toBe(true);
+  }
+  for (const trigger of req.triggers ?? []) {
+    expect(await triggerExists(trigger)).toBe(true);
+  }
+};
+
+/**
  * Register one shard of the per-migration restore suite: for each additive
  * migration in the shard, drop exactly its owned objects, prove verify()
  * fails, re-run up(), and prove verify() passes with pre-existing data intact.
@@ -360,19 +400,7 @@ export const defineRestoreCasesSuite = (
           expect(await sentinelListingExists()).toBe(true);
 
           // Spot-check that each declared object is actually present again.
-          for (const table of req.newTables ?? []) {
-            expect((await tableColumns(table)).size).toBeGreaterThan(0);
-          }
-          for (const [table, cols] of Object.entries(req.columns ?? {})) {
-            const present = await tableColumns(table);
-            for (const col of cols) expect(present.has(col)).toBe(true);
-          }
-          for (const index of req.indexes ?? []) {
-            expect(await indexExists(index)).toBe(true);
-          }
-          for (const trigger of req.triggers ?? []) {
-            expect(await triggerExists(trigger)).toBe(true);
-          }
+          await assertOwnedObjectsPresent(req);
         });
       }
     },
@@ -424,9 +452,7 @@ export const defineChainSuite = (shard: number, shardCount: number): void => {
 
           await initDb();
 
-          for (const migration of MIGRATIONS) {
-            await migration.verify();
-          }
+          await verifyMigratedSchema();
           await assertPopulatedFixtureSurvived(baseMigration.id);
         });
       }

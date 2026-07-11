@@ -104,10 +104,9 @@ const buildSegmentRouters = (): Record<
   for (const [id, segments] of Object.entries(ADMIN_SURFACE.areas)) {
     const loader = ADMIN_AREA_LOADERS[id as AdminAreaId];
     for (const segment of segments) {
-      (areasBySegment[segment] ??= []).push({
-        id: id as AdminAreaId,
-        loader,
-      });
+      const list = areasBySegment[segment] ?? [];
+      list.push({ id: id as AdminAreaId, loader });
+      areasBySegment[segment] = list;
     }
   }
   const routers: Record<string, () => Promise<PathMethodRoute>> = {};

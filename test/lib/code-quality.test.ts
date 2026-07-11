@@ -181,8 +181,6 @@ const ALLOWED_TEST_HOOKS: string[] = [
   // Dev/test-only switch for the settings read audit (no-op in production)
   "shared/db/settings-audit.ts:setSettingsAuditEnabled",
   // (settings.ts functions now accessed via settings namespace, not individual exports)
-  // Reset cached sessions between tests
-  "shared/db/sessions.ts:resetSessionCache",
   // Reset cached I18N_REPLACEMENTS replacer + compiled formats between tests
   "shared/i18n.ts:resetI18nForTest",
   // DB version/hash constants used in production but test pattern doesn't detect constant comparison
@@ -263,7 +261,7 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/limits.ts:readLimit",
   // Set log suppression directly to avoid env var races between parallel tests
   "shared/logger.ts:setSuppressRequestLogs",
-  "shared/logger.ts:setSuppressDebugLogs",
+  "shared/log-settings.ts:setSuppressDebugLogs",
   // Rethrow errors in tests without env var races
   "shared/test-overrides.ts:setRethrowErrorsForTest",
   // Override BUILD_TIMESTAMP / BUILD_COMMIT in tests (compile-time constants can't be changed otherwise)
@@ -395,6 +393,36 @@ describe("code quality", () => {
   });
 
   /**
+   * Scan one file set line by line, collecting violations via a detector.
+   * Skips code-quality's own files so its rule literals never self-flag.
+   */
+  const collectLineViolations = (
+    files: string[],
+    contents: Map<string, string>,
+    detect: (
+      relativePath: string,
+      line: string,
+      lineNum: number,
+    ) => string | null,
+  ): string[] => {
+    const violations: string[] = [];
+    for (const file of files) {
+      const relativePath = repoRelative(file);
+      if (isCodeQualityFile(relativePath)) continue;
+      // ensureLoaded() populates `contents` from this same `files` list, so
+      // every file requested here is guaranteed present.
+      const lines = contents.get(file)!.split("\n");
+      let lineNum = 0;
+      for (const line of lines) {
+        lineNum++;
+        const v = detect(relativePath, line, lineNum);
+        if (v) violations.push(v);
+      }
+    }
+    return violations;
+  };
+
+  /**
    * Scan src and test files line by line, collecting violations via a detector.
    * Test code is held to the same line-level standards as production code.
    * Returns the combined violation list.
@@ -407,23 +435,10 @@ describe("code quality", () => {
     ) => string | null,
   ): Promise<string[]> => {
     await ensureLoaded();
-    const violations: string[] = [];
-    const scan = (files: string[], contents: Map<string, string>): void => {
-      for (const file of files) {
-        const relativePath = repoRelative(file);
-        if (isCodeQualityFile(relativePath)) continue;
-        const lines = contents.get(file)!.split("\n");
-        let lineNum = 0;
-        for (const line of lines) {
-          lineNum++;
-          const v = detect(relativePath, line, lineNum);
-          if (v) violations.push(v);
-        }
-      }
-    };
-    scan(srcFiles, srcContents);
-    scan(testFiles, testContents);
-    return violations;
+    return [
+      ...collectLineViolations(srcFiles, srcContents, detect),
+      ...collectLineViolations(testFiles, testContents, detect),
+    ];
   };
 
   describe("no aliasing", () => {

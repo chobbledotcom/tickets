@@ -74,22 +74,6 @@ export const stubCompletedSession = async (object: {
   );
 };
 
-/** Stub the redirect path's session retrieval for a paid session. */
-export const stubRetrievedSession = (object: {
-  amount_total: number;
-  id: string;
-  metadata: Record<string, string>;
-}) =>
-  stub(stripeApi, "retrieveCheckoutSession", () =>
-    Promise.resolve({
-      ...object,
-      payment_intent: `pi_${object.id}`,
-      payment_status: "paid",
-    } as unknown as Awaited<
-      ReturnType<typeof stripeApi.retrieveCheckoutSession>
-    >),
-  );
-
 export const webhookRequest = () =>
   handleRequest(mockWebhookRequest({}, { "stripe-signature": "sig_valid" }));
 

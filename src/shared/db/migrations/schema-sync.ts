@@ -6,16 +6,13 @@ import {
   withTransaction,
 } from "#shared/db/client.ts";
 import { logDebug } from "#shared/logger.ts";
+import { APP_SCHEMA, SCHEMA } from "./schema/index.ts";
 import {
-  APP_SCHEMA,
-  type Column,
-  type Index,
-  SCHEMA,
-  type Table,
   TICKET_COUNTS_PREDICATE,
-  TRIGGERS,
   ticketCountPredicateFor,
-} from "./schema.ts";
+} from "./schema/listing-aggregates.ts";
+import { TRIGGERS } from "./schema/triggers.ts";
+import type { Column, Index, Table } from "./schema/types.ts";
 import {
   assertColumnsPresent,
   assertLiveTableColumns,

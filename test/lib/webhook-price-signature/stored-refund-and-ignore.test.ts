@@ -13,6 +13,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 import {
   expectAcknowledgedIgnore,
   expectNoAttendees,
@@ -24,7 +25,6 @@ import {
   setupWithListing,
   signedMeta,
   stubRefundOk,
-  stubRetrievedSession,
   webhookRequest,
 } from "./helpers.ts";
 
@@ -306,10 +306,11 @@ describeWithEnv(
         price_proof: `1000.${"A".repeat(44)}`,
       };
       const refund = stubRefundOk();
-      const retrieve = stubRetrievedSession({
-        amount_total: 1000,
-        id: "cs_foreign_redirect",
+      const retrieve = stubRetrieveCheckoutSession({
+        amountTotal: 1000,
         metadata,
+        paymentIntent: "pi_cs_foreign_redirect",
+        sessionId: "cs_foreign_redirect",
       });
       try {
         const response = await redirectRequest("cs_foreign_redirect");

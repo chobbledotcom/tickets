@@ -87,6 +87,7 @@ export const buildCspHeader = (
  */
 export const getSecurityHeaders = (
   embeddable: boolean,
+  csp = buildCspHeader(embeddable),
 ): Record<string, string> => ({
   ...BASE_SECURITY_HEADERS,
   ...(!embeddable && { "x-frame-options": "DENY" }),
@@ -94,7 +95,7 @@ export const getSecurityHeaders = (
   ...(isSecureMode() && {
     "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
   }),
-  "content-security-policy": buildCspHeader(embeddable),
+  "content-security-policy": csp,
 });
 
 /** Single slug: alphanumeric segments joined by single hyphens or underscores (e.g. "a1b2", "my-listing", "my_listing") */
@@ -228,7 +229,18 @@ export const applySecurityHeaders = async (
   response: Response,
   embeddable: boolean,
 ): Promise<Response> => {
-  const securityHeaders = getSecurityHeaders(embeddable);
+  const provider = settings.paymentProvider;
+  const sandbox = provider === "square" ? settings.square.sandbox : undefined;
+  const baseCsp = buildCspHeader(
+    embeddable,
+    { provider, sandbox },
+    isBotpoisonEnabled(),
+  );
+  const frameAncestors = embeddable
+    ? buildFrameAncestors(await getEmbedHosts())
+    : null;
+  const csp = frameAncestors ? `${frameAncestors}; ${baseCsp}` : baseCsp;
+  const securityHeaders = getSecurityHeaders(embeddable, csp);
 
   // Check before setting security headers (they don't include cache-control)
   const hasCacheControl = response.headers.has("cache-control");
@@ -236,14 +248,6 @@ export const applySecurityHeaders = async (
   for (const [key, value] of Object.entries(securityHeaders)) {
     response.headers.set(key, value);
   }
-
-  // Rebuild CSP with payment-provider-specific directives
-  const provider = settings.paymentProvider;
-  const sandbox = provider === "square" ? settings.square.sandbox : undefined;
-  response.headers.set(
-    "content-security-policy",
-    buildCspHeader(embeddable, { provider, sandbox }, isBotpoisonEnabled()),
-  );
 
   // Override x-robots-tag for hidden listings (signal header set by route handlers)
   if (response.headers.has("x-robots-noindex")) {
@@ -255,17 +259,6 @@ export const applySecurityHeaders = async (
   // their own cache-control (e.g. "public, max-age=31536000, immutable")
   if (!hasCacheControl) {
     response.headers.set("cache-control", "private, no-store");
-  }
-
-  if (embeddable) {
-    const frameAncestors = buildFrameAncestors(await getEmbedHosts());
-    if (frameAncestors) {
-      const csp = response.headers.get("content-security-policy");
-      response.headers.set(
-        "content-security-policy",
-        `${frameAncestors}; ${csp}`,
-      );
-    }
   }
 
   return response;

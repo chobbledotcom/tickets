@@ -12,7 +12,7 @@ import {
   currentSchemaColumnsPresentIn,
   runMigration,
 } from "#shared/db/migrations/schema-sync.ts";
-import { MIGRATIONS } from "#shared/db/migrations.ts";
+import { loadMigrations } from "#shared/db/migrations.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { indexExists } from "#test-utils/migrations.ts";
 import {
@@ -25,6 +25,7 @@ import {
   seedSentinelListing,
 } from "./helpers.ts";
 
+const MIGRATIONS = await loadMigrations();
 describeWithEnv(
   "db > migration verify behaviour",
   { db: true, triggers: true },

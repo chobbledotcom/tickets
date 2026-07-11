@@ -6,15 +6,15 @@ import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
+import { captureCheckoutIntent } from "#test-utils/checkout.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { modifierUsageAmount } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   addServiceCharge,
   attendeeCount,
-  captureCheckoutIntent,
-  modifierUsageAmount,
   setPublicReservation,
   setupSoldOutModifierRace,
   submitBuyerOrder,

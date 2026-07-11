@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { setSuppressDebugLogs } from "#shared/logger.ts";
+import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

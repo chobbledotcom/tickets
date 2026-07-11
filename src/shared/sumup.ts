@@ -27,7 +27,7 @@ import {
 } from "#shared/db/sumup-checkouts.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import {
-  buildItemsMetadata,
+  assembleCheckoutMetadata,
   type CredentialCheck,
   createWithClient,
   errorMessage,
@@ -178,11 +178,11 @@ export const sumupApi: {
     // webhook or redirect arrives. An orphaned row (if create fails) is pruned.
     const reference = crypto.randomUUID();
     // SumUp carries no provider metadata: the booking fields are stored locally
-    // (db/sumup-checkouts.ts), so there is no per-value cap to bound and the
-    // operator's thank_you_url is always retained (pass an unbounded cap).
+    // (db/sumup-checkouts.ts), so its registry caps are unbounded and the
+    // operator's thank_you_url is always retained.
     await storeSumupCheckout(
       reference,
-      await buildItemsMetadata(intent, totalMinor, Number.POSITIVE_INFINITY),
+      await assembleCheckoutMetadata("sumup", intent, totalMinor),
     );
 
     return withClient(async (client) => {

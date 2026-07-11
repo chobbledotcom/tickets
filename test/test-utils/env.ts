@@ -3,10 +3,8 @@ import { setEncryptionKeyForTest } from "#shared/crypto/encryption.ts";
 import { setFastPbkdf2ForTest } from "#shared/crypto/hashing.ts";
 import { setRsaKeySizeForTest } from "#shared/crypto/keys.ts";
 import { setSettingsAuditEnabled } from "#shared/db/settings-audit.ts";
-import {
-  setSuppressDebugLogs,
-  setSuppressRequestLogs,
-} from "#shared/logger.ts";
+import { setSuppressDebugLogs } from "#shared/log-settings.ts";
+import { setSuppressRequestLogs } from "#shared/logger.ts";
 import { setRethrowErrors, setSkipLoginDelay } from "#shared/test-overrides.ts";
 import { TEST_ENCRYPTION_KEY } from "#test-utils/internal.ts";
 

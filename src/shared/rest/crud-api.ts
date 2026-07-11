@@ -19,6 +19,7 @@
 
 import type { InValue } from "@libsql/client";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
+import { apiErrorResponse } from "#routes/api/cors.ts";
 import { ADMIN_API, type AuthPolicy, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
@@ -121,10 +122,6 @@ export const parseOptionalArray = <T>(
   }
   return { input: items, ok: true };
 };
-
-/** JSON error response for API endpoints */
-export const apiErrorResponse = (message: string, status = 400): Response =>
-  jsonResponse({ error: message }, status);
 
 /** Result of parsing + validating: either the input or a pre-built error response */
 export type ValidatedInput<Input> =

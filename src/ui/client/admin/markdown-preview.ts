@@ -79,7 +79,8 @@ export const initMarkdownPreview = (): void => {
   const requestPreview = async (
     textarea: HTMLTextAreaElement,
   ): Promise<void> => {
-    const d = (dialog ??= createDialog());
+    dialog ??= createDialog();
+    const d = dialog;
     d.setLoading();
     d.open();
     try {

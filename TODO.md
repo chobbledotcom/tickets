@@ -197,7 +197,7 @@ descriptors — PRs #1478 and others). A weak-assertion audit script also exists
   mutation cost comes down.
 
 - **Property-based tests (item 5).** `fast-check` is currently used in only one
-  test (`test/lib/fold-tree.test.ts`). Add properties for: slug generation, CSV
+  test (`test/shared/booking/fold-tree.test.ts`). Add properties for: slug generation, CSV
   round-trips (commas / quotes / CRLF), date formatting across timezones, token
   parsers, and URL safety.
 - **Weak-assertion audit lifecycle (item 6).** The script exists but isn't wired
@@ -368,17 +368,19 @@ look.
   fail-closed behaviour. See the "Respect the subrequest budget" guidance in
   AGENTS.md.
 
-## Cold start: lazy-load the migration implementations (from PR #1714)
+## Request performance: consolidate AsyncLocalStorage scopes
 
-*Origin: `docs/cold-start.md`.* `src/shared/db/migrations.ts` statically
-imports every per-migration module (~70 files) — the bulk of the remaining
-~120 eager `#shared/db/*` modules. A steady-state boot only needs each
-migration's *id* plus `LATEST_UPDATE`/`SCHEMA_HASH`; the fix is a registry of
-`{ id, load: () => import(...) }` pairs awaited only on the migration path.
-Deferred: it touches every migration module and `runMigrations`' control flow
-(see the load-bearing baseline test in `test/shared/db/migrations.test.ts`)
-for a slice of ~80ms of CPU. Re-measure with
-`scripts/bench/cold-start/bundle-load.ts` before and after.
+`src/features/index.ts` enters eleven nested request scopes for locale, client
+IP, request ID, request cache, query logging, flash, session memoization, iframe
+mode, CSRF, saved form data, and settings auditing. Replace them with one typed
+`RequestContext` in one `AsyncLocalStorage`; retain domain methods where they add
+behavior, but migrate every internal caller with no aliases or compatibility
+wrappers. Preserve direct-render test behavior, production-disabled audit cost,
+and concurrent/nested request isolation for every mutable field. Pending work
+and storage overrides have different lifetimes and need a separate decision.
+Benchmark before and after: the synthetic result was about 38us/request for
+eleven scopes versus 2us for one. This needs a dedicated PR because it crosses
+eleven state modules and their concurrency contracts.
 
 ## Cross-request pending work vs. restore (from PR #1714)
 
@@ -427,6 +429,37 @@ Starting point: each entry's full rationale is in the file next to the line
 numbers above; the mutation harness is `deno task mutation --source <file>
 --test <suite>`.
 
+## Dead-export scanner matches raw text (from PR #1745 review)
+
+`test/lib/code-quality/detectors.ts` scans raw file contents when deciding
+whether an export is used (`IMPORT_CLAUSES` → `isSymbolImported` /
+`importedSymbolsOf`, and `isUsedInSameFile`). A clause-shaped snippet inside a
+comment, JSDoc, or string literal therefore registers a phantom "usage" — a
+CodeRabbit review on PR #1745 pointed out a JSDoc example in that very file
+doing this (fixed by rewording the comment), and the fixture strings in
+`detectors.test.ts` still contribute contrived names like `routeFoo` to the
+test-corpus symbol set. Consequences are mild today: a phantom symbol in the
+src corpus can silently mask a genuinely dead export of the same name; one in
+the test corpus can only make an export look test-used (which then flags it,
+loudly). This is a long-standing property of the whole detector file, not new
+to the dynamic-import clauses.
+
+Proposed fix (the reviewer suggested syntax-aware parsing): a code-only
+preprocessing pass before matching. The file already has the pieces — the
+call-site scanner's `skipString`/`skipComment` lexer helpers skip comments and
+string literals correctly. The pass must drop BOTH comments and ordinary
+string/template-literal contents from the matchable text (a fixture string
+containing `import { foo }` is exactly the stated failure mode), while still
+letting the lazyExport clause see its quoted name — lazyExport names live
+INSIDE a string literal (`…, "routeAdmin")`), so either match the lazyExport
+shape before stripping and stitch its names in, or blank string contents
+except when the lexer sees the string directly in lazyExport's second-argument
+position. Add regression coverage for import-shaped text in a line comment, a
+JSDoc block, and an ordinary string/template literal, plus a lazyExport entry
+that must still be detected after the pass. Out of scope for
+PR #1745 (cold-start work; the detector change there was collateral hardening)
+— the concrete self-match it introduced was fixed in-place instead.
+
 ## Stop patching @std/expect's `toContain` (from PR #1712)
 
 `test/test-utils/fast-expect.ts` globally overrides `@std/expect`'s built-in
@@ -451,3 +484,70 @@ its test, the `--preload` flag in both runners, and the "Fast Tests" note that
 documents the override. Confirm the suite's slow-test report
 (`SLOW_TEST_THRESHOLD_MS`) doesn't regress. Start points: `fast-expect.ts` for
 what it did and why, and grep `\.toContain(` under `test/` for the call sites.
+
+## Deferred CodeRabbit suggestions from PR #1736 (test-file mirror moves)
+
+PR #1736 relocated ~100 test files to their sources' mirror paths. CodeRabbit
+reviewed the moved content as if new and left two refactor suggestions that are
+valid but bigger than that PR's rename-only remit, so they're recorded here:
+
+- **`test/features/admin/settings-wallets.test.ts`** — the four
+  settings-validation tests ("requires Issuer ID", "requires Service Account
+  Email", "requires private key on initial setup", "rejects invalid PEM
+  private key") repeat the
+  same login → POST → flash-redirect scaffolding, differing only in the blanked
+  field and expected message. Fold them into one table-driven test, following
+  the "advanced redirect" cases in
+  `test/features/admin/settings-helpers/secret.test.ts`.
+- **`test/ui/client/admin/address-lookup/client.test.ts` +
+  `coords-diff.test.ts`** — both files define near-identical `formSpec` and
+  `one` selector helpers for the address-lookup DOM harness. Extract a shared
+  helper under `#test-utils` (or a sibling non-test file in the same folder)
+  and import it from both.
+
+## Code-quality detector & test-strengthening follow-ups (from PR #1729)
+
+*Origin: CodeRabbit review of PR #1729, deferred as out of scope for that
+complexity-only refactor (which had to preserve behavior). All of these are
+pre-existing behaviors carried over unchanged from `main`, not regressions.*
+
+### 1. `skipTypeParams` should not treat the `>` in `=>` as a closing angle bracket
+
+`test/lib/code-quality/detectors.ts` — `skipTypeParams` counts every `>` as a
+type-parameter close, so a type alias whose params contain an arrow default,
+e.g. `type A<T = () => void> = { ... }`, is parsed as ending at the arrow and
+`parseTypeAliasBody` silently ignores the (valid) alias. The sibling helper
+`angleDepthDelta` already handles this token correctly (it ignores a `>`
+preceded by `=`).
+
+Fix direction: reuse `angleDepthDelta` in `skipTypeParams`. Note the naive
+rewrite reintroduces an unreachable `return i` fall-through that fails the
+repo's 100% line/branch coverage gate — so the fix must be paired with a
+covering test that exercises an arrow-in-type-param alias (and keep the
+fall-through on the covered path, as the current loop-with-`break` form does).
+
+### 2. `skipTemplateSubstitution` should skip comment contents
+
+`test/lib/code-quality/detectors.ts` — the template-substitution scanner tracks
+brace depth but does not skip comments, so a `}` inside a comment inside a
+`${...}` prematurely closes the substitution; a later nested backtick can then
+end the outer template early and leak commas into `parseArgList`. Repro shape:
+`` `${/* } */ `x,y`}` ``.
+
+Fix direction: within the depth loop, skip line/block comments (a `skipComment`
+helper) before the brace-depth checks, and add a direct regression test for the
+comment-with-`}`-then-nested-template case asserting `parseArgList` doesn't
+misinterpret the comma.
+
+### 3. `mutation.ts` CLI value flags should fail fast on a missing value
+
+`scripts/mutation.ts` — in `applyArg`, a recognized value flag (`--source`,
+`--test`, `--timeout`, `--jobs`) with no following token falls through and is
+collected as a positional, so it surfaces later as a misleading glob/file error
+instead of a clear CLI usage error. (Matches `main`'s original `next !==
+undefined` guard behavior — pre-existing.)
+
+Fix direction: in `applyArg`, when `VALUE_FLAGS[arg]` exists but `next` is
+`undefined`, raise a clear "missing value for <flag>" usage error rather than
+pushing the flag to `positional`; keep consuming/returning true when a value is
+present.

@@ -12,14 +12,12 @@ import { groups } from "#shared/db/groups.ts";
 import { holidays } from "#shared/db/holidays.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import {
-  SCHEMA,
-  SCHEMA_MIGRATIONS_TABLE,
-  TRIGGERS,
-} from "#shared/db/migrations/schema.ts";
+import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
+import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
+import { SCHEMA_MIGRATIONS_TABLE } from "#shared/db/migrations/schema/version.ts";
 import {
   LATEST_UPDATE,
-  MIGRATIONS,
+  loadMigrations,
   SCHEMA_HASH,
 } from "#shared/db/migrations.ts";
 import { resetSessionCache } from "#shared/db/sessions.ts";
@@ -59,6 +57,7 @@ import {
   createTrackedTestDbFile,
 } from "#test-utils/temp-db-files.ts";
 
+const MIGRATIONS = await loadMigrations();
 type SchemaEntry = (typeof SCHEMA)[number];
 type SchemaIndex = NonNullable<SchemaEntry[1]["indexes"]>[number];
 

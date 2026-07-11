@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { expectCapturedItemPriced } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -14,7 +15,6 @@ import {
   parentField,
   postCalculate,
 } from "#test-utils/parents.ts";
-import { expectCapturedItemPriced } from "../server-reservation/helpers.ts";
 import { firstBookableDate, stubCheckoutIntent } from "./helpers.ts";
 
 // jscpd:ignore-end

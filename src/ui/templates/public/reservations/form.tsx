@@ -1,8 +1,14 @@
+/** JSX components for the ticket page: the header block (gallery, name,
+ * description, date/location, attributes), the opt-in add-on selectors, the
+ * promo-code field, and the full booking form body. */
+
+/* jscpd:ignore-start */
 import { t } from "#i18n";
+import { formatDatetimeLabel } from "#shared/dates.ts";
+import type { AttributeWithOptions } from "#shared/db/attributes.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
-import { isReadOnly } from "#shared/env.ts";
 import {
   CsrfForm,
   type Field,
@@ -10,24 +16,80 @@ import {
   savedFormValue,
 } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { renderMarkdown } from "#shared/markdown.ts";
+import type {
+  Image,
+  ItemImageProjection,
+  ListingWithCount,
+} from "#shared/types.ts";
+import { Badge } from "#templates/components/badge.tsx";
+import { renderListingAttributes } from "../listing-attributes.ts";
+import { PublicImageGallery, renderListingImage } from "../shared.tsx";
 import {
-  type BookingPrefill,
   renderDateSelector,
   renderDayCountSelector,
   renderTermsAndCheckbox,
-} from "./inputs.ts";
+} from "./controls.ts";
 import { renderQuestions } from "./questions.tsx";
+import type { BookingPrefill } from "./types.ts";
+/* jscpd:ignore-end */
 
-/** Unavailability message shown when all listings are sold out or closed */
-export const unavailableMessage = (
-  allClosed: boolean,
-  isSingleListing: boolean,
-): string => {
-  if (isReadOnly() || allClosed) return t("public.ticket.registration_closed");
-  return isSingleListing
-    ? t("public.ticket.listing_full")
-    : t("public.multi.all_sold_out");
-};
+/** Header block shown above the form with listing/group details */
+export const TicketPageHeader = ({
+  headerName,
+  headerDescription,
+  headerImage,
+  galleryImages,
+  listingAttributes,
+  singleListing,
+  pastDays,
+}: {
+  headerName: string;
+  headerDescription: string | null | undefined;
+  headerImage: ItemImageProjection | null;
+  galleryImages: readonly Image[];
+  listingAttributes: AttributeWithOptions[] | undefined;
+  singleListing: ListingWithCount | null;
+  pastDays: number | null;
+}): JSX.Element => (
+  <>
+    {/* The full CSS gallery when the header entity has images; otherwise the
+        single header-image projection (a listing whose only picture is its
+        stored `image_url` with no image_uses rows). */}
+    {galleryImages.length > 0 ? (
+      <PublicImageGallery images={galleryImages} />
+    ) : (
+      headerImage && <Raw html={renderListingImage(headerImage)} />
+    )}
+    <div class="prose">
+      <h1>{headerName}</h1>
+      {headerDescription && (
+        <div class="description">
+          <Raw html={renderMarkdown(headerDescription)} />
+        </div>
+      )}
+      {singleListing?.date && (
+        <p>
+          <strong>{t("public.ticket.date_label")}</strong>{" "}
+          {formatDatetimeLabel(singleListing.date)}
+          {pastDays !== null && (
+            <Badge variant="alert">
+              {" "}
+              {t("public.ticket.days_ago", { count: pastDays })}
+            </Badge>
+          )}
+        </p>
+      )}
+      {singleListing?.location && (
+        <p>
+          <strong>{t("public.ticket.location_label")}</strong>{" "}
+          {singleListing.location}
+        </p>
+      )}
+      <Raw html={renderListingAttributes(listingAttributes)} />
+    </div>
+  </>
+);
 
 /** Opt-in add-on selectors: one quantity input per add-on, defaulting to 0
  * (not selected) and restored on validation error. */

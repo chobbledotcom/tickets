@@ -7,6 +7,7 @@ import {
   resetCacheRegistry,
 } from "#shared/cache-registry.ts";
 import {
+  deleteByFieldStatement,
   execute,
   executeUpdate,
   extractUpdateColumns,
@@ -164,6 +165,16 @@ describeWithEnv("db > client", { db: true }, () => {
     const client1 = getDb();
     const client2 = getDb();
     expect(client1).toBe(client2);
+  });
+
+  test("deleteByFieldStatement builds the DELETE for one table, field and value", () => {
+    const stmt = deleteByFieldStatement({
+      field: "user_id",
+      table: "sessions",
+      value: 7,
+    });
+    expect(stmt.sql).toBe("DELETE FROM sessions WHERE user_id = ?");
+    expect(stmt.args).toEqual([7]);
   });
 
   test("insert builds sql and args from record", () => {

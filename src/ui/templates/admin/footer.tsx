@@ -2,7 +2,8 @@
  * Admin footer.
  *
  * Rendered at the bottom of every admin page: a top row with the Chobble
- * Tickets link (growing to fill the space) on the left and inline utility links
+ * Tickets link (wrapped in a span that grows to fill the space, so the link
+ * itself stays only as wide as its text) on the left and inline utility links
  * on the right, all always on one line; and, when query
  * logging is active, a debug menu (render time, SQL queries, cache stats) on a
  * row below them.
@@ -136,9 +137,9 @@ export const adminFooterHtml = (
 ): string =>
   `<footer class="admin-footer">` +
   `<div class="admin-footer-top">` +
-  `<a href="https://github.com/chobbledotcom/tickets">${t(
+  `<span class="admin-footer-brand"><a href="https://github.com/chobbledotcom/tickets">${t(
     "admin.footer.chobble_tickets",
-  )}</a>` +
+  )}</a></span>` +
   `<div class="admin-footer-links">${footerLinks(adminLevel)}</div>` +
   "</div>" +
   (debug
