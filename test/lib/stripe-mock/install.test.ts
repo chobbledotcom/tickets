@@ -380,4 +380,35 @@ describe("stripe-mock install", () => {
       });
     });
   });
+
+  test("stops the lock refresh without scheduling another write when the install fails mid-refresh", async () => {
+    // Regression: scheduleNextRefresh (line 157) checks `if (stopped) return;`
+    // — the branch where a lock refresh write is still in-flight when the
+    // install fails and stopRefreshingLock is called. Without coverage, a
+    // mutation to that guard (e.g. `if (!stopped) return;`) would silently
+    // schedule an extra refresh write after the lock is released.
+    await withTempStripeMockPaths(async (paths) => {
+      await withSecondLockRefreshHeld(
+        installLockPath(paths),
+        async (lockWrite) => {
+          await withFakeCurl("sleep 0.05; exit 7", async (curl) => {
+            const started = expectStartFails(
+              { commands: { curl }, installLockTouchMs: 1, paths },
+              "Failed to download stripe-mock",
+            );
+            // The 3rd lock refresh write is intercepted and paused. After
+            // curl fails (50ms), the install body throws and
+            // stopRefreshingLock sets stopped=true while the 3rd write is
+            // still in-flight.
+            await lockWrite.waitForWrite();
+            await wait(60);
+            // Releasing the paused write lets scheduleNextRefresh run with
+            // stopped=true — it returns early instead of scheduling another.
+            lockWrite.releaseWrite();
+            await started;
+          });
+        },
+      );
+    });
+  });
 });
