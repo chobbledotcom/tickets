@@ -1,4 +1,4 @@
-import { apiResponse } from "#routes/api/cors.ts";
+import { apiError } from "#routes/api/cors.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { getClientIp } from "#routes/url.ts";
 import { parseCustomPrice } from "#shared/booking/form.ts";
@@ -9,7 +9,7 @@ import { FormParams } from "#shared/form-data.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 
-const LISTING_NOT_FOUND = { error: "Listing not found" } as const;
+const LISTING_NOT_FOUND = "Listing not found";
 
 /** Resolve a booking's `quantity` field from a JSON body — defaults to 1 for
  * absent/malformed values, rejects an explicit 0 (the admin-only no-quantity
@@ -20,7 +20,7 @@ export const resolvePositiveQuantity = (
 ): number | Response => {
   const parsedQuantity = parseNonNegativeInt(String(body.quantity ?? "1"));
   if (parsedQuantity === 0) {
-    return apiResponse({ error: "Quantity must be at least 1" }, 400);
+    return apiError("Quantity must be at least 1");
   }
   return parsedQuantity ?? 1;
 };
@@ -42,9 +42,7 @@ export const resolveCustomPrice = (
     listing.unit_price,
     listing.max_price,
   );
-  return priceResult.ok
-    ? priceResult.price
-    : apiResponse({ error: priceResult.error }, 400);
+  return priceResult.ok ? priceResult.price : apiError(priceResult.error);
 };
 
 /** Look up an active listing by slug, returning a 404 response if
@@ -56,9 +54,9 @@ export const findActiveListing = async (
   slug: string,
 ): Promise<ListingWithCount | Response> => {
   const listing = await getListingWithCountBySlug(slug);
-  if (!listing?.active) return apiResponse(LISTING_NOT_FOUND, 404);
+  if (!listing?.active) return apiError(LISTING_NOT_FOUND, 404);
   return (await isHiddenPackageMember(listing.id))
-    ? apiResponse(LISTING_NOT_FOUND, 404)
+    ? apiError(LISTING_NOT_FOUND, 404)
     : listing;
 };
 
@@ -69,7 +67,7 @@ export const parseApiJsonBody = async (
   try {
     return await request.json();
   } catch {
-    return apiResponse({ error: "Invalid JSON body" }, 400);
+    return apiError("Invalid JSON body");
   }
 };
 
@@ -133,10 +131,7 @@ export const checkBookingRateLimit = async (
 ): Promise<Response | null> => {
   const ip = getClientIp(request, server);
   if (await bookingLimiter.isLimited(ip)) {
-    return apiResponse(
-      { error: "Too many booking attempts. Please try again later." },
-      429,
-    );
+    return apiError("Too many booking attempts. Please try again later.", 429);
   }
   await bookingLimiter.record(ip);
   return null;

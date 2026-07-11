@@ -27,6 +27,7 @@ import {
   type SmsMessageRow,
 } from "#shared/db/sms-messages.ts";
 import { nowMs } from "#shared/now.ts";
+import { apiErrorResponse } from "#shared/rest/crud-api.ts";
 import { decryptField } from "#shared/sms/e2e.ts";
 import { computePhoneIndex } from "#shared/sms/phone-index.ts";
 
@@ -136,21 +137,21 @@ const handleReceived = async (
 /** Handle POST /sms/webhook */
 export const handleSmsWebhook = async (request: Request): Promise<Response> => {
   const secret = settings.smsGatewayWebhookSecret;
-  if (!secret) return jsonResponse({ error: "Not configured" }, 404);
+  if (!secret) return apiErrorResponse("Not configured", 404);
 
   const rawBody = await request.text();
   if (!(await isValidSignature(request, rawBody, secret))) {
-    return jsonResponse({ error: "Invalid signature" }, 401);
+    return apiErrorResponse("Invalid signature", 401);
   }
 
   let body: unknown;
   try {
     body = JSON.parse(rawBody);
   } catch {
-    return jsonResponse({ error: "Invalid JSON" }, 400);
+    return apiErrorResponse("Invalid JSON");
   }
   const parsed = v.safeParse(EnvelopeSchema, body);
-  if (!parsed.success) return jsonResponse({ error: "Invalid payload" }, 400);
+  if (!parsed.success) return apiErrorResponse("Invalid payload");
 
   const { event, payload } = parsed.output;
   if (event === "sms:delivered" || event === "sms:failed") {

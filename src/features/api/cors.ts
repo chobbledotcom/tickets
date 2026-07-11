@@ -16,6 +16,17 @@ export const apiResponse = (data: unknown, status = 200): Response => {
   return response;
 };
 
+/** Turn a JSON responder into an error responder: the returned function wraps
+ * a message in the shared `{ error: message }` envelope (400 unless told
+ * otherwise), so every API error body is spelled in one place. */
+export const jsonError =
+  (respond: (data: unknown, status?: number) => Response) =>
+  (message: string, status = 400): Response =>
+    respond({ error: message }, status);
+
+/** JSON `{ error: message }` response with CORS headers */
+export const apiError = jsonError(apiResponse);
+
 /** CORS preflight response */
 export const handleOptions = (): Response =>
   new Response(null, { headers: CORS_HEADERS, status: 204 });

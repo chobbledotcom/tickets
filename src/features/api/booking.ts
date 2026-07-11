@@ -1,4 +1,4 @@
-import { apiResponse } from "#routes/api/cors.ts";
+import { apiError, apiResponse } from "#routes/api/cors.ts";
 import { processParentApiBooking } from "#routes/api/folded-booking.ts";
 import {
   checkBookingRateLimit,
@@ -41,15 +41,15 @@ const bookingResultToResponse = (
     case "checkout":
       return apiResponse({ booking: { checkoutUrl: result.checkoutUrl } });
     case "sold_out":
-      return apiResponse({ error: "Sorry, not enough spots available" }, 409);
+      return apiError("Sorry, not enough spots available", 409);
     case "checkout_failed":
       return result.error
-        ? apiResponse({ error: result.error }, 400)
-        : apiResponse({ error: "Failed to create payment session" }, 500);
+        ? apiError(result.error)
+        : apiError("Failed to create payment session", 500);
     case "creation_failed":
       return result.reason === "capacity_exceeded"
-        ? apiResponse({ error: "Sorry, not enough spots available" }, 409)
-        : apiResponse({ error: "Registration failed. Please try again." }, 500);
+        ? apiError("Sorry, not enough spots available", 409)
+        : apiError("Registration failed. Please try again.", 500);
   }
 };
 
@@ -67,7 +67,7 @@ const resolveBookingDate = async (
   const submittedDate = String(body.date ?? "");
   const availableDates = getAvailableDates(listing, await getActiveHolidays());
   if (!submittedDate || !availableDates.includes(submittedDate)) {
-    return apiResponse({ error: "Please select a valid date" }, 400);
+    return apiError("Please select a valid date");
   }
   return submittedDate;
 };
@@ -94,9 +94,8 @@ export const handleBook = withActiveListing(
     // API entry. A `bookable_alone` child has its own page/API eligibility, so it
     // books directly here.
     if (await anyNonStandaloneChild([listing.id])) {
-      return apiResponse(
-        { error: "This listing must be booked through its parent listing." },
-        400,
+      return apiError(
+        "This listing must be booked through its parent listing.",
       );
     }
 
@@ -104,7 +103,7 @@ export const handleBook = withActiveListing(
     if (limited) return limited;
 
     if (isRegistrationClosed(listing)) {
-      return apiResponse({ error: "Registration is closed" }, 400);
+      return apiError("Registration is closed");
     }
 
     const body = await parseApiJsonBody(request);
@@ -127,10 +126,7 @@ export const handleBook = withActiveListing(
     // endpoint doesn't accept — booking them here would charge the wrong amount,
     // so they must be booked through the website form.
     if (listing.customisable_days) {
-      return apiResponse(
-        { error: "This listing must be booked through the website." },
-        400,
-      );
+      return apiError("This listing must be booked through the website.");
     }
 
     const form = toFormParams(body);
@@ -140,7 +136,7 @@ export const handleBook = withActiveListing(
     const valResult = tryValidateTicketFields(
       form,
       listing.fields,
-      (msg) => apiResponse({ error: msg }, 400),
+      (msg) => apiError(msg),
       paid,
     );
     if (valResult instanceof Response) return valResult;
