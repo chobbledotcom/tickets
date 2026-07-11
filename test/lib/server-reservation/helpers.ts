@@ -11,6 +11,7 @@ import { settings } from "#shared/db/settings.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta } from "#test-utils/factories.ts";
+import { modifierUsageCount } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
@@ -77,16 +78,6 @@ export const attendeeCount = async (): Promise<number> => {
   return Number(rows[0]!.c);
 };
 
-export const modifierUsageCount = async (
-  modifierId: number,
-): Promise<number> => {
-  const { rows } = await getDb().execute({
-    args: [modifierId],
-    sql: "SELECT COALESCE(SUM(quantity), 0) AS c FROM modifier_usages WHERE modifier_id = ?",
-  });
-  return Number(rows[0]!.c);
-};
-
 /** Create a listing plus a one-unit, stock-limited discount modifier whose unit
  * is consumed by a concurrent order — simulated with an AFTER INSERT trigger on
  * attendees — so the checkout's own consumeModifierStock loses the race and
@@ -141,16 +132,6 @@ export const totalContactActivity = async (): Promise<{
     bookings: Number(rows[0]!.bookings),
     visits: Number(rows[0]!.visits),
   };
-};
-
-export const modifierUsageAmount = async (
-  modifierId: number,
-): Promise<number> => {
-  const { rows } = await getDb().execute({
-    args: [modifierId],
-    sql: "SELECT COALESCE(SUM(amount_applied), 0) AS c FROM modifier_usages WHERE modifier_id = ?",
-  });
-  return Number(rows[0]!.c);
 };
 
 export const modifierRefs = (id: number, quantity = 1): string =>

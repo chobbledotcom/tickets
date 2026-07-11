@@ -109,16 +109,23 @@ export const insertModifierUsage = (
     sql: "INSERT INTO modifier_usages (modifier_id, attendee_id, quantity, amount_applied, created) VALUES (?, ?, ?, ?, ?)",
   });
 
-/** Sum of `amount_applied` recorded against a modifier by a webhook/checkout. */
-export const modifierUsageAmount = async (
-  modifierId: number,
-): Promise<number> => {
-  const result = await getDb().execute({
-    args: [modifierId],
-    sql: "SELECT amount_applied FROM modifier_usages WHERE modifier_id = ?",
-  });
-  return Number(result.rows[0]!.amount_applied);
-};
+/** Sum a `modifier_usages` column across a modifier's recorded rows — safe
+ *  for one, many, or no rows (no usage sums to 0). */
+const modifierUsageSum =
+  (column: "quantity" | "amount_applied") =>
+  async (modifierId: number): Promise<number> => {
+    const { rows } = await getDb().execute({
+      args: [modifierId],
+      sql: `SELECT COALESCE(SUM(${column}), 0) AS total FROM modifier_usages WHERE modifier_id = ?`,
+    });
+    return Number(rows[0]!.total);
+  };
+
+/** Total quantity recorded against a modifier by a webhook/checkout. */
+export const modifierUsageCount = modifierUsageSum("quantity");
+
+/** Total `amount_applied` recorded against a modifier by a webhook/checkout. */
+export const modifierUsageAmount = modifierUsageSum("amount_applied");
 
 /**
  * total_revenue is projected from the transfers ledger as balanceOf(modifier)

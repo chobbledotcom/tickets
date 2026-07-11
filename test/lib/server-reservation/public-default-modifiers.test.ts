@@ -10,11 +10,11 @@ import { captureCheckoutIntent } from "#test-utils/checkout.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { modifierUsageAmount } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   addServiceCharge,
   attendeeCount,
-  modifierUsageAmount,
   setPublicReservation,
   setupSoldOutModifierRace,
   submitBuyerOrder,

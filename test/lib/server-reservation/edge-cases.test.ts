@@ -12,13 +12,15 @@ import { captureCheckoutIntent } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
+  modifierUsageAmount,
+  modifierUsageCount,
+} from "#test-utils/modifiers.ts";
+import {
   createProgrammeCharge,
   createSave10Promo,
   expectRefundedPlaceholder,
   latestAttendee,
   modifierRefs,
-  modifierUsageAmount,
-  modifierUsageCount,
   setPublicReservation,
   setupReservationListing,
   stubPaidSession,
