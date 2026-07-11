@@ -21,7 +21,7 @@
     "precommit:mutation": "deno run -A scripts/precommit-mutation.ts",
     "find-unused-src": "deno run --allow-read scripts/find-unused-src.ts",
     "line-counts": "deno run --allow-read=src,test scripts/line-counts.ts",
-    "unit-tests-report": "deno run --allow-read=src,test scripts/unit-tests-report.ts",
+    "unit-tests-report": "deno run --allow-read=src,test,deno.json scripts/unit-tests-report.ts",
     "upgrade": "deno run --allow-read --allow-write --allow-net scripts/safe-upgrade.ts",
     "backup": "deno run --env-file --allow-env --allow-read --allow-write --allow-net --allow-sys --allow-ffi scripts/backup.ts",
     "cli:tui": "deno run --allow-env --allow-read --allow-run cli/tui.ts",
