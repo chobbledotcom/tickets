@@ -22,9 +22,9 @@ import type {
   ModifierSpec,
 } from "#shared/payments.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
+import { checkoutItem } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  checkoutItem,
   insertModifier,
   linkModifierAnswer,
   linkModifierListing,

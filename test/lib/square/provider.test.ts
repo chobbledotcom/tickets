@@ -1,13 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
-import {
-  buyTickets,
-  configureSquare,
-  linkResult,
-  ticketLine,
-  withSquareClient,
-} from "./fixtures.ts";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { configureSquare, linkResult, withSquareClient } from "./fixtures.ts";
 import { describeSquare } from "./harness.ts";
 
 describeSquare(() => {
@@ -215,7 +210,7 @@ describeSquare(() => {
         async () => {
           await configureSquare({ locationId: "L_loc_prov" });
           const result = await squarePaymentProvider.createCheckoutSession(
-            buyTickets(),
+            checkoutIntent(),
             "http://localhost",
           );
           expectCheckout(result, "order_prov", "https://square.link/prov");
@@ -229,8 +224,8 @@ describeSquare(() => {
         async () => {
           await configureSquare({ locationId: "L_loc_prov" });
           const result = await squarePaymentProvider.createCheckoutSession(
-            buyTickets({
-              items: [ticketLine({ name: "Listing 1", slug: "listing-1" })],
+            checkoutIntent({
+              items: [checkoutItem({ name: "Listing 1", slug: "listing-1" })],
             }),
             "http://localhost",
           );

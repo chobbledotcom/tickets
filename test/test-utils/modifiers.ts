@@ -10,19 +10,6 @@ import {
   type ModifierInput,
   modifiersTable,
 } from "#shared/db/modifiers.ts";
-import type { CheckoutItem } from "#shared/payments.ts";
-
-/** A checkout line item with sensible defaults for pricing/modifier tests. */
-export const checkoutItem = (
-  overrides: Partial<CheckoutItem> = {},
-): CheckoutItem => ({
-  listingId: 1,
-  name: "General",
-  quantity: 1,
-  slug: "general",
-  unitPrice: 1000,
-  ...overrides,
-});
 
 /** Insert a modifier through the production table, defaulting to a £5 charge. */
 export const insertModifier = (overrides: Partial<ModifierInput> = {}) =>
