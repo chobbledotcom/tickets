@@ -368,18 +368,6 @@ look.
   fail-closed behaviour. See the "Respect the subrequest budget" guidance in
   AGENTS.md.
 
-## Cold start: lazy-load the migration implementations (from PR #1714)
-
-*Origin: `docs/cold-start.md`.* `src/shared/db/migrations.ts` statically
-imports every per-migration module (~70 files) — the bulk of the remaining
-~120 eager `#shared/db/*` modules. A steady-state boot only needs each
-migration's *id* plus `LATEST_UPDATE`/`SCHEMA_HASH`; the fix is a registry of
-`{ id, load: () => import(...) }` pairs awaited only on the migration path.
-Deferred: it touches every migration module and `runMigrations`' control flow
-(see the load-bearing baseline test in `test/shared/db/migrations.test.ts`)
-for a slice of ~80ms of CPU. Re-measure with
-`scripts/bench/cold-start/bundle-load.ts` before and after.
-
 ## Cross-request pending work vs. restore (from PR #1714)
 
 PR #1714 makes the restore-confirm handler drain its own request's pending
@@ -426,6 +414,37 @@ than interface guarantees:
 Starting point: each entry's full rationale is in the file next to the line
 numbers above; the mutation harness is `deno task mutation --source <file>
 --test <suite>`.
+
+## Dead-export scanner matches raw text (from PR #1745 review)
+
+`test/lib/code-quality/detectors.ts` scans raw file contents when deciding
+whether an export is used (`IMPORT_CLAUSES` → `isSymbolImported` /
+`importedSymbolsOf`, and `isUsedInSameFile`). A clause-shaped snippet inside a
+comment, JSDoc, or string literal therefore registers a phantom "usage" — a
+CodeRabbit review on PR #1745 pointed out a JSDoc example in that very file
+doing this (fixed by rewording the comment), and the fixture strings in
+`detectors.test.ts` still contribute contrived names like `routeFoo` to the
+test-corpus symbol set. Consequences are mild today: a phantom symbol in the
+src corpus can silently mask a genuinely dead export of the same name; one in
+the test corpus can only make an export look test-used (which then flags it,
+loudly). This is a long-standing property of the whole detector file, not new
+to the dynamic-import clauses.
+
+Proposed fix (the reviewer suggested syntax-aware parsing): a code-only
+preprocessing pass before matching. The file already has the pieces — the
+call-site scanner's `skipString`/`skipComment` lexer helpers skip comments and
+string literals correctly. The pass must drop BOTH comments and ordinary
+string/template-literal contents from the matchable text (a fixture string
+containing `import { foo }` is exactly the stated failure mode), while still
+letting the lazyExport clause see its quoted name — lazyExport names live
+INSIDE a string literal (`…, "routeAdmin")`), so either match the lazyExport
+shape before stripping and stitch its names in, or blank string contents
+except when the lexer sees the string directly in lazyExport's second-argument
+position. Add regression coverage for import-shaped text in a line comment, a
+JSDoc block, and an ordinary string/template literal, plus a lazyExport entry
+that must still be detected after the pass. Out of scope for
+PR #1745 (cold-start work; the detector change there was collateral hardening)
+— the concrete self-match it introduced was fixed in-place instead.
 
 ## Stop patching @std/expect's `toContain` (from PR #1712)
 

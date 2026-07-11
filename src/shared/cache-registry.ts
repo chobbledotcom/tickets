@@ -4,6 +4,8 @@
  * the debug footer reads them at render time.
  */
 
+import { unique } from "#fp";
+
 /** A single cache's stats snapshot */
 export type CacheStat = {
   readonly name: string;
@@ -60,6 +62,35 @@ type Registration = {
 };
 
 const invalidatorsByTable = new Map<string, Set<Registration>>();
+
+/** Full-clear hooks for caches that no table registration covers (e.g. the
+ * per-token session cache, which is invalidated entry-by-entry on writes). */
+const resetHooks: Invalidator[] = [];
+
+/** Register an extra full-clear to run when every cache is reset. Only needed
+ * by caches without a table registration; `resetAllCaches` already fires every
+ * table-registered invalidator. */
+export const registerCacheReset = (reset: Invalidator): void => {
+  resetHooks.push(reset);
+};
+
+/**
+ * Clear every registered cache: each table-registered invalidator once (a
+ * cache registered against several tables still only clears once) plus every
+ * extra reset hook. Runs after operations that bypass the normal write path —
+ * a full reset or a restore — where any warm cache is stale. A lazily-loaded
+ * cache module that never ran is absent from the registry, which is correct:
+ * it has no cache to clear.
+ */
+export const resetAllCaches = (): void => {
+  const registrations = [...invalidatorsByTable.values()].flatMap((set) => [
+    ...set,
+  ]);
+  for (const registration of unique(registrations)) {
+    registration.invalidate();
+  }
+  for (const reset of resetHooks) reset();
+};
 
 const setsIntersect = (
   a: ReadonlySet<string>,
@@ -146,4 +177,5 @@ export const registerDependencies = (
 export const resetCacheRegistry = (): void => {
   providers.length = 0;
   invalidatorsByTable.clear();
+  resetHooks.length = 0;
 };

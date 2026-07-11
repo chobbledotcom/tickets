@@ -9,12 +9,12 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getDb, insert, setDb } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings.ts";
+import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
 import {
   initDb,
   invalidateInitDbCache,
   LATEST_UPDATE,
-  MIGRATION_IDS,
-  MIGRATIONS,
+  loadMigrations,
   MissingSettingsTableError,
   resetDatabase,
   SCHEMA_HASH,
@@ -33,6 +33,7 @@ import {
 import { stubNtfyFetch } from "#test-utils/mocks.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
 
+const MIGRATIONS = await loadMigrations();
 describeWithEnv("db > migrations", { db: true }, () => {
   describe("initDb version check", () => {
     const resultSet = (

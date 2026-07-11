@@ -9,6 +9,7 @@
  */
 
 import { lazyRef } from "#fp";
+import { registerCacheReset } from "#shared/cache-registry.ts";
 import { encryptWithKey } from "#shared/crypto/encryption.ts";
 import { hashPassword } from "#shared/crypto/hashing.ts";
 import {
@@ -47,6 +48,10 @@ export const clearSetupCompleteCache = (): void => {
   setSetupCompleteCache(null);
   setSetupConfirmed(null);
 };
+
+// The permanent short-circuit survives no full reset/restore: no table
+// registration covers it (it never re-reads once true), so hook the sweep.
+registerCacheReset(clearSetupCompleteCache);
 
 /**
  * The initial site-setup ceremony — creates the owner account, generates and

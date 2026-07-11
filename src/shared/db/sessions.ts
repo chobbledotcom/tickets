@@ -2,7 +2,7 @@
  * Sessions table operations
  */
 
-import { registerCache } from "#shared/cache-registry.ts";
+import { registerCache, registerCacheReset } from "#shared/cache-registry.ts";
 import { hashSessionToken } from "#shared/crypto/hashing.ts";
 import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import {
@@ -62,18 +62,15 @@ const invalidateSessionCache = (token: string): void => {
 };
 
 /**
- * Clear entire session cache
+ * Clear the entire session cache. Writes invalidate entry-by-entry, so no
+ * table registration covers this cache — the reset hook keeps full resets and
+ * restores able to clear it without importing this module.
  */
-const clearSessionCache = (): void => {
+export const resetSessionCache = (): void => {
   sessionCache.clear();
 };
 
-/**
- * Clear session cache (exported for testing)
- */
-export const resetSessionCache = (): void => {
-  clearSessionCache();
-};
+registerCacheReset(resetSessionCache);
 
 /**
  * Create a new session with CSRF token, wrapped data key, and user ID
@@ -137,7 +134,7 @@ export const deleteSession = async (token: string): Promise<void> => {
  * Delete all sessions (used when password is changed)
  */
 export const deleteAllSessions = async (): Promise<void> => {
-  clearSessionCache();
+  resetSessionCache();
   await execute("DELETE FROM sessions");
 };
 
@@ -160,7 +157,7 @@ export const deleteOtherSessions = async (
 
   // Clear cache except for current token hash
   const currentEntry = sessionCache.get(tokenHash);
-  clearSessionCache();
+  resetSessionCache();
   if (currentEntry) {
     sessionCache.set(tokenHash, currentEntry);
   }

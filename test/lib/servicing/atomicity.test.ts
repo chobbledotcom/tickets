@@ -56,8 +56,11 @@ const attachTextAndChoiceQuestions = async (
   choiceQuestionId: number;
   choiceAnswerId: number;
 }> => {
-  const { answersTable, listingQuestionsTable, questionsTable } = await import(
+  const { answersTable, questionsTable } = await import(
     "#shared/db/questions/tables.ts"
+  );
+  const { setQuestionListings } = await import(
+    "#shared/db/questions/queries.ts"
   );
   const textQuestion = await questionsTable.insert({
     assignAll: false,
@@ -75,11 +78,7 @@ const attachTextAndChoiceQuestions = async (
     text: "Vaillant",
   });
   for (const q of [textQuestion.id, choiceQuestion.id]) {
-    await listingQuestionsTable.insert({
-      listingId,
-      questionId: q,
-      sortOrder: 0,
-    });
+    await setQuestionListings(q, [listingId]);
   }
   return {
     choiceAnswerId: choiceAnswer.id,
