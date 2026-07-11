@@ -281,25 +281,39 @@ export const countRows = async (table: string): Promise<number> => {
   return row!.n;
 };
 
+/** One delete-rows-matching-a-field target: which table, matched on which
+ * field, for which value. */
+export type DeleteByFieldTarget = {
+  table: string;
+  field: string;
+  value: InValue;
+};
+
+/** Build the DELETE statement for one {@link DeleteByFieldTarget} — for batches
+ * that mix these deletes with other statements. */
+export const deleteByFieldStatement = ({
+  table,
+  field,
+  value,
+}: DeleteByFieldTarget): { sql: string; args: InValue[] } => ({
+  args: [value],
+  sql: `DELETE FROM ${table} WHERE ${field} = ?`,
+});
+
 /** Delete rows matching a field value */
 export const deleteByField = async (
   table: string,
   field: string,
   value: InValue,
 ): Promise<void> => {
-  await execute(`DELETE FROM ${table} WHERE ${field} = ?`, [value]);
+  const { args, sql } = deleteByFieldStatement({ field, table, value });
+  await execute(sql, args);
 };
 
 /** Delete rows from multiple tables in a single batch transaction */
 export const deleteByFieldBatch = (
-  deletes: Array<{ table: string; field: string; value: InValue }>,
-): Promise<void> =>
-  executeBatch(
-    deletes.map(({ table, field, value }) => ({
-      args: [value],
-      sql: `DELETE FROM ${table} WHERE ${field} = ?`,
-    })),
-  );
+  deletes: DeleteByFieldTarget[],
+): Promise<void> => executeBatch(deletes.map(deleteByFieldStatement));
 
 /**
  * Reset selected aggregate columns from trusted SQL expressions. Each

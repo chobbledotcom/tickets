@@ -7,7 +7,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { filter, groupBy, map, mapParallel, reduce } from "#fp";
+import { filter, groupBy, groupToMap, map, mapParallel, reduce } from "#fp";
 import {
   executeBatch,
   inPlaceholders,
@@ -17,7 +17,9 @@ import {
 import type { Answer, QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 
-/** Flat row from a question ← LEFT JOIN answers query */
+/** Flat row from a question ← LEFT JOIN answers query. `q_assign_all` is the
+ * stored form (INTEGER 0/1) — {@link decryptQuestion} turns it into a boolean
+ * via the column's read transform. */
 type JoinedRow = {
   q_id: number;
   q_assign_all: boolean;
@@ -45,16 +47,18 @@ const decryptQuestion = async (
   rawText: string,
   rawAnswers: Answer[],
 ): Promise<QuestionWithAnswers> => {
-  const [question, ...answers] = await Promise.all([
-    questionsTable.fromDb({
-      assign_all: assignAll,
-      display_type: displayType,
-      id,
-      text: rawText,
-    }),
-    ...map((a: Answer) => answersTable.fromDb(a))(rawAnswers),
+  const [text, assign_all, answers] = await Promise.all([
+    questionsTable.readColumn("text", rawText),
+    questionsTable.readColumn("assign_all", assignAll),
+    mapParallel((a: Answer) => answersTable.fromDb(a))(rawAnswers),
   ]);
-  return { ...question, answers };
+  return {
+    answers,
+    assign_all,
+    display_type: displayType,
+    id,
+    text,
+  };
 };
 
 /** Group flat joined rows into QuestionWithAnswers[], preserving row order.
@@ -150,11 +154,10 @@ export const getAllQuestionListingIds = async (): Promise<
     `SELECT question_id, listing_id FROM listing_questions
      ORDER BY question_id, listing_id`,
   );
-  return new Map(
-    [...groupBy(rows, (r) => r.question_id)].map(
-      ([qid, rs]) => [qid, rs.map((r) => r.listing_id)] as const,
-    ),
-  );
+  return groupToMap(
+    (r: (typeof rows)[number]) => r.question_id,
+    (r) => r.listing_id,
+  )(rows);
 };
 
 /** Get the IDs of the listings a question is assigned to */

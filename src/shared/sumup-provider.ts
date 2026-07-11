@@ -17,9 +17,9 @@ import {
   hasSumupCheckoutId,
 } from "#shared/db/sumup-checkouts.ts";
 import {
-  extractSessionMetadata,
   toCanonicalIso,
   toCheckoutResult,
+  validatedPaymentSession,
   withCheckoutError,
 } from "#shared/payment-helpers.ts";
 import type {
@@ -52,17 +52,15 @@ const toPaymentStatus = (status: SumupCheckout["status"]): PaymentStatus =>
 const buildValidatedSession = (
   checkout: SumupCheckout,
   metadata: Record<string, string>,
-): ValidatedPaymentSession => {
-  const createdAt = toCanonicalIso(checkout.createdAt);
-  return {
+): ValidatedPaymentSession =>
+  validatedPaymentSession({
     amountTotal: checkout.amountMinor,
-    ...(createdAt !== undefined ? { createdAt } : {}),
+    createdAt: toCanonicalIso(checkout.createdAt),
     id: checkout.reference,
-    metadata: extractSessionMetadata(metadata as SessionMetadata),
+    metadata: metadata as SessionMetadata,
     paymentReference: checkout.transactionId,
     paymentStatus: toPaymentStatus(checkout.status),
-  };
-};
+  });
 
 /** SumUp payment provider implementation. */
 export const sumupPaymentProvider: PaymentProvider = {

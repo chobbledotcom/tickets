@@ -8,6 +8,7 @@ import {
   expectRedirect,
   followRedirect,
 } from "#test-utils/assertions.ts";
+import { johnCheckoutSession } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -19,17 +20,14 @@ import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
-/** A signed, paid "John" checkout for a single listing — the trusted-session
- *  shape the confirmation tests share, differing only in the id, the items,
- *  and the agreed total. */
+/** A signed, paid "John" checkout for a single listing — the shared
+ *  {@link johnCheckoutSession} pinned to this suite's fixed `pi_test_123`
+ *  payment intent (the replay test books an attendee under that same id). */
 const johnSession = (sessionId: string, items: string, amountTotal: number) =>
-  stubRetrieveCheckoutSession({
+  johnCheckoutSession(sessionId, {
     amountTotal,
-    email: "john@example.com",
     items,
-    name: "John",
     paymentIntent: "pi_test_123",
-    sessionId,
   });
 
 describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {

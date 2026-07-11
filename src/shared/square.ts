@@ -20,17 +20,13 @@ import {
   secureCompare,
 } from "#shared/payment-crypto.ts";
 import {
-  buildItemsMetadata,
+  assembleCheckoutMetadata,
   buildProviderLineItems,
   cachedClientFactory,
   createWithClient,
-  enforceMetadataLimits,
   errorMessage,
   PaymentUserError,
-  packMetadata,
   parseWebhookPayload,
-  SQUARE_METADATA_MAX_ENTRIES,
-  SQUARE_METADATA_MAX_VALUE_LENGTH,
 } from "#shared/payment-helpers.ts";
 import type {
   CheckoutIntent,
@@ -143,17 +139,6 @@ const rethrowAsUserError = (err: unknown): never => {
   }
   throw err;
 };
-
-/** Enforce Square's metadata value-length and 10-entry limits via the shared
- * helper, so an over-cap checkout fails with a batching message up front. */
-const enforceSquareMetadataLimits = (
-  metadata: Record<string, string>,
-): Record<string, string> =>
-  enforceMetadataLimits(
-    metadata,
-    SQUARE_METADATA_MAX_VALUE_LENGTH,
-    SQUARE_METADATA_MAX_ENTRIES,
-  );
 
 /** Square API version for all requests */
 export const SQUARE_API_VERSION = "2025-01-23";
@@ -549,21 +534,6 @@ const buildCheckoutOptions = (
   phone: normalizeCheckoutPhone(intent.phone),
 });
 
-/** Shared setup for payment link creation: validates config and metadata */
-const preparePaymentLink = (
-  rawMetadata: Record<string, string>,
-  label: string,
-): PreparedLink | null => {
-  const config = getPaymentLinkConfig();
-  if (!config) return null;
-
-  logDebug("Square", `Creating ${label}`);
-
-  const metadata = enforceSquareMetadataLimits(rawMetadata);
-
-  return { config, metadata };
-};
-
 /** Type for the Square API client returned by createSquareClient */
 export type SquareClient = ReturnType<typeof createSquareClient>;
 
@@ -591,18 +561,21 @@ export const squareApi: {
     // and the signed proof, so the two can never disagree (see #1300).
     const order = priceCheckout(intent);
 
-    const prep = await preparePaymentLink(
-      packMetadata(
-        await buildItemsMetadata(
-          intent,
-          order.total,
-          SQUARE_METADATA_MAX_VALUE_LENGTH,
-          SQUARE_METADATA_MAX_ENTRIES,
-        ),
-      ),
-      `payment link for ${intent.items.length} listing(s)`,
+    // Resolve config before assembling metadata: a missing payment-link
+    // config must return null before an over-cap cart can throw its
+    // "too many listings" user error.
+    const config = getPaymentLinkConfig();
+    if (!config) return null;
+
+    logDebug(
+      "Square",
+      `Creating payment link for ${intent.items.length} listing(s)`,
     );
-    if (!prep) return null;
+
+    const prep: PreparedLink = {
+      config,
+      metadata: await assembleCheckoutMetadata("square", intent, order.total),
+    };
 
     const lineItems = buildProviderLineItems<SquareLineItem>(
       order,

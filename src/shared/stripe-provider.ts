@@ -7,15 +7,16 @@
 
 import { asString } from "#fp";
 import {
-  extractSessionMetadata,
   hasRequiredSessionMetadata,
   toCheckoutResult,
+  validatedPaymentSession,
   withCheckoutError,
 } from "#shared/payment-helpers.ts";
 import {
   type CheckoutIntent,
   isPaymentStatus,
   type PaymentProvider,
+  type PaymentStatus,
   type ValidatedPaymentSession,
   type WebhookEvent,
   type WebhookVerifyResult,
@@ -29,6 +30,10 @@ import {
   refundPayment as stripeRefund,
   verifyWebhookSignature,
 } from "#shared/stripe.ts";
+
+/** Stripe's payment_status string, or "unpaid" when it isn't one we know. */
+const toPaymentStatus = (status: string): PaymentStatus =>
+  isPaymentStatus(status) ? status : "unpaid";
 
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {
@@ -69,17 +74,16 @@ export const stripePaymentProvider: PaymentProvider = {
       typeof amountTotal === "number" &&
       hasRequiredSessionMetadata(metadata)
     ) {
-      const createdAt = isoFromUnixSeconds(obj.created);
-      return Promise.resolve({
-        amountTotal,
-        createdAt,
-        id,
-        metadata: extractSessionMetadata(metadata),
-        paymentReference: asString(obj.payment_intent),
-        paymentStatus: isPaymentStatus(paymentStatus)
-          ? paymentStatus
-          : "unpaid",
-      });
+      return Promise.resolve(
+        validatedPaymentSession({
+          amountTotal,
+          createdAt: isoFromUnixSeconds(obj.created),
+          id,
+          metadata,
+          paymentReference: asString(obj.payment_intent),
+          paymentStatus: toPaymentStatus(paymentStatus),
+        }),
+      );
     }
 
     // Fallback: retrieve session by ID from listing data
@@ -105,17 +109,14 @@ export const stripePaymentProvider: PaymentProvider = {
 
     if (amount_total === null) return null;
 
-    const createdAt = isoFromUnixSeconds(session.created);
-    return {
+    return validatedPaymentSession({
       amountTotal: amount_total,
-      createdAt,
+      createdAt: isoFromUnixSeconds(session.created),
       id,
-      metadata: extractSessionMetadata(metadata),
+      metadata,
       paymentReference: payment_intent ?? "",
-      paymentStatus: isPaymentStatus(payment_status)
-        ? payment_status
-        : "unpaid",
-    };
+      paymentStatus: toPaymentStatus(payment_status),
+    });
   },
 
   setupWebhookEndpoint(...args: Parameters<typeof setupWebhookEndpoint>) {

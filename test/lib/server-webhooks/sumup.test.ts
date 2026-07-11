@@ -10,7 +10,7 @@ import {
   setSumupCheckoutId,
   storeSumupCheckout,
 } from "#shared/db/sumup-checkouts.ts";
-import { buildItemsMetadata } from "#shared/payment-helpers.ts";
+import { assembleCheckoutMetadata } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { sumupApi } from "#shared/sumup.ts";
@@ -27,7 +27,7 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
   });
 
   /** Configure SumUp and stage a real checkout for the given listing:
-   * production buildItemsMetadata output, encrypted store, id mapping. */
+   * production assembleCheckoutMetadata output, encrypted store, id mapping. */
   const stageSumupCheckout = async (listing: {
     id: number;
     name: string;
@@ -56,10 +56,10 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
       special_instructions: "",
     };
     // Price once and sign that total, exactly as production checkout does.
-    const metadata = await buildItemsMetadata(
+    const metadata = await assembleCheckoutMetadata(
+      "sumup",
       intent,
       priceCheckout(intent).total,
-      Number.POSITIVE_INFINITY,
     );
     await storeSumupCheckout(reference, metadata);
     await setSumupCheckoutId(reference, "co_e2e");

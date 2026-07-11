@@ -1,7 +1,14 @@
 import * as v from "valibot";
 import { sumOf } from "#fp";
-import { apiResponse } from "#routes/api/cors.ts";
-import { resolveCustomPrice, toFormParams } from "#routes/api/helpers.ts";
+import { apiError } from "#routes/api/cors.ts";
+import {
+  bookingSuccessResponse,
+  checkoutFailedResponse,
+  checkoutResponse,
+  resolveCustomPrice,
+  soldOutResponse,
+  toFormParams,
+} from "#routes/api/helpers.ts";
 import {
   type ApiChildSelection,
   ChildrenSchema,
@@ -92,21 +99,15 @@ export const applyChildSelectionsToForm = (
   for (const selection of selections) {
     const child = childBySlug.get(selection.slug);
     if (!child) {
-      return apiResponse(
-        { error: `'${selection.slug}' is not a child of this listing.` },
-        400,
-      );
+      return apiError(`'${selection.slug}' is not a child of this listing.`);
     }
     const childId = child.listing.id;
     if (
       priceByChild.has(childId) &&
       priceByChild.get(childId) !== selection.customPrice
     ) {
-      return apiResponse(
-        {
-          error: `Conflicting prices for '${selection.slug}'. Send one entry per child with a single price.`,
-        },
-        400,
+      return apiError(
+        `Conflicting prices for '${selection.slug}'. Send one entry per child with a single price.`,
       );
     }
     priceByChild.set(childId, selection.customPrice);
@@ -188,7 +189,7 @@ export const foldChildrenOrError = async (
   tree: BookingTree,
 ): Promise<Extract<FoldChildrenResult, { ok: true }> | Response> => {
   const fold = await foldSelectedChildren(ctx, form, base, tree);
-  return fold.ok ? fold : apiResponse({ error: fold.error }, 400);
+  return fold.ok ? fold : apiError(fold.error);
 };
 
 /** Validate a folded order's contact fields against the merged parent+child
@@ -204,7 +205,7 @@ export const validateFoldedFields = (
   tryValidateTicketFields(
     form,
     mergeListingFields(fold.listings.map((e) => e.listing.fields)),
-    (msg) => apiResponse({ error: msg }, 400),
+    (msg) => apiError(msg),
     paid,
   );
 
@@ -243,18 +244,14 @@ export const completeFoldedBooking = async (
       date,
       fold.dayCount,
     );
-    if (!available) {
-      return apiResponse({ error: "Sorry, not enough spots available" }, 409);
-    }
+    if (!available) return soldOutResponse();
     const provider = (await getActivePaymentProvider())!;
     const baseUrl = getBaseUrl(request);
     const result = await provider.createCheckoutSession(intent, baseUrl);
-    if (!result) {
-      return apiResponse({ error: "Failed to create payment session" }, 500);
-    }
+    if (!result) return checkoutFailedResponse();
     return "error" in result
-      ? apiResponse({ error: result.error }, 400)
-      : apiResponse({ booking: { checkoutUrl: result.checkoutUrl } });
+      ? checkoutFailedResponse(result.error)
+      : checkoutResponse(result.checkoutUrl);
   }
   // Free, or provider-less paid (owes the full value). An owed order must record
   // its gross sale legs in the ledger at creation — the outstanding balance
@@ -276,23 +273,14 @@ export const completeFoldedBooking = async (
     modifierUsages: [],
     remainingBalance,
   });
-  if (!reservation.success) {
-    return apiResponse({ error: "Sorry, not enough spots available" }, 409);
-  }
+  if (!reservation.success) return soldOutResponse();
   // Notify only after stock is committed, exactly like the standalone API booking
   // (`processBooking`) and the web free path (`handleFreePath`) do after
   // `createFreeReservation`: without this the folded free/provider-less
   // parent booking silently skips the confirmation email, registration webhook,
   // and activity log every other booking path fires.
   await logAndNotifyRegistration(reservation.entries);
-  const attendee = reservation.entries[0]!.attendee;
-  return apiResponse({
-    booking: {
-      amountOwed: attendee.remaining_balance,
-      ticketToken: attendee.ticket_token,
-      ticketUrl: `/t/${attendee.ticket_token}`,
-    },
-  });
+  return bookingSuccessResponse(reservation.entries[0]!.attendee);
 };
 
 /**
@@ -314,19 +302,12 @@ export const processParentApiBooking = async (
   // span its children inherit) can't be booked here — like a customisable
   // standalone listing.
   if (listing.customisable_days) {
-    return apiResponse(
-      { error: "This listing must be booked through the website." },
-      400,
-    );
+    return apiError("This listing must be booked through the website.");
   }
   const selections = parseApiChildSelections(body);
   if (selections === null) {
-    return apiResponse(
-      {
-        error:
-          "Provide a `children` array of { slug, quantity } totalling the booked quantity.",
-      },
-      400,
+    return apiError(
+      "Provide a `children` array of { slug, quantity } totalling the booked quantity.",
     );
   }
 

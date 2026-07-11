@@ -16,16 +16,13 @@ import {
   secureCompare,
 } from "#shared/payment-crypto.ts";
 import {
-  buildItemsMetadata,
+  assembleCheckoutMetadata,
   buildProviderLineItems,
   type CredentialCheck,
   cachedClientFactory,
   createWithClient,
-  enforceMetadataLimits,
   errorMessage,
   parseWebhookPayload,
-  STRIPE_METADATA_MAX_ENTRIES,
-  STRIPE_METADATA_MAX_VALUE_LENGTH,
 } from "#shared/payment-helpers.ts";
 import type {
   CheckoutIntent,
@@ -309,16 +306,7 @@ export const stripeApi: {
       payment_method_types: ["card"],
       success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       ...(intent.email ? { customer_email: intent.email } : {}),
-      metadata: enforceMetadataLimits(
-        await buildItemsMetadata(
-          intent,
-          order.total,
-          STRIPE_METADATA_MAX_VALUE_LENGTH,
-          STRIPE_METADATA_MAX_ENTRIES,
-        ),
-        STRIPE_METADATA_MAX_VALUE_LENGTH,
-        STRIPE_METADATA_MAX_ENTRIES,
-      ),
+      metadata: await assembleCheckoutMetadata("stripe", intent, order.total),
     };
 
     logDebug("Stripe", "Calling Stripe API checkout.sessions.create");

@@ -1,9 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { resetStripeClient } from "#shared/stripe.ts";
-import { stripePaymentProvider } from "#shared/stripe-provider.ts";
+import { stubCheckout } from "#test-utils/checkout.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -38,15 +37,7 @@ describeWithEnv(
           ).text(),
         )!;
 
-        const mockCreate = stub(
-          stripePaymentProvider,
-          "createCheckoutSession",
-          () =>
-            Promise.resolve({
-              checkoutUrl: "https://checkout.stripe.com/should-not-run",
-              sessionId: "cs_should_not_run",
-            }),
-        );
+        const { checkout, calls } = stubCheckout("cs_should_not_run");
 
         try {
           const response = await handleRequest(
@@ -59,9 +50,9 @@ describeWithEnv(
           );
 
           expect(response.status).toBe(302);
-          expect(mockCreate.calls.length).toBe(0);
+          expect(calls()).toBe(0);
         } finally {
-          mockCreate.restore();
+          checkout.restore();
         }
       });
     });
