@@ -7,7 +7,7 @@
  * most importantly — that every caller-supplied value is HTML-escaped in the
  * HTML body so a submitted message can't inject markup into the notification
  * email. The IO helpers lock the provider fallback (settings → host env, with a
- * logged miss) and that a send is judged delivered only on a 2xx response.
+ * logged miss) and that a send is judged delivered only on a below-300 response.
  */
 
 import { expect } from "@std/expect";
@@ -66,12 +66,17 @@ describe("inbound-message", () => {
       );
     });
 
-    test("prepends a bold warning when one is given", () => {
+    test("prepends a bold warning paragraph when one is given", () => {
       const html = buildMessageHtml(
         { fromLabel: "a@b.com", message: "hello", warning: "Heads up" },
         "New message",
       );
-      expect(html.startsWith("<p><strong>Heads up</strong></p>")).toBe(true);
+      expect(html).toBe(
+        "<p><strong>Heads up</strong></p>" +
+          "<p>New message</p>" +
+          "<p><strong>From:</strong> a@b.com</p>" +
+          "<p><strong>Message:</strong></p><p>hello</p>",
+      );
     });
 
     test("turns newlines in the message into <br>", () => {
@@ -79,7 +84,11 @@ describe("inbound-message", () => {
         { fromLabel: "a@b.com", message: "line1\nline2", warning: null },
         "New message",
       );
-      expect(html).toContain("<p>line1<br>line2</p>");
+      expect(html).toBe(
+        "<p>New message</p>" +
+          "<p><strong>From:</strong> a@b.com</p>" +
+          "<p><strong>Message:</strong></p><p>line1<br>line2</p>",
+      );
     });
 
     test("HTML-escapes the intro, from label, message, and warning", () => {
@@ -129,20 +138,36 @@ describe("inbound-message", () => {
     const errors = setupErrorSpy();
     afterEach(sandbox.teardown);
 
+    const hostConfig: EmailConfig = {
+      apiKey: "host-key",
+      fromAddress: validEmail("host-sender@sending.test"),
+      provider: "resend",
+    };
+
     test("falls back to the host provider config when settings has none", async () => {
-      const hostConfig: EmailConfig = {
-        apiKey: "host-key",
-        fromAddress: validEmail("sender@sending.test"),
-        provider: "resend",
-      };
+      settings.setForTest({ email_api_key: "", email_provider: "" });
       setHostEmailConfigForTest(hostConfig);
       expect(await resolveMessageEmailConfig()).toEqual(hostConfig);
       // The "no provider" miss must not be logged when one was resolved.
       expect(errors.contains("no email provider configured")).toBe(false);
     });
 
+    test("prefers the settings provider config over the host one", async () => {
+      settings.setForTest({
+        business_email: "owner@example.com",
+        email_api_key: "settings-key",
+        email_provider: "resend",
+      });
+      setHostEmailConfigForTest(hostConfig);
+      expect(await resolveMessageEmailConfig()).toEqual({
+        apiKey: "settings-key",
+        fromAddress: validEmail("owner@example.com"),
+        provider: "resend",
+      });
+    });
+
     test("returns null and logs the miss when no provider is configured", async () => {
-      settings.setForTest({ email_provider: "" });
+      settings.setForTest({ email_api_key: "", email_provider: "" });
       setHostEmailConfigForTest(null);
       expect(await resolveMessageEmailConfig()).toBeNull();
       expect(
@@ -171,22 +196,38 @@ describe("inbound-message", () => {
       to: validEmail("dest@example.com"),
     });
 
-    test("sends the built bodies and returns true on a 2xx response", async () => {
+    /** Stub the provider to answer `status` and return deliverMessage's verdict. */
+    const deliverWith = (status: number): Promise<boolean> => {
+      sandbox.captureFetchCall(status);
+      return deliverMessage(config, opts());
+    };
+
+    test("sends the full built payload to the provider on success", async () => {
       const captured = sandbox.captureFetchCall(200);
       expect(await deliverMessage(config, opts())).toBe(true);
       expect(captured.url).toBe("https://api.resend.com/emails");
       expect(captured.body.to).toEqual(["dest@example.com"]);
-      expect(String(captured.body.html)).toContain(
-        "<strong>From:</strong> visitor@example.com",
+      expect(captured.body.from).toBe("sender@sending.test");
+      expect(captured.body.subject).toBe("A subject");
+      expect(captured.body.html).toBe(
+        "<p>New message</p>" +
+          "<p><strong>From:</strong> visitor@example.com</p>" +
+          "<p><strong>Message:</strong></p><p>Hello</p>",
       );
-      expect(String(captured.body.text)).toContain("From: visitor@example.com");
+      expect(captured.body.text).toBe(
+        "New message\n\nFrom: visitor@example.com\n\nMessage:\nHello",
+      );
+    });
+
+    test("counts a response below 300 as delivered, 300 and above as failed", async () => {
+      // The contract is `status < 300`, so 299 delivers and 300 does not — this
+      // pins the exact boundary rather than a vaguer "2xx" range.
+      expect(await deliverWith(299)).toBe(true);
+      expect(await deliverWith(300)).toBe(false);
     });
 
     test("returns false when the provider responds with a 5xx error", async () => {
-      sandbox.stubFetch(() =>
-        Promise.resolve(new Response("nope", { status: 500 })),
-      );
-      expect(await deliverMessage(config, opts())).toBe(false);
+      expect(await deliverWith(500)).toBe(false);
     });
   });
 });
