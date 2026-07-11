@@ -8,6 +8,11 @@ import { formatCurrency } from "#shared/currency.ts";
 import { type Attendee, hasTicketQuantity } from "#shared/types.ts";
 import { questionTextFlat } from "#templates/admin/questions.tsx";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
+import {
+  capacityLevel,
+  capacityMeterHtml,
+  capacityMeterText,
+} from "#templates/components/capacity.tsx";
 
 /** A key/value row for the listing-details-table */
 export type DetailRow = {
@@ -75,10 +80,6 @@ export const getCheckedInStats = (allAttendees: Attendee[]): CheckedInStats => {
   };
 };
 
-/** Format "done / total — remaining remain" */
-const formatProgress = (done: number, total: number): string =>
-  `${done} / ${total} ${t("detail_rows.mdash")} ${total - done} ${t("detail_rows.remain")}`;
-
 /** A progress DetailRow: `${t(labelKey)}${suffix}` keyed to "done / total …". */
 const progressRow = (
   labelKey: string,
@@ -87,7 +88,7 @@ const progressRow = (
   total: number,
 ): DetailRow => ({
   key: `${t(labelKey)}${suffix}`,
-  value: formatProgress(done, total),
+  value: capacityMeterText(done, total),
 });
 
 /** Build the checked-in detail row(s) — splits into two when multi-quantity */
@@ -177,29 +178,22 @@ export type SharedDetailInput = {
   revenue?: number;
 };
 
-/** Whether a count is at or above 90% of capacity */
-const isNearCapacity = (count: number, capacity: number): boolean =>
-  capacity > 0 && count >= capacity * 0.9;
-
-/** Wrap text in a danger-text span when near capacity */
-const wrapDanger = (text: string, danger: boolean): string =>
-  danger ? `<span class="danger-text">${text}</span>` : text;
-
 /** Build a single attendee-count detail row, with danger styling near capacity */
 const buildAttendeeRow = (
   count: number,
   maxCapacity: number,
   suffix: string,
-): DetailRow => {
-  const display =
+): DetailRow => ({
+  key: `${t("terms.attendees")}${suffix}`,
+  value:
     maxCapacity > 0
-      ? `${count} / ${maxCapacity} ${t("detail_rows.mdash")} ${maxCapacity - count} ${t("detail_rows.remain")}`
-      : String(count);
-  return {
-    key: `${t("terms.attendees")}${suffix}`,
-    value: wrapDanger(display, isNearCapacity(count, maxCapacity)),
-  };
-};
+      ? capacityMeterHtml({
+          count,
+          danger: capacityLevel(count, maxCapacity).nearLimit,
+          max: maxCapacity,
+        })
+      : String(count),
+});
 
 /** Build a revenue detail row from a minor-units total */
 const buildRevenueRow = (revenue: number): DetailRow => ({
