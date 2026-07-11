@@ -23,7 +23,7 @@ export const ProseSection = ({
   /** Extra content rendered after the `.prose` block, still inside the section. */
   footer?: Child;
 }): JSX.Element => (
-  <PageBlock>
+  <PageBlock as="section">
     <div class="prose">
       <h2>{title}</h2>
       {children}

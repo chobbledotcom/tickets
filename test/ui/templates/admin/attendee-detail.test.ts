@@ -163,11 +163,9 @@ describe("attendee page blocks", () => {
       }),
     );
 
-    expect(html).toContain(
-      '<div class="page-block attendee-banner"><div class="prose attendee-status">',
+    expect(html).toMatch(
+      /^<div class="page-block attendee-banner"><div class="prose attendee-status"><h2>Status: Confirmed<\/h2><\/div><section class="attendee-notes">[\s\S]*<p>Bring identification<\/p>[\s\S]*<\/section><\/div>$/,
     );
-    expect(html).toContain("Status: Confirmed");
-    expect(html).toContain("Bring identification");
   });
 
   test("omits the payment block when the attendee has no payment", () => {

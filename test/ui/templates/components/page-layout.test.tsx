@@ -27,4 +27,10 @@ describe("page layout components", () => {
       '<div class="page-block">content</div>',
     );
   });
+
+  test("preserves semantic regions when a block requests one", () => {
+    expect(String(<PageBlock as="section">content</PageBlock>)).toBe(
+      '<section class="page-block">content</section>',
+    );
+  });
 });

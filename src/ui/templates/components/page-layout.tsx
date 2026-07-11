@@ -1,6 +1,7 @@
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 
 type PageGroupProps = {
+  as?: "article" | "div" | "section" | undefined;
   children: Child;
   className?: string | undefined;
   id?: string | undefined;
@@ -11,10 +12,15 @@ const groupClass = (base: string, className?: string): string =>
 
 const definePageGroup =
   (base: string) =>
-  ({ children, className, id }: PageGroupProps): JSX.Element => (
-    <div class={groupClass(base, className)} id={id}>
+  ({
+    as: Tag = "div",
+    children,
+    className,
+    id,
+  }: PageGroupProps): JSX.Element => (
+    <Tag class={groupClass(base, className)} id={id}>
       {children}
-    </div>
+    </Tag>
   );
 
 /** Separates the peer regions that make up a page or a large page panel. */

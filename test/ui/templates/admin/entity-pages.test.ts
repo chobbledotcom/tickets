@@ -247,11 +247,18 @@ describe("entityPageView", () => {
   });
 
   test("groups the page and each tab section with the shared spacing components", () => {
-    const html = entityPageView(view);
+    const html = entityPageView({
+      ...view,
+      sections: [
+        ...view.sections,
+        { html: Raw({ html: "<p>Second section</p>" }), kind: "custom" },
+      ],
+    });
     expect(html).toContain('<div class="page-layout entity-page">');
     expect(html).toContain('<div class="page-layout entity-tab-panel">');
     expect(html).toContain('<div class="page-block">');
-    expect((html.match(/class="page-block"/g) ?? []).length).toBe(1);
+    expect((html.match(/class="page-block"/g) ?? []).length).toBe(2);
+    expect(html).toContain("Second section");
     expect(html).not.toContain('class="table-controls"');
   });
 
