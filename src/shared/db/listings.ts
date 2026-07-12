@@ -1064,7 +1064,7 @@ export const getListingWithAttendeesRaw = async (
     attendeeBatchStatement({
       fields: ATTENDEE_FIELDS,
       order: "created_desc",
-      where: { listingId: id },
+      where: { listingIds: [id] },
     }),
   ]);
 
@@ -1207,7 +1207,7 @@ export const getListingWithAttendeeRaw = async (
     attendeeBatchStatement({
       fields: ATTENDEE_FIELDS,
       join: "left",
-      where: { attendeeId },
+      where: { attendeeIds: [attendeeId] },
     }),
   ]);
 

@@ -14,7 +14,6 @@ import {
 import {
   ATTENDEE_FIELDS,
   type AttendeeRowFor,
-  getAttendeeRow,
   getAttendees,
   pricePaidFromLedger,
   refundedFromLedger,
@@ -71,7 +70,7 @@ export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
   getAttendees({
     fields: ATTENDEE_FIELDS,
     order: "created_desc",
-    where: { listingId },
+    where: { listingIds: [listingId] },
   });
 
 /**
@@ -91,7 +90,7 @@ export const getAttendeePackageRowsRaw = (
     // servicing` matches every kind the CHECK constraint allows.
     order: "listing_asc",
     where: {
-      attendeeId,
+      attendeeIds: [attendeeId],
       kind: "attendee-or-servicing",
       packageGroupId,
       realLinesOnly: true,
@@ -372,12 +371,14 @@ export const attendeeIdByLedgerEventGroup = async (
  * Used for payment callbacks and webhooks where decryption is not needed
  * Returns the attendee with encrypted fields (id, listing_id, quantity are plaintext)
  */
-export const getAttendeeRaw = (id: number): Promise<Attendee | null> =>
-  getAttendeeRow({
+export const getAttendeeRaw = async (id: number): Promise<Attendee | null> => {
+  const rows = await getAttendees({
     fields: ATTENDEE_FIELDS,
     join: "left",
-    where: { attendeeId: id },
+    where: { attendeeIds: [id] },
   });
+  return rows[0] ?? null;
+};
 
 /**
  * Get attendees by ID without decrypting PII, one row per (attendee, booking).

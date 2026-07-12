@@ -13,11 +13,10 @@ import {
   decryptAttendeeOrNull,
   decryptAttendees,
 } from "#shared/db/attendees/pii.ts";
-import { LISTING_ATTENDEE_ROW_COLS } from "#shared/db/attendees/queries.ts";
 import {
-  ATTENDEE_FIELDS,
-  getAttendeeRow,
-} from "#shared/db/attendees/select.ts";
+  getAttendeeRaw,
+  LISTING_ATTENDEE_ROW_COLS,
+} from "#shared/db/attendees/queries.ts";
 import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import { queryAll } from "#shared/db/client.ts";
@@ -49,11 +48,7 @@ const loadMergeTarget = async (
   attendeeId: number,
 ): Promise<Attendee | null> => {
   const pk = await requireRequestPrivateKey();
-  const raw = await getAttendeeRow({
-    fields: ATTENDEE_FIELDS,
-    join: "left",
-    where: { attendeeId },
-  });
+  const raw = await getAttendeeRaw(attendeeId);
   return decryptAttendeeOrNull(raw, pk);
 };
 

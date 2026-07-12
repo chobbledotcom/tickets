@@ -302,7 +302,7 @@ export const getServicingEvent = async (
     fields: ATTENDEE_FIELDS,
     join: "left",
     order: "start_then_listing",
-    where: { attendeeId: id, kind: "servicing" },
+    where: { attendeeIds: [id], kind: "servicing" },
   });
   return rows.length > 0 ? rowsToServicingEvent(rows) : null;
 };

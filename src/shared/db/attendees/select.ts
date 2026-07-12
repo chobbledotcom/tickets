@@ -30,7 +30,7 @@ import {
   saleLegPredicate,
 } from "#shared/accounting/projection-sql.ts";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
+import { inPlaceholders, queryAll } from "#shared/db/client.ts";
 import type { Attendee } from "#shared/types.ts";
 
 /**
@@ -216,39 +216,6 @@ export const attendeeColumns = (
     ", ",
   );
 
-/** What every attendee read shares beyond its column list: the join mode, the
- * requested fields, and the `FROM … WHERE … ORDER …` tail plus its bound args.
- * `from` MUST join `listing_attendees AS listingAttendee` with the `join` mode
- * given, and reference `attendees AS attendee`. */
-type AttendeeQuery<F extends AttendeeField> = {
-  join: AttendeeJoin;
-  fields: readonly F[];
-  from: string;
-  args?: InValue[];
-};
-
-const attendeeSql = <F extends AttendeeField>({
-  join,
-  fields,
-  from,
-}: AttendeeQuery<F>): string =>
-  `SELECT ${attendeeColumns(join, fields)} ${from}`;
-
-/**
- * Run an attendee read, returning one raw row per (attendee, booking line) typed
- * to exactly the requested fields. PII stays encrypted — decrypt before display.
- */
-export const selectAttendees = <F extends AttendeeField>(
-  query: AttendeeQuery<F>,
-): Promise<AttendeeRowFor<F>[]> =>
-  queryAll<AttendeeRowFor<F>>(attendeeSql(query), query.args);
-
-/** Single-row attendee read (returns null when nothing matches). */
-export const selectAttendeeOrNull = <F extends AttendeeField>(
-  query: AttendeeQuery<F>,
-): Promise<AttendeeRowFor<F> | null> =>
-  queryOne<AttendeeRowFor<F>>(attendeeSql(query), query.args);
-
 // ---------------------------------------------------------------------------
 // getAttendees — one declarative reader for every place that lists attendees
 // ---------------------------------------------------------------------------
@@ -273,17 +240,14 @@ const KIND_CLAUSE: Record<AttendeeKindFilter, string> = {
  */
 export type AttendeeWhere = {
   kind?: AttendeeKindFilter;
-  /** A single attendee by id. */
-  attendeeId?: number;
-  /** A set of attendees by id. */
+  /** Attendees by id. A single attendee is a one-element array — there is no
+   * separate `= ?` path, so one and many read the same way. */
   attendeeIds?: number[];
   /** Attendees whose id is returned by this subquery — the "pick attendees,
    * then return all their booking lines" pattern (newest N, one page). The
    * subquery carries its own bound args. */
   attendeeIdsSubquery?: { sql: string; args: InValue[] };
-  /** Booking lines on a single listing. */
-  listingId?: number;
-  /** Booking lines on any of these listings. */
+  /** Booking lines on these listings. A single listing is a one-element array. */
   listingIds?: number[];
   /** Booking lines within one package group. */
   packageGroupId?: number;
@@ -324,9 +288,6 @@ const whereClauses = (where: AttendeeWhere): WhereClause[] => {
   const parts: WhereClause[] = [
     { args: [], clause: KIND_CLAUSE[where.kind ?? "attendee"] },
   ];
-  const eq = (clause: string, value: number | undefined) => {
-    if (value !== undefined) parts.push({ args: [value], clause });
-  };
   const inList = (column: string, ids: number[] | undefined) => {
     if (ids !== undefined) {
       parts.push({
@@ -336,16 +297,19 @@ const whereClauses = (where: AttendeeWhere): WhereClause[] => {
     }
   };
   inList("attendee.id", where.attendeeIds);
-  eq("attendee.id = ?", where.attendeeId);
   if (where.attendeeIdsSubquery !== undefined) {
     parts.push({
       args: where.attendeeIdsSubquery.args,
       clause: `attendee.id IN (${where.attendeeIdsSubquery.sql})`,
     });
   }
-  eq("listingAttendee.listing_id = ?", where.listingId);
   inList("listingAttendee.listing_id", where.listingIds);
-  eq("listingAttendee.package_group_id = ?", where.packageGroupId);
+  if (where.packageGroupId !== undefined) {
+    parts.push({
+      args: [where.packageGroupId],
+      clause: "listingAttendee.package_group_id = ?",
+    });
+  }
   if (where.realLinesOnly) {
     parts.push({ args: [], clause: "listingAttendee.quantity > 0" });
   }
@@ -406,14 +370,22 @@ export type GetAttendeesQuery<F extends AttendeeField> = {
   join?: AttendeeJoin;
 };
 
-/** Resolve a declared query into the concrete parts the runners take: default
- * the join, build the FROM/WHERE/ORDER tail and its args. */
-const resolveAttendeeQuery = <F extends AttendeeField>(
+/**
+ * A `queryBatch` statement (SQL + bound args) for an attendee read: the single
+ * place a declared query becomes runnable SQL. {@link getAttendees} runs it; the
+ * batch readers (which pair a listing read with an attendee read in one
+ * round-trip) embed it in a batch instead. Defaults the join, builds the
+ * FROM/WHERE/ORDER tail, and prefixes the field-selected column list.
+ */
+export const attendeeBatchStatement = <F extends AttendeeField>(
   query: GetAttendeesQuery<F>,
-) => {
+): { sql: string; args: InValue[] } => {
   const join = query.join ?? "inner";
   const { from, args } = attendeeFromWhere(join, query.where, query.order);
-  return { args, fields: query.fields, from, join };
+  return {
+    args,
+    sql: `SELECT ${attendeeColumns(join, query.fields)} ${from}`,
+  };
 };
 
 /**
@@ -424,23 +396,7 @@ const resolveAttendeeQuery = <F extends AttendeeField>(
  */
 export const getAttendees = <F extends AttendeeField>(
   query: GetAttendeesQuery<F>,
-): Promise<AttendeeRowFor<F>[]> => selectAttendees(resolveAttendeeQuery(query));
-
-/** Single-row {@link getAttendees} (returns null when nothing matches). */
-export const getAttendeeRow = <F extends AttendeeField>(
-  query: GetAttendeesQuery<F>,
-): Promise<AttendeeRowFor<F> | null> =>
-  selectAttendeeOrNull(resolveAttendeeQuery(query));
-
-/**
- * A `queryBatch` statement (SQL + bound args) for an attendee read. The batch
- * readers pair a listing read with an attendee read in one round-trip, so they
- * must embed the SQL in a batch rather than run it — this gives them the exact
- * same columns/filter/order as {@link getAttendees}.
- */
-export const attendeeBatchStatement = <F extends AttendeeField>(
-  query: GetAttendeesQuery<F>,
-): { sql: string; args: InValue[] } => {
-  const { args, fields, from, join } = resolveAttendeeQuery(query);
-  return { args, sql: `SELECT ${attendeeColumns(join, fields)} ${from}` };
+): Promise<AttendeeRowFor<F>[]> => {
+  const { sql, args } = attendeeBatchStatement(query);
+  return queryAll<AttendeeRowFor<F>>(sql, args);
 };

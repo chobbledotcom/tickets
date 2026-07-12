@@ -899,8 +899,8 @@ scripts/unit-tests-report-imports.ts:135:23   → "mutated"   # stem()'s first r
 
 # getAttendees filter/query builder (src/shared/db/attendees/select.ts) — the
 # defaulted `kind`/`join` operands are string unions that never include "".
-src/shared/db/attendees/select.ts:325:47  ?? → ||   # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
-src/shared/db/attendees/select.ts:414:26  ?? → ||   # query.join: AttendeeJoin|undefined — "inner"/"left" are both truthy, so `?? "inner"` and `|| "inner"` agree on every input
+src/shared/db/attendees/select.ts:289:47  ?? → ||   # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
+src/shared/db/attendees/select.ts:383:26  ?? → ||   # query.join: AttendeeJoin|undefined — "inner"/"left" are both truthy, so `?? "inner"` and `|| "inner"` agree on every input
 
 # i18n (shared/i18n.ts) — five provably-equivalent survivors.
 # needsIcu decides only whether a message takes the plain-string fast path or is

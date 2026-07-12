@@ -98,10 +98,10 @@ describe("attendeeColumns", () => {
 
 describe("attendeeFromWhere", () => {
   test("uses the requested join keyword", () => {
-    expect(attendeeFromWhere("inner", { attendeeId: 1 }).from).toContain(
+    expect(attendeeFromWhere("inner", { attendeeIds: [1] }).from).toContain(
       "FROM attendees AS attendee JOIN listing_attendees AS listingAttendee",
     );
-    expect(attendeeFromWhere("left", { attendeeId: 1 }).from).toContain(
+    expect(attendeeFromWhere("left", { attendeeIds: [1] }).from).toContain(
       "FROM attendees AS attendee LEFT JOIN listing_attendees AS listingAttendee",
     );
   });
@@ -121,16 +121,14 @@ describe("attendeeFromWhere", () => {
     ).toContain(`attendee.kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}')`);
   });
 
-  test("a single listing id binds one placeholder", () => {
-    const { from, args } = attendeeFromWhere("inner", { listingId: 5 });
-    expect(from).toContain("listingAttendee.listing_id = ?");
-    expect(args).toEqual([5]);
-  });
+  test("a single id is a one-element IN list — one path for one or many", () => {
+    const one = attendeeFromWhere("left", { attendeeIds: [9] });
+    expect(one.from).toContain("attendee.id IN (?)");
+    expect(one.args).toEqual([9]);
 
-  test("a single attendee id binds one placeholder", () => {
-    const { from, args } = attendeeFromWhere("left", { attendeeId: 9 });
-    expect(from).toContain("attendee.id = ?");
-    expect(args).toEqual([9]);
+    const oneListing = attendeeFromWhere("inner", { listingIds: [5] });
+    expect(oneListing.from).toContain("listingAttendee.listing_id IN (?)");
+    expect(oneListing.args).toEqual([5]);
   });
 
   test("an id list expands to one placeholder each, in order", () => {
@@ -226,10 +224,10 @@ describe("attendeeFromWhere", () => {
     ];
     for (const [order, sql] of cases) {
       expect(
-        attendeeFromWhere("inner", { attendeeId: 1 }, order).from,
+        attendeeFromWhere("inner", { attendeeIds: [1] }, order).from,
       ).toContain(sql);
     }
-    expect(attendeeFromWhere("inner", { attendeeId: 1 }).from).not.toContain(
+    expect(attendeeFromWhere("inner", { attendeeIds: [1] }).from).not.toContain(
       "ORDER BY",
     );
   });
@@ -266,8 +264,8 @@ describe("attendee SELECT — exact generated SQL", () => {
   });
 
   test("a single-attendee LEFT read omits ORDER BY entirely", () => {
-    expect(attendeeFromWhere("left", { attendeeId: 1 }).from).toBe(
-      "FROM attendees AS attendee LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id WHERE attendee.kind = 'attendee' AND attendee.id = ?",
+    expect(attendeeFromWhere("left", { attendeeIds: [1] }).from).toBe(
+      "FROM attendees AS attendee LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id WHERE attendee.kind = 'attendee' AND attendee.id IN (?)",
     );
   });
 

@@ -18,11 +18,10 @@ import { logActivity } from "#shared/db/activityLog.ts";
 /* jscpd:ignore-end */
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
-import { LISTING_ATTENDEE_ROW_COLS } from "#shared/db/attendees/queries.ts";
 import {
-  ATTENDEE_FIELDS,
-  getAttendeeRow,
-} from "#shared/db/attendees/select.ts";
+  getAttendeeRaw,
+  LISTING_ATTENDEE_ROW_COLS,
+} from "#shared/db/attendees/queries.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import {
@@ -53,11 +52,7 @@ const loadRefreshContext = async (
   attendeeId: number,
 ): Promise<RefreshPaymentContext | null> => {
   const pk = await requireRequestPrivateKey();
-  const attendeeRaw = await getAttendeeRow({
-    fields: ATTENDEE_FIELDS,
-    join: "left",
-    where: { attendeeId },
-  });
+  const attendeeRaw = await getAttendeeRaw(attendeeId);
   if (!attendeeRaw) return null;
   const attendee = (await decryptAttendeeOrNull(attendeeRaw, pk))!;
   const bookings = await queryAll<ListingAttendeeRow>(
