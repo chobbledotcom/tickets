@@ -43,6 +43,7 @@ describe("diff-code-lines classify", () => {
     expect(classify('import defaultExport from "./d.ts";', fresh())).toBe(
       "import",
     );
+    expect(classify('import "./side-effect.ts";', fresh())).toBe("import");
     expect(classify('export { a } from "./a.ts";', fresh())).toBe("import");
     expect(classify('export * from "./a.ts";', fresh())).toBe("import");
     expect(classify('export type { T } from "./t.ts";', fresh())).toBe(
@@ -59,12 +60,29 @@ describe("diff-code-lines classify", () => {
   });
 
   test("does not mistake code that merely mentions `from` for an import", () => {
-    // A quoted module name after `from` is required, so an exported helper with
-    // a `from` parameter and a single-line local export block stay as code.
+    // A re-export must start with `export {` / `export *` / `export type`, so an
+    // exported helper with a `from` parameter, an export whose string value
+    // contains "from", and a single-line local export block all stay as code.
     expect(
       classify("export const pick = (view, from) => view;", freshState()),
     ).toBe("code");
+    expect(classify(`export const note = 'from "x"';`, freshState())).toBe(
+      "code",
+    );
     expect(classify("export { a };", freshState())).toBe("code");
+  });
+
+  test("treats import.meta and dynamic import() as code, not import", () => {
+    // Static import declarations have a space or quote after `import`; the
+    // `import.meta` property and a dynamic `import(...)` call are executable
+    // code, so both stay classified as code.
+    expect(classify("import.meta.url;", freshState())).toBe("code");
+    expect(classify('const m = await import("./m.ts");', freshState())).toBe(
+      "code",
+    );
+    expect(classify('import("./lazy.ts").then(run);', freshState())).toBe(
+      "code",
+    );
   });
 });
 

@@ -19,6 +19,8 @@
  * stays unchanged and off-diff) reads as a plain identifier and counts as code.
  */
 
+import { reduce } from "#fp";
+
 export type Area = "src" | "test" | "other";
 export type Kind = "code" | "import" | "comment" | "blank";
 
@@ -74,18 +76,28 @@ const continueOpenRun = (line: string, state: SideState): Kind | null => {
   return null;
 };
 
+/** A line begins a re-export: `export {` / `export * ` / `export type {` /
+ * `export type *`. Requiring `*` or `{` right after `export` (optionally
+ * `type`) is what keeps ordinary exported code out — `export const note =
+ * 'from "x"'` starts with `const`, so it never counts as a re-export even
+ * though it contains the word `from`. */
+const startsReExport = (line: string): boolean =>
+  /^export\s+(type\s+)?[*{]/.test(line);
+
 /** True when a changed line is (or opens) an import / re-export statement:
- *  - `import …` in any form;
- *  - a single-line `export … from "…"` re-export — the quoted module name after
- *    `from` is what tells a real re-export apart from code that merely mentions
- *    the word, like `export const pick = (view, from) => …`;
+ *  - a static `import` declaration — `import x from …`, `import { … } from …`,
+ *    `import * as …`, or a side-effect `import "…"`. The character after
+ *    `import` must be a space or quote, so `import.meta` and dynamic `import(…)`
+ *    (both executable code) stay classified as code;
+ *  - a single-line `export … from "…"` re-export (the quoted module name is the
+ *    real module specifier);
  *  - an `export {` / `export type {` that opens a multi-line block, which barrel
  *    files close with `} from "…"` on a later line (that closing line is counted
  *    by the open-run handler, so the opener only needs to start the run). */
 const isImportLine = (line: string): boolean =>
-  /^import\b/.test(line) ||
-  /^export\b.*\bfrom\s+["']/.test(line) ||
-  (/^export\s+(type\s+)?\{/.test(line) && opensBlock(line, "{", "}"));
+  /^import["'\s]/.test(line) ||
+  (startsReExport(line) &&
+    (/\bfrom\s+["']/.test(line) || opensBlock(line, "{", "}")));
 
 /** Classify one changed line, advancing `state` for multi-line constructs. */
 export const classify = (raw: string, state: SideState): Kind => {
@@ -168,19 +180,23 @@ const tallyContentLine = (line: string, state: WalkState): void => {
   }
 };
 
-export const tallyDiff = (diff: string): Counts => {
-  const state: WalkState = {
-    addState: freshState(),
-    area: "other",
-    counts: { added: emptyAreaTally(), removed: emptyAreaTally() },
-    inHeader: false,
-    removeState: freshState(),
-  };
-  for (const line of diff.split("\n")) {
-    if (!applyBoundaryLine(line, state)) tallyContentLine(line, state);
-  }
-  return state.counts;
+/** Fold one diff line into the running walk state: boundary lines update the
+ * state and are skipped, content lines are tallied. */
+const foldLine = (state: WalkState, line: string): WalkState => {
+  if (!applyBoundaryLine(line, state)) tallyContentLine(line, state);
+  return state;
 };
+
+const freshWalkState = (): WalkState => ({
+  addState: freshState(),
+  area: "other",
+  counts: { added: emptyAreaTally(), removed: emptyAreaTally() },
+  inHeader: false,
+  removeState: freshState(),
+});
+
+export const tallyDiff = (diff: string): Counts =>
+  reduce(foldLine, freshWalkState())(diff.split("\n")).counts;
 
 const codeCount = (t: Tally): number => t.code;
 
