@@ -8,6 +8,7 @@
  */
 
 import { Lexer, Marked, type Token, type Tokens } from "marked";
+import { once } from "#fp";
 import { escapeHtml } from "#templates/layout.tsx";
 
 /** URL schemes permitted in links and images. */
@@ -33,20 +34,27 @@ const hasHref = (token: Token): token is Token & { href: string } =>
   (token.type === "link" || token.type === "image") &&
   typeof (token as { href?: unknown }).href === "string";
 
-const md = new Marked({
-  renderer: {
-    html({ raw }) {
-      return escapeHtml(raw);
-    },
-  },
-  walkTokens: (token) => {
-    if (hasHref(token) && !isSafeUrl(token.href)) token.href = "";
-  },
-});
+/** Built on first render, not at module load — `new Marked(...)` compiles
+ * marked's tokenizer regexes, so deferring it keeps that work off the cold boot
+ * of requests that never render markdown. `once` returns synchronously, so the
+ * synchronous render callers are unaffected. */
+const md = once(
+  () =>
+    new Marked({
+      renderer: {
+        html({ raw }) {
+          return escapeHtml(raw);
+        },
+      },
+      walkTokens: (token) => {
+        if (hasHref(token) && !isSafeUrl(token.href)) token.href = "";
+      },
+    }),
+);
 
 /** Render markdown to HTML (block-level: paragraphs, lists, etc.). Raw HTML is escaped and unsafe URLs are stripped. */
 export const renderMarkdown = (text: string): string =>
-  md.parse(text) as string;
+  md().parse(text) as string;
 
 /** Inline token types that don't add any HTML structure beyond plain text
  * inside a `<p>`. If a paragraph contains only these, the rendered markdown is
