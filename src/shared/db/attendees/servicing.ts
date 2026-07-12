@@ -33,6 +33,7 @@ import {
 } from "#shared/db/attendees/pii.ts";
 import {
   ATTENDEE_FIELDS,
+  type AttendeeRowFor,
   attendeeColumns,
 } from "#shared/db/attendees/select.ts";
 import {
@@ -103,6 +104,11 @@ export type ServicingEventSummary = {
 };
 
 type ServicingRow = Attendee & { kind: string };
+
+/** The columns the servicing SUMMARY list reads: a booking's listing, quantity
+ * and date, plus the event's decrypted name. It shows no money, so its read
+ * skips every ledger subquery — `kind` rides along in the core columns. */
+type ServicingSummaryRow = AttendeeRowFor;
 
 const NAME_REQUIRED = "name is required";
 const INVALID_BOOKINGS = "servicing event must hold at least one capacity slot";
@@ -332,7 +338,7 @@ export const createServicingEvent = async (
 };
 
 const servicingEventRowsToSummaries = async (
-  rows: ServicingRow[],
+  rows: ServicingSummaryRow[],
   privateKey: CryptoKey,
 ): Promise<ServicingEventSummary[]> => {
   // Group booking lines by their parent service event (attendee id), so a
@@ -364,13 +370,15 @@ const servicingEventRowsToSummaries = async (
   );
 };
 
-const getServicingEventRows = (today?: string): Promise<ServicingRow[]> => {
+const getServicingEventRows = (
+  today?: string,
+): Promise<ServicingSummaryRow[]> => {
   const upcomingClause =
     today === undefined
       ? ""
       : "AND (listingAttendee.start_at IS NULL OR DATE(listingAttendee.start_at) >= ?)";
-  return queryAll<ServicingRow>(
-    `SELECT ${attendeeColumns("inner", ATTENDEE_FIELDS)}
+  return queryAll<ServicingSummaryRow>(
+    `SELECT ${attendeeColumns("inner", [])}
        FROM attendees AS attendee
        JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
       WHERE attendee.kind = ?

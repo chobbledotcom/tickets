@@ -34,7 +34,7 @@ import {
 } from "#shared/listing-filter.ts";
 import type {
   AdminSession,
-  Attendee,
+  DisplayAttendee,
   Holiday,
   ListingWithCount,
 } from "#shared/types.ts";
@@ -187,7 +187,7 @@ export const activeListingStatsSection = (stats: ActiveListingStats): string =>
  * One row per attendee: `listings` arrives in display order, so each grouped
  * row's Listings cell follows the listings page ordering. */
 const newestAttendeesSection = (
-  attendees: Attendee[],
+  attendees: DisplayAttendee[],
   listings: ListingWithCount[],
 ): string => {
   const tableRows = groupAttendeeRows(attendees, listings);
@@ -360,7 +360,7 @@ export const adminDashboardPage = (
   listings: ListingWithCount[],
   session: AdminSession,
   imageError?: string,
-  newestAttendees: Attendee[] = [],
+  newestAttendees: DisplayAttendee[] = [],
   successMessage?: string,
   stats?: ActiveListingStats | null,
   listingColumnTemplate?: string,

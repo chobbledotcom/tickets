@@ -29,8 +29,8 @@ import type { AttendeeQuestionData } from "#shared/db/questions/attendee-answers
 import { settings } from "#shared/db/settings.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import {
-  type Attendee,
   type AttendeeTableRow,
+  type DisplayAttendee,
   hasTicketQuantity,
 } from "#shared/types.ts";
 import { Badge } from "#templates/components/badge.tsx";
@@ -195,7 +195,7 @@ const CheckinButton = ({
   activeFilter,
   returnUrl,
 }: {
-  a: Attendee;
+  a: DisplayAttendee;
   listingId: number;
   activeFilter: string;
   returnUrl: string | undefined;

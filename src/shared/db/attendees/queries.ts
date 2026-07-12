@@ -13,6 +13,7 @@ import {
 } from "#shared/db/attendees/pii.ts";
 import {
   ATTENDEE_FIELDS,
+  type AttendeeRowFor,
   attendeeColumns,
   pricePaidFromLedger,
   refundedFromLedger,
@@ -49,6 +50,19 @@ export const listingAttendeeRowColumnsFrom = (sourceName: string): string => {
 
 export const LISTING_ATTENDEE_ROW_COLS =
   listingAttendeeRowColumnsFrom("listing_attendees");
+
+/**
+ * The fields the browsing tables (the dashboard's newest attendees and the
+ * admin attendees browser) actually display: `refunded` drives the status
+ * badge, and `checked_in`/`quantity`/`date` are already core columns. Neither
+ * table shows `price_paid` or `remaining_balance`, so these reads skip those
+ * subqueries entirely.
+ */
+const BROWSING_FIELDS = ["refunded"] as const;
+
+/** A browsing-table attendee row — every core column plus `refunded`, but none
+ * of the expensive money projections. */
+export type BrowsingAttendee = AttendeeRowFor<"refunded">;
 
 /**
  * Get attendees for an listing without decrypting PII
@@ -96,10 +110,12 @@ export const getAttendeePackageRowsRaw = (
  * line for those attendees, so the dashboard's grouped rows always carry an
  * attendee's complete listings.
  */
-export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
+export const getNewestAttendeesRaw = (
+  limit: number,
+): Promise<BrowsingAttendee[]> =>
   selectAttendees({
     args: [limit],
-    fields: ATTENDEE_FIELDS,
+    fields: BROWSING_FIELDS,
     from: `FROM attendees AS attendee
      LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
      WHERE attendee.id IN (
@@ -124,7 +140,10 @@ export const isAttendeeSort = guardFor(AttendeeSortSchema);
  */
 export const ATTENDEES_PAGE_SIZE = 100;
 
-/** One page of attendee booking rows, plus whether a further page exists */
+/** One page of attendee booking rows, plus whether a further page exists.
+ * Carries the full field set because the same page query feeds both the
+ * browsing table (which shows no money) and the CSV export (which sums
+ * `price_paid`); the table simply ignores the columns it doesn't render. */
 export type AttendeesPage = {
   rows: Attendee[];
   hasNext: boolean;

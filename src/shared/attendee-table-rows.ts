@@ -8,16 +8,16 @@
 
 import { sumOf } from "#fp";
 import type {
-  Attendee,
   AttendeeRowListing,
   AttendeeTableRow,
+  DisplayAttendee,
 } from "#shared/types.ts";
 
 /** One table row for a single booking line — the roster, check-in, calendar,
  * and group tables, where each line keeps its own date, quantity, and
  * per-listing check-in action. */
 export const attendeeLineRow = (
-  attendee: Attendee,
+  attendee: DisplayAttendee,
   listing: AttendeeRowListing,
 ): AttendeeTableRow => ({
   attendee,
@@ -38,7 +38,7 @@ export const attendeeLineRow = (
  * per-line tables skipped before grouping.
  */
 export const groupAttendeeRows = (
-  attendees: Attendee[],
+  attendees: DisplayAttendee[],
   orderedListings: readonly AttendeeRowListing[],
 ): AttendeeTableRow[] => {
   const rows: AttendeeTableRow[] = [];
@@ -48,7 +48,7 @@ export const groupAttendeeRows = (
       .filter((listing) => bookedIds.has(listing.id))
       .map((listing) => ({ id: listing.id, name: listing.name }));
     if (listings.length === 0) continue;
-    const quantity = sumOf((line: Attendee) => line.quantity)(lines);
+    const quantity = sumOf((line: DisplayAttendee) => line.quantity)(lines);
     rows.push({ attendee: { ...lines[0]!, quantity }, listings });
   }
   return rows;
