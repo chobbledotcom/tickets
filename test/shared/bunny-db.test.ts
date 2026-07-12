@@ -202,18 +202,25 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
     );
   });
 
-  test("createDatabase returns error when the config endpoint fails", async () => {
+  test("createDatabase stops and returns error when the config endpoint fails", async () => {
+    const fetchCalls: string[] = [];
+
     await withMocks(
       () =>
-        stub(globalThis, "fetch", () =>
-          Promise.resolve(new Response("Forbidden", { status: 403 })),
-        ),
+        stub(globalThis, "fetch", (input: string | URL | Request) => {
+          fetchCalls.push(String(input));
+          return Promise.resolve(new Response("Forbidden", { status: 403 }));
+        }),
       async () => {
         const result = await bunnyDbApi.createDatabase("Bad");
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error).toContain("Get database config failed (403)");
         }
+
+        // A failed config lookup must not go on to create anything.
+        expect(fetchCalls.length).toBe(1);
+        expect(fetchCalls[0]).toContain("/v1/config");
       },
     );
   });
