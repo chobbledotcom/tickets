@@ -23,15 +23,27 @@ const formatCache: Record<string, IntlMessageFormat | null | undefined> = {};
 /** Get the list of registered locale codes */
 export const getRegisteredLocales = (): string[] => Object.keys(locales);
 
+/** Drop every compiled formatter so the next lookups recompile. */
+const clearFormatCache = (): void => {
+  for (const key of Object.keys(formatCache)) delete formatCache[key];
+};
+
 /**
  * Merge additional messages into a locale at runtime. Used to load a large,
  * single-page bundle (the admin guide, ~120KB) on demand rather than in the
  * eager `en` merge, keeping its weight off the cold-boot path. The owning route
  * registers its bundle before rendering; a key still missing after that throws
  * in `t()` exactly as a typo would, so the fail-loud contract is preserved.
+ *
+ * `getFormat` caches a `null` for any key it can't resolve, so a lazy key looked
+ * up before it is registered would otherwise stay poisoned for the isolate's
+ * life. Clearing the format cache after merging lets the next lookup recompile
+ * against the new copy instead of returning the stale miss. Registration happens
+ * once per isolate (guide load), so recompiling on next use costs nothing real.
  */
 export const registerMessages = (locale: string, extra: Messages): void => {
   locales[locale] = { ...locales[locale], ...extra };
+  clearFormatCache();
 };
 
 // --- Operator-configurable copy replacements (I18N_REPLACEMENTS) ---
@@ -126,7 +138,7 @@ const [getReplacer, setReplacer] = lazyRef<Replacer>(() =>
  */
 export const resetI18nForTest = (): void => {
   setReplacer(null);
-  for (const key of Object.keys(formatCache)) delete formatCache[key];
+  clearFormatCache();
 };
 
 const getFormat = (locale: string, key: string): IntlMessageFormat | null => {

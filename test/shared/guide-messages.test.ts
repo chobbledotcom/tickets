@@ -26,14 +26,25 @@ describe("guide messages (lazy loaded)", () => {
     expect(t("common.yes")).toBe("Yes");
   });
 
+  test("registerMessages clears a cached miss so a late-registered key resolves", () => {
+    const key = "guide_messages_test.registered_late";
+    // A lookup before registration caches the key as a miss (t throws)…
+    expect(() => t(key)).toThrow(`Missing translation for key "${key}"`);
+    // …and registering it must clear that cached miss, not leave the key
+    // poisoned as null for the rest of the isolate's life.
+    registerMessages("en", { [key]: "Arrived late" });
+    expect(t(key)).toBe("Arrived late");
+  });
+
   test("ensureGuideMessages loads the guide bundle so guide keys resolve", async () => {
     await ensureGuideMessages();
     expect(t("guide.title")).toBe("Guide");
   });
 
-  test("ensureGuideMessages is idempotent (safe to await on every guide request)", async () => {
-    await ensureGuideMessages();
-    await ensureGuideMessages();
-    expect(t("guide.title")).toBe("Guide");
+  test("ensureGuideMessages memoizes, so it registers the bundle only once", () => {
+    // once() hands back the same promise on every call, so the dynamic import +
+    // registration side effect runs a single time no matter how many guide
+    // requests await it — independent of suite order or shared i18n state.
+    expect(ensureGuideMessages()).toBe(ensureGuideMessages());
   });
 });

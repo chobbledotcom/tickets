@@ -1,12 +1,13 @@
 /**
- * English locale — loads and merges all JSON message files.
+ * English locale — eagerly loads and merges the JSON message files, EXCEPT the
+ * guide bundle.
  *
  * `guide.json` is deliberately NOT merged here: it is by far the largest locale
- * file (~120KB) and its keys are only ever used on the admin guide page, so
- * merging it at module load would put that weight on every cold boot. It is
- * loaded on demand instead — see `src/locales/en/guide.ts` and
- * `ensureGuideMessages` in `src/shared/guide-messages.ts`, which the guide route
- * awaits before rendering.
+ * file (~120KB) and its keys are only used by the two guide routes (the admin
+ * guide page and the markdown formatting-help page), so merging it at module
+ * load would put that weight on every cold boot. It is loaded on demand instead
+ * — see `src/locales/en/guide.ts` and `ensureGuideMessages` in
+ * `src/shared/guide-messages.ts`, which those routes await before rendering.
  */
 
 import addressLookup from "./address-lookup.json" with { type: "json" };
