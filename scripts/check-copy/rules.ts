@@ -57,56 +57,13 @@ const proseSegments = (value: string): string[] => value.split(CODE_BLOCK);
 
 /**
  * The readable prose of each non-code segment, with HTML tags stripped. Working
- * segment-by-segment (rather than on one joined string) means a word check
+ * segment-by-segment (rather than on one joined string) means a link check
  * never matches a phrase that spans a code/pre example: a code block sitting
- * between "click" and "here", or between the words of "prior to", separates
- * them into different segments instead of fabricating a match.
+ * between "click" and "here" separates them into different segments instead of
+ * fabricating a match.
  */
 const readableSegments = (value: string): string[] =>
   proseSegments(value).map((segment) => segment.replace(/<[^>]+>/g, " "));
-
-/**
- * Formal or old-fashioned words that have a plainer everyday twin. Modelled
- * after the GOV.UK "words to avoid" list. Each `avoid` is matched
- * case-insensitively on whole words; keep them to letters and spaces so the
- * alternation below needs no regular-expression escaping.
- */
-export const PLAIN_WORDS: { avoid: string; use: string }[] = [
-  { avoid: "utilise", use: "use" },
-  { avoid: "utilize", use: "use" },
-  { avoid: "commence", use: "start" },
-  { avoid: "terminate", use: "end or stop" },
-  { avoid: "aforementioned", use: "this" },
-  { avoid: "furthermore", use: "also" },
-  { avoid: "moreover", use: "also" },
-  { avoid: "henceforth", use: "from now on" },
-  { avoid: "kindly", use: "nothing — just drop it" },
-  { avoid: "leverage", use: "use" },
-  { avoid: "facilitate", use: "help" },
-  { avoid: "endeavour", use: "try" },
-  { avoid: "endeavor", use: "try" },
-  { avoid: "ascertain", use: "find out" },
-  { avoid: "requisite", use: "needed" },
-  { avoid: "hereby", use: "nothing — just drop it" },
-  { avoid: "whereby", use: "where" },
-  { avoid: "thereof", use: "of it" },
-  { avoid: "herein", use: "here" },
-  { avoid: "whilst", use: "while" },
-  { avoid: "amongst", use: "among" },
-  { avoid: "pursuant to", use: "under" },
-  { avoid: "in order to", use: "to" },
-  { avoid: "prior to", use: "before" },
-  { avoid: "subsequent to", use: "after" },
-  { avoid: "in the event that", use: "if" },
-];
-
-const plainerWord = new Map(PLAIN_WORDS.map((w) => [w.avoid, w.use]));
-
-/** One alternation over every avoided word, matched on whole words. */
-const FORMAL_WORDS = new RegExp(
-  `\\b(${PLAIN_WORDS.map((w) => w.avoid).join("|")})\\b`,
-  "gi",
-);
 
 /** Non-descriptive link text: "click here", "tap below", and the like. */
 const VAGUE_LINK = /\b(?:click|tap)\s+(?:here|below)\b/gi;
@@ -134,23 +91,8 @@ const descriptiveLinks: Rule = {
   name: "descriptive-links",
 };
 
-/** Prefer the plain everyday word over the formal one. */
-const plainWords: Rule = {
-  find: (value) =>
-    readableSegments(value).flatMap((segment) =>
-      [...segment.matchAll(FORMAL_WORDS)].map((m) => {
-        const found = m[1]!;
-        return {
-          fix: `use "${plainerWord.get(found.toLowerCase())!}"`,
-          problem: `formal word "${found}"`,
-        };
-      }),
-    ),
-  name: "plain-words",
-};
-
 /** Every rule the checker runs, applied to every copy string. */
-export const RULES: Rule[] = [doubleSpace, descriptiveLinks, plainWords];
+export const RULES: Rule[] = [doubleSpace, descriptiveLinks];
 
 /** Run every rule over every copy string and collect what they flag. */
 export const findIssues = (entries: CopyEntry[]): CopyIssue[] =>

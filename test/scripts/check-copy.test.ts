@@ -4,7 +4,6 @@ import {
   type CopyEntry,
   findIssues,
   formatIssue,
-  PLAIN_WORDS,
   RULES,
 } from "../../scripts/check-copy/rules.ts";
 import { readCatalog, runCopyCheck } from "../../scripts/check-copy/run.ts";
@@ -83,95 +82,35 @@ describe("check-copy rules", () => {
     expect(findIssues([entry("View your ticket")])).toEqual([]);
   });
 
-  test("flags a formal word and suggests the plain twin", () => {
-    const issues = findIssues([entry("Please utilise this page")]);
-    expect(issues).toEqual([
-      {
-        file: "test.json",
-        fix: 'use "use"',
-        key: "test.key",
-        problem: 'formal word "utilise"',
-        rule: "plain-words",
-      },
-    ]);
-  });
-
-  test("flags a formal phrase spanning several words", () => {
-    const issues = findIssues([entry("Save your work in order to continue")]);
-    expect(issues[0]).toMatchObject({
-      fix: 'use "to"',
-      problem: 'formal word "in order to"',
-      rule: "plain-words",
-    });
-  });
-
-  test("matches formal words regardless of case", () => {
-    const issues = findIssues([entry("Whilst you wait")]);
-    expect(issues[0]!.problem).toBe('formal word "Whilst"');
-    expect(issues[0]!.fix).toBe('use "while"');
-  });
-
-  test("does not flag a plain everyday word", () => {
-    expect(findIssues([entry("Use this page to start")])).toEqual([]);
-  });
-
-  test("does not treat a formal word inside <code> as prose", () => {
-    expect(findIssues([entry("Endpoint <code>/commence</code>")])).toEqual([]);
-  });
-
   test("collects issues across many entries and rules", () => {
     const issues = findIssues([
       { file: "a.json", key: "a.one", value: "Click here" },
       { file: "a.json", key: "a.two", value: "All good" },
-      { file: "b.json", key: "b.one", value: "utilise  it" },
+      { file: "b.json", key: "b.one", value: "spaced  out" },
     ]);
     expect(issues.map((i) => `${i.key}:${i.rule}`)).toEqual([
       "a.one:descriptive-links",
       "b.one:double-space",
-      "b.one:plain-words",
     ]);
-  });
-
-  test("every plain word maps to its exact suggested replacement", () => {
-    for (const { avoid, use } of PLAIN_WORDS) {
-      const issues = findIssues([entry(`x ${avoid} y`)]);
-      expect(issues).toEqual([
-        {
-          file: "test.json",
-          fix: `use "${use}"`,
-          key: "test.key",
-          problem: `formal word "${avoid}"`,
-          rule: "plain-words",
-        },
-      ]);
-    }
   });
 
   test("does not match a vague-link phrase split by a code example", () => {
     expect(findIssues([entry("Click <code>x</code> here")])).toEqual([]);
   });
 
-  test("does not match a formal phrase split by a code example", () => {
-    expect(findIssues([entry("Runs prior <code>x</code> to boot")])).toEqual(
-      [],
-    );
-  });
-
-  test("still flags a vague link or formal word within one segment", () => {
+  test("still flags a vague link in a segment beside a code example", () => {
     const issues = findIssues([
-      entry("Click here after <code>setup</code> to utilise it"),
+      entry("Click here after <code>setup</code> to begin"),
     ]);
     expect(issues.map((i) => `${i.rule}:${i.problem}`)).toEqual([
       'descriptive-links:vague link text "Click here"',
-      'plain-words:formal word "utilise"',
     ]);
   });
 
-  test("exposes exactly the three rules", () => {
+  test("exposes exactly the two rules", () => {
     expect(RULES.map((r) => r.name)).toEqual([
       "double-space",
       "descriptive-links",
-      "plain-words",
     ]);
   });
 
@@ -179,13 +118,13 @@ describe("check-copy rules", () => {
     expect(
       formatIssue({
         file: "errors.json",
-        fix: 'use "use"',
+        fix: "use a single space",
         key: "error.x",
-        problem: 'formal word "utilise"',
-        rule: "plain-words",
+        problem: "two or more spaces in a row",
+        rule: "double-space",
       }),
     ).toBe(
-      'errors.json error.x [plain-words]: formal word "utilise" — use "use"',
+      "errors.json error.x [double-space]: two or more spaces in a row — use a single space",
     );
   });
 });
@@ -250,7 +189,7 @@ describe("check-copy runner", () => {
 
   test("returns 1 and logs each issue in rule order, then a summary", () => {
     const { code, out, errors } = checkCatalog("bad.json", {
-      "bad.msg": "Please utilise this,  click here",
+      "bad.msg": "Please read this,  click here",
     });
 
     expect(code).toBe(1);
@@ -258,8 +197,7 @@ describe("check-copy runner", () => {
     expect(errors).toEqual([
       "bad.json bad.msg [double-space]: two or more spaces in a row — use a single space",
       'bad.json bad.msg [descriptive-links]: vague link text "click here" — name the destination, e.g. "View your ticket"',
-      'bad.json bad.msg [plain-words]: formal word "utilise" — use "use"',
-      '\n3 simple-language issue(s) found. See the "Simple Language" section of AGENTS.md.',
+      '\n2 simple-language issue(s) found. See the "Simple Language" section of AGENTS.md.',
     ]);
   });
 });

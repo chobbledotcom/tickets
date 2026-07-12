@@ -177,8 +177,8 @@ shows it stays worded the same.
   single biggest win for a struggling reader.
 - **Everyday words.** Prefer the word a ten-year-old would use: "use" not
   "utilise", "start" not "commence", "before" not "prior to", "help" not
-  "facilitate". The full plain-word list lives in `scripts/check-copy/rules.ts`
-  (`PLAIN_WORDS`) and is enforced (see below).
+  "facilitate". This is a matter of judgement on every change — no checker
+  enforces it.
 - **Front-load the action.** Say what to do first and why second: "Type the
   listing name to confirm." — not "In order to confirm, the listing name must be
   typed."
@@ -220,7 +220,6 @@ pattern rather than inventing a new phrasing:
 `deno task check:copy` (run inside `deno task precommit`) scans the catalog and
 fails on the **mechanical** rules a machine can judge without reading for tone:
 
-- **Plain words** — the `PLAIN_WORDS` list above.
 - **Descriptive links** — never "click here" / "tap below"; the link text names
   where it goes ("View your ticket", "Read the release notes").
 - **Even spacing** — no double spaces (literal `<code>`/`<pre>` examples are
