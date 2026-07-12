@@ -746,27 +746,24 @@ diagnostic above) makes it pay for itself.
 db-module tests into `test/shared/db/attendees/servicing/` (plus a 4-line cwd
 fix in `code-quality.test.ts`). CodeRabbit reviewed the moved content as if new
 and raised 13 findings; every one is on **pre-existing** test code carried over
-unchanged from `main`, so they're out of scope for a rename-only PR and recorded
-here. Two of them look like genuinely ineffective tests — verify those first.*
+unchanged from `main`, so they were out of scope for a rename-only PR and
+recorded here.*
 
-**Likely-vacuous tests (check these first):**
+**Done — the two vacuous tests + the corruption-repair cleanups (a follow-up
+PR).** Both suspects were confirmed and fixed:
 
-- **`test/shared/db/attendees/servicing/corruption-repair.test.ts` (~lines 38-42,
-  assertions ~57-81)** — the setup does `UPDATE attendees SET kind = 'staff'`,
-  but `attendees.kind` has `CHECK (kind IN ('attendee','servicing'))`, so the
-  UPDATE throws and a `catch { return }` swallows it — the repair/exclusion
-  assertions after it may never run. Confirm whether the test is passing
-  vacuously; if so, either assert the UPDATE failure explicitly, or build the
-  corrupted row from a schema without that CHECK so the corrupted state actually
-  exists before the repair/exclusion checks.
-- **`test/shared/db/attendees/servicing/lifecycle-concurrency.test.ts`
-  (~lines 87-110)** — "deleting a listing that holds a servicing event orphans
-  the attendee" uses raw SQL deletes on `listings`/`listing_attendees`, bypassing
-  the production `deleteListing` (or `performListingDelete` for admin side
-  effects). It therefore doesn't exercise the deletion path it names. Route it
-  through the production helper.
+- `corruption-repair.test.ts` — the `UPDATE … kind = 'staff'` did throw under the
+  CHECK and was swallowed by `catch { return }`, so the exclusion assertions
+  never ran (confirmed empirically). Now the corrupt row is written past the
+  CHECK via `PRAGMA ignore_check_constraints` (libsql supports it), so the reader
+  predicates are genuinely exercised — and a separate test asserts the CHECK
+  rejects the write directly. The dead `queryOne` import, the `string | null`
+  param on `insertRowWithKind`, and the redundant dynamic imports were removed.
+- `lifecycle-concurrency.test.ts` (~87-110) — the raw SQL deletes were replaced
+  with the production `deleteListing`, and the orphan assertion strengthened
+  (attendee row survives; its booking on the deleted listing is gone).
 
-**Assertion-strengthening (all in
+**Remaining — assertion-strengthening (all in
 `test/shared/db/attendees/servicing/ledger.test.ts`):**
 
 - **Split the file (~741 lines, >400 guideline)** into focused modules
@@ -801,15 +798,6 @@ here. Two of them look like genuinely ineffective tests — verify those first.*
   passes even if the listing filter is ignored; add a second listing + cost and
   assert the result is exactly the requested listing's cost, excluding the other.
 
-**Trivial cleanups in
-`test/shared/db/attendees/servicing/corruption-repair.test.ts`:**
-
-- **`queryOne` import (~17, ~137-138)** — imported then `void`-ed with a comment
-  claiming `kindOf` needs it; `kindOf` is imported directly from
-  `#test-utils/servicing.ts`, so the import is dead — remove it.
-- **`insertRowWithKind` (~31-35)** — its only caller passes `"attendee"`, so the
-  `string | null` param and `kind ?? "null"` branch are dead; narrow to `string`.
-- **Dynamic imports (~77-80, ~109-117, ~129-131)** — `createRealAttendee`,
-  `renderAdminPage`, and `getServicingEvent` are `await import`-ed from
-  `#test-utils/servicing.ts`, which is already statically imported at the top;
-  none are heavy SDKs, so fold them into the static import.
+(The line numbers above are from before the two fixes landed; re-locate by the
+described symbols when picking these up. This ledger split + strengthening is the
+heavy remaining piece.)

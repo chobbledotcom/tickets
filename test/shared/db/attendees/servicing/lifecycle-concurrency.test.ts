@@ -16,6 +16,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { deleteListing } from "#shared/db/listings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -94,19 +95,14 @@ describeWithEnv(
         name: "Doomed",
       });
       const { id } = await createServicingHold({ listing: { name: "Doomed" } });
-      // Delete the listing the real way (the admin route does this via a
-      // table rebuild that drops the row and cascades its listing_attendees).
-      const { getDb } = await import("#shared/db/client.ts");
-      await getDb().execute({
-        args: [listing.id],
-        sql: "DELETE FROM listings WHERE id = ?",
-      });
-      await getDb().execute({
-        args: [id],
-        sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
-      });
-      // The attendee row still exists (orphaned) until the purge sweeps it.
+      // Delete the listing through the production path — the same helper the
+      // admin delete route calls, which drops the listing and its
+      // listing_attendees bookings in one batch.
+      await deleteListing(listing.id);
+      // The attendee row survives — orphaned — until the purge sweeps it, but
+      // its booking on the deleted listing is gone.
       expect(await kindOf(id)).not.toBeNull();
+      expect(await servicingRowsForListing(listing.id)).toHaveLength(0);
     });
 
     test("duplicate while deleting: the delete wins, the duplicate rejects cleanly", async () => {
