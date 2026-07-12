@@ -163,6 +163,8 @@ export const humanAmount = (transfer: Transfer): number => {
     return transfer.source.type === COST ? -transfer.amount : transfer.amount;
   }
   if (transfer.kind === KIND.adjustment) {
+    if (transfer.source.type === ATTENDEE) return transfer.amount;
+    if (transfer.destination.type === ATTENDEE) return -transfer.amount;
     return transfer.destination.type === WRITEOFF_TYPE
       ? -transfer.amount
       : transfer.amount;

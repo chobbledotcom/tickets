@@ -159,6 +159,19 @@ describe("GroupOverviewPanel", () => {
     expect(html).not.toContain("/admin/ledger?group=8");
   });
 
+  test("shows money and its ledger link for a free group with only costs", () => {
+    const html = overviewHtml({
+      group: testGroup({ id: 8 }),
+      hasPaidListing: false,
+      ledgerHref: "/admin/ledger?group=8",
+      listings: [testListingWithCount({ cost: 3000, profit: -3000 })],
+    });
+    expect(html).toContain("Money in and out");
+    expect(html).toContain("Servicing costs");
+    expect(html).toContain("−£30");
+    expect(html).toContain('href="/admin/ledger?group=8"');
+  });
+
   test("suppresses the public URL / QR / embed when the group isn't shareable", () => {
     const group = testGroup({ is_package: true, name: "Sold Out Pkg" });
     const listings = [testListingWithCount({ attendee_count: 0, id: 1 })];

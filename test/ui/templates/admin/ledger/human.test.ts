@@ -197,6 +197,9 @@ describe("HumanLedgerTable", () => {
     expect(html).toContain("Ada");
     expect(html).not.toContain("Manual correction reduced");
     expect(html).not.toContain("Manual correction increased");
+    const rows = html.split("<tr>");
+    expect(rows[2]).toContain("+£50");
+    expect(rows[3]).toContain("−£50");
   });
 
   test("shows modifier income as positive and discounts as negative", () => {

@@ -28,7 +28,7 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  */
 
 import * as v from "valibot";
-import { mapNotNullish, sort, sumOf, unique } from "#fp";
+import { mapNotNullish, sort, unique } from "#fp";
 import { t } from "#i18n";
 import { loadAttendeeNames } from "#routes/admin/actions.ts";
 /* jscpd:ignore-start */
@@ -69,6 +69,7 @@ import {
 } from "#shared/accounting/manual-entries.ts";
 import {
   ledgerTotals,
+  listingMoneyTotals,
   transferActivityBounds,
   transfersByAccount,
   visibleTransfers,
@@ -274,7 +275,10 @@ const buildStats = async (
   groupNames: Map<number, string>,
 ): Promise<{ rows: DetailRow[]; heading: string | null }> => {
   if (listingId !== null) {
-    const breakdown = await listingRevenueBreakdown(listingId, range);
+    const [breakdown, money] = await Promise.all([
+      listingRevenueBreakdown(listingId, range),
+      listingMoneyTotals(range, [listingId]),
+    ]);
     // The caller only scopes to a listing it found in this same cached list, so
     // the lookup always resolves.
     const listing = listings.find((entry) => entry.id === listingId)!;
@@ -287,21 +291,19 @@ const buildStats = async (
           breakdown.recognisedIncome,
           true,
         ),
-        moneyRow("admin.ledger.stats.servicing_costs", -listing.cost, true),
+        moneyRow("admin.ledger.stats.servicing_costs", -money.costs, true),
         moneyRow("admin.ledger.stats.refunded", -breakdown.refunds, true),
         moneyRow(
           "admin.ledger.stats.net_after_costs",
-          breakdown.netBalance - listing.cost,
+          breakdown.netBalance - money.costs,
         ),
       ],
     };
   }
   if (groupId !== null) {
-    const income = sumOf((listing: ListingWithCount) => listing.income)(
-      groupListings,
-    );
-    const costs = sumOf((listing: ListingWithCount) => listing.cost)(
-      groupListings,
+    const { income, costs } = await listingMoneyTotals(
+      range,
+      groupListings.map((listing) => listing.id),
     );
     // The caller only scopes to a group it found in this same cached map, so the
     // lookup always resolves.

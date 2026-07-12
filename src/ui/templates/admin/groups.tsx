@@ -506,6 +506,10 @@ export const GroupOverviewPanel = ({
   const { script: embedScriptCode, iframe: embedIframeCode } =
     buildEmbedSnippets(ticketUrl);
   const totalCount = totalAttendeeCount(listings);
+  const income = totalIncome(listings);
+  const costs = totalCost(listings);
+  const profit = totalProfit(listings);
+  const showMoney = hasPaidListing || income !== 0 || costs !== 0;
   const sharedRows = buildSharedDetailRows({
     attendeeCount: totalCount,
     attendees,
@@ -514,7 +518,7 @@ export const GroupOverviewPanel = ({
     // Revenue comes from the ledger (the listings' projected income), not a sum
     // over the loaded attendees: bookings since deleted still count, and a
     // package's override revenue is captured the same way.
-    revenue: totalIncome(listings),
+    revenue: income,
     ...(questionData !== undefined ? { questionData } : {}),
     skipAttendees: true,
   });
@@ -549,7 +553,7 @@ export const GroupOverviewPanel = ({
         </DetailTable>
       </article>
 
-      {hasPaidListing && (
+      {showMoney && (
         <article>
           <MoneySummary
             ledgerHref={ledgerHref}
@@ -557,15 +561,15 @@ export const GroupOverviewPanel = ({
             note={t("groups.money.note")}
             rows={[
               {
-                amount: totalIncome(listings),
+                amount: income,
                 label: t("groups.money.income"),
               },
               {
-                amount: -totalCost(listings),
+                amount: -costs,
                 label: t("groups.money.costs"),
               },
               {
-                amount: totalProfit(listings),
+                amount: profit,
                 label: t("groups.money.profit"),
                 signed: false,
                 subtotal: true,
