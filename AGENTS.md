@@ -42,7 +42,7 @@ one:
 
 ```bash
 mise use --env local deno@latest   # writes mise.local.toml, which is git-ignored
-deno check --unstable-tsgo src/**/*.ts   # fast type-check on the newer Deno
+deno check --unstable-tsgo "src/**/*.ts"   # fast type-check on the newer Deno
 ```
 
 Use `--env local` so the newer version lands in `mise.local.toml` (git-ignored),
@@ -50,14 +50,16 @@ not the tracked `.mise.toml`. A plain `mise use deno@latest` would edit the
 tracked config and move the pinned floor for everyone — the opposite of what you
 want.
 
+(Quote the `"src/**/*.ts"` glob so Deno expands it recursively — an unquoted
+`src/**/*.ts` is expanded by the shell first and misses deeper files.)
+
 Two things to keep in mind, because a newer Deno's type checker differs from the
 pinned one and can disagree with CI:
 
-- **A newer Deno includes `@types/node` by default and ships a newer
-  TypeScript.** That makes some Node globals resolve differently — most
-  notably `setTimeout` returns a `Timeout` object, not a `number`. Type timer
-  handles as `ReturnType<typeof setTimeout>` (not `number`) so the code checks
-  clean on both versions. See `scripts/process.ts` for the pattern.
+- **A newer Deno adopts Node-compatible global timers**, so `setTimeout` returns
+  a `Timeout` object rather than a `number`. Type timer handles as
+  `ReturnType<typeof setTimeout>` (not `number`) so the code checks clean on both
+  the pinned and newer runtimes. See `scripts/process.ts` for the pattern.
 - **The pinned 2.5.6 is the authority.** Before finishing, always run the full
   gate on the pinned version — `mise exec deno@2.5.6 -- deno task precommit` —
   since only that mirrors CI. The newer Deno is for speed while you iterate, not
