@@ -15,7 +15,8 @@ import {
   syncListingPrices,
   syncListingPricesForIds,
 } from "#shared/db/listing-prices.ts";
-import { deleteListing, listingsTable } from "#shared/db/listings.ts";
+import { deleteListing } from "#shared/db/listings/delete.ts";
+import { listingsTable } from "#shared/db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,

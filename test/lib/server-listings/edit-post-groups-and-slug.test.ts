@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getGroupIdsByListingId } from "#shared/db/groups.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,

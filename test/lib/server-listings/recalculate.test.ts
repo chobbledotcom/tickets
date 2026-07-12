@@ -2,10 +2,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import {
-  getListingWithCount,
-  updateListingAggregateValues,
-} from "#shared/db/listings.ts";
+import { updateListingAggregateValues } from "#shared/db/listings/aggregates.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,

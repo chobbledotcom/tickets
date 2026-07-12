@@ -7,17 +7,11 @@ import {
 } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import {
-  MANUAL_LISTING_COST,
-  MANUAL_LISTING_INCOME,
-} from "#shared/accounting/manual-entries.ts";
-import {
   accountBalanceSubquery,
   accountPredicate,
   attendeeOwedSubquery,
   creditsLessWriteoffDebits,
   LEG_COLUMNS,
-  revenueBreakdownColumns,
-  revenueBreakdownScope,
   saleLegPredicate,
   signedSumCase,
 } from "#shared/accounting/projection-sql.ts";
@@ -98,53 +92,6 @@ describe("creditsLessWriteoffDebits", () => {
       "(SELECT COALESCE(SUM(" +
         `CASE WHEN ${credited} THEN amount WHEN ${writtenOff} THEN -amount ELSE 0 END` +
         `), 0) FROM transfers WHERE ${credited} OR ${writtenOff})`,
-    );
-  });
-});
-
-describe("revenueBreakdownColumns", () => {
-  test("emits the six comma-separated conditional-sum columns in order", () => {
-    const credited = `dest_type = '${REVENUE}' AND dest_id = CAST(listing.id AS TEXT)`;
-    const debited = `source_type = '${REVENUE}' AND source_id = CAST(listing.id AS TEXT)`;
-    const col = (where: string, alias: string) =>
-      `COALESCE(SUM(CASE WHEN ${where} THEN amount ELSE 0 END), 0) AS ${alias}`;
-    expect(revenueBreakdownColumns("listing.id")).toBe(
-      [
-        col(`kind = '${KIND.sale}' AND ${credited}`, "gross_sales"),
-        col(
-          `kind = '${MANUAL_LISTING_INCOME}' AND ${credited}`,
-          "external_income",
-        ),
-        col(
-          `kind = '${KIND.adjustment}' AND ${credited} AND source_type = '${WRITEOFF_TYPE}'`,
-          "write_ups",
-        ),
-        col(
-          `kind = '${KIND.adjustment}' AND ${debited} AND dest_type = '${WRITEOFF_TYPE}'`,
-          "write_downs",
-        ),
-        col(`kind = '${KIND.refundSale}' AND ${debited}`, "refunds"),
-        col(`kind = '${MANUAL_LISTING_COST}' AND ${debited}`, "external_costs"),
-      ].join(", "),
-    );
-  });
-
-  test("labels each column with its documented alias", () => {
-    const sql = revenueBreakdownColumns("x");
-    expect(sql).toContain("AS gross_sales");
-    expect(sql).toContain("AS external_income");
-    expect(sql).toContain("AS write_ups");
-    expect(sql).toContain("AS write_downs");
-    expect(sql).toContain("AS refunds");
-    expect(sql).toContain("AS external_costs");
-  });
-});
-
-describe("revenueBreakdownScope", () => {
-  test("matches rows where the revenue account is either leg", () => {
-    expect(revenueBreakdownScope("listing.id")).toBe(
-      `dest_type = '${REVENUE}' AND dest_id = CAST(listing.id AS TEXT)` +
-        ` OR source_type = '${REVENUE}' AND source_id = CAST(listing.id AS TEXT)`,
     );
   });
 });

@@ -224,7 +224,7 @@ describeWithEnv(
       });
 
       const { addMonthsIso } = await import("#shared/dates.ts");
-      const { getAllListings } = await import("#shared/db/listings.ts");
+      const { getAllListings } = await import("#shared/db/listings/records.ts");
       const { insertBuiltSite, builtSites } = await import(
         "#shared/db/built-sites.ts"
       );

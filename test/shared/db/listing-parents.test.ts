@@ -13,7 +13,7 @@ import {
   listingParents,
   type TouchingEdge,
 } from "#shared/db/listing-parents.ts";
-import { deleteListing } from "#shared/db/listings.ts";
+import { deleteListing } from "#shared/db/listings/delete.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

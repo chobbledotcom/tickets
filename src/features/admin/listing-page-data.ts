@@ -12,6 +12,8 @@
 
 import { unique } from "#fp";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
+import { listingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
+import { emptyRange } from "#shared/accounting/range.ts";
 import { resolveRecipientEmails } from "#shared/bulk-email.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatDateLabel } from "#shared/dates.ts";
@@ -28,11 +30,8 @@ import {
   anyNonStandaloneChild,
   getChildrenForParents,
 } from "#shared/db/listing-parents.ts";
-import {
-  getAttendeesByListingIds,
-  getListingAggregateRecalculation,
-  listingRevenueBreakdown,
-} from "#shared/db/listings.ts";
+import { getListingAggregateRecalculation } from "#shared/db/listings/aggregates.ts";
+import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
 import { getAttendeeIdsWithPaymentReference } from "#shared/db/payment-references.ts";
 import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
 import { getListingChoiceAnswerMap } from "#shared/db/questions/attendee-answers/reads.ts";
@@ -202,24 +201,18 @@ export const loadListingOverviewPanel = async (
 ): Promise<JSX.Element> => {
   // Housekeeping the old detail view ran on every load: clear reservations
   // whose payment window lapsed, concurrently with the page's own reads.
-  const [
-    stats,
-    recalc,
-    revenueBreakdown,
-    groupContext,
-    systemNotes,
-    questionData,
-  ] = await Promise.all([
-    getListingOverviewStats(listing),
-    getListingAggregateRecalculation(listing),
-    listingRevenueBreakdown(listing.id),
-    // The Overview tab shows whole-listing totals (no date picker), so the
-    // group cap is the all-dates figure.
-    loadGroupContext(listing, null),
-    loadNotesForListing(listing.id, requireRequestPrivateKey),
-    loadOverviewQuestionData(listing.id),
-    deleteAllStaleReservations(),
-  ]);
+  const [stats, recalc, moneyTotals, groupContext, systemNotes, questionData] =
+    await Promise.all([
+      getListingOverviewStats(listing),
+      getListingAggregateRecalculation(listing),
+      listingMoneyTotals(emptyRange, [listing.id]),
+      // The Overview tab shows whole-listing totals (no date picker), so the
+      // group cap is the all-dates figure.
+      loadGroupContext(listing, null),
+      loadNotesForListing(listing.id, requireRequestPrivateKey),
+      loadOverviewQuestionData(listing.id),
+      deleteAllStaleReservations(),
+    ]);
   const noteNames = await noteAuthorNames(systemNotes);
   return ListingOverviewPanel({
     aggregateRecalculation: recalc,
@@ -231,11 +224,11 @@ export const loadListingOverviewPanel = async (
     listing,
     noteNames,
     ...(questionData !== undefined ? { questionData } : {}),
-    revenueBreakdown,
+    moneyTotals,
     stats: overviewStatsFromDbStats(
       stats,
       listing.attendee_count,
-      revenueBreakdown.grossSales,
+      moneyTotals.grossSales,
       isPaidListing(listing),
     ),
     systemNotes,

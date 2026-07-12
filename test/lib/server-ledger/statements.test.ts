@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
-import { adjustListingIncome } from "#shared/db/listings.ts";
+import { adjustListingIncome } from "#shared/db/listings/aggregates.ts";
 import { account } from "#shared/ledger/account.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -99,7 +99,7 @@ describeWithEnv(
       const html = await response.text();
       expect(html).toContain("Money history");
       // The writeoff singleton renders its label, not a raw "writeoff:default".
-      expect(html).toContain("Write-off");
+      expect(html).toContain("Corrections");
       // The correction's counterparty is the listing's revenue account.
       expect(html).toContain("Adjusted");
     });

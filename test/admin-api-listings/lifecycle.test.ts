@@ -4,7 +4,7 @@ import {
   getListingWithCount,
   invalidateListingsCache,
   listingsTable,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/records.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

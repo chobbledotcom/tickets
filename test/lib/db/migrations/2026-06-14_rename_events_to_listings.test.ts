@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
-import { getAllListings } from "#shared/db/listings.ts";
+import { getAllListings } from "#shared/db/listings/records.ts";
 import {
   initDb,
   renameEventsToListings,

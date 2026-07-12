@@ -4,7 +4,7 @@ import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { execute } from "#shared/db/client.ts";
 import { getGroupIdsByListingId } from "#shared/db/groups.ts";
-import { getAllListings } from "#shared/db/listings.ts";
+import { getAllListings } from "#shared/db/listings/records.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,

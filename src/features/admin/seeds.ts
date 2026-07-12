@@ -8,7 +8,7 @@ import { OWNER_FORM, ownerPage, withAuth } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getFlash } from "#shared/flash-context.ts";
-import { defineForm } from "#shared/forms.tsx";
+import { defineForm } from "#shared/forms/definition.ts";
 import { createSeeds, SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
 import { adminSeedsPage } from "#templates/admin/seeds.tsx";
 /* jscpd:ignore-end */
@@ -50,18 +50,15 @@ const handleSeedsGet: TypedRouteHandler<"GET /admin/seeds"> = ownerPage(
   },
 );
 
-const clamp = (value: number | null, lo: number, hi: number): number =>
-  Math.min(Math.max(lo, value == null || Number.isNaN(value) ? lo : value), hi);
+const clamp = (value: number, lo: number, hi: number): number =>
+  Math.min(Math.max(lo, value), hi);
 
 /** Handle POST /admin/seeds (create seed data) */
 const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = (request) =>
   withAuth(request, OWNER_FORM, async (_session, form) => {
-    const { listing_count, attendees_per_listing } = (
-      seedsForm.validate(form) as {
-        valid: true;
-        values: { attendees_per_listing: number; listing_count: number };
-      }
-    ).values;
+    const parsed = seedsForm.validate(form);
+    if (!parsed.valid) return redirect("/admin/seeds", parsed.error, false);
+    const { listing_count, attendees_per_listing } = parsed.values;
     const listingCount = clamp(listing_count, 1, MAX_SEED_LISTINGS);
     const attendeesPerListing = clamp(
       attendees_per_listing,

@@ -157,6 +157,10 @@ export const sort =
   (array: T[]): T[] =>
     array.toSorted(comparator);
 
+/** Sort strings in ascending locale order without changing the input. */
+export const sortStrings = (array: string[]): string[] =>
+  sort((a: string, b: string) => a.localeCompare(b))(array);
+
 /**
  * Remove duplicate values (by reference/value equality), keeping first
  * occurrences in order. Curried adapter over `@std/collections.distinct`.

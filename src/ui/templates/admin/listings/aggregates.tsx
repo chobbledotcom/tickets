@@ -3,7 +3,7 @@ import { adminPath } from "#shared/admin-surface.ts";
 import type {
   ListingAggregateField,
   ListingAggregateRecalculation,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/aggregates.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { FieldValues } from "#shared/forms.tsx";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";

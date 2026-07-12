@@ -25,7 +25,7 @@ import {
   getListingNamesByIds,
   getStoredListingWithCount,
   listingsTable,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/records.ts";
 import type { AdminLevel } from "#shared/types.ts";
 import { withGroupOrNull } from "../find-group.ts";
 import { getListingGroupMemberships } from "./membership.ts";

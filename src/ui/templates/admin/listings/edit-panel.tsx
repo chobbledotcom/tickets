@@ -1,7 +1,7 @@
 import { map } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
-import type { ListingAggregateRecalculation } from "#shared/db/listings.ts";
+import type { ListingAggregateRecalculation } from "#shared/db/listings/aggregates.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { inferTemplate } from "#shared/listing-templates.ts";
 import { isStorageEnabled } from "#shared/storage.ts";

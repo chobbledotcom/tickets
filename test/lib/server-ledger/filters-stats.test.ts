@@ -19,7 +19,7 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
     const html = await response.text();
     // The by-listing filter offers the whole-business "All listings" scope, and
     // the four business-wide totals render beneath it (no scope heading — the
-    // page is already titled "Ledger").
+    // page is already titled "Money history").
     expect(html).toContain("Everything");
     expect(html).not.toContain("<h2>Everything</h2>");
     expect(html).toContain("Total income earned");
@@ -37,7 +37,7 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
     await seededSale("Workshop", 2500);
     const response = await adminGet("/admin/ledger?from=2026-06-22");
     const html = await response.text();
-    expect(html).toContain("No transfers recorded yet");
+    expect(html).toContain("No money changes yet.");
     // Income stat falls to zero outside the window.
     expect(html).toContain("Total income");
   });
@@ -176,7 +176,7 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
     const response = await adminGet(`/admin/ledger?group=${group.id}`);
     const html = await response.text();
     expect(html).toContain("<h2>Empty group</h2>");
-    expect(html).toContain("No transfers recorded yet");
+    expect(html).toContain("No money changes yet.");
   });
 
   test("lists every listing in the by-listing select, name-sorted", async () => {
@@ -206,6 +206,57 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
     // Falls back to the business-wide totals rather than a listing breakdown.
     expect(html).toContain("Total income");
     expect(html).not.toContain("Gross ticket sales");
+  });
+
+  test("a valid listing takes precedence over a valid group", async () => {
+    const listing = await seededSale("Priority recital", 2500);
+    const grouped = await seededSale("Grouped recital", 3500);
+    const group = await createTestGroup({ name: "Recital package" });
+    await assignListingsToGroup([grouped.listingId], group.id);
+
+    const response = await adminGet(
+      `/admin/ledger?listing=${listing.listingId}&group=${group.id}`,
+    );
+    const html = await response.text();
+
+    expect(html).toContain("<h2>Priority recital</h2>");
+    expect(html).toContain("+£25");
+    expect(html).not.toContain("+£35");
+    expect(html).toContain(
+      `<option selected value="/admin/ledger?listing=${listing.listingId}">Priority recital</option>`,
+    );
+  });
+
+  test("a valid group is used when the listing is unknown", async () => {
+    const grouped = await seededSale("Fallback recital", 3500);
+    const group = await createTestGroup({ name: "Fallback package" });
+    await assignListingsToGroup([grouped.listingId], group.id);
+
+    const response = await adminGet(
+      `/admin/ledger?listing=999999&group=${group.id}`,
+    );
+    const html = await response.text();
+
+    expect(html).toContain("<h2>Fallback package</h2>");
+    expect(html).toContain("+£35");
+    expect(html).toContain(
+      `<option selected value="/admin/ledger?group=${group.id}">Fallback package</option>`,
+    );
+  });
+
+  test("an unknown positive group id falls back to the whole ledger", async () => {
+    await seededSale("Whole ledger recital", 2500);
+
+    const response = await adminGet("/admin/ledger?group=999999");
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain("Total income earned");
+    expect(html).toContain("+£25");
+    expect(html).not.toContain("Gross ticket sales");
+    expect(html).toContain(
+      '<option selected value="/admin/ledger">Everything</option>',
+    );
   });
 
   test("ignores malformed from/to/listing/month params", async () => {

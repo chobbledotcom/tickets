@@ -26,7 +26,7 @@ import {
   getAllListings,
   getListingsById,
   getListingWithCount,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/records.ts";
 import {
   childOnlyAddOnName,
   childOnlyAddOnNameForListings,

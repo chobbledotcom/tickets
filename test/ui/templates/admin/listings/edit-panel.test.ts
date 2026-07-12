@@ -176,12 +176,11 @@ describe("adminListingEditPage form sections", () => {
     const html = String(
       ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
     );
-    // Income correction is restored as a dedicated warned form that posts a
-    // writeoff adjustment to the money ledger, kept apart from the counts override.
+    // Income correction stays in a dedicated warned form, apart from counts.
     expect(html).toContain("<h2>Adjust income</h2>");
     expect(html).toContain(`action="/admin/listing/${listing.id}/income"`);
     expect(html).toContain('name="income"');
-    expect(html).toContain("correcting entry to the money ledger");
+    expect(html).toContain("This adds a correction to Money history.");
   });
 
   test("links from the income form to the detail page's money breakdown", () => {

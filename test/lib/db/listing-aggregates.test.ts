@@ -5,14 +5,14 @@ import { ATTENDEE_LISTING_CONTRIBUTIONS_SQL } from "#shared/db/attendees/delete.
 import { getDb } from "#shared/db/client.ts";
 import {
   adjustListingIncome,
-  aggregateResetSql,
   getListingAggregateRecalculation,
-  getListingWithCount,
-  invalidateListingsCache,
-  LISTING_AGGREGATE_RECALC_SQL,
   resetListingAggregateFields,
   updateListingAggregateValues,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/aggregates.ts";
+import {
+  getListingWithCount,
+  invalidateListingsCache,
+} from "#shared/db/listings/records.ts";
 import {
   LISTING_AGGREGATE_WRITE_COLUMNS,
   TICKET_COUNTS_PREDICATE,
@@ -54,14 +54,12 @@ describe("tickets_count shared predicate guard", () => {
   // tickets_count must count only quantity > 0 rows. The predicate lives in one
   // place (TICKET_COUNTS_PREDICATE); every site that computes tickets_count must
   // reference it, or the recalculate/repair flow would fight the triggers. This
-  // asserts the shared predicate appears at every site (incl. both listings.ts
-  // queries), so a future edit can't silently drop it from one of them.
+  // asserts the shared predicate appears in the exported schema SQL. Listing
+  // recalculation and reset behavior are covered through their public methods.
   const ticketCountSites: [name: string, sql: string][] = [
     ...TRIGGERS.filter((t) =>
       t.name.startsWith("trg_listing_attendees_aggregates_"),
     ).map((t): [string, string] => [t.name, t.sql]),
-    ["aggregateResetSql.tickets_count", aggregateResetSql.tickets_count],
-    ["getListingAggregateRecalculation", LISTING_AGGREGATE_RECALC_SQL],
     ["backfillListingAggregates", BACKFILL_LISTING_AGGREGATES_SQL],
     ["attendeeListingContributions", ATTENDEE_LISTING_CONTRIBUTIONS_SQL],
   ];
@@ -71,15 +69,6 @@ describe("tickets_count shared predicate guard", () => {
       expect(sql).toContain(TICKET_COUNTS_PREDICATE);
     });
   }
-
-  test("the booked_quantity reset fragment does NOT filter on quantity", () => {
-    // Capacity (booked_quantity = SUM(quantity)) must count quantity-0 rows too —
-    // adding the predicate there would drop a ghost line from capacity. Income is
-    // no longer a reset fragment (it projects from the transfers ledger).
-    expect(aggregateResetSql.booked_quantity).not.toContain(
-      TICKET_COUNTS_PREDICATE,
-    );
-  });
 });
 
 /**

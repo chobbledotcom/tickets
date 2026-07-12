@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { getListing } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import { assertJson, fetchListingExportCsv } from "#test-utils/assertions.ts";
@@ -86,7 +86,7 @@ describeWithEnv("e2e: multi-day bookings — API & HTTP", { db: true }, () => {
         201,
       );
       expect(high.listing.duration_days).toBe(MAX_DURATION_DAYS);
-      const stored = await getListing(high.listing.id);
+      const stored = await getListingWithCount(high.listing.id);
       expect(stored?.duration_days).toBe(MAX_DURATION_DAYS);
       await assertJson(
         apiRequest("/api/admin/listings", {

@@ -1,11 +1,10 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import type { ListingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import {
-  GroupAttendeesPanel,
-  GroupEditPanel,
-  GroupOverviewPanel,
-} from "#templates/admin/groups.tsx";
+import { GroupAttendeesPanel } from "#templates/admin/groups/attendees.tsx";
+import { GroupEditPanel } from "#templates/admin/groups/form.tsx";
+import { GroupOverviewPanel } from "#templates/admin/groups/overview.tsx";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
   testAttendee,
@@ -16,6 +15,21 @@ import {
 beforeAll(async () => {
   setupTestEncryptionKey();
   await signCsrfToken();
+});
+
+const moneyTotals = (
+  overrides: Partial<ListingMoneyTotals> = {},
+): ListingMoneyTotals => ({
+  externalCosts: 0,
+  externalIncome: 0,
+  grossSales: 0,
+  manualAdjustments: 0,
+  netBalance: 0,
+  recognisedIncome: 0,
+  refunds: 0,
+  servicingCosts: 0,
+  transferCount: 0,
+  ...overrides,
 });
 
 /** Render the Overview panel with sensible defaults for the fields a given test
@@ -31,14 +45,7 @@ const overviewHtml = (
       attendees: [],
       hasPaidListing: false,
       listings: [],
-      money: {
-        externalCosts: 0,
-        grossSales: 0,
-        income: 0,
-        refunds: 0,
-        servicingCosts: 0,
-        transferCount: 0,
-      },
+      money: moneyTotals(),
       shareable: true,
       ungroupedListings: [],
       ...overrides,
@@ -146,23 +153,24 @@ describe("GroupOverviewPanel", () => {
         testListingWithCount({ cost: 3000, income: 12000, profit: 9000 }),
         testListingWithCount({ cost: 1000, income: 8000, profit: 7000 }),
       ],
-      money: {
-        externalCosts: 0,
+      money: moneyTotals({
         grossSales: 20000,
-        income: 20000,
-        refunds: 0,
+        netBalance: 20000,
+        recognisedIncome: 20000,
         servicingCosts: 4000,
         transferCount: 3,
-      },
+      }),
     });
     expect(html).toContain("Money in and out");
     expect(html).toContain("Total income earned");
     expect(html).toContain("+£200");
-    expect(html).toContain("Servicing costs");
+    expect(html).toContain("Service event costs");
     expect(html).toContain("−£40");
     expect(html).toContain("Net after refunds and costs");
     expect(html).toContain("£160");
     expect(html).toContain('href="/admin/ledger?group=8"');
+    expect(html).toContain("View group money history");
+    expect(html).toContain("View every change in the group's money history.");
   });
 
   test("does not offer a forbidden ledger link without owner access", () => {
@@ -170,14 +178,12 @@ describe("GroupOverviewPanel", () => {
       group: testGroup({ id: 8 }),
       hasPaidListing: true,
       listings: [testListingWithCount({ income: 12000 })],
-      money: {
-        externalCosts: 0,
+      money: moneyTotals({
         grossSales: 12000,
-        income: 12000,
-        refunds: 0,
-        servicingCosts: 0,
+        netBalance: 12000,
+        recognisedIncome: 12000,
         transferCount: 1,
-      },
+      }),
     });
     expect(html).toContain("Total income earned");
     expect(html).not.toContain("/admin/ledger?group=8");
@@ -189,17 +195,13 @@ describe("GroupOverviewPanel", () => {
       hasPaidListing: false,
       ledgerHref: "/admin/ledger?group=8",
       listings: [testListingWithCount({ cost: 3000, profit: -3000 })],
-      money: {
-        externalCosts: 0,
-        grossSales: 0,
-        income: 0,
-        refunds: 0,
+      money: moneyTotals({
         servicingCosts: 3000,
         transferCount: 1,
-      },
+      }),
     });
     expect(html).toContain("Money in and out");
-    expect(html).toContain("Servicing costs");
+    expect(html).toContain("Service event costs");
     expect(html).toContain("−£30");
     expect(html).toContain('href="/admin/ledger?group=8"');
   });
@@ -209,14 +211,11 @@ describe("GroupOverviewPanel", () => {
       group: testGroup({ id: 8 }),
       hasPaidListing: false,
       ledgerHref: "/admin/ledger?group=8",
-      money: {
+      money: moneyTotals({
         externalCosts: 3000,
-        grossSales: 0,
-        income: 0,
-        refunds: 0,
-        servicingCosts: 0,
+        netBalance: -3000,
         transferCount: 1,
-      },
+      }),
     });
     expect(html).toContain("Money in and out");
     expect(html).toContain("Costs paid outside checkout");

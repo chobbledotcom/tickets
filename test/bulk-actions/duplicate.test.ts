@@ -11,7 +11,7 @@ import {
   getAllListings,
   getListingWithCount,
   getStoredListingWithCount,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

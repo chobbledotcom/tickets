@@ -332,7 +332,7 @@ describeWithEnv(
         .attendees[0]!.id;
       // Deleting the parent removes only ITS rows; the child row keeps the
       // stale parent id, so the label falls back to the id.
-      const { deleteListing } = await import("#shared/db/listings.ts");
+      const { deleteListing } = await import("#shared/db/listings/delete.ts");
       await deleteListing(parent.id);
 
       const html = await (

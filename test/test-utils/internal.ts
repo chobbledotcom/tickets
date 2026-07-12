@@ -126,6 +126,6 @@ export type SessionMetadata = import("#shared/payments.ts").SessionMetadata;
 export type { BuiltSiteFormInput } from "#shared/db/built-sites.ts";
 export type { GroupInput } from "#shared/db/groups.ts";
 export type { HolidayInput } from "#shared/db/holidays.ts";
-export type { ListingInput } from "#shared/db/listings.ts";
+export type { ListingInput } from "#shared/db/listings/table.ts";
 export type { EmailEntry, EmailListing } from "#shared/email.ts";
 export type { WebhookAttendee } from "#shared/webhook.ts";

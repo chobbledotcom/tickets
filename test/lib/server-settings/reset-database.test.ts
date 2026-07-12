@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { imagesTable } from "#shared/db/images.ts";
-import { listingsTable } from "#shared/db/listings.ts";
+import { listingsTable } from "#shared/db/listings/records.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import {

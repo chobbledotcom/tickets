@@ -14,10 +14,8 @@ import { htmlResponse } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
 import { getAttendee } from "#shared/db/attendees/queries.ts";
-import {
-  getListingWithAttendeeRaw,
-  getListingWithCount,
-} from "#shared/db/listings.ts";
+import { getListingWithAttendeeRaw } from "#shared/db/listings/attendees.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type {

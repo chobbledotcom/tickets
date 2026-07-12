@@ -158,7 +158,7 @@ describeWithEnv(
         );
         await updateCheckedIn(attendee.id, listing.id, true);
         const { invalidateListingsCache } = await import(
-          "#shared/db/listings.ts"
+          "#shared/db/listings/records.ts"
         );
         invalidateListingsCache();
         const response = await adminGet(`/admin/attendees/${attendee.id}`);

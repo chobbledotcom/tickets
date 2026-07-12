@@ -57,6 +57,8 @@ export type ConfirmPageProps = {
   /** A `<Raw html={t(...)}/>` paragraph — usually the "this will delete X"
    *  warning rendered through t() so it can interpolate HTML. */
   confirm?: TCall;
+  /** A plain-text note between the confirmation and prompt. */
+  note?: TCall;
   /** A plain-text confirm prompt paragraph (e.g. "Type the name to confirm"). */
   prompt?: TCall;
   /** Page-specific body inside the ConfirmForm, rendered after the
@@ -82,6 +84,7 @@ export const ConfirmPage = ({
   warning,
   heading,
   confirm,
+  note,
   prompt,
   children,
 }: ConfirmPageProps): string =>
@@ -107,6 +110,7 @@ export const ConfirmPage = ({
             <Raw html={t(confirm.key, confirm.args)} />
           </p>
         )}
+        {note && <p>{t(note.key, note.args)}</p>}
         {prompt && <p>{t(prompt.key, prompt.args)}</p>}
         {children}
       </ConfirmForm>

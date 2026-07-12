@@ -6,7 +6,7 @@ import { signAttachmentUrl } from "#shared/attachment-url.ts";
 import { encryptBytes } from "#shared/crypto/encryption.ts";
 import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
-import { listingsTable } from "#shared/db/listings.ts";
+import { listingsTable } from "#shared/db/listings/records.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";

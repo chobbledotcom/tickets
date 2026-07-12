@@ -6,7 +6,7 @@ import { getDb, queryOne } from "#shared/db/client.ts";
 import {
   getListingWithCount,
   invalidateListingsCache,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/records.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { getAllModifiers, modifiersTable } from "#shared/db/modifiers.ts";
 import {

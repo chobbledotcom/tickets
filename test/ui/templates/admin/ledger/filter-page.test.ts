@@ -12,8 +12,7 @@ describe("adminLedgerPage", () => {
   const NO_FILTERS: LedgerFilterState = {
     from: null,
     fromMonth: null,
-    groupId: null,
-    listingId: null,
+    scope: { kind: "all" },
     to: null,
     toMonth: null,
     view: "human",
@@ -38,17 +37,18 @@ describe("adminLedgerPage", () => {
     ...overrides,
   });
 
-  test("renders the Ledger heading, nav, stats, filters, and the plain-language transfer list", () => {
+  test("renders the money history heading, nav, stats, filters, and simple list", () => {
     const html = adminLedgerPage(pageData(), SESSION);
-    expect(html).toContain("Ledger");
+    expect(html).toContain("Money history");
     expect(html).toContain('href="/admin/ledger"');
     expect(html).toContain("<th>Activity</th>");
-    expect(html).toContain("Plain-language log");
-    expect(html).toContain("Double-entry view");
-    expect(html).toContain("Transfer from");
-    // The stats table renders; the whole-business view carries no scope heading
-    // (the page is already titled "Ledger").
-    expect(html).not.toContain("<h2>All listings</h2>");
+    expect(html).toContain("Simple view");
+    expect(html).toContain("Detailed view");
+    expect(html).toContain("Money moved from");
+    // The whole-business scope is selected and keeps an unscoped URL.
+    expect(html).toContain(
+      '<option selected value="/admin/ledger">Everything</option>',
+    );
     expect(html).toContain("Total income");
     expect(html).toContain("£25.00");
     // Both range pickers render with unique anchor ids.
@@ -71,19 +71,24 @@ describe("adminLedgerPage", () => {
     expect(html).toContain("<h2>Summer Concert</h2>");
   });
 
-  test("can switch to the double-entry transfer list", () => {
+  test("can switch to the detailed money-change list", () => {
     const html = adminLedgerPage(
       pageData({ filters: { ...NO_FILTERS, view: "dual" } }),
       SESSION,
     );
-    expect(html).toContain("<th>From → To</th>");
-    expect(html).toContain('href="/admin/ledger">Plain-language log</a>');
-    expect(html).toContain("<strong>Double-entry view</strong>");
+    expect(html).toContain("<th>Money moved</th>");
+    expect(html).toContain('href="/admin/ledger">Simple view</a>');
+    expect(html).toContain("<strong>Detailed view</strong>");
   });
 
   test("preselects the chosen listing in the by-listing select", () => {
     const html = adminLedgerPage(
-      pageData({ filters: { ...NO_FILTERS, listingId: 1 } }),
+      pageData({
+        filters: {
+          ...NO_FILTERS,
+          scope: { id: 1, kind: "listing", name: "Summer Concert" },
+        },
+      }),
       SESSION,
     );
     // The listing option carries `selected`; its value scopes the URL to it.
@@ -95,7 +100,10 @@ describe("adminLedgerPage", () => {
   test("preselects a group and keeps its ledger scope in links", () => {
     const html = adminLedgerPage(
       pageData({
-        filters: { ...NO_FILTERS, groupId: 2 },
+        filters: {
+          ...NO_FILTERS,
+          scope: { id: 2, kind: "group", name: "Festival package" },
+        },
         statsHeading: "Festival package",
       }),
       SESSION,
@@ -109,7 +117,11 @@ describe("adminLedgerPage", () => {
   test("day links carry the from/to filters and the other side's state", () => {
     const html = adminLedgerPage(
       pageData({
-        filters: { ...NO_FILTERS, from: "2026-06-20", listingId: 1 },
+        filters: {
+          ...NO_FILTERS,
+          from: "2026-06-20",
+          scope: { id: 1, kind: "listing", name: "Summer Concert" },
+        },
       }),
       SESSION,
     );
@@ -126,7 +138,7 @@ describe("adminLedgerPage", () => {
           ...NO_FILTERS,
           from: "2026-06-20",
           fromMonth: "2026-05",
-          listingId: 1,
+          scope: { id: 1, kind: "listing", name: "Summer Concert" },
           to: "2026-06-22",
           toMonth: "2026-07",
           view: "dual",
@@ -143,8 +155,8 @@ describe("adminLedgerPage", () => {
 
   test("surfaces the 'showing recent' note only when truncated", () => {
     const shown = adminLedgerPage(pageData({ truncated: true }), SESSION);
-    expect(shown).toContain("Showing the most recent 500 transfers");
+    expect(shown).toContain("Showing the 500 most recent money changes.");
     const all = adminLedgerPage(pageData({ truncated: false }), SESSION);
-    expect(all).not.toContain("Showing the most recent 500 transfers");
+    expect(all).not.toContain("Showing the 500 most recent money changes.");
   });
 });

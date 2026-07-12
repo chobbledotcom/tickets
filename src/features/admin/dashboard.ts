@@ -30,7 +30,10 @@ import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
-import { getAllListings, getListingNamesByIds } from "#shared/db/listings.ts";
+import {
+  getAllListings,
+  getListingNamesByIds,
+} from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import {

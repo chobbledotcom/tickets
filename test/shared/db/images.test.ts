@@ -14,7 +14,7 @@ import {
   setImagesForItem,
   setItemsForImage,
 } from "#shared/db/images.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import type { Image } from "#shared/types.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

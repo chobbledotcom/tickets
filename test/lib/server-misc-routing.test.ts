@@ -843,7 +843,7 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
     test("rethrows unhandled errors in test mode", async () => {
       const { getDb: getDbFn } = await import("#shared/db/client.ts");
       const { invalidateListingsCache } = await import(
-        "#shared/db/listings.ts"
+        "#shared/db/listings/records.ts"
       );
       const { settings: s } = await import("#shared/db/settings.ts");
       const db = getDbFn();

@@ -27,7 +27,7 @@ import {
   resetGroupListings,
   setGroupPackageMembers,
 } from "#shared/db/groups.ts";
-import { updateListingAggregateValues } from "#shared/db/listings.ts";
+import { updateListingAggregateValues } from "#shared/db/listings/aggregates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

@@ -25,7 +25,7 @@ import { errorRedirect, redirect } from "#routes/response.ts";
 import { addDays, formatDateLabel } from "#shared/dates.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getAttendeesByIds } from "#shared/db/attendees/queries.ts";
-import { getAllListings } from "#shared/db/listings.ts";
+import { getAllListings } from "#shared/db/listings/records.ts";
 import {
   type AgentRunLeg,
   getAgentRunSheet,

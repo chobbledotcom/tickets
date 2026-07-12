@@ -22,7 +22,7 @@ import {
   getApiKeyForUser,
   getApiKeysForUser,
 } from "#shared/db/api-keys.ts";
-import { defineForm } from "#shared/forms.tsx";
+import { defineForm } from "#shared/forms/definition.ts";
 import type { AdminSession } from "#shared/types.ts";
 import {
   adminApiDocsPage,

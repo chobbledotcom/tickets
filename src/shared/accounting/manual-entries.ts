@@ -65,6 +65,8 @@ type TransferLegs = Pick<TransferInput, "source" | "destination">;
 
 type ManualEntrySpec = {
   readonly accountType: string;
+  readonly amountSign: 1 | -1;
+  readonly eventKey: string;
   readonly labelKey: string;
   readonly hintKey: string;
   readonly descriptionKey: string;
@@ -95,49 +97,63 @@ export const manualEntrySpecByType: Record<
 > = {
   [MANUAL_ATTENDEE_PAYMENT]: {
     accountType: "attendee",
+    amountSign: 1,
     descriptionKey: "admin.ledger.human.manual_attendee_payment",
+    eventKey: "admin.ledger.event.manual_attendee_payment",
     hintKey: "admin.ledger.add.option.attendee_payment.hint",
     labelKey: "admin.ledger.add.option.attendee_payment.label",
     legs: moneyInto(WORLD),
   },
   [MANUAL_ATTENDEE_CHARGE]: {
     accountType: "attendee",
+    amountSign: 1,
     descriptionKey: "admin.ledger.human.manual_attendee_charge",
+    eventKey: "admin.ledger.event.manual_attendee_charge",
     hintKey: "admin.ledger.add.option.attendee_charge.hint",
     labelKey: "admin.ledger.add.option.attendee_charge.label",
     legs: moneyOutOf(WRITEOFF),
   },
   [MANUAL_ATTENDEE_WRITEOFF]: {
     accountType: "attendee",
+    amountSign: -1,
     descriptionKey: "admin.ledger.human.manual_attendee_writeoff",
+    eventKey: "admin.ledger.event.manual_attendee_writeoff",
     hintKey: "admin.ledger.add.option.attendee_writeoff.hint",
     labelKey: "admin.ledger.add.option.attendee_writeoff.label",
     legs: moneyInto(WRITEOFF),
   },
   [MANUAL_LISTING_INCOME]: {
     accountType: "revenue",
+    amountSign: 1,
     descriptionKey: "admin.ledger.human.manual_listing_income",
+    eventKey: "admin.ledger.event.manual_listing_income",
     hintKey: "admin.ledger.add.option.listing_income.hint",
     labelKey: "admin.ledger.add.option.listing_income.label",
     legs: moneyInto(WORLD),
   },
   [MANUAL_LISTING_COST]: {
     accountType: "revenue",
+    amountSign: -1,
     descriptionKey: "admin.ledger.human.manual_listing_cost",
+    eventKey: "admin.ledger.event.manual_listing_cost",
     hintKey: "admin.ledger.add.option.listing_cost.hint",
     labelKey: "admin.ledger.add.option.listing_cost.label",
     legs: moneyOutOf(WORLD),
   },
   [MANUAL_MODIFIER_INCOME]: {
     accountType: "modifier",
+    amountSign: 1,
     descriptionKey: "admin.ledger.human.manual_modifier_income",
+    eventKey: "admin.ledger.event.manual_modifier_income",
     hintKey: "admin.ledger.add.option.modifier_income.hint",
     labelKey: "admin.ledger.add.option.modifier_income.label",
     legs: moneyInto(WRITEOFF),
   },
   [MANUAL_MODIFIER_REDUCTION]: {
     accountType: "modifier",
+    amountSign: -1,
     descriptionKey: "admin.ledger.human.manual_modifier_reduction",
+    eventKey: "admin.ledger.event.manual_modifier_reduction",
     hintKey: "admin.ledger.add.option.modifier_reduction.hint",
     labelKey: "admin.ledger.add.option.modifier_reduction.label",
     legs: moneyOutOf(WRITEOFF),

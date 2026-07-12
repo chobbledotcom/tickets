@@ -10,7 +10,7 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  *   - listings-lifecycle.ts   deactivate / reactivate / delete / log
  */
 
-import { getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { createItemImageHandlers } from "./item-images.ts";
 import { listingPage } from "./listing-page.ts";
 import {

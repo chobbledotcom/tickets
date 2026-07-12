@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
-import { listingsTable } from "#shared/db/listings.ts";
+import { listingsTable } from "#shared/db/listings/records.ts";
 import { setLogisticsAssignments } from "#shared/db/logistics.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";

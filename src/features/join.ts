@@ -16,7 +16,7 @@ import {
   getUserByInviteCode,
   isInviteValid,
 } from "#shared/db/users.ts";
-import { defineForm } from "#shared/forms.tsx";
+import { defineForm } from "#shared/forms/definition.ts";
 import type { User } from "#shared/types.ts";
 import { joinCompletePage, joinErrorPage, joinPage } from "#templates/join.tsx";
 

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { getAllListings } from "#shared/db/listings.ts";
+import { getAllListings } from "#shared/db/listings/records.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

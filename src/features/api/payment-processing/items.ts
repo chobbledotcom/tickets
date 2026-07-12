@@ -23,7 +23,7 @@ import type {
 import { isRegistrationClosed } from "#routes/format.ts";
 import { lineGroupId, lineGroupIds } from "#shared/booking/signed-metadata.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { resolveNamesConcealed } from "#shared/package-privacy.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 

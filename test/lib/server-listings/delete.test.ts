@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { getListing } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
   assertAdminHtml,
   expectFlash,
@@ -146,7 +146,7 @@ describeWithEnv("server listings > delete", { db: true }, () => {
       await expectFlashRedirect("/admin", "Listing deleted")(response);
 
       // Verify listing was deleted
-      const deletedListing = await getListing(1);
+      const deletedListing = await getListingWithCount(1);
       expect(deletedListing).toBeNull();
     });
 
@@ -190,7 +190,7 @@ describeWithEnv("server listings > delete", { db: true }, () => {
 
       // The listing is gone and no attendees remain linked to it (the attendee
       // rows themselves are orphaned, not purged).
-      const deleted = await getListing(listing.id);
+      const deleted = await getListingWithCount(listing.id);
       expect(deleted).toBeNull();
 
       const attendees = await getAttendeesRaw(listing.id);
@@ -211,7 +211,7 @@ describeWithEnv("server listings > delete", { db: true }, () => {
       expect(response.status).toBe(302);
 
       // Verify listing was deleted
-      const listing = await getListing(1);
+      const listing = await getListingWithCount(1);
       expect(listing).toBeNull();
     });
 
@@ -250,7 +250,7 @@ describeWithEnv("server listings > delete", { db: true }, () => {
       expect(response.status).toBe(302);
 
       // Verify listing was deleted
-      const listing = await getListing(1);
+      const listing = await getListingWithCount(1);
       expect(listing).toBeNull();
     });
   });
@@ -273,7 +273,7 @@ describeWithEnv("server listings > delete", { db: true }, () => {
       );
       await expectFlashRedirect("/admin", "Listing deleted")(response);
 
-      const deleted = await getListing(listing.id);
+      const deleted = await getListingWithCount(listing.id);
       expect(deleted).toBeNull();
     });
   });
@@ -299,7 +299,7 @@ describeWithEnv("server listings > delete", { db: true }, () => {
       expect(response.status).toBe(302);
 
       // Verify both listing and attendees deleted
-      expect(await getListing(listing.id)).toBeNull();
+      expect(await getListingWithCount(listing.id)).toBeNull();
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
   });

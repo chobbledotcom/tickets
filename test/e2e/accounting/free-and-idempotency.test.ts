@@ -153,7 +153,7 @@ describeAccounting(() => {
       ).response;
     const expectAdjusted = expectFlashRedirect(
       `/admin/listing/${listing.id}/edit`,
-      "Listing income adjusted",
+      "Listing income corrected.",
     );
     await expectAdjusted(await adjustIncome());
     await expectAdjusted(await adjustIncome());
@@ -190,7 +190,7 @@ describeAccounting(() => {
     // all five reconciliation rows carry distinct, non-zero figures.
     await expectFlashRedirect(
       `/admin/listing/${listing.id}/edit`,
-      "Listing income adjusted",
+      "Listing income corrected.",
     )(
       (
         await adminFormPost(`/admin/listing/${listing.id}/income`, {
@@ -212,7 +212,7 @@ describeAccounting(() => {
     expect(article).toContain("Money in and out");
     expect(article).toContain("Gross ticket sales");
     expect(article).toContain(signedCurrency(5000)); // +£50 gross sales
-    expect(article).toContain("Manual adjustments");
+    expect(article).toContain("Income corrections");
     expect(article).toContain(signedCurrency(-1000)); // −£10 write-down
     expect(article).toContain("Total income earned");
     expect(article).toContain(formatCurrency(4000)); // £40 recognised

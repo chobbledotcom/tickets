@@ -29,7 +29,7 @@ import { targetQuery } from "#shared/bulk-email-targets.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import {
   isContentRole,
-  isOwner,
+  isOwnerRole,
   isPaidListing,
   isStaffRole,
 } from "#shared/types.ts";
@@ -89,7 +89,7 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
     // 404s for a listing target with zero recipients, so a link without
     // emailable attendees would be a dead link (AGENTS.md: never render one).
     visible: (entity, session) =>
-      session.adminLevel === "owner" && entity.hasEmailableAttendees,
+      isOwnerRole(session.adminLevel) && entity.hasEmailableAttendees,
   },
   {
     danger: true,
@@ -136,7 +136,7 @@ const overviewTab: TabDef<LoadedListing> = {
     {
       kind: "custom",
       load: (entity, ctx) =>
-        loadListingOverviewPanel(entity, isOwner(ctx.session)),
+        loadListingOverviewPanel(entity, isOwnerRole(ctx.session.adminLevel)),
     },
     {
       kind: "activity",
@@ -158,7 +158,7 @@ const ownerWriteTab = (
   labelKey,
   sections: [{ kind: "custom", load }],
   slug,
-  visible: (_entity, session) => session.adminLevel === "owner",
+  visible: (_entity, session) => isOwnerRole(session.adminLevel),
 });
 
 /** The tabbed listing page. */
@@ -262,7 +262,7 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
           // Actions tab renders, instead of on every tab's page load. Owner-only
           // (the sole role that sees Email); other staff skip the decrypt.
           prepare: async (entity, ctx) =>
-            ctx.session.adminLevel === "owner"
+            isOwnerRole(ctx.session.adminLevel)
               ? {
                   ...entity,
                   hasEmailableAttendees: await listingHasEmailableAttendees(

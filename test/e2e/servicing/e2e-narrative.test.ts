@@ -35,7 +35,7 @@ const DAILY_ROOM_A = {
 
 const costListingIdFromForm = (html: string): string => {
   const match = html.match(
-    /<select name="target_listing_id">[\s\S]*?<option value="(\d+)"/,
+    /<select name="target_listing_id"[^>]*>[\s\S]*?<option value="(\d+)"/,
   );
   if (!match) throw new Error("no cost target listing in servicing form");
   return match[1]!;
@@ -130,7 +130,7 @@ describe("e2e: servicing — narrative scenarios", () => {
         memo: "Boiler part",
         target_listing_id: costListingIdFromForm(browser.currentHtml),
       },
-      "Record Cost",
+      "Record service event cost",
     );
     expect(browser.containsText("90")).toBe(true);
   });

@@ -105,7 +105,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     const { createAttendeeAtomic } = await import(
       "#shared/db/attendees/api.ts"
     );
-    const { listingsTable } = await import("#shared/db/listings.ts");
+    const { listingsTable } = await import("#shared/db/listings/records.ts");
     const dateA = bookingDate();
     await listingsTable.update(tent.id, { maxAttendees: 1 });
     const fill = await createAttendeeAtomic({

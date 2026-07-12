@@ -3,11 +3,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import {
   getAllListings,
-  getListing,
   getListingWithCount,
   isSlugTaken,
   listingsTable,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -80,18 +79,18 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       expect(listings[1]?.attendee_count).toBe(0);
     });
 
-    test("getListing returns null for missing listing", async () => {
-      const listing = await getListing(999);
+    test("getListingWithCount returns null for missing listing", async () => {
+      const listing = await getListingWithCount(999);
       expect(listing).toBeNull();
     });
 
-    test("getListing returns listing by id", async () => {
+    test("getListingWithCount returns listing by id", async () => {
       const created = await createTestListing({
         maxAttendees: 50,
         name: "Fetch Test",
         thankYouUrl: "https://example.com",
       });
-      const fetched = await getListing(created.id);
+      const fetched = await getListingWithCount(created.id);
 
       expect(fetched).not.toBeNull();
       expect(fetched?.name).toBe("Fetch Test");

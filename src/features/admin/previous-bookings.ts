@@ -10,7 +10,7 @@ import {
 } from "#shared/db/attendees/tokens.ts";
 import { hashEmail, hashPhone } from "#shared/db/contact-preferences.ts";
 import { getRecentBookingTokens } from "#shared/db/contact-tokens.ts";
-import { getListingNamesByIds } from "#shared/db/listings.ts";
+import { getListingNamesByIds } from "#shared/db/listings/records.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
 import type { PreviousBooking } from "#templates/admin/attendee-page.tsx";

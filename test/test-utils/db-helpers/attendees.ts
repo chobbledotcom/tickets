@@ -5,7 +5,7 @@ import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { ensureAllBookings } from "#shared/db/attendees/create.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import type { ListingInput } from "#shared/db/listings.ts";
+import type { ListingInput } from "#shared/db/listings/table.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { createDailyTestListing, createTestListing } from "./listings.ts";

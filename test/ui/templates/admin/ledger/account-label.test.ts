@@ -1,82 +1,86 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { account } from "#shared/ledger/account.ts";
-import { resolveAccountLabel } from "#templates/admin/ledger.tsx";
 
-import { names } from "./helpers.ts";
+import { names, renderLedger, transfer } from "./helpers.ts";
 
-describe("resolveAccountLabel", () => {
-  test("names singleton accounts from i18n with no link", () => {
-    expect(resolveAccountLabel(account("external", "world"), names())).toEqual({
-      text: "Card / bank",
-    });
-    expect(
-      resolveAccountLabel(account("fee_income", "booking"), names()),
-    ).toEqual({ text: "Booking fees" });
+describe("money account labels", () => {
+  test("names singleton accounts without linking them", () => {
+    const html = renderLedger(
+      [
+        transfer({ source: account("external", "world") }),
+        transfer({ source: account("fee_income", "booking") }),
+        transfer({ source: account("writeoff", "x") }),
+      ],
+      names(),
+      "dual",
+    );
+    expect(html).toContain("Card / bank");
+    expect(html).toContain("Booking fees");
+    expect(html).toContain("Corrections");
+    expect(html).not.toContain("/admin/ledger/external/");
+    expect(html).not.toContain("/admin/ledger/fee_income/");
+    expect(html).not.toContain("/admin/ledger/writeoff/");
   });
 
-  test("labels every writeoff account 'Write-off' regardless of id, no link", () => {
-    // The chart of accounts treats writeoff as one logical contra account, so
-    // the label is matched on the type alone — a stray id must not change it.
-    expect(resolveAccountLabel(account("writeoff", "x"), names())).toEqual({
-      text: "Write-off",
-    });
-  });
-
-  test("links a row-backed account to its entity by name", () => {
-    const refs = names({ attendees: new Map([[7, "Ada Lovelace"]]) });
-    expect(resolveAccountLabel(account("attendee", 7), refs)).toEqual({
-      href: "/admin/ledger/attendee/7",
-      text: "Ada Lovelace",
-    });
-  });
-
-  test("links listing-backed revenue and cost legs to the listing", () => {
+  test("links each existing row-backed account by name", () => {
     const refs = names({
+      attendees: new Map([[7, "Ada Lovelace"]]),
       listings: new Map([[3, "Summer Concert"]]),
-    });
-    expect(resolveAccountLabel(account("revenue", 3), refs)).toEqual({
-      href: "/admin/ledger?listing=3",
-      text: "Summer Concert",
-    });
-    expect(resolveAccountLabel(account("cost", 3), refs)).toEqual({
-      href: "/admin/ledger?listing=3",
-      text: "Summer Concert",
-    });
-  });
-
-  test("links modifier legs to their edit page", () => {
-    const refs = names({
       modifiers: new Map([[5, "Early bird"]]),
     });
-    expect(resolveAccountLabel(account("modifier", 5), refs)).toEqual({
-      href: "/admin/ledger/modifier/5",
-      text: "Early bird",
-    });
+    const html = renderLedger(
+      [
+        transfer({
+          destination: account("revenue", 3),
+          source: account("attendee", 7),
+        }),
+        transfer({
+          destination: account("cost", 3),
+          source: account("modifier", 5),
+        }),
+      ],
+      refs,
+      "dual",
+    );
+    expect(html).toContain(
+      '<a href="/admin/ledger/attendee/7">Ada Lovelace</a>',
+    );
+    expect(html).toContain(
+      '<a href="/admin/ledger?listing=3">Summer Concert</a>',
+    );
+    expect(html).toContain('<a href="/admin/ledger/modifier/5">Early bird</a>');
   });
 
-  test("shows an unrecognised account type as bare 'type:id' with no link", () => {
-    // A future account kind the renderer doesn't know yet (e.g. psp:stripe) must
-    // still render legibly rather than blank — as the raw key, no link.
-    expect(resolveAccountLabel(account("psp", "stripe"), names())).toEqual({
-      text: "psp:stripe",
-    });
+  test("throws when an account type has no presentation", () => {
+    expect(() =>
+      renderLedger(
+        [transfer({ source: account("psp", "stripe") })],
+        names(),
+        "dual",
+      ),
+    ).toThrow("Unknown money account type: psp");
   });
 
-  test("falls back to '<Entity> #<id>' with no link when the id is absent", () => {
-    // A deleted entity keeps its ledger rows; its id outlives the name, so the
-    // leg degrades to plain text rather than linking to a missing page.
-    expect(resolveAccountLabel(account("attendee", 42), names())).toEqual({
-      text: "Attendee #42",
-    });
-    expect(resolveAccountLabel(account("revenue", 9), names())).toEqual({
-      text: "Listing #9",
-    });
-    expect(resolveAccountLabel(account("cost", 9), names())).toEqual({
-      text: "Listing #9",
-    });
-    expect(resolveAccountLabel(account("modifier", 8), names())).toEqual({
-      text: "Modifier #8",
-    });
+  test("shows deleted row-backed accounts as plain fallback text", () => {
+    const html = renderLedger(
+      [
+        transfer({
+          destination: account("revenue", 9),
+          source: account("attendee", 42),
+        }),
+        transfer({
+          destination: account("cost", 9),
+          source: account("modifier", 8),
+        }),
+      ],
+      names(),
+      "dual",
+    );
+    expect(html).toContain("Attendee #42");
+    expect(html).toContain("Listing #9");
+    expect(html).toContain("Modifier #8");
+    expect(html).not.toContain("/admin/ledger/attendee/42");
+    expect(html).not.toContain("/admin/ledger/modifier/8");
   });
 });

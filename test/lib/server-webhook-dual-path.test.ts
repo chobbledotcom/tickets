@@ -229,7 +229,7 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
     // operator record must keep one quantity-0 ghost per signed line — the
     // bundle line under its package id and the deleted line under its own id —
     // never a single ghost pinned to the first item's (surviving) listing.
-    const { deleteListing } = await import("#shared/db/listings.ts");
+    const { deleteListing } = await import("#shared/db/listings/delete.ts");
     await deleteListing(doomed.id);
 
     try {
@@ -376,7 +376,7 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
     // itself" mid-payment: those standalone units now lead to a 404 page, so
     // the order must be saved-and-refunded — the package allocation must not
     // exempt the line's surplus from the stale check.
-    const { listingsTable } = await import("#shared/db/listings.ts");
+    const { listingsTable } = await import("#shared/db/listings/records.ts");
     await listingsTable.update(addon.id, { bookableAlone: false });
 
     try {
