@@ -15,11 +15,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { queryOne } from "#shared/db/client.ts";
-import {
-  hashEmail,
-  hashPhone,
-  recordVisit,
-} from "#shared/db/contact-preferences.ts";
+import { hashEmail, hashPhone } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowMs } from "#shared/now.ts";
 import {
@@ -34,6 +30,7 @@ import {
   attendeeExists as attendeeExistsHelper,
   insertOrphanAttendee,
 } from "#test-utils/db-helpers/attendees.ts";
+import { seedContactVisits } from "#test-utils/db-helpers/contacts.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
@@ -176,7 +173,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
 
     test("erases a contact record found by email", async () => {
       const hash = await hashEmail("erase-me@example.com");
-      await recordVisit(hash);
+      await seedContactVisits(hash);
 
       const { response } = await adminFormPost("/admin/privacy/erase", {
         contact_type: "email",
@@ -192,7 +189,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
 
     test("erases a contact record found by phone", async () => {
       const hash = await hashPhone("07700 900222");
-      await recordVisit(hash);
+      await seedContactVisits(hash);
 
       const { response } = await adminFormPost("/admin/privacy/erase", {
         contact_type: "sms",

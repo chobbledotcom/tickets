@@ -16,7 +16,6 @@ import {
   hashPhone,
   isHashUnsubscribed,
   recordContacts,
-  recordVisit,
   resubscribeHash,
   saveContactRecord,
   toContactHashParam,
@@ -26,6 +25,7 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { seedContactVisits } from "#test-utils/db-helpers/contacts.ts";
 
 const rowFor = (
   hash: string,
@@ -138,7 +138,7 @@ describeWithEnv("contact-preferences: unsubscribe state", { db: true }, () => {
     const two = await hashEmail("two@example.com");
     await unsubscribeHash(one);
     await unsubscribeHash(two);
-    await recordVisit(await hashEmail("seeded@example.com"));
+    await seedContactVisits(await hashEmail("seeded@example.com"));
 
     const set = await getUnsubscribedHashSet();
 
@@ -158,38 +158,18 @@ describeWithEnv("contact-preferences: unsubscribe state", { db: true }, () => {
 });
 
 describeWithEnv("contact-preferences: visit counter", { db: true }, () => {
-  test("recordVisit seeds a row at visits 1 and sets last_activity", async () => {
-    const hash = await hashEmail("first@example.com");
-    const before = Date.now();
-    await recordVisit(hash);
-    const row = await rowFor(hash);
-    expect(row?.visits).toBe(1);
-    expect(row?.last_activity).toBeGreaterThanOrEqual(before);
-    expect(row?.last_activity).toBeLessThanOrEqual(Date.now());
-  });
-
-  test("recordVisit increments visits once per call", async () => {
-    const hash = await hashEmail("repeat@example.com");
-    await recordVisit(hash);
-    await recordVisit(hash);
-    await recordVisit(hash);
-    expect((await rowFor(hash))?.visits).toBe(3);
-  });
-
   test("getVisits reads the plaintext count, 0 when absent", async () => {
     const hash = await hashEmail("counted@example.com");
     expect(await getVisits(hash)).toBe(0);
-    await recordVisit(hash);
-    await recordVisit(hash);
+    await seedContactVisits(hash, 2);
     expect(await getVisits(hash)).toBe(2);
   });
 
-  test("recordVisit on a phone hash counts separately from email", async () => {
+  test("getVisits counts phone and email hashes separately", async () => {
     const email = await hashEmail("dual@example.com");
     const phone = await hashPhone("07700 900111");
-    await recordVisit(email);
-    await recordVisit(phone);
-    await recordVisit(phone);
+    await seedContactVisits(email);
+    await seedContactVisits(phone, 2);
     expect(await getVisits(email)).toBe(1);
     expect(await getVisits(phone)).toBe(2);
   });
@@ -199,8 +179,8 @@ describeWithEnv("contact-preferences: erasure", { db: true }, () => {
   test("forgetContact deletes only the targeted hash", async () => {
     const target = await hashEmail("forget@example.com");
     const keep = await hashEmail("keep@example.com");
-    await recordVisit(target);
-    await recordVisit(keep);
+    await seedContactVisits(target);
+    await seedContactVisits(keep);
 
     await forgetContact(target);
 
@@ -210,7 +190,7 @@ describeWithEnv("contact-preferences: erasure", { db: true }, () => {
 
   test("forgetContact reports one deleted row when a record existed", async () => {
     const hash = await hashEmail("counted@example.com");
-    await recordVisit(hash);
+    await seedContactVisits(hash);
     expect(await forgetContact(hash)).toBe(1);
   });
 
@@ -242,7 +222,7 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
   test("a visited address has zero contacts", async () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("booked@example.com");
-    await recordVisit(hash);
+    await seedContactVisits(hash);
     expect((await getContactRecord(hash, pk)).contactCount).toBe(0);
   });
 
@@ -306,8 +286,7 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
   test("recordContacts sets last_activity without touching visits", async () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("outreach@example.com");
-    await recordVisit(hash);
-    await recordVisit(hash);
+    await seedContactVisits(hash, 2);
     const before = Date.now();
     await recordContacts([hash], "Newsletter", pk);
     const row = await rowFor(hash);
@@ -330,9 +309,9 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
     await recordContacts([], "Nothing", pk);
   });
 
-  test("unrecordVisit reverses a recordVisit, clamped at zero", async () => {
+  test("unrecordVisit reverses a visit, clamped at zero", async () => {
     const hash = await hashEmail("undovisit@example.com");
-    await recordVisit(hash);
+    await seedContactVisits(hash);
     await unrecordVisit(hash);
     await unrecordVisit(hash);
     expect(await getVisits(hash)).toBe(0);

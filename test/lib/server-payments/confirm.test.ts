@@ -19,6 +19,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
 import { makeParent } from "#test-utils/parents.ts";
+import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
@@ -117,6 +118,49 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
           const record = await isSessionProcessed("cs_test_paid");
           expect(record?.ticket_tokens).toBe("");
+        },
+        resetStripeClient,
+      );
+    });
+
+    test("clears redirect tokens once after building the ticket URL", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      await withMocks(
+        () =>
+          johnSession(
+            "cs_single_token_clear",
+            singleItem(listing.id, 1, 1000),
+            1000,
+          ),
+        async () => {
+          let clearWrites = 0;
+          const restore = wrapDbClient({
+            batch: () => {},
+            execute: (statement) => {
+              if (!statementSql(statement).includes("SET ticket_tokens = ''")) {
+                return null;
+              }
+              clearWrites++;
+              return clearWrites === 2
+                ? Promise.reject(new Error("second token clear failed"))
+                : null;
+            },
+          });
+          try {
+            const response = await handleRequest(
+              mockRequest("/payment/success?session_id=cs_single_token_clear"),
+            );
+
+            expectRedirect(response, /^\/payment\/success\?tokens=.+$/);
+            expect(clearWrites).toBe(1);
+          } finally {
+            restore();
+          }
         },
         resetStripeClient,
       );

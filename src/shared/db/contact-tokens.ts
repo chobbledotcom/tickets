@@ -24,6 +24,11 @@ import { nowMs } from "#shared/now.ts";
  * counted in its own plaintext column so the split survives without the owner
  * key. */
 export type BookingSource = "admin" | "public";
+type BookingActivityWriter = (
+  hash: string,
+  source: BookingSource,
+  ticketToken: string,
+) => Promise<void>;
 
 /** A booked ticket token linked to a contact, with the source that booked it. */
 export type BookingToken = { source: BookingSource; token: string };
@@ -107,45 +112,46 @@ const parseTokenEntry = async (
   return { source: TAG_SOURCE[decoded[0]!]!, token: decoded.slice(1) };
 };
 
-/** The conflict update for appending one encrypted ticket token. */
-const tokenAppendUpdate = (column: BookingCountColumn | null): string =>
-  [
-    ...(column === null ? [] : [`${column} = ${column} + 1`]),
-    "last_activity = excluded.last_activity",
-    "attendee_tokens_blob = attendee_tokens_blob || excluded.attendee_tokens_blob",
-  ].join(",\n       ");
-
-/** Append one encrypted ticket token, optionally bumping a source count too. */
-const appendBookingToken = async (
+/** Append a ticket token to a contact's encrypted list without touching counts. */
+const addBookingToken = async (
   hash: string,
-  source: BookingSource,
   ticketToken: string,
-  column: BookingCountColumn | null,
+  source: BookingSource,
 ): Promise<void> => {
-  const countColumn = column === null ? "" : `, ${column}`;
-  const countValue = column === null ? "" : ", 1";
   await execute(
-    `INSERT INTO contact_preferences (contact_hash, last_activity${countColumn}, attendee_tokens_blob)
-     VALUES (?, ?${countValue}, ?)
+    `INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob)
+     VALUES (?, ?, ?)
      ON CONFLICT(contact_hash) DO UPDATE SET
-       ${tokenAppendUpdate(column)}`,
+       last_activity = excluded.last_activity,
+       attendee_tokens_blob = attendee_tokens_blob || excluded.attendee_tokens_blob`,
     [hash, nowMs(), await encryptTokenEntry(hash, source, ticketToken)],
   );
 };
 
-/**
- * Record one booking against a contact: bump its source's plaintext count and
- * append the booked ticket token to the encrypted, append-only token list.
- */
-export const recordBooking = async (
-  hash: string,
-  source: BookingSource,
-  ticketToken: string,
-): Promise<void> => {
-  await appendBookingToken(hash, source, ticketToken, BOOKING_COLUMN[source]);
+/** Record one visit and booking against a contact. The token marker guards the
+ * whole write, so retrying after a lost database result changes nothing. */
+export const recordBookingActivity: BookingActivityWriter = async (
+  hash,
+  source,
+  ticketToken,
+) => {
+  const column = BOOKING_COLUMN[source];
+  const marker = `${await tokenMarkerFor(hash, ticketToken)}${TOKEN_LINE_SEPARATOR}`;
+  await execute(
+    `INSERT INTO contact_preferences
+       (contact_hash, last_activity, visits, ${column}, attendee_tokens_blob)
+     VALUES (?, ?, 1, 1, ?)
+     ON CONFLICT(contact_hash) DO UPDATE SET
+       visits = visits + 1,
+       ${column} = ${column} + 1,
+       last_activity = excluded.last_activity,
+       attendee_tokens_blob = attendee_tokens_blob || excluded.attendee_tokens_blob
+     WHERE INSTR(attendee_tokens_blob, ?) = 0`,
+    [hash, nowMs(), await encryptTokenEntry(hash, source, ticketToken), marker],
+  );
 };
 
-/** Reverse a {@link recordBooking}'s count, e.g. when an order is rolled back.
+/** Reverse a {@link recordBookingActivity} count, e.g. when an order is rolled back.
  * The token entry is left in place: a rollback deletes the attendee, so its
  * token resolves to nothing and is filtered out on read. */
 export const unrecordBooking = async (
@@ -157,15 +163,6 @@ export const unrecordBooking = async (
     `UPDATE contact_preferences SET ${column} = MAX(${column} - 1, 0), last_activity = ? WHERE contact_hash = ?`,
     [nowMs(), hash],
   );
-};
-
-/** Append a ticket token to a contact's encrypted list without touching counts. */
-const addBookingToken = async (
-  hash: string,
-  ticketToken: string,
-  source: BookingSource,
-): Promise<void> => {
-  await appendBookingToken(hash, source, ticketToken, null);
 };
 
 /** Load a contact's encrypted token blob, or null when no row exists. */

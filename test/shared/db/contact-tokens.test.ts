@@ -10,7 +10,7 @@ import {
 } from "#shared/db/contact-preferences.ts";
 import {
   getRecentBookingTokens,
-  recordBooking,
+  recordBookingActivity,
   syncAttendeeContactTokens,
   unrecordBooking,
 } from "#shared/db/contact-tokens.ts";
@@ -51,14 +51,27 @@ const tokenBlobFor = async (hash: string): Promise<string> =>
 const firstMarkerFrom = (blob: string): string =>
   blob.split("\n")[0]!.split("\t")[0]!;
 
+const expectOneBookingVisit = async (
+  hash: string,
+  privateKey: CryptoKey,
+  token: string,
+): Promise<void> => {
+  const record = await getContactRecord(hash, privateKey);
+  expect(record.visits).toBe(1);
+  expect(record.publicBookingCount).toBe(1);
+  expect(await readAllTokens(hash, privateKey)).toEqual([
+    { source: "public", token },
+  ]);
+};
+
 describeWithEnv("contact-tokens", { db: true }, () => {
-  test("recordBooking splits the count by source, leaving outreach stats intact", async () => {
+  test("recordBookingActivity splits the count by source, leaving outreach stats intact", async () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("bookings@example.com");
     await recordContacts([hash], "Newsletter", pk);
-    await recordBooking(hash, "public", "tok-pub-1");
-    await recordBooking(hash, "public", "tok-pub-2");
-    await recordBooking(hash, "admin", "tok-adm-1");
+    await recordBookingActivity(hash, "public", "tok-pub-1");
+    await recordBookingActivity(hash, "public", "tok-pub-2");
+    await recordBookingActivity(hash, "admin", "tok-adm-1");
 
     const record = await getContactRecord(hash, pk);
     expect(record.publicBookingCount).toBe(2);
@@ -67,18 +80,35 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     expect(record.lastSubject).toBe("Newsletter");
   });
 
-  test("recordBooking needs no owner key", async () => {
+  test("recordBookingActivity needs no owner key", async () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("keyless@example.com");
-    await recordBooking(hash, "public", "tok-keyless");
+    await recordBookingActivity(hash, "public", "tok-keyless");
     expect((await getContactRecord(hash, pk)).publicBookingCount).toBe(1);
   });
 
-  test("unrecordBooking reverses a recordBooking and clamps at zero", async () => {
+  test("recordBookingActivity records missing booking history", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("recover-visit@example.com");
+    await recordBookingActivity(hash, "public", "tok-recover-visit");
+
+    await expectOneBookingVisit(hash, pk, "tok-recover-visit");
+  });
+
+  test("recordBookingActivity does not duplicate completed history", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("recover-complete@example.com");
+    await recordBookingActivity(hash, "public", "tok-recover-complete");
+    await recordBookingActivity(hash, "public", "tok-recover-complete");
+
+    await expectOneBookingVisit(hash, pk, "tok-recover-complete");
+  });
+
+  test("unrecordBooking reverses a booking count and clamps at zero", async () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("undo@example.com");
-    await recordBooking(hash, "public", "tok-undo-1");
-    await recordBooking(hash, "public", "tok-undo-2");
+    await recordBookingActivity(hash, "public", "tok-undo-1");
+    await recordBookingActivity(hash, "public", "tok-undo-2");
     await unrecordBooking(hash, "public");
     expect((await getContactRecord(hash, pk)).publicBookingCount).toBe(1);
     await unrecordBooking(hash, "public");
@@ -86,23 +116,23 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     expect((await getContactRecord(hash, pk)).publicBookingCount).toBe(0);
   });
 
-  test("recordBooking appends the booked token, tagged by source", async () => {
+  test("recordBookingActivity appends the booked token, tagged by source", async () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("tokens@example.com");
-    await recordBooking(hash, "public", "tok-online");
-    await recordBooking(hash, "admin", "tok-manual");
+    await recordBookingActivity(hash, "public", "tok-online");
+    await recordBookingActivity(hash, "admin", "tok-manual");
     expect(await readAllTokens(hash, pk)).toEqual([
       { source: "public", token: "tok-online" },
       { source: "admin", token: "tok-manual" },
     ]);
   });
 
-  test("recordBooking does not reuse one marker across contact rows", async () => {
+  test("recordBookingActivity does not reuse one marker across contact rows", async () => {
     const pk = await getTestPrivateKey();
     const emailHash = await hashEmail("linked-token@example.com");
     const phoneHash = await hashPhone("07700 900111");
-    await recordBooking(emailHash, "public", "tok-linked-contact");
-    await recordBooking(phoneHash, "public", "tok-linked-contact");
+    await recordBookingActivity(emailHash, "public", "tok-linked-contact");
+    await recordBookingActivity(phoneHash, "public", "tok-linked-contact");
 
     expect(firstMarkerFrom(await tokenBlobFor(emailHash))).not.toBe(
       firstMarkerFrom(await tokenBlobFor(phoneHash)),
@@ -129,8 +159,8 @@ describeWithEnv("contact-tokens", { db: true }, () => {
       "INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob) VALUES (?, ?, ?)",
       [hash, 1, "not-an-owner-key-token\n"],
     );
-    await recordBooking(hash, "public", "tok-newer");
-    await recordBooking(hash, "admin", "tok-newest");
+    await recordBookingActivity(hash, "public", "tok-newer");
+    await recordBookingActivity(hash, "admin", "tok-newest");
 
     expect(await getRecentBookingTokens(hash, pk, 1)).toEqual([
       { source: "admin", token: "tok-newest" },
@@ -151,7 +181,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
   test("syncAttendeeContactTokens appends without bumping counts", async () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("readd@example.com");
-    await recordBooking(hash, "public", "tok-first");
+    await recordBookingActivity(hash, "public", "tok-first");
     await syncToken(
       "tok-moved",
       { email: "readd@example.com", phone: "" },
@@ -171,7 +201,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     const pk = await getTestPrivateKey();
     const oldHash = await hashEmail("old@example.com");
     const newHash = await hashEmail("new@example.com");
-    await recordBooking(oldHash, "admin", "tok-move");
+    await recordBookingActivity(oldHash, "admin", "tok-move");
     await syncToken(
       "tok-move",
       { email: "old@example.com", phone: "" },
@@ -194,7 +224,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
       "INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob) VALUES (?, ?, ?)",
       [oldHash, 1, "not-an-owner-key-token\n"],
     );
-    await recordBooking(oldHash, "public", "tok-marker-move");
+    await recordBookingActivity(oldHash, "public", "tok-marker-move");
 
     await syncToken(
       "tok-marker-move",
@@ -213,7 +243,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     const pk = await getTestPrivateKey();
     const oldHash = await hashPhone("07700 900001");
     const newHash = await hashPhone("07700 900002");
-    await recordBooking(oldHash, "public", "tok-phone");
+    await recordBookingActivity(oldHash, "public", "tok-phone");
     await syncToken(
       "tok-phone",
       { email: "", phone: "07700 900001" },
@@ -229,7 +259,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
   test("syncAttendeeContactTokens does not duplicate an unchanged token", async () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("same@example.com");
-    await recordBooking(hash, "public", "tok-same");
+    await recordBookingActivity(hash, "public", "tok-same");
     await syncToken(
       "tok-same",
       { email: "same@example.com", phone: "" },
@@ -244,8 +274,8 @@ describeWithEnv("contact-tokens", { db: true }, () => {
   test("syncAttendeeContactTokens does not reorder history on an unchanged edit", async () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("order@example.com");
-    await recordBooking(hash, "public", "tok-first");
-    await recordBooking(hash, "admin", "tok-second");
+    await recordBookingActivity(hash, "public", "tok-first");
+    await recordBookingActivity(hash, "admin", "tok-second");
     // Re-sync tok-first with the contact unchanged (before === after): the
     // token must stay in place, not be removed-and-re-appended to the end.
     await syncToken(
@@ -264,7 +294,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     const pk = await getTestPrivateKey();
     const email = "erased-token@example.com";
     const hash = await hashEmail(email);
-    await recordBooking(hash, "public", "tok-erased");
+    await recordBookingActivity(hash, "public", "tok-erased");
     expect(await forgetContact(hash)).toBe(1);
 
     await syncToken(
@@ -285,7 +315,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
   test("syncAttendeeContactTokens drops the link when a field is cleared", async () => {
     const pk = await getTestPrivateKey();
     const oldHash = await hashEmail("cleared@example.com");
-    await recordBooking(oldHash, "admin", "tok-clear");
+    await recordBookingActivity(oldHash, "admin", "tok-clear");
     await syncToken(
       "tok-clear",
       { email: "cleared@example.com", phone: "" },
@@ -341,8 +371,8 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     const pk = await getTestPrivateKey();
     const oldHash = await hashEmail("race-old@example.com");
     const newHash = await hashEmail("race-new@example.com");
-    await recordBooking(oldHash, "public", "tok-move");
-    await recordBooking(oldHash, "admin", "tok-stay");
+    await recordBookingActivity(oldHash, "public", "tok-move");
+    await recordBookingActivity(oldHash, "admin", "tok-stay");
     await syncToken(
       "tok-move",
       { email: "race-old@example.com", phone: "" },
@@ -392,7 +422,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
   test("removing the last moved token leaves an empty blob, not a stale newline", async () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("blank-line@example.com");
-    await recordBooking(hash, "public", "tok-only");
+    await recordBookingActivity(hash, "public", "tok-only");
     await syncToken(
       "tok-only",
       { email: "blank-line@example.com", phone: "" },

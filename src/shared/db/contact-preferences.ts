@@ -98,13 +98,6 @@ export const getUnsubscribedHashSet = async (): Promise<Set<string>> => {
   return new Set(rows.map((r) => r.contact_hash));
 };
 
-/** Record one visit against a contact, creating the row on first activity. */
-export const recordVisit = (hash: string): Promise<void> =>
-  run(
-    "INSERT INTO contact_preferences (contact_hash, last_activity, visits) VALUES (?, ?, 1) ON CONFLICT(contact_hash) DO UPDATE SET visits = visits + 1, last_activity = excluded.last_activity",
-    [hash, nowMs()],
-  );
-
 /** Reverse one visit increment, clamped at zero. */
 export const unrecordVisit = (hash: string): Promise<void> =>
   run(

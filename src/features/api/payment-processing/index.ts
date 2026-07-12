@@ -60,7 +60,6 @@ import { generateTicketToken } from "#shared/crypto/utils.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import {
-  clearSessionTokens,
   finalizeSessionIfUnresolved,
   markSessionFailed,
   type ProcessedPayment,
@@ -71,12 +70,9 @@ import {
 import { withPaymentTicketToken } from "#shared/payment-ticket-token.ts";
 import { bookingLedgerDisposition } from "#shared/session-ledger.ts";
 
-type SessionProcessorOptions = { storeTokens?: boolean };
-
 type SessionProcessor = (
   sessionId: string,
   data: ValidatedSession,
-  options?: SessionProcessorOptions,
 ) => Promise<PaymentResult>;
 
 const handleReservationConflict = async (
@@ -317,7 +313,6 @@ const processReservedSession = async (
 export const processPaymentSession: SessionProcessor = async (
   sessionId,
   data,
-  options,
 ) => {
   // Phase 1: Reserve the session (claim the lock)
   const reservation = await reserveSession(sessionId);
@@ -355,13 +350,6 @@ export const processPaymentSession: SessionProcessor = async (
       refunded: result.refunded,
       status: result.status,
     });
-  }
-
-  // Redirect responses carry the token in their URL, so once processing has
-  // completed they do not need a second persisted copy. Direct-render and
-  // webhook deliveries retain it for a later browser redirect or reload.
-  if (result.success && options?.storeTokens === false) {
-    await clearSessionTokens(sessionId);
   }
 
   return result;

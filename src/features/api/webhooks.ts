@@ -98,15 +98,7 @@ const processSessionAndRedirect = async (
   // verified intent still holds it, rather than redirecting to the token path.
   const explicitThankYou = validation.data.intent.thankYouUrl ?? "";
 
-  // Token persistence diverges by render path. The redirect path skips persisting
-  // (the tokens go in the URL, so storing them would leave them in the DB forever
-  // when the redirect wins the race). The direct-render path (explicit thank-you
-  // URL) does NOT put the tokens in a URL, so it MUST persist them — otherwise a
-  // reload hits the already-processed branch with no stored token and the buyer
-  // loses the ticket link.
-  const result = await processPaymentSession(sessionId, validation.data, {
-    storeTokens: explicitThankYou !== "",
-  });
+  const result = await processPaymentSession(sessionId, validation.data);
 
   if (!result.success) {
     // Log once at the redirect boundary
@@ -134,8 +126,8 @@ const processSessionAndRedirect = async (
     );
   }
 
-  // Redirect path: the tokens go in the URL, so clear any a racing webhook stored
-  // (consumed now via the redirect URL), then redirect.
+  // Redirect path: once the URL is ready, clear the persisted copy in one write.
+  // Direct-render and webhook paths retain it for a later redirect or reload.
   // encodeURIComponent preserves + as %2B so URLSearchParams.get() decodes it back correctly
   if (result.ticketTokens.length > 0) {
     await clearSessionTokens(sessionId);

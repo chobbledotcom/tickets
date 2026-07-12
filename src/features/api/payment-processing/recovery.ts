@@ -26,8 +26,8 @@ import {
   queryOnePrimary,
   resultRows,
 } from "#shared/db/client.ts";
-import { contactHash, recordVisit } from "#shared/db/contact-preferences.ts";
-import { recordBooking } from "#shared/db/contact-tokens.ts";
+import { contactHash } from "#shared/db/contact-preferences.ts";
+import { recordBookingActivity } from "#shared/db/contact-tokens.ts";
 import { UNRESOLVED_RESERVATION } from "#shared/db/processed-payments.ts";
 
 type RecoveredBookingRow = {
@@ -134,10 +134,7 @@ const recordRecoveredOrderActivity = async (
     ]),
   );
   await Promise.all(
-    hashes.map(async (hash) => {
-      await recordVisit(hash);
-      await recordBooking(hash, "public", ticketToken);
-    }),
+    hashes.map((hash) => recordBookingActivity(hash, "public", ticketToken)),
   );
 };
 

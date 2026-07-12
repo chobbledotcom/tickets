@@ -32,12 +32,11 @@ import {
 import {
   hashEmail,
   hashPhone,
-  recordVisit,
   unrecordVisit,
 } from "#shared/db/contact-preferences.ts";
 import {
   type BookingSource,
-  recordBooking,
+  recordBookingActivity,
   unrecordBooking,
 } from "#shared/db/contact-tokens.ts";
 import {
@@ -176,10 +175,9 @@ const recordOrderActivity = (
   source: BookingSource,
   ticketToken: string,
 ): Promise<void> =>
-  forEachOrderContact(async (hash) => {
-    await recordVisit(hash);
-    await recordBooking(hash, source, ticketToken);
-  })(email, phone);
+  forEachOrderContact((hash) =>
+    recordBookingActivity(hash, source, ticketToken),
+  )(email, phone);
 
 /** Reverse {@link recordOrderActivity}'s counts when an order is rolled back
  * after the greedy create already recorded it (partial booking, post-payment

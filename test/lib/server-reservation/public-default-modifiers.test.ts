@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import { hashEmail, recordVisit } from "#shared/db/contact-preferences.ts";
-import { recordBooking } from "#shared/db/contact-tokens.ts";
+import { hashEmail } from "#shared/db/contact-preferences.ts";
+import { recordBookingActivity } from "#shared/db/contact-tokens.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
@@ -162,8 +162,7 @@ describeWithEnv(
       await setupStripe();
       // This contact already has one genuine public booking + visit on record.
       const emailHash = await hashEmail("buyer@example.com");
-      await recordVisit(emailHash);
-      await recordBooking(emailHash, "public", "tok-earlier");
+      await recordBookingActivity(emailHash, "public", "tok-earlier");
 
       const { listing } = await setupSoldOutModifierRace();
       const response = await submitBuyerOrder(listing);
