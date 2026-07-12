@@ -131,6 +131,18 @@ describe("attendeeFromWhere", () => {
     expect(oneListing.args).toEqual([5]);
   });
 
+  test("an empty id list matches nothing via IN (NULL), never invalid IN ()", () => {
+    const attendees = attendeeFromWhere("inner", { attendeeIds: [] });
+    expect(attendees.from).toContain("attendee.id IN (NULL)");
+    expect(attendees.from).not.toContain("IN ()");
+    expect(attendees.args).toEqual([]);
+
+    const listings = attendeeFromWhere("inner", { listingIds: [] });
+    expect(listings.from).toContain("listingAttendee.listing_id IN (NULL)");
+    expect(listings.from).not.toContain("IN ()");
+    expect(listings.args).toEqual([]);
+  });
+
   test("an id list expands to one placeholder each, in order", () => {
     const ids = attendeeFromWhere("inner", { attendeeIds: [3, 1, 2] });
     expect(ids.from).toContain("attendee.id IN (?, ?, ?)");

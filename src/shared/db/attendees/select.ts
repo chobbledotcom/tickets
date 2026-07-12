@@ -289,12 +289,15 @@ const whereClauses = (where: AttendeeWhere): WhereClause[] => {
     { args: [], clause: KIND_CLAUSE[where.kind ?? "attendee"] },
   ];
   const inList = (column: string, ids: number[] | undefined) => {
-    if (ids !== undefined) {
-      parts.push({
-        args: ids,
-        clause: `${column} IN (${inPlaceholders(ids)})`,
-      });
-    }
+    if (ids === undefined) return;
+    // An empty id set matches nothing. Emit `IN (NULL)` (always NULL, so no row
+    // passes) rather than the syntactically invalid `IN ()`, so the builder
+    // stays total even if a caller doesn't prefilter an empty list itself.
+    parts.push(
+      ids.length === 0
+        ? { args: [], clause: `${column} IN (NULL)` }
+        : { args: ids, clause: `${column} IN (${inPlaceholders(ids)})` },
+    );
   };
   inList("attendee.id", where.attendeeIds);
   if (where.attendeeIdsSubquery !== undefined) {
