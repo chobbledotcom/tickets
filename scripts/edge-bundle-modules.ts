@@ -9,8 +9,13 @@
  * assertions on the finished bundle text.
  */
 
-/** Asset definition: [filename, exportName, contentType, pathConstant]. */
-export type AssetDef = [string, string, string, string];
+/** Asset definition: [filename, exportName, contentType, pathConstant, publishToCdn]. */
+export type AssetDef = [string, string, string, string, boolean?];
+
+export interface PublishedAssetUrls {
+  origin: string;
+  urls: Record<string, string>;
+}
 
 /** A post-build assertion on the bundle text; `test` truthy aborts the build. */
 export interface EdgeBundleGuard {
@@ -32,31 +37,45 @@ export const buildBuildInfoModule = (
 export const buildAssetPathsModule = (
   assetDefs: AssetDef[],
   buildTs: number,
-): string =>
-  assetDefs
+  published?: PublishedAssetUrls,
+): string => {
+  const paths = assetDefs
     .filter(([, , , pathConst]) => pathConst)
     .map(([filename, , , pathConst]) => {
+      const publishedUrl = published?.urls[filename];
+      if (publishedUrl) {
+        return `export const ${pathConst} = ${JSON.stringify(publishedUrl)};`;
+      }
       // Embed script should always use latest version without cache-busting
       const cacheBuster = pathConst === "EMBED_JS_PATH" ? "" : `?ts=${buildTs}`;
       return `export const ${pathConst} = "/${filename}${cacheBuster}";`;
-    })
-    .join("\n");
+    });
+  const cdnOrigin = published ? published.origin : null;
+  paths.push(`export const ASSET_CDN_ORIGIN = ${JSON.stringify(cdnOrigin)};`);
+  return paths.join("\n");
+};
 
 /** Build the inline assets module with pre-read content and handler functions. */
 export const buildAssetsModule = (
   assetDefs: AssetDef[],
   staticAssets: Record<string, string>,
+  published?: PublishedAssetUrls,
 ): string => {
-  const varLines = assetDefs.map(
-    ([filename], i) =>
-      `const v${i} = ${JSON.stringify(staticAssets[filename])};`,
+  const varLines = assetDefs.flatMap(([filename], i) =>
+    published?.urls[filename]
+      ? []
+      : [`const v${i} = ${JSON.stringify(staticAssets[filename])};`],
   );
 
   const cacheHeader = `const CACHE_HEADERS = { "cache-control": "public, max-age=31536000, immutable" };`;
 
   const handlerLines = assetDefs.map(
-    ([, exportName, contentType], i) =>
-      `export const ${exportName} = () => new Response(v${i}, { headers: { "content-type": "${contentType}", ...CACHE_HEADERS } });`,
+    ([filename, exportName, contentType], i) => {
+      const publishedUrl = published?.urls[filename];
+      return publishedUrl
+        ? `export const ${exportName} = () => new Response(null, { status: 302, headers: { location: ${JSON.stringify(publishedUrl)} } });`
+        : `export const ${exportName} = () => new Response(v${i}, { headers: { "content-type": "${contentType}", ...CACHE_HEADERS } });`;
+    },
   );
 
   // Mirror assets.ts's orderWidgetBody export with the inlined widget source.

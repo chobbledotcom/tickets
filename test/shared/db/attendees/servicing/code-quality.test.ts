@@ -8,16 +8,16 @@
  * *specific* shared helpers so the feature can't land as near-duplicate logic
  * sprinkled across files.
  */
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeAdminPath } from "#shared/attendee-links.ts";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { ATTENDEE_JOIN_SELECT } from "#shared/db/attendees/queries.ts";
 
-const currentDir = dirname(fileURLToPath(import.meta.url));
-const SRC_DIR = join(currentDir, "../../../src");
+// Anchored to the repo root (the test runner's cwd) rather than this file's own
+// location, so the source scan keeps working wherever the test file lives.
+const SRC_DIR = join(Deno.cwd(), "src");
 
 /** Recursively collect file paths under `dir` matching `ext`. */
 const collectFiles = async (dir: string, exts: string[]): Promise<string[]> => {

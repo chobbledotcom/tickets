@@ -12,9 +12,9 @@ import {
 } from "#test/test-utils/test-image.ts";
 
 describe("pickEncoderBytes", () => {
-  test("selects the SIMD build when SIMD is supported, scalar otherwise", () => {
-    const simdBytes = pickEncoderBytes(true);
-    const scalarBytes = pickEncoderBytes(false);
+  test("selects the SIMD build when SIMD is supported, scalar otherwise", async () => {
+    const simdBytes = await pickEncoderBytes(true);
+    const scalarBytes = await pickEncoderBytes(false);
     expect(scalarBytes.length).toBeGreaterThan(0);
     // The SIMD build is a distinct, larger binary — pins which arm is which.
     expect(simdBytes.length).toBeGreaterThan(scalarBytes.length);
@@ -28,6 +28,21 @@ describe("decodeImage", () => {
     expect(decoded.width).toBe(20);
     expect(decoded.height).toBe(12);
     expect(decoded.data.length).toBe(20 * 12 * 4);
+  });
+
+  test("decodes only the bytes inside a subarray view", async () => {
+    const png = await makeTestPng(18, 11);
+    const padded = new Uint8Array(png.length + 2);
+    padded[0] = 255;
+    padded.set(png, 1);
+    padded[padded.length - 1] = 255;
+
+    const decoded = await decodeImage(
+      padded.subarray(1, padded.length - 1),
+      "image/png",
+    );
+    expect(decoded.width).toBe(18);
+    expect(decoded.height).toBe(11);
   });
 
   test("decodes JPEG bytes via the image/jpeg codec", async () => {

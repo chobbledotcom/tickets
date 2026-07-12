@@ -4,6 +4,24 @@ inputs:
   build_commit:
     description: Commit SHA to embed in the build.
     required: true
+  cdn_url:
+    description: Optional public base URL for build-time static asset publishing.
+    required: false
+  cdn_bunny_storage_zone_name:
+    description: Optional dedicated Bunny Storage zone for static assets.
+    required: false
+  cdn_bunny_storage_zone_key:
+    description: Optional access key for the static asset Storage zone.
+    required: false
+  cdn_bunny_storage_host:
+    description: Bunny Storage API hostname, required when CDN publishing is enabled.
+    required: false
+  cdn_bunny_pull_zone_id:
+    description: Optional pull-zone id purged after static asset uploads.
+    required: false
+  bunny_access_key:
+    description: Bunny account API key used to purge the configured static pull zone.
+    required: false
 runs:
   using: composite
   steps:
@@ -15,3 +33,9 @@ runs:
       run: deno task build:edge
       env:
         BUILD_COMMIT: ${{ inputs.build_commit }}
+        CDN_URL: ${{ inputs.cdn_url }}
+        CDN_BUNNY_STORAGE_ZONE_NAME: ${{ inputs.cdn_bunny_storage_zone_name }}
+        CDN_BUNNY_STORAGE_ZONE_KEY: ${{ inputs.cdn_bunny_storage_zone_key }}
+        CDN_BUNNY_STORAGE_HOST: ${{ inputs.cdn_bunny_storage_host }}
+        CDN_BUNNY_PULL_ZONE_ID: ${{ inputs.cdn_bunny_pull_zone_id }}
+        BUNNY_ACCESS_KEY: ${{ inputs.bunny_access_key }}

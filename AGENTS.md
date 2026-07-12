@@ -675,6 +675,20 @@ STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-a
 
 Environment variables are configured as **Bunny native secrets** in the Bunny Edge Scripting dashboard. They are read at runtime via `process.env`.
 
+The optional static CDN is different: `CDN_URL`, `CDN_BUNNY_STORAGE_ZONE_NAME`,
+`CDN_BUNNY_STORAGE_ZONE_KEY`, `CDN_BUNNY_STORAGE_HOST`, and
+`CDN_BUNNY_PULL_ZONE_ID` are GitHub repository secrets used only while
+building. When all five are set, the build uploads site-independent browser
+assets and image-codec WASM under an immutable content-addressed path, purges the
+pull zone with the existing `BUNNY_ACCESS_KEY` repository secret, verifies every
+public object byte-for-byte, then bakes
+those public URLs and their CSP origin into the edge script. They must not be
+added to the running Bunny script. With all five absent, assets stay embedded;
+a partial set fails the build. Site-bound assets such as `embed.js` and the
+dynamic `/order.js` body remain in each script. Use the Storage API hostname
+shown on Bunny's Storage **Access** page for `CDN_BUNNY_STORAGE_HOST` (for
+example, `storage.bunnycdn.com` or `uk.storage.bunnycdn.com`).
+
 ### Required (configure in Bunny dashboard)
 
 - `DB_URL` - Database URL (required, e.g. `libsql://your-db.turso.io`)

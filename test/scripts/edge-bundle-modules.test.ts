@@ -77,7 +77,24 @@ describe("buildAssetPathsModule", () => {
       [
         `export const CSS_PATH = "/style.css?ts=1234";`,
         `export const EMBED_JS_PATH = "/embed.js";`,
+        "export const ASSET_CDN_ORIGIN = null;",
       ].join("\n"),
+    );
+  });
+
+  test("bakes published CDN URLs and origin into the bundle", () => {
+    const paths = buildAssetPathsModule(PATH_DEFS, 1234, {
+      origin: "https://assets.example.com",
+      urls: {
+        "style.css": "https://assets.example.com/assets/release/style.css",
+      },
+    });
+    expect(paths).toContain(
+      `export const CSS_PATH = "https://assets.example.com/assets/release/style.css";`,
+    );
+    expect(paths).toContain(`export const EMBED_JS_PATH = "/embed.js";`);
+    expect(paths).toContain(
+      `export const ASSET_CDN_ORIGIN = "https://assets.example.com";`,
     );
   });
 });
@@ -91,6 +108,19 @@ const STATIC_ASSETS = {
   "favicon.svg": "<svg/>",
   "order.js": "widget-source",
 };
+const CDN_ASSETS = {
+  origin: "https://assets.example.com",
+  urls: {
+    "admin.js": "https://assets.example.com/assets/release/admin.js",
+  },
+};
+
+const importAssetsModule = (
+  source: string,
+): Promise<{ handleAdminJs: () => Response }> =>
+  import(
+    `data:text/javascript;charset=utf-8,${encodeURIComponent(source)}#${crypto.randomUUID()}`
+  );
 
 describe("buildAssetsModule", () => {
   test("declares a variable per def carrying the pre-read content", () => {
@@ -119,6 +149,29 @@ describe("buildAssetsModule", () => {
     const out = buildAssetsModule(ASSET_DEFS, STATIC_ASSETS);
     expect(out).toContain(`const orderJsBody = "widget-source";`);
     expect(out).toContain("export const orderWidgetBody = () => orderJsBody;");
+  });
+
+  test("redirects published assets without embedding their bodies", () => {
+    const out = buildAssetsModule(ASSET_DEFS, STATIC_ASSETS, CDN_ASSETS);
+    expect(out).not.toContain("console.log(1)");
+    expect(out).toContain(
+      `export const handleAdminJs = () => new Response(null, { status: 302, headers: { location: "https://assets.example.com/assets/release/admin.js" } });`,
+    );
+    expect(out).toContain(`const v0 = "<svg/>";`);
+  });
+
+  test("returns a CDN redirect whose security headers remain mutable", async () => {
+    const generated = await importAssetsModule(
+      buildAssetsModule(ASSET_DEFS, STATIC_ASSETS, CDN_ASSETS),
+    );
+    const response = generated.handleAdminJs();
+
+    response.headers.set("x-content-type-options", "nosniff");
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(
+      "https://assets.example.com/assets/release/admin.js",
+    );
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   });
 
   test("produces exactly the vars, cache header, handlers, and widget, newline-joined", () => {

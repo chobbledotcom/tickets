@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
+import { fromFileUrl } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import type {
   OnLoadArgs,
   OnLoadResult,
@@ -11,12 +13,22 @@ import { ASSETS } from "#shared/images/wasm-assets.ts";
 import {
   buildModule,
   buildPackageModule,
+  buildRemoteModule,
   createPlugin,
   isBytesImport,
 } from "../../scripts/inline-jsquash-wasm.ts";
 
 type ResolveCallback = Parameters<PluginBuild["onResolve"]>[1];
 type LoadCallback = Parameters<PluginBuild["onLoad"]>[1];
+type GeneratedModule = {
+  jpegDec: () => Uint8Array | Promise<Uint8Array>;
+  webpEnc: () => Uint8Array | Promise<Uint8Array>;
+};
+
+const importGeneratedModule = (source: string): Promise<GeneratedModule> =>
+  import(
+    `data:text/javascript;charset=utf-8,${encodeURIComponent(source)}#${crypto.randomUUID()}`
+  );
 
 const fakePluginBuild = (): {
   build: PluginBuild;
@@ -65,10 +77,20 @@ describe("isBytesImport", () => {
     ).toBe(false);
     expect(isBytesImport("./other.ts", imagesDir, imagesDir)).toBe(false);
   });
+
+  test("normalizes Windows package paths", () => {
+    expect(
+      isBytesImport(
+        ".\\wasm-bytes.ts",
+        "C:\\repo\\src\\shared\\images",
+        "C:/repo/src/shared/images",
+      ),
+    ).toBe(true);
+  });
 });
 
 describe("buildModule", () => {
-  test("builds base64-backed exports from supplied bytes", () => {
+  test("builds working base64-backed exports from supplied bytes", async () => {
     const source = buildModule(
       [{ exportName: "jpegDec" }, { exportName: "webpEnc" }] as const,
       (asset) =>
@@ -80,6 +102,9 @@ describe("buildModule", () => {
     expect(source).toContain("export const jpegDec = () => jpegDecBytes;");
     expect(source).toContain('const webpEncBytes = b64ToBytes("BAU=");');
     expect(source).toContain("export const webpEnc = () => webpEncBytes;");
+    const generated = await importGeneratedModule(source);
+    expect([...(await generated.jpegDec())]).toEqual([1, 2, 3]);
+    expect([...(await generated.webpEnc())]).toEqual([4, 5]);
   });
 
   test("builds the real jSquash module with every expected export", () => {
@@ -88,6 +113,96 @@ describe("buildModule", () => {
       expect(source).toContain(`export const ${asset.exportName} = () =>`);
     }
     expect(source).not.toContain("src/shared/images/wasm");
+  });
+});
+
+describe("buildRemoteModule", () => {
+  test("builds checked fetch-backed exports for published wasm", async () => {
+    const source = buildRemoteModule(
+      [{ exportName: "jpegDec" }, { exportName: "webpEnc" }] as const,
+      {
+        "jpegDec.wasm": "https://assets.example.com/release/jpegDec.wasm",
+        "webpEnc.wasm": "https://assets.example.com/release/webpEnc.wasm",
+      },
+    );
+    const originalFetch = globalThis.fetch;
+    const requested: string[] = [];
+    globalThis.fetch = (input) => {
+      requested.push(String(input));
+      return Promise.resolve(new Response(new Uint8Array([4, 5])));
+    };
+    try {
+      const generated = await importGeneratedModule(source);
+      expect([...(await generated.webpEnc())]).toEqual([4, 5]);
+      expect(requested).toEqual([
+        "https://assets.example.com/release/webpEnc.wasm",
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("reports the URL and status when published wasm cannot load", async () => {
+    const url = "https://assets.example.com/release/webpEnc.wasm";
+    const source = buildRemoteModule([{ exportName: "webpEnc" }] as const, {
+      "webpEnc.wasm": url,
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = () =>
+      Promise.resolve(new Response(null, { status: 503 }));
+    try {
+      const generated = await importGeneratedModule(source);
+      await expect(generated.webpEnc()).rejects.toThrow(
+        `Failed to load image codec ${url}: HTTP 503`,
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("aborts a stalled published wasm request after 30 seconds", async () => {
+    using time = new FakeTime();
+    const source = buildRemoteModule([{ exportName: "webpEnc" }] as const, {
+      "webpEnc.wasm": "https://assets.example.com/release/webpEnc.wasm",
+    });
+    const originalFetch = globalThis.fetch;
+    let error: unknown;
+    let settled = false;
+    globalThis.fetch = (_input, init) => {
+      const signal = init?.signal;
+      if (!signal) throw new Error("Expected bounded codec request");
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener("abort", () => reject(signal.reason), {
+          once: true,
+        });
+      });
+    };
+    try {
+      const generated = await importGeneratedModule(source);
+      const observed = Promise.resolve(generated.webpEnc())
+        .catch((caught: unknown) => {
+          error = caught;
+        })
+        .finally(() => {
+          settled = true;
+        });
+      await time.tickAsync(29_999);
+      expect(settled).toBe(false);
+      await time.tickAsync(1);
+      await observed;
+      if (!(error instanceof DOMException)) {
+        throw new Error("Expected codec timeout DOMException");
+      }
+      expect(error.name).toBe("TimeoutError");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("rejects a release missing one of its wasm URLs", () => {
+    expect(() =>
+      buildRemoteModule([{ exportName: "jpegDec" }] as const, {}),
+    ).toThrow("jpegDec.wasm");
   });
 });
 
@@ -110,6 +225,17 @@ describe("createPlugin", () => {
       resolveDir: "/repo/src/shared/images",
     } as OnResolveArgs);
     expect(ignored).toBeUndefined();
+    const imagesDir = fromFileUrl(
+      new URL("../../src/shared/images", import.meta.url),
+    );
+    const relative = await resolveCallbacks[0]!({
+      path: "./wasm-bytes.ts",
+      resolveDir: imagesDir,
+    } as OnResolveArgs);
+    expect(relative).toEqual({
+      namespace: "inline-jsquash-wasm",
+      path: "./wasm-bytes.ts",
+    });
 
     const loaded = (await loadCallbacks[0]!({} as OnLoadArgs)) as OnLoadResult;
     expect(loaded).toEqual({
