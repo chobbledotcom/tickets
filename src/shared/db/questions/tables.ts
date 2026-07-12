@@ -1,8 +1,7 @@
 /**
  * Table definitions for custom questions and their answers. The
- * `listing_questions` link table has no definition here: production reads and
- * writes it only through the raw SQL in `questions/queries.ts`
- * (`setQuestionListings` and the membership joins).
+ * `listing_questions` link table is declared in `questions/queries.ts`, beside
+ * the membership joins that consume it.
  */
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";

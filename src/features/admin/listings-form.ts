@@ -10,7 +10,7 @@
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { normalizeDatetime } from "#shared/dates.ts";
-import { copyListingAttributeOptionsTx } from "#shared/db/attributes.ts";
+import { listingAttributeOptions } from "#shared/db/attributes.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import {
   copyPackageMemberOverridesTx,
@@ -271,7 +271,7 @@ const writeCreateListingGroups =
     const sourceId = form.getOptionalInt("duplicated_from");
     if (sourceId !== null) {
       await copyPackageMemberOverridesTx(tx, sourceId, id);
-      await copyListingAttributeOptionsTx(tx, sourceId, id);
+      await listingAttributeOptions.copyLinksTx(tx, sourceId, id);
     }
   };
 

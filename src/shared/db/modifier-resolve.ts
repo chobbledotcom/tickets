@@ -21,10 +21,10 @@ import {
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import {
   getActiveModifiers,
-  getModifierGroupIdsByModifierId,
   getModifierGroupListingIdsByModifierId,
-  getModifierListingIdsByModifierId,
+  modifierGroups,
   modifierIdsByAnswerId,
+  modifierListings,
 } from "#shared/db/modifiers.ts";
 import type {
   CheckoutItem,
@@ -70,7 +70,7 @@ const listingIdsByModifierId = async (
     if (modifier.scope === "all") scopes.set(modifier.id, null);
   }
   const [listingLinks, groupLinks] = await Promise.all([
-    getModifierListingIdsByModifierId(listingScoped.map((m) => m.id)),
+    modifierListings.getIdsByKeys(listingScoped.map((m) => m.id)),
     resolveGroupScopes(groupScoped.map((m) => m.id)),
   ]);
   // Each lookup seeds an entry for every id it was given, so these maps cover
@@ -569,7 +569,7 @@ export const listingIdsInGroups = (
 const inMemoryGroupScopeResolver =
   (allListings: ListingGroupMembership[]): GroupScopeResolver =>
   async (groupScopedIds) => {
-    const groupLinks = await getModifierGroupIdsByModifierId(groupScopedIds);
+    const groupLinks = await modifierGroups.getIdsByKeys(groupScopedIds);
     return new Map(
       [...groupLinks].map(([id, groupIds]) => [
         id,

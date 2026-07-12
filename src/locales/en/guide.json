@@ -288,7 +288,6 @@
   "guide.q.hosting_and_images": "Do you help with hosting and images?",
   "guide.a.hosting_and_images": "<p>Yes to both. I can set you up on your own Bunny CDN account (or another host) and handle the technical configuration. I also design listing images if you need them. Get in touch and we'll figure out exactly what you need.</p>",
   "guide.bug_report_email": "hello@chobble.com",
-  "guide.demo_mode_notice": "Demo Mode &mdash; entered text is replaced with sample data",
   "guide.q.what_is_purchase_only_mode": "What is No Check-In mode?",
   "guide.a.what_is_purchase_only_mode": "<p>When you enable <strong>No Check-In</strong> on a listing, buyers can purchase the item without receiving an entry ticket — ideal for raffles, fundraisers, donations, merchandise, digital products, or anything else that does not need door scanning. The booking button changes from “Reserve” to “Buy now”, and after purchase buyers see “Your Purchase” instead of “Your Tickets”.</p><p>Because nobody needs to be checked in, QR codes, the check-in scanner, and wallet passes (Apple &amp; Google) are all hidden. The listing is also excluded from the ICS and RSS feeds. Non-transferable ID notices are suppressed too, since there is no door to check at.</p>",
   "guide.q.how_do_i_merge_duplicate_attendees": "How do I merge duplicate attendees?",

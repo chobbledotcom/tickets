@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import {
   expectCsvDownloadHeaders,
@@ -146,7 +146,7 @@ describeWithEnv("server listings > export", { db: true }, () => {
         sortOrder: 1,
         text: "Large",
       });
-      await setListingQuestions(listing.id, [q.id]);
+      await listingQuestions.setIds(listing.id, [q.id]);
       await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
       const csv = await fetchListingExportCsv(listing.id, cookie);

@@ -42,10 +42,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("shows a Listings cell titled with the assigned listing names", async () => {
       const qId = await createQuestion("Listings column?");
       const listing = await createTestListing({ name: "Gala Night" });
-      const { setQuestionListings } = await import(
+      const { questionListings } = await import(
         "#shared/db/questions/queries.ts"
       );
-      await setQuestionListings(qId, [listing.id]);
+      await questionListings.setIds(qId, [listing.id]);
 
       const response = await adminGet("/admin/questions");
       const body = await response.text();

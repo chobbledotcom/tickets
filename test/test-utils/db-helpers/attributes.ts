@@ -4,7 +4,7 @@ import {
   assignNextAttributeSortOrder,
   attributeOptionsTable,
   attributesTable,
-  setListingAttributeOptions,
+  listingAttributeOptions,
 } from "#shared/db/attributes.ts";
 
 export const createTestAttribute = async (
@@ -43,7 +43,7 @@ export const assignTestAttributeOptions = (
   listingId: number,
   options: AttributeOption[],
 ): Promise<void> =>
-  setListingAttributeOptions(
+  listingAttributeOptions.setIds(
     listingId,
     options.map((option) => option.id),
   );

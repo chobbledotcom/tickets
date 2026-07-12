@@ -10,6 +10,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withPoisonedTransactionExecute } from "#test-utils/db-poison.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
@@ -53,20 +54,20 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "Listings updated",
       )(response);
 
-      const { getQuestionListingIds } = await import(
+      const { questionListings } = await import(
         "#shared/db/questions/queries.ts"
       );
-      expect(await getQuestionListingIds(qId)).toEqual([listing.id]);
+      expect(await questionListings.getIds(qId)).toEqual([listing.id]);
     });
 
     test("removes question from unchecked listings", async () => {
       const listing = await createTestListing({ name: "Unassign listing" });
       const qId = await createQuestion("Unassign me?");
 
-      const { setQuestionListings, getQuestionListingIds } = await import(
+      const { questionListings } = await import(
         "#shared/db/questions/queries.ts"
       );
-      await setQuestionListings(qId, [listing.id]);
+      await questionListings.setIds(qId, [listing.id]);
 
       const { response } = await adminFormPost(
         `/admin/questions/${qId}/listings`,
@@ -76,7 +77,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}`,
         "Listings updated",
       )(response);
-      expect(await getQuestionListingIds(qId)).toEqual([]);
+      expect(await questionListings.getIds(qId)).toEqual([]);
     });
 
     test("stores assign-all and logs all-listings assignment", async () => {
@@ -93,6 +94,30 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("assigned to all listings");
+    });
+
+    test("rolls back assign-all when saving listing links fails", async () => {
+      const listing = await createTestListing({ name: "Rollback listing" });
+      const qId = await createQuestion("Rollback assignment?");
+      const failLinkInsert = withPoisonedTransactionExecute(
+        (sql) => sql.includes("INSERT INTO listing_questions"),
+        "link insert failed",
+      );
+
+      await expect(
+        failLinkInsert(async () => {
+          await adminFormPost(`/admin/questions/${qId}/listings`, {
+            assign_all: "on",
+            listing_ids: String(listing.id),
+          });
+        }),
+      ).rejects.toThrow("link insert failed");
+
+      const { getQuestionWithAnswers, questionListings } = await import(
+        "#shared/db/questions/queries.ts"
+      );
+      expect((await getQuestionWithAnswers(qId))!.assign_all).toBe(false);
+      expect(await questionListings.getIds(qId)).toEqual([]);
     });
 
     test("logs singular when assigned to one listing", async () => {
@@ -173,10 +198,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const qId = await createQuestion("Shirt size?");
 
       // Assign the question to the listing
-      const { setListingQuestions } = await import(
+      const { listingQuestions } = await import(
         "#shared/db/questions/queries.ts"
       );
-      await setListingQuestions(listing.id, [qId]);
+      await listingQuestions.setIds(listing.id, [qId]);
 
       const response = await adminGet(`/admin/listing/${listing.id}/questions`);
       await expectHtmlResponse(
@@ -263,10 +288,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const q2 = await createQuestion("New question?");
 
       // Assign q1 first
-      const { setListingQuestions, getListingQuestionIds } = await import(
+      const { getListingQuestionIds, listingQuestions } = await import(
         "#shared/db/questions/queries.ts"
       );
-      await setListingQuestions(listing.id, [q1]);
+      await listingQuestions.setIds(listing.id, [q1]);
 
       // Now assign q2 via the route
       const cookie = await testCookie();

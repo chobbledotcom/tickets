@@ -8,7 +8,7 @@ import { LISTING_ATTENDEE_ROW_COLS } from "#shared/db/attendees/queries.ts";
 import { queryAll } from "#shared/db/client.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import {
   applyAttendeeMerge,
@@ -80,7 +80,7 @@ export const createQuestionWithAnswers = async (
     });
     answers.push(a);
   }
-  await setListingQuestions(listingId, [q.id]);
+  await listingQuestions.setIds(listingId, [q.id]);
   return { answers, question: q };
 };
 

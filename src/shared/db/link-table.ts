@@ -15,10 +15,12 @@
  * constants, never user input.
  */
 
-import { unique } from "#fp";
+import { reduce, unique } from "#fp";
 import {
   deleteByField,
   executeBatch,
+  inPlaceholders,
+  queryAll,
   queryIdColumn,
   type SqlStatement,
   type TxScope,
@@ -46,6 +48,9 @@ export type LinkTableSide = {
   ) => Promise<void>;
   /** The linked ids for a key, ascending. */
   getIds: (keyId: number) => Promise<number[]>;
+  /** The linked ids for several keys in one bounded query. Every requested key
+   * is present in the map, including keys with no links. */
+  getIdsByKeys: (keyIds: readonly number[]) => Promise<Map<number, number[]>>;
   /** Replace a key's linked set with exactly `ids` (deduped): delete the key's
    * rows, then insert the new ones, as a single batch so a failure never
    * leaves a partial set. */
@@ -107,6 +112,28 @@ export const linkTableSide = (
         `SELECT ${valueColumn} AS id FROM ${table} WHERE ${keyColumn} = ? ORDER BY ${valueColumn} ASC`,
         [keyId],
       ),
+    getIdsByKeys: async (keyIds) => {
+      const keys = unique([...keyIds]);
+      const idsByKey = new Map(keys.map((id) => [id, [] as number[]]));
+      if (keys.length === 0) return idsByKey;
+      const rows = await queryAll<{ key_id: number; value_id: number }>(
+        `SELECT ${keyColumn} AS key_id, ${valueColumn} AS value_id
+         FROM ${table}
+         WHERE ${keyColumn} IN (${inPlaceholders(keys)})
+         ORDER BY ${keyColumn}, ${valueColumn}`,
+        keys,
+      );
+      return reduce(
+        (
+          acc: Map<number, number[]>,
+          row: { key_id: number; value_id: number },
+        ) => {
+          acc.get(row.key_id)!.push(row.value_id);
+          return acc;
+        },
+        idsByKey,
+      )(rows);
+    },
     setIds: (keyId, ids) => executeBatch(replaceStatements(keyId, ids)),
     setIdsTx: async (tx, keyId, ids) => {
       for (const stmt of replaceStatements(keyId, ids)) {

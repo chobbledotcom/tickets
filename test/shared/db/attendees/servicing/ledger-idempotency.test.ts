@@ -2,7 +2,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { KIND } from "#shared/accounting/kinds.ts";
-import { parseFlashCookie } from "#test-utils/assertions.ts";
+import {
+  expectFlashError,
+  expectFlashSuccess,
+  parseFlashCookie,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   adminPost,
@@ -14,7 +18,7 @@ import {
   listingCostOf,
   SERVICE_DATE,
   transfersOfKind,
-} from "./ledger-helpers.ts";
+} from "#test-utils/servicing-ledger.ts";
 
 // jscpd:ignore-end
 
@@ -51,22 +55,22 @@ describeWithEnv("servicing §22 - cost idempotency", { db: true }, () => {
         memo: "Boiler part",
         target_listing_id: String(listing.id),
       });
-    const key = crypto.randomUUID();
+    const key = "idem-double-submit";
     await postCost(key);
     const retried = await postCost(key);
     expect(retried.status).toBe(302);
     expect(parseFlashCookie(retried).error).toBeUndefined();
-    expect(parseFlashCookie(retried).success).toBeDefined();
+    expectFlashSuccess(retried);
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(1);
     expect(await listingCostOf(listing.id)).toBe(9000);
-    await postCost(crypto.randomUUID());
+    await postCost("idem-double-submit-2");
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(2);
     expect(await listingCostOf(listing.id)).toBe(18000);
   });
 
   test("reusing an idempotency key with a changed amount errors, never a silent false success", async () => {
     const { id, listing } = await createServicingHold();
-    const key = crypto.randomUUID();
+    const key = "idem-changed-amount";
     const postCost = (amount: string) =>
       adminPost(`/admin/servicing/${id}`, {
         amount,
@@ -79,7 +83,7 @@ describeWithEnv("servicing §22 - cost idempotency", { db: true }, () => {
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(1);
     expect(await listingCostOf(listing.id)).toBe(9000);
     expect(parseFlashCookie(changed).success).toBeUndefined();
-    expect(parseFlashCookie(changed).error).toBeDefined();
+    expectFlashError(changed);
     const { getServicingCosts } = await import(
       "#shared/db/attendees/servicing.ts"
     );
@@ -89,7 +93,7 @@ describeWithEnv("servicing §22 - cost idempotency", { db: true }, () => {
 
   test("reusing an idempotency key with only the memo changed does not silently keep the old memo", async () => {
     const { id, listing } = await createServicingHold();
-    const key = crypto.randomUUID();
+    const key = "idem-changed-memo";
     const postCost = (memo: string) =>
       adminPost(`/admin/servicing/${id}`, {
         amount: "90.00",
@@ -101,6 +105,7 @@ describeWithEnv("servicing §22 - cost idempotency", { db: true }, () => {
     const changed = await postCost("Edited memo");
     expect(changed.status).toBe(302);
     expect(parseFlashCookie(changed).success).toBeUndefined();
+    expectFlashError(changed);
     const { getServicingCosts } = await import(
       "#shared/db/attendees/servicing.ts"
     );
@@ -124,7 +129,7 @@ describeWithEnv("servicing §22 - cost idempotency", { db: true }, () => {
     await recordServiceCost({ ...base, amount: 9000 });
     await expectRejects(
       recordServiceCost({ ...base, amount: 5000 }),
-      new RegExp(COST_REPLAY_MISMATCH.slice(0, 20)),
+      COST_REPLAY_MISMATCH,
     );
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(1);
     expect(await listingCostOf(listing.id)).toBe(9000);

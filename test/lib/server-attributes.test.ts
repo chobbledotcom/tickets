@@ -5,7 +5,6 @@ import {
   getAllAttributesWithOptions,
   getAttributeWithOptions,
   listingAttributeOptions,
-  setListingAttributeOptions,
 } from "#shared/db/attributes.ts";
 import {
   expectFlash,
@@ -349,7 +348,9 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
         "Easy",
         "Hard",
       ]);
-      await setListingAttributeOptions(listing.id, [attribute.options[1]!.id]);
+      await listingAttributeOptions.setIds(listing.id, [
+        attribute.options[1]!.id,
+      ]);
 
       const html = await expectHtmlResponse(
         await adminGet(`/admin/listing/${listing.id}/attributes`),

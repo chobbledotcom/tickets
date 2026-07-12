@@ -1,7 +1,14 @@
-// jscpd:ignore-start
+/**
+ * Shared helpers for the servicing §22 ledger tests (service costs & listing
+ * profit). These are split across several `ledger-*.test.ts` files under
+ * `test/shared/db/attendees/servicing/`; the fixtures and assertions they all
+ * lean on live here so no two files carry their own copy.
+ */
 import { expect } from "@std/expect";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { allTransfers } from "#shared/accounting/queries.ts";
+import type { Transfer } from "#shared/ledger/types.ts";
+import { expectFlashError } from "#test-utils/assertions.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import {
   createServicingHold,
@@ -9,13 +16,16 @@ import {
   listingCostOf,
   recordServiceCost,
 } from "#test-utils/servicing.ts";
-// jscpd:ignore-end
 
+/** The default service date every cost-recording fixture stamps its leg with. */
 export const SERVICE_DATE = "2026-07-01T00:00:00.000Z";
 
-export const transfersOfKind = async (kind: string) =>
-  (await allTransfers()).filter((transfer) => transfer.kind === kind);
+/** The ledger transfers of a single `kind` (e.g. `service_cost`). */
+export const transfersOfKind = async (kind: string): Promise<Transfer[]> =>
+  (await allTransfers()).filter((t) => t.kind === kind);
 
+/** The listing row's profit, reading through a fresh listings cache so a
+ *  just-recorded cost is reflected. */
 export const listingProfitOf = async (listingId: number): Promise<number> => {
   const { getListingWithCount, invalidateListingsCache } = await import(
     "#shared/db/listings.ts"
@@ -48,7 +58,8 @@ export const editBoilerCostTo = async (...amounts: number[]) => {
   return { ...fixture, afterRows, beforeRows, costId };
 };
 
-/** Post a £200 customer sale against the listing. */
+/** Post a £200 customer sale against `listingId` (the income side of a profit
+ *  assertion, so cost/profit can be checked against real revenue). */
 export const postCustomerSale = async (listingId: number): Promise<void> => {
   const { attendee } = await createTestAttendeeDirect(
     listingId,
@@ -59,8 +70,10 @@ export const postCustomerSale = async (listingId: number): Promise<void> => {
   await postListingSale({ attendeeId: attendee.id, gross: 20000, listingId });
 };
 
-/** Assert a cost POST was rejected as a recoverable form error and wrote no
- * new service cost leg. */
+/** Assert a cost POST was rejected as a recoverable form error: a 302 back to
+ *  the event page with an error flash, and NO new ledger leg of any kind (not
+ *  just no `service_cost`). `before` is the total transfer count before the
+ *  POST. */
 export const expectCostFormError = async (
   response: Response,
   servicingId: number,
@@ -70,7 +83,8 @@ export const expectCostFormError = async (
   expect(response.headers.get("location")).toContain(
     `/admin/servicing/${servicingId}`,
   );
-  expect((await transfersOfKind(KIND.serviceCost)).length).toBe(before);
+  expectFlashError(response);
+  expect((await allTransfers()).length).toBe(before);
 };
 
 export { listingCostOf };

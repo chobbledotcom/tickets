@@ -19,7 +19,7 @@ import {
   recordBoilerCost,
   SERVICE_DATE,
   transfersOfKind,
-} from "./ledger-helpers.ts";
+} from "#test-utils/servicing-ledger.ts";
 
 // jscpd:ignore-end
 

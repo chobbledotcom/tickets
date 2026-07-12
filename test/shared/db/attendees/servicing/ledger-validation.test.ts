@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { KIND } from "#shared/accounting/kinds.ts";
+import { allTransfers } from "#shared/accounting/queries.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -16,15 +16,14 @@ import {
   listingCostOf,
   recordBoilerCost,
   SERVICE_DATE,
-  transfersOfKind,
-} from "./ledger-helpers.ts";
+} from "#test-utils/servicing-ledger.ts";
 
 // jscpd:ignore-end
 
 describeWithEnv("servicing §22 - cost validation", { db: true }, () => {
   test("invalid create cost amounts write no service_cost transfer (form error, not 500)", async () => {
     const { id, listing } = await createServicingHold();
-    const before = (await transfersOfKind(KIND.serviceCost)).length;
+    const before = (await allTransfers()).length;
     for (const amount of ["", "-5", "abc", "0"]) {
       const response = await adminPost(`/admin/servicing/${id}`, {
         amount,
@@ -38,15 +37,14 @@ describeWithEnv("servicing §22 - cost validation", { db: true }, () => {
 
   test("an invalid create target_listing_id writes no service_cost transfer", async () => {
     const { id, listing } = await createServicingHold();
-    const before = (await transfersOfKind(KIND.serviceCost)).length;
+    const before = (await allTransfers()).length;
     for (const target of ["", "abc", "0", "-3"]) {
       const response = await adminPost(`/admin/servicing/${id}`, {
         amount: "90.00",
         memo: "Bad",
         target_listing_id: target,
       });
-      expect(response.status).toBe(302);
-      expect((await transfersOfKind(KIND.serviceCost)).length).toBe(before);
+      await expectCostFormError(response, id, before);
     }
     const other = await createTestListing({ maxAttendees: 10, name: "Other" });
     const response = await adminPost(`/admin/servicing/${id}`, {
@@ -54,15 +52,14 @@ describeWithEnv("servicing §22 - cost validation", { db: true }, () => {
       memo: "Bad",
       target_listing_id: String(other.id),
     });
-    expect(response.status).toBe(302);
-    expect((await transfersOfKind(KIND.serviceCost)).length).toBe(before);
+    await expectCostFormError(response, id, before);
     expect(await listingCostOf(listing.id)).toBe(0);
   });
 
   test("invalid edit cost amounts write no service_cost transfer (form error, not 500)", async () => {
     const { id, listing } = await createServicingHold();
     const costId = await recordBoilerCost(id, listing.id);
-    const before = (await transfersOfKind(KIND.serviceCost)).length;
+    const before = (await allTransfers()).length;
     for (const amount of ["", "-5", "abc", "0"]) {
       const response = await adminPost(
         `/admin/servicing/${id}/cost/${costId}`,

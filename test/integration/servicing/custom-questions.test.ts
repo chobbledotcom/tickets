@@ -18,7 +18,7 @@ import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#shared/db/client.ts";
 import {
   getQuestionsWithListingIds,
-  setQuestionListings,
+  questionListings,
 } from "#shared/db/questions/queries.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -46,7 +46,7 @@ const attachQuestion = async (
     sortOrder: 0,
     text: "Vaillant",
   });
-  await setQuestionListings(question.id, [listingId]);
+  await questionListings.setIds(question.id, [listingId]);
   const questionId = question.id;
   const answerId = answer.id;
   return { answerId, questionId };

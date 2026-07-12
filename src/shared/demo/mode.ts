@@ -31,4 +31,4 @@ export const setDemoModeForTest = (enabled: boolean): void =>
   setDemoMode(enabled);
 
 /** Demo mode banner HTML */
-export const DEMO_BANNER = `<div class="demo-banner">${t("guide.demo_mode_notice")}</div>`;
+export const DEMO_BANNER = `<div class="demo-banner">${t("common.demo_mode_notice")}</div>`;
