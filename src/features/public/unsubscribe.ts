@@ -6,9 +6,9 @@
  * on their own address via the capability in their link.
  */
 
-import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
+import { withCsrfForm } from "#routes/csrf.ts";
+import { flashForPage } from "#routes/flash-for-page.ts";
 import { htmlResponse, infoRedirect, redirect } from "#routes/response.ts";
-import { signCsrfToken } from "#shared/csrf.ts";
 import {
   forgetContact,
   isHashUnsubscribed,
@@ -24,8 +24,7 @@ const pagePath = (hash: string): string =>
 export const handleUnsubscribeGet = async (
   request: Request,
 ): Promise<Response> => {
-  const flash = applyFlash(request);
-  await signCsrfToken();
+  const flash = await flashForPage(request);
   const hash = new URL(request.url).searchParams.get("email");
   const unsubscribed = hash ? await isHashUnsubscribed(hash) : false;
   return htmlResponse(

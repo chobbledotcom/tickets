@@ -11,6 +11,8 @@
  * and writes too.
  */
 
+import { withLazyLogger } from "#shared/lazy-logger.ts";
+
 declare const Deno:
   | { env: { get(key: string): string | undefined } }
   | undefined;
@@ -76,13 +78,12 @@ export const isReadOnly = (): boolean => {
   const cutoff = getEnv("READ_ONLY_FROM");
   if (!cutoff) return false;
   if (Number.isNaN(Date.parse(cutoff))) {
-    void (async () => {
-      const { ErrorCode, logError } = await import("#shared/logger.ts");
+    void withLazyLogger(({ ErrorCode, logError }) =>
       logError({
         code: ErrorCode.DATA_INVALID,
         detail: `READ_ONLY_FROM unparseable: ${cutoff}`,
-      });
-    })();
+      }),
+    );
     return false;
   }
   return isReadOnlyFromCutoff(Date.now(), cutoff);

@@ -2,7 +2,9 @@
  * Authentication and session utilities
  */
 
+import type { JsonBodyReader } from "#routes/api/json-body.ts";
 import { parseFormData } from "#routes/csrf.ts";
+import { lowerContentType } from "#routes/middleware.ts";
 import {
   htmlResponse,
   jsonResponse,
@@ -326,6 +328,15 @@ export const SCANNER_JSON: AuthPolicy<"json"> = {
   csrfMaxAge: SCANNER_CSRF_MAX_AGE_S,
 };
 
+/** Get the current cookie session, or the channel's not-authenticated failure. */
+const cookieSessionOrFailure = async (
+  request: Request,
+  channel: AuthChannel,
+): Promise<AuthSession | Response> => {
+  const session = await getAuthenticatedSession(request);
+  return session ?? authFailure(channel, "not-authenticated");
+};
+
 /**
  * Core session + role gate. Returns the session on success, or a
  * channel-appropriate failure Response.
@@ -336,8 +347,8 @@ const requireSessionFor = async (
   role?: AdminLevel,
   roles?: readonly AdminLevel[],
 ): Promise<AuthSession | Response> => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) return authFailure(channel, "not-authenticated");
+  const session = await cookieSessionOrFailure(request, channel);
+  if (isResponse(session)) return session;
   if (!sessionRoleAllowed(session.adminLevel, role, roles)) {
     return authFailure(channel, "forbidden");
   }
@@ -500,10 +511,8 @@ const isSafeMethod = (request: Request): boolean =>
   request.method === "GET" || request.method === "HEAD";
 
 /** Parse JSON body, returning empty object for non-JSON GET/HEAD requests */
-const parseJsonBody = async (
-  request: Request,
-): Promise<Record<string, unknown> | Response> => {
-  const contentType = (request.headers.get("content-type") ?? "").toLowerCase();
+const parseJsonBody: JsonBodyReader = async (request) => {
+  const contentType = lowerContentType(request);
   const bodyRequired = !isSafeMethod(request);
 
   if (!contentType.includes("application/json")) {
@@ -599,9 +608,8 @@ const resolveSession = async (
     if (s) return { authKind: "apiKey", session: s };
     if (getBearerToken(request)) return authFailure(channel, "invalid-api-key");
   }
-  const session = await getAuthenticatedSession(request);
-  if (!session) return authFailure(channel, "not-authenticated");
-  return { authKind: "cookie", session };
+  const session = await cookieSessionOrFailure(request, channel);
+  return isResponse(session) ? session : { authKind: "cookie", session };
 };
 
 /** Unified auth pipeline: authenticate, enforce role, validate CSRF, parse body. */

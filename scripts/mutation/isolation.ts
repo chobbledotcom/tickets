@@ -6,6 +6,7 @@
  */
 
 import { relative } from "@std/path";
+import { errorMessage } from "#shared/error-message.ts";
 import { processExists, stopProcess, stopProcessNow } from "../process.ts";
 import { projectRoot } from "../project-root.ts";
 import {
@@ -31,10 +32,14 @@ import {
   rewriteMutationArgs,
   runLockIsHeld,
   runStartedRecently,
+  type SnapshotArgsFn,
   selectedRuns,
   withMutationRunLock,
   writeRunRecord,
 } from "./isolation-state.ts";
+
+/** Runs a mutation command from its argv and returns a process exit code. */
+type MutationCommandRunner = (args: string[], root?: string) => Promise<number>;
 
 const processBelongsToRun = async (
   record: MutationRunRecord,
@@ -138,11 +143,7 @@ const childEnv = (
   [MUTATION_WORK_ROOT_ENV]: snapshotRoot,
 });
 
-const childArgs = (
-  root: string,
-  snapshotRoot: string,
-  args: string[],
-): string[] => [
+const childArgs: SnapshotArgsFn = (root, snapshotRoot, args) => [
   "run",
   "-A",
   "scripts/mutation.ts",
@@ -170,10 +171,10 @@ const settleRecord = (
 ): MutationRunRecord =>
   interrupted ? markInterrupted(record) : markFinished(record, code);
 
-export const runMutationInSnapshot = async (
-  args: string[],
+export const runMutationInSnapshot: MutationCommandRunner = async (
+  args,
   root = projectRoot,
-): Promise<number> => {
+) => {
   const id = createRunId();
   let record = newRunRecord(id, args, root);
   await writeRunRecord(record);
@@ -230,7 +231,7 @@ export const runMutationInSnapshot = async (
     } catch {
       // A failed write should not mask the original error.
     }
-    console.error(error instanceof Error ? error.message : String(error));
+    console.error(errorMessage(error));
   }
   offTerminationSignals(stopChild);
   return exitCode;
@@ -308,11 +309,7 @@ const removeMatchedRuns = async (
 
   for (const record of removed) console.log(`Removed ${record.id}.`);
   for (const { error, record } of failed) {
-    console.error(
-      `Failed to remove ${record.id}: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
+    console.error(`Failed to remove ${record.id}: ${errorMessage(error)}`);
   }
   for (const record of skipped) {
     console.error(`Skipped active isolated mutation run ${record.id}.`);
@@ -330,10 +327,10 @@ const cleanRuns = (target: string, root = projectRoot): Promise<number> =>
     removeMatchedRuns(records, target),
   );
 
-export const runIsolatedMutationCommand = async (
-  args: string[],
+export const runIsolatedMutationCommand: MutationCommandRunner = async (
+  args,
   root = projectRoot,
-): Promise<number> => {
+) => {
   const command = parseIsolationCommand(args);
   if (command.kind === "invalid") {
     console.error(command.message);

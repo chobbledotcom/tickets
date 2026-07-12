@@ -27,6 +27,7 @@ import {
   listingsTable,
 } from "#shared/db/listings.ts";
 import type { AdminLevel } from "#shared/types.ts";
+import { withGroupOrNull } from "../find-group.ts";
 import { getListingGroupMemberships } from "./membership.ts";
 import {
   CATALOG_TRANSFER_VERSION,
@@ -184,40 +185,38 @@ export const exportListing = async (
  * exist. Includes every member listing (by name) with its package override,
  * quantity, and per-day overrides.
  */
-export const exportGroup = async (
+export const exportGroup = (
   id: number,
-): Promise<GroupTransfer | CatalogExportError | null> => {
-  const group = await groups.table.findById(id);
-  if (!group) return null;
+): Promise<GroupTransfer | CatalogExportError | null> =>
+  withGroupOrNull(id, async (group) => {
+    const groupData = parseExport(
+      GroupDataSchema,
+      groups.table.rowToInput(group, GROUP_EXPORT_EXCLUDED),
+      "group",
+    );
+    if (groupData instanceof CatalogExportError) return groupData;
 
-  const groupData = parseExport(
-    GroupDataSchema,
-    groups.table.rowToInput(group, GROUP_EXPORT_EXCLUDED),
-    "group",
-  );
-  if (groupData instanceof CatalogExportError) return groupData;
+    const rows = await getGroupPackagePrices(id);
+    const [listingNames, dayPrices] = await Promise.all([
+      getListingNamesByIds(rows.map((r) => r.listing_id)),
+      getGroupDayPrices(id),
+    ]);
 
-  const rows = await getGroupPackagePrices(id);
-  const [listingNames, dayPrices] = await Promise.all([
-    getListingNamesByIds(rows.map((r) => r.listing_id)),
-    getGroupDayPrices(id),
-  ]);
+    // Every package row references an existing listing (FK), and `listingNames`
+    // covers exactly those ids, so the name lookup always resolves.
+    const members: GroupMember[] = rows.map((row) => ({
+      listing: listingNames.get(row.listing_id)!,
+      ...overrideFields(
+        row.package_price,
+        row.quantity,
+        dayPrices.get(row.listing_id),
+      ),
+    }));
 
-  // Every package row references an existing listing (FK), and `listingNames`
-  // covers exactly those ids, so the name lookup always resolves.
-  const members: GroupMember[] = rows.map((row) => ({
-    listing: listingNames.get(row.listing_id)!,
-    ...overrideFields(
-      row.package_price,
-      row.quantity,
-      dayPrices.get(row.listing_id),
-    ),
-  }));
-
-  return {
-    group: groupData,
-    kind: "group",
-    members,
-    version: CATALOG_TRANSFER_VERSION,
-  };
-};
+    return {
+      group: groupData,
+      kind: "group",
+      members,
+      version: CATALOG_TRANSFER_VERSION,
+    };
+  });

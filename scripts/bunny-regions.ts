@@ -52,10 +52,11 @@ console.log(fmt(config.primary_regions));
 console.log("\nReplica regions:");
 console.log(fmt(config.replica_regions));
 
-const eu = (r: BunnyRegion) => r.group === "EU";
+const euIds = (rs: BunnyRegion[]) =>
+  rs.filter((r) => r.group === "EU").map((r) => r.id);
 console.log("\nEuropean storage zone ids:");
-console.log(config.storage_region_available.filter(eu).map((r) => r.id));
+console.log(euIds(config.storage_region_available));
 console.log("European primary region ids:");
-console.log(config.primary_regions.filter(eu).map((r) => r.id));
+console.log(euIds(config.primary_regions));
 console.log("European replica region ids:");
-console.log(config.replica_regions.filter(eu).map((r) => r.id));
+console.log(euIds(config.replica_regions));

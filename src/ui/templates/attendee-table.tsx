@@ -28,6 +28,7 @@ import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { AttendeeQuestionData } from "#shared/db/questions/attendee-answers/reads.ts";
 import { settings } from "#shared/db/settings.ts";
 import { CsrfForm } from "#shared/forms.tsx";
+import { ReturnUrlField } from "#shared/return-url-field.tsx";
 import {
   type Attendee,
   type AttendeeTableRow,
@@ -213,7 +214,7 @@ const CheckinButton = ({
       class="inline"
     >
       <input name="return_filter" type="hidden" value={activeFilter} />
-      {returnUrl && <input name="return_url" type="hidden" value={returnUrl} />}
+      <ReturnUrlField returnUrl={returnUrl} />
       <button class={buttonClass} type="submit">
         {label}
       </button>

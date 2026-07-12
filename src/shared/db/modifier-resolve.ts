@@ -666,6 +666,22 @@ export const childUnreachableAddOnError = (
  * page drops it from the reachable set and surfaces the dead end. Group scopes
  * resolve against `allListings` so a group-scoped add-on reflects the same set.
  */
+/** The ids of listings that can still offer an add-on to a booker: an active
+ *  listing that isn't one of the suppressed children (only those serve their
+ *  own public booking page). Shared by the in-memory save re-check and the
+ *  modifier save guard. */
+export const reachablePageIds = (
+  listings: ReadonlyArray<{ id: number; active?: boolean }>,
+  suppressedChildIds: Set<number>,
+): Set<number> =>
+  new Set(
+    listings
+      .filter(
+        (listing) => listing.active && !suppressedChildIds.has(listing.id),
+      )
+      .map((listing) => listing.id),
+  );
+
 export const firstChildUnreachableAddOnForListings = async (
   allListings: ListingGroupMembership[],
   childListingIds: Set<number>,
@@ -673,11 +689,7 @@ export const firstChildUnreachableAddOnForListings = async (
   const { optional, scopes } = await optionalAddOnsWithScopes(
     inMemoryGroupScopeResolver(allListings),
   );
-  const reachablePageIds = new Set(
-    allListings
-      .filter((listing) => listing.active && !childListingIds.has(listing.id))
-      .map((listing) => listing.id),
-  );
+  const reachable = reachablePageIds(allListings, childListingIds);
   for (const modifier of optional) {
     const error = childUnreachableAddOnError(
       {
@@ -687,7 +699,7 @@ export const firstChildUnreachableAddOnForListings = async (
         trigger: modifier.trigger,
       },
       childListingIds,
-      reachablePageIds,
+      reachable,
     );
     if (error) return error;
   }

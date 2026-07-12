@@ -18,10 +18,14 @@
  * overshooting the target.
  */
 
+/* jscpd:ignore-start */
 import { OWNER_FORM, withAuth } from "#routes/auth.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import type { FormParams } from "#shared/form-data.ts";
 import { parseSignedMinorUnits } from "#shared/validation/money.ts";
+
+/* jscpd:ignore-end */
 
 /** Configuration for one entity's money-correction handler. */
 type MoneyAdjustConfig<Entity> = {
@@ -45,17 +49,25 @@ type MoneyAdjustConfig<Entity> = {
  * entity, parses the new figure, posts the delta as a `writeoff` adjustment, logs
  * a neutral message, and redirects back to the edit page with a success flash.
  */
+const applyMoneyAdjust = async <Entity>(
+  config: MoneyAdjustConfig<Entity>,
+  id: number,
+  form: FormParams,
+): Promise<Response> => {
+  const entity = await config.load(id);
+  if (!entity) return notFoundResponse();
+  const target = parseSignedMinorUnits(form.getString(config.field));
+  if (target === null) {
+    return errorRedirect(config.editPath(id), "Enter a valid amount");
+  }
+  await config.adjust(entity, target);
+  await logActivity(config.logMessage(entity));
+  return redirect(config.editPath(id), config.successMessage, true);
+};
+
 export const makeMoneyAdjustHandler =
   <Entity>(config: MoneyAdjustConfig<Entity>) =>
   (request: Request, id: number): Promise<Response> =>
-    withAuth(request, OWNER_FORM, async (_session, form) => {
-      const entity = await config.load(id);
-      if (!entity) return notFoundResponse();
-      const target = parseSignedMinorUnits(form.getString(config.field));
-      if (target === null) {
-        return errorRedirect(config.editPath(id), "Enter a valid amount");
-      }
-      await config.adjust(entity, target);
-      await logActivity(config.logMessage(entity));
-      return redirect(config.editPath(id), config.successMessage, true);
-    });
+    withAuth(request, OWNER_FORM, (_session, form) =>
+      applyMoneyAdjust(config, id, form),
+    );

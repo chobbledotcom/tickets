@@ -90,6 +90,16 @@ const parseStatusForm = (form: FormParams): ParseResult => {
   };
 };
 
+// Parses the status form for a page whose form lives at `formPath`. Returns the
+// valid data, or the redirect back to that form carrying the error message.
+const parseStatusFormOr = (
+  form: FormParams,
+  formPath: string,
+): StatusFormData | Response => {
+  const parsed = parseStatusForm(form);
+  return parsed.ok ? parsed.data : errorRedirect(formPath, parsed.error);
+};
+
 /** After a write, ensure at most one public-default and one paid-default. */
 const clearOtherDefaults = async (
   id: number,
@@ -145,12 +155,12 @@ const editGet = ownerStatusPage((status, session) =>
 const createPost = createAuthedHandler({
   auth: OWNER_FORM,
   handle: async ({ form }) => {
-    const parsed = parseStatusForm(form);
-    if (!parsed.ok) return errorRedirect(`${LIST_PATH}/new`, parsed.error);
-    const status = await attendeeStatuses.table.insert(parsed.data);
+    const parsed = parseStatusFormOr(form, `${LIST_PATH}/new`);
+    if (parsed instanceof Response) return parsed;
+    const status = await attendeeStatuses.table.insert(parsed);
     await assignNextAttendeeStatusSortOrder(status.id);
-    await clearOtherDefaults(status.id, parsed.data);
-    await logActivity(`Attendee status '${parsed.data.name}' created`);
+    await clearOtherDefaults(status.id, parsed);
+    await logActivity(`Attendee status '${parsed.name}' created`);
     return redirect(LIST_PATH, "Status created", true);
   },
 });
@@ -158,25 +168,25 @@ const createPost = createAuthedHandler({
 const editPost = ownerFormById(async (id, _session, form) => {
   const existing = await getAttendeeStatus(id);
   if (!existing) return notFoundResponse();
-  const parsed = parseStatusForm(form);
-  if (!parsed.ok) return errorRedirect(`${LIST_PATH}/${id}/edit`, parsed.error);
+  const parsed = parseStatusFormOr(form, `${LIST_PATH}/${id}/edit`);
+  if (parsed instanceof Response) return parsed;
 
-  if (existing.is_public_default && !parsed.data.isPublicDefault) {
+  if (existing.is_public_default && !parsed.isPublicDefault) {
     return errorRedirect(
       `${LIST_PATH}/${id}/edit`,
       "Choose another public default before clearing this one",
     );
   }
-  if (existing.is_paid_default && !parsed.data.isPaidDefault) {
+  if (existing.is_paid_default && !parsed.isPaidDefault) {
     return errorRedirect(
       `${LIST_PATH}/${id}/edit`,
       "Choose another paid default before clearing this one",
     );
   }
 
-  await attendeeStatuses.table.update(id, parsed.data);
-  await clearOtherDefaults(id, parsed.data);
-  await logActivity(`Attendee status '${parsed.data.name}' updated`);
+  await attendeeStatuses.table.update(id, parsed);
+  await clearOtherDefaults(id, parsed);
+  await logActivity(`Attendee status '${parsed.name}' updated`);
   return redirect(LIST_PATH, "Status updated", true);
 });
 

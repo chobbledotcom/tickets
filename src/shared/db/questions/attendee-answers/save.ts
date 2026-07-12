@@ -212,18 +212,15 @@ export const saveAttendeeAnswers = async (
     // (one for choice answers, one for text answers) so the statement count
     // stays at a handful regardless of attendee count — the transaction
     // round-trip guard thresholds a chatty per-attendee loop would trip.
+    // One row of a pending INSERT: an attendee, a question, and the one value
+    // column that varies (a chosen answer id, or an interned text id).
     type AnswerRow = {
       attendeeId: number;
       questionId: number;
-      answerId: number;
-    };
-    type TextRow = {
-      attendeeId: number;
-      questionId: number;
-      stringId: number;
+      valueId: number;
     };
     const choiceRows: AnswerRow[] = [];
-    const textRows: TextRow[] = [];
+    const textRows: AnswerRow[] = [];
     for (const [
       attendeeId,
       { answerIds, textAnswerIds, textAnswers },
@@ -234,9 +231,9 @@ export const saveAttendeeAnswers = async (
       );
       for (const id of dedupedAnswerIds) {
         choiceRows.push({
-          answerId: id,
           attendeeId,
           questionId: questionIdsByAnswer.get(id)!,
+          valueId: id,
         });
       }
       const resolvedTextAnswerIds = dedupeTextAnswerIdsByQuestion([
@@ -250,32 +247,28 @@ export const saveAttendeeAnswers = async (
         textRows.push({
           attendeeId,
           questionId: answer.questionId,
-          stringId: answer.stringId,
+          valueId: answer.stringId,
         });
       }
     }
-    if (choiceRows.length > 0) {
-      const placeholders = choiceRows.map(() => "(?, ?, ?)").join(", ");
-      await tx.execute({
-        args: choiceRows.flatMap((row) => [
+    // Emit one multi-row INSERT of answer rows into the given value column.
+    // Both answer kinds write the same three columns, so they share this body.
+    const insertAnswerRows = (
+      valueColumn: "answer_id" | "string_id",
+      rows: AnswerRow[],
+    ): Promise<unknown> => {
+      const placeholders = rows.map(() => "(?, ?, ?)").join(", ");
+      return tx.execute({
+        args: rows.flatMap((row) => [
           row.attendeeId,
           row.questionId,
-          row.answerId,
+          row.valueId,
         ]),
-        sql: `INSERT INTO attendee_answers (attendee_id, question_id, answer_id) VALUES ${placeholders}`,
+        sql: `INSERT INTO attendee_answers (attendee_id, question_id, ${valueColumn}) VALUES ${placeholders}`,
       });
-    }
-    if (textRows.length > 0) {
-      const placeholders = textRows.map(() => "(?, ?, ?)").join(", ");
-      await tx.execute({
-        args: textRows.flatMap((row) => [
-          row.attendeeId,
-          row.questionId,
-          row.stringId,
-        ]),
-        sql: `INSERT INTO attendee_answers (attendee_id, question_id, string_id) VALUES ${placeholders}`,
-      });
-    }
+    };
+    if (choiceRows.length > 0) await insertAnswerRows("answer_id", choiceRows);
+    if (textRows.length > 0) await insertAnswerRows("string_id", textRows);
   });
 };
 

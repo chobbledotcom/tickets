@@ -22,14 +22,15 @@ import {
   cachedClientFactory,
   createWithClient,
   errorMessage,
-  parseWebhookPayload,
 } from "#shared/payment-helpers.ts";
 import type {
   CheckoutIntent,
+  SetupWebhookEndpoint,
   WebhookEvent,
   WebhookSetupResult,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
+import { finishWebhookVerification } from "#shared/webhook-verification.ts";
 
 /** Lazy-load Stripe SDK only when needed */
 const loadStripe = once(async () => {
@@ -190,11 +191,11 @@ type StripeCheckoutLineItem = NonNullable<
  * Internal implementation of webhook endpoint setup.
  * Defined before stripeApi so it can be assigned directly.
  */
-const setupWebhookEndpointImpl = async (
-  secretKey: string,
-  webhookUrl: string,
-  existingEndpointId?: string | null,
-): Promise<WebhookSetupResult> => {
+const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
+  secretKey,
+  webhookUrl,
+  existingEndpointId,
+) => {
   try {
     const client = await createStripeClient(secretKey);
 
@@ -248,11 +249,7 @@ export const stripeApi: {
     intent: CheckoutIntent,
     baseUrl: string,
   ) => Promise<Stripe.Checkout.Session | null>;
-  setupWebhookEndpoint: (
-    secretKey: string,
-    webhookUrl: string,
-    existingEndpointId?: string | null,
-  ) => Promise<WebhookSetupResult>;
+  setupWebhookEndpoint: SetupWebhookEndpoint;
   testStripeConnection: () => Promise<StripeConnectionTestResult>;
 } = {
   /** Create checkout session for one or more listings */
@@ -561,10 +558,13 @@ export const verifyWebhookSignature = async (
 
   if (!isValid) {
     logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: "mismatch" });
-    return { error: "Signature verification failed", valid: false };
   }
 
-  return parseWebhookPayload(payload, ErrorCode.STRIPE_SIGNATURE);
+  return finishWebhookVerification(
+    isValid,
+    payload,
+    ErrorCode.STRIPE_SIGNATURE,
+  );
 };
 
 /**

@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   asString,
   bracket,
+  byId,
   collectionCache,
   filter,
   firstMatch,
@@ -503,6 +504,27 @@ describe("fp", () => {
           () => 1,
         )([]),
       ).toEqual(new Map());
+    });
+  });
+
+  describe("byId", () => {
+    test("indexes items by their id", () => {
+      const a = { id: 1, name: "a" };
+      const b = { id: 2, name: "b" };
+      const map = byId([a, b]);
+      expect(map.get(1)).toBe(a);
+      expect(map.get(2)).toBe(b);
+      expect(map.size).toBe(2);
+    });
+
+    test("later items with the same id win", () => {
+      const first = { id: 1, name: "first" };
+      const second = { id: 1, name: "second" };
+      expect(byId([first, second]).get(1)).toBe(second);
+    });
+
+    test("empty input gives an empty map", () => {
+      expect(byId([])).toEqual(new Map());
     });
   });
 });

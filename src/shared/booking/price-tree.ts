@@ -1,3 +1,4 @@
+import { nodesDeepestFirst } from "#shared/booking/node-order.ts";
 import {
   type BookingNode,
   type BookingTree,
@@ -260,14 +261,10 @@ export const packageBundleTotal = (
  * pass. */
 export const priceRuleByListingId = (
   tree: BookingTree,
-): Map<number, PriceRule> => {
-  const map = new Map<number, PriceRule>();
-  // Set deeper (child) rules first, then shallower (top-level) rules, so a
+): Map<number, PriceRule> =>
+  // Deepest (child) rules are written first and top-level rules last, so a
   // top-level node overwrites a same-id descendant — top-level wins.
-  const visit = (nodes: readonly BookingNode[]): void => {
-    for (const node of nodes) visit(node.children);
-    for (const node of nodes) map.set(node.listingId, node.priceRule);
-  };
-  visit(tree.nodes);
-  return map;
-};
+  nodesDeepestFirst(tree).reduce((map, node) => {
+    map.set(node.listingId, node.priceRule);
+    return map;
+  }, new Map<number, PriceRule>());

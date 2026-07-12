@@ -1,3 +1,4 @@
+import { sumByKey } from "#fp";
 import { effectivePrice } from "#shared/booking/price-tree.ts";
 import {
   type BookingNode,
@@ -53,13 +54,17 @@ export const aggregateNodeQuantities = (
   tree: BookingTree,
   nodeQuantities: ReadonlyMap<string, number>,
 ): Map<number, number> => {
-  const totals = new Map<number, number>();
-  for (const node of tree.nodes) {
-    const quantity = nodeQuantities.get(node.nodeKey) ?? 0;
-    if (quantity <= 0) continue;
-    totals.set(node.listingId, (totals.get(node.listingId) ?? 0) + quantity);
-  }
-  return totals;
+  const booked = tree.nodes
+    .map((node) => ({
+      listingId: node.listingId,
+      quantity: nodeQuantities.get(node.nodeKey) ?? 0,
+    }))
+    // Zero-total listings are omitted, matching the parsed-quantities convention.
+    .filter((line) => line.quantity > 0);
+  return sumByKey<{ listingId: number; quantity: number }, number>(
+    (line) => line.listingId,
+    (line) => line.quantity,
+  )(booked);
 };
 
 /** One child node per child listing id (child facets are derived from the

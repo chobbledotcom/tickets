@@ -20,14 +20,21 @@ export const ProseHeading = ({
   </div>
 );
 
+/** One paragraph of trusted HTML — `<p><Raw html=.../></p>`. Owned here so the
+ *  same `<p>`-wrapped `<Raw>` isn't re-authored (and re-detected as a clone)
+ *  wherever a page drops a rich-text paragraph into a prose block. */
+export const RawParagraph = ({ html }: { html: string }): JSX.Element => (
+  <p>
+    <Raw html={html} />
+  </p>
+);
+
 /** A single prose paragraph rendered from a trusted HTML string — the
  *  `<div class="prose"><p><Raw html=.../></p></div>` intro block several admin
  *  pages open with. Owning it here keeps that shape from being re-authored (and
  *  re-detected as a clone) per page. */
 export const ProseIntro = ({ html }: { html: string }): JSX.Element => (
   <div class="prose">
-    <p>
-      <Raw html={html} />
-    </p>
+    <RawParagraph html={html} />
   </div>
 );

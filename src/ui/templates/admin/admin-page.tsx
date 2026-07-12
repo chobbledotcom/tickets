@@ -164,29 +164,37 @@ export const themedAdminPage =
       </AdminPage>,
     );
 
+/** Build a titled admin opener from just its `flash` builder — the shared
+ *  `(title, active?) => curriedAdminPage(title, active, flash)` shape the three
+ *  specialisations below only differ in the flash argument shape of. */
+const adminOpenerFor =
+  <FlashArgs extends unknown[]>(
+    flash: (...args: FlashArgs) => JSX.Element | null,
+  ) =>
+  (title: string, active = "/admin/settings") =>
+    curriedAdminPage(title, active, flash);
+
 /** List-page admin opener: takes the page title (and optional `active`),
  *  returns a function taking (session, successMessage) and producing a
  *  page-body receiver. Renders a success Flash when successMessage is set. */
-export const successAdminPage = (title: string, active = "/admin/settings") =>
-  curriedAdminPage(title, active, (success?: string) =>
-    success === undefined ? null : <Flash success={success} />,
-  );
+export const successAdminPage = adminOpenerFor((success?: string) =>
+  success === undefined ? null : <Flash success={success} />,
+);
 
 /** CRUD edit-page admin opener: takes the page title (and optional `active`),
  *  returns a function taking (session, error) and producing a page-body
  *  receiver. Renders an error Flash when error is set; otherwise no Flash.
  *  Used by the holiday/logistics edit pages. */
-export const errorAdminPage = (title: string, active = "/admin/settings") =>
-  curriedAdminPage(title, active, (error?: string) =>
-    error === undefined ? null : <Flash error={error} />,
-  );
+export const errorAdminPage = adminOpenerFor((error?: string) =>
+  error === undefined ? null : <Flash error={error} />,
+);
 
 /** Dashboard admin opener: takes the page title (and optional `active`),
  *  returns a function taking (session, error, success) and producing a
  *  page-body receiver. Renders an error/success Flash via flashProps(). */
-export const flashAdminPage = (title: string, active = "/admin/settings") =>
-  curriedAdminPage(title, active, (error?: string, success?: string) =>
+export const flashAdminPage = adminOpenerFor(
+  (error?: string, success?: string) =>
     error === undefined && success === undefined ? null : (
       <Flash {...flashProps(error, success)} />
     ),
-  );
+);

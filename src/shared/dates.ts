@@ -371,16 +371,21 @@ export const formatDateRangeLabelCompactEn = (
   const sameDay = sameMonth && s.getUTCDate() === e.getUTCDate();
   const sMonth = MONTH_NAMES[s.getUTCMonth()];
   const eMonth = MONTH_NAMES[e.getUTCMonth()];
+  // "<day> <month> <year>" for one end of the range, e.g. "2 February 2027".
+  const dayMonthYear = (d: Date, month: string | undefined): string =>
+    `${d.getUTCDate()} ${month} ${d.getUTCFullYear()}`;
   if (sameDay) {
-    return `${s.getUTCDate()} ${sMonth} ${s.getUTCFullYear()}`;
+    return dayMonthYear(s, sMonth);
   }
   if (sameMonth) {
-    return `${s.getUTCDate()}–${e.getUTCDate()} ${sMonth} ${s.getUTCFullYear()}`;
+    // Same month + year: share the month and year, e.g. "2–3 February 2027".
+    return `${s.getUTCDate()}–${dayMonthYear(e, sMonth)}`;
   }
   if (sameYear) {
-    return `${s.getUTCDate()} ${sMonth} – ${e.getUTCDate()} ${eMonth} ${s.getUTCFullYear()}`;
+    // Same year, different month: share only the year, from the end date.
+    return `${s.getUTCDate()} ${sMonth} – ${dayMonthYear(e, eMonth)}`;
   }
-  return `${s.getUTCDate()} ${sMonth} ${s.getUTCFullYear()} – ${e.getUTCDate()} ${eMonth} ${e.getUTCFullYear()}`;
+  return `${dayMonthYear(s, sMonth)} – ${dayMonthYear(e, eMonth)}`;
 };
 
 /**

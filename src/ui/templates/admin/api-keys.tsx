@@ -19,7 +19,7 @@ import {
   GuideFooter,
   SubmitButton,
 } from "#templates/components/actions.tsx";
-import { DataTable, textColumns } from "#templates/components/data-table.tsx";
+import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 
@@ -53,6 +53,20 @@ const ApiKeyRow = ({ apiKey }: { apiKey: ApiKeyDisplay }): string =>
     </tr>,
   );
 
+// Every API-keys screen sits in the same admin shell. This wrapper keeps the
+// active tab and page frame identical across the list, manage, and docs pages —
+// only the title and body change.
+const apiKeysShell = (
+  session: AdminSession,
+  title: string,
+  children: Child,
+): string =>
+  String(
+    <AdminPage active="/admin/api-keys" session={session} title={title}>
+      {children}
+    </AdminPage>,
+  );
+
 /**
  * Admin API keys page
  */
@@ -73,12 +87,10 @@ export const adminApiKeysPage = (
         )(keys)
       : `<tr><td colspan="3">${t("api_keys.no_keys")}</td></tr>`;
 
-  return String(
-    <AdminPage
-      active="/admin/api-keys"
-      session={adminSession}
-      title={t("api_keys.title")}
-    >
+  return apiKeysShell(
+    adminSession,
+    t("api_keys.title"),
+    <>
       <Flash error={opts.error} success={opts.success} />
 
       {opts.newKey && (
@@ -98,11 +110,7 @@ export const adminApiKeysPage = (
       </p>
 
       <DataTable
-        columns={textColumns(
-          "common.name",
-          "common.created",
-          "api_keys.col.last_used",
-        )}
+        columns={namedColumns("common.created", "api_keys.col.last_used")}
         rows={keyRows}
       />
 
@@ -119,7 +127,7 @@ export const adminApiKeysPage = (
       <GuideFooter href="/admin/guide#api">
         {t("api_keys.guide_link")}
       </GuideFooter>
-    </AdminPage>,
+    </>,
   );
 };
 
@@ -134,12 +142,10 @@ export const adminApiKeyManagePage = (
   session: AdminSession,
   opts: { error?: string | undefined; success?: string | undefined } = {},
 ): string =>
-  String(
-    <AdminPage
-      active="/admin/api-keys"
-      session={session}
-      title={`${t("api_keys.title")}: ${apiKey.name}`}
-    >
+  apiKeysShell(
+    session,
+    `${t("api_keys.title")}: ${apiKey.name}`,
+    <>
       <h1>{apiKey.name}</h1>
       <Flash error={opts.error} success={opts.success} />
       <DetailTable>
@@ -160,7 +166,7 @@ export const adminApiKeyManagePage = (
           {t("api_keys.delete_submit")}
         </DeleteSection>
       </WritableOnly>
-    </AdminPage>,
+    </>,
   );
 
 /**
@@ -258,12 +264,10 @@ export const adminApiDocsPage = (
   publicEndpoints: EndpointDoc[],
   adminEndpoints: EndpointDoc[],
 ): string =>
-  String(
-    <AdminPage
-      active="/admin/api-keys"
-      session={session}
-      title={t("api_keys.docs_title")}
-    >
+  apiKeysShell(
+    session,
+    t("api_keys.docs_title"),
+    <>
       <DocsSection
         heading={t("api_keys.authentication")}
         intro="Admin API endpoints require authentication via API key or session cookie:"
@@ -292,5 +296,5 @@ export const adminApiDocsPage = (
       >
         <Raw html={EndpointList({ endpoints: adminEndpoints })} />
       </DocsSection>
-    </AdminPage>,
+    </>,
   );

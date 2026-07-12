@@ -5,6 +5,7 @@
  * confirm the booking is recorded as paid.
  */
 
+import type { Locator } from "playwright";
 import type { BrowserSession } from "./browser.ts";
 import { config } from "./config.ts";
 import { log, step } from "./log.ts";
@@ -145,11 +146,7 @@ export const submitBooking = async (
   const qty = page
     .locator('input[name^="quantity"], select[name^="quantity"]')
     .first();
-  if (await qty.count()) {
-    const tag = await qty.evaluate((el) => el.tagName.toLowerCase());
-    if (tag === "select") await qty.selectOption("1");
-    else await qty.fill("1");
-  }
+  if (await qty.count()) await setSelectOrInput(qty, "1");
 
   const submit = page
     .getByRole("button", { name: /continue|book|pay|checkout|reserve/i })
@@ -165,6 +162,22 @@ const fillIfPresent = async (
 ): Promise<void> => {
   const loc = session.page.locator(`[name="${name}"]`).first();
   if (await loc.count()) await loc.fill(value);
+};
+
+/**
+ * Set a quantity control that renders as either a `<select>` (small caps) or a
+ * plain `<input>` (large caps): choose the option on a select, type the value
+ * into an input. Any Playwright options (force / timeout) apply to whichever
+ * action runs.
+ */
+export const setSelectOrInput = async (
+  control: Locator,
+  value: string,
+  options?: { force?: boolean; timeout?: number },
+): Promise<void> => {
+  const tag = await control.evaluate((el) => el.tagName.toLowerCase());
+  if (tag === "select") await control.selectOption(value, options);
+  else await control.fill(value, options);
 };
 
 /**

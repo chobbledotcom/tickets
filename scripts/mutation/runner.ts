@@ -49,13 +49,19 @@ import {
   writeStepSummary,
 } from "./summary.ts";
 
-export interface MutationOptions {
-  batchJobs?: number;
+/** The files and knobs that describe what to mutate and how — shared by the
+ * public {@link MutationOptions} and the internal {@link RunMutantsOptions} so
+ * the common fields are stated once. */
+interface MutationTargets {
   exhaustive: boolean;
   sourceFiles: string[];
   testFiles: string[];
   timeout: number;
   useHarness: boolean;
+}
+
+export interface MutationOptions extends MutationTargets {
+  batchJobs?: number;
 }
 
 type Outcome = "failed" | "passed" | "timed-out";
@@ -415,19 +421,14 @@ const report = (results: MutantResult[]): number => {
   return summary.survived === 0 ? 0 : 1;
 };
 
-interface RunMutantsOptions {
+interface RunMutantsOptions extends MutationTargets {
   abortSignal: AbortSignal;
   batchJobs: number;
-  exhaustive: boolean;
   ignoreList: IgnoreList;
   isAborted: () => boolean;
   originals: Map<string, string>;
   restoreAll: () => void;
   results: MutantResult[];
-  sourceFiles: string[];
-  testFiles: string[];
-  timeout: number;
-  useHarness: boolean;
 }
 
 /**

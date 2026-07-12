@@ -5,20 +5,10 @@
 import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
-import { markAdminFooter } from "#templates/admin/footer.tsx";
+import { AgentHeader } from "#templates/admin/agent-header.tsx";
 import { StaffAdminNav } from "#templates/admin/nav.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
-
-const LogoutAgentHeader = (): JSX.Element => {
-  // Only rendered for agent-class users (bare header, no staff nav).
-  markAdminFooter("agent");
-  return (
-    <header class="agent-header">
-      <h1>{t("logout.title")}</h1>
-    </header>
-  );
-};
 
 export const adminLogoutPage = (session: AdminSession): string =>
   String(
@@ -27,7 +17,7 @@ export const adminLogoutPage = (session: AdminSession): string =>
       title={t("logout.title")}
     >
       {session.adminLevel === "agent" ? (
-        <LogoutAgentHeader />
+        <AgentHeader title={t("logout.title")} />
       ) : (
         <h1>{t("logout.title")}</h1>
       )}

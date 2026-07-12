@@ -1,4 +1,5 @@
 import { apiError, apiResponse } from "#routes/api/cors.ts";
+import type { JsonBodyReader } from "#routes/api/json-body.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { getClientIp } from "#routes/url.ts";
 import { bookingError, parseCustomPrice } from "#shared/booking/form.ts";
@@ -7,6 +8,7 @@ import { isHiddenPackageMember } from "#shared/db/groups.ts";
 import { getListingWithCountBySlug } from "#shared/db/listings.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { ListingWithCount } from "#shared/types.ts";
+import { isRecord } from "#shared/types.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 
 const LISTING_NOT_FOUND = "Listing not found";
@@ -94,14 +96,20 @@ export const findActiveListing = async (
 };
 
 /** Parse a JSON request body, returning a 400 API response on failure */
-export const parseApiJsonBody = async (
-  request: Request,
-): Promise<Record<string, unknown> | Response> => {
+export const parseApiJsonBody: JsonBodyReader = async (request) => {
+  let parsed: unknown;
   try {
-    return await request.json();
+    parsed = await request.json();
   } catch {
     return apiError("Invalid JSON body");
   }
+  // JsonBodyReader promises a plain record. A body like `null` or `[...]` parses
+  // fine but is not a record, so reject it here rather than letting it reach the
+  // route's field parsing and throw further in.
+  if (!isRecord(parsed)) {
+    return apiError("Invalid JSON body");
+  }
+  return parsed;
 };
 
 /** A route handler keyed by a single `:slug` path param — the shape every

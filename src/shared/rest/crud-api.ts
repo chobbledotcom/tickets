@@ -17,6 +17,7 @@
  *   });
  */
 
+/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
@@ -27,6 +28,7 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { type TxScope, writeRowInTransaction } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 import type { AdminSession } from "#shared/types.ts";
+/* jscpd:ignore-end */
 
 /** JSON body for confirmed delete endpoints */
 export type DeleteBody = { confirm_identifier: string };
@@ -433,11 +435,19 @@ export const defineCrudApi = <
    * an error short-circuits the whole write (no partial row create/change); a
    * success yields the prepared value to persist once the row exists. Resources
    * without a side effect yield `undefined` and never reject. */
-  const prepareSideEffect = async (
-    input: Input,
-    body: Record<string, unknown>,
-    existing: FullRow | null,
-  ): Promise<{ error: string } | { value: Prepared }> =>
+  // The shared inputs every write step reads: the typed input, the raw body,
+  // and the existing row (null when creating).
+  type WriteInputs = {
+    input: Input;
+    body: Record<string, unknown>;
+    existing: FullRow | null;
+  };
+
+  const prepareSideEffect = async ({
+    input,
+    body,
+    existing,
+  }: WriteInputs): Promise<{ error: string } | { value: Prepared }> =>
     config.sideEffect
       ? config.sideEffect.validate(input, body, existing)
       : { value: undefined as Prepared };
@@ -448,16 +458,15 @@ export const defineCrudApi = <
    * neither use a plain statement. Returns an error response on side-effect
    * rejection, or the logged JSON response on success. */
   const checkAndWrite = async (
-    input: Input,
-    body: Record<string, unknown>,
-    existing: FullRow | null,
+    inputs: WriteInputs,
     getStatement: () => Promise<{ args: InValue[]; sql: string }>,
     plainWrite: () => Promise<Row>,
     existingId: number | null,
     action: string,
     status: number,
   ): Promise<Response> => {
-    const prepared = await prepareSideEffect(input, body, existing);
+    const { input } = inputs;
+    const prepared = await prepareSideEffect(inputs);
     if ("error" in prepared) return apiErrorResponse(prepared.error);
     const fullRow =
       config.sideEffect || config.afterWrite
@@ -488,9 +497,7 @@ export const defineCrudApi = <
     withAuth(request, policy, (_session, body) =>
       withValidated(config.toCreateInput(body), undefined, (input) =>
         checkAndWrite(
-          input,
-          body,
-          null,
+          { body, existing: null, input },
           () => table.insertStatement!(input),
           () => table.insert(input),
           null,
@@ -535,9 +542,7 @@ export const defineCrudApi = <
   const handleUpdate = entityRoute((existing, _session, body, id) =>
     withValidated(config.toUpdateInput(body, existing), id, (input) =>
       checkAndWrite(
-        input,
-        body,
-        existing,
+        { body, existing, input },
         () => table.updateStatement!(existing.id, input),
         () => table.update(existing.id, input) as Promise<Row>,
         existing.id,

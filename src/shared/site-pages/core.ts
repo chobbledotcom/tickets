@@ -9,6 +9,7 @@
  * lives here and is exercised by plain-object unit tests.
  */
 
+import { byId as indexById } from "#fp";
 import type {
   Forest,
   NavModel,
@@ -64,7 +65,7 @@ export const buildForest = (
   pages: readonly SitePageNavRow[],
   items: readonly SitePageItem[],
 ): Forest => {
-  const byId = new Map(pages.map((p) => [p.id, p]));
+  const byId = indexById(pages);
 
   const itemsByPage = new Map<number, SitePageItem[]>();
   for (const item of items) {

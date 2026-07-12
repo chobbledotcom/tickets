@@ -33,6 +33,7 @@ import {
   clearImageUsesForItemStatement,
   imageFilenameSubqueries,
 } from "#shared/db/images.ts";
+import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
 import { col } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
@@ -47,15 +48,9 @@ import type {
 /** Create/update input (camelCase keys → snake_case columns). `created`, `slug`,
  * and `slugIndex` are computed in {@link createNewsPost}, never posted by the
  * admin form (only restores and tests pin an explicit `created`). */
-export type NewsPostInput = {
+export type NewsPostInput = SluggedContentInput & {
   created?: string;
-  slug: string;
-  slugIndex: BlindIndex;
-  name: string;
-  metaTitle?: string;
-  metaDescription?: string;
   snippet?: string;
-  content?: string;
 };
 
 /** Table with CRUD — all free text (including the slug) encrypted; `created`

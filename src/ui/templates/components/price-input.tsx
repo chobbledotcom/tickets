@@ -16,9 +16,12 @@ import type { SafeHtml } from "#jsx/jsx-runtime.ts";
 import { getDecimalPlaces } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
 
+/** How many decimal places the active currency uses (0 for JPY, 2 for most). */
+const currencyPlaces = (): number => getDecimalPlaces(settings.currency);
+
 /** The `<input step>` for the active currency (see the module comment). */
 export const moneyStep = (): string => {
-  const places = getDecimalPlaces(settings.currency);
+  const places = currencyPlaces();
   return places === 0 ? "1" : `0.${"0".repeat(places - 1)}1`;
 };
 
@@ -27,7 +30,7 @@ export const moneyStep = (): string => {
  *  zero-decimal currency). Use on a `type="text"` money input so native
  *  validation accepts exactly what the shared money schema does. */
 export const moneyPattern = (): string => {
-  const places = getDecimalPlaces(settings.currency);
+  const places = currencyPlaces();
   return places === 0 ? "\\d+" : `\\d+(\\.\\d{1,${places}})?`;
 };
 

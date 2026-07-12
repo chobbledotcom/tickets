@@ -1,8 +1,11 @@
+/* jscpd:ignore-start */
 import type {
   Migration,
   MigrationContext,
   SchemaRequirement,
 } from "./types.ts";
+
+/* jscpd:ignore-end */
 
 const requires: SchemaRequirement = {
   absentTables: ["events", "event_attendees", "event_questions"],
