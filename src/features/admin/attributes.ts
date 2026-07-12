@@ -233,14 +233,14 @@ const loadAttributeOption = async ({
   return attribute && option ? { attribute, option } : null;
 };
 
+type OptionRouteHandler = (
+  attribute: AttributeWithOptions,
+  option: AttributeOption,
+  session: AdminSession,
+) => Response | Promise<Response>;
+
 const optionRoute =
-  (
-    handler: (
-      attribute: AttributeWithOptions,
-      option: AttributeOption,
-      session: AdminSession,
-    ) => Response | Promise<Response>,
-  ) =>
+  (handler: OptionRouteHandler) =>
   (request: Request, params: AttributeOptionParams): Promise<Response> =>
     requireOwnerOr(request, async (session) => {
       const context = await loadAttributeOption(params);
@@ -272,8 +272,13 @@ const handleEditOptionGet = optionRoute(async (attribute, option, session) => {
   );
 });
 
-const optionDeletePath = ({ id, optionId }: AttributeOptionParams): string =>
-  `/admin/attributes/${id}/options/${optionId}/delete`;
+/** Build the URL of an option sub-action (delete, edit) for a given option. */
+const optionPath =
+  (action: string) =>
+  ({ id, optionId }: AttributeOptionParams): string =>
+    `/admin/attributes/${id}/options/${optionId}/${action}`;
+
+const optionDeletePath = optionPath("delete");
 
 const handleDeleteOptionPost = createVerifiedFormRoute<
   AttributeOptionParams,
@@ -296,8 +301,7 @@ const handleDeleteOptionPost = createVerifiedFormRoute<
   },
 });
 
-const editOptionPath = ({ id, optionId }: AttributeOptionParams): string =>
-  `/admin/attributes/${id}/options/${optionId}/edit`;
+const editOptionPath = optionPath("edit");
 
 const handleEditOptionPost = createAuthedFormRoute<
   { text: string },

@@ -235,13 +235,19 @@ const parseListingForm = (
   return form;
 };
 
+/** A content-gated multipart POST handler: authenticate, then hand the parsed
+ * multipart form to `handle`. Shared by the two multipart admin POSTs (listing
+ * create and catalog import). */
+export const contentMultipartRoute =
+  (handle: (session: AuthSession, formData: FormData) => Promise<Response>) =>
+  (request: Request): Promise<Response> =>
+    withAuth(request, CONTENT_MULTIPART, handle);
+
 /**
  * Handle POST /admin/listing (create listing)
  */
-export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
-  request,
-) =>
-  withAuth(request, CONTENT_MULTIPART, async (session, formData) => {
+export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
+  contentMultipartRoute(async (session, formData) => {
     const form = parseListingForm(session, formData, {
       useDefaults: false,
       webhookUrl: "",

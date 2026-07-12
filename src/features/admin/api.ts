@@ -242,35 +242,51 @@ const existingToDefaults = (existing: ListingWithCount): FieldRecord => {
 // Body → ListingInput converters
 // =============================================================================
 
+/** Parse the request's group ids, then either bail with the parse error or hand
+ * the ids to `build` to finish producing the listing input. */
+const withParsedGroupIds = (
+  body: Record<string, unknown>,
+  build: (groupIds: number[] | undefined) => Promise<ParseResult<ListingInput>>,
+): Promise<ParseResult<ListingInput>> => {
+  const groups = parseGroupIds(body.group_ids);
+  return groups.ok ? build(groups.input) : Promise.resolve(groups);
+};
+
+/** A successful listing-input parse result. */
+const okListingInput = (input: ListingInput): ParseResult<ListingInput> => ({
+  input,
+  ok: true,
+});
+
 /** Convert JSON body to ListingInput for create (auto-generates slug) */
-export const bodyToCreateInput = async (
+export const bodyToCreateInput = (
   body: Record<string, unknown>,
 ): Promise<ParseResult<ListingInput>> => {
   if (typeof body.name !== "string" || body.name.trim() === "") {
-    return { error: "name is required", ok: false };
+    return Promise.resolve({ error: "name is required", ok: false });
   }
   if (typeof body.max_attendees !== "number" || body.max_attendees < 1) {
-    return { error: "max_attendees is required and must be >= 1", ok: false };
+    return Promise.resolve({
+      error: "max_attendees is required and must be >= 1",
+      ok: false,
+    });
   }
+  const name = body.name.trim();
+  const maxAttendees = body.max_attendees;
 
-  const groups = parseGroupIds(body.group_ids);
-  if (!groups.ok) return groups;
-
-  const { slug, slugIndex } = await generateUniqueListingSlug();
-
-  return {
-    input: {
+  return withParsedGroupIds(body, async (groupIds) => {
+    const { slug, slugIndex } = await generateUniqueListingSlug();
+    return okListingInput({
       ...pickTypedFields(body, optionalFields),
       dayPrices: parseDayPrices(body.day_prices),
-      groupIds: groups.input,
-      maxAttendees: body.max_attendees,
+      groupIds,
+      maxAttendees,
       maxPrice: bodyNumber(body, "max_price", 0),
-      name: body.name.trim(),
+      name,
       slug,
       slugIndex,
-    } as ListingInput,
-    ok: true,
-  };
+    } as ListingInput);
+  });
 };
 
 /** Convert JSON body to ListingInput for update (merges with existing) */
@@ -286,28 +302,25 @@ export const bodyToUpdateInput = async (
   const parsedName = parseUpdateName(body, existing.name);
   if (!parsedName.ok) return parsedName;
 
-  const groups = parseGroupIds(body.group_ids);
-  if (!groups.ok) return groups;
+  return withParsedGroupIds(body, async (groupIds) => {
+    const existingGroupIds = await getGroupIdsByListingId(existing.id);
+    const maxAttendees = bodyNumber(
+      body,
+      "max_attendees",
+      existing.max_attendees,
+    );
+    if (maxAttendees < 1) {
+      return { error: "max_attendees must be >= 1", ok: false };
+    }
 
-  const existingGroupIds = await getGroupIdsByListingId(existing.id);
-  const maxAttendees = bodyNumber(
-    body,
-    "max_attendees",
-    existing.max_attendees,
-  );
-  if (maxAttendees < 1) {
-    return { error: "max_attendees must be >= 1", ok: false };
-  }
+    const { slug, slugIndex } = await parseUpdateSlug(
+      body,
+      existing.slug,
+      normalizeSlug,
+      computeSlugIndex,
+    );
 
-  const { slug, slugIndex } = await parseUpdateSlug(
-    body,
-    existing.slug,
-    normalizeSlug,
-    computeSlugIndex,
-  );
-
-  return {
-    input: {
+    return okListingInput({
       ...existingToDefaults(existing),
       ...pickTypedFields(body, optionalFields),
       dayPrices:
@@ -316,17 +329,16 @@ export const bodyToUpdateInput = async (
           : existing.day_prices,
       // Omitted group_ids → fall back to the listing's CURRENT membership, so a
       // partial update validates listing-type/customisable-days against the
-      // groups it stays in (and child-edge checks see the real groups). afterWrite
-      // then rewrites the same set — a no-op when unchanged.
-      groupIds: groups.input ?? existingGroupIds,
+      // groups it stays in (and child-edge checks see the real groups).
+      // afterWrite then rewrites the same set — a no-op when unchanged.
+      groupIds: groupIds ?? existingGroupIds,
       maxAttendees,
       maxPrice: bodyNumber(body, "max_price", existing.max_price),
       name: parsedName.name,
       slug,
       slugIndex,
-    } as ListingInput,
-    ok: true,
-  };
+    } as ListingInput);
+  });
 };
 
 // =============================================================================

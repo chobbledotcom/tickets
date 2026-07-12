@@ -169,16 +169,19 @@ export const verifiedAttendeeAction = (
     return handler(data, form);
   });
 
+/** Handler receiving the loaded attendee+listing, the session and the form. */
+type AttendeeFormHandler = (
+  data: AttendeeWithListing,
+  session: AuthSession,
+  form: FormParams,
+) => Response | Promise<Response>;
+
 /** Auth + load attendee from form handler */
 const withAttendeeForm = (
   request: Request,
   listingId: number,
   attendeeId: number,
-  handler: (
-    data: AttendeeWithListing,
-    session: AuthSession,
-    form: FormParams,
-  ) => Response | Promise<Response>,
+  handler: AttendeeFormHandler,
 ): Promise<Response> =>
   withAuth(request, AUTH_FORM, (session, form) =>
     withAttendee(listingId, attendeeId)((data) => handler(data, session, form)),

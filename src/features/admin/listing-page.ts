@@ -56,6 +56,13 @@ import {
 const staffOnly = (_entity: unknown, session: AuthSession): boolean =>
   isStaffRole(session.adminLevel);
 
+/** Staff-only, and only when the listing also passes an extra check (e.g. it is
+ * still active, or it is a paid listing). */
+const staffAnd =
+  (alsoAllowed: (entity: LoadedListing) => boolean) =>
+  (entity: LoadedListing, session: AuthSession): boolean =>
+    staffOnly(entity, session) && alsoAllowed(entity);
+
 /** URL of a sub-action on this listing. */
 const actionUrl = ({ listing }: LoadedListing, action: string): string =>
   `/admin/listing/${listing.id}/${action}`;
@@ -99,8 +106,7 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
     labelKey: "listings_table.refund_all",
     // Refunds only apply to a paid listing (the same gate the action bar used),
     // and moving money is staff-only — an editor never sees this button.
-    visible: (entity, session) =>
-      staffOnly(entity, session) && isPaidListing(entity.listing),
+    visible: staffAnd((entity) => isPaidListing(entity.listing)),
   },
   {
     danger: true,
@@ -108,16 +114,14 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
     icon: "x",
     intent: "write-form",
     labelKey: "listings_table.deactivate",
-    visible: (entity, session) =>
-      staffOnly(entity, session) && entity.listing.active,
+    visible: staffAnd((entity) => entity.listing.active),
   },
   {
     href: (entity) => actionUrl(entity, "reactivate"),
     icon: "rotate-ccw",
     intent: "write-form",
     labelKey: "listings_table.reactivate",
-    visible: (entity, session) =>
-      staffOnly(entity, session) && !entity.listing.active,
+    visible: staffAnd((entity) => !entity.listing.active),
   },
   {
     danger: true,
@@ -193,8 +197,7 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
       labelKey: "listings_table.scanner",
       sections: [],
       slug: "scanner",
-      visible: (entity, session) =>
-        staffOnly(entity, session) && !entity.listing.purchase_only,
+      visible: staffAnd((entity) => !entity.listing.purchase_only),
     },
     {
       intent: "write-form",
@@ -240,10 +243,9 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
       // Hidden in read-only mode too: the QR form posts to
       // POST /admin/listing/:id/qr, which the read-only guard default-denies —
       // so a followable tab would carry an unsubmittable form.
-      visible: (entity, session) =>
-        staffOnly(entity, session) &&
-        !entity.isChild &&
-        !entity.isHiddenPackageMember,
+      visible: staffAnd(
+        (entity) => !entity.isChild && !entity.isHiddenPackageMember,
+      ),
     },
     {
       labelKey: "entity.tab.activity",

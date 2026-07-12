@@ -34,6 +34,7 @@ import {
 import { loadMergePanel } from "#routes/admin/attendees-merge.ts";
 import {
   type ActionDef,
+  customSection,
   defineEntityPage,
   type EntityPage,
   type PageCtx,
@@ -136,32 +137,26 @@ const overviewTab: TabDef<LoadedAttendee> = {
           }),
         ),
     },
-    {
-      kind: "custom",
-      load: async ({ attendee, existing }) => {
-        const renderListings = await getRenderListings(existing);
-        // The read-only bookings table needs no blank path lines.
-        const { parsed } = buildEditFormFromAttendee(
-          attendee,
-          existing,
-          renderListings,
-          [],
-        );
-        return AttendeeBookingsTable({
-          bookings: attendeeBookingsFromLines(parsed.lines),
-        });
-      },
-    },
-    {
-      kind: "custom",
-      load: async ({ attendee, existing }) => {
-        const { questions, selectedAnswerIds } = await loadQuestionsForExisting(
-          attendee.id,
-          existing,
-        );
-        return AttendeeAnswersTable({ questions, selectedAnswerIds });
-      },
-    },
+    customSection(async ({ attendee, existing }) => {
+      const renderListings = await getRenderListings(existing);
+      // The read-only bookings table needs no blank path lines.
+      const { parsed } = buildEditFormFromAttendee(
+        attendee,
+        existing,
+        renderListings,
+        [],
+      );
+      return AttendeeBookingsTable({
+        bookings: attendeeBookingsFromLines(parsed.lines),
+      });
+    }),
+    customSection(async ({ attendee, existing }) => {
+      const { questions, selectedAnswerIds } = await loadQuestionsForExisting(
+        attendee.id,
+        existing,
+      );
+      return AttendeeAnswersTable({ questions, selectedAnswerIds });
+    }),
     {
       kind: "custom",
       load: ({ attendee }, ctx) =>

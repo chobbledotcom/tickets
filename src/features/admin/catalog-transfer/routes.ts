@@ -9,12 +9,8 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  */
 
 import { t } from "#i18n";
-import {
-  type AuthSession,
-  CONTENT_MULTIPART,
-  requireContentOr,
-  withAuth,
-} from "#routes/auth.ts";
+import { contentMultipartRoute } from "#routes/admin/listings-edit.ts";
+import { type AuthSession, requireContentOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import {
   encodeBody,
@@ -117,10 +113,8 @@ const handleImportGet: TypedRouteHandler<"GET /admin/catalog/import"> = (
   });
 
 /** POST /admin/catalog/import — validate and apply an uploaded blob. */
-const handleImportPost: TypedRouteHandler<"POST /admin/catalog/import"> = (
-  request,
-) =>
-  withAuth(request, CONTENT_MULTIPART, async (session, formData) => {
+const handleImportPost: TypedRouteHandler<"POST /admin/catalog/import"> =
+  contentMultipartRoute(async (session, formData) => {
     // The interactive create paths scrub demo-mapped fields (and clear webhook
     // URLs) as they parse the form; a raw import blob bypasses all of that, so
     // disable catalog import entirely in demo mode rather than persist arbitrary

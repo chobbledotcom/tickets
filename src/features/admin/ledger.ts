@@ -652,9 +652,11 @@ type PostedTransferHandler = (
   form: FormParams,
 ) => Response | Promise<Response>;
 
+type IdParam = { id: number };
+
 const postedTransferRoute =
   (handler: PostedTransferHandler) =>
-  (request: Request, params: { id: number }): Promise<Response> =>
+  (request: Request, params: IdParam): Promise<Response> =>
     ownerPostedTransferForm(request, params.id, handler);
 
 export const handleLedgerEntryAddGet: TypedRouteHandler<"GET /admin/ledger/:type/:ref/add"> =
