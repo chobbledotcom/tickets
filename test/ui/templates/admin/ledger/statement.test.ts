@@ -1,9 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import {
+  ATTENDEE,
+  COST,
+  EXTERNAL,
+  FEE_INCOME,
+  MODIFIER,
+  REVENUE,
+  WRITEOFF_TYPE,
+} from "#shared/accounting/accounts.ts";
 import { MANUAL_ATTENDEE_PAYMENT } from "#shared/accounting/manual-entries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { account } from "#shared/ledger/account.ts";
 import { statementFor } from "#shared/ledger/project.ts";
+import { statementBalanceKey } from "#templates/admin/ledger/formatting.tsx";
 import {
   AccountStatementSection,
   AccountStatementTable,
@@ -12,6 +22,32 @@ import {
 import { setTestEnv } from "#test-utils/env.ts";
 
 import { names, SESSION, transfer } from "./helpers.ts";
+
+describe("statementBalanceKey", () => {
+  test("maps every account type to its final balance label", () => {
+    expect(
+      [
+        ATTENDEE,
+        COST,
+        EXTERNAL,
+        FEE_INCOME,
+        MODIFIER,
+        REVENUE,
+        WRITEOFF_TYPE,
+        "future_account_type",
+      ].map((type) => statementBalanceKey(account(type, "1"))),
+    ).toEqual([
+      "admin.ledger.amount_owed",
+      "admin.ledger.total_costs",
+      "admin.ledger.balance",
+      "admin.ledger.balance",
+      "admin.ledger.balance",
+      "admin.ledger.income_balance",
+      "admin.ledger.balance",
+      "admin.ledger.balance",
+    ]);
+  });
+});
 
 describe("AccountStatementTable", () => {
   const acct = account("attendee", 1);

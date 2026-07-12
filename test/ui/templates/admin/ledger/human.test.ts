@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { KIND } from "#shared/accounting/kinds.ts";
 import { account } from "#shared/ledger/account.ts";
 import { HumanLedgerTable } from "#templates/admin/ledger.tsx";
 
@@ -202,7 +203,7 @@ describe("HumanLedgerTable", () => {
     expect(rows[3]).toContain("−£50");
   });
 
-  test("shows modifier income as positive and discounts as negative", () => {
+  test("shows modifier income and refund directions with matching signs", () => {
     const modifier = account("modifier", 1);
     const html = String(
       HumanLedgerTable({
@@ -211,14 +212,26 @@ describe("HumanLedgerTable", () => {
           transfer({
             destination: modifier,
             id: 1,
-            kind: "modifier",
+            kind: KIND.modifier,
             source: account("attendee", 1),
           }),
           transfer({
             destination: account("attendee", 1),
             id: 2,
-            kind: "modifier",
+            kind: KIND.modifier,
             source: modifier,
+          }),
+          transfer({
+            destination: account("attendee", 1),
+            id: 3,
+            kind: KIND.refundModifier,
+            source: modifier,
+          }),
+          transfer({
+            destination: modifier,
+            id: 4,
+            kind: KIND.refundModifier,
+            source: account("attendee", 1),
           }),
         ],
       }),
@@ -226,5 +239,7 @@ describe("HumanLedgerTable", () => {
     const rows = html.split("<tr>");
     expect(rows[2]).toContain("+£50");
     expect(rows[3]).toContain("−£50");
+    expect(rows[4]).toContain("−£50");
+    expect(rows[5]).toContain("+£50");
   });
 });

@@ -82,7 +82,8 @@ describe("adminListingPage income & ledger breakdown", () => {
     const recognisedIdx = html.indexOf("Total income earned");
     const netIdx = html.indexOf("Net after refunds and costs");
     expect(recognisedIdx).toBeGreaterThan(-1);
-    expect(netIdx).toBeGreaterThan(netIdx === -1 ? 0 : recognisedIdx);
+    expect(netIdx).toBeGreaterThan(-1);
+    expect(netIdx).toBeGreaterThan(recognisedIdx);
     expect(html).toContain("£90");
     expect(html).toContain("£70");
     // The two figures differ exactly by the refunds line.

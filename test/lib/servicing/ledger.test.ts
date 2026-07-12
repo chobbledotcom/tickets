@@ -36,6 +36,7 @@ import {
 import { emptyRange } from "#shared/accounting/range.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { queryAll } from "#shared/db/client.ts";
+import { deleteListing } from "#shared/db/listings.ts";
 import { account } from "#shared/ledger/account.ts";
 import { parseFlashCookie } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -587,6 +588,18 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     });
     const body = await response.text();
     expect(body).toContain(listing.name);
+    expect(body).not.toContain(`/admin/ledger?listing=${listing.id}`);
+    expect(body).not.toContain("View in ledger");
+  });
+
+  test("shows a deleted cost listing as plain text without a dead ledger link", async () => {
+    const { id, listing } = await createServicingHold();
+    await recordBoilerCost(id, listing.id);
+    await deleteListing(listing.id);
+
+    const body = await renderAdminPage(`/admin/servicing/${id}`);
+
+    expect(body).toContain("Deleted listing");
     expect(body).not.toContain(`/admin/ledger?listing=${listing.id}`);
     expect(body).not.toContain("View in ledger");
   });

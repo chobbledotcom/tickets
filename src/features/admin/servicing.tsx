@@ -263,34 +263,41 @@ const renderServicingPage = ({
                   { header: "Memo" },
                   { header: "Actions" },
                 ]}
-                rows={costs.map((cost) => [
-                  isOwner(session) ? (
-                    <a href={listingLedgerHref(cost.listingId)}>
-                      {listingNames.get(cost.listingId)}
-                    </a>
-                  ) : (
-                    listingNames.get(cost.listingId)
-                  ),
-                  formatDateLabel(cost.date.slice(0, 10)),
-                  formatCurrency(cost.amount),
-                  cost.memo,
-                  <>
-                    <CsrfForm
-                      action={`/admin/servicing/${event.id}/cost/${cost.id}`}
-                    >
-                      <PriceInput
-                        name="amount"
-                        value={toMajorUnits(cost.amount)}
-                      />
-                      <SubmitButton icon="save">Edit</SubmitButton>
-                    </CsrfForm>
-                    {isOwner(session) && (
-                      <a href={listingLedgerHref(cost.listingId)}>
-                        View in ledger
-                      </a>
-                    )}
-                  </>,
-                ])}
+                rows={costs.map((cost) => {
+                  const listingName = listingNames.get(cost.listingId);
+                  const ledgerHref =
+                    isOwner(session) && listingName !== undefined
+                      ? listingLedgerHref(cost.listingId)
+                      : null;
+                  return [
+                    ledgerHref === null ? (
+                      listingName === undefined ? (
+                        "Deleted listing"
+                      ) : (
+                        listingName
+                      )
+                    ) : (
+                      <a href={ledgerHref}>{listingName}</a>
+                    ),
+                    formatDateLabel(cost.date.slice(0, 10)),
+                    formatCurrency(cost.amount),
+                    cost.memo,
+                    <>
+                      <CsrfForm
+                        action={`/admin/servicing/${event.id}/cost/${cost.id}`}
+                      >
+                        <PriceInput
+                          name="amount"
+                          value={toMajorUnits(cost.amount)}
+                        />
+                        <SubmitButton icon="save">Edit</SubmitButton>
+                      </CsrfForm>
+                      {ledgerHref !== null && (
+                        <a href={ledgerHref}>View in ledger</a>
+                      )}
+                    </>,
+                  ];
+                })}
               />
             </>
           )}

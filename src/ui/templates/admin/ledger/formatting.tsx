@@ -2,11 +2,21 @@ import { t } from "#i18n";
 import {
   ATTENDEE,
   COST,
+  EXTERNAL,
+  FEE_INCOME,
+  isRowAccountType,
+  isSingletonAccountType,
+  MODIFIER,
   REVENUE,
+  type RowAccountType,
+  type SingletonAccountType,
   WRITEOFF_TYPE,
 } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import {
+  MANUAL_ATTENDEE_WRITEOFF,
+  MANUAL_LISTING_COST,
+  MANUAL_MODIFIER_REDUCTION,
   type ManualLedgerEntryType,
   manualEntrySpecByType,
 } from "#shared/accounting/manual-entries.ts";
@@ -147,16 +157,21 @@ export const humanDescription = (
   }
 };
 
+const NEGATIVE_HUMAN_KINDS = new Set<string>([
+  KIND.refundCash,
+  KIND.refundFee,
+  KIND.refundSale,
+  MANUAL_LISTING_COST,
+  MANUAL_ATTENDEE_WRITEOFF,
+  MANUAL_MODIFIER_REDUCTION,
+]);
+
+const hasNegativeHumanKind = (kind: string | undefined): boolean =>
+  kind !== undefined && NEGATIVE_HUMAN_KINDS.has(kind);
+
 /** How one plain-language row changed the business figure it describes. */
 export const humanAmount = (transfer: Transfer): number => {
-  if (
-    transfer.kind === KIND.refundCash ||
-    transfer.kind === KIND.refundFee ||
-    transfer.kind === KIND.refundSale ||
-    transfer.kind === "manual_listing_cost" ||
-    transfer.kind === "manual_attendee_writeoff" ||
-    transfer.kind === "manual_modifier_reduction"
-  ) {
+  if (hasNegativeHumanKind(transfer.kind)) {
     return -transfer.amount;
   }
   if (transfer.kind === KIND.serviceCost) {
@@ -169,8 +184,11 @@ export const humanAmount = (transfer: Transfer): number => {
       ? -transfer.amount
       : transfer.amount;
   }
-  if (transfer.kind === KIND.modifier) {
-    return transfer.destination.type === "modifier"
+  if (
+    transfer.kind === KIND.modifier ||
+    transfer.kind === KIND.refundModifier
+  ) {
+    return transfer.destination.type === MODIFIER
       ? transfer.amount
       : -transfer.amount;
   }
@@ -185,11 +203,22 @@ export const shownFigure = (value: number, account: AccountRef): number =>
   isReversedAccount(account) && value !== 0 ? -value : value;
 
 /** The label for the final balance of one account kind. */
+type StatementAccountType = RowAccountType | SingletonAccountType;
+
+const STATEMENT_BALANCE_KEYS: Record<StatementAccountType, string> = {
+  [ATTENDEE]: "admin.ledger.amount_owed",
+  [COST]: "admin.ledger.total_costs",
+  [EXTERNAL]: "admin.ledger.balance",
+  [FEE_INCOME]: "admin.ledger.balance",
+  [MODIFIER]: "admin.ledger.balance",
+  [REVENUE]: "admin.ledger.income_balance",
+  [WRITEOFF_TYPE]: "admin.ledger.balance",
+};
+
+const isStatementAccountType = (type: string): type is StatementAccountType =>
+  isRowAccountType(type) || isSingletonAccountType(type);
+
 export const statementBalanceKey = (account: AccountRef): string =>
-  account.type === ATTENDEE
-    ? "admin.ledger.amount_owed"
-    : account.type === COST
-      ? "admin.ledger.total_costs"
-      : account.type === REVENUE
-        ? "admin.ledger.income_balance"
-        : "admin.ledger.balance";
+  isStatementAccountType(account.type)
+    ? STATEMENT_BALANCE_KEYS[account.type]
+    : "admin.ledger.balance";

@@ -178,13 +178,13 @@ export const LedgerViewToggle = ({
   data: LedgerFilterData;
 }): SafeHtml => (
   <p class="table-action-btns">
-    {LedgerViewModeSchema.options.map((mode) => {
+    {map((mode: LedgerViewMode): SafeHtml => {
       const label = t(`admin.ledger.view.${mode}`);
       return data.filters.view === mode ? (
         <strong>{label}</strong>
       ) : (
         <a href={ledgerHref(data.filters, { view: mode })}>{label}</a>
       );
-    })}
+    })(LedgerViewModeSchema.options)}
   </p>
 );
