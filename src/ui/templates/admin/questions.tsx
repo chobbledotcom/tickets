@@ -6,7 +6,7 @@ import { map } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { answerTextForm, questionTextForm } from "#routes/admin/questions.ts";
-import { adminPath } from "#shared/admin-surface.ts";
+import { type AdminRouteId, adminPath } from "#shared/admin-surface.ts";
 import type { Answer, QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type {
   AnswerAggregateField,
@@ -36,6 +36,7 @@ import {
   LinkedItemsCheckboxes,
   toLinkedItemOptions,
 } from "#templates/components/linked-items.tsx";
+import type { ReorderDirection } from "#templates/components/reorder.tsx";
 import {
   QuantityCell,
   reorderableListPage,
@@ -57,6 +58,11 @@ import { WritableDangerLink, WritableOnly } from "./writable-only.tsx";
  * that consumes the result. */
 export const questionTextFlat = (text: string): string =>
   text.replace(/\r?\n/g, " / ");
+
+const QUESTION_ANSWER_MOVE_ROUTES = {
+  down: "postQuestionsByIdAnswersByAnswerIdMoveDown",
+  up: "postQuestionsByIdAnswersByAnswerIdMoveUp",
+} satisfies Record<ReorderDirection, AdminRouteId>;
 
 /** Listings cell for a question row: a count whose title attribute spells out
  * the assigned listing names (comma + space separated), or "All" when the
@@ -256,7 +262,10 @@ export const adminQuestionPage = (
             label: (a) => a.text,
             labelHeader: t("questions.answer_column"),
             moveAction: (a) => (d) =>
-              `/admin/questions/${question.id}/answers/${a.id}/move-${d}`,
+              adminPath(QUESTION_ANSWER_MOVE_ROUTES[d], {
+                answerId: a.id,
+                id: question.id,
+              }),
             orderLabel: t("questions.order_column"),
           })}
         </>

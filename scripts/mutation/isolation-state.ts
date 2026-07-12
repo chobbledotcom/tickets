@@ -441,11 +441,7 @@ export const runLockIsHeld = async (
   timeoutMs = 50,
 ): Promise<boolean> => {
   const path = runLockPath(record);
-  const file = await Deno.open(path, {
-    create: true,
-    read: true,
-    write: true,
-  }).catch(() => null);
+  const file = await openLockFile(path).catch(() => null);
   if (file === null) return false;
   file.close();
   return (await lockProbeExitCode(path, timeoutMs)) === LOCK_HELD_EXIT_CODE;

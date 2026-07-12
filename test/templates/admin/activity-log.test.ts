@@ -228,6 +228,29 @@ describe("adminGlobalActivityLogPage reference columns", () => {
     expect(html).toContain("Attendee deleted");
   });
 
+  test("renders no attendee link when the name is loaded but the kind is not", () => {
+    const entries = [logEntry({ attendee_id: 8, message: "Note added" })];
+    const refs: ActivityLogRefs = {
+      attendees: { kinds: new Map(), names: new Map([[8, "Grace Hopper"]]) },
+      listings: new Map(),
+    };
+    const html = adminGlobalActivityLogPage(entries, false, TEST_SESSION, refs);
+    const tbody = html.slice(html.indexOf("<tbody>"), html.indexOf("</tbody>"));
+    expect(tbody).not.toContain('href="/admin/attendees/8"');
+    expect(tbody).not.toContain("Grace Hopper");
+  });
+
+  test("renders no attendee link when the kind is loaded but the name is not", () => {
+    const entries = [logEntry({ attendee_id: 9, message: "Note added" })];
+    const refs: ActivityLogRefs = {
+      attendees: { kinds: new Map([[9, "attendee"]]), names: new Map() },
+      listings: new Map(),
+    };
+    const html = adminGlobalActivityLogPage(entries, false, TEST_SESSION, refs);
+    const tbody = html.slice(html.indexOf("<tbody>"), html.indexOf("</tbody>"));
+    expect(tbody).not.toContain('href="/admin/attendees/9"');
+  });
+
   test("renders no link when the referenced listing no longer exists", () => {
     const entries = [logEntry({ listing_id: 99, message: "Listing deleted" })];
     const html = adminGlobalActivityLogPage(
