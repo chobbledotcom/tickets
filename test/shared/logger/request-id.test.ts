@@ -26,13 +26,13 @@ describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
     setSuppressDebugLogs(null);
   });
 
-  test("getRequestId returns 4-char hex ID inside request context", () => {
-    runWithRequestId(() => {
+  test("getRequestId returns 4-char hex ID inside request context", async () => {
+    await runWithRequestId(async () => {
       expect(getRequestId()).toMatch(/^[0-9a-f]{4}$/);
     });
   });
 
-  test("pads a small random value to exactly four hex chars", () => {
+  test("pads a small random value to exactly four hex chars", async () => {
     // A zeroed buffer forces the shortest possible hex ("0"), so the id is
     // all padding — the case a lucky random draw would never pin down.
     const zeroed = stub(
@@ -41,7 +41,7 @@ describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
       <T extends ArrayBufferView | null>(array: T): T => array,
     );
     try {
-      runWithRequestId(() => {
+      await runWithRequestId(async () => {
         expect(getRequestId()).toBe("0000");
       });
     } finally {
@@ -53,11 +53,11 @@ describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
     expect(getRequestId()).toBe("");
   });
 
-  test("prefixes logRequest with request ID", () => {
+  test("prefixes logRequest with request ID", async () => {
     const debugSpy = spy(console, "debug");
     try {
       let id = "";
-      runWithRequestId(() => {
+      await runWithRequestId(async () => {
         id = getRequestId();
         logRequest({
           durationMs: 10,
@@ -77,11 +77,11 @@ describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
     }
   });
 
-  test("prefixes logErrorLocal with same request ID", () => {
+  test("prefixes logErrorLocal with same request ID", async () => {
     const errorSpy = spy(console, "error");
     try {
       let id = "";
-      runWithRequestId(() => {
+      await runWithRequestId(async () => {
         id = getRequestId();
         logErrorLocal({ code: ErrorCode.DB_CONNECTION });
       });
@@ -96,11 +96,11 @@ describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
     }
   });
 
-  test("prefixes logDebug with request ID", () => {
+  test("prefixes logDebug with request ID", async () => {
     const debugSpy = spy(console, "debug");
     try {
       let id = "";
-      runWithRequestId(() => {
+      await runWithRequestId(async () => {
         id = getRequestId();
         logDebug("Setup", "test message");
       });
@@ -115,7 +115,7 @@ describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
     }
   });
 
-  test("different requests get different IDs", () => {
+  test("different requests get different IDs", async () => {
     // Feed each call a distinct fixed value, so the distinct-ids contract is
     // proven deterministically rather than left to a lucky random draw.
     let draw = 0;
@@ -129,8 +129,10 @@ describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
       },
     );
     try {
-      const ids = Array.from({ length: 10 }, () =>
-        runWithRequestId(getRequestId),
+      const ids = await Promise.all(
+        Array.from({ length: 10 }, () =>
+          runWithRequestId(async () => getRequestId()),
+        ),
       );
       expect(ids).toEqual([
         "0001",

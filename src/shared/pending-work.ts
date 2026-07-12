@@ -16,9 +16,22 @@ import {
 
 const pendingWork = new AsyncLocalStorage<Promise<unknown>[]>();
 
-/** Run a function within a pending-work scope */
-export const runWithPendingWork = <T>(fn: () => T): T =>
-  runWithScopeLifetime(pendingWork, [], fn);
+/**
+ * Run a function within a pending-work scope. Whatever `fn` resolves to, the
+ * queue is drained once more on the way out: an error logged *after* the
+ * request's own flush (e.g. while the response is finalised) still queues
+ * work, and work that outlived its request would complete during whatever
+ * runs next — on Bunny that's a killed fetch, in tests a sanitizer failure
+ * in an unrelated test.
+ */
+export const runWithPendingWork = <T>(fn: () => Promise<T>): Promise<T> =>
+  runWithScopeLifetime(pendingWork, [], async () => {
+    try {
+      return await fn();
+    } finally {
+      await flushPendingWork();
+    }
+  });
 
 /** True when running inside a `runWithPendingWork` scope (i.e. a request). */
 export const hasPendingWorkScope = (): boolean =>

@@ -65,7 +65,7 @@ export const getRequestId = (): string =>
   liveScopeStore(requestIdStorage)?.id ?? "";
 
 /** Run a function with a request-scoped random ID for log correlation */
-export const runWithRequestId = <T>(fn: () => T): T =>
+export const runWithRequestId = <T>(fn: () => Promise<T>): Promise<T> =>
   runWithScopeLifetime(requestIdStorage, { id: generateRequestId() }, () =>
     runWithPendingWork(fn),
   );

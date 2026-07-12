@@ -106,6 +106,11 @@ const metricFailure = (
 const COVERAGE_EXCLUSIONS = [
   "scripts/compact-test-reporter.ts",
   "src/shared/db/migrations.ts",
+  // Harness infrastructure: inside a harness run every isolate takes the
+  // prebuilt-snapshot arm, and outside one only the build-it-here arm runs,
+  // so no single coverage run can reach both. The round-trip behaviour is
+  // unit-tested in test/lib/test-utils/test-state.test.ts.
+  "test/test-utils/test-state.ts",
 ];
 
 /** Extract source path info from an lcov record, or null if excluded. */

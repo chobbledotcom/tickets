@@ -12,9 +12,9 @@ import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
 import { registerPublicTemplateHooks } from "./helpers.ts";
 
-registerPublicTemplateHooks();
-
 describe("ticketPage listing date and location", () => {
+  registerPublicTemplateHooks();
+
   const renderTicket = (ev: ListingWithCount, opts?: { iframe?: boolean }) => {
     if (opts?.iframe) {
       detectIframeMode(new URL("https://example.com/?iframe=true"));
@@ -118,6 +118,8 @@ describe("ticketPage listing date and location", () => {
 });
 
 describe("ticketViewPage package grouping", () => {
+  registerPublicTemplateHooks();
+
   const token = "PKG00011AABBCCDD";
   const purchaseBundleGroups = new Map([
     [1, { hideListings: false, name: "Purchase Bundle" }],
