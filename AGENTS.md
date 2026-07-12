@@ -172,9 +172,10 @@ shows it stays worded the same.
 
 ### How to write it
 
-- **One idea per sentence.** If a sentence joins two thoughts with "and", a
-  semicolon, or a trailing comma-clause, split it. Short sentences are the
-  single biggest win for a struggling reader.
+- **One idea per sentence.** If a sentence joins two complete ideas — with
+  "and", a semicolon, or a trailing comma-clause — split it. (A conjunction
+  inside one phrase, like "your first and last name", is fine.) Short sentences
+  are the single biggest win for a struggling reader.
 - **Everyday words.** Prefer the word a ten-year-old would use: "use" not
   "utilise", "start" not "commence", "before" not "prior to", "help" not
   "facilitate". This is a matter of judgement on every change — no checker
