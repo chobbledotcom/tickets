@@ -293,15 +293,18 @@ export const parseSessionFailure = async (
 };
 
 /** Store encrypted ticket tokens before a booking can commit, so an error after
- * the atomic write can still return the ticket. A failed booking remains
+ * the atomic write can still return the ticket. This also renews a reservation
+ * that aged during validation, preventing stale cleanup from replacing it in the
+ * short window before the booking transaction finalizes. A failed booking remains
  * unresolved and never exposes these tokens through the replay path. */
 export const setSessionTicketTokens = async (
   sessionId: string,
   ticketTokens: string[],
 ): Promise<void> => {
+  const encryptedTokens = await encryptTicketTokens(ticketTokens);
   await execute(
-    "UPDATE processed_payments SET ticket_tokens = ? WHERE payment_session_id = ?",
-    [await encryptTicketTokens(ticketTokens), sessionId],
+    "UPDATE processed_payments SET ticket_tokens = ?, processed_at = ? WHERE payment_session_id = ?",
+    [encryptedTokens, nowIso(), sessionId],
   );
 };
 
