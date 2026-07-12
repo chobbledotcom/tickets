@@ -586,7 +586,7 @@ interface TestRequiresAuthOptions {
   /** Optional per-test preparation. Return a cleanup function to undo any
    * state the setup switched (e.g. the restore from `setTestEnv`) — module
    * state left switched leaks into every test that runs after this one. */
-  setup?: () => Promise<void | (() => void)>;
+  setup?: () => Promise<(() => void) | undefined> | Promise<void>;
 }
 
 export const testRequiresAuth = (
