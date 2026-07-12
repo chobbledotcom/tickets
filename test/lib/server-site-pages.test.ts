@@ -384,7 +384,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       await addPageItem(page.id, "group", group.id);
       expect((await getItemsForPage(page.id)).length).toBe(2);
 
-      const { deleteListing } = await import("#shared/db/listings.ts");
+      const { deleteListing } = await import("#shared/db/listings/delete.ts");
       const { deleteGroup } = await import("#routes/admin/groups.ts");
       await deleteListing(listing.id);
       await deleteGroup(group.id);

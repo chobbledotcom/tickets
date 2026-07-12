@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { checkBatchAvailability } from "#shared/db/attendees/api.ts";
-import { updateListingAggregateValues } from "#shared/db/listings.ts";
+import { updateListingAggregateValues } from "#shared/db/listings/aggregates.ts";
 import {
   enableQueryLog,
   getQueryLog,

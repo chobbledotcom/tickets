@@ -19,7 +19,7 @@ import {
   anyNonStandaloneChild,
   listingChildren,
 } from "#shared/db/listing-parents.ts";
-import { getListingWithCountBySlug } from "#shared/db/listings.ts";
+import { getListingWithCountBySlug } from "#shared/db/listings/records.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { type QrBookPayload, verifyQrBookToken } from "#shared/qr-token.ts";

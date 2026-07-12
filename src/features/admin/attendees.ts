@@ -16,7 +16,7 @@ import {
   hasActiveBookingLine,
 } from "#shared/db/attendees/queries.ts";
 import { updateCheckedIn } from "#shared/db/attendees/update.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { hasAnyPaymentReference } from "#shared/db/payment-references.ts";
 import {
   ATTENDEE_DEMO_FIELDS,

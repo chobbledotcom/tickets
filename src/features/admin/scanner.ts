@@ -21,7 +21,7 @@ import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import { updateCheckedIn } from "#shared/db/attendees/update.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   getRequestPrivateKey,

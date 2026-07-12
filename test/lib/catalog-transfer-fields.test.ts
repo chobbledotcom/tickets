@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
-import { getListing } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 /** Import a one-listing blob and assert it is rejected with a message naming
@@ -50,7 +50,7 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       version: 1,
     });
     if (!result.ok) throw new Error(result.error);
-    const imported = (await getListing(result.id))!;
+    const imported = (await getListingWithCount(result.id))!;
     expect(imported.closes_at).toContain("2026-06-01");
   });
 
@@ -70,7 +70,9 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       version: 1,
     });
     if (!result.ok) throw new Error(result.error);
-    expect((await getListing(result.id))!.closes_at).toContain("2026-06-01");
+    expect((await getListingWithCount(result.id))!.closes_at).toContain(
+      "2026-06-01",
+    );
   });
 
   test("rejects an out-of-range time", async () => {
@@ -138,7 +140,7 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       version: 1,
     });
     if (!result.ok) throw new Error(result.error);
-    expect((await getListing(result.id))!.closes_at).toBeNull();
+    expect((await getListingWithCount(result.id))!.closes_at).toBeNull();
   });
 
   test("rejects an over-cap duration", async () => {
@@ -181,6 +183,8 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       version: 1,
     });
     if (!result.ok) throw new Error(result.error);
-    expect((await getListing(result.id))!.bookable_days).toContain("Monday");
+    expect((await getListingWithCount(result.id))!.bookable_days).toContain(
+      "Monday",
+    );
   });
 });

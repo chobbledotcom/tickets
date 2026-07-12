@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
-import { getListing } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -38,7 +38,7 @@ const importListingOverride = (
 const importStoredListing = async (listing: Record<string, unknown>) => {
   const result = await importCatalog({ kind: "listing", listing, version: 1 });
   if (!result.ok) throw new Error(result.error);
-  const stored = await getListing(result.id);
+  const stored = await getListingWithCount(result.id);
   if (!stored) throw new Error("listing not found after import");
   return stored;
 };

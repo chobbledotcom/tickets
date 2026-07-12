@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { writeClosesAt } from "#shared/db/listings.ts";
+import { listingsTable } from "#shared/db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookableStartDates } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -72,11 +72,9 @@ describeWithEnv(
       const { parent, children } = await makeParent({ children: [{}, {}] });
       const okChild = children[0]!;
       const closedChild = children[1]!;
-      const { execute } = await import("#shared/db/client.ts");
-      await execute("UPDATE listings SET closes_at = ? WHERE id = ?", [
-        await writeClosesAt("2000-01-01T00:00:00.000Z"),
-        closedChild.id,
-      ]);
+      await listingsTable.update(closedChild.id, {
+        closesAt: "2000-01-01T00:00:00.000Z",
+      });
       expectChildAvailability(
         await availabilityJson(parent.slug),
         okChild,

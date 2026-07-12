@@ -11,11 +11,11 @@ import {
   getAttendeesRaw,
 } from "#shared/db/attendees/queries.ts";
 import { queryAll } from "#shared/db/client.ts";
+import { deleteListing } from "#shared/db/listings/delete.ts";
 import {
-  deleteListing,
-  getListing,
+  getListingWithCount,
   listingsTable,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/records.ts";
 import {
   finalizeSession as finalizePaymentSession,
   isSessionProcessed,
@@ -47,7 +47,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
       await deleteListing(listing.id);
 
-      const fetched = await getListing(listing.id);
+      const fetched = await getListingWithCount(listing.id);
       expect(fetched).toBeNull();
     });
 
@@ -260,12 +260,12 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         thankYouUrl: "https://example.com",
       });
 
-      const before = await getListing(listing.id);
+      const before = await getListingWithCount(listing.id);
       expect(before).not.toBeNull();
 
       await listingsTable.deleteById(listing.id);
 
-      const after = await getListing(listing.id);
+      const after = await getListingWithCount(listing.id);
       expect(after).toBeNull();
     });
   });

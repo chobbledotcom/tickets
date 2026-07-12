@@ -7,7 +7,7 @@
 
 import { flatMap } from "#fp";
 import type { AttributeOption } from "#shared/db/attributes.ts";
-import type { ListingOption } from "#shared/db/listings.ts";
+import type { ListingOption } from "#shared/db/listings/records.ts";
 
 /** One listing that has at least one of an attribute's options set. */
 export type AttributeListingRow = ListingOption & {

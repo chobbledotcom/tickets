@@ -15,10 +15,12 @@ import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import {
   getListingAggregateRecalculation,
+  resetListingAggregateFields,
+} from "#shared/db/listings/aggregates.ts";
+import {
   getListingWithCount,
   invalidateListingsCache,
-  resetListingAggregateFields,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {

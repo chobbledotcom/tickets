@@ -32,16 +32,17 @@ import {
   encryptPiiBlob,
 } from "#shared/db/attendees/pii.ts";
 import {
-  ATTENDEE_JOIN_SELECT,
-  ATTENDEE_LEFT_JOIN_SELECT,
-} from "#shared/db/attendees/queries.ts";
+  ATTENDEE_FIELDS,
+  type AttendeeRowFor,
+  getAttendees,
+} from "#shared/db/attendees/select.ts";
 import {
   inPlaceholders,
   queryAll,
   queryOne,
   withTransaction,
 } from "#shared/db/client.ts";
-import { getListingNamesByIds } from "#shared/db/listings.ts";
+import { getListingNamesByIds } from "#shared/db/listings/records.ts";
 import {
   type AttendeeAnswersBatch,
   getAttendeeAnswersBatch,
@@ -103,6 +104,11 @@ export type ServicingEventSummary = {
 };
 
 type ServicingRow = Attendee & { kind: string };
+
+/** The columns the servicing SUMMARY list reads: a booking's listing, quantity
+ * and date, plus the event's decrypted name. It shows no money, so its read
+ * skips every ledger subquery — `kind` rides along in the core columns. */
+type ServicingSummaryRow = AttendeeRowFor;
 
 const NAME_REQUIRED = "name is required";
 const INVALID_BOOKINGS = "servicing event must hold at least one capacity slot";
@@ -292,14 +298,12 @@ export const getServicingEvent = async (
   // One LEFT JOIN covers both a booked event (one row per held line) and an
   // orphan with no bookings (a single COALESCEd listing_id=0 row that
   // rowsToServicingEvent filters out) — no separate fallback query needed.
-  const rows = await queryAll<ServicingRow>(
-    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}, attendee.kind
-       FROM attendees AS attendee
-       LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-      WHERE attendee.id = ? AND attendee.kind = ?
-      ORDER BY listingAttendee.start_at, listingAttendee.listing_id`,
-    [id, SERVICING_KIND],
-  );
+  const rows = await getAttendees({
+    fields: ATTENDEE_FIELDS,
+    join: "left",
+    order: "start_then_listing",
+    where: { attendeeIds: [id], kind: "servicing" },
+  });
   return rows.length > 0 ? rowsToServicingEvent(rows) : null;
 };
 
@@ -332,7 +336,7 @@ export const createServicingEvent = async (
 };
 
 const servicingEventRowsToSummaries = async (
-  rows: ServicingRow[],
+  rows: ServicingSummaryRow[],
   privateKey: CryptoKey,
 ): Promise<ServicingEventSummary[]> => {
   // Group booking lines by their parent service event (attendee id), so a
@@ -364,22 +368,18 @@ const servicingEventRowsToSummaries = async (
   );
 };
 
-const getServicingEventRows = (today?: string): Promise<ServicingRow[]> => {
-  const upcomingClause =
-    today === undefined
-      ? ""
-      : "AND (listingAttendee.start_at IS NULL OR DATE(listingAttendee.start_at) >= ?)";
-  return queryAll<ServicingRow>(
-    `SELECT ${ATTENDEE_JOIN_SELECT}
-       FROM attendees AS attendee
-       JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-      WHERE attendee.kind = ?
-        AND listingAttendee.quantity > 0
-        ${upcomingClause}
-      ORDER BY COALESCE(listingAttendee.start_at, attendee.created), attendee.id`,
-    today === undefined ? [SERVICING_KIND] : [SERVICING_KIND, today],
-  );
-};
+const getServicingEventRows = (
+  today?: string,
+): Promise<ServicingSummaryRow[]> =>
+  getAttendees({
+    fields: [],
+    order: "upcoming",
+    where: {
+      kind: "servicing",
+      realLinesOnly: true,
+      ...(today === undefined ? {} : { upcomingFrom: today }),
+    },
+  });
 
 export const getAllServicingEvents = async (
   privateKey: CryptoKey,

@@ -11,7 +11,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { getDb } from "#shared/db/client.ts";
-import { getListing } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,
@@ -39,7 +39,7 @@ describeWithEnv("integration: duration_days", { db: true }, () => {
       });
       expect(String(row.rows[0]!.end_at)).toBe("2026-08-15T00:00:00.000Z");
 
-      const fresh = await getListing(listing.id);
+      const fresh = await getListingWithCount(listing.id);
       expect(fresh?.duration_days).toBe(5);
     });
   });

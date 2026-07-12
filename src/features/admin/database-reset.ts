@@ -17,10 +17,10 @@ import { createFormRoute } from "#shared/app-forms.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getAllImages } from "#shared/db/images.ts";
-import { getAllListings } from "#shared/db/listings.ts";
+import { getAllListings } from "#shared/db/listings/records.ts";
 import { resetDatabase } from "#shared/db/migrations.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
-import { defineForm } from "#shared/forms.tsx";
+import { defineForm } from "#shared/forms/definition.ts";
 import {
   deleteAllImageStorageFiles,
   deleteAllListingAttachmentFiles,

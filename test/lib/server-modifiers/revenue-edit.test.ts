@@ -40,7 +40,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       );
       await expectFlashRedirect(
         `/admin/modifiers/${id}/edit`,
-        "Modifier revenue adjusted",
+        "Option income corrected.",
         true,
       )(response);
       expect((await getModifier(id))?.total_revenue).toBe(2500);
@@ -55,7 +55,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       );
       await expectFlashRedirect(
         `/admin/modifiers/${id}/edit`,
-        "Modifier revenue adjusted",
+        "Option income corrected.",
         true,
       )(response);
       expect((await getModifier(id))?.total_revenue).toBe(1000);
@@ -69,7 +69,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       );
       await expectFlashRedirect(
         `/admin/modifiers/${id}/edit`,
-        "Modifier revenue adjusted",
+        "Option income corrected.",
         true,
       )(response);
       expect((await getModifier(id))?.total_revenue).toBe(-500);

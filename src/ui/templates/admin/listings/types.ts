@@ -1,7 +1,5 @@
-import type {
-  ListingAggregateRecalculation,
-  ListingRevenueBreakdown,
-} from "#shared/db/listings.ts";
+import type { ListingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
+import type { ListingAggregateRecalculation } from "#shared/db/listings/aggregates.ts";
 import type { SystemNote } from "#shared/db/system-notes.ts";
 import type {
   AdminSession,
@@ -10,7 +8,6 @@ import type {
   ListingWithCount,
 } from "#shared/types.ts";
 import type { CheckedInStats } from "#templates/admin/detail-rows.tsx";
-import type { AccountLedgerData } from "#templates/admin/ledger/statement.tsx";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 
 export type DateOption = { value: string; label: string };
@@ -26,8 +23,7 @@ type ListingPanelSharedOptions = {
   aggregateRecalculation?: ListingAggregateRecalculation | undefined;
   questionData?: TableQuestionData | undefined;
   groupContext?: GroupContext | undefined;
-  revenueBreakdown?: ListingRevenueBreakdown | undefined;
-  ledger?: AccountLedgerData | undefined;
+  moneyTotals?: ListingMoneyTotals | undefined;
   ledgerHref?: string | undefined;
   isChild?: boolean | undefined;
   isHiddenPackageMember?: boolean | undefined;

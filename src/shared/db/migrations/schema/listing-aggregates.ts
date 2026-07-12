@@ -5,7 +5,7 @@ import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 /**
  * The listing_attendees columns that shift the listing count aggregates
  * (booked_quantity, tickets_count). The UPDATE trigger fires on exactly these
- * columns; the cache-invalidation gate in listings.ts reads the same constant so
+ * columns; the cache-invalidation gate in listings/records.ts reads the same constant so
  * the two cannot drift. price_paid is no longer here — income is projected from
  * the transfers ledger at read time, not maintained from this column.
  */
@@ -23,7 +23,7 @@ export const LISTING_AGGREGATE_WRITE_COLUMNS = [
  *
  * Every site that computes tickets_count references this one constant so the
  * rule cannot silently diverge (mirrors LISTING_AGGREGATE_WRITE_COLUMNS): the
- * three triggers below, the two queries in listings.ts (reset + recalculation),
+ * three triggers below, the two queries in listings/aggregates.ts (reset and recalculation),
  * the schema-sync backfill, and the hold-delete restore in attendees/delete.ts.
  * A guard test asserts the predicate appears at every one of those sites.
  */

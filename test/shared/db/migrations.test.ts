@@ -8,7 +8,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getDb, insert, setDb } from "#shared/db/client.ts";
-import { getAllListings } from "#shared/db/listings.ts";
+import { getAllListings } from "#shared/db/listings/records.ts";
 import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
 import {
   initDb,

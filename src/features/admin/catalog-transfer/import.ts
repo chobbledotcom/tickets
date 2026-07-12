@@ -35,9 +35,9 @@ import {
 import {
   getListingsById,
   getListingsWithCountsByIds,
-  type ListingInput,
   listingsTable,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/records.ts";
+import type { ListingInput } from "#shared/db/listings/table.ts";
 import {
   childOnlyAddOnCheckerForListings,
   type ListingGroupMembership,

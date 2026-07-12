@@ -130,7 +130,7 @@ describe("adminModifierEditPage", () => {
     expect(html).toContain("<h2>Adjust revenue</h2>");
     expect(html).toContain('action="/admin/modifiers/1/revenue"');
     expect(html).toContain('name="total_revenue"');
-    expect(html).toContain("correcting entry to the money ledger");
+    expect(html).toContain("This adds a correction to Money history.");
   });
 
   test("shows a modifier ledger add-entry action only when a ledger is passed", () => {
@@ -151,13 +151,13 @@ describe("adminModifierEditPage", () => {
         },
       },
     );
-    expect(withLedger).toContain("Add entry");
+    expect(withLedger).toContain("Add money change");
     expect(withLedger).toContain(
       'href="/admin/ledger/modifier/1/add?return_url=%2Fadmin%2Fmodifiers%2F1%2Fedit"',
     );
     // No ledger passed → no embedded statement section.
     expect(adminModifierEditPage(mod({ id: 1 }), SESSION)).not.toContain(
-      "Add entry",
+      "Add money change",
     );
   });
 

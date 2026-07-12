@@ -20,7 +20,7 @@ import {
   siteBaseUrl,
   updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
-import { getAllListings } from "#shared/db/listings.ts";
+import { getAllListings } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   getEmailConfig,

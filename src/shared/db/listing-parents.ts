@@ -14,7 +14,7 @@
 import { mapNotNullish } from "#fp";
 import { inPlaceholders, queryAll, queryIdColumn } from "#shared/db/client.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
-import { getListingsById } from "#shared/db/listings.ts";
+import { getListingsById } from "#shared/db/listings/records.ts";
 import {
   type EdgeListing,
   edgeFieldError,

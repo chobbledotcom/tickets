@@ -13,7 +13,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeAdminPath } from "#shared/attendee-links.ts";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import { ATTENDEE_JOIN_SELECT } from "#shared/db/attendees/queries.ts";
+import {
+  ATTENDEE_FIELDS,
+  attendeeColumns,
+} from "#shared/db/attendees/select.ts";
 
 // Anchored to the repo root (the test runner's cwd) rather than this file's own
 // location, so the source scan keeps working wherever the test file lives.
@@ -66,28 +69,34 @@ describe("servicing §20 — one shared kind-aware link builder (no second copy)
   });
 });
 
-describe("servicing §20 — servicing query readers reuse the shared SELECT constant", () => {
-  test("the servicing readers module builds on ATTENDEE_JOIN_SELECT with a kind predicate", async () => {
+describe("servicing §20 — servicing query readers reuse the shared attendee SELECT builder", () => {
+  test("the servicing readers module builds on getAttendees with a kind filter", async () => {
     const servicingReaderPath = join(
       SRC_DIR,
       "shared/db/attendees/servicing.ts",
     );
     const src = await readFile(servicingReaderPath);
-    // The shared column list is imported and the kind predicate filters it —
-    // not a copy-pasted column list. The kind is bound as a SERVICING_KIND
-    // parameter (not a hard-coded SQL string) so the value can't drift from
-    // the constant.
-    expect(src).toContain("ATTENDEE_JOIN_SELECT");
-    expect(src).toContain("SERVICING_KIND");
-    // And it does NOT hand-list the attendee columns (a copy-paste giveaway).
-    expect(src).not.toMatch(/a\.pii_blob,\s*a\.status_id/);
+    // The servicing reads go through the shared getAttendees façade with a
+    // declared `kind: "servicing"` filter — not a hand-written SELECT with a
+    // copy-pasted column list.
+    expect(src).toContain("getAttendees");
+    expect(src).toContain('kind: "servicing"');
+    // And it does NOT hand-write the attendee SELECT (a copy-paste giveaway).
+    expect(src).not.toMatch(/SELECT\s+attendee\.id/);
   });
 
-  test("ATTENDEE_JOIN_SELECT is the single column list the attendee readers use", () => {
-    // The constant exists and is exported (the import above resolves). A
-    // servicing reader built on it inherits every column the attendee readers
-    // project, so the two can't drift.
-    expect(typeof ATTENDEE_JOIN_SELECT).toBe("string");
-    expect(ATTENDEE_JOIN_SELECT.length).toBeGreaterThan(0);
+  test("attendeeColumns always emits the core columns and adds only the fields asked for", () => {
+    const full = attendeeColumns("inner", ATTENDEE_FIELDS);
+    const none = attendeeColumns("inner", []);
+    // Both carry the always-present core (identity + cheap per-listing columns),
+    // so every reader projects the same base regardless of its field set.
+    expect(none).toContain("attendee.pii_blob");
+    expect(none).toContain("listingAttendee.listing_id");
+    // The money subqueries are opt-in: `price_paid` is projected only when its
+    // field is requested, so a money-free read runs none of its subqueries and
+    // its column list is strictly shorter.
+    expect(full).toContain("AS price_paid");
+    expect(none).not.toContain("AS price_paid");
+    expect(none.length).toBeLessThan(full.length);
   });
 });

@@ -21,6 +21,7 @@ import { createRequestScoped } from "#shared/request-scoped.ts";
 import { ReturnUrlField } from "#shared/return-url-field.tsx";
 import { Icon } from "#templates/components/actions.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
+import { PriceInput } from "#templates/components/price-input.tsx";
 
 export type FieldType =
   | "text"
@@ -33,7 +34,15 @@ export type FieldType =
   | "checkbox-group"
   | "date"
   | "datetime"
+  | "datetime-local"
+  | "money"
   | "file";
+
+type FieldOption = {
+  value: string;
+  label: string;
+  hint?: string;
+};
 
 export interface Field {
   accept?: string;
@@ -47,6 +56,7 @@ export interface Field {
   hintHtml?: string;
   id?: string;
   inputmode?: string;
+  invalidMessage?: string;
   label: string;
   /** Marks a textarea as markdown-authored, enabling the in-editor preview link. */
   markdown?: boolean;
@@ -55,7 +65,7 @@ export interface Field {
   min?: number;
   minlength?: number;
   name: string;
-  options?: readonly { value: string; label: string }[];
+  options?: readonly FieldOption[];
   parse?: (value: string) => string | number | null;
   pattern?: string;
   placeholder?: string;
@@ -65,52 +75,20 @@ export interface Field {
    *  from the rendered value (the entity's saved slug on a normal edit view). */
   publicLinkPath?: (value: string) => string;
   required?: boolean;
+  requiredMessage?: string;
   title?: string;
   type: FieldType;
   validate?: (value: string) => string | null;
 }
 
-type FormFieldDefinition = Readonly<Field>;
-type FormFieldDefinitions = readonly FormFieldDefinition[];
-
-type ParsedFieldValue<F extends FormFieldDefinition> = F extends {
-  parse: (...args: never[]) => infer T;
-}
-  ? T
-  : F["type"] extends "number"
-    ? number | null
-    : string | null;
-
-type NormalizedFieldValue<F extends FormFieldDefinition> = F extends {
-  required: true;
-}
-  ? Exclude<ParsedFieldValue<F>, null>
-  : ParsedFieldValue<F>;
-
-export type FormValuesFor<TFields extends FormFieldDefinitions> = {
-  [F in TFields[number] as F["name"]]: NormalizedFieldValue<F>;
-};
-
-type FormFieldRenderHelper = { render: (value?: string) => string };
-
-export type FormDefinition<
-  TFields extends FormFieldDefinitions,
-  TContext = undefined,
-> = {
-  id: string;
-  fields: TFields;
-  render: (values?: Partial<FormValuesFor<TFields>>) => string;
-  renderFields: (values?: Partial<FormValuesFor<TFields>>) => string;
-  field: (name: TFields[number]["name"]) => FormFieldRenderHelper;
-  validate: (
-    form: FormParams,
-    context?: TContext,
-  ) => ValidationResult<FormValuesFor<TFields>>;
-};
-
 export interface FieldValues {
   [key: string]: string | number | null;
 }
+
+export type FieldValueNormalizer = (
+  field: Field,
+  value: string | number | null,
+) => string | number | null;
 
 export type ValidationResult<T = FieldValues> =
   | { valid: true; values: T }
@@ -208,23 +186,23 @@ const splitDatetime = (value: string): { date: string; time: string } => {
  *  the `<Raw html={...}/>` shape lives in one place. */
 const rawField = (html: string): JSX.Element => <Raw html={html} />;
 
-/** Render the input element for a field based on its type */
-const renderFieldInput = (field: Field, value: string): JSX.Element => {
-  if (field.type === "textarea") {
-    return (
-      <textarea
-        autocomplete={field.autocomplete}
-        data-markdown-preview={field.markdown || undefined}
-        id={field.id}
-        maxlength={field.maxlength}
-        name={field.name}
-        placeholder={field.placeholder}
-        required={field.required}
-      >
-        <Raw html={escapeHtml(value)} />
-      </textarea>
-    );
-  }
+const renderTextareaInput = (field: Field, value: string): JSX.Element => (
+  <textarea
+    autocomplete={field.autocomplete}
+    data-markdown-preview={field.markdown || undefined}
+    id={field.id}
+    maxlength={field.maxlength}
+    name={field.name}
+    placeholder={field.placeholder}
+    required={field.required}
+  >
+    <Raw html={escapeHtml(value)} />
+  </textarea>
+);
+
+type FieldInputRenderer = (field: Field, value: string) => JSX.Element | null;
+
+const renderChoiceFieldInput: FieldInputRenderer = (field, value) => {
   if (field.type === "select" && field.options) {
     return rawField(
       `<select name="${escapeHtml(field.name)}" id="${escapeHtml(
@@ -243,14 +221,37 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
       ),
     );
   }
+  return null;
+};
+
+const renderSpecialFieldInput: FieldInputRenderer = (field, value) => {
   if (field.type === "datetime") {
     return (
       <Raw html={renderDatetimeInputs(field.name, splitDatetime(value))} />
     );
   }
+  if (field.type === "money") {
+    return PriceInput({
+      name: field.name,
+      ...(field.id ? { id: field.id } : {}),
+      ...(field.min === undefined ? {} : { min: field.min }),
+      ...(field.required ? { required: true } : {}),
+      ...(value ? { value } : {}),
+    });
+  }
   if (field.type === "file") {
     return <input accept={field.accept} name={field.name} type="file" />;
   }
+  return null;
+};
+
+/** Render the input element for a field based on its type */
+const renderFieldInput = (field: Field, value: string): JSX.Element => {
+  if (field.type === "textarea") return renderTextareaInput(field, value);
+  const choice = renderChoiceFieldInput(field, value);
+  if (choice) return choice;
+  const special = renderSpecialFieldInput(field, value);
+  if (special) return special;
   return (
     <input
       autocomplete={field.autocomplete}
@@ -269,6 +270,26 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
       type={field.type}
       value={value || undefined}
     />
+  );
+};
+
+const selectOptionHints = (field: Field): JSX.Element | null => {
+  if (
+    field.type !== "select" ||
+    !field.options?.some((option) => option.hint)
+  ) {
+    return null;
+  }
+  return (
+    <ul>
+      {field.options.map((option) =>
+        option.hint ? (
+          <li>
+            <strong>{option.label}:</strong> {option.hint}
+          </li>
+        ) : null,
+      )}
+    </ul>
   );
 };
 
@@ -291,17 +312,20 @@ const publicLinkHint = (field: Field, value: string): JSX.Element | null => {
 export const renderField = (field: Field, value: string = ""): string =>
   (field.beforeHtml ?? "") +
   String(
-    <label>
-      {field.label}
-      {renderFieldInput(field, value)}
-      {field.hint && <small>{field.hint}</small>}
-      {field.hintHtml && (
-        <small>
-          <Raw html={field.hintHtml} />
-        </small>
-      )}
-      {publicLinkHint(field, value)}
-    </label>,
+    <>
+      <label>
+        {field.label}
+        {renderFieldInput(field, value)}
+        {field.hint && <small>{field.hint}</small>}
+        {field.hintHtml && (
+          <small>
+            <Raw html={field.hintHtml} />
+          </small>
+        )}
+        {publicLinkHint(field, value)}
+      </label>
+      {selectOptionHints(field)}
+    </>,
   );
 
 /**
@@ -377,9 +401,17 @@ const parseFieldValue = (
     ? field.parse(trimmed)
     : field.type === "number"
       ? trimmed
-        ? Number.parseInt(trimmed, 10)
+        ? Number(trimmed)
         : null
       : trimmed;
+
+const requiredFieldError = (field: Field): FieldValidationResult => ({
+  error: field.requiredMessage ?? `${field.label} is required`,
+  valid: false,
+});
+
+const isUnusableParsedValue = (value: string | number | null): boolean =>
+  value === null || (typeof value === "number" && !Number.isFinite(value));
 
 /**
  * Collect the raw trimmed value for a field from the form data.
@@ -395,7 +427,7 @@ const collectFieldValue = (
     if (result === null) return { error: DATETIME_PARTIAL_ERROR, valid: false };
     if (!result) {
       if (field.required) {
-        return { error: `${field.label} is required`, valid: false };
+        return requiredFieldError(field);
       }
       return { valid: true, value: null };
     }
@@ -429,7 +461,7 @@ const validateSingleField = (
   }
 
   if (field.required && !trimmed) {
-    return { error: `${field.label} is required`, valid: false };
+    return requiredFieldError(field);
   }
 
   if (field.validate && trimmed) {
@@ -447,7 +479,16 @@ const validateSingleField = (
     };
   }
 
-  return { valid: true, value: parseFieldValue(field, trimmed) };
+  const value = parseFieldValue(field, trimmed);
+  if (trimmed && isUnusableParsedValue(value)) {
+    return {
+      error:
+        field.invalidMessage ??
+        t("error.field_invalid", { label: field.label }),
+      valid: false,
+    };
+  }
+  return { valid: true, value };
 };
 
 /**
@@ -461,81 +502,17 @@ const validateSingleField = (
 export const validateForm = <T = FieldValues>(
   form: FormParams,
   fields: Field[],
+  normalizeValue: FieldValueNormalizer = (_field, value) => value,
 ): ValidationResult<T> => {
   const values: FieldValues = {};
 
   for (const field of fields) {
     const result = validateSingleField(form, field);
     if (!result.valid) return result;
-    values[field.name] = result.value;
+    values[field.name] = normalizeValue(field, result.value);
   }
 
   return { valid: true, values: values as T };
-};
-
-const normalizeOptionalValue = (
-  field: Field,
-  value: string | number | null,
-): string | number | null => {
-  if (field.required) return value;
-  if (field.type === "number") return value;
-  return value === "" ? null : value;
-};
-
-/**
- * Define a typed form schema that can render and validate from one source.
- */
-export const defineForm = <
-  TFields extends FormFieldDefinitions,
-  TContext = undefined,
->(config: {
-  id: string;
-  fields: TFields;
-  validate?: (
-    values: FormValuesFor<TFields>,
-    context: TContext,
-  ) => string | null;
-}): FormDefinition<TFields, TContext> => {
-  const fields = [...config.fields];
-  const fieldMap = new Map(fields.map((f) => [f.name, f] as const));
-
-  const validate = (
-    form: FormParams,
-    context?: TContext,
-  ): ValidationResult<FormValuesFor<TFields>> => {
-    const base = validateForm<Record<string, string | number | null>>(
-      form,
-      fields,
-    );
-    if (!base.valid) return base;
-
-    const values = Object.fromEntries(
-      fields.map((field) => [
-        field.name,
-        normalizeOptionalValue(field, base.values[field.name] ?? null),
-      ]),
-    ) as FormValuesFor<TFields>;
-
-    if (config.validate) {
-      const error = config.validate(values, context as TContext);
-      if (error) return { error, valid: false };
-    }
-    return { valid: true, values };
-  };
-
-  const render = (values: Partial<FormValuesFor<TFields>> = {}): string =>
-    renderFields(fields, values as FieldValues);
-
-  return {
-    field: (name) => ({
-      render: (value = "") => renderField(fieldMap.get(name)!, value),
-    }),
-    fields: config.fields,
-    id: config.id,
-    render,
-    renderFields: render,
-    validate,
-  };
 };
 
 /**

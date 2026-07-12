@@ -19,7 +19,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeeKindsByIds } from "#shared/db/attendees/queries.ts";
-import { getAttendeesByListingIds } from "#shared/db/listings.ts";
+import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {

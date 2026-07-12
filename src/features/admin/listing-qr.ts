@@ -28,7 +28,7 @@ import {
 import { getEffectiveDomain } from "#shared/config.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { generateQrSvg, listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";

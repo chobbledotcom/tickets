@@ -108,7 +108,7 @@ export const postAttendeePayment = async (
       return_url: returnUrl,
     },
   );
-  await expectFlashRedirect(returnUrl, "Ledger entry added")(response);
+  await expectFlashRedirect(returnUrl, "Money change added.")(response);
   const [entry] = await getAllActivityLog(1);
   expect(entry?.message).toBe("Manual ledger entry added");
 };

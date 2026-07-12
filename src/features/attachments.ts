@@ -14,7 +14,7 @@ import { defineRoutes } from "#routes/router.ts";
 import { verifyAttachmentUrl } from "#shared/attachment-url.ts";
 import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
 import { incrementAttachmentDownloads } from "#shared/db/attendees/update.ts";
-import { getListing } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
   downloadImage,
   getBasename,
@@ -92,7 +92,7 @@ const handleAttachmentDownload: TypedRouteHandler<
   if (!valid) return forbiddenResponse();
 
   // Look up listing and verify it has an attachment
-  const listing = await getListing(id);
+  const listing = await getListingWithCount(id);
   if (!listing?.attachment_url) return notFoundResponse();
 
   // Authorize against the EXACT (attendee, listing) booking row with a real

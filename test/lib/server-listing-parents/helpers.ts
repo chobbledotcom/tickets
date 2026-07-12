@@ -100,7 +100,9 @@ export const postListingEdit = async (
   listingId: number,
   updates: Record<string, unknown> & { groupId?: number; groupIds?: number[] },
 ): Promise<Response> => {
-  const { getListingWithCount } = await import("#shared/db/listings.ts");
+  const { getListingWithCount } = await import(
+    "#shared/db/listings/records.ts"
+  );
   const { buildUpdateListingForm } = await import(
     "#test-utils/db-helpers/listing-forms.ts"
   );

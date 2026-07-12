@@ -22,7 +22,7 @@ import {
 } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 /* jscpd:ignore-end */
-import { invalidateListingsCache } from "#shared/db/listings.ts";
+import { invalidateListingsCache } from "#shared/db/listings/records.ts";
 import { clearLogisticsAgentReferences } from "#shared/db/logistics.ts";
 import {
   type LogisticsAgentInput,

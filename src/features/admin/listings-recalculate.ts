@@ -16,10 +16,10 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   getListingAggregateRecalculation,
-  getListingWithCount,
   LISTING_AGGREGATE_FIELDS,
   resetListingAggregateFields,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/aggregates.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { adminListingRecalculatePage } from "#templates/admin/listings/aggregates.tsx";
 import { withEntityFromParam } from "./entity-handlers.ts";

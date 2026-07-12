@@ -16,7 +16,7 @@
 import { uniqueBy } from "#fp";
 import { notFoundResponse } from "#routes/response.ts";
 import type { PagePackage } from "#shared/booking/page-packages.ts";
-import { getListingsBySlugsBatch } from "#shared/db/listings.ts";
+import { getListingsBySlugsBatch } from "#shared/db/listings/records.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
 import { dropHiddenPackageMembers } from "./discovery.ts";
 import { loadCartPackageBySlug } from "./groups.ts";

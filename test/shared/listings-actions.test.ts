@@ -5,11 +5,10 @@ import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { groups } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
-  getListing,
   getListingWithCount,
-  type ListingInput,
   listingsTable,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/records.ts";
+import type { ListingInput } from "#shared/db/listings/table.ts";
 import {
   listingInputToEdge,
   performListingDelete,
@@ -345,7 +344,7 @@ describeWithEnv("performListingDelete", { db: true }, () => {
       const withCount = (await getListingWithCount(listing.id))!;
       await performListingDelete(withCount);
 
-      expect(await getListing(listing.id)).toBeNull();
+      expect(await getListingWithCount(listing.id)).toBeNull();
       expect(await downloadRaw("delete-me.pdf")).toBeNull();
       const log = await getAllActivityLog();
       expect(log.some((e) => e.message.includes("Delete Me"))).toBe(true);

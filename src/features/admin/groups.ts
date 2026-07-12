@@ -30,7 +30,7 @@ import {
   validateGroupListingType,
 } from "#shared/db/groups.ts";
 import { clearImageUsesForItemStatement } from "#shared/db/images.ts";
-import { getListing } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
 import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
 import {
@@ -42,11 +42,9 @@ import { defineNamedResource } from "#shared/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import type { AdminSession, DayPrices, Group } from "#shared/types.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
-import {
-  adminGroupDeletePage,
-  adminGroupNewPage,
-  adminGroupsPage,
-} from "#templates/admin/groups.tsx";
+import { adminGroupDeletePage } from "#templates/admin/groups/delete.tsx";
+import { adminGroupNewPage } from "#templates/admin/groups/form.tsx";
+import { adminGroupsPage } from "#templates/admin/groups/list.tsx";
 import {
   getGroupCreateFields,
   getGroupFields,
@@ -350,7 +348,9 @@ const validateListingTypesForGroup = async (
   listingIds: number[],
 ): Promise<string | null> => {
   const listings = compact(
-    await Promise.all(listingIds.map((listingId) => getListing(listingId))),
+    await Promise.all(
+      listingIds.map((listingId) => getListingWithCount(listingId)),
+    ),
   );
   for (const listing of listings) {
     const typeError = await validateGroupListingType(

@@ -7,7 +7,10 @@ import {
   getImageById,
   getImagesForItem,
 } from "#shared/db/images.ts";
-import { getListingNamesByIds, isSlugTaken } from "#shared/db/listings.ts";
+import {
+  getListingNamesByIds,
+  isSlugTaken,
+} from "#shared/db/listings/records.ts";
 import {
   addPageItem,
   clearItemEdgesStatement,

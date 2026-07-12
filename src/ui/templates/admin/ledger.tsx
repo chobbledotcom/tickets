@@ -42,6 +42,7 @@ import {
 import {
   humanAmount,
   humanDescription,
+  transferEventLabel,
 } from "#templates/admin/ledger/formatting.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
@@ -103,7 +104,7 @@ const ROW_ACCOUNT_KINDS: Record<RowAccountType, RowAccountKind> = {
 
 /** The bounded id→name lookup for one row-backed account type — the single
  * accessor the label resolver and the route layer's existence checks share. */
-export const rowAccountNames = (
+export const ledgerNamesForAccountType = (
   type: RowAccountType,
   names: LedgerNames,
 ): Map<number, string> => ROW_ACCOUNT_KINDS[type].names(names);
@@ -124,7 +125,7 @@ const SINGLETON_LABEL_KEYS: Record<SingletonAccountType, string> = {
  * name; when the id is absent from `names` (a deleted entity that kept its ledger
  * rows) the leg degrades to plain "<Entity> #<id>" with no link.
  */
-export const resolveAccountLabel = (
+const resolveAccountLabel = (
   account: AccountRef,
   names: LedgerNames,
 ): AccountLabel => {
@@ -132,11 +133,11 @@ export const resolveAccountLabel = (
     return { text: t(SINGLETON_LABEL_KEYS[account.type]) };
   }
   if (!isRowAccountType(account.type)) {
-    return { text: `${account.type}:${account.id}` };
+    throw new Error(`Unknown money account type: ${account.type}`);
   }
   const kind = ROW_ACCOUNT_KINDS[account.type];
   const id = Number(account.id);
-  const name = kind.names(names).get(id);
+  const name = ledgerNamesForAccountType(account.type, names).get(id);
   return name === undefined
     ? { text: t(kind.fallbackKey, { id }) }
     : { href: kind.href(id), text: name };
@@ -194,11 +195,6 @@ export const amountCell = (
   ) : (
     <a href={ledgerEntryEditHref(transfer.id, returnUrl)}>{label}</a>
   );
-
-/** A transfer's kind, or an em dash when it carries none. `||`, not `??`: the
- * store maps a kindless row back to an omitted kind, but a synthetic empty
- * string must read as "no kind" too, never as a blank cell. */
-const kindLabel = (transfer: Transfer): string => transfer.kind || "—";
 
 /** One column of a ledger-style table: its header key, how a row renders into
  * its cell, and an optional alignment class applied to both. */
@@ -293,10 +289,10 @@ const transferColumns = (
   ),
 ];
 
-export const LedgerTable = makeTransferTable((accountCell, returnUrl) =>
+const LedgerTable = makeTransferTable((accountCell, returnUrl) =>
   transferColumns(
     [
-      { cell: kindLabel, headerKey: "admin.ledger.col.event" },
+      { cell: transferEventLabel, headerKey: "admin.ledger.col.event" },
       {
         cell: (transfer) => (
           <>
@@ -312,7 +308,7 @@ export const LedgerTable = makeTransferTable((accountCell, returnUrl) =>
   ),
 );
 
-export const HumanLedgerTable = makeTransferTable((accountCell, returnUrl) =>
+const HumanLedgerTable = makeTransferTable((accountCell, returnUrl) =>
   transferColumns(
     [
       {

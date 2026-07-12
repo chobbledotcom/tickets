@@ -21,7 +21,7 @@
 
 import { filter, map, mapParallel, pipe, unique } from "#fp";
 import { getHiddenPackageMemberIds, groups } from "#shared/db/groups.ts";
-import { getListingsWithCountsByIds } from "#shared/db/listings.ts";
+import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import { hasNewsPosts } from "#shared/db/news-posts.ts";
 import { isQualifyingTierListing } from "#shared/site-assignment.ts";
 import { buildNavModel, targetKey } from "#shared/site-pages/core.ts";

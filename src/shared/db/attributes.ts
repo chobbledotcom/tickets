@@ -18,7 +18,7 @@ import {
 } from "#shared/db/client.ts";
 import { idAndEncryptedName } from "#shared/db/id-and-name-columns.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
-import type { ListingOption } from "#shared/db/listings.ts";
+import type { ListingOption } from "#shared/db/listings/records.ts";
 import { swapSortOrder } from "#shared/db/query.ts";
 import { col, defineTable } from "#shared/db/table.ts";
 /* jscpd:ignore-end */

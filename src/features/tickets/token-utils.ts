@@ -15,7 +15,7 @@ import type {
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import { packageDisplaysForRows } from "#shared/db/groups.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   clearTokenAttempts,

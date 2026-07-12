@@ -62,7 +62,7 @@ const stubEdgeSecretSuccess = () =>
  *  Both the "skips assignment" and "rejects missing renewal tier" tests
  *  need this exact teardown. */
 const deactivateAllTierListings = async (): Promise<void> => {
-  const { getAllListings } = await import("#shared/db/listings.ts");
+  const { getAllListings } = await import("#shared/db/listings/records.ts");
   const { deactivateTestListing } = await import(
     "#test-utils/db-helpers/listings.ts"
   );

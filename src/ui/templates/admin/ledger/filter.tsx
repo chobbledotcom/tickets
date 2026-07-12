@@ -2,15 +2,21 @@ import * as v from "valibot";
 import { map } from "#fp";
 import { t } from "#i18n";
 import type { SafeHtml } from "#shared/jsx/jsx-runtime.ts";
+import {
+  ALL_LEDGER_SCOPE,
+  type LedgerScope,
+  type LedgerScopeOption,
+  ledgerScopeSelected,
+  setLedgerScopeParam,
+} from "#shared/ledger-scope.ts";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
 
 /** The whole filter state the ledger page round-trips through the query string. */
 export type LedgerFilterState = {
   from: string | null;
-  groupId: number | null;
   to: string | null;
-  listingId: number | null;
   fromMonth: string | null;
+  scope: LedgerScope;
   toMonth: string | null;
   view: LedgerViewMode;
 };
@@ -19,14 +25,11 @@ export type LedgerFilterState = {
 export const LedgerViewModeSchema = v.picklist(["human", "dual"]);
 export type LedgerViewMode = v.InferOutput<typeof LedgerViewModeSchema>;
 
-export type LedgerListingOption = { id: number; name: string };
-export type LedgerGroupOption = { id: number; name: string };
-
 export type LedgerFilterData = {
   dates: DatePickerDate[];
   filters: LedgerFilterState;
-  groups: LedgerGroupOption[];
-  listings: LedgerListingOption[];
+  groups: LedgerScopeOption[];
+  listings: LedgerScopeOption[];
   today: string;
 };
 
@@ -40,11 +43,7 @@ const ledgerHref = (
   const params = new URLSearchParams();
   if (merged.from) params.set("from", merged.from);
   if (merged.to) params.set("to", merged.to);
-  if (merged.listingId !== null) {
-    params.set("listing", String(merged.listingId));
-  } else if (merged.groupId !== null) {
-    params.set("group", String(merged.groupId));
-  }
+  setLedgerScopeParam(params, merged.scope);
   if (merged.view === "dual") params.set("view", "dual");
   if (merged.fromMonth) params.set("fromCal", merged.fromMonth);
   if (merged.toMonth) params.set("toCal", merged.toMonth);
@@ -124,48 +123,49 @@ export const LedgerDateRange = ({
   </div>
 );
 
+type NamedLedgerScopeKind = Exclude<LedgerScope["kind"], "all">;
+
+const NAMED_SCOPE_FACTORIES: Record<
+  NamedLedgerScopeKind,
+  (option: LedgerScopeOption) => LedgerScope
+> = {
+  group: (option) => ({ ...option, kind: "group" }),
+  listing: (option) => ({ ...option, kind: "listing" }),
+};
+
+const scopeOptions = (
+  kind: NamedLedgerScopeKind,
+  options: LedgerScopeOption[],
+  filters: LedgerFilterState,
+): SafeHtml[] =>
+  map((option: LedgerScopeOption): SafeHtml => {
+    const scope = NAMED_SCOPE_FACTORIES[kind](option);
+    return (
+      <option
+        selected={ledgerScopeSelected(filters.scope, scope)}
+        value={ledgerHref(filters, { scope })}
+      >
+        {option.name}
+      </option>
+    );
+  })(options);
+
 /** The scope filter: everything, one listing, or one group's current listings. */
 export const ScopeFilter = ({ data }: { data: LedgerFilterData }): SafeHtml => (
   <p class="table-action-btns">
-    {t("admin.ledger.filter.scope")}:
+    {t("admin.ledger.filter.scope")}{" "}
     <select aria-label={t("admin.ledger.filter.scope")} data-nav-select>
       <option
-        selected={
-          data.filters.listingId === null && data.filters.groupId === null
-        }
-        value={ledgerHref(data.filters, { groupId: null, listingId: null })}
+        selected={ledgerScopeSelected(data.filters.scope, ALL_LEDGER_SCOPE)}
+        value={ledgerHref(data.filters, { scope: ALL_LEDGER_SCOPE })}
       >
         {t("admin.ledger.filter.all")}
       </option>
       <optgroup label={t("admin.ledger.filter.listings")}>
-        {map(
-          (listing: LedgerListingOption): SafeHtml => (
-            <option
-              selected={data.filters.listingId === listing.id}
-              value={ledgerHref(data.filters, {
-                groupId: null,
-                listingId: listing.id,
-              })}
-            >
-              {listing.name}
-            </option>
-          ),
-        )(data.listings)}
+        {scopeOptions("listing", data.listings, data.filters)}
       </optgroup>
       <optgroup label={t("admin.ledger.filter.groups")}>
-        {map(
-          (group: LedgerGroupOption): SafeHtml => (
-            <option
-              selected={data.filters.groupId === group.id}
-              value={ledgerHref(data.filters, {
-                groupId: group.id,
-                listingId: null,
-              })}
-            >
-              {group.name}
-            </option>
-          ),
-        )(data.groups)}
+        {scopeOptions("group", data.groups, data.filters)}
       </optgroup>
     </select>
   </p>

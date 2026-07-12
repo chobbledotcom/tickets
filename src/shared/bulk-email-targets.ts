@@ -18,7 +18,10 @@ import {
   getAttendeePiiBlobForToken,
   getAttendeePiiBlobsForListings,
 } from "#shared/db/attendees/queries.ts";
-import { getAllListings, getListingWithCount } from "#shared/db/listings.ts";
+import {
+  getAllListings,
+  getListingWithCount,
+} from "#shared/db/listings/records.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { guardFor } from "#shared/validation/guard.ts";

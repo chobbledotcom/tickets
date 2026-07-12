@@ -1,7 +1,7 @@
 import { ownerFormById } from "#routes/entity.ts";
 import { notFoundResponse, redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import type { FormParams } from "#shared/form-data.ts";
 
 type ListingChoicePostConfig = {

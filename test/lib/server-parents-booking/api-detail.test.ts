@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAvailableDates } from "#shared/dates.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookableStartDates,

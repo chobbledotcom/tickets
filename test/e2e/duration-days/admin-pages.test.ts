@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getListing, getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
   expectFlashRedirect,
   expectListingActivityLogContains,
@@ -133,7 +133,7 @@ describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
 
       await updateTestListing(listing.id, { durationDays: 4 });
 
-      const fresh = await getListing(listing.id);
+      const fresh = await getListingWithCount(listing.id);
       expect(fresh?.duration_days).toBe(4);
 
       const range = await rawListingRange(listing.id);
@@ -207,7 +207,7 @@ describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
 
       await updateTestListing(listing.id, { durationDays: 4 });
 
-      const fresh = await getListing(listing.id);
+      const fresh = await getListingWithCount(listing.id);
       expect(fresh?.duration_days).toBe(4);
       // The maximum changed, but the existing booking's stored range is intact —
       // customisable bookings are never rewritten from the listing duration.
@@ -236,7 +236,7 @@ describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
       )(response);
 
       // The value persists (inert until the listing becomes daily)…
-      expect((await getListing(listing.id))?.duration_days).toBe(7);
+      expect((await getListingWithCount(listing.id))?.duration_days).toBe(7);
       // …but no reconciliation activity is logged for a standard listing.
       await expectListingActivityLogLacks(listing.id, "duration changed");
     });

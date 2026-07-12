@@ -1,7 +1,11 @@
 import { beforeAll } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
-import type { LedgerNames } from "#templates/admin/ledger.tsx";
+import {
+  adminLedgerPage,
+  type LedgerNames,
+  type LedgerPageData,
+} from "#templates/admin/ledger.tsx";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { makeTransfer } from "#test-utils/transfer-factory.ts";
 
@@ -28,6 +32,43 @@ export const transfer = (overrides: Partial<Transfer> = {}): Transfer => {
     source: { id: "1", type: "attendee" },
   });
   return { ...defaults, ...overrides };
+};
+
+export const renderLedger = (
+  transfers: Transfer[],
+  ledgerNames: LedgerNames = names(),
+  view: "human" | "dual" = "human",
+  returnUrl = "/admin/ledger",
+): string => {
+  const data: LedgerPageData = {
+    dates: [],
+    filters: {
+      from: null,
+      fromMonth: null,
+      scope: { kind: "all" },
+      to: null,
+      toMonth: null,
+      view,
+    },
+    groups: [],
+    listings: [],
+    names: ledgerNames,
+    returnUrl,
+    stats: [],
+    statsHeading: null,
+    today: "2026-06-21",
+    transfers,
+    truncated: false,
+  };
+  return adminLedgerPage(data, SESSION);
+};
+
+/** Rows from the money-history table, excluding unrelated page tables. */
+export const ledgerRows = (html: string): string[] => {
+  const header = html.indexOf("<th>Time</th>");
+  const start = html.lastIndexOf("<table", header);
+  const end = html.indexOf("</table>", start);
+  return html.slice(start, end).split("<tr>");
 };
 
 beforeAll(async () => {

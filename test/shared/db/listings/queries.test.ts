@@ -2,14 +2,16 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeNamesByIds } from "#shared/db/attendees/queries.ts";
 import {
+  getListingWithAttendeeRaw,
+  getListingWithAttendeesRaw,
+} from "#shared/db/listings/attendees.ts";
+import {
   getAllListingOptions,
   getListingNamesByIds,
   getListingsBySlugsBatch,
-  getListingWithAttendeeRaw,
-  getListingWithAttendeesRaw,
   getListingWithCount,
   getStoredListingWithCount,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/records.ts";
 import {
   enableQueryLog,
   getQueryLog,

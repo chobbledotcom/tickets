@@ -15,8 +15,11 @@ import { queryOne } from "#shared/db/client.ts";
 
 export type ListingMoneyTotals = {
   externalCosts: number;
+  externalIncome: number;
   grossSales: number;
-  income: number;
+  manualAdjustments: number;
+  netBalance: number;
+  recognisedIncome: number;
   refunds: number;
   servicingCosts: number;
   transferCount: number;
@@ -24,16 +27,21 @@ export type ListingMoneyTotals = {
 
 type ListingMoneyTotalsRow = {
   external_costs: number | bigint;
+  external_income: number | bigint;
   gross_sales: number | bigint;
-  income: number | bigint;
+  manual_adjustments: number | bigint;
+  net_balance: number | bigint;
   refunds: number | bigint;
   servicing_costs: number | bigint;
   transfer_count: number | bigint;
 };
 
-/** The full money breakdown for one-or-many listings inside a range. The
- * selected ids are one CTE so every CASE arm and the indexed scope share the
- * same bound set without a query per listing. */
+/** The full money breakdown for one-or-many listings inside a range. Revenue
+ * account movements and service-event cost-account movements stay separate:
+ * `netBalance` is only the selected revenue accounts' balance, while callers
+ * that report profit subtract `servicingCosts` themselves. The selected ids are
+ * one CTE so every CASE arm and the indexed scope share the same bound set
+ * without a query per listing. */
 export const listingMoneyTotals = async (
   range: LedgerRange,
   listingIds: readonly number[],
@@ -41,14 +49,18 @@ export const listingMoneyTotals = async (
   if (listingIds.length === 0) {
     return {
       externalCosts: 0,
+      externalIncome: 0,
       grossSales: 0,
-      income: 0,
+      manualAdjustments: 0,
+      netBalance: 0,
+      recognisedIncome: 0,
       refunds: 0,
       servicingCosts: 0,
       transferCount: 0,
     };
   }
-  const selectedIds = "SELECT id FROM selected_listing";
+  const selectedIds =
+    "SELECT selectedListing.id FROM selected_listing AS selectedListing";
   const revenueCredit = `transfer.dest_type = '${REVENUE}' AND transfer.dest_id IN (${selectedIds})`;
   const revenueDebit = `transfer.source_type = '${REVENUE}' AND transfer.source_id IN (${selectedIds})`;
   const costDebit = `transfer.source_type = '${COST}' AND transfer.source_id IN (${selectedIds})`;
@@ -61,34 +73,43 @@ export const listingMoneyTotals = async (
      SELECT
        COUNT(*) AS transfer_count,
        COALESCE(SUM(CASE
-         WHEN transfer.kind = '${KIND.sale}' AND ${revenueCredit} THEN transfer.amount
-         ELSE 0 END), 0) AS gross_sales,
+          WHEN transfer.kind = '${KIND.sale}' AND ${revenueCredit} THEN transfer.amount
+          ELSE 0 END), 0) AS gross_sales,
        COALESCE(SUM(CASE
-         WHEN transfer.kind = '${KIND.sale}' AND ${revenueCredit} THEN transfer.amount
-         WHEN transfer.kind = '${MANUAL_LISTING_INCOME}' AND ${revenueCredit} THEN transfer.amount
-         WHEN transfer.kind = '${KIND.adjustment}' AND ${revenueCredit} AND transfer.source_type = '${WRITEOFF_TYPE}' THEN transfer.amount
-         WHEN transfer.kind = '${KIND.adjustment}' AND ${revenueDebit} AND transfer.dest_type = '${WRITEOFF_TYPE}' THEN -transfer.amount
-         ELSE 0 END), 0) AS income,
+          WHEN transfer.kind = '${MANUAL_LISTING_INCOME}' AND ${revenueCredit} THEN transfer.amount
+          ELSE 0 END), 0) AS external_income,
        COALESCE(SUM(CASE
-         WHEN transfer.kind = '${KIND.refundSale}' AND ${revenueDebit} THEN transfer.amount
-         ELSE 0 END), 0) AS refunds,
+          WHEN transfer.kind = '${KIND.adjustment}' AND ${revenueCredit} AND transfer.source_type = '${WRITEOFF_TYPE}' THEN transfer.amount
+          WHEN transfer.kind = '${KIND.adjustment}' AND ${revenueDebit} AND transfer.dest_type = '${WRITEOFF_TYPE}' THEN -transfer.amount
+          ELSE 0 END), 0) AS manual_adjustments,
+       COALESCE(SUM(CASE
+          WHEN transfer.kind = '${KIND.refundSale}' AND ${revenueDebit} THEN transfer.amount
+          ELSE 0 END), 0) AS refunds,
        COALESCE(SUM(CASE
          WHEN transfer.kind = '${MANUAL_LISTING_COST}' AND ${revenueDebit} THEN transfer.amount
          ELSE 0 END), 0) AS external_costs,
-       COALESCE(SUM(CASE
-         WHEN transfer.kind = '${KIND.serviceCost}' AND ${costDebit} THEN transfer.amount
-         WHEN transfer.kind = '${KIND.serviceCost}' AND ${costCredit} THEN -transfer.amount
-         ELSE 0 END), 0) AS servicing_costs
-     FROM transfers AS transfer
+       COALESCE(SUM(CASE WHEN transfer.kind = '${KIND.serviceCost}' AND ${costDebit}
+                         THEN transfer.amount ELSE 0 END
+                  - CASE WHEN transfer.kind = '${KIND.serviceCost}' AND ${costCredit}
+                         THEN transfer.amount ELSE 0 END), 0) AS servicing_costs,
+       COALESCE(SUM(CASE WHEN ${revenueCredit} THEN transfer.amount ELSE 0 END
+                  - CASE WHEN ${revenueDebit} THEN transfer.amount ELSE 0 END), 0) AS net_balance
+      FROM transfers AS transfer
      WHERE (${revenueCredit} OR ${revenueDebit} OR ${costDebit} OR ${costCredit})${andPrefixed(
        r.clause,
      )}`,
     [...listingIds.map(String), ...r.args],
   ))!;
+  const grossSales = Number(row.gross_sales);
+  const externalIncome = Number(row.external_income);
+  const manualAdjustments = Number(row.manual_adjustments);
   return {
     externalCosts: Number(row.external_costs),
-    grossSales: Number(row.gross_sales),
-    income: Number(row.income),
+    externalIncome,
+    grossSales,
+    manualAdjustments,
+    netBalance: Number(row.net_balance),
+    recognisedIncome: grossSales + externalIncome + manualAdjustments,
     refunds: Number(row.refunds),
     servicingCosts: Number(row.servicing_costs),
     transferCount: Number(row.transfer_count),

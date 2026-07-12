@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupIdsByListingId } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -164,7 +164,7 @@ describeWithEnv(
       const { validateListingInput } = await import(
         "#shared/listings-actions.ts"
       );
-      const { listingsTable } = await import("#shared/db/listings.ts");
+      const { listingsTable } = await import("#shared/db/listings/records.ts");
       const { parent, child } = await groupScopedAddOn();
       await postChildren(parent.id, [child.id]);
 
@@ -173,7 +173,7 @@ describeWithEnv(
       // "no groups", which still orphans the group-scoped add-on.
       const input = listingsTable.rowToInput(row, [
         "created",
-      ]) as import("#shared/db/listings.ts").ListingInput;
+      ]) as import("#shared/db/listings/table.ts").ListingInput;
       const error = await validateListingInput(input, parent.id);
       expect(error).toContain("Group extra");
     });

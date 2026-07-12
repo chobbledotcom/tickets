@@ -548,6 +548,9 @@ export const AdminLevelSchema = v.picklist([
 /** Admin role levels that are back-office staff (not delivery agents). */
 export const STAFF_ADMIN_LEVELS = ["owner", "manager"] as const;
 
+/** Admin role levels with owner-only permissions. */
+const OWNER_ADMIN_LEVELS = ["owner"] as const;
+
 /** Admin role levels that may create/edit listings & groups: the back-office
  * staff plus the content-only `editor`. Used to gate the listing/group content
  * routes editors are explicitly opted into; deliberately excludes `agent`. */
@@ -583,6 +586,9 @@ const roleIn =
 /** True for back-office staff (owner/manager). */
 export const isStaffRole = roleIn(STAFF_ADMIN_LEVELS);
 
+/** True only for the owner role. */
+export const isOwnerRole = roleIn(OWNER_ADMIN_LEVELS);
+
 /** True for roles that may reach the delivery run sheet (owner/manager/agent). */
 export const isDeliveryRole = roleIn(DELIVERY_ADMIN_LEVELS);
 
@@ -600,10 +606,6 @@ export type AdminSession = {
   readonly adminLevel: AdminLevel;
   readonly settingsNagItems?: readonly NagItem[];
 };
-
-/** True when a session has the owner-only permissions. */
-export const isOwner = (session: Pick<AdminSession, "adminLevel">): boolean =>
-  session.adminLevel === "owner";
 
 export interface User {
   admin_level: EnvKeyEncrypted; // encrypted "owner", "manager", "agent" or "editor"
@@ -821,12 +823,37 @@ export type AttendeeRowListing = {
 };
 
 /**
+ * The attendee fields the shared attendee table and its column registry
+ * actually read. A full decrypted {@link Attendee} satisfies it, and so does a
+ * field-selected read that skipped the money subqueries — which is exactly why
+ * the browsing tables can render rows that never computed `price_paid` or
+ * `remaining_balance` (see `src/shared/db/attendees/select.ts`).
+ */
+export type DisplayAttendee = Pick<
+  Attendee,
+  | "address"
+  | "checked_in"
+  | "created"
+  | "date"
+  | "email"
+  | "id"
+  | "kind"
+  | "listing_id"
+  | "name"
+  | "phone"
+  | "quantity"
+  | "refunded"
+  | "special_instructions"
+  | "ticket_token"
+>;
+
+/**
  * A single row in the attendee table: an attendee plus the listings the row
  * covers, in display order. Roster/check-in tables render one row per booking
  * line (a one-listing array); the browsing tables (attendees list, dashboard)
  * group an attendee's lines into one row carrying every listing.
  */
 export type AttendeeTableRow = {
-  attendee: Attendee;
+  attendee: DisplayAttendee;
   listings: AttendeeRowListing[];
 };

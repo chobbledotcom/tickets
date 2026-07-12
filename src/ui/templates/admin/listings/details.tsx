@@ -3,7 +3,7 @@ import { t } from "#i18n";
 import { formatCountdown } from "#routes/format.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
-import type { ListingAggregateRecalculation } from "#shared/db/listings.ts";
+import type { ListingAggregateRecalculation } from "#shared/db/listings/aggregates.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   availableDayCounts,
