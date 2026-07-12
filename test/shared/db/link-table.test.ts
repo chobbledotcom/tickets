@@ -14,6 +14,24 @@ describeWithEnv("db link-table", { db: true }, () => {
     expect(await byUser.getIds(99)).toEqual([]);
   });
 
+  test("getIdsByKeys buckets links and seeds unlinked keys", async () => {
+    await byUser.setIds(1, [5, 3]);
+    await byUser.setIds(2, [4]);
+    expect(await byUser.getIdsByKeys([2, 3, 1])).toEqual(
+      new Map([
+        [2, [4]],
+        [3, []],
+        [1, [3, 5]],
+      ]),
+    );
+  });
+
+  test("getIdsByKeys dedupes keys and short-circuits an empty list", async () => {
+    await byUser.setIds(1, [2]);
+    expect(await byUser.getIdsByKeys([1, 1])).toEqual(new Map([[1, [2]]]));
+    expect(await byUser.getIdsByKeys([])).toEqual(new Map());
+  });
+
   test("setIds stores the set; getIds reads it back ascending", async () => {
     await byUser.setIds(1, [3, 1, 2]);
     expect(await byUser.getIds(1)).toEqual([1, 2, 3]);

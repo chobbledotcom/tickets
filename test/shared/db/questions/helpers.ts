@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import type { Question, TextAnswer } from "#shared/db/question-types.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { assignNextQuestionSortOrder } from "#shared/db/questions/sort-order.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
@@ -96,14 +96,14 @@ export const seedQuestionWithAndWithoutAnswers = async (): Promise<{
   const qWithAnswers = await createQuestionWithAnswers("Has answers", ["Yes"]);
   const qNoAnswers = await createQuestion("No answers");
   const listing = await createTestListing();
-  await setListingQuestions(listing.id, [qWithAnswers.id, qNoAnswers.id]);
+  await listingQuestions.setIds(listing.id, [qWithAnswers.id, qNoAnswers.id]);
   return { listing, qNoAnswers, qWithAnswers };
 };
 
 /** Create a "radio" question with one answer and assign it to `listingId` —
  *  the shared trio behind every parent-gate and booking-preserve question
  *  test. Composes {@link createQuestion} + {@link addAnswer} +
- *  {@link setListingQuestions} so the insert pair is declared once.
+ *  {@link listingQuestions} so the insert pair is declared once.
  *  `active` defaults true (pass false for the all-deactivated-choice-question
  *  case). */
 export const assignQuestion = async (
@@ -119,6 +119,6 @@ export const assignQuestion = async (
     answerText,
     active ? {} : { active: false },
   );
-  await setListingQuestions(listingId, [question.id]);
+  await listingQuestions.setIds(listingId, [question.id]);
   return { answer, question };
 };

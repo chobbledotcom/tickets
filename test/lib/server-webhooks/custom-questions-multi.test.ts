@@ -6,7 +6,7 @@ import {
   getAttendeeAnswersBatch,
   getAttendeeTextAnswers,
 } from "#shared/db/questions/attendee-answers/reads.ts";
-import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
@@ -77,7 +77,7 @@ describeWithEnv(
       const { questionsTable, answersTable } = await import(
         "#shared/db/questions/tables.ts"
       );
-      const { setListingQuestions } = await import(
+      const { listingQuestions } = await import(
         "#shared/db/questions/queries.ts"
       );
       const { getAttendeeAnswersBatch } = await import(
@@ -92,7 +92,7 @@ describeWithEnv(
         sortOrder: 0,
         text: "Large",
       });
-      await setListingQuestions(listing1.id, [q.id]);
+      await listingQuestions.setIds(listing1.id, [q.id]);
 
       const mockVerify = await stubWebhookVerify(
         checkoutSessionEvent({
@@ -165,7 +165,7 @@ describeWithEnv(
         sortOrder: 1,
         text: "Vegetarian",
       });
-      await setListingQuestions(listing1.id, [q.id]);
+      await listingQuestions.setIds(listing1.id, [q.id]);
 
       // Submit multi-ticket form with a question answer selected.
       // One listing is paid, so this triggers the payment flow.
@@ -240,8 +240,8 @@ describeWithEnv(
         displayType: "free_text",
         text: "Dietary needs?",
       });
-      await setListingQuestions(listing1.id, [q1.id]);
-      await setListingQuestions(listing2.id, [q2.id]);
+      await listingQuestions.setIds(listing1.id, [q1.id]);
+      await listingQuestions.setIds(listing2.id, [q2.id]);
 
       // Drive the real checkout so ticket-submit parses the free-text answers and
       // packs them into the checkout intent (encrypting the strings on the way).

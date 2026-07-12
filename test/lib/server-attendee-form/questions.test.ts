@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildAttendeeEditForm } from "#test-utils/db-helpers/attendees.ts";
@@ -37,7 +37,7 @@ describeWithEnv(
           sortOrder: 0,
           text: "Medium",
         });
-        await setListingQuestions(eventA.id, [qA.id]);
+        await listingQuestions.setIds(eventA.id, [qA.id]);
 
         const qB = await questionsTable.insert({
           displayType: "radio",
@@ -48,7 +48,7 @@ describeWithEnv(
           sortOrder: 0,
           text: "Vegan",
         });
-        await setListingQuestions(eventB.id, [qB.id]);
+        await listingQuestions.setIds(eventB.id, [qB.id]);
 
         const created = await createAttendeeAtomic({
           bookings: [
@@ -151,7 +151,7 @@ describeWithEnv(
           sortOrder: 1,
           text: "L",
         });
-        await setListingQuestions(event.id, [q.id]);
+        await listingQuestions.setIds(event.id, [q.id]);
 
         const makeAttendee = async (name: string, email: string) => {
           const result = await createAttendeeAtomic({

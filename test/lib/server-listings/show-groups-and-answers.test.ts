@@ -4,7 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
 import { assignListingsToGroup } from "#shared/db/groups.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
@@ -45,7 +45,7 @@ describeWithEnv(
           sortOrder: 0,
           text: "Small",
         });
-        await setListingQuestions(listing.id, [q.id]);
+        await listingQuestions.setIds(listing.id, [q.id]);
         await saveAttendeeAnswers(new Map([[attendee.id, [small.id]]]));
         return attendee;
       };

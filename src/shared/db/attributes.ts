@@ -14,7 +14,6 @@ import {
   inPlaceholders,
   queryAll,
   queryOne,
-  type TxScope,
 } from "#shared/db/client.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
 import type { ListingOption } from "#shared/db/listings.ts";
@@ -405,19 +404,6 @@ export const getSelectedAttributesForListings = async (
     )([...selectedRowsForListing(rows)]),
   );
 };
-
-export const setListingAttributeOptions = async (
-  listingId: number,
-  optionIds: number[],
-): Promise<void> =>
-  listingAttributeOptions.setIds(listingId, unique(optionIds));
-
-export const copyListingAttributeOptionsTx = (
-  tx: TxScope,
-  sourceListingId: number,
-  newListingId: number,
-): Promise<void> =>
-  listingAttributeOptions.copyLinksTx(tx, sourceListingId, newListingId);
 
 export const pruneInvalidAttributeOptionIds = (
   validOptionIds: Set<number>,

@@ -161,7 +161,7 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const { questionsTable, answersTable } = await import(
         "#shared/db/questions/tables.ts"
       );
-      const { setListingQuestions } = await import(
+      const { listingQuestions } = await import(
         "#shared/db/questions/queries.ts"
       );
       const q = await questionsTable.insert({
@@ -173,7 +173,7 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
         sortOrder: 0,
         text: "Veg",
       });
-      await setListingQuestions(listing.id, [q.id]);
+      await listingQuestions.setIds(listing.id, [q.id]);
 
       const html = await (
         await adminGet(`/admin/groups/${group.id}/attendees`)
@@ -202,7 +202,7 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const { questionsTable, answersTable } = await import(
         "#shared/db/questions/tables.ts"
       );
-      const { setListingQuestions } = await import(
+      const { listingQuestions } = await import(
         "#shared/db/questions/queries.ts"
       );
       const q = await questionsTable.insert({
@@ -214,7 +214,7 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
         sortOrder: 0,
         text: "Red",
       });
-      await setListingQuestions(listing.id, [q.id]);
+      await listingQuestions.setIds(listing.id, [q.id]);
 
       const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);

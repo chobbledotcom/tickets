@@ -12,7 +12,7 @@ import { it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { N_PLUS_ONE_THRESHOLD } from "#shared/db/query-log.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -75,7 +75,7 @@ const createProtectedFixture = async (): Promise<ProtectedFixture> => {
     });
     answerIds.push(answer.id);
 
-    await setListingQuestions(listing.id, [question.id]);
+    await listingQuestions.setIds(listing.id, [question.id]);
 
     const booking = await bookAttendee(listing, {
       email: `n-plus-one-${index}@example.com`,
@@ -104,7 +104,7 @@ const createProtectedFixture = async (): Promise<ProtectedFixture> => {
     sortOrder: 0,
     text: "N+1 protected crowded answer",
   });
-  await setListingQuestions(crowdedListing.id, [crowdedQuestion.id]);
+  await listingQuestions.setIds(crowdedListing.id, [crowdedQuestion.id]);
 
   for (const index of range(RELATION_COUNT)) {
     const booking = await bookAttendee(crowdedListing, {

@@ -28,6 +28,7 @@ import {
   createAuthedHandler,
 } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { writeRowInTransaction } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { getAllModifiers } from "#shared/db/modifiers.ts";
 import {
@@ -51,12 +52,10 @@ import {
 import { deleteAnswer, deleteQuestion } from "#shared/db/questions/delete.ts";
 import { findAnswerById } from "#shared/db/questions/parsing.ts";
 import {
-  getAllQuestionListingIds,
   getAllQuestionsWithAnswers,
-  getQuestionListingIds,
   getQuestionWithAnswers,
-  setListingQuestions,
-  setQuestionListings,
+  listingQuestions,
+  questionListings,
 } from "#shared/db/questions/queries.ts";
 import {
   assignNextQuestionSortOrder,
@@ -134,11 +133,13 @@ export const answerTextForm = defineForm({
 /** Handle GET /admin/questions */
 const handleQuestionsGet = ownerPage(async (session) => {
   const flash = getFlash();
-  const [questions, questionListingIds, allListings] = await Promise.all([
+  const [questions, allListings] = await Promise.all([
     getAllQuestionsWithAnswers(),
-    getAllQuestionListingIds(),
     getAllListings(),
   ]);
+  const questionListingIds = await questionListings.getIdsByKeys(
+    questions.map((question) => question.id),
+  );
   // Resolve listing ids to their decrypted names for the Listings column,
   // dropping any ids whose listing has since been deleted (listing_questions
   // rows are not pruned on listing deletion, so orphans can linger).
@@ -186,7 +187,7 @@ const handleQuestionGet = ownerGetById(
     const [answerCounts, allListings, assignedListingIds] = await Promise.all([
       getAnswerSelectionTotals(q.id),
       getAllListings(),
-      getQuestionListingIds(q.id),
+      questionListings.getIds(q.id),
     ]);
     return htmlResponse(
       adminQuestionPage(
@@ -240,8 +241,11 @@ const handleQuestionListings = ownerFormById(async (id, _session, form) => {
   if (!question) return notFoundResponse();
   const assignAll = form.get("assign_all") === "on";
   const listingIds = form.getNumberArray("listing_ids");
-  await questionsTable.update(id, { assignAll });
-  await setQuestionListings(id, listingIds);
+  await writeRowInTransaction(
+    await questionsTable.updateStatement!(id, { assignAll }),
+    id,
+    (tx) => questionListings.setIdsTx(tx, id, listingIds),
+  );
   await logActivity(
     assignAll
       ? `Question '${question.text}' assigned to all listings`
@@ -557,7 +561,7 @@ const handleListingQuestionsPost = createListingChoicePost({
   fieldName: "question_ids",
   label: "Questions",
   noun: "question",
-  saveIds: setListingQuestions,
+  saveIds: listingQuestions.setIds,
   tab: "questions",
 });
 

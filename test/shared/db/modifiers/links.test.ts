@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   getModifierAnswerIds,
-  getModifierListingIdsByModifierId,
   modifierGroups,
   modifierIdsByAnswerId,
   modifierListings,
@@ -50,10 +49,10 @@ describeWithEnv("db modifier links", { db: true }, () => {
     });
   });
 
-  describe("getModifierListingIdsByModifierId (batched scope lookup)", () => {
+  describe("modifierListings.getIdsByKeys", () => {
     test("buckets listing links by modifier id, seeding [] for unlinked ids", async () => {
       await modifierListings.setIds(1, [4, 6]);
-      expect(await getModifierListingIdsByModifierId([1, 2])).toEqual(
+      expect(await modifierListings.getIdsByKeys([1, 2])).toEqual(
         new Map([
           [1, [4, 6]],
           [2, []],
@@ -64,13 +63,13 @@ describeWithEnv("db modifier links", { db: true }, () => {
     test("a single-id lookup returns that modifier's links", async () => {
       // One id is not the empty case: the query must still run for it.
       await modifierListings.setIds(3, [5]);
-      expect(await getModifierListingIdsByModifierId([3])).toEqual(
+      expect(await modifierListings.getIdsByKeys([3])).toEqual(
         new Map([[3, [5]]]),
       );
     });
 
     test("no ids short-circuits to an empty map", async () => {
-      expect(await getModifierListingIdsByModifierId([])).toEqual(new Map());
+      expect(await modifierListings.getIdsByKeys([])).toEqual(new Map());
     });
   });
 
