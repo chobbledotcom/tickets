@@ -8,6 +8,7 @@ import { CsrfForm } from "#shared/forms.tsx";
 import { DomainPaymentWebhookWarning } from "#templates/admin/settings/domain-payment-warning.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { PageBlock } from "#templates/components/page-structure.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
 /* jscpd:ignore-end */
 
@@ -15,7 +16,7 @@ export const CustomDomainForm = (
   s: AdvancedSettingsPageState,
 ): JSX.Element | null =>
   s.bunnyCdnEnabled ? (
-    <div class="stack stack-sm">
+    <PageBlock>
       <CsrfForm
         action="/admin/settings/custom-domain"
         id="settings-custom-domain"
@@ -91,5 +92,5 @@ export const CustomDomainForm = (
           </SubmitButton>
         </CsrfForm>
       )}
-    </div>
+    </PageBlock>
   ) : null;

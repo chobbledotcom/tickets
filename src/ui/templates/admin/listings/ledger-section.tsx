@@ -8,6 +8,7 @@ import {
   EmbeddedAccountStatementSection,
 } from "#templates/admin/ledger.tsx";
 import { ActionButton } from "#templates/components/actions.tsx";
+import { PageBlock } from "#templates/components/page-structure.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 
 const signedCurrency = (value: number): string =>
@@ -92,26 +93,24 @@ export const ListingIncomeLedgerSection = ({
   breakdown: ListingRevenueBreakdown;
   listing: ListingWithCount;
 }): JSX.Element => (
-  <article id="income-ledger">
-    <fieldset class="listing-section">
-      <legend>{t("listings_table.income_ledger_legend")}</legend>
-      <div class="table-scroll">
-        <table class="listing-breakdown-table">
-          <tbody>
-            {incomeBreakdownRows(breakdown, listing).map(BreakdownRow)}
-          </tbody>
-        </table>
-      </div>
-      <p>
-        <small>{t("listings_table.income_ledger_recognised_note")}</small>
-      </p>
-      <p class="actions">
-        <ActionButton href={`/admin/ledger?listing=${listing.id}`}>
-          {t("listings_table.income_ledger_view_full")}
-        </ActionButton>
-      </p>
-    </fieldset>
-  </article>
+  <PageBlock id="income-ledger">
+    <h3>{t("listings_table.income_ledger_legend")}</h3>
+    <div class="table-scroll">
+      <table class="listing-breakdown-table">
+        <tbody>
+          {incomeBreakdownRows(breakdown, listing).map(BreakdownRow)}
+        </tbody>
+      </table>
+    </div>
+    <p>
+      <small>{t("listings_table.income_ledger_recognised_note")}</small>
+    </p>
+    <p class="actions">
+      <ActionButton href={`/admin/ledger?listing=${listing.id}`}>
+        {t("listings_table.income_ledger_view_full")}
+      </ActionButton>
+    </p>
+  </PageBlock>
 );
 
 export const ListingLedgerSection = ({

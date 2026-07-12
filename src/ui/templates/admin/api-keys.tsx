@@ -21,6 +21,7 @@ import {
 } from "#templates/components/actions.tsx";
 import { DataTable, textColumns } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
+import { PageBlock } from "#templates/components/page-structure.tsx";
 
 /* jscpd:ignore-end */
 
@@ -232,9 +233,8 @@ const EndpointList = ({ endpoints }: { endpoints: EndpointDoc[] }): string =>
     joinStrings,
   )(endpoints);
 
-/** A `<div class="stack-md column">` section with a prose heading + intro,
- *  followed by arbitrary body content. The docs page renders three of these
- *  (authentication, public API, admin API) with the same shell. */
+/** A related prose heading, intro, and body. The docs page renders three of
+ * these (authentication, public API, admin API) with the same shell. */
 type DocsSectionProps = {
   heading: string;
   intro: Child;
@@ -242,13 +242,13 @@ type DocsSectionProps = {
 };
 
 const DocsSection = (props: DocsSectionProps): JSX.Element => (
-  <div class="stack-md column">
+  <PageBlock>
     <div class="prose">
       <h3>{props.heading}</h3>
       <p>{props.intro}</p>
     </div>
     {props.children}
-  </div>
+  </PageBlock>
 );
 
 /**

@@ -51,6 +51,7 @@ import {
 import { WritableLink } from "#templates/admin/writable-only.tsx";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
+import { PageBlock } from "#templates/components/page-structure.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
 
 /** The dashboard's quick-create actions — shortcuts to add a listing or an
@@ -323,8 +324,8 @@ export const renderListingsTableSection = (
 };
 
 /** A listings table with an optional filter row above it. When `csvExport` is
- * set, a CSV-export footer is shown below (spaced by the .table-block
- * container). Shared by the dashboard (active-only table, no export) and the
+ * set, a CSV-export footer is shown below in the same block. Shared by the
+ * dashboard (active-only table, no export) and the
  * listings index (active + deactivated, exports all). */
 const ListingsTableBlock = ({
   listings,
@@ -339,7 +340,7 @@ const ListingsTableBlock = ({
   csvHref?: string;
   headerHtml?: string;
 }): JSX.Element => (
-  <div class="table-block">
+  <PageBlock>
     <Raw html={headerHtml} />
     <Raw
       html={renderListingsTableSection(listings, columnKeys, filters, columns)}
@@ -349,7 +350,7 @@ const ListingsTableBlock = ({
         <a href={csvHref}>{t("listings_table.export_csv")}</a>
       </div>
     )}
-  </div>
+  </PageBlock>
 );
 
 /**

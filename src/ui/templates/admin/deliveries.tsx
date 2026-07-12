@@ -16,7 +16,7 @@ import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
 import { markAdminFooter } from "#templates/admin/footer.tsx";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { StaffAdminNav } from "#templates/admin/nav.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
@@ -207,21 +207,16 @@ export const agentDeliveriesPage = (
   dateNav: DeliveriesDateNav | null,
 ): string =>
   String(
-    <Layout title={t("deliveries.title")}>
-      {session.adminLevel === "agent" ? (
-        <AgentHeader />
-      ) : (
-        <>
-          {/* Deliveries lives in the Calendar section: passing its own route
-              highlights the Deliveries sub-nav link, while the Calendar section
-              (its topHref) stays highlighted on the top-level bar and gives the
-              sub-nav a parent link to sit beneath in the desktop sidebar. */}
-          <AdminNav active="/admin/deliveries" session={session} />
-        </>
-      )}
+    <Layout
+      beforeContent={
+        <StaffAdminNav active="/admin/deliveries" session={session} />
+      }
+      title={t("deliveries.title")}
+    >
+      {session.adminLevel === "agent" && <AgentHeader />}
       <Flash {...flashProps(opts.error, opts.success)} />
       {/* The route supplies a picker only for staff; agents get null and so
-          stay pinned to today and tomorrow. */}
+            stay pinned to today and tomorrow. */}
       {dateNav && <DeliveriesDatePicker nav={dateNav} />}
       {opts.noAgents ? (
         <p>
@@ -252,7 +247,7 @@ export const agentDeliveriesPage = (
         ))
       )}
       {/* Agent-only drivers are not staff, so GuideFooter renders nothing for
-          them; owners and managers get the link to the logistics guide. */}
+            them; owners and managers get the link to the logistics guide. */}
       <GuideFooter
         adminLevel={session.adminLevel}
         href="/admin/guide#logistics"

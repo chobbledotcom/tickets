@@ -76,6 +76,10 @@ import {
 } from "#templates/components/linked-items.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import {
+  PageBlock,
+  PageRegions,
+} from "#templates/components/page-structure.tsx";
+import {
   getGroupCreateFields,
   getGroupFields,
 } from "#templates/fields/group.ts";
@@ -515,7 +519,7 @@ export const GroupOverviewPanel = ({
   });
 
   return (
-    <>
+    <PageRegions>
       <article>
         <DetailTable>
           <tr>
@@ -544,10 +548,12 @@ export const GroupOverviewPanel = ({
         </DetailTable>
       </article>
 
-      <h2>{t("terms.listings")}</h2>
-      <div class="table-scroll">
-        <Raw html={renderListingTable(columnKeys, listingRows)} />
-      </div>
+      <PageBlock>
+        <h2>{t("terms.listings")}</h2>
+        <div class="table-scroll">
+          <Raw html={renderListingTable(columnKeys, listingRows)} />
+        </div>
+      </PageBlock>
 
       {!isReadOnly() && ungroupedListings.length > 0 && (
         <CsrfForm action={`/admin/groups/${group.id}/add-listings`}>
@@ -566,7 +572,7 @@ export const GroupOverviewPanel = ({
           </SubmitButton>
         </CsrfForm>
       )}
-    </>
+    </PageRegions>
   );
 };
 
