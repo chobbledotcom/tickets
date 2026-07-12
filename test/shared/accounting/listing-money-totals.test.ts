@@ -28,6 +28,7 @@ describe("listingMoneyTotals", () => {
       income: 0,
       refunds: 0,
       servicingCosts: 0,
+      transferCount: 0,
     });
   });
 
@@ -119,6 +120,7 @@ describe("listingMoneyTotals", () => {
       income: 1400,
       refunds: 250,
       servicingCosts: 350,
+      transferCount: 8,
     });
   });
 });

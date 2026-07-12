@@ -17,6 +17,7 @@ export type ListingMoneyTotals = {
   income: number;
   refunds: number;
   servicingCosts: number;
+  transferCount: number;
 };
 
 type ListingMoneyTotalsRow = {
@@ -25,6 +26,7 @@ type ListingMoneyTotalsRow = {
   income: number | bigint;
   refunds: number | bigint;
   servicing_costs: number | bigint;
+  transfer_count: number | bigint;
 };
 
 /** The full money breakdown for one-or-many listings inside a range. The
@@ -41,6 +43,7 @@ export const listingMoneyTotals = async (
       income: 0,
       refunds: 0,
       servicingCosts: 0,
+      transferCount: 0,
     };
   }
   const selectedIds = "SELECT id FROM selected_listing";
@@ -54,6 +57,7 @@ export const listingMoneyTotals = async (
   const row = (await queryOne<ListingMoneyTotalsRow>(
     `WITH selected_listing(id) AS (VALUES ${listingIds.map(() => "(?)").join(", ")})
      SELECT
+       COUNT(*) AS transfer_count,
        COALESCE(SUM(CASE
          WHEN transfer.kind = '${KIND.sale}' AND ${revenueCredit} THEN transfer.amount
          ELSE 0 END), 0) AS gross_sales,
@@ -85,5 +89,6 @@ export const listingMoneyTotals = async (
     income: Number(row.income),
     refunds: Number(row.refunds),
     servicingCosts: Number(row.servicing_costs),
+    transferCount: Number(row.transfer_count),
   };
 };

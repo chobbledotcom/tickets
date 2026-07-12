@@ -4,6 +4,7 @@
 
 import { map, pipe, sumOf } from "#fp";
 import { t } from "#i18n";
+import type { ListingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { resolveColumnLayout } from "#shared/column-order.ts";
@@ -328,9 +329,6 @@ const buildAttendeeRows = (
 
 const totalAttendeeCount = sumOf((e: ListingWithCount) => e.attendee_count);
 const totalTicketCount = sumOf((e: ListingWithCount) => e.tickets_count);
-const totalIncome = sumOf((e: ListingWithCount) => e.income);
-const totalCost = sumOf((e: ListingWithCount) => e.cost);
-const totalProfit = sumOf((e: ListingWithCount) => e.profit);
 
 const groupAggregateMismatchItems = (
   listings: ListingWithCount[],
@@ -477,6 +475,7 @@ export const GroupOverviewPanel = ({
   allowedDomain,
   hasPaidListing,
   ledgerHref,
+  money,
   shareable,
   questionData,
 }: {
@@ -487,6 +486,7 @@ export const GroupOverviewPanel = ({
   allowedDomain: string;
   hasPaidListing: boolean;
   ledgerHref?: string | undefined;
+  money: ListingMoneyTotals;
   shareable: boolean;
   questionData?: TableQuestionData;
 }): JSX.Element => {
@@ -506,19 +506,17 @@ export const GroupOverviewPanel = ({
   const { script: embedScriptCode, iframe: embedIframeCode } =
     buildEmbedSnippets(ticketUrl);
   const totalCount = totalAttendeeCount(listings);
-  const income = totalIncome(listings);
-  const costs = totalCost(listings);
-  const profit = totalProfit(listings);
-  const showMoney = hasPaidListing || income !== 0 || costs !== 0;
+  const net =
+    money.income - money.servicingCosts - money.refunds - money.externalCosts;
+  const showMoney = hasPaidListing || money.transferCount > 0;
   const sharedRows = buildSharedDetailRows({
     attendeeCount: totalCount,
     attendees,
     hasPaidListing: false,
     maxCapacity: 0,
-    // Revenue comes from the ledger (the listings' projected income), not a sum
-    // over the loaded attendees: bookings since deleted still count, and a
-    // package's override revenue is captured the same way.
-    revenue: income,
+    // Revenue comes from the ledger, not the loaded attendees: bookings since
+    // deleted and package override revenue still count.
+    revenue: money.income,
     ...(questionData !== undefined ? { questionData } : {}),
     skipAttendees: true,
   });
@@ -561,16 +559,24 @@ export const GroupOverviewPanel = ({
             note={t("groups.money.note")}
             rows={[
               {
-                amount: income,
+                amount: money.income,
                 label: t("groups.money.income"),
               },
               {
-                amount: -costs,
+                amount: -money.servicingCosts,
                 label: t("groups.money.costs"),
               },
               {
-                amount: profit,
-                label: t("groups.money.profit"),
+                amount: -money.refunds,
+                label: t("groups.money.refunds"),
+              },
+              {
+                amount: -money.externalCosts,
+                label: t("groups.money.external_costs"),
+              },
+              {
+                amount: net,
+                label: t("groups.money.net"),
                 signed: false,
                 subtotal: true,
               },
