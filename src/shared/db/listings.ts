@@ -282,18 +282,17 @@ export const listingIncomeSubquery = (idExpr: string): string =>
 const listingCostSubquery = (idExpr: string): string =>
   `-${accountBalanceSubquery("cost", idExpr)} AS cost`;
 
-const listingProfitSubquery = (idExpr: string): string =>
-  `(${creditsLessWriteoffDebits("revenue", idExpr)} + ${accountBalanceSubquery(
-    "cost",
-    idExpr,
-  )}) AS profit`;
-
+/**
+ * Income and cost only — profit is NOT selected. Profit is exactly
+ * `income − cost` (both integer minor-unit sums), so it is derived in TS by
+ * {@link decryptStoredListingWithCount} rather than re-projected. A profit
+ * subquery would inline the whole income revenue-scan and cost scan a second
+ * time (SQLite does not dedupe identical correlated subqueries), doubling the
+ * `transfers` scans per listing row for a value already fully determined by the
+ * other two columns.
+ */
 const listingMoneySubqueries = (idExpr: string): string =>
-  [
-    listingIncomeSubquery(idExpr),
-    listingCostSubquery(idExpr),
-    listingProfitSubquery(idExpr),
-  ].join(", ");
+  [listingIncomeSubquery(idExpr), listingCostSubquery(idExpr)].join(", ");
 
 /**
  * Project a listing's per-day-count prices as a JSON object from its `day_count`
@@ -423,12 +422,16 @@ const decryptStoredListingWithCount = async (
   row: ListingWithCount,
 ): Promise<ListingWithCount> => {
   const listing = await rawListingsTable.fromDb(row);
+  const income = Number(row.income);
+  const cost = Number(row.cost);
   return {
     ...listing,
     attendee_count: row.attendee_count,
-    cost: Number(row.cost),
-    income: Number(row.income),
-    profit: Number(row.profit),
+    cost,
+    income,
+    // profit = income − cost (both integer minor-unit sums, so exact). Derived
+    // here rather than re-projected in SQL — see listingMoneySubqueries.
+    profit: income - cost,
     tickets_count: Number(row.tickets_count),
   };
 };
@@ -684,9 +687,12 @@ export const deleteListing = async (listingId: number): Promise<void> => {
 };
 
 /** The aggregate columns a listing-load row carries: `booked_quantity` and
- *  `tickets_count` are trigger-maintained columns on `listings`; money fields are
- *  projected from the ledger by {@link listingMoneySubqueries}, which every
- *  loader must select alongside `listings.*` (the columns themselves are gone). */
+ *  `tickets_count` are trigger-maintained columns on `listings`; `income` and
+ *  `cost` are projected from the ledger by {@link listingMoneySubqueries}, which
+ *  every loader must select alongside `listings.*` (the columns themselves are
+ *  gone). `profit` is not selected — {@link decryptStoredListingWithCount}
+ *  derives it as `income − cost`; it is kept on the entity type the decrypt path
+ *  returns. */
 type ListingAggregateColumns = {
   booked_quantity: number;
   cost: number;

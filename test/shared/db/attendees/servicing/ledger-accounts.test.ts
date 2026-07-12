@@ -102,10 +102,10 @@ describeWithEnv(
     });
 
     test("listing row profit stays gross after a refund", async () => {
-      // The listing row projects profit as recognised (gross) income − costs
-      // (listingProfitSubquery). An older reader used the NET revenue balance
-      // (`accountBalance(revenue) − cost`), so after a refund — which lowers the
-      // net balance but not recognised income — it diverged from the listing row.
+      // The listing entity derives profit as recognised (gross) income − cost
+      // (in decryptStoredListingWithCount). An older reader used the NET revenue
+      // balance (`accountBalance(revenue) − cost`), so after a refund — which
+      // lowers the net balance but not recognised income — it diverged.
       const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
       const listing = await createTestListing({ maxAttendees: 10, name: "L" });
       const { attendee } = await createTestAttendeeDirect(
@@ -138,7 +138,7 @@ describeWithEnv(
       expect(breakdown.netBalance).toBe(0);
       expect(await listingCostOf(listing.id)).toBe(9000);
       expect(await listingProfitOf(listing.id)).toBe(11000); // 200 − 90
-      expect(row?.profit).toBe(11000); // SQL listingProfitSubquery (the listing row)
+      expect(row?.profit).toBe(11000); // derived income − cost on the entity
     });
 
     test("listing detail surfaces service costs and profit", async () => {
