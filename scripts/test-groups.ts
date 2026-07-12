@@ -19,6 +19,7 @@
  */
 
 import { join, relative } from "node:path";
+import { isSourcePath, isTestPath } from "./unit-tests-report-lib.ts";
 import { collectFiles } from "./walk-files.ts";
 
 /** Where the generated group entry files live, relative to the project root.
@@ -76,21 +77,14 @@ export const planTestGroups = (
   };
 };
 
-/** True for the test-file extensions `deno test` picks up in this repo. */
-const isTestFile = (path: string): boolean =>
-  path.endsWith(".test.ts") || path.endsWith(".test.tsx");
-
 /** Every test file under `root`/test, sorted for determinism. Throws if a
  * shared helper (a non-test .ts/.tsx file) registers global hooks: its
  * importers look groupable but would blow up the whole group at load, so the
  * helper must expose a setup function the test files call from their own
  * suites. */
 export const collectTestFiles = async (root: string): Promise<string[]> => {
-  const sources = await collectFiles(
-    join(root, "test"),
-    (path) => path.endsWith(".ts") || path.endsWith(".tsx"),
-  );
-  for (const helper of sources.filter((path) => !isTestFile(path))) {
+  const sources = await collectFiles(join(root, "test"), isSourcePath);
+  for (const helper of sources.filter((path) => !isTestPath(path))) {
     if (GLOBAL_HOOK_RE.test(await Deno.readTextFile(helper))) {
       throw new Error(
         `${helper} is a shared test helper but registers a global BDD hook — ` +
@@ -98,7 +92,7 @@ export const collectTestFiles = async (root: string): Promise<string[]> => {
       );
     }
   }
-  return sources.filter(isTestFile);
+  return sources.filter(isTestPath);
 };
 
 /**
