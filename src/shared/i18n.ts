@@ -17,8 +17,15 @@ type Messages = Record<string, string>;
 /** Registered locale message maps — English is built-in as the default fallback */
 const locales: Record<string, Messages> = { en };
 
-/** ICU parsing is non-trivial, so cache compiled formats by locale + key. */
-const formatCache: Record<string, IntlMessageFormat | null | undefined> = {};
+/**
+ * A resolved message is either a plain string (needs no ICU processing at all)
+ * or a compiled ICU format. Around 88% of our copy is plain, so keeping the two
+ * apart lets the common key skip constructing — and later invoking — a formatter.
+ */
+type Resolved = string | IntlMessageFormat;
+
+/** ICU parsing is non-trivial, so cache the resolved message by locale + key. */
+const formatCache: Record<string, Resolved | null | undefined> = {};
 
 /** Get the list of registered locale codes */
 export const getRegisteredLocales = (): string[] => Object.keys(locales);
@@ -35,7 +42,7 @@ const clearFormatCache = (): void => {
  * registers its bundle before rendering; a key still missing after that throws
  * in `t()` exactly as a typo would, so the fail-loud contract is preserved.
  *
- * `getFormat` caches a `null` for any key it can't resolve, so a lazy key looked
+ * `resolveMessage` caches a `null` for any key it can't resolve, so a lazy key looked
  * up before it is registered would otherwise stay poisoned for the isolate's
  * life. Clearing the format cache after merging lets the next lookup recompile
  * against the new copy instead of returning the stale miss. Registration happens
@@ -82,11 +89,11 @@ const PROTECTED_SPAN = /(<code\b[^>]*>[\s\S]*?<\/code>|<[^>]+>)/gi;
  *
  * It deliberately leaves three things alone: HTML tags/attributes (so link
  * hrefs survive), `<code>` examples (literal route/CLI text), and — because it
- * runs on the message template before ICU formatting (see `getFormat`) —
+ * runs on the message template before ICU formatting (see `resolveMessage`) —
  * interpolated values such as a stored listing name. Avoid terms that collide
  * with ICU keywords/placeholder names (`name`, `count`, `plural`, …).
  *
- * Parsing and regex compilation happen once here, and `getFormat` compiles and
+ * Parsing and regex compilation happen once here, and `resolveMessage` compiles and
  * caches the rebranded template, so rendering stays a plain ICU format with no
  * extra per-call work — important on a cold-booting edge runtime.
  */
@@ -141,7 +148,18 @@ export const resetI18nForTest = (): void => {
   clearFormatCache();
 };
 
-const getFormat = (locale: string, key: string): IntlMessageFormat | null => {
+/**
+ * A message with neither a `{` (an ICU placeholder) nor a `'` (ICU quote
+ * escaping, where `''` renders as a single `'` and a lone `'` before a syntax
+ * char starts a literal region) is passed through ICU unchanged — its formatted
+ * output is the string itself. So we can skip building an `IntlMessageFormat`
+ * for it entirely. Every other syntax character (`}`, `#`, `|`) is already
+ * literal outside a placeholder, so this test is exact, not a heuristic.
+ */
+const needsIcu = (msg: string): boolean =>
+  msg.includes("{") || msg.includes("'");
+
+const resolveMessage = (locale: string, key: string): Resolved | null => {
   const cacheKey = `${locale}\0${key}`;
   if (cacheKey in formatCache) return formatCache[cacheKey]!;
 
@@ -155,13 +173,14 @@ const getFormat = (locale: string, key: string): IntlMessageFormat | null => {
   // compiled (and cached) format does no extra per-render work.
   const msg = getReplacer()(raw);
 
+  // Plain copy is cached and returned as-is; only genuine ICU needs a formatter.
   // ignoreTag: treat <tags> in messages as literal text (locale values may
   // contain HTML rendered via <Raw>), not ICU rich-text tag syntax.
-  const fmt = new IntlMessageFormat(msg, locale, undefined, {
-    ignoreTag: true,
-  });
-  formatCache[cacheKey] = fmt;
-  return fmt;
+  const resolved: Resolved = needsIcu(msg)
+    ? new IntlMessageFormat(msg, locale, undefined, { ignoreTag: true })
+    : msg;
+  formatCache[cacheKey] = resolved;
+  return resolved;
 };
 
 /**
@@ -177,13 +196,16 @@ const getFormat = (locale: string, key: string): IntlMessageFormat | null => {
  */
 export const t = (key: string, values?: Record<string, unknown>): string => {
   const locale = getLocale();
-  const fmt = getFormat(locale, key);
-  if (!fmt) {
+  const resolved = resolveMessage(locale, key);
+  if (resolved === null) {
     throw new Error(
       `Missing translation for key "${key}" (locale "${locale}")`,
     );
   }
-  return String(fmt.format(values));
+  // Plain copy is already its final text; only ICU messages need formatting.
+  return typeof resolved === "string"
+    ? resolved
+    : String(resolved.format(values));
 };
 
 // --- Request-scoped locale via AsyncLocalStorage ---
@@ -200,11 +222,16 @@ export const getLocale = (): string => localeStore.getStore() ?? "en";
 /**
  * Parse the Accept-Language header and return the best matching registered locale.
  * Falls back to "en" if no match is found.
+ *
+ * `registered` defaults to the live locale list; tests pass an explicit list so
+ * the parsing/sorting can be exercised against a locale that is not also the
+ * "en" fallback (otherwise every parse bug still lands on "en" and hides).
  */
-export const parseAcceptLanguage = (header: string | null): string => {
+export const parseAcceptLanguage = (
+  header: string | null,
+  registered: string[] = getRegisteredLocales(),
+): string => {
   if (!header) return "en";
-
-  const registered = getRegisteredLocales();
 
   // Parse "en-GB,en;q=0.9,de;q=0.8" into sorted [{lang, q}]
   const entries = header
