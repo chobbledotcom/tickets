@@ -88,6 +88,10 @@ export const pagePackage = (
   });
 
 /** Register the beforeAll/afterEach hooks every public-template test shares. */
+/** Call it as the first statement INSIDE each top-level describe — at module
+ * level it would register *global* hooks, which cannot be added once any
+ * other module's tests exist (files share an isolate under the grouped
+ * runner). */
 export const registerPublicTemplateHooks = (): void => {
   beforeAll(async () => {
     setupTestEncryptionKey();

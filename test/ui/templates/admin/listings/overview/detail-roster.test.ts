@@ -7,9 +7,9 @@ import {
 } from "#test/templates/admin/listings/helpers.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
-registerListingTemplateHooks();
-
 describe("adminListingPage roster and attendees", () => {
+  registerListingTemplateHooks();
+
   const listing = testListingWithCount({ attendee_count: 2 });
 
   test("shows thank you URL in copyable input", () => {
@@ -265,6 +265,8 @@ describe("adminListingPage roster and attendees", () => {
 });
 
 describe("adminListingPage optional fields", () => {
+  registerListingTemplateHooks();
+
   test("hides thank you URL row when no thank_you_url", () => {
     const listing = testListingWithCount({
       attendee_count: 0,
@@ -295,6 +297,8 @@ describe("adminListingPage optional fields", () => {
 });
 
 describe("adminListingPage listing date and location", () => {
+  registerListingTemplateHooks();
+
   test("shows Listing Date row when listing has a date", () => {
     const listing = testListingWithCount({
       attendee_count: 0,

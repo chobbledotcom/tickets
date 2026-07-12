@@ -13,9 +13,9 @@ import {
   renderListingDetail,
 } from "./helpers.ts";
 
-registerListingTemplateHooks();
-
 describe("adminListingPage income & ledger breakdown", () => {
+  registerListingTemplateHooks();
+
   const listing = testListingWithCount({ id: 7 });
 
   test("omits the section entirely when no breakdown is supplied", () => {
@@ -177,6 +177,8 @@ describe("adminListingPage income & ledger breakdown", () => {
 });
 
 describe("nearCapacity", () => {
+  registerListingTemplateHooks();
+
   test("returns true when at 90% capacity", () => {
     const listing = testListingWithCount({
       attendee_count: 90,
@@ -211,6 +213,8 @@ describe("nearCapacity", () => {
 });
 
 describe("overviewStatsFromDbStats", () => {
+  registerListingTemplateHooks();
+
   const dbStats = {
     completeQuantitySum: 5,
     incompleteQuantity: 2,
@@ -244,6 +248,8 @@ describe("overviewStatsFromDbStats", () => {
 });
 
 describe("isIncompletePayment", () => {
+  registerListingTemplateHooks();
+
   test("returns true for paid listing attendee with no payment_id and price > 0", () => {
     const attendee = testAttendee({ payment_id: "", price_paid: "1000" });
     expect(isIncompletePayment(attendee, true, false)).toBe(true);
@@ -300,6 +306,8 @@ describe("isIncompletePayment", () => {
 });
 
 describe("completePaymentAttendees", () => {
+  registerListingTemplateHooks();
+
   test("drops unresolved-payment rows on a paid listing", () => {
     const listing = testListingWithCount({ unit_price: 1000 });
     const paid = testAttendee({
@@ -332,6 +340,8 @@ describe("completePaymentAttendees", () => {
 });
 
 describe("datetime validation via getListingFields() date field", () => {
+  registerListingTemplateHooks();
+
   const dateField = getListingFields().find((f) => f.name === "date")!;
 
   test("accepts valid datetime value", () => {

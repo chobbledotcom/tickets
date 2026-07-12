@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
+import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import {
   ErrorCode,
   getRequestId,
@@ -15,10 +16,14 @@ import { describeWithEnv } from "#test-utils/db.ts";
 describeWithEnv("runWithRequestId", { env: { NTFY_URL: undefined } }, () => {
   beforeEach(() => {
     setSuppressRequestLogs(false);
+    // Debug suppression is module state another test file may have switched
+    // on (setupTestEncryptionKey does); these tests assert on logDebug output.
+    setSuppressDebugLogs(false);
   });
 
   afterEach(() => {
     setSuppressRequestLogs(null);
+    setSuppressDebugLogs(null);
   });
 
   test("getRequestId returns 4-char hex ID inside request context", () => {
