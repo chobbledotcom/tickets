@@ -18,4 +18,12 @@ describe("withLazyLogger", () => {
       throw new Error("logging blew up");
     });
   });
+
+  test("swallows a rejecting async callback too", async () => {
+    // An async callback is assignable to the param; its rejection must be
+    // awaited and caught, not leaked as an unhandled rejection.
+    await withLazyLogger(() =>
+      Promise.reject(new Error("async logging blew up")),
+    );
+  });
 });

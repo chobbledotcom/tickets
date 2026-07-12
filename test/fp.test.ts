@@ -517,10 +517,13 @@ describe("fp", () => {
       expect(map.size).toBe(2);
     });
 
-    test("later items with the same id win, and empty input gives an empty map", () => {
+    test("later items with the same id win", () => {
       const first = { id: 1, name: "first" };
       const second = { id: 1, name: "second" };
       expect(byId([first, second]).get(1)).toBe(second);
+    });
+
+    test("empty input gives an empty map", () => {
       expect(byId([])).toEqual(new Map());
     });
   });
