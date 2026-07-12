@@ -41,9 +41,14 @@ mise can hold both versions, so a quick edit/type-check cycle can use the newer
 one:
 
 ```bash
-mise use deno@latest          # writes to a local (git-ignored) mise config
+mise use --env local deno@latest   # writes mise.local.toml, which is git-ignored
 deno check --unstable-tsgo src/**/*.ts   # fast type-check on the newer Deno
 ```
+
+Use `--env local` so the newer version lands in `mise.local.toml` (git-ignored),
+not the tracked `.mise.toml`. A plain `mise use deno@latest` would edit the
+tracked config and move the pinned floor for everyone — the opposite of what you
+want.
 
 Two things to keep in mind, because a newer Deno's type checker differs from the
 pinned one and can disagree with CI:

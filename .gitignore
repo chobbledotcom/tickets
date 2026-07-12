@@ -37,3 +37,8 @@ deploy/certs/*.pem
 # Test artifacts from storage tests run without LOCAL_STORAGE_PATH set
 /undefined/
 /null/
+
+# Local mise override for running a newer Deno alongside the pinned toolchain
+# (see AGENTS.md "Running a newer Deno locally"). Keeps the pinned .mise.toml clean.
+mise.local.toml
+.mise.local.toml
