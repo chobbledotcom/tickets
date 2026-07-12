@@ -252,13 +252,6 @@ const modifierScopeListingIdsLookup =
     return appendModifierListingLinks(emptyModifierScopeMap(modifierIds), rows);
   };
 
-/** Listing ids directly linked to each listing-scoped modifier id. */
-export const getModifierListingIdsByModifierId = modifierScopeListingIdsLookup(
-  (placeholders) =>
-    `SELECT modifier_id, listing_id FROM modifier_listings
-     WHERE modifier_id IN (${placeholders})`,
-);
-
 /** Listing ids belonging to linked groups for each group-scoped modifier id. */
 export const getModifierGroupListingIdsByModifierId =
   modifierScopeListingIdsLookup(
@@ -268,16 +261,6 @@ export const getModifierGroupListingIdsByModifierId =
          JOIN group_listings AS groupListing ON groupListing.group_id = modifierGroup.group_id
        WHERE modifierGroup.modifier_id IN (${placeholders})`,
   );
-
-/** Group ids linked to each group-scoped modifier id (batched), so a caller can
- * resolve a modifier's group scope against *in-memory* listings (e.g. a listing
- * save's would-be `group_id`) instead of the live join. Seeds an entry for every
- * id it was given. */
-export const getModifierGroupIdsByModifierId = modifierScopeListingIdsLookup(
-  (placeholders) =>
-    `SELECT modifier_id, group_id AS listing_id FROM modifier_groups
-     WHERE modifier_id IN (${placeholders})`,
-);
 
 /** Answer ids an "answer"-triggered modifier is linked to (for the admin
  * editor) — i.e. the answers whose modifier_id points at this modifier. */

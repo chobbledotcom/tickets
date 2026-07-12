@@ -13,7 +13,7 @@ import {
   getAllQuestionsWithAnswers,
   getQuestionsForListing,
   getQuestionWithAnswers,
-  setListingQuestions,
+  listingQuestions,
 } from "#shared/db/questions/queries.ts";
 import {
   assignNextQuestionSortOrder,
@@ -66,7 +66,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       const a = await addAnswer(q.id, 0, "Opt A");
 
       const listing = await createTestListing();
-      await setListingQuestions(listing.id, [q.id]);
+      await listingQuestions.setIds(listing.id, [q.id]);
 
       const attendee = await createAttendee(listing.id);
       await saveAttendeeAnswers(new Map([[attendee.id, [a.id]]]));

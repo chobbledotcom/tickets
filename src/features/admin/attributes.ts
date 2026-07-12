@@ -37,8 +37,8 @@ import {
   getAttributeListingUse,
   getAttributeWithOptions,
   getNextAttributeOptionSortOrder,
+  listingAttributeOptions,
   pruneInvalidAttributeOptionIds,
-  setListingAttributeOptions,
   swapAttributeOptionOrder,
   swapAttributeOrder,
 } from "#shared/db/attributes.ts";
@@ -361,7 +361,7 @@ const handleListingAttributesPost = createListingChoicePost({
       await getAllAttributeOptionIds(),
       form.getNumberArray("option_ids"),
     ),
-  saveIds: setListingAttributeOptions,
+  saveIds: listingAttributeOptions.setIds,
   tab: "attributes",
 });
 

@@ -572,7 +572,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const { answersTable, questionsTable } = await import(
         "#shared/db/questions/tables.ts"
       );
-      const { setQuestionListings } = await import(
+      const { questionListings } = await import(
         "#shared/db/questions/queries.ts"
       );
 
@@ -581,7 +581,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
         displayType: "radio",
         text: "Food preference",
       });
-      await setQuestionListings(question.id, [listing.id]);
+      await questionListings.setIds(question.id, [listing.id]);
       await answersTable.insert({
         questionId: question.id,
         sortOrder: 0,

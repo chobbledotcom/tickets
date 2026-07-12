@@ -10,7 +10,7 @@ import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.
 import {
   getAllQuestionsWithAnswers,
   getQuestionsWithListingIds,
-  setListingQuestions,
+  listingQuestions,
 } from "#shared/db/questions/queries.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -33,8 +33,8 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q2 = await createQuestionWithAnswers("Q2", ["A2"]);
       const listing1 = await createTestListing();
       const listing2 = await createTestListing({ name: "Listing 2" });
-      await setListingQuestions(listing1.id, [q1.id, q2.id]);
-      await setListingQuestions(listing2.id, [q2.id]);
+      await listingQuestions.setIds(listing1.id, [q1.id, q2.id]);
+      await listingQuestions.setIds(listing2.id, [q2.id]);
       return { listing1, listing2, q1, q2 };
     };
 

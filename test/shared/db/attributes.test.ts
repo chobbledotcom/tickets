@@ -9,7 +9,6 @@ import {
   getSelectedAttributesForListings,
   listingAttributeOptions,
   pruneInvalidAttributeOptionIds,
-  setListingAttributeOptions,
   swapAttributeOptionOrder,
   swapAttributeOrder,
 } from "#shared/db/attributes.ts";
@@ -67,7 +66,7 @@ describeWithEnv("db > attributes", { db: true }, () => {
       "Intense",
     ]);
 
-    await setListingAttributeOptions(listing.id, [
+    await listingAttributeOptions.setIds(listing.id, [
       attribute.options[1]!.id,
       attribute.options[1]!.id,
       attribute.options[0]!.id,
@@ -77,7 +76,9 @@ describeWithEnv("db > attributes", { db: true }, () => {
       attribute.options[1]!.id,
     ]);
 
-    await setListingAttributeOptions(listing.id, [attribute.options[0]!.id]);
+    await listingAttributeOptions.setIds(listing.id, [
+      attribute.options[0]!.id,
+    ]);
     expect(await listingAttributeOptions.getIds(listing.id)).toEqual([
       attribute.options[0]!.id,
     ]);
@@ -95,11 +96,13 @@ describeWithEnv("db > attributes", { db: true }, () => {
       "Online",
     ]);
 
-    await setListingAttributeOptions(morning.id, [
+    await listingAttributeOptions.setIds(morning.id, [
       difficulty.options[1]!.id,
       place.options[0]!.id,
     ]);
-    await setListingAttributeOptions(evening.id, [difficulty.options[0]!.id]);
+    await listingAttributeOptions.setIds(evening.id, [
+      difficulty.options[0]!.id,
+    ]);
 
     const byListing = await getSelectedAttributesForListings([
       morning.id,
@@ -127,7 +130,7 @@ describeWithEnv("db > attributes", { db: true }, () => {
       "Spring",
       "Autumn",
     ]);
-    await setListingAttributeOptions(
+    await listingAttributeOptions.setIds(
       listing.id,
       attribute.options.map((option) => option.id),
     );
@@ -149,7 +152,7 @@ describeWithEnv("db > attributes", { db: true }, () => {
       "Adults",
       "Families",
     ]);
-    await setListingAttributeOptions(
+    await listingAttributeOptions.setIds(
       listing.id,
       attribute.options.map((option) => option.id),
     );

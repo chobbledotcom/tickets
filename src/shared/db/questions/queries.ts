@@ -7,15 +7,23 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { filter, groupBy, groupToMap, map, mapParallel, reduce } from "#fp";
-import {
-  executeBatch,
-  inPlaceholders,
-  insert,
-  queryAll,
-} from "#shared/db/client.ts";
+import { filter, groupBy, map, mapParallel, reduce } from "#fp";
+import { inPlaceholders, queryAll } from "#shared/db/client.ts";
+import { linkTableSide } from "#shared/db/link-table.ts";
 import type { Answer, QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+
+/** Direct question-to-listing assignments, viewed from either side. */
+export const questionListings = linkTableSide(
+  "listing_questions",
+  "question_id",
+  "listing_id",
+);
+export const listingQuestions = linkTableSide(
+  "listing_questions",
+  "listing_id",
+  "question_id",
+);
 
 /** Flat row from a question ← LEFT JOIN answers query. `q_assign_all` is the
  * stored form (INTEGER 0/1) — {@link decryptQuestion} turns it into a boolean
@@ -143,58 +151,6 @@ export const getListingQuestionIds = async (
     ),
   );
 
-/** Map from question id to the ids of the listings it is directly assigned to,
- * for the questions list table's Listings column. Assign-all questions are
- * omitted (the caller renders "All" for them). The caller resolves ids to
- * (decrypted) names from its already-loaded listing list. */
-export const getAllQuestionListingIds = async (): Promise<
-  Map<number, number[]>
-> => {
-  const rows = await queryAll<{ question_id: number; listing_id: number }>(
-    `SELECT question_id, listing_id FROM listing_questions
-     ORDER BY question_id, listing_id`,
-  );
-  return groupToMap(
-    (r: (typeof rows)[number]) => r.question_id,
-    (r) => r.listing_id,
-  )(rows);
-};
-
-/** Get the IDs of the listings a question is assigned to */
-export const getQuestionListingIds = async (
-  questionId: number,
-): Promise<number[]> =>
-  map((r: { listing_id: number }) => r.listing_id)(
-    await queryAll<{ listing_id: number }>(
-      "SELECT listing_id FROM listing_questions WHERE question_id = ? ORDER BY listing_id",
-      [questionId],
-    ),
-  );
-
-/** Set which listings a question is assigned to: add it to newly-checked
- * listings and remove it from unchecked ones. Membership only — display order
- * is the question's global `sort_order`, so no per-listing ordering is written. */
-export const setQuestionListings = async (
-  questionId: number,
-  listingIds: number[],
-): Promise<void> => {
-  const current = new Set(await getQuestionListingIds(questionId));
-  const target = new Set(listingIds);
-  const toRemove = [...current].filter((id) => !target.has(id));
-  const toAdd = listingIds.filter((id) => !current.has(id));
-  const statements = [
-    ...toRemove.map((listingId) => ({
-      args: [listingId, questionId],
-      sql: "DELETE FROM listing_questions WHERE listing_id = ? AND question_id = ?",
-    })),
-    ...toAdd.map((listingId) => ({
-      args: [listingId, questionId],
-      sql: "INSERT INTO listing_questions (listing_id, question_id) VALUES (?, ?)",
-    })),
-  ];
-  if (statements.length > 0) await executeBatch(statements);
-};
-
 /** Map from question ID to the set of listing IDs that use it */
 export type QuestionListingMap = Map<number, number[]>;
 
@@ -243,26 +199,6 @@ export const getQuestionsWithListingIds = async (
 
   const questions = withAnswers(await groupJoinedRows(rows));
   return { questionListingMap, questions };
-};
-
-/** Set which questions are assigned to an listing (replaces existing) */
-export const setListingQuestions = async (
-  listingId: number,
-  questionIds: number[],
-): Promise<void> => {
-  const statements = [
-    {
-      args: [listingId],
-      sql: "DELETE FROM listing_questions WHERE listing_id = ?",
-    },
-    ...questionIds.map((qid) =>
-      insert("listing_questions", {
-        listing_id: listingId,
-        question_id: qid,
-      }),
-    ),
-  ];
-  await executeBatch(statements);
 };
 
 /** Get question with answers by ID */

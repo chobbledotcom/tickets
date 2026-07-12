@@ -5,7 +5,7 @@ import {
   getAttendeeAnswersBatch,
   getAttendeeTextAnswers,
 } from "#shared/db/questions/attendee-answers/reads.ts";
-import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
@@ -48,7 +48,7 @@ describeWithEnv(
         sortOrder: 1,
         text: "Vegan",
       });
-      await setListingQuestions(listing.id, [q.id]);
+      await listingQuestions.setIds(listing.id, [q.id]);
 
       await expectWebhookProcessed(
         checkoutSessionEvent({
@@ -95,7 +95,7 @@ describeWithEnv(
         displayType: "free_text",
         text: "Access needs?",
       });
-      await setListingQuestions(listing.id, [question.id]);
+      await listingQuestions.setIds(listing.id, [question.id]);
 
       // Drive the REAL checkout so ticket-submit resolves the free-text answer
       // to a string id and packs it into the intent. Capture that intent: its
@@ -177,7 +177,7 @@ describeWithEnv(
         displayType: "free_text",
         text: "Dietary needs?",
       });
-      await setListingQuestions(listing.id, [goodQ.id, lostQ.id]);
+      await listingQuestions.setIds(listing.id, [goodQ.id, lostQ.id]);
 
       const stringIds = await getOrCreateStringIds(["Step-free entrance"]);
 
