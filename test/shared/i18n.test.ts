@@ -1,10 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { IntlMessageFormat } from "intl-messageformat";
 import {
   buildReplacer,
   getLocale,
   getRegisteredLocales,
   parseAcceptLanguage,
+  registerMessages,
   resetI18nForTest,
   runWithLocale,
   t,
@@ -94,6 +96,39 @@ describe("i18n", () => {
       expect(t("admin.listings.failed_payments_count", { count: 5 })).toContain(
         "5 attendees",
       );
+    });
+
+    test("returns a plain message (no ICU placeholder) verbatim", () => {
+      // Plain copy takes the fast path that skips IntlMessageFormat entirely,
+      // so its output must still equal the exact catalog string.
+      expect(t("common.yes")).toBe("Yes");
+      expect(t("common.cancel")).toBe("Cancel");
+    });
+
+    test("fast path renders every placeholder-free message exactly as full ICU would", () => {
+      // The optimisation skips IntlMessageFormat for messages it deems plain.
+      // This is the invariant that keeps that safe: for every message carrying
+      // no `{` placeholder, t()'s output must equal what a real
+      // IntlMessageFormat would have produced. A mis-classification — a `#` or
+      // `|` wrongly treated as needing ICU, or an apostrophe message wrongly
+      // fast-pathed and losing its `''` escaping — surfaces here. Placeholder
+      // messages need render values, so they are out of scope.
+      const withoutPlaceholder = Object.entries(
+        en as Record<string, string>,
+      ).filter(
+        ([, value]) => typeof value === "string" && !value.includes("{"),
+      );
+      // Sanity: most copy is placeholder-free, so this truly exercises the fast
+      // path across the catalog rather than a handful of keys.
+      expect(withoutPlaceholder.length).toBeGreaterThan(2000);
+      for (const [key, value] of withoutPlaceholder) {
+        const viaIcu = String(
+          new IntlMessageFormat(value, "en", undefined, {
+            ignoreTag: true,
+          }).format(),
+        );
+        expect(t(key)).toBe(viaIcu);
+      }
     });
   });
 
@@ -237,6 +272,25 @@ describe("i18n", () => {
     });
   });
 
+  describe("registerMessages", () => {
+    test("a key looked up before registration resolves after it", () => {
+      // Looking up a missing key caches a `null` miss. registerMessages must
+      // clear that cached miss (via clearFormatCache) so the same key resolves
+      // once its message is added — otherwise the first lookup would poison it
+      // for the isolate's life.
+      const key = "test.register_messages.lazy_key";
+      expect(() => t(key)).toThrow(); // caches the miss
+      try {
+        registerMessages("en", { [key]: "Lazily added" });
+        expect(t(key)).toBe("Lazily added");
+      } finally {
+        // Don't leak the test key into other suites sharing the isolate.
+        registerMessages("en", { [key]: undefined as unknown as string });
+        resetI18nForTest();
+      }
+    });
+  });
+
   describe("runWithLocale", () => {
     test("sets locale within callback", () => {
       const result = runWithLocale("de", () => getLocale());
@@ -246,14 +300,28 @@ describe("i18n", () => {
     test("defaults to en outside callback", () => {
       expect(getLocale()).toBe("en");
     });
+
+    test("keeps an empty-string locale rather than defaulting to en", () => {
+      // getLocale coalesces only a *missing* store (undefined) to "en" using
+      // `??`; an explicitly-set empty string is a real (if odd) value and must
+      // survive. This pins `??` so it can't weaken to `||`, which would also
+      // swallow "".
+      expect(runWithLocale("", () => getLocale())).toBe("");
+    });
   });
 
   describe("parseAcceptLanguage", () => {
+    // A two-locale list where "de" is registered but is NOT the "en" fallback,
+    // so a parsing/sorting bug that mis-picks surfaces as en-instead-of-de
+    // rather than hiding behind the fallback.
+    const REG = ["de", "en"];
+
     test("returns en for null header", () => {
       expect(parseAcceptLanguage(null)).toBe("en");
     });
 
-    test("returns exact match for registered locale", () => {
+    test("uses the live locale list by default (en is registered)", () => {
+      // Exercises the `registered = getRegisteredLocales()` default argument.
       expect(parseAcceptLanguage("en")).toBe("en");
     });
 
@@ -261,12 +329,61 @@ describe("i18n", () => {
       expect(parseAcceptLanguage("en-GB,de;q=0.8")).toBe("en");
     });
 
+    test("splits the header on commas to consider each language", () => {
+      // Kills split(",") → split(""): with a proper split "de" is a whole
+      // token and wins; a per-character split never yields the "de" token.
+      expect(parseAcceptLanguage("de,en", REG)).toBe("de");
+    });
+
+    test("splits a tagged entry on ';' to read its language", () => {
+      // Kills split(";") → split(""): "de;q=0.9" must yield lang "de", not "d".
+      expect(parseAcceptLanguage("de;q=0.9", REG)).toBe("de");
+    });
+
+    test("reads the q value from the part after the first ';'", () => {
+      // Kills Number(qMatch[1]) → Number(qMatch[0]): the captured group is the
+      // number; the whole match "q=0.9" is NaN and would drop the entry.
+      expect(parseAcceptLanguage("de;q=0.9,en;q=0.1", REG)).toBe("de");
+    });
+
+    test("rejoins extra ';' parts before reading q so a later q= is still found", () => {
+      // Kills rest.join(";") → rest.join(""): dropping the ';' when rejoining a
+      // multi-';' segment changes where "q=" is found, flipping the winner.
+      expect(parseAcceptLanguage("de;x;q=0.4,en;q=0.5", REG)).toBe("en");
+      expect(parseAcceptLanguage("de;xq;=0.4,en;q=0.5", REG)).toBe("de");
+    });
+
+    test("defaults a q-less entry to 1 (highest priority), not 0", () => {
+      // Kills the `: 1` default → `: 0`: "de" has no q, so it must win over a
+      // lower explicit q; a 0 default would drop it below en.
+      expect(parseAcceptLanguage("de,en;q=0.5", REG)).toBe("de");
+    });
+
+    test("drops an entry whose q is zero", () => {
+      // Kills `e.lang && e.q > 0` → `||` and `> 0` → `<= 0`/`> 1`: a q=0 entry
+      // must be discarded, so de with q=0 loses to the en fallback.
+      expect(parseAcceptLanguage("de;q=0", REG)).toBe("en");
+    });
+
+    test("orders entries by descending q, highest first", () => {
+      // Kills the sort comparator `b.q - a.q` → `b.q / a.q`: en has the higher
+      // q and must win even though de appears... en appears first here, and de
+      // second with lower q, so en must stay the winner.
+      expect(parseAcceptLanguage("en;q=0.9,de;q=0.1", REG)).toBe("en");
+    });
+
     test("skips higher-q unregistered locales for a registered one", () => {
-      expect(parseAcceptLanguage("xx;q=1.0,en;q=0.5")).toBe("en");
+      expect(parseAcceptLanguage("xx;q=1.0,en;q=0.5", REG)).toBe("en");
+    });
+
+    test("matches on the base language before the '-'", () => {
+      // Kills split("-") → split("") and [0] → [1]: "de-CH" must reduce to base
+      // "de", not "d" (char split) or "CH" (second segment).
+      expect(parseAcceptLanguage("de-CH", REG)).toBe("de");
     });
 
     test("falls back to en for unregistered locales", () => {
-      expect(parseAcceptLanguage("xx-YY")).toBe("en");
+      expect(parseAcceptLanguage("xx-YY", REG)).toBe("en");
     });
   });
 });
