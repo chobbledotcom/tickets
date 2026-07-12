@@ -76,11 +76,24 @@ export const planTestGroups = (
   };
 };
 
-/** Every test file under `root`/test, sorted for determinism. */
+/** Every test file under `root`/test, sorted for determinism. Throws if a
+ * shared helper (a non-test .ts file) registers global hooks: its importers
+ * look groupable but would blow up the whole group at load, so the helper
+ * must expose a setup function the test files call from their own suites. */
 export const collectTestFiles = async (root: string): Promise<string[]> => {
   const files: string[] = [];
   for await (const path of walkFiles(join(root, "test"))) {
-    if (path.endsWith(".test.ts")) files.push(path);
+    if (!path.endsWith(".ts")) continue;
+    if (path.endsWith(".test.ts")) {
+      files.push(path);
+      continue;
+    }
+    if (GLOBAL_HOOK_RE.test(await Deno.readTextFile(path))) {
+      throw new Error(
+        `${path} is a shared test helper but registers a global BDD hook — ` +
+          "export a setup function and call it from each test file's own suite instead",
+      );
+    }
   }
   return files.sort();
 };

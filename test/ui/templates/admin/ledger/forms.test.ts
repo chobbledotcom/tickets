@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   MANUAL_ATTENDEE_CHARGE,
   MANUAL_ATTENDEE_PAYMENT,
@@ -11,9 +11,11 @@ import {
   type LedgerEntryAddOption,
 } from "#templates/admin/ledger/entry-pages.tsx";
 
-import { names, SESSION } from "./helpers.ts";
+import { names, SESSION, setUpLedgerPageCrypto } from "./helpers.ts";
 
 describe("adminLedgerEntryAddPage", () => {
+  beforeAll(setUpLedgerPageCrypto);
+
   test("preselects the posted entry type when redisplaying the add form", () => {
     const refs = names({ attendees: new Map([[7, "Ada Lovelace"]]) });
     const options: LedgerEntryAddOption[] = [

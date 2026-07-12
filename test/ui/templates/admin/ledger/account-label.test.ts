@@ -1,11 +1,13 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { account } from "#shared/ledger/account.ts";
 import { resolveAccountLabel } from "#templates/admin/ledger.tsx";
 
-import { names } from "./helpers.ts";
+import { names, setUpLedgerPageCrypto } from "./helpers.ts";
 
 describe("resolveAccountLabel", () => {
+  beforeAll(setUpLedgerPageCrypto);
+
   test("names singleton accounts from i18n with no link", () => {
     expect(resolveAccountLabel(account("external", "world"), names())).toEqual({
       text: "Card / bank",

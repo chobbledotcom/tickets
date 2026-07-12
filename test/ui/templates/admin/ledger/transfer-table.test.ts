@@ -1,12 +1,14 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { MANUAL_ATTENDEE_PAYMENT } from "#shared/accounting/manual-entries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { LedgerTable } from "#templates/admin/ledger.tsx";
 
-import { names, transfer } from "./helpers.ts";
+import { names, setUpLedgerPageCrypto, transfer } from "./helpers.ts";
 
 describe("LedgerTable", () => {
+  beforeAll(setUpLedgerPageCrypto);
+
   test("renders each transfer as From → To with kind, time and amount", () => {
     const refs = names({
       attendees: new Map([[1, "Ada"]]),

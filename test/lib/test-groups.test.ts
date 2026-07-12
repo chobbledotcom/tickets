@@ -114,6 +114,21 @@ describe("test-groups", () => {
       return root;
     };
 
+    test("collectTestFiles rejects a shared helper with a global hook", async () => {
+      const root = await makeScratchRoot();
+      try {
+        await Deno.writeTextFile(
+          `${root}/test/hooky-helper.ts`,
+          "afterEach(() => {});\n",
+        );
+        await expect(collectTestFiles(root)).rejects.toThrow(
+          "registers a global BDD hook",
+        );
+      } finally {
+        await Deno.remove(root, { recursive: true });
+      }
+    });
+
     test("collectTestFiles finds only .test.ts files, sorted", async () => {
       const root = await makeScratchRoot();
       try {
