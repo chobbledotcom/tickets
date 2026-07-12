@@ -143,7 +143,7 @@ const ContactRecordSection = ({
 }): JSX.Element => {
   const { hashParam, record } = channel;
   return (
-    <PageBlock>
+    <PageBlock as="section">
       <div class="prose">
         <h4>{label}</h4>
         {record.lastContact && (

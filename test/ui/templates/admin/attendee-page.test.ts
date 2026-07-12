@@ -2,7 +2,10 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { SystemNote } from "#shared/db/system-notes.ts";
-import { attendeeBanner } from "#templates/admin/attendee-page.tsx";
+import {
+  attendeeBanner,
+  ContactHistory,
+} from "#templates/admin/attendee-page.tsx";
 import { PaymentDetails } from "#templates/admin/attendees.tsx";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testAttendee } from "#test-utils/factories.ts";
@@ -41,6 +44,35 @@ const renderBanner = (
 beforeAll(setupTestEncryptionKey);
 
 describe("attendee page blocks", () => {
+  test("keeps each contact record as a semantic section", () => {
+    const html = String(
+      ContactHistory({
+        attendee: testAttendee({ email: "jane@example.com" }),
+        contactRecords: {
+          email: {
+            hashParam: "email-hash",
+            record: {
+              adminBookingCount: 1,
+              adminNotes: "Private note",
+              contactCount: 2,
+              lastContact: "",
+              lastSubject: "",
+              publicBookingCount: 3,
+              visits: 4,
+            },
+          },
+          phone: null,
+        },
+        isOwner: false,
+        previousBookings: [],
+      }),
+    );
+
+    expect(html).toContain(
+      '<section class="page-block"><div class="prose"><h4>Stats / notes for jane@example.com</h4>',
+    );
+  });
+
   test("omits the banner when the attendee has one status and no notes", () => {
     expect(renderBanner([attendeeStatus()])).toBeNull();
   });
