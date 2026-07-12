@@ -104,11 +104,6 @@ const ROW_ACCOUNT_KINDS: Record<RowAccountType, RowAccountKind> = {
 
 /** The bounded id→name lookup for one row-backed account type — the single
  * accessor the label resolver and the route layer's existence checks share. */
-export const rowAccountNames = (
-  type: RowAccountType,
-  names: LedgerNames,
-): Map<number, string> => ROW_ACCOUNT_KINDS[type].names(names);
-
 /** Singleton accounts get a friendly, link-free name from i18n, matched on the
  * account type alone (`writeoff:*` is one logical account regardless of id).
  * Exhaustive over {@link SingletonAccountType}. */
@@ -125,7 +120,7 @@ const SINGLETON_LABEL_KEYS: Record<SingletonAccountType, string> = {
  * name; when the id is absent from `names` (a deleted entity that kept its ledger
  * rows) the leg degrades to plain "<Entity> #<id>" with no link.
  */
-export const resolveAccountLabel = (
+const resolveAccountLabel = (
   account: AccountRef,
   names: LedgerNames,
 ): AccountLabel => {
@@ -289,7 +284,7 @@ const transferColumns = (
   ),
 ];
 
-export const LedgerTable = makeTransferTable((accountCell, returnUrl) =>
+const LedgerTable = makeTransferTable((accountCell, returnUrl) =>
   transferColumns(
     [
       { cell: transferEventLabel, headerKey: "admin.ledger.col.event" },
@@ -308,7 +303,7 @@ export const LedgerTable = makeTransferTable((accountCell, returnUrl) =>
   ),
 );
 
-export const HumanLedgerTable = makeTransferTable((accountCell, returnUrl) =>
+const HumanLedgerTable = makeTransferTable((accountCell, returnUrl) =>
   transferColumns(
     [
       {

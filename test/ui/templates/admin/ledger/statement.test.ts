@@ -16,7 +16,6 @@ import { statementFor } from "#shared/ledger/project.ts";
 import { statementBalanceKey } from "#templates/admin/ledger/formatting.tsx";
 import {
   AccountStatementSection,
-  AccountStatementTable,
   adminAccountStatementPage,
 } from "#templates/admin/ledger/statement.tsx";
 import { setTestEnv } from "#test-utils/env.ts";
@@ -49,7 +48,7 @@ describe("statementBalanceKey", () => {
   });
 });
 
-describe("AccountStatementTable", () => {
+describe("AccountStatementSection", () => {
   const acct = account("attendee", 1);
 
   /** Two legs against attendee 1: a 5000 sale (debit) then a 5000 payment
@@ -75,7 +74,12 @@ describe("AccountStatementTable", () => {
   test("reverses the attendee figures so a charge reads positive and a payment brings it down", () => {
     const refs = names({ listings: new Map([[1, "Concert"]]) });
     const html = String(
-      AccountStatementTable({ account: acct, lines: lines(), names: refs }),
+      AccountStatementSection({
+        account: acct,
+        lines: lines(),
+        names: refs,
+        returnUrl: "/admin/ledger/attendee/1",
+      }),
     );
     expect(html).toContain("<th>Other side</th>");
     // Leg 1: counterparty is the revenue listing (this account is the source).
@@ -98,7 +102,7 @@ describe("AccountStatementTable", () => {
     // ledger's own signs, so the convention isn't flipped for every account.
     const revenue = account("revenue", 1);
     const html = String(
-      AccountStatementTable({
+      AccountStatementSection({
         account: revenue,
         lines: statementFor(revenue)([
           transfer({
@@ -109,6 +113,7 @@ describe("AccountStatementTable", () => {
           }),
         ]),
         names: names(),
+        returnUrl: "/admin/ledger/revenue/1",
       }),
     );
     // Revenue received the sale: a +5000 credit and a +5000 running balance,
@@ -120,7 +125,7 @@ describe("AccountStatementTable", () => {
   test("shows servicing costs as positive outgoings and reductions as negative", () => {
     const cost = account("cost", 1);
     const html = String(
-      AccountStatementTable({
+      AccountStatementSection({
         account: cost,
         lines: statementFor(cost)([
           transfer({
@@ -139,6 +144,7 @@ describe("AccountStatementTable", () => {
           }),
         ]),
         names: names({ listings: new Map([[1, "Concert"]]) }),
+        returnUrl: "/admin/ledger/cost/1",
       }),
     );
     const rows = html.split("<tr>");
@@ -152,15 +158,20 @@ describe("AccountStatementTable", () => {
 
   test("renders the empty state row spanning all five columns", () => {
     const html = String(
-      AccountStatementTable({ account: acct, lines: [], names: names() }),
+      AccountStatementSection({
+        account: acct,
+        lines: [],
+        names: names(),
+        returnUrl: "/admin/ledger/attendee/1",
+      }),
     );
     expect(html).toContain('colspan="5"');
     expect(html).toContain("No money changes yet.");
   });
 
-  const renderStatement = (returnUrl?: string): string =>
+  const renderStatement = (returnUrl: string): string =>
     String(
-      AccountStatementTable({
+      AccountStatementSection({
         account: acct,
         lines: statementFor(acct)([
           transfer({
@@ -171,7 +182,7 @@ describe("AccountStatementTable", () => {
           }),
         ]),
         names: names(),
-        ...(returnUrl ? { returnUrl } : {}),
+        returnUrl,
       }),
     );
 
@@ -182,15 +193,9 @@ describe("AccountStatementTable", () => {
     );
   });
 
-  test("does not link manual statement deltas without a return URL", () => {
-    const html = renderStatement();
-    expect(html).not.toContain("/admin/ledger/entries/1/edit");
-    expect(html).toContain(`−${formatCurrency(5000)}`);
-  });
-
   test("does not link checkout-event statement deltas to the maintenance route", () => {
     const html = String(
-      AccountStatementTable({
+      AccountStatementSection({
         account: acct,
         lines: lines(),
         names: names(),

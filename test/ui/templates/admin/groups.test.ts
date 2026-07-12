@@ -2,11 +2,9 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { ListingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import {
-  GroupAttendeesPanel,
-  GroupEditPanel,
-  GroupOverviewPanel,
-} from "#templates/admin/groups.tsx";
+import { GroupAttendeesPanel } from "#templates/admin/groups/attendees.tsx";
+import { GroupEditPanel } from "#templates/admin/groups/form.tsx";
+import { GroupOverviewPanel } from "#templates/admin/groups/overview.tsx";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
   testAttendee,

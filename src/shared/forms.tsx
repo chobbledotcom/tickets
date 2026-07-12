@@ -19,6 +19,7 @@ import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { createRequestScoped } from "#shared/request-scoped.ts";
 import { Icon } from "#templates/components/actions.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
+import { PriceInput } from "#templates/components/price-input.tsx";
 
 export type FieldType =
   | "text"
@@ -31,7 +32,15 @@ export type FieldType =
   | "checkbox-group"
   | "date"
   | "datetime"
+  | "datetime-local"
+  | "money"
   | "file";
+
+type FieldOption = {
+  value: string;
+  label: string;
+  hint?: string;
+};
 
 export interface Field {
   accept?: string;
@@ -45,6 +54,7 @@ export interface Field {
   hintHtml?: string;
   id?: string;
   inputmode?: string;
+  invalidMessage?: string;
   label: string;
   /** Marks a textarea as markdown-authored, enabling the in-editor preview link. */
   markdown?: boolean;
@@ -53,7 +63,7 @@ export interface Field {
   min?: number;
   minlength?: number;
   name: string;
-  options?: readonly { value: string; label: string }[];
+  options?: readonly FieldOption[];
   parse?: (value: string) => string | number | null;
   pattern?: string;
   placeholder?: string;
@@ -63,6 +73,7 @@ export interface Field {
    *  from the rendered value (the entity's saved slug on a normal edit view). */
   publicLinkPath?: (value: string) => string;
   required?: boolean;
+  requiredMessage?: string;
   title?: string;
   type: FieldType;
   validate?: (value: string) => string | null;
@@ -70,6 +81,10 @@ export interface Field {
 
 type FormFieldDefinition = Readonly<Field>;
 type FormFieldDefinitions = readonly FormFieldDefinition[];
+
+export type FormRenderValuesFor<TFields extends FormFieldDefinitions> = Partial<
+  Record<TFields[number]["name"], string | number | null>
+>;
 
 type ParsedFieldValue<F extends FormFieldDefinition> = F extends {
   parse: (...args: never[]) => infer T;
@@ -97,8 +112,8 @@ export type FormDefinition<
 > = {
   id: string;
   fields: TFields;
-  render: (values?: Partial<FormValuesFor<TFields>>) => string;
-  renderFields: (values?: Partial<FormValuesFor<TFields>>) => string;
+  render: (values?: FormRenderValuesFor<TFields>) => string;
+  renderFields: (values?: FormRenderValuesFor<TFields>) => string;
   field: (name: TFields[number]["name"]) => FormFieldRenderHelper;
   validate: (
     form: FormParams,
@@ -206,23 +221,23 @@ const splitDatetime = (value: string): { date: string; time: string } => {
  *  the `<Raw html={...}/>` shape lives in one place. */
 const rawField = (html: string): JSX.Element => <Raw html={html} />;
 
-/** Render the input element for a field based on its type */
-const renderFieldInput = (field: Field, value: string): JSX.Element => {
-  if (field.type === "textarea") {
-    return (
-      <textarea
-        autocomplete={field.autocomplete}
-        data-markdown-preview={field.markdown || undefined}
-        id={field.id}
-        maxlength={field.maxlength}
-        name={field.name}
-        placeholder={field.placeholder}
-        required={field.required}
-      >
-        <Raw html={escapeHtml(value)} />
-      </textarea>
-    );
-  }
+const renderTextareaInput = (field: Field, value: string): JSX.Element => (
+  <textarea
+    autocomplete={field.autocomplete}
+    data-markdown-preview={field.markdown || undefined}
+    id={field.id}
+    maxlength={field.maxlength}
+    name={field.name}
+    placeholder={field.placeholder}
+    required={field.required}
+  >
+    <Raw html={escapeHtml(value)} />
+  </textarea>
+);
+
+type FieldInputRenderer = (field: Field, value: string) => JSX.Element | null;
+
+const renderChoiceFieldInput: FieldInputRenderer = (field, value) => {
   if (field.type === "select" && field.options) {
     return rawField(
       `<select name="${escapeHtml(field.name)}" id="${escapeHtml(
@@ -241,14 +256,37 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
       ),
     );
   }
+  return null;
+};
+
+const renderSpecialFieldInput: FieldInputRenderer = (field, value) => {
   if (field.type === "datetime") {
     return (
       <Raw html={renderDatetimeInputs(field.name, splitDatetime(value))} />
     );
   }
+  if (field.type === "money") {
+    return PriceInput({
+      name: field.name,
+      ...(field.id ? { id: field.id } : {}),
+      ...(field.min === undefined ? {} : { min: field.min }),
+      ...(field.required ? { required: true } : {}),
+      ...(value ? { value } : {}),
+    });
+  }
   if (field.type === "file") {
     return <input accept={field.accept} name={field.name} type="file" />;
   }
+  return null;
+};
+
+/** Render the input element for a field based on its type */
+const renderFieldInput = (field: Field, value: string): JSX.Element => {
+  if (field.type === "textarea") return renderTextareaInput(field, value);
+  const choice = renderChoiceFieldInput(field, value);
+  if (choice) return choice;
+  const special = renderSpecialFieldInput(field, value);
+  if (special) return special;
   return (
     <input
       autocomplete={field.autocomplete}
@@ -267,6 +305,26 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
       type={field.type}
       value={value || undefined}
     />
+  );
+};
+
+const selectOptionHints = (field: Field): JSX.Element | null => {
+  if (
+    field.type !== "select" ||
+    !field.options?.some((option) => option.hint)
+  ) {
+    return null;
+  }
+  return (
+    <ul>
+      {field.options.map((option) =>
+        option.hint ? (
+          <li>
+            <strong>{option.label}:</strong> {option.hint}
+          </li>
+        ) : null,
+      )}
+    </ul>
   );
 };
 
@@ -289,17 +347,20 @@ const publicLinkHint = (field: Field, value: string): JSX.Element | null => {
 export const renderField = (field: Field, value: string = ""): string =>
   (field.beforeHtml ?? "") +
   String(
-    <label>
-      {field.label}
-      {renderFieldInput(field, value)}
-      {field.hint && <small>{field.hint}</small>}
-      {field.hintHtml && (
-        <small>
-          <Raw html={field.hintHtml} />
-        </small>
-      )}
-      {publicLinkHint(field, value)}
-    </label>,
+    <>
+      <label>
+        {field.label}
+        {renderFieldInput(field, value)}
+        {field.hint && <small>{field.hint}</small>}
+        {field.hintHtml && (
+          <small>
+            <Raw html={field.hintHtml} />
+          </small>
+        )}
+        {publicLinkHint(field, value)}
+      </label>
+      {selectOptionHints(field)}
+    </>,
   );
 
 /**
@@ -379,6 +440,11 @@ const parseFieldValue = (
         : null
       : trimmed;
 
+const requiredFieldError = (field: Field): FieldValidationResult => ({
+  error: field.requiredMessage ?? `${field.label} is required`,
+  valid: false,
+});
+
 /**
  * Collect the raw trimmed value for a field from the form data.
  * Returns the string value, or a FieldValidationResult for early exit
@@ -393,7 +459,7 @@ const collectFieldValue = (
     if (result === null) return { error: DATETIME_PARTIAL_ERROR, valid: false };
     if (!result) {
       if (field.required) {
-        return { error: `${field.label} is required`, valid: false };
+        return requiredFieldError(field);
       }
       return { valid: true, value: null };
     }
@@ -427,7 +493,7 @@ const validateSingleField = (
   }
 
   if (field.required && !trimmed) {
-    return { error: `${field.label} is required`, valid: false };
+    return requiredFieldError(field);
   }
 
   if (field.validate && trimmed) {
@@ -445,7 +511,11 @@ const validateSingleField = (
     };
   }
 
-  return { valid: true, value: parseFieldValue(field, trimmed) };
+  const value = parseFieldValue(field, trimmed);
+  if (trimmed && value === null && field.invalidMessage) {
+    return { error: field.invalidMessage, valid: false };
+  }
+  return { valid: true, value };
 };
 
 /**
@@ -521,7 +591,7 @@ export const defineForm = <
     return { valid: true, values };
   };
 
-  const render = (values: Partial<FormValuesFor<TFields>> = {}): string =>
+  const render = (values: FormRenderValuesFor<TFields> = {}): string =>
     renderFields(fields, values as FieldValues);
 
   return {

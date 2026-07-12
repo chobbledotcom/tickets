@@ -1,10 +1,15 @@
 import { t } from "#i18n";
-import type { ManualLedgerEntryOption } from "#shared/accounting/manual-entries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { ConfirmForm, CsrfForm, hiddenInputs } from "#shared/forms.tsx";
+import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
+import {
+  defineLedgerEntryAddForm,
+  type LedgerEntryAddOption,
+  ledgerEntryForm,
+} from "#templates/admin/ledger/entry-form.ts";
 import { humanDescription } from "#templates/admin/ledger/formatting.tsx";
 import {
   accountCellFor,
@@ -12,17 +17,11 @@ import {
   type LedgerNames,
 } from "#templates/admin/ledger.tsx";
 import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
-import { PriceInput } from "#templates/components/price-input.tsx";
 
-export type LedgerEntryFormValues = {
+type LedgerEntryFormValues = {
   amount: string;
-  occurredAt: string;
-  entryType?: string | undefined;
-};
-
-export type LedgerEntryAddOption = ManualLedgerEntryOption & {
-  label: string;
-  hint: string;
+  occurred_at: string;
+  entry_type?: string;
 };
 
 type LedgerEntryPageData = {
@@ -32,28 +31,6 @@ type LedgerEntryPageData = {
   session: AdminSession;
   values: LedgerEntryFormValues;
 };
-
-const LedgerEntryFields = ({
-  values,
-}: {
-  values: LedgerEntryFormValues;
-}): JSX.Element => (
-  <>
-    <label>
-      {t("admin.ledger.form.amount")}
-      <PriceInput min="0" name="amount" required value={values.amount} />
-    </label>
-    <label>
-      {t("admin.ledger.form.occurred_at")}
-      <input
-        name="occurred_at"
-        required
-        type="datetime-local"
-        value={values.occurredAt}
-      />
-    </label>
-  </>
-);
 
 const LedgerEntryCancel = ({
   returnUrl,
@@ -65,6 +42,40 @@ const LedgerEntryCancel = ({
       {t("common.cancel")}
     </ActionButton>
   </p>
+);
+
+const ledgerEntryPage = (
+  headingKey: string,
+  session: AdminSession,
+  error: string | undefined,
+  child: Child,
+): string =>
+  errorAdminPage(t(headingKey), "/admin/ledger")(session, error)(child);
+
+const LedgerEntryForm = ({
+  action,
+  afterFields,
+  buttonText,
+  children,
+  fieldsHtml,
+  icon,
+  returnUrl,
+}: {
+  action: string;
+  afterFields?: Child;
+  buttonText: string;
+  children?: Child;
+  fieldsHtml: string;
+  icon: "plus" | "save";
+  returnUrl: string;
+}): JSX.Element => (
+  <CsrfForm action={action}>
+    {children}
+    {hiddenInputs([["return_url", returnUrl]])}
+    <Raw html={fieldsHtml} />
+    <SubmitButton icon={icon}>{buttonText}</SubmitButton>
+    {afterFields}
+  </CsrfForm>
 );
 
 export const adminLedgerEntryAddPage = ({
@@ -79,41 +90,24 @@ export const adminLedgerEntryAddPage = ({
   account: AccountRef;
   options: LedgerEntryAddOption[];
 }): string =>
-  errorAdminPage(t("admin.ledger.add.heading"), "/admin/ledger")(
+  ledgerEntryPage(
+    "admin.ledger.add.heading",
     session,
     error,
-  )(
-    <CsrfForm action={`/admin/ledger/${account.type}/${account.id}/add`}>
+    <LedgerEntryForm
+      action={`/admin/ledger/${account.type}/${account.id}/add`}
+      afterFields={<LedgerEntryCancel returnUrl={returnUrl} />}
+      buttonText={t("admin.ledger.add.submit")}
+      fieldsHtml={defineLedgerEntryAddForm(options).renderFields(values)}
+      icon="plus"
+      returnUrl={returnUrl}
+    >
       <h1>{t("admin.ledger.add.heading")}</h1>
       <p>
         {t("admin.ledger.add.account")}{" "}
         <strong>{accountLabelText(account, names)}</strong>
       </p>
-      {hiddenInputs([["return_url", returnUrl]])}
-      <label>
-        {t("admin.ledger.add.type")}
-        <select name="entry_type" required>
-          {options.map((option) => (
-            <option
-              selected={values.entryType === option.type}
-              value={option.type}
-            >
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <ul>
-        {options.map((option) => (
-          <li>
-            <strong>{option.label}:</strong> {option.hint}
-          </li>
-        ))}
-      </ul>
-      <LedgerEntryFields values={values} />
-      <SubmitButton icon="plus">{t("admin.ledger.add.submit")}</SubmitButton>
-      <LedgerEntryCancel returnUrl={returnUrl} />
-    </CsrfForm>,
+    </LedgerEntryForm>,
   );
 
 export const adminLedgerEntryEditPage = ({
@@ -126,18 +120,20 @@ export const adminLedgerEntryEditPage = ({
 }: LedgerEntryPageData & {
   transfer: Transfer;
 }): string =>
-  errorAdminPage(t("admin.ledger.edit.heading"), "/admin/ledger")(
+  ledgerEntryPage(
+    "admin.ledger.edit.heading",
     session,
     error,
-  )(
     <>
       <h1>{t("admin.ledger.edit.heading")}</h1>
       <p>{humanDescription(transfer, accountCellFor(names))}</p>
-      <CsrfForm action={`/admin/ledger/entries/${transfer.id}/edit`}>
-        {hiddenInputs([["return_url", returnUrl]])}
-        <LedgerEntryFields values={values} />
-        <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
-      </CsrfForm>
+      <LedgerEntryForm
+        action={`/admin/ledger/entries/${transfer.id}/edit`}
+        buttonText={t("common.save_changes")}
+        fieldsHtml={ledgerEntryForm.renderFields(values)}
+        icon="save"
+        returnUrl={returnUrl}
+      />
       <ConfirmForm
         action={`/admin/ledger/entries/${transfer.id}/delete`}
         buttonText={t("admin.ledger.delete.submit")}

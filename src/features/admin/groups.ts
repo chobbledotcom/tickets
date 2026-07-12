@@ -42,11 +42,9 @@ import { defineNamedResource } from "#shared/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import type { AdminSession, DayPrices, Group } from "#shared/types.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
-import {
-  adminGroupDeletePage,
-  adminGroupNewPage,
-  adminGroupsPage,
-} from "#templates/admin/groups.tsx";
+import { adminGroupDeletePage } from "#templates/admin/groups/delete.tsx";
+import { adminGroupNewPage } from "#templates/admin/groups/form.tsx";
+import { adminGroupsPage } from "#templates/admin/groups/list.tsx";
 import {
   getGroupCreateFields,
   getGroupFields,

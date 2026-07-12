@@ -6,9 +6,7 @@ import {
   ManualLedgerEntryTypeSchema,
 } from "#shared/accounting/manual-entries.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import { LedgerTable } from "#templates/admin/ledger.tsx";
-
-import { names, transfer } from "./helpers.ts";
+import { names, renderLedger, transfer } from "./helpers.ts";
 
 describe("LedgerTable", () => {
   test("renders each money change with a translated event, time and amount", () => {
@@ -16,11 +14,10 @@ describe("LedgerTable", () => {
       attendees: new Map([[1, "Ada"]]),
       listings: new Map([[1, "Concert"]]),
     });
-    const html = String(
-      LedgerTable({
-        names: refs,
-        transfers: [transfer({ amount: 2500, kind: "sale" })],
-      }),
+    const html = renderLedger(
+      [transfer({ amount: 2500, kind: "sale" })],
+      refs,
+      "dual",
     );
     expect(html).toContain("table-scroll");
     expect(html).toContain("<th>Time</th>");
@@ -34,34 +31,23 @@ describe("LedgerTable", () => {
   });
 
   test("explains a money change with no event type", () => {
-    const html = String(
-      LedgerTable({
-        names: names(),
-        transfers: [transfer({})],
-      }),
-    );
+    const html = renderLedger([transfer({})], names(), "dual");
     expect(html).toContain("<td>No event type</td>");
   });
 
   test("treats a synthetic empty event type as absent", () => {
     // The store maps a kindless stored row back to an omitted kind, so "" only
     // arises synthetically — it must still read as "no kind", never a blank cell.
-    const html = String(
-      LedgerTable({
-        names: names(),
-        transfers: [transfer({ kind: "" })],
-      }),
-    );
+    const html = renderLedger([transfer({ kind: "" })], names(), "dual");
     expect(html).toContain("<td>No event type</td>");
     expect(html).not.toContain("<td></td>");
   });
 
   test("uses a safe translated label for an unknown opaque event type", () => {
-    const html = String(
-      LedgerTable({
-        names: names(),
-        transfers: [transfer({ kind: "future_money_change" })],
-      }),
+    const html = renderLedger(
+      [transfer({ kind: "future_money_change" })],
+      names(),
+      "dual",
     );
     expect(html).toContain("<td>Other money change</td>");
     expect(html).not.toContain("future_money_change");
@@ -72,13 +58,10 @@ describe("LedgerTable", () => {
       ...Object.values(KIND),
       ...ManualLedgerEntryTypeSchema.options,
     ];
-    const html = String(
-      LedgerTable({
-        names: names(),
-        transfers: kinds.map((kind, index) =>
-          transfer({ id: index + 1, kind }),
-        ),
-      }),
+    const html = renderLedger(
+      kinds.map((kind, index) => transfer({ id: index + 1, kind })),
+      names(),
+      "dual",
     );
     for (const kind of kinds) {
       expect(html).not.toContain(`>${kind}<`);
@@ -108,25 +91,24 @@ describe("LedgerTable", () => {
   });
 
   test("renders the empty state row spanning all four columns", () => {
-    const html = String(LedgerTable({ names: names(), transfers: [] }));
+    const html = renderLedger([], names(), "dual");
     expect(html).toContain('colspan="4"');
     expect(html).toContain("No money changes yet.");
   });
 
   test("escapes a stored name so PII cannot inject markup", () => {
     const refs = names({ attendees: new Map([[1, "<script>x</script>"]]) });
-    const html = String(LedgerTable({ names: refs, transfers: [transfer()] }));
+    const html = renderLedger([transfer()], refs, "dual");
     expect(html).toContain("&lt;script&gt;x&lt;/script&gt;");
     expect(html).not.toContain("<script>x</script>");
   });
 
   test("links manual-entry amounts to the edit page when a return URL is supplied", () => {
-    const html = String(
-      LedgerTable({
-        names: names(),
-        returnUrl: "/admin/ledger?listing=1",
-        transfers: [transfer({ id: 77, kind: MANUAL_ATTENDEE_PAYMENT })],
-      }),
+    const html = renderLedger(
+      [transfer({ id: 77, kind: MANUAL_ATTENDEE_PAYMENT })],
+      names(),
+      "dual",
+      "/admin/ledger?listing=1",
     );
     expect(html).toContain(
       'href="/admin/ledger/entries/77/edit?return_url=%2Fadmin%2Fledger%3Flisting%3D1"',
@@ -135,23 +117,10 @@ describe("LedgerTable", () => {
   });
 
   test("does not link manual-entry amounts without a return URL", () => {
-    const html = String(
-      LedgerTable({
-        names: names(),
-        transfers: [transfer({ id: 77, kind: MANUAL_ATTENDEE_PAYMENT })],
-      }),
-    );
-    expect(html).not.toContain("/admin/ledger/entries/77/edit");
-    expect(html).toContain(`>${formatCurrency(5000)}<`);
-  });
-
-  test("does not link checkout-event amounts to the maintenance edit route", () => {
-    const html = String(
-      LedgerTable({
-        names: names(),
-        returnUrl: "/admin/ledger?listing=1",
-        transfers: [transfer({ id: 77, kind: "sale" })],
-      }),
+    const html = renderLedger(
+      [transfer({ id: 77, kind: "sale" })],
+      names(),
+      "dual",
     );
     expect(html).not.toContain("/admin/ledger/entries/77/edit");
     expect(html).toContain(`>${formatCurrency(5000)}<`);

@@ -11,7 +11,7 @@ import {
   parseEditableAggregateForm,
   runRecalculatePost,
 } from "#routes/admin/aggregate-recalculation.ts";
-import { loadAccountLedger } from "#routes/admin/ledger.ts";
+import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { pickerDatesFromBounds } from "#routes/admin/ledger.ts";
+import { pickerDatesFromBounds } from "#routes/admin/ledger/page.ts";
 
 const ms = (iso: string): number => new Date(iso).getTime();
 

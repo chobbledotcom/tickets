@@ -30,7 +30,7 @@ const counterparty = (line: StatementLine, account: AccountRef): AccountRef =>
     : line.transfer.destination;
 
 /** One account's running-balance statement. */
-export const AccountStatementTable = ({
+const AccountStatementTable = ({
   account,
   lines,
   names,
@@ -68,7 +68,7 @@ export const AccountStatementTable = ({
   });
 };
 
-export const AccountStatementHeading = ({
+const AccountStatementHeading = ({
   account,
   lines,
   names,

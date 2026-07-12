@@ -98,7 +98,7 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
     );
     await expectFlashRedirect(
       "/admin/ledger?view=dual",
-      "Ledger entry updated",
+      "Money change updated.",
     )(response);
     const [updated] = await allTransfers();
     expect(updated?.amount).toBe(789);
@@ -173,7 +173,7 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
     });
     await expectFlashRedirect(
       `/admin/attendees/${attendeeId}`,
-      "Ledger entry deleted",
+      "Money change deleted.",
     )(correct.response);
     expect(await allTransfers()).toEqual([]);
     const [log] = await getAllActivityLog(1);
@@ -193,7 +193,7 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
     );
     await expectFlashRedirect(
       "/admin/ledger",
-      "Ledger entry added",
+      "Money change added.",
     )(postResponse);
     const [entry] = await allTransfers();
     const filteredPath =

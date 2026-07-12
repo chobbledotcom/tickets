@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { LEDGER_DISPLAY_LIMIT } from "#routes/admin/ledger.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { account } from "#shared/ledger/account.ts";
@@ -88,6 +87,7 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
   /** The event label every bulk leg renders, used to count visible rows. */
   const BULK_KIND = "sale";
   const BULK_EVENT_LABEL = "Booking made";
+  const EXPECTED_DISPLAY_CAP = 500;
 
   /** Post exactly `count` distinct ledger legs (each a unique reference), then
    * GET the historical ledger page. Self-contained — uses fixed account ids so
@@ -118,16 +118,16 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
     // One more leg than the cap: the SQL LIMIT (cap + 1) returns the extra row,
     // so truncation is detected — the note shows and only the cap is rendered,
     // never the whole ledger.
-    const html = await postBulkLegsAndGet(LEDGER_DISPLAY_LIMIT + 1);
+    const html = await postBulkLegsAndGet(EXPECTED_DISPLAY_CAP + 1);
     expect(html).toContain("Showing the 500 most recent money changes.");
-    expect(renderedRowCount(html)).toBe(LEDGER_DISPLAY_LIMIT);
+    expect(renderedRowCount(html)).toBe(EXPECTED_DISPLAY_CAP);
   });
 
   test("renders every row and omits the note when exactly the display cap exist", async () => {
     // Exactly the cap: the LIMIT (cap + 1) returns no extra row, so no
     // truncation note, and all cap rows render.
-    const html = await postBulkLegsAndGet(LEDGER_DISPLAY_LIMIT);
+    const html = await postBulkLegsAndGet(EXPECTED_DISPLAY_CAP);
     expect(html).not.toContain("Showing the 500 most recent money changes.");
-    expect(renderedRowCount(html)).toBe(LEDGER_DISPLAY_LIMIT);
+    expect(renderedRowCount(html)).toBe(EXPECTED_DISPLAY_CAP);
   });
 });

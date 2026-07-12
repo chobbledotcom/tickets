@@ -279,7 +279,7 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
       const whole = await adminFormPost(path, valid);
       await expectFlashRedirect(
         "/admin/ledger",
-        "Ledger entry added",
+        "Money change added.",
       )(whole.response);
     });
 
