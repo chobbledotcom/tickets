@@ -303,6 +303,8 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     // (with its stack), NOT a guard-skip — the two classifications stay disjoint.
     expect(errors.lastMessage()).toContain("E_LEDGER_POST");
     expect(errors.contains("E_REFUND_NOT_RECORDED")).toBe(false);
+    // The breadcrumb names the attendee so the operator knows which account.
+    expect(errors.lastMessage()).toContain(`attendee=${ATTENDEE}`);
   });
 });
 
@@ -365,7 +367,9 @@ describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
     expect(await recordPlaceholderRefund(PH, "sold_out", true)).toEqual({
       posted: false,
     });
-    // The classified error is the operator's only breadcrumb for the miss.
+    // The classified error is the operator's only breadcrumb for the miss, and
+    // it names the attendee whose placeholder refund went unrecorded.
     expect(errors.lastMessage()).toContain("E_LEDGER_POST");
+    expect(errors.lastMessage()).toContain(`attendee=${PH.attendeeId}`);
   });
 });

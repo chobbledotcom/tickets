@@ -158,16 +158,33 @@ const computeAttendeeRefund = async (
  * with its stack). The books now understate what was refunded until an operator
  * posts a manual adjustment, so this money-integrity miss must reach the error
  * log, ntfy, and Sentry — never only a dismissible admin flash that, if missed,
- * leaves the refund invisible. `attendeeId` is the operator's breadcrumb to the
- * account needing the adjustment.
+ * leaves the refund invisible.
+ *
+ * The attendee id(s) are named in the `detail`, not only the structured
+ * `attendeeId` tag, because the operator-facing activity log persists only the
+ * formatted message (`persistErrorToActivityLog` passes `listingId`, never
+ * `attendeeId`) — so without them the operator couldn't tell which account needs
+ * adjusting without console/Sentry access.
+ *
+ * A whole batch reports in ONE call (all stranded ids in one message) rather
+ * than one call per attendee: the activity-log persist guard is a single flag,
+ * so back-to-back `logError` calls would persist only the first attendee's row
+ * and silently drop the rest.
  */
-const reportRefundNotRecorded = (attendeeId: number): void =>
+const reportRefundNotRecorded = (attendeeIds: readonly number[]): void => {
+  if (attendeeIds.length === 0) return;
+  const who =
+    attendeeIds.length === 1
+      ? `attendee ${attendeeIds[0]}`
+      : `attendees ${attendeeIds.join(", ")}`;
   logError({
-    attendeeId,
+    // One attendee tags the Sentry event for filtering; a batch names them all
+    // in the detail instead, since a single tag can't hold a list.
+    attendeeId: attendeeIds.length === 1 ? attendeeIds[0] : undefined,
     code: ErrorCode.REFUND_NOT_RECORDED,
-    detail:
-      "provider refund committed but the ledger did not record it — manual adjustment needed",
+    detail: `provider refund committed but the ledger did not record it for ${who} — manual adjustment needed`,
   });
+};
 
 /**
  * Post the ledger legs reversing one attendee's booking and report whether the
@@ -192,7 +209,7 @@ export const recordAttendeeRefund = async (
     if (groups.length > 0) await postTransferGroups(groups);
     // groups.length === 0 with posted:false is a guard-skip (not-fully-paid or
     // no ledgered order): the provider refund committed but nothing reverses it.
-    if (!posted) reportRefundNotRecorded(attendeeId);
+    if (!posted) reportRefundNotRecorded([attendeeId]);
     return { posted };
   } catch (error) {
     logError({
@@ -242,13 +259,14 @@ export const recordAttendeeRefundsBatch = async (
     );
     const groups = computed.flatMap((entry) => entry.groups);
     if (groups.length > 0) await postTransferGroups(groups);
-    // Report each stranded attendee (provider-refunded, ledger guard-skipped it)
-    // here rather than let the bulk caller fold posted:false into a bare error
-    // count. The fallback path reports via recordAttendeeRefund instead, so an
-    // attendee is never counted twice.
-    for (const entry of computed) {
-      if (!entry.posted) reportRefundNotRecorded(entry.id);
-    }
+    // Report every stranded attendee (provider-refunded, ledger guard-skipped it)
+    // in one alert rather than let the bulk caller fold posted:false into a bare
+    // error count. One call keeps them in a single activity-log row (see
+    // reportRefundNotRecorded). The fallback path reports via recordAttendeeRefund
+    // instead, so an attendee is never counted twice.
+    reportRefundNotRecorded(
+      computed.filter((entry) => !entry.posted).map((entry) => entry.id),
+    );
     return new Map(computed.map((entry) => [entry.id, entry.posted]));
   } catch (error) {
     logError({
