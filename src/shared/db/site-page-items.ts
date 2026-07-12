@@ -19,7 +19,10 @@ import {
   update,
   withTransaction,
 } from "#shared/db/client.ts";
-import { clearImageUsesForItemStatement } from "#shared/db/images.ts";
+import {
+  clearImageUsesForItemStatement,
+  deleteByItemStatement,
+} from "#shared/db/images.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import {
   pageParentMapFromEdges,
@@ -212,10 +215,6 @@ export const deleteSitePageWithEdges = (pageId: number): Promise<void> =>
  * to fold into that entity's own delete batch (so the cleanup is atomic with the
  * row delete — no dangling public-nav entry).
  */
-export const clearItemEdgesStatement = (
-  itemType: "listing" | "group",
-  itemId: number,
-): SqlStatement => ({
-  args: [itemType, itemId],
-  sql: "DELETE FROM site_page_items WHERE item_type = ? AND item_id = ?",
-});
+export const clearItemEdgesStatement = deleteByItemStatement<
+  "listing" | "group"
+>("site_page_items");

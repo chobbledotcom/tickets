@@ -109,28 +109,26 @@ type EdgeColumn = "child_listing_id" | "parent_listing_id";
  * never drift. (Column names come from the fixed {@link EdgeColumn} union, never
  * user input, so the interpolation is safe.)
  */
-const groupEdges = async (
-  ids: readonly number[],
-  keyColumn: EdgeColumn,
-  valueColumn: EdgeColumn,
-): Promise<Map<number, ListingWithCount[]>> => {
-  const result = new Map<number, ListingWithCount[]>();
-  if (ids.length === 0) return result;
-  const byId = await getListingsById();
-  const rows = await queryAll<{ key: number; value: number }>(
-    `SELECT ${keyColumn} AS key, ${valueColumn} AS value
-       FROM listing_parents
-      WHERE ${keyColumn} IN (${inPlaceholders(ids)})
-      ORDER BY ${keyColumn}, ${valueColumn}`,
-    [...ids],
-  );
-  for (const { key, value } of rows) {
-    const listing = byId.get(value);
-    if (!listing) continue;
-    (result.get(key) ?? result.set(key, []).get(key)!).push(listing);
-  }
-  return result;
-};
+const groupEdges =
+  (keyColumn: EdgeColumn, valueColumn: EdgeColumn) =>
+  async (ids: readonly number[]): Promise<Map<number, ListingWithCount[]>> => {
+    const result = new Map<number, ListingWithCount[]>();
+    if (ids.length === 0) return result;
+    const byId = await getListingsById();
+    const rows = await queryAll<{ key: number; value: number }>(
+      `SELECT ${keyColumn} AS key, ${valueColumn} AS value
+         FROM listing_parents
+        WHERE ${keyColumn} IN (${inPlaceholders(ids)})
+        ORDER BY ${keyColumn}, ${valueColumn}`,
+      [...ids],
+    );
+    for (const { key, value } of rows) {
+      const listing = byId.get(value);
+      if (!listing) continue;
+      (result.get(key) ?? result.set(key, []).get(key)!).push(listing);
+    }
+    return result;
+  };
 
 /**
  * The children of each of `parentIds`, hydrated to full rows (relationship
@@ -138,10 +136,10 @@ const groupEdges = async (
  * Each parent's children preserve child-id order and drop any that no longer
  * exist; only parents with at least one surviving child appear in the result.
  */
-export const getChildrenForParents = (
-  parentIds: readonly number[],
-): Promise<Map<number, ListingWithCount[]>> =>
-  groupEdges(parentIds, "parent_listing_id", "child_listing_id");
+export const getChildrenForParents = groupEdges(
+  "parent_listing_id",
+  "child_listing_id",
+);
 
 /**
  * The parents of each of `childIds`, hydrated to full rows (relationship only —
@@ -150,10 +148,10 @@ export const getChildrenForParents = (
  * a child has any **bookable** parent that can offer it as an add-on
  * for public listing cards.
  */
-export const getParentsForChildren = (
-  childIds: readonly number[],
-): Promise<Map<number, ListingWithCount[]>> =>
-  groupEdges(childIds, "child_listing_id", "parent_listing_id");
+export const getParentsForChildren = groupEdges(
+  "child_listing_id",
+  "parent_listing_id",
+);
 
 /** The listings `childId` is offered under, hydrated to full rows (relationship
  * only; preserves id order and drops any that no longer exist). */

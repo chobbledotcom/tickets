@@ -46,6 +46,13 @@ type PaymentReferenceAttendeeRow = {
 
 const LEGACY_MERGE_SESSION_PREFIX = "legacy-merge:";
 
+/** One reference's refund status while it is being built up from rows: whether
+ *  the provider has refunded it, and the payment sessions seen so far. */
+type ReferenceProgress = { providerRefunded: boolean; sessionIds: string[] };
+
+/** In-progress refund references, keyed by the reference string. */
+type ReferenceProgressByKey = Map<string, ReferenceProgress>;
+
 export const encryptPaymentReference = async (
   reference: string,
 ): Promise<OwnerKeyEncrypted | ""> =>
@@ -114,7 +121,7 @@ const realSessionIds = (row: PaymentReferenceRow): string[] =>
     : [row.payment_session_id];
 
 const addReference = (
-  byReference: Map<string, { providerRefunded: boolean; sessionIds: string[] }>,
+  byReference: ReferenceProgressByKey,
   row: PaymentReferenceRow,
   reference: string,
 ): void => {
@@ -132,7 +139,7 @@ const addReference = (
 };
 
 const asRefundReferences = (
-  byReference: Map<string, { providerRefunded: boolean; sessionIds: string[] }>,
+  byReference: ReferenceProgressByKey,
 ): RefundPaymentReference[] =>
   [...byReference].map(([reference, data]) => ({
     providerRefunded: data.providerRefunded,
@@ -152,7 +159,7 @@ export const getRefundPaymentReferences = async (
   const byAttendee = new Map(
     attendees.map((attendee) => [
       attendee.id,
-      new Map<string, { providerRefunded: boolean; sessionIds: string[] }>(),
+      new Map<string, ReferenceProgress>(),
     ]),
   );
   for (const row of await paymentReferencesForIds(

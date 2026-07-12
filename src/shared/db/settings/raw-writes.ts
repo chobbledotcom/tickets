@@ -42,18 +42,30 @@ export const settingUpsert = (key: string, value: string): SqlStatement => ({
   sql: SETTINGS_UPSERT_SQL,
 });
 
+/**
+ * After changing one settings row: record it as loaded (a write makes the key's
+ * value — or its absence, after a delete — known this request, so reading it
+ * back is safe and it counts as available for the read audit), apply `mutate`
+ * to the raw cache values, mark the key loaded, and bump the shared version so
+ * other isolates reload on their next request.
+ */
+const afterSettingChange = async (
+  key: string,
+  mutate: (values: Map<string, string>) => void,
+): Promise<void> => {
+  recordSettingsLoaded([key]);
+  syncCache((s) => {
+    mutate(s.values);
+    s.loaded.add(key);
+  });
+  await bumpSettingsVersion();
+};
+
 /** Write a setting to the DB, update the raw cache in-place, and bump the
  *  shared version so other isolates reload on their next request. */
 export const writeRaw = async (key: string, value: string): Promise<void> => {
   await executeWithoutCacheInvalidation(SETTINGS_UPSERT_SQL, [key, value]);
-  // A write makes the key's value known this request, so reading it back is
-  // safe in production too — record it as available for the read audit.
-  recordSettingsLoaded([key]);
-  syncCache((s) => {
-    s.values.set(key, value);
-    s.loaded.add(key);
-  });
-  await bumpSettingsVersion();
+  await afterSettingChange(key, (values) => values.set(key, value));
 };
 
 /** Persist several related settings in one transaction and one version bump. */
@@ -81,12 +93,7 @@ export const deleteRaw = async (key: string): Promise<void> => {
   await executeWithoutCacheInvalidation("DELETE FROM settings WHERE key = ?", [
     key,
   ]);
-  recordSettingsLoaded([key]);
-  syncCache((s) => {
-    s.values.delete(key);
-    s.loaded.add(key);
-  });
-  await bumpSettingsVersion();
+  await afterSettingChange(key, (values) => values.delete(key));
 };
 
 /** A (key, value) writer for the settings table. */

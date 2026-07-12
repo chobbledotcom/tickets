@@ -12,6 +12,7 @@ import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   executeBatch,
   inPlaceholders,
+  nextSortOrder,
   queryAll,
   queryOne,
 } from "#shared/db/client.ts";
@@ -321,13 +322,10 @@ export const assignNextAttributeSortOrder = async (
   ]);
 };
 
-export const getNextAttributeOptionSortOrder = async (
+export const getNextAttributeOptionSortOrder = (
   attributeId: number,
 ): Promise<number> =>
-  (await queryOne<{ next_order: number }>(
-    "SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order FROM attribute_options WHERE attribute_id = ?",
-    [attributeId],
-  ))!.next_order;
+  nextSortOrder("attribute_options", "attribute_id", attributeId);
 
 export const swapAttributeOrder = (id1: number, id2: number): Promise<void> =>
   swapSortOrder("attributes", id1, id2);

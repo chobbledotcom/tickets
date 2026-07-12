@@ -22,6 +22,7 @@ import {
   queryAll,
   queryOne,
   rowExists,
+  rowExistsForIdList,
 } from "#shared/db/client.ts";
 import { columnMapByIds, nameMapByIds, rowsByIds } from "#shared/db/query.ts";
 import type { Attendee } from "#shared/types.ts";
@@ -418,15 +419,10 @@ export const hasActiveBookingLine = (
  * stale/missing key can leave it null), so a recorded payment is never dropped
  * onto a fresh quantity-0 row. Callers pass a non-empty list.
  */
-export const hasPaidLine = (
-  attendeeId: number,
-  listingIds: number[],
-): Promise<boolean> =>
-  rowExists(
+export const hasPaidLine = rowExistsForIdList(
+  (listingIdPlaceholders) =>
     `SELECT 1 FROM listing_attendees AS listingAttendee
-     WHERE listingAttendee.attendee_id = ? AND listingAttendee.listing_id IN (${inPlaceholders(
-       listingIds,
-     )})
+     WHERE listingAttendee.attendee_id = ? AND listingAttendee.listing_id IN (${listingIdPlaceholders})
        AND EXISTS (
          SELECT 1 FROM transfers
          WHERE ${saleLegPredicate(
@@ -435,8 +431,7 @@ export const hasPaidLine = (
            "listingAttendee.ledger_event_group",
          )}
        ) LIMIT 1`,
-    [attendeeId, ...listingIds],
-  );
+);
 
 /**
  * The id of the attendee whose booking owns this ledger event group, or null

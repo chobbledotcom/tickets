@@ -8,12 +8,7 @@ import * as v from "valibot";
 /* jscpd:ignore-start */
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import {
-  inPlaceholders,
-  queryAll,
-  queryOne,
-  rowExists,
-} from "#shared/db/client.ts";
+import { queryAll, queryOne, rowExistsForIdList } from "#shared/db/client.ts";
 import type { ColumnDef, Table, TableSchema } from "#shared/db/table.ts";
 import { cachedTable, col, defineTable } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
@@ -616,16 +611,12 @@ export const getAssignableBuiltSites = async (): Promise<BuiltSite[]> => {
  * listing_attendees check) would otherwise survive behind a hidden line. One
  * query over all the IDs; callers pass a non-empty list.
  */
-export const hasAssignedBuiltSite = (
-  attendeeId: number,
-  listingIds: number[],
-): Promise<boolean> =>
-  rowExists(
+export const hasAssignedBuiltSite = rowExistsForIdList(
+  (listingIdPlaceholders) =>
     `SELECT 1 FROM built_sites
      WHERE assigned_attendee_id = ?
-       AND assigned_listing_id IN (${inPlaceholders(listingIds)}) LIMIT 1`,
-    [attendeeId, ...listingIds],
-  );
+       AND assigned_listing_id IN (${listingIdPlaceholders}) LIMIT 1`,
+);
 
 const withBuiltSiteForUpdate = async <T>(
   siteId: number,

@@ -44,6 +44,17 @@ export const schemaMigration =
     });
 
 /**
+ * A migration that owns no additive object — it carries `{}` requires and the
+ * schema-hash guard covers the change — and just runs `work` in its `up()`. The
+ * shared shape of the column-drop family below.
+ */
+const bareSchemaMigration = (
+  id: string,
+  description: string,
+  work: SchemaMigrationAfter,
+): MigrationBuilder => schemaMigration(id, description, {}, work);
+
+/**
  * A migration that drops a column by rebuilding its table from the (already
  * column-free) SCHEMA. A bare column drop owns no additive object, so it carries
  * `{}` requires and the schema-hash guard covers the change. `recreateTable`
@@ -57,7 +68,7 @@ export const columnDropMigration = (
   table: string,
   description: string,
 ): MigrationBuilder =>
-  schemaMigration(id, description, {}, async ({ recreateTable }) => {
+  bareSchemaMigration(id, description, async ({ recreateTable }) => {
     await recreateTable(table); // rebuild from SCHEMA, dropping the column
   });
 
@@ -77,7 +88,7 @@ export const backfillDropColumnMigration = (
   description: string,
   backfill: (getDb: MigrationContext["getDb"]) => Promise<void>,
 ): MigrationBuilder =>
-  schemaMigration(id, description, {}, async ({ getDb, recreateTable }) => {
+  bareSchemaMigration(id, description, async ({ getDb, recreateTable }) => {
     const info = await getDb().execute(`PRAGMA table_info(${table})`);
     if (!info.rows.some((row) => row.name === column)) return;
     await backfill(getDb);
@@ -99,10 +110,9 @@ export const triggerRewriteDropMigration = (
   triggers: readonly string[],
   description: string,
 ): MigrationBuilder =>
-  schemaMigration(
+  bareSchemaMigration(
     id,
     description,
-    {},
     async ({ getDb, recreateTable, syncTriggers }) => {
       for (const trigger of triggers) {
         await getDb().execute(`DROP TRIGGER IF EXISTS ${trigger}`);
