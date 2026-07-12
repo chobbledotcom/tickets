@@ -17,10 +17,11 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
+import { LISTING_ATTENDEE_ROW_COLS } from "#shared/db/attendees/queries.ts";
 import {
-  ATTENDEE_LEFT_JOIN_SELECT,
-  LISTING_ATTENDEE_ROW_COLS,
-} from "#shared/db/attendees/queries.ts";
+  ATTENDEE_FIELDS,
+  attendeeColumns,
+} from "#shared/db/attendees/select.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import {
@@ -52,7 +53,7 @@ const loadRefreshContext = async (
 ): Promise<RefreshPaymentContext | null> => {
   const pk = await requireRequestPrivateKey();
   const attendeeRaw = await queryOne<Attendee>(
-    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
+    `SELECT ${attendeeColumns("left", ATTENDEE_FIELDS)}
      FROM attendees AS attendee
      LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
      WHERE attendee.id = ? AND attendee.kind = '${ATTENDEE_KIND}'`,

@@ -32,9 +32,9 @@ import {
   encryptPiiBlob,
 } from "#shared/db/attendees/pii.ts";
 import {
-  ATTENDEE_JOIN_SELECT,
-  ATTENDEE_LEFT_JOIN_SELECT,
-} from "#shared/db/attendees/queries.ts";
+  ATTENDEE_FIELDS,
+  attendeeColumns,
+} from "#shared/db/attendees/select.ts";
 import {
   inPlaceholders,
   queryAll,
@@ -293,7 +293,7 @@ export const getServicingEvent = async (
   // orphan with no bookings (a single COALESCEd listing_id=0 row that
   // rowsToServicingEvent filters out) — no separate fallback query needed.
   const rows = await queryAll<ServicingRow>(
-    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}, attendee.kind
+    `SELECT ${attendeeColumns("left", ATTENDEE_FIELDS)}, attendee.kind
        FROM attendees AS attendee
        LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
       WHERE attendee.id = ? AND attendee.kind = ?
@@ -370,7 +370,7 @@ const getServicingEventRows = (today?: string): Promise<ServicingRow[]> => {
       ? ""
       : "AND (listingAttendee.start_at IS NULL OR DATE(listingAttendee.start_at) >= ?)";
   return queryAll<ServicingRow>(
-    `SELECT ${ATTENDEE_JOIN_SELECT}
+    `SELECT ${attendeeColumns("inner", ATTENDEE_FIELDS)}
        FROM attendees AS attendee
        JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
       WHERE attendee.kind = ?

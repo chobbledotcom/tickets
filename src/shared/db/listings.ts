@@ -23,9 +23,9 @@ import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { addDays, VALID_DAY_NAMES } from "#shared/dates.ts";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import {
-  ATTENDEE_JOIN_SELECT,
-  ATTENDEE_LEFT_JOIN_SELECT,
-} from "#shared/db/attendees/queries.ts";
+  ATTENDEE_FIELDS,
+  attendeeColumns,
+} from "#shared/db/attendees/select.ts";
 import { dateToRange } from "#shared/db/capacity.ts";
 import {
   execute,
@@ -1063,7 +1063,7 @@ export const getListingWithAttendeesRaw = async (
     },
     {
       args: [id],
-      sql: `SELECT ${ATTENDEE_JOIN_SELECT}
+      sql: `SELECT ${attendeeColumns("inner", ATTENDEE_FIELDS)}
             FROM attendees AS attendee
             JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
             WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}'
@@ -1121,7 +1121,7 @@ export const getDailyListingAttendeesByDate = (
   const { startAt, endAt } = dateToRange(date);
   return queryAll<Attendee>(
     // quantity > 0: exclude no-quantity sentinel lines from the daily calendar.
-    `SELECT ${ATTENDEE_JOIN_SELECT}
+    `SELECT ${attendeeColumns("inner", ATTENDEE_FIELDS)}
      FROM attendees AS attendee
      JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
      JOIN listings AS listing ON listingAttendee.listing_id = listing.id
@@ -1173,7 +1173,7 @@ export const getAttendeesByListingIds = (
   if (listingIds.length === 0) return Promise.resolve([]);
   const { activeOnly, kindScope } = listingAttendeeFilter(filter);
   return queryAll<Attendee>(
-    `SELECT ${ATTENDEE_JOIN_SELECT}
+    `SELECT ${attendeeColumns("inner", ATTENDEE_FIELDS)}
      FROM attendees AS attendee
      JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
      WHERE listingAttendee.listing_id IN (${inPlaceholders(listingIds)})
@@ -1208,7 +1208,7 @@ export const getListingWithAttendeeRaw = async (
     },
     {
       args: [attendeeId],
-      sql: `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
+      sql: `SELECT ${attendeeColumns("left", ATTENDEE_FIELDS)}
             FROM attendees AS attendee
             LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
             WHERE attendee.id = ? AND attendee.kind = '${ATTENDEE_KIND}'`,

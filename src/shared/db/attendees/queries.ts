@@ -3,13 +3,7 @@
  */
 
 import * as v from "valibot";
-import { ATTENDEE } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
-import {
-  accountPredicate,
-  attendeeOwedSubquery,
-  saleLegPredicate,
-} from "#shared/accounting/projection-sql.ts";
+import { saleLegPredicate } from "#shared/accounting/projection-sql.ts";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
 import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
@@ -17,6 +11,14 @@ import {
   decryptAttendeeFields,
   decryptPiiBlob,
 } from "#shared/db/attendees/pii.ts";
+import {
+  ATTENDEE_FIELDS,
+  attendeeColumns,
+  pricePaidFromLedger,
+  refundedFromLedger,
+  selectAttendeeOrNull,
+  selectAttendees,
+} from "#shared/db/attendees/select.ts";
 import {
   inPlaceholders,
   queryAll,
@@ -26,124 +28,6 @@ import {
 import { columnMapByIds, nameMapByIds, rowsByIds } from "#shared/db/query.ts";
 import type { Attendee } from "#shared/types.ts";
 import { guardFor } from "#shared/validation/guard.ts";
-
-/**
- * Order-level refund status, projected from the transfers ledger rather than a
- * stored column: an attendee is refunded iff a `refund_cash` leg sourced from
- * their account exists (a refund reverses the booking's payment leg into a
- * `refund_cash` leg whose SOURCE is the attendee — both live and backfilled
- * historical refunds set this). Returns 0/1 aliased `refunded`, matching the
- * `number` shape the booking row type carries. A LEFT JOIN with no matching
- * `listing_attendees` row has `listingAttendee.attendee_id` NULL, so the EXISTS is false (0).
- */
-const refundedFromLedger = (attendeeIdExpr: string): string =>
-  `(SELECT EXISTS(SELECT 1 FROM transfers WHERE kind = '${KIND.refundCash}'` +
-  ` AND ${accountPredicate("source", ATTENDEE, attendeeIdExpr)})) AS refunded`;
-
-/**
- * Per-row amount paid, projected from the ledger instead of a stored column: the
- * gross `sale` leg this booking row recognised — `kind='sale'`, billed from the
- * attendee to the listing's revenue account, within the row's stored
- * `ledger_event_group` (so an attendee holding several orders for one listing
- * resolves to exactly this booking's leg). A site has one currency, so amounts
- * sum directly. Equals the dropped `price_paid` column for a fully-paid booking
- * (every production booking) and stays put after a refund (the reversal is a
- * separate `refund_*` leg). 0 when the row has no sale leg — a free or
- * provider-less-owed booking, or an unmatched LEFT JOIN row (NULL ids/group match
- * nothing).
- *
- * A booking's `sale` leg is posted once per listing, but a child that folds under
- * several parents — or folds AND keeps a standalone remainder — turns one order
- * into several `listing_attendees` rows sharing that single `(attendee, listing,
- * event_group)` leg. Crediting the whole leg to each row would double-count the
- * child on any summed readback, so the leg is split across those rows in QUANTITY
- * proportion, deterministically by row id: each row takes `floor(total *
- * qtyThroughThisRow / totalQty) − floor(total * qtyBeforeThisRow / totalQty)`.
- * Those shares telescope to the full leg with no penny lost, and collapse to the
- * whole leg for the ordinary one-row-per-listing case. `rowIdExpr` is the row's
- * own `id`; all four expressions MUST be qualified (they seed correlated
- * subqueries whose inner `sibling` alias would otherwise shadow a bare column).
- *
- * The same split covers a listing booked through two order paths (a package
- * member row beside its standalone row). When those paths priced differently,
- * the quantity split AVERAGES the rows — the leg carries no per-path key to do
- * better with (see the per-path TODO entry). Sums over the order stay exact.
- */
-export const pricePaidFromLedger = (
-  attendeeIdExpr: string,
-  listingIdExpr: string,
-  eventGroupExpr: string,
-  rowIdExpr: string,
-): string => {
-  const saleTotal = `(SELECT COALESCE(SUM(amount), 0) FROM transfers WHERE ${saleLegPredicate(
-    attendeeIdExpr,
-    listingIdExpr,
-    eventGroupExpr,
-  )})`;
-  const siblingQty = (idBound: string): string =>
-    "(SELECT COALESCE(SUM(sibling.quantity), 0) FROM listing_attendees AS sibling" +
-    ` WHERE sibling.attendee_id = ${attendeeIdExpr}` +
-    ` AND sibling.listing_id = ${listingIdExpr}` +
-    ` AND sibling.ledger_event_group = ${eventGroupExpr}${idBound})`;
-  const through = siblingQty(` AND sibling.id <= ${rowIdExpr}`);
-  const before = siblingQty(` AND sibling.id < ${rowIdExpr}`);
-  // NULLIF guards the divide when no sibling has quantity (a lone no-quantity
-  // sentinel, or an unmatched LEFT JOIN row); COALESCE then floors the NULL that
-  // divide yields back to 0 so `price_paid` is always a number.
-  const totalQty = `NULLIF(${siblingQty("")}, 0)`;
-  return (
-    `COALESCE(CAST(${saleTotal} * ${through} / ${totalQty} AS INTEGER)` +
-    ` - CAST(${saleTotal} * ${before} / ${totalQty} AS INTEGER), 0) AS price_paid`
-  );
-};
-
-/**
- * An attendee's outstanding balance, projected from the ledger instead of a
- * stored column: the negated account balance — what they still owe is the money
- * they were billed (sale legs sourced from them) minus the cash received (deposit
- * and balance-payment legs into them), with a refund's reversal legs netting back
- * out. 0 for a fully-paid booking (every production attendee) and for an attendee
- * with no legs. `attendeeIdExpr` is the attendee id in the surrounding query.
- */
-export const remainingBalanceFromLedger = (attendeeIdExpr: string): string =>
-  `${attendeeOwedSubquery(attendeeIdExpr)} AS remaining_balance`;
-
-/**
- * Attendee columns for JOIN queries — only the columns actually used at runtime.
- * All PII is read from the encrypted pii_blob; per-listing status lives on
- * listing_attendees. `remaining_balance` projects from the ledger like the others.
- */
-const ATTENDEE_COLS = `attendee.id, attendee.created, attendee.kind, attendee.ticket_token_index, attendee.pii_blob, attendee.status_id, ${remainingBalanceFromLedger(
-  "attendee.id",
-)}, attendee.split_logistics_agents`;
-
-/** The two ledger-projected money columns (refunded flag + per-row amount paid)
- *  for a listing_attendees row reached through the `ea` alias. Shared by the
- *  INNER and LEFT JOIN selects so the projections never drift apart. */
-const EA_LEDGER_MONEY_COLS = `${refundedFromLedger(
-  "listingAttendee.attendee_id",
-)}, ${pricePaidFromLedger(
-  "listingAttendee.attendee_id",
-  "listingAttendee.listing_id",
-  "listingAttendee.ledger_event_group",
-  "listingAttendee.id",
-)}`;
-
-/** Columns sourced from listing_attendees (per-listing data). `package_group_id`
- * rides along so an attendee loaded through a join still knows its package
- * membership — without it the email/webhook renderers treat a hidden package
- * booking as a standalone member and can leak the hidden listing or its base
- * price. */
-const EA_COLS = `listingAttendee.listing_id, SUBSTR(listingAttendee.start_at, 1, 10) as date, SUBSTR(listingAttendee.end_at, 1, 10) as end_date, listingAttendee.quantity, listingAttendee.checked_in, ${EA_LEDGER_MONEY_COLS}, listingAttendee.attachment_downloads, listingAttendee.package_group_id`;
-
-/** SELECT clause for attendee + listing_attendees JOINs (INNER JOIN context).
- * Derives `date` from start_at for the Attendee type shape. */
-export const ATTENDEE_JOIN_SELECT = `${ATTENDEE_COLS}, ${EA_COLS}`;
-
-/** SELECT clause for LEFT JOIN context — COALESCEs nullable join columns so
- * attendees with broken/missing listing_attendees linkage still appear in results
- * (with listing_id=0 as an obvious corruption indicator). */
-export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(listingAttendee.listing_id, 0) as listing_id, SUBSTR(listingAttendee.start_at, 1, 10) as date, SUBSTR(listingAttendee.end_at, 1, 10) as end_date, COALESCE(listingAttendee.quantity, 0) as quantity, COALESCE(listingAttendee.checked_in, 0) as checked_in, ${EA_LEDGER_MONEY_COLS}, COALESCE(listingAttendee.attachment_downloads, 0) as attachment_downloads, COALESCE(listingAttendee.package_group_id, 0) as package_group_id`;
 
 /**
  * Columns for a `ListingAttendeeRow` read straight from one `listing_attendees`
@@ -171,14 +55,15 @@ export const LISTING_ATTENDEE_ROW_COLS =
  * Used for tests and operations that don't need decrypted data
  */
 export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
-  queryAll<Attendee>(
-    `SELECT ${ATTENDEE_JOIN_SELECT}
-     FROM attendees AS attendee
+  selectAttendees({
+    args: [listingId],
+    fields: ATTENDEE_FIELDS,
+    from: `FROM attendees AS attendee
      JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
      WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}'
      ORDER BY attendee.created DESC`,
-    [listingId],
-  );
+    join: "inner",
+  });
 
 /**
  * One attendee's raw booking rows within one package group (real lines only —
@@ -190,14 +75,15 @@ export const getAttendeePackageRowsRaw = (
   attendeeId: number,
   packageGroupId: number,
 ): Promise<Attendee[]> =>
-  queryAll<Attendee>(
-    `SELECT ${ATTENDEE_JOIN_SELECT}
-     FROM attendees AS attendee
+  selectAttendees({
+    args: [attendeeId, packageGroupId],
+    fields: ATTENDEE_FIELDS,
+    from: `FROM attendees AS attendee
      JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
      WHERE attendee.id = ? AND listingAttendee.package_group_id = ? AND listingAttendee.quantity > 0
      ORDER BY listingAttendee.listing_id ASC`,
-    [attendeeId, packageGroupId],
-  );
+    join: "inner",
+  });
 
 /**
  * Get the newest attendees across all listings without decrypting PII.
@@ -211,9 +97,10 @@ export const getAttendeePackageRowsRaw = (
  * attendee's complete listings.
  */
 export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
-  queryAll<Attendee>(
-    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
-     FROM attendees AS attendee
+  selectAttendees({
+    args: [limit],
+    fields: ATTENDEE_FIELDS,
+    from: `FROM attendees AS attendee
      LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
      WHERE attendee.id IN (
        SELECT newest.id FROM attendees AS newest
@@ -221,8 +108,8 @@ export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
        ORDER BY newest.id DESC LIMIT ?
      )
      ORDER BY attendee.id DESC, listingAttendee.listing_id ASC`,
-    [limit],
-  );
+    join: "left",
+  });
 
 /** Sort order for the admin attendees browser */
 export const AttendeeSortSchema = v.picklist(["newest", "oldest"]);
@@ -299,9 +186,10 @@ export const getAttendeesPage = async ({
   const limit = ATTENDEES_PAGE_SIZE + 1;
   const offset = page * ATTENDEES_PAGE_SIZE;
   const args = listingIds ? [...listingIds, limit, offset] : [limit, offset];
-  const rows = await queryAll<Attendee>(
-    `SELECT ${ATTENDEE_JOIN_SELECT}
-     FROM attendees AS attendee
+  const rows = await selectAttendees({
+    args,
+    fields: ATTENDEE_FIELDS,
+    from: `FROM attendees AS attendee
      JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
      WHERE attendee.id IN (
        SELECT pageAttendee.id
@@ -313,8 +201,8 @@ export const getAttendeesPage = async ({
        LIMIT ? OFFSET ?
      )
      ORDER BY attendee.id ${dir}, listingAttendee.listing_id ASC`,
-    args,
-  );
+    join: "inner",
+  });
   return trimAttendeePage(rows);
 };
 
@@ -465,13 +353,14 @@ export const attendeeIdByLedgerEventGroup = async (
  * Returns the attendee with encrypted fields (id, listing_id, quantity are plaintext)
  */
 export const getAttendeeRaw = (id: number): Promise<Attendee | null> =>
-  queryOne<Attendee>(
-    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
-     FROM attendees AS attendee
+  selectAttendeeOrNull({
+    args: [id],
+    fields: ATTENDEE_FIELDS,
+    from: `FROM attendees AS attendee
      LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
      WHERE attendee.id = ? AND attendee.kind = '${ATTENDEE_KIND}'`,
-    [id],
-  );
+    join: "left",
+  });
 
 /**
  * Get attendees by ID without decrypting PII, one row per (attendee, booking).
@@ -483,7 +372,7 @@ export const getAttendeesByIds = (ids: number[]): Promise<Attendee[]> =>
   rowsByIds<Attendee>(
     ids,
     (placeholders) =>
-      `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
+      `SELECT ${attendeeColumns("left", ATTENDEE_FIELDS)}
      FROM attendees AS attendee
      LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
      WHERE attendee.kind = '${ATTENDEE_KIND}' AND attendee.id IN (${placeholders})`,

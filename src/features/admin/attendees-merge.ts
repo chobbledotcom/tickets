@@ -14,10 +14,11 @@ import {
   decryptAttendeeOrNull,
   decryptAttendees,
 } from "#shared/db/attendees/pii.ts";
+import { LISTING_ATTENDEE_ROW_COLS } from "#shared/db/attendees/queries.ts";
 import {
-  ATTENDEE_LEFT_JOIN_SELECT,
-  LISTING_ATTENDEE_ROW_COLS,
-} from "#shared/db/attendees/queries.ts";
+  ATTENDEE_FIELDS,
+  attendeeColumns,
+} from "#shared/db/attendees/select.ts";
 import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
@@ -50,7 +51,7 @@ const loadMergeTarget = async (
 ): Promise<Attendee | null> => {
   const pk = await requireRequestPrivateKey();
   const raw = await queryOne<Attendee>(
-    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
+    `SELECT ${attendeeColumns("left", ATTENDEE_FIELDS)}
      FROM attendees AS attendee
      LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
      WHERE attendee.id = ? AND attendee.kind = ?`,
