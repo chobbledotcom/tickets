@@ -144,7 +144,7 @@ describe("adminGlobalActivityLogPage", () => {
       TEST_SESSION,
       emptyRefs(),
     );
-    expect(html).not.toContain("Click here to re-do your Square settings");
+    expect(html).not.toContain("Re-enter your Square settings");
   });
 });
 
