@@ -5,7 +5,6 @@
  * Files are encrypted with DB_ENCRYPTION_KEY before upload.
  */
 
-import { AsyncLocalStorage } from "node:async_hooks";
 import { lazyRef, once, sort } from "#fp";
 import { decryptBytes, encryptBytes } from "#shared/crypto/encryption.ts";
 import { getEnv } from "#shared/env.ts";
@@ -17,10 +16,7 @@ import {
   MAX_IMAGE_SIZE,
 } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import {
-  liveScopeStore,
-  runWithScopeLifetime,
-} from "#shared/request-scoped.ts";
+import { createScopedValue } from "#shared/request-scoped.ts";
 import { streamChunks } from "#shared/stream-chunks.ts";
 import { getDeleteOverride } from "#shared/test-overrides.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
@@ -36,16 +32,6 @@ interface StorageConfig {
   zoneName: string;
 }
 
-// Boxed so each run's store object is unique even when callers pass a shared
-// config constant — see runWithScopeLifetime.
-const storageConfigStore = new AsyncLocalStorage<{ config: StorageConfig }>();
-
-/** Run `fn` with an isolated storage configuration (test-only). */
-export const runWithStorageConfig = <T>(
-  config: StorageConfig,
-  fn: () => T,
-): T => runWithScopeLifetime(storageConfigStore, { config }, fn);
-
 // Suite-level storage config for tests (describeWithEnv's `storage` option).
 // Layered *under* the per-call runWithStorageConfig scope and *over* the process
 // env, so a whole suite can declare its backend once — without wrapping each test
@@ -56,6 +42,18 @@ export const runWithStorageConfig = <T>(
 const [getTestStorageConfig, storageConfigRef] = lazyRef<StorageConfig | null>(
   () => null,
 );
+
+/** The test-supplied config: the per-call scope first, else the suite-level
+ * default, else null (⇒ read the process env). */
+const configOverride = createScopedValue<StorageConfig | null>(
+  getTestStorageConfig,
+);
+
+/** Run `fn` with an isolated storage configuration (test-only). */
+export const runWithStorageConfig = <T>(
+  config: StorageConfig,
+  fn: () => T,
+): T => configOverride.run(config, fn);
 
 /**
  * Test-only: set the suite-level storage config that describeWithEnv's `storage`
@@ -69,12 +67,11 @@ export function setStorageConfigForTest(config: StorageConfig | null): void {
 }
 
 /**
- * Read storage config: per-call AsyncLocalStorage scope first, then the
- * suite-level test default, then env vars.
+ * Read storage config: per-call scope first, then the suite-level test
+ * default, then env vars.
  */
 const getStorageConfig = (): StorageConfig => {
-  const ctx =
-    liveScopeStore(storageConfigStore)?.config ?? getTestStorageConfig();
+  const ctx = configOverride.read();
   if (ctx) return ctx;
   return {
     zoneKey: getEnv("STORAGE_ZONE_KEY") ?? "",
@@ -87,8 +84,7 @@ const getStorageConfig = (): StorageConfig => {
  * Returns null if local storage is not configured or explicitly disabled.
  */
 const getLocalStoragePath = (): string | null => {
-  const ctx =
-    liveScopeStore(storageConfigStore)?.config ?? getTestStorageConfig();
+  const ctx = configOverride.read();
   if (ctx && "localPath" in ctx) {
     return ctx.localPath || null;
   }

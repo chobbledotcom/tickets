@@ -1,11 +1,20 @@
-import { AsyncLocalStorage } from "node:async_hooks";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   createRequestScoped,
-  liveScopeStore,
-  runWithScopeLifetime,
+  createScope,
+  createScopedValue,
 } from "#shared/request-scoped.ts";
+
+/** A gate the test opens by hand, so a continuation registered inside a scope
+ * provably runs only after the scope has settled. */
+const makeGate = (): { open: () => void; closed: Promise<void> } => {
+  let open!: () => void;
+  const closed = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  return { closed, open };
+};
 
 describe("createRequestScoped", () => {
   test("outside a scope, current() returns a stable ambient container", () => {
@@ -110,42 +119,92 @@ describe("createRequestScoped", () => {
   });
 });
 
-describe("runWithScopeLifetime", () => {
-  test("a sync callback's store is live inside and dead after", () => {
-    const storage = new AsyncLocalStorage<{ n: number }>();
-    const store = { n: 1 };
-    const seen = runWithScopeLifetime(
-      storage,
-      store,
-      () => liveScopeStore(storage)?.n,
-    );
+describe("createScope", () => {
+  test("current() is the store inside a run and undefined outside", () => {
+    const scope = createScope<{ n: number }>();
+    expect(scope.current()).toBe(undefined);
+    const seen = scope.run({ n: 1 }, () => scope.current()?.n);
     expect(seen).toBe(1);
-    storage.run(store, () => {
-      // The scope already ended, so even a context that carries the store
-      // must read as "outside a scope".
-      expect(liveScopeStore(storage)).toBe(undefined);
-    });
+    expect(scope.current()).toBe(undefined);
   });
 
-  test("a sync callback that throws still ends its store", () => {
-    const storage = new AsyncLocalStorage<{ n: number }>();
-    const store = { n: 1 };
+  test("a continuation that outlives a sync run reads no store", async () => {
+    const scope = createScope<{ n: number }>();
+    const gate = makeGate();
+    // The async callback inherits the scope's context and resumes only after
+    // the sync run has returned — the leaked context must read as "outside".
+    let afterScope!: Promise<{ n: number } | undefined>;
+    scope.run({ n: 1 }, () => {
+      afterScope = (async () => {
+        await gate.closed;
+        return scope.current();
+      })();
+    });
+    gate.open();
+    expect(await afterScope).toBe(undefined);
+  });
+
+  test("a sync callback that throws still ends its store", async () => {
+    const scope = createScope<{ n: number }>();
+    const gate = makeGate();
+    let afterScope!: Promise<{ n: number } | undefined>;
     expect(() =>
-      runWithScopeLifetime(storage, store, () => {
+      scope.run({ n: 1 }, () => {
+        afterScope = (async () => {
+          await gate.closed;
+          return scope.current();
+        })();
         throw new Error("sync failure");
       }),
     ).toThrow("sync failure");
-    storage.run(store, () => {
-      expect(liveScopeStore(storage)).toBe(undefined);
-    });
+    gate.open();
+    expect(await afterScope).toBe(undefined);
   });
 
   test("reusing a store object across runs throws", async () => {
-    const storage = new AsyncLocalStorage<{ n: number }>();
+    const scope = createScope<{ n: number }>();
     const store = { n: 1 };
-    await runWithScopeLifetime(storage, store, async () => {});
-    expect(() => runWithScopeLifetime(storage, store, async () => {})).toThrow(
+    await scope.run(store, async () => {});
+    expect(() => scope.run(store, async () => {})).toThrow(
       "fresh store object",
     );
+  });
+});
+
+describe("createScopedValue", () => {
+  test("reads the scope's value inside and the fallback outside", () => {
+    const port = createScopedValue(() => 3000);
+    expect(port.read()).toBe(3000);
+    const seen = port.run(8080, () => port.read());
+    expect(seen).toBe(8080);
+    expect(port.read()).toBe(3000);
+  });
+
+  test("a falsy value still wins over the fallback", () => {
+    // Guards the ?? in read(): with || a scoped "" would leak the fallback.
+    const label = createScopedValue(() => "fallback");
+    expect(label.run("", () => label.read())).toBe("");
+  });
+
+  test("nested runs read the innermost value", () => {
+    const label = createScopedValue(() => "outside");
+    const seen = label.run("outer", () =>
+      label.run("inner", () => label.read()),
+    );
+    expect(seen).toBe("inner");
+  });
+
+  test("a continuation that outlives the scope reads the fallback", async () => {
+    const label = createScopedValue(() => "outside");
+    const gate = makeGate();
+    let afterScope!: Promise<string>;
+    await label.run("scoped", async () => {
+      afterScope = (async () => {
+        await gate.closed;
+        return label.read();
+      })();
+    });
+    gate.open();
+    expect(await afterScope).toBe("outside");
   });
 });

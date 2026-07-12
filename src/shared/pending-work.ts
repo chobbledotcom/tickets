@@ -8,14 +8,9 @@
  * handleRequest's finally block.
  */
 
-import { AsyncLocalStorage } from "node:async_hooks";
-import {
-  liveScopeStore,
-  runWithScopeLifetime,
-  type ScopeRunner,
-} from "#shared/request-scoped.ts";
+import { createScope, type ScopeRunner } from "#shared/request-scoped.ts";
 
-const pendingWork = new AsyncLocalStorage<Promise<unknown>[]>();
+const pendingWork = createScope<Promise<unknown>[]>();
 
 /**
  * Run a function within a pending-work scope. Whatever `fn` resolves to, the
@@ -26,7 +21,7 @@ const pendingWork = new AsyncLocalStorage<Promise<unknown>[]>();
  * in an unrelated test.
  */
 export const runWithPendingWork: ScopeRunner = (fn) =>
-  runWithScopeLifetime(pendingWork, [], async () => {
+  pendingWork.run([], async () => {
     try {
       return await fn();
     } finally {
@@ -36,12 +31,11 @@ export const runWithPendingWork: ScopeRunner = (fn) =>
 
 /** True when running inside a `runWithPendingWork` scope (i.e. a request). */
 export const hasPendingWorkScope = (): boolean =>
-  liveScopeStore(pendingWork) !== undefined;
+  pendingWork.current() !== undefined;
 
 /** Queue a promise that must complete before the response is sent */
 export const addPendingWork = (p: Promise<unknown>): void => {
-  const pending = liveScopeStore(pendingWork);
-  if (pending) pending.push(p);
+  pendingWork.current()?.push(p);
 };
 
 /** Await all queued work. Call before returning the response. Loops until the
@@ -49,7 +43,7 @@ export const addPendingWork = (p: Promise<unknown>): void => {
  * that fails queues its error's activity-log write), and a single pass would
  * discard those late arrivals unawaited. */
 export const flushPendingWork = async (): Promise<void> => {
-  const pending = liveScopeStore(pendingWork);
+  const pending = pendingWork.current();
   if (!pending) return;
   while (pending.length > 0) {
     await Promise.allSettled(pending.splice(0));

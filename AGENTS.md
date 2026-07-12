@@ -433,8 +433,12 @@ reference implementations:
   — all first-use, never import-time.
 - **Request-scoped memoization, not global state.** `requestCache`
   (`src/shared/request-cache.ts`) shares one fetch among all callers within
-  a request; `createRequestScoped` (`src/shared/request-scoped.ts`) keeps
-  two concurrent requests on one isolate from clobbering each other.
+  a request. Any new per-request state is built on one of the three factories
+  in `src/shared/request-scoped.ts` (`createScope`, `createScopedValue`,
+  `createRequestScoped`) — the only module allowed to touch
+  `AsyncLocalStorage` — so two concurrent requests on one isolate can't
+  clobber each other and a leaked post-request context always reads as
+  "outside a request".
   Isolate-lived caches are best-effort and bounded
   (`src/shared/db/keyed-cache.ts`; the settings version-stamp cache in
   `src/shared/db/settings.ts`) — never authoritative for security

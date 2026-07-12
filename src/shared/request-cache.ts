@@ -10,21 +10,17 @@
  * directly — no caching is applied.
  */
 
-import { AsyncLocalStorage } from "node:async_hooks";
 import type { CollectionCache } from "#fp";
-import {
-  liveScopeStore,
-  runWithScopeLifetime,
-} from "#shared/request-scoped.ts";
+import { createScope } from "#shared/request-scoped.ts";
 
 /** Per-request store: maps each cache's unique key to its cached data */
 type RequestStore = Map<symbol, unknown[] | Promise<unknown[]>>;
 
-const storage = new AsyncLocalStorage<RequestStore>();
+const cacheScope = createScope<RequestStore>();
 
 /** Run a function within a per-request cache scope */
 export const runWithRequestCache = <T>(fn: () => T): T =>
-  runWithScopeLifetime(storage, new Map(), fn);
+  cacheScope.run(new Map(), fn);
 
 /**
  * Create a per-request collection cache.
@@ -40,10 +36,10 @@ export const requestCache = <T>(
 
   return {
     getAll: async (): Promise<T[]> => {
-      // liveScopeStore (not a raw getStore) so a request context the runtime
-      // leaked past its own end fetches fresh instead of serving the finished
-      // request's memoised data.
-      const store = liveScopeStore(storage);
+      // A request context the runtime leaked past its own end reads as no
+      // scope (see createScope), so it fetches fresh instead of serving the
+      // finished request's memoised data.
+      const store = cacheScope.current();
       if (!store) return fetchAll();
 
       const cached = store.get(key);
@@ -76,11 +72,11 @@ export const requestCache = <T>(
     },
 
     invalidate: (): void => {
-      liveScopeStore(storage)?.delete(key);
+      cacheScope.current()?.delete(key);
     },
 
     size: (): number => {
-      const cached = liveScopeStore(storage)?.get(key);
+      const cached = cacheScope.current()?.get(key);
       return Array.isArray(cached) ? cached.length : 0;
     },
   };

@@ -13,12 +13,8 @@
  * immediately — the only hot-path cost is one `getStore()` branch per read.
  */
 
-import { AsyncLocalStorage } from "node:async_hooks";
 import { lazyRef } from "#fp";
-import {
-  liveScopeStore,
-  runWithScopeLifetime,
-} from "#shared/request-scoped.ts";
+import { createScope } from "#shared/request-scoped.ts";
 
 type AuditState = {
   /** Config keys read via the snapshot/raw cache this request. */
@@ -27,7 +23,7 @@ type AuditState = {
   loaded: Set<string>;
 };
 
-const store = new AsyncLocalStorage<AuditState>();
+const auditScope = createScope<AuditState>();
 
 /** Off in production; the test harness turns it on. */
 const [isAuditEnabled, setAuditEnabled] = lazyRef<boolean>(() => false);
@@ -42,17 +38,17 @@ export const setSettingsAuditEnabled = (value: boolean | null): void =>
  */
 export const runWithSettingsAudit = <T>(fn: () => T): T =>
   isAuditEnabled()
-    ? runWithScopeLifetime(store, { loaded: new Set(), read: new Set() }, fn)
+    ? auditScope.run({ loaded: new Set(), read: new Set() }, fn)
     : fn();
 
 /** Record a settings read (no-op outside an audit scope). */
 export const recordSettingRead = (configKey: string): void => {
-  liveScopeStore(store)?.read.add(configKey);
+  auditScope.current()?.read.add(configKey);
 };
 
 /** Record keys made available this request — loaded or written (no-op outside). */
 export const recordSettingsLoaded = (keys: Iterable<string>): void => {
-  const state = liveScopeStore(store);
+  const state = auditScope.current();
   if (!state) return;
   for (const key of keys) state.loaded.add(key);
 };
@@ -63,7 +59,7 @@ export const recordSettingsLoaded = (keys: Iterable<string>): void => {
  * on every request) is obvious. No-op outside an audit scope.
  */
 export const assertSettingsReadsDeclared = (routeLabel: string): void => {
-  const state = liveScopeStore(store);
+  const state = auditScope.current();
   if (!state) return;
   const missing = [...state.read].filter((key) => !state.loaded.has(key));
   if (missing.length === 0) return;
