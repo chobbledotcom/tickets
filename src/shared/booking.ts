@@ -14,7 +14,8 @@ import {
   createAttendeeAtomic,
   hasAvailableSpots,
 } from "#shared/db/attendees/api.ts";
-import type { LedgerPoster } from "#shared/db/attendees/create.ts";
+import type { LedgerPoster } from "#shared/db/attendees/create-batch.ts";
+import { createStagedCheckout } from "#shared/db/checkout-stages.ts";
 import { singleListingAnswerIds } from "#shared/payment-helpers.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
 import type { Attendee, ContactInfo, ListingWithCount } from "#shared/types.ts";
@@ -88,7 +89,8 @@ export const processBooking = async (
     const provider = (await getActivePaymentProvider())!;
 
     const unitPrice = customUnitPrice ?? listing.unit_price;
-    const result = await provider.createCheckoutSession(
+    const result = await createStagedCheckout(
+      provider,
       {
         ...contact,
         date,

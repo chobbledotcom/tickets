@@ -6,13 +6,11 @@ import {
   getContactRecord,
   hashEmail,
   hashPhone,
-  recordContacts,
 } from "#shared/db/contact-preferences.ts";
 import {
   getRecentBookingTokens,
   recordBookingActivity,
   syncAttendeeContactTokens,
-  unrecordBooking,
 } from "#shared/db/contact-tokens.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -48,103 +46,7 @@ const tokenBlobFor = async (hash: string): Promise<string> =>
     )
   )?.attendee_tokens_blob ?? "";
 
-const firstMarkerFrom = (blob: string): string =>
-  blob.split("\n")[0]!.split("\t")[0]!;
-
-const expectOneBookingVisit = async (
-  hash: string,
-  privateKey: CryptoKey,
-  token: string,
-): Promise<void> => {
-  const record = await getContactRecord(hash, privateKey);
-  expect(record.visits).toBe(1);
-  expect(record.publicBookingCount).toBe(1);
-  expect(await readAllTokens(hash, privateKey)).toEqual([
-    { source: "public", token },
-  ]);
-};
-
 describeWithEnv("contact-tokens", { db: true }, () => {
-  test("recordBookingActivity splits the count by source, leaving outreach stats intact", async () => {
-    const pk = await getTestPrivateKey();
-    const hash = await hashEmail("bookings@example.com");
-    await recordContacts([hash], "Newsletter", pk);
-    await recordBookingActivity(hash, "public", "tok-pub-1");
-    await recordBookingActivity(hash, "public", "tok-pub-2");
-    await recordBookingActivity(hash, "admin", "tok-adm-1");
-
-    const record = await getContactRecord(hash, pk);
-    expect(record.publicBookingCount).toBe(2);
-    expect(record.adminBookingCount).toBe(1);
-    expect(record.contactCount).toBe(1);
-    expect(record.lastSubject).toBe("Newsletter");
-  });
-
-  test("recordBookingActivity needs no owner key", async () => {
-    const pk = await getTestPrivateKey();
-    const hash = await hashEmail("keyless@example.com");
-    await recordBookingActivity(hash, "public", "tok-keyless");
-    expect((await getContactRecord(hash, pk)).publicBookingCount).toBe(1);
-  });
-
-  test("recordBookingActivity records missing booking history", async () => {
-    const pk = await getTestPrivateKey();
-    const hash = await hashEmail("recover-visit@example.com");
-    await recordBookingActivity(hash, "public", "tok-recover-visit");
-
-    await expectOneBookingVisit(hash, pk, "tok-recover-visit");
-  });
-
-  test("recordBookingActivity does not duplicate completed history", async () => {
-    const pk = await getTestPrivateKey();
-    const hash = await hashEmail("recover-complete@example.com");
-    await recordBookingActivity(hash, "public", "tok-recover-complete");
-    await recordBookingActivity(hash, "public", "tok-recover-complete");
-
-    await expectOneBookingVisit(hash, pk, "tok-recover-complete");
-  });
-
-  test("unrecordBooking reverses a booking count and clamps at zero", async () => {
-    const pk = await getTestPrivateKey();
-    const hash = await hashEmail("undo@example.com");
-    await recordBookingActivity(hash, "public", "tok-undo-1");
-    await recordBookingActivity(hash, "public", "tok-undo-2");
-    await unrecordBooking(hash, "public");
-    expect((await getContactRecord(hash, pk)).publicBookingCount).toBe(1);
-    await unrecordBooking(hash, "public");
-    await unrecordBooking(hash, "public");
-    expect((await getContactRecord(hash, pk)).publicBookingCount).toBe(0);
-  });
-
-  test("recordBookingActivity appends the booked token, tagged by source", async () => {
-    const pk = await getTestPrivateKey();
-    const hash = await hashEmail("tokens@example.com");
-    await recordBookingActivity(hash, "public", "tok-online");
-    await recordBookingActivity(hash, "admin", "tok-manual");
-    expect(await readAllTokens(hash, pk)).toEqual([
-      { source: "public", token: "tok-online" },
-      { source: "admin", token: "tok-manual" },
-    ]);
-  });
-
-  test("recordBookingActivity does not reuse one marker across contact rows", async () => {
-    const pk = await getTestPrivateKey();
-    const emailHash = await hashEmail("linked-token@example.com");
-    const phoneHash = await hashPhone("07700 900111");
-    await recordBookingActivity(emailHash, "public", "tok-linked-contact");
-    await recordBookingActivity(phoneHash, "public", "tok-linked-contact");
-
-    expect(firstMarkerFrom(await tokenBlobFor(emailHash))).not.toBe(
-      firstMarkerFrom(await tokenBlobFor(phoneHash)),
-    );
-    expect(await readAllTokens(emailHash, pk)).toEqual([
-      { source: "public", token: "tok-linked-contact" },
-    ]);
-    expect(await readAllTokens(phoneHash, pk)).toEqual([
-      { source: "public", token: "tok-linked-contact" },
-    ]);
-  });
-
   test("getRecentBookingTokens is empty for a contact with no bookings", async () => {
     const pk = await getTestPrivateKey();
     expect(

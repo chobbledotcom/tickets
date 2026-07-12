@@ -205,7 +205,7 @@ describeWithEnv(
             1000,
           ),
           paymentIntent: "pi_multi_q",
-          sessionId: "cs_multi_q",
+          sessionId: "cs_multi_q_stub",
         }),
       );
 
@@ -290,7 +290,7 @@ describeWithEnv(
             1000,
           ),
           paymentIntent: "pi_text_q",
-          sessionId: "cs_text_q",
+          sessionId: "cs_text_q_stub",
         }),
       );
 

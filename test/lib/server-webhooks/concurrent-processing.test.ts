@@ -177,10 +177,12 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
     if (!result.success) throw new Error("Failed to create test attendee");
     const attendee = result.attendees[0]!;
 
-    const {
-      reserveSession: reserveSessionFn,
-      finalizeSession: finalizeSessionFn,
-    } = await import("#shared/db/processed-payments.ts");
+    const { reserveSession: reserveSessionFn } = await import(
+      "#shared/db/processed-payments.ts"
+    );
+    const { finalizeTestPaymentSession: finalizeSessionFn } = await import(
+      "#test-utils/db-helpers/processed-payments.ts"
+    );
     await reserveSessionFn("cs_multi_already_done");
     await finalizeSessionFn(
       "cs_multi_already_done",

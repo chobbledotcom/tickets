@@ -3,24 +3,12 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { validatePaidSession } from "#routes/api/payment-processing/classify.ts";
-import {
-  type CreatedEntry,
-  sessionSuccess,
-} from "#routes/api/payment-processing/create.ts";
 import { validateAllItems } from "#routes/api/payment-processing/items.ts";
-import { recoverOrRefundUnexpectedCreate } from "#routes/api/payment-processing/recovery.ts";
-import { placeholderBookings } from "#routes/api/payment-processing/store-refund.ts";
 import { parseTokens } from "#routes/tickets/token-utils.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { contactFields } from "#shared/db/attendees/pii.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
-import {
-  forgetContact,
-  getContactRecord,
-  hashEmail,
-  hashPhone,
-} from "#shared/db/contact-preferences.ts";
+import { getContactRecord, hashEmail } from "#shared/db/contact-preferences.ts";
 import { getRecentBookingTokens } from "#shared/db/contact-tokens.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
@@ -49,6 +37,26 @@ import {
   signedMeta,
   webhookRequest,
 } from "./helpers.ts";
+
+const STORED_BOOKING_FAILURE = {
+  error:
+    "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook.",
+  processed: false,
+  received: true,
+};
+
+const expectStoredBookingFailure = () =>
+  assertJson(webhookRequest(), 200, (json) => {
+    expect(json).toEqual(STORED_BOOKING_FAILURE);
+  });
+
+const expectPlaceholders = async (listingIds: number[]): Promise<void> => {
+  for (const listingId of listingIds) {
+    expect(
+      (await getAttendeesRaw(listingId)).map(({ quantity }) => quantity),
+    ).toEqual([0]);
+  }
+};
 
 describeWithEnv(
   "webhook signed price oracle - post-commit failures",
@@ -96,18 +104,11 @@ describeWithEnv(
             throw new Error("Expected the synthetic booking to commit");
           }
 
-          await forgetContact(await hashEmail("buyer@example.com"));
           racingRedirect = await redirectRequest(sessionId);
 
-          const attendees = result.attendees;
-          let reads = 0;
           Object.defineProperty(result, "attendees", {
             get: () => {
-              reads += 1;
-              if (reads > 1) {
-                throw new Error("synthetic post-commit failure");
-              }
-              return attendees;
+              throw new Error("synthetic post-commit failure");
             },
           });
           return result;
@@ -178,53 +179,6 @@ describeWithEnv(
             expect(
               await getRecentBookingTokens(contactHash, privateKey, 1),
             ).toEqual([{ source: "public", token: ticketTokens[0] }]);
-            const phoneOnlyIntent = {
-              ...validation.data.intent,
-              email: "",
-              phone: "07700 900123",
-            };
-            let recoveredEntries: CreatedEntry[] = [];
-            await recoverOrRefundUnexpectedCreate({
-              complete: (entries, recoveredTokens) => {
-                recoveredEntries = entries;
-                expect(recoveredTokens).toEqual(ticketTokens);
-                return Promise.resolve(
-                  sessionSuccess(attendeeId, listing.id, recoveredTokens),
-                );
-              },
-              error: new Error("unused recovery error"),
-              intent: phoneOnlyIntent,
-              placeholders: placeholderBookings(
-                validated.items,
-                validation.data.intent,
-              ),
-              session: validation.data.session,
-              ticketToken: ticketTokens[0]!,
-              validatedItems: validated.items,
-            });
-            const phoneHash = await hashPhone(phoneOnlyIntent.phone);
-            const phoneRecord = await getContactRecord(phoneHash, privateKey);
-            expect({
-              publicBookingCount: phoneRecord.publicBookingCount,
-              visits: phoneRecord.visits,
-            }).toEqual({ publicBookingCount: 1, visits: 1 });
-            expect(
-              await getRecentBookingTokens(phoneHash, privateKey, 1),
-            ).toEqual([{ source: "public", token: ticketTokens[0] }]);
-            expect(recoveredEntries[0]!.attendee).toEqual({
-              ...attendees[0]!,
-              ...contactFields(phoneOnlyIntent),
-              checked_in: false,
-              lat: "",
-              lng: "",
-              payment_id: validation.data.session.paymentReference,
-              pii_blob: "",
-              price_paid: String(attendees[0]!.price_paid),
-              refunded: false,
-              split_logistics_agents: false,
-              ticket_token: ticketTokens[0]!,
-            });
-
             const page = await followRedirect(redirect, handleRequest);
             expect(await page.text()).toContain("View your ticket");
           },
@@ -235,7 +189,7 @@ describeWithEnv(
       }
     });
 
-    test("does not refund a partially committed cart", async () => {
+    test("refunds only after an incomplete cart leaves no live booking", async () => {
       const first = await setupWithListing();
       const second = await setupWithListing();
       const sessionId = "cs_partial_commit_failure";
@@ -244,7 +198,7 @@ describeWithEnv(
         { e: second.id, p: 1000, q: 1 },
       ]);
       const createBooking = attendeesApi.createBookingAtomic;
-      const failAfterPartialCommit = stub(
+      const failAfterIncompleteCreate = stub(
         attendeesApi,
         "createBookingAtomic",
         async (...args) => {
@@ -262,19 +216,9 @@ describeWithEnv(
             metadata: signedMeta(2000, { items }),
           },
           async (refund) => {
-            await assertJson(webhookRequest(), 200, (json) => {
-              expect(json).toEqual({
-                error:
-                  "Part of your booking could not be completed. Please contact support.",
-                processed: false,
-                received: true,
-              });
-            });
-            expect(refund.calls.length).toBe(0);
-            expect(
-              (await getAttendeesRaw(first.id)).map(({ quantity }) => quantity),
-            ).toEqual([1]);
-            expect(await getAttendeesRaw(second.id)).toEqual([]);
+            await expectStoredBookingFailure();
+            expect(refund.calls.length).toBe(1);
+            await expectPlaceholders([first.id, second.id]);
 
             const processed = await isSessionProcessed(sessionId);
             expect(processed).not.toBeNull();
@@ -284,16 +228,13 @@ describeWithEnv(
               sql: "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
             });
 
-            await assertJson(webhookRequest(), 200, (json) => {
-              expect(json.processed).toBe(false);
-            });
-            expect((await getAttendeesRaw(first.id)).length).toBe(1);
-            expect(failAfterPartialCommit.calls.length).toBe(1);
-            expect(refund.calls.length).toBe(0);
+            await expectStoredBookingFailure();
+            await expectPlaceholders([first.id, second.id]);
+            expect(refund.calls.length).toBe(1);
           },
         );
       } finally {
-        failAfterPartialCommit.restore();
+        failAfterIncompleteCreate.restore();
       }
     });
 

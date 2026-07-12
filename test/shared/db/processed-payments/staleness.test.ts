@@ -4,7 +4,6 @@ import { FakeTime } from "@std/testing/time";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   deleteAllStaleReservations,
-  finalizeSession as finalizePaymentSession,
   isReservationStale,
   isSessionProcessed,
   releaseReservation,
@@ -13,6 +12,7 @@ import {
 } from "#shared/db/processed-payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { useProcessedPaymentsAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { finalizeTestPaymentSession as finalizePaymentSession } from "#test-utils/db-helpers/processed-payments.ts";
 
 const finalizeSession = (
   sessionId: string,

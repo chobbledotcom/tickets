@@ -19,7 +19,6 @@ import {
   resubscribeHash,
   saveContactRecord,
   toContactHashParam,
-  unrecordVisit,
   unsubscribeHash,
 } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -307,14 +306,6 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
     const pk = await getTestPrivateKey();
     expect(await getContactCounts([], pk)).toEqual([]);
     await recordContacts([], "Nothing", pk);
-  });
-
-  test("unrecordVisit reverses a visit, clamped at zero", async () => {
-    const hash = await hashEmail("undovisit@example.com");
-    await seedContactVisits(hash);
-    await unrecordVisit(hash);
-    await unrecordVisit(hash);
-    expect(await getVisits(hash)).toBe(0);
   });
 
   test("saveContactRecord overwrites the counts and the encrypted note", async () => {

@@ -35,14 +35,13 @@ import {
   stampChildRowPackages,
 } from "#shared/booking/page-packages.ts";
 import type { BookingTree } from "#shared/booking/tree.ts";
-import { capacityDateFor } from "#shared/capacity-rules.ts";
+import { bookingDateFields } from "#shared/booking-date-fields.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import type {
   ChildAllocation,
-  CreateAttendeeResult,
   LineBooking,
   ListingBooking,
 } from "#shared/db/attendee-types.ts";
@@ -52,8 +51,8 @@ import {
   createBookingAtomic,
 } from "#shared/db/attendees/api.ts";
 import { getDatelessGroupRemaining } from "#shared/db/attendees/capacity.ts";
-import { ensureAllBookings } from "#shared/db/attendees/create.ts";
 import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
+import { createStagedCheckout } from "#shared/db/checkout-stages.ts";
 import {
   getGroupIdsByListingIds,
   getHiddenPackageMemberIds,
@@ -96,7 +95,6 @@ import {
   type Group,
   type Holiday,
   type ListingWithCount,
-  normalizeDurationDays,
 } from "#shared/types.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import { listingsWithQuantity } from "./ticket-form.ts";
@@ -206,22 +204,6 @@ export const checkAvailability = (
  * webhook flows aligned. Span: customisable listings use the chosen `dayCount`;
  * daily listings use their fixed `duration_days`; standard listings span 1 day.
  */
-export const bookingDateFields = (
-  listing: Pick<
-    TicketListing["listing"],
-    "listing_type" | "duration_days" | "customisable_days"
-  >,
-  date: string | null,
-  dayCount = 1,
-): { date: string | null; durationDays: number } => ({
-  date: capacityDateFor(listing.listing_type, date),
-  durationDays: listing.customisable_days
-    ? normalizeDurationDays(dayCount)
-    : listing.listing_type === "daily"
-      ? normalizeDurationDays(listing.duration_days)
-      : 1,
-});
-
 /** Load one group's package pricing and shape it into the {@link PagePackage}
  * the booking flow carries — the group's display fields plus its member
  * quantity/price maps, scoped to the members actually on the page. */
@@ -257,7 +239,7 @@ export const handlePaymentFlow = (
   runCheckoutFlow(
     `ticket items=${intent.items.length}`,
     request,
-    (provider, baseUrl) => provider.createCheckoutSession(intent, baseUrl),
+    (provider, baseUrl) => createStagedCheckout(provider, intent, baseUrl),
     (msg) =>
       errorRedirect(ctx.actionUrl ?? `/ticket/${ctx.slugs.join("+")}`, msg),
   );
@@ -454,7 +436,7 @@ export const createFreeReservation = async ({
   // (hasDuplicateBookingSlot) permits same-child/different-parent rows because
   // it keys on (listingId, date, parentListingId, packageGroupId). The
   // expanded list replaces the summed list for the create call;
-  // ensureAllBookings' count uses the expanded length. Each child row is then
+  // The atomic create count uses the expanded length. Each child row is then
   // stamped with its parent's package when the parent books through exactly
   // one path, so a bundle's add-ons group under it.
   const expanded: ListingBooking[] =
@@ -485,19 +467,23 @@ export const createFreeReservation = async ({
     ledgerOrder !== null || modifierUsages.length > 0
       ? await createBookingAtomic(
           input,
-          await bookingBatchPlan(modifierUsages, {
-            eventId: crypto.randomUUID(),
-            occurredAt: nowIso(),
-            pricedOrder: ledgerOrder ?? EMPTY_PRICED_ORDER,
-          }),
+          await bookingBatchPlan(
+            null,
+            modifierUsages,
+            {
+              eventId: crypto.randomUUID(),
+              occurredAt: nowIso(),
+              pricedOrder: ledgerOrder ?? EMPTY_PRICED_ORDER,
+            },
+            null,
+          ),
         )
       : await createAttendeeAtomic(input);
   if (result === "sold-out") {
     return { error: MODIFIER_SOLD_OUT_MESSAGE, success: false };
   }
 
-  const check = await ensureAllBookings(result, finalBookings.length, "public");
-  if (!check.ok) {
+  if (!result.success) {
     // A package order must never name a member in the capacity error — a hidden
     // package would leak the listing it concealed. Omit the name (generic
     // message) for a package; a non-package order keeps its first listing's name.
@@ -505,15 +491,11 @@ export const createFreeReservation = async ({
       ? ""
       : listingById.get(items[0]!.listingId)!.name;
     return {
-      error: formatAtomicError(check.reason, errorName),
+      error: formatAtomicError(result.reason, errorName),
       success: false,
     };
   }
-  // ensureAllBookings's ok check guarantees result.success here.
-  const { attendees } = result as Extract<
-    CreateAttendeeResult,
-    { success: true }
-  >;
+  const { attendees } = result;
 
   const entries: EmailEntry[] = attendees.map((attendee) => ({
     attendee,

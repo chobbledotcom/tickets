@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
+import {
+  anyModifierSoldOut,
+  modifierUsedQuantities,
+} from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -66,6 +69,32 @@ describeWithEnv("db > modifier-usage", { db: true }, () => {
   describe("modifierUsedQuantities", () => {
     test("returns an empty map for no ids", async () => {
       expect(await modifierUsedQuantities([])).toEqual(new Map());
+    });
+  });
+
+  describe("anyModifierSoldOut", () => {
+    test("returns false for no usages", async () => {
+      expect(await anyModifierSoldOut([])).toBe(false);
+    });
+
+    test("returns false for an unlimited modifier", async () => {
+      const modifier = await makeModifier(null);
+      expect(await anyModifierSoldOut([usage(modifier.id)])).toBe(false);
+    });
+
+    test("returns false for an unknown modifier", async () => {
+      expect(await anyModifierSoldOut([usage(999_999)])).toBe(false);
+    });
+
+    test("returns false while limited stock remains", async () => {
+      const modifier = await makeModifier(1);
+      expect(await anyModifierSoldOut([usage(modifier.id)])).toBe(false);
+    });
+
+    test("detects exhausted stock", async () => {
+      const modifier = await makeModifier(1);
+      await consumeModifierStock(100, [usage(modifier.id)]);
+      expect(await anyModifierSoldOut([usage(modifier.id)])).toBe(true);
     });
   });
 });

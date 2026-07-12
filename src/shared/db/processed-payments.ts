@@ -200,26 +200,6 @@ export const encryptTicketTokens = (
 ): Promise<EnvKeyEncrypted> => encrypt(ticketTokens.join("+"));
 
 /**
- * Finalize a reserved session with the created attendee ID (second phase)
- */
-export const finalizeSession = async (
-  sessionId: string,
-  attendeeId: number,
-  ticketTokens: string[],
-  paymentReference: string,
-): Promise<void> => {
-  await execute(
-    "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = ?, payment_reference = ? WHERE payment_session_id = ?",
-    [
-      attendeeId,
-      await encryptTicketTokens(ticketTokens),
-      await encryptPaymentReference(paymentReference),
-      sessionId,
-    ],
-  );
-};
-
-/**
  * Heal a still-unresolved reservation by stamping `attendee_id`, leaving
  * `ticket_tokens` untouched. The ledger-replay path uses this: when a late
  * delivery finds the booking already recorded in the ledger, it points its fresh
@@ -237,7 +217,7 @@ export const finalizeSession = async (
 export const finalizeSessionIfUnresolved = async (
   sessionId: string,
   attendeeId: number,
-  paymentReference = "",
+  paymentReference: string,
 ): Promise<void> => {
   const refClause = paymentReference ? ", payment_reference = ?" : "";
   const refParams = paymentReference

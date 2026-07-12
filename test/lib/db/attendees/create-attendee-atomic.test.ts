@@ -43,6 +43,20 @@ const expectCartRows = async (
   }
 };
 
+const expectCartRejected = async (
+  result: Awaited<ReturnType<typeof createAttendeeAtomic>>,
+  listingIds: number[],
+): Promise<void> => {
+  expect(result).toEqual({ reason: "capacity_exceeded", success: false });
+  for (const listingId of listingIds) {
+    const rows = await getDb().execute({
+      args: [listingId],
+      sql: "SELECT quantity FROM listing_attendees WHERE listing_id = ?",
+    });
+    expect(rows.rows).toEqual([]);
+  }
+};
+
 const setupBookedOutListing = async () => {
   const listing = await createTestListing({ maxAttendees: 1 });
   await updateListingAggregateValues(listing.id, {
@@ -527,10 +541,8 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
   test("intra-cart group cap: a sibling insert earlier in the same batch counts (no oversell)", async () => {
     // Two listings share a group capped at 3. A single cart asks for 2 + 2 = 4.
     // The second INSERT's capacity check must see the first INSERT from the
-    // same atomic batch, so it is refused — booking the first line (2) and
-    // declining the second rather than overselling the group to 4. The
-    // all-or-nothing policy lives one layer up (ensureAllBookings); this layer
-    // fulfils greedily but must never exceed the cap.
+    // same atomic batch. The missed second row aborts the batch, so neither the
+    // attendee nor the first booking ever commits.
     const group = await createTestGroup({
       maxAttendees: 3,
       name: "cart-accum",
@@ -554,10 +566,7 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       email: "cart@example.com",
       name: "Cart",
     });
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.attendees.length).toBe(1);
-    expect((await getAttendeesRaw(e1.id))[0]!.quantity).toBe(2);
-    expect((await getAttendeesRaw(e2.id)).length).toBe(0);
+    await expectCartRejected(result, [e1.id, e2.id]);
   });
 
   test("intra-cart group cap: a cart that exactly fills the group across listings succeeds", async () => {
@@ -614,11 +623,8 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       email: "daily-cart@example.com",
       name: "DailyCart",
     });
-    // 2 + 2 = 4 on the same date > cap 3: first fits, second refused.
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.attendees.length).toBe(1);
-    expect((await getAttendeesRaw(e1.id)).length).toBe(1);
-    expect((await getAttendeesRaw(e2.id)).length).toBe(0);
+    // 2 + 2 = 4 on the same date > cap 3: the whole order is refused.
+    await expectCartRejected(result, [e1.id, e2.id]);
   });
 
   test("intra-cart daily group cap is independent across different dates", async () => {

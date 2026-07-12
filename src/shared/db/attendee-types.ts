@@ -38,7 +38,6 @@ export type EncryptedAttendeeData = {
 /** Input for encrypting attendee fields */
 export type EncryptInput = ContactInfo & {
   paymentId: string;
-  pricePaid: number;
 };
 
 /** Input for building an Attendee result from an insert */
@@ -114,6 +113,9 @@ export type AttendeeInput = ContactFields & {
    * checkout path can never be silently left uncounted; the admin manual-add
    * paths pass "admin" explicitly. */
   source?: BookingSource;
+  /** Exact ticket token to encrypt and index. Paid recovery prepares this once;
+   * other create paths omit it and receive a fresh token. */
+  ticketToken?: string;
 };
 
 /** Row from listing_attendees — per-listing booking data */

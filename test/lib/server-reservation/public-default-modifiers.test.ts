@@ -122,12 +122,10 @@ describeWithEnv(
         "An extra you selected sold out while you were checking out. Please try again.",
         false,
       );
-      // The racing order's single consumption stands (it really got the stock);
-      // our rejected order added none of its own — the batch's stock-guarded
-      // booking insert never landed, so its gated usage insert never fired.
-      expect(await modifierUsedQuantities([modifier.id])).toEqual(
-        new Map([[modifier.id, 1]]),
-      );
+      // The test trigger runs inside this order's transaction, so its simulated
+      // stock consume rolls back with the refused order. A real competing order
+      // commits separately and would remain; either way this order adds no use.
+      expect(await modifierUsedQuantities([modifier.id])).toEqual(new Map());
       expect(await attendeeCount()).toBe(0);
       // A sold-out free order leaves no phantom contact history: the batch never
       // reaches the success path that records a visit + public booking, so there
@@ -135,7 +133,7 @@ describeWithEnv(
       expect(await totalContactActivity()).toEqual({ bookings: 0, visits: 0 });
     });
 
-    test("reverses a phone contact's counters when a free order's stock rolls back", async () => {
+    test("leaves a phone contact unchanged when a free order rolls back", async () => {
       await setupStripe();
       // A phone-only listing identifies the buyer by phone hash, exercising the
       // SMS-reachable contact path rather than email.
@@ -153,8 +151,8 @@ describeWithEnv(
         false,
       );
       expect(await attendeeCount()).toBe(0);
-      // The phone identity must be compensated just like email: a sold-out free
-      // order leaves no visit or booking on the texted contact.
+      // The atomic write never reaches contact activity, so there is nothing to
+      // reverse and the texted contact remains unchanged.
       expect(await totalContactActivity()).toEqual({ bookings: 0, visits: 0 });
     });
 
@@ -173,8 +171,8 @@ describeWithEnv(
         false,
       );
       expect(await attendeeCount()).toBe(0);
-      // The rollback decrements by exactly one (clamped at zero), so the earlier
-      // booking survives — a rejected order must never wipe real history.
+      // The rejected order never writes contact activity, so the earlier
+      // booking survives unchanged.
       expect(await totalContactActivity()).toEqual({ bookings: 1, visits: 1 });
     });
   },

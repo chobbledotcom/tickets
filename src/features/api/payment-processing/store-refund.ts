@@ -28,10 +28,14 @@ import type {
   PaymentFailureResult,
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
-import { bookingDateFields } from "#routes/public/ticket-payment.ts";
+import { bookingDateFields } from "#shared/booking-date-fields.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
+import {
+  type CheckoutStage,
+  markCheckoutStage,
+} from "#shared/db/checkout-stages.ts";
 import { balanceFinalizeStatement } from "#shared/db/payment-finalize.ts";
 import { createSystemNote } from "#shared/db/system-notes.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
@@ -158,19 +162,26 @@ export const storeRefundedBooking = async (
   intent: BookingIntent,
   bookings: PlaceholderBookings,
   spec: RefundSpec,
+  stage?: CheckoutStage | null,
 ): Promise<PaymentFailureResult> => {
   if (spec.notify) addPendingWork(sendNtfyError(spec.notify));
   const listingId = bookings[0]!.listingId;
   // A quantity-0 overbook insert has no capacity gate and consumes no modifier
   // stock, so it always writes the row — trust it. (If the PII can't encrypt the
   // whole system is broken; we don't defend against that.)
-  const stored = await createAttendeeAtomic({
-    ...(await attendeeBaseFields(session, intent)),
-    allowOverbook: true,
-    bookings,
-  });
-  const attendeeId = (stored as Extract<typeof stored, { success: true }>)
-    .attendees[0]!.id;
+  const attendeeId = stage
+    ? stage.attendeeId
+    : (
+        (await createAttendeeAtomic({
+          ...(await attendeeBaseFields(session, intent)),
+          allowOverbook: true,
+          bookings,
+        })) as Extract<
+          Awaited<ReturnType<typeof createAttendeeAtomic>>,
+          { success: true }
+        >
+      ).attendees[0]!.id;
+  if (stage) await markCheckoutStage(session.id, "failed");
   const refunded = await tryRefund(session.paymentReference, listingId);
   await recordPlaceholderRefund(
     {

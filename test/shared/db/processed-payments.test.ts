@@ -6,7 +6,6 @@ import { getDb, insert } from "#shared/db/client.ts";
 import { batchFinalizeStatement } from "#shared/db/payment-finalize.ts";
 import {
   decryptSessionTokens,
-  finalizeSession as finalizePaymentSession,
   finalizeSessionIfUnresolved,
   isSessionProcessed,
   isUnresolvedReservation,
@@ -16,10 +15,10 @@ import {
   STALE_RESERVATION_MS,
 } from "#shared/db/processed-payments.ts";
 import { nowMs } from "#shared/now.ts";
-import { withPaymentTicketToken } from "#shared/payment-ticket-token.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { finalizeTestPaymentSession as finalizePaymentSession } from "#test-utils/db-helpers/processed-payments.ts";
 import { expectRefundReferences } from "#test-utils/payment-references.ts";
 
 const finalizeSession = (
@@ -223,14 +222,6 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     // unit test binds it as a literal `?` and uses a trivially-true guard, so it
     // exercises the UNRESOLVED + guard gating without an in-batch attendee row.
     const trueGuard = { args: [] as never[], sql: "1 = 1" };
-    const preparedFinalizeStatement = (
-      ticketToken: string,
-      ...args: Parameters<typeof batchFinalizeStatement>
-    ) =>
-      withPaymentTicketToken(ticketToken, () =>
-        batchFinalizeStatement(...args),
-      );
-
     test("sets the attendee and encrypted ticket token on an unresolved reservation", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
       const attendeeResult = await bookAttendee(listing, {
@@ -245,13 +236,13 @@ describeWithEnv("db > processed payments", { db: true }, () => {
         "UPDATE processed_payments SET ticket_tokens = ? WHERE payment_session_id = ?",
         [await encrypt("tok-replacement"), "sess_fss"],
       );
-      const stmt = await preparedFinalizeStatement(
-        "tok-fss",
+      const stmt = await batchFinalizeStatement(
         "sess_fss",
         "?",
         attendeeId,
         trueGuard,
         "pi_fss",
+        "tok-fss",
       );
       await getDb().execute(stmt);
 
@@ -276,13 +267,13 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       await finalizeSession("sess_fss2", attendeeId, ["tok-test"]);
 
       // A second finalize (different attendee id) must not overwrite
-      const stmt = await preparedFinalizeStatement(
-        "tok-second",
+      const stmt = await batchFinalizeStatement(
         "sess_fss2",
         "?",
         attendeeId + 999,
         trueGuard,
         "pi_second",
+        "tok-second",
       );
       await getDb().execute(stmt);
 
@@ -303,8 +294,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       await reserveSession("sess_fss3");
       // A guard that never holds stands in for a partial cart (not every booking
       // landed): the session must stay unresolved so the caller can refund.
-      const stmt = await preparedFinalizeStatement(
-        "tok-fss3",
+      const stmt = await batchFinalizeStatement(
         "sess_fss3",
         "?",
         attendeeId,
@@ -313,6 +303,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
           sql: "1 = 0",
         },
         "pi_fss3",
+        "tok-fss3",
       );
       await getDb().execute(stmt);
 
@@ -326,7 +317,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     test("stamps attendee_id on an unresolved reservation, leaving tokens untouched", async () => {
       await reserveSession("sess_heal");
 
-      await finalizeSessionIfUnresolved("sess_heal", 42);
+      await finalizeSessionIfUnresolved("sess_heal", 42, "");
 
       const row = (await isSessionProcessed("sess_heal"))!;
       expect(row.attendee_id).toBe(42);
@@ -355,7 +346,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       // The replaying delivery tries to heal it to a different attendee; the
       // unresolved guard must make it a no-op so it never clobbers the winner's
       // ticket_tokens (which would render the success page without the ticket).
-      await finalizeSessionIfUnresolved("sess_raced", 99);
+      await finalizeSessionIfUnresolved("sess_raced", 99, "");
 
       const row = (await isSessionProcessed("sess_raced"))!;
       expect(row.attendee_id).toBe(7);
@@ -363,7 +354,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     });
 
     test("is a no-op if the session was pruned", async () => {
-      await finalizeSessionIfUnresolved("sess_gone", 1);
+      await finalizeSessionIfUnresolved("sess_gone", 1, "");
     });
   });
 

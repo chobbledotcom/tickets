@@ -46,12 +46,8 @@ export {
   type UpdateAttendeeAtomicResult,
 } from "#shared/db/attendees/atomic-update.ts";
 export * from "#shared/db/attendees/capacity.ts";
-export {
-  type BookingBatchPlan,
-  buildAttendeeInsert,
-  ensureAllBookings,
-  reverseOrderActivity,
-} from "#shared/db/attendees/create.ts";
+export { buildAttendeeInsert } from "#shared/db/attendees/create.ts";
+export type { BookingBatchPlan } from "#shared/db/attendees/create-batch.ts";
 export * from "#shared/db/attendees/delete.ts";
 export * from "#shared/db/attendees/pii.ts";
 export * from "#shared/db/attendees/queries.ts";

@@ -98,13 +98,6 @@ export const getUnsubscribedHashSet = async (): Promise<Set<string>> => {
   return new Set(rows.map((r) => r.contact_hash));
 };
 
-/** Reverse one visit increment, clamped at zero. */
-export const unrecordVisit = (hash: string): Promise<void> =>
-  run(
-    "UPDATE contact_preferences SET visits = MAX(visits - 1, 0), last_activity = ? WHERE contact_hash = ?",
-    [nowMs(), hash],
-  );
-
 export const getVisits = async (hash: string): Promise<number> => {
   const row = await queryOne<{ visits: number }>(
     "SELECT visits FROM contact_preferences WHERE contact_hash = ?",

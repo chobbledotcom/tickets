@@ -2,10 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import {
-  finalizeSession,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
+import { reserveSession } from "#shared/db/processed-payments.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
   expectHtmlResponse,
@@ -16,10 +13,10 @@ import { johnCheckoutSession } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { finalizeTestPaymentSession as finalizeSession } from "#test-utils/db-helpers/processed-payments.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
 import { makeParent } from "#test-utils/parents.ts";
-import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
@@ -123,7 +120,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       );
     });
 
-    test("clears redirect tokens once after building the ticket URL", async () => {
+    test("returns the ticket redirect once then renders a replay directly", async () => {
       await setupStripe();
       const listing = await createTestListing({
         maxAttendees: 50,
@@ -138,29 +135,19 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             1000,
           ),
         async () => {
-          let clearWrites = 0;
-          const restore = wrapDbClient({
-            batch: () => {},
-            execute: (statement) => {
-              if (!statementSql(statement).includes("SET ticket_tokens = ''")) {
-                return null;
-              }
-              clearWrites++;
-              return clearWrites === 2
-                ? Promise.reject(new Error("second token clear failed"))
-                : null;
-            },
-          });
-          try {
-            const response = await handleRequest(
-              mockRequest("/payment/success?session_id=cs_single_token_clear"),
-            );
+          const first = await handleRequest(
+            mockRequest("/payment/success?session_id=cs_single_token_clear"),
+          );
+          expectRedirect(first, /^\/payment\/success\?tokens=.+$/);
+          const ticketPage = await followRedirect(first, handleRequest);
+          expect(await ticketPage.text()).toContain("View your ticket");
 
-            expectRedirect(response, /^\/payment\/success\?tokens=.+$/);
-            expect(clearWrites).toBe(1);
-          } finally {
-            restore();
-          }
+          const replay = await handleRequest(
+            mockRequest("/payment/success?session_id=cs_single_token_clear"),
+          );
+          expect(await expectHtmlResponse(replay, 200)).not.toContain(
+            "View your ticket",
+          );
         },
         resetStripeClient,
       );

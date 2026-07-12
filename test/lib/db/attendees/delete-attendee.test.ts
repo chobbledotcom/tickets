@@ -10,7 +10,6 @@ import {
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { getAllModifiers, modifiersTable } from "#shared/db/modifiers.ts";
 import {
-  finalizeSession as finalizePaymentSession,
   isSessionProcessed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
@@ -20,6 +19,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { finalizeTestPaymentSession as finalizePaymentSession } from "#test-utils/db-helpers/processed-payments.ts";
 import { consumeModifierStock } from "#test-utils/modifiers.ts";
 
 describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {

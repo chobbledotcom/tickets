@@ -58,6 +58,7 @@ import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
 import { type PricedOrder, priceCheckout } from "#shared/checkout-pricing.ts";
 import { generateTicketToken } from "#shared/crypto/utils.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
+import { getCheckoutStage } from "#shared/db/checkout-stages.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import {
   finalizeSessionIfUnresolved,
@@ -67,7 +68,6 @@ import {
   releaseReservation,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
-import { withPaymentTicketToken } from "#shared/payment-ticket-token.ts";
 import { bookingLedgerDisposition } from "#shared/session-ledger.ts";
 
 type SessionProcessor = (
@@ -190,6 +190,7 @@ const processReservedSession = async (
     }
     return settleBalanceSession(sessionId, session, intent);
   }
+  const stage = await getCheckoutStage(sessionId);
 
   // Preflight: the durable ledger is the source of truth for "already honoured".
   // Replay a session the ledger already records BEFORE any validation, pricing,
@@ -220,6 +221,7 @@ const processReservedSession = async (
         intent,
         datelessGhostBookings(intent.items),
         deletedListingSpec(session),
+        stage,
       );
     }
     return validated;
@@ -250,14 +252,20 @@ const processReservedSession = async (
       ? chargeMismatchSpec(session, verdict.agreed)
       : paidPricingRefund(validatedItems, pricedOrder, verdict.agreed);
   if (knownRefund) {
-    return storeRefundedBooking(session, intent, placeholders, knownRefund);
+    return storeRefundedBooking(
+      session,
+      intent,
+      placeholders,
+      knownRefund,
+      stage,
+    );
   }
 
   // Otherwise try to honour it at the charged price. ANY failure keeps the
   // booking at quantity 0 and refunds rather than dropping a paid customer: a
   // structured sold-out/capacity/encryption result, OR an unexpected throw after
   // the charge (which would otherwise crash-loop the webhook over paid money).
-  const preparedTicketToken = generateTicketToken();
+  const preparedTicketToken = stage?.ticketToken ?? generateTicketToken();
   const codeSpecs = modifierSpecs.filter((spec) => spec.trigger === "code");
   const complete = (
     entries: Parameters<typeof completePaidBooking>[0],
@@ -272,14 +280,14 @@ const processReservedSession = async (
     );
   let honoured: Awaited<ReturnType<typeof createAttendeeForSession>>;
   try {
-    honoured = await withPaymentTicketToken(preparedTicketToken, () =>
-      createAttendeeForSession(
-        session,
-        intent,
-        validatedItems,
-        pricingIntent,
-        pricedOrder,
-      ),
+    honoured = await createAttendeeForSession(
+      session,
+      intent,
+      validatedItems,
+      pricingIntent,
+      pricedOrder,
+      preparedTicketToken,
+      stage,
     );
   } catch (error) {
     // The atomic create may have committed before result handling or the client
@@ -300,6 +308,7 @@ const processReservedSession = async (
       intent,
       placeholders,
       specForFailure(honoured),
+      stage,
     );
   }
 

@@ -19,11 +19,9 @@ import {
   type ExistingLine,
   loadExistingLines,
 } from "#shared/db/attendees/atomic-update.ts";
-import { dateToStartEnd } from "#shared/db/attendees/capacity.ts";
-import {
-  createAttendeeAtomicImpl as createAttendeeAtomic,
-  ensureAllBookings,
-} from "#shared/db/attendees/create.ts";
+import { bookingSlotKey } from "#shared/db/attendees/booking-slot.ts";
+import { bookingStartAt } from "#shared/db/attendees/capacity.ts";
+import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#shared/db/attendees/create.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import {
@@ -159,47 +157,18 @@ const joinedListingNames = async (ids: number[]): Promise<string> => {
     .join(", ");
 };
 
-/** The requested listing ids among `bookings` that did NOT land a booking row
- *  in create `result` — a multiset diff by listing id, so a listing requested
- *  twice and fulfilled only once is still named. When NOTHING landed at all
- *  (the create's own failure shape, `result.success === false` — e.g. a
- *  single-listing hold that didn't fit), every requested listing is named:
- *  there's no partial attendee to diff against, and for a single booking that
- *  IS the specific listing that failed. */
-const unfulfilledListingIds = (
-  bookings: ListingBooking[],
-  result: CreateAttendeeResult,
-): number[] => {
-  if (!result.success) return unique(bookings.map((b) => b.listingId));
-  const remaining = new Map<number, number>();
-  for (const attendee of result.attendees) {
-    remaining.set(
-      attendee.listing_id,
-      (remaining.get(attendee.listing_id) ?? 0) + 1,
-    );
-  }
-  const failed: number[] = [];
-  for (const booking of bookings) {
-    const have = remaining.get(booking.listingId) ?? 0;
-    if (have > 0) remaining.set(booking.listingId, have - 1);
-    else failed.push(booking.listingId);
-  }
-  return unique(failed);
-};
-
 const ensureServicingCreateBookings = async (
   result: CreateAttendeeResult,
   bookings: ListingBooking[],
 ): Promise<Extract<CreateAttendeeResult, { success: true }>> => {
-  const check = await ensureAllBookings(result, bookings.length, "admin");
-  if (!check.ok) {
+  if (!result.success) {
     const names =
-      check.reason === "capacity_exceeded"
-        ? await joinedListingNames(unfulfilledListingIds(bookings, result))
+      result.reason === "capacity_exceeded"
+        ? await joinedListingNames(unique(bookings.map((b) => b.listingId)))
         : "";
-    throw new Error(formatServicingCapacityError(check.reason, names));
+    throw new Error(formatServicingCapacityError(result.reason, names));
   }
-  return result as Extract<CreateAttendeeResult, { success: true }>;
+  return result;
 };
 
 const normalizedCreateInput = (
@@ -400,11 +369,10 @@ const lineKeyForInput = (
   booking: ListingBooking,
   existingBySlot: Map<string, string>,
 ): { exists: boolean; key: string } => {
-  const { startAt } = dateToStartEnd(
-    booking.date ?? null,
-    booking.durationDays ?? 1,
-  );
-  const key = existingBySlot.get(`${booking.listingId}|${startAt ?? ""}`) ?? "";
+  const key =
+    existingBySlot.get(
+      bookingSlotKey(booking.listingId, bookingStartAt(booking)),
+    ) ?? "";
   return { exists: key !== "", key };
 };
 

@@ -15,6 +15,7 @@ import {
 } from "#shared/crypto/keys.ts";
 import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import type {
+  AttendeeInput,
   AttendeePii,
   EncryptedAttendeeData,
   EncryptInput,
@@ -22,12 +23,24 @@ import type {
 } from "#shared/db/attendee-types.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowIso } from "#shared/now.ts";
-import { currentPaymentTicketTokenOrCreate } from "#shared/payment-ticket-token.ts";
 import type { Attendee, ContactInfo, PiiBlob } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
 /** Current PII blob schema version */
 export const PII_BLOB_VERSION = 1;
+
+/** Project one attendee write into the fields stored in its encrypted PII. */
+export const attendeeEncryptionInput = (
+  input: AttendeeInput,
+  paymentId: string,
+): EncryptInput => ({
+  address: input.address ?? "",
+  email: input.email,
+  name: input.name,
+  paymentId,
+  phone: input.phone ?? "",
+  special_instructions: input.special_instructions ?? "",
+});
 
 /** Build a PII blob JSON from contact fields. An unpinned latitude/longitude
  * ("") is left out of the JSON so blobs without a pin stay as small as before. */
@@ -126,11 +139,11 @@ export const contactFields = ({
 /** Encrypt attendee fields into a PII blob, returning null if key not configured */
 export const encryptAttendeeFields = async (
   input: EncryptInput,
+  ticketToken: string,
 ): Promise<EncryptedAttendeeData | null> => {
   const publicKeyJwk = settings.publicKey;
   if (!publicKeyJwk) return null;
 
-  const ticketToken = currentPaymentTicketTokenOrCreate();
   // Bookings never carry a pinned location — lat/lng are admin-side only.
   const piiJson = buildPiiBlob({
     ...contactFields(input),

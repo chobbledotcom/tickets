@@ -130,12 +130,11 @@ const processSessionAndRedirect = async (
   // Direct-render and webhook paths retain it for a later redirect or reload.
   // encodeURIComponent preserves + as %2B so URLSearchParams.get() decodes it back correctly
   if (result.ticketTokens.length > 0) {
+    const location = `/payment/success?tokens=${encodeURIComponent(
+      result.ticketTokens.join("+"),
+    )}`;
     await clearSessionTokens(sessionId);
-    return redirectResponse(
-      `/payment/success?tokens=${encodeURIComponent(
-        result.ticketTokens.join("+"),
-      )}`,
-    );
+    return redirectResponse(location);
   }
 
   // Already-processed session (no tokens available) - render directly. An

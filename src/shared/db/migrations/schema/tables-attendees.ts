@@ -161,6 +161,27 @@ export const attendeeTables: [name: string, table: Table][] = [
   ],
 
   [
+    "checkout_stages",
+    {
+      columns: [
+        ["payment_session_id", "TEXT PRIMARY KEY"],
+        ["attendee_id", "INTEGER NOT NULL"],
+        ["provider", "TEXT NOT NULL"],
+        ["ticket_tokens", "TEXT NOT NULL"],
+        ["state", "TEXT NOT NULL"],
+        ["created_at", "TEXT NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["attendee_id"],
+          name: "idx_checkout_stages_attendee_id",
+          unique: true,
+        },
+      ],
+    },
+  ],
+
+  [
     "processed_payments",
     {
       columns: [

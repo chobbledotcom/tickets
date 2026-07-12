@@ -6,6 +6,7 @@
  * quantity-0 placeholder instead of dropping a paid customer.
  */
 
+import { committedEntries } from "#routes/api/payment-processing/committed-entries.ts";
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import {
@@ -16,12 +17,8 @@ import type {
   BookingIntent,
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
-import { bookingDateFields } from "#routes/public/ticket-payment.ts";
-import {
-  soleParentPackageIds,
-  stampChildRowPackages,
-} from "#shared/booking/page-packages.ts";
 import { lineGroupId } from "#shared/booking/signed-metadata.ts";
+import { orderBookings } from "#shared/booking-lines.ts";
 import { capacityErrorFormatter } from "#shared/capacity-error.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type {
@@ -31,13 +28,13 @@ import type {
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
-import type { ListingBooking } from "#shared/db/attendee-types.ts";
+import { activateStagedBooking } from "#shared/db/attendees/activate.ts";
 import {
   type createAttendeeAtomic,
   createBookingAtomic,
 } from "#shared/db/attendees/api.ts";
-import { ensureAllBookings } from "#shared/db/attendees/create.ts";
-import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
+import type { CheckoutStage } from "#shared/db/checkout-stages.ts";
+import { recordOrderActivity } from "#shared/db/contact-tokens.ts";
 import {
   decryptSessionTokens,
   type ProcessedPayment,
@@ -269,36 +266,21 @@ export const createAttendeeForSession = async (
   validatedItems: ValidatedItem[],
   pricingIntent: CheckoutIntent,
   pricedOrder: PricedOrder,
+  ticketToken: string,
+  stage: CheckoutStage | null,
 ): Promise<HonourResult> => {
   // Per-LINE paid amounts: a listing booked through two paths is two lines
   // with their own prices, and each becomes its own booking row. The priced
   // order's lines reference the pricing intent's item objects, which pair
   // 1:1 by index with validatedItems.
   const paidByIntentItem = paidByItem(pricedOrder);
-  const rawBookings: ListingBooking[] = validatedItems.map(
-    ({ item, listing }, index) => ({
-      ...bookingSlot(item),
+  const bookings = orderBookings(
+    validatedItems.map(({ item, listing }, index) => ({
+      item,
+      listing,
       pricePaid: paidByIntentItem.get(pricingIntent.items[index]!) ?? 0,
-      quantity: item.q,
-      ...bookingDateFields(listing, intent.date, intent.dayCount),
-    }),
-  );
-  // Expand summed child bookings into per-parent rows when allocations were
-  // carried through the signed metadata (paid-path provenance): each
-  // allocation becomes its own listing_attendees row with the correct
-  // parentListingId and proportional pricePaid, mirroring the free-path
-  // behaviour in createFreeReservation. Each child row is then stamped with
-  // its parent's package when the parent books through exactly one path.
-  const bookings = stampChildRowPackages(
-    intent.allocations && intent.allocations.length > 0
-      ? expandChildAllocations(rawBookings, intent.allocations)
-      : rawBookings,
-    soleParentPackageIds(
-      intent.items.map((item) => ({
-        listingId: item.e,
-        packageGroupId: lineGroupId(item),
-      })),
-    ),
+    })),
+    intent,
   );
   const fullTotal = pricedOrder.fullSubtotal;
   const depositTotal = orderLineTotal(pricedOrder);
@@ -306,32 +288,73 @@ export const createAttendeeForSession = async (
     intent.reservationAmount === undefined ? 0 : fullTotal - depositTotal;
 
   // Consume modifier stock, post the ledger legs, and finalize the session in
-  // ONE libsql batch with the attendee + booking INSERTs, so the booking, its
+  // one atomic write with the attendee + booking rows, so the booking, its
   // stock, its sale/payment legs, and attendee_id are all-or-nothing in a single
-  // round-trip — never an interactive write transaction held open against the
-  // primary (which timed out under edge→primary latency). The usage amounts come
+  // write transaction. The usage amounts come
   // from the same pricing pass that calculated the checkout total, so scoped
   // bases, quantities, and clamped discounts match. A modifier that sold out
   // during payment stops the booking landing (→ "sold-out"). The event is keyed
   // on the payment session and dated from the provider's checkout time.
+  const ledger = {
+    eventId: session.id,
+    occurredAt: businessTime(session),
+    pricedOrder,
+  };
+  const finalize = {
+    paymentReference: session.paymentReference,
+    sessionId: session.id,
+  };
   const plan = await bookingBatchPlan(
+    stage?.attendeeId ?? null,
     pricedOrder.modifierApplications,
-    {
-      eventId: session.id,
-      occurredAt: businessTime(session),
-      pricedOrder,
-    },
-    { paymentReference: session.paymentReference, sessionId: session.id },
+    ledger,
+    finalize,
   );
 
-  const result = await createBookingAtomic(
-    {
-      ...(await attendeeBaseFields(session, intent)),
-      bookings,
-      remainingBalance,
-    },
-    plan,
-  );
+  const attendeeInput = {
+    ...(await attendeeBaseFields(session, intent)),
+    bookings,
+    remainingBalance,
+    ticketToken,
+  };
+  if (stage) {
+    const activated = await activateStagedBooking(
+      session.id,
+      stage.attendeeId,
+      ticketToken,
+      attendeeInput,
+      { ...plan, finalize },
+    );
+    if (!activated.success) {
+      return {
+        detail: formatPostPaymentError(
+          activated.reason === "sold-out" ? "sold_out" : "capacity_exceeded",
+          validatedItems[0]!.listing.name,
+        ),
+        ok: false,
+        reason:
+          activated.reason === "sold-out" ? "sold_out" : "capacity_exceeded",
+      };
+    }
+    await recordOrderActivity(
+      intent.email,
+      intent.phone,
+      "public",
+      ticketToken,
+    );
+    return {
+      entries: await committedEntries(
+        stage.attendeeId,
+        ticketToken,
+        session,
+        intent,
+        validatedItems,
+      ),
+      ok: true,
+    };
+  }
+
+  const result = await createBookingAtomic(attendeeInput, plan);
   if (result === "sold-out") {
     return {
       detail: "a chosen add-on or extra sold out during payment",
@@ -340,24 +363,18 @@ export const createAttendeeForSession = async (
     };
   }
 
-  // All-or-nothing: a capacity failure rolled the transaction back (no legs).
-  const bookingCheck = await ensureAllBookings(
-    result,
-    bookings.length,
-    "public",
-  );
-  if (!bookingCheck.ok) {
+  // A capacity failure rolled the whole atomic transaction back, including legs.
+  if (!result.success) {
     return {
       detail: formatPostPaymentError(
-        bookingCheck.reason,
+        result.reason,
         validatedItems[0]!.listing.name,
       ),
       ok: false,
-      reason: bookingCheck.reason,
+      reason: result.reason,
     };
   }
-  const created = result as Extract<typeof result, { success: true }>;
 
-  const entries = pairEntriesByListing(created.attendees, validatedItems);
+  const entries = pairEntriesByListing(result.attendees, validatedItems);
   return { entries, ok: true };
 };

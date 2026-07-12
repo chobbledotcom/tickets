@@ -329,6 +329,11 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-10_processed_payments_attendee_index",
     () => import("./2026-07-10_processed_payments_attendee_index.ts"),
   ),
+  // Store fresh paid orders at quantity zero before leaving for the provider.
+  entry(
+    "2026-07-12_checkout_stages",
+    () => import("./2026-07-12_checkout_stages.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

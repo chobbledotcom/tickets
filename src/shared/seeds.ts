@@ -6,6 +6,7 @@
 import { map, sum } from "#fp";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
+import { generateTicketToken } from "#shared/crypto/utils.ts";
 import { buildAttendeeInsert } from "#shared/db/attendees/create.ts";
 import { encryptAttendeeFields } from "#shared/db/attendees/pii.ts";
 import { executeBatch, insert, queryAll, rawSql } from "#shared/db/client.ts";
@@ -138,15 +139,17 @@ const prepareAttendee = async (
   const pricePaid = unitPrice * quantity;
   const paymentId =
     unitPrice > 0 ? `seed_${listingId}_${quantity}_${pricePaid}` : "";
-  const enc = (await encryptAttendeeFields({
-    address: randomChoice(DEMO_ADDRESSES),
-    email: randomChoice(DEMO_EMAILS),
-    name: randomChoice(DEMO_NAMES),
-    paymentId,
-    phone: randomChoice(DEMO_PHONES),
-    pricePaid,
-    special_instructions: randomChoice(DEMO_SPECIAL_INSTRUCTIONS),
-  }))!;
+  const enc = (await encryptAttendeeFields(
+    {
+      address: randomChoice(DEMO_ADDRESSES),
+      email: randomChoice(DEMO_EMAILS),
+      name: randomChoice(DEMO_NAMES),
+      paymentId,
+      phone: randomChoice(DEMO_PHONES),
+      special_instructions: randomChoice(DEMO_SPECIAL_INSTRUCTIONS),
+    },
+    generateTicketToken(),
+  ))!;
 
   return [
     buildAttendeeInsert(enc, { remainingBalance: 0, statusId: null }),

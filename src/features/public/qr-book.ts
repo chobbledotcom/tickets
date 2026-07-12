@@ -13,6 +13,7 @@ import { buildTicketListing } from "#shared/booking/model.ts";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { getGroupRemainingForListing } from "#shared/db/attendees/capacity.ts";
+import { createStagedCheckout } from "#shared/db/checkout-stages.ts";
 import { isHiddenPackageMember } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
@@ -123,7 +124,7 @@ const skipToCheckout = (
   return runCheckoutFlow(
     `qr-book listing=${listing.id}`,
     request,
-    (provider, baseUrl) => provider.createCheckoutSession(intent, baseUrl),
+    (provider, baseUrl) => createStagedCheckout(provider, intent, baseUrl),
     () => errorResponse(listing.slug, 500),
   );
 };

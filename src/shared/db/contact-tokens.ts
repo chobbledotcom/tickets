@@ -151,19 +151,40 @@ export const recordBookingActivity: BookingActivityWriter = async (
   );
 };
 
-/** Reverse a {@link recordBookingActivity} count, e.g. when an order is rolled back.
- * The token entry is left in place: a rollback deletes the attendee, so its
- * token resolves to nothing and is filtered out on read. */
-export const unrecordBooking = async (
-  hash: string,
-  source: BookingSource,
-): Promise<void> => {
-  const column = BOOKING_COLUMN[source];
-  await execute(
-    `UPDATE contact_preferences SET ${column} = MAX(${column} - 1, 0), last_activity = ? WHERE contact_hash = ?`,
-    [nowMs(), hash],
+/** Collect the contact hashes for the non-empty email and phone on an order. */
+const orderContactHashes = (
+  email: unknown,
+  phone: unknown,
+): Promise<string[]> => {
+  const contacts: [ContactChannel, string][] = [];
+  if (typeof email === "string" && email.trim()) {
+    contacts.push(["email", email]);
+  }
+  if (typeof phone === "string" && phone.trim()) {
+    contacts.push(["sms", phone]);
+  }
+  return Promise.all(
+    contacts.map(([channel, value]) => contactHash(channel, value)),
   );
 };
+
+/** Run one effect against every contact identity on an order. */
+const forEachOrderContact =
+  (run: (hash: string) => Promise<void>) =>
+  async (email: unknown, phone: unknown): Promise<void> => {
+    await Promise.all((await orderContactHashes(email, phone)).map(run));
+  };
+
+/** Record one replay-safe visit and booking for every contact on an order. */
+export const recordOrderActivity = (
+  email: unknown,
+  phone: unknown,
+  source: BookingSource,
+  ticketToken: string,
+): Promise<void> =>
+  forEachOrderContact((hash) =>
+    recordBookingActivity(hash, source, ticketToken),
+  )(email, phone);
 
 /** Load a contact's encrypted token blob, or null when no row exists. */
 const loadTokenBlob = async (hash: string): Promise<string | null> => {

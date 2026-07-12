@@ -48,7 +48,7 @@ export const createAttendeeAtomic = (
 ): Promise<CreateAttendeeResult> => attendeesApi.createAttendeeAtomic(...args);
 
 /** Wrapper for test mocking - delegates to attendeesApi at runtime. Creates a
- *  booking and posts its ledger legs as one batch (the fast checkout path). */
+ * booking and posts its ledger legs in one all-or-nothing batch. */
 export const createBookingAtomic = (
   ...args: Parameters<typeof attendeesApi.createBookingAtomic>
 ): ReturnType<typeof attendeesApi.createBookingAtomic> =>

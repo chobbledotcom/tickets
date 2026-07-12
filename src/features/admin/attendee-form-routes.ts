@@ -58,15 +58,11 @@ import { getSearchParam } from "#routes/url.ts";
 import { manualAddLedgerPoster } from "#shared/checkout-complete.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import type {
-  CreateAttendeeResult,
-  ListingAttendeeRow,
-} from "#shared/db/attendee-types.ts";
+import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import {
   applyAttendeeAtomicEdit,
   createAttendeeAtomic,
 } from "#shared/db/attendees/api.ts";
-import { ensureAllBookings } from "#shared/db/attendees/create.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import { hasPaidLine } from "#shared/db/attendees/queries.ts";
 import { updateAttendeeStatus } from "#shared/db/attendees/update.ts";
@@ -342,7 +338,7 @@ const applyLogisticsPlan = (
     ? setLogisticsAssignments(attendeeId, plan.split, plan.perListing)
     : Promise.resolve();
 
-/** Run the atomic create flow. All-or-nothing via `ensureAllBookings`. */
+/** Run the all-or-nothing atomic create flow. */
 const applyCreate = async (
   parsed: ParsedAttendeeForm,
   logisticsPlan: LogisticsPlan,
@@ -366,18 +362,10 @@ const applyCreate = async (
     },
     manualAddLedgerPoster(toLedgerOrder(parsed)),
   );
-  const check = await ensureAllBookings(
-    createResult,
-    input.bookings.length,
-    "admin",
-  );
-  if (!check.ok) {
+  if (!createResult.success) {
     return { ok: false, saveError: t("attendee_form.error_capacity") };
   }
-  const { attendees } = createResult as Extract<
-    CreateAttendeeResult,
-    { success: true }
-  >;
+  const { attendees } = createResult;
   const firstListingId = input.bookings[0]!.listingId;
   const newId = attendees[0]!.id;
   await applyLogisticsPlan(newId, logisticsPlan);

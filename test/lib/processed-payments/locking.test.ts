@@ -3,8 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   clearSessionTokens,
-  decryptSessionTokens,
-  finalizeSession,
   isSessionProcessed,
   reserveSession,
   STALE_RESERVATION_MS,
@@ -13,6 +11,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { useProcessedPaymentsAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { finalizeTestPaymentSession as finalizeSession } from "#test-utils/db-helpers/processed-payments.ts";
 
 /** Perform the full two-phase reserve+finalize as production code does */
 const processSession = async (
@@ -122,37 +121,6 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       ]);
       expect(results.filter((r) => r.reserved).length).toBe(1);
       expect(results.filter((r) => !r.reserved).length).toBe(2);
-    });
-  });
-
-  describe("finalizeSession", () => {
-    test("sets attendee_id on reserved session", async () => {
-      await reserveSession("cs_to_finalize");
-      await finalizeSession(
-        "cs_to_finalize",
-        ctx.attendeeId,
-        ["tok-test"],
-        "pi_cs_to_finalize",
-      );
-
-      const record = await isSessionProcessed("cs_to_finalize");
-      expect(record?.attendee_id).toBe(ctx.attendeeId);
-    });
-
-    test("stores ticket tokens encrypted when provided", async () => {
-      await reserveSession("cs_with_tokens");
-      await finalizeSession(
-        "cs_with_tokens",
-        ctx.attendeeId,
-        ["tok_abc", "tok_def"],
-        "pi_cs_with_tokens",
-      );
-
-      const record = await isSessionProcessed("cs_with_tokens");
-      expect(record?.ticket_tokens).toMatch(/^enc:1:/);
-      expect(await decryptSessionTokens(record!.ticket_tokens)).toBe(
-        "tok_abc+tok_def",
-      );
     });
   });
 
