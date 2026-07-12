@@ -69,7 +69,7 @@ const fallbackState: QueryLogState = freshState();
 const getState = (): QueryLogState =>
   liveScopeStore(asyncLocalStorage) ?? fallbackState;
 
-export const runWithQueryLogContext = <T>(fn: () => Promise<T>): Promise<T> =>
+export const runWithQueryLogContext = <T>(fn: () => T): T =>
   runWithScopeLifetime(asyncLocalStorage, freshState(), fn);
 
 /** Enable query logging and clear previous entries */

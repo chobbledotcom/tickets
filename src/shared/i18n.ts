@@ -10,6 +10,10 @@ import { IntlMessageFormat } from "intl-messageformat";
 import { lazyRef } from "#fp";
 import en from "#locales/en/index.ts";
 import { getEnv } from "#shared/env.ts";
+import {
+  liveScopeStore,
+  runWithScopeLifetime,
+} from "#shared/request-scoped.ts";
 
 /** Message map: flat dot-namespaced keys → ICU message strings */
 type Messages = Record<string, string>;
@@ -210,14 +214,16 @@ export const t = (key: string, values?: Record<string, unknown>): string => {
 
 // --- Request-scoped locale via AsyncLocalStorage ---
 
-const localeStore = new AsyncLocalStorage<string>();
+// Boxed so the scope can be marked ended — see runWithScopeLifetime.
+const localeStore = new AsyncLocalStorage<{ locale: string }>();
 
 /** Run a function with a specific locale in scope */
 export const runWithLocale = <T>(locale: string, fn: () => T): T =>
-  localeStore.run(locale, fn);
+  runWithScopeLifetime(localeStore, { locale }, fn);
 
 /** Get the current request's locale (defaults to "en") */
-export const getLocale = (): string => localeStore.getStore() ?? "en";
+export const getLocale = (): string =>
+  liveScopeStore(localeStore)?.locale ?? "en";
 
 /**
  * Parse the Accept-Language header and return the best matching registered locale.

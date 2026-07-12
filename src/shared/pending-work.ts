@@ -9,26 +9,30 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
+import {
+  liveScopeStore,
+  runWithScopeLifetime,
+} from "#shared/request-scoped.ts";
 
 const pendingWork = new AsyncLocalStorage<Promise<unknown>[]>();
 
 /** Run a function within a pending-work scope */
 export const runWithPendingWork = <T>(fn: () => T): T =>
-  pendingWork.run([], fn);
+  runWithScopeLifetime(pendingWork, [], fn);
 
 /** True when running inside a `runWithPendingWork` scope (i.e. a request). */
 export const hasPendingWorkScope = (): boolean =>
-  pendingWork.getStore() !== undefined;
+  liveScopeStore(pendingWork) !== undefined;
 
 /** Queue a promise that must complete before the response is sent */
 export const addPendingWork = (p: Promise<unknown>): void => {
-  const pending = pendingWork.getStore();
+  const pending = liveScopeStore(pendingWork);
   if (pending) pending.push(p);
 };
 
 /** Await all queued work. Call before returning the response. */
 export const flushPendingWork = async (): Promise<void> => {
-  const pending = pendingWork.getStore();
+  const pending = liveScopeStore(pendingWork);
   if (!pending || pending.length === 0) return;
   await Promise.allSettled(pending);
   pending.length = 0;

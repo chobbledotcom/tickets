@@ -600,7 +600,7 @@ const savedFormScope = createRequestScoped<{ form: FormParams | null }>(() => ({
 }));
 
 /** Run a function within a saved-form-data scope (one container per request) */
-export const runWithSavedFormContext = <T,>(fn: () => Promise<T>): Promise<T> =>
+export const runWithSavedFormContext = <T,>(fn: () => T): T =>
   savedFormScope.run(fn);
 
 /** Save form data for restoration after CSRF failure */

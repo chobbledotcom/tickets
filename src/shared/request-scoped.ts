@@ -35,19 +35,35 @@ const endedStores = new WeakSet<object>();
 
 /**
  * Run `fn` inside `storage`'s scope with `store`, and mark the store ended once
- * `fn`'s promise settles. After that, {@link liveScopeStore} reads it as absent,
- * so a leaked context can never serve a finished request's state.
+ * `fn` finishes (for an async `fn`, once its promise settles). After that,
+ * {@link liveScopeStore} reads it as absent, so a leaked context can never
+ * serve a finished request's state. `store` must be a fresh object per call —
+ * a reused one would already be marked ended, so reuse throws.
  */
-export const runWithScopeLifetime = async <S extends object, T>(
+export const runWithScopeLifetime = <S extends object, T>(
   storage: AsyncLocalStorage<S>,
   store: S,
-  fn: () => Promise<T>,
-): Promise<T> => {
-  try {
-    return await storage.run(store, fn);
-  } finally {
-    endedStores.add(store);
+  fn: () => T,
+): T => {
+  if (endedStores.has(store)) {
+    throw new Error(
+      "Scope store reused after its scope ended — mint a fresh store object for every run",
+    );
   }
+  let result: T;
+  try {
+    result = storage.run(store, fn);
+  } catch (error) {
+    endedStores.add(store);
+    throw error;
+  }
+  if (result instanceof Promise) {
+    return result.finally(() => {
+      endedStores.add(store);
+    }) as T;
+  }
+  endedStores.add(store);
+  return result;
 };
 
 /**
@@ -65,7 +81,7 @@ export const liveScopeStore = <S extends object>(
 /** A request-scoped container plus the helpers its owning module builds on. */
 export type RequestScoped<T extends object> = {
   /** Run `fn` with a fresh per-request container bound to the async scope. */
-  run: <R>(fn: () => Promise<R>) => Promise<R>;
+  run: <R>(fn: () => R) => R;
   /** The active request's container, or the ambient fallback outside a scope. */
   current: () => T;
 };

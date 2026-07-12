@@ -17,6 +17,10 @@ import {
   MAX_IMAGE_SIZE,
 } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import {
+  liveScopeStore,
+  runWithScopeLifetime,
+} from "#shared/request-scoped.ts";
 import { streamChunks } from "#shared/stream-chunks.ts";
 import { getDeleteOverride } from "#shared/test-overrides.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
@@ -32,13 +36,15 @@ interface StorageConfig {
   zoneName: string;
 }
 
-const storageConfigStore = new AsyncLocalStorage<StorageConfig>();
+// Boxed so each run's store object is unique even when callers pass a shared
+// config constant — see runWithScopeLifetime.
+const storageConfigStore = new AsyncLocalStorage<{ config: StorageConfig }>();
 
 /** Run `fn` with an isolated storage configuration (test-only). */
 export const runWithStorageConfig = <T>(
   config: StorageConfig,
   fn: () => T,
-): T => storageConfigStore.run(config, fn);
+): T => runWithScopeLifetime(storageConfigStore, { config }, fn);
 
 // Suite-level storage config for tests (describeWithEnv's `storage` option).
 // Layered *under* the per-call runWithStorageConfig scope and *over* the process
@@ -67,7 +73,8 @@ export function setStorageConfigForTest(config: StorageConfig | null): void {
  * suite-level test default, then env vars.
  */
 const getStorageConfig = (): StorageConfig => {
-  const ctx = storageConfigStore.getStore() ?? getTestStorageConfig();
+  const ctx =
+    liveScopeStore(storageConfigStore)?.config ?? getTestStorageConfig();
   if (ctx) return ctx;
   return {
     zoneKey: getEnv("STORAGE_ZONE_KEY") ?? "",
@@ -80,7 +87,8 @@ const getStorageConfig = (): StorageConfig => {
  * Returns null if local storage is not configured or explicitly disabled.
  */
 const getLocalStoragePath = (): string | null => {
-  const ctx = storageConfigStore.getStore() ?? getTestStorageConfig();
+  const ctx =
+    liveScopeStore(storageConfigStore)?.config ?? getTestStorageConfig();
   if (ctx && "localPath" in ctx) {
     return ctx.localPath || null;
   }

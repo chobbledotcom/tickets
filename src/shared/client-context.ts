@@ -8,13 +8,18 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
+import {
+  liveScopeStore,
+  runWithScopeLifetime,
+} from "#shared/request-scoped.ts";
 
-const clientIpStore = new AsyncLocalStorage<string>();
+// Boxed so the scope can be marked ended — see runWithScopeLifetime.
+const clientIpStore = new AsyncLocalStorage<{ ip: string }>();
 
 /** Run a function with the given client IP bound to the current request scope. */
 export const runWithClientIp = <T>(ip: string, fn: () => T): T =>
-  clientIpStore.run(ip, fn);
+  runWithScopeLifetime(clientIpStore, { ip }, fn);
 
 /** The current request's client IP, or "direct" when not in a request scope. */
 export const getRequestClientIp = (): string =>
-  clientIpStore.getStore() ?? "direct";
+  liveScopeStore(clientIpStore)?.ip ?? "direct";

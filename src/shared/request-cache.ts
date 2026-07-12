@@ -23,7 +23,7 @@ type RequestStore = Map<symbol, unknown[] | Promise<unknown[]>>;
 const storage = new AsyncLocalStorage<RequestStore>();
 
 /** Run a function within a per-request cache scope */
-export const runWithRequestCache = <T>(fn: () => Promise<T>): Promise<T> =>
+export const runWithRequestCache = <T>(fn: () => T): T =>
   runWithScopeLifetime(storage, new Map(), fn);
 
 /**

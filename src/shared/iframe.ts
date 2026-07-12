@@ -16,8 +16,7 @@ const iframeScope = createRequestScoped<{ value: boolean }>(() => ({
 }));
 
 /** Run a function within an iframe-mode scope (one container per request) */
-export const runWithIframeContext = <T>(fn: () => Promise<T>): Promise<T> =>
-  iframeScope.run(fn);
+export const runWithIframeContext = <T>(fn: () => T): T => iframeScope.run(fn);
 
 /** Detect iframe mode from a request URL and store it for the current request */
 export const detectIframeMode = (url: URL): void => {

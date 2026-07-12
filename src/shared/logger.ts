@@ -17,10 +17,15 @@ import {
   hasPendingWorkScope,
   runWithPendingWork,
 } from "#shared/pending-work.ts";
+import {
+  liveScopeStore,
+  runWithScopeLifetime,
+} from "#shared/request-scoped.ts";
 import { captureServerError } from "#shared/sentry.ts";
 
-/** Request-scoped random ID for correlating log entries */
-const requestIdStorage = new AsyncLocalStorage<string>();
+/** Request-scoped random ID for correlating log entries (boxed so the scope
+ * can be marked ended — see runWithScopeLifetime). */
+const requestIdStorage = new AsyncLocalStorage<{ id: string }>();
 
 /**
  * Module-level override for request log suppression.
@@ -51,16 +56,19 @@ const generateRequestId = (): string => {
 
 /** Get the current request ID prefix, or empty string if outside request context */
 const getLogPrefix = (): string => {
-  const id = requestIdStorage.getStore();
+  const id = liveScopeStore(requestIdStorage)?.id;
   return id ? `[${id}] ` : "";
 };
 
 /** Get the current request ID, or empty string if outside request context */
-export const getRequestId = (): string => requestIdStorage.getStore() ?? "";
+export const getRequestId = (): string =>
+  liveScopeStore(requestIdStorage)?.id ?? "";
 
 /** Run a function with a request-scoped random ID for log correlation */
 export const runWithRequestId = <T>(fn: () => T): T =>
-  requestIdStorage.run(generateRequestId(), () => runWithPendingWork(fn));
+  runWithScopeLifetime(requestIdStorage, { id: generateRequestId() }, () =>
+    runWithPendingWork(fn),
+  );
 
 /**
  * Error code definitions: each key maps to [wire code, human-readable label].

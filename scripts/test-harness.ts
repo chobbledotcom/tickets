@@ -119,6 +119,7 @@ export const runTests = async (
   extraArgs: string[],
   useCoverage: boolean,
   junitPath?: string,
+  estimateFrom?: string[],
 ): Promise<number> => {
   const env = {
     ...Deno.env.toObject(),
@@ -128,7 +129,10 @@ export const runTests = async (
   if (useCoverage) await removeOldCoverageOutput();
 
   if (!hasReporterArg(extraArgs)) {
-    const estimatedTotal = await estimateTapEventCount(projectRoot, extraArgs);
+    const estimatedTotal = await estimateTapEventCount(
+      projectRoot,
+      estimateFrom ?? extraArgs,
+    );
     return await runCompactDenoTest(
       buildDenoTestArgs(extraArgs, useCoverage, "tap", junitPath),
       {
@@ -216,6 +220,11 @@ export const withTestHarness = async <T>(
  * the shared JUnit path. Any stale JUnit file is removed first so a killed prior
  * run can't surface its timings; `deno test --junit-path` rewrites it on a
  * completed run.
+ *
+ * Test files are grouped into shared isolates (see scripts/test-groups.ts) so
+ * the app module graph is evaluated once per group instead of once per file.
+ * Set TICKETS_TEST_UNGROUPED=1 to run every file in its own isolate — useful
+ * to rule grouping out when chasing a state leak between test files.
  */
 export const runSuiteWithHarness = async (
   useCoverage: boolean,
@@ -223,5 +232,21 @@ export const runSuiteWithHarness = async (
   // Only a missing file is expected here; a real removal failure (e.g.
   // permissions) must surface rather than leave a stale JUnit file behind.
   await Deno.remove(JUNIT_PATH).catch(rethrowUnlessNotFound);
-  return withTestHarness(() => runTests(["test/"], useCoverage, JUNIT_PATH));
+  return withTestHarness(async () => {
+    if (Deno.env.get("TICKETS_TEST_UNGROUPED") === "1") {
+      return runTests(["test/"], useCoverage, JUNIT_PATH);
+    }
+    const { writeTestGroups } = await import("./test-groups.ts");
+    const groups = await writeTestGroups(projectRoot);
+    try {
+      return await runTests(
+        groups.runArgs,
+        useCoverage,
+        JUNIT_PATH,
+        groups.testFiles,
+      );
+    } finally {
+      await groups.cleanup();
+    }
+  });
 };
