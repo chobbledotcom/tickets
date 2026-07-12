@@ -292,7 +292,7 @@ const whereClauses = (where: AttendeeWhere): WhereClause[] => {
     if (ids === undefined) return;
     // An empty id set matches nothing. Emit `IN (NULL)` (always NULL, so no row
     // passes) rather than the syntactically invalid `IN ()`, so the builder
-    // stays total even if a caller doesn't prefilter an empty list itself.
+    // still produces valid SQL even if a caller doesn't prefilter an empty list.
     parts.push(
       ids.length === 0
         ? { args: [], clause: `${column} IN (NULL)` }
