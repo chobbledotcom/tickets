@@ -129,11 +129,16 @@ describe("test-groups", () => {
       }
     });
 
-    test("collectTestFiles finds only .test.ts files, sorted", async () => {
+    test("collectTestFiles finds .test.ts and .test.tsx files, sorted", async () => {
       const root = await makeScratchRoot();
       try {
+        await Deno.writeTextFile(
+          `${root}/test/component.test.tsx`,
+          'describe("component", () => {});\n',
+        );
         const files = await collectTestFiles(root);
         expect(files).toEqual([
+          `${root}/test/component.test.tsx`,
           `${root}/test/global-hooks.test.ts`,
           `${root}/test/plain.test.ts`,
         ]);
