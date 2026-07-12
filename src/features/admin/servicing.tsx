@@ -481,7 +481,7 @@ const handleCostPost = async (
   } catch (err) {
     // A reused idempotency key whose payload changed (or any other recording
     // failure) is a recoverable form error, not a 500.
-    return redirect(`/admin/servicing/${id}`, (err as Error).message, false);
+    return servicingErrorRedirect(id, err);
   }
   return redirect(
     `/admin/servicing/${id}`,
@@ -572,6 +572,10 @@ const withServicingEvent = (
     return body();
   });
 
+/** Bounce back to a servicing record's page showing a caught error's message. */
+const servicingErrorRedirect = (id: number, err: unknown): Response =>
+  redirect(`/admin/servicing/${id}`, (err as Error).message, false);
+
 const redirectServicingResult = async <T extends { id: number; name: string }>(
   id: number,
   action: () => Promise<T>,
@@ -585,7 +589,7 @@ const redirectServicingResult = async <T extends { id: number; name: string }>(
       true,
     );
   } catch (err) {
-    return redirect(`/admin/servicing/${id}`, (err as Error).message, false);
+    return servicingErrorRedirect(id, err);
   }
 };
 

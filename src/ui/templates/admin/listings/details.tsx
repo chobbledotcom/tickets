@@ -28,11 +28,12 @@ import {
 } from "./capacity-rows.tsx";
 import { formatBookableDays } from "./helpers.ts";
 
-const CustomisableDaysRow = ({
-  listing,
-}: {
+/** Props for the detail rows that only need the listing they describe. */
+type ListingRowProps = {
   listing: ListingWithCount;
-}): JSX.Element => {
+};
+
+const CustomisableDaysRow = ({ listing }: ListingRowProps): JSX.Element => {
   const counts = availableDayCounts(listing);
   return (
     <tr>
@@ -62,11 +63,7 @@ const CustomisableDaysRow = ({
   );
 };
 
-const ListingPriceRow = ({
-  listing,
-}: {
-  listing: ListingWithCount;
-}): JSX.Element => {
+const ListingPriceRow = ({ listing }: ListingRowProps): JSX.Element => {
   const price =
     listing.unit_price > 0
       ? formatCurrency(listing.unit_price)
@@ -90,11 +87,7 @@ const ListingPriceRow = ({
   );
 };
 
-const DailyScheduleRows = ({
-  listing,
-}: {
-  listing: ListingWithCount;
-}): JSX.Element => (
+const DailyScheduleRows = ({ listing }: ListingRowProps): JSX.Element => (
   <>
     <tr>
       <th>{t("listings_table.bookable_days")}</th>

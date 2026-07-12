@@ -27,7 +27,10 @@ import type {
 } from "#shared/types.ts";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
-import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
+import {
+  CheckboxLabel,
+  SectionFieldset,
+} from "#templates/components/aggregate-sections.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { HeaderRow } from "#templates/components/header-row.tsx";
@@ -219,10 +222,12 @@ const attendeeRouteConfirm =
 export const adminDeleteAttendeePage = attendeeRouteConfirm("delete", {
   body: (
     <>
-      <label>
-        <input checked name="release_bookings" type="checkbox" value="1" />{" "}
-        {t("admin.attendees.release_bookings")}
-      </label>
+      <CheckboxLabel
+        checked={true}
+        label={` ${t("admin.attendees.release_bookings")}`}
+        name="release_bookings"
+        value="1"
+      />
       <p>
         <small>{t("admin.attendees.release_bookings_note")}</small>
       </p>

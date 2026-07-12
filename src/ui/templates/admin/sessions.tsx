@@ -9,7 +9,14 @@ import { CsrfForm } from "#shared/forms.tsx";
 import type { AdminSession, Session } from "#shared/types.ts";
 import { successAdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
+import { type Column, DataTable } from "#templates/components/data-table.tsx";
+
+/** A class-less table column that is just a translated header. Shared by the
+ *  admin list tables so the plain `{ header: t(key) }` column stops being
+ *  repeated (and reading as duplicated) at each call site. */
+export const textCol = (headerKey: string): Column => ({
+  header: t(headerKey),
+});
 
 const SessionRow = ({
   session,
@@ -56,9 +63,9 @@ export const adminSessionsPage = (
     <>
       <DataTable
         columns={[
-          { header: t("sessions.col.token") },
-          { header: t("sessions.col.expires") },
-          { header: t("common.status") },
+          textCol("sessions.col.token"),
+          textCol("sessions.col.expires"),
+          textCol("common.status"),
         ]}
         rows={sessionRows}
       />

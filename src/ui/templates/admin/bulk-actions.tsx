@@ -55,6 +55,22 @@ const ConfirmPromptParagraph = (key: string, group: Group): JSX.Element => (
   <p>{t(key, { groupName: group.name })}</p>
 );
 
+/** An i18n line that states a count then ends with the group's name in bold,
+ *  like "This affects 12 listings in <b>Summer Camp</b>." */
+const CountThenGroup = ({
+  messageKey,
+  count,
+  group,
+}: {
+  messageKey: string;
+  count: number;
+  group: Group;
+}): JSX.Element => (
+  <>
+    {t(messageKey, { count })} <strong>{group.name}</strong>.
+  </>
+);
+
 /** A back-link paragraph to the group's bulk-actions landing or its parent. */
 const BackToGroupLink = ({
   group,
@@ -92,8 +108,11 @@ export const adminBulkActionsPage = (
       <div class="prose">
         <h1>{t("bulk_actions.page_title")}</h1>
         <p>
-          {t("bulk_actions.landing_description", { count: listings.length })}{" "}
-          <strong>{group.name}</strong>.
+          <CountThenGroup
+            count={listings.length}
+            group={group}
+            messageKey="bulk_actions.landing_description"
+          />
         </p>
       </div>
 
@@ -334,8 +353,11 @@ export const adminDeactivateGroupPage = activateConfirmPage("deactivate", {
     <>
       <p>
         <strong>{t("bulk_actions.deactivate_warning")}</strong>{" "}
-        {t("bulk_actions.deactivate_impact", { count })}{" "}
-        <strong>{group.name}</strong>.{" "}
+        <CountThenGroup
+          count={count}
+          group={group}
+          messageKey="bulk_actions.deactivate_impact"
+        />{" "}
         {t("bulk_actions.deactivate_consequences_intro")}
       </p>
       <ul>
@@ -357,8 +379,11 @@ export const adminReactivateGroupPage = activateConfirmPage("reactivate", {
   children: (count, group) => (
     <>
       <p>
-        {t("bulk_actions.reactivate_impact", { count })}{" "}
-        <strong>{group.name}</strong>.
+        <CountThenGroup
+          count={count}
+          group={group}
+          messageKey="bulk_actions.reactivate_impact"
+        />
       </p>
       <p>{t("bulk_actions.reactivate_benefits")}</p>
       {ConfirmPromptParagraph("bulk_actions.reactivate_confirm_prompt", group)}

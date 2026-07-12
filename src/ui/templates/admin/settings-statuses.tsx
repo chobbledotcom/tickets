@@ -13,8 +13,12 @@ import { t } from "#i18n";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
-import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
+import {
+  type AdminListPage,
+  defineAdminResourcePages,
+  writableNameColumn,
+} from "#templates/admin/resource-pages.tsx";
+import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import type { DataColumn } from "#templates/components/data-table.tsx";
@@ -62,12 +66,10 @@ const statusColumns: DataColumn<AttendeeStatus>[] = [
     class: "reorder",
     header: t("statuses.order_header"),
   },
-  {
-    cell: (s) => (
-      <WritableLink href={`${LIST_PATH}/${s.id}/edit`}>{s.name}</WritableLink>
-    ),
-    header: t("common.name"),
-  },
+  writableNameColumn(
+    (s) => `${LIST_PATH}/${s.id}/edit`,
+    (s) => s.name,
+  ),
   { cell: (s) => statusBadges(s), header: t("statuses.flags_header") },
 ];
 
@@ -170,12 +172,12 @@ export const statusPages = defineAdminResourcePages<AttendeeStatus>({
 });
 
 /** List of attendee statuses with reorder, edit and delete controls. */
-export const adminAttendeeStatusesPage = (
-  statuses: AttendeeStatus[],
-  session: AdminSession,
-  error?: string,
-  success?: string,
-): string => statusPages.listPage(statuses, session, error, success);
+export const adminAttendeeStatusesPage: AdminListPage<AttendeeStatus> = (
+  statuses,
+  session,
+  error,
+  success,
+) => statusPages.listPage(statuses, session, error, success);
 
 /** Shared new/edit form for an attendee status. Kept as a public export
  *  because the route handler renders one combined form page; the factory's

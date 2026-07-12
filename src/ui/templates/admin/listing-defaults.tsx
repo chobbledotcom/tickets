@@ -21,11 +21,9 @@ import {
 } from "#shared/listing-defaults.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
+import { ListingSectionFieldset } from "#templates/admin/money-summary.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
-import {
-  CheckboxLabel,
-  SectionFieldset,
-} from "#templates/components/aggregate-sections.tsx";
+import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 
 /* jscpd:ignore-end */
@@ -118,7 +116,7 @@ const DaysControl = ({
   field: ListingDefaultField;
   value: string[] | undefined;
 }): JSX.Element => (
-  <SectionFieldset className="listing-section" legend={labelFor(field)}>
+  <ListingSectionFieldset legend={labelFor(field)}>
     <label>
       <input
         checked={value !== undefined}
@@ -137,7 +135,7 @@ const DaysControl = ({
       />
     ))}
     <small>{hintFor(field)}</small>
-  </SectionFieldset>
+  </ListingSectionFieldset>
 );
 
 /** Per-kind control. Keyed by {@link ListingDefaultKind} so a new kind is a

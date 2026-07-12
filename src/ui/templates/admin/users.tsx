@@ -15,6 +15,7 @@ import {
   flashAdminPage,
 } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+import { textCol } from "#templates/admin/sessions.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import {
   ActionButton,
@@ -120,9 +121,9 @@ export const adminUsersPage = (
 
       <DataTable
         columns={[
-          { header: t("common.username") },
-          { header: t("users.col.role") },
-          { header: t("common.status") },
+          textCol("common.username"),
+          textCol("users.col.role"),
+          textCol("common.status"),
         ]}
         rows={users.map((user) => [
           <a href={`/admin/users/${user.id}`}>{user.username}</a>,

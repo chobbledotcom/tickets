@@ -79,27 +79,44 @@ const idLink = (
   buildLink: (id: number) => JSX.Element | null,
 ): JSX.Element | null => (id === null ? null : buildLink(id));
 
+/** Link an id to its detail page using a looked-up name, rendering nothing
+ *  when the id is absent or no name was loaded for it. `anchor` gets the id
+ *  and its found name. */
+const namedRefLink = (
+  id: number | null,
+  lookupName: (id: number) => string | undefined,
+  anchor: (id: number, name: string) => JSX.Element | null,
+): JSX.Element | null =>
+  idLink(id, (id) => {
+    const name = lookupName(id);
+    return name === undefined ? null : anchor(id, name);
+  });
+
 const refLink = (
   id: number | null,
   names: Map<number, string>,
   base: string,
 ): JSX.Element | null =>
-  idLink(id, (id) => {
-    const name = names.get(id);
-    return name === undefined ? null : <a href={`${base}/${id}`}>{name}</a>;
-  });
+  namedRefLink(
+    id,
+    (id) => names.get(id),
+    (id, name) => <a href={`${base}/${id}`}>{name}</a>,
+  );
 
 const attendeeRefLink = (
   id: number | null,
   refs: ActivityLogRefs["attendees"],
 ): JSX.Element | null =>
-  idLink(id, (id) => {
-    const name = refs.names.get(id);
-    const kind = refs.kinds.get(id);
-    return name === undefined || kind === undefined ? null : (
-      <a href={attendeeAdminPath({ id, kind })}>{name}</a>
-    );
-  });
+  namedRefLink(
+    id,
+    (id) => refs.names.get(id),
+    (id, name) => {
+      const kind = refs.kinds.get(id);
+      return kind === undefined ? null : (
+        <a href={attendeeAdminPath({ id, kind })}>{name}</a>
+      );
+    },
+  );
 
 const ActivityLogRow = ({
   entry,
