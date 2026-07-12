@@ -602,7 +602,9 @@ bug (harmless today because of the multiplier workaround).*
   a partial/credit/mixed account the provider refund fires but the operator sees
   `error.refund_not_recorded` ("do not re-refund") with no next step. Fix: link
   the manual-adjustment page straight from that flash and frame it as "one more
-  step", not an error.
+  step", not an error. (Backend observability is now handled — the miss logs
+  `REFUND_NOT_RECORDED` to Sentry/ntfy/the activity log; this item is the
+  remaining operator-facing UX link.)
 
 - **A multi-item cart with no shared date/length dies silently.**
   `dayCountsEveryListingSupports` / `computeSharedDates` (`src/shared/booking/
@@ -729,16 +731,21 @@ it sprawls into an over-built framework.*
   2. **A `kind` on each error: `user_error` vs `invariant_violation`.** This is
      the one with actual operational payoff and it's small. Most `error.*` keys
      are `user_error` (stay out of Sentry). A handful are "should never happen,
-     an operator must act" — `error.refund_not_recorded` (refunded at the
-     provider but not recorded in the ledger — `attendee-refunds.ts`,
-     `attendees-edit.ts`) is the exemplar. Tag those `invariant_violation` and
-     route only them to Sentry (breadcrumb + alert), so the money-integrity
-     cases surface without drowning in expected validation noise.
+     an operator must act" — the refund-not-recorded case (provider refunded but
+     the ledger did not record it) was the exemplar. **Done for that case:** the
+     guard-skip and bulk paths in `refund-ledger.ts` now call `logError` with the
+     new `REFUND_NOT_RECORDED` code, which already fans out to console + ntfy +
+     the activity log + Sentry (tagged by `attendeeId`) — so it's alerted, not
+     just flashed. The remaining generalisation is to make the `user_error` vs
+     `invariant_violation` split *explicit* on `ERROR_DEFS` (a `kind` field)
+     rather than implicit in which codes callers happen to route through
+     `logError`, so the classification is auditable and can't silently drift.
 
-**Recommended first step, if any:** just the `kind` tag on the ~2-3 invariant
-errors + a single Sentry breadcrumb at the flash boundary. Skip the combinator
-until a real collect-all site (e.g. the multi-item-checkout "no shared date"
-diagnostic above) makes it pay for itself.
+**Recommended next step, if any:** carry the same treatment to any other
+"money/state moved but wasn't recorded" spot found in an audit, then add the
+explicit `kind` field once there are enough invariant codes to be worth
+enumerating. Skip the reasons-combinator until a real collect-all site (e.g. the
+multi-item-checkout "no shared date" diagnostic above) makes it pay for itself.
 
 ## Deferred CodeRabbit suggestions from PR #1772 (servicing test relocation)
 

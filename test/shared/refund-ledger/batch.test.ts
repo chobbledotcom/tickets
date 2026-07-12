@@ -79,6 +79,11 @@ describeWithEnv(
         ]),
       );
       expect((await allTransfers()).length).toBe(before);
+      // Each stranded attendee (provider-refunded, ledger guard-skipped it) is
+      // logged for Sentry/ntfy rather than folded into a silent error count.
+      expect(errors.contains("E_REFUND_NOT_RECORDED")).toBe(true);
+      expect(errors.contains("attendee=13")).toBe(true);
+      expect(errors.contains("attendee=14")).toBe(true);
     });
 
     test("on a failed batch, keeps already-refunded true and an unrecoverable post false", async () => {
@@ -168,6 +173,9 @@ describeWithEnv(
         logged.some((message) => message.includes("bulk refund batch failed")),
       ).toBe(true);
       expect(errors.lastMessage()).toContain("E_LEDGER_POST");
+      // A thrown write is a LEDGER_POST, not a guard-skip: the two money-miss
+      // classifications stay disjoint so one incident is never double-counted.
+      expect(errors.contains("E_REFUND_NOT_RECORDED")).toBe(false);
     });
 
     test("posts all refund groups for a balance-settled attendee in a bulk batch", async () => {

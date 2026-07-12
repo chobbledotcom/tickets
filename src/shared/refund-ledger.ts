@@ -153,12 +153,30 @@ const computeAttendeeRefund = async (
 };
 
 /**
+ * Alert that a provider refund has committed but the ledger did not record it —
+ * a guard-skip to manual adjustment (not a thrown write, which logs LEDGER_POST
+ * with its stack). The books now understate what was refunded until an operator
+ * posts a manual adjustment, so this money-integrity miss must reach the error
+ * log, ntfy, and Sentry — never only a dismissible admin flash that, if missed,
+ * leaves the refund invisible. `attendeeId` is the operator's breadcrumb to the
+ * account needing the adjustment.
+ */
+const reportRefundNotRecorded = (attendeeId: number): void =>
+  logError({
+    attendeeId,
+    code: ErrorCode.REFUND_NOT_RECORDED,
+    detail:
+      "provider refund committed but the ledger did not record it — manual adjustment needed",
+  });
+
+/**
  * Post the ledger legs reversing one attendee's booking and report whether the
  * ledger records the refund. `{ posted: true }` when it posts the reversal — or
  * when the attendee is already refunded, so an idempotent re-submit is a no-op
  * success. `{ posted: false }` when the account is not fully paid, has no
- * ledgered order to reverse (→ manual adjustment), or the write fails. Never
- * throws.
+ * ledgered order to reverse (→ manual adjustment), or the write fails; each such
+ * miss is reported via {@link reportRefundNotRecorded} (or LEDGER_POST on a
+ * thrown write) so it can't pass unnoticed. Never throws.
  */
 export const recordAttendeeRefund = async (
   attendeeId: number,
@@ -172,11 +190,16 @@ export const recordAttendeeRefund = async (
       memo,
     );
     if (groups.length > 0) await postTransferGroups(groups);
+    // groups.length === 0 with posted:false is a guard-skip (not-fully-paid or
+    // no ledgered order): the provider refund committed but nothing reverses it.
+    if (!posted) reportRefundNotRecorded(attendeeId);
     return { posted };
   } catch (error) {
     logError({
+      attendeeId,
       code: ErrorCode.LEDGER_POST,
       detail: `refund ledger post failed for attendee ${attendeeId}: ${error}`,
+      error,
     });
     return { posted: false };
   }
@@ -219,11 +242,19 @@ export const recordAttendeeRefundsBatch = async (
     );
     const groups = computed.flatMap((entry) => entry.groups);
     if (groups.length > 0) await postTransferGroups(groups);
+    // Report each stranded attendee (provider-refunded, ledger guard-skipped it)
+    // here rather than let the bulk caller fold posted:false into a bare error
+    // count. The fallback path reports via recordAttendeeRefund instead, so an
+    // attendee is never counted twice.
+    for (const entry of computed) {
+      if (!entry.posted) reportRefundNotRecorded(entry.id);
+    }
     return new Map(computed.map((entry) => [entry.id, entry.posted]));
   } catch (error) {
     logError({
       code: ErrorCode.LEDGER_POST,
       detail: `bulk refund batch failed, falling back to per-attendee (${attendees.length}): ${error}`,
+      error,
     });
     // Record each attendee independently so one failure never strands the rest:
     // recordAttendeeRefund opens its own transaction, is idempotent (an
@@ -307,8 +338,10 @@ export const recordPlaceholderRefund = async (
     return { posted: true };
   } catch (error) {
     logError({
+      attendeeId: facts.attendeeId,
       code: ErrorCode.LEDGER_POST,
       detail: `placeholder refund ledger post failed for attendee ${facts.attendeeId}: ${error}`,
+      error,
     });
     return { posted: false };
   }

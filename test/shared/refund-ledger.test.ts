@@ -193,6 +193,10 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     // the caller must surface it (manual adjustment) rather than let the payment
     // read as refunded.
     await expectRefundNeedsManualAdjustment();
+    // And the miss is logged (Sentry/ntfy/activity log), naming the attendee —
+    // never only a dismissible flash. This is the money-integrity contract.
+    expect(errors.contains("E_REFUND_NOT_RECORDED")).toBe(true);
+    expect(errors.contains(`attendee=${ATTENDEE}`)).toBe(true);
   });
 
   test("is idempotent — a second refund writes nothing but still reports posted", async () => {
@@ -205,6 +209,8 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
       await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]),
     ).toEqual({ posted: true });
     expect((await allTransfers()).length).toBe(afterFirst);
+    // A recorded (or idempotent no-op) refund is not stranded — it must NOT alert.
+    expect(errors.contains("E_REFUND_NOT_RECORDED")).toBe(false);
   });
 
   test("skips a booking that predates the ledger (no legs to reverse)", async () => {
@@ -212,6 +218,8 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
       await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]),
     ).toEqual({ posted: false });
     expect((await allTransfers()).length).toBe(0);
+    // Even a no-legs skip is a stranded provider refund — it must be logged.
+    expect(errors.contains("E_REFUND_NOT_RECORDED")).toBe(true);
   });
 
   test("reverses an attendee carrying more than one fully-paid booking order", async () => {
@@ -291,8 +299,10 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     // the payment reading as un-refunded and re-refundable. Fail loudly instead.
     await expectRefundNeedsManualAdjustment();
     // "Logs" is part of the contract: the operator's only breadcrumb for a
-    // stranded refund is the classified error.
+    // stranded refund is the classified error. A thrown write is a LEDGER_POST
+    // (with its stack), NOT a guard-skip — the two classifications stay disjoint.
     expect(errors.lastMessage()).toContain("E_LEDGER_POST");
+    expect(errors.contains("E_REFUND_NOT_RECORDED")).toBe(false);
   });
 });
 
