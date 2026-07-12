@@ -32,7 +32,7 @@ const subtleKey = await crypto.subtle.importKey(
   ["encrypt", "decrypt"],
 );
 const subtleEnc = async (pt: Uint8Array) => {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const iv = randomIv();
   const ct = new Uint8Array(
     await crypto.subtle.encrypt({ iv, name: "AES-GCM" }, subtleKey, pt),
   );

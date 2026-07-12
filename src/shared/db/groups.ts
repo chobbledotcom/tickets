@@ -3,7 +3,7 @@
  */
 
 /* jscpd:ignore-start */
-import { mapNotNullish } from "#fp";
+import { byId, mapNotNullish } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
@@ -134,7 +134,7 @@ export const groups = cachedEntityTable<Group, GroupInput>(
  * alternative to one findById per id when resolving or validating many groups
  * without tripping the N+1 read guard. */
 export const getGroupsById = async (): Promise<Map<number, Group>> =>
-  new Map((await groups.cache.getAll()).map((g) => [g.id, g]));
+  byId(await groups.cache.getAll());
 
 /** Narrow id → name map for every group (selects + decrypts only the name), for
  * pickers/labels that must not load the whole groups cache. */

@@ -15,6 +15,7 @@ import {
 } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { EmailEntry } from "#shared/email.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
@@ -318,9 +319,9 @@ const safeRender = async (
   } catch (error) {
     logError({
       code: ErrorCode.EMAIL_TEMPLATE_RENDER,
-      detail: `template render error (${type}/${format}): ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+      detail: `template render error (${type}/${format}): ${errorMessage(
+        error,
+      )}`,
     });
     return await renderTemplate(fallbackTemplate, data);
   }
@@ -335,6 +336,6 @@ export const validateTemplate = (template: string): string | null => {
     getEngine().parse(template);
     return null;
   } catch (error) {
-    return error instanceof Error ? error.message : String(error);
+    return errorMessage(error);
   }
 };

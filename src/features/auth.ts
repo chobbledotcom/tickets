@@ -4,6 +4,7 @@
 
 import type { JsonBodyReader } from "#routes/api/json-body.ts";
 import { parseFormData } from "#routes/csrf.ts";
+import { lowerContentType } from "#routes/middleware.ts";
 import {
   htmlResponse,
   jsonResponse,
@@ -508,11 +509,6 @@ export const authFailure = (
  */
 const isSafeMethod = (request: Request): boolean =>
   request.method === "GET" || request.method === "HEAD";
-
-/** The request's Content-Type header, lowercased — HTTP header values are
- * case-insensitive, so callers match casings uniformly. */
-export const lowerContentType = (request: Request): string =>
-  (request.headers.get("content-type") ?? "").toLowerCase();
 
 /** Parse JSON body, returning empty object for non-JSON GET/HEAD requests */
 const parseJsonBody: JsonBodyReader = async (request) => {

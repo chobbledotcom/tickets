@@ -93,7 +93,7 @@ export class MigrationInProgressError extends Error {
 const missingTableError =
   (table: string) =>
   (error: unknown): boolean => {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
     return new RegExp(`no such table:?\\s*(\\w+\\.)?${table}\\b`, "i").test(
       message,
     );
@@ -414,9 +414,9 @@ export const verifyMigrationWithRetry = (migration: Migration): Promise<void> =>
       if (!willRetry) return;
       logDebug(
         "Migration",
-        `verify ${migration.id} failed on attempt ${attempt + 1}, retrying: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        `verify ${migration.id} failed on attempt ${attempt + 1}, retrying: ${errorMessage(
+          error,
+        )}`,
       );
     },
   );
@@ -475,7 +475,7 @@ const restoreStaleSchemaMarkers = async (): Promise<void> => {
   try {
     await verifyCurrentAppSchema();
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = errorMessage(error);
     throw new Error(
       "Database schema markers are stale, no named migrations are pending, " +
         `and the live schema does not match (${detail}). ` +
@@ -646,9 +646,7 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
     await releaseMigrationLock().catch((error) =>
       logDebug(
         "Migration",
-        `Failed to release migration lock: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        `Failed to release migration lock: ${errorMessage(error)}`,
       ),
     );
   }

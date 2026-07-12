@@ -5,13 +5,14 @@
 
 import { once, reduce } from "#fp";
 import { parseAcceptLanguage, runWithLocale } from "#i18n";
-import { lowerContentType, SessionKeyError } from "#routes/auth.ts";
+import { SessionKeyError } from "#routes/auth.ts";
 import {
   applySecurityHeaders,
   contentTypeRejectionResponse,
   getCleanUrl,
   isEmbeddablePath,
   isValidContentType,
+  lowerContentType,
 } from "#routes/middleware.ts";
 import {
   emptyCustomCssResponse,

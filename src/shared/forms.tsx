@@ -18,6 +18,7 @@ import { appendIframeParam } from "#shared/iframe.ts";
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { createRequestScoped } from "#shared/request-scoped.ts";
+import { ReturnUrlField } from "#shared/return-url-field.tsx";
 import { Icon } from "#templates/components/actions.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 
@@ -737,18 +738,6 @@ export const hiddenInputs = (
   entries.map(([name, value]) => (
     <input name={name} type="hidden" value={value} />
   ));
-
-/** Hidden field that carries where to send the visitor after the form runs.
- * Renders nothing when there is no return URL. */
-export const ReturnUrlField = ({
-  returnUrl,
-}: {
-  returnUrl?: string | undefined;
-}): JSX.Element => (
-  <>
-    {returnUrl && <input name="return_url" type="hidden" value={returnUrl} />}
-  </>
-);
 
 export const ConfirmForm = ({
   action,

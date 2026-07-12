@@ -3,7 +3,7 @@
  * Gated behind the "show public site" setting.
  */
 
-import { map, pipe } from "#fp";
+import { byId, map, pipe } from "#fp";
 import { withAuth } from "#routes/auth.ts";
 /* jscpd:ignore-start */
 import { isRegistrationClosed } from "#routes/format.ts";
@@ -32,7 +32,6 @@ import {
 import { getNewsPostSummaries } from "#shared/db/news-posts.ts";
 import { settings } from "#shared/db/settings.ts";
 import { userAgents } from "#shared/db/user-agents.ts";
-import { listingsById } from "#shared/listings-by-id.ts";
 import { getRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   type ListingWithCount,
@@ -344,7 +343,7 @@ const buildCalendarFeed = async (request: Request): Promise<Response> => {
       const privateKey = await getRequestPrivateKey();
       if (!privateKey) return new Response("Forbidden", { status: 403 });
       const listings = await getAllListings();
-      const listingById = listingsById(listings);
+      const listingById = byId(listings);
       const rawAttendees = await getAttendeesByListingIds(
         listings.map((l) => l.id),
         // Operational ICS feed: exclude no-quantity sentinel lines.

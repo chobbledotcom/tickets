@@ -27,7 +27,8 @@ import { isServicing } from "#shared/db/attendees/kind.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { AttendeeQuestionData } from "#shared/db/questions/attendee-answers/reads.ts";
 import { settings } from "#shared/db/settings.ts";
-import { CsrfForm, ReturnUrlField } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms.tsx";
+import { ReturnUrlField } from "#shared/return-url-field.tsx";
 import {
   type Attendee,
   type AttendeeTableRow,

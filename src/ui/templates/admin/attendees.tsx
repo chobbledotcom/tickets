@@ -130,7 +130,7 @@ const AttendeeDetails = ({
           { label: t("admin.attendees.quantity"), value: attendee.quantity },
           amountPaidLine,
           {
-            label: "Registered:",
+            label: t("admin.attendees.registered"),
             value: formatDatetimeShort(attendee.created),
           },
         ])}

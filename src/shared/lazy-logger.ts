@@ -9,5 +9,11 @@
 export const withLazyLogger = async (
   use: (logger: typeof import("#shared/logger.ts")) => void,
 ): Promise<void> => {
-  use(await import("#shared/logger.ts"));
+  try {
+    use(await import("#shared/logger.ts"));
+  } catch {
+    // Best-effort logging: a failed dynamic import or a throwing callback must
+    // never crash the fire-and-forget caller or leak an unhandled rejection.
+    // There is nothing useful to do when logging itself fails, so swallow it.
+  }
 };

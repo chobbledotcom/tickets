@@ -14,10 +14,19 @@ export const buildRecalculateRows = <Name extends string>(
 ): RecalculateRow[] =>
   fields.map((field) => {
     const name = field.name as Name;
+    // The field list and the snapshot are paired module constants, so every
+    // field must have a snapshot value. If one is missing the pairing is wrong
+    // — fail loudly with the field name rather than crashing on `.current`.
+    const value = snapshot[name];
+    if (!value) {
+      throw new Error(
+        `Recalculate snapshot is missing the "${field.name}" field`,
+      );
+    }
     return {
-      current: formatValue(name, snapshot[name].current),
+      current: formatValue(name, value.current),
       label: field.label,
       name,
-      recalculated: formatValue(name, snapshot[name].recalculated),
+      recalculated: formatValue(name, value.recalculated),
     };
   });

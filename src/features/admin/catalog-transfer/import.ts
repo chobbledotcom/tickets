@@ -12,7 +12,7 @@
  */
 
 import * as v from "valibot";
-import { mapNotNullish } from "#fp";
+import { byId, mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { generateUniqueGroupSlug } from "#routes/admin/groups.ts";
@@ -61,7 +61,6 @@ import {
   listingInputToEdge,
   validateListingInput,
 } from "#shared/listings-actions.ts";
-import { listingsById } from "#shared/listings-by-id.ts";
 import {
   type AdminLevel,
   availableDayCounts,
@@ -492,7 +491,7 @@ const importGroup = async (transfer: GroupTransfer): Promise<ImportResult> => {
   const isPackage = group.isPackage ?? false;
   // Each member's day-price overrides must target a day count that member offers.
   if (isPackage) {
-    const listingById = listingsById(listings);
+    const listingById = byId(listings);
     for (let i = 0; i < members.length; i++) {
       const member = listingById.get(memberResolve.ids[i]!)!;
       const dayError = memberDayOverrideError(
