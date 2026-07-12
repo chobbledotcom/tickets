@@ -43,7 +43,7 @@ import {
   listingTypeFromRequest,
 } from "#shared/listing-filter.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import { sortListings } from "#shared/sort-listings.ts";
+import { loadSortedListings, sortListings } from "#shared/sort-listings.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 /* jscpd:ignore-end */
@@ -70,16 +70,6 @@ export const loginResponse = async (
 
 /** Maximum number of newest attendees to show on dashboard */
 const NEWEST_ATTENDEES_LIMIT = 10;
-
-/** Load every listing, sorted for display (upcoming first). Shared by the
- * listings index page and the listings CSV export. */
-const loadSortedListings = async () => {
-  const [listings, holidays] = await Promise.all([
-    getAllListings(),
-    getActiveHolidays(),
-  ]);
-  return sortListings(listings, holidays);
-};
 
 const loadListingAttributeFilterContext = async (
   request: Request,
@@ -173,7 +163,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
  * columns/links so editors see no financials or forbidden detail links. */
 const handleAdminListingsGet: TypedRouteHandler<"GET /admin/listings"> =
   contentPage(async (session, request) => {
-    const listings = await loadSortedListings();
+    const { listings } = await loadSortedListings();
     return adminListingsPage(
       listings,
       session,
@@ -192,7 +182,7 @@ const handleListingsCsvExport: TypedRouteHandler<"GET /admin/listings/csv"> = (
   request,
 ) =>
   requireSessionOr(request, async () => {
-    const allListings = await loadSortedListings();
+    const { listings: allListings } = await loadSortedListings();
     const type = listingTypeFromRequest(request);
     const { activeAttributeFilters, attributesByListing } =
       await loadListingAttributeFilterContext(request, allListings);
