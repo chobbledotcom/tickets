@@ -18,7 +18,7 @@ import {
   expectRedirectWithFlash,
 } from "#test-utils/assertions.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
-import { describeWithEnv, invalidateTestDbCache } from "#test-utils/db.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { TEST_STORAGE_ZONE } from "#test-utils/internal.ts";
 import {
@@ -28,6 +28,7 @@ import {
   withFetchMock,
 } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
+import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 
 describeWithEnv("server (demo reset)", { db: true }, () => {
   beforeEach(() => {

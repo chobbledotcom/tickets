@@ -13,12 +13,12 @@ import type { Listing } from "#shared/types.ts";
 import type { TestListingOverrides } from "#test-utils/factories.ts";
 import type { AdminTestContext } from "#test-utils/internal.ts";
 import {
-  getCachedAdminSession,
   getInternalTestSession,
   setTestSession,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
+import { getSetupState } from "#test-utils/test-state.ts";
 
 export const loginAsAdmin = async (
   username: string = TEST_ADMIN_USERNAME,
@@ -60,7 +60,7 @@ export const getTestSession = async (): Promise<{
   const current = getInternalTestSession();
   if (current) return current;
 
-  const cached = getCachedAdminSession();
+  const cached = getSetupState()?.session ?? null;
   if (cached) {
     const { getDb } = await import("#shared/db/client.ts");
     const { insert } = await import("#shared/db/client.ts");

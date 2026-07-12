@@ -12,7 +12,7 @@ import {
   expectHtmlResponse,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
-import { describeWithEnv, invalidateTestDbCache } from "#test-utils/db.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   mockFormRequest,
@@ -25,6 +25,7 @@ import {
   setupListingAndLogin,
   testCookie,
 } from "#test-utils/session.ts";
+import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 
 describeWithEnv("server (admin settings)", { db: true }, () => {
   afterEach(() => {

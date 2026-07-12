@@ -153,10 +153,37 @@ export const runTests = async (
 };
 
 /**
+ * Build the run-wide test state (golden DB + captured setup ceremony) that
+ * every test isolate seeds itself from instead of rebuilding — see
+ * test/test-utils/test-state.ts. Returns a cleanup function. When the env var
+ * is already set (a nested harness, e.g. a mutation run's child), the existing
+ * state is reused and left in place. The import is dynamic so the harness only
+ * loads the app graph when it actually builds state.
+ */
+const setupTestState = async (): Promise<() => Promise<void>> => {
+  const { TEST_STATE_DIR_ENV, writeTestState } = await import(
+    "../test/test-utils/test-state.ts"
+  );
+  if (Deno.env.get(TEST_STATE_DIR_ENV)) return async () => {};
+
+  const dir = await Deno.makeTempDir({ prefix: "tickets-test-state-" });
+  await writeTestState(dir);
+  Deno.env.set(TEST_STATE_DIR_ENV, dir);
+  harnessLog("test state prebuilt in", dir);
+  return async () => {
+    Deno.env.delete(TEST_STATE_DIR_ENV);
+    await Deno.remove(dir, { recursive: true }).catch(() => {
+      // best-effort: a vanished temp dir is already what we wanted
+    });
+  };
+};
+
+/**
  * Run `task` with the full test environment in place: built static assets, a
- * running stripe-mock, and STRIPE_MOCK_HOST/PORT exported. Afterwards the mock
- * is stopped and any freshly generated static assets are removed, leaving the
- * working tree as it was found even if `task` throws.
+ * running stripe-mock with STRIPE_MOCK_HOST/PORT exported, and the run-wide
+ * prebuilt test state exported as TICKETS_TEST_STATE_DIR. Afterwards the mock
+ * is stopped and any freshly generated static assets and prebuilt state are
+ * removed, leaving the working tree as it was found even if `task` throws.
  */
 export const withTestHarness = async <T>(
   task: () => Promise<T>,
@@ -164,6 +191,7 @@ export const withTestHarness = async <T>(
   const cleanupStaticAssets = await setupStaticAssets();
   let stripeMockProcess: Awaited<ReturnType<typeof startStripeMock>> | null =
     null;
+  let cleanupTestState: (() => Promise<void>) | null = null;
 
   try {
     stripeMockProcess = await startStripeMock();
@@ -171,12 +199,14 @@ export const withTestHarness = async <T>(
     harnessLog("stripe-mock running on port", mockEnv.STRIPE_MOCK_PORT);
     Deno.env.set("STRIPE_MOCK_HOST", mockEnv.STRIPE_MOCK_HOST);
     Deno.env.set("STRIPE_MOCK_PORT", mockEnv.STRIPE_MOCK_PORT);
+    cleanupTestState = await setupTestState();
     return await task();
   } finally {
     if (stripeMockProcess) {
       harnessLog("Stopping stripe-mock...");
       await stripeMockProcess.stop();
     }
+    if (cleanupTestState) await cleanupTestState();
     await cleanupStaticAssets();
   }
 };

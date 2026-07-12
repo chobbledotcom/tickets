@@ -1,27 +1,14 @@
-import { createClient, type InValue, type Row } from "@libsql/client";
+import { createClient } from "@libsql/client";
 import { afterAll, afterEach, beforeEach, describe } from "@std/testing/bdd";
-import { once } from "#fp";
 import { resetEffectiveDomain } from "#shared/config.ts";
-import { signCsrfToken } from "#shared/csrf.ts";
-import {
-  attendeeStatuses,
-  ensureDefaultAttendeeStatus,
-} from "#shared/db/attendee-statuses.ts";
-import { getDb, insert, queryOne, setDb } from "#shared/db/client.ts";
+import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
+import { getDb, queryOne, setDb } from "#shared/db/client.ts";
 import { groups } from "#shared/db/groups.ts";
 import { holidays } from "#shared/db/holidays.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
-import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
-import { SCHEMA_MIGRATIONS_TABLE } from "#shared/db/migrations/schema/version.ts";
-import {
-  LATEST_UPDATE,
-  loadMigrations,
-  SCHEMA_HASH,
-} from "#shared/db/migrations.ts";
 import { resetSessionCache } from "#shared/db/sessions.ts";
-import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
+import { settings } from "#shared/db/settings.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
@@ -33,19 +20,12 @@ import { setStorageConfigForTest } from "#shared/storage.ts";
 import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
   type DescribeEnvOptions,
-  getCachedSetupSettings,
-  getCachedSetupUsers,
   getTestStoragePath,
   type RawListingRange,
   resetTestSession,
   resetTestSlugCounter,
-  setCachedAdminSession,
-  setCachedSetupSettings,
-  setCachedSetupUsers,
   setTestSession,
   setTestStoragePath,
-  TEST_ADMIN_PASSWORD,
-  TEST_ADMIN_USERNAME,
   TEST_STORAGE_ZONE,
 } from "#test-utils/internal.ts";
 import {
@@ -56,63 +36,13 @@ import {
   cleanupTestDbPath,
   createTrackedTestDbFile,
 } from "#test-utils/temp-db-files.ts";
-
-const MIGRATIONS = await loadMigrations();
-type SchemaEntry = (typeof SCHEMA)[number];
-type SchemaIndex = NonNullable<SchemaEntry[1]["indexes"]>[number];
-
-const createTableSql = ([name, table]: SchemaEntry): string =>
-  `CREATE TABLE IF NOT EXISTS ${name} (${table.columns
-    .map(([col, type]) => `${col} ${type}`)
-    .join(", ")})`;
-
-const createIndexSql = (tableName: string, idx: SchemaIndex): string => {
-  const unique = idx.unique ? "UNIQUE " : "";
-  return `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(
-    ", ",
-  )})`;
-};
-
-const sqlString = (value: string): string => `'${value.replaceAll("'", "''")}'`;
-
-const TEST_SCHEMA_SQL = `${[
-  ...SCHEMA.map(createTableSql),
-  ...SCHEMA.flatMap(([name, table]) =>
-    (table.indexes ?? []).map((idx) => createIndexSql(name, idx)),
-  ),
-  ...TRIGGERS.map((trigger) => trigger.sql),
-  `INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ${sqlString(
-    LATEST_UPDATE,
-  )})`,
-  `INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ${sqlString(
-    SCHEMA_HASH,
-  )})`,
-  ...MIGRATIONS.map(
-    (migration) =>
-      `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) VALUES (${sqlString(
-        migration.id,
-      )}, ${sqlString(migration.description)}, '2026-01-01T00:00:00.000Z')`,
-  ),
-].join(";\n")};`;
-
-// Golden DB: schema + default attendee status built once per worker, then
-// copied per test instead of re-executing 100+ CREATE TABLE/INDEX/TRIGGER
-// statements on every beforeEach.
-const getOrCreateGoldenDb: () => Promise<string> = once(
-  async (): Promise<string> => {
-    const path = await createTrackedTestDbFile("-golden.db");
-    const client = createClient({ url: `file:${path}` });
-    setDb(client);
-    await client.executeMultiple(
-      "PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF;",
-    );
-    await client.executeMultiple(TEST_SCHEMA_SQL);
-    await ensureDefaultAttendeeStatus();
-    client.close();
-    setDb(null);
-    return path;
-  },
-);
+import {
+  getOrCreateGoldenDb,
+  replaySetupState,
+  reusableSetupState,
+  runSetupCeremony,
+  setSetupState,
+} from "#test-utils/test-state.ts";
 
 const prepareTestClient = async (triggers = false): Promise<void> => {
   // Keep libsql's leaked file descriptors from exhausting the process limit
@@ -134,7 +64,8 @@ const prepareTestClient = async (triggers = false): Promise<void> => {
   // connections. Durability is irrelevant in tests, so relax fsync to keep speed
   // close to in-memory.
   //
-  // Copy the golden DB (schema + default status, built once per worker) rather
+  // Copy the golden DB (schema + default status, prebuilt by the harness for
+  // the whole run, else built once per isolate — see test-state.ts) rather
   // than re-running the schema SQL on every test — a file copy is much cheaper
   // than executing 100+ CREATE TABLE / INDEX / TRIGGER statements.
   const goldenPath = await getOrCreateGoldenDb();
@@ -196,111 +127,17 @@ export const createTestDbWithSetup = async (
   await prepareTestClient(triggers);
   resetTestSession();
 
-  if (getCachedSetupSettings()) {
-    // Restore settings and users in one batch rather than N sequential round-trips.
-    await getDb().batch(
-      [
-        { args: [], sql: "DELETE FROM settings" },
-        ...getCachedSetupSettings()!.map((row) =>
-          insert("settings", { key: row.key, value: row.value }),
-        ),
-        ...getCachedSetupUsers()!.map((row) =>
-          insert("users", {
-            admin_level: row.admin_level as InValue,
-            id: row.id as InValue,
-            invite_code_hash: row.invite_code_hash as InValue,
-            invite_expiry: row.invite_expiry as InValue,
-            invite_wrapped_data_key: row.invite_wrapped_data_key as InValue,
-            kek_version: row.kek_version as InValue,
-            password_hash: row.password_hash as InValue,
-            username_hash: row.username_hash as InValue,
-            username_index: row.username_index as InValue,
-            wrapped_data_key: row.wrapped_data_key as InValue,
-          }),
-        ),
-      ],
-      "write",
-    );
-    settings.invalidateCache();
-    await settings.loadKeys(ALL_SETTINGS_KEYS);
-
-    settings.setForTest({ timezone: "UTC" });
+  // Replay captured setup rows (isolate cache or the run-wide snapshot) in one
+  // batch rather than re-running the ceremony's hashing and key generation.
+  const reusable = reusableSetupState(country);
+  if (reusable) {
+    await replaySetupState(reusable);
     return;
   }
 
-  await settings.setup.complete(
-    TEST_ADMIN_USERNAME,
-    TEST_ADMIN_PASSWORD,
-    country,
-  );
-  await settings.loadKeys(ALL_SETTINGS_KEYS);
-
-  settings.setForTest({ timezone: "UTC" });
-
-  const result = await getDb().execute("SELECT key, value FROM settings");
-  setCachedSetupSettings(
-    result.rows.map((r) => ({
-      key: r.key as string,
-      value: r.value as string,
-    })),
-  );
-
-  const usersResult = await getDb().execute("SELECT * FROM users");
-  setCachedSetupUsers(usersResult.rows.map((r) => ({ ...r })));
-
-  const session = await createDirectAdminSession();
-  const sessionsResult = await getDb().execute(
-    `SELECT token, csrf_token, expires,
-            wrapped_data_key, user_id
-     FROM sessions LIMIT 1`,
-  );
-  if (sessionsResult.rows.length > 0) {
-    const row = sessionsResult.rows[0] as Row;
-    setCachedAdminSession({
-      cookie: session.cookie,
-      sessionRow: {
-        csrf_token: row.csrf_token as string,
-        expires: row.expires as number,
-        token: row.token as string,
-        user_id: row.user_id as number | null,
-        wrapped_data_key: row.wrapped_data_key as string | null,
-      },
-    });
-  }
-  setTestSession(session);
-};
-
-const createDirectAdminSession = async (): Promise<{
-  cookie: string;
-  csrfToken: string;
-}> => {
-  const { generateSecureToken } = await import("#shared/crypto/utils.ts");
-  const { deriveKEKFromPassword, unwrapKey, wrapKeyWithToken } = await import(
-    "#shared/crypto/keys.ts"
-  );
-  const { createSession: createDbSession } = await import(
-    "#shared/db/sessions.ts"
-  );
-  const { buildSessionCookie } = await import("#shared/cookies.ts");
-  const { getUserByUsername, verifyUserPassword } = await import(
-    "#shared/db/users.ts"
-  );
-  const { nowMs } = await import("#shared/now.ts");
-
-  const user = (await getUserByUsername(TEST_ADMIN_USERNAME))!;
-  const ownerHash = (await verifyUserPassword(user, TEST_ADMIN_PASSWORD))!;
-  const kek = await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, ownerHash);
-  const dataKey = await unwrapKey(user.wrapped_data_key!, kek);
-
-  const token = generateSecureToken();
-  const csrfToken = generateSecureToken();
-  const expires = nowMs() + 24 * 60 * 60 * 1000;
-  const wrappedDataKey = await wrapKeyWithToken(dataKey, token);
-  await createDbSession(token, csrfToken, expires, wrappedDataKey, user.id);
-
-  const cookie = buildSessionCookie(token);
-  const signedCsrf = await signCsrfToken();
-  return { cookie, csrfToken: signedCsrf };
+  const { state, liveSession } = await runSetupCeremony(country);
+  setSetupState(state);
+  setTestSession(liveSession);
 };
 
 /** Close the active test client and delete its temp DB file. Best-effort: the
@@ -335,12 +172,6 @@ export const resetDb = (): void => {
   settings.appleWallet.resetHostConfig();
   settings.googleWallet.resetHostConfig();
   settings.clearTestOverrides();
-};
-
-export const invalidateTestDbCache = (): void => {
-  setCachedSetupSettings(null);
-  setCachedSetupUsers(null);
-  setCachedAdminSession(null);
 };
 
 /**
