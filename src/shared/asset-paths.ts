@@ -27,3 +27,6 @@ export const CONTACT_JS_PATH = "/contact.js";
 
 /** Icon sprite path, cache-busted at build time */
 export const ICONS_PATH = "/icons.svg";
+
+/** Build-time CDN origin, or null for a self-contained bundle/dev server. */
+export const ASSET_CDN_ORIGIN: string | null = null;

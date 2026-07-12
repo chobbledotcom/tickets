@@ -318,15 +318,23 @@ src/shared/images/resize.ts:75:19  = → +=    # out[o+1] = G into fresh-zeroed 
 src/shared/images/resize.ts:76:19  = → +=    # out[o+2] = B into fresh-zeroed array; written once
 src/shared/images/resize.ts:78:17  = → +=    # out[o+3] = A into fresh-zeroed array; written once
 
-# codecs.ts explicit codec init is EDGE-critical but unobservable in the Deno
-# mutation runtime: jSquash's decode/encode/init self-initialize via their own
-# fetch/fs wasm loader here, so removing our inlined-wasm init still yields
-# working codecs and no test can tell the difference. On the Bunny edge bundle
-# (no fetch/fs) that same removal breaks all image transcoding — so these are
-# not dead code, only untestable in-process. See src/shared/images/codecs.ts.
-src/shared/images/codecs.ts:52:3  await Promise.all([ pngInit(pngMod), jp… → (removed)   # edge-only codec init; jSquash self-inits in Deno
-src/shared/images/codecs.ts:75:3  await ensureCodecs(); → (removed)   # decodeImage edge-only init; jSquash self-inits in Deno
-src/shared/images/codecs.ts:84:3  await ensureCodecs(); → (removed)   # encodeWebp edge-only init; jSquash self-inits in Deno
+# middleware.ts's missing Content-Type fallback is fed only to startsWith checks,
+# so neither "" nor "mutated" can match an accepted MIME prefix. Once a tracking
+# key is found, assigning true with `=` or `+=` is the same (`false + true` is 1,
+# which is truthy), and continuing instead of breaking can only rediscover more
+# tracking keys without changing the final boolean.
+src/features/middleware.ts:163:63   → "mutated"    # neither fallback matches an accepted Content-Type
+src/features/middleware.ts:213:18  = → +=    # false + true is truthy, matching true
+src/features/middleware.ts:214:7  break; → (removed)    # later keys cannot reverse hasTracking
+
+# bundle-loader.ts assigns query/style/script values onto freshly-created URLs
+# and elements. Each left-hand value is empty (or false for defer), so `=` and
+# `+=` produce the same final URL/string/boolean after DOM coercion.
+src/ui/client/admin/bundle-loader.ts:24:16  = → +=    # a sibling URL starts with an empty search
+src/ui/client/admin/bundle-loader.ts:40:13  = → +=    # fresh link.rel is empty
+src/ui/client/admin/bundle-loader.ts:41:14  = → +=    # fresh link.href is empty
+src/ui/client/admin/bundle-loader.ts:45:13  = → +=    # fresh script.src is empty
+src/ui/client/admin/bundle-loader.ts:46:15  = → +=    # false + true coerces back to true
 
 # modifiers.ts — several returns feed truthiness checks or the router's
 # `?? notFoundResponse()` fallthrough, so null/undefined and a 404-vs-undefined
@@ -370,7 +378,10 @@ src/features/admin/questions.ts:559:24  return notFoundResponse() → return und
 # pathConst is the string 4th element of an AssetDef tuple compared against a
 # string literal, so === and == never disagree — no null/undefined/number
 # operand exists to coerce.
-scripts/edge-bundle-modules.ts:40:36  === → ==
+# The generated WASM modules terminate every statement with punctuation, so
+# joining their source lines with "" or ";" parses and behaves identically.
+scripts/inline-jsquash-wasm.ts:54:21  ; → ""    # inline module remains semicolon/brace delimited
+scripts/inline-jsquash-wasm.ts:76:38  ; → ""    # remote module remains semicolon/brace delimited
 
 # sort-listings.ts's tier constants (0/1/2 for no-date-standard/dated-
 # standard/daily) and the "date === ''" empty-date sentinel: Array.sort only

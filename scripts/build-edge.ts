@@ -12,11 +12,13 @@
 import { isoToTag } from "./build-tag.ts";
 import { buildEdgeBundle } from "./edge-bundle-lib.ts";
 import { bundleSizeGuard, renameSourceMapLink } from "./edge-bundle-modules.ts";
+import { loadStaticCdnConfig } from "./static-cdn.ts";
 
 // Bunny Edge Scripting has a 10MB script size limit
 const BUNNY_MAX_SCRIPT_SIZE = 10_000_000;
 
 await buildEdgeBundle({
+  cdnConfig: loadStaticCdnConfig(Deno.env.toObject()),
   emit: async ({ content, buildIso }) => {
     await Deno.writeTextFile("./bunny-script.ts", content);
 

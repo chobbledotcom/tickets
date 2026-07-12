@@ -40,8 +40,9 @@ no-big-strings      3.08MB     173.4ms               —
 - `no-wasm`: the 1.48MB of base64 WASM parses for ~3ms — shrinking it is a
   deploy-size lever, not a cold-start one.
 - `no-big-strings`: the ~0.9MB of inlined client assets (escaped JS/CSS)
-  cost ~45ms of parse. Un-inlining them would trade away single-file
-  deploys — a possible follow-up, not done here.
+  cost ~45ms of parse. Builds configured with the four static-CDN repository
+  secrets now publish the site-independent part of those assets instead of
+  embedding it; site-bound assets stay in the script.
 
 ### Eager import edges (before: 371 modules / after: 297)
 
@@ -122,8 +123,8 @@ What changed:
 
 - Inlined WASM/base64: ~3ms of parse.
 - Minification tweaks / source-map comment: noise.
-- The parse share only shrinks by shipping less code; the one lever is
-  un-inlining client assets (~45ms, trade-off above).
+- The parse share only shrinks by shipping less code. Static-CDN builds remove
+  the shared client payloads and codec WASM; self-contained builds retain them.
 
 ## Regression guardrails
 
