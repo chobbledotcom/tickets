@@ -167,6 +167,18 @@ describe("test-groups", () => {
       }
     });
 
+    test("cleanup runs safely twice (files already removed)", async () => {
+      const root = await makeScratchRoot();
+      try {
+        const groups = await writeTestGroups(root, 1);
+        await groups.cleanup();
+        await groups.cleanup(); // second pass finds nothing left — no throw
+        await expect(Deno.stat(`${root}/${GROUPS_DIR}`)).rejects.toThrow();
+      } finally {
+        await Deno.remove(root, { recursive: true });
+      }
+    });
+
     test("cleanup leaves a groups dir holding someone else's files", async () => {
       const root = await makeScratchRoot();
       try {
@@ -181,13 +193,16 @@ describe("test-groups", () => {
       }
     });
 
-    test("group count defaults from DENO_JOBS when set", async () => {
+    /** Run writeTestGroups with its default group count under `env`, and
+     * expect the scratch root's single groupable file to land in one entry —
+     * piles clamp to the file count whichever worker default applies. */
+    const expectOneGroupEntryWithEnv = async (
+      env: Record<string, string | undefined>,
+    ): Promise<void> => {
       const root = await makeScratchRoot();
-      const restoreEnv = setTestEnv({ DENO_JOBS: "2" });
+      const restoreEnv = setTestEnv(env);
       try {
         const groups = await writeTestGroups(root);
-        // 1 groupable file: piles clamp to the file count regardless of the
-        // worker-derived default — this exercises the DENO_JOBS parse branch.
         expect(
           groups.runArgs.filter((arg) => arg.includes(GROUPS_DIR)),
         ).toHaveLength(1);
@@ -196,21 +211,14 @@ describe("test-groups", () => {
         restoreEnv();
         await Deno.remove(root, { recursive: true });
       }
+    };
+
+    test("group count defaults from DENO_JOBS when set", async () => {
+      await expectOneGroupEntryWithEnv({ DENO_JOBS: "2" });
     });
 
     test("group count falls back to the machine's cores without DENO_JOBS", async () => {
-      const root = await makeScratchRoot();
-      const restoreEnv = setTestEnv({ DENO_JOBS: undefined });
-      try {
-        const groups = await writeTestGroups(root);
-        expect(
-          groups.runArgs.filter((arg) => arg.includes(GROUPS_DIR)),
-        ).toHaveLength(1);
-        await groups.cleanup();
-      } finally {
-        restoreEnv();
-        await Deno.remove(root, { recursive: true });
-      }
+      await expectOneGroupEntryWithEnv({ DENO_JOBS: undefined });
     });
   });
 });

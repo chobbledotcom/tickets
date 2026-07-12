@@ -70,6 +70,11 @@ describe("pending-work", () => {
     });
   });
 
+  test("flushPendingWork outside a scope is a no-op", async () => {
+    await flushPendingWork(); // nothing to flush and no scope: must not throw
+    expect(hasPendingWorkScope()).toBe(false);
+  });
+
   test("addPendingWork outside a scope drops the promise instead of queueing", async () => {
     // Documented behaviour: outside a request there is nothing to flush.
     addPendingWork(Promise.resolve());

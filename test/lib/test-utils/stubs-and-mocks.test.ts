@@ -128,6 +128,17 @@ describe("test-utils — stubs, caches & request mocks", () => {
   });
 
   describe("resetDb", () => {
+    test("leaves a non-file DB_URL alone (nothing on disk to remove)", async () => {
+      const { setTestEnv } = await import("#test-utils/env.ts");
+      const restore = setTestEnv({ DB_URL: ":memory:" });
+      try {
+        resetDb(); // must not try to close/unlink a file for :memory:
+      } finally {
+        restore();
+      }
+    });
+
+
     test("resets database so next createTestDb gives clean state", async () => {
       await createTestDb();
       const { getDb, insert } = await import("#shared/db/client.ts");
