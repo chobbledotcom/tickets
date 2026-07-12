@@ -304,13 +304,13 @@ export const runSetupCeremony = async (
   settings.setForTest({ timezone: "UTC" });
 
   const settingsResult = await getDb().execute(
-    "SELECT key, value FROM settings",
+    "SELECT key, value FROM settings AS setting",
   );
   const settingsRows = settingsResult.rows.map((row) =>
     v.parse(SettingsRowSchema, row),
   );
   const usersResult = await getDb().execute(
-    `SELECT ${USER_ROW_COLUMNS} FROM users`,
+    `SELECT ${USER_ROW_COLUMNS} FROM users AS user`,
   );
   const users = usersResult.rows.map((row) => v.parse(UserRowSchema, row));
 
@@ -318,7 +318,7 @@ export const runSetupCeremony = async (
   const sessionsResult = await getDb().execute(
     `SELECT token, csrf_token, expires,
             wrapped_data_key, user_id
-     FROM sessions LIMIT 1`,
+     FROM sessions AS session LIMIT 1`,
   );
   const sessionRow = sessionsResult.rows[0];
   if (!sessionRow) {
