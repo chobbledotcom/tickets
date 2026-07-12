@@ -15,7 +15,7 @@
  * constants, never user input.
  */
 
-import { unique } from "#fp";
+import { reduce, unique } from "#fp";
 import {
   deleteByField,
   executeBatch,
@@ -123,8 +123,16 @@ export const linkTableSide = (
          ORDER BY ${keyColumn}, ${valueColumn}`,
         keys,
       );
-      for (const row of rows) idsByKey.get(row.key_id)!.push(row.value_id);
-      return idsByKey;
+      return reduce(
+        (
+          acc: Map<number, number[]>,
+          row: { key_id: number; value_id: number },
+        ) => {
+          acc.get(row.key_id)!.push(row.value_id);
+          return acc;
+        },
+        idsByKey,
+      )(rows);
     },
     setIds: (keyId, ids) => executeBatch(replaceStatements(keyId, ids)),
     setIdsTx: async (tx, keyId, ids) => {
