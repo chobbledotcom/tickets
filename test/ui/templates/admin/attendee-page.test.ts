@@ -68,8 +68,8 @@ describe("attendee page blocks", () => {
       }),
     );
 
-    expect(html).toContain(
-      '<section class="page-block"><div class="prose"><h4>Stats / notes for jane@example.com</h4>',
+    expect(html).toMatch(
+      /^<div class="page-regions"><div class="page-block">[\s\S]*<\/div><section class="page-block"><div class="prose"><h4>Stats \/ notes for jane@example\.com<\/h4><\/div>[\s\S]*<\/section><\/div>$/,
     );
   });
 
