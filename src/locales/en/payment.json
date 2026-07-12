@@ -12,10 +12,10 @@
   "payment.success.heading_free": "Ticket reserved successfully.",
   "payment.success.thank_you": "Thank you for your payment. Your ticket has been confirmed.",
   "payment.success.email_notice": "Your ticket will be sent from {fromEmail} — please check your Junk/Spam folder.",
-  "payment.success.view_ticket": "Click here to view your ticket",
-  "payment.success.view_tickets": "Click here to view your tickets",
+  "payment.success.view_ticket": "View your ticket",
+  "payment.success.view_tickets": "View your tickets",
   "payment.success.redirecting": "You will be redirected shortly...",
-  "payment.success.redirect_link": "Click here if you are not redirected",
+  "payment.success.redirect_link": "Go there now",
   "payment.cancel.title": "Payment Cancelled",
   "payment.cancel.heading": "Payment Cancelled",
   "payment.cancel.message": "Your payment was cancelled. Your ticket reservation has been removed.",
@@ -28,7 +28,7 @@
   "payment.popup.instructions": "Payment is processed in a new window.",
   "payment.popup.pay_now": "Pay Now",
   "payment.popup.waiting": "Completing payment in the other window...",
-  "payment.popup.window_hint": "Click here if the payment window didn't open",
+  "payment.popup.window_hint": "Open the payment window",
   "payment.success.title": "Order Successful",
   "payment.success.heading": "Thank you for your order."
 }

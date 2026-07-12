@@ -146,6 +146,100 @@ it applies to everyday error handling.
   the house convention — and comment why the absence is expected, so a reader
   can tell a deliberate branch from a suppressed failure.
 
+## Simple Language — How We Talk To Users
+
+Everything the system says to a person — error messages, form intros and field
+hints, column headers, buttons, warnings, alerts, success and flash messages,
+empty states, confirmations — must read at roughly **Simple Wikipedia** level.
+The reader to picture is someone who reads English as a second language, is
+dyslexic, or is simply impatient with reading: nothing on this system should
+stump them. Be as short and plain as you can **while still saying everything the
+reader needs** — concise, never clipped.
+
+This is not "dumbing down". Assume the reader understands the domain concepts
+the platform runs on — a percentage, a deposit, gross vs net, a refund. Do not
+stop to teach those. Explain *our system's* behaviour in plain words, and never
+pad a message with general knowledge the reader already has.
+
+### Where the copy lives
+
+All user-facing text is in the message catalog at `src/locales/en/*.json`,
+reached through `t("key")` (see `src/shared/i18n.ts`). Changing what a user
+reads is a **catalog edit, not a template edit** — the `i18n-coverage` test
+(`test/lib/i18n-coverage.test.ts`) fails the build when a new hard-coded string
+appears in a template. Write copy once, in the catalog, and every surface that
+shows it stays worded the same.
+
+### How to write it
+
+- **One idea per sentence.** If a sentence joins two thoughts with "and", a
+  semicolon, or a trailing comma-clause, split it. Short sentences are the
+  single biggest win for a struggling reader.
+- **Everyday words.** Prefer the word a ten-year-old would use: "use" not
+  "utilise", "start" not "commence", "before" not "prior to", "help" not
+  "facilitate". The full plain-word list lives in `scripts/check-copy/rules.ts`
+  (`PLAIN_WORDS`) and is enforced (see below).
+- **Front-load the action.** Say what to do first and why second: "Type the
+  listing name to confirm." — not "In order to confirm, the listing name must be
+  typed."
+- **Active voice, speaking to "you".** "You must accept the terms to continue."
+  — not "The terms must be accepted before continuing."
+- **No implementation jargon.** Words like *HMAC*, *hash*, *token*, *idempotent*
+  are for code, not for operators. Name a thing by what it does ("a one-way
+  code"), not how it is built. The one exception is developer-facing API
+  documentation, where literal technical terms (`JSON`, an endpoint path) are
+  the correct words.
+- **Concise, not lossy.** Cut filler ("please note that", "in order to", "at
+  this time") but never facts. A number, a limit, a deadline, or a consequence
+  the reader needs always stays.
+
+### Consistency — say the same thing the same way
+
+The same situation must read the same way everywhere. Reach for the established
+pattern rather than inventing a new phrasing:
+
+- **Errors** state the problem, and the fix where there is one, as a full
+  sentence: `"{label} is required"`, `"Password must be at least 8 characters"`,
+  `"Too many login attempts. Please try again later."` A confirm-by-typing error
+  is always `"<Thing> name does not match. Please type the exact name to
+  confirm."`
+- **Warnings** before a destructive action open with `Warning:` and say plainly
+  and completely what will happen (see `admin.attendees.delete_warning`).
+- **Success / flash messages** are short, past-tense confirmations of what just
+  happened: `"Note added."`, `"Contact record saved"`.
+- **Sentence case, not Title Case.** Capitalise the first word and proper nouns
+  only — "Save changes", "Special instructions", "Online bookings" — for
+  buttons, labels, headers, and messages alike. Some older keys are still Title
+  Case; align them to sentence case when you next touch that surface.
+- **End full sentences with a full stop; never a label, button, or column
+  header.** A message that is a sentence gets its full stop; a fragment used as a
+  control does not.
+
+### What is checked automatically
+
+`deno task check:copy` (run inside `deno task precommit`) scans the catalog and
+fails on the **mechanical** rules a machine can judge without reading for tone:
+
+- **Plain words** — the `PLAIN_WORDS` list above.
+- **Descriptive links** — never "click here" / "tap below"; the link text names
+  where it goes ("View your ticket", "Read the release notes").
+- **Even spacing** — no double spaces (literal `<code>`/`<pre>` examples are
+  exempt).
+
+The checker is a floor, not the whole rule. It cannot tell whether a sentence
+runs too long or a word is too fancy — that judgement is yours on every copy
+change, which is what the rest of this section is for.
+
+### Before → after
+
+| Don't                                          | Do                                                                              |
+| ---------------------------------------------- | ------------------------------------------------------------------------------- |
+| "Click here to view your ticket"               | "View your ticket"                                                              |
+| "Click here if the payment window didn't open" | "Open the payment window"                                                       |
+| "…keyed by its anonymised HMAC."               | "It is found by a one-way code, so the real email or phone is never stored here." |
+| "For nerdy debug info click here."             | "See debug info."                                                              |
+| "In order to confirm, type the name."          | "Type the name to confirm."                                                    |
+
 ## Designing New Systems
 
 When planning a new feature, design it to have every quality below. Each one

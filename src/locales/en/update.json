@@ -12,5 +12,5 @@
   "update.no_update_available": "No Update Available",
   "update.running_latest": "You are running the latest version (checked: {version}).",
   "update.software_update": "Software Update",
-  "update.release_notes_link": "Click here to read the release notes"
+  "update.release_notes_link": "Read the release notes"
 }
