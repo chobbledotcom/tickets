@@ -197,6 +197,10 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     // never only a dismissible flash. This is the money-integrity contract.
     expect(errors.contains("E_REFUND_NOT_RECORDED")).toBe(true);
     expect(errors.contains(`attendee=${ATTENDEE}`)).toBe(true);
+    // The detail names the one stranded account in its singular form
+    // ("attendee N", never the plural "attendees N", and the id itself), so a
+    // single miss reads unambiguously in the operator-facing activity-log row.
+    expect(errors.contains(`record it for attendee ${ATTENDEE} —`)).toBe(true);
   });
 
   test("is idempotent — a second refund writes nothing but still reports posted", async () => {

@@ -39,6 +39,7 @@ type ComputedRefund = {
   posted: boolean;
   groups: TransferInput[][];
 };
+type RefundOutcome = { id: number; posted: boolean; guardSkipped: boolean };
 
 const isRefundLeg = (kind: string | undefined): boolean =>
   kind?.startsWith("refund_") ?? false;
@@ -187,6 +188,63 @@ const reportRefundNotRecorded = (attendeeIds: readonly number[]): void => {
 };
 
 /**
+ * Turn a batch's per-attendee outcomes into its result map, alerting ONCE for
+ * every guard-skipped attendee. Both the fast path and the per-attendee fallback
+ * funnel through here so their single-row alerting stays identical: emitting a
+ * separate {@link reportRefundNotRecorded} per attendee would let the activity-log
+ * persist guard drop all but the first row (see reportRefundNotRecorded).
+ */
+const settleRefundOutcomes = (
+  outcomes: readonly RefundOutcome[],
+): Map<number, boolean> => {
+  reportRefundNotRecorded(
+    outcomes.filter((entry) => entry.guardSkipped).map((entry) => entry.id),
+  );
+  return new Map(outcomes.map((entry) => [entry.id, entry.posted]));
+};
+
+/**
+ * Compute and post one attendee's refund reversal, reporting *whether* it was a
+ * guard-skip but NOT alerting on it — the caller decides how. `guardSkipped` is
+ * true when the provider refund committed yet the ledger recorded nothing (not
+ * fully paid, or no ledgered order to reverse), so it needs a
+ * {@link reportRefundNotRecorded} alert. A thrown write is a different miss: it is
+ * logged as LEDGER_POST (with its stack) here and returns `guardSkipped: false`,
+ * keeping the two money-miss classifications disjoint. Never throws.
+ *
+ * Both the single {@link recordAttendeeRefund} (alert immediately) and the batch
+ * fallback (collect every stranded id, alert once via {@link settleRefundOutcomes})
+ * share this, so neither duplicates the compute/post/never-throw dance — and the
+ * fallback batches its alerts like the fast path rather than emit back-to-back
+ * per-attendee rows the activity-log persist guard would drop.
+ */
+const postAttendeeRefund = async (
+  attendee: { attendeeId: number; references: RefundReferences },
+  memo?: string,
+): Promise<RefundOutcome> => {
+  const { attendeeId, references } = attendee;
+  try {
+    const { posted, groups } = await computeAttendeeRefund(
+      attendeeId,
+      references,
+      memo,
+    );
+    if (groups.length > 0) await postTransferGroups(groups);
+    // groups.length === 0 with posted:false is a guard-skip (not-fully-paid or
+    // no ledgered order): the provider refund committed but nothing reverses it.
+    return { guardSkipped: !posted, id: attendeeId, posted };
+  } catch (error) {
+    logError({
+      attendeeId,
+      code: ErrorCode.LEDGER_POST,
+      detail: `refund ledger post failed for attendee ${attendeeId}: ${error}`,
+      error,
+    });
+    return { guardSkipped: false, id: attendeeId, posted: false };
+  }
+};
+
+/**
  * Post the ledger legs reversing one attendee's booking and report whether the
  * ledger records the refund. `{ posted: true }` when it posts the reversal — or
  * when the attendee is already refunded, so an idempotent re-submit is a no-op
@@ -200,26 +258,12 @@ export const recordAttendeeRefund = async (
   references: RefundReferences,
   memo?: string,
 ): Promise<{ posted: boolean }> => {
-  try {
-    const { posted, groups } = await computeAttendeeRefund(
-      attendeeId,
-      references,
-      memo,
-    );
-    if (groups.length > 0) await postTransferGroups(groups);
-    // groups.length === 0 with posted:false is a guard-skip (not-fully-paid or
-    // no ledgered order): the provider refund committed but nothing reverses it.
-    if (!posted) reportRefundNotRecorded([attendeeId]);
-    return { posted };
-  } catch (error) {
-    logError({
-      attendeeId,
-      code: ErrorCode.LEDGER_POST,
-      detail: `refund ledger post failed for attendee ${attendeeId}: ${error}`,
-      error,
-    });
-    return { posted: false };
-  }
+  const { posted, guardSkipped } = await postAttendeeRefund(
+    { attendeeId, references },
+    memo,
+  );
+  if (guardSkipped) reportRefundNotRecorded([attendeeId]);
+  return { posted };
 };
 
 /**
@@ -235,7 +279,7 @@ export const recordAttendeeRefund = async (
  * as already-refunded (`refundPayment` returns false) and never re-posts them, so
  * they'd be stranded without a `refund_cash` leg forever. So on *any* fast-path
  * failure we fall back to recording each attendee on its own through the
- * never-throw {@link recordAttendeeRefund}: the clean refunds still land and only
+ * never-throw {@link postAttendeeRefund}: the clean refunds still land and only
  * the genuinely failing attendees stay errored (`posted:false`). Never throws.
  */
 export const recordAttendeeRefundsBatch = async (
@@ -259,15 +303,15 @@ export const recordAttendeeRefundsBatch = async (
     );
     const groups = computed.flatMap((entry) => entry.groups);
     if (groups.length > 0) await postTransferGroups(groups);
-    // Report every stranded attendee (provider-refunded, ledger guard-skipped it)
-    // in one alert rather than let the bulk caller fold posted:false into a bare
-    // error count. One call keeps them in a single activity-log row (see
-    // reportRefundNotRecorded). The fallback path reports via recordAttendeeRefund
-    // instead, so an attendee is never counted twice.
-    reportRefundNotRecorded(
-      computed.filter((entry) => !entry.posted).map((entry) => entry.id),
+    // In the fast path a posted:false is always a guard-skip: a thrown write here
+    // aborts the whole batch to the fallback, so it never reaches this line.
+    return settleRefundOutcomes(
+      computed.map((entry) => ({
+        guardSkipped: !entry.posted,
+        id: entry.id,
+        posted: entry.posted,
+      })),
     );
-    return new Map(computed.map((entry) => [entry.id, entry.posted]));
   } catch (error) {
     logError({
       code: ErrorCode.LEDGER_POST,
@@ -275,17 +319,17 @@ export const recordAttendeeRefundsBatch = async (
       error,
     });
     // Record each attendee independently so one failure never strands the rest:
-    // recordAttendeeRefund opens its own transaction, is idempotent (an
-    // already-posted refund replays as a no-op), and never throws.
-    const result = new Map<number, boolean>();
+    // postAttendeeRefund opens its own transaction, is idempotent (an
+    // already-posted refund replays as a no-op), and never throws. Sequential,
+    // not Promise.all: one write at a time avoids the SQLite-writer contention
+    // the fast-path batch exists to prevent. settleRefundOutcomes then alerts on
+    // every guard-skipped attendee in one row (a per-attendee thrown write is
+    // already logged as LEDGER_POST, so guardSkipped:false keeps it disjoint).
+    const outcomes: RefundOutcome[] = [];
     for (const attendee of attendees) {
-      result.set(
-        attendee.attendeeId,
-        (await recordAttendeeRefund(attendee.attendeeId, attendee.references))
-          .posted,
-      );
+      outcomes.push(await postAttendeeRefund(attendee));
     }
-    return result;
+    return settleRefundOutcomes(outcomes);
   }
 };
 

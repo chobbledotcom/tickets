@@ -735,11 +735,24 @@ it sprawls into an over-built framework.*
      the ledger did not record it) was the exemplar. **Done for that case:** the
      guard-skip and bulk paths in `refund-ledger.ts` now call `logError` with the
      new `REFUND_NOT_RECORDED` code, which already fans out to console + ntfy +
-     the activity log + Sentry (tagged by `attendeeId`) — so it's alerted, not
+     the activity log + Sentry. A single stranded refund tags the Sentry event
+     with its `attendeeId`; a bulk one names every stranded attendee in the
+     detail instead (one tag can't hold a list) — so the miss is alerted, not
      just flashed. The remaining generalisation is to make the `user_error` vs
      `invariant_violation` split *explicit* on `ERROR_DEFS` (a `kind` field)
      rather than implicit in which codes callers happen to route through
      `logError`, so the classification is auditable and can't silently drift.
+  3. **Scope the `REFUND_NOT_RECORDED` activity-log row to a listing.** It
+     persists with `listingId: null` today, so it lands in the *global* activity
+     log (naming the attendee ids in the detail) but not under a specific
+     listing's Activity tab, which filters on `listing_id`. Attaching a listing
+     isn't a one-liner: an attendee's account refund can span several listings
+     (one attendee, many sale legs — see the "reverses a many-listing booking"
+     test), and the bulk path reports many attendees in a single row, so there's
+     no one `listingId` to attach. Doing it properly means splitting the alert
+     into per-listing rows keyed by each stranded attendee's listings — worth it
+     only if operators actually reconcile these from the listing tab rather than
+     the global log. (Raised by Codex on PR #1775.)
 
 **Recommended next step, if any:** carry the same treatment to any other
 "money/state moved but wasn't recorded" spot found in an audit, then add the
