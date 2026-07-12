@@ -24,6 +24,9 @@ export type StripeMockPaths = {
   binaryPath: string;
 };
 
+/** A task run while a lock is held, giving back its result. */
+export type LockBody<T> = () => Promise<T>;
+
 /** Ensure the bin directory (and any parents) exists. */
 export const ensureBinDir = (paths: StripeMockPaths): Promise<void> =>
   Deno.mkdir(paths.binDir, { recursive: true });
@@ -272,7 +275,7 @@ const acquireInstallLock = async (
 const withInstallLock = async <T>(
   paths: StripeMockPaths,
   options: StripeMockInstallOptions,
-  body: () => Promise<T>,
+  body: LockBody<T>,
 ): Promise<T> => {
   const lockPath = installLockPath(paths);
   const settings = installLockSettings(options);

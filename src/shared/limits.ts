@@ -45,26 +45,10 @@ type LimitEntry = {
  * same declaration as the named constants — they can never drift. */
 const REGISTRY: LimitEntry[] = [];
 
-/** Declare a tunable limit: read from env with `defaultValue`, register its
- * metadata, and return the resolved value. Each limit is declared exactly
- * once — the named export AND the {@link LIMIT_ENTRIES} debug table both
- * reference this single declaration, eliminating the dual-declaration drift
- * that previously let `MAX_IMAGE_SIZE` disagree (32 MB constant vs 256 KB
- * table entry). */
-const limit = (
-  envKey: string,
-  defaultValue: number,
-  label: string,
-  unit: string,
-): number => {
-  const current = readLimit(envKey, defaultValue);
-  REGISTRY.push({ current, defaultValue, envKey, label, unit });
-  return current;
-};
-
 /** Register a computed limit whose value is derived from another limit (e.g.
  * `SCANNER_CSRF_MAX_AGE_S` defaults to `SESSION_MAX_AGE_S`, or
- * `PRUNE_PAYMENTS_RETENTION_DAYS` goes through `assertPaymentsRetentionSafe`). */
+ * `PRUNE_PAYMENTS_RETENTION_DAYS` goes through `assertPaymentsRetentionSafe`).
+ * Records its metadata for the debug table and returns the value. */
 const computedLimit = (
   current: number,
   defaultValue: number,
@@ -75,6 +59,27 @@ const computedLimit = (
   REGISTRY.push({ current, defaultValue, envKey, label, unit });
   return current;
 };
+
+/** Declare a tunable limit: read from env with `defaultValue`, register its
+ * metadata, and return the resolved value. Each limit is declared exactly
+ * once — the named export AND the {@link LIMIT_ENTRIES} debug table both
+ * reference this single declaration, eliminating the dual-declaration drift
+ * that previously let `MAX_IMAGE_SIZE` disagree (32 MB constant vs 256 KB
+ * table entry). A plain env-read limit is just a computed one whose value comes
+ * from {@link readLimit}, so it shares that registration path. */
+const limit = (
+  envKey: string,
+  defaultValue: number,
+  label: string,
+  unit: string,
+): number =>
+  computedLimit(
+    readLimit(envKey, defaultValue),
+    defaultValue,
+    envKey,
+    label,
+    unit,
+  );
 
 // ---------------------------------------------------------------------------
 // Storage limits

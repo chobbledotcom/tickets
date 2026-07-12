@@ -20,9 +20,14 @@ import {
   sharedGroupRemaining,
 } from "#shared/types.ts";
 
+/** Spots still free in each capacity group, keyed by group id. */
+type GroupRemaining = ReadonlyMap<number, number>;
+/** The group ids each listing belongs to, keyed by listing id. */
+type GroupIdsByListing = ReadonlyMap<number, number[]>;
+
 export type GroupCapacityInfo = {
-  groupRemainingByGroupId: ReadonlyMap<number, number>;
-  groupIdsByListingId: ReadonlyMap<number, number[]>;
+  groupRemainingByGroupId: GroupRemaining;
+  groupIdsByListingId: GroupIdsByListing;
 };
 
 export type PackageLimitInfo = GroupCapacityInfo & {
@@ -31,15 +36,15 @@ export type PackageLimitInfo = GroupCapacityInfo & {
 };
 
 export const groupCapacityInfo = (
-  groupRemainingByGroupId: ReadonlyMap<number, number>,
-  groupIdsByListingId: ReadonlyMap<number, number[]>,
+  groupRemainingByGroupId: GroupRemaining,
+  groupIdsByListingId: GroupIdsByListing,
 ): GroupCapacityInfo => ({ groupIdsByListingId, groupRemainingByGroupId });
 
 export const packageLimitInfo = (
   listings: readonly TicketListing[],
   childrenByParentId: ReadonlyMap<number, readonly TicketListing[]> | undefined,
-  groupRemainingByGroupId: ReadonlyMap<number, number>,
-  groupIdsByListingId: ReadonlyMap<number, number[]>,
+  groupRemainingByGroupId: GroupRemaining,
+  groupIdsByListingId: GroupIdsByListing,
 ): PackageLimitInfo => ({
   childrenByParentId,
   listings,

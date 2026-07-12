@@ -2,6 +2,7 @@
  * Admin attendee page templates
  */
 
+import { compact } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateRangeLabel, formatDatetimeShort } from "#shared/dates.ts";
@@ -29,6 +30,11 @@ import { SubmitButton } from "#templates/components/actions.tsx";
 import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
+import { HeaderRow } from "#templates/components/header-row.tsx";
+import {
+  type LabelledLine,
+  LabelledParas,
+} from "#templates/components/labelled-para.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 import {
@@ -46,16 +52,11 @@ import {
  *  cell; this helper factors that out so a quorum target/source/clear cell
  *  can't drift between the three tables. */
 const mergeRadioCell = ({
-  name,
-  value,
-  checked,
   children,
+  ...option
 }: RadioOptionProps): JSX.Element => (
   <td>
-    <RadioOption checked={checked} name={name} value={value}>
-      {" "}
-      {children}
-    </RadioOption>
+    <RadioOption {...option}> {children}</RadioOption>
   </td>
 );
 
@@ -110,24 +111,34 @@ const AttendeeDetails = ({
   attendee: Attendee;
   showAmountPaid?: boolean;
   children?: Child;
-}): JSX.Element => (
-  <ProseSection title={t("admin.attendees.details")}>
-    <p>
-      <strong>{t("admin.attendees.name")}</strong> {attendee.name}
-    </p>
-    <p>
-      <strong>{t("admin.attendees.email")}</strong> {attendee.email}
-    </p>
-    <p>
-      <strong>{t("admin.attendees.quantity")}</strong> {attendee.quantity}
-    </p>
-    {showAmountPaid && amountPaidPara(attendee)}
-    <p>
-      <strong>Registered:</strong> {formatDatetimeShort(attendee.created)}
-    </p>
-    {children}
-  </ProseSection>
-);
+}): JSX.Element => {
+  // Only shown when the caller asked for it and the person actually paid,
+  // matching the old `showAmountPaid && amountPaidPara(...)` guard.
+  const amountPaidLine: LabelledLine | null =
+    showAmountPaid && Number.parseInt(attendee.price_paid, 10) > 0
+      ? {
+          label: t("admin.attendees.amount_paid"),
+          value: formatCurrency(attendee.price_paid),
+        }
+      : null;
+  return (
+    <ProseSection title={t("admin.attendees.details")}>
+      <LabelledParas
+        items={compact([
+          { label: t("admin.attendees.name"), value: attendee.name },
+          { label: t("admin.attendees.email"), value: attendee.email },
+          { label: t("admin.attendees.quantity"), value: attendee.quantity },
+          amountPaidLine,
+          {
+            label: "Registered:",
+            value: formatDatetimeShort(attendee.created),
+          },
+        ])}
+      />
+      {children}
+    </ProseSection>
+  );
+};
 
 /** Shared ConfirmPage shell for the delete/refund/resend attendee action
  *  pages: all three wrap an {@link AttendeeDetails} body in a ConfirmPage with
@@ -474,22 +485,6 @@ const MergePiiField = ({
   );
 };
 
-/** One row of the answer decision table: a `scope="row"` question-name header
- *  cell followed by the row's decision cell(s). Both the non-conflicting
- *  (info-only) and conflicting (radio) rows share this leading `<tr>`/`<th>`. */
-const AnswerDecisionRow = ({
-  children,
-  questionText,
-}: {
-  children: Child;
-  questionText: string;
-}): JSX.Element => (
-  <tr>
-    <th scope="row">{questionText}</th>
-    {children}
-  </tr>
-);
-
 /** Render the answer decision table */
 const MergeAnswersDecisionTable = ({
   diff,
@@ -517,19 +512,19 @@ const MergeAnswersDecisionTable = ({
           // Non-conflicting: show info only (no decision needed)
           const { answer, from } = nonConflictAnswerLabel(item);
           return (
-            <AnswerDecisionRow questionText={item.questionText}>
+            <HeaderRow header={item.questionText}>
               <td colspan="3">
                 <span class="muted">
                   {answer} ({from} — auto-kept)
                 </span>
               </td>
-            </AnswerDecisionRow>
+            </HeaderRow>
           );
         }
         const targetLabel = item.targetAnswerText!;
         const sourceLabel = item.sourceAnswerText!;
         return (
-          <AnswerDecisionRow questionText={item.questionText}>
+          <HeaderRow header={item.questionText}>
             {mergeRadioCell({
               checked: true,
               children: targetLabel,
@@ -548,7 +543,7 @@ const MergeAnswersDecisionTable = ({
               name,
               value: "clear",
             })}
-          </AnswerDecisionRow>
+          </HeaderRow>
         );
       })}
     </DecisionTable>,

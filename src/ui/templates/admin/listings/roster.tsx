@@ -54,7 +54,7 @@ const listingRosterView = (opts: ListingPanelOptions) => {
     hasPaidListing,
     labelSuffix: dailySuffix,
     maxCapacity: isDaily && !dateFilter ? 0 : listing.max_attendees,
-    ...(questionData !== undefined ? { questionData } : {}),
+    questionData,
     skipAttendees: true,
   });
   const basePath = `/admin/listing/${listing.id}`;

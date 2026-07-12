@@ -56,6 +56,7 @@
  * `scripts/precommit-mutation.ts` wires in the real implementations.
  */
 
+import { nonBlankLines } from "#shared/lines.ts";
 import type { RunCommand } from "./git.ts";
 
 /** A changed-source count above this almost certainly means the local base ref
@@ -139,11 +140,7 @@ export const changedFiles = async (
     if (/no merge base/i.test(result.stderr)) return null;
     throw new Error(`git diff ${base}...HEAD failed: ${result.stderr.trim()}`);
   }
-  const paths = result.stdout
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line !== "");
-  return partitionChanged(paths);
+  return partitionChanged(nonBlankLines(result.stdout));
 };
 
 /**

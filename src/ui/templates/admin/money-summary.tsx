@@ -1,5 +1,6 @@
 import { formatSignedCurrency } from "#shared/currency.ts";
 import { ActionButton } from "#templates/components/actions.tsx";
+import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 
 export type MoneySummaryRow = {
@@ -40,8 +41,7 @@ export const MoneySummary = ({
   rows: MoneySummaryRow[];
   title: string;
 }): JSX.Element => (
-  <fieldset class="listing-section">
-    <legend>{title}</legend>
+  <SectionFieldset className="listing-section" legend={title}>
     <div class="table-scroll">
       <table class="listing-breakdown-table">
         <tbody>{rows.map(SummaryRow)}</tbody>
@@ -57,5 +57,5 @@ export const MoneySummary = ({
         <ActionButton href={ledgerHref}>{ledgerLabel}</ActionButton>
       </p>
     )}
-  </fieldset>
+  </SectionFieldset>
 );

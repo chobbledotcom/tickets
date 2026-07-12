@@ -15,7 +15,12 @@
 
 import type { BrowserSession } from "./browser.ts";
 import { config } from "./config.ts";
-import { createListing, incomeLedgerText, waitForAppReturn } from "./flow.ts";
+import {
+  createListing,
+  incomeLedgerText,
+  setSelectOrInput,
+  waitForAppReturn,
+} from "./flow.ts";
 import { log, step } from "./log.ts";
 
 /** The one catalog this journey builds and orders. Prices are minor units;
@@ -138,23 +143,14 @@ const fillBookingPage = async (session: BrowserSession): Promise<void> => {
     .selectOption("1", { force: true, timeout: config.actionTimeoutMs });
   // A listing's quantity control renders as a <select> for small caps and an
   // <input> for large ones — set whichever the row carries.
-  const setRowQty = async (name: string, value: string): Promise<void> => {
-    const control = page
-      .locator(`.ticket-row:has-text("${name}") [name^="quantity_"]`)
-      .first();
-    const tag = await control.evaluate((el) => el.tagName.toLowerCase());
-    if (tag === "select") {
-      await control.selectOption(value, {
-        force: true,
-        timeout: config.actionTimeoutMs,
-      });
-    } else {
-      await control.fill(value, {
-        force: true,
-        timeout: config.actionTimeoutMs,
-      });
-    }
-  };
+  const setRowQty = (name: string, value: string): Promise<void> =>
+    setSelectOrInput(
+      page
+        .locator(`.ticket-row:has-text("${name}") [name^="quantity_"]`)
+        .first(),
+      value,
+      { force: true, timeout: config.actionTimeoutMs },
+    );
   await setRowQty(MEMBER_A, "1");
   await setRowQty(PLAIN, "2");
   await session.fill("name", BUYER_NAME);

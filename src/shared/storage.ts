@@ -10,13 +10,15 @@ import * as BunnyStorageSDK from "@bunny.net/storage-sdk";
 import { lazyRef, sort } from "#fp";
 import { decryptBytes, encryptBytes } from "#shared/crypto/encryption.ts";
 import { getEnv } from "#shared/env.ts";
-import type { DecodableMime, ImageTarget } from "#shared/images/types.ts";
+import type { ImageTargetTranscoder } from "#shared/images/transcode.ts";
+import type { DecodableMime } from "#shared/images/types.ts";
 import {
   formatBytes,
   MAX_ATTACHMENT_SIZE,
   MAX_IMAGE_SIZE,
 } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import { streamChunks } from "#shared/stream-chunks.ts";
 import { getDeleteOverride } from "#shared/test-overrides.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 
@@ -389,11 +391,11 @@ const encryptAndUpload = async (
  * The image pipeline (~1MB of codec wasm) is dynamically imported here so it is
  * loaded only on the first upload, never at cold boot.
  */
-export const uploadImageTargets = async (
-  data: Uint8Array,
-  mime: DecodableMime,
-  targets: readonly ImageTarget[],
-): Promise<string[]> => {
+export const uploadImageTargets: ImageTargetTranscoder<string[]> = async (
+  data,
+  mime,
+  targets,
+) => {
   const { transcodeToWebp } = await import("#shared/images/transcode.ts");
   const variants = await transcodeToWebp(data, mime, targets);
   return Promise.all(
@@ -407,12 +409,9 @@ export const uploadImageTargets = async (
 const collectStream = async (
   stream: ReadableStream<Uint8Array>,
 ): Promise<Uint8Array> => {
-  const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
   let totalLength = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  for await (const value of streamChunks(stream)) {
     chunks.push(value);
     totalLength += value.length;
   }

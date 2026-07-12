@@ -26,7 +26,6 @@ import {
   createWithClient,
   errorMessage,
   PaymentUserError,
-  parseWebhookPayload,
 } from "#shared/payment-helpers.ts";
 import type {
   CheckoutIntent,
@@ -34,6 +33,7 @@ import type {
   WebhookVerifyResult,
 } from "#shared/payments.ts";
 import { normalizePhone } from "#shared/phone.ts";
+import { finishWebhookVerification } from "#shared/webhook-verification.ts";
 
 /**
  * Square order metadata constraints (from Square API docs):
@@ -832,7 +832,8 @@ export const verifyWebhookSignature = async (
   const signedData = buildSignedPayload(notificationUrl, payloadBytes);
   const expectedSignature = await computeSquareSignature(signedData, secret);
 
-  if (!secureCompare(signature, expectedSignature)) {
+  const matched = secureCompare(signature, expectedSignature);
+  if (!matched) {
     logError({
       code: ErrorCode.SQUARE_SIGNATURE,
       detail: `mismatch: notificationUrl=${notificationUrl}, receivedLength=${signature.length}, expectedLength=${expectedSignature.length}, receivedPrefix=${signature.slice(
@@ -843,10 +844,13 @@ export const verifyWebhookSignature = async (
         8,
       )}..., bodyLength=${payloadBytes.length}`,
     });
-    return { error: "Signature verification failed", valid: false };
   }
 
-  return parseWebhookPayload(payload, ErrorCode.SQUARE_SIGNATURE);
+  return finishWebhookVerification(
+    matched,
+    payload,
+    ErrorCode.SQUARE_SIGNATURE,
+  );
 };
 
 /**

@@ -4,8 +4,15 @@ import { formatDeadlineLabel } from "#shared/renewal-helpers.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { RenewalTierSummary } from "#templates/admin/built-sites/renewal-summary.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
-import { ActionButton } from "#templates/components/actions.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
+import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
+import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
+
+/** The "read more" footer link shared by the built-sites list and builder pages. */
+export const BuiltSitesGuideFooter = (): JSX.Element => (
+  <GuideFooter href="/admin/guide#built-sites">
+    {t("built_sites.guide_link")}
+  </GuideFooter>
+);
 
 export const BuiltSitesListActions = (): JSX.Element | null =>
   WritableOnly({
@@ -30,13 +37,12 @@ const BuiltSitesTable = ({
 }): JSX.Element => (
   <div>
     <DataTable
-      columns={[
-        { header: t("common.name") },
-        { header: t("built_sites.table_site_url") },
-        { header: t("common.status") },
-        { header: t("built_sites.table_updates") },
-        { header: t("built_sites.table_read_only") },
-      ]}
+      columns={namedColumns(
+        "built_sites.table_site_url",
+        "common.status",
+        "built_sites.table_updates",
+        "built_sites.table_read_only",
+      )}
       rows={sites.map((site) => [
         <WritableLink href={`/admin/built-sites/${site.id}/edit`}>
           {site.name}

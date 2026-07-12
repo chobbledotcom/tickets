@@ -1,4 +1,5 @@
 import { countRows, getDb } from "#shared/db/client.ts";
+import { queryRowsWithArg } from "./master-query.ts";
 import {
   currentSchemaColumnsPresentIn,
   getExistingColumns,
@@ -120,15 +121,15 @@ const dropProjectIndexesReferencingColumn = async (
   table: string,
   column: string,
 ): Promise<void> => {
-  const result = await getDb().execute({
-    args: [table],
-    sql:
-      "SELECT name, sql FROM sqlite_master " +
+  const rows = await queryRowsWithArg(
+    getDb(),
+    "SELECT name, sql FROM sqlite_master " +
       "WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL",
-  });
+    table,
+  );
 
   const referencesColumn = sqlIdentifierPattern(column);
-  for (const row of result.rows) {
+  for (const row of rows) {
     const name = String(row.name);
     const sql = String(row.sql);
     if (name.startsWith("idx_") && referencesColumn.test(sql)) {

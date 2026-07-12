@@ -43,6 +43,12 @@ export const renderListingDescription = (description: string): string =>
 export const soldOutLabel = (text: string = t("public.sold_out")): string =>
   `<span class="sold-out-label">${text}</span>`;
 
+/** Render each ticket entry to its HTML row and join the rows into one string. */
+const joinRenderedRows = <T>(
+  entries: T[],
+  renderRow: (entry: T) => string,
+): string => entries.map(renderRow).join("");
+
 /** Render quantity selector for an listing row.
  *
  * An optional per-listing `prefill` pre-selects the quantity (clamped to the
@@ -188,16 +194,14 @@ const renderPackageControls = ({
   )}</select></label>`;
   const memberRows = pkg.hideListings
     ? ""
-    : members
-        .map((e) =>
-          renderPackageMemberRow(
-            e,
-            pkg.quantities.get(e.listing.id) ?? 1,
-            childCtxFor(e.listing.id),
-            attributesByListing.get(e.listing.id),
-          ),
-        )
-        .join("");
+    : joinRenderedRows(members, (e) =>
+        renderPackageMemberRow(
+          e,
+          pkg.quantities.get(e.listing.id) ?? 1,
+          childCtxFor(e.listing.id),
+          attributesByListing.get(e.listing.id),
+        ),
+      );
   return selector + memberRows;
 };
 
@@ -255,18 +259,16 @@ const buildListingRows = (
         prefill?.listings.get(listings[0]!.listing.id),
         childCtxFor(listings[0]!),
       )
-    : listings
-        .map((e) =>
-          renderListingRow(
-            e,
-            nodeByListingId.get(e.listing.id)!,
-            hideQuantity,
-            prefill?.listings.get(e.listing.id),
-            childCtxFor(e),
-            attributesByListing.get(e.listing.id),
-          ),
-        )
-        .join("");
+    : joinRenderedRows(listings, (e) =>
+        renderListingRow(
+          e,
+          nodeByListingId.get(e.listing.id)!,
+          hideQuantity,
+          prefill?.listings.get(e.listing.id),
+          childCtxFor(e),
+          attributesByListing.get(e.listing.id),
+        ),
+      );
 
 /** Build the page's listing area. A page that IS one package (every listing a
  * member, nothing sold beside it) shows that package's count selector plus

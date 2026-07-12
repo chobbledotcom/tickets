@@ -16,6 +16,7 @@
  *   return redirect('/admin/');
  */
 
+/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { type TxScope, writeRowInTransaction } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
@@ -23,6 +24,8 @@ import type { FormParams } from "#shared/form-data.ts";
 import type { Field, FieldValues } from "#shared/forms.tsx";
 import { validateForm } from "#shared/forms.tsx";
 import type { ParseResult } from "#shared/rest/crud-api.ts";
+
+/* jscpd:ignore-end */
 
 /** Success result with data */
 type SuccessResult<T> = { ok: true } & T;

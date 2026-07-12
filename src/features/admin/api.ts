@@ -7,6 +7,7 @@
  *   - Session cookie + x-csrf-token header
  */
 
+import { reduce } from "#fp";
 import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
@@ -164,14 +165,17 @@ const optionalFields: FieldMapping[] = [
  */
 const parseDayPrices = (raw: unknown): Record<number, number> => {
   if (typeof raw !== "object" || raw === null) return {};
-  const result: Record<number, number> = {};
-  for (const [key, value] of Object.entries(raw)) {
-    const day = Number(key);
-    if (Number.isInteger(day) && day >= 1 && typeof value === "number") {
-      result[day] = value;
-    }
-  }
-  return result;
+  // Keep only positive whole day counts mapped to numeric prices; drop the rest.
+  return reduce(
+    (kept: Record<number, number>, [key, value]: [string, unknown]) => {
+      const day = Number(key);
+      if (Number.isInteger(day) && day >= 1 && typeof value === "number") {
+        kept[day] = value;
+      }
+      return kept;
+    },
+    {},
+  )(Object.entries(raw));
 };
 
 /** Parse the optional `group_ids` array (group membership). An absent field

@@ -16,6 +16,7 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { lazyRef, map, pipe, reduce, sort } from "#fp";
+import { withLazyLogger } from "#shared/lazy-logger.ts";
 import { shouldSuppressDebugLogs } from "#shared/log-settings.ts";
 
 /** A single logged query */
@@ -190,10 +191,10 @@ const isReadSql = (sql: string): boolean => /^\s*(?:with|select)\b/i.test(sql);
  * the db client, which the logger transitively depends on, so a static import
  * would form a cycle. The dynamic import mirrors `env.ts`'s `isReadOnly`.
  */
-const notifyN1Violation = async (detail: string): Promise<void> => {
-  const { ErrorCode, logError } = await import("#shared/logger.ts");
-  logError({ code: ErrorCode.DB_QUERY, detail });
-};
+const notifyN1Violation = (detail: string): Promise<void> =>
+  withLazyLogger(({ ErrorCode, logError }) =>
+    logError({ code: ErrorCode.DB_QUERY, detail }),
+  );
 
 /**
  * Mirror the debug footer to the system logs: emit each SQL statement as it

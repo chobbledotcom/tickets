@@ -1,11 +1,14 @@
 import { countRows } from "#shared/db/client.ts";
 import { nowMs } from "#shared/now.ts";
 import { getExistingColumns, runMigration } from "./schema-sync.ts";
+/* jscpd:ignore-start */
 import type {
   Migration,
   MigrationContext,
   SchemaRequirement,
 } from "./types.ts";
+
+/* jscpd:ignore-end */
 
 const requires: SchemaRequirement = {
   absentTables: ["email_preferences"],
@@ -59,17 +62,23 @@ const renameLegacyTable = async (context: MigrationContext): Promise<void> => {
   );
 };
 
-const renameLegacyHashColumn = async (): Promise<void> => {
-  const columns = await getExistingColumns("contact_preferences");
+// Reads the current columns of contact_preferences, then runs the given step
+// with them. Keeps every column-check step from re-fetching the same list.
+const withContactColumns =
+  (use: (columns: Set<string>) => Promise<void>) => async (): Promise<void> => {
+    const columns = await getExistingColumns("contact_preferences");
+    await use(columns);
+  };
+
+const renameLegacyHashColumn = withContactColumns(async (columns) => {
   if (columns.has("email_hash") && !columns.has("contact_hash")) {
     await runMigration(
       "ALTER TABLE contact_preferences RENAME COLUMN email_hash TO contact_hash",
     );
   }
-};
+});
 
-const backfillAndDropCreated = async (): Promise<void> => {
-  const columns = await getExistingColumns("contact_preferences");
+const backfillAndDropCreated = withContactColumns(async (columns) => {
   if (!columns.has("created")) return;
   if (columns.has("last_activity")) {
     const migratedAtMs = nowMs();
@@ -78,7 +87,7 @@ const backfillAndDropCreated = async (): Promise<void> => {
     );
   }
   await runMigration("ALTER TABLE contact_preferences DROP COLUMN created");
-};
+});
 
 export default (context: MigrationContext): Migration =>
   context.additive({

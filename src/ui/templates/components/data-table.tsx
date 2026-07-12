@@ -32,8 +32,17 @@ export type Column = {
  *  all-text header row. Collapses the repeated `{ header: t(key) }` object at
  *  each call site into one call, which also keeps similar header rows across
  *  tables from reading as duplicated column literals. */
-export const textColumns = (...headerKeys: string[]): Column[] =>
+const textColumns = (...headerKeys: string[]): Column[] =>
   headerKeys.map((key) => ({ header: t(key) }));
+
+/** The name column every admin list table leads with. */
+const NAME_HEADER_KEY = "common.name";
+
+/** Text columns for an admin list table that leads with the shared Name
+ *  column, then the given text columns. Keeps that leading name column in one
+ *  place instead of repeating it at every table. */
+export const namedColumns = (...headerKeys: string[]): Column[] =>
+  textColumns(NAME_HEADER_KEY, ...headerKeys);
 
 export type DataTableProps = {
   /** Column declarations (header + optional class). */

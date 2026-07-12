@@ -69,26 +69,30 @@ const insertNote = async (
   await execute(sql, args);
 };
 
+/** Build a "record a note" function: it seals the text its own way, then stores
+ *  the result under the given note type. The two note kinds differ only in how
+ *  they seal, so they share this one body. */
+const noteCreatorVia =
+  (
+    type: SystemNoteType,
+    seal: (note: string) => Promise<OwnerKeyEncrypted | EnvKeyEncrypted>,
+  ) =>
+  async (attendeeId: number, note: string): Promise<void> =>
+    insertNote(attendeeId, type, await seal(note));
+
 /**
  * Record an auto-generated system note. The text MUST be PII-free: it is
  * encrypted with the symmetric DB key (recoverable from a DB dump + that key),
  * and exists so a system path with no owner session can write it.
  */
-export const createSystemNote = async (
-  attendeeId: number,
-  note: string,
-): Promise<void> => insertNote(attendeeId, "system", await encrypt(note));
+export const createSystemNote = noteCreatorVia("system", (note) =>
+  encrypt(note),
+);
 
 /** Record an operator-authored note, encrypted with the owner public key. */
-export const createOwnerNote = async (
-  attendeeId: number,
-  note: string,
-): Promise<void> =>
-  insertNote(
-    attendeeId,
-    "owner",
-    await encryptWithOwnerKey(note, settings.publicKey),
-  );
+export const createOwnerNote = noteCreatorVia("owner", (note) =>
+  encryptWithOwnerKey(note, settings.publicKey),
+);
 
 /** Decrypt one note by its type. We do not guard this: a failure here can only
  *  mean the data key itself is broken — in which case the attendee's own PII
@@ -171,12 +175,16 @@ export const getNotesForAttendee = async (
  * unwrap. Curried over the row-fetcher so the attendee-list and listing-scoped
  * loaders share one body.
  */
+/** A "load decrypted notes for <selector>" reader: takes the selector value and
+ *  a lazy owner-private-key getter, and returns the decrypted notes. */
+type NotesLoader<A> = (
+  selector: A,
+  getPrivateKey: () => Promise<CryptoKey>,
+) => Promise<SystemNote[]>;
+
 const notesLoaderVia =
-  <A>(fetchRows: (selector: A) => Promise<SystemNoteRow[]>) =>
-  async (
-    selector: A,
-    getPrivateKey: () => Promise<CryptoKey>,
-  ): Promise<SystemNote[]> => {
+  <A>(fetchRows: (selector: A) => Promise<SystemNoteRow[]>): NotesLoader<A> =>
+  async (selector, getPrivateKey) => {
     const rows = await fetchRows(selector);
     return rows.length === 0 ? [] : decryptNotes(rows, await getPrivateKey());
   };
@@ -185,20 +193,17 @@ const notesLoaderVia =
  * Decrypted notes for a set of attendees, oldest first, for an attendee-list
  * view. Returns [] when none have notes.
  */
-export const loadNotesForAttendees: (
-  attendeeIds: number[],
-  getPrivateKey: () => Promise<CryptoKey>,
-) => Promise<SystemNote[]> = notesLoaderVia(getNoteRows);
+export const loadNotesForAttendees: NotesLoader<number[]> =
+  notesLoaderVia(getNoteRows);
 
 /**
  * Decrypted notes for every real attendee on one listing, oldest first —
  * scoped in SQL (see {@link getNoteRowsForListing}). Returns [] when none have
  * notes, so the Overview's key unwrap is skipped for a note-free listing.
  */
-export const loadNotesForListing: (
-  listingId: number,
-  getPrivateKey: () => Promise<CryptoKey>,
-) => Promise<SystemNote[]> = notesLoaderVia(getNoteRowsForListing);
+export const loadNotesForListing: NotesLoader<number> = notesLoaderVia(
+  getNoteRowsForListing,
+);
 
 /** Group decrypted notes by attendee id (input order preserved within a group). */
 export const groupNotesByAttendee = (

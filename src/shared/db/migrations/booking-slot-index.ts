@@ -1,3 +1,4 @@
+import { queryRowsWithArg } from "./master-query.ts";
 import { SCHEMA } from "./schema/index.ts";
 import type { MigrationContext, SchemaRequirement } from "./types.ts";
 
@@ -38,11 +39,12 @@ export const slotIndexColumns = (): string[] =>
 export const verifySlotIndex =
   ({ getDb }: Pick<MigrationContext, "getDb">) =>
   async (): Promise<void> => {
-    const result = await getDb().execute({
-      args: [SLOT_INDEX],
-      sql: "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?",
-    });
-    const live = result.rows.length > 0 ? String(result.rows[0]!.sql) : "";
+    const rows = await queryRowsWithArg(
+      getDb(),
+      "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?",
+      SLOT_INDEX,
+    );
+    const live = rows.length > 0 ? String(rows[0]!.sql) : "";
     const missing = slotIndexColumns().filter(
       (column) => !live.includes(column),
     );

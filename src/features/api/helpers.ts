@@ -1,4 +1,5 @@
 import { apiError, apiResponse } from "#routes/api/cors.ts";
+import type { JsonBodyReader } from "#routes/api/json-body.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { getClientIp } from "#routes/url.ts";
 import { bookingError, parseCustomPrice } from "#shared/booking/form.ts";
@@ -94,9 +95,7 @@ export const findActiveListing = async (
 };
 
 /** Parse a JSON request body, returning a 400 API response on failure */
-export const parseApiJsonBody = async (
-  request: Request,
-): Promise<Record<string, unknown> | Response> => {
+export const parseApiJsonBody: JsonBodyReader = async (request) => {
   try {
     return await request.json();
   } catch {

@@ -124,6 +124,12 @@ export const listingAttendeesLoader =
 /** Error mapping: convert an Error into a redirect response */
 export type ErrorMapper = (error: Error) => Response;
 
+/** A string given directly, or computed from the session and the submitted form
+ * (and allowed to be async). Used for the flash/log message. */
+type SessionFormString<TSession> =
+  | string
+  | ((session: TSession, form: FormParams) => string | Promise<string>);
+
 /** Configuration for createActionHandler */
 export type ActionHandlerConfig<TSession = AuthSession> = {
   /** Auth mode: "owner" requires owner role, "any" allows any authenticated user */
@@ -135,9 +141,7 @@ export type ActionHandlerConfig<TSession = AuthSession> = {
   /** Optional listing/resource id for activity logging context */
   listingId?: number | ((form: FormParams) => number | undefined);
   /** Message used for both flash and activity log */
-  message:
-    | string
-    | ((session: TSession, form: FormParams) => string | Promise<string>);
+  message: SessionFormString<TSession>;
   /** Redirect URL on success */
   successRedirect: string | ((session: TSession, form: FormParams) => string);
   /** Optional custom error mapping (falls back to errorRedirect with message) */
@@ -174,9 +178,7 @@ export const createActionHandler = <TSession = AuthSession>(
   };
 
   const resolveString = async (
-    value:
-      | string
-      | ((session: TSession, form: FormParams) => string | Promise<string>),
+    value: SessionFormString<TSession>,
     session: TSession,
     form: FormParams,
   ): Promise<string> =>

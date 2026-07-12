@@ -5,7 +5,7 @@
 
 import { once, reduce } from "#fp";
 import { parseAcceptLanguage, runWithLocale } from "#i18n";
-import { SessionKeyError } from "#routes/auth.ts";
+import { lowerContentType, SessionKeyError } from "#routes/auth.ts";
 import {
   applySecurityHeaders,
   contentTypeRejectionResponse,
@@ -577,7 +577,7 @@ const bufferRequestIfNeeded = async (request: Request): Promise<Request> => {
   // buffer gate accepts the same casings `isValidContentType` does — otherwise a
   // standards-compliant `Application/JSON` would be validated but skip buffering,
   // reopening the GC window for that casing.
-  const contentType = (request.headers.get("content-type") ?? "").toLowerCase();
+  const contentType = lowerContentType(request);
   const needsBuffer = BUFFERED_POST_CONTENT_TYPES.some((type) =>
     contentType.startsWith(type),
   );

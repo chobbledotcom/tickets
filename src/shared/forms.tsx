@@ -12,6 +12,7 @@ import {
   getFlash,
   getFlashFormId,
 } from "#shared/flash-context.ts";
+import type { FlashFields } from "#shared/flash-fields.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { appendIframeParam } from "#shared/iframe.ts";
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
@@ -545,15 +546,7 @@ export const defineForm = <
  * second time. This is what lets a page render its flash inline — or not at all
  * — without ever double-rendering or dropping it.
  */
-export const Flash = ({
-  error,
-  success,
-  info,
-}: {
-  error?: string | undefined;
-  success?: string | undefined;
-  info?: string | undefined;
-}): JSX.Element => {
+export const Flash = ({ error, success, info }: FlashFields): JSX.Element => {
   if (error || success || info) consumeFlash();
   return (
     <>
@@ -745,6 +738,18 @@ export const hiddenInputs = (
     <input name={name} type="hidden" value={value} />
   ));
 
+/** Hidden field that carries where to send the visitor after the form runs.
+ * Renders nothing when there is no return URL. */
+export const ReturnUrlField = ({
+  returnUrl,
+}: {
+  returnUrl?: string | undefined;
+}): JSX.Element => (
+  <>
+    {returnUrl && <input name="return_url" type="hidden" value={returnUrl} />}
+  </>
+);
+
 export const ConfirmForm = ({
   action,
   name,
@@ -771,7 +776,7 @@ export const ConfirmForm = ({
 }): JSX.Element => (
   <CsrfForm action={action} id={id}>
     {children && <div class="prose">{children}</div>}
-    {returnUrl && <input name="return_url" type="hidden" value={returnUrl} />}
+    <ReturnUrlField returnUrl={returnUrl} />
     {hiddenFields && hiddenInputs(Object.entries(hiddenFields))}
     {confirmName && (
       <label>

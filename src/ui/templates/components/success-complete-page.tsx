@@ -8,7 +8,7 @@
  */
 
 import { ActionButton } from "#templates/components/actions.tsx";
-import { Layout } from "#templates/layout.tsx";
+import { HeadingLayout } from "#templates/components/heading-layout.tsx";
 
 export const SuccessCompletePage = ({
   title,
@@ -22,8 +22,7 @@ export const SuccessCompletePage = ({
   loginLink: string;
 }): string =>
   String(
-    <Layout title={title}>
-      <h1>{heading}</h1>
+    <HeadingLayout heading={heading} title={title}>
       <div class="success" role="alert">
         {messages.map((message) => (
           <p>{message}</p>
@@ -34,5 +33,5 @@ export const SuccessCompletePage = ({
           {loginLink}
         </ActionButton>
       </p>
-    </Layout>,
+    </HeadingLayout>,
   );

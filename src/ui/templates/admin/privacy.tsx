@@ -13,6 +13,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import type { FlashFields } from "#shared/flash-fields.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { ORPHAN_RETENTION_OPTIONS } from "#shared/orphan-retention.ts";
@@ -29,10 +30,7 @@ export type PrivacyPageData = {
   orphanRetention: string;
   /** Whether automatic orphan purging is enabled. */
   autoPurgeOrphans: boolean;
-  error?: string | undefined;
-  success?: string | undefined;
-  info?: string | undefined;
-};
+} & FlashFields;
 
 /** The "older than" age dropdown, current age pre-selected. */
 const RetentionSelect = ({ selected }: { selected: string }): JSX.Element => (

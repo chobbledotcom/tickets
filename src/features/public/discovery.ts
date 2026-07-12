@@ -44,6 +44,7 @@ import {
   getNonStandaloneChildIds,
   getParentsForChildren,
 } from "#shared/db/listing-parents.ts";
+import { listingsById } from "#shared/listings-by-id.ts";
 import {
   availableDayCounts,
   type Group,
@@ -291,7 +292,7 @@ export const classifyForDiscovery = async (
       getChildrenForParents(ids),
       getParentsForChildren(ids),
     ]);
-  const byId = new Map(listings.map((l) => [l.id, l]));
+  const byId = listingsById(listings);
   const everyChild = [...childrenByParent.values()].flat();
   // Displayed children whose add-on label we are deciding (keys of parentsByChild
   // are among the displayed `ids`, so they are in `byId`). Their own group-remaining

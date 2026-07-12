@@ -28,14 +28,11 @@ type MutableFilterGroup = Omit<AttributeFilterGroup, "options"> & {
   options: Map<number, AttributeFilterOption>;
 };
 
-const optionSort = (
-  left: AttributeFilterOption,
-  right: AttributeFilterOption,
-): number => left.sort_order - right.sort_order || left.id - right.id;
-
-const attributeSort = (
-  left: AttributeFilterGroup,
-  right: AttributeFilterGroup,
+// Order by sort_order, then by id to break ties. Works for both attributes and
+// their options — anything that carries a sort_order and an id.
+const bySortOrderThenId = <T extends { sort_order: number; id: number }>(
+  left: T,
+  right: T,
 ): number => left.sort_order - right.sort_order || left.id - right.id;
 
 const addAttributeOptions = (
@@ -70,7 +67,7 @@ const freezeFilterGroup = (
   group: MutableFilterGroup,
 ): AttributeFilterGroup => ({
   ...group,
-  options: [...group.options.values()].toSorted(optionSort),
+  options: [...group.options.values()].toSorted(bySortOrderThenId),
 });
 
 export const attributeFilterGroupsForListings = (
@@ -87,7 +84,7 @@ export const attributeFilterGroupsForListings = (
   return pipe(
     map(freezeFilterGroup),
     filter((group: AttributeFilterGroup) => group.options.length > 0),
-    (filtered: AttributeFilterGroup[]) => filtered.toSorted(attributeSort),
+    (filtered: AttributeFilterGroup[]) => filtered.toSorted(bySortOrderThenId),
   )(groups);
 };
 

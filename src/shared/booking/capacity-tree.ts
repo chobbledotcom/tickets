@@ -1,3 +1,4 @@
+import { sumByKey } from "#fp";
 import {
   type TicketListing,
   ticketsThatFitInPool,
@@ -31,17 +32,20 @@ export const packageQuantityLimit = (
   };
   const perMember = Math.min(...tree.nodes.map(ownLimit));
 
-  const ticketsNeededByGroup = new Map<number, number>();
-  for (const node of tree.nodes) {
-    const q = perPackageQty(node);
-    for (const groupId of groupIdsByListingId.get(node.listingId) ?? []) {
-      if (!groupRemainingByGroupId.has(groupId)) continue;
-      ticketsNeededByGroup.set(
-        groupId,
-        (ticketsNeededByGroup.get(groupId) ?? 0) + q,
-      );
-    }
-  }
+  // Every (group this member shares, tickets it needs there) pair, dropping
+  // groups with no remaining pool, then summed per group.
+  const groupTickets = tree.nodes.flatMap((node) =>
+    (groupIdsByListingId.get(node.listingId) ?? [])
+      .filter((groupId) => groupRemainingByGroupId.has(groupId))
+      .map((groupId) => ({ groupId, tickets: perPackageQty(node) })),
+  );
+  const ticketsNeededByGroup = sumByKey<
+    { groupId: number; tickets: number },
+    number
+  >(
+    (row) => row.groupId,
+    (row) => row.tickets,
+  )(groupTickets);
   let limit = perMember;
   for (const [groupId, ticketsNeeded] of ticketsNeededByGroup) {
     limit = Math.min(

@@ -22,6 +22,20 @@ const setting = <const Definition extends StringSettingConfig>(
   definition: Definition,
 ): Definition => definition;
 
+/** A "last pruned" timestamp setting: plaintext, tagged for the pruner, and
+ * reached by an accessor of the given name. Collapses the repeated shape of the
+ * housekeeping timestamps below into one call. */
+const pruneSetting = <const Name extends string, const Key extends ConfigKey>(
+  name: Name,
+  key: Key,
+) =>
+  setting({
+    accessor: { name },
+    key,
+    storage: "plaintext",
+    tags: ["prune"],
+  });
+
 export const STRING_SETTING_DEFINITIONS = [
   setting({
     accessor: { name: "terms" },
@@ -120,48 +134,13 @@ export const STRING_SETTING_DEFINITIONS = [
     key: CONFIG_KEYS.LAST_PRUNED_SUMUP,
     storage: "plaintext",
   }),
-  setting({
-    accessor: { name: "lastPrunedStrings" },
-    key: CONFIG_KEYS.LAST_PRUNED_STRINGS,
-    storage: "plaintext",
-    tags: ["prune"],
-  }),
-  setting({
-    accessor: { name: "lastPrunedLogins" },
-    key: CONFIG_KEYS.LAST_PRUNED_LOGINS,
-    storage: "plaintext",
-    tags: ["prune"],
-  }),
-  setting({
-    accessor: { name: "lastPrunedTokens" },
-    key: CONFIG_KEYS.LAST_PRUNED_TOKENS,
-    storage: "plaintext",
-    tags: ["prune"],
-  }),
-  setting({
-    accessor: { name: "lastPrunedContacts" },
-    key: CONFIG_KEYS.LAST_PRUNED_CONTACTS,
-    storage: "plaintext",
-    tags: ["prune"],
-  }),
-  setting({
-    accessor: { name: "lastPrunedAddresses" },
-    key: CONFIG_KEYS.LAST_PRUNED_ADDRESSES,
-    storage: "plaintext",
-    tags: ["prune"],
-  }),
-  setting({
-    accessor: { name: "lastPrunedInvites" },
-    key: CONFIG_KEYS.LAST_PRUNED_INVITES,
-    storage: "plaintext",
-    tags: ["prune"],
-  }),
-  setting({
-    accessor: { name: "lastPrunedOrphans" },
-    key: CONFIG_KEYS.LAST_PRUNED_ORPHANS,
-    storage: "plaintext",
-    tags: ["prune"],
-  }),
+  pruneSetting("lastPrunedStrings", CONFIG_KEYS.LAST_PRUNED_STRINGS),
+  pruneSetting("lastPrunedLogins", CONFIG_KEYS.LAST_PRUNED_LOGINS),
+  pruneSetting("lastPrunedTokens", CONFIG_KEYS.LAST_PRUNED_TOKENS),
+  pruneSetting("lastPrunedContacts", CONFIG_KEYS.LAST_PRUNED_CONTACTS),
+  pruneSetting("lastPrunedAddresses", CONFIG_KEYS.LAST_PRUNED_ADDRESSES),
+  pruneSetting("lastPrunedInvites", CONFIG_KEYS.LAST_PRUNED_INVITES),
+  pruneSetting("lastPrunedOrphans", CONFIG_KEYS.LAST_PRUNED_ORPHANS),
   setting({
     accessor: { name: "smsGatewayBaseUrl" },
     key: CONFIG_KEYS.SMS_GATEWAY_BASE_URL,

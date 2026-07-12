@@ -14,8 +14,14 @@
 import type { Client } from "@libsql/client";
 import { lazyRef, once } from "#fp";
 import { resetAllCaches } from "#shared/cache-registry.ts";
-import { executeBatch, getDb, inPlaceholders } from "#shared/db/client.ts";
+import {
+  executeBatch,
+  getDb,
+  inPlaceholders,
+  type SqlStatement,
+} from "#shared/db/client.ts";
 import { getEnv } from "#shared/env.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
@@ -38,6 +44,7 @@ import {
   backfillModifierAggregates,
   createTableSql,
   fullSchemaCreateStatements,
+  noArgStatements,
   recreateTable,
   runMigration,
   syncCurrentSchema as syncCurrentSchemaBase,
@@ -275,9 +282,7 @@ const initializeFreshSchema = async (): Promise<void> => {
  */
 export const rebuildWipedSchema = async (): Promise<void> => {
   logDebug("Migration", "Rebuilding wiped database from current schema");
-  await executeBatch(
-    fullSchemaCreateStatements().map((sql) => ({ args: [], sql })),
-  );
+  await executeBatch(noArgStatements(fullSchemaCreateStatements()));
   // A compound CREATE TRIGGER … BEGIN … END body carries internal semicolons
   // that batch transports mis-split, so triggers run one by one, exactly as
   // syncTriggers sends them.
@@ -305,7 +310,7 @@ const getAppliedMigrationIds = async (): Promise<Set<string>> => {
 const migrationMarkerStatement = (
   migration: Migration,
   appliedAt: string,
-): { sql: string; args: string[] } => ({
+): SqlStatement => ({
   args: [migration.id, migration.description, appliedAt],
   sql: `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) VALUES (?, ?, ?)`,
 });
@@ -443,9 +448,9 @@ export const applyMigrationWithRetry = async (
   } catch (error) {
     logDebug(
       "Migration",
-      `verify ${migration.id} still failing after retries, re-running up(): ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+      `verify ${migration.id} still failing after retries, re-running up(): ${errorMessage(
+        error,
+      )}`,
     );
     await migration.up();
     await verifyMigrationWithRetry(migration);

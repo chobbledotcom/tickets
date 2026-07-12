@@ -44,6 +44,7 @@ import {
   loadPackagePaths,
   loadQuestionsForExisting,
   packagesByListingIdFrom,
+  type SelectedQuestionAnswers,
 } from "#routes/admin/attendee-page-data.ts";
 import {
   AUTH_FORM,
@@ -132,12 +133,9 @@ export const handleAttendeeNewGet: TypedRouteHandler<
 // ---------------------------------------------------------------------------
 
 /** Everything the submit handler needs about an attendee being edited. */
-type EditContext = {
+type EditContext = SelectedQuestionAnswers & {
   attendee: Attendee | null;
   existingByKey: Map<string, ListingAttendeeRow>;
-  questions: QuestionWithAnswers[];
-  selectedAnswerIds: number[];
-  selectedTextAnswers: Map<number, string>;
 };
 
 /** Create mode has no attendee, lines, or questions to preload. */

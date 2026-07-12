@@ -22,7 +22,7 @@ import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import type { GroupContext } from "#templates/admin/listings/types.ts";
 
 /** Filter attendees by date for daily listings */
-const filterByDate = (
+export const filterByDate = (
   attendees: Attendee[],
   date: string | null,
 ): Attendee[] =>

@@ -21,8 +21,11 @@
 
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 
+/** The shared shape of both error boxes: just the message to show inside. */
+type ErrorBoxProps = { children?: Child };
+
 /** A live error alert: focusable, announced, and animated. See the file header. */
-export const ErrorAlert = ({ children }: { children?: Child }): JSX.Element => (
+export const ErrorAlert = ({ children }: ErrorBoxProps): JSX.Element => (
   <div autofocus class="error" role="alert" tabindex="-1">
     {children}
   </div>
@@ -30,6 +33,6 @@ export const ErrorAlert = ({ children }: { children?: Child }): JSX.Element => (
 
 /** A standing note styled like an error: calm, not a focus target. See the
  * file header. */
-export const ErrorNote = ({ children }: { children?: Child }): JSX.Element => (
+export const ErrorNote = ({ children }: ErrorBoxProps): JSX.Element => (
   <div class="error">{children}</div>
 );

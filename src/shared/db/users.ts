@@ -176,7 +176,7 @@ const activatedUserOpts = (
   passwordHash: PasswordHash | "",
   wrappedDataKey: WrappedKey | null,
   adminLevel: AdminLevel,
-  kekVersion: number,
+  kekVersion = 2,
 ): InsertUserOpts => ({
   adminLevel,
   inviteCodeHash: null,
@@ -195,24 +195,8 @@ const activatedUserOpts = (
  */
 const consumeActivatedUserInsert =
   <T>(consume: (built: BuiltUserInsert) => T | Promise<T>) =>
-  async (
-    username: string,
-    passwordHash: PasswordHash | "",
-    wrappedDataKey: WrappedKey | null,
-    adminLevel: AdminLevel,
-    kekVersion = 2,
-  ): Promise<T> =>
-    consume(
-      await buildUserInsert(
-        activatedUserOpts(
-          username,
-          passwordHash,
-          wrappedDataKey,
-          adminLevel,
-          kekVersion,
-        ),
-      ),
-    );
+  async (...args: Parameters<typeof activatedUserOpts>): Promise<T> =>
+    consume(await buildUserInsert(activatedUserOpts(...args)));
 
 /**
  * Create a new (already-activated) user with encrypted fields. Activated users

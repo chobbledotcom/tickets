@@ -4,6 +4,7 @@
  */
 
 import { t } from "#i18n";
+/* jscpd:ignore-start */
 import {
   advancedSettingsRoute,
   processSecretField,
@@ -12,6 +13,7 @@ import {
   settingsHandler,
 } from "#routes/admin/settings-helpers.ts";
 import { settings } from "#shared/db/settings.ts";
+/* jscpd:ignore-end */
 import {
   getEmailConfig,
   isEmailProvider,

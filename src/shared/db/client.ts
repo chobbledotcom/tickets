@@ -220,10 +220,13 @@ const firstRowOrNull = <T>(result: ResultSet): T | null => {
   return rows.length === 0 ? null : rows[0]!;
 };
 
+/** A read statement and its optional bound args — the shared parameters of
+ * {@link queryOne} and {@link queryAll}. */
+type ReadArgs = [sql: string, args?: InValue[]];
+
 /** Query single row, returning null if not found */
 export const queryOne = async <T>(
-  sql: string,
-  args?: InValue[],
+  ...[sql, args]: ReadArgs
 ): Promise<T | null> => firstRowOrNull<T>(await execute(sql, args));
 
 /**
@@ -244,10 +247,8 @@ export const queryOnePrimary = async <T>(
 };
 
 /** Query all rows, returning a typed array */
-export const queryAll = async <T>(
-  sql: string,
-  args?: InValue[],
-): Promise<T[]> => resultRows<T>(await execute(sql, args));
+export const queryAll = async <T>(...[sql, args]: ReadArgs): Promise<T[]> =>
+  resultRows<T>(await execute(sql, args));
 
 /**
  * True when the query returns at least one row. `sql` should be an existence
