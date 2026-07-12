@@ -267,6 +267,7 @@ const listingMoneyRows = (money: ListingMoneyTotals): DetailRow[] => [
   moneyRow("admin.ledger.stats.recognised_income", money.income, true),
   moneyRow("admin.ledger.stats.servicing_costs", -money.servicingCosts, true),
   moneyRow("admin.ledger.stats.refunded", -money.refunds, true),
+  moneyRow("admin.ledger.stats.external_costs", -money.externalCosts, true),
   moneyRow(
     "admin.ledger.stats.net_after_costs",
     money.income - money.refunds - money.externalCosts - money.servicingCosts,

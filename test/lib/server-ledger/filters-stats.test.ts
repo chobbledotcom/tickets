@@ -160,6 +160,8 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
     expect(html).toContain("−£12");
     expect(html).toContain("Total refunded");
     expect(html).toContain("−£7");
+    expect(html).toContain("Costs paid outside checkout");
+    expect(html).toContain("−£3");
     expect(html).toContain("Net after refunds and costs");
     expect(html).toContain("£8");
     expect(html).not.toContain("£11");

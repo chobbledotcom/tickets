@@ -150,6 +150,7 @@
   "admin.ledger.stats.gross_sales": "Gross ticket sales",
   "admin.ledger.stats.recognised_income": "Total income earned",
   "admin.ledger.stats.servicing_costs": "Servicing costs",
+  "admin.ledger.stats.external_costs": "Costs paid outside checkout",
   "admin.ledger.stats.net_after_costs": "Net after refunds and costs",
   "admin.ledger.balance": "Balance: {amount}",
   "admin.ledger.amount_owed": "Amount still owed: {amount}",
