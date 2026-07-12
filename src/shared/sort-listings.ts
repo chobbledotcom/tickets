@@ -8,7 +8,7 @@
 
 import { getNextBookableDate } from "#shared/dates.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getAllListings } from "#shared/db/listings.ts";
+import { getAllListings } from "#shared/db/listings/records.ts";
 import type { Holiday, Listing, ListingWithCount } from "#shared/types.ts";
 
 export type { ListingWithCount };

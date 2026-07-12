@@ -20,10 +20,10 @@ import {
   createDatedServicingScenario,
   createServicingHold,
   expectCostAfterRecording,
+  listingCostOf,
   renderAdminPage,
 } from "#test-utils/servicing.ts";
 import {
-  listingCostOf,
   listingProfitOf,
   postCustomerSale,
   recordBoilerCost,
@@ -90,7 +90,7 @@ describeWithEnv(
       await recordBoilerCost(id, listing.id);
 
       const { getListingWithCount, invalidateListingsCache } = await import(
-        "#shared/db/listings.ts"
+        "#shared/db/listings/records.ts"
       );
       invalidateListingsCache();
       const row = await getListingWithCount(listing.id);
@@ -132,10 +132,17 @@ describeWithEnv(
     test("service_cost legs appear in the listing-filtered visible ledger", async () => {
       const { id, listing } = await createServicingHold();
       await recordBoilerCost(id, listing.id);
+      await createTestListing({ maxAttendees: 10, name: "Other listing" });
+      const other = await createServicingHold({
+        listing: { name: "Other listing" },
+        name: "Other service",
+      });
+      await recordBoilerCost(other.id, other.listing.id);
+
       const legs = await visibleTransfers(emptyRange, [listing.id], 100);
-      expect(legs.some((transfer) => transfer.kind === KIND.serviceCost)).toBe(
-        true,
-      );
+      expect(legs).toHaveLength(1);
+      expect(legs[0]?.kind).toBe(KIND.serviceCost);
+      expect(legs[0]?.source).toEqual(account("cost", listing.id));
     });
   },
 );

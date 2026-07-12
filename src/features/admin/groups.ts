@@ -30,7 +30,7 @@ import {
   validateGroupListingType,
 } from "#shared/db/groups.ts";
 import { clearImageUsesForItemStatement } from "#shared/db/images.ts";
-import { getListing } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
 import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
 import {
@@ -347,7 +347,9 @@ const validateListingTypesForGroup = async (
   listingIds: number[],
 ): Promise<string | null> => {
   const listings = compact(
-    await Promise.all(listingIds.map((listingId) => getListing(listingId))),
+    await Promise.all(
+      listingIds.map((listingId) => getListingWithCount(listingId)),
+    ),
   );
   for (const listing of listings) {
     const typeError = await validateGroupListingType(

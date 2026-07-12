@@ -4,7 +4,7 @@ import { getClientIp } from "#routes/url.ts";
 import { bookingError, parseCustomPrice } from "#shared/booking/form.ts";
 import { bookingLimiter } from "#shared/db/booking-attempts.ts";
 import { isHiddenPackageMember } from "#shared/db/groups.ts";
-import { getListingWithCountBySlug } from "#shared/db/listings.ts";
+import { getListingWithCountBySlug } from "#shared/db/listings/records.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";

@@ -34,7 +34,7 @@ import {
 import {
   getListingsWithCountsByIds,
   queryListingsWithCounts,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/records.ts";
 import { allNamesById, queryAndMap } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";

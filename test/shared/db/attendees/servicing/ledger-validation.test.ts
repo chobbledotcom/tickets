@@ -7,13 +7,14 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   adminPost,
   createServicingHold,
+  createTestServicingEvent,
   editServiceCost,
   expectRejects,
+  listingCostOf,
   recordServiceCost,
 } from "#test-utils/servicing.ts";
 import {
   expectCostFormError,
-  listingCostOf,
   recordBoilerCost,
   SERVICE_DATE,
 } from "#test-utils/servicing-ledger.ts";
@@ -86,9 +87,12 @@ describeWithEnv("servicing §22 - cost validation", { db: true }, () => {
 
   test("editing a service cost cannot move it through another service event", async () => {
     const { id, listing } = await createServicingHold({ name: "Held" });
-    await createTestListing({ maxAttendees: 10, name: "Other Listing" });
-    const other = await createServicingHold({
-      listing: { maxAttendees: 10, name: "Other Listing" },
+    const otherListing = await createTestListing({
+      maxAttendees: 10,
+      name: "Other Listing",
+    });
+    const other = await createTestServicingEvent({
+      bookings: [{ listingId: otherListing.id, quantity: 1 }],
       name: "Other",
     });
     const costId = await recordBoilerCost(id, listing.id);

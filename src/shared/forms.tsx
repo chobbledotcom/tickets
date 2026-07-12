@@ -79,51 +79,14 @@ export interface Field {
   validate?: (value: string) => string | null;
 }
 
-type FormFieldDefinition = Readonly<Field>;
-type FormFieldDefinitions = readonly FormFieldDefinition[];
-
-export type FormRenderValuesFor<TFields extends FormFieldDefinitions> = Partial<
-  Record<TFields[number]["name"], string | number | null>
->;
-
-type ParsedFieldValue<F extends FormFieldDefinition> = F extends {
-  parse: (...args: never[]) => infer T;
-}
-  ? T
-  : F["type"] extends "number"
-    ? number | null
-    : string | null;
-
-type NormalizedFieldValue<F extends FormFieldDefinition> = F extends {
-  required: true;
-}
-  ? Exclude<ParsedFieldValue<F>, null>
-  : ParsedFieldValue<F>;
-
-export type FormValuesFor<TFields extends FormFieldDefinitions> = {
-  [F in TFields[number] as F["name"]]: NormalizedFieldValue<F>;
-};
-
-type FormFieldRenderHelper = { render: (value?: string) => string };
-
-export type FormDefinition<
-  TFields extends FormFieldDefinitions,
-  TContext = undefined,
-> = {
-  id: string;
-  fields: TFields;
-  render: (values?: FormRenderValuesFor<TFields>) => string;
-  renderFields: (values?: FormRenderValuesFor<TFields>) => string;
-  field: (name: TFields[number]["name"]) => FormFieldRenderHelper;
-  validate: (
-    form: FormParams,
-    context?: TContext,
-  ) => ValidationResult<FormValuesFor<TFields>>;
-};
-
 export interface FieldValues {
   [key: string]: string | number | null;
 }
+
+export type FieldValueNormalizer = (
+  field: Field,
+  value: string | number | null,
+) => string | number | null;
 
 export type ValidationResult<T = FieldValues> =
   | { valid: true; values: T }
@@ -436,7 +399,7 @@ const parseFieldValue = (
     ? field.parse(trimmed)
     : field.type === "number"
       ? trimmed
-        ? Number.parseInt(trimmed, 10)
+        ? Number(trimmed)
         : null
       : trimmed;
 
@@ -444,6 +407,9 @@ const requiredFieldError = (field: Field): FieldValidationResult => ({
   error: field.requiredMessage ?? `${field.label} is required`,
   valid: false,
 });
+
+const isUnusableParsedValue = (value: string | number | null): boolean =>
+  value === null || (typeof value === "number" && !Number.isFinite(value));
 
 /**
  * Collect the raw trimmed value for a field from the form data.
@@ -512,8 +478,13 @@ const validateSingleField = (
   }
 
   const value = parseFieldValue(field, trimmed);
-  if (trimmed && value === null && field.invalidMessage) {
-    return { error: field.invalidMessage, valid: false };
+  if (trimmed && isUnusableParsedValue(value)) {
+    return {
+      error:
+        field.invalidMessage ??
+        t("error.field_invalid", { label: field.label }),
+      valid: false,
+    };
   }
   return { valid: true, value };
 };
@@ -529,81 +500,17 @@ const validateSingleField = (
 export const validateForm = <T = FieldValues>(
   form: FormParams,
   fields: Field[],
+  normalizeValue: FieldValueNormalizer = (_field, value) => value,
 ): ValidationResult<T> => {
   const values: FieldValues = {};
 
   for (const field of fields) {
     const result = validateSingleField(form, field);
     if (!result.valid) return result;
-    values[field.name] = result.value;
+    values[field.name] = normalizeValue(field, result.value);
   }
 
   return { valid: true, values: values as T };
-};
-
-const normalizeOptionalValue = (
-  field: Field,
-  value: string | number | null,
-): string | number | null => {
-  if (field.required) return value;
-  if (field.type === "number") return value;
-  return value === "" ? null : value;
-};
-
-/**
- * Define a typed form schema that can render and validate from one source.
- */
-export const defineForm = <
-  TFields extends FormFieldDefinitions,
-  TContext = undefined,
->(config: {
-  id: string;
-  fields: TFields;
-  validate?: (
-    values: FormValuesFor<TFields>,
-    context: TContext,
-  ) => string | null;
-}): FormDefinition<TFields, TContext> => {
-  const fields = [...config.fields];
-  const fieldMap = new Map(fields.map((f) => [f.name, f] as const));
-
-  const validate = (
-    form: FormParams,
-    context?: TContext,
-  ): ValidationResult<FormValuesFor<TFields>> => {
-    const base = validateForm<Record<string, string | number | null>>(
-      form,
-      fields,
-    );
-    if (!base.valid) return base;
-
-    const values = Object.fromEntries(
-      fields.map((field) => [
-        field.name,
-        normalizeOptionalValue(field, base.values[field.name] ?? null),
-      ]),
-    ) as FormValuesFor<TFields>;
-
-    if (config.validate) {
-      const error = config.validate(values, context as TContext);
-      if (error) return { error, valid: false };
-    }
-    return { valid: true, values };
-  };
-
-  const render = (values: FormRenderValuesFor<TFields> = {}): string =>
-    renderFields(fields, values as FieldValues);
-
-  return {
-    field: (name) => ({
-      render: (value = "") => renderField(fieldMap.get(name)!, value),
-    }),
-    fields: config.fields,
-    id: config.id,
-    render,
-    renderFields: render,
-    validate,
-  };
 };
 
 /**

@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { getListing, listingsTable } from "#shared/db/listings.ts";
+import {
+  getListingWithCount,
+  listingsTable,
+} from "#shared/db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   cdnOkResponse,
@@ -75,7 +78,7 @@ describeWithEnv(
           fetchCalls.find((url) => url.includes("listing-image.jpg")),
         ).toBeUndefined();
 
-        const deleted = await getListing(listing.id);
+        const deleted = await getListingWithCount(listing.id);
         expect(deleted).toBeNull();
       });
 
@@ -140,7 +143,7 @@ describeWithEnv(
           );
           expect(response.status).toBe(302);
 
-          const deleted = await getListing(listing.id);
+          const deleted = await getListingWithCount(listing.id);
           expect(deleted).toBeNull();
         });
       });

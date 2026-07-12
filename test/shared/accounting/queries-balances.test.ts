@@ -56,8 +56,12 @@ describe("db > accounting > balance queries", () => {
       }),
     ]);
     const income = await accountBalancesOfType("revenue");
-    expect(income.get("1")).toBe(1000);
-    expect(income.get("2")).toBe(3000);
+    expect(income).toEqual(
+      new Map([
+        ["1", 1000],
+        ["2", 3000],
+      ]),
+    );
   });
 
   test("accountBalancesForIds scopes to given ids; empty is a no-op", async () => {

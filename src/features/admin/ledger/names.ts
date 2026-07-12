@@ -7,28 +7,24 @@ import {
   REVENUE,
   type RowAccountType,
 } from "#shared/accounting/accounts.ts";
-import { getListingNamesByIds } from "#shared/db/listings.ts";
-import { getAllModifiers } from "#shared/db/modifiers.ts";
+import { getListingNamesByIds } from "#shared/db/listings/records.ts";
+import { getModifierNamesByIds } from "#shared/db/modifiers.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
-import type { LedgerNames } from "#templates/admin/ledger.tsx";
-
-const ROW_ACCOUNT_NAMES: Record<
-  RowAccountType,
-  (names: LedgerNames) => Map<number, string>
-> = {
-  attendee: (names) => names.attendees,
-  cost: (names) => names.listings,
-  modifier: (names) => names.modifiers,
-  revenue: (names) => names.listings,
-};
+import {
+  type LedgerNames,
+  ledgerNamesForAccountType,
+} from "#templates/admin/ledger.tsx";
 
 export const hasLedgerName = (
   type: RowAccountType,
   id: string,
   names: LedgerNames,
-): boolean => ROW_ACCOUNT_NAMES[type](names).has(Number(id));
+): boolean => ledgerNamesForAccountType(type, names).has(Number(id));
 
-const referencedAccountIds = (accounts: AccountRef[], type: string): number[] =>
+const referencedAccountIds = (
+  accounts: AccountRef[],
+  type: RowAccountType,
+): number[] =>
   unique(
     mapNotNullish((account: AccountRef) =>
       account.type === type ? Number(account.id) : null,
@@ -46,20 +42,16 @@ export const loadLedgerNamesForAccounts = async (
     ...referencedAccountIds(accounts, REVENUE),
     ...referencedAccountIds(accounts, COST),
   ]);
-  const modifierIds = new Set(referencedAccountIds(accounts, MODIFIER));
+  const modifierIds = referencedAccountIds(accounts, MODIFIER);
   const [attendees, listings, modifiers] = await Promise.all([
     loadAttendeeNames(attendeeIds),
     getListingNamesByIds(listingIds),
-    modifierIds.size > 0 ? getAllModifiers() : Promise.resolve([]),
+    getModifierNamesByIds(modifierIds),
   ]);
   return {
     attendees,
     listings,
-    modifiers: new Map(
-      modifiers
-        .filter((modifier) => modifierIds.has(modifier.id))
-        .map((modifier) => [modifier.id, modifier.name]),
-    ),
+    modifiers,
   };
 };
 

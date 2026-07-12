@@ -1,5 +1,6 @@
 {
   "error.field_required": "{label} is required",
+  "error.field_invalid": "{label} is invalid.",
   "error.date_without_time": "Please enter a date when providing a time, or leave both blank",
   "error.url_https": "URL must use https://",
   "error.url_invalid": "Invalid URL format",

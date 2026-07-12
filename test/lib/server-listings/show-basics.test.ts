@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { updateListingAggregateValues } from "#shared/db/listings.ts";
+import { updateListingAggregateValues } from "#shared/db/listings/aggregates.ts";
 import {
   assertAdminHtml,
   expectHtmlResponse,

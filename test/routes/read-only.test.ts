@@ -200,9 +200,8 @@ describeWithEnv(
       const { settings } = await import("#shared/db/settings.ts");
       const { groups, computeGroupSlugIndex, assignListingsToGroup } =
         await import("#shared/db/groups.ts");
-      const { listingsTable, computeSlugIndex } = await import(
-        "#shared/db/listings.ts"
-      );
+      const { listingsTable } = await import("#shared/db/listings/records.ts");
+      const { computeSlugIndex } = await import("#shared/db/listings/table.ts");
       await settings.update.showPublicSite(true);
       const slugIndex = await computeGroupSlugIndex("ro-group");
       const group = await groups.table.insert({

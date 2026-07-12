@@ -123,7 +123,9 @@ describeWithEnv(
       await expect(
         updateTestListing(child.id, { bookableAlone: false }),
       ).rejects.toThrow();
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      const { getListingWithCount } = await import(
+        "#shared/db/listings/records.ts"
+      );
       expect((await getListingWithCount(child.id))!.bookable_alone).toBe(true);
     });
 

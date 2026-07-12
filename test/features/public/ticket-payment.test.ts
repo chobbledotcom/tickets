@@ -33,7 +33,7 @@ import {
   getVisits,
   hashEmail,
 } from "#shared/db/contact-preferences.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { CheckoutItem } from "#shared/payments.ts";

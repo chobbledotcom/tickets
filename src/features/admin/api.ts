@@ -26,14 +26,16 @@ import {
   writeListingDayCounts,
 } from "#shared/db/listing-prices.ts";
 import {
-  computeSlugIndex,
   getAllListings,
   getListingWithCount,
   getListingWithCountPrimary,
   getStoredListingWithCount,
-  type ListingInput,
   listingsTable,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/records.ts";
+import {
+  computeSlugIndex,
+  type ListingInput,
+} from "#shared/db/listings/table.ts";
 import {
   deleteOrphanedAddOnError,
   generateUniqueListingSlug,

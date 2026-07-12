@@ -4,7 +4,7 @@
  */
 
 import { t } from "#i18n";
-import { defineForm } from "#shared/forms.tsx";
+import { defineForm } from "#shared/forms/definition.ts";
 import type { SitePage } from "#shared/types.ts";
 import {
   contentMetaValues,

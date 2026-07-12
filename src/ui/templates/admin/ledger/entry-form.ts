@@ -1,7 +1,7 @@
 import { t } from "#i18n";
 import type { ManualLedgerEntryOption } from "#shared/accounting/manual-entries.ts";
 import { settings } from "#shared/db/settings.ts";
-import { defineForm } from "#shared/forms.tsx";
+import { defineForm, type FormDefinition } from "#shared/forms/definition.ts";
 import { localToUtc } from "#shared/timezone.ts";
 import { parsePositiveMinorUnits } from "#shared/validation/money.ts";
 
@@ -45,25 +45,32 @@ export const ledgerEntryForm = defineForm({
   id: "ledger-entry",
 });
 
-export const defineLedgerEntryAddForm = (options: LedgerEntryAddOption[]) =>
+const ledgerEntryAddFields = (options: LedgerEntryAddOption[]) =>
+  [
+    {
+      invalidMessage: t("admin.ledger.form.entry_type_invalid"),
+      label: t("admin.ledger.add.type"),
+      name: "entry_type",
+      options: options.map((option) => ({
+        hint: option.hint,
+        label: option.label,
+        value: option.type,
+      })),
+      parse: (value: string) =>
+        options.find((option) => option.type === value)?.type ?? null,
+      required: true,
+      requiredMessage: t("admin.ledger.form.entry_type_required"),
+      type: "select",
+    },
+    ...LEDGER_ENTRY_FIELDS,
+  ] as const;
+
+type LedgerEntryAddFields = ReturnType<typeof ledgerEntryAddFields>;
+
+export const defineLedgerEntryAddForm = (
+  options: LedgerEntryAddOption[],
+): FormDefinition<LedgerEntryAddFields> =>
   defineForm({
-    fields: [
-      {
-        invalidMessage: t("admin.ledger.form.entry_type_invalid"),
-        label: t("admin.ledger.add.type"),
-        name: "entry_type",
-        options: options.map((option) => ({
-          hint: option.hint,
-          label: option.label,
-          value: option.type,
-        })),
-        parse: (value: string) =>
-          options.find((option) => option.type === value)?.type ?? null,
-        required: true,
-        requiredMessage: t("admin.ledger.form.entry_type_required"),
-        type: "select",
-      },
-      ...LEDGER_ENTRY_FIELDS,
-    ] as const,
+    fields: ledgerEntryAddFields(options),
     id: "ledger-entry-add",
   });

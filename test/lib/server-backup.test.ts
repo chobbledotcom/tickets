@@ -343,9 +343,8 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
       const zipData = await createBackupZip();
       // Delete the listing after capturing it in the backup so we can
       // verify the restore actually writes data back to the DB.
-      const { deleteListing, getAllListings } = await import(
-        "#shared/db/listings.ts"
-      );
+      const { getAllListings } = await import("#shared/db/listings/records.ts");
+      const { deleteListing } = await import("#shared/db/listings/delete.ts");
       await deleteListing(listing.id);
       expect((await getAllListings()).find((e) => e.id === listing.id)).toBe(
         undefined,

@@ -21,7 +21,7 @@ import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { groupExists } from "#shared/db/groups.ts";
 import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
-import { getListingOfferFlags } from "#shared/db/listings.ts";
+import { getListingOfferFlags } from "#shared/db/listings/catalog.ts";
 import {
   addPageItem,
   getItemsForPage,

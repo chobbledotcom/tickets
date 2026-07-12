@@ -1,12 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { type AdminLevel, isOwnerRole } from "#shared/types.ts";
+import { ALL_ADMIN_LEVELS, isOwnerRole } from "#shared/types.ts";
 
 describe("admin roles", () => {
   test("only the owner role has owner permissions", () => {
-    const results = (
-      ["owner", "manager", "agent", "editor"] as AdminLevel[]
-    ).map((role) => [role, isOwnerRole(role)]);
+    const results = ALL_ADMIN_LEVELS.map((role) => [role, isOwnerRole(role)]);
 
     expect(results).toEqual([
       ["owner", true],

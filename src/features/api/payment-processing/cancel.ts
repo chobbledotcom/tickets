@@ -17,7 +17,7 @@ import { lacksStandalonePublicPage } from "#routes/public/ticket-payment.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { lineGroupIds } from "#shared/booking/signed-metadata.ts";
 import { groups } from "#shared/db/groups.ts";
-import { getListing } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { paymentCancelPage } from "#templates/payment.tsx";
 
@@ -61,8 +61,8 @@ export const cancelPageResponse = async (
 ): Promise<Response> => {
   const intent = extractIntent(session);
   const listingId = intent?.items[0]?.e ?? 0;
-  // Use getListing (not getListingWithCount) - we only need slug for the link
-  const listing = await getListing(listingId);
+  // Use getListingWithCount (not getListingWithCount) - we only need slug for the link
+  const listing = await getListingWithCount(listingId);
   if (!listing) {
     logFailure(
       `Listing not found (session=${session.id}, listingId=${listingId})`,

@@ -5,17 +5,18 @@ import { costAccount } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import { getServicingCosts } from "#shared/db/attendees/servicing.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   adminPost,
   createServicingHold,
   editServiceCost,
+  listingCostOf,
   recordServiceCost,
   renderAdminPage,
 } from "#test-utils/servicing.ts";
 import {
   editBoilerCostTo,
-  listingCostOf,
   recordBoilerCost,
   SERVICE_DATE,
   transfersOfKind,
@@ -43,9 +44,6 @@ describeWithEnv("servicing §22 - editing costs", { db: true }, () => {
     expect(await listingCostOf(listing.id)).toBe(12000);
     const legs = await transfersByAccount(costAccount(listing.id));
     expect(legs.map((leg) => leg.amount).toSorted()).toEqual([3000, 9000]);
-    const { getServicingCosts } = await import(
-      "#shared/db/attendees/servicing.ts"
-    );
     const costs = await getServicingCosts(id);
     expect(costs[0]!.amount).toBe(12000);
   });
@@ -84,9 +82,6 @@ describeWithEnv("servicing §22 - editing costs", { db: true }, () => {
       servicingId: id,
     });
     await editServiceCost(costId, { amount: 6000 }, id);
-    const { getServicingCosts } = await import(
-      "#shared/db/attendees/servicing.ts"
-    );
     const costs = await getServicingCosts(id);
     expect(costs).toHaveLength(1);
     expect(costs[0]!.amount).toBe(6000);
@@ -123,9 +118,6 @@ describeWithEnv("servicing §22 - editing costs", { db: true }, () => {
     });
     await editServiceCost(costId, { amount: 6000 });
     expect(await listingCostOf(listing.id)).toBe(6000);
-    const { getServicingCosts } = await import(
-      "#shared/db/attendees/servicing.ts"
-    );
     const costs = await getServicingCosts(id);
     expect(costs[0]!.amount).toBe(6000);
   });

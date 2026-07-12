@@ -11,7 +11,7 @@ import {
   getGroupPackagePrices,
   groups,
 } from "#shared/db/groups.ts";
-import { getListing } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
   assertApiDeleteOk,
   assertJson,
@@ -507,7 +507,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
       // Deleting the group removes membership; the listing survives, ungrouped.
       expect(await getGroupIdsByListingId(listing.id)).toEqual([]);
-      const listingRow = await getListing(listing.id);
+      const listingRow = await getListingWithCount(listing.id);
       expect(listingRow).not.toBeNull();
     });
 

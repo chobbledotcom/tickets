@@ -9,10 +9,8 @@ import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { execute } from "#shared/db/client.ts";
 import { getListingOverviewStats } from "#shared/db/listing-overview-stats.ts";
-import {
-  getAttendeesByListingIds,
-  getListingWithCount,
-} from "#shared/db/listings.ts";
+import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
   finalizeSession,
   reserveSession,

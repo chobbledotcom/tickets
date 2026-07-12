@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#shared/db/listing-parents.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -169,7 +169,7 @@ describeWithEnv("server > listing parents > admin API", { db: true }, () => {
   test("admin API POST rejecting an invalid child creates NO listing row", async () => {
     // On create the child-edge validation runs before the insert, so a rejected
     // edge must leave no orphan listing row behind.
-    const { getAllListings } = await import("#shared/db/listings.ts");
+    const { getAllListings } = await import("#shared/db/listings/records.ts");
     const child = await createTestListing({
       listingType: "daily",
       name: "Daily add-on",

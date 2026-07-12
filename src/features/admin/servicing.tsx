@@ -4,8 +4,8 @@ import { map, unique } from "#fp";
 import { t } from "#i18n";
 import { handlersFor } from "#routes/admin/handlers.ts";
 import {
+  normalizeServicingForSave,
   parseServicingForm,
-  toServicingCreateInput,
 } from "#routes/admin/servicing/form-model.ts";
 import {
   activeServicingListings,
@@ -39,7 +39,10 @@ import {
   servicingHoldsListing,
   updateServicingEvent,
 } from "#shared/db/attendees/servicing.ts";
-import { getAllListings, getListingNamesByIds } from "#shared/db/listings.ts";
+import {
+  getAllListings,
+  getListingNamesByIds,
+} from "#shared/db/listings/records.ts";
 import {
   applyDemoOverrides,
   SERVICING_DEMO_FIELDS,
@@ -132,7 +135,7 @@ const handleServicingGet: TypedRouteHandler<"GET /admin/servicing/:id"> = (
 const parseCreateInput = async (form: FormParams) => {
   applyDemoOverrides(form, SERVICING_DEMO_FIELDS);
   const listings = await getAllListings();
-  return toServicingCreateInput(
+  return normalizeServicingForSave(
     parseServicingForm(form, servicingListingsById(listings)),
   );
 };

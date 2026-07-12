@@ -27,7 +27,7 @@ export type ServicingPrefill = {
   startDate: string;
 };
 
-export const emptyServicingPrefill = (): ServicingPrefill => ({
+const emptyServicingPrefill = (): ServicingPrefill => ({
   quantities: new Map(),
   startDate: "",
 });
@@ -87,18 +87,15 @@ const listingFormQuantities = (
   listings: ListingWithCount[],
   event: ServicingEvent | null,
   quantities: Map<number, number>,
-): Map<number, number> => {
-  const formQuantities = new Map<number, number>(
-    map((listing: ListingWithCount) => [listing.id, 0] as const)(listings),
-  );
-  for (const [listingId, quantity] of quantities) {
-    formQuantities.set(listingId, quantity);
-  }
-  for (const booking of event?.bookings ?? []) {
-    formQuantities.set(booking.listingId, booking.quantity!);
-  }
-  return formQuantities;
-};
+): Map<number, number> =>
+  new Map([
+    ...map((listing: ListingWithCount) => [listing.id, 0] as const)(listings),
+    ...quantities,
+    ...map(
+      (booking: ServicingEvent["bookings"][number]) =>
+        [booking.listingId, booking.quantity!] as const,
+    )(event?.bookings ?? []),
+  ]);
 
 const listingRows = (
   listings: ListingWithCount[],

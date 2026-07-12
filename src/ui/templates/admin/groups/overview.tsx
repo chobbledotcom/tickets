@@ -31,6 +31,7 @@ import {
   type ExpectedActualItem,
   ExpectedActualTableRow,
 } from "#templates/admin/expected-actual.tsx";
+import { HiddenListingRow } from "#templates/admin/hidden-listing-row.tsx";
 import { MoneySummary } from "#templates/admin/money-summary.tsx";
 import {
   PublicTicketLink,
@@ -109,7 +110,7 @@ const GroupAttendeesRow = ({
       <tr>
         <th>{t("groups.group_attendees")}</th>
         <td>
-          {attendeeCount} <small>(no group cap)</small>
+          {attendeeCount} <small>({t("groups.detail.no_group_cap")})</small>
         </td>
       </tr>
     );
@@ -119,7 +120,7 @@ const GroupAttendeesRow = ({
       <th>{t("groups.group_attendees")}</th>
       <td>
         <GroupCapacityMeter count={attendeeCount} max={group.max_attendees} />{" "}
-        <small>across all listings in the group</small>
+        <small>{t("groups.detail.attendees_scope")}</small>
       </td>
     </tr>
   );
@@ -235,12 +236,7 @@ export const GroupOverviewPanel = ({
             shareable={shareable}
             ticketUrl={ticketUrl}
           />
-          {group.hidden && (
-            <tr>
-              <th>{t("listings_table.hidden")}</th>
-              <td>Yes &mdash; not shown in public listings list</td>
-            </tr>
-          )}
+          {group.hidden && <HiddenListingRow />}
           <GroupAttendeesRow attendeeCount={totalCount} group={group} />
           <GroupAggregateMismatchRow
             attendees={attendees}

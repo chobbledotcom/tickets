@@ -23,7 +23,7 @@ import {
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
-import { getAttendeesByListingIds } from "#shared/db/listings.ts";
+import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
 import { loadAttendeeQuestionData } from "#shared/db/questions/attendee-answers/reads.ts";
 import { settings } from "#shared/db/settings.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";

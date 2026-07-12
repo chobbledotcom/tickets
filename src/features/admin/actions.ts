@@ -23,7 +23,7 @@ import {
   getAttendeeKindsByIds,
   getAttendeeNamesByIds,
 } from "#shared/db/attendees/queries.ts";
-import { getListingWithAttendeesRaw } from "#shared/db/listings.ts";
+import { getListingWithAttendeesRaw } from "#shared/db/listings/attendees.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";

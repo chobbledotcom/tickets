@@ -32,7 +32,7 @@ import {
 } from "#shared/db/capacity.ts";
 import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
 import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { type ListingType, normalizeDurationDays } from "#shared/types.ts";
 
 /** Convert nullable date to start_at/end_at (null-safe wrapper around dateToRange) */

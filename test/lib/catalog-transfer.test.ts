@@ -15,7 +15,7 @@ import {
 } from "#shared/db/groups.ts";
 import { listingChildren, listingParents } from "#shared/db/listing-parents.ts";
 import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
-import { getListing } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -43,7 +43,7 @@ const importBuiltSiteListing = async (name: string): Promise<boolean> => {
     version: 1,
   });
   if (!result.ok) throw new Error(result.error);
-  return (await getListing(result.id))!.assign_built_site;
+  return (await getListingWithCount(result.id))!.assign_built_site;
 };
 
 describeWithEnv("catalog-transfer", { db: true }, () => {
@@ -78,7 +78,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       });
       if (!result.ok) throw new Error("unreachable");
 
-      const imported = (await getListing(result.id))!;
+      const imported = (await getListingWithCount(result.id))!;
       expect(imported.name).toBe("Child Copy");
       expect(imported.unit_price).toBe(1500);
       // Slug is freshly minted, never copied from the source.
@@ -102,7 +102,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       blob.listing.name = "Alone Copy";
       const result = await importCatalog(blob);
       if (!result.ok) throw new Error(result.error);
-      const imported = (await getListing(result.id))!;
+      const imported = (await getListingWithCount(result.id))!;
       expect(imported.bookable_alone).toBe(true);
     });
 
@@ -168,7 +168,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       });
       if (!result.ok) throw new Error(result.error);
 
-      const imported = (await getListing(result.id))!;
+      const imported = (await getListingWithCount(result.id))!;
       expect(imported.closes_at).toBe("2030-01-01T00:00:00.000Z");
       // The derived listing_prices base row is re-synced from unit_price after
       // the transactional insert (which bypasses the table wrapper).
@@ -504,7 +504,7 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
       "editor",
     );
     if (!result.ok) throw new Error(result.error);
-    const imported = (await getListing(result.id))!;
+    const imported = (await getListingWithCount(result.id))!;
     expect(imported.webhook_url).toBe("");
     expect(imported.use_defaults).toBe(false);
   });
@@ -523,7 +523,7 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
       "owner",
     );
     if (!result.ok) throw new Error(result.error);
-    const imported = (await getListing(result.id))!;
+    const imported = (await getListingWithCount(result.id))!;
     expect(imported.webhook_url).toBe("https://example.com/hook");
   });
 
@@ -538,7 +538,7 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
       version: 1,
     });
     if (!result.ok) throw new Error(result.error);
-    expect((await getListing(result.id))!.uses_logistics).toBe(false);
+    expect((await getListingWithCount(result.id))!.uses_logistics).toBe(false);
   });
 
   test("keeps uses-logistics when logistics is enabled", async () => {
@@ -549,7 +549,7 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
       version: 1,
     });
     if (!result.ok) throw new Error(result.error);
-    expect((await getListing(result.id))!.uses_logistics).toBe(true);
+    expect((await getListingWithCount(result.id))!.uses_logistics).toBe(true);
   });
 
   test("clears package overrides for a non-package group membership", async () => {
@@ -609,9 +609,8 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
     // More parents than the per-request N+1 guard (25) and the transaction
     // round-trip cap (~30) would allow one query/insert each — proves the
     // batched nested-parent check and the set-wise edge insert.
-    const { computeSlugIndex, listingsTable } = await import(
-      "#shared/db/listings.ts"
-    );
+    const { listingsTable } = await import("#shared/db/listings/records.ts");
+    const { computeSlugIndex } = await import("#shared/db/listings/table.ts");
     const parentNames = Array.from({ length: 30 }, (_, i) => `Parent ${i}`);
     for (const name of parentNames) {
       const slug = name.toLowerCase().replace(/\s+/g, "-");
@@ -731,9 +730,8 @@ describeWithEnv(
 
 describeWithEnv("catalog-transfer branch coverage", { db: true }, () => {
   test("rejects an ambiguous (duplicate-named) reference", async () => {
-    const { computeSlugIndex, listingsTable } = await import(
-      "#shared/db/listings.ts"
-    );
+    const { listingsTable } = await import("#shared/db/listings/records.ts");
+    const { computeSlugIndex } = await import("#shared/db/listings/table.ts");
     for (const slug of ["twin-a", "twin-b"]) {
       await listingsTable.insert({
         maxAttendees: 1,

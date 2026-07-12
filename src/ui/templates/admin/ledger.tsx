@@ -104,6 +104,11 @@ const ROW_ACCOUNT_KINDS: Record<RowAccountType, RowAccountKind> = {
 
 /** The bounded id→name lookup for one row-backed account type — the single
  * accessor the label resolver and the route layer's existence checks share. */
+export const ledgerNamesForAccountType = (
+  type: RowAccountType,
+  names: LedgerNames,
+): Map<number, string> => ROW_ACCOUNT_KINDS[type].names(names);
+
 /** Singleton accounts get a friendly, link-free name from i18n, matched on the
  * account type alone (`writeoff:*` is one logical account regardless of id).
  * Exhaustive over {@link SingletonAccountType}. */
@@ -132,7 +137,7 @@ const resolveAccountLabel = (
   }
   const kind = ROW_ACCOUNT_KINDS[account.type];
   const id = Number(account.id);
-  const name = kind.names(names).get(id);
+  const name = ledgerNamesForAccountType(account.type, names).get(id);
   return name === undefined
     ? { text: t(kind.fallbackKey, { id }) }
     : { href: kind.href(id), text: name };

@@ -330,8 +330,4 @@ describeAccounting(() => {
     await assertEditPageIncome(first.id, 3000);
     await assertEditPageIncome(second.id, 2000);
   });
-
-  // 11. A genuinely free (£0) booking through the public ticket form records no
-  //     money at all — no sale, no payment, and (even with a booking fee
-  //     configured) no phantom fee income or cash. The attendee owes nothing.
 });

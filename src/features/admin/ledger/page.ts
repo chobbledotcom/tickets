@@ -2,6 +2,7 @@ import * as v from "valibot";
 import { sort } from "#fp";
 import { t } from "#i18n";
 import { loadLedgerNames } from "#routes/admin/ledger/names.ts";
+import { pickerDatesFromBounds } from "#routes/admin/ledger/picker-dates.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
@@ -16,9 +17,9 @@ import {
 } from "#shared/accounting/queries.ts";
 import type { LedgerRange } from "#shared/accounting/range.ts";
 import { formatSignedCurrency } from "#shared/currency.ts";
-import { addDays, dateRange, formatDateLabel } from "#shared/dates.ts";
+import { addDays } from "#shared/dates.ts";
 import { getAllGroupNames, getGroupListingIds } from "#shared/db/groups.ts";
-import { getAllListings } from "#shared/db/listings.ts";
+import { getAllListings } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   type LedgerScope,
@@ -26,11 +27,7 @@ import {
   listingIdsForLedgerScope,
   resolveLedgerScope,
 } from "#shared/ledger-scope.ts";
-import {
-  dayStartEpochMs,
-  epochMsToTzDate,
-  todayInTz,
-} from "#shared/timezone.ts";
+import { dayStartEpochMs, todayInTz } from "#shared/timezone.ts";
 import { isIsoDate, isIsoMonth } from "#shared/validation/date.ts";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import {
@@ -66,22 +63,6 @@ const filterRange = (
   endMs: to ? dayStartEpochMs(addDays(to, 1), tz) : null,
   startMs: from ? dayStartEpochMs(from, tz) : null,
 });
-
-export const pickerDatesFromBounds = (
-  bounds: { minMs: number; maxMs: number } | null,
-  today: string,
-  tz: string,
-): DatePickerDate[] => {
-  if (!bounds) return [];
-  const startDay = epochMsToTzDate(bounds.minMs, tz);
-  const latest = epochMsToTzDate(bounds.maxMs, tz);
-  const endDay = latest > today ? latest : today;
-  return dateRange(startDay, endDay).map((value) => ({
-    label: formatDateLabel(value),
-    selectable: true,
-    value,
-  }));
-};
 
 const buildPickerDates = async (
   tz: string,

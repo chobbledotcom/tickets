@@ -155,25 +155,19 @@ export const adminBuiltSiteDeletePage = (
     action: `/admin/built-sites/${site.id}/delete`,
     active: "/admin/built-sites",
     buttonText: t("built_sites.delete_built_site_button"),
-    children: (
-      <>
-        <h1>{t("built_sites.delete_page_title")}</h1>
-        <p>
-          <Raw
-            html={t("built_sites.delete_confirmation", {
-              name: escapeHtml(site.name),
-            })}
-          />
-        </p>
-        <p>
-          {t("built_sites.delete_confirmation_prompt", { name: site.name })}
-        </p>
-      </>
-    ),
+    confirm: {
+      args: { name: escapeHtml(site.name) },
+      key: "built_sites.delete_confirmation",
+    },
     danger: false,
     error,
+    heading: t("built_sites.delete_page_title"),
     label: t("built_sites.delete_label"),
     name: site.name,
+    prompt: {
+      args: { name: site.name },
+      key: "built_sites.delete_confirmation_prompt",
+    },
     session,
     title: t("built_sites.delete_page_title"),
   });

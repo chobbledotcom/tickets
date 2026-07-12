@@ -71,7 +71,9 @@ describe("test-utils — db-backed & settings contracts", () => {
       const { listingId } = await createReservedAttendee(1500, {
         listingName: "Reserved Helper Listing",
       });
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      const { getListingWithCount } = await import(
+        "#shared/db/listings/records.ts"
+      );
       const listing = await getListingWithCount(listingId);
 
       expect(listing!.name).toBe("Reserved Helper Listing");

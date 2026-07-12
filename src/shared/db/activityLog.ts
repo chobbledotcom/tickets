@@ -27,11 +27,8 @@ import type {
 } from "#shared/crypto/sealed.ts";
 import { queryAll, queryBatch, resultRows } from "#shared/db/client.ts";
 import { idAndCreatedSchema } from "#shared/db/common-schema.ts";
-import {
-  decryptListingWithCount,
-  LISTING_COUNT_GROUP_BY,
-  LISTING_COUNT_SELECT,
-} from "#shared/db/listings.ts";
+import { decryptListingWithCount } from "#shared/db/listings/records.ts";
+import { LISTING_COUNT_SELECT } from "#shared/db/listings/sql.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { col, defineTable } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
@@ -228,7 +225,7 @@ export const getListingWithActivityLog = async (
   const results = await queryBatch([
     {
       args: [listingId],
-      sql: `${LISTING_COUNT_SELECT} WHERE listing.id = ? ${LISTING_COUNT_GROUP_BY}`,
+      sql: `${LISTING_COUNT_SELECT} WHERE listing.id = ?`,
     },
     {
       args: [listingId, limit],

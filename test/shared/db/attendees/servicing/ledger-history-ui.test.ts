@@ -5,19 +5,20 @@ import { costAccount } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import { getServicingCosts } from "#shared/db/attendees/servicing.ts";
 import { queryAll } from "#shared/db/client.ts";
-import { deleteListing } from "#shared/db/listings.ts";
+import { deleteListing } from "#shared/db/listings/delete.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminPost,
   createServicingHold,
   deleteServicingEvent,
+  listingCostOf,
   recordServiceCost,
   renderAdminPage,
 } from "#test-utils/servicing.ts";
 import {
-  listingCostOf,
   recordBoilerCost,
   SERVICE_DATE,
 } from "#test-utils/servicing-ledger.ts";
@@ -95,31 +96,29 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
 
   test("getServicingCosts returns records in (occurred_at, transfer_id) order with each memo on its own row", async () => {
     const { id, listing } = await createServicingHold();
-    for (const i of [2, 0, 3, 1]) {
-      const day = `2026-07-0${i + 1}`;
+    for (const { amount, day, memo } of [
+      { amount: 1200, day: "2026-07-02", memo: "later" },
+      { amount: 1000, day: "2026-07-01", memo: "first" },
+      { amount: 1100, day: "2026-07-01", memo: "second" },
+    ]) {
       await recordServiceCost({
-        amount: 1000 + i * 100,
+        amount,
         listingId: listing.id,
-        memo: `memo-${day}`,
+        memo,
         occurredAt: `${day}T00:00:00.000Z`,
         servicingId: id,
       });
     }
-    const { getServicingCosts } = await import(
-      "#shared/db/attendees/servicing.ts"
-    );
     const costs = await getServicingCosts(id);
     expect(costs.map((cost) => cost.date.slice(0, 10))).toEqual([
       "2026-07-01",
+      "2026-07-01",
       "2026-07-02",
-      "2026-07-03",
-      "2026-07-04",
     ]);
     expect(costs.map((cost) => cost.memo)).toEqual([
-      "memo-2026-07-01",
-      "memo-2026-07-02",
-      "memo-2026-07-03",
-      "memo-2026-07-04",
+      "first",
+      "second",
+      "later",
     ]);
   });
 
@@ -135,8 +134,12 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
     const rows = await queryAll<{ memo: string | null }>(
       `SELECT memo FROM transfers WHERE kind = '${KIND.serviceCost}'`,
     );
-    for (const row of rows) {
-      expect(row.memo ?? "").not.toContain("07700 900000");
-    }
+    expect(rows).toHaveLength(1);
+    const memo = rows[0]?.memo;
+    if (memo === null || memo === undefined)
+      throw new Error("Missing stored memo");
+    expect(memo).not.toContain("Plumber Dave");
+    expect(memo).not.toContain("07700 900000");
+    expect(memo).not.toContain("Plumber Dave 07700 900000");
   });
 });

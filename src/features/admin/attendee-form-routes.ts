@@ -72,7 +72,7 @@ import { hasPaidLine } from "#shared/db/attendees/queries.ts";
 import { updateAttendeeStatus } from "#shared/db/attendees/update.ts";
 import { hasAssignedBuiltSite } from "#shared/db/built-sites.ts";
 import { syncAttendeeContactTokens } from "#shared/db/contact-tokens.ts";
-import { getAllListings } from "#shared/db/listings.ts";
+import { getAllListings } from "#shared/db/listings/records.ts";
 import {
   type LogisticsAssignment,
   setLogisticsAssignments,

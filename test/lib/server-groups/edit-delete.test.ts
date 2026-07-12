@@ -247,10 +247,12 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       await deleteTestGroup(group.id);
 
       const { groups } = await import("#shared/db/groups.ts");
-      const { getListing } = await import("#shared/db/listings.ts");
+      const { getListingWithCount } = await import(
+        "#shared/db/listings/records.ts"
+      );
 
       expect(await groups.table.findById(group.id)).toBeNull();
-      const existingListing = await getListing(listing.id);
+      const existingListing = await getListingWithCount(listing.id);
       expect(existingListing).not.toBeNull();
       // Group delete prunes membership rows, leaving the listing ungrouped.
       expect(await getGroupIdsByListingId(listing.id)).toEqual([]);

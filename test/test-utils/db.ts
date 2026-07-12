@@ -10,7 +10,7 @@ import {
 import { getDb, insert, queryOne, setDb } from "#shared/db/client.ts";
 import { groups } from "#shared/db/groups.ts";
 import { holidays } from "#shared/db/holidays.ts";
-import { invalidateListingsCache } from "#shared/db/listings.ts";
+import { invalidateListingsCache } from "#shared/db/listings/records.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
 import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";

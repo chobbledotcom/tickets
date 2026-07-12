@@ -164,7 +164,9 @@ describe("test-utils — listing & attendee factories", () => {
       const listing = await createTestListing();
       expect(listing.active).toBe(true);
       await deactivateTestListing(listing.id);
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      const { getListingWithCount } = await import(
+        "#shared/db/listings/records.ts"
+      );
       const updated = await getListingWithCount(listing.id);
       expect(updated!.active).toBe(false);
     });

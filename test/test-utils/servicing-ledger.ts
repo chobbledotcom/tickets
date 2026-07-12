@@ -7,13 +7,17 @@
 import { expect } from "@std/expect";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { allTransfers } from "#shared/accounting/queries.ts";
+import {
+  getListingWithCount,
+  invalidateListingsCache,
+} from "#shared/db/listings/records.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { expectFlashError } from "#test-utils/assertions.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { postListingSale } from "#test-utils/ledger.ts";
 import {
   createServicingHold,
   editServiceCost,
-  listingCostOf,
   recordServiceCost,
 } from "#test-utils/servicing.ts";
 
@@ -27,9 +31,6 @@ export const transfersOfKind = async (kind: string): Promise<Transfer[]> =>
 /** The listing row's profit, reading through a fresh listings cache so a
  *  just-recorded cost is reflected. */
 export const listingProfitOf = async (listingId: number): Promise<number> => {
-  const { getListingWithCount, invalidateListingsCache } = await import(
-    "#shared/db/listings.ts"
-  );
   invalidateListingsCache();
   return (await getListingWithCount(listingId))!.profit;
 };
@@ -66,7 +67,6 @@ export const postCustomerSale = async (listingId: number): Promise<void> => {
     "Customer",
     "c@example.com",
   );
-  const { postListingSale } = await import("#test-utils/ledger.ts");
   await postListingSale({ attendeeId: attendee.id, gross: 20000, listingId });
 };
 
@@ -86,5 +86,3 @@ export const expectCostFormError = async (
   expectFlashError(response);
   expect((await allTransfers()).length).toBe(before);
 };
-
-export { listingCostOf };

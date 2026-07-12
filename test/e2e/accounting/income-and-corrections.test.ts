@@ -282,8 +282,4 @@ describeAccounting(() => {
     // Rendered admin value agrees on the edit page and the list.
     await assertRenderedModifierRevenue(modifier.id, 1200);
   });
-
-  // 6. Refunding a real paid order reverses revenue→0 and owed→0, posts a full
-  //    refund_cash leg, conservation holds, and the admin listing page renders
-  //    the refunded attendee's state.
 });

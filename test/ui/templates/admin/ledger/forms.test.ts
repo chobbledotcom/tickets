@@ -94,7 +94,7 @@ describe("ledger entry forms", () => {
     },
   );
 
-  test("returns catalog errors for invalid amount and date values", () => {
+  test("returns the catalog error for an invalid amount", () => {
     expect(
       ledgerEntryForm.validate(
         new FormParams({
@@ -103,6 +103,9 @@ describe("ledger entry forms", () => {
         }),
       ),
     ).toEqual({ error: "Enter a valid amount.", valid: false });
+  });
+
+  test("returns the catalog error for an invalid date and time", () => {
     expect(
       ledgerEntryForm.validate(
         new FormParams({ amount: "12.34", occurred_at: "not-a-date" }),

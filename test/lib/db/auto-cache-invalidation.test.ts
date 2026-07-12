@@ -7,7 +7,10 @@ import {
   incrementAttachmentDownloads,
   updateCheckedIn,
 } from "#shared/db/attendees/update.ts";
-import { getAllListings, getListingWithCount } from "#shared/db/listings.ts";
+import {
+  getAllListings,
+  getListingWithCount,
+} from "#shared/db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

@@ -40,7 +40,9 @@ const setupParentWithMondayChild = async () => {
   const { listingChildren } = await import("#shared/db/listing-parents.ts");
   const { getBookableStartDates } = await import("#shared/dates.ts");
   const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-  const { getListingWithCount } = await import("#shared/db/listings.ts");
+  const { getListingWithCount } = await import(
+    "#shared/db/listings/records.ts"
+  );
   const parent = await createDailyTestListing({ unitPrice: 500 });
   const child = await createDailyTestListing({
     bookableDays: ["Monday"],
@@ -230,7 +232,9 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
       const listing = await createDailyTestListing({ unitPrice: 500 });
       const { getBookableStartDates } = await import("#shared/dates.ts");
       const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      const { getListingWithCount } = await import(
+        "#shared/db/listings/records.ts"
+      );
       const date = getBookableStartDates(
         (await getListingWithCount(listing.id))!,
         await getActiveHolidays(),

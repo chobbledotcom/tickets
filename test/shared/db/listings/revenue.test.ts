@@ -9,8 +9,7 @@ import {
 import { accountBalance } from "#shared/accounting/queries.ts";
 import { emptyRange } from "#shared/accounting/range.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
-import { queryOne } from "#shared/db/client.ts";
-import { listingIncomeSubquery } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { account } from "#shared/ledger/account.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -23,21 +22,11 @@ import {
 
 describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   describe("listingMoneyTotals for one listing", () => {
-    /** Read the listing's income exactly as the page projects it — the
-     * `creditsLessWriteoffDebits` subquery behind `listingIncomeSubquery` — so the
-     * reconciliation invariant is asserted against the SAME projection, not a
-     * re-derivation. */
+    /** Read the listing's income through the public listing projection. */
     const projectedIncome = async (listingId: number): Promise<number> => {
-      // listingIncomeSubquery interpolates its id expression four times (the
-      // credited/written-off predicates each appear in the CASE and the WHERE).
-      // Ledger ids are TEXT, so the id is bound as a string (a numeric bind casts
-      // to "1.0" and matches nothing); the outer `id = ?` still matches by the
-      // listings column's INTEGER affinity.
-      const row = (await queryOne<{ income: number | bigint }>(
-        `SELECT ${listingIncomeSubquery("?")} FROM listings WHERE id = ?`,
-        Array(5).fill(String(listingId)),
-      ))!;
-      return Number(row.income);
+      const listing = await getListingWithCount(listingId);
+      if (!listing) throw new Error(`Listing ${listingId} was not found`);
+      return listing.income;
     };
 
     /** Assert a breakdown's recognised income and net balance agree with the

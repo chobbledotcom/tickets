@@ -3,7 +3,7 @@ import { t } from "#i18n";
 import { formatCountdown } from "#routes/format.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
-import type { ListingAggregateRecalculation } from "#shared/db/listings.ts";
+import type { ListingAggregateRecalculation } from "#shared/db/listings/aggregates.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   availableDayCounts,
@@ -15,6 +15,7 @@ import {
   CopyableInputRow,
   type CopyableInputRowSpec,
 } from "#templates/admin/copyable-row.tsx";
+import { HiddenListingRow } from "#templates/admin/hidden-listing-row.tsx";
 import {
   PublicTicketLink,
   UnavailablePublicUrlRow,
@@ -269,12 +270,7 @@ export const ListingDetailsTable = ({
             <td>{t("listings_table.yes_id_verification_required")}</td>
           </tr>
         )}
-        {listing.hidden && (
-          <tr>
-            <th>{t("listings_table.hidden")}</th>
-            <td>{t("listings_table.yes_not_shown_in_public_list")}</td>
-          </tr>
-        )}
+        {listing.hidden && <HiddenListingRow />}
         {listing.listing_type === "daily" && (
           <DailyScheduleRows listing={listing} />
         )}

@@ -4,7 +4,7 @@
  * An "orphaned" attendee is a row in `attendees` with no surviving
  * `listing_attendees` link — typically left behind when the only listing they
  * were booked onto is deleted (deleteListing removes the bookings but
- * deliberately leaves the attendee, see db/listings.ts). These rows still hold
+ * deliberately leaves the attendee, see db/listings/delete.ts). These rows still hold
  * encrypted personal data but no longer belong to any listing, so the Privacy
  * page lets the owner purge those older than a chosen age.
  *

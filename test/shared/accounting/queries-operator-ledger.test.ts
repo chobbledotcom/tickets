@@ -117,10 +117,10 @@ describe("db > accounting > operator ledger stats and visible list", () => {
     await seedLedger();
     const rows = await visibleTransfers(emptyRange, null, 100);
     // The payment and refund_cash legs are gone. Only internal legs remain.
-    expect(rows.map((r) => r.kind).toSorted()).toEqual([
-      "adjustment",
-      "fee",
-      "sale",
+    expect(rows.map((row) => row.reference)).toEqual([
+      "adj-1",
+      "fee-1",
+      "sale-1",
     ]);
     expect(rows.every((r) => r.source.type !== "external")).toBe(true);
     expect(rows.every((r) => r.destination.type !== "external")).toBe(true);

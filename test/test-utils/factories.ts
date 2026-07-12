@@ -1,7 +1,7 @@
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import type { BuiltSite } from "#shared/db/built-sites.ts";
-import type { ListingInput } from "#shared/db/listings.ts";
+import type { ListingInput } from "#shared/db/listings/table.ts";
 import type {
   Answer,
   QuestionDisplayType,

@@ -2,7 +2,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { KIND } from "#shared/accounting/kinds.ts";
 import {
+  MANUAL_ATTENDEE_CHARGE,
   MANUAL_ATTENDEE_PAYMENT,
+  MANUAL_ATTENDEE_WRITEOFF,
+  MANUAL_LISTING_COST,
+  MANUAL_LISTING_INCOME,
+  MANUAL_MODIFIER_INCOME,
+  MANUAL_MODIFIER_REDUCTION,
   ManualLedgerEntryTypeSchema,
 } from "#shared/accounting/manual-entries.ts";
 import { formatCurrency } from "#shared/currency.ts";
@@ -54,38 +60,33 @@ describe("LedgerTable", () => {
   });
 
   test("has a translated detailed-view label for every known event type", () => {
-    const kinds = [
+    const cases = [
+      [KIND.adjustment, "Correction"],
+      [KIND.fee, "Booking fee"],
+      [KIND.modifier, "Price change"],
+      [KIND.payment, "Payment received"],
+      [KIND.refundCash, "Refund paid"],
+      [KIND.refundFee, "Booking fee refunded"],
+      [KIND.refundModifier, "Price change refunded"],
+      [KIND.refundSale, "Booking refunded"],
+      [KIND.reversal, "Change reversed"],
+      [KIND.sale, "Booking made"],
+      [KIND.serviceCost, "Service event cost"],
+      [MANUAL_ATTENDEE_PAYMENT, "Payment received another way"],
+      [MANUAL_ATTENDEE_CHARGE, "Extra amount owed"],
+      [MANUAL_ATTENDEE_WRITEOFF, "Amount no longer owed"],
+      [MANUAL_LISTING_INCOME, "Income received another way"],
+      [MANUAL_LISTING_COST, "Listing cost paid another way"],
+      [MANUAL_MODIFIER_INCOME, "Extra option income"],
+      [MANUAL_MODIFIER_REDUCTION, "Option income reduced"],
+    ] as const;
+    expect(cases.map(([kind]) => kind)).toEqual([
       ...Object.values(KIND),
       ...ManualLedgerEntryTypeSchema.options,
-    ];
-    const html = renderLedger(
-      kinds.map((kind, index) => transfer({ id: index + 1, kind })),
-      names(),
-      "dual",
-    );
-    for (const kind of kinds) {
+    ]);
+    for (const [kind, label] of cases) {
+      const html = renderLedger([transfer({ kind })], names(), "dual");
       expect(html).not.toContain(`>${kind}<`);
-    }
-    for (const label of [
-      "Correction",
-      "Booking fee",
-      "Price change",
-      "Payment received",
-      "Refund paid",
-      "Booking fee refunded",
-      "Price change refunded",
-      "Booking refunded",
-      "Change reversed",
-      "Booking made",
-      "Service event cost",
-      "Payment received another way",
-      "Extra amount owed",
-      "Amount no longer owed",
-      "Income received another way",
-      "Listing cost paid another way",
-      "Extra option income",
-      "Option income reduced",
-    ]) {
       expect(html).toContain(`>${label}<`);
     }
   });
@@ -118,9 +119,10 @@ describe("LedgerTable", () => {
 
   test("does not link manual-entry amounts without a return URL", () => {
     const html = renderLedger(
-      [transfer({ id: 77, kind: "sale" })],
+      [transfer({ id: 77, kind: MANUAL_ATTENDEE_PAYMENT })],
       names(),
       "dual",
+      "",
     );
     expect(html).not.toContain("/admin/ledger/entries/77/edit");
     expect(html).toContain(`>${formatCurrency(5000)}<`);

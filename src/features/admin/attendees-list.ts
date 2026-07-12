@@ -24,7 +24,7 @@ import {
   isAttendeeSort,
 } from "#shared/db/attendees/queries.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getAllListings } from "#shared/db/listings.ts";
+import { getAllListings } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   attendeeNameMap,

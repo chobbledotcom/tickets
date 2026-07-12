@@ -12,7 +12,7 @@ import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
 import {
   getListingPickerNames,
   type ListingOfferFlags,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/catalog.ts";
 import { getAllPageItems } from "#shared/db/site-page-items.ts";
 import { sitePages } from "#shared/db/site-pages.ts";
 import { isQualifyingTierListing } from "#shared/site-assignment.ts";

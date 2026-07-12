@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { account } from "#shared/ledger/account.ts";
-import { names, renderLedger, transfer } from "./helpers.ts";
+import { ledgerRows, names, renderLedger, transfer } from "./helpers.ts";
 
 describe("HumanLedgerTable", () => {
   test("renders plain-language descriptions for every known ledger event family", () => {
@@ -161,7 +161,7 @@ describe("HumanLedgerTable", () => {
     expect(html).toContain(
       'Correction reduced <a href="/admin/ledger?listing=1">Concert</a>',
     );
-    const rows = html.split("<tr>");
+    const rows = ledgerRows(html);
     expect(rows[2]).toContain("+£50");
     expect(rows[4]).toContain("−£50");
     expect(rows[18]).toContain("−£50");
@@ -192,7 +192,7 @@ describe("HumanLedgerTable", () => {
     expect(html).toContain("Ada");
     expect(html).not.toContain("Correction reduced");
     expect(html).not.toContain("Correction increased");
-    const rows = html.split("<tr>");
+    const rows = ledgerRows(html);
     expect(rows[2]).toContain("+£50");
     expect(rows[3]).toContain("−£50");
   });
@@ -228,7 +228,7 @@ describe("HumanLedgerTable", () => {
       ],
       names({ modifiers: new Map([[1, "Helmet hire"]]) }),
     );
-    const rows = html.split("<tr>");
+    const rows = ledgerRows(html);
     expect(rows[2]).toContain("+£50");
     expect(rows[3]).toContain("−£50");
     expect(rows[4]).toContain("−£50");

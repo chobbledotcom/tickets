@@ -68,7 +68,7 @@ import {
   getChildrenForParents,
   listingChildren,
 } from "#shared/db/listing-parents.ts";
-import { getListingsBySlugsBatch } from "#shared/db/listings.ts";
+import { getListingsBySlugsBatch } from "#shared/db/listings/records.ts";
 import {
   getOptionalAddOns,
   hasPromoCodeModifiers,

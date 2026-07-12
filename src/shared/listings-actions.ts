@@ -22,15 +22,17 @@ import {
   getNonStandaloneChildIds,
   listingParents,
 } from "#shared/db/listing-parents.ts";
+import { deleteListing } from "#shared/db/listings/delete.ts";
 import {
-  computeSlugIndex,
-  deleteListing,
   getAllListings,
   getListingWithCount,
   isSlugTaken,
-  type ListingInput,
   listingsTable,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/records.ts";
+import {
+  computeSlugIndex,
+  type ListingInput,
+} from "#shared/db/listings/table.ts";
 import {
   childOnlyAddOnNameForListings,
   firstChildUnreachableAddOnForListings,

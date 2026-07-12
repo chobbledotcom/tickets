@@ -25,7 +25,7 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { builtSites, insertBuiltSite } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
-import { defineForm } from "#shared/forms.tsx";
+import { defineForm } from "#shared/forms/definition.ts";
 import {
   adminBuilderPage,
   type BuiltSiteDisplay,

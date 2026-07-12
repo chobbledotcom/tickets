@@ -95,7 +95,3 @@ export const normalizeServicingForSave = (
     name: parsed.name.trim(),
   };
 };
-
-export const toServicingCreateInput = (
-  parsed: ParsedAttendeeForm,
-): ServicingCreateInput => normalizeServicingForSave(parsed);

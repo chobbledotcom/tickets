@@ -41,7 +41,7 @@ import {
   queryOne,
   withTransaction,
 } from "#shared/db/client.ts";
-import { getListingNamesByIds } from "#shared/db/listings.ts";
+import { getListingNamesByIds } from "#shared/db/listings/records.ts";
 import {
   type AttendeeAnswersBatch,
   getAttendeeAnswersBatch,

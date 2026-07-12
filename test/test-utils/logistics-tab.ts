@@ -7,7 +7,7 @@ import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
 import type { ListingBooking } from "#shared/db/attendee-types.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
-import { listingsTable } from "#shared/db/listings.ts";
+import { listingsTable } from "#shared/db/listings/records.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

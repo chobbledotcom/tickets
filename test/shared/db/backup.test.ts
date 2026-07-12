@@ -27,7 +27,7 @@ import {
   splitStatements,
 } from "#shared/db/backup.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
-import { listingsTable } from "#shared/db/listings.ts";
+import { listingsTable } from "#shared/db/listings/records.ts";
 import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
 import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
 import {

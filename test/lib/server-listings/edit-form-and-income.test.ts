@@ -4,7 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   getListingWithCount,
   invalidateListingsCache,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/records.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   assertAdminHtml,

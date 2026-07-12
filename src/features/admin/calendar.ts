@@ -30,11 +30,11 @@ import { getListingRemainingForRange } from "#shared/db/attendees/capacity.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
-  getAllListings,
   getAttendeesByListingIds,
   getDailyListingAttendeeDates,
   getDailyListingAttendeesByDate,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/attendees.ts";
+import { getAllListings } from "#shared/db/listings/records.ts";
 import {
   bookingAssignmentKey,
   getLogisticsAssignmentsForAttendees,

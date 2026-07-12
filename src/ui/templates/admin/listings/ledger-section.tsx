@@ -3,10 +3,6 @@ import { t } from "#i18n";
 import type { ListingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import {
-  type AccountLedgerData,
-  EmbeddedAccountStatementSection,
-} from "#templates/admin/ledger/statement.tsx";
-import {
   MoneySummary,
   type MoneySummaryRow,
 } from "#templates/admin/money-summary.tsx";
@@ -84,19 +80,4 @@ export const ListingIncomeLedgerSection = ({
       title={t("listings_table.income_ledger_legend")}
     />
   </PageBlock>
-);
-
-export const ListingLedgerSection = ({
-  ledger,
-  listingId,
-}: {
-  ledger: AccountLedgerData;
-  listingId: number;
-}): JSX.Element => (
-  <EmbeddedAccountStatementSection
-    fullLedgerHref={`/admin/ledger/${ledger.account.type}/${ledger.account.id}`}
-    id="ledger"
-    ledger={ledger}
-    returnUrl={`/admin/listing/${listingId}`}
-  />
 );

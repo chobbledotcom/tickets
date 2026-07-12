@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
-import { account } from "#shared/ledger/account.ts";
 import { nearCapacity } from "#templates/admin/listings/aggregates.tsx";
 import { completePaymentAttendees } from "#templates/admin/listings/attendees.tsx";
 import { overviewStatsFromDbStats } from "#templates/admin/listings/overview.tsx";
@@ -15,7 +14,7 @@ import {
 
 registerListingTemplateHooks();
 
-describe("adminListingPage income & ledger breakdown", () => {
+describe("adminListingPage money breakdown", () => {
   const listing = testListingWithCount({ id: 7 });
 
   test("omits the section entirely when no breakdown is supplied", () => {
@@ -33,7 +32,7 @@ describe("adminListingPage income & ledger breakdown", () => {
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      revenueBreakdown: {
+      moneyTotals: {
         externalCosts: 0,
         externalIncome: 0,
         grossSales: 10000,
@@ -72,7 +71,7 @@ describe("adminListingPage income & ledger breakdown", () => {
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      revenueBreakdown: {
+      moneyTotals: {
         externalCosts: 0,
         externalIncome: 0,
         grossSales: 9000,
@@ -100,7 +99,7 @@ describe("adminListingPage income & ledger breakdown", () => {
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      revenueBreakdown: {
+      moneyTotals: {
         externalCosts: 0,
         externalIncome: 0,
         grossSales: 5000,
@@ -125,7 +124,7 @@ describe("adminListingPage income & ledger breakdown", () => {
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      revenueBreakdown: {
+      moneyTotals: {
         externalCosts: 0,
         externalIncome: 0,
         grossSales: 4000,
@@ -146,7 +145,7 @@ describe("adminListingPage income & ledger breakdown", () => {
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      revenueBreakdown: {
+      moneyTotals: {
         externalCosts: 300,
         externalIncome: 1200,
         grossSales: 4000,
@@ -162,28 +161,6 @@ describe("adminListingPage income & ledger breakdown", () => {
     expect(html).toContain("+£12");
     expect(html).toContain("Costs paid outside checkout");
     expect(html).toContain("−£3");
-  });
-
-  test("shows a listing ledger add-entry action when the account exists", () => {
-    const html = renderListingDetail({
-      allowedDomain: "localhost",
-      attendees: [],
-      ledger: {
-        account: account("revenue", 7),
-        lines: [],
-        names: {
-          attendees: new Map(),
-          listings: new Map([[7, listing.name]]),
-          modifiers: new Map(),
-        },
-      },
-      listing,
-    });
-    expect(html).toContain('<div class="page-block" id="ledger">');
-    expect(html).toContain("Add money change");
-    expect(html).toContain(
-      'href="/admin/ledger/revenue/7/add?return_url=%2Fadmin%2Flisting%2F7"',
-    );
   });
 });
 

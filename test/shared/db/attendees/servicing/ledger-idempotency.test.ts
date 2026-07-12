@@ -3,6 +3,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { KIND } from "#shared/accounting/kinds.ts";
 import {
+  COST_REPLAY_MISMATCH,
+  getServicingCosts,
+} from "#shared/db/attendees/servicing.ts";
+import {
   expectFlashError,
   expectFlashSuccess,
   parseFlashCookie,
@@ -12,13 +16,10 @@ import {
   adminPost,
   createServicingHold,
   expectRejects,
+  listingCostOf,
   recordServiceCost,
 } from "#test-utils/servicing.ts";
-import {
-  listingCostOf,
-  SERVICE_DATE,
-  transfersOfKind,
-} from "#test-utils/servicing-ledger.ts";
+import { SERVICE_DATE, transfersOfKind } from "#test-utils/servicing-ledger.ts";
 
 // jscpd:ignore-end
 
@@ -84,9 +85,6 @@ describeWithEnv("servicing §22 - cost idempotency", { db: true }, () => {
     expect(await listingCostOf(listing.id)).toBe(9000);
     expect(parseFlashCookie(changed).success).toBeUndefined();
     expectFlashError(changed);
-    const { getServicingCosts } = await import(
-      "#shared/db/attendees/servicing.ts"
-    );
     const costs = await getServicingCosts(id);
     expect(costs.map((cost) => cost.amount)).toEqual([9000]);
   });
@@ -106,9 +104,6 @@ describeWithEnv("servicing §22 - cost idempotency", { db: true }, () => {
     expect(changed.status).toBe(302);
     expect(parseFlashCookie(changed).success).toBeUndefined();
     expectFlashError(changed);
-    const { getServicingCosts } = await import(
-      "#shared/db/attendees/servicing.ts"
-    );
     const costs = await getServicingCosts(id);
     expect(costs).toHaveLength(1);
     expect(costs[0]!.memo).toBe("Original memo");
@@ -116,9 +111,6 @@ describeWithEnv("servicing §22 - cost idempotency", { db: true }, () => {
 
   test("recordServiceCost throws COST_REPLAY_MISMATCH when a stored reference's payload changed", async () => {
     const { id, listing } = await createServicingHold();
-    const { COST_REPLAY_MISMATCH } = await import(
-      "#shared/db/attendees/servicing.ts"
-    );
     const base = {
       listingId: listing.id,
       memo: "Boiler part",
