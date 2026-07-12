@@ -14,7 +14,7 @@
 import { bold, red, yellow } from "./precommit/colors.ts";
 
 const { code } = await new Deno.Command(Deno.execPath(), {
-  args: ["run", "-A", "npm:jscpd", ...Deno.args],
+  args: ["run", "-A", "npm:jscpd@5.0.12", ...Deno.args],
 }).spawn().status;
 
 if (code !== 0) {
