@@ -15,6 +15,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { deleteListing } from "#shared/db/listings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -99,9 +100,9 @@ describeWithEnv(
       // admin delete route calls, which drops the listing and its
       // listing_attendees bookings in one batch.
       await deleteListing(listing.id);
-      // The attendee row survives — orphaned — until the purge sweeps it, but
-      // its booking on the deleted listing is gone.
-      expect(await kindOf(id)).not.toBeNull();
+      // The servicing attendee row survives — orphaned — until the purge sweeps
+      // it, but its booking on the deleted listing is gone.
+      expect(await kindOf(id)).toBe(SERVICING_KIND);
       expect(await servicingRowsForListing(listing.id)).toHaveLength(0);
     });
 
