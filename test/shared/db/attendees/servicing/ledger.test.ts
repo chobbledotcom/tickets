@@ -36,11 +36,13 @@ import {
 import { emptyRange } from "#shared/accounting/range.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { queryAll } from "#shared/db/client.ts";
+import { deleteListing } from "#shared/db/listings.ts";
 import { account } from "#shared/ledger/account.ts";
 import { parseFlashCookie } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminPost,
   createDatedServicingScenario,
@@ -53,6 +55,7 @@ import {
   recordServiceCost,
   renderAdminPage,
 } from "#test-utils/servicing.ts";
+import { createTestManagerSession } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 
@@ -221,9 +224,9 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
 
     const html = await renderAdminPage(`/admin/listing/${listing.id}`);
 
-    expect(html).toContain("Costs");
+    expect(html).toContain("Servicing costs");
     expect(html).toContain(formatCurrency(9000));
-    expect(html).toContain("Profit");
+    expect(html).toContain("Profit before refunds");
     expect(html).toContain(formatCurrency(11000));
   });
 
@@ -586,12 +589,39 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
       servicingId: id,
     });
     const body = await renderAdminPage(`/admin/servicing/${id}`);
-    expect(body).toContain("Recorded costs");
+    expect(body).toContain("Recorded outgoings");
     expect(body).toContain(formatCurrency(9000));
     expect(body).toContain("Boiler part");
     expect(body).toContain(listing.name);
+    expect(body).toContain("Money out");
+    expect(body).toContain(`href="/admin/ledger?listing=${listing.id}"`);
+    expect(body).toContain("View in ledger");
     // The edit form targets the cost route with the cost's id.
     expect(body).toContain(`/admin/servicing/${id}/cost/`);
+  });
+
+  test("shows managers the outgoing without a forbidden ledger link", async () => {
+    const { id, listing } = await createServicingHold();
+    await recordBoilerCost(id, listing.id);
+    const response = await awaitTestRequest(`/admin/servicing/${id}`, {
+      cookie: await createTestManagerSession(),
+    });
+    const body = await response.text();
+    expect(body).toContain(listing.name);
+    expect(body).not.toContain(`/admin/ledger?listing=${listing.id}`);
+    expect(body).not.toContain("View in ledger");
+  });
+
+  test("shows a deleted cost listing as plain text without a dead ledger link", async () => {
+    const { id, listing } = await createServicingHold();
+    await recordBoilerCost(id, listing.id);
+    await deleteListing(listing.id);
+
+    const body = await renderAdminPage(`/admin/servicing/${id}`);
+
+    expect(body).toContain("Deleted listing");
+    expect(body).not.toContain(`/admin/ledger?listing=${listing.id}`);
+    expect(body).not.toContain("View in ledger");
   });
 
   test("getServicingCosts returns records in (occurred_at, transfer_id) order with each memo on its own row", async () => {
@@ -753,7 +783,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     const other = await createServicingHold({ listing: { name: "Other" } });
     await recordBoilerCost(other.id, other.listing.id); // £90 on a different listing
 
-    const legs = await visibleTransfers(emptyRange, listing.id, 100);
+    const legs = await visibleTransfers(emptyRange, [listing.id], 100);
     const costLegs = legs.filter((t) => t.kind === KIND.serviceCost);
     // Exactly this listing's cost leg — the other listing's is excluded.
     expect(costLegs).toHaveLength(1);

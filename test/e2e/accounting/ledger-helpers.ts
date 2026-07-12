@@ -6,7 +6,7 @@ import {
   WORLD,
 } from "#shared/accounting/accounts.ts";
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
-import { formatCurrency } from "#shared/currency.ts";
+import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { allBalances } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { adminGet } from "#test-utils/session.ts";
@@ -55,7 +55,7 @@ export const adminPageHtml = async (path: string): Promise<string> => {
 
 /**
  * Assert a `revenue` account's RUNNING BALANCE on the per-account ledger
- * statement page renders the given minor-unit figure (`Balance: £X`). This is
+ * statement page renders the given minor-unit figure (`Income balance: £X`).
  * the raw signed balance, so a refund's `revenue→attendee` debit DOES reduce it
  * (and it can go negative once a write-off and a refund both apply).
  */
@@ -64,7 +64,9 @@ export const assertStatementBalance = async (
   minor: number,
 ): Promise<void> => {
   const statement = await adminPageHtml(`/admin/ledger/revenue/${listingId}`);
-  expect(statement).toContain(`Balance: ${formatCurrency(minor)}`);
+  expect(statement).toContain(
+    `Income balance: ${formatSignedCurrency(minor, false)}`,
+  );
 };
 
 /**
@@ -94,7 +96,7 @@ export const assertRenderedIncome = async (
 
 /**
  * Assert an attendee's outstanding balance, on BOTH the per-account ledger
- * statement (`Balance: £X`, where owed = −running) and the admin ledger page
+ * statement (`Amount still owed: £X`, where owed = −running) and admin page
  * (`Balance outstanding:` label followed by the formatted figure).
  */
 export const assertRenderedOwed = async (

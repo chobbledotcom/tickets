@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { account } from "#shared/ledger/account.ts";
-import { emptyLedgerNames } from "#templates/admin/ledger.tsx";
 import { nearCapacity } from "#templates/admin/listings/aggregates.tsx";
 import { completePaymentAttendees } from "#templates/admin/listings/attendees.tsx";
 import { overviewStatsFromDbStats } from "#templates/admin/listings/overview.tsx";
@@ -28,7 +27,7 @@ describe("adminListingPage income & ledger breakdown", () => {
     expect(html).not.toContain("Income &amp; ledger");
   });
 
-  test("renders the five figures, the explanatory line and the ledger link", () => {
+  test("shows money in, money out, and the net result with consistent signs", () => {
     const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
@@ -43,21 +42,21 @@ describe("adminListingPage income & ledger breakdown", () => {
         refunds: 2000,
       },
     });
-    expect(html).toContain("Income &amp; ledger");
+    expect(html).toContain("Money in and out");
     // Gross sales credited (+), manual write-down (−), then the two subtotals.
     expect(html).toContain("Gross ticket sales");
     expect(html).toContain("+£100");
     expect(html).toContain("Manual adjustments");
     expect(html).toContain("−£10");
-    expect(html).toContain("Recognised income");
+    expect(html).toContain("Total income earned");
     expect(html).toContain("£90");
     expect(html).toContain("Refunds");
     expect(html).toContain("−£20");
-    expect(html).toContain("Net balance in ledger");
+    expect(html).toContain("Net after refunds and costs");
     expect(html).toContain("£70");
     // The plain-English reconciliation note and the button to the filtered
     // ledger, preselected to this listing (no arrow glyph, button-styled).
-    expect(html).toContain("refund-agnostic");
+    expect(html).toContain("Income is what this listing earned before refunds");
     expect(html).toContain('href="/admin/ledger?listing=7"');
     expect(html).toContain("View full ledger");
     expect(html).not.toContain("View full ledger →");
@@ -80,10 +79,11 @@ describe("adminListingPage income & ledger breakdown", () => {
         refunds: 2000,
       },
     });
-    const recognisedIdx = html.indexOf("Recognised income");
-    const netIdx = html.indexOf("Net balance in ledger");
+    const recognisedIdx = html.indexOf("Total income earned");
+    const netIdx = html.indexOf("Net after refunds and costs");
     expect(recognisedIdx).toBeGreaterThan(-1);
-    expect(netIdx).toBeGreaterThan(netIdx === -1 ? 0 : recognisedIdx);
+    expect(netIdx).toBeGreaterThan(-1);
+    expect(netIdx).toBeGreaterThan(recognisedIdx);
     expect(html).toContain("£90");
     expect(html).toContain("£70");
     // The two figures differ exactly by the refunds line.
@@ -105,11 +105,11 @@ describe("adminListingPage income & ledger breakdown", () => {
         refunds: 0,
       },
     });
-    expect(html).toContain("Income &amp; ledger");
+    expect(html).toContain("Money in and out");
     expect(html).not.toContain("Manual adjustments");
     // With no refunds either, recognised income and net balance coincide at £50.
-    expect(html).toContain("Recognised income");
-    expect(html).toContain("Net balance in ledger");
+    expect(html).toContain("Total income earned");
+    expect(html).toContain("Net after refunds and costs");
     expect(html).toContain("£50");
   });
 
@@ -161,8 +161,9 @@ describe("adminListingPage income & ledger breakdown", () => {
         account: account("revenue", 7),
         lines: [],
         names: {
-          ...emptyLedgerNames(),
+          attendees: new Map(),
           listings: new Map([[7, listing.name]]),
+          modifiers: new Map(),
         },
       },
       listing,

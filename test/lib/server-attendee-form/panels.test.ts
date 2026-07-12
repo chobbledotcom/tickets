@@ -120,7 +120,7 @@ describeWithEnv(
           },
         );
         const html = await expectHtmlResponse(response, 200);
-        expect(html).toContain("<th>Counterparty</th>");
+        expect(html).toContain("<th>Other side</th>");
         // The sale's counterparty links to the listing; the payment's is card/bank.
         expect(html).toContain("Pottery Class");
         expect(html).toContain("Card / bank");
@@ -141,7 +141,7 @@ describeWithEnv(
         });
         const html = await expectHtmlResponse(overview, 200);
         expect(html).not.toContain(`/admin/attendees/${id}/ledger`);
-        expect(html).not.toContain("<th>Counterparty</th>");
+        expect(html).not.toContain("<th>Other side</th>");
       });
     });
 

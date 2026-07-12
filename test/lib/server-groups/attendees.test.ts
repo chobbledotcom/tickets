@@ -244,7 +244,7 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
-      expect(html).toContain("Total Revenue");
+      expect(html).toContain("Total income earned");
     });
   });
 });

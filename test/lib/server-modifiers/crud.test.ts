@@ -327,7 +327,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const response = await adminGet(`/admin/modifiers/${id}/edit`);
       const html = await response.text();
-      expect(html).toContain("Account statement");
+      expect(html).toContain("Money history");
       expect(html).toContain("Add entry");
       expect(html).toContain(
         `/admin/ledger/modifier/${id}/add?return_url=%2Fadmin%2Fmodifiers%2F${id}%2Fedit`,
@@ -346,7 +346,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const html = await response.text();
       expect(response.status).toBe(200);
       expect(html).toContain("Manager visible");
-      expect(html).not.toContain("Account statement");
+      expect(html).not.toContain("Money history");
       expect(html).not.toContain(`/admin/ledger/modifier/${id}/add`);
     });
   });

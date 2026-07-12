@@ -11,6 +11,8 @@ import {
   getVisibleGroupMembers,
   groupBookable,
 } from "#routes/public/discovery.ts";
+import { listingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
+import { emptyRange } from "#shared/accounting/range.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import {
@@ -99,6 +101,7 @@ const loadGroupRoster = async (group: Group) => {
     attendees,
     hasPaidListing,
     holidays,
+    listingIds,
     listings: sortedListings,
     questionData,
   };
@@ -126,35 +129,43 @@ const rosterTab =
     build: (
       group: Group,
       roster: GroupRoster,
+      canViewLedger: boolean,
     ) => JSX.Element | Promise<JSX.Element>,
   ) =>
-  async (group: Group): Promise<JSX.Element> =>
-    build(group, await loadGroupRoster(group));
+  async (group: Group, canViewLedger = false): Promise<JSX.Element> =>
+    build(group, await loadGroupRoster(group), canViewLedger);
 
 /** Build the Overview tab: the group detail table, the member-listings table,
  * and the add-listings membership form. */
-export const loadGroupOverviewPanel = rosterTab(async (group, roster) => {
-  // The add-listings form offers any listing not already in THIS group —
-  // membership is many-to-many, so a listing in another group can still join.
-  const ungroupedListings = sortListings(
-    await getListingsNotInGroup(group.id),
-    roster.holidays,
-  );
-  // Mirror exactly when the public /ticket/<group> page renders vs 404s so the
-  // admin never offers a dead share/QR/embed link: it 404s when the
-  // buyer-visible member list is empty and, for a package, when the bundle
-  // isn't bookable. A regular group with merely sold-out members still renders.
-  const visibleMembers = await getVisibleGroupMembers(group);
-  const shareable =
-    visibleMembers.length > 0 &&
-    (!group.is_package || (await groupBookable(group, visibleMembers)));
-  return GroupOverviewPanel({
-    ...rosterPanelProps(group, roster),
-    hasPaidListing: roster.hasPaidListing,
-    shareable,
-    ungroupedListings,
-  });
-});
+export const loadGroupOverviewPanel = rosterTab(
+  async (group, roster, canViewLedger) => {
+    // The add-listings form offers any listing not already in THIS group —
+    // membership is many-to-many, so a listing in another group can still join.
+    const [listingsNotInGroup, visibleMembers, money] = await Promise.all([
+      getListingsNotInGroup(group.id),
+      getVisibleGroupMembers(group),
+      listingMoneyTotals(emptyRange, roster.listingIds),
+    ]);
+    const ungroupedListings = sortListings(listingsNotInGroup, roster.holidays);
+    // Mirror exactly when the public /ticket/<group> page renders vs 404s so the
+    // admin never offers a dead share/QR/embed link: it 404s when the
+    // buyer-visible member list is empty and, for a package, when the bundle
+    // isn't bookable. A regular group with merely sold-out members still renders.
+    const shareable =
+      visibleMembers.length > 0 &&
+      (!group.is_package || (await groupBookable(group, visibleMembers)));
+    return GroupOverviewPanel({
+      ...rosterPanelProps(group, roster),
+      hasPaidListing: roster.hasPaidListing,
+      ...(canViewLedger
+        ? { ledgerHref: `/admin/ledger?group=${group.id}` }
+        : {}),
+      money,
+      shareable,
+      ungroupedListings,
+    });
+  },
+);
 
 /** Build the Attendees tab: one row per booking line across the group's
  * listings. */

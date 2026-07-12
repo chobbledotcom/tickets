@@ -184,7 +184,7 @@ describe("adminListingEditPage form sections", () => {
     expect(html).toContain("correcting entry to the money ledger");
   });
 
-  test("links from the income form to the detail page's income & ledger breakdown", () => {
+  test("links from the income form to the detail page's money breakdown", () => {
     const listing = testListingWithCount({ id: 4 });
     const html = String(
       ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
@@ -192,7 +192,7 @@ describe("adminListingEditPage form sections", () => {
     // A compact pointer beside the adjust-income form to the full reconciliation
     // section on the detail page, so the two figures are explained in one place.
     expect(html).toContain('href="/admin/listing/4#income-ledger"');
-    expect(html).toContain("Income &amp; ledger breakdown");
+    expect(html).toContain("Money in and out");
   });
 
   test("shows a running-total mismatch on the edit page", () => {

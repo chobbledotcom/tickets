@@ -19,6 +19,7 @@ import {
   type ActionDef,
   defineEntityPage,
   type EntityPage,
+  type PageCtx,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
 import { type AuthSession, requireContentOr } from "#routes/auth.ts";
@@ -43,7 +44,7 @@ const staffOnly = (_group: Group, session: AuthSession): boolean =>
 const panelTab = (
   slug: string,
   labelKey: string,
-  load: (group: Group) => Promise<JSX.Element>,
+  load: (group: Group, ctx: PageCtx) => Promise<JSX.Element>,
   visible: (group: Group, session: AuthSession) => boolean,
   intent?: "view" | "write-form",
 ): TabDef<Group> => ({
@@ -115,11 +116,17 @@ export const groupPage: EntityPage<Group> = defineEntityPage({
   // link, no "Add" sub-nav (see attendee-page.ts).
   navActive: { section: "/admin/groups" },
   tabs: [
-    panelTab("", "entity.tab.overview", loadGroupOverviewPanel, staffOnly),
+    panelTab(
+      "",
+      "entity.tab.overview",
+      (group, ctx) =>
+        loadGroupOverviewPanel(group, ctx.session.adminLevel === "owner"),
+      staffOnly,
+    ),
     panelTab(
       "attendees",
       "entity.tab.attendees",
-      loadGroupAttendeesPanel,
+      (group) => loadGroupAttendeesPanel(group),
       staffOnly,
     ),
     panelTab(

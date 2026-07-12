@@ -3,7 +3,6 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { account } from "#shared/ledger/account.ts";
-import { emptyLedgerNames } from "#templates/admin/ledger.tsx";
 import {
   adminModifierDeletePage,
   adminModifierEditPage,
@@ -146,7 +145,8 @@ describe("adminModifierEditPage", () => {
         account: account("modifier", 1),
         lines: [],
         names: {
-          ...emptyLedgerNames(),
+          attendees: new Map(),
+          listings: new Map(),
           modifiers: new Map([[1, "Helmet hire"]]),
         },
       },

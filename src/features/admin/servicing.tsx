@@ -3,6 +3,7 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  * Admin servicing-event routes.
  */
 
+import { map } from "#fp";
 import {
   buildServicingFieldSchema,
   parseServicingForm,
@@ -43,12 +44,13 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import { CsrfForm, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { listingLedgerHref } from "#shared/ledger-links.ts";
 import {
   selectedListingQuantities,
   selectedStartDate,
 } from "#shared/order-select.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import { isOwner, type ListingWithCount } from "#shared/types.ts";
 import { parsePositiveMinorUnits } from "#shared/validation/money.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
@@ -225,6 +227,10 @@ const renderServicingPage = ({
               Delete Service Event
             </SubmitButton>
           </CsrfForm>
+          <h2>Money out</h2>
+          <p>
+            Record what this service event cost, against the listing it served.
+          </p>
           <CsrfForm action={`/admin/servicing/${event.id}`}>
             <input
               name="cost_idempotency_key"
@@ -249,30 +255,50 @@ const renderServicingPage = ({
           </CsrfForm>
           {costs.length > 0 && (
             <>
-              <h2>Recorded costs</h2>
+              <h2>Recorded outgoings</h2>
               <DataTable
                 columns={[
                   { header: "Listing" },
                   { header: "Date" },
                   { class: "amount", header: "Amount" },
                   { header: "Memo" },
-                  { header: "Edit" },
+                  { header: "Actions" },
                 ]}
-                rows={costs.map((cost) => [
-                  listingNames.get(cost.listingId),
-                  formatDateLabel(cost.date.slice(0, 10)),
-                  formatCurrency(cost.amount),
-                  cost.memo,
-                  <CsrfForm
-                    action={`/admin/servicing/${event.id}/cost/${cost.id}`}
-                  >
-                    <PriceInput
-                      name="amount"
-                      value={toMajorUnits(cost.amount)}
-                    />
-                    <SubmitButton icon="save">Edit</SubmitButton>
-                  </CsrfForm>,
-                ])}
+                rows={map((cost: ServicingCostRecord) => {
+                  const listingName = listingNames.get(cost.listingId);
+                  const ledgerHref =
+                    isOwner(session) && listingName !== undefined
+                      ? listingLedgerHref(cost.listingId)
+                      : null;
+                  return [
+                    ledgerHref === null ? (
+                      listingName === undefined ? (
+                        "Deleted listing"
+                      ) : (
+                        listingName
+                      )
+                    ) : (
+                      <a href={ledgerHref}>{listingName}</a>
+                    ),
+                    formatDateLabel(cost.date.slice(0, 10)),
+                    formatCurrency(cost.amount),
+                    cost.memo,
+                    <>
+                      <CsrfForm
+                        action={`/admin/servicing/${event.id}/cost/${cost.id}`}
+                      >
+                        <PriceInput
+                          name="amount"
+                          value={toMajorUnits(cost.amount)}
+                        />
+                        <SubmitButton icon="save">Edit</SubmitButton>
+                      </CsrfForm>
+                      {ledgerHref !== null && (
+                        <a href={ledgerHref}>View in ledger</a>
+                      )}
+                    </>,
+                  ];
+                })(costs)}
               />
             </>
           )}

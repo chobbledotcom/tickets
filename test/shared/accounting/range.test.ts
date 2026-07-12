@@ -33,6 +33,15 @@ describe("accounting > range", () => {
         clause: "occurred_at >= ? AND occurred_at < ?",
       });
     });
+
+    test("qualifies an explicitly named timestamp column", () => {
+      expect(
+        occurredAtRange({ endMs: 200, startMs: 100 }, "transfer.occurred_at"),
+      ).toEqual({
+        args: [100, 200],
+        clause: "transfer.occurred_at >= ? AND transfer.occurred_at < ?",
+      });
+    });
   });
 
   describe("clause prefixing", () => {
