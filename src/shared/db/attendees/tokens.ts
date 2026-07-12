@@ -10,11 +10,11 @@ import type {
   ListingAttendeeRow,
 } from "#shared/db/attendee-types.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
+import { listingAttendeeRowColumnsFrom } from "#shared/db/attendees/queries.ts";
 import {
-  listingAttendeeRowColumnsFrom,
   pricePaidFromLedger,
   remainingBalanceFromLedger,
-} from "#shared/db/attendees/queries.ts";
+} from "#shared/db/attendees/select.ts";
 import { inPlaceholders, queryAll } from "#shared/db/client.ts";
 
 const ATTENDEE_ALIAS = "attendee";

@@ -30,8 +30,8 @@ import { settings } from "#shared/db/settings.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import { ReturnUrlField } from "#shared/return-url-field.tsx";
 import {
-  type Attendee,
   type AttendeeTableRow,
+  type DisplayAttendee,
   hasTicketQuantity,
 } from "#shared/types.ts";
 import { Badge } from "#templates/components/badge.tsx";
@@ -196,7 +196,7 @@ const CheckinButton = ({
   activeFilter,
   returnUrl,
 }: {
-  a: Attendee;
+  a: DisplayAttendee;
   listingId: number;
   activeFilter: string;
   returnUrl: string | undefined;

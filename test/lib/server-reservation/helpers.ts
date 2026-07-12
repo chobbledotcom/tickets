@@ -4,7 +4,7 @@ import {
   getPublicDefaultStatus,
 } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
-import { pricePaidFromLedger } from "#shared/db/attendees/queries.ts";
+import { pricePaidFromLedger } from "#shared/db/attendees/select.ts";
 import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { settings } from "#shared/db/settings.ts";
