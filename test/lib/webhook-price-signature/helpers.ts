@@ -38,6 +38,7 @@ export const signedMeta = (
     name?: string;
     email?: string;
     modifiers?: string;
+    answer_ids?: string;
   },
 ): Record<string, string> =>
   signMeta(

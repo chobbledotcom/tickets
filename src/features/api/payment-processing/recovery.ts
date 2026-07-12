@@ -1,4 +1,8 @@
-import { sessionSuccess } from "#routes/api/payment-processing/create.ts";
+import {
+  type CreatedEntry,
+  pairEntriesByListing,
+} from "#routes/api/payment-processing/create.ts";
+import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import { refundSpec } from "#routes/api/payment-processing/refunds.ts";
 import {
   type placeholderBookings,
@@ -10,21 +14,126 @@ import type {
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
 import { parseTokens } from "#routes/tickets/token-utils.ts";
-import { queryOnePrimary } from "#shared/db/client.ts";
+import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
+import type { BlindIndex } from "#shared/crypto/sealed.ts";
+import { contactFields } from "#shared/db/attendees/pii.ts";
+import {
+  pricePaidFromLedger,
+  remainingBalanceFromLedger,
+} from "#shared/db/attendees/queries.ts";
+import {
+  queryBatchPrimary,
+  queryOnePrimary,
+  resultRows,
+} from "#shared/db/client.ts";
 import {
   decryptSessionTokens,
   type ProcessedPayment,
   UNRESOLVED_RESERVATION,
 } from "#shared/db/processed-payments.ts";
 
-/** Recover an atomically finalized ticket after result handling throws. Refund
- * only when the primary reservation proves the booking never committed. */
-export const recoverOrRefundUnexpectedCreate = async (
+type RecoveredBookingRow = {
+  created: string;
+  date: string | null;
+  end_date: string | null;
+  kind: string;
+  listing_id: number;
+  package_group_id: number;
+  price_paid: number;
+  quantity: number;
+  remaining_balance: number;
+  status_id: number | null;
+  ticket_token_index: BlindIndex;
+};
+
+type UnexpectedCreateRecovery = {
+  complete: (
+    entries: CreatedEntry[],
+    ticketTokens: string[],
+  ) => Promise<PaymentResult>;
+  error: unknown;
+  intent: BookingIntent;
+  placeholders: ReturnType<typeof placeholderBookings>;
+  session: ValidatedSession["session"];
+  ticketToken: string;
+  validatedItems: ValidatedItem[];
+};
+
+/** Rebuild notification entries from primary plaintext booking rows plus the
+ * signed contact intent. A public payment callback cannot decrypt owner PII, but
+ * it already holds the exact contact fields that were encrypted into this row. */
+const recoveredEntries = async (
+  attendeeId: number,
+  ticketToken: string,
   session: ValidatedSession["session"],
   intent: BookingIntent,
-  placeholders: ReturnType<typeof placeholderBookings>,
-  error: unknown,
-): Promise<PaymentResult> => {
+  validatedItems: ValidatedItem[],
+): Promise<CreatedEntry[]> => {
+  const [result] = await queryBatchPrimary([
+    {
+      args: [attendeeId],
+      sql: `SELECT attendee.created,
+                   SUBSTR(listingAttendee.start_at, 1, 10) AS date,
+                   SUBSTR(listingAttendee.end_at, 1, 10) AS end_date,
+                   attendee.kind,
+                   listingAttendee.listing_id,
+                   listingAttendee.package_group_id,
+                   ${pricePaidFromLedger(
+                     "listingAttendee.attendee_id",
+                     "listingAttendee.listing_id",
+                     "listingAttendee.ledger_event_group",
+                     "listingAttendee.id",
+                   )},
+                   listingAttendee.quantity,
+                   ${remainingBalanceFromLedger("attendee.id")},
+                   attendee.status_id,
+                   attendee.ticket_token_index
+            FROM attendees AS attendee
+            JOIN listing_attendees AS listingAttendee
+              ON listingAttendee.attendee_id = attendee.id
+            WHERE attendee.id = ?
+            ORDER BY listingAttendee.id`,
+    },
+  ]);
+  const rows = resultRows<RecoveredBookingRow>(result!);
+  const attendees: CreatedEntry["attendee"][] = rows.map((row) => ({
+    ...contactFields(intent),
+    attachment_downloads: 0,
+    checked_in: false,
+    created: row.created,
+    date: row.date,
+    end_date: row.end_date,
+    id: attendeeId,
+    kind: row.kind,
+    lat: "",
+    listing_id: row.listing_id,
+    lng: "",
+    package_group_id: row.package_group_id,
+    payment_id: session.paymentReference,
+    pii_blob: "",
+    price_paid: String(row.price_paid),
+    quantity: row.quantity,
+    refunded: false,
+    remaining_balance: row.remaining_balance,
+    split_logistics_agents: false,
+    status_id: row.status_id,
+    ticket_token: ticketToken,
+    ticket_token_index: row.ticket_token_index,
+  }));
+  return pairEntriesByListing(attendees, validatedItems);
+};
+
+/** Recover an atomically finalized ticket after result handling throws. Refund
+ * only when the primary reservation proves the booking never committed. */
+export const recoverOrRefundUnexpectedCreate = async ({
+  complete,
+  error,
+  intent,
+  placeholders,
+  session,
+  ticketToken,
+  validatedItems,
+}: UnexpectedCreateRecovery): Promise<PaymentResult> => {
   const finalized = await queryOnePrimary<{
     attendee_id: number;
     ticket_tokens: ProcessedPayment["ticket_tokens"];
@@ -37,11 +146,14 @@ export const recoverOrRefundUnexpectedCreate = async (
     const ticketTokens = parseTokens(
       await decryptSessionTokens(finalized.ticket_tokens),
     );
-    return sessionSuccess(
+    const entries = await recoveredEntries(
       finalized.attendee_id,
-      intent.items[0]!.e,
-      ticketTokens,
+      ticketToken,
+      session,
+      intent,
+      validatedItems,
     );
+    return complete(entries, ticketTokens);
   }
 
   const unresolved = await queryOnePrimary<{ present: number }>(
@@ -50,6 +162,12 @@ export const recoverOrRefundUnexpectedCreate = async (
     [session.id],
   );
   if (unresolved === null) throw error;
+
+  const committedAttendee = await queryOnePrimary<{ id: number }>(
+    "SELECT id FROM attendees WHERE ticket_token_index = ?",
+    [await computeTicketTokenIndex(ticketToken)],
+  );
+  if (committedAttendee !== null) throw error;
 
   return storeRefundedBooking(
     session,

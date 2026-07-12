@@ -24,11 +24,10 @@
  *
  */
 
+import { completePaidBooking } from "#routes/api/payment-processing/completion.ts";
 import {
   alreadyProcessedResult,
   createAttendeeForSession,
-  logPromoCodeModifiers,
-  saveSessionAnswers,
   sessionSuccess,
 } from "#routes/api/payment-processing/create.ts";
 import { validateAllItems } from "#routes/api/payment-processing/items.ts";
@@ -61,6 +60,7 @@ import { generateTicketToken } from "#shared/crypto/utils.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import {
+  clearSessionTokens,
   finalizeSessionIfUnresolved,
   markSessionFailed,
   type ProcessedPayment,
@@ -71,7 +71,6 @@ import {
 } from "#shared/db/processed-payments.ts";
 import { withPaymentTicketToken } from "#shared/payment-ticket-token.ts";
 import { bookingLedgerDisposition } from "#shared/session-ledger.ts";
-import { logAndNotifyRegistration } from "#shared/webhook.ts";
 
 type SessionProcessorOptions = { storeTokens?: boolean };
 
@@ -265,6 +264,18 @@ const processReservedSession = async (
   // the charge (which would otherwise crash-loop the webhook over paid money).
   const preparedTicketToken = generateTicketToken();
   await setSessionTicketTokens(sessionId, [preparedTicketToken]);
+  const codeSpecs = modifierSpecs.filter((spec) => spec.trigger === "code");
+  const complete = (
+    entries: Parameters<typeof completePaidBooking>[0],
+    ticketTokens: string[],
+  ) =>
+    completePaidBooking(
+      entries,
+      intent,
+      codeSpecs,
+      pricedOrder.modifierApplications,
+      ticketTokens,
+    );
   let honoured: Awaited<ReturnType<typeof createAttendeeForSession>>;
   try {
     honoured = await withPaymentTicketToken(preparedTicketToken, () =>
@@ -279,12 +290,15 @@ const processReservedSession = async (
   } catch (error) {
     // The atomic create may have committed before result handling or the client
     // threw. Recheck its reservation on the primary before moving money.
-    return recoverOrRefundUnexpectedCreate(
-      session,
+    return recoverOrRefundUnexpectedCreate({
+      complete,
+      error,
       intent,
       placeholders,
-      error,
-    );
+      session,
+      ticketToken: preparedTicketToken,
+      validatedItems,
+    });
   }
   if (!honoured.ok) {
     return storeRefundedBooking(
@@ -297,31 +311,15 @@ const processReservedSession = async (
 
   // Success: a real ticket, finalized atomically in the creation transaction.
   const createdEntries = honoured.entries;
-  await saveSessionAnswers(createdEntries, intent);
   const firstAttendee = createdEntries[0]!;
   const ticketToken = firstAttendee.attendee.ticket_token;
-
-  const codeSpecs = modifierSpecs.filter((s) => s.trigger === "code");
-  if (codeSpecs.length > 0) {
-    await logPromoCodeModifiers(
-      codeSpecs,
-      pricedOrder.modifierApplications,
-      firstAttendee.listing,
-      firstAttendee.attendee.id,
-    );
-  }
-
-  await logAndNotifyRegistration(createdEntries, intent.siteTokenIndex);
-
-  return sessionSuccess(firstAttendee.attendee.id, firstAttendee.listing.id, [
-    ticketToken,
-  ]);
+  return complete(createdEntries, [ticketToken]);
 };
 
 export const processPaymentSession: SessionProcessor = async (
   sessionId,
   data,
-  _options,
+  options,
 ) => {
   // Phase 1: Reserve the session (claim the lock)
   const reservation = await reserveSession(sessionId);
@@ -359,6 +357,13 @@ export const processPaymentSession: SessionProcessor = async (
       refunded: result.refunded,
       status: result.status,
     });
+  }
+
+  // Redirect responses carry the token in their URL, so once processing has
+  // completed they do not need a second persisted copy. Direct-render and
+  // webhook deliveries retain it for a later browser redirect or reload.
+  if (result.success && options?.storeTokens === false) {
+    await clearSessionTokens(sessionId);
   }
 
   return result;
