@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { setTestEnv } from "#test-utils/env.ts";
+import { rethrowUnlessNotFound } from "../../scripts/not-found.ts";
 import {
   collectTestFiles,
   defaultGroupCount,
@@ -10,6 +11,7 @@ import {
   planTestGroups,
   RUN_ALONE_MARKER,
   renderGroupEntry,
+  rethrowUnlessLeftoverDir,
   shardRoundRobin,
   writeTestGroups,
 } from "../../scripts/test-groups.ts";
@@ -107,6 +109,27 @@ describe("test-groups", () => {
 
     test("never drops below the floor on small machines", () => {
       expect(defaultGroupCount(1)).toBe(8);
+    });
+  });
+
+  describe("cleanup error filters", () => {
+    test("rethrowUnlessNotFound lets only a missing file pass", () => {
+      expect(() =>
+        rethrowUnlessNotFound(new Deno.errors.NotFound("gone")),
+      ).not.toThrow();
+      expect(() => rethrowUnlessNotFound(new Error("boom"))).toThrow("boom");
+    });
+
+    test("rethrowUnlessLeftoverDir lets only the expected leftovers pass", () => {
+      expect(() =>
+        rethrowUnlessLeftoverDir(new Deno.errors.NotFound("gone")),
+      ).not.toThrow();
+      expect(() =>
+        rethrowUnlessLeftoverDir(
+          new Error("Directory not empty (os error 39): remove '/x'"),
+        ),
+      ).not.toThrow();
+      expect(() => rethrowUnlessLeftoverDir(new Error("boom"))).toThrow("boom");
     });
   });
 

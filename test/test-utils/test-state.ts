@@ -13,13 +13,15 @@
  * builders run in-isolate on first use, exactly as they always have.
  *
  * Note for mutation testing: the harness builds this state before any mutant
- * is applied, so a mutant inside the setup ceremony itself is only exercised
- * by tests that run the ceremony directly (e.g. the setup-route tests), not by
- * every DB test's fixture. Those direct tests are the ones that must kill it.
+ * is applied, so the mutation runner drops TICKETS_TEST_STATE_DIR for mutants
+ * in any file this module's import graph includes (see
+ * scripts/mutation/state-graph.ts) — their test isolates rebuild the golden DB
+ * and ceremony from the mutated code instead of seeding from a stale snapshot.
  */
 
 import { join } from "node:path";
-import { createClient, type InValue, type Row } from "@libsql/client";
+import { createClient } from "@libsql/client";
+import * as v from "valibot";
 import { lazyRef, once } from "#fp";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
@@ -45,36 +47,56 @@ import {
   createTrackedTestDbFile,
   DB_FILE_SUFFIXES,
 } from "#test-utils/temp-db-files.ts";
-
-/** Directory holding the run-wide prebuilt state (golden.db + state.json). */
-export const TEST_STATE_DIR_ENV = "TICKETS_TEST_STATE_DIR";
+import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 
 const GOLDEN_DB_FILE = "golden.db";
 const STATE_JSON_FILE = "state.json";
 
-type AdminSessionRow = {
-  token: string;
-  csrf_token: string;
-  expires: number;
-  wrapped_data_key: string | null;
-  user_id: number | null;
-};
+// The captured rows are one valibot schema each: the schema shapes the rows
+// as they come off the ceremony's database, types the replay (no casts), and
+// validates state.json — a file written by one process and read by another,
+// so a real boundary.
+const SettingsRowSchema = v.object({ key: v.string(), value: v.string() });
 
-type AdminSessionCache = {
-  cookie: string;
-  sessionRow: AdminSessionRow;
-} | null;
+const UserRowSchema = v.object({
+  admin_level: v.string(),
+  id: v.number(),
+  invite_code_hash: v.nullable(v.string()),
+  invite_expiry: v.nullable(v.string()),
+  invite_wrapped_data_key: v.nullable(v.string()),
+  kek_version: v.number(),
+  password_hash: v.string(),
+  username_hash: v.string(),
+  username_index: v.string(),
+  wrapped_data_key: v.nullable(v.string()),
+});
+
+/** The columns a captured user row carries, as one SELECT list. */
+const USER_ROW_COLUMNS = Object.keys(UserRowSchema.entries).join(", ");
+
+const AdminSessionRowSchema = v.object({
+  csrf_token: v.string(),
+  expires: v.number(),
+  token: v.string(),
+  user_id: v.nullable(v.number()),
+  wrapped_data_key: v.nullable(v.string()),
+});
 
 /**
  * Everything the initial site-setup ceremony produced, captured so it can be
  * replayed into a fresh per-test database instead of re-running the ceremony.
  */
-export type SetupState = {
-  country: string;
-  settings: { key: string; value: string }[];
-  users: Row[];
-  session: AdminSessionCache;
-};
+const SetupStateSchema = v.object({
+  country: v.string(),
+  session: v.object({
+    cookie: v.string(),
+    sessionRow: AdminSessionRowSchema,
+  }),
+  settings: v.array(SettingsRowSchema),
+  users: v.array(UserRowSchema),
+});
+
+export type SetupState = v.InferOutput<typeof SetupStateSchema>;
 
 // The setup state the current isolate last replayed (or built). Cleared by
 // invalidateTestDbCache so a test can force the next fixture through the real
@@ -149,21 +171,17 @@ const createGoldenDbAt = async (path: string): Promise<void> => {
 };
 
 /**
- * Parse and shape-check a state.json. The file is written by this same module
+ * Parse and validate a state.json. The file is written by this same module
  * earlier in the run, so a bad shape means the harness is broken — throw.
  */
 const parseSetupState = (json: string): SetupState => {
-  const state = JSON.parse(json) as SetupState;
-  if (
-    typeof state.country !== "string" ||
-    !Array.isArray(state.settings) ||
-    !Array.isArray(state.users)
-  ) {
+  const parsed = v.safeParse(SetupStateSchema, JSON.parse(json));
+  if (!parsed.success) {
     throw new Error(
       `Prebuilt test state is malformed — rebuild it (${TEST_STATE_DIR_ENV})`,
     );
   }
-  return state;
+  return parsed.output;
 };
 
 /**
@@ -216,23 +234,8 @@ export const replaySetupState = async (state: SetupState): Promise<void> => {
   await getDb().batch(
     [
       { args: [], sql: "DELETE FROM settings" },
-      ...state.settings.map((row) =>
-        insert("settings", { key: row.key, value: row.value }),
-      ),
-      ...state.users.map((row) =>
-        insert("users", {
-          admin_level: row.admin_level as InValue,
-          id: row.id as InValue,
-          invite_code_hash: row.invite_code_hash as InValue,
-          invite_expiry: row.invite_expiry as InValue,
-          invite_wrapped_data_key: row.invite_wrapped_data_key as InValue,
-          kek_version: row.kek_version as InValue,
-          password_hash: row.password_hash as InValue,
-          username_hash: row.username_hash as InValue,
-          username_index: row.username_index as InValue,
-          wrapped_data_key: row.wrapped_data_key as InValue,
-        }),
-      ),
+      ...state.settings.map((row) => insert("settings", row)),
+      ...state.users.map((row) => insert("users", row)),
     ],
     "write",
   );
@@ -261,6 +264,9 @@ const createDirectAdminSession = async (): Promise<{
   );
   const { nowMs } = await import("#shared/now.ts");
 
+  // The ceremony (settings.setup.complete) created this owner with this exact
+  // username, password, and a wrapped data key moments ago in this same
+  // process, so the lookup, password check, and key unwrap cannot miss.
   const user = (await getUserByUsername(TEST_ADMIN_USERNAME))!;
   const ownerHash = (await verifyUserPassword(user, TEST_ADMIN_PASSWORD))!;
   const kek = await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, ownerHash);
@@ -300,12 +306,13 @@ export const runSetupCeremony = async (
   const settingsResult = await getDb().execute(
     "SELECT key, value FROM settings",
   );
-  const settingsRows = settingsResult.rows.map((r) => ({
-    key: r.key as string,
-    value: r.value as string,
-  }));
-  const usersResult = await getDb().execute("SELECT * FROM users");
-  const users = usersResult.rows.map((r) => ({ ...r }));
+  const settingsRows = settingsResult.rows.map((row) =>
+    v.parse(SettingsRowSchema, row),
+  );
+  const usersResult = await getDb().execute(
+    `SELECT ${USER_ROW_COLUMNS} FROM users`,
+  );
+  const users = usersResult.rows.map((row) => v.parse(UserRowSchema, row));
 
   const liveSession = await createDirectAdminSession();
   const sessionsResult = await getDb().execute(
@@ -313,19 +320,14 @@ export const runSetupCeremony = async (
             wrapped_data_key, user_id
      FROM sessions LIMIT 1`,
   );
-  const sessionRow = sessionsResult.rows[0] as Row | undefined;
-  const session: AdminSessionCache = sessionRow
-    ? {
-        cookie: liveSession.cookie,
-        sessionRow: {
-          csrf_token: sessionRow.csrf_token as string,
-          expires: sessionRow.expires as number,
-          token: sessionRow.token as string,
-          user_id: sessionRow.user_id as number | null,
-          wrapped_data_key: sessionRow.wrapped_data_key as string | null,
-        },
-      }
-    : null;
+  const sessionRow = sessionsResult.rows[0];
+  if (!sessionRow) {
+    throw new Error("Setup ceremony left no session row to capture");
+  }
+  const session = {
+    cookie: liveSession.cookie,
+    sessionRow: v.parse(AdminSessionRowSchema, sessionRow),
+  };
 
   return {
     liveSession,

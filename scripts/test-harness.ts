@@ -11,6 +11,7 @@
  */
 
 import { join } from "node:path";
+import { TEST_STATE_DIR_ENV } from "../test/test-utils/test-state-env.ts";
 import {
   buildStaticAssets,
   STATIC_ASSET_OUTFILES,
@@ -165,20 +166,25 @@ export const runTests = async (
  * loads the app graph when it actually builds state.
  */
 const setupTestState = async (): Promise<() => Promise<void>> => {
-  const { TEST_STATE_DIR_ENV, writeTestState } = await import(
-    "../test/test-utils/test-state.ts"
-  );
   if (Deno.env.get(TEST_STATE_DIR_ENV)) return async () => {};
+  const { writeTestState } = await import("../test/test-utils/test-state.ts");
 
   const dir = await Deno.makeTempDir({ prefix: "tickets-test-state-" });
-  await writeTestState(dir);
+  try {
+    await writeTestState(dir);
+  } catch (error) {
+    // Don't leave a half-built state dir behind. The build failure is the
+    // error worth surfacing, so this removal is best-effort by design.
+    await Deno.remove(dir, { recursive: true }).catch(() => {});
+    throw error;
+  }
   Deno.env.set(TEST_STATE_DIR_ENV, dir);
   harnessLog("test state prebuilt in", dir);
   return async () => {
     Deno.env.delete(TEST_STATE_DIR_ENV);
-    await Deno.remove(dir, { recursive: true }).catch(() => {
-      // best-effort: a vanished temp dir is already what we wanted
-    });
+    // Only an already-gone dir is expected; anything else (e.g. permissions)
+    // must surface rather than silently leave run state on disk.
+    await Deno.remove(dir, { recursive: true }).catch(rethrowUnlessNotFound);
   };
 };
 

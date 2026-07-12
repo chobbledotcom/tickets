@@ -19,6 +19,7 @@
  */
 
 import { join, relative } from "node:path";
+import { rethrowUnlessNotFound } from "./not-found.ts";
 import { isSourcePath, isTestPath } from "./unit-tests-report-lib.ts";
 import { collectFiles } from "./walk-files.ts";
 
@@ -116,6 +117,16 @@ export const parseWorkerCount = (
 const testWorkerCount = (): number =>
   parseWorkerCount(Deno.env.get("DENO_JOBS"), navigator.hardwareConcurrency);
 
+/** Swallow the two expected ways removing the groups dir can fail — already
+ * gone, or still holding files someone else put there (Deno reports a
+ * non-empty dir as a plain Error, so it is matched by message) — and rethrow
+ * anything else, e.g. a permissions failure. */
+export const rethrowUnlessLeftoverDir = (error: unknown): void => {
+  if (error instanceof Deno.errors.NotFound) return;
+  if (String(error).includes("Directory not empty")) return;
+  throw error;
+};
+
 export type WrittenTestGroups = {
   /** Paths to hand to `deno test`: group entries plus solo files. */
   runArgs: string[];
@@ -158,13 +169,11 @@ export const writeTestGroups = async (
   return {
     cleanup: async () => {
       for (const groupPath of groupPaths) {
-        await Deno.remove(groupPath).catch(() => {
-          // already gone — nothing left to clean up
-        });
+        // Only an already-removed entry is expected; anything else must
+        // surface rather than leave generated files behind silently.
+        await Deno.remove(groupPath).catch(rethrowUnlessNotFound);
       }
-      await Deno.remove(groupsDir).catch(() => {
-        // not empty or already gone — leave it for the next run to reuse
-      });
+      await Deno.remove(groupsDir).catch(rethrowUnlessLeftoverDir);
     },
     runArgs: [...groupPaths, ...plan.solo],
     testFiles: paths,

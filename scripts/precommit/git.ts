@@ -5,7 +5,10 @@ export interface CommandResult {
   success: boolean;
 }
 
-export type RunCommand = (cmd: string[]) => Promise<CommandResult>;
+export type RunCommand = (
+  cmd: string[],
+  options?: { cwd?: string },
+) => Promise<CommandResult>;
 
 /** Split a command into [executable, args], rejecting an empty command. */
 export const splitCommand = (
@@ -28,8 +31,9 @@ const buildCommand = (
 };
 
 /** Run a command, capturing its stdout/stderr as decoded strings. */
-export const runCommand: RunCommand = async (cmd) => {
+export const runCommand: RunCommand = async (cmd, options = {}) => {
   const output = await buildCommand(cmd, {
+    ...options,
     stderr: "piped",
     stdout: "piped",
   }).output();

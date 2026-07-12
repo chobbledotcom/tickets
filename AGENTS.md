@@ -824,6 +824,11 @@ Stripe and need built static assets + stripe-mock. Under `--harness`, mutating a
 client-bundle source (anything bundled into `src/ui/static/*.js` — e.g.
 `src/ui/client/admin.ts` or a module it imports) rebuilds just the affected
 bundle for each mutant, so the mutation reaches the built asset the tests load.
+Likewise, a mutant in any file that feeds the run-wide prebuilt test state (the
+golden schema DB and captured setup ceremony — the import graph of
+`test/test-utils/test-state.ts`, see `scripts/mutation/state-graph.ts`) runs
+its tests without `TICKETS_TEST_STATE_DIR`, so those isolates rebuild that
+state from the mutated code instead of seeding from a pre-mutant snapshot.
 
 How it works (and why it is bespoke): it mutates the source file **in place**,
 runs the mapped tests in a fresh `deno test` subprocess, then restores the
