@@ -49,6 +49,14 @@ export type TableSchema<Row> = {
   [K in keyof Row]: ColumnDef<Row[K]>;
 };
 
+/** Run one column's declared read transform (e.g. decrypt) on a stored value —
+ * identity when the column declares none or the value is null. For reading a
+ * single column back without building a whole row. */
+export type ReadColumn<Row> = <K extends keyof Row & string>(
+  col: K,
+  value: Row[K],
+) => Promise<Row[K]>;
+
 // Case conversion is delegated to valibot's `toCamelCase`/`toSnakeCase` actions
 // rather than bespoke regexes. The schemas are built once at module load and
 // reused on every call. valibot's word-splitting is more robust than a plain
@@ -120,13 +128,7 @@ export interface Table<Row, Input> {
   name: string;
   primaryKey: keyof Row & string;
 
-  /** Run one column's declared read transform (e.g. decrypt) on a stored
-   * value — identity when the column declares none or the value is null. For
-   * reading a single column back without building a whole row. */
-  readColumn: <K extends keyof Row & string>(
-    col: K,
-    value: Row[K],
-  ) => Promise<Row[K]>;
+  readColumn: ReadColumn<Row>;
 
   /**
    * Build an Input object from an existing Row by copying the input-eligible
@@ -220,13 +222,10 @@ export const defineTable = <Row, Input = Row>(
   // Run one column's read transform on a stored value (identity when the
   // column declares none or the value is null) — the per-column read logic
   // shared by fromDb and the single-column readColumn.
-  const readColumn = async <K extends keyof Row & string>(
-    col: K,
-    value: Row[K],
-  ): Promise<Row[K]> => {
+  const readColumn: ReadColumn<Row> = async (col, value) => {
     const def = schema[col];
     if (def.read && value !== null) {
-      return (await def.read(value as never)) as Row[K];
+      return (await def.read(value as never)) as typeof value;
     }
     return value;
   };
