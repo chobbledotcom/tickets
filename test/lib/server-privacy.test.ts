@@ -83,12 +83,12 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       expectStatus(403)(response);
     });
 
-    test("renders both tools for the owner", async () => {
-      await page(
-        "Privacy",
-        "Delete matching records now",
-        "Delete this contact's record",
-      );
+    test("shows the orphaned-records tool", async () => {
+      await page("Delete matching records now");
+    });
+
+    test("shows the delete-a-contact tool", async () => {
+      await page("Delete this contact's record");
     });
 
     test("says it is a ticketing system, not a CRM", async () => {
