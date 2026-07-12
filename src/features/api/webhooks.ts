@@ -41,6 +41,7 @@ import {
 } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
+import { discardPendingCheckoutSessions } from "#shared/db/checkout-stages.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getListing } from "#shared/db/listings.ts";
 import { clearSessionTokens } from "#shared/db/processed-payments.ts";
@@ -213,7 +214,7 @@ const handlePaymentSuccess = (request: Request): Promise<Response> => {
 /**
  * Handle GET /payment/cancel (redirect after cancelled payment)
  *
- * No attendee cleanup needed - attendee is only created after successful payment.
+ * Remove the quantity-zero staged attendee after an unpaid provider return.
  */
 /** Log a payment session error with cancel context prefix */
 const logCancelError = (detail: string): void =>
@@ -230,6 +231,10 @@ const handlePaymentCancel = withSessionId(async (sid) => {
   if (!session) {
     logCancelError(`Session not found (session=${sid})`);
     return paymentErrorResponse("Payment session not found");
+  }
+
+  if (session.paymentStatus !== "paid") {
+    await discardPendingCheckoutSessions([sid]);
   }
 
   return cancelPageResponse(session, logCancelError);

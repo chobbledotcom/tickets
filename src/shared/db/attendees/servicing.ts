@@ -380,12 +380,7 @@ const desiredLines = (
   input: ServicingEventInput,
   existing: Array<{ key: string; booking: ListingAttendeeRow }>,
 ): DesiredListingLine[] => {
-  const existingBySlot = new Map(
-    existing.map(({ key, booking }) => [
-      `${booking.listing_id}|${booking.start_at ?? ""}`,
-      key,
-    ]),
-  );
+  const existingBySlot = new Map(existing.map(({ key }) => [key, key]));
   return input.bookings.map((booking) => {
     const date = booking.date ?? null;
     const durationDays = normalizeDurationDays(booking.durationDays ?? 1);

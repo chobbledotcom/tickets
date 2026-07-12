@@ -32,6 +32,8 @@ import { bookingDateFields } from "#shared/booking-date-fields.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
+import { contactFields } from "#shared/db/attendees/pii.ts";
+import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import {
   type CheckoutStage,
   markCheckoutStage,
@@ -181,7 +183,16 @@ export const storeRefundedBooking = async (
           { success: true }
         >
       ).attendees[0]!.id;
-  if (stage) await markCheckoutStage(session.id, "failed");
+  if (stage) {
+    await updateAttendeePII(stage.attendeeId, {
+      ...contactFields(intent),
+      lat: "",
+      lng: "",
+      payment_id: session.paymentReference,
+      ticket_token: stage.ticketToken,
+    });
+    await markCheckoutStage(session.id, "failed");
+  }
   const refunded = await tryRefund(session.paymentReference, listingId);
   await recordPlaceholderRefund(
     {

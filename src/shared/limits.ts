@@ -378,6 +378,15 @@ export const PRUNE_SUMUP_RETENTION_HOURS = limit(
   "hours",
 );
 
+/** Retention (days) for unpaid quantity-zero checkout stages (default: 7).
+ * Provider callbacks after cleanup use the normal no-stage booking path. */
+export const PRUNE_CHECKOUT_STAGES_RETENTION_DAYS = limit(
+  "PRUNE_CHECKOUT_STAGES_RETENTION_DAYS",
+  7,
+  "Prune: pending checkout stage retention",
+  "days",
+);
+
 /**
  * Retention (days) for encrypted string rows that have not been attached to an
  * attendee answer (default: 7). These are usually abandoned paid checkouts:
@@ -484,6 +493,8 @@ export const PRUNE_LOGINS_RETENTION_MS = PRUNE_LOGINS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_TOKENS_RETENTION_MS = PRUNE_TOKENS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_SUMUP_RETENTION_MS =
   PRUNE_SUMUP_RETENTION_HOURS * 60 * 60 * 1000;
+export const PRUNE_CHECKOUT_STAGES_RETENTION_MS =
+  PRUNE_CHECKOUT_STAGES_RETENTION_DAYS * DAY_MS;
 export const PRUNE_UNUSED_STRINGS_RETENTION_MS =
   PRUNE_UNUSED_STRINGS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_CONTACTS_RETENTION_MS =

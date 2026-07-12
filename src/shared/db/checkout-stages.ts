@@ -1,3 +1,4 @@
+import type { InValue } from "@libsql/client";
 import * as v from "valibot";
 import { unique } from "#fp";
 import { orderBookings } from "#shared/booking-lines.ts";
@@ -7,6 +8,7 @@ import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import {
   execute,
+  executeBatchWithResults,
   insert,
   queryOnePrimary,
   type TxScope,
@@ -153,3 +155,64 @@ export const markCheckoutStage = async (
     [state, sessionId],
   );
 };
+
+const pendingStageAttendees = (where: string): string =>
+  `SELECT stage.attendee_id
+     FROM checkout_stages AS stage
+    WHERE stage.state = 'pending'
+      AND ${where}
+      AND NOT EXISTS (
+        SELECT 1
+          FROM processed_payments AS payment
+         WHERE payment.payment_session_id = stage.payment_session_id
+      )`;
+
+/** Delete pending checkout PII only while no payment request has claimed it. */
+const discardPendingCheckoutsWhere = async (
+  where: string,
+  args: InValue[],
+): Promise<number> => {
+  const attendeeIds = pendingStageAttendees(where);
+  const attendeeDelete = (table: string) => ({
+    args,
+    sql: `DELETE FROM ${table} WHERE attendee_id IN (${attendeeIds})`,
+  });
+  const results = await executeBatchWithResults([
+    attendeeDelete("attendee_answers"),
+    attendeeDelete("listing_attendees"),
+    attendeeDelete("system_notes"),
+    {
+      args,
+      sql: `DELETE FROM attendees WHERE id IN (${attendeeIds})`,
+    },
+    {
+      args,
+      sql: `DELETE FROM checkout_stages AS stage
+             WHERE stage.state = 'pending'
+               AND ${where}
+               AND NOT EXISTS (
+                 SELECT 1
+                   FROM processed_payments AS payment
+                  WHERE payment.payment_session_id = stage.payment_session_id
+               )`,
+    },
+  ]);
+  return results[results.length - 1]!.rowsAffected;
+};
+
+/** Discard one or more cancelled sessions through the same atomic path. */
+export const discardPendingCheckoutSessions = (
+  sessionIds: string[],
+): Promise<number> =>
+  sessionIds.length === 0
+    ? Promise.resolve(0)
+    : discardPendingCheckoutsWhere(
+        `stage.payment_session_id IN (${sessionIds.map(() => "?").join(", ")})`,
+        sessionIds,
+      );
+
+/** Remove abandoned pending checkouts older than the retention cutoff. */
+export const prunePendingCheckoutStages = (
+  cutoffIso: string,
+): Promise<number> =>
+  discardPendingCheckoutsWhere("stage.created_at < ?", [cutoffIso]);

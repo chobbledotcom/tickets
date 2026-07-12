@@ -87,6 +87,24 @@ export const insertSumupCheckout = async (
   );
 };
 
+export const insertPendingCheckoutStage = async (
+  sessionId: string,
+  createdAtIso: string,
+): Promise<number> => {
+  const attendeeId = await insertOrphanAttendee(createdAtIso);
+  await getDb().execute(
+    insert("checkout_stages", {
+      attendee_id: attendeeId,
+      created_at: createdAtIso,
+      payment_session_id: sessionId,
+      provider: "stripe",
+      state: "pending",
+      ticket_tokens: "ciphertext",
+    }),
+  );
+  return attendeeId;
+};
+
 export const sumupCheckoutExists = async (
   referenceIndex: string,
 ): Promise<boolean> => {
@@ -210,6 +228,7 @@ export const oldOrphanIso = (): string =>
 /** Every last-pruned stamp the scheduler tracks, one setter per table. */
 const LAST_PRUNED_SETTERS = [
   settings.update.lastPrunedPayments,
+  settings.update.lastPrunedCheckoutStages,
   settings.update.lastPrunedSessions,
   settings.update.lastPrunedLogins,
   settings.update.lastPrunedTokens,

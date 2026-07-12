@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { getCheckoutStage } from "#shared/db/checkout-stages.ts";
 import { getDb } from "#shared/db/client.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
@@ -12,6 +13,7 @@ import { johnCheckoutSession } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { stageTestCheckout } from "#test-utils/db-helpers/processed-payments.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
 import { makeParent } from "#test-utils/parents.ts";
@@ -112,6 +114,34 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         },
         resetStripeClient,
       );
+    });
+
+    test("removes the unpaid staged attendee", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      const sessionId = "cs_staged_cancel";
+      const stage = await stageTestCheckout(sessionId, listing);
+
+      await withMocks(
+        () => cancelSession(sessionId, singleItem(listing.id, 1, 1000)),
+        async () => {
+          const response = await handleRequest(
+            mockRequest(`/payment/cancel?session_id=${sessionId}`),
+          );
+          expect(response.status).toBe(200);
+        },
+        resetStripeClient,
+      );
+
+      expect(await getCheckoutStage(sessionId)).toBeNull();
+      const attendee = await getDb().execute({
+        args: [stage.attendeeId],
+        sql: "SELECT id FROM attendees WHERE id = ?",
+      });
+      expect(attendee.rows).toEqual([]);
     });
 
     test("a cancelled checkout for a now-non-standalone child suppresses the retry link", async () => {

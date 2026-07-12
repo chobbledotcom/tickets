@@ -3,6 +3,8 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
+import { decryptAttendeeFields } from "#shared/db/attendees/pii.ts";
+import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -11,6 +13,7 @@ import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { expectRedirect } from "#test-utils/assertions.ts";
 import { stubCheckout } from "#test-utils/checkout.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -182,6 +185,17 @@ describeWithEnv("paid checkout staging", { db: true }, () => {
             row.quantity,
           ]),
         ).toEqual([[stagedAttendeeId, "failed", 0]]);
+        const failedAttendee = await getAttendeeRaw(stagedAttendeeId);
+        if (!failedAttendee) throw new Error("Expected failed staged attendee");
+        expect(
+          (
+            await decryptAttendeeFields(
+              failedAttendee,
+              await getTestPrivateKey(),
+              true,
+            )
+          ).payment_id,
+        ).toBe("pi_staged_full");
         expect(refund.calls.length).toBe(1);
       } finally {
         retrieve.restore();

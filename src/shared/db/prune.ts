@@ -34,6 +34,7 @@
  * pruned only when PRUNE_INTERVAL_MS has elapsed since its last run.
  */
 
+import { prunePendingCheckoutStages } from "#shared/db/checkout-stages.ts";
 import { execute } from "#shared/db/client.ts";
 import { purgeOrphanedAttendees } from "#shared/db/orphan-attendees.ts";
 import { writeRawBatch } from "#shared/db/settings/raw-writes.ts";
@@ -42,6 +43,7 @@ import { settings } from "#shared/db/settings.ts";
 import { pruneExpiredInvites } from "#shared/db/users.ts";
 import {
   ADDRESS_CACHE_MS,
+  PRUNE_CHECKOUT_STAGES_RETENTION_MS,
   PRUNE_CONTACTS_RETENTION_MS,
   PRUNE_INTERVAL_MS,
   PRUNE_LOGINS_RETENTION_MS,
@@ -109,6 +111,12 @@ export const pruneSumupCheckouts = isoAgePruner(
   "DELETE FROM sumup_checkouts WHERE created_at < ?",
   PRUNE_SUMUP_RETENTION_MS,
 );
+
+/** Delete old unpaid checkout attendees. A claimed payment row blocks cleanup. */
+export const pruneCheckoutStages = (): Promise<number> =>
+  prunePendingCheckoutStages(
+    new Date(nowMs() - PRUNE_CHECKOUT_STAGES_RETENTION_MS).toISOString(),
+  );
 
 /** Delete unreferenced encrypted free-text strings older than retention. */
 export const pruneUnusedStrings = isoAgePruner(
@@ -204,6 +212,13 @@ type PruneTask = {
 };
 
 const PRUNE_TASKS = (): PruneTask[] => [
+  {
+    field: "last_pruned_checkout_stages",
+    key: CONFIG_KEYS.LAST_PRUNED_CHECKOUT_STAGES,
+    lastRaw: settings.lastPrunedCheckoutStages,
+    name: "checkout_stages",
+    run: pruneCheckoutStages,
+  },
   {
     field: "last_pruned_payments",
     key: CONFIG_KEYS.LAST_PRUNED_PAYMENTS,

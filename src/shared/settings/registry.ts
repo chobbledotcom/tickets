@@ -116,6 +116,12 @@ export const STRING_SETTING_DEFINITIONS = [
     storage: "plaintext",
   }),
   setting({
+    accessor: { name: "lastPrunedCheckoutStages" },
+    key: CONFIG_KEYS.LAST_PRUNED_CHECKOUT_STAGES,
+    storage: "plaintext",
+    tags: ["prune"],
+  }),
+  setting({
     accessor: { name: "lastPrunedSumup" },
     key: CONFIG_KEYS.LAST_PRUNED_SUMUP,
     storage: "plaintext",

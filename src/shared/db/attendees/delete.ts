@@ -53,6 +53,7 @@ const restoreListingContributions = (
  * links it to the attendee. Deleted (in this order) before the attendee row. */
 const DEPENDENT_ROW_TARGETS = [
   { field: "attendee_id", table: "processed_payments" },
+  { field: "attendee_id", table: "checkout_stages" },
   { field: "attendee_id", table: "attendee_answers" },
   { field: "attendee_id", table: "listing_attendees" },
   { field: "attendee_id", table: "system_notes" },
