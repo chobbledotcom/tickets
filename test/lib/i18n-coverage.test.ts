@@ -1,5 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+// guide.json is loaded lazily at runtime (off the cold-boot path, see
+// src/locales/en/guide.ts), so it is not part of the eager `en` merge. It is
+// still real, coverage-checked copy, so merge it back in here.
+import guide from "#locales/en/guide.json" with { type: "json" };
 import en from "#locales/en/index.ts";
 import { walkSourceFiles as walk } from "#test-utils/walk-src.ts";
 
@@ -25,7 +29,7 @@ import { walkSourceFiles as walk } from "#test-utils/walk-src.ts";
  * here for review.
  */
 
-const messages = en as Record<string, string>;
+const messages = { ...en, ...(guide as Record<string, string>) };
 
 const SRC_DIR = "src";
 const TEMPLATES_DIR = "src/ui/templates";

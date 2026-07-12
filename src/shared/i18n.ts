@@ -23,6 +23,17 @@ const formatCache: Record<string, IntlMessageFormat | null | undefined> = {};
 /** Get the list of registered locale codes */
 export const getRegisteredLocales = (): string[] => Object.keys(locales);
 
+/**
+ * Merge additional messages into a locale at runtime. Used to load a large,
+ * single-page bundle (the admin guide, ~120KB) on demand rather than in the
+ * eager `en` merge, keeping its weight off the cold-boot path. The owning route
+ * registers its bundle before rendering; a key still missing after that throws
+ * in `t()` exactly as a typo would, so the fail-loud contract is preserved.
+ */
+export const registerMessages = (locale: string, extra: Messages): void => {
+  locales[locale] = { ...locales[locale], ...extra };
+};
+
 // --- Operator-configurable copy replacements (I18N_REPLACEMENTS) ---
 
 /** Rewrites the translatable copy of a message template. */
