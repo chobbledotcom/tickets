@@ -88,8 +88,19 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
         200,
         "Privacy",
         "not a CRM",
-        "private fingerprint",
+        "one-way code",
         "Delete matching records now",
+      );
+    });
+
+    test("explains it is not a CRM and links to webhook setup", async () => {
+      const response = await adminGet("/admin/privacy");
+      await expectHtmlResponse(
+        response,
+        200,
+        "not a CRM",
+        "add a webhook to a listing",
+        'href="/admin/guide#webhooks"',
       );
     });
 
