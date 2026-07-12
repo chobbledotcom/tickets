@@ -29,6 +29,21 @@ const PRICE_CHANGED_MESSAGE =
   "The price for this listing changed while you were completing payment.";
 
 /**
+ * Resolve the active payment provider. When none is configured, log a
+ * structured error with the caller's code/detail and return null, so each
+ * caller can pick its own fallback (a false, a 400, ...).
+ */
+export const getPaymentProviderOrLog = async (
+  code: ErrorCodeType,
+  detail: string,
+  listingId?: number,
+): Promise<Awaited<ReturnType<typeof getActivePaymentProvider>>> => {
+  const provider = await getActivePaymentProvider();
+  if (!provider) logError({ code, detail, listingId });
+  return provider;
+};
+
+/**
  * Attempt to refund a payment. Returns true if refund succeeded, false otherwise.
  * Logs an error if refund fails.
  */
@@ -38,15 +53,12 @@ export const tryRefund = async (
 ): Promise<boolean> => {
   if (!paymentReference) return false;
 
-  const provider = await getActivePaymentProvider();
-  if (!provider) {
-    logError({
-      code: ErrorCode.PAYMENT_REFUND,
-      detail: "No payment provider configured for refund",
-      listingId,
-    });
-    return false;
-  }
+  const provider = await getPaymentProviderOrLog(
+    ErrorCode.PAYMENT_REFUND,
+    "No payment provider configured for refund",
+    listingId,
+  );
+  if (!provider) return false;
 
   if (await provider.refundPayment(paymentReference)) {
     logDebug("Payment", "Refund issued");

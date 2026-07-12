@@ -119,15 +119,15 @@ export const createKeyedCache = <T>(
   // so a caller never loads more rows than it asked for. Small tables omit
   // fetchByKeys and instead resolve against the whole-set load.
   const getByKeys = async (keys: string[]): Promise<(T | null)[]> => {
-    if (!fetchByKeys) {
+    if (fetchByKeys) {
+      const missing = unique(keys).filter((k) => !byKey.get(k));
+      if (missing.length > 0) {
+        const gen = generation;
+        const rows = await fetchByKeys(missing);
+        for (const row of rows) remember(gen, row);
+      }
+    } else {
       await getAll(); // whole-set load warms byKey
-      return keys.map((k) => byKey.get(k) ?? null);
-    }
-    const missing = unique(keys).filter((k) => !byKey.get(k));
-    if (missing.length > 0) {
-      const gen = generation;
-      const rows = await fetchByKeys(missing);
-      for (const row of rows) remember(gen, row);
     }
     return keys.map((k) => byKey.get(k) ?? null);
   };

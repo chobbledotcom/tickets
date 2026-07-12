@@ -17,6 +17,7 @@ import {
   createConfirmedHandlers,
 } from "#routes/admin/confirmation.ts";
 import { SITE_FORM, SITE_MULTIPART, withAuth } from "#routes/auth.ts";
+import type { IdParam } from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { groupExists } from "#shared/db/groups.ts";
@@ -129,7 +130,7 @@ const loadPageOr404 = async (
 /** Curry a `:id` route: unpack the id param and pass it to `run`. */
 const idHandler =
   (run: (request: Request, id: number) => Promise<Response>) =>
-  (request: Request, params: { id: number }): Promise<Response> =>
+  (request: Request, params: IdParam): Promise<Response> =>
     run(request, params.id);
 
 /** SITE_FORM POST handler keyed on `:id`. */

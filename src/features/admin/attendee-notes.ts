@@ -16,6 +16,7 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { attendeeFormPost } from "#routes/admin/attendees-route-helpers.ts";
 import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
@@ -54,6 +55,16 @@ const loadAttendeeOr404 = async (
   return attendee ?? notFoundResponse();
 };
 
+/** Load the attendee, then run `then` with it — or short-circuit to the 404
+ * Response when it doesn't exist. */
+const withLoadedAttendee = async (
+  attendeeId: number,
+  then: (attendee: Attendee) => Response | Promise<Response>,
+): Promise<Response> => {
+  const attendee = await loadAttendeeOr404(attendeeId);
+  return attendee instanceof Response ? attendee : then(attendee);
+};
+
 /** Render the add-note form for a loaded attendee (initial GET or a re-render
  * after a rejected save). */
 const renderAddNote = (
@@ -78,44 +89,42 @@ const renderAddNote = (
 const handleAddNoteGet: TypedRouteHandler<
   "GET /admin/attendee/:attendeeId/note"
 > = (request, { attendeeId }) =>
-  requireSessionOr(request, async (session) => {
-    const attendee = await loadAttendeeOr404(attendeeId);
-    if (attendee instanceof Response) return attendee;
-    return renderAddNote(
-      attendee,
-      session,
-      getSearchParam(request, "return_url"),
-      applyFlash(request).error,
-    );
-  });
-
-/** POST /admin/attendee/:attendeeId/note — create an owner note. */
-const handleAddNotePost: TypedRouteHandler<
-  "POST /admin/attendee/:attendeeId/note"
-> = (request, { attendeeId }) =>
-  withAuth(request, AUTH_FORM, async (session, form) => {
-    const attendee = await loadAttendeeOr404(attendeeId);
-    if (attendee instanceof Response) return attendee;
-    const note = form.getString("note").trim();
-    const returnUrl = form.getString("return_url");
-    // Re-render in place on a blank note (preserving the return target) rather
-    // than redirect — there is nothing to preserve and no PRG round-trip needed.
-    if (!note) {
-      return renderAddNote(
+  requireSessionOr(request, (session) =>
+    withLoadedAttendee(attendeeId, (attendee) =>
+      renderAddNote(
         attendee,
         session,
-        returnUrl,
-        t("notes.empty_error"),
-        400,
+        getSearchParam(request, "return_url"),
+        applyFlash(request).error,
+      ),
+    ),
+  );
+
+/** POST /admin/attendee/:attendeeId/note — create an owner note. */
+const handleAddNotePost: TypedRouteHandler<"POST /admin/attendee/:attendeeId/note"> =
+  attendeeFormPost((attendeeId, session, form) =>
+    withLoadedAttendee(attendeeId, async (attendee) => {
+      const note = form.getString("note").trim();
+      const returnUrl = form.getString("return_url");
+      // Re-render in place on a blank note (preserving the return target)
+      // rather than redirect — nothing to preserve, no PRG round-trip needed.
+      if (!note) {
+        return renderAddNote(
+          attendee,
+          session,
+          returnUrl,
+          t("notes.empty_error"),
+          400,
+        );
+      }
+      await createOwnerNote(attendeeId, note);
+      return redirect(
+        returnTarget(attendeeId, returnUrl),
+        t("notes.added"),
+        true,
       );
-    }
-    await createOwnerNote(attendeeId, note);
-    return redirect(
-      returnTarget(attendeeId, returnUrl),
-      t("notes.added"),
-      true,
-    );
-  });
+    }),
+  );
 
 /** GET /admin/attendee/:attendeeId/note/:noteId/delete — are-you-sure page. */
 const handleDeleteNoteGet: TypedRouteHandler<

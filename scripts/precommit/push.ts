@@ -4,6 +4,7 @@ import {
   type RunCommand,
   runGit,
 } from "./git.ts";
+import { getOriginUrl } from "./merge-warning.ts";
 
 export interface PushPromptContext {
   branchName: string;
@@ -68,7 +69,7 @@ export const getPushPromptContext = async (
   const unpushedCommits = await getUnpushedCommitCount(run);
   if (!unpushedCommits || unpushedCommits < 1) return;
 
-  const originUrl = await commandValue(run, ["remote", "get-url", "origin"]);
+  const originUrl = await getOriginUrl(run);
   const branchName = await commandValue(run, [
     "rev-parse",
     "--abbrev-ref",

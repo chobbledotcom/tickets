@@ -12,8 +12,10 @@ import { t } from "#i18n";
 import { entityToFieldValues, renderFields } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Holiday } from "#shared/types.ts";
-import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
-import { WritableLink } from "#templates/admin/writable-only.tsx";
+import {
+  defineAdminResourcePages,
+  writableNameColumn,
+} from "#templates/admin/resource-pages.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import {
   type DataColumn,
@@ -24,14 +26,10 @@ import { getHolidayFields } from "#templates/fields/admin.ts";
 /** Columns for the holidays table — declared once so the header order and
  *  cell order can't drift apart. */
 const holidayColumns: DataColumn<Holiday>[] = [
-  {
-    cell: (holiday) => (
-      <WritableLink href={`/admin/holidays/${holiday.id}/edit`}>
-        {holiday.name}
-      </WritableLink>
-    ),
-    header: t("common.name"),
-  },
+  writableNameColumn(
+    (holiday) => `/admin/holidays/${holiday.id}/edit`,
+    (holiday) => holiday.name,
+  ),
   { cell: (h) => h.start_date, header: t("holidays.col.start_date") },
   { cell: (h) => h.end_date, header: t("holidays.col.end_date") },
 ];

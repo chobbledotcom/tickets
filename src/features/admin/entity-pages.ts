@@ -65,6 +65,14 @@ export interface PageCtx {
   tabHref: (slug: string) => string;
 }
 
+/** A loader for one of a page's optional element slots (banner, guide footer,
+ * prose extra) or a custom section: it turns the entity into markup, or null
+ * to render nothing. */
+export type SlotLoader<E> = (
+  entity: E,
+  ctx: PageCtx,
+) => Promise<JSX.Element | null>;
+
 /** An operator action. `visible` must gate on the SAME condition the target
  * route enforces — a forbidden or dead action link is never rendered. */
 export interface ActionDef<E> {
@@ -106,7 +114,7 @@ export type Section<E> =
     }
   | {
       kind: "custom";
-      load: (entity: E, ctx: PageCtx) => Promise<JSX.Element | null>;
+      load: SlotLoader<E>;
     };
 
 /** One tab: a URL segment, a strip label, and its ordered sections.
@@ -123,14 +131,14 @@ export interface TabDef<E> {
 /** One entity's whole page, as data. */
 export interface EntityPageDef<E, Id extends EntityId = number> {
   /** Always-visible region above the tab strip (alerts, notes, status). */
-  banner?: (entity: E, ctx: PageCtx) => Promise<JSX.Element | null>;
+  banner?: SlotLoader<E>;
   /** Concrete base URL for an id — URL minting only, never a route pattern. */
   basePath: (id: Id) => string;
   /** The GET auth floor — the weakest role that may see any tab. */
   guard: SessionGuard<AuthSession>;
   /** A guide link rendered at the very bottom of the body via `GuideFooter`,
    *  matching every other admin page (e.g. the Site content editors). */
-  guideFooter?: (entity: E, ctx: PageCtx) => Promise<JSX.Element | null>;
+  guideFooter?: SlotLoader<E>;
   load: (id: Id, session: AuthSession) => Promise<E | null>;
   /** What the admin nav marks active. A single-item entity page passes
    * `{ section }` so the section's top link highlights without re-opening its
@@ -139,7 +147,7 @@ export interface EntityPageDef<E, Id extends EntityId = number> {
   navActive: NavActive;
   /** Extra content rendered inside the prose block beside the page `<h1>`
    *  (e.g. the attendee page's "Add a note" link). */
-  proseExtra?: (entity: E, ctx: PageCtx) => Promise<JSX.Element | null>;
+  proseExtra?: SlotLoader<E>;
   tabs: readonly TabDef<E>[];
   titleOf: (entity: E) => string;
 }
@@ -228,9 +236,7 @@ export interface EntityPage<E, Id extends EntityId = number> {
 /** Resolve one of the page's optional element slots (banner, guide footer,
  * prose extra): run its loader when present, else null. */
 const resolveSlot = <E>(
-  loader:
-    | ((entity: E, ctx: PageCtx) => Promise<JSX.Element | null>)
-    | undefined,
+  loader: SlotLoader<E> | undefined,
   entity: E,
   ctx: PageCtx,
 ): Promise<JSX.Element | null> =>
@@ -309,4 +315,21 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
     });
 
   return { path, renderPage, renderTab };
+};
+
+/** A tab section that renders custom markup from a loader — the common shape
+ * every panel section shares. */
+export const customSection = <E>(load: SlotLoader<E>): Section<E> => ({
+  kind: "custom",
+  load,
+});
+
+/** A tab whose single section renders custom markup (an Edit / Images / panel
+ * tab). Takes the same fields as a tab but a `load` in place of `sections`, so
+ * callers pass only what differs. */
+export const customTab = <E>(
+  config: Omit<TabDef<E>, "sections"> & { load: SlotLoader<E> },
+): TabDef<E> => {
+  const { load, ...tab } = config;
+  return { ...tab, sections: [customSection(load)] };
 };

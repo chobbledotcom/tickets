@@ -41,31 +41,36 @@ export const runWithSettingsAudit = <T>(fn: () => T): T =>
     ? store.run({ loaded: new Set(), read: new Set() }, fn)
     : fn();
 
+/** Run `use` with the active audit state, if we are inside an audit scope.
+ * Outside a scope there is no store, so this does nothing. */
+const withAuditState = (use: (state: AuditState) => void): void => {
+  const state = store.getStore();
+  if (state) use(state);
+};
+
 /** Record a settings read (no-op outside an audit scope). */
 export const recordSettingRead = (configKey: string): void => {
   store.getStore()?.read.add(configKey);
 };
 
 /** Record keys made available this request — loaded or written (no-op outside). */
-export const recordSettingsLoaded = (keys: Iterable<string>): void => {
-  const state = store.getStore();
-  if (!state) return;
-  for (const key of keys) state.loaded.add(key);
-};
+export const recordSettingsLoaded = (keys: Iterable<string>): void =>
+  withAuditState((state) => {
+    for (const key of keys) state.loaded.add(key);
+  });
 
 /**
  * Assert every key read this request was also loaded. Throws naming the route
  * and the offending keys so the fix (add to the prefix bundle, or INFRA if read
  * on every request) is obvious. No-op outside an audit scope.
  */
-export const assertSettingsReadsDeclared = (routeLabel: string): void => {
-  const state = store.getStore();
-  if (!state) return;
-  const missing = [...state.read].filter((key) => !state.loaded.has(key));
-  if (missing.length === 0) return;
-  throw new Error(
-    `Settings read but not declared for "${routeLabel}": ${missing.join(", ")}. ` +
-      "Add these keys to the route's prefix bundle in src/features/index.ts " +
-      "(PREFIX_SETTINGS), or to INFRA_SETTINGS if they are read on every request.",
-  );
-};
+export const assertSettingsReadsDeclared = (routeLabel: string): void =>
+  withAuditState((state) => {
+    const missing = [...state.read].filter((key) => !state.loaded.has(key));
+    if (missing.length === 0) return;
+    throw new Error(
+      `Settings read but not declared for "${routeLabel}": ${missing.join(", ")}. ` +
+        "Add these keys to the route's prefix bundle in src/features/index.ts " +
+        "(PREFIX_SETTINGS), or to INFRA_SETTINGS if they are read on every request.",
+    );
+  });

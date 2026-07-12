@@ -1,12 +1,8 @@
+import { CSS, JS, SVG, TEXT } from "../src/shared/content-types.ts";
 import { ASSETS, readAsset } from "../src/shared/images/wasm-assets.ts";
 import type { AssetDef } from "./edge-bundle-modules.ts";
 import { wasmFilename } from "./inline-jsquash-wasm.ts";
 import type { StaticCdnAsset } from "./static-cdn.ts";
-
-const JS = "application/javascript; charset=utf-8";
-const CSS = "text/css; charset=utf-8";
-const SVG = "image/svg+xml";
-const TEXT = "text/plain; charset=utf-8";
 
 /** One schema drives embedded handlers, public paths, and CDN publication. */
 export const ASSET_DEFS: AssetDef[] = [

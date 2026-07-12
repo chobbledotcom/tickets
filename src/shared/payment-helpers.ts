@@ -69,12 +69,15 @@ export class PaymentUserError extends Error {
   }
 }
 
-/** Safely execute async operation, returning null on error.
- * Re-throws PaymentUserError so user-facing messages propagate. */
-export const safeAsync = async <T>(
+/** Run an async operation under an error code, returning its result or null. */
+type GuardedAsync = <T>(
   fn: () => Promise<T>,
   errorCode: ErrorCodeType,
-): Promise<T | null> => {
+) => Promise<T | null>;
+
+/** Safely execute async operation, returning null on error.
+ * Re-throws PaymentUserError so user-facing messages propagate. */
+export const safeAsync: GuardedAsync = async (fn, errorCode) => {
   try {
     return await fn();
   } catch (err) {
@@ -419,6 +422,32 @@ export const toCheckoutResult = (
   }
   return { checkoutUrl: url, sessionId };
 };
+
+/**
+ * Build a provider's `createCheckoutSession`: call the provider's own create
+ * function, read the session id and URL off whatever shape it returns, and map
+ * that to a shared CheckoutSessionResult — all inside the standard checkout
+ * error guard. Each provider only supplies its create call, how to read the
+ * id/url, and its display label.
+ */
+export const makeCreateCheckoutSession =
+  <Result>(
+    label: LogCategory,
+    create: (intent: CheckoutIntent, baseUrl: string) => Promise<Result>,
+    readResult: (result: Result) => {
+      id: string | undefined;
+      url: string | undefined | null;
+    },
+  ): ((
+    intent: CheckoutIntent,
+    baseUrl: string,
+  ) => Promise<CheckoutSessionResult>) =>
+  (intent, baseUrl) =>
+    withCheckoutError(async () => {
+      const result = await create(intent, baseUrl);
+      const { id, url } = readResult(result);
+      return toCheckoutResult(id, url, label);
+    });
 
 /**
  * Wrap a checkout operation, converting PaymentUserError to { error } result

@@ -1,7 +1,22 @@
 import { formatSignedCurrency } from "#shared/currency.ts";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { ActionButton } from "#templates/components/actions.tsx";
 import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
+
+/** A form section styled for the listing admin pages: a `SectionFieldset` with
+ *  the shared `listing-section` class already applied. */
+export const ListingSectionFieldset = ({
+  children,
+  legend,
+}: {
+  children: Child;
+  legend: string;
+}): JSX.Element => (
+  <SectionFieldset className="listing-section" legend={legend}>
+    {children}
+  </SectionFieldset>
+);
 
 export type MoneySummaryRow = {
   amount: number;
@@ -41,7 +56,7 @@ export const MoneySummary = ({
   rows: MoneySummaryRow[];
   title: string;
 }): JSX.Element => (
-  <SectionFieldset className="listing-section" legend={title}>
+  <ListingSectionFieldset legend={title}>
     <div class="table-scroll">
       <table class="listing-breakdown-table">
         <tbody>{rows.map(SummaryRow)}</tbody>
@@ -57,5 +72,5 @@ export const MoneySummary = ({
         <ActionButton href={ledgerHref}>{ledgerLabel}</ActionButton>
       </p>
     )}
-  </SectionFieldset>
+  </ListingSectionFieldset>
 );

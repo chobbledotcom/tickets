@@ -120,11 +120,8 @@ const skipToCheckout = (
   payload: QrBookPayload,
 ): Promise<Response> => {
   const intent = buildCheckoutIntent(listing, payload);
-  return runCheckoutFlow(
-    `qr-book listing=${listing.id}`,
-    request,
-    (provider, baseUrl) => provider.createCheckoutSession(intent, baseUrl),
-    () => errorResponse(listing.slug, 500),
+  return runCheckoutFlow(`qr-book listing=${listing.id}`, request, intent, () =>
+    errorResponse(listing.slug, 500),
   );
 };
 

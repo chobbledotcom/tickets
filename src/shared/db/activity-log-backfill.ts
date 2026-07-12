@@ -20,10 +20,10 @@ import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { executeBatch, queryAll, update } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
+import { taskIsDue } from "#shared/interval-gate.ts";
 import {
   ACTIVITY_LOG_BACKFILL_BATCH,
   ACTIVITY_LOG_BACKFILL_INTERVAL_MS,
-  parsePositiveInt,
 } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
@@ -69,10 +69,6 @@ export const backfillActivityLogBatch = async (
 const backfillIdle = (): boolean =>
   settings.activityLogBackfillDone === "true" || !settings.publicKey;
 
-/** Due when at least the backfill interval has elapsed since the last batch. */
-const isDue = (lastMs: number, now: number): boolean =>
-  now - lastMs >= ACTIVITY_LOG_BACKFILL_INTERVAL_MS;
-
 /**
  * Run one backfill batch if due. Safe to call fire-and-forget
  * (`addPendingWork`); never throws. Writes the run timestamp before working
@@ -82,7 +78,13 @@ const isDue = (lastMs: number, now: number): boolean =>
 export const maybeBackfillActivityLog = async (): Promise<void> => {
   if (backfillIdle()) return;
   const now = nowMs();
-  if (!isDue(parsePositiveInt(settings.lastActivityLogBackfill, 0), now)) {
+  if (
+    !taskIsDue(
+      settings.lastActivityLogBackfill,
+      ACTIVITY_LOG_BACKFILL_INTERVAL_MS,
+      now,
+    )
+  ) {
     return;
   }
   try {

@@ -6,7 +6,7 @@ import { map } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { answerTextForm, questionTextForm } from "#routes/admin/questions.ts";
-import { adminPath } from "#shared/admin-surface.ts";
+import { type AdminRouteId, adminPath } from "#shared/admin-surface.ts";
 import type { Answer, QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type {
   AnswerAggregateField,
@@ -26,7 +26,7 @@ import {
   adminRecalculatePage,
   type RecalculateRow,
 } from "#templates/admin/recalculate.tsx";
-import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
 import {
   CheckboxForm,
   CheckboxLabel,
@@ -36,12 +36,12 @@ import {
   LinkedItemsCheckboxes,
   toLinkedItemOptions,
 } from "#templates/components/linked-items.tsx";
+import type { ReorderDirection } from "#templates/components/reorder.tsx";
 import {
-  ReorderLinkRow,
-  ReorderTable,
-  reorderLinkTableAt,
-  writableReorderProps,
-} from "#templates/components/reorder-table.tsx";
+  QuantityCell,
+  reorderableListPage,
+  reorderCountTable,
+} from "#templates/components/reorder-list.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { answerAggregateFields } from "#templates/fields/aggregate.ts";
@@ -58,6 +58,11 @@ import { WritableDangerLink, WritableOnly } from "./writable-only.tsx";
  * that consumes the result. */
 export const questionTextFlat = (text: string): string =>
   text.replace(/\r?\n/g, " / ");
+
+const QUESTION_ANSWER_MOVE_ROUTES = {
+  down: "postQuestionsByIdAnswersByAnswerIdMoveDown",
+  up: "postQuestionsByIdAnswersByAnswerIdMoveUp",
+} satisfies Record<ReorderDirection, AdminRouteId>;
 
 /** Listings cell for a question row: a count whose title attribute spells out
  * the assigned listing names (comma + space separated), or "All" when the
@@ -147,51 +152,38 @@ export const adminQuestionsPage = (
   listingNames: Map<number, string[]> = new Map(),
   totalListings = 0,
 ): string =>
-  errorAdminPage(t("questions.title"), "/admin/questions")(session, error)(
-    <>
-      <WritableOnly>
-        <CsrfForm action="/admin/questions" id="new-question">
-          <Raw html={questionTextForm.render()} />
-          <SubmitButton icon="plus">{t("questions.add_submit")}</SubmitButton>
-        </CsrfForm>
-      </WritableOnly>
-
-      {questions.length === 0 ? (
-        <p>
-          <em>{t("questions.no_questions")}</em>
-        </p>
-      ) : (
-        reorderLinkTableAt(
-          "/admin/questions",
-          t("questions.order_column"),
-          <>
-            <th>{t("questions.question_column")}</th>
-            <th class={colClass("quantity")}>
-              {t("questions.answers_column")}
-            </th>
-            <th class={colClass("quantity")}>
-              {t("questions.listings_column")}
-            </th>
-          </>,
-          questions,
-          (q) => questionTextFlat(q.text),
-          (q) => (
-            <>
-              <td class={colClass("quantity")}>{q.answers.length}</td>
-              <QuestionListingsCell
-                listingNames={listingNames.get(q.id) ?? []}
-                question={q}
-                totalListings={totalListings}
-              />
-            </>
-          ),
-          !isReadOnly(),
-        )
-      )}
-
-      <GuideFooter href="/admin/guide#questions">Questions guide</GuideFooter>
-    </>,
-  );
+  reorderableListPage({
+    addFormHtml: questionTextForm.render(),
+    addLabel: t("questions.add_submit"),
+    basePath: "/admin/questions",
+    columns: (
+      <>
+        <th>{t("questions.question_column")}</th>
+        <th class={colClass("quantity")}>{t("questions.answers_column")}</th>
+        <th class={colClass("quantity")}>{t("questions.listings_column")}</th>
+      </>
+    ),
+    emptyText: t("questions.no_questions"),
+    error,
+    guideHref: "/admin/guide#questions",
+    guideLabel: "Questions guide",
+    items: questions,
+    newFormId: "new-question",
+    orderLabel: t("questions.order_column"),
+    rowCells: (q) => (
+      <>
+        <QuantityCell>{q.answers.length}</QuantityCell>
+        <QuestionListingsCell
+          listingNames={listingNames.get(q.id) ?? []}
+          question={q}
+          totalListings={totalListings}
+        />
+      </>
+    ),
+    rowLabel: (q) => questionTextFlat(q.text),
+    session,
+    title: t("questions.title"),
+  });
 
 /** Single question detail / edit page */
 export const adminQuestionPage = (
@@ -260,45 +252,22 @@ export const adminQuestionPage = (
             </CsrfForm>
           </WritableOnly>
 
-          {question.answers.length === 0 ? (
-            <p>
-              <em>{t("questions.edit.no_answers")}</em>
-            </p>
-          ) : (
-            <ReorderTable
-              columns={
-                <>
-                  <th>{t("questions.answer_column")}</th>
-                  <th class={colClass("quantity")}>
-                    {t("questions.selected_column")}
-                  </th>
-                </>
-              }
-              orderLabel={t("questions.order_column")}
-              reorder={!isReadOnly()}
-            >
-              {question.answers.map((a, i) => (
-                <ReorderLinkRow
-                  action={(d) =>
-                    `/admin/questions/${question.id}/answers/${a.id}/move-${d}`
-                  }
-                  count={question.answers.length}
-                  index={i}
-                  label={a.text}
-                  {...writableReorderProps(
-                    adminPath("answerEdit", {
-                      answerId: a.id,
-                      id: question.id,
-                    }),
-                  )}
-                >
-                  <td class={colClass("quantity")}>
-                    {answerCounts?.get(a.id) ?? 0}
-                  </td>
-                </ReorderLinkRow>
-              ))}
-            </ReorderTable>
-          )}
+          {reorderCountTable({
+            count: (a) => answerCounts?.get(a.id) ?? 0,
+            countHeader: t("questions.selected_column"),
+            editHref: (a) =>
+              adminPath("answerEdit", { answerId: a.id, id: question.id }),
+            emptyText: t("questions.edit.no_answers"),
+            items: question.answers,
+            label: (a) => a.text,
+            labelHeader: t("questions.answer_column"),
+            moveAction: (a) => (d) =>
+              adminPath(QUESTION_ANSWER_MOVE_ROUTES[d], {
+                answerId: a.id,
+                id: question.id,
+              }),
+            orderLabel: t("questions.order_column"),
+          })}
         </>
       )}
 

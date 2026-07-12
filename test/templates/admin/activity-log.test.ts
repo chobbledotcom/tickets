@@ -228,6 +228,46 @@ describe("adminGlobalActivityLogPage reference columns", () => {
     expect(html).toContain("Attendee deleted");
   });
 
+  // Render the global log with one attendee-referencing entry and return just
+  // the table body — the nav always carries /admin links, so a page-wide check
+  // would false-positive on those rather than the row's own cell.
+  const attendeeRefTbody = (
+    attendeeId: number,
+    attendees: ActivityLogRefs["attendees"],
+  ): string => {
+    const entries = [
+      logEntry({ attendee_id: attendeeId, message: "Note added" }),
+    ];
+    const html = adminGlobalActivityLogPage(entries, false, TEST_SESSION, {
+      attendees,
+      listings: new Map(),
+    });
+    const tbodyStart = html.indexOf("<tbody>");
+    const tbodyEnd = html.indexOf("</tbody>");
+    // Fail loudly if the row didn't render — otherwise an empty slice would let
+    // the "no link" assertions pass without testing anything.
+    expect(tbodyStart).toBeGreaterThanOrEqual(0);
+    expect(tbodyEnd).toBeGreaterThan(tbodyStart);
+    return html.slice(tbodyStart, tbodyEnd);
+  };
+
+  test("renders no attendee link when only the name is loaded (kind missing)", () => {
+    const tbody = attendeeRefTbody(8, {
+      kinds: new Map(),
+      names: new Map([[8, "Grace Hopper"]]),
+    });
+    expect(tbody).not.toContain('href="/admin/attendees/8"');
+    expect(tbody).not.toContain("Grace Hopper");
+  });
+
+  test("renders no attendee link when only the kind is loaded (name missing)", () => {
+    const tbody = attendeeRefTbody(9, {
+      kinds: new Map([[9, "attendee"]]),
+      names: new Map(),
+    });
+    expect(tbody).not.toContain('href="/admin/attendees/9"');
+  });
+
   test("renders no link when the referenced listing no longer exists", () => {
     const entries = [logEntry({ listing_id: 99, message: "Listing deleted" })];
     const html = adminGlobalActivityLogPage(

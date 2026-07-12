@@ -28,12 +28,19 @@ export type Column = {
   class?: ColumnKind;
 };
 
+/** A class-less table column that is just a translated header. Shared by the
+ *  admin list tables so the plain `{ header: t(key) }` column stops being
+ *  repeated (and reading as duplicated) at each call site. */
+export const textCol = (headerKey: string): Column => ({
+  header: t(headerKey),
+});
+
 /** Build plain (class-less) text columns from i18n header keys — the common
  *  all-text header row. Collapses the repeated `{ header: t(key) }` object at
  *  each call site into one call, which also keeps similar header rows across
  *  tables from reading as duplicated column literals. */
 const textColumns = (...headerKeys: string[]): Column[] =>
-  headerKeys.map((key) => ({ header: t(key) }));
+  headerKeys.map(textCol);
 
 /** The name column every admin list table leads with. */
 const NAME_HEADER_KEY = "common.name";

@@ -23,7 +23,11 @@ import {
 } from "#shared/db/api-key-attempts.ts";
 import { getApiKeyByToken, touchApiKeyLastUsed } from "#shared/db/api-keys.ts";
 import { deleteSession, getSession } from "#shared/db/sessions.ts";
-import { decryptAdminLevel, getUserAuthFieldsById } from "#shared/db/users.ts";
+import {
+  decryptAdminLevel,
+  getUserAuthFieldsById,
+  type UserAuthFields,
+} from "#shared/db/users.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { setSavedFormData } from "#shared/forms.tsx";
 import { SCANNER_CSRF_MAX_AGE_S } from "#shared/limits.ts";
@@ -62,6 +66,19 @@ export type AuthSession = {
   settingsNagItems?: readonly NagItem[];
 };
 
+/** Load the user's auth fields for a session or API key. When the id points at
+ * no user, log an invalid-session error and give back null so the caller can
+ * clear its own state and bail. */
+const loadAuthUserFields = async (
+  userId: number,
+  missingDetail: string,
+): Promise<UserAuthFields | null> => {
+  const user = await getUserAuthFieldsById(userId);
+  if (user) return user;
+  logError({ code: ErrorCode.AUTH_INVALID_SESSION, detail: missingDetail });
+  return null;
+};
+
 /**
  * Get authenticated session if valid
  * Returns null if not authenticated
@@ -97,12 +114,11 @@ export const getAuthenticatedSession = async (
   }
 
   // Load user and decrypt admin level
-  const user = await getUserAuthFieldsById(session.user_id);
+  const user = await loadAuthUserFields(
+    session.user_id,
+    "Session references non-existent user, invalidating",
+  );
   if (!user) {
-    logError({
-      code: ErrorCode.AUTH_INVALID_SESSION,
-      detail: "Session references non-existent user, invalidating",
-    });
     await deleteSession(token);
     setCachedSession(null);
     return null;
@@ -178,14 +194,11 @@ export const getAuthenticatedApiKey = async (
     return null;
   }
 
-  const user = await getUserAuthFieldsById(apiKeyRow.user_id);
-  if (!user) {
-    logError({
-      code: ErrorCode.AUTH_INVALID_SESSION,
-      detail: "API key references non-existent user",
-    });
-    return null;
-  }
+  const user = await loadAuthUserFields(
+    apiKeyRow.user_id,
+    "API key references non-existent user",
+  );
+  if (!user) return null;
 
   try {
     await unwrapKeyWithToken(apiKeyRow.wrapped_data_key, token);
@@ -637,3 +650,18 @@ export async function withAuth<T extends BodyMode>(
   if (isResponse(body)) return body;
   return handler(auth.session, body as ParsedBody<T>, auth.authKind);
 }
+
+/** A curried POST route: authenticate under `policy`, then hand the session and
+ * parsed body to `handle`. The shared building block for the per-gate route
+ * wrappers (multipart listing saves, Site-tab content saves, and similar), so
+ * the authenticate-then-delegate shape lives in one place. */
+export const gatedPost =
+  <T extends BodyMode>(policy: AuthPolicy<T>) =>
+  (
+    handle: (
+      session: AuthSession,
+      body: ParsedBody<T>,
+    ) => Response | Promise<Response>,
+  ) =>
+  (request: Request): Promise<Response> =>
+    withAuth(request, policy, handle);

@@ -2,7 +2,7 @@
  * Sort-order swaps and next-order assignment for questions and answers.
  */
 
-import { executeBatch, queryOne } from "#shared/db/client.ts";
+import { executeBatch, nextSortOrder } from "#shared/db/client.ts";
 import { swapSortOrder } from "#shared/db/query.ts";
 
 /** Swap the sort_order of two answers by their IDs */
@@ -25,13 +25,8 @@ export const swapAnswerOrder = async (
 };
 
 /** Get the next sort_order for a new answer in a question */
-export const getNextAnswerSortOrder = async (
-  questionId: number,
-): Promise<number> =>
-  (await queryOne<{ next_order: number }>(
-    "SELECT COALESCE(MAX(sort_order) + 1, 0) AS next_order FROM answers WHERE question_id = ?",
-    [questionId],
-  ))!.next_order;
+export const getNextAnswerSortOrder = (questionId: number): Promise<number> =>
+  nextSortOrder("answers", "question_id", questionId);
 
 /** Swap the global sort_order of two questions, reading their current values
  * so callers only need the ids. A no-op visually when both share a value

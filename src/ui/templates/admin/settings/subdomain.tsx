@@ -9,6 +9,7 @@ import { CsrfForm } from "#shared/forms.tsx";
 import { DomainPaymentWebhookWarning } from "#templates/admin/settings/domain-payment-warning.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 import { ProseIntro } from "#templates/components/prose-heading.tsx";
 import { SUBDOMAIN_INPUT_PATTERN } from "#templates/fields/ticket.ts";
 
@@ -44,10 +45,12 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
         </p>
         <input name="subdomain" type="hidden" value={s.subdomainPreview} />
         <DomainPaymentWebhookWarning paymentProvider={s.paymentProvider} />
-        <label>
-          <input name="save" type="checkbox" value="1" />{" "}
-          {t("settings.subdomain.confirm_registration")}
-        </label>
+        <CheckboxLabel
+          checked={false}
+          label={` ${t("settings.subdomain.confirm_registration")}`}
+          name="save"
+          value="1"
+        />
         <footer>
           <SubmitButton icon="plus">
             {t("settings.subdomain.register_button")}

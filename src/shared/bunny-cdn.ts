@@ -18,9 +18,15 @@ import type { HostingProviderApi } from "#shared/provider-types.ts";
 
 const BUNNY_API_BASE = "https://api.bunny.net";
 
-type BunnyApiResult =
-  | { ok: true }
-  | { ok: false; error: string; errorKey?: string | undefined };
+/** The error branch shared by every Bunny API result — a failed call with its
+ *  message and optional Bunny ErrorKey. */
+type BunnyApiError = {
+  ok: false;
+  error: string;
+  errorKey?: string | undefined;
+};
+
+type BunnyApiResult = { ok: true } | BunnyApiError;
 
 type CdnHostnameResult =
   | { ok: true; hostname: string }
@@ -47,10 +53,7 @@ interface EdgeScriptResponse {
 const bunnyGetJson = async <T>(
   path: string,
   label: string,
-): Promise<
-  | { ok: true; data: T }
-  | { ok: false; error: string; errorKey?: string | undefined }
-> => {
+): Promise<{ ok: true; data: T } | BunnyApiError> => {
   const response = await fetchText(`${BUNNY_API_BASE}${path}`, {
     headers: { AccessKey: getBunnyApiKey() },
   });
@@ -63,8 +66,7 @@ const bunnyGetJson = async <T>(
  * Returns the DefaultHostname and LinkedPullZones.
  */
 const getEdgeScriptImpl = (): Promise<
-  | { ok: true; data: EdgeScriptResponse }
-  | { ok: false; error: string; errorKey?: string | undefined }
+  { ok: true; data: EdgeScriptResponse } | BunnyApiError
 > =>
   bunnyGetJson<EdgeScriptResponse>(
     `/compute/script/${encodeURIComponent(getBunnyScriptId())}`,
@@ -74,7 +76,7 @@ const getEdgeScriptImpl = (): Promise<
 /** Map edge script data to a result, returning early on API error. */
 const withEdgeScript = async <T>(
   fn: (data: EdgeScriptResponse) => T,
-): Promise<T | { ok: false; error: string; errorKey?: string | undefined }> => {
+): Promise<T | BunnyApiError> => {
   const result = await bunnyCdnApi.getEdgeScript();
   if (!result.ok) return result;
   return fn(result.data);
@@ -84,8 +86,7 @@ const withEdgeScript = async <T>(
  * Find the pull zone ID via the edge script's linked pull zones.
  */
 const findPullZoneIdImpl = (): Promise<
-  | { ok: true; id: number }
-  | { ok: false; error: string; errorKey?: string | undefined }
+  { ok: true; id: number } | BunnyApiError
 > =>
   withEdgeScript((data) => {
     const zone = data.LinkedPullZones[0];
@@ -517,7 +518,7 @@ interface ListEdgeScriptSecretsResponse {
 
 type ListSecretsResult =
   | { ok: true; secrets: EdgeScriptSecret[] }
-  | { ok: false; error: string; errorKey?: string | undefined };
+  | BunnyApiError;
 
 /**
  * List the secrets currently set on a Bunny edge script. The API returns each

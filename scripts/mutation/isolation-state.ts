@@ -13,6 +13,7 @@ import {
   resolve,
   SEPARATOR,
 } from "@std/path";
+import { openLockFile } from "../lock-file.ts";
 import { rethrowUnlessNotFound } from "../not-found.ts";
 import { projectRoot } from "../project-root.ts";
 import { denoExitCode } from "./child-process.ts";
@@ -440,11 +441,7 @@ export const runLockIsHeld = async (
   timeoutMs = 50,
 ): Promise<boolean> => {
   const path = runLockPath(record);
-  const file = await Deno.open(path, {
-    create: true,
-    read: true,
-    write: true,
-  }).catch(() => null);
+  const file = await openLockFile(path).catch(() => null);
   if (file === null) return false;
   file.close();
   return (await lockProbeExitCode(path, timeoutMs)) === LOCK_HELD_EXIT_CODE;
@@ -455,11 +452,7 @@ export const withMutationRunLock = async <Result>(
   run: () => Promise<Result>,
 ): Promise<Result> => {
   await Deno.mkdir(runRootPath, { recursive: true });
-  const file = await Deno.open(join(runRootPath, MUTATION_RUN_LOCK_FILE), {
-    create: true,
-    read: true,
-    write: true,
-  });
+  const file = await openLockFile(join(runRootPath, MUTATION_RUN_LOCK_FILE));
   try {
     await file.lock(true);
     return await run();

@@ -40,6 +40,7 @@ import { writeRawBatch } from "#shared/db/settings/raw-writes.ts";
 import { setSnapshotField } from "#shared/db/settings/snapshot.ts";
 import { settings } from "#shared/db/settings.ts";
 import { pruneExpiredInvites } from "#shared/db/users.ts";
+import { taskIsDue } from "#shared/interval-gate.ts";
 import {
   ADDRESS_CACHE_MS,
   PRUNE_CONTACTS_RETENTION_MS,
@@ -50,7 +51,6 @@ import {
   PRUNE_SUMUP_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
-  parsePositiveInt,
 } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
@@ -185,16 +185,6 @@ export const pruneOrphanAttendees = (): Promise<number> =>
     orphanRetentionCutoffIso(settings.orphanPurgeRetention, nowMs()),
   );
 
-/**
- * Parse a `last_pruned_*` setting (stored as ms-epoch string) to a number.
- * Empty string / unparseable => 0, meaning "never run, due immediately".
- */
-const parseLastPrunedMs = (raw: string): number => parsePositiveInt(raw, 0);
-
-/** True when now - last >= PRUNE_INTERVAL_MS. */
-const isDue = (lastMs: number, now: number): boolean =>
-  now - lastMs >= PRUNE_INTERVAL_MS;
-
 type PruneTask = {
   field: Parameters<typeof setSnapshotField>[0];
   key: string;
@@ -304,7 +294,7 @@ const runTask = async (task: PruneTask): Promise<void> => {
 export const maybeRunPrunes = async (): Promise<void> => {
   const now = nowMs();
   const due = PRUNE_TASKS().filter((t) =>
-    isDue(parseLastPrunedMs(t.lastRaw), now),
+    taskIsDue(t.lastRaw, PRUNE_INTERVAL_MS, now),
   );
   if (due.length === 0) return;
   const value = String(now);

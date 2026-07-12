@@ -27,7 +27,8 @@ import {
   type LoadedAttendee,
   loadAttendeeForEdit,
 } from "#routes/admin/attendee-page-data.ts";
-import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
+import { attendeeFormPost } from "#routes/admin/attendees-route-helpers.ts";
+import type { AuthSession } from "#routes/auth.ts";
 /* jscpd:ignore-start */
 import { notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
@@ -153,9 +154,5 @@ const handleLogisticsSubmit = async (
 };
 
 /** Handle POST /admin/attendees/:attendeeId/logistics. */
-export const handleAttendeeLogisticsPost: TypedRouteHandler<
-  "POST /admin/attendees/:attendeeId/logistics"
-> = (request, { attendeeId }) =>
-  withAuth(request, AUTH_FORM, (session, form) =>
-    handleLogisticsSubmit(attendeeId, session, form),
-  );
+export const handleAttendeeLogisticsPost: TypedRouteHandler<"POST /admin/attendees/:attendeeId/logistics"> =
+  attendeeFormPost(handleLogisticsSubmit);

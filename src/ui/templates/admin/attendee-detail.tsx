@@ -17,7 +17,7 @@ import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { questionTextFlat } from "#templates/admin/questions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
+import { DataTable, textCol } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { HeaderRow } from "#templates/components/header-row.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
@@ -113,10 +113,10 @@ export const AttendeeBookingsTable = ({
       <h3>{t("terms.bookings")}</h3>
       <DataTable
         columns={[
-          { header: t("terms.listing") },
-          { header: t("common.date") },
+          textCol("terms.listing"),
+          textCol("common.date"),
           { class: "quantity", header: t("common.quantity") },
-          { header: t("common.status") },
+          textCol("common.status"),
         ]}
         foot={
           <tr>

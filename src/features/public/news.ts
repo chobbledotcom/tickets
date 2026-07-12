@@ -10,7 +10,6 @@
 
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import { getImagesForItem } from "#shared/db/images.ts";
 import {
   computeNewsSlugIndex,
   getNewsPostBySlugIndex,
@@ -20,6 +19,7 @@ import { settings } from "#shared/db/settings.ts";
 import { newsListPage, newsPostPage } from "#templates/public/news.tsx";
 import { requirePublicSite } from "./pages.ts";
 import { publicNavProps } from "./site-nav.ts";
+import { renderContentPage } from "./site-page.ts";
 
 const handleNewsList = async (): Promise<Response> => {
   const [posts, nav] = await Promise.all([
@@ -32,12 +32,7 @@ const handleNewsList = async (): Promise<Response> => {
 
 const handleNewsPost = async (slug: string): Promise<Response> => {
   const post = await getNewsPostBySlugIndex(await computeNewsSlugIndex(slug));
-  if (!post) return notFoundResponse();
-  const [images, nav] = await Promise.all([
-    getImagesForItem("news", post.id),
-    publicNavProps(null),
-  ]);
-  return htmlResponse(newsPostPage(post, images, nav, settings.websiteTitle));
+  return renderContentPage(post, "news", () => null, newsPostPage);
 };
 
 /** Route `/news` requests (public-site gate first, then the read). */

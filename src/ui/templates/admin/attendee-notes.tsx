@@ -30,6 +30,14 @@ import { formattingHint } from "#templates/components/formatting-hint.ts";
 
 /* jscpd:ignore-end */
 
+/** Fields shared by the note page templates: the operator's session, where to
+ *  send them back to, and any error to show. */
+type NotePageProps = {
+  session: AdminSession;
+  returnUrl: string;
+  error?: string | undefined;
+};
+
 /** The attendee edit page — where the note controls return after an action. */
 const attendeeUrl = (attendeeId: number): string =>
   `/admin/attendees/${attendeeId}`;
@@ -177,13 +185,7 @@ export const adminAddNotePage = ({
   session,
   returnUrl,
   error,
-}: {
-  attendeeId: number;
-  attendeeName: string;
-  session: AdminSession;
-  returnUrl: string;
-  error?: string | undefined;
-}): string =>
+}: { attendeeId: number; attendeeName: string } & NotePageProps): string =>
   String(
     <AdminPage
       active={{ section: "/admin/attendees" }}
@@ -226,12 +228,7 @@ export const adminDeleteNotePage = ({
   session,
   returnUrl,
   error,
-}: {
-  note: SystemNote;
-  session: AdminSession;
-  returnUrl: string;
-  error?: string | undefined;
-}): string =>
+}: { note: SystemNote } & NotePageProps): string =>
   ConfirmPage({
     action: `/admin/attendee/${note.attendee_id}/note/${note.id}/delete`,
     active: { section: "/admin/attendees" },

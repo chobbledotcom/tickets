@@ -1,6 +1,10 @@
+/* jscpd:ignore-start */
 import { join } from "node:path";
+import { openLockFile } from "../lock-file.ts";
 import { rethrowUnlessNotFound } from "../not-found.ts";
 import { projectRoot } from "../project-root.ts";
+
+/* jscpd:ignore-end */
 
 const STRIPE_MOCK_VERSION = "0.188.0";
 const INSTALL_LOCK_RETRY_MS = 50;
@@ -210,11 +214,7 @@ const withInstallLockGuard = async <T>(
   lockPath: string,
   body: () => Promise<T>,
 ): Promise<T> => {
-  const guard = await Deno.open(installLockGuardPath(lockPath), {
-    create: true,
-    read: true,
-    write: true,
-  });
+  const guard = await openLockFile(installLockGuardPath(lockPath));
 
   try {
     await guard.lock();

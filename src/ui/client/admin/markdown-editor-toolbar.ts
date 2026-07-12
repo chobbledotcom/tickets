@@ -69,8 +69,7 @@ const toggleHeading =
     const command = headingActive(level)(view.state)
       ? setBlockType(nodes.paragraph)
       : setBlockType(nodes.heading, { level });
-    command(view.state, view.dispatch, view);
-    view.focus();
+    runCommand(command)(view);
   };
 
 /** Toggle a link: strip an existing one, else prompt for a URL and apply it. */

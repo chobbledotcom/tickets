@@ -162,9 +162,15 @@ const sendgridAttachment = (a: EmailAttachment) => ({
   type: a.contentType,
 });
 
-const mailgunBody = (config: EmailConfig, msg: EmailMessage): FormData => {
+/** A fresh Mailgun form seeded with the shared sender field. */
+const mailgunForm = (config: EmailConfig): FormData => {
   const form = new FormData();
   form.append("from", config.fromAddress);
+  return form;
+};
+
+const mailgunBody = (config: EmailConfig, msg: EmailMessage): FormData => {
+  const form = mailgunForm(config);
   form.append("to", msg.to);
   form.append("subject", msg.subject);
   form.append("html", msg.html);
@@ -501,8 +507,7 @@ type BulkProviderSpec = {
 const mailgunBulk =
   (host: string): BulkBatchBuilder =>
   (config, template, batch) => {
-    const form = new FormData();
-    form.append("from", config.fromAddress);
+    const form = mailgunForm(config);
     for (const r of batch) form.append("to", r.to);
     form.append("subject", template.subject);
     form.append("html", fillUnsubscribe(template.html, "%recipient.unsub%"));
