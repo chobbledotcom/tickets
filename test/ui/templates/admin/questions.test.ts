@@ -120,9 +120,11 @@ describe("adminQuestionsPage", () => {
     expect(html).toContain(
       '<a class="guide-link" href="/admin/guide#questions">',
     );
-    // The guide link carries its "Questions guide" label text, not just the
-    // href — a blanked label would still leave the anchor above.
-    expect(html).toContain("Questions guide");
+    // The guide link carries its "Questions guide" label, not just the href —
+    // a blanked label would still leave the anchor above. The label renders in
+    // its own <span> (after the icon), so assert it there rather than as loose
+    // page text that unrelated copy could satisfy.
+    expect(html).toContain("<span>Questions guide</span>");
   });
 
   test("renders reorder controls: down on the first, up on the last", () => {

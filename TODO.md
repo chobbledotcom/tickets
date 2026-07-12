@@ -847,3 +847,26 @@ of genuinely long suites, which now bound the slowest groups:
 
 Starting point: run `deno task test`, read the slow-test report at the end,
 and profile the top entry.
+
+## Split the admin questions template test file
+
+*Origin: review of PR #1796 (the `[object Object]` error-box fix). Flagged by
+CodeRabbit while that PR hardened the questions template's mutation coverage.*
+
+`test/ui/templates/admin/questions.test.ts` is ~876 lines — over the ~400-line
+target for test files (it was already ~795 before #1796 added the hardening
+assertions; it stays under Biome's 1,000-line hard limit, so it is not
+grandfathered and CI passes). Smaller, focused test files also let mutation
+runs map `questions.tsx` to a narrower suite.
+
+Split it into focused sibling suites sharing one fixtures helper, roughly:
+- `questions-list.test.ts` — `adminQuestionsPage` (the reorderable list).
+- `questions-detail.test.ts` — `adminQuestionPage` + `ListingQuestionsPanel`.
+- `questions-answer.test.ts` — `adminAnswerEditPage` / `adminAnswerRecalculatePage`.
+- `questions-delete.test.ts` — `adminQuestionDeletePage` / `adminAnswerDeletePage`.
+
+Extract the shared fixtures (`colourQuestion`, `TEST_LISTINGS`, `TEST_SESSION`,
+the answer/question factories) into a local helper the suites import, and keep
+`questionTextFlat` + `buildAnswerSummaryRows` with whichever suite reads most
+naturally. Preserve every existing assertion — behaviour must not change. The
+attribute template test (`attributes.test.tsx`) is the shape to mirror.
