@@ -753,6 +753,20 @@ it sprawls into an over-built framework.*
      into per-listing rows keyed by each stranded attendee's listings — worth it
      only if operators actually reconcile these from the listing tab rather than
      the global log. (Raised by Codex on PR #1775.)
+  4. **Aggregate the `REFUND_NOT_RECORDED` alert across a whole refund-all
+     request.** `recordAttendeeRefundsBatch` now names every stranded attendee in
+     one activity-log row, but `processRefundBatch` calls it once per provider
+     *wave*, so a multi-wave refund-all still emits one alert per wave. In theory
+     the single `errorPersistGuard.active` flag could drop a later wave's row —
+     though in practice waves are separated by a full round of provider refund
+     network calls, so the millisecond-scale activity-log write has long since
+     released the guard, and every stranded attendee always reaches console +
+     ntfy + Sentry regardless. A guaranteed fix would have `recordAttendeeRefundsBatch`
+     return its stranded ids instead of self-reporting and let `processRefundBatch`
+     alert once after the wave loop — deferred because that moves the alerting out
+     of the self-contained batch into its caller (a footgun for any future caller
+     that forgets to report), a poor trade for a practically-unreachable edge.
+     (Raised by Codex on PR #1775.)
 
 **Recommended next step, if any:** carry the same treatment to any other
 "money/state moved but wasn't recorded" spot found in an audit, then add the

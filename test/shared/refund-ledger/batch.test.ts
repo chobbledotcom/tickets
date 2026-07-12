@@ -233,9 +233,19 @@ describeWithEnv(
         .map((call) => String(call.args[0]))
         .find((message) => message.includes("E_REFUND_NOT_RECORDED"));
       expect(strandedAlert).toContain("attendees 21, 22");
-      // Attendee 20 threw (LEDGER_POST), so it must NOT be folded into the
-      // guard-skip alert — the two money-miss classifications stay disjoint.
-      expect(strandedAlert).not.toContain("20");
+      // Attendee 20 threw, so it is classified as LEDGER_POST (its own message
+      // names attendee=20), NOT folded into the guard-skip alert — the two
+      // money-miss classifications stay disjoint. Assert the structured
+      // classification rather than a bare "20" substring (which a request-id log
+      // prefix could otherwise collide with).
+      const thrownAlert = errors.calls
+        .map((call) => String(call.args[0]))
+        .find(
+          (message) =>
+            message.includes("E_LEDGER_POST") &&
+            message.includes("attendee=20"),
+        );
+      expect(thrownAlert).toBeDefined();
     });
 
     test("posts all refund groups for a balance-settled attendee in a bulk batch", async () => {

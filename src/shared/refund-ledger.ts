@@ -154,23 +154,14 @@ const computeAttendeeRefund = async (
 };
 
 /**
- * Alert that a provider refund has committed but the ledger did not record it —
- * a guard-skip to manual adjustment (not a thrown write, which logs LEDGER_POST
- * with its stack). The books now understate what was refunded until an operator
- * posts a manual adjustment, so this money-integrity miss must reach the error
- * log, ntfy, and Sentry — never only a dismissible admin flash that, if missed,
- * leaves the refund invisible.
- *
- * The attendee id(s) are named in the `detail`, not only the structured
- * `attendeeId` tag, because the operator-facing activity log persists only the
- * formatted message (`persistErrorToActivityLog` passes `listingId`, never
- * `attendeeId`) — so without them the operator couldn't tell which account needs
- * adjusting without console/Sentry access.
- *
- * A whole batch reports in ONE call (all stranded ids in one message) rather
- * than one call per attendee: the activity-log persist guard is a single flag,
- * so back-to-back `logError` calls would persist only the first attendee's row
- * and silently drop the rest.
+ * Alert that a provider refund committed but the ledger did not record it — a
+ * guard-skip to manual adjustment (not a thrown write, which logs LEDGER_POST
+ * with its stack). This money-integrity miss must reach the error log, ntfy, and
+ * Sentry, never only a dismissible admin flash. The attendee id(s) are named in
+ * the `detail` (not just the `attendeeId` tag) because the activity log persists
+ * only the formatted message — `persistErrorToActivityLog` passes `listingId`,
+ * never `attendeeId`. A whole batch reports in ONE call: the activity-log persist
+ * guard is a single flag, so back-to-back `logError` calls drop all but the first.
  */
 const reportRefundNotRecorded = (attendeeIds: readonly number[]): void => {
   if (attendeeIds.length === 0) return;
@@ -208,15 +199,13 @@ const settleRefundOutcomes = (
  * guard-skip but NOT alerting on it — the caller decides how. `guardSkipped` is
  * true when the provider refund committed yet the ledger recorded nothing (not
  * fully paid, or no ledgered order to reverse), so it needs a
- * {@link reportRefundNotRecorded} alert. A thrown write is a different miss: it is
- * logged as LEDGER_POST (with its stack) here and returns `guardSkipped: false`,
- * keeping the two money-miss classifications disjoint. Never throws.
- *
- * Both the single {@link recordAttendeeRefund} (alert immediately) and the batch
- * fallback (collect every stranded id, alert once via {@link settleRefundOutcomes})
- * share this, so neither duplicates the compute/post/never-throw dance — and the
- * fallback batches its alerts like the fast path rather than emit back-to-back
- * per-attendee rows the activity-log persist guard would drop.
+ * {@link reportRefundNotRecorded} alert. A thrown write is a different miss:
+ * logged as LEDGER_POST here, it returns `guardSkipped: false` to keep the two
+ * money-miss classifications disjoint. Shared by the single
+ * {@link recordAttendeeRefund} (alert immediately) and the batch fallback
+ * (collect every stranded id, alert once via {@link settleRefundOutcomes}), so
+ * both batch their alerts identically rather than drop rows behind the guard.
+ * Never throws.
  */
 const postAttendeeRefund = async (
   attendee: { attendeeId: number; references: RefundReferences },
@@ -319,12 +308,11 @@ export const recordAttendeeRefundsBatch = async (
       error,
     });
     // Record each attendee independently so one failure never strands the rest:
-    // postAttendeeRefund opens its own transaction, is idempotent (an
-    // already-posted refund replays as a no-op), and never throws. Sequential,
-    // not Promise.all: one write at a time avoids the SQLite-writer contention
-    // the fast-path batch exists to prevent. settleRefundOutcomes then alerts on
-    // every guard-skipped attendee in one row (a per-attendee thrown write is
-    // already logged as LEDGER_POST, so guardSkipped:false keeps it disjoint).
+    // postAttendeeRefund opens its own transaction, is idempotent, and never
+    // throws. Sequential, not Promise.all: one write at a time avoids the
+    // SQLite-writer contention the fast-path batch exists to prevent.
+    // settleRefundOutcomes then alerts on every guard-skipped attendee in one row
+    // (a thrown write is already LEDGER_POST, so guardSkipped:false stays disjoint).
     const outcomes: RefundOutcome[] = [];
     for (const attendee of attendees) {
       outcomes.push(await postAttendeeRefund(attendee));
