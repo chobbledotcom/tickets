@@ -7,6 +7,7 @@ import { getIframeMode } from "#shared/iframe.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { Icon } from "#templates/components/actions.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
+import { LabelledParas } from "#templates/components/labelled-para.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import { simplePublicPage } from "#templates/public/shared.tsx";
 
@@ -23,15 +24,13 @@ export const paymentPage = (
     <Layout title={t("payment.title")}>
       <h1>{t("payment.complete_your_payment")}</h1>
       <aside>
-        <p>
-          <strong>{t("payment.name_label")}</strong> {attendee.name}
-        </p>
-        <p>
-          <strong>{t("payment.email_label")}</strong> {attendee.email}
-        </p>
-        <p>
-          <strong>{t("payment.amount_label")}</strong> {formattedPrice}
-        </p>
+        <LabelledParas
+          items={[
+            { label: t("payment.name_label"), value: attendee.name },
+            { label: t("payment.email_label"), value: attendee.email },
+            { label: t("payment.amount_label"), value: formattedPrice },
+          ]}
+        />
       </aside>
       <p>{t("payment.stripe_instructions")}</p>
       <a class="btn" href={checkoutUrl}>

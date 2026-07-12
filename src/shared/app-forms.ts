@@ -73,20 +73,15 @@ export const createAuthedHandler =
 
 // ── createAuthedFormRoute: adds schema validation on top ──────────────
 
-type HandlerArgs<TValues, TParams, TContext> = {
-  context: TContext;
-  form: FormParams;
-  params: TParams;
-  session: AuthSession;
+type HandlerArgs<TValues, TParams, TContext> = AuthedHandlerArgs<
+  TParams,
+  TContext
+> & {
   values: TValues;
 };
 
-type InvalidArgs<TParams, TContext> = {
-  context: TContext;
+type InvalidArgs<TParams, TContext> = AuthedHandlerArgs<TParams, TContext> & {
   error: string;
-  form: FormParams;
-  params: TParams;
-  session: AuthSession;
 };
 
 type FormRouteConfig<TValues, TParams, TContext> = AuthedBase<

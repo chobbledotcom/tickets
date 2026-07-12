@@ -15,6 +15,7 @@ import { encrypt } from "#shared/crypto/encryption.ts";
 import {
   executeBatchWithoutCacheInvalidation,
   executeWithoutCacheInvalidation,
+  type SqlStatement,
 } from "#shared/db/client.ts";
 import {
   bumpSettingsVersion,
@@ -36,10 +37,7 @@ const SETTINGS_UPSERT_SQL =
   "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)";
 
 /** Build a settings upsert as a batch statement (used by `completeSetup`). */
-export const settingUpsert = (
-  key: string,
-  value: string,
-): { sql: string; args: string[] } => ({
+export const settingUpsert = (key: string, value: string): SqlStatement => ({
   args: [key, value],
   sql: SETTINGS_UPSERT_SQL,
 });

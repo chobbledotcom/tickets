@@ -31,7 +31,6 @@ import {
 import {
   getAttendeesByListingIds,
   getListingAggregateRecalculation,
-  getListingWithCount,
   listingRevenueBreakdown,
 } from "#shared/db/listings.ts";
 import { getAttendeeIdsWithPaymentReference } from "#shared/db/payment-references.ts";
@@ -59,7 +58,12 @@ import {
 import { ListingRosterPanel } from "#templates/admin/listings/roster.tsx";
 import type { AttendeeFilter } from "#templates/admin/listings/types.ts";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
-import { loadGroupContext, loadListingQuestionData } from "./listings-view.ts";
+import {
+  filterByDate,
+  loadGroupContext,
+  loadListingQuestionData,
+} from "./listings-view.ts";
+import { loadListingOr } from "./load-listing.ts";
 
 /**
  * The listing entity page's loaded row: the listing plus the derived flags any
@@ -81,24 +85,21 @@ export type LoadedListing = {
 /** Load the listing and its cheap gating flags, or null when it is gone.
  *  `hasEmailableAttendees` defaults to false here — the decrypt behind it is
  *  deferred to the Actions tab, the only surface that reads it. */
-export const loadListingForPage = async (
-  id: number,
-): Promise<LoadedListing | null> => {
-  const listing = await getListingWithCount(id);
-  if (!listing) return null;
-  const [isChild, hiddenMemberIds] = await Promise.all([
-    // A `bookable_alone` child keeps its standalone share / QR affordances, so
-    // gate on non-standalone children only (matches the public booking guard).
-    anyNonStandaloneChild([id]),
-    getHiddenPackageMemberIds([id]),
-  ]);
-  return {
-    hasEmailableAttendees: false,
-    isChild,
-    isHiddenPackageMember: hiddenMemberIds.size > 0,
-    listing,
-  };
-};
+export const loadListingForPage = (id: number): Promise<LoadedListing | null> =>
+  loadListingOr(id, async (listing) => {
+    const [isChild, hiddenMemberIds] = await Promise.all([
+      // A `bookable_alone` child keeps its standalone share / QR affordances, so
+      // gate on non-standalone children only (matches the public booking guard).
+      anyNonStandaloneChild([id]),
+      getHiddenPackageMemberIds([id]),
+    ]);
+    return {
+      hasEmailableAttendees: false,
+      isChild,
+      isHiddenPackageMember: hiddenMemberIds.size > 0,
+      listing,
+    };
+  });
 
 /** Whether the listing has at least one attendee with an email on file — the
  *  same recipient resolution the bulk-email compose route uses, so the Email
@@ -151,12 +152,6 @@ const loadDecryptedListingAttendees = async (
   const attendeesRaw = await getAttendeesByListingIds([listingId]);
   return decryptAttendees(attendeesRaw, privateKey);
 };
-
-/** Attendees filtered to a single date (daily listings), else the full set. */
-const filterByDate = (
-  attendees: Attendee[],
-  date: string | null,
-): Attendee[] => (date ? attendees.filter((a) => a.date === date) : attendees);
 
 /** The distinct booking dates present on a daily listing, ascending, as the
  *  roster's date-picker options; empty for a non-daily listing. */

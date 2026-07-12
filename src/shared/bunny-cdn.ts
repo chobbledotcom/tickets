@@ -156,6 +156,14 @@ const pullZonePost = async (
   return okOrError(response, label);
 };
 
+/** A Bunny API request that carries only the AccessKey header and no body —
+ *  the shared shape of the plain GET/DELETE calls. */
+const bunnyKeyRequest = (url: string, method: string): Promise<FetchResult> =>
+  fetchText(url, {
+    headers: { AccessKey: getBunnyApiKey() },
+    method,
+  });
+
 /** Request a free Let's Encrypt certificate for a hostname on a pull zone. */
 const loadFreeCertificate = async (
   hostname: string,
@@ -164,10 +172,7 @@ const loadFreeCertificate = async (
     hostname,
   )}`;
 
-  const response = await fetchText(url, {
-    headers: { AccessKey: getBunnyApiKey() },
-    method: "GET",
-  });
+  const response = await bunnyKeyRequest(url, "GET");
 
   return okOrError(response, "Load free certificate");
 };
@@ -394,10 +399,7 @@ const deleteDnsRecordImpl = async (
 ): Promise<BunnyApiResult> => {
   const url = `${BUNNY_API_BASE}/dnszone/${zoneId}/records/${recordId}`;
   logDebug("Domain", `Deleting DNS record: ${url}`);
-  const response = await fetchText(url, {
-    headers: { AccessKey: getBunnyApiKey() },
-    method: "DELETE",
-  });
+  const response = await bunnyKeyRequest(url, "DELETE");
   return okOrError(response, "Delete DNS record");
 };
 

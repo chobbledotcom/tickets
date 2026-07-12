@@ -14,8 +14,14 @@
 import type { Client } from "@libsql/client";
 import { lazyRef, once } from "#fp";
 import { resetAllCaches } from "#shared/cache-registry.ts";
-import { executeBatch, getDb, inPlaceholders } from "#shared/db/client.ts";
+import {
+  executeBatch,
+  getDb,
+  inPlaceholders,
+  type SqlStatement,
+} from "#shared/db/client.ts";
 import { getEnv } from "#shared/env.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
@@ -38,6 +44,7 @@ import {
   backfillModifierAggregates,
   createTableSql,
   fullSchemaCreateStatements,
+  noArgStatements,
   recreateTable,
   runMigration,
   syncCurrentSchema as syncCurrentSchemaBase,
@@ -86,7 +93,7 @@ export class MigrationInProgressError extends Error {
 const missingTableError =
   (table: string) =>
   (error: unknown): boolean => {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
     return new RegExp(`no such table:?\\s*(\\w+\\.)?${table}\\b`, "i").test(
       message,
     );
@@ -275,9 +282,7 @@ const initializeFreshSchema = async (): Promise<void> => {
  */
 export const rebuildWipedSchema = async (): Promise<void> => {
   logDebug("Migration", "Rebuilding wiped database from current schema");
-  await executeBatch(
-    fullSchemaCreateStatements().map((sql) => ({ args: [], sql })),
-  );
+  await executeBatch(noArgStatements(fullSchemaCreateStatements()));
   // A compound CREATE TRIGGER … BEGIN … END body carries internal semicolons
   // that batch transports mis-split, so triggers run one by one, exactly as
   // syncTriggers sends them.
@@ -305,7 +310,7 @@ const getAppliedMigrationIds = async (): Promise<Set<string>> => {
 const migrationMarkerStatement = (
   migration: Migration,
   appliedAt: string,
-): { sql: string; args: string[] } => ({
+): SqlStatement => ({
   args: [migration.id, migration.description, appliedAt],
   sql: `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) VALUES (?, ?, ?)`,
 });
@@ -409,9 +414,9 @@ export const verifyMigrationWithRetry = (migration: Migration): Promise<void> =>
       if (!willRetry) return;
       logDebug(
         "Migration",
-        `verify ${migration.id} failed on attempt ${attempt + 1}, retrying: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        `verify ${migration.id} failed on attempt ${attempt + 1}, retrying: ${errorMessage(
+          error,
+        )}`,
       );
     },
   );
@@ -443,9 +448,9 @@ export const applyMigrationWithRetry = async (
   } catch (error) {
     logDebug(
       "Migration",
-      `verify ${migration.id} still failing after retries, re-running up(): ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+      `verify ${migration.id} still failing after retries, re-running up(): ${errorMessage(
+        error,
+      )}`,
     );
     await migration.up();
     await verifyMigrationWithRetry(migration);
@@ -470,7 +475,7 @@ const restoreStaleSchemaMarkers = async (): Promise<void> => {
   try {
     await verifyCurrentAppSchema();
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = errorMessage(error);
     throw new Error(
       "Database schema markers are stale, no named migrations are pending, " +
         `and the live schema does not match (${detail}). ` +
@@ -641,9 +646,7 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
     await releaseMigrationLock().catch((error) =>
       logDebug(
         "Migration",
-        `Failed to release migration lock: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        `Failed to release migration lock: ${errorMessage(error)}`,
       ),
     );
   }

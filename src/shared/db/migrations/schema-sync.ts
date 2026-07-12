@@ -1,11 +1,12 @@
-import type { InValue } from "@libsql/client";
 import {
   executeBatch,
   getDb,
   queryBatchPrimary,
+  type SqlStatement,
   withTransaction,
 } from "#shared/db/client.ts";
 import { logDebug } from "#shared/logger.ts";
+import { queryRowsWithArg } from "./master-query.ts";
 import { APP_SCHEMA, SCHEMA } from "./schema/index.ts";
 import {
   TICKET_COUNTS_PREDICATE,
@@ -44,11 +45,12 @@ export const getExistingColumns = async (
 };
 
 export const tableExists = async (table: string): Promise<boolean> => {
-  const result = await getDb().execute({
-    args: [table],
-    sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-  });
-  return result.rows.length > 0;
+  const rows = await queryRowsWithArg(
+    getDb(),
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+    table,
+  );
+  return rows.length > 0;
 };
 
 /** Live schema snapshot: every table's columns, every index, every trigger. */
@@ -176,9 +178,7 @@ const rebuildStatements = ({
 export const rebuildTableWithColumns = async (
   params: RebuildParams,
 ): Promise<void> => {
-  await executeBatch(
-    rebuildStatements(params).map((sql) => ({ args: [], sql })),
-  );
+  await executeBatch(noArgStatements(rebuildStatements(params)));
 };
 
 const LISTING_AGGREGATE_TRIGGER_DEPENDENCIES = [
@@ -434,14 +434,18 @@ export const fullSchemaCreateStatements = (): string[] =>
     ...(table.indexes ?? []).map((index) => createIndexSql(name, index)),
   ]);
 
-const writeStatement = (sql: string): { args: InValue[]; sql: string } => ({
+const writeStatement = (sql: string): SqlStatement => ({
   args: [],
   sql,
 });
 
+/** Turn a list of SQL strings into batch statements with no bound arguments. */
+export const noArgStatements = (sqls: string[]): SqlStatement[] =>
+  sqls.map(writeStatement);
+
 export const applySchemaChanges = async (): Promise<void> => {
   const live = await snapshotLiveSchema();
-  const statements: { args: InValue[]; sql: string }[] = [];
+  const statements: SqlStatement[] = [];
   for (const entry of SCHEMA) {
     const [name, table] = entry;
     const existing = live.tables.get(name);

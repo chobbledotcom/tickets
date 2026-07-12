@@ -18,6 +18,7 @@ import type { MarkType, NodeType } from "prosemirror-model";
 import { wrapInList } from "prosemirror-schema-list";
 import type { Command, EditorState } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
+import { createButton } from "../dom.ts";
 
 const { marks, nodes } = schema;
 
@@ -163,9 +164,7 @@ export const createToolbar = (view: EditorView): Toolbar => {
   const dom = document.createElement("div");
   dom.className = "md-toolbar";
   const buttons = TOOLBAR_ITEMS.map((item) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `md-toolbar-button md-toolbar-${item.key}`;
+    const button = createButton(`md-toolbar-button md-toolbar-${item.key}`);
     button.textContent = item.text;
     button.title = item.label;
     button.setAttribute("aria-label", item.label);

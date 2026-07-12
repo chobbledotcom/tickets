@@ -343,6 +343,21 @@ export const sumByKey =
   };
 
 /**
+ * Index items by their `id`, so a caller can look one up without scanning the
+ * whole list each time. Replaces the common pattern:
+ *   new Map(items.map((item) => [item.id, item]))
+ * When two items share an id the later one wins, exactly as building the Map
+ * by hand would.
+ */
+export const byId = <T extends { id: number }>(
+  items: Iterable<T>,
+): Map<number, T> => {
+  const map = new Map<number, T>();
+  for (const item of items) map.set(item.id, item);
+  return map;
+};
+
+/**
  * Split an array into chunks of a given size.
  * Curried adapter over `@std/collections.chunk` (which throws for size < 1).
  */

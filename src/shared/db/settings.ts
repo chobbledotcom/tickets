@@ -117,6 +117,18 @@ const withProperties = <T extends object, P extends object>(
   return target as T & P;
 };
 
+/** The card-provider getters shared by Stripe and SumUp: whether a secret key
+ * is set, and whether that key is a test or live key. `keyName` is the setting
+ * the provider's secret is stored under. */
+const providerKeyStatus = (keyName: "stripe_secret_key" | "sumup_api_key") => ({
+  get hasKey(): boolean {
+    return snap(keyName) !== "";
+  },
+  get keyMode(): "test" | "live" | null {
+    return keyModeOf(snap(keyName));
+  },
+});
+
 const settingsBase = {
   // --- Address lookup ---
   addressLookup: {
@@ -294,39 +306,33 @@ const settingsBase = {
   },
 
   // --- Stripe ---
-  stripe: {
-    get hasKey(): boolean {
-      return snap("stripe_secret_key") !== "";
+  stripe: withProperties(
+    {
+      get secretKey(): string {
+        return snap("stripe_secret_key");
+      },
+      get webhookEndpointId(): string {
+        return snap("stripe_webhook_endpoint_id");
+      },
+      get webhookSecret(): string {
+        return snap("stripe_webhook_secret");
+      },
     },
-    get keyMode(): "test" | "live" | null {
-      return keyModeOf(snap("stripe_secret_key"));
-    },
-    get secretKey(): string {
-      return snap("stripe_secret_key");
-    },
-    get webhookEndpointId(): string {
-      return snap("stripe_webhook_endpoint_id");
-    },
-    get webhookSecret(): string {
-      return snap("stripe_webhook_secret");
-    },
-  },
+    providerKeyStatus("stripe_secret_key"),
+  ),
 
   // --- SumUp ---
-  sumup: {
-    get apiKey(): string {
-      return snap("sumup_api_key");
+  sumup: withProperties(
+    {
+      get apiKey(): string {
+        return snap("sumup_api_key");
+      },
+      get merchantCode(): string {
+        return snap("sumup_merchant_code");
+      },
     },
-    get hasKey(): boolean {
-      return snap("sumup_api_key") !== "";
-    },
-    get keyMode(): "test" | "live" | null {
-      return keyModeOf(snap("sumup_api_key"));
-    },
-    get merchantCode(): string {
-      return snap("sumup_merchant_code");
-    },
-  },
+    providerKeyStatus("sumup_api_key"),
+  ),
 
   // --- Superuser ---
   get superuserChoice(): SuperuserChoice {

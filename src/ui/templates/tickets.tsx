@@ -18,7 +18,8 @@ import {
   packagePrivacyOfDisplay,
 } from "#shared/package-privacy.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
-import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { HeadingLayout } from "#templates/components/heading-layout.tsx";
+import { escapeHtml } from "#templates/layout.tsx";
 import { renderListingImage } from "#templates/public/shared.tsx";
 
 /** Alias export used by ticket templates */
@@ -345,11 +346,10 @@ export const ticketViewPage = (
   const title = allPurchaseOnly ? "Your Purchase" : t("tickets.title");
 
   return String(
-    <Layout title={title}>
-      <h1>{heading}</h1>
+    <HeadingLayout heading={heading} title={title}>
       <div class="ticket-slider">
         <Raw html={cardHtml} />
       </div>
-    </Layout>,
+    </HeadingLayout>,
   );
 };

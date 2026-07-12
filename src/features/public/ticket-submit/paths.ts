@@ -6,6 +6,7 @@
  */
 
 import { redirectResponse } from "#routes/response.ts";
+import type { OrderSpan } from "#shared/booking/order-span.ts";
 import type {
   ModifierApplication,
   PricedOrder,
@@ -32,12 +33,8 @@ import {
 import type { TicketCtx } from "../types.ts";
 import { type AnswerInfo, computeListingTextAnswerIdMap } from "./parse.ts";
 
-export type PathParams = {
+export type PathParams = OrderSpan & {
   ctx: TicketCtx;
-  quantities: Map<number, number>;
-  date: string | null;
-  dayCount: number;
-  hasCustomisable: boolean;
   contact: ReturnType<typeof extractContact>;
   info: AnswerInfo;
 };

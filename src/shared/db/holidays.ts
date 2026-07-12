@@ -3,7 +3,7 @@
  */
 
 import { filter } from "#fp";
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { idAndEncryptedName } from "#shared/db/id-and-name-columns.ts";
 import { settings } from "#shared/db/settings.ts";
 import { col, defineCachedListTable } from "#shared/db/table.ts";
 import { todayInTz } from "#shared/timezone.ts";
@@ -23,9 +23,8 @@ export const holidays = defineCachedListTable<Holiday, HolidayInput>({
   orderBy: "start_date ASC",
   primaryKey: "id",
   schema: {
+    ...idAndEncryptedName(),
     end_date: col.simple<string>(),
-    id: col.generated<number>(),
-    name: col.encrypted(encrypt, decrypt),
     start_date: col.simple<string>(),
   },
 });

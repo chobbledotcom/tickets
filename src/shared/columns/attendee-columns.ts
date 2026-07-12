@@ -10,6 +10,7 @@ import { attendeeAdminPath } from "#shared/attendee-links.ts";
 import type { ColumnDef, ColumnGenerators } from "#shared/column-order.ts";
 import { formatDateLabel, formatDatetimeShort } from "#shared/dates.ts";
 import { isServicing } from "#shared/db/attendees/kind.ts";
+import { nonBlankLines } from "#shared/lines.ts";
 import { normalizePhone } from "#shared/phone.ts";
 import { type AttendeeTableRow, hasTicketQuantity } from "#shared/types.ts";
 import type { AttendeeColumnOpts } from "#templates/attendee-table.tsx";
@@ -200,14 +201,10 @@ const registered: AttendeeCol = {
 /** Format a multi-line address for inline display */
 export const formatAddressInline = (addr: string): string => {
   if (!addr) return "";
-  return addr
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line)
-    .reduce((acc, line) => {
-      if (!acc) return line;
-      return acc.endsWith(",") ? `${acc} ${line}` : `${acc}, ${line}`;
-    }, "");
+  return nonBlankLines(addr).reduce((acc, line) => {
+    if (!acc) return line;
+    return acc.endsWith(",") ? `${acc} ${line}` : `${acc}, ${line}`;
+  }, "");
 };
 
 /** Format multi-line instructions as single-line text */

@@ -55,6 +55,7 @@ import {
   type ExpectedActualItem,
   ExpectedActualTableRow,
 } from "#templates/admin/expected-actual.tsx";
+import { HiddenDetailRow } from "#templates/admin/hidden-row.tsx";
 import { MoneySummary } from "#templates/admin/money-summary.tsx";
 import {
   PublicTicketLink,
@@ -70,7 +71,7 @@ import {
   SubmitButton,
 } from "#templates/components/actions.tsx";
 import { GroupCapacityMeter } from "#templates/components/capacity.tsx";
-import { DataTable, textColumns } from "#templates/components/data-table.tsx";
+import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import {
   LinkedItemsCheckboxes,
@@ -213,8 +214,7 @@ const PackageMembersTable = ({
       <p>{t("groups.package_prices.no_listings")}</p>
     ) : (
       <DataTable
-        columns={textColumns(
-          "common.name",
+        columns={namedColumns(
           "fields.group.package_price",
           "fields.group.package_quantity",
         )}
@@ -518,10 +518,10 @@ export const GroupOverviewPanel = ({
     attendees,
     hasPaidListing: false,
     maxCapacity: 0,
+    questionData,
     // Revenue comes from the ledger, not the loaded attendees: bookings since
     // deleted and package override revenue still count.
     revenue: money.income,
-    ...(questionData !== undefined ? { questionData } : {}),
     skipAttendees: true,
   });
 
@@ -540,12 +540,7 @@ export const GroupOverviewPanel = ({
             shareable={shareable}
             ticketUrl={ticketUrl}
           />
-          {group.hidden && (
-            <tr>
-              <th>{t("listings_table.hidden")}</th>
-              <td>Yes &mdash; not shown in public listings list</td>
-            </tr>
-          )}
+          {group.hidden && <HiddenDetailRow />}
           <GroupAttendeesRow attendeeCount={totalCount} group={group} />
           <GroupAggregateMismatchRow
             attendees={attendees}

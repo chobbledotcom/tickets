@@ -125,10 +125,23 @@ const renderRow = (row: {
 }): string =>
   `  ${row.color(row.label)}${" ".repeat(LABEL_WIDTH - row.label.length)}${row.value}`;
 
-const survivorLine = (result: MutantResult): string => {
-  const { newOperator, operator } = result.mutant;
-  return `  ${survivorLocation(result)}  ${bold(operator)} → ${bold(newOperator)}`;
-};
+/** Build a "one survivor on a line" formatter from how it should wrap the
+ *  location and the two operators. The terminal and Markdown reports show the
+ *  same three pieces (location, old operator, new operator); only the
+ *  surrounding text differs, so they share this one body. */
+const survivorFormatter =
+  (
+    render: (location: string, operator: string, newOperator: string) => string,
+  ) =>
+  (result: MutantResult): string => {
+    const { newOperator, operator } = result.mutant;
+    return render(survivorLocation(result), operator, newOperator);
+  };
+
+const survivorLine = survivorFormatter(
+  (location, operator, newOperator) =>
+    `  ${location}  ${bold(operator)} → ${bold(newOperator)}`,
+);
 
 /** The full terminal report as lines, ready for the runner to print. Pure. */
 export const formatSummaryLines = (s: Summary): string[] => {
@@ -168,10 +181,10 @@ export const formatSummaryLines = (s: Summary): string[] => {
 
 // --- GitHub step summary (Markdown) --------------------------------------
 
-const survivorRow = (result: MutantResult): string => {
-  const { newOperator, operator } = result.mutant;
-  return `| \`${survivorLocation(result)}\` | \`${operator}\` → \`${newOperator}\` |`;
-};
+const survivorRow = survivorFormatter(
+  (location, operator, newOperator) =>
+    `| \`${location}\` | \`${operator}\` → \`${newOperator}\` |`,
+);
 
 const markdownSummary = (s: Summary): string => {
   if (s.total === 0) {

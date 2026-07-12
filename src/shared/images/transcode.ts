@@ -12,15 +12,26 @@ import { resizeToMaxWidth } from "./resize.ts";
 import type { DecodableMime, ImageTarget } from "./types.ts";
 
 /**
+ * Turns one uploaded image (its bytes plus mime) and a list of size/quality
+ * targets into some result — the shared signature of both the raw transcoder
+ * (WebP bytes out) and the storage wrapper (stored filenames out).
+ */
+export type ImageTargetTranscoder<Result> = (
+  data: Uint8Array,
+  mime: DecodableMime,
+  targets: readonly ImageTarget[],
+) => Promise<Result>;
+
+/**
  * Decode `data` (of type `mime`) and produce one WebP buffer per target, in the
  * same order. Decoding happens once regardless of how many variants are asked
  * for; variants are encoded sequentially (the wasm codec is single-instance).
  */
-export const transcodeToWebp = async (
-  data: Uint8Array,
-  mime: DecodableMime,
-  targets: readonly ImageTarget[],
-): Promise<Uint8Array[]> => {
+export const transcodeToWebp: ImageTargetTranscoder<Uint8Array[]> = async (
+  data,
+  mime,
+  targets,
+) => {
   const decoded = await decodeImage(data, mime);
   const variants: Uint8Array[] = [];
   for (const target of targets) {

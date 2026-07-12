@@ -1,3 +1,5 @@
+import { streamChunks } from "#shared/stream-chunks.ts";
+
 /**
  * Read a byte stream to completion, decoding as UTF-8 and returning the full
  * text. When `onLine` is supplied, each newline-terminated line is delivered as
@@ -8,7 +10,6 @@ export const readStream = async (
   stream: ReadableStream<Uint8Array>,
   onLine?: (line: string) => void,
 ): Promise<string> => {
-  const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffered = "";
   let text = "";
@@ -28,14 +29,11 @@ export const readStream = async (
   };
 
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    for await (const value of streamChunks(stream)) {
       flush(decoder.decode(value, { stream: true }), false);
     }
   } finally {
     flush(decoder.decode(), true);
-    reader.releaseLock();
   }
 
   return text;

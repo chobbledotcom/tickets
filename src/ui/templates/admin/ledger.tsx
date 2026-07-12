@@ -78,27 +78,27 @@ type RowAccountKind = {
 /** Row-backed account resolvers keyed by ledger account type — exhaustive over
  * {@link RowAccountType}, so a new row-backed type cannot render without
  * deciding its label source and link target here. */
+/** Both `cost` and `revenue` legs are backed by a listing, so they read the
+ * same names, link to the same ledger path, and share one fallback key. */
+const listingBackedKind: RowAccountKind = {
+  fallbackKey: "admin.ledger.fallback.revenue",
+  href: listingLedgerHref,
+  names: (refs) => refs.listings,
+};
+
 const ROW_ACCOUNT_KINDS: Record<RowAccountType, RowAccountKind> = {
   attendee: {
     fallbackKey: "admin.ledger.fallback.attendee",
     href: (id) => `/admin/ledger/attendee/${id}`,
     names: (refs) => refs.attendees,
   },
-  cost: {
-    fallbackKey: "admin.ledger.fallback.revenue",
-    href: listingLedgerHref,
-    names: (refs) => refs.listings,
-  },
+  cost: listingBackedKind,
   modifier: {
     fallbackKey: "admin.ledger.fallback.modifier",
     href: (id) => `/admin/ledger/modifier/${id}`,
     names: (refs) => refs.modifiers,
   },
-  revenue: {
-    fallbackKey: "admin.ledger.fallback.revenue",
-    href: listingLedgerHref,
-    names: (refs) => refs.listings,
-  },
+  revenue: listingBackedKind,
 };
 
 /** The bounded id→name lookup for one row-backed account type — the single

@@ -17,9 +17,11 @@
  * adjustment, or a logged write failure), which the caller surfaces.
  */
 
+/* jscpd:ignore-start */
 import { groupBy } from "#fp";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
+/* jscpd:ignore-end */
 import {
   bookingEventGroup,
   mapBooking,

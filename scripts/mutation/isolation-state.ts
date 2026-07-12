@@ -182,11 +182,15 @@ export const runsRoot = (root = projectRoot): string =>
 export const runRoot = (id: string, root = projectRoot): string =>
   join(runsRoot(root), id);
 
-export const workRoot = (id: string, root = projectRoot): string =>
-  join(runRoot(id, root), MUTATION_WORK_DIR);
+/** Path to a named child (dir or file) inside a run's own folder. */
+const runChildPath =
+  (childName: string) =>
+  (id: string, root = projectRoot): string =>
+    join(runRoot(id, root), childName);
 
-export const recordPath = (id: string, root = projectRoot): string =>
-  join(runRoot(id, root), MUTATION_RECORD_FILE);
+export const workRoot = runChildPath(MUTATION_WORK_DIR);
+
+export const recordPath = runChildPath(MUTATION_RECORD_FILE);
 
 export const runLockPath = (record: Pick<MutationRunRecord, "root">): string =>
   join(record.root, MUTATION_RUN_LOCK_FILE);
@@ -332,11 +336,14 @@ export const rewriteProjectPathArg = (
   return join(resolvedSnapshot, resolvedValue.slice(rootPrefix.length));
 };
 
-export const rewriteMutationArgs = (
+/** Turn a run's arguments into the ones the child sees inside its snapshot. */
+export type SnapshotArgsFn = (
   root: string,
   snapshotRoot: string,
   args: string[],
-): string[] =>
+) => string[];
+
+export const rewriteMutationArgs: SnapshotArgsFn = (root, snapshotRoot, args) =>
   args.map((arg) => rewriteProjectPathArg(root, snapshotRoot, arg));
 
 export const parseIsolationCommand = (args: string[]): IsolationCommand => {

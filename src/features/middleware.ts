@@ -149,6 +149,11 @@ export const isJsonApiPath = (path: string): boolean =>
  * Returns true if the request is valid (not a POST, or has correct Content-Type)
  * Webhook endpoints accept application/json, all others require form-urlencoded
  */
+/** The request's Content-Type header, lowercased — HTTP header values are
+ * case-insensitive, so every caller matches casings uniformly. */
+export const lowerContentType = (request: Request): string =>
+  (request.headers.get("content-type") ?? "").toLowerCase();
+
 export const isValidContentType = (request: Request, path: string): boolean => {
   if (request.method !== "POST") {
     return true;
@@ -160,7 +165,7 @@ export const isValidContentType = (request: Request, path: string): boolean => {
   if (path === "/scheduled" || path === "/instance/site-credentials") {
     return true;
   }
-  const contentType = (request.headers.get("content-type") || "").toLowerCase();
+  const contentType = lowerContentType(request);
 
   // Webhook and JSON API endpoints accept JSON
   if (isWebhookPath(path) || isJsonApiPath(path)) {

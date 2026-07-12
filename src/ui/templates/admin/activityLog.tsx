@@ -72,27 +72,34 @@ export interface ActivityLogRefs {
  * has no such id, or when the id points at a record that no longer exists — a
  * deleted attendee keeps its log rows, so its id can outlive the attendee.
  */
+/** Link an id to its detail page, or render nothing when the id is absent —
+ * a deleted attendee keeps its log rows, so its id can outlive the record. */
+const idLink = (
+  id: number | null,
+  buildLink: (id: number) => JSX.Element | null,
+): JSX.Element | null => (id === null ? null : buildLink(id));
+
 const refLink = (
   id: number | null,
   names: Map<number, string>,
   base: string,
-): JSX.Element | null => {
-  if (id === null) return null;
-  const name = names.get(id);
-  return name === undefined ? null : <a href={`${base}/${id}`}>{name}</a>;
-};
+): JSX.Element | null =>
+  idLink(id, (id) => {
+    const name = names.get(id);
+    return name === undefined ? null : <a href={`${base}/${id}`}>{name}</a>;
+  });
 
 const attendeeRefLink = (
   id: number | null,
   refs: ActivityLogRefs["attendees"],
-): JSX.Element | null => {
-  if (id === null) return null;
-  const name = refs.names.get(id);
-  const kind = refs.kinds.get(id);
-  return name === undefined || kind === undefined ? null : (
-    <a href={attendeeAdminPath({ id, kind })}>{name}</a>
-  );
-};
+): JSX.Element | null =>
+  idLink(id, (id) => {
+    const name = refs.names.get(id);
+    const kind = refs.kinds.get(id);
+    return name === undefined || kind === undefined ? null : (
+      <a href={attendeeAdminPath({ id, kind })}>{name}</a>
+    );
+  });
 
 const ActivityLogRow = ({
   entry,

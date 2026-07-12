@@ -17,6 +17,7 @@ import {
   ExpectedActualTableRow,
 } from "#templates/admin/expected-actual.tsx";
 import type { RecalculateRow } from "#templates/admin/recalculate.tsx";
+import { buildRecalculateRows } from "#templates/admin/recalculate-rows.ts";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 import { recalculatePageRenderer } from "#templates/components/aggregate-sections.tsx";
 import { capacityLevel } from "#templates/components/capacity.tsx";
@@ -124,17 +125,11 @@ export const listingAggregateToFieldValues = (
 const listingRecalculateRows = (
   snapshot: ListingAggregateRecalculation,
 ): RecalculateRow[] =>
-  listingAggregateFields.map((field) => {
-    const name = field.name as ListingAggregateField;
-    return {
-      current: listingAggregateFormatters[name](snapshot[name].current),
-      label: field.label,
-      name,
-      recalculated: listingAggregateFormatters[name](
-        snapshot[name].recalculated,
-      ),
-    };
-  });
+  buildRecalculateRows(
+    listingAggregateFields,
+    formatListingAggregateValue,
+    snapshot,
+  );
 
 const listingRecalculateRenderer = (
   listing: ListingWithCount,

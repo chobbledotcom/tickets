@@ -123,6 +123,13 @@ const AccountStatementActions = ({
   );
 };
 
+/** Where a statement links back to: the page it returns to, and an optional
+ * "see the full ledger" link. */
+type StatementLinks = {
+  returnUrl: string;
+  fullLedgerHref?: string | undefined;
+};
+
 export const AccountStatementSection = ({
   account,
   lines,
@@ -133,9 +140,7 @@ export const AccountStatementSection = ({
   account: AccountRef;
   lines: StatementLine[];
   names: LedgerNames;
-  returnUrl: string;
-  fullLedgerHref?: string | undefined;
-}): JSX.Element => (
+} & StatementLinks): JSX.Element => (
   <PageBlock>
     <AccountStatementHeading account={account} lines={lines} names={names} />
     <AccountStatementActions
@@ -161,9 +166,7 @@ export const EmbeddedAccountStatementSection = ({
 }: {
   id?: string;
   ledger: AccountLedgerData;
-  returnUrl: string;
-  fullLedgerHref?: string | undefined;
-}): JSX.Element => (
+} & StatementLinks): JSX.Element => (
   <PageBlock id={id}>
     <h2>{t("admin.ledger.statement_heading")}</h2>
     <AccountStatementSection

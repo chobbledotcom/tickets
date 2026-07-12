@@ -20,6 +20,7 @@
  * deliberately not a stash-dependent bounce.
  */
 
+import { byId } from "#fp";
 import { t } from "#i18n";
 import {
   ATTENDEE_FORM_ID,
@@ -39,11 +40,11 @@ import {
   buildCreateForm,
   buildTemplateData,
   getRenderListings,
-  listingsByIdMap,
   loadAttendeeForEdit,
   loadPackagePaths,
   loadQuestionsForExisting,
   packagesByListingIdFrom,
+  type SelectedQuestionAnswers,
 } from "#routes/admin/attendee-page-data.ts";
 import {
   AUTH_FORM,
@@ -132,12 +133,9 @@ export const handleAttendeeNewGet: TypedRouteHandler<
 // ---------------------------------------------------------------------------
 
 /** Everything the submit handler needs about an attendee being edited. */
-type EditContext = {
+type EditContext = SelectedQuestionAnswers & {
   attendee: Attendee | null;
   existingByKey: Map<string, ListingAttendeeRow>;
-  questions: QuestionWithAnswers[];
-  selectedAnswerIds: number[];
-  selectedTextAnswers: Map<number, string>;
 };
 
 /** Create mode has no attendee, lines, or questions to preload. */
@@ -216,7 +214,7 @@ const handleSubmitInner = async (
     selectedTextAnswers,
   } = edit;
 
-  const listingsById = listingsByIdMap(await getAllListings());
+  const listingsById = byId(await getAllListings());
   // Coerce a missing/blank status back to the public default (the form offers
   // no "no status" choice) — the same resolver the template pre-selects with.
   const statuses = await attendeeStatuses.getAll();

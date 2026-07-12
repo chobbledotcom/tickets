@@ -9,6 +9,7 @@
  */
 
 import { getBotpoisonSecretKey } from "#shared/config.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 
@@ -54,7 +55,7 @@ export const verifyBotpoisonSolution = async (
   } catch (error) {
     logError({
       code: ErrorCode.BOTPOISON_VERIFY,
-      detail: error instanceof Error ? error.message : String(error),
+      detail: errorMessage(error),
     });
     return false;
   }

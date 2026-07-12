@@ -3,7 +3,7 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  * Admin servicing-event routes.
  */
 
-import { map } from "#fp";
+import { byId, map } from "#fp";
 import {
   buildServicingFieldSchema,
   parseServicingForm,
@@ -71,10 +71,6 @@ const emptyPrefill = (): ServicingPrefill => ({
   startDate: "",
 });
 
-const listingsByIdMap = (
-  listings: ListingWithCount[],
-): Map<number, ListingWithCount> => new Map(listings.map((l) => [l.id, l]));
-
 const listingsByNameMap = (listings: ListingWithCount[]): Map<number, string> =>
   new Map(listings.map((listing) => [listing.id, listing.name]));
 
@@ -95,7 +91,7 @@ const editPageListings = (
   allListings: ListingWithCount[],
   event: ServicingEvent,
 ): { deletedHolds: number[]; listings: ListingWithCount[] } => {
-  const byId = listingsByIdMap(allListings);
+  const listingById = byId(allListings);
   const heldIds = new Set(event.bookings.map((booking) => booking.listingId));
   const listings = [...activeListings(allListings)];
   // Add any held-but-inactive listings so the held line still renders (with an
@@ -107,7 +103,7 @@ const editPageListings = (
       listings.push(listing);
     }
   }
-  const deletedHolds = [...heldIds].filter((id) => !byId.has(id));
+  const deletedHolds = [...heldIds].filter((id) => !listingById.has(id));
   return { deletedHolds, listings };
 };
 
@@ -441,7 +437,7 @@ const parseCreateInput = async (form: FormParams) => {
   // only `name` (to a job, not a person), and it's a no-op outside demo mode.
   applyDemoOverrides(form, SERVICING_DEMO_FIELDS);
   const listings = await getAllListings();
-  const parsed = parseServicingForm(form, listingsByIdMap(listings));
+  const parsed = parseServicingForm(form, byId(listings));
   return toServicingCreateInput(parsed);
 };
 

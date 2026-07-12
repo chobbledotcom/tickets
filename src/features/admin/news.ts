@@ -43,10 +43,10 @@ import {
   siteConfirmAuth,
   siteContentGet,
   siteContentPaths,
-  siteContentPost,
   siteEntityPost,
   validateContentFormOr,
 } from "./site-content.ts";
+import { siteCreatePost } from "./site-content-create.ts";
 
 /* jscpd:ignore-end */
 
@@ -79,16 +79,18 @@ const renderList = siteContentGet(async (session) =>
 
 const renderNew = siteContentGet((session) => adminNewsNewPage(session));
 
-const handleCreate = siteContentPost(async (form) => {
-  const fields = validateFields(form, paths.newPage);
-  if (!fields.ok) return fields.response;
-  const post = await createNewsPost(fields.input);
-  return savedContentResponse(
-    paths.edit(post.id),
-    `News post '${post.name}' created`,
-    t("news.created"),
-  );
-});
+const handleCreate = siteCreatePost(
+  paths.newPage,
+  validateFields,
+  async (fields) => {
+    const post = await createNewsPost(fields.input);
+    return {
+      flashMessage: t("news.created"),
+      logMessage: `News post '${post.name}' created`,
+      path: paths.edit(post.id),
+    };
+  },
+);
 
 const handleUpdate = siteEntityPost(getNewsPostById)(async (post, form) => {
   const editPath = paths.edit(post.id);

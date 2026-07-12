@@ -23,6 +23,7 @@ import type {
   Catalog,
   CatalogListing as CatalogEntry,
 } from "#shared/external-order.ts";
+import { createButton } from "./dom.ts";
 
 // Injected by the server immediately above this module body.
 declare const CATALOG: Catalog;
@@ -373,9 +374,7 @@ const setText = (el: Element | null, text: string): void => {
 };
 
 const buildButton = (onOpen: () => void): HTMLButtonElement => {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "cart-button";
+  const button = createButton("cart-button");
   button.hidden = true;
   const count = document.createElement("span");
   count.className = "count";
@@ -388,9 +387,7 @@ const buildButton = (onOpen: () => void): HTMLButtonElement => {
 };
 
 const buildCloseButton = (onClose: () => void): HTMLElement => {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "close";
+  const button = createButton("close");
   button.textContent = "Close";
   button.addEventListener("click", onClose);
   return button;

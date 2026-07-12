@@ -40,6 +40,7 @@ import type {
   AdminListingQrValues,
 } from "#templates/admin/listing-qr.tsx";
 import { adminListingQrPage } from "#templates/admin/listing-qr.tsx";
+import { loadListingOr } from "./load-listing.ts";
 
 export const EMPTY_QR_VALUES: AdminListingQrValues = {
   customer_name: "",
@@ -86,11 +87,11 @@ type QrContext = { listing: ListingWithCount; bookableDates: string[] };
 
 /** Load a listing and its child-constrained bookable dates, or null when the
  * listing is missing. */
-const loadQrContext = async (id: number): Promise<QrContext | null> => {
-  const listing = await getListingWithCount(id);
-  if (!listing) return null;
-  return { bookableDates: await loadBookableDates(listing), listing };
-};
+const loadQrContext = (id: number): Promise<QrContext | null> =>
+  loadListingOr(id, async (listing) => ({
+    bookableDates: await loadBookableDates(listing),
+    listing,
+  }));
 
 /** The QR form's per-listing context: the child-constrained bookable dates it
  * offers and whether the listing can take a direct checkout. Shared by the

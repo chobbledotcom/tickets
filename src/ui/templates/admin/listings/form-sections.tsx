@@ -216,6 +216,18 @@ export const ListingFormSections = ({
       mapNotNullish((name: string) => fieldMap.get(name))(names),
       values,
     );
+  // A section body that opens with the child note, then the given fields, then
+  // any extra content after them.
+  const childNoteFields = (
+    names: readonly string[],
+    after?: JSX.Element,
+  ): JSX.Element => (
+    <>
+      <ChildNote note={childOfNote} />
+      <Raw html={sectionFields(names)} />
+      {after}
+    </>
+  );
   const sections: FormSection[] = [
     {
       children: (
@@ -234,24 +246,18 @@ export const ListingFormSections = ({
       legend: t("listings_table.tickets_pricing"),
     },
     {
-      children: (
-        <>
-          <ChildNote note={childOfNote} />
-          <Raw html={sectionFields(DAILY_FIELDS)} />
-        </>
-      ),
+      children: childNoteFields(DAILY_FIELDS),
       className: "listing-section listing-section--daily",
       legend: t("listings_table.daily_scheduling"),
     },
     {
-      children: (
+      children: childNoteFields(
+        ["duration_days"],
         <>
-          <ChildNote note={childOfNote} />
-          <Raw html={sectionFields(["duration_days"])} />
           {durationWarning && <Raw html={durationWarning} />}
           <Raw html={sectionFields(["customisable_days"])} />
           <Raw html={renderDayPricesFieldset(dayPricesListing)} />
-        </>
+        </>,
       ),
       legend: t("listings_table.booking_duration_day_prices"),
     },

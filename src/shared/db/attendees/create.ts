@@ -50,7 +50,11 @@ import { batchFinalizeStatement } from "#shared/db/payment-finalize.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { bestEffort } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
-import { type Attendee, normalizeDurationDays } from "#shared/types.ts";
+import {
+  type Attendee,
+  type ContactInfo,
+  normalizeDurationDays,
+} from "#shared/types.ts";
 
 /**
  * Enforce all-or-nothing semantics on a (greedy) create result.
@@ -112,6 +116,16 @@ export const buildAttendeeInsert = (
     status_id: order.statusId,
     ticket_token_index: enc.ticketTokenIndex,
   });
+
+/** The order's contact PII, with the optional fields defaulted to "" — the one
+ * shape both the encrypt step and the per-booking result read from an input. */
+const contactInfoFromInput = (input: AttendeeInput): ContactInfo => ({
+  address: input.address ?? "",
+  email: input.email,
+  name: input.name,
+  phone: input.phone ?? "",
+  special_instructions: input.special_instructions ?? "",
+});
 
 /** Build plain Attendee object from insert result */
 const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
@@ -373,13 +387,9 @@ const prepareAttendeeWrite = async (
 
   // Use first booking's pricePaid for encryption (PII blob is shared)
   const enc = await encryptAttendeeFields({
-    address: input.address ?? "",
-    email: input.email,
-    name: input.name,
+    ...contactInfoFromInput(input),
     paymentId,
-    phone: input.phone ?? "",
     pricePaid: bookings[0]!.pricePaid ?? 0,
-    special_instructions: input.special_instructions ?? "",
   });
   if (!enc) {
     return {
@@ -435,13 +445,7 @@ const finishAttendeeWrite = async (
   enc: EncryptedAttendeeData,
 ): Promise<CreateAttendeeResult> => {
   const { bookings, source = "public" } = input;
-  const contactInfo = {
-    address: input.address ?? "",
-    email: input.email,
-    name: input.name,
-    phone: input.phone ?? "",
-    special_instructions: input.special_instructions ?? "",
-  };
+  const contactInfo = contactInfoFromInput(input);
   const successfulBookings: Attendee[] = bookings.flatMap((booking, i) =>
     written.flags[i]
       ? [

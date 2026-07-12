@@ -10,6 +10,8 @@ import {
   childUsesSameDays,
   type TicketListing,
 } from "#shared/booking/model.ts";
+import { nodesDeepestFirst } from "#shared/booking/node-order.ts";
+import type { OrderSpan } from "#shared/booking/order-span.ts";
 import { priceRuleByListingId } from "#shared/booking/price-tree.ts";
 import type {
   BookingNode,
@@ -115,12 +117,8 @@ export type FoldChildrenResult =
 /** The resolved inputs the fold needs beyond the tree: the page's date/day-count,
  * whether a page line was already customisable, the base quantity/custom-price
  * maps (page listings, before children fold in), and the active holidays. */
-export type FoldBase = {
-  quantities: Map<number, number>;
+export type FoldBase = OrderSpan & {
   customPrices: Map<number, number>;
-  date: string | null;
-  dayCount: number;
-  hasCustomisable: boolean;
 };
 
 /** A bookable child paired with the per-unit quantity chosen under one parent
@@ -355,18 +353,15 @@ export const resolvedByNodeKey = (
     ]),
   );
   const resolved = new Map<string, TicketListing>();
-  const visit = (nodes: readonly BookingNode[]): void => {
-    for (const node of nodes) {
-      resolved.set(
-        node.nodeKey,
-        node.edgeRef.kind === "parent_child"
-          ? childByParent.get(node.edgeRef.parentId)!.get(node.listingId)!
-          : topById.get(node.listingId)!,
-      );
-      visit(node.children);
-    }
-  };
-  visit(tree.nodes);
+  // Each nodeKey is unique, so any full walk reaches them all — order is moot.
+  for (const node of nodesDeepestFirst(tree)) {
+    resolved.set(
+      node.nodeKey,
+      node.edgeRef.kind === "parent_child"
+        ? childByParent.get(node.edgeRef.parentId)!.get(node.listingId)!
+        : topById.get(node.listingId)!,
+    );
+  }
   return resolved;
 };
 

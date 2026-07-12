@@ -30,5 +30,17 @@ export const resetDemoMode = (): void => setDemoMode(null);
 export const setDemoModeForTest = (enabled: boolean): void =>
   setDemoMode(enabled);
 
-/** Demo mode banner HTML */
-export const DEMO_BANNER = `<div class="demo-banner">${t("common.demo_mode_notice")}</div>`;
+/**
+ * Demo mode banner HTML, built on demand.
+ *
+ * Deliberately a function, not a module-level constant: calling `t()` at module
+ * scope would construct the isolate's first `IntlMessageFormat` at import time,
+ * and that first construction loads ~13ms of ICU locale data. Since the layout
+ * imports this module on every page, a module-level `t()` here would pay that
+ * ICU init on every cold boot — before the request is even routed — for a banner
+ * that only ever shows in demo mode. As a function it runs only when the banner
+ * is actually rendered (and the layout already gates it on `isDemoMode()`), so
+ * requests that render nothing (webhooks, redirects, health checks) never pay it.
+ */
+export const demoBanner = (): string =>
+  `<div class="demo-banner">${t("common.demo_mode_notice")}</div>`;

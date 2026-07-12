@@ -6,6 +6,7 @@
  * Auth: Authorization: Bearer {DENO_DEPLOY_TOKEN}
  */
 
+/* jscpd:ignore-start */
 import {
   getDenoDeployOrgId,
   getDenoDeployToken,
@@ -13,6 +14,8 @@ import {
 } from "#shared/config.ts";
 import { type ApiResult, fetchText, parseApiError } from "#shared/fetch.ts";
 import type { HostingProviderApi } from "#shared/provider-types.ts";
+
+/* jscpd:ignore-end */
 
 const DENO_API_BASE = "https://api.deno.com/v2";
 

@@ -4,20 +4,24 @@
  * decide whether the provider-imposed email field renders required, present, or
  * not at all — each listing is paid through ANY path this page sells it. */
 
+import { getTicketFieldsSetting } from "#routes/public/ticket-form.ts";
 /* jscpd:ignore-start */
 import type { TicketListing } from "#shared/booking/model.ts";
 import type { PagePackage } from "#shared/booking/page-packages.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type { Field } from "#shared/forms.tsx";
 import { mergeListingFields } from "#shared/listing-fields.ts";
-import { isPaidListing, type ListingFields } from "#shared/types.ts";
+import { isPaidListing } from "#shared/types.ts";
 import { getTicketFields } from "#templates/fields/ticket.ts";
 
 /* jscpd:ignore-end */
 
-/** The merged fields setting across the selected listings. */
-const getTicketFieldsSetting = (listings: TicketListing[]): ListingFields =>
-  mergeListingFields(listings.map((e) => e.listing.fields));
+/** All possible children of the page's listings, flattened into one list. An
+ * absent map (no children were loaded) means there are none. */
+const childrenOf = (
+  childrenByParentId: Map<number, TicketListing[]> | undefined,
+): TicketListing[] =>
+  childrenByParentId ? [...childrenByParentId.values()].flat() : [];
 
 /**
  * The contact fields rendered on the booking form: every page listing's fields
@@ -35,12 +39,7 @@ export const buildContactFields = (
   anyPaid: boolean,
 ): Field[] => {
   const pageSetting = getTicketFieldsSetting(listings);
-  const children = childrenByParentId
-    ? [...childrenByParentId.values()].flat()
-    : [];
-  const childSetting = mergeListingFields(
-    children.map((e) => e.listing.fields),
-  );
+  const childSetting = getTicketFieldsSetting(childrenOf(childrenByParentId));
   const mergedSetting = mergeListingFields([pageSetting, childSetting]);
   // The provider-imposed paid email is a required page field only when the PAGE
   // itself is paid; a free page with a paid child renders it non-required (enforced
@@ -115,9 +114,6 @@ export const pageOrChildPaid = (
     childrenByParentId: Map<number, TicketListing[]> | undefined;
   },
 ): boolean => {
-  const { childrenByParentId } = input;
-  const children = childrenByParentId
-    ? [...childrenByParentId.values()].flat()
-    : [];
+  const children = childrenOf(input.childrenByParentId);
   return pagePaid(input) || children.some((e) => isPaidListing(e.listing));
 };

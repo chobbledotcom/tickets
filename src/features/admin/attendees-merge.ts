@@ -3,7 +3,7 @@
  */
 
 /* jscpd:ignore-start */
-import { filter, map, pipe } from "#fp";
+import { filter, map, pipe, unique } from "#fp";
 import { createEntityRouteHandlers } from "#routes/admin/entity-handlers.ts";
 import type { AttendeeRouteParams } from "#routes/entity.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
@@ -109,12 +109,8 @@ const loadAttendeeBookings = (
 const collectListingIds = (
   targetBookings: ListingAttendeeRow[],
   sourceBookings: ListingAttendeeRow[],
-): number[] => {
-  const ids = new Set<number>();
-  for (const b of targetBookings) ids.add(b.listing_id);
-  for (const b of sourceBookings) ids.add(b.listing_id);
-  return [...ids];
-};
+): number[] =>
+  unique([...targetBookings, ...sourceBookings].map((b) => b.listing_id));
 
 type MergeSource = NonNullable<Awaited<ReturnType<typeof loadMergeSource>>>;
 type MergeSummary = Awaited<ReturnType<typeof applyAttendeeMerge>>["summary"];

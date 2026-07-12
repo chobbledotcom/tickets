@@ -9,6 +9,7 @@
  */
 
 import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
+import { serveAndDrainRoot } from "./serve-root.ts";
 import { spawnChildJson } from "./spawn-child.ts";
 
 const LATENCIES_MS = [0, 25, 50, 100];
@@ -52,8 +53,7 @@ const prepareDatabase = async (): Promise<void> => {
   // One warm-up request so first-ever housekeeping (prune stamps, backfill
   // markers) lands in prep, not in a measured child.
   const { serveHandler } = await import("#src/serve-app.ts");
-  const response = await serveHandler(new Request("http://localhost/"));
-  await response.text();
+  const response = await serveAndDrainRoot(serveHandler);
   requireHealthyStatus(response.status, "database preparation request");
 };
 
