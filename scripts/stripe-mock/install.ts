@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { openLockFile } from "../mutation/isolation-state.ts";
 import { rethrowUnlessNotFound } from "../not-found.ts";
 import { projectRoot } from "../project-root.ts";
 
@@ -210,11 +211,7 @@ const withInstallLockGuard = async <T>(
   lockPath: string,
   body: () => Promise<T>,
 ): Promise<T> => {
-  const guard = await Deno.open(installLockGuardPath(lockPath), {
-    create: true,
-    read: true,
-    write: true,
-  });
+  const guard = await openLockFile(installLockGuardPath(lockPath));
 
   try {
     await guard.lock();

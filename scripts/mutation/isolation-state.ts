@@ -435,6 +435,10 @@ const lockProbeExitCode = (path: string, timeoutMs: number): Promise<number> =>
     stdout: "null",
   });
 
+/** Open (creating if missing) a file we can take an advisory lock on. */
+export const openLockFile = (path: string): Promise<Deno.FsFile> =>
+  Deno.open(path, { create: true, read: true, write: true });
+
 export const runLockIsHeld = async (
   record: Pick<MutationRunRecord, "root">,
   timeoutMs = 50,
@@ -455,11 +459,7 @@ export const withMutationRunLock = async <Result>(
   run: () => Promise<Result>,
 ): Promise<Result> => {
   await Deno.mkdir(runRootPath, { recursive: true });
-  const file = await Deno.open(join(runRootPath, MUTATION_RUN_LOCK_FILE), {
-    create: true,
-    read: true,
-    write: true,
-  });
+  const file = await openLockFile(join(runRootPath, MUTATION_RUN_LOCK_FILE));
   try {
     await file.lock(true);
     return await run();

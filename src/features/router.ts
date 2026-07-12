@@ -59,6 +59,9 @@ type CompiledRoute = {
   handler: RouteHandlerFn;
 };
 
+/** A matched route: its handler plus the params pulled from the path. */
+type RouteMatch = { handler: RouteHandlerFn; params: RouteParams };
+
 /**
  * Parse route pattern "METHOD /path" into method and path parts
  */
@@ -140,7 +143,7 @@ const extractParams = (
 const tryMatchRoute = (
   route: CompiledRoute,
   path: string,
-): { handler: RouteHandlerFn; params: RouteParams } | null => {
+): RouteMatch | null => {
   const match = path.match(route.regex);
   if (!match) return null;
   return {
@@ -156,7 +159,7 @@ const matchRequest = (
   compiledRoutes: Map<string, CompiledRoute[]>,
   method: string,
   path: string,
-): { handler: RouteHandlerFn; params: RouteParams } | null => {
+): RouteMatch | null => {
   const methodRoutes = compiledRoutes.get(method);
   if (!methodRoutes) return null;
 

@@ -8,9 +8,11 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
-import { lazyRef } from "#fp";
 import { errorMessage } from "#shared/error-message.ts";
-import { shouldSuppressDebugLogs } from "#shared/log-settings.ts";
+import {
+  makeSuppressibleLogFlag,
+  shouldSuppressDebugLogs,
+} from "#shared/log-settings.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import {
   addPendingWork,
@@ -27,21 +29,15 @@ const requestIdStorage = new AsyncLocalStorage<string>();
  * Bypasses Deno.env to avoid races between parallel test workers.
  * When true/false, uses override; when null, reads from env.
  */
-const [getSuppressOverride, setSuppressOverride] = lazyRef<boolean | null>(
-  () => null,
-);
+const requestLogFlag = makeSuppressibleLogFlag("TEST_SUPPRESS_REQUEST_LOGS");
 
 /** Set module-level request log suppression (avoids env race in parallel tests). */
 export const setSuppressRequestLogs = (value: boolean | null): void => {
-  setSuppressOverride(value);
+  requestLogFlag.setOverride(value);
 };
 
 /** Check if request logs should be suppressed */
-const shouldSuppressRequestLogs = (): boolean => {
-  const override = getSuppressOverride();
-  if (override !== null) return override;
-  return !!Deno.env.get("TEST_SUPPRESS_REQUEST_LOGS");
-};
+const shouldSuppressRequestLogs = (): boolean => requestLogFlag.isSuppressed();
 
 /** Generate a 4-char lowercase hex string */
 const generateRequestId = (): string => {

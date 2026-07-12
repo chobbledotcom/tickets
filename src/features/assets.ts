@@ -26,10 +26,10 @@ const staticHandler = (
     });
 };
 
-const JS = "application/javascript; charset=utf-8";
-const CSS = "text/css; charset=utf-8";
-const SVG = "image/svg+xml";
-const TEXT = "text/plain; charset=utf-8";
+export const JS = "application/javascript; charset=utf-8";
+export const CSS = "text/css; charset=utf-8";
+export const SVG = "image/svg+xml";
+export const TEXT = "text/plain; charset=utf-8";
 
 export const handleRobotsTxt = staticHandler("robots.txt", TEXT);
 export const handleFavicon = staticHandler("favicon.svg", SVG);
