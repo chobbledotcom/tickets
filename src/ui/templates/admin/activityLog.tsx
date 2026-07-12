@@ -79,17 +79,18 @@ const idLink = (
   buildLink: (id: number) => JSX.Element | null,
 ): JSX.Element | null => (id === null ? null : buildLink(id));
 
-/** Link an id to its detail page using a looked-up name, rendering nothing
- *  when the id is absent or no name was loaded for it. `anchor` gets the id
- *  and its found name. */
-const namedRefLink = (
+/** Link an id to its detail page from a looked-up value, rendering nothing when
+ *  the id is absent or no value was loaded for it. `lookup` returns whatever the
+ *  link text/target needs (a name, or a name+kind pair), and `anchor` turns the
+ *  id and that value into the link. */
+const namedRefLink = <Value,>(
   id: number | null,
-  lookupName: (id: number) => string | undefined,
-  anchor: (id: number, name: string) => JSX.Element | null,
+  lookup: (id: number) => Value | undefined,
+  anchor: (id: number, value: Value) => JSX.Element,
 ): JSX.Element | null =>
   idLink(id, (id) => {
-    const name = lookupName(id);
-    return name === undefined ? null : anchor(id, name);
+    const value = lookup(id);
+    return value === undefined ? null : anchor(id, value);
   });
 
 const refLink = (
@@ -109,13 +110,18 @@ const attendeeRefLink = (
 ): JSX.Element | null =>
   namedRefLink(
     id,
-    (id) => refs.names.get(id),
-    (id, name) => {
+    // A deleted attendee can be missing its name or its kind; skip the link
+    // unless both are present.
+    (id) => {
+      const name = refs.names.get(id);
       const kind = refs.kinds.get(id);
-      return kind === undefined ? null : (
-        <a href={attendeeAdminPath({ id, kind })}>{name}</a>
-      );
+      return name === undefined || kind === undefined
+        ? undefined
+        : { kind, name };
     },
+    (id, { kind, name }) => (
+      <a href={attendeeAdminPath({ id, kind })}>{name}</a>
+    ),
   );
 
 const ActivityLogRow = ({
