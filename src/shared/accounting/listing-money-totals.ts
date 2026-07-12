@@ -49,6 +49,8 @@ export const listingMoneyTotals = async (
   const costDebit = `transfer.source_type = '${COST}' AND transfer.source_id IN (${selectedIds})`;
   const costCredit = `transfer.dest_type = '${COST}' AND transfer.dest_id IN (${selectedIds})`;
   const r = occurredAtRange(range, "transfer.occurred_at");
+  // An aggregate without GROUP BY always returns one row; COALESCE supplies
+  // zeroes when no transfers match, so the result cannot be null.
   const row = (await queryOne<ListingMoneyTotalsRow>(
     `WITH selected_listing(id) AS (VALUES ${listingIds.map(() => "(?)").join(", ")})
      SELECT
