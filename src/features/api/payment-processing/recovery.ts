@@ -14,7 +14,6 @@ import type {
   PaymentResult,
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
-import { parseTokens } from "#routes/tickets/token-utils.ts";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { contactFields } from "#shared/db/attendees/pii.ts";
@@ -29,11 +28,7 @@ import {
 } from "#shared/db/client.ts";
 import { contactHash, recordVisit } from "#shared/db/contact-preferences.ts";
 import { recordBooking } from "#shared/db/contact-tokens.ts";
-import {
-  decryptSessionTokens,
-  type ProcessedPayment,
-  UNRESOLVED_RESERVATION,
-} from "#shared/db/processed-payments.ts";
+import { UNRESOLVED_RESERVATION } from "#shared/db/processed-payments.ts";
 
 type RecoveredBookingRow = {
   created: string;
@@ -157,18 +152,18 @@ export const recoverOrRefundUnexpectedCreate = async ({
   ticketToken,
   validatedItems,
 }: UnexpectedCreateRecovery): Promise<PaymentResult> => {
+  const ticketTokenIndex = await computeTicketTokenIndex(ticketToken);
   const finalized = await queryOnePrimary<{
     attendee_id: number;
-    ticket_tokens: ProcessedPayment["ticket_tokens"];
   }>(
-    `SELECT attendee_id, ticket_tokens FROM processed_payments
-     WHERE payment_session_id = ? AND attendee_id IS NOT NULL AND ticket_tokens != ''`,
-    [session.id],
+    `SELECT processedPayment.attendee_id
+     FROM processed_payments AS processedPayment
+     JOIN attendees AS attendee ON attendee.id = processedPayment.attendee_id
+     WHERE processedPayment.payment_session_id = ?
+       AND attendee.ticket_token_index = ?`,
+    [session.id, ticketTokenIndex],
   );
   if (finalized !== null) {
-    const ticketTokens = parseTokens(
-      await decryptSessionTokens(finalized.ticket_tokens),
-    );
     const entries = await recoveredEntries(
       finalized.attendee_id,
       ticketToken,
@@ -177,7 +172,7 @@ export const recoverOrRefundUnexpectedCreate = async ({
       validatedItems,
     );
     await recordRecoveredOrderActivity(intent, ticketToken);
-    return complete(entries, ticketTokens);
+    return complete(entries, [ticketToken]);
   }
 
   const unresolved = await queryOnePrimary<{ present: number }>(
@@ -189,7 +184,7 @@ export const recoverOrRefundUnexpectedCreate = async ({
 
   const committedAttendee = await queryOnePrimary<{ id: number }>(
     "SELECT id FROM attendees WHERE ticket_token_index = ?",
-    [await computeTicketTokenIndex(ticketToken)],
+    [ticketTokenIndex],
   );
   if (committedAttendee !== null) {
     // Some, but not all, booking rows landed. Refunding would leave live tickets

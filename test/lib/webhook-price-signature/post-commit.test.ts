@@ -25,7 +25,6 @@ import { getRecentBookingTokens } from "#shared/db/contact-tokens.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
-  decryptSessionTokens,
   isSessionProcessed,
   releaseReservation,
 } from "#shared/db/processed-payments.ts";
@@ -87,6 +86,7 @@ describeWithEnv(
         modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
       });
       const createBooking = attendeesApi.createBookingAtomic;
+      let racingRedirect: Response | null = null;
       const failAfterCommit = stub(
         attendeesApi,
         "createBookingAtomic",
@@ -97,6 +97,7 @@ describeWithEnv(
           }
 
           await forgetContact(await hashEmail("buyer@example.com"));
+          racingRedirect = await redirectRequest(sessionId);
 
           const attendees = result.attendees;
           let reads = 0;
@@ -153,8 +154,16 @@ describeWithEnv(
               throw new Error("Expected valid recovery items");
             }
             const processed = await isSessionProcessed(sessionId);
+            expect(processed?.ticket_tokens).toBe("");
+            expect(racingRedirect).not.toBeNull();
+            const redirect = racingRedirect!;
+            expectRedirect(redirect, /^\/payment\/success\?tokens=.+$/);
+            const location = redirect.headers.get("location");
+            expect(location).not.toBeNull();
             const ticketTokens = parseTokens(
-              await decryptSessionTokens(processed!.ticket_tokens),
+              new URL(location!, "http://localhost").searchParams.get(
+                "tokens",
+              )!,
             );
             const contactHash = await hashEmail("buyer@example.com");
             const privateKey = await getTestPrivateKey();
@@ -216,8 +225,6 @@ describeWithEnv(
               ticket_token: ticketTokens[0]!,
             });
 
-            const redirect = await redirectRequest(sessionId);
-            expectRedirect(redirect, /^\/payment\/success\?tokens=.+$/);
             const page = await followRedirect(redirect, handleRequest);
             expect(await page.text()).toContain(
               "Click here to view your ticket",
