@@ -916,3 +916,8 @@ src/shared/i18n.ts:240:21   → "mutated"   # parseAcceptLanguage `const [lang =
 
 # attributes detail page (ui/templates/admin/attributes.tsx) — option listing count fallback.
 src/ui/templates/admin/attributes.tsx:208:51  ?? → ||   # `data.listingCounts.get(option.id) ?? 0`: listingCounts is Map<number,number> built from ids.length, so a present count is always >= 1 and an absent option returns undefined — the left side is never a falsy non-null number, so `?? 0` and `|| 0` agree on every reachable input (same class as checkout-pricing.ts:85:35 and pr-queue/render.ts:93:29)
+
+# questions templates (ui/templates/admin/questions.tsx) — Map.get fallbacks whose
+# left operand can never be a falsy-but-non-null value, so `??` and `||` always agree.
+src/ui/templates/admin/questions.tsx:182:53  ?? → ||   # `listingNames.get(q.id) ?? []`: listingNames is Map<number,string[]>, so get() returns a string[] (always truthy, even []) or undefined — never a falsy-non-null value. A present array (incl. []) is returned unchanged by both operators, and undefined maps to [] under both, so the rendered count/title is identical on every input (same class as attributes.tsx:208:51)
+src/ui/templates/admin/questions.tsx:296:45  ?? → ||   # `answerCounts?.get(a.id) ?? 0`: answerCounts is Map<number,number>|undefined, so the left side is a number or undefined. The only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0; undefined maps to 0 under both — no input distinguishes them (same class as attributes.tsx:208:51 and checkout-pricing.ts:85:35)

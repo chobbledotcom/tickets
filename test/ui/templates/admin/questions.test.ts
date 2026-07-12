@@ -100,6 +100,28 @@ describe("adminQuestionsPage", () => {
     expect(html).toContain('<td class="col-quantity" title="All">5</td>');
   });
 
+  test("defaults the assign-all count to zero when no total is passed", () => {
+    // Called without a `totalListings` argument, an assign-all question's cell
+    // must read the 0 default — not 1 — so a drift in that default parameter is
+    // caught rather than silently over-reporting the listing count.
+    const html = adminQuestionsPage(
+      [{ ...colourQuestion, assign_all: true }],
+      TEST_SESSION,
+    );
+    expect(html).toContain('<td class="col-quantity" title="All">0</td>');
+  });
+
+  test("marks the nav active, renders the add form, and links to the guide", () => {
+    const html = adminQuestionsPage([colourQuestion], TEST_SESSION);
+    expect(html).toContain('class="active" href="/admin/questions"');
+    expect(html).toContain(
+      '<form action="/admin/questions" autocomplete="off" method="POST" id="new-question">',
+    );
+    expect(html).toContain(
+      '<a class="guide-link" href="/admin/guide#questions">',
+    );
+  });
+
   test("renders reorder controls: down on the first, up on the last", () => {
     const html = adminQuestionsPage(
       [
@@ -150,6 +172,12 @@ describe("adminQuestionPage", () => {
     const html = adminQuestionPage(question, TEST_SESSION);
     expect(html).toContain("T-shirt size?");
     expect(html).toContain('action="/admin/questions/1/edit"');
+    expect(html).toContain('class="active" href="/admin/questions"');
+    // The choice-type selector offers radio vs select, with the question's
+    // current type (radio) pre-selected.
+    expect(html).toContain(
+      '<select name="display_type"><option selected value="radio">Radio buttons</option><option value="select">Select box</option></select>',
+    );
   });
 
   test("renders answer list linking to each answer's edit page", () => {
@@ -158,6 +186,9 @@ describe("adminQuestionPage", () => {
     expect(html).toContain("Large");
     expect(html).toContain('href="/admin/questions/1/answers/10/edit"');
     expect(html).toContain('href="/admin/questions/1/answers/11/edit"');
+    expect(html).toContain(
+      '<form action="/admin/questions/1/answers" autocomplete="off" method="POST" id="add-answer">',
+    );
   });
 
   test("no longer links to answer deletion from the question page", () => {
@@ -244,6 +275,8 @@ describe("adminQuestionPage", () => {
     expect(html).not.toContain("/answers/10/move-up");
     expect(html).toContain("/answers/11/move-up");
     expect(html).not.toContain("/answers/11/move-down");
+    // The answers table carries the reorder Order column header when writable.
+    expect(html).toContain('<th class="col-reorder">Order</th>');
   });
 
   test("renders both move buttons for middle answer", () => {
@@ -280,6 +313,27 @@ describe("adminQuestionPage", () => {
       expect(html).not.toContain("/admin/questions/1/answers/10/edit");
       expect(html).not.toContain("/admin/questions/1/delete");
       expect(html).not.toContain("/answers/10/move-");
+      // No reorder Order column on the answers table in read-only mode.
+      expect(html).not.toContain('<th class="col-reorder">');
+    } finally {
+      restore();
+    }
+  });
+
+  test("joins multiple assigned listing names with a comma in read-only mode", () => {
+    // Read-only shows the assigned listings as plain text; two assigned
+    // listings must render comma-separated, not run together into one word.
+    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    try {
+      const html = adminQuestionPage(
+        { ...question, assign_all: false },
+        TEST_SESSION,
+        undefined,
+        undefined,
+        TEST_LISTINGS,
+        new Set([1, 2]),
+      );
+      expect(html).toContain("<p>Spring Gig, Summer Gig</p>");
     } finally {
       restore();
     }
@@ -299,7 +353,9 @@ describe("adminQuestionPage", () => {
       undefined,
       TEST_LISTINGS,
     );
-    expect(html).toContain('action="/admin/questions/1/listings"');
+    expect(html).toContain(
+      '<form action="/admin/questions/1/listings" autocomplete="off" method="POST" id="question-listings">',
+    );
     expect(html).toContain("<strong>Linked listings (0):</strong>");
     expect(html).toContain('name="listing_ids"');
     expect(html).toContain('value="1"');
@@ -388,6 +444,7 @@ describe("adminQuestionDeletePage", () => {
     expect(html).toContain("T-shirt size?");
     expect(html).toContain('name="confirm_identifier"');
     expect(html).toContain('action="/admin/questions/1/delete"');
+    expect(html).toContain('class="active" href="/admin/questions"');
   });
 
   test("warns about cascading deletes", () => {
@@ -428,8 +485,12 @@ describe("adminAnswerEditPage", () => {
     );
     expect(html).toContain('action="/admin/questions/1/answers/11/edit"');
     expect(html).toContain('value="Large"');
-    // An active answer renders the box checked.
-    expect(html).toContain("checked");
+    expect(html).toContain('class="active" href="/admin/questions"');
+    // An active answer renders the box checked, as a checkbox valued "on", with
+    // one space between the input and its "Active" label.
+    expect(html).toContain(
+      '<input checked name="active" type="checkbox" value="on"> Active',
+    );
   });
 
   test("renders the active box unchecked for a deactivated answer", () => {
@@ -526,7 +587,7 @@ describe("adminAnswerEditPage", () => {
       modifiers,
       5,
     );
-    expect(html).toContain('name="modifier_id"');
+    expect(html).toContain('<select id="modifier_id" name="modifier_id">');
     expect(html).toContain("Large surcharge");
     expect(html).toContain("Tiny discount");
     expect(html).toContain('<option selected value="5">');
@@ -555,7 +616,9 @@ describe("adminAnswerEditPage", () => {
       modifiers,
       null,
     );
-    expect(html).toContain('href="/admin/questions/1/answers/11/delete"');
+    expect(html).toContain(
+      '<a class="danger" href="/admin/questions/1/answers/11/delete">',
+    );
   });
 
   test("renders an error message when provided", () => {
@@ -591,6 +654,7 @@ describe("adminAnswerRecalculatePage", () => {
     expect(html).toContain(
       'action="/admin/questions/1/answers/11/recalculate"',
     );
+    expect(html).toContain('class="active" href="/admin/questions"');
     expect(html).toContain('<div class="table-scroll">');
     // Current (stored) and recalculated (from attendee answers) columns.
     expect(html).toContain("<td>7</td>");
@@ -659,9 +723,10 @@ describe("adminListingQuestionsPage", () => {
         listing,
       }),
     );
-    expect(html).toContain("No questions created yet");
-    expect(html).toContain('href="/admin/questions"');
-    expect(html).toContain("Create questions");
+    // The empty-state prompt keeps a space before the create link.
+    expect(html).toContain(
+      'No questions created yet. <a href="/admin/questions">Create questions</a> first.',
+    );
   });
 
   test("shows singular option count for question with one answer", () => {
@@ -680,7 +745,11 @@ describe("adminListingQuestionsPage", () => {
         listing,
       }),
     );
-    expect(html).toContain("1 option: Yes)");
+    expect(html).toContain(
+      '<input name="question_ids" type="checkbox" value="1">',
+    );
+    // A single space sits before the "(1 option…)" summary inside the label.
+    expect(html).toContain("<small> (1 option: Yes)</small>");
     expect(html).not.toContain("1 options");
   });
 
