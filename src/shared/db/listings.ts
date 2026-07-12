@@ -21,11 +21,11 @@ import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { addDays, VALID_DAY_NAMES } from "#shared/dates.ts";
-import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import {
-  ATTENDEE_JOIN_SELECT,
-  ATTENDEE_LEFT_JOIN_SELECT,
-} from "#shared/db/attendees/queries.ts";
+  ATTENDEE_FIELDS,
+  attendeeBatchStatement,
+  getAttendees,
+} from "#shared/db/attendees/select.ts";
 import { dateToRange } from "#shared/db/capacity.ts";
 import {
   execute,
@@ -1061,14 +1061,11 @@ export const getListingWithAttendeesRaw = async (
         "listings.id",
       )}, ${listingImageSubqueries("listings.id")} FROM listings WHERE id = ?`,
     },
-    {
-      args: [id],
-      sql: `SELECT ${ATTENDEE_JOIN_SELECT}
-            FROM attendees AS attendee
-            JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-            WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}'
-            ORDER BY attendee.created DESC`,
-    },
+    attendeeBatchStatement({
+      fields: ATTENDEE_FIELDS,
+      order: "created_desc",
+      where: { listingIds: [id] },
+    }),
   ]);
 
   const attendeesRaw = resultRows<Attendee>(attendeesResult!);
@@ -1119,17 +1116,17 @@ export const getDailyListingAttendeesByDate = (
   date: string,
 ): Promise<Attendee[]> => {
   const { startAt, endAt } = dateToRange(date);
-  return queryAll<Attendee>(
-    // quantity > 0: exclude no-quantity sentinel lines from the daily calendar.
-    `SELECT ${ATTENDEE_JOIN_SELECT}
-     FROM attendees AS attendee
-     JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-     JOIN listings AS listing ON listingAttendee.listing_id = listing.id
-     WHERE listing.listing_type = 'daily' AND listingAttendee.start_at < ? AND listingAttendee.end_at > ?
-       AND listingAttendee.quantity > 0
-     ORDER BY attendee.created DESC`,
-    [endAt, startAt],
-  );
+  return getAttendees({
+    fields: ATTENDEE_FIELDS,
+    order: "created_desc",
+    // No kind filter on the daily calendar (servicing holds occupy dates too),
+    // so include both kinds; realLinesOnly drops no-quantity sentinel lines.
+    where: {
+      dailyRange: { after: startAt, before: endAt },
+      kind: "attendee-or-servicing",
+      realLinesOnly: true,
+    },
+  });
 };
 
 /**
@@ -1161,10 +1158,12 @@ const listingAttendeeFilter = (
         kindScope: filter.kindScope ?? "attendees",
       };
 
-const attendeeKindClause = (kindScope: ListingAttendeeKindScope): string =>
+const attendeeKindFilter = (
+  kindScope: ListingAttendeeKindScope,
+): "attendee" | "attendee-or-servicing" =>
   kindScope === "attendees-and-servicing"
-    ? `attendee.kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}')`
-    : `attendee.kind = '${ATTENDEE_KIND}'`;
+    ? "attendee-or-servicing"
+    : "attendee";
 
 export const getAttendeesByListingIds = (
   listingIds: number[],
@@ -1172,16 +1171,15 @@ export const getAttendeesByListingIds = (
 ): Promise<Attendee[]> => {
   if (listingIds.length === 0) return Promise.resolve([]);
   const { activeOnly, kindScope } = listingAttendeeFilter(filter);
-  return queryAll<Attendee>(
-    `SELECT ${ATTENDEE_JOIN_SELECT}
-     FROM attendees AS attendee
-     JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-     WHERE listingAttendee.listing_id IN (${inPlaceholders(listingIds)})
-       AND ${attendeeKindClause(kindScope)}
-       ${activeOnly ? "AND listingAttendee.quantity > 0" : ""}
-     ORDER BY attendee.created DESC`,
-    listingIds,
-  );
+  return getAttendees({
+    fields: ATTENDEE_FIELDS,
+    order: "created_desc",
+    where: {
+      kind: attendeeKindFilter(kindScope),
+      listingIds,
+      realLinesOnly: activeOnly,
+    },
+  });
 };
 
 /** Result type for listing + single attendee query */
@@ -1206,13 +1204,11 @@ export const getListingWithAttendeeRaw = async (
         "listings.id",
       )}, ${listingImageSubqueries("listings.id")} FROM listings WHERE id = ?`,
     },
-    {
-      args: [attendeeId],
-      sql: `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
-            FROM attendees AS attendee
-            LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-            WHERE attendee.id = ? AND attendee.kind = '${ATTENDEE_KIND}'`,
-    },
+    attendeeBatchStatement({
+      fields: ATTENDEE_FIELDS,
+      join: "left",
+      where: { attendeeIds: [attendeeId] },
+    }),
   ]);
 
   return withBatchListing(listingResult!, (listing) => ({

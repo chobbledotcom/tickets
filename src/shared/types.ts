@@ -821,12 +821,37 @@ export type AttendeeRowListing = {
 };
 
 /**
+ * The attendee fields the shared attendee table and its column registry
+ * actually read. A full decrypted {@link Attendee} satisfies it, and so does a
+ * field-selected read that skipped the money subqueries — which is exactly why
+ * the browsing tables can render rows that never computed `price_paid` or
+ * `remaining_balance` (see `src/shared/db/attendees/select.ts`).
+ */
+export type DisplayAttendee = Pick<
+  Attendee,
+  | "address"
+  | "checked_in"
+  | "created"
+  | "date"
+  | "email"
+  | "id"
+  | "kind"
+  | "listing_id"
+  | "name"
+  | "phone"
+  | "quantity"
+  | "refunded"
+  | "special_instructions"
+  | "ticket_token"
+>;
+
+/**
  * A single row in the attendee table: an attendee plus the listings the row
  * covers, in display order. Roster/check-in tables render one row per booking
  * line (a one-listing array); the browsing tables (attendees list, dashboard)
  * group an attendee's lines into one row carrying every listing.
  */
 export type AttendeeTableRow = {
-  attendee: Attendee;
+  attendee: DisplayAttendee;
   listings: AttendeeRowListing[];
 };

@@ -17,13 +17,12 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 /* jscpd:ignore-end */
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
-import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
 import {
-  ATTENDEE_LEFT_JOIN_SELECT,
+  getAttendeeRaw,
   LISTING_ATTENDEE_ROW_COLS,
 } from "#shared/db/attendees/queries.ts";
-import { queryAll, queryOne } from "#shared/db/client.ts";
+import { queryAll } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import {
   getRefundPaymentReferences,
@@ -53,13 +52,7 @@ const loadRefreshContext = async (
   attendeeId: number,
 ): Promise<RefreshPaymentContext | null> => {
   const pk = await requireRequestPrivateKey();
-  const attendeeRaw = await queryOne<Attendee>(
-    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
-     FROM attendees AS attendee
-     LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-     WHERE attendee.id = ? AND attendee.kind = '${ATTENDEE_KIND}'`,
-    [attendeeId],
-  );
+  const attendeeRaw = await getAttendeeRaw(attendeeId);
   if (!attendeeRaw) return null;
   const attendee = (await decryptAttendeeOrNull(attendeeRaw, pk))!;
   const bookings = await queryAll<ListingAttendeeRow>(

@@ -897,6 +897,11 @@ src/shared/db/attendees/pii.ts:73:17  ?? → ||   # decryptPiiBlob's `blob.lo ??
 # stem() dir-strip replacement value is unobservable.
 scripts/unit-tests-report-imports.ts:135:23   → "mutated"   # stem()'s first replace strips the directory before every `===` comparison in findMisplacedTests; both sides always have a leading `dir/` (tests live under test/, sources under src/), so the replacement string is prepended to both operands identically — stem(test) === stem(source) is invariant under its value
 
+# getAttendees filter/query builder (src/shared/db/attendees/select.ts) — the
+# defaulted `kind`/`join` operands are string unions that never include "".
+src/shared/db/attendees/select.ts:289:47  ?? → ||   # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
+src/shared/db/attendees/select.ts:383:26  ?? → ||   # query.join: AttendeeJoin|undefined — "inner"/"left" are both truthy, so `?? "inner"` and `|| "inner"` agree on every input
+
 # i18n (shared/i18n.ts) — five provably-equivalent survivors.
 # needsIcu decides only whether a message takes the plain-string fast path or is
 # compiled by IntlMessageFormat; both produce identical output for a
