@@ -803,6 +803,7 @@ fixtures (`recordBoilerCost`, `postCustomerSale`, `listingProfitOf`,
 `expectCostFormError`, `transfersOfKind`, `SERVICE_DATE`) moved to a new
 `#test-utils/servicing-ledger.ts`, and the generic non-empty flash assertions
 (`expectFlashError`/`expectFlashSuccess`) moved to `#test-utils/assertions.ts`
-next to `parseFlashCookie`. A pure reorganisation — no test behaviour changed.
+next to `parseFlashCookie`. A pure reorganisation — the same 40 tests run, no
+test behaviour changed.
 
 *Nothing remains open in this section.*
