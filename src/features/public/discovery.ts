@@ -22,6 +22,7 @@ import {
   packageBundleLimit,
   packageLimitInfo,
 } from "#shared/booking/package-cap.ts";
+import { childIdsMatching } from "#shared/child-parents.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import {
   getGroupRemainingByListingId,
@@ -270,22 +271,6 @@ const childCanBeBookedForParent = (
       caps.remainingByGroupId,
     ),
   );
-
-/**
- * Collect the child ids whose parent list passes the test. The loop shared by
- * the add-on classifier and the package-fold check, which both walk a
- * child→parents map and keep the children whose parents satisfy some rule.
- */
-export const childIdsMatching = <P>(
-  parentsByChild: Iterable<readonly [number, P[]]>,
-  keep: (parents: P[], childId: number) => boolean,
-): Set<number> => {
-  const ids = new Set<number>();
-  for (const [childId, parents] of parentsByChild) {
-    if (keep(parents, childId)) ids.add(childId);
-  }
-  return ids;
-};
 
 /**
  * Classify the given listings for a discovery surface (see

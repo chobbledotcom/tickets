@@ -196,7 +196,7 @@ export const attendeeFormPost =
       attendeeId: number,
       session: AuthSession,
       form: FormParams,
-    ) => Promise<Response>,
+    ) => Response | Promise<Response>,
   ) =>
   (
     request: Request,

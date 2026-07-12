@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { openLockFile } from "../mutation/isolation-state.ts";
+import { openLockFile } from "../lock-file.ts";
 import { rethrowUnlessNotFound } from "../not-found.ts";
 import { projectRoot } from "../project-root.ts";
 

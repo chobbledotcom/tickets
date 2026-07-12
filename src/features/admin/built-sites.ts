@@ -42,6 +42,7 @@ import {
   loadSiteSecretsStatus,
 } from "#shared/site-secrets.ts";
 import { loadBuiltSiteUpdateState } from "#shared/site-update.ts";
+import type { AdminSession } from "#shared/types.ts";
 import {
   deployLatestReleaseToDeno,
   deployLatestReleaseToScript,
@@ -158,7 +159,7 @@ type OwnerPostHandler = (
 /** Handler receiving the resolved site (with its id) and the owner session. */
 type OwnerSiteHandler = (
   found: { id: number; site: BuiltSite },
-  session: import("#shared/types.ts").AdminSession,
+  session: AdminSession,
 ) => Promise<Response>;
 
 /** Owner-gated wrapper that also resolves `:id` → site or returns 404. */

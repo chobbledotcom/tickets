@@ -657,6 +657,11 @@ export async function withAuth<T extends BodyMode>(
  * the authenticate-then-delegate shape lives in one place. */
 export const gatedPost =
   <T extends BodyMode>(policy: AuthPolicy<T>) =>
-  (handle: (session: AuthSession, body: ParsedBody<T>) => Promise<Response>) =>
+  (
+    handle: (
+      session: AuthSession,
+      body: ParsedBody<T>,
+    ) => Response | Promise<Response>,
+  ) =>
   (request: Request): Promise<Response> =>
     withAuth(request, policy, handle);

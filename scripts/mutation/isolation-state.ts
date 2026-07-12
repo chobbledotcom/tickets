@@ -13,6 +13,7 @@ import {
   resolve,
   SEPARATOR,
 } from "@std/path";
+import { openLockFile } from "../lock-file.ts";
 import { rethrowUnlessNotFound } from "../not-found.ts";
 import { projectRoot } from "../project-root.ts";
 import { denoExitCode } from "./child-process.ts";
@@ -434,10 +435,6 @@ const lockProbeExitCode = (path: string, timeoutMs: number): Promise<number> =>
     stderr: "null",
     stdout: "null",
   });
-
-/** Open (creating if missing) a file we can take an advisory lock on. */
-export const openLockFile = (path: string): Promise<Deno.FsFile> =>
-  Deno.open(path, { create: true, read: true, write: true });
 
 export const runLockIsHeld = async (
   record: Pick<MutationRunRecord, "root">,

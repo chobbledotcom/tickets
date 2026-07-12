@@ -165,8 +165,8 @@ const validateCustomisableDays = (input: ListingInput): string | null => {
     return "Customisable days cannot be combined with Allow Pay More";
   }
   // The priced day counts within range are exactly what availableDayCounts
-  // derives, so reuse it (via the shared input→shape helper) rather than
-  // recomputing the same filter here.
+  // derives, so reuse the normalized day-price fields rather than recomputing
+  // the same filter here.
   return availableDayCounts(dayPriceFieldsFromInput(input)).length === 0
     ? "Set a price for at least one day count (1 up to the maximum days)"
     : null;

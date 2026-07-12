@@ -1,4 +1,4 @@
-import { CSS, JS, SVG, TEXT } from "../src/features/assets.ts";
+import { CSS, JS, SVG, TEXT } from "../src/shared/content-types.ts";
 import { ASSETS, readAsset } from "../src/shared/images/wasm-assets.ts";
 import type { AssetDef } from "./edge-bundle-modules.ts";
 import { wasmFilename } from "./inline-jsquash-wasm.ts";

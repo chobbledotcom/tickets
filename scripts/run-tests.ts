@@ -28,15 +28,13 @@ const SNIPPET_CONTEXT_LINES = 1;
 const MAX_SNIPPET_LINES_PER_FILE = 18;
 const MAX_GITHUB_ANNOTATIONS = 100;
 
-/** Line numbers captured by group 1 of every match of `pattern` in `record`. */
-const capturedLineNumbers = (record: string, pattern: RegExp): number[] => {
-  const lines: number[] = [];
-  for (const match of record.matchAll(pattern)) {
-    const captured = match[1];
-    if (captured) lines.push(Number.parseInt(captured, 10));
-  }
-  return lines;
-};
+/** Line numbers captured by group 1 of every match of `pattern` in `record`.
+ * Every caller's pattern has a `(\d+)` group 1, so each match always carries
+ * one. */
+const capturedLineNumbers = (record: string, pattern: RegExp): number[] =>
+  Array.from(record.matchAll(pattern), (match) =>
+    Number.parseInt(match[1], 10),
+  );
 
 /** Extract uncovered line numbers from DA: entries in an lcov record */
 const extractUncoveredLines = (record: string): number[] =>

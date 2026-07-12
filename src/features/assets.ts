@@ -5,6 +5,7 @@
 import { dirname, fromFileUrl, join } from "@std/path";
 import { once } from "#fp";
 import { encodeBody } from "#routes/response.ts";
+import { CSS, JS, SVG, TEXT } from "#shared/content-types.ts";
 
 const currentDir = dirname(fromFileUrl(import.meta.url));
 const staticDir = join(currentDir, "..", "ui", "static");
@@ -25,11 +26,6 @@ const staticHandler = (
       headers: { "content-type": contentType, ...CACHE_HEADERS },
     });
 };
-
-export const JS = "application/javascript; charset=utf-8";
-export const CSS = "text/css; charset=utf-8";
-export const SVG = "image/svg+xml";
-export const TEXT = "text/plain; charset=utf-8";
 
 export const handleRobotsTxt = staticHandler("robots.txt", TEXT);
 export const handleFavicon = staticHandler("favicon.svg", SVG);

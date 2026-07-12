@@ -43,7 +43,7 @@ export const siteEntityPost =
   <T>(load: (id: number) => Promise<T | null>) =>
   (handler: (item: T, form: FormParams) => Promise<Response>) =>
     gatedEntityRoute<FormParams>((request, h) =>
-      withAuth(request, SITE_FORM, (_session, form) => h(form)),
+      gatedPost(SITE_FORM)((_session, form) => h(form))(request),
     )(load, handler);
 
 /** The confirmed-delete auth pair every Site-tab delete flow uses. */

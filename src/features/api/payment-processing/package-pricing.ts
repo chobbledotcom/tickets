@@ -11,7 +11,6 @@
 
 import { uniqueBy } from "#fp";
 import type { BookingIntent } from "#routes/api/webhook-types.ts";
-import { childIdsMatching } from "#routes/public/discovery.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import {
   buildTicketListing,
@@ -29,6 +28,7 @@ import {
   lineGroupId,
   lineGroupIds,
 } from "#shared/booking/signed-metadata.ts";
+import { childIdsMatching } from "#shared/child-parents.ts";
 import {
   getPackageGroupById,
   loadPackageMemberPricing,
