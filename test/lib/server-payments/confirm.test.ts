@@ -95,7 +95,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             200,
             "Thank you for your order",
             "https://example.com/thanks",
-            "Click here to view your ticket",
+            "View your ticket",
             'target="_blank"',
           );
 

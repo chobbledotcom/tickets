@@ -87,7 +87,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         const html = await response.text();
 
         // Should have ticket link with verified token
-        expect(html).toContain("Click here to view your ticket");
+        expect(html).toContain("View your ticket");
         expect(html).toContain('target="_blank"');
         expect(html).toContain("/t/");
 

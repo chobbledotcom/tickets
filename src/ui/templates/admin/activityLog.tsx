@@ -47,8 +47,7 @@ const SQUARE_SIGNATURE_LABEL = errorCodeLabel[ErrorCode.SQUARE_SIGNATURE];
 const SquareSignatureHint = (): SafeHtml => (
   <>
     <a href="/admin/settings#settings-square-webhook">
-      Click here to re-do your Square settings, paying close attention to the
-      name of each field.
+      {t("admin.log.square_signature_hint")}
     </a>{" "}
   </>
 );

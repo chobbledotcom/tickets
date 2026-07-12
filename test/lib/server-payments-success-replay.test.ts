@@ -59,7 +59,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           response,
           200,
           "https://example.com/single-thanks",
-          "Click here to view your ticket",
+          "View your ticket",
         );
       } finally {
         mockRetrieve.restore();
@@ -117,7 +117,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         const html = await response.text();
         // The ticket link still shows, but the concealed member's thank-you URL
         // (which would meta-refresh to the listing the package hid) must not leak.
-        expect(html).toContain("Click here to view your ticket");
+        expect(html).toContain("View your ticket");
         expect(html).not.toContain("https://example.com/concealed-thanks");
       } finally {
         mockRetrieve.restore();

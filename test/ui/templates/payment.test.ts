@@ -108,13 +108,13 @@ describe("successPage", () => {
     const html = successPage({ paid: true, ticketUrl: "/t/abc123+def456" });
     expect(html).toContain('href="/t/abc123+def456"');
     expect(html).toContain('target="_blank"');
-    expect(html).toContain("Click here to view your ticket");
+    expect(html).toContain("View your ticket");
   });
 
   test("renders ticket link with singular text for single ticket", () => {
     const html = successPage({ paid: true, ticketUrl: "/t/abc123" });
     expect(html).toContain('href="/t/abc123"');
-    expect(html).toContain("Click here to view your ticket");
+    expect(html).toContain("View your ticket");
   });
 
   test("renders both ticket link and redirect when both provided", () => {
@@ -124,7 +124,7 @@ describe("successPage", () => {
       ticketUrl: "/t/abc123",
     });
     expect(html).toContain('href="/t/abc123"');
-    expect(html).toContain("Click here to view your ticket");
+    expect(html).toContain("View your ticket");
     expect(html).toContain("https://example.com/thanks");
     expect(html).toContain('http-equiv="refresh"');
   });
