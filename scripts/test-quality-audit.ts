@@ -2,7 +2,7 @@
 
 import { relative } from "node:path";
 import { lineColumnAt } from "./line-column.ts";
-import { walkFiles } from "./walk-files.ts";
+import { collectFiles } from "./walk-files.ts";
 
 type Finding = {
   column: number;
@@ -94,13 +94,8 @@ const auditFile = async (path: string): Promise<Finding[]> => {
   ];
 };
 
-const testFiles = async (): Promise<string[]> => {
-  const files: string[] = [];
-  for await (const path of walkFiles("test")) {
-    if (TEST_FILE_PATTERN.test(path)) files.push(path);
-  }
-  return files.sort();
-};
+const testFiles = (): Promise<string[]> =>
+  collectFiles("test", (path) => TEST_FILE_PATTERN.test(path));
 
 const formatFinding = (finding: Finding): string =>
   `${relative(

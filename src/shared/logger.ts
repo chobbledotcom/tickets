@@ -20,6 +20,7 @@ import {
 import {
   liveScopeStore,
   runWithScopeLifetime,
+  type ScopeRunner,
 } from "#shared/request-scoped.ts";
 import { captureServerError } from "#shared/sentry.ts";
 
@@ -65,7 +66,7 @@ export const getRequestId = (): string =>
   liveScopeStore(requestIdStorage)?.id ?? "";
 
 /** Run a function with a request-scoped random ID for log correlation */
-export const runWithRequestId = <T>(fn: () => Promise<T>): Promise<T> =>
+export const runWithRequestId: ScopeRunner = (fn) =>
   runWithScopeLifetime(requestIdStorage, { id: generateRequestId() }, () =>
     runWithPendingWork(fn),
   );

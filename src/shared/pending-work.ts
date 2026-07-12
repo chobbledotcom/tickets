@@ -12,6 +12,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import {
   liveScopeStore,
   runWithScopeLifetime,
+  type ScopeRunner,
 } from "#shared/request-scoped.ts";
 
 const pendingWork = new AsyncLocalStorage<Promise<unknown>[]>();
@@ -24,7 +25,7 @@ const pendingWork = new AsyncLocalStorage<Promise<unknown>[]>();
  * runs next — on Bunny that's a killed fetch, in tests a sanitizer failure
  * in an unrelated test.
  */
-export const runWithPendingWork = <T>(fn: () => Promise<T>): Promise<T> =>
+export const runWithPendingWork: ScopeRunner = (fn) =>
   runWithScopeLifetime(pendingWork, [], async () => {
     try {
       return await fn();

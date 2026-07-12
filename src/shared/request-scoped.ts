@@ -78,6 +78,10 @@ export const liveScopeStore = <S extends object>(
   return store === undefined || endedStores.has(store) ? undefined : store;
 };
 
+/** Runs `fn` inside an async scope whose store dies when `fn`'s promise
+ * settles. The named type keeps every such runner's signature in one place. */
+export type ScopeRunner = <T>(fn: () => Promise<T>) => Promise<T>;
+
 /** A request-scoped container plus the helpers its owning module builds on. */
 export type RequestScoped<T extends object> = {
   /** Run `fn` with a fresh per-request container bound to the async scope. */

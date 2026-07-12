@@ -19,7 +19,7 @@
  */
 
 import { join, relative } from "node:path";
-import { walkFiles } from "./walk-files.ts";
+import { collectFiles } from "./walk-files.ts";
 
 /** Where the generated group entry files live, relative to the project root.
  * Outside test/ so tree-walking checks (code quality, i18n coverage) never see
@@ -81,21 +81,18 @@ export const planTestGroups = (
  * look groupable but would blow up the whole group at load, so the helper
  * must expose a setup function the test files call from their own suites. */
 export const collectTestFiles = async (root: string): Promise<string[]> => {
-  const files: string[] = [];
-  for await (const path of walkFiles(join(root, "test"))) {
-    if (!path.endsWith(".ts")) continue;
-    if (path.endsWith(".test.ts")) {
-      files.push(path);
-      continue;
-    }
-    if (GLOBAL_HOOK_RE.test(await Deno.readTextFile(path))) {
+  const allTs = await collectFiles(join(root, "test"), (path) =>
+    path.endsWith(".ts"),
+  );
+  for (const helper of allTs.filter((path) => !path.endsWith(".test.ts"))) {
+    if (GLOBAL_HOOK_RE.test(await Deno.readTextFile(helper))) {
       throw new Error(
-        `${path} is a shared test helper but registers a global BDD hook — ` +
+        `${helper} is a shared test helper but registers a global BDD hook — ` +
           "export a setup function and call it from each test file's own suite instead",
       );
     }
   }
-  return files.sort();
+  return allTs.filter((path) => path.endsWith(".test.ts"));
 };
 
 /**
