@@ -20,9 +20,10 @@ describe("pending-work", () => {
     let settled = false;
     await runWithPendingWork(async () => {
       addPendingWork(
-        Promise.resolve().then(() => {
+        (async () => {
+          await Promise.resolve();
           settled = true;
-        }),
+        })(),
       );
       await flushPendingWork();
       expect(settled).toBe(true);
@@ -38,12 +39,35 @@ describe("pending-work", () => {
     await runWithPendingWork(async () => {
       await flushPendingWork(); // the request's own flush
       addPendingWork(
-        Promise.resolve().then(() => {
+        (async () => {
+          await Promise.resolve();
           lateWorkSettled = true;
-        }),
+        })(),
       );
     });
     expect(lateWorkSettled).toBe(true);
+  });
+
+  test("work queued by work already flushing also settles", async () => {
+    // A background job can queue more work while the flush awaits it — a
+    // failed job queues its error's activity-log write. A single-pass flush
+    // captured the queue once and discarded the late arrival unawaited.
+    let chainedSettled = false;
+    await runWithPendingWork(async () => {
+      addPendingWork(
+        (async () => {
+          await Promise.resolve();
+          addPendingWork(
+            (async () => {
+              await Promise.resolve();
+              chainedSettled = true;
+            })(),
+          );
+        })(),
+      );
+      await flushPendingWork();
+      expect(chainedSettled).toBe(true);
+    });
   });
 
   test("addPendingWork outside a scope drops the promise instead of queueing", async () => {

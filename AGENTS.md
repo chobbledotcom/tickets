@@ -949,6 +949,22 @@ that report as regressions to fix, not ambient noise. These are the patterns
 that keep tests fast — reach for them when writing the test, not after it
 shows up in the report:
 
+- **The full runner shares isolates between test files.** `deno task test`
+  deals the suite's files into generated group entries
+  (`scripts/test-groups.ts`), so the app module graph is evaluated once per
+  group instead of once per file, and the harness prebuilds the test database
+  state — golden schema DB plus the captured setup ceremony — once per run
+  (`test/test-utils/test-state.ts`) instead of once per file. Two rules keep
+  a file groupable: never register a *global* BDD hook (a `beforeAll` /
+  `afterEach` at module level, including via a helper function called at
+  module level — put hooks inside your `describe`), and never rely on a
+  virgin isolate (module state you switch is visible to files that run after
+  you, so reset what you change — and state *other* files switched may be
+  visible to you, so pin what you assert on). A file that genuinely needs its
+  own isolate carries a `// test-groups: run-alone` comment. `deno task
+  test:files` never groups: you always debug exactly the files you name, one
+  isolate each, and `TICKETS_TEST_UNGROUPED=1 deno task test` runs the whole
+  suite that way to rule grouping out when chasing cross-file state.
 - **Never run repo tooling as a subprocess inside a test.** jscpd, Biome, and
   typechecking are dedicated precommit/CI steps; a test that shells out to
   `deno task cpd` re-runs a minute of CPU inside every suite run to enforce a
@@ -973,12 +989,12 @@ shows up in the report:
   files driven by one factory so `deno test --parallel` spreads it across
   workers — see `test/lib/db/migration-restore/` (shard by
   `index % shardCount`, which stays balanced as the list grows).
-- **Keep heavy SDKs out of module load.** Every test file re-evaluates the
-  whole app module graph, so an import-time SDK evaluation is paid once per
-  test FILE — hundreds of times per run. Dynamically import heavy
+- **Keep heavy SDKs out of module load.** Every test isolate — a group of
+  files under the full runner, each named file under `test:files` — evaluates
+  the whole app module graph, so an import-time SDK evaluation is paid once
+  per isolate, dozens of times per run. Dynamically import heavy
   dependencies on first use; `stripe.ts` and `sentry.ts` are the references
-  (this is the [cold-start rule](#built-for-cold-starts), which the test
-  suite feels ~250× over).
+  (this is the [cold-start rule](#built-for-cold-starts) applied to tests).
 - **`expect(bigHtml).toContain(...)` is safe here** because `#test-utils`
   overrides the matcher (`test/test-utils/fast-expect.ts`): the @std/expect
   built-in pretty-prints the entire searched value even when the assertion

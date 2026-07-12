@@ -43,10 +43,14 @@ export const addPendingWork = (p: Promise<unknown>): void => {
   if (pending) pending.push(p);
 };
 
-/** Await all queued work. Call before returning the response. */
+/** Await all queued work. Call before returning the response. Loops until the
+ * queue stays empty: work already running can queue more (a background job
+ * that fails queues its error's activity-log write), and a single pass would
+ * discard those late arrivals unawaited. */
 export const flushPendingWork = async (): Promise<void> => {
   const pending = liveScopeStore(pendingWork);
-  if (!pending || pending.length === 0) return;
-  await Promise.allSettled(pending);
-  pending.length = 0;
+  if (!pending) return;
+  while (pending.length > 0) {
+    await Promise.allSettled(pending.splice(0));
+  }
 };

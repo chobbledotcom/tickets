@@ -1,6 +1,11 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { createRequestScoped } from "#shared/request-scoped.ts";
+import {
+  createRequestScoped,
+  liveScopeStore,
+  runWithScopeLifetime,
+} from "#shared/request-scoped.ts";
 
 describe("createRequestScoped", () => {
   test("outside a scope, current() returns a stable ambient container", () => {
@@ -102,5 +107,45 @@ describe("createRequestScoped", () => {
     ).rejects.toThrow("request failed");
     release();
     expect(await afterScope).toBe(0); // ambient, not the dead container's 5
+  });
+});
+
+describe("runWithScopeLifetime", () => {
+  test("a sync callback's store is live inside and dead after", () => {
+    const storage = new AsyncLocalStorage<{ n: number }>();
+    const store = { n: 1 };
+    const seen = runWithScopeLifetime(
+      storage,
+      store,
+      () => liveScopeStore(storage)?.n,
+    );
+    expect(seen).toBe(1);
+    storage.run(store, () => {
+      // The scope already ended, so even a context that carries the store
+      // must read as "outside a scope".
+      expect(liveScopeStore(storage)).toBe(undefined);
+    });
+  });
+
+  test("a sync callback that throws still ends its store", () => {
+    const storage = new AsyncLocalStorage<{ n: number }>();
+    const store = { n: 1 };
+    expect(() =>
+      runWithScopeLifetime(storage, store, () => {
+        throw new Error("sync failure");
+      }),
+    ).toThrow("sync failure");
+    storage.run(store, () => {
+      expect(liveScopeStore(storage)).toBe(undefined);
+    });
+  });
+
+  test("reusing a store object across runs throws", async () => {
+    const storage = new AsyncLocalStorage<{ n: number }>();
+    const store = { n: 1 };
+    await runWithScopeLifetime(storage, store, async () => {});
+    expect(() => runWithScopeLifetime(storage, store, async () => {})).toThrow(
+      "fresh store object",
+    );
   });
 });
