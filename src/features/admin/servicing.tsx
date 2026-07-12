@@ -3,6 +3,7 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  * Admin servicing-event routes.
  */
 
+import { map } from "#fp";
 import {
   buildServicingFieldSchema,
   parseServicingForm,
@@ -263,7 +264,7 @@ const renderServicingPage = ({
                   { header: "Memo" },
                   { header: "Actions" },
                 ]}
-                rows={costs.map((cost) => {
+                rows={map((cost: ServicingCostRecord) => {
                   const listingName = listingNames.get(cost.listingId);
                   const ledgerHref =
                     isOwner(session) && listingName !== undefined
@@ -297,7 +298,7 @@ const renderServicingPage = ({
                       )}
                     </>,
                   ];
-                })}
+                })(costs)}
               />
             </>
           )}
