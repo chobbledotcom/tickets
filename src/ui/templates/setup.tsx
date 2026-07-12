@@ -66,36 +66,70 @@ const DataControllerAgreement = (): JSX.Element => (
 );
 
 /**
- * Initial setup page
+ * Shared shell for the setup and join password forms: a titled page with a
+ * prose heading and intro, the flash message, the rendered form fields, then
+ * whatever extra controls and submit button the page adds as `children`.
  */
-export const setupPage = (error?: string): string =>
+export const AuthFormPage = ({
+  title,
+  action,
+  heading,
+  intro,
+  formHtml,
+  error,
+  children,
+}: {
+  title: string;
+  action: string;
+  heading: string;
+  intro: string;
+  formHtml: string;
+  error?: string | undefined;
+  children: JSX.Element | JSX.Element[];
+}): string =>
   String(
-    <Layout title={t("setup.title")}>
-      <CsrfForm action="/setup/">
+    <Layout title={title}>
+      <CsrfForm action={action}>
         <div class="prose">
-          <h1>{t("setup.heading")}</h1>
-          <p>{t("setup.welcome")}</p>
+          <h1>{heading}</h1>
+          <p>{intro}</p>
         </div>
         <Flash error={error} />
-        <Raw html={renderFields(getSetupFields())} />
-        <div class="field">
-          <label>
-            {t("setup.country_label")}
-            <select name="country" required>
-              {Object.entries(COUNTRIES).map(([code, data]) => (
-                <option selected={code === DEFAULT_COUNTRY} value={code}>
-                  {data.name} ({data.currency})
-                </option>
-              ))}
-            </select>
-          </label>
-          <p class="hint">{t("setup.country_hint")}</p>
-        </div>
-        <DataControllerAgreement />
-        <button type="submit">{t("setup.submit")}</button>
+        <Raw html={formHtml} />
+        {children}
       </CsrfForm>
     </Layout>,
   );
+
+/**
+ * Initial setup page
+ */
+export const setupPage = (error?: string): string =>
+  AuthFormPage({
+    action: "/setup/",
+    children: [
+      <div class="field">
+        <label>
+          {t("setup.country_label")}
+          <select name="country" required>
+            {Object.entries(COUNTRIES).map(([code, data]) => (
+              <option selected={code === DEFAULT_COUNTRY} value={code}>
+                {data.name} ({data.currency})
+              </option>
+            ))}
+          </select>
+        </label>
+        <p class="hint">{t("setup.country_hint")}</p>
+      </div>,
+      <DataControllerAgreement />,
+      <button type="submit">{t("setup.submit")}</button>,
+    ],
+    error,
+    formHtml: renderFields(getSetupFields()),
+    heading: t("setup.heading"),
+    intro: t("setup.welcome"),
+    title: t("setup.title"),
+  });
 
 /**
  * Setup complete page

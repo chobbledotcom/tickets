@@ -2,6 +2,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { SettingsCheckbox } from "#templates/admin/settings/theme.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
@@ -18,15 +19,11 @@ export const CalendarFeedsForm = (s: SettingsPageState): JSX.Element => (
     submitLabel={t("settings.save_calendar_feeds")}
     title={t("settings.calendar_feeds")}
   >
-    <label>
-      <input
-        checked={s.calendarFeedsEnabled}
-        name="calendar_feeds_enabled"
-        type="checkbox"
-        value="true"
-      />{" "}
-      {t("settings.calendar_feeds_enabled")}
-    </label>
+    <SettingsCheckbox
+      checked={s.calendarFeedsEnabled}
+      label={t("settings.calendar_feeds_enabled")}
+      name="calendar_feeds_enabled"
+    />
     <label for="calendar_feeds_group_by">
       {t("settings.calendar_feeds_group_by")}
     </label>

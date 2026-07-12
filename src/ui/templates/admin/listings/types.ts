@@ -70,18 +70,22 @@ export type ChildCandidate = {
   ineligibleReason: string | null;
 };
 
+/** The data the edit page's "required children" section renders. `candidates`
+ * excludes the listing itself (no self-edges) and carries each one's
+ * eligibility; `childIds` are its currently-required children; `offeredUnder` are
+ * the listings it is itself a child of. */
+export type ListingParentsSection = {
+  candidates: ChildCandidate[];
+  childIds: ReadonlySet<number>;
+  offeredUnder: ListingWithCount[];
+};
+
 export type ListingEditPanelOptions = {
   listing: ListingWithCount;
   groups: Group[];
   session: AdminSession;
   error?: string | undefined;
   aggregateRecalculation?: ListingAggregateRecalculation | undefined;
-  parents?:
-    | {
-        candidates: ChildCandidate[];
-        childIds: ReadonlySet<number>;
-        offeredUnder: ListingWithCount[];
-      }
-    | undefined;
+  parents?: ListingParentsSection | undefined;
   selectedGroupIds?: number[] | undefined;
 };
