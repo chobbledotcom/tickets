@@ -916,13 +916,16 @@ src/shared/i18n.ts:166:37  ?? → ||   # resolveMessage `locales[locale]?.[key] 
 src/shared/i18n.ts:105:19   → "mutated"   # buildReplacer `const [from = ""` default: `pair.split("|")` always returns at least one element, so element 0 (`from`) is always present and the default is never used — dead code, unobservable
 src/shared/i18n.ts:240:21   → "mutated"   # parseAcceptLanguage `const [lang = ""` default: `part.trim().split(";")` always returns at least one element, so `lang` (element 0) is always present and the default is never used — dead code, unobservable
 
+# listing edit panel (features/admin/listing-page-management-panels.ts) — group-id fallback.
+src/features/admin/listing-page-management-panels.ts:46:39  ?? → ||   # `selectedGroupIds ?? ctxData.selectedGroupIds`: selectedGroupIds is number[]|undefined — a submitted array (even []) is always truthy, so both operators return it unchanged, and undefined maps to the stored ids under both. No input distinguishes them (same class as attributes.tsx:151:61)
+
 # attributes detail page (ui/templates/admin/attributes.tsx) — option listing count fallback.
-src/ui/templates/admin/attributes.tsx:208:51  ?? → ||   # `data.listingCounts.get(option.id) ?? 0`: listingCounts is Map<number,number> built from ids.length, so a present count is always >= 1 and an absent option returns undefined — the left side is never a falsy non-null number, so `?? 0` and `|| 0` agree on every reachable input (same class as checkout-pricing.ts:85:35 and pr-queue/render.ts:93:29)
+src/ui/templates/admin/attributes.tsx:151:61  ?? → ||   # `data.listingCounts.get(option.id) ?? 0`: listingCounts is Map<number,number> built from ids.length, so a present count is always >= 1 and an absent option returns undefined — the left side is never a falsy non-null number, so `?? 0` and `|| 0` agree on every reachable input (same class as checkout-pricing.ts:85:35 and pr-queue/render.ts:93:29)
 
 # questions templates (ui/templates/admin/questions.tsx) — Map.get fallbacks whose
 # left operand can never be a falsy-but-non-null value, so `??` and `||` always agree.
-src/ui/templates/admin/questions.tsx:182:53  ?? → ||   # `listingNames.get(q.id) ?? []`: listingNames is Map<number,string[]>, so get() returns a string[] (always truthy, even []) or undefined — never a falsy-non-null value. A present array (incl. []) is returned unchanged by both operators, and undefined maps to [] under both, so the rendered count/title is identical on every input (same class as attributes.tsx:208:51)
-src/ui/templates/admin/questions.tsx:296:45  ?? → ||   # `answerCounts?.get(a.id) ?? 0`: answerCounts is Map<number,number>|undefined, so the left side is a number or undefined. The only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0; undefined maps to 0 under both — no input distinguishes them (same class as attributes.tsx:208:51 and checkout-pricing.ts:85:35)
+src/ui/templates/admin/questions.tsx:177:47  ?? → ||   # `listingNames.get(q.id) ?? []`: listingNames is Map<number,string[]>, so get() returns a string[] (always truthy, even []) or undefined — never a falsy-non-null value. A present array (incl. []) is returned unchanged by both operators, and undefined maps to [] under both, so the rendered count/title is identical on every input (same class as attributes.tsx:151:61)
+src/ui/templates/admin/questions.tsx:256:50  ?? → ||   # `answerCounts?.get(a.id) ?? 0`: answerCounts is Map<number,number>|undefined, so the left side is a number or undefined. The only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0; undefined maps to 0 under both — no input distinguishes them (same class as attributes.tsx:151:61 and checkout-pricing.ts:85:35)
 # cache-registry table sets: invalidatorsByTable.get() is Set|undefined, and a
 # Set object is always truthy, so `?? new Set()` and `|| new Set()` agree.
 src/shared/cache-registry.ts:126:47  ?? → ||   # get(): Set|undefined — a Set is always truthy
