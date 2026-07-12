@@ -6,7 +6,7 @@
  * keeps that fetch-then-null-guard in one place.
  */
 
-import { getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
 /** Load the listing with the given id and build a value from it, or null when

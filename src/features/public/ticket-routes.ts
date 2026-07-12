@@ -10,7 +10,7 @@ import {
   computeGroupSlugIndex,
   getGroupBySlugIndex,
 } from "#shared/db/groups.ts";
-import { getListingWithCountBySlug } from "#shared/db/listings.ts";
+import { getListingWithCountBySlug } from "#shared/db/listings/records.ts";
 import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { successPage } from "#templates/payment.tsx";

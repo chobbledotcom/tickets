@@ -17,7 +17,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { deleteListing } from "#shared/db/listings.ts";
+import { deleteListing } from "#shared/db/listings/delete.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {

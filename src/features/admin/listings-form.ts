@@ -20,12 +20,12 @@ import {
   syncListingPrices,
   writeListingDayCounts,
 } from "#shared/db/listing-prices.ts";
+import type { ListingAggregateValues } from "#shared/db/listings/aggregates.ts";
+import { listingsTable } from "#shared/db/listings/records.ts";
 import {
   computeSlugIndex,
-  type ListingAggregateValues,
   type ListingInput,
-  listingsTable,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/table.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import type { FormParams } from "#shared/form-data.ts";

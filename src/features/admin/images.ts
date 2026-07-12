@@ -25,7 +25,7 @@ import {
   imagesTable,
   setItemsForImage,
 } from "#shared/db/images.ts";
-import { getAllListingOptions } from "#shared/db/listings.ts";
+import { getAllListingOptions } from "#shared/db/listings/records.ts";
 import { getNewsPostNames } from "#shared/db/news-posts.ts";
 import { sitePages } from "#shared/db/site-pages.ts";
 import type { FormParams } from "#shared/form-data.ts";

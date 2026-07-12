@@ -14,7 +14,10 @@ import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getListingWithCount, listingsTable } from "#shared/db/listings.ts";
+import {
+  getListingWithCount,
+  listingsTable,
+} from "#shared/db/listings/records.ts";
 import {
   deactivationOrphanedAddOnError,
   deleteOrphanedAddOnError,

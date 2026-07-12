@@ -134,7 +134,8 @@ describeWithEnv(
         expectStatus(200)(response);
         const html = await response.text();
         expect(html).toContain("Truly-Free Member");
-        expect(html).not.toContain("Total Revenue");
+        expect(html).not.toContain("Money in and out");
+        expect(html).not.toContain("Total income earned");
       });
 
       const createGroupWithListing = async (
@@ -176,7 +177,8 @@ describeWithEnv(
           "Free Listing",
         );
         const html = await getGroupPageHtml(group.id);
-        expect(html).not.toContain("Total Revenue");
+        expect(html).not.toContain("Money in and out");
+        expect(html).not.toContain("Total income earned");
       });
 
       test("shows attendees from multiple listings in group", async () => {

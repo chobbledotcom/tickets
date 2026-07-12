@@ -21,10 +21,8 @@ import {
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
-import {
-  getAllListings,
-  getAttendeesByListingIds,
-} from "#shared/db/listings.ts";
+import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
+import { getAllListings } from "#shared/db/listings/records.ts";
 import {
   bookingAssignmentKey,
   getLogisticsAssignmentsForAttendees,

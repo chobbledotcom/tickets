@@ -1,17 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { revenueAccount } from "#shared/accounting/accounts.ts";
+import { listingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
 import {
   MANUAL_LISTING_COST,
   MANUAL_LISTING_INCOME,
 } from "#shared/accounting/manual-entries.ts";
 import { accountBalance } from "#shared/accounting/queries.ts";
+import { emptyRange } from "#shared/accounting/range.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
-import { queryOne } from "#shared/db/client.ts";
-import {
-  listingIncomeSubquery,
-  listingRevenueBreakdown,
-} from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { account } from "#shared/ledger/account.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -23,29 +21,19 @@ import {
 } from "#test-utils/ledger.ts";
 
 describeWithEnv("db > listings", { db: true, triggers: true }, () => {
-  describe("listingRevenueBreakdown", () => {
-    /** Read the listing's income exactly as the page projects it — the
-     * `creditsLessWriteoffDebits` subquery behind `listingIncomeSubquery` — so the
-     * reconciliation invariant is asserted against the SAME projection, not a
-     * re-derivation. */
+  describe("listingMoneyTotals for one listing", () => {
+    /** Read the listing's income through the public listing projection. */
     const projectedIncome = async (listingId: number): Promise<number> => {
-      // listingIncomeSubquery interpolates its id expression four times (the
-      // credited/written-off predicates each appear in the CASE and the WHERE).
-      // Ledger ids are TEXT, so the id is bound as a string (a numeric bind casts
-      // to "1.0" and matches nothing); the outer `id = ?` still matches by the
-      // listings column's INTEGER affinity.
-      const row = (await queryOne<{ income: number | bigint }>(
-        `SELECT ${listingIncomeSubquery("?")} FROM listings WHERE id = ?`,
-        Array(5).fill(String(listingId)),
-      ))!;
-      return Number(row.income);
+      const listing = await getListingWithCount(listingId);
+      if (!listing) throw new Error(`Listing ${listingId} was not found`);
+      return listing.income;
     };
 
     /** Assert a breakdown's recognised income and net balance agree with the
      * production projections they're supposed to mirror — the invariant every
      * scenario in this suite reconciles against. */
     const expectReconciles = async (
-      breakdown: Awaited<ReturnType<typeof listingRevenueBreakdown>>,
+      breakdown: Awaited<ReturnType<typeof listingMoneyTotals>>,
       listingId: number,
     ): Promise<void> => {
       expect(breakdown.recognisedIncome).toBe(await projectedIncome(listingId));
@@ -87,7 +75,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         listingId: listing.id,
       });
 
-      const breakdown = await listingRevenueBreakdown(listing.id);
+      const breakdown = await listingMoneyTotals(emptyRange, [listing.id]);
       // The refund also posts its own net-zero sale leg first, so gross is 10000.
       expect(breakdown.grossSales).toBe(10000);
       expect(breakdown.externalIncome).toBe(0);
@@ -132,7 +120,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         listing.id,
       ]);
 
-      const breakdown = await listingRevenueBreakdown(listing.id);
+      const breakdown = await listingMoneyTotals(emptyRange, [listing.id]);
       expect(breakdown.grossSales).toBe(4000);
       expect(breakdown.manualAdjustments).toBe(1500);
       expect(breakdown.recognisedIncome).toBe(5500);
@@ -167,7 +155,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         },
       ]);
 
-      const breakdown = await listingRevenueBreakdown(listing.id);
+      const breakdown = await listingMoneyTotals(emptyRange, [listing.id]);
       expect(breakdown.grossSales).toBe(0);
       expect(breakdown.externalIncome).toBe(600);
       expect(breakdown.manualAdjustments).toBe(0);
@@ -180,7 +168,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
     test("is all-zero for a listing with no ledger activity", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
-      const breakdown = await listingRevenueBreakdown(listing.id);
+      const breakdown = await listingMoneyTotals(emptyRange, [listing.id]);
       expect(breakdown).toEqual({
         externalCosts: 0,
         externalIncome: 0,
@@ -189,6 +177,8 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         netBalance: 0,
         recognisedIncome: 0,
         refunds: 0,
+        servicingCosts: 0,
+        transferCount: 0,
       });
       await expectReconciles(breakdown, listing.id);
     });
@@ -213,14 +203,20 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       await sale("late-sale", 4000, "2026-06-22T12:00:00.000Z");
 
       // Unbounded: both sales count.
-      expect((await listingRevenueBreakdown(listing.id)).grossSales).toBe(5000);
+      expect(
+        (await listingMoneyTotals(emptyRange, [listing.id])).grossSales,
+      ).toBe(5000);
       // Windowed to [21st, 23rd): only the 22nd sale.
-      const windowed = await listingRevenueBreakdown(listing.id, {
-        endMs: new Date("2026-06-23T00:00:00.000Z").getTime(),
-        startMs: new Date("2026-06-21T00:00:00.000Z").getTime(),
-      });
+      const windowed = await listingMoneyTotals(
+        {
+          endMs: new Date("2026-06-23T00:00:00.000Z").getTime(),
+          startMs: new Date("2026-06-21T00:00:00.000Z").getTime(),
+        },
+        [listing.id],
+      );
       expect(windowed.grossSales).toBe(4000);
       expect(windowed.recognisedIncome).toBe(4000);
+      expect(windowed.transferCount).toBe(1);
     });
   });
 });

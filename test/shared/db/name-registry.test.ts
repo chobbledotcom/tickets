@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { computeSlugIndex, listingsTable } from "#shared/db/listings.ts";
+import { listingsTable } from "#shared/db/listings/records.ts";
+import { computeSlugIndex } from "#shared/db/listings/table.ts";
 import {
   isNameTakenAnywhere,
   loadCatalogNameIndex,

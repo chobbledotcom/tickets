@@ -11,7 +11,7 @@ import {
   startAgentField,
   startTimeField,
 } from "#routes/admin/attendee-logistics.ts";
-import { listingsTable } from "#shared/db/listings.ts";
+import { listingsTable } from "#shared/db/listings/records.ts";
 import { getLogisticsAssignments } from "#shared/db/logistics.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";

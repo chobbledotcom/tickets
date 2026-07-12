@@ -6,9 +6,9 @@ import { handleRequest } from "#routes";
 import { getGroupIdsByListingId } from "#shared/db/groups.ts";
 import {
   getAllListings,
-  getListing,
+  getListingWithCount,
   listingsTable,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
@@ -99,7 +99,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
       await expectFlashRedirect("/admin", "Listing created")(response);
 
       // Verify listing was actually created
-      const listing = await getListing(1);
+      const listing = await getListingWithCount(1);
       expect(listing).not.toBeNull();
       expect(listing?.name).toBe("New Listing");
     });
@@ -128,7 +128,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
       }
 
       // The row really was written (the stub only affected the replica read path).
-      const listing = await getListing(1);
+      const listing = await getListingWithCount(1);
       expect(listing?.name).toBe("Lagged Listing");
     });
 
@@ -144,7 +144,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
       await expectFlashRedirect("/admin", "Listing created")(response);
 
       // Verify webhook_url was cleared
-      const listing = await getListing(1);
+      const listing = await getListingWithCount(1);
       expect(listing).not.toBeNull();
       expect(listing?.webhook_url).toBe("");
     });
@@ -163,7 +163,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
       });
       await expectFlashRedirect("/admin", "Listing created")(response);
 
-      const listing = await getListing(1);
+      const listing = await getListingWithCount(1);
       expect(await getGroupIdsByListingId(listing!.id)).toContain(group.id);
     });
 

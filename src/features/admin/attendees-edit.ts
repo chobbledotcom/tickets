@@ -23,7 +23,7 @@ import {
   LISTING_ATTENDEE_ROW_COLS,
 } from "#shared/db/attendees/queries.ts";
 import { queryAll } from "#shared/db/client.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
   getRefundPaymentReferences,
   markPaymentReferencesProviderRefunded,

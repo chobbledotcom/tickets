@@ -5,11 +5,21 @@
  * lean on live here so no two files carry their own copy.
  */
 import { expect } from "@std/expect";
+import { KIND } from "#shared/accounting/kinds.ts";
 import { allTransfers } from "#shared/accounting/queries.ts";
+import {
+  getListingWithCount,
+  invalidateListingsCache,
+} from "#shared/db/listings/records.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { expectFlashError } from "#test-utils/assertions.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
-import { recordServiceCost } from "#test-utils/servicing.ts";
+import { postListingSale } from "#test-utils/ledger.ts";
+import {
+  createServicingHold,
+  editServiceCost,
+  recordServiceCost,
+} from "#test-utils/servicing.ts";
 
 /** The default service date every cost-recording fixture stamps its leg with. */
 export const SERVICE_DATE = "2026-07-01T00:00:00.000Z";
@@ -21,9 +31,6 @@ export const transfersOfKind = async (kind: string): Promise<Transfer[]> =>
 /** The listing row's profit, reading through a fresh listings cache so a
  *  just-recorded cost is reflected. */
 export const listingProfitOf = async (listingId: number): Promise<number> => {
-  const { getListingWithCount, invalidateListingsCache } = await import(
-    "#shared/db/listings.ts"
-  );
   invalidateListingsCache();
   return (await getListingWithCount(listingId))!.profit;
 };
@@ -41,6 +48,17 @@ export const recordBoilerCost = (
     servicingId,
   });
 
+export const editBoilerCostTo = async (...amounts: number[]) => {
+  const fixture = await createServicingHold();
+  const costId = await recordBoilerCost(fixture.id, fixture.listing.id);
+  const beforeRows = (await transfersOfKind(KIND.serviceCost)).length;
+  for (const amount of amounts) {
+    await editServiceCost(costId, { amount });
+  }
+  const afterRows = (await transfersOfKind(KIND.serviceCost)).length;
+  return { ...fixture, afterRows, beforeRows, costId };
+};
+
 /** Post a £200 customer sale against `listingId` (the income side of a profit
  *  assertion, so cost/profit can be checked against real revenue). */
 export const postCustomerSale = async (listingId: number): Promise<void> => {
@@ -49,7 +67,6 @@ export const postCustomerSale = async (listingId: number): Promise<void> => {
     "Customer",
     "c@example.com",
   );
-  const { postListingSale } = await import("#test-utils/ledger.ts");
   await postListingSale({ attendeeId: attendee.id, gross: 20000, listingId });
 };
 

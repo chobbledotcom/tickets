@@ -29,7 +29,7 @@ import {
   attendeeColumns,
 } from "#shared/db/attendees/select.ts";
 import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
-import { getAllListings } from "#shared/db/listings.ts";
+import { getAllListings } from "#shared/db/listings/records.ts";
 import { nowMs } from "#shared/now.ts";
 import type { Attendee, Listing, ListingWithCount } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";

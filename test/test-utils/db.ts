@@ -5,7 +5,7 @@ import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getDb, queryOne, setDb } from "#shared/db/client.ts";
 import { groups } from "#shared/db/groups.ts";
 import { holidays } from "#shared/db/holidays.ts";
-import { invalidateListingsCache } from "#shared/db/listings.ts";
+import { invalidateListingsCache } from "#shared/db/listings/records.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { resetSessionCache } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";

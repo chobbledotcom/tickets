@@ -1,5 +1,5 @@
 import { toMajorUnits } from "#shared/currency.ts";
-import type { ListingInput } from "#shared/db/listings.ts";
+import type { ListingInput } from "#shared/db/listings/table.ts";
 import type { DayPrices, ListingWithCount } from "#shared/types.ts";
 
 const bool = (v: unknown): string => (v ? "1" : "");

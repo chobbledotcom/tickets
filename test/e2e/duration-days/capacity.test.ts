@@ -6,7 +6,7 @@ import {
   hasAvailableSpots,
 } from "#shared/db/attendees/api.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getListing, getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { buildTemplateData } from "#shared/email-renderer.ts";
 import { describeWithEnv, rawListingRange } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -194,7 +194,7 @@ describeWithEnv(
         expect(await hasAvailableSpots(listing.id, 1, "2026-08-13")).toBe(true);
 
         // Verify the listing metadata also changed.
-        const fresh = await getListing(listing.id);
+        const fresh = await getListingWithCount(listing.id);
         expect(fresh?.duration_days).toBe(3);
       });
 

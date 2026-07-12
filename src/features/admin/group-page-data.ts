@@ -23,7 +23,7 @@ import {
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
-import { getAttendeesByListingIds } from "#shared/db/listings.ts";
+import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
 import { loadAttendeeQuestionData } from "#shared/db/questions/attendee-answers/reads.ts";
 import { settings } from "#shared/db/settings.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -33,12 +33,12 @@ import {
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
+import { GroupAttendeesPanel } from "#templates/admin/groups/attendees.tsx";
 import {
-  GroupAttendeesPanel,
   GroupEditPanel,
-  GroupOverviewPanel,
   type PackageMemberValues,
-} from "#templates/admin/groups.tsx";
+} from "#templates/admin/groups/form.tsx";
+import { GroupOverviewPanel } from "#templates/admin/groups/overview.tsx";
 import { loadItemImagesPanel } from "./item-images.ts";
 
 /** The group entity page's loaded row is just the stored group; every tab's

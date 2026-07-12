@@ -4,7 +4,7 @@ import { formatCurrency } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { groups } from "#shared/db/groups.ts";
-import { listingsTable } from "#shared/db/listings.ts";
+import { listingsTable } from "#shared/db/listings/records.ts";
 import { clearTokenAttempts } from "#shared/db/token-attempts.ts";
 import { MAX_TOKEN_404S } from "#shared/limits.ts";
 import { expectHtml, expectHtmlResponse } from "#test-utils/assertions.ts";

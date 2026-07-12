@@ -192,7 +192,7 @@ type LedgerTotalsRow = {
  * - `income` — recognised revenue: `sale` and owner-entered external-income
  *   credits to any `revenue` account, plus write-up `adjustment`s from
  *   `writeoff`, minus write-down `adjustment`s to `writeoff` (matching the
- *   per-listing {@link listingRevenueBreakdown}).
+ *   per-listing `listingMoneyTotals`).
  * - `due` — net receivable: a leg *out of* an attendee (a sale/fee they owe) adds,
  *   a leg *into* an attendee (a payment) subtracts. Over "forever" this is exactly
  *   the current total outstanding.

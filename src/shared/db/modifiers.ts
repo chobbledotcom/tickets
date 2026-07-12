@@ -7,9 +7,11 @@
  * the table directly without a cache.
  */
 
+/* jscpd:ignore-start */
 import { inOwnTx, ledgerTx } from "#shared/accounting/ledger-tx.ts";
 import { accountBalanceSubquery } from "#shared/accounting/projection-sql.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   executeBatch,
   executeUpdate,
@@ -27,7 +29,7 @@ import {
   encryptedNameSchema,
 } from "#shared/db/common-schema.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
-import { columnMapByIds, queryAndMap } from "#shared/db/query.ts";
+import { columnMapByIds, nameMapByIds, queryAndMap } from "#shared/db/query.ts";
 import { col } from "#shared/db/table.ts";
 import type {
   CalcKind,
@@ -36,6 +38,7 @@ import type {
   ModifierTrigger,
 } from "#shared/price-modifier.ts";
 import type { Modifier } from "#shared/types.ts";
+/* jscpd:ignore-end */
 
 /** The stored modifier row. `total_revenue` is NOT a column — it is projected
  * from the transfers ledger at read time (see {@link modifierRevenueSubquery})
@@ -125,6 +128,14 @@ const modifierSelect = (where = ""): string =>
 /** Get all modifiers, decrypted, ordered by id. */
 export const getAllModifiers = (): Promise<Modifier[]> =>
   queryModifiers(`${modifierSelect()} ORDER BY id ASC`);
+
+/** Read and decrypt names only for the requested modifier ids. */
+export const getModifierNamesByIds = (
+  ids: number[],
+): Promise<Map<number, string>> =>
+  nameMapByIds("modifiers", "modifier", "name", ids, (raw: EnvKeyEncrypted) =>
+    decrypt(raw),
+  );
 
 /** Get the active modifiers, decrypted, ordered by id. */
 export const getActiveModifiers = (): Promise<Modifier[]> =>

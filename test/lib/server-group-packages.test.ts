@@ -903,8 +903,10 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
 
     // The member listing survives, un-grouped, and the sold ticket renders as
     // the member's own card now that the package no longer resolves.
-    const { getListing } = await import("#shared/db/listings.ts");
-    expect(await getListing(memberListing.id)).not.toBeNull();
+    const { getListingWithCount } = await import(
+      "#shared/db/listings/records.ts"
+    );
+    expect(await getListingWithCount(memberListing.id)).not.toBeNull();
     const body = await (await handleRequest(mockRequest(`/t/${token}`))).text();
     expect(body).toContain("Sold Kit Member");
   });
@@ -985,7 +987,9 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       },
     );
     expect(await groups.table.findById(group.id)).toBeNull();
-    const { getListing } = await import("#shared/db/listings.ts");
-    expect(await getListing(memberListing.id)).not.toBeNull();
+    const { getListingWithCount } = await import(
+      "#shared/db/listings/records.ts"
+    );
+    expect(await getListingWithCount(memberListing.id)).not.toBeNull();
   });
 });

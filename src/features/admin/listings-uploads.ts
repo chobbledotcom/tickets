@@ -15,9 +15,9 @@ import { entityReturnPath } from "#shared/admin-pages.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   getListingWithCount,
-  type ListingInput,
   listingsTable,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/records.ts";
+import type { ListingInput } from "#shared/db/listings/table.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,

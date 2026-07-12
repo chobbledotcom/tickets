@@ -97,7 +97,7 @@ const packageChildSession = (
 
 /** Cap the two add-ons at 2 and 1 units — a 3-bundle child-side ceiling. */
 const capAddonsAtThree = async (childId: number, childBId: number) => {
-  const { listingsTable } = await import("#shared/db/listings.ts");
+  const { listingsTable } = await import("#shared/db/listings/records.ts");
   await listingsTable.update(childId, { maxAttendees: 2, maxQuantity: 2 });
   await listingsTable.update(childBId, { maxAttendees: 1, maxQuantity: 1 });
 };
@@ -200,7 +200,7 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
       "Gone Addons",
       "gone-addons-pkg",
     );
-    const { listingsTable } = await import("#shared/db/listings.ts");
+    const { listingsTable } = await import("#shared/db/listings/records.ts");
     const { createAttendeeAtomic } = await import(
       "#shared/db/attendees/api.ts"
     );

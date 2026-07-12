@@ -9,7 +9,7 @@
  *                            `listings.day_prices` column was migrated in and
  *                            dropped); written from input by the listing write
  *                            paths and read back via a `json_group_object`
- *                            projection in `db/listings.ts`.
+ *                            projection in `db/listings/sql.ts`.
  *  - `("group", "<groupId>")` — a package group's flat per-member price override:
  *    the per-unit price this member charges inside that package, whatever the
  *    span. These rows are the SOURCE of truth (the legacy

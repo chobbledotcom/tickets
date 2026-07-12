@@ -1,11 +1,6 @@
-/**
- * Form model for admin servicing events.
- *
- * Servicing uses the attendee booking grid parser, then narrows the saved shape
- * to name + booked listing lines. Contact, status, balance, and ticket-facing
- * fields are deliberately absent from the returned create/update input.
- */
+/** Form model for admin servicing events. */
 
+import { t } from "#i18n";
 import {
   DAY_COUNT_FIELD,
   isBookedLine,
@@ -40,18 +35,18 @@ const QUANTITY_ALIAS_PREFIX = "quantity_";
 export const buildServicingFieldSchema = (): Field[] => [
   {
     autocomplete: "off",
-    label: "Name",
+    label: t("servicing.field.name"),
     name: "name",
     required: true,
     type: "text",
   },
   {
-    label: "Start date",
+    label: t("servicing.field.start_date"),
     name: START_DATE_FIELD,
     type: "date",
   },
   {
-    label: "Days",
+    label: t("servicing.field.days"),
     min: 1,
     name: DAY_COUNT_FIELD,
     type: "number",
@@ -59,17 +54,9 @@ export const buildServicingFieldSchema = (): Field[] => [
 ];
 
 /**
- * The servicing form renders its per-listing quantity inputs with public-style
- * `quantity_<id>` names (not the admin attendee parser's per-line fields) on
- * purpose: the shared client guard `initTicketQuantityRequired` binds to
- * `[name^="quantity_"]` and blocks a submit with no quantity picked, so naming
- * the inputs `quantity_<id>` gives the servicing form that "pick at least one"
- * enforcement for free. This shim bridges the two schemes for the server — it
- * turns each `quantity_<id>` into one indexed editor line
- * (`line_listing_<i>` + `qty_<i>`) the shared attendee parser reads — so one
- * parser handles both forms. A servicing line is always the listing's own
- * standalone row (no package paths). Drop it only if the form is renamed to
- * emit the per-line fields directly (which loses the client guard).
+ * The browser quantity guard reads `quantity_<id>`, while the shared attendee
+ * parser reads indexed booking lines. Convert the first shape into the second
+ * so servicing and attendee forms keep one booking parser.
  */
 const withQuantityAliases = (form: FormParams): FormParams => {
   const normalized = new FormParams(form.toString());
@@ -100,7 +87,7 @@ export const normalizeServicingForSave = (
     (line) => isBookedLine(line) && line.listing?.listing_type === "daily",
   );
   if (hasDailyBooking && !isIsoDate(parsed.startDate)) {
-    throw new Error("A start date is required for the booked daily listings");
+    throw new Error(t("servicing.error.daily_start_date"));
   }
   return {
     bookings: toCreateInput(parsed).bookings.filter((b) => b.quantity! > 0),
@@ -108,7 +95,3 @@ export const normalizeServicingForSave = (
     name: parsed.name.trim(),
   };
 };
-
-export const toServicingCreateInput = (
-  parsed: ParsedAttendeeForm,
-): ServicingCreateInput => normalizeServicingForSave(parsed);

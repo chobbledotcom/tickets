@@ -27,7 +27,7 @@ import {
   getNewestAttendeesRaw,
 } from "#shared/db/attendees/queries.ts";
 import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
-import { getListingWithAttendeesRaw } from "#shared/db/listings.ts";
+import { getListingWithAttendeesRaw } from "#shared/db/listings/attendees.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";

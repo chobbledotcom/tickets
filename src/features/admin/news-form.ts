@@ -5,7 +5,7 @@
  */
 
 import { t } from "#i18n";
-import { defineForm } from "#shared/forms.tsx";
+import { defineForm } from "#shared/forms/definition.ts";
 import type { NewsPost } from "#shared/types.ts";
 import {
   contentMetaValues,

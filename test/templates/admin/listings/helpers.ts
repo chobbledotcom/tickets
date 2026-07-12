@@ -42,17 +42,16 @@ export const renderListingDetail = (
       groupContext: opts.groupContext,
       isChild: opts.isChild,
       isHiddenPackageMember: opts.isHiddenPackageMember,
-      ledger: opts.ledger,
-      ledgerHref: opts.revenueBreakdown
+      ledgerHref: opts.moneyTotals
         ? listingLedgerHref(opts.listing.id)
         : undefined,
       listing: opts.listing,
+      moneyTotals: opts.moneyTotals,
       // The Overview now takes precomputed stats + note-author names instead of
       // the raw attendee list; derive them from the fixture's attendees so these
       // tests exercise the same rendered output the SQL path produces.
       noteNames: attendeeNameMap(opts.attendees),
       questionData: opts.questionData,
-      revenueBreakdown: opts.revenueBreakdown,
       stats: overviewStatsFromAttendees(
         opts.listing,
         opts.attendees,

@@ -28,7 +28,7 @@ import {
 } from "#shared/db/attendees/overlap.ts";
 import { getAttendeeNamesByIds } from "#shared/db/attendees/queries.ts";
 import type { DayRange } from "#shared/db/capacity.ts";
-import { getListingNamesByIds } from "#shared/db/listings.ts";
+import { getListingNamesByIds } from "#shared/db/listings/records.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { AttendeeLogisticsPanel } from "#templates/admin/attendee-logistics-tab.tsx";
 

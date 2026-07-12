@@ -16,8 +16,8 @@
  *     rejected (`error.name_required`).
  *
  * Modules under test:
- *   - `#routes/admin/servicing-form-model.ts` — `buildServicingFieldSchema`,
- *     `parseServicingForm`, `toServicingCreateInput`, `normalizeServicingForSave`,
+ *   - `#routes/admin/servicing/form-model.ts` — `buildServicingFieldSchema`,
+ *     `parseServicingForm`, `normalizeServicingForSave`,
  *     `ServicingCreateInput`.
  *   - `#routes/admin/attendee-form-model.ts` — the shared `validateAttendeeBlock`.
  */
@@ -36,8 +36,7 @@ import {
   buildServicingFieldSchema,
   normalizeServicingForSave,
   parseServicingForm,
-  toServicingCreateInput,
-} from "#routes/admin/servicing-form-model.ts";
+} from "#routes/admin/servicing/form-model.ts";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms.tsx";
@@ -117,7 +116,7 @@ describe("servicing §0 — parse servicing form maps to a kind='servicing' crea
       [START_DATE_FIELD]: "2026-06-24",
     });
     const parsed = parseServicingForm(form, listingsById);
-    const input = toServicingCreateInput(parsed);
+    const input = normalizeServicingForSave(parsed);
     expect(input.kind).toBe(SERVICING_KIND);
     expect(input.name).toBe("Boiler Service");
     expect(input.bookings).toEqual([

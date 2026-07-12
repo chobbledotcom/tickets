@@ -7,7 +7,7 @@ import {
 } from "#shared/db/attendees/api.ts";
 import { checkGroupCapAfterDurationChange } from "#shared/db/attendees/update.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { describeWithEnv, rawListingRange } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

@@ -4,7 +4,7 @@ import { handleRequest } from "#routes";
 import { MAX_SEED_LISTINGS } from "#routes/admin/seeds.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
-import { getAllListings } from "#shared/db/listings.ts";
+import { getAllListings } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { createSeeds } from "#shared/seeds.ts";
 import {
@@ -241,7 +241,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       )(response);
     });
 
-    test("handles non-numeric listing count as 1", async () => {
+    test("rejects a non-numeric listing count", async () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
@@ -256,11 +256,12 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
 
       await expectFlashRedirect(
         "/admin/seeds",
-        expect.stringContaining("Created 1 listing"),
+        "Number of listings is invalid.",
+        false,
       )(response);
     });
 
-    test("handles non-numeric attendees per listing as 0", async () => {
+    test("rejects non-numeric attendees per listing", async () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
@@ -275,7 +276,8 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
 
       await expectFlashRedirect(
         "/admin/seeds",
-        expect.stringContaining("Created 1 listing"),
+        "Attendees per listing is invalid.",
+        false,
       )(response);
     });
 

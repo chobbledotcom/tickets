@@ -15,7 +15,7 @@ import { FakeTime } from "@std/testing/time";
 import { handleRequest } from "#routes";
 import { toMinorUnits } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
-import { listingsTable } from "#shared/db/listings.ts";
+import { listingsTable } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import {

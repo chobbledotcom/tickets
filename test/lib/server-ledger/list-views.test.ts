@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { LEDGER_DISPLAY_LIMIT } from "#routes/admin/ledger.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { account } from "#shared/ledger/account.ts";
@@ -28,21 +27,21 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
     const response = await adminGet("/admin/ledger?view=dual");
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("Ledger");
+    expect(html).toContain("Money history");
     // The sale leg credits the listing's revenue account, linked by its name.
     expect(html).toContain("Summer Concert");
     expect(html).toContain("/admin/ledger?listing=");
     // The attendee leg resolves to a link too (name decrypted with the key).
     expect(html).toContain("Ada Lovelace");
     expect(html).toContain("/admin/ledger/attendee/");
-    // Kinds from the mapped booking show in the Event column.
-    expect(html).toContain("sale");
+    expect(html).toContain("<td>Booking made</td>");
+    expect(html).not.toContain("<td>sale</td>");
   });
 
   test("shows the empty state when no transfers exist", async () => {
     const response = await adminGet("/admin/ledger?view=dual");
     const html = await response.text();
-    expect(html).toContain("No transfers recorded yet");
+    expect(html).toContain("No money changes yet.");
   });
 
   test("hides the external 'Card / bank' cash legs from the transfer list", async () => {
@@ -52,7 +51,7 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
     await seededSale("Gala", 2500);
     const response = await adminGet("/admin/ledger?view=dual");
     const html = await response.text();
-    expect(html).toContain("<td>sale</td>");
+    expect(html).toContain("<td>Booking made</td>");
     expect(html).not.toContain("Card / bank");
   });
 
@@ -61,7 +60,7 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
     const response = await adminGet("/admin/ledger");
     const html = await response.text();
     expect(html).toContain("<th>Activity</th>");
-    expect(html).toContain("<strong>Plain-language log</strong>");
+    expect(html).toContain("<strong>Simple view</strong>");
     expect(html).toContain("booked");
     expect(html).toContain("Gala");
     expect(html).not.toContain("<th>Event</th>");
@@ -85,9 +84,10 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
     expect(html).toContain(`/admin/ledger/modifier/${modifier.id}`);
   });
 
-  /** The `kind` every bulk leg carries; each rendered transfer row prints it in
-   * its own Event cell, so counting the cell counts the rendered rows. */
+  /** The event label every bulk leg renders, used to count visible rows. */
   const BULK_KIND = "sale";
+  const BULK_EVENT_LABEL = "Booking made";
+  const EXPECTED_DISPLAY_CAP = 500;
 
   /** Post exactly `count` distinct ledger legs (each a unique reference), then
    * GET the historical ledger page. Self-contained — uses fixed account ids so
@@ -110,25 +110,24 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
     return response.text();
   };
 
-  /** Count rendered transfer rows by their Event cell — unique to a LedgerRow,
-   * so unaffected by the page's nav, heading, and column labels. */
+  /** Count rendered rows by their event cell. */
   const renderedRowCount = (html: string): number =>
-    html.split(`<td>${BULK_KIND}</td>`).length - 1;
+    html.split(`<td>${BULK_EVENT_LABEL}</td>`).length - 1;
 
   test("renders at most the display cap and surfaces the 'showing recent' note past it", async () => {
     // One more leg than the cap: the SQL LIMIT (cap + 1) returns the extra row,
     // so truncation is detected — the note shows and only the cap is rendered,
     // never the whole ledger.
-    const html = await postBulkLegsAndGet(LEDGER_DISPLAY_LIMIT + 1);
-    expect(html).toContain("Showing the most recent 500 transfers");
-    expect(renderedRowCount(html)).toBe(LEDGER_DISPLAY_LIMIT);
+    const html = await postBulkLegsAndGet(EXPECTED_DISPLAY_CAP + 1);
+    expect(html).toContain("Showing the 500 most recent money changes.");
+    expect(renderedRowCount(html)).toBe(EXPECTED_DISPLAY_CAP);
   });
 
   test("renders every row and omits the note when exactly the display cap exist", async () => {
     // Exactly the cap: the LIMIT (cap + 1) returns no extra row, so no
     // truncation note, and all cap rows render.
-    const html = await postBulkLegsAndGet(LEDGER_DISPLAY_LIMIT);
-    expect(html).not.toContain("Showing the most recent");
-    expect(renderedRowCount(html)).toBe(LEDGER_DISPLAY_LIMIT);
+    const html = await postBulkLegsAndGet(EXPECTED_DISPLAY_CAP);
+    expect(html).not.toContain("Showing the 500 most recent money changes.");
+    expect(renderedRowCount(html)).toBe(EXPECTED_DISPLAY_CAP);
   });
 });

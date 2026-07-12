@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
-import { account } from "#shared/ledger/account.ts";
 import { nearCapacity } from "#templates/admin/listings/aggregates.tsx";
 import { completePaymentAttendees } from "#templates/admin/listings/attendees.tsx";
 import { overviewStatsFromDbStats } from "#templates/admin/listings/overview.tsx";
@@ -13,7 +12,7 @@ import {
   renderListingDetail,
 } from "./helpers.ts";
 
-describe("adminListingPage income & ledger breakdown", () => {
+describe("adminListingPage money breakdown", () => {
   registerListingTemplateHooks();
 
   const listing = testListingWithCount({ id: 7 });
@@ -24,7 +23,8 @@ describe("adminListingPage income & ledger breakdown", () => {
       attendees: [],
       listing,
     });
-    expect(html).not.toContain("Income &amp; ledger");
+    expect(html).not.toContain("Money in and out");
+    expect(html).not.toContain('href="/admin/ledger?listing=7"');
   });
 
   test("shows money in, money out, and the net result with consistent signs", () => {
@@ -32,7 +32,7 @@ describe("adminListingPage income & ledger breakdown", () => {
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      revenueBreakdown: {
+      moneyTotals: {
         externalCosts: 0,
         externalIncome: 0,
         grossSales: 10000,
@@ -40,13 +40,15 @@ describe("adminListingPage income & ledger breakdown", () => {
         netBalance: 7000,
         recognisedIncome: 9000,
         refunds: 2000,
+        servicingCosts: 0,
+        transferCount: 3,
       },
     });
     expect(html).toContain("Money in and out");
     // Gross sales credited (+), manual write-down (−), then the two subtotals.
     expect(html).toContain("Gross ticket sales");
     expect(html).toContain("+£100");
-    expect(html).toContain("Manual adjustments");
+    expect(html).toContain("Income corrections");
     expect(html).toContain("−£10");
     expect(html).toContain("Total income earned");
     expect(html).toContain("£90");
@@ -58,8 +60,8 @@ describe("adminListingPage income & ledger breakdown", () => {
     // ledger, preselected to this listing (no arrow glyph, button-styled).
     expect(html).toContain("Income is what this listing earned before refunds");
     expect(html).toContain('href="/admin/ledger?listing=7"');
-    expect(html).toContain("View full ledger");
-    expect(html).not.toContain("View full ledger →");
+    expect(html).toContain("View full money history");
+    expect(html).not.toContain("View full money history →");
   });
 
   test("makes a refund-driven divergence between income and net balance visible", () => {
@@ -69,7 +71,7 @@ describe("adminListingPage income & ledger breakdown", () => {
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      revenueBreakdown: {
+      moneyTotals: {
         externalCosts: 0,
         externalIncome: 0,
         grossSales: 9000,
@@ -77,6 +79,8 @@ describe("adminListingPage income & ledger breakdown", () => {
         netBalance: 7000,
         recognisedIncome: 9000,
         refunds: 2000,
+        servicingCosts: 0,
+        transferCount: 2,
       },
     });
     const recognisedIdx = html.indexOf("Total income earned");
@@ -95,7 +99,7 @@ describe("adminListingPage income & ledger breakdown", () => {
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      revenueBreakdown: {
+      moneyTotals: {
         externalCosts: 0,
         externalIncome: 0,
         grossSales: 5000,
@@ -103,10 +107,12 @@ describe("adminListingPage income & ledger breakdown", () => {
         netBalance: 5000,
         recognisedIncome: 5000,
         refunds: 0,
+        servicingCosts: 0,
+        transferCount: 1,
       },
     });
     expect(html).toContain("Money in and out");
-    expect(html).not.toContain("Manual adjustments");
+    expect(html).not.toContain("Income corrections");
     // With no refunds either, recognised income and net balance coincide at £50.
     expect(html).toContain("Total income earned");
     expect(html).toContain("Net after refunds and costs");
@@ -118,7 +124,7 @@ describe("adminListingPage income & ledger breakdown", () => {
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      revenueBreakdown: {
+      moneyTotals: {
         externalCosts: 0,
         externalIncome: 0,
         grossSales: 4000,
@@ -126,9 +132,11 @@ describe("adminListingPage income & ledger breakdown", () => {
         netBalance: 5500,
         recognisedIncome: 5500,
         refunds: 0,
+        servicingCosts: 0,
+        transferCount: 2,
       },
     });
-    expect(html).toContain("Manual adjustments");
+    expect(html).toContain("Income corrections");
     expect(html).toContain("+£15");
   });
 
@@ -137,7 +145,7 @@ describe("adminListingPage income & ledger breakdown", () => {
       allowedDomain: "localhost",
       attendees: [],
       listing,
-      revenueBreakdown: {
+      moneyTotals: {
         externalCosts: 300,
         externalIncome: 1200,
         grossSales: 4000,
@@ -145,34 +153,14 @@ describe("adminListingPage income & ledger breakdown", () => {
         netBalance: 4900,
         recognisedIncome: 5200,
         refunds: 0,
+        servicingCosts: 0,
+        transferCount: 3,
       },
     });
     expect(html).toContain("Income received outside checkout");
     expect(html).toContain("+£12");
     expect(html).toContain("Costs paid outside checkout");
     expect(html).toContain("−£3");
-  });
-
-  test("shows a listing ledger add-entry action when the account exists", () => {
-    const html = renderListingDetail({
-      allowedDomain: "localhost",
-      attendees: [],
-      ledger: {
-        account: account("revenue", 7),
-        lines: [],
-        names: {
-          attendees: new Map(),
-          listings: new Map([[7, listing.name]]),
-          modifiers: new Map(),
-        },
-      },
-      listing,
-    });
-    expect(html).toContain('<div class="page-block" id="ledger">');
-    expect(html).toContain("Add entry");
-    expect(html).toContain(
-      'href="/admin/ledger/revenue/7/add?return_url=%2Fadmin%2Flisting%2F7"',
-    );
   });
 });
 

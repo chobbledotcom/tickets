@@ -10,8 +10,8 @@
   "groups.package_prices.no_listings": "Add listings to this group to set their package prices.",
   "groups.delete.heading": "Delete Group",
   "groups.delete.confirm": "Are you sure you want to delete the group {name} ({slug})?",
-  "groups.delete.listings_note": "Listings in this group will not be deleted — they will be moved out of the group.",
-  "groups.delete.confirm_prompt": "Type the group name to confirm:",
+  "groups.delete.listings_note": "Listings in this group will not be deleted. They will be moved out of the group.",
+  "groups.delete.confirm_prompt": "Type the group name \"{name}\" to confirm.",
   "groups.delete.confirm_label": "Group Name",
   "groups.delete.submit": "Delete Group",
   "groups.detail.terms_label": "Terms and Conditions:",
@@ -21,6 +21,8 @@
   "groups.detail.group_details": "Group Details",
   "groups.detail.col.listing_name": "Listing Name",
   "groups.detail.no_listings": "No listings in this group",
+  "groups.detail.no_group_cap": "no group cap",
+  "groups.detail.attendees_scope": "across all listings in the group",
   "groups.detail.share_unavailable": "This package isn't currently bookable (an incomplete bundle or a sold-out member), so its public page 404s — no link, embed, or QR code until it can be booked.",
   "groups.detail.add_listings_submit": "Add Selected Listings",
   "groups.fields.name": "Group Name",
@@ -38,10 +40,10 @@
   "groups.running_totals_error_title": "Group listing totals do not match attendee rows.",
   "groups.money.heading": "Money in and out",
   "groups.money.income": "Total income earned",
-  "groups.money.costs": "Servicing costs",
+  "groups.money.costs": "Service event costs",
   "groups.money.refunds": "Refunds",
   "groups.money.external_costs": "Costs paid outside checkout",
   "groups.money.net": "Net after refunds and costs",
-  "groups.money.note": "These totals combine the group's current listings. Open the ledger to see every item behind them.",
-  "groups.money.view_ledger": "View group ledger"
+  "groups.money.note": "These totals combine the group's current listings. View every change in the group's money history.",
+  "groups.money.view_ledger": "View group money history"
 }

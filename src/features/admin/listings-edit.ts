@@ -34,12 +34,14 @@ import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
   adjustListingIncome,
   getListingAggregateRecalculation,
-  getListingWithCount,
-  getStoredListingWithCount,
   type ListingAggregateRecalculation,
   type ListingAggregateValues,
   updateListingAggregateValues,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/aggregates.ts";
+import {
+  getListingWithCount,
+  getStoredListingWithCount,
+} from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   applyDemoOverrides,

@@ -19,7 +19,7 @@
  */
 
 import { groups } from "#shared/db/groups.ts";
-import { getAllListings } from "#shared/db/listings.ts";
+import { getAllListings } from "#shared/db/listings/records.ts";
 import type { SitePageItemType } from "#shared/types.ts";
 
 /** The two entity kinds that share the catalog name namespace. Derived from

@@ -71,7 +71,7 @@ const duplicateListingResponse = async (
       cookie,
     ),
   );
-  const { getAllListings } = await import("#shared/db/listings.ts");
+  const { getAllListings } = await import("#shared/db/listings/records.ts");
   const copy = (await getAllListings()).find((l) => l.name === name)!;
   return { copy, response };
 };

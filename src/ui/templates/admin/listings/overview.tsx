@@ -18,10 +18,7 @@ import { attendeeStatsForListing } from "./attendees.tsx";
 import { listingCapacityRowsFor } from "./capacity-rows.tsx";
 import { ListingDetailsTable } from "./details.tsx";
 import { attendeeCountLabelSuffix, listingLinksFor } from "./helpers.ts";
-import {
-  ListingIncomeLedgerSection,
-  ListingLedgerSection,
-} from "./ledger-section.tsx";
+import { ListingIncomeLedgerSection } from "./ledger-section.tsx";
 import type { ListingOverviewPanelOptions, OverviewStats } from "./types.ts";
 
 export type { ListingOverviewPanelOptions, OverviewStats } from "./types.ts";
@@ -87,8 +84,7 @@ export const ListingOverviewPanel = (
     aggregateRecalculation,
     questionData,
     groupContext,
-    revenueBreakdown,
-    ledger,
+    moneyTotals,
     ledgerHref,
     isChild = false,
     isHiddenPackageMember = false,
@@ -127,15 +123,12 @@ export const ListingOverviewPanel = (
         sharedRowsHtml={renderDetailRows(sharedRows)}
         ticketUrl={links.ticketUrl}
       />
-      {revenueBreakdown && (
+      {moneyTotals && (
         <ListingIncomeLedgerSection
-          breakdown={revenueBreakdown}
+          breakdown={moneyTotals}
           ledgerHref={ledgerHref}
           listing={listing}
         />
-      )}
-      {ledger && (
-        <ListingLedgerSection ledger={ledger} listingId={listing.id} />
       )}
       <AttendeeNotesSummary names={noteNames} notes={systemNotes} />
     </PageRegions>

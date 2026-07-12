@@ -25,7 +25,12 @@ import {
 import { type AuthSession, requireContentOr } from "#routes/auth.ts";
 /* jscpd:ignore-end */
 import { isStorageEnabled } from "#shared/storage.ts";
-import { type Group, isContentRole, isStaffRole } from "#shared/types.ts";
+import {
+  type Group,
+  isContentRole,
+  isOwnerRole,
+  isStaffRole,
+} from "#shared/types.ts";
 import {
   loadGroupAttendeesPanel,
   loadGroupEditPanel,
@@ -120,7 +125,7 @@ export const groupPage: EntityPage<Group> = defineEntityPage({
       "",
       "entity.tab.overview",
       (group, ctx) =>
-        loadGroupOverviewPanel(group, ctx.session.adminLevel === "owner"),
+        loadGroupOverviewPanel(group, isOwnerRole(ctx.session.adminLevel)),
       staffOnly,
     ),
     panelTab(

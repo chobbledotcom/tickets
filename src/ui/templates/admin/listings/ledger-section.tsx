@@ -1,11 +1,7 @@
 import { compact } from "#fp";
 import { t } from "#i18n";
-import type { ListingRevenueBreakdown } from "#shared/db/listings.ts";
+import type { ListingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import {
-  type AccountLedgerData,
-  EmbeddedAccountStatementSection,
-} from "#templates/admin/ledger/statement.tsx";
 import {
   MoneySummary,
   type MoneySummaryRow,
@@ -18,7 +14,7 @@ const whenNonZero = (
 ): MoneySummaryRow | null => (value === 0 ? null : row(value));
 
 const incomeBreakdownRows = (
-  breakdown: ListingRevenueBreakdown,
+  breakdown: ListingMoneyTotals,
   listing: ListingWithCount,
 ): MoneySummaryRow[] =>
   compact([
@@ -71,7 +67,7 @@ export const ListingIncomeLedgerSection = ({
   ledgerHref,
   listing,
 }: {
-  breakdown: ListingRevenueBreakdown;
+  breakdown: ListingMoneyTotals;
   ledgerHref?: string | undefined;
   listing: ListingWithCount;
 }): JSX.Element => (
@@ -84,19 +80,4 @@ export const ListingIncomeLedgerSection = ({
       title={t("listings_table.income_ledger_legend")}
     />
   </PageBlock>
-);
-
-export const ListingLedgerSection = ({
-  ledger,
-  listingId,
-}: {
-  ledger: AccountLedgerData;
-  listingId: number;
-}): JSX.Element => (
-  <EmbeddedAccountStatementSection
-    fullLedgerHref={`/admin/ledger/${ledger.account.type}/${ledger.account.id}`}
-    id="ledger"
-    ledger={ledger}
-    returnUrl={`/admin/listing/${listingId}`}
-  />
 );

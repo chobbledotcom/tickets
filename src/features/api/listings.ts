@@ -21,7 +21,7 @@ import { getAvailableDates, getBookableStartDates } from "#shared/dates.ts";
 import { hasAvailableSpots } from "#shared/db/attendees/api.ts";
 import { getGroupRemainingByListingId } from "#shared/db/attendees/capacity.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getAllListings } from "#shared/db/listings.ts";
+import { getAllListings } from "#shared/db/listings/records.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";

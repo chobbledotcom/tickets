@@ -2,7 +2,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { toMajorUnits } from "#shared/currency.ts";
-import { getListingWithCount, listingsTable } from "#shared/db/listings.ts";
+import {
+  getListingWithCount,
+  listingsTable,
+} from "#shared/db/listings/records.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

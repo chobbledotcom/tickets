@@ -4,7 +4,7 @@ import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getDb } from "#shared/db/client.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   decryptAdminLevel,
@@ -104,7 +104,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toContain("/admin/listings");
-      const { getAllListings } = await import("#shared/db/listings.ts");
+      const { getAllListings } = await import("#shared/db/listings/records.ts");
       expect(
         (await getAllListings()).some((l) => l.name === "Editor Import"),
       ).toBe(true);

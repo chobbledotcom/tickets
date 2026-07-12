@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
 import { checkBatchAvailability } from "#shared/db/attendees/api.ts";
-import { getAttendeesByListingIds } from "#shared/db/listings.ts";
+import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { assertPublicHtml, expectRedirect } from "#test-utils/assertions.ts";
 import { submitMultiTicketForm } from "#test-utils/csrf.ts";

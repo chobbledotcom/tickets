@@ -45,9 +45,9 @@ import {
 } from "#shared/db/listing-prices.ts";
 import {
   getStoredListingWithCount,
-  type ListingInput,
   listingsTable,
-} from "#shared/db/listings.ts";
+} from "#shared/db/listings/records.ts";
+import type { ListingInput } from "#shared/db/listings/table.ts";
 import {
   isNameTakenAnywhere,
   normalizeEntityName,

@@ -1,4 +1,5 @@
-import { getListingWithCount, type ListingInput } from "#shared/db/listings.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
+import type { ListingInput } from "#shared/db/listings/table.ts";
 import type { Listing, ListingWithCount } from "#shared/types.ts";
 import {
   resolveTestGroupIds,
@@ -55,7 +56,7 @@ export const createTestListing = async (
     "/admin/listing",
     buildCreateListingForm(input),
     async () => {
-      const { getAllListings } = await import("#shared/db/listings.ts");
+      const { getAllListings } = await import("#shared/db/listings/records.ts");
       const listings = await getAllListings();
       return listings[0] as Listing;
     },
@@ -80,7 +81,7 @@ export const duplicateTestListing = async (
     "/admin/listing",
     { ...buildCreateListingForm(input), duplicated_from: String(sourceId) },
     async () => {
-      const { getAllListings } = await import("#shared/db/listings.ts");
+      const { getAllListings } = await import("#shared/db/listings/records.ts");
       const listings = await getAllListings();
       return listings[0] as Listing;
     },

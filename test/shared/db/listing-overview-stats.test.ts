@@ -2,16 +2,15 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
+import { listingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
+import { emptyRange } from "#shared/accounting/range.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { execute } from "#shared/db/client.ts";
 import { getListingOverviewStats } from "#shared/db/listing-overview-stats.ts";
-import {
-  getAttendeesByListingIds,
-  getListingWithCount,
-  listingRevenueBreakdown,
-} from "#shared/db/listings.ts";
+import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
   finalizeSession,
   reserveSession,
@@ -125,7 +124,7 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
 
     const { withCount, reference } = await referenceFor(listing.id);
     const stats = await getListingOverviewStats(listing);
-    const { grossSales } = await listingRevenueBreakdown(listing.id);
+    const { grossSales } = await listingMoneyTotals(emptyRange, [listing.id]);
 
     // Exact expected figures for the seeded scenario.
     expect(stats.incompleteQuantity).toBe(1); // A3
