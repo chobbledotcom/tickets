@@ -86,8 +86,16 @@ export const getAttendeePackageRowsRaw = (
 ): Promise<Attendee[]> =>
   getAttendees({
     fields: ATTENDEE_FIELDS,
+    // No kind filter (as the original query): the attendee id already pins one
+    // attendee, and its rows are returned whatever its kind. `attendee-or-
+    // servicing` matches every kind the CHECK constraint allows.
     order: "listing_asc",
-    where: { attendeeId, packageGroupId, realLinesOnly: true },
+    where: {
+      attendeeId,
+      kind: "attendee-or-servicing",
+      packageGroupId,
+      realLinesOnly: true,
+    },
   });
 
 /**

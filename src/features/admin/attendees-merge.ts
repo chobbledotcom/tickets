@@ -14,7 +14,10 @@ import {
   decryptAttendees,
 } from "#shared/db/attendees/pii.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#shared/db/attendees/queries.ts";
-import { ATTENDEE_FIELDS, getAttendeeRow } from "#shared/db/attendees/select.ts";
+import {
+  ATTENDEE_FIELDS,
+  getAttendeeRow,
+} from "#shared/db/attendees/select.ts";
 import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import { queryAll } from "#shared/db/client.ts";

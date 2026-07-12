@@ -17,7 +17,10 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#shared/db/attendees/queries.ts";
-import { ATTENDEE_FIELDS, getAttendeeRow } from "#shared/db/attendees/select.ts";
+import {
+  ATTENDEE_FIELDS,
+  getAttendeeRow,
+} from "#shared/db/attendees/select.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import {
