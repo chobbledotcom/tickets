@@ -53,10 +53,13 @@ export const tableExists = async (table: string): Promise<boolean> => {
   return rows.length > 0;
 };
 
+/** Each table's live column names, keyed by table name. */
+type LiveTables = Map<string, Set<string>>;
+
 /** Live schema snapshot: every table's columns, every index, every trigger. */
 export type LiveSchema = {
   /** table name → set of its column names */
-  tables: Map<string, Set<string>>;
+  tables: LiveTables;
   /** all index names present (including sqlite_autoindex_*) */
   indexes: Set<string>;
   /** all trigger names present */
@@ -225,7 +228,7 @@ const triggersDependingOn = (tableName: string) =>
 
 const liveColumnsForTriggerDependency = (
   dependency: string,
-  liveTables: Map<string, Set<string>>,
+  liveTables: LiveTables,
   rebuildingTable?: string,
 ): Set<string> | undefined =>
   dependency === rebuildingTable
@@ -235,7 +238,7 @@ const liveColumnsForTriggerDependency = (
 const canCreateTrigger = (
   triggerName: string,
   table: string,
-  liveTables: Map<string, Set<string>>,
+  liveTables: LiveTables,
   rebuildingTable?: string,
 ): boolean =>
   triggerDependencies(triggerName, table).every((dependency) => {

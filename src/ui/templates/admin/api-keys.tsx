@@ -11,7 +11,7 @@ import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import {
@@ -60,12 +60,7 @@ const apiKeysShell = (
   session: AdminSession,
   title: string,
   children: Child,
-): string =>
-  String(
-    <AdminPage active="/admin/api-keys" session={session} title={title}>
-      {children}
-    </AdminPage>,
-  );
+): string => renderAdminPage("/admin/api-keys", session, title, children);
 
 /**
  * Admin API keys page

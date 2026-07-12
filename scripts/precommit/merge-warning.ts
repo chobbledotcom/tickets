@@ -5,6 +5,10 @@ import {
   runGit,
 } from "./git.ts";
 
+/** The `origin` remote's URL, or undefined when there is no origin. */
+export const getOriginUrl = (run: RunCommand): Promise<string | undefined> =>
+  commandValue(run, ["remote", "get-url", "origin"]);
+
 export const parseMergeTreeConflictedPaths = (stdout: string): string[] => {
   const lines = stdout.split(/\r?\n/);
   const paths: string[] = [];
@@ -22,7 +26,7 @@ export const getMergeConflictWarning = async (
 ): Promise<string | undefined> => {
   if (!(await isInsideWorkTree(run))) return;
 
-  const originUrl = await commandValue(run, ["remote", "get-url", "origin"]);
+  const originUrl = await getOriginUrl(run);
   const head = await commandValue(run, ["rev-parse", "--verify", "HEAD"]);
   const originMain = await commandValue(run, [
     "rev-parse",

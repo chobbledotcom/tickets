@@ -19,11 +19,18 @@ import {
   isAddressLookupSetting,
 } from "#shared/address-lookup/types.ts";
 import { settings } from "#shared/db/settings.ts";
+import type { FormParams } from "#shared/form-data.ts";
 
 type AddressLookupFormData = {
   provider: string;
   apiKey: SecretFieldResult;
 };
+
+/** Read the submitted provider choice and its (masked) API key from the form. */
+const extractAddressLookupForm = (form: FormParams): AddressLookupFormData => ({
+  apiKey: processSecretField(form, "address_lookup_api_key"),
+  provider: form.getString("address_lookup_provider"),
+});
 
 /** Would this submission leave no API key stored? */
 const clearsStoredKey = (apiKey: SecretFieldResult): boolean =>
@@ -32,10 +39,7 @@ const clearsStoredKey = (apiKey: SecretFieldResult): boolean =>
 
 export const handleAddressLookupPost = settingsHandler<AddressLookupFormData>({
   advanced: true,
-  extract: (form) => ({
-    apiKey: processSecretField(form, "address_lookup_api_key"),
-    provider: form.getString("address_lookup_provider"),
-  }),
+  extract: extractAddressLookupForm,
   formId: "settings-address-lookup",
   label: "Address lookup settings",
   save: async ({ provider, apiKey }) => {

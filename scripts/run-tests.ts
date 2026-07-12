@@ -28,33 +28,22 @@ const SNIPPET_CONTEXT_LINES = 1;
 const MAX_SNIPPET_LINES_PER_FILE = 18;
 const MAX_GITHUB_ANNOTATIONS = 100;
 
+/** Line numbers captured by group 1 of every match of `pattern` in `record`.
+ * Every caller's pattern has a `(\d+)` group 1, so each match always carries
+ * one. */
+const capturedLineNumbers = (record: string, pattern: RegExp): number[] =>
+  Array.from(record.matchAll(pattern), (match) =>
+    Number.parseInt(match[1], 10),
+  );
+
 /** Extract uncovered line numbers from DA: entries in an lcov record */
-const extractUncoveredLines = (record: string): number[] => {
-  const matches = record.matchAll(/^DA:(\d+),0$/gm);
-  const lines: number[] = [];
-  for (const m of matches) {
-    const line = m[1];
-    if (line) lines.push(Number.parseInt(line, 10));
-  }
-  return lines;
-};
+const extractUncoveredLines = (record: string): number[] =>
+  capturedLineNumbers(record, /^DA:(\d+),0$/gm);
 
 /** Extract uncovered branch line numbers from BRDA: entries, deduped */
-const extractUncoveredBranchLines = (record: string): number[] => {
-  const matches = record.matchAll(/^BRDA:(\d+),\d+,\d+,(-|0)$/gm);
-  const seen = new Set<number>();
-  const lines: number[] = [];
-  for (const m of matches) {
-    const lineText = m[1];
-    if (!lineText) continue;
-    const line = Number.parseInt(lineText, 10);
-    if (!seen.has(line)) {
-      seen.add(line);
-      lines.push(line);
-    }
-  }
-  return lines;
-};
+const extractUncoveredBranchLines = (record: string): number[] => [
+  ...new Set(capturedLineNumbers(record, /^BRDA:(\d+),\d+,\d+,(-|0)$/gm)),
+];
 
 const uniqueSorted = (nums: number[]): number[] =>
   [...new Set(nums)].sort((a, b) => a - b);

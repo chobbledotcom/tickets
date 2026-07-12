@@ -2,16 +2,9 @@ import { t } from "#i18n";
 import { getRenewalUrl } from "#shared/env.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { RawParagraph } from "#templates/components/prose-heading.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import { simplePublicPage } from "./shared.tsx";
-
-/** A message paragraph rendered as a `<Raw>` (for HTML messages that come from
- *  t() with embedded markup) — used by the migration-in-progress page. */
-const rawMessage = (key: string): JSX.Element => (
-  <p>
-    <Raw html={t(key)} />
-  </p>
-);
 
 /**
  * Curried error-page factory. The temporary/database-busy/migration/
@@ -151,7 +144,7 @@ export const migrationInProgressPage = (): string =>
     "public.migration_in_progress.title",
     "public.migration_in_progress.heading",
     MIGRATION_IN_PROGRESS_HEAD,
-  )(rawMessage("public.migration_in_progress.message"));
+  )(<RawParagraph html={t("public.migration_in_progress.message")} />);
 
 /**
  * Shown on non-setup routes when the site's database has not been set up

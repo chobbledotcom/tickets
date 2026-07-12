@@ -4,6 +4,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { RadioOption } from "#templates/components/radio-option.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
@@ -24,15 +25,12 @@ export const ThemeForm = (s: SettingsPageState): JSX.Element => (
         {t("settings.theme_dark")}
       </RadioOption>
     </fieldset>
-    <label class="checkbox">
-      <input
-        checked={s.underlineLinks}
-        name="underline_links"
-        type="checkbox"
-        value="true"
-      />{" "}
-      {t("settings.underline_links")}
-    </label>
+    <SettingsCheckbox
+      checked={s.underlineLinks}
+      label={t("settings.underline_links")}
+      labelClass="checkbox"
+      name="underline_links"
+    />
     <small>{t("settings.underline_links_hint")}</small>
   </SettingsSection>
 );

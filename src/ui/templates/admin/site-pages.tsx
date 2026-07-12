@@ -79,6 +79,18 @@ const DeleteLink = ({ id }: { id: number }): JSX.Element => (
   </WritableOnly>
 );
 
+/** A page row's name cell: the page name linking through to its edit page.
+ * Shared by the root-page list and the nested-page list. */
+const PageNameLink = ({
+  id,
+  name,
+}: {
+  id: number;
+  name: string;
+}): JSX.Element => (
+  <WritableLink href={`${LIST}/${id}/edit`}>{name}</WritableLink>
+);
+
 /** A reorderable table: the order-arrow cell first, then the caller's cells,
  * under (order, ...headers, actions) columns. Shared by the root-page list
  * and the edit page's item manager. */
@@ -121,9 +133,7 @@ export const adminSitePagesListPage = (
         {reorderableTable({
           base: (page) => `${LIST}/${page.id}`,
           cells: (page) => [
-            <WritableLink href={`${LIST}/${page.id}/edit`}>
-              {page.name}
-            </WritableLink>,
+            <PageNameLink id={page.id} name={page.name} />,
             <code>/page/{page.slug}</code>,
             <DeleteLink id={page.id} />,
           ],
@@ -140,9 +150,7 @@ export const adminSitePagesListPage = (
                 { header: "" },
               ]}
               rows={model.nested.map(({ page, parentName }) => [
-                <WritableLink href={`${LIST}/${page.id}/edit`}>
-                  {page.name}
-                </WritableLink>,
+                <PageNameLink id={page.id} name={page.name} />,
                 parentName,
                 <DeleteLink id={page.id} />,
               ])}

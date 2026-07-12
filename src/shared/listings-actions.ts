@@ -48,6 +48,7 @@ import {
 import { generateUniqueSlug } from "#shared/slug.ts";
 import { deleteListingAttachmentFile } from "#shared/storage.ts";
 import {
+  availableDayCounts,
   type DayPricedListing,
   type Group,
   type Listing,
@@ -165,11 +166,10 @@ const validateCustomisableDays = (input: ListingInput): string | null => {
   if (input.canPayMore) {
     return "Customisable days cannot be combined with Allow Pay More";
   }
-  const max = normalizeDurationDays(input.durationDays ?? 1);
-  const counts = Object.keys(input.dayPrices ?? {})
-    .map(Number)
-    .filter((n) => n >= 1 && n <= max);
-  return counts.length === 0
+  // The priced day counts within range are exactly what availableDayCounts
+  // derives, so reuse the normalized day-price fields rather than recomputing
+  // the same filter here.
+  return availableDayCounts(dayPriceFieldsFromInput(input)).length === 0
     ? "Set a price for at least one day count (1 up to the maximum days)"
     : null;
 };

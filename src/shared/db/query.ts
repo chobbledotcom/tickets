@@ -98,45 +98,53 @@ const nameSelect = (
   `SELECT ${alias}.id, ${alias}.${nameColumn} AS name FROM ${table} AS ${alias} ${tail}`;
 
 /**
- * `id → name` for the rows of `table` whose id is in `ids`, decrypting only the
- * name column. `alias` qualifies the selected columns (repo SQL convention);
- * `decryptName` turns the raw stored value into plaintext (decryption-agnostic).
- * `table`/`alias`/`nameColumn` are internal constants. Empty `ids` ⇒ empty map.
+ * A table's `id → name` projection, bound to its columns once. `byIds` returns
+ * the map for the requested ids (empty ids ⇒ empty map); `all` returns it for
+ * every row, ordered by id. Only the name column is decrypted, via the
+ * decryption-agnostic `decryptName`; `table`/`alias`/`nameColumn` (`alias`
+ * qualifies the selected columns, repo SQL convention) are internal constants.
+ *
+ * This is the single home for narrow id→name reads that skip the full-row cache:
+ * the per-table `getXNamesByIds` wrappers bind it and expose `.byIds`, and the
+ * pickers/labels that need every name call `.all()`.
  */
-export const nameMapByIds = <Raw>(
+export const nameSource = <Raw>(
   table: string,
   alias: string,
   nameColumn: string,
-  ids: number[],
   decryptName: Decryptor<Raw>,
-): NameMap =>
-  decryptNameMap(
-    rowsByIds<NameRow<Raw>>(ids, (placeholders) =>
-      nameSelect(
-        table,
-        alias,
-        nameColumn,
-        `WHERE ${alias}.id IN (${placeholders})`,
+) => ({
+  all: (): NameMap =>
+    decryptNameMap(
+      queryAll<NameRow<Raw>>(
+        nameSelect(table, alias, nameColumn, `ORDER BY ${alias}.id ASC`),
       ),
+      decryptName,
     ),
-    decryptName,
-  );
+  byIds: (ids: number[]): NameMap =>
+    decryptNameMap(
+      rowsByIds<NameRow<Raw>>(ids, (placeholders) =>
+        nameSelect(
+          table,
+          alias,
+          nameColumn,
+          `WHERE ${alias}.id IN (${placeholders})`,
+        ),
+      ),
+      decryptName,
+    ),
+});
 
-/** `id → name` for **every** row of `table`, decrypting only the name column —
- * the narrow projection the item pickers need, without loading a full-row cache.
- * Ordered by id for a stable list. */
-export const allNamesById = <Raw>(
-  table: string,
-  alias: string,
-  nameColumn: string,
-  decryptName: Decryptor<Raw>,
-): NameMap =>
-  decryptNameMap(
-    queryAll<NameRow<Raw>>(
-      nameSelect(table, alias, nameColumn, `ORDER BY ${alias}.id ASC`),
-    ),
-    decryptName,
-  );
+/** Decrypt a row's `name` and `slug` — the pair the news-summary and listing
+ * catalog projections both need before display. `decryptValue` keeps this
+ * decryption-agnostic, like the name-map helpers above. */
+export const decryptNameSlug = async <Raw>(
+  row: { name: Raw; slug: Raw },
+  decryptValue: Decryptor<Raw>,
+): Promise<{ name: string; slug: string }> => ({
+  name: await decryptValue(row.name),
+  slug: await decryptValue(row.slug),
+});
 
 /**
  * Map each row's `id` to one of its columns (`id → column`) for the rows of

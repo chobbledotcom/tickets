@@ -6,11 +6,11 @@
 import { notFoundResponse } from "#routes/response.ts";
 import {
   createTokenRoute,
-  lookupSingleTokenPassData,
   WALLET_CACHE_CONTROL,
 } from "#routes/tickets/token-utils.ts";
 import { settings } from "#shared/db/settings.ts";
 import { buildGoogleWalletUrl } from "#shared/google-wallet.ts";
+import { withPassData } from "./index.ts";
 
 /** Handle GET /gwallet/:token — redirect to Google Wallet save URL */
 const handleGoogleWalletGet = async (
@@ -20,17 +20,16 @@ const handleGoogleWalletGet = async (
   const config = settings.googleWallet.config;
   if (!config) return notFoundResponse();
 
-  const result = await lookupSingleTokenPassData(tokens);
-  if (!result.ok) return result.response;
+  return withPassData(tokens, async (passData) => {
+    const saveUrl = await buildGoogleWalletUrl(passData, config);
 
-  const saveUrl = await buildGoogleWalletUrl(result.passData, config);
-
-  return new Response(null, {
-    headers: {
-      "Cache-Control": WALLET_CACHE_CONTROL,
-      Location: saveUrl,
-    },
-    status: 302,
+    return new Response(null, {
+      headers: {
+        "Cache-Control": WALLET_CACHE_CONTROL,
+        Location: saveUrl,
+      },
+      status: 302,
+    });
   });
 };
 

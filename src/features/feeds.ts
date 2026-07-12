@@ -4,6 +4,7 @@
  */
 
 import { byId, map, pipe } from "#fp";
+import type { CoreListingFields } from "#routes/api/public-listing.ts";
 import { withAuth } from "#routes/auth.ts";
 /* jscpd:ignore-start */
 import { isRegistrationClosed } from "#routes/format.ts";
@@ -64,12 +65,8 @@ const formatRfc822 = (dateStr: string): string =>
 /** One syndicated item — a standalone listing or a bookable package bundle,
  * both linking to their `/ticket/<slug>` page. `uid` keeps listing and package
  * ids from colliding in the ICS UID namespace. */
-type FeedItem = {
+type FeedItem = CoreListingFields & {
   uid: string;
-  name: string;
-  slug: string;
-  description: string;
-  date: string | null;
   location: string;
   /** RSS pubDate source; null for packages (groups carry no created stamp),
    * which simply omit the optional pubDate element. */

@@ -7,6 +7,7 @@
 
 import {
   type ActionDef,
+  customTab,
   defineEntityPage,
   type EntityPage,
   type TabDef,
@@ -45,17 +46,12 @@ export interface SiteContentPageDef<E extends { id: number }> {
 export const defineSiteContentPage = <E extends { id: number }>(
   def: SiteContentPageDef<E>,
 ): EntityPage<E> => {
-  const editTab: TabDef<E> = {
+  const editTab = customTab<E>({
     intent: "write-form",
     labelKey: "entity.tab.edit",
-    sections: [
-      {
-        kind: "custom",
-        load: (entity) => Promise.resolve(def.editPanel(entity)),
-      },
-    ],
+    load: (entity) => Promise.resolve(def.editPanel(entity)),
     slug: "edit",
-  };
+  });
   const imagesTab: TabDef<E> = {
     intent: "write-form",
     labelKey: "entity.tab.images",

@@ -29,7 +29,7 @@ import {
   encryptedNameSchema,
 } from "#shared/db/common-schema.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
-import { columnMapByIds, nameMapByIds, queryAndMap } from "#shared/db/query.ts";
+import { columnMapByIds, nameSource, queryAndMap } from "#shared/db/query.ts";
 import { col } from "#shared/db/table.ts";
 import type {
   CalcKind,
@@ -130,12 +130,12 @@ export const getAllModifiers = (): Promise<Modifier[]> =>
   queryModifiers(`${modifierSelect()} ORDER BY id ASC`);
 
 /** Read and decrypt names only for the requested modifier ids. */
-export const getModifierNamesByIds = (
-  ids: number[],
-): Promise<Map<number, string>> =>
-  nameMapByIds("modifiers", "modifier", "name", ids, (raw: EnvKeyEncrypted) =>
-    decrypt(raw),
-  );
+export const getModifierNamesByIds = nameSource(
+  "modifiers",
+  "modifier",
+  "name",
+  (raw: EnvKeyEncrypted) => decrypt(raw),
+).byIds;
 
 /** Get the active modifiers, decrypted, ordered by id. */
 export const getActiveModifiers = (): Promise<Modifier[]> =>

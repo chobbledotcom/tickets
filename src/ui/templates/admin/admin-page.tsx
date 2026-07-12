@@ -69,6 +69,21 @@ export const AdminPage = ({
   </Layout>
 );
 
+/** Render an admin page to an HTML string with no flash — the plain
+ *  `String(<AdminPage active session title>…</AdminPage>)` wrapper shared by
+ *  the bulk-email pages, the Site-tab collection pages, and the API-keys pages. */
+export const renderAdminPage = (
+  active: NavActive,
+  session: AdminSession,
+  title: string,
+  children: Child,
+): string =>
+  String(
+    <AdminPage active={active} session={session} title={title}>
+      {children}
+    </AdminPage>,
+  );
+
 /** An admin page whose whole body is one CSRF form headed by an `<h1>{title}</h1>`
  *  and an error/success Flash — the shape the recalculate pages and the
  *  site-page create/edit forms share. `children` is the form body after the

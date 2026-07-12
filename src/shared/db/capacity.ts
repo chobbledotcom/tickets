@@ -307,6 +307,14 @@ export const buildCapacityCondition = (
  * buckets and a date-less `total` — the shape the batch read aggregates. */
 export type CapacityBucket = { perDay: Map<string, number>; total: number };
 
+/** Wrap a count subquery into a `<= cap` availability clause. `wrapSql` turns
+ * the count's SQL into the full comparison; the count's args carry through so
+ * the read preflight and the write guard bind the same values. */
+const capClause = (
+  count: SqlStatement,
+  wrapSql: (countSql: string) => string,
+): SqlStatement => ({ args: count.args, sql: wrapSql(count.sql) });
+
 /** A `<= cap` clause for one listing's demand against its OWN cap, reusing the
  * same count subquery the write predicate uses. `active = 1` matches the write
  * (an inactive listing's cap is NULL, so the clause — and the AND — is NULL,
@@ -315,13 +323,12 @@ const listingCapClause = (
   listingId: number,
   dayRange: DayRange | null,
   demand: number,
-): SqlStatement => {
-  const count = buildListingCountSql(listingId, dayRange);
-  return {
-    args: count.args,
-    sql: `((${count.sql}) + ${demand} <= (SELECT max_attendees FROM listings WHERE id = ${listingId} AND active = 1))`,
-  };
-};
+): SqlStatement =>
+  capClause(
+    buildListingCountSql(listingId, dayRange),
+    (countSql) =>
+      `((${countSql}) + ${demand} <= (SELECT max_attendees FROM listings WHERE id = ${listingId} AND active = 1))`,
+  );
 
 /** A `<= cap` clause for one group's demand against its cap, reusing the write
  * predicate's group count subquery. An uncapped group (`max_attendees = 0`)
@@ -331,12 +338,11 @@ const groupCapClause = (
   dayRange: DayRange | null,
   demand: number,
 ): SqlStatement => {
-  const count = buildGroupCountSql(dayRange, undefined, String(groupId));
   const cap = `(SELECT max_attendees FROM groups WHERE id = ${groupId})`;
-  return {
-    args: count.args,
-    sql: `(${cap} = 0 OR (${count.sql}) + ${demand} <= ${cap})`,
-  };
+  return capClause(
+    buildGroupCountSql(dayRange, undefined, String(groupId)),
+    (countSql) => `(${cap} = 0 OR (${countSql}) + ${demand} <= ${cap})`,
+  );
 };
 
 /** Append the clauses for one demand bucket. Daily (per-day) demand emits one

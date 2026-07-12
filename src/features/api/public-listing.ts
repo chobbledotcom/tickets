@@ -14,11 +14,16 @@ import {
   type ListingWithCount,
 } from "#shared/types.ts";
 
-export type PublicListing = {
+/** The plain listing fields shared by the public API shape and the syndication
+ * feed item — name, slug, description, and the optional event date. */
+export type CoreListingFields = {
   name: string;
   slug: string;
   description: string;
   date: string | null;
+};
+
+export type PublicListing = CoreListingFields & {
   location: string | null;
   /** Filename of the listing's primary image, or `null` when it has none. Like
    * `date`/`location`, the model's empty-string convention is normalised to

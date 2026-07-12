@@ -1,9 +1,11 @@
+/* jscpd:ignore-start */
 import { COST, REVENUE, WRITEOFF_TYPE } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import {
   MANUAL_LISTING_COST,
   MANUAL_LISTING_INCOME,
 } from "#shared/accounting/manual-entries.ts";
+/* jscpd:ignore-end */
 import {
   andPrefixed,
   type LedgerRange,

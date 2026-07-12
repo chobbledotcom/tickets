@@ -3,10 +3,11 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  * Admin API key management routes
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createActionHandler } from "#routes/admin/actions.ts";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
-import { requireOwnerOr } from "#routes/auth.ts";
+import { type AuthSession, requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
@@ -30,6 +31,7 @@ import {
   adminApiKeysPage,
   adminDeleteApiKeyPage,
 } from "#templates/admin/api-keys.tsx";
+/* jscpd:ignore-end */
 
 export const apiKeyForm = defineForm({
   fields: [
@@ -45,17 +47,22 @@ export const apiKeyForm = defineForm({
   id: "apiKey",
 });
 
+/** Owner-guarded handler that loads some data for the session up front, then
+ * hands the session and that data to `handle`. */
+const withOwnerData =
+  <T>(load: (session: AuthSession) => Promise<T>) =>
+  (
+    request: Request,
+    handle: (session: AdminSession, data: T) => Response | Promise<Response>,
+  ): Promise<Response> =>
+    requireOwnerOr(request, async (session) =>
+      handle(session, await load(session)),
+    );
+
 /** Owner-guarded handler that loads the caller's API keys up front. */
-const withOwnerApiKeys = (
-  request: Request,
-  handle: (
-    session: AdminSession,
-    keys: Awaited<ReturnType<typeof getApiKeysForUser>>,
-  ) => Response | Promise<Response>,
-): Promise<Response> =>
-  requireOwnerOr(request, async (session) =>
-    handle(session, await getApiKeysForUser(session.userId)),
-  );
+const withOwnerApiKeys = withOwnerData((session) =>
+  getApiKeysForUser(session.userId),
+);
 
 /**
  * Handle GET /admin/api-keys

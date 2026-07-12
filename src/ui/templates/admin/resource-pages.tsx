@@ -27,7 +27,7 @@ import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage, type TCall } from "#templates/admin/confirm-page.tsx";
-import { WritableOnly } from "#templates/admin/writable-only.tsx";
+import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import {
   DeleteSection,
   SaveChangesButton,
@@ -114,6 +114,27 @@ export type AdminResourcePagesConfig<
   delete: DeleteSpec<TEntity>;
 };
 
+/** A "Name" column whose text links to the row's edit page (shown as plain
+ *  text when the page is read-only). `editHref` and `name` both read the row. */
+export const writableNameColumn = <TEntity,>(
+  editHref: (entity: TEntity) => string,
+  name: (entity: TEntity) => string,
+): DataColumn<TEntity> => ({
+  cell: (entity) => (
+    <WritableLink href={editHref(entity)}>{name(entity)}</WritableLink>
+  ),
+  header: t("common.name"),
+});
+
+/** The shape every resource list page shares: the rows to show, the operator's
+ *  session, and optional error/success flashes to display above the table. */
+export type AdminListPage<TEntity> = (
+  entities: TEntity[],
+  session: AdminSession,
+  error?: string,
+  success?: string,
+) => string;
+
 /** Build the four standard admin pages (list/new/edit/delete) for a resource
  *  from one config. The edit page takes an optional typed `ctx` whose value
  *  is forwarded to `renderEditExtra` — so a resource whose edit form needs
@@ -125,12 +146,12 @@ export const defineAdminResourcePages = <
 >(
   config: AdminResourcePagesConfig<TEntity, TEditCtx>,
 ) => {
-  const listPage = (
-    entities: TEntity[],
-    session: AdminSession,
-    error?: string,
-    success?: string,
-  ): string => {
+  const listPage: AdminListPage<TEntity> = (
+    entities,
+    session,
+    error,
+    success,
+  ) => {
     // listPage is only called by resources that declare a `list` facet.
     const list = config.list as ResourceList<TEntity>;
     return flashAdminPage(config.labels.listTitle, config.active)(
