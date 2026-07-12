@@ -538,16 +538,3 @@ Fix direction: within the depth loop, skip line/block comments (a `skipComment`
 helper) before the brace-depth checks, and add a direct regression test for the
 comment-with-`}`-then-nested-template case asserting `parseArgList` doesn't
 misinterpret the comma.
-
-### 3. `mutation.ts` CLI value flags should fail fast on a missing value
-
-`scripts/mutation.ts` — in `applyArg`, a recognized value flag (`--source`,
-`--test`, `--timeout`, `--jobs`) with no following token falls through and is
-collected as a positional, so it surfaces later as a misleading glob/file error
-instead of a clear CLI usage error. (Matches `main`'s original `next !==
-undefined` guard behavior — pre-existing.)
-
-Fix direction: in `applyArg`, when `VALUE_FLAGS[arg]` exists but `next` is
-`undefined`, raise a clear "missing value for <flag>" usage error rather than
-pushing the flag to `positional`; keep consuming/returning true when a value is
-present.
