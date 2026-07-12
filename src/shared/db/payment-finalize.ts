@@ -6,6 +6,7 @@ import {
   encryptTicketTokens,
   UNRESOLVED_RESERVATION,
 } from "#shared/db/processed-payments.ts";
+import { currentPaymentTicketToken } from "#shared/payment-ticket-token.ts";
 
 const buildFinalizeStatement = async (
   attendeeId: number,
@@ -33,11 +34,10 @@ export const batchFinalizeStatement = async (
   attendeeIdArg: InValue,
   guard: SqlStatement,
   paymentReference: string,
-  ticketTokens: string[],
 ): Promise<SqlStatement> => ({
   args: [
     attendeeIdArg,
-    await encryptTicketTokens(ticketTokens),
+    await encryptTicketTokens([currentPaymentTicketToken()]),
     await encryptPaymentReference(paymentReference),
     sessionId,
     ...guard.args,

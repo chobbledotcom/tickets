@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  currentPaymentTicketToken,
   currentPaymentTicketTokenOrCreate,
   withPaymentTicketToken,
 } from "#shared/payment-ticket-token.ts";
@@ -9,6 +10,7 @@ describe("payment ticket token", () => {
   test("uses the supplied token throughout the paid booking", async () => {
     await withPaymentTicketToken("PAIDTOKEN1", async () => {
       await Promise.resolve();
+      expect(currentPaymentTicketToken()).toBe("PAIDTOKEN1");
       expect(currentPaymentTicketTokenOrCreate()).toBe("PAIDTOKEN1");
     });
   });
@@ -32,5 +34,11 @@ describe("payment ticket token", () => {
 
     expect(first).toMatch(/^[0-9A-F]{10}$/);
     expect(second).not.toBe(first);
+  });
+
+  test("refuses to finalize outside a paid booking", () => {
+    expect(() => currentPaymentTicketToken()).toThrow(
+      "Paid booking ticket token was not prepared",
+    );
   });
 });

@@ -16,6 +16,7 @@ import {
   STALE_RESERVATION_MS,
 } from "#shared/db/processed-payments.ts";
 import { nowMs } from "#shared/now.ts";
+import { withPaymentTicketToken } from "#shared/payment-ticket-token.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -222,6 +223,13 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     // unit test binds it as a literal `?` and uses a trivially-true guard, so it
     // exercises the UNRESOLVED + guard gating without an in-batch attendee row.
     const trueGuard = { args: [] as never[], sql: "1 = 1" };
+    const preparedFinalizeStatement = (
+      ticketToken: string,
+      ...args: Parameters<typeof batchFinalizeStatement>
+    ) =>
+      withPaymentTicketToken(ticketToken, () =>
+        batchFinalizeStatement(...args),
+      );
 
     test("sets the attendee and encrypted ticket token on an unresolved reservation", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
@@ -237,13 +245,13 @@ describeWithEnv("db > processed payments", { db: true }, () => {
         "UPDATE processed_payments SET ticket_tokens = ? WHERE payment_session_id = ?",
         [await encrypt("tok-replacement"), "sess_fss"],
       );
-      const stmt = await batchFinalizeStatement(
+      const stmt = await preparedFinalizeStatement(
+        "tok-fss",
         "sess_fss",
         "?",
         attendeeId,
         trueGuard,
         "pi_fss",
-        ["tok-fss"],
       );
       await getDb().execute(stmt);
 
@@ -268,13 +276,13 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       await finalizeSession("sess_fss2", attendeeId, ["tok-test"]);
 
       // A second finalize (different attendee id) must not overwrite
-      const stmt = await batchFinalizeStatement(
+      const stmt = await preparedFinalizeStatement(
+        "tok-second",
         "sess_fss2",
         "?",
         attendeeId + 999,
         trueGuard,
         "pi_second",
-        ["tok-second"],
       );
       await getDb().execute(stmt);
 
@@ -295,7 +303,8 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       await reserveSession("sess_fss3");
       // A guard that never holds stands in for a partial cart (not every booking
       // landed): the session must stay unresolved so the caller can refund.
-      const stmt = await batchFinalizeStatement(
+      const stmt = await preparedFinalizeStatement(
+        "tok-fss3",
         "sess_fss3",
         "?",
         attendeeId,
@@ -304,7 +313,6 @@ describeWithEnv("db > processed payments", { db: true }, () => {
           sql: "1 = 0",
         },
         "pi_fss3",
-        ["tok-fss3"],
       );
       await getDb().execute(stmt);
 
