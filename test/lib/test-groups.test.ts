@@ -165,19 +165,8 @@ describe("test-groups", () => {
         expect(entry).toContain('import "../test/plain.test.ts";');
 
         await groups.cleanup();
+        await groups.cleanup(); // a second pass finds nothing left — no throw
         // The entries and (now empty) groups dir are gone.
-        await expect(Deno.stat(`${root}/${GROUPS_DIR}`)).rejects.toThrow();
-      } finally {
-        await Deno.remove(root, { recursive: true });
-      }
-    });
-
-    test("cleanup runs safely twice (files already removed)", async () => {
-      const root = await makeScratchRoot();
-      try {
-        const groups = await writeTestGroups(root, 1);
-        await groups.cleanup();
-        await groups.cleanup(); // second pass finds nothing left — no throw
         await expect(Deno.stat(`${root}/${GROUPS_DIR}`)).rejects.toThrow();
       } finally {
         await Deno.remove(root, { recursive: true });
