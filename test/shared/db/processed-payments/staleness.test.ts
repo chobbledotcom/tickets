@@ -10,7 +10,6 @@ import {
   releaseReservation,
   reserveSession,
   STALE_RESERVATION_MS,
-  setSessionTicketTokens,
 } from "#shared/db/processed-payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { useProcessedPaymentsAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -72,21 +71,6 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
       await releaseReservation("cs_nonexistent");
       // No error thrown — verified by reaching here
     });
-  });
-
-  test("storing ticket tokens renews the reservation before booking", async () => {
-    using time = new FakeTime(now);
-    const sessionId = "cs_token_renewal";
-    await reserveSession(sessionId);
-
-    time.tick(STALE_RESERVATION_MS + 1);
-    await setSessionTicketTokens(sessionId, ["tok-renewed"]);
-
-    const competingDelivery = await reserveSession(sessionId);
-    expect(competingDelivery.reserved).toBe(false);
-    expect((await isSessionProcessed(sessionId))?.processed_at).toBe(
-      new Date(now + STALE_RESERVATION_MS + 1).toISOString(),
-    );
   });
 
   describe("deleteAllStaleReservations", () => {

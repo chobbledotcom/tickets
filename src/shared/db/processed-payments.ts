@@ -3,10 +3,9 @@
  *
  * Uses a two-phase locking pattern to prevent duplicate attendee creation:
  * 1. reserveSession() - Claims the session with NULL attendee_id
- * 2. setSessionTicketTokens() stores the token before booking can commit.
- * 3. createBookingAtomic() with batchFinalizeStatement() inside the same batch
- *    - Creates the attendee and stores its id atomically, closing the crash
- *    window before a separate finalize call while preserving the token.
+ * 2. createBookingAtomic() with batchFinalizeStatement() inside the same batch
+ *    - Creates the attendee and stores its id and token atomically, closing the
+ *    crash window before a separate finalize call.
  *
  * If reserveSession fails (session already claimed), we check if it's:
  * - Finalized (attendee_id set) → return success with existing attendee
@@ -196,7 +195,7 @@ export const reserveSession = async (
 };
 
 /** Encrypt a list of ticket tokens for storage, joining with "+". */
-const encryptTicketTokens = (
+export const encryptTicketTokens = (
   ticketTokens: string[],
 ): Promise<EnvKeyEncrypted> => encrypt(ticketTokens.join("+"));
 
@@ -290,22 +289,6 @@ export const parseSessionFailure = async (
   } catch {
     return CORRUPT_FAILURE;
   }
-};
-
-/** Store encrypted ticket tokens before a booking can commit, so an error after
- * the atomic write can still return the ticket. This also renews a reservation
- * that aged during validation, preventing stale cleanup from replacing it in the
- * short window before the booking transaction finalizes. A failed booking remains
- * unresolved and never exposes these tokens through the replay path. */
-export const setSessionTicketTokens = async (
-  sessionId: string,
-  ticketTokens: string[],
-): Promise<void> => {
-  const encryptedTokens = await encryptTicketTokens(ticketTokens);
-  await execute(
-    "UPDATE processed_payments SET ticket_tokens = ?, processed_at = ? WHERE payment_session_id = ?",
-    [encryptedTokens, nowIso(), sessionId],
-  );
 };
 
 /**

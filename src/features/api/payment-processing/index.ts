@@ -67,7 +67,6 @@ import {
   parseSessionFailure,
   releaseReservation,
   reserveSession,
-  setSessionTicketTokens,
 } from "#shared/db/processed-payments.ts";
 import { withPaymentTicketToken } from "#shared/payment-ticket-token.ts";
 import { bookingLedgerDisposition } from "#shared/session-ledger.ts";
@@ -263,7 +262,6 @@ const processReservedSession = async (
   // structured sold-out/capacity/encryption result, OR an unexpected throw after
   // the charge (which would otherwise crash-loop the webhook over paid money).
   const preparedTicketToken = generateTicketToken();
-  await setSessionTicketTokens(sessionId, [preparedTicketToken]);
   const codeSpecs = modifierSpecs.filter((spec) => spec.trigger === "code");
   const complete = (
     entries: Parameters<typeof completePaidBooking>[0],
