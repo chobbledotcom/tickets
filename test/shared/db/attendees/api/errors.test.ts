@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
+import { attendeeWithNoBookings } from "#test/lib/server-attendee-form/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeLineFields,
@@ -15,7 +16,6 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-import { attendeeWithNoBookings } from "./helpers.ts";
 
 describeWithEnv(
   "server (unified attendee form) — error paths",

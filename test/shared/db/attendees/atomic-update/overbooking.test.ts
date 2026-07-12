@@ -1,5 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import {
+  everydayDailyListing,
+  expectMixedStandardAndDailyLines,
+  submitNewAttendeeForm,
+  tomorrowInTz,
+} from "#test/lib/server-attendee-form/helpers.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -10,12 +16,6 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-import {
-  everydayDailyListing,
-  expectMixedStandardAndDailyLines,
-  submitNewAttendeeForm,
-  tomorrowInTz,
-} from "./helpers.ts";
 
 describeWithEnv(
   "server (unified attendee form) — overbooking & mixed timing",

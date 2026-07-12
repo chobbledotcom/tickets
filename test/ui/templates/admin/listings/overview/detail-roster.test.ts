@@ -1,12 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ListingDeactivatedBanner } from "#templates/admin/listings/overview.tsx";
-import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
-
 import {
   registerListingTemplateHooks,
   renderListingDetail,
-} from "./helpers.ts";
+} from "#test/templates/admin/listings/helpers.ts";
+import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
 registerListingTemplateHooks();
 
