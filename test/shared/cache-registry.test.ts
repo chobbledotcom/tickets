@@ -9,37 +9,63 @@ import {
   registerDependencies,
   registerTableInvalidation,
   resetAllCaches,
-  resetCacheRegistry,
+  type Unregister,
 } from "#shared/cache-registry.ts";
 
 describe("cache-registry", () => {
-  afterEach(() => resetCacheRegistry());
+  // The registry is shared module state (app caches register at load time), so
+  // every registration this suite makes is tracked and removed after each test
+  // rather than wiping the whole registry out from under the rest of the app.
+  const cleanups: Unregister[] = [];
+  const track = (unregister: Unregister): void => {
+    cleanups.push(unregister);
+  };
+  afterEach(() => {
+    for (const cleanup of cleanups.splice(0)) cleanup();
+  });
+
+  /** Only the stats this suite registered, by their unique test names. */
+  const ownStats = (...names: string[]): { name: string; entries: number }[] =>
+    getAllCacheStats()
+      .filter((stat) => names.includes(stat.name))
+      .map((stat) => ({ entries: stat.entries, name: stat.name }));
 
   describe("registerCache / getAllCacheStats", () => {
-    test("returns an empty array when no caches are registered", () => {
-      expect(getAllCacheStats()).toEqual([]);
-    });
-
     test("collects a single registered cache's stat", () => {
-      registerCache(() => ({ entries: 3, name: "widgets" }));
-      expect(getAllCacheStats()).toEqual([{ entries: 3, name: "widgets" }]);
+      track(registerCache(() => ({ entries: 3, name: "registry-widgets" })));
+      expect(ownStats("registry-widgets")).toEqual([
+        { entries: 3, name: "registry-widgets" },
+      ]);
     });
 
     test("collects every registered cache's stat, in registration order", () => {
-      registerCache(() => ({ entries: 1, name: "a" }));
-      registerCache(() => ({ entries: 2, name: "b" }));
-      expect(getAllCacheStats()).toEqual([
-        { entries: 1, name: "a" },
-        { entries: 2, name: "b" },
+      track(registerCache(() => ({ entries: 1, name: "registry-a" })));
+      track(registerCache(() => ({ entries: 2, name: "registry-b" })));
+      expect(ownStats("registry-a", "registry-b")).toEqual([
+        { entries: 1, name: "registry-a" },
+        { entries: 2, name: "registry-b" },
       ]);
     });
 
     test("calls each provider fresh on every call, not a cached snapshot", () => {
       let entries = 1;
-      registerCache(() => ({ entries, name: "widgets" }));
-      expect(getAllCacheStats()).toEqual([{ entries: 1, name: "widgets" }]);
+      track(registerCache(() => ({ entries, name: "registry-widgets" })));
+      expect(ownStats("registry-widgets")).toEqual([
+        { entries: 1, name: "registry-widgets" },
+      ]);
       entries = 2;
-      expect(getAllCacheStats()).toEqual([{ entries: 2, name: "widgets" }]);
+      expect(ownStats("registry-widgets")).toEqual([
+        { entries: 2, name: "registry-widgets" },
+      ]);
+    });
+
+    test("an unregistered provider no longer appears in the stats", () => {
+      const unregister = registerCache(() => ({
+        entries: 1,
+        name: "registry-gone",
+      }));
+      unregister();
+      expect(ownStats("registry-gone")).toEqual([]);
     });
   });
 
@@ -55,9 +81,11 @@ describe("cache-registry", () => {
 
     test("fires the invalidator when its exact table is written", () => {
       let calls = 0;
-      registerTableInvalidation(["listings"], () => {
-        calls++;
-      });
+      track(
+        registerTableInvalidation(["listings"], () => {
+          calls++;
+        }),
+      );
       invalidateCachesForWrite("listings", {
         columns: new Set(),
         verb: "insert",
@@ -67,8 +95,30 @@ describe("cache-registry", () => {
 
     test("does not fire for a different table", () => {
       let calls = 0;
-      registerTableInvalidation(["listings"], () => {
-        calls++;
+      track(
+        registerTableInvalidation(["listings"], () => {
+          calls++;
+        }),
+      );
+      invalidateCachesForWrite("attendees", {
+        columns: new Set(),
+        verb: "insert",
+      });
+      expect(calls).toBe(0);
+    });
+
+    test("an unregistered invalidator no longer fires", () => {
+      let calls = 0;
+      const unregister = registerTableInvalidation(
+        ["listings", "attendees"],
+        () => {
+          calls++;
+        },
+      );
+      unregister();
+      invalidateCachesForWrite("listings", {
+        columns: new Set(),
+        verb: "insert",
       });
       invalidateCachesForWrite("attendees", {
         columns: new Set(),
@@ -79,9 +129,11 @@ describe("cache-registry", () => {
 
     test("registers the same invalidator against every listed table", () => {
       let calls = 0;
-      registerTableInvalidation(["listings", "attendees"], () => {
-        calls++;
-      });
+      track(
+        registerTableInvalidation(["listings", "attendees"], () => {
+          calls++;
+        }),
+      );
       invalidateCachesForWrite("listings", {
         columns: new Set(),
         verb: "insert",
@@ -96,12 +148,16 @@ describe("cache-registry", () => {
     test("fires every independently-registered invalidator for the same table", () => {
       let firstCalls = 0;
       let secondCalls = 0;
-      registerTableInvalidation(["listings"], () => {
-        firstCalls++;
-      });
-      registerTableInvalidation(["listings"], () => {
-        secondCalls++;
-      });
+      track(
+        registerTableInvalidation(["listings"], () => {
+          firstCalls++;
+        }),
+      );
+      track(
+        registerTableInvalidation(["listings"], () => {
+          secondCalls++;
+        }),
+      );
       invalidateCachesForWrite("listings", {
         columns: new Set(),
         verb: "insert",
@@ -118,12 +174,14 @@ describe("cache-registry", () => {
         updatedColumns: readonly string[],
       ): number => {
         let calls = 0;
-        registerTableInvalidation(
-          ["listings"],
-          () => {
-            calls++;
-          },
-          { whenColumns },
+        track(
+          registerTableInvalidation(
+            ["listings"],
+            () => {
+              calls++;
+            },
+            { whenColumns },
+          ),
         );
         invalidateCachesForWrite("listings", {
           columns: new Set(updatedColumns),
@@ -134,9 +192,11 @@ describe("cache-registry", () => {
 
       test("an ungated dependency fires on update regardless of assigned columns", () => {
         let calls = 0;
-        registerTableInvalidation(["listings"], () => {
-          calls++;
-        });
+        track(
+          registerTableInvalidation(["listings"], () => {
+            calls++;
+          }),
+        );
         invalidateCachesForWrite("listings", {
           columns: new Set(["unrelated_column"]),
           verb: "update",
@@ -156,12 +216,14 @@ describe("cache-registry", () => {
       for (const verb of ["insert", "delete", "replace"] as const) {
         test(`a gated dependency always fires on ${verb}, regardless of columns`, () => {
           let calls = 0;
-          registerTableInvalidation(
-            ["listings"],
-            () => {
-              calls++;
-            },
-            { whenColumns: ["price"] },
+          track(
+            registerTableInvalidation(
+              ["listings"],
+              () => {
+                calls++;
+              },
+              { whenColumns: ["price"] },
+            ),
           );
           invalidateCachesForWrite("listings", { columns: new Set(), verb });
           expect(calls).toBe(1);
@@ -173,21 +235,25 @@ describe("cache-registry", () => {
   describe("invalidateCachesForTable", () => {
     test("fires an ungated invalidator", () => {
       let calls = 0;
-      registerTableInvalidation(["listings"], () => {
-        calls++;
-      });
+      track(
+        registerTableInvalidation(["listings"], () => {
+          calls++;
+        }),
+      );
       invalidateCachesForTable("listings");
       expect(calls).toBe(1);
     });
 
     test("fires a column-gated invalidator too, treating the write as unconditional (INSERT semantics)", () => {
       let calls = 0;
-      registerTableInvalidation(
-        ["listings"],
-        () => {
-          calls++;
-        },
-        { whenColumns: ["price"] },
+      track(
+        registerTableInvalidation(
+          ["listings"],
+          () => {
+            calls++;
+          },
+          { whenColumns: ["price"] },
+        ),
       );
       invalidateCachesForTable("listings");
       expect(calls).toBe(1);
@@ -201,9 +267,11 @@ describe("cache-registry", () => {
   describe("registerDependencies", () => {
     test("registers the own table unconditionally, even for an update touching unrelated columns", () => {
       let calls = 0;
-      registerDependencies("listings", [], () => {
-        calls++;
-      });
+      track(
+        registerDependencies("listings", [], () => {
+          calls++;
+        }),
+      );
       invalidateCachesForWrite("listings", {
         columns: new Set(["unrelated"]),
         verb: "update",
@@ -213,9 +281,11 @@ describe("cache-registry", () => {
 
     test("registers a plain string dependency unconditionally", () => {
       let calls = 0;
-      registerDependencies("listings", ["listing_attendees"], () => {
-        calls++;
-      });
+      track(
+        registerDependencies("listings", ["listing_attendees"], () => {
+          calls++;
+        }),
+      );
       invalidateCachesForWrite("listing_attendees", {
         columns: new Set(["unrelated"]),
         verb: "update",
@@ -225,12 +295,14 @@ describe("cache-registry", () => {
 
     test("gates an object dependency's whenColumns on update", () => {
       let calls = 0;
-      registerDependencies(
-        "listings",
-        [{ table: "listing_prices", whenColumns: ["amount"] }],
-        () => {
-          calls++;
-        },
+      track(
+        registerDependencies(
+          "listings",
+          [{ table: "listing_prices", whenColumns: ["amount"] }],
+          () => {
+            calls++;
+          },
+        ),
       );
       invalidateCachesForWrite("listing_prices", {
         columns: new Set(["unrelated"]),
@@ -247,12 +319,36 @@ describe("cache-registry", () => {
 
     test("fires once per independently-written table, not once overall", () => {
       let calls = 0;
-      registerDependencies("listings", ["listing_attendees"], () => {
-        calls++;
-      });
+      track(
+        registerDependencies("listings", ["listing_attendees"], () => {
+          calls++;
+        }),
+      );
       invalidateCachesForTable("listings");
       invalidateCachesForTable("listing_attendees");
       expect(calls).toBe(2);
+    });
+
+    test("unregistering removes the own-table and every dependency registration", () => {
+      let calls = 0;
+      const unregister = registerDependencies(
+        "listings",
+        [
+          "listing_attendees",
+          { table: "listing_prices", whenColumns: ["amount"] },
+        ],
+        () => {
+          calls++;
+        },
+      );
+      unregister();
+      invalidateCachesForTable("listings");
+      invalidateCachesForTable("listing_attendees");
+      invalidateCachesForWrite("listing_prices", {
+        columns: new Set(["amount"]),
+        verb: "update",
+      });
+      expect(calls).toBe(0);
     });
   });
 
@@ -260,12 +356,16 @@ describe("cache-registry", () => {
     test("fires every table-registered invalidator and every reset hook", () => {
       let tableCalls = 0;
       let hookCalls = 0;
-      registerTableInvalidation(["listings"], () => {
-        tableCalls++;
-      });
-      registerCacheReset(() => {
-        hookCalls++;
-      });
+      track(
+        registerTableInvalidation(["listings"], () => {
+          tableCalls++;
+        }),
+      );
+      track(
+        registerCacheReset(() => {
+          hookCalls++;
+        }),
+      );
       resetAllCaches();
       expect(tableCalls).toBe(1);
       expect(hookCalls).toBe(1);
@@ -273,58 +373,36 @@ describe("cache-registry", () => {
 
     test("fires an invalidator registered against several tables only once", () => {
       let calls = 0;
-      registerTableInvalidation(["listings", "listing_attendees"], () => {
-        calls++;
-      });
+      track(
+        registerTableInvalidation(["listings", "listing_attendees"], () => {
+          calls++;
+        }),
+      );
       resetAllCaches();
       expect(calls).toBe(1);
     });
 
     test("fires a column-gated invalidator too — a full reset ignores gates", () => {
       let calls = 0;
-      registerTableInvalidation(
-        ["listings"],
-        () => {
-          calls++;
-        },
-        { whenColumns: ["name"] },
+      track(
+        registerTableInvalidation(
+          ["listings"],
+          () => {
+            calls++;
+          },
+          { whenColumns: ["name"] },
+        ),
       );
       resetAllCaches();
       expect(calls).toBe(1);
     });
 
-    test("is a no-op when nothing is registered", () => {
-      resetAllCaches();
-      expect(getAllCacheStats()).toEqual([]);
-    });
-  });
-
-  describe("resetCacheRegistry", () => {
-    test("clears registered cache-stat providers", () => {
-      registerCache(() => ({ entries: 1, name: "widgets" }));
-      resetCacheRegistry();
-      expect(getAllCacheStats()).toEqual([]);
-    });
-
-    test("clears registered table invalidators", () => {
+    test("an unregistered reset hook no longer fires", () => {
       let calls = 0;
-      registerTableInvalidation(["listings"], () => {
+      const unregister = registerCacheReset(() => {
         calls++;
       });
-      resetCacheRegistry();
-      invalidateCachesForWrite("listings", {
-        columns: new Set(),
-        verb: "insert",
-      });
-      expect(calls).toBe(0);
-    });
-
-    test("clears registered reset hooks", () => {
-      let calls = 0;
-      registerCacheReset(() => {
-        calls++;
-      });
-      resetCacheRegistry();
+      unregister();
       resetAllCaches();
       expect(calls).toBe(0);
     });

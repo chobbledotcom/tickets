@@ -15,15 +15,22 @@ export type CacheStat = {
 
 type CacheStatProvider = () => CacheStat;
 
-const providers: CacheStatProvider[] = [];
+const providers = new Set<CacheStatProvider>();
+
+/** Remove one registration from the registry (handed back by the register
+ * functions; production callers register for the process's lifetime and drop
+ * it, tests must call it so their entries never outlive the test). */
+export type Unregister = () => void;
 
 /** Register a cache stat provider (called at module load time) */
-export const registerCache = (provider: CacheStatProvider): void => {
-  providers.push(provider);
+export const registerCache = (provider: CacheStatProvider): Unregister => {
+  providers.add(provider);
+  return () => providers.delete(provider);
 };
 
 /** Collect stats from all registered caches */
-export const getAllCacheStats = (): CacheStat[] => providers.map((p) => p());
+export const getAllCacheStats = (): CacheStat[] =>
+  [...providers].map((p) => p());
 
 /**
  * Table → cache invalidation registry.
@@ -65,13 +72,14 @@ const invalidatorsByTable = new Map<string, Set<Registration>>();
 
 /** Full-clear hooks for caches that no table registration covers (e.g. the
  * per-token session cache, which is invalidated entry-by-entry on writes). */
-const resetHooks: Invalidator[] = [];
+const resetHooks = new Set<Invalidator>();
 
 /** Register an extra full-clear to run when every cache is reset. Only needed
  * by caches without a table registration; `resetAllCaches` already fires every
  * table-registered invalidator. */
-export const registerCacheReset = (reset: Invalidator): void => {
-  resetHooks.push(reset);
+export const registerCacheReset = (reset: Invalidator): Unregister => {
+  resetHooks.add(reset);
+  return () => resetHooks.delete(reset);
 };
 
 /**
@@ -111,7 +119,7 @@ export const registerTableInvalidation = (
   tables: readonly string[],
   invalidate: Invalidator,
   opts?: { whenColumns?: readonly string[] | undefined },
-): void => {
+): Unregister => {
   const whenColumns = opts?.whenColumns ? new Set(opts.whenColumns) : undefined;
   const registration: Registration = { invalidate, whenColumns };
   for (const table of tables) {
@@ -119,6 +127,11 @@ export const registerTableInvalidation = (
     set.add(registration);
     invalidatorsByTable.set(table, set);
   }
+  return () => {
+    for (const table of tables) {
+      invalidatorsByTable.get(table)?.delete(registration);
+    }
+  };
 };
 
 /** Fire registered cache invalidators for `table`, respecting column gates. */
@@ -160,22 +173,18 @@ export const registerDependencies = (
   ownTable: string,
   deps: readonly DependsOnEntry[],
   invalidate: () => void,
-): void => {
-  registerTableInvalidation([ownTable], invalidate);
-  for (const dep of deps) {
-    if (typeof dep === "string") {
-      registerTableInvalidation([dep], invalidate);
-    } else {
-      registerTableInvalidation([dep.table], invalidate, {
-        whenColumns: dep.whenColumns,
-      });
-    }
-  }
-};
-
-/** Reset the registry (for testing) */
-export const resetCacheRegistry = (): void => {
-  providers.length = 0;
-  invalidatorsByTable.clear();
-  resetHooks.length = 0;
+): Unregister => {
+  const unregisters = [
+    registerTableInvalidation([ownTable], invalidate),
+    ...deps.map((dep) =>
+      typeof dep === "string"
+        ? registerTableInvalidation([dep], invalidate)
+        : registerTableInvalidation([dep.table], invalidate, {
+            whenColumns: dep.whenColumns,
+          }),
+    ),
+  ];
+  return () => {
+    for (const unregister of unregisters) unregister();
+  };
 };

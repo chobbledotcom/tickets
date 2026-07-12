@@ -1,11 +1,8 @@
 import type { InStatement, ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import {
-  registerTableInvalidation,
-  resetCacheRegistry,
-} from "#shared/cache-registry.ts";
+import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
   deleteByFieldStatement,
   execute,
@@ -105,12 +102,9 @@ describe("extractUpdateColumns", () => {
 });
 
 describeWithEnv("invalidateForSql fallback path", { db: true }, () => {
-  beforeEach(() => resetCacheRegistry());
-  afterEach(() => resetCacheRegistry());
-
   test("UPDATE with unparseable SET fires column-gated invalidators unconditionally", async () => {
     let fired = 0;
-    registerTableInvalidation(
+    const unregister = registerTableInvalidation(
       ["t"],
       () => {
         fired++;
@@ -126,19 +120,24 @@ describeWithEnv("invalidateForSql fallback path", { db: true }, () => {
       expect(fired).toBe(1);
     } finally {
       executeStub.restore();
+      unregister();
     }
   });
 
   test("REPLACE INTO invalidates the target table", async () => {
     let fired = 0;
-    registerTableInvalidation(["settings"], () => {
+    const unregister = registerTableInvalidation(["settings"], () => {
       fired++;
     });
-    await execute("REPLACE INTO settings (key, value) VALUES (?, ?)", [
-      "replace_test",
-      "val",
-    ]);
-    expect(fired).toBe(1);
+    try {
+      await execute("REPLACE INTO settings (key, value) VALUES (?, ?)", [
+        "replace_test",
+        "val",
+      ]);
+      expect(fired).toBe(1);
+    } finally {
+      unregister();
+    }
   });
 });
 
