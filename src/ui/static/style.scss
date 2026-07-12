@@ -38,6 +38,31 @@
   /* Breakpoint: desktop ≥ 769px, mobile ≤ 768px (use in @media rules) */
 }
 
+@mixin stack-tight {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+}
+
+@mixin stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-m);
+}
+
+@mixin nav-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-s) var(--space-m);
+}
+
+
+@mixin panel-border {
+  border: 1px solid var(--color-bg-secondary);
+  border-radius: var(--border-radius);
+}
+
+
 /* Public-facing pages (no admin nav) get a narrower reading width */
 body:not(:has(#main-nav)) {
   --width-content: 1080px;
@@ -319,8 +344,7 @@ section pre {
 }
 
 section aside {
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
+  @include panel-border;
   box-shadow: var(--box-shadow) var(--color-shadow);
   padding: var(--space-m);
   width: var(--width-card);
@@ -368,9 +392,7 @@ nav {
 }
 
 nav ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-s) var(--space-m);
+  @include nav-row;
   list-style: none;
   padding: 0;
 }
@@ -461,18 +483,14 @@ nav ul li {
      is a simple column; nesting a sub-nav indents it one step, so the site
      editor's third level indents twice, all without boxes or borders. */
   .admin-nav--desktop ul {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-s);
+    @include stack-tight;
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
   .admin-nav--desktop li {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-s);
+    @include stack-tight;
     padding: 0;
     text-align: left;
   }
@@ -745,12 +763,9 @@ input[type="submit"][disabled]:hover {
 }
 
 form {
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
+  @include panel-border;
   box-shadow: var(--box-shadow) var(--color-shadow);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-m);
+  @include stack;
   max-width: var(--width-card-wide);
   min-width: var(--width-card);
   padding: var(--space-m);
@@ -824,8 +839,7 @@ input[type="range"] {
 input,
 select,
 textarea {
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
+  @include panel-border;
   padding: 0.4rem 0.8rem;
 }
 
@@ -904,8 +918,7 @@ textarea[readonly] {
   width: 100%;
   max-width: var(--width-card-wide);
   box-sizing: border-box;
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
+  @include panel-border;
   /* The field sits inside a <label>, which is bold with a tall line-height;
      reset both so only genuinely bold text is bold and the prose isn't
      double-spaced. */
@@ -1192,8 +1205,7 @@ dialog::backdrop {
    No `max-width` cap: a table wider than its container is meant to grow past it
    and scroll, which the `.table-scroll` wrapper (overflow-x: auto) handles. */
 table {
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
+  @include panel-border;
   border-spacing: 0;
   padding: 0;
   white-space: nowrap;
@@ -1336,9 +1348,7 @@ blockquote footer {
 
 /* Articles are vertical stacks */
 article {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-m);
+  @include stack;
 }
 
 /* App-specific additions */
@@ -1685,17 +1695,14 @@ body.iframe form {
    deliberately low-contrast border. Row-based groups (.checkboxes/.radios) and
    grids (.card-grid) set their own display and so opt out of the column. */
 fieldset {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-m);
+  @include stack;
   border: 0;
   padding: 0;
   min-width: 0;
 }
 
 fieldset.inset {
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
+  @include panel-border;
   padding: var(--space-m);
 }
 
@@ -1717,9 +1724,7 @@ fieldset.inset {
 }
 
 .ticket-listings {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-s);
+  @include stack-tight;
 }
 
 /* The "Number of packages" selector only ever holds small counts, so keep it
@@ -1731,9 +1736,7 @@ select[data-package-members] {
 /* Booking-form running total: the "show total" button and the live summary the
    running-total script renders into the adjacent <output>. */
 .running-total {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-s);
+  @include stack-tight;
 }
 
 .order-summary-output {
@@ -1776,9 +1779,7 @@ select[data-package-members] {
 /* Linked-items list: one .checkboxes row per item type, the type name leading
    each row. The rows carry their own flex layout, so the list chrome goes. */
 .linked-items {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-s);
+  @include stack-tight;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -2093,9 +2094,7 @@ form.listing-form--templated.listing-form--no-daily:not(
 }
 
 .listing-type-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-s);
+  @include stack-tight;
   padding: var(--space-m);
   border: 1px solid var(--color-bg-secondary);
   border-radius: 4px;
@@ -2161,9 +2160,7 @@ button.secondary:hover,
   scroll-snap-align: start;
   background: var(--color-bg);
   border: 1px solid var(--color-bg-secondary);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-s);
+  @include stack-tight;
 }
 
 .ticket-card-name {
@@ -2210,9 +2207,7 @@ button.secondary:hover,
    inline utility links, then an optional debug menu below. */
 .admin-footer {
   margin-top: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-s);
+  @include stack-tight;
   font-size: smaller;
 }
 
@@ -2288,8 +2283,7 @@ button.secondary:hover,
   padding: 0;
   list-style: none;
   background: var(--color-bg);
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
+  @include panel-border;
   box-shadow: var(--box-shadow) var(--color-shadow);
 }
 
@@ -2419,9 +2413,7 @@ button.secondary:hover,
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
   background: var(--color-bg);
   color: var(--color-text);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-m);
+  @include stack;
 }
 
 #scanner-confirm-close {
@@ -2681,8 +2673,7 @@ button.secondary:hover,
   max-width: 22rem;
   margin-bottom: var(--space-m);
   padding: var(--space-s);
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
+  @include panel-border;
 }
 
 /* The ledger's two range pickers ("From" / "To") laid out side by side, wrapping
@@ -2694,9 +2685,7 @@ button.secondary:hover,
 }
 
 .ledger-date-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-s);
+  @include stack-tight;
 }
 
 .date-picker > select {
@@ -2981,9 +2970,7 @@ a.cal-day-selected:active {
 
 .card {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-s);
+  @include stack-tight;
   max-width: none;
   margin: 0;
   padding: var(--space-m);
@@ -3348,8 +3335,7 @@ a.cal-day-selected:active {
 .logistics-map {
   height: 20rem;
   margin-bottom: var(--space-s);
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
+  @include panel-border;
 }
 
 /* The map pin: a vector teardrop, so no image assets ship with the bundle. */
@@ -3382,8 +3368,7 @@ a.cal-day-selected:active {
   display: inline-block;
   margin-left: 0.35rem;
   padding: 0.05rem 0.35rem;
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
+  @include panel-border;
   color: var(--color-text-secondary);
   cursor: pointer;
   font-size: 0.75em;
