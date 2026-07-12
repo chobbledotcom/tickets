@@ -13,6 +13,7 @@ import {
   type AuthSession,
   adminLandingPath,
   CONTENT_MULTIPART,
+  gatedPost,
   requireContentOr,
   withAuth,
 } from "#routes/auth.ts";
@@ -238,10 +239,7 @@ const parseListingForm = (
 /** A content-gated multipart POST handler: authenticate, then hand the parsed
  * multipart form to `handle`. Shared by the two multipart admin POSTs (listing
  * create and catalog import). */
-export const contentMultipartRoute =
-  (handle: (session: AuthSession, formData: FormData) => Promise<Response>) =>
-  (request: Request): Promise<Response> =>
-    withAuth(request, CONTENT_MULTIPART, handle);
+export const contentMultipartRoute = gatedPost(CONTENT_MULTIPART);
 
 /**
  * Handle POST /admin/listing (create listing)

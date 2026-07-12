@@ -16,6 +16,7 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { attendeeFormPost } from "#routes/admin/attendees-route-helpers.ts";
 import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
@@ -100,10 +101,8 @@ const handleAddNoteGet: TypedRouteHandler<
   );
 
 /** POST /admin/attendee/:attendeeId/note — create an owner note. */
-const handleAddNotePost: TypedRouteHandler<
-  "POST /admin/attendee/:attendeeId/note"
-> = (request, { attendeeId }) =>
-  withAuth(request, AUTH_FORM, (session, form) =>
+const handleAddNotePost: TypedRouteHandler<"POST /admin/attendee/:attendeeId/note"> =
+  attendeeFormPost((attendeeId, session, form) =>
     withLoadedAttendee(attendeeId, async (attendee) => {
       const note = form.getString("note").trim();
       const returnUrl = form.getString("return_url");

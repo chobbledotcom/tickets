@@ -10,7 +10,7 @@ import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#shared/types.ts";
-import { renderAdminPage } from "#templates/admin/bulk-email.tsx";
+import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
   ActionButton,

@@ -15,9 +15,8 @@ import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
-import type { NavActive } from "#templates/admin/nav.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
@@ -30,21 +29,6 @@ const NAV_ACTIVE = "/admin/emails";
 
 /** Deep link to the Email Notifications form on the advanced settings page. */
 const EMAIL_SETTINGS_LINK = "/admin/settings-advanced#settings-email";
-
-/** Render an admin page to an HTML string with no flash — the plain
- *  `String(<AdminPage active session title>…</AdminPage>)` wrapper shared by
- *  the bulk-email pages and the Site-tab collection pages. */
-export const renderAdminPage = (
-  active: NavActive,
-  session: AdminSession,
-  title: string,
-  children: Child,
-): string =>
-  String(
-    <AdminPage active={active} session={session} title={title}>
-      {children}
-    </AdminPage>,
-  );
 
 /** Wrap a bulk-email page body in the standard scaffolding shared by the
  *  compose and preview pages: the prose heading, the body, then the guide

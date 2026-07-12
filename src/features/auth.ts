@@ -650,3 +650,13 @@ export async function withAuth<T extends BodyMode>(
   if (isResponse(body)) return body;
   return handler(auth.session, body as ParsedBody<T>, auth.authKind);
 }
+
+/** A curried POST route: authenticate under `policy`, then hand the session and
+ * parsed body to `handle`. The shared building block for the per-gate route
+ * wrappers (multipart listing saves, Site-tab content saves, and similar), so
+ * the authenticate-then-delegate shape lives in one place. */
+export const gatedPost =
+  <T extends BodyMode>(policy: AuthPolicy<T>) =>
+  (handle: (session: AuthSession, body: ParsedBody<T>) => Promise<Response>) =>
+  (request: Request): Promise<Response> =>
+    withAuth(request, policy, handle);

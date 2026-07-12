@@ -187,6 +187,25 @@ const withAttendeeForm = (
     withAttendee(listingId, attendeeId)((data) => handler(data, session, form)),
   );
 
+/** A POST route scoped to one attendee (no listing load): authenticate under
+ * the admin form gate, then run `handle` with the attendee id, the session, and
+ * the parsed form. Shared by the note and logistics POSTs. */
+export const attendeeFormPost =
+  (
+    handle: (
+      attendeeId: number,
+      session: AuthSession,
+      form: FormParams,
+    ) => Promise<Response>,
+  ) =>
+  (
+    request: Request,
+    { attendeeId }: { attendeeId: number },
+  ): Promise<Response> =>
+    withAuth(request, AUTH_FORM, (session, form) =>
+      handle(attendeeId, session, form),
+    );
+
 /** Read return_url from request query params */
 export const getReturnUrl = (request: Request): string =>
   getSearchParam(request, "return_url");
