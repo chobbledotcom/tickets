@@ -38,6 +38,23 @@ describe("check-copy rules", () => {
     expect(findIssues([entry(html)])).toEqual([]);
   });
 
+  test("does not read inline markup as a double space", () => {
+    const html = "Hello <strong>world</strong> and <em>friends</em>";
+    expect(findIssues([entry(html)])).toEqual([]);
+  });
+
+  test("still flags a genuine double space around inline markup", () => {
+    expect(findIssues([entry("Hello  <strong>world</strong>")])).toEqual([
+      {
+        file: "test.json",
+        fix: "use a single space",
+        key: "test.key",
+        problem: "two or more spaces in a row",
+        rule: "double-space",
+      },
+    ]);
+  });
+
   test("flags vague link text and names the destination", () => {
     const issues = findIssues([entry("Click here to view your ticket")]);
     expect(issues).toEqual([
