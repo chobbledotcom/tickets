@@ -61,7 +61,7 @@ describeWithEnv(
         await assertPublicHtml(
           `/ticket/reserved?tokens=${token}`,
           `href="/t/${token}"`,
-          "Click here to view your ticket",
+          "View your ticket",
         );
       });
 

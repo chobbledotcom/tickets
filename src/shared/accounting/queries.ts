@@ -108,19 +108,23 @@ const VISIBLE_TRANSFER_SCOPE =
  *  accounts) for the by-listing filter, with its bound args. Empty for "all
  *  listings". Cost legs use source_type/dest_type='cost' rather than 'revenue',
  *  so both types are included so service-cost legs appear in the listing view. */
-const revenueLegScope = (
-  listingId: number | null,
+const listingLegScope = (
+  listingIds: readonly number[] | null,
 ): { clause: string; args: InValue[] } =>
-  listingId === null
+  listingIds === null
     ? { args: [], clause: "" }
-    : {
-        args: Array(4).fill(String(listingId)),
-        clause:
-          ` AND (dest_type = '${REVENUE}' AND dest_id = ?` +
-          ` OR source_type = '${REVENUE}' AND source_id = ?` +
-          ` OR source_type = '${COST}' AND source_id = ?` +
-          ` OR dest_type = '${COST}' AND dest_id = ?)`,
-      };
+    : listingIds.length === 0
+      ? { args: [], clause: " AND 0" }
+      : {
+          args: Array(4)
+            .fill(listingIds.map((id) => String(id)))
+            .flat(),
+          clause:
+            ` AND (dest_type = '${REVENUE}' AND dest_id IN (${inPlaceholders(listingIds)})` +
+            ` OR source_type = '${REVENUE}' AND source_id IN (${inPlaceholders(listingIds)})` +
+            ` OR source_type = '${COST}' AND source_id IN (${inPlaceholders(listingIds)})` +
+            ` OR dest_type = '${COST}' AND dest_id IN (${inPlaceholders(listingIds)}))`,
+        };
 
 /**
  * The visible transfer list for the operator ledger: newest first, capped at
@@ -131,11 +135,11 @@ const revenueLegScope = (
  */
 export const visibleTransfers = (
   range: LedgerRange,
-  listingId: number | null,
+  listingIds: readonly number[] | null,
   limit: number,
 ): Promise<Transfer[]> => {
   const r = occurredAtRange(range);
-  const listing = revenueLegScope(listingId);
+  const listing = listingLegScope(listingIds);
   return selectTransfers(
     fromDb,
     ` WHERE ${VISIBLE_TRANSFER_SCOPE}${andPrefixed(r.clause)}${listing.clause}` +

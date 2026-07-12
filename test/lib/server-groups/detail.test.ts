@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { MANUAL_LISTING_COST } from "#shared/accounting/manual-entries.ts";
+import { postTransfers } from "#shared/accounting/store.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
+import { account } from "#shared/ledger/account.ts";
 import {
   expectHtmlResponse,
   expectStatus,
@@ -11,6 +14,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { tx } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminGet, createTestManagerSession } from "#test-utils/session.ts";
 
@@ -34,10 +38,18 @@ describeWithEnv(
           name: "Detail Allow",
           slug: "detail-allow",
         });
+        await createTestListing({
+          groupId: group.id,
+          name: "Paid manager listing",
+          unitPrice: 1000,
+        });
         const response = await awaitTestRequest(`/admin/groups/${group.id}`, {
           cookie: await createTestManagerSession("mgr-detail"),
         });
         expectStatus(200)(response);
+        expect(await response.text()).not.toContain(
+          `/admin/ledger?group=${group.id}`,
+        );
       });
 
       test("returns 404 for non-existent group", async () => {
@@ -53,6 +65,7 @@ describeWithEnv(
         const listing = await createTestListing({
           groupId: group.id,
           name: "Grouped Listing",
+          unitPrice: 1000,
         });
 
         const response = await adminGet(`/admin/groups/${group.id}`);
@@ -73,6 +86,7 @@ describeWithEnv(
           "data-listings=",
           "Embed Iframe",
           "iframe",
+          `href="/admin/ledger?group=${group.id}"`,
         );
       });
 
@@ -202,13 +216,39 @@ describeWithEnv(
         const attendeeId = result.attendees[0]!.id;
 
         const before = await adminGet(`/admin/groups/${group.id}`);
-        await expectHtmlResponse(before, 200, "Total Revenue", "£25");
+        await expectHtmlResponse(before, 200, "Total income earned", "£25");
 
         // Deleting the attendee purges its rows but not the ledger sale leg, so the
         // ledger-projected revenue still counts it — an attendee-sum would not.
         await deleteAttendee(attendeeId);
         const after = await adminGet(`/admin/groups/${group.id}`);
-        await expectHtmlResponse(after, 200, "Total Revenue", "£25");
+        await expectHtmlResponse(after, 200, "Total income earned", "£25");
+      });
+
+      test("shows an outside cost and ledger link for an otherwise-free group", async () => {
+        const group = await createTestGroup({
+          name: "Cost",
+          slug: "cost-group",
+        });
+        const listing = await createTestListing({
+          groupId: group.id,
+          name: "Free Listing",
+        });
+        await postTransfers([
+          tx({
+            amount: 3000,
+            destination: account("external", "world"),
+            kind: MANUAL_LISTING_COST,
+            reference: "group-outside-cost",
+            source: account("revenue", listing.id),
+          }),
+        ]);
+
+        const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
+
+        expect(html).toContain("Costs paid outside checkout");
+        expect(html).toContain("−£30");
+        expect(html).toContain(`href="/admin/ledger?group=${group.id}"`);
       });
 
       test("shows hidden status on detail page when group is hidden", async () => {

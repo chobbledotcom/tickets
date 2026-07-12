@@ -25,6 +25,9 @@ export type AdminPageProps = {
   title: string;
   session: AdminSession;
   active: NavActive;
+  bodyClass?: string;
+  /** Page identity/custom-CSS hook; defaults to admin-page. */
+  contentClassName?: string;
   /** Optional page theme forwarded to <Layout> — the settings/debug pages
    *  preview the site's saved theme (`s.theme`) rather than the viewer's. */
   theme?: Theme;
@@ -46,13 +49,20 @@ export const AdminPage = ({
   title,
   session,
   active,
+  bodyClass,
+  contentClassName,
   theme,
   flash,
   actions,
   children,
 }: AdminPageProps): JSX.Element => (
-  <Layout {...(theme !== undefined ? { theme } : {})} title={title}>
-    <AdminNav active={active} session={session} />
+  <Layout
+    beforeContent={<AdminNav active={active} session={session} />}
+    {...(bodyClass !== undefined ? { bodyClass } : {})}
+    contentClassName={contentClassName ?? "admin-page"}
+    {...(theme !== undefined ? { theme } : {})}
+    title={title}
+  >
     {flash}
     {actions !== undefined && <p class="actions">{actions}</p>}
     {children}

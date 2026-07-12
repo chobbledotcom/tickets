@@ -16,7 +16,7 @@ import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
   type AccountLedgerData,
   EmbeddedAccountStatementSection,
-} from "#templates/admin/ledger.tsx";
+} from "#templates/admin/ledger/statement.tsx";
 import { AdminListPage } from "#templates/admin/list-page.tsx";
 import { MoneyAdjustSection } from "#templates/admin/money-adjust-section.tsx";
 import {

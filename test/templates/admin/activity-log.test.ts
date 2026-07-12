@@ -131,7 +131,7 @@ describe("adminGlobalActivityLogPage", () => {
       emptyRefs(),
     );
     expect(html).toContain('href="/admin/settings#settings-square-webhook"');
-    expect(html).toContain("Click here to re-do your Square settings");
+    expect(html).toContain("Re-enter your Square settings");
     // The original error message is still shown after the link
     expect(html).toContain("Square signature verification failed");
   });
@@ -144,7 +144,7 @@ describe("adminGlobalActivityLogPage", () => {
       TEST_SESSION,
       emptyRefs(),
     );
-    expect(html).not.toContain("Click here to re-do your Square settings");
+    expect(html).not.toContain("Re-enter your Square settings");
   });
 });
 

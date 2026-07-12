@@ -55,6 +55,16 @@ export const formatCurrency = (minorUnits: number | string): string => {
   return formatter.format(Number(minorUnits) / divisor);
 };
 
+/** Format a signed change in minor units. Positive value is added, negative
+ * value is removed, and zero has no misleading sign. */
+export const formatSignedCurrency = (
+  minorUnits: number,
+  showPositive = true,
+): string =>
+  minorUnits === 0
+    ? formatCurrency(0)
+    : `${minorUnits < 0 ? "\u2212" : showPositive ? "+" : ""}${formatCurrency(Math.abs(minorUnits))}`;
+
 /**
  * Convert major units (decimal) to minor units (integer).
  * e.g. toMinorUnits(10.50) → 1050 (for GBP)

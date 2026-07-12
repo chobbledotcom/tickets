@@ -2,12 +2,15 @@
  * Join (invite) page templates
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { joinForm } from "#routes/join.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { SuccessCompletePage } from "#templates/components/success-complete-page.tsx";
 import { Layout } from "#templates/layout.tsx";
+import { simplePublicPage } from "#templates/public/shared.tsx";
+/* jscpd:ignore-end */
 
 /**
  * Join page - set password for invited user
@@ -46,9 +49,7 @@ export const joinCompletePage = (): string =>
  * Join error page - invalid or expired invite
  */
 export const joinErrorPage = (message: string): string =>
-  String(
-    <Layout title={t("join.invalid.title")}>
-      <h1>{t("join.invalid.heading")}</h1>
-      <Flash error={message} />
-    </Layout>,
-  );
+  simplePublicPage(
+    t("join.invalid.title"),
+    t("join.invalid.heading"),
+  )(<Flash error={message} />);

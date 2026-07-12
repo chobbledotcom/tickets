@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   formatCurrency,
+  formatSignedCurrency,
   getDecimalPlaces,
   toMajorUnits,
   toMinorUnits,
@@ -102,6 +103,20 @@ describe("currency", () => {
     test("falls back to GBP when no currency loaded", () => {
       expect(formatCurrency(1050)).toBe("£10.50");
     });
+  });
+
+  describe("formatSignedCurrency", () => {
+    testWithSetting(
+      "uses one sign style and leaves zero unsigned",
+      { currency: "GBP" },
+      () => {
+        expect(formatSignedCurrency(1250)).toBe("+£12.50");
+        expect(formatSignedCurrency(-1250)).toBe("−£12.50");
+        expect(formatSignedCurrency(0)).toBe("£0");
+        expect(formatSignedCurrency(1250, false)).toBe("£12.50");
+        expect(formatSignedCurrency(-1250, false)).toBe("−£12.50");
+      },
+    );
   });
 
   describe("toMinorUnits", () => {
