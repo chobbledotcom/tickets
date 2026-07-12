@@ -333,6 +333,14 @@ const ListingEditor = ({ data }: AttendeeFormProps): JSX.Element => {
   );
 };
 
+/** The one assignment a leg (or leg pair) renders: its agents, the start/end
+ * times and agent ids, and — for a split per-listing pair — the listing id. */
+type LogisticsAssignmentProps = {
+  agents: AttendeeLogisticsData["agents"];
+  assignment: AttendeeLogisticsData["single"];
+  listingId?: number | undefined;
+};
+
 /** One leg (start or end) as a single tidy row: a label, the time-of-day input
  * (logistics metadata only; never availability) and the agent select. Used for
  * the shared single pair (listingId omitted) or a specific listing (split). */
@@ -341,11 +349,8 @@ const LogisticsLeg = ({
   leg,
   assignment,
   listingId,
-}: {
-  agents: AttendeeLogisticsData["agents"];
+}: LogisticsAssignmentProps & {
   leg: "start" | "end";
-  assignment: AttendeeLogisticsData["single"];
-  listingId?: number;
 }): JSX.Element => {
   const isStart = leg === "start";
   const label = isStart
@@ -388,6 +393,29 @@ const LogisticsLeg = ({
   );
 };
 
+/** Both legs (start then end) of one assignment, as a start/end row pair. The
+ * shared single pair omits `listingId`; a split per-listing pair passes it. */
+const LogisticsLegPair = ({
+  agents,
+  assignment,
+  listingId,
+}: LogisticsAssignmentProps): JSX.Element => (
+  <>
+    <LogisticsLeg
+      agents={agents}
+      assignment={assignment}
+      leg="start"
+      listingId={listingId}
+    />
+    <LogisticsLeg
+      agents={agents}
+      assignment={assignment}
+      leg="end"
+      listingId={listingId}
+    />
+  </>
+);
+
 /**
  * Logistics agent + time selectors for logistics listings. A "different agents
  * per item" checkbox switches (pure CSS) between one shared start/end pair and
@@ -415,31 +443,18 @@ export const LogisticsSection = ({
         {t("attendee_form.split_agents")}
       </label>
       <div class="logistics-single">
-        <LogisticsLeg
+        <LogisticsLegPair
           agents={logistics.agents}
           assignment={logistics.single}
-          leg="start"
-        />
-        <LogisticsLeg
-          agents={logistics.agents}
-          assignment={logistics.single}
-          leg="end"
         />
       </div>
       <div class="logistics-split">
         {logistics.lines.map((line) => (
           <fieldset class="logistics-line">
             <legend>{line.name}</legend>
-            <LogisticsLeg
+            <LogisticsLegPair
               agents={logistics.agents}
               assignment={line.assignment}
-              leg="start"
-              listingId={line.listingId}
-            />
-            <LogisticsLeg
-              agents={logistics.agents}
-              assignment={line.assignment}
-              leg="end"
               listingId={line.listingId}
             />
           </fieldset>
