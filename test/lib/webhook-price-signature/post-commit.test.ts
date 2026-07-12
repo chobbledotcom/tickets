@@ -14,6 +14,7 @@ import { parseTokens } from "#routes/tickets/token-utils.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { contactFields } from "#shared/db/attendees/pii.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { getDb } from "#shared/db/client.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
@@ -219,14 +220,33 @@ describeWithEnv(
             metadata: signedMeta(2000, { items }),
           },
           async (refund) => {
-            await expect(webhookRequest()).rejects.toThrow(
-              "synthetic partial post-commit failure",
-            );
+            await assertJson(webhookRequest(), 200, (json) => {
+              expect(json).toEqual({
+                error:
+                  "Part of your booking could not be completed. Please contact support.",
+                processed: false,
+                received: true,
+              });
+            });
             expect(refund.calls.length).toBe(0);
             expect(
               (await getAttendeesRaw(first.id)).map(({ quantity }) => quantity),
             ).toEqual([1]);
             expect(await getAttendeesRaw(second.id)).toEqual([]);
+
+            const processed = await isSessionProcessed(sessionId);
+            expect(processed?.failure_data).not.toBe("");
+            await getDb().execute({
+              args: ["2000-01-01T00:00:00.000Z", sessionId],
+              sql: "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
+            });
+
+            await assertJson(webhookRequest(), 200, (json) => {
+              expect(json.processed).toBe(false);
+            });
+            expect((await getAttendeesRaw(first.id)).length).toBe(1);
+            expect(failAfterPartialCommit.calls.length).toBe(1);
+            expect(refund.calls.length).toBe(0);
           },
         );
       } finally {

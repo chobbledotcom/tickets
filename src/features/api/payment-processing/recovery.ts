@@ -167,7 +167,17 @@ export const recoverOrRefundUnexpectedCreate = async ({
     "SELECT id FROM attendees WHERE ticket_token_index = ?",
     [await computeTicketTokenIndex(ticketToken)],
   );
-  if (committedAttendee !== null) throw error;
+  if (committedAttendee !== null) {
+    // Some, but not all, booking rows landed. Refunding would leave live tickets
+    // beside returned money, while retrying after the reservation goes stale
+    // would duplicate the rows that landed. Keep it terminal for reconciliation.
+    return {
+      detail: `Partial paid booking requires reconciliation: ${String(error)}`,
+      error:
+        "Part of your booking could not be completed. Please contact support.",
+      success: false,
+    };
+  }
 
   return storeRefundedBooking(
     session,
