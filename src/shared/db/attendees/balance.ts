@@ -26,7 +26,7 @@ import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
   pricePaidFromLedger,
   remainingBalanceFromLedger,
-} from "#shared/db/attendees/queries.ts";
+} from "#shared/db/attendees/select.ts";
 import {
   executeBatchWithResults,
   queryAll,

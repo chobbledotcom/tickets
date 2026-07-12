@@ -24,7 +24,10 @@ import { costAccount } from "#shared/accounting/accounts.ts";
 import { accountBalance } from "#shared/accounting/queries.ts";
 import type { ListingBooking } from "#shared/db/attendee-types.ts";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import { ATTENDEE_JOIN_SELECT } from "#shared/db/attendees/queries.ts";
+import {
+  ATTENDEE_FIELDS,
+  attendeeColumns,
+} from "#shared/db/attendees/select.ts";
 import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { nowMs } from "#shared/now.ts";
@@ -213,7 +216,7 @@ export const servicingRowsForListing = (
   listingId: number,
 ): Promise<Attendee[]> =>
   queryAll<Attendee>(
-    `SELECT ${ATTENDEE_JOIN_SELECT}
+    `SELECT ${attendeeColumns("inner", ATTENDEE_FIELDS)}
        FROM attendees AS attendee
        JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
       WHERE listingAttendee.listing_id = ?

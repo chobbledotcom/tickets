@@ -807,3 +807,20 @@ next to `parseFlashCookie`. A pure reorganisation — the same 40 tests run, no
 test behaviour changed.
 
 *Nothing remains open in this section.*
+
+## Logistics run sheet — should servicing events appear?
+
+`getAttendeesByIds` (in `src/shared/db/attendees/queries.ts`) filters to
+`kind: "attendee"` — the exact behaviour the pre-existing query had before the
+attendee-read centralisation (PR #1790). Its only caller is the logistics run
+sheet (`src/features/admin/deliveries.ts` → `loadLegLookups`), so servicing
+events (`kind = "servicing"`) never show there.
+
+A reviewer (CodeRabbit on #1790) suggested making the lookup kind-agnostic so
+servicing rows with logistics agents would appear on the run sheet. That is a
+product/behaviour change, not a refactor, so it was left out of #1790. If
+servicing events are meant to carry delivery legs and appear on the run sheet,
+drop the `kind` filter on that read (pass `kind: "attendee-or-servicing"`) and
+add a run-sheet test that a servicing event with agents shows up. If they are
+correctly excluded, no change is needed — this note just records that the
+exclusion is deliberate, not accidental.

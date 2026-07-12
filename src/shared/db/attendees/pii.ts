@@ -23,7 +23,7 @@ import type {
 } from "#shared/db/attendee-types.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowIso } from "#shared/now.ts";
-import type { Attendee, ContactInfo, PiiBlob } from "#shared/types.ts";
+import type { ContactInfo, PiiBlob } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
 /** Current PII blob schema version */
@@ -79,16 +79,48 @@ export const decryptPiiBlob = async (
   };
 };
 
+/** The raw attendee columns the decrypt step reads and coerces. `price_paid`
+ * and `refunded` are optional because a field-selected read may leave them out
+ * (see {@link file://./select.ts}); the decrypt then leaves them out too rather
+ * than coercing an absent column into `"undefined"` / `false`. */
+export type RawAttendeeRow = {
+  pii_blob: OwnerKeyEncrypted | "";
+  checked_in: number | boolean;
+  split_logistics_agents: number | boolean;
+  price_paid?: number | string;
+  refunded?: number | boolean;
+};
+
+/** A decrypted attendee row: the raw row with its PII overlaid and its
+ * booleans/price coerced, keeping exactly whichever optional money fields the
+ * read selected. `DecryptedAttendeeRow<Attendee>` is the full `Attendee`. */
+export type DecryptedAttendeeRow<R extends RawAttendeeRow> = Omit<
+  R,
+  keyof AttendeePii | "checked_in" | "split_logistics_agents"
+> &
+  AttendeePii & {
+    checked_in: boolean;
+    split_logistics_agents: boolean;
+  } & (R extends { price_paid: number | string }
+    ? { price_paid: string }
+    : unknown) &
+  (R extends { refunded: number | boolean } ? { refunded: boolean } : unknown);
+
 /**
  * Decrypt attendee fields from the PII blob.
  * Requires migration to be complete (admin is gated behind migration).
  * When paidListing is false, payment_id and refunded are skipped.
+ *
+ * `price_paid` and `refunded` are coerced only when the read actually selected
+ * them: a table read that skipped their (expensive) subqueries carries neither
+ * column, and `String(undefined)` / `Boolean(undefined)` would fabricate a
+ * bogus value.
  */
-export const decryptAttendeeFields = async (
-  row: Attendee,
+export const decryptAttendeeFields = async <R extends RawAttendeeRow>(
+  row: R,
   privateKey: CryptoKey,
   paidListing = true,
-): Promise<Attendee> => {
+): Promise<DecryptedAttendeeRow<R>> => {
   // Rows reaching here were read from the database, where pii_blob is always
   // stored owner-key ciphertext; the "" sentinel exists only on just-created
   // in-memory echoes, which are never decrypted.
@@ -102,10 +134,12 @@ export const decryptAttendeeFields = async (
     ...pii,
     checked_in: Boolean(row.checked_in),
     // Convert to proper types — value may be integer (from SQL) or boolean (from buildAttendeeView)
-    price_paid: String(row.price_paid),
-    refunded: paidListing ? Boolean(row.refunded) : false,
+    ...("price_paid" in row ? { price_paid: String(row.price_paid) } : {}),
+    ...("refunded" in row
+      ? { refunded: paidListing ? Boolean(row.refunded) : false }
+      : {}),
     split_logistics_agents: Boolean(row.split_logistics_agents),
-  };
+  } as DecryptedAttendeeRow<R>;
 };
 
 /** Extract ContactInfo fields from an object */
@@ -157,23 +191,21 @@ export const encryptAttendeeFields = async (
  * Decrypt a list of raw attendees (all fields).
  * Used when attendees are fetched via batch query.
  */
-export const decryptAttendees = (
-  rows: Attendee[],
+export const decryptAttendees = <R extends RawAttendeeRow>(
+  rows: R[],
   privateKey: CryptoKey,
   paidListing = true,
-): Promise<Attendee[]> =>
+): Promise<DecryptedAttendeeRow<R>[]> =>
   Promise.all(
-    map((row: Attendee) => decryptAttendeeFields(row, privateKey, paidListing))(
-      rows,
-    ),
+    map((row: R) => decryptAttendeeFields(row, privateKey, paidListing))(rows),
   );
 
 /**
  * Decrypt a single raw attendee, handling null input.
  * Used when attendee is fetched via batch query.
  */
-export const decryptAttendeeOrNull = (
-  row: Attendee | null,
+export const decryptAttendeeOrNull = <R extends RawAttendeeRow>(
+  row: R | null,
   privateKey: CryptoKey,
-): Promise<Attendee | null> =>
+): Promise<DecryptedAttendeeRow<R> | null> =>
   row ? decryptAttendeeFields(row, privateKey) : Promise.resolve(null);
