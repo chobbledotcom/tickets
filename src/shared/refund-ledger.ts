@@ -152,6 +152,29 @@ const computeAttendeeRefund = async (
 };
 
 /**
+ * Run one attendee's ledger posting without ever throwing: `post` reports
+ * whether the ledger records the refund, and any error it throws is logged
+ * (as "`<label>` failed for attendee N") and reported as `{ posted: false }`
+ * instead — the provider refund has already settled by the time we post, so a
+ * ledger write must not turn it into a 500.
+ */
+const postWithoutThrowing = async (
+  label: string,
+  attendeeId: number,
+  post: () => Promise<boolean>,
+): Promise<{ posted: boolean }> => {
+  try {
+    return { posted: await post() };
+  } catch (error) {
+    logError({
+      code: ErrorCode.LEDGER_POST,
+      detail: `${label} failed for attendee ${attendeeId}: ${error}`,
+    });
+    return { posted: false };
+  }
+};
+
+/**
  * Post the ledger legs reversing one attendee's booking and report whether the
  * ledger records the refund. `{ posted: true }` when it posts the reversal — or
  * when the attendee is already refunded, so an idempotent re-submit is a no-op
@@ -159,27 +182,20 @@ const computeAttendeeRefund = async (
  * ledgered order to reverse (→ manual adjustment), or the write fails. Never
  * throws.
  */
-export const recordAttendeeRefund = async (
+export const recordAttendeeRefund = (
   attendeeId: number,
   references: RefundReferences,
   memo?: string,
-): Promise<{ posted: boolean }> => {
-  try {
+): Promise<{ posted: boolean }> =>
+  postWithoutThrowing("refund ledger post", attendeeId, async () => {
     const { posted, groups } = await computeAttendeeRefund(
       attendeeId,
       references,
       memo,
     );
     if (groups.length > 0) await postTransferGroups(groups);
-    return { posted };
-  } catch (error) {
-    logError({
-      code: ErrorCode.LEDGER_POST,
-      detail: `refund ledger post failed for attendee ${attendeeId}: ${error}`,
-    });
-    return { posted: false };
-  }
-};
+    return posted;
+  });
 
 /**
  * Record refunds for many attendees, returning each attendee's posted status.
@@ -270,45 +286,42 @@ export type PlaceholderRefundFacts = {
  * settled, so a ledger write must not turn it into a 500; a failed post is
  * logged and reported as `posted: false`.
  */
-export const recordPlaceholderRefund = async (
+export const recordPlaceholderRefund = (
   facts: PlaceholderRefundFacts,
   memo: string,
   refunded: boolean,
-): Promise<{ posted: boolean }> => {
-  try {
-    // A booking whose only money fact is the cash received: gross 0 drops the
-    // sale leg, leaving just the `payment` leg (mapBooking omits zero-amount legs).
-    await postTransfers(
-      await mapBooking({
-        amountPaid: facts.amount,
-        attendeeId: facts.attendeeId,
-        bookingFee: 0,
-        eventId: facts.eventId,
-        lines: [{ gross: 0, listingId: facts.listingId }],
-        modifiers: [],
-        occurredAt: facts.occurredAt,
-      }),
-    );
-    if (!refunded) return { posted: false };
-    // Reverse the payment we just posted as refund_cash (read back so mapRefund
-    // gets the stored legs). This runs once per session — a redelivery replays the
-    // terminal outcome before reaching here — so there is never a prior reversal.
-    const payments = (
-      await transfersByAccount(attendeeAccount(facts.attendeeId))
-    ).filter((leg) => leg.kind === KIND.payment);
-    await postTransfers(
-      await mapRefund({
-        memo,
-        occurredAt: facts.occurredAt,
-        orderLegs: payments,
-      }),
-    );
-    return { posted: true };
-  } catch (error) {
-    logError({
-      code: ErrorCode.LEDGER_POST,
-      detail: `placeholder refund ledger post failed for attendee ${facts.attendeeId}: ${error}`,
-    });
-    return { posted: false };
-  }
-};
+): Promise<{ posted: boolean }> =>
+  postWithoutThrowing(
+    "placeholder refund ledger post",
+    facts.attendeeId,
+    async () => {
+      // A booking whose only money fact is the cash received: gross 0 drops the
+      // sale leg, leaving just the `payment` leg (mapBooking omits zero-amount legs).
+      await postTransfers(
+        await mapBooking({
+          amountPaid: facts.amount,
+          attendeeId: facts.attendeeId,
+          bookingFee: 0,
+          eventId: facts.eventId,
+          lines: [{ gross: 0, listingId: facts.listingId }],
+          modifiers: [],
+          occurredAt: facts.occurredAt,
+        }),
+      );
+      if (!refunded) return false;
+      // Reverse the payment we just posted as refund_cash (read back so mapRefund
+      // gets the stored legs). This runs once per session — a redelivery replays the
+      // terminal outcome before reaching here — so there is never a prior reversal.
+      const payments = (
+        await transfersByAccount(attendeeAccount(facts.attendeeId))
+      ).filter((leg) => leg.kind === KIND.payment);
+      await postTransfers(
+        await mapRefund({
+          memo,
+          occurredAt: facts.occurredAt,
+          orderLegs: payments,
+        }),
+      );
+      return true;
+    },
+  );

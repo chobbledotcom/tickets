@@ -7,9 +7,7 @@
 /* jscpd:ignore-start */
 import {
   type ChildDatesByDayCount,
-  dayCountsEveryListingSupports,
-  keepParentDayCountsChildrenSupport,
-  packageDayCountsChildrenSupport,
+  pageDayCounts,
   type TicketListing,
 } from "#shared/booking/model.ts";
 import { packageBundleTotal } from "#shared/booking/price-tree.ts";
@@ -76,17 +74,7 @@ export const dayConfig = (
   dayCountPriceFor: singleListing?.customisable_days
     ? (days: number) => dayPriceFor(singleListing, days)
     : undefined,
-  // A package books every member, so each parent member's child union
-  // constrains the bundle's spans; other pages constrain only the
-  // single-listing-parent case.
-  dayCounts:
-    hasPackages && childrenByParentId
-      ? packageDayCountsChildrenSupport(listings, childrenByParentId)
-      : keepParentDayCountsChildrenSupport(
-          listings,
-          dayCountsEveryListingSupports(listings),
-          childrenByParentId,
-        ),
+  dayCounts: pageDayCounts(listings, childrenByParentId, hasPackages),
   hasCustomisable: listings.some((e) => e.listing.customisable_days),
 });
 

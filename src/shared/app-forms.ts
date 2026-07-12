@@ -4,9 +4,10 @@ import {
   type AuthSession,
   withAuth,
 } from "#routes/auth.ts";
-import { requireCsrfForm } from "#routes/csrf.ts";
-import { notFoundResponse } from "#routes/response.ts";
-import { csrfInvalidFormMessage } from "#shared/csrf.ts";
+import { applyFlash, requireCsrfForm } from "#routes/csrf.ts";
+import { htmlResponse, notFoundResponse } from "#routes/response.ts";
+import { csrfInvalidFormMessage, signCsrfToken } from "#shared/csrf.ts";
+import type { Flash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ValidationResult } from "#shared/forms.tsx";
 
@@ -37,11 +38,14 @@ export type AuthedBase<TParams, TContext> = {
   ) => Promise<TContext | null>;
 };
 
+/** The handling step run once auth (and any context load) has passed. */
+export type AuthedHandleStep<TParams, TContext> = (
+  args: AuthedHandlerArgs<TParams, TContext>,
+) => Response | Promise<Response>;
+
 type AuthedHandlerConfig<TParams, TContext> = AuthedBase<TParams, TContext> & {
   /** Handle the authed, loaded request. */
-  handle: (
-    args: AuthedHandlerArgs<TParams, TContext>,
-  ) => Response | Promise<Response>;
+  handle: AuthedHandleStep<TParams, TContext>;
 };
 
 /**
@@ -70,6 +74,23 @@ export const createAuthedHandler =
         });
       },
     );
+
+/** A finished authed route: takes the request and its typed params, gives back
+ * the response. The shape every {@link createAuthedHandler} factory returns. */
+export type AuthedRoute<TParams> = (
+  request: Request,
+  params: TParams,
+) => Promise<Response>;
+
+/** Build an authed route from the shared auth/load config plus its own
+ * handling step. The factories that layer more behaviour on top of
+ * {@link createAuthedHandler} — typed-form validation below, typed-name
+ * confirmation in the admin confirmation module — attach their step here. */
+export const authedHandlerWithStep = <TParams, TContext>(
+  config: AuthedBase<TParams, TContext>,
+  handle: AuthedHandleStep<TParams, TContext>,
+): AuthedRoute<TParams> =>
+  createAuthedHandler<TParams, TContext>({ ...config, handle });
 
 // ── createAuthedFormRoute: adds schema validation on top ──────────────
 
@@ -110,9 +131,9 @@ export const createAuthedFormRoute = <
 >(
   config: FormRouteConfig<TValues, TParams, TContext>,
 ) =>
-  createAuthedHandler<TParams, TContext>({
-    ...config,
-    handle: ({ context, form, params, session }) => {
+  authedHandlerWithStep<TParams, TContext>(
+    config,
+    ({ context, form, params, session }) => {
       config.preprocessForm?.(form, context);
       const validator =
         typeof config.form === "function" ? config.form(context) : config.form;
@@ -133,7 +154,7 @@ export const createAuthedFormRoute = <
             session,
           });
     },
-  });
+  );
 
 // ── createFormRoute: public CSRF-only (no auth) ───────────────────────
 
@@ -155,6 +176,17 @@ type PublicFormRouteConfig<TValues, TParams> = {
   onValid: (
     args: PublicHandlerArgs<TValues, TParams>,
   ) => Response | Promise<Response>;
+};
+
+/** Render a public page that carries a form: sign a CSRF token for it, pick
+ * up any flashed message, and return the page HTML. The GET-side partner of
+ * {@link createFormRoute} (the join and demo-reset pages use both). */
+export const publicFormPage = async (
+  request: Request,
+  render: (flash: Flash) => string,
+): Promise<Response> => {
+  await signCsrfToken();
+  return htmlResponse(render(applyFlash(request)));
 };
 
 /** CSRF-only (no auth): validate a typed form, then dispatch. */

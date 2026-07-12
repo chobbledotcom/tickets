@@ -12,7 +12,7 @@ import {
   renderDetailRows,
 } from "#templates/admin/detail-rows.tsx";
 import {
-  type ExpectedActualItem,
+  driftedRowItems,
   ExpectedActualNotice,
   ExpectedActualTableRow,
 } from "#templates/admin/expected-actual.tsx";
@@ -51,77 +51,6 @@ const formatListingAggregateValue = (
   value: number,
 ): string => listingAggregateFormatters[name](value);
 
-const listingAggregateMismatchItems = (
-  aggregateRecalculation?: ListingAggregateRecalculation | undefined,
-): ExpectedActualItem[] => {
-  if (!aggregateRecalculation) return [];
-  return listingAggregateFields.flatMap((field) => {
-    const name = field.name as ListingAggregateField;
-    const values = aggregateRecalculation[name];
-    return values.current === values.recalculated
-      ? []
-      : [
-          {
-            actual: formatListingAggregateValue(name, values.current),
-            expected: formatListingAggregateValue(name, values.recalculated),
-            label: field.label,
-          },
-        ];
-  });
-};
-
-export const ListingAggregateMismatchNotice = ({
-  aggregateRecalculation,
-  actionHref,
-}: {
-  aggregateRecalculation?: ListingAggregateRecalculation | undefined;
-  actionHref: string;
-}): JSX.Element | null => {
-  const items = listingAggregateMismatchItems(aggregateRecalculation);
-  return (
-    <ExpectedActualNotice
-      actionHref={actionHref}
-      actionLabel={t("listings_table.running_totals_error_action")}
-      explanation={t("listings_table.running_totals_error_explanation")}
-      items={items}
-      title={t("listings_table.running_totals_error_title")}
-    />
-  );
-};
-
-export const ListingAggregateMismatchRow = ({
-  aggregateRecalculation,
-  listing,
-}: {
-  aggregateRecalculation?: ListingAggregateRecalculation | undefined;
-  listing: ListingWithCount;
-}): JSX.Element | null => {
-  const items = listingAggregateMismatchItems(aggregateRecalculation);
-  return ExpectedActualTableRow({
-    header: t("listings_table.running_total_check"),
-    notice: {
-      ...(isReadOnly()
-        ? {}
-        : {
-            actionHref: adminPath("listingRecalculate", {
-              listingId: listing.id,
-            }),
-            actionLabel: t("listings_table.running_totals_error_action"),
-          }),
-      explanation: t("listings_table.running_totals_error_explanation"),
-      items,
-      title: t("listings_table.running_totals_error_title"),
-    },
-  });
-};
-
-export const listingAggregateToFieldValues = (
-  listing: ListingWithCount,
-): FieldValues => ({
-  booked_quantity: listing.attendee_count,
-  tickets_count: listing.tickets_count,
-});
-
 const listingRecalculateRows = (
   snapshot: ListingAggregateRecalculation,
 ): RecalculateRow[] =>
@@ -130,6 +59,64 @@ const listingRecalculateRows = (
     formatListingAggregateValue,
     snapshot,
   );
+
+/** The drift-notice copy plus the drifted running totals; the "fix it" link is
+ * included only when a recalculate page is reachable. Shared by the inline
+ * notice and the listing table row. */
+const listingAggregateNotice = (
+  aggregateRecalculation: ListingAggregateRecalculation | undefined,
+  actionHref?: string,
+): Parameters<typeof ExpectedActualNotice>[0] => ({
+  ...(actionHref
+    ? {
+        actionHref,
+        actionLabel: t("listings_table.running_totals_error_action"),
+      }
+    : {}),
+  explanation: t("listings_table.running_totals_error_explanation"),
+  items: aggregateRecalculation
+    ? driftedRowItems(listingRecalculateRows(aggregateRecalculation))
+    : [],
+  title: t("listings_table.running_totals_error_title"),
+});
+
+export const ListingAggregateMismatchNotice = ({
+  aggregateRecalculation,
+  actionHref,
+}: {
+  aggregateRecalculation?: ListingAggregateRecalculation | undefined;
+  actionHref?: string | undefined;
+}): JSX.Element | null =>
+  ExpectedActualNotice(
+    listingAggregateNotice(aggregateRecalculation, actionHref),
+  );
+
+/** A listing plus its (optional) running-total drift snapshot. */
+type ListingAggregateProps = {
+  aggregateRecalculation?: ListingAggregateRecalculation | undefined;
+  listing: ListingWithCount;
+};
+
+export const ListingAggregateMismatchRow = ({
+  aggregateRecalculation,
+  listing,
+}: ListingAggregateProps): JSX.Element | null =>
+  ExpectedActualTableRow({
+    header: t("listings_table.running_total_check"),
+    notice: listingAggregateNotice(
+      aggregateRecalculation,
+      isReadOnly()
+        ? undefined
+        : adminPath("listingRecalculate", { listingId: listing.id }),
+    ),
+  });
+
+export const listingAggregateToFieldValues = (
+  listing: ListingWithCount,
+): FieldValues => ({
+  booked_quantity: listing.attendee_count,
+  tickets_count: listing.tickets_count,
+});
 
 const listingRecalculateRenderer = (
   listing: ListingWithCount,

@@ -870,3 +870,57 @@ the answer/question factories) into a local helper the suites import, and keep
 `questionTextFlat` + `buildAnswerSummaryRows` with whichever suite reads most
 naturally. Preserve every existing assertion — behaviour must not change. The
 attribute template test (`attributes.test.tsx`) is the shape to mirror.
+
+## Pre-existing issues surfaced during the min-tokens-20 dedup (PR #1795)
+
+CodeRabbit flagged these while reviewing the dedup PR. Each is a real point but
+pre-existing (the dedup preserved the behaviour, it did not introduce it), so
+they were left out of that PR's scope.
+
+- **Bulk email draft cleared after the send, not before**
+  (`src/features/admin/bulk-email.ts`, the `sendBulkEmails → recordContacts →
+  bulkEmailDraft("") → logActivity` sequence). `sendBulkEmails` is
+  non-idempotent, so if `recordContacts` throws after the send, a retry can
+  resend to the whole audience. Moving the draft-clear before the send trades
+  that for the opposite risk (a failed send loses the draft with no retry), so
+  it needs a deliberate decision — likely a "draft consumed" marker distinct
+  from "draft empty". Not a dedup regression: the ordering is byte-identical to
+  before the PR.
+
+- **Tautological admin-API example test**
+  (`test/shared/admin-api-example.test.ts`: `toAdminListing output matches the
+  documented example`). `ADMIN_API_EXAMPLE_ADMIN_LISTING` is defined as
+  `toAdminListing(API_EXAMPLE_LISTING)` and the test compares
+  `toAdminListing(API_EXAMPLE_LISTING)` against it — both sides derive from the
+  same call, so the assertion cannot catch a `toAdminListing` shape regression.
+  Fix: author an independent `AdminListing` fixture (or assert against an
+  admin-listing schema). Pre-existing — the base had the same tautology via the
+  now-removed `ADMIN_API_EXAMPLE_LISTING` alias.
+
+- **Bulk-group-duplicate form loses inputs on a failed POST**
+  (`src/ui/templates/admin/bulk-actions.tsx` `adminDuplicateGroupPage`). On a
+  validation error the form re-renders with defaults (`${group.name} (copy)`,
+  blank find/replace/date) instead of the submitted values. Pre-existing: the
+  page's `values` param was already unused before this branch (this dedup only
+  deleted the dead param), so the form has never re-filled on error. Fix: thread
+  the submitted values back into the `TextField`/`TextFields` inputs, following
+  the flash/form-refill pattern other admin forms use.
+
+- **Attempt-lockout expired-row cleanup is not TOCTOU-safe**
+  (`src/shared/db/attempt-lockout.ts` `lockoutActive`). The expired-row delete is
+  unconditional, so a request that observes an expired lockout can delete a fresh
+  lockout another request wrote in between, losing rate-limit state for that IP.
+  Pre-existing: the two attempt tables (`login_attempts`, `token_attempts`) both
+  deleted unconditionally before this branch merged them into one helper. Fix:
+  make the delete conditional on the stored `locked_until` still equalling the
+  observed value, in one atomic statement.
+
+- **`deployAndReport` lets an activity-log failure mask a successful deploy**
+  (`src/shared/site-update.ts`). Only the deploy runs inside `tryStep`; the
+  `logActivity` write after it is not, so a transient log-write failure throws
+  out of `deployAndReport` as a raw 500 even though the deploy succeeded (before
+  this dedup each route's own try/catch returned its normal error page). The
+  right fix is to make the activity-log write best-effort — a successful deploy
+  should return success even if the log line can't be written — with a
+  regression test that stubs `logActivity` to reject. Introduced by folding the
+  two update routes onto the shared helper.

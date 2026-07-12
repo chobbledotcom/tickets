@@ -1,19 +1,22 @@
 import { byId, filter, map } from "#fp";
 import { t } from "#i18n";
 import type { AuthSession } from "#routes/auth.ts";
-import { adminPath } from "#shared/admin-surface.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import type {
   ServicingCostRecord,
   ServicingEvent,
+  ServicingEventSummary,
 } from "#shared/db/attendees/servicing.ts";
 import { CsrfForm, type Field, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { listingLedgerHref } from "#shared/ledger-links.ts";
 import { isOwnerRole, type ListingWithCount } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
-import { WritableLink } from "#templates/admin/writable-only.tsx";
+import {
+  ServicingEventEditLink,
+  servicingEventDateLabel,
+} from "#templates/admin/servicing-events.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
@@ -272,20 +275,12 @@ export const renderServicingPage = ({
   );
 };
 
-type ServicingListEvent = {
-  bookings: { listingId: number }[];
-  date: string | null;
-  id: number;
-  name: string;
-  totalQuantity: number;
-};
-
 const serviceEventListRows = (
-  events: ServicingListEvent[],
+  events: ServicingEventSummary[],
   listings: ListingWithCount[],
 ) => {
   const listingNames = listingNamesById(listings);
-  return map((event: ServicingListEvent) => {
+  return map((event: ServicingEventSummary) => {
     const names = map(
       (booking: { listingId: number }) =>
         listingNames.get(booking.listingId) ?? t("servicing.deleted_listing"),
@@ -293,11 +288,9 @@ const serviceEventListRows = (
     return (
       <tr class="servicing-event" data-servicing="true">
         <td>
-          <WritableLink href={adminPath("servicingEdit", { id: event.id })}>
-            {event.name}
-          </WritableLink>
+          <ServicingEventEditLink event={event} />
         </td>
-        <td>{event.date === null ? "" : formatDateLabel(event.date)}</td>
+        <td>{servicingEventDateLabel(event.date)}</td>
         <td>{names}</td>
         <td>{event.totalQuantity}</td>
       </tr>
@@ -307,7 +300,7 @@ const serviceEventListRows = (
 
 export const renderServicingList = (
   session: AuthSession,
-  events: ServicingListEvent[],
+  events: ServicingEventSummary[],
   listings: ListingWithCount[],
 ): string => {
   const rows = serviceEventListRows(events, listings);

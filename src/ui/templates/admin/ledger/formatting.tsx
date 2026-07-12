@@ -44,24 +44,26 @@ const sentenceWithAccount = (
     <span>{t(key)}.</span>
   );
 
-const fallbackHumanDescription = (
-  transfer: Transfer,
-  accountCell: AccountCell,
-): JSX.Element => (
-  <>
-    {t("admin.ledger.human.money_from")} {accountCell(transfer.source)}{" "}
-    {t("admin.ledger.human.money_to")} {accountCell(transfer.destination)}.
-  </>
+/** A sentence naming both accounts: optional lead-in words, then the money's
+ * source, the joining words, and its destination. */
+const linkedAccountsDescription =
+  (leadKey: string | null, joinKey: string): DescriptionRule =>
+  (transfer, accountCell) => (
+    <>
+      {leadKey === null ? "" : `${t(leadKey)} `}
+      {accountCell(transfer.source)} {t(joinKey)}{" "}
+      {accountCell(transfer.destination)}.
+    </>
+  );
+
+const fallbackHumanDescription: DescriptionRule = linkedAccountsDescription(
+  "admin.ledger.human.money_from",
+  "admin.ledger.human.money_to",
 );
 
-const saleDescription = (
-  transfer: Transfer,
-  accountCell: AccountCell,
-): JSX.Element => (
-  <>
-    {accountCell(transfer.source)} {t("admin.ledger.human.booked")}{" "}
-    {accountCell(transfer.destination)}.
-  </>
+const saleDescription: DescriptionRule = linkedAccountsDescription(
+  null,
+  "admin.ledger.human.booked",
 );
 
 const adjustmentDescription = (

@@ -1,17 +1,15 @@
 import { t } from "#i18n";
 import { entityReturnPath } from "#shared/admin-pages.ts";
-import type { AdminSession, Group } from "#shared/types.ts";
-import { successAdminPage } from "#templates/admin/admin-page.tsx";
+import type { Group } from "#shared/types.ts";
+import { successListPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 
 /** Admin groups list page. */
-export const adminGroupsPage = (
-  groups: Group[],
-  session: AdminSession,
-  successMessage?: string,
-): string =>
-  successAdminPage(t("terms.groups"), "/admin/groups")(session, successMessage)(
+export const adminGroupsPage = successListPage<Group[]>(
+  "terms.groups",
+  "/admin/groups",
+  (groups, session) => (
     <>
       {groups.length === 0 ? (
         <p>{t("groups.no_groups")}</p>
@@ -38,5 +36,6 @@ export const adminGroupsPage = (
       <GuideFooter adminLevel={session.adminLevel} href="/admin/guide#packages">
         {t("groups.guide_link")}
       </GuideFooter>
-    </>,
-  );
+    </>
+  ),
+);

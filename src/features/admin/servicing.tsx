@@ -218,13 +218,34 @@ const redirectServicingResult = async <T extends { id: number; name: string }>(
   }
 };
 
-const handleServicingPost: TypedRouteHandler<"POST /admin/servicing/:id"> = (
-  request,
-  { id },
-) =>
+/** A POST on one servicing event: authenticate, check the event exists, then
+ * run `act` with the submitted form and the loaded event. Every update,
+ * delete, duplicate, and cost route funnels through here. */
+const withServicingEvent = (
+  request: Request,
+  id: number,
+  act: (form: FormParams, event: ServicingEvent) => Promise<Response>,
+): Promise<Response> =>
   withAuth(request, AUTH_FORM, async (_session, form) => {
     const event = await getServicingEvent(id);
     if (!event) return notFoundResponse();
+    return act(form, event);
+  });
+
+/** Curried route shape for the POSTs keyed by the event id alone. */
+const servicingEventPost =
+  (
+    act: (
+      id: number,
+      form: FormParams,
+      event: ServicingEvent,
+    ) => Promise<Response>,
+  ) =>
+  (request: Request, { id }: { id: number }): Promise<Response> =>
+    withServicingEvent(request, id, (form, event) => act(id, form, event));
+
+const handleServicingPost: TypedRouteHandler<"POST /admin/servicing/:id"> =
+  servicingEventPost(async (id, form, event) => {
     const costResponse = await handleCostPost(id, form, event);
     if (costResponse) return costResponse;
     return redirectServicingResult(
@@ -234,29 +255,14 @@ const handleServicingPost: TypedRouteHandler<"POST /admin/servicing/:id"> = (
     );
   });
 
-const withServicingEvent = (
-  request: Request,
-  id: number,
-  body: () => Promise<Response>,
-): Promise<Response> =>
-  withAuth(request, AUTH_FORM, async () => {
-    const existing = await getServicingEvent(id);
-    if (!existing) return notFoundResponse();
-    return body();
-  });
-
-const handleServicingDeletePost: TypedRouteHandler<
-  "POST /admin/servicing/:id/delete"
-> = (request, { id }) =>
-  withServicingEvent(request, id, async () => {
+const handleServicingDeletePost: TypedRouteHandler<"POST /admin/servicing/:id/delete"> =
+  servicingEventPost(async (id) => {
     await deleteServicingEvent(id);
     return redirect("/admin/", t("servicing.success.deleted"), true);
   });
 
-const handleServicingDuplicatePost: TypedRouteHandler<
-  "POST /admin/servicing/:id/duplicate"
-> = (request, { id }) =>
-  withServicingEvent(request, id, async () =>
+const handleServicingDuplicatePost: TypedRouteHandler<"POST /admin/servicing/:id/duplicate"> =
+  servicingEventPost((id) =>
     redirectServicingResult(
       id,
       () => duplicateServicingEvent(id),
@@ -267,8 +273,7 @@ const handleServicingDuplicatePost: TypedRouteHandler<
 const handleServicingCostPost: TypedRouteHandler<
   "POST /admin/servicing/:id/cost/:costId"
 > = (request, { id, costId }) =>
-  withAuth(request, AUTH_FORM, async (_session, form) => {
-    if (!(await getServicingEvent(id))) return notFoundResponse();
+  withServicingEvent(request, id, async (form) => {
     const amount = parsePositiveMinorUnits(form.getString("amount"));
     if (amount === null) {
       return redirect(

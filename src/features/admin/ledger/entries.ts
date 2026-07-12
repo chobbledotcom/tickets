@@ -145,6 +145,30 @@ type PostedTransferHandler = (
   form: FormParams,
 ) => Response | Promise<Response>;
 
+/** Load the record an entry GET page is about, then render the page with the
+ * request's flash error and return URL. A missing record renders nothing
+ * (null), which the owner page wrappers turn into a 404. Shared by the add
+ * and edit pages so the load-flash-render shape stays one mechanism. */
+const loadedEntryPage = async <Loaded>(
+  request: Request,
+  load: Promise<Loaded | null>,
+  fallbackReturnUrl: (loaded: Loaded) => string,
+  render: (
+    loaded: Loaded,
+    error: string | undefined,
+    returnUrl: string,
+  ) => string | Promise<string>,
+): Promise<string | null> => {
+  const loaded = await load;
+  if (!loaded) return null;
+  const flash = applyFlash(request);
+  return render(
+    loaded,
+    flash.error,
+    returnUrlFromRequest(request, fallbackReturnUrl(loaded)),
+  );
+};
+
 const postedTransferRoute =
   (handler: PostedTransferHandler) =>
   (request: Request, params: IdParam): Promise<Response> =>
@@ -154,21 +178,21 @@ const postedTransferRoute =
     });
 
 export const handleLedgerEntryAddGet: TypedRouteHandler<"GET /admin/ledger/:type/:ref/add"> =
-  ownerTypeRefHtml(async (request, session, { type, ref }) => {
-    const loaded = await loadAddableAccount(type, ref);
-    if (!loaded) return null;
-    const flash = applyFlash(request);
-    return adminLedgerEntryAddPage({
-      ...loaded,
-      error: flash.error,
-      returnUrl: returnUrlFromRequest(
-        request,
-        accountStatementPath(loaded.account),
-      ),
-      session,
-      values: blankEntryValues(loaded.options),
-    });
-  });
+  ownerTypeRefHtml((request, session, { type, ref }) =>
+    loadedEntryPage(
+      request,
+      loadAddableAccount(type, ref),
+      (loaded) => accountStatementPath(loaded.account),
+      (loaded, error, returnUrl) =>
+        adminLedgerEntryAddPage({
+          ...loaded,
+          error,
+          returnUrl,
+          session,
+          values: blankEntryValues(loaded.options),
+        }),
+    ),
+  );
 
 export const handleLedgerEntryAddPost: TypedRouteHandler<
   "POST /admin/ledger/:type/:ref/add"
@@ -197,19 +221,22 @@ export const handleLedgerEntryAddPost: TypedRouteHandler<
 export const handleLedgerEntryEditGet: TypedRouteHandler<
   "GET /admin/ledger/entries/:id/edit"
 > = (request, { id }) =>
-  ownerHtml(request, async (session) => {
-    const transfer = await getEditableTransferById(id);
-    if (!transfer) return null;
-    const flash = applyFlash(request);
-    return adminLedgerEntryEditPage({
-      error: flash.error,
-      names: await loadLedgerNames([transfer]),
-      returnUrl: returnUrlFromRequest(request, "/admin/ledger"),
-      session,
-      transfer,
-      values: transferFormValues(transfer),
-    });
-  });
+  ownerHtml(request, (session) =>
+    loadedEntryPage(
+      request,
+      getEditableTransferById(id),
+      () => "/admin/ledger",
+      async (transfer, error, returnUrl) =>
+        adminLedgerEntryEditPage({
+          error,
+          names: await loadLedgerNames([transfer]),
+          returnUrl,
+          session,
+          transfer,
+          values: transferFormValues(transfer),
+        }),
+    ),
+  );
 
 const updatePostedTransfer: PostedTransferHandler = async (posted, form) => {
   const parsed = ledgerEntryForm.validate(form);

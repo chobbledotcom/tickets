@@ -25,16 +25,18 @@ import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
+import { TextFields } from "#templates/components/text-fields.tsx";
+
 /* jscpd:ignore-end */
 
-/** Form field values for the duplicate-group action */
-export interface DuplicateGroupFormValues {
-  dateFind: string;
-  dateReplace: string;
-  nameFind: string;
-  nameReplace: string;
-  newName: string;
-}
+/** A group bulk-action page: rendered from the group, its listings, the
+ * signed-in admin, and an optional error from a failed submit. */
+type BulkActionPage = (
+  group: Group,
+  listings: ListingWithCount[],
+  session: AdminSession,
+  error?: string,
+) => string;
 
 /** Embed JSON safely inside a <script type="application/json"> tag */
 const safeJson = (value: unknown): string =>
@@ -169,25 +171,18 @@ const PreviewRow = ({
  * Admin duplicate-group page: form with live preview.
  * The form submits to POST /admin/groups/:id/bulk-actions/duplicate.
  */
-export const adminDuplicateGroupPage = (
-  group: Group,
-  listings: ListingWithCount[],
-  session: AdminSession,
-  error?: string,
-  values: DuplicateGroupFormValues = {
-    dateFind: "",
-    dateReplace: "",
-    nameFind: "",
-    nameReplace: "",
-    newName: `${group.name} (copy)`,
-  },
-): string => {
+export const adminDuplicateGroupPage: BulkActionPage = (
+  group,
+  listings,
+  session,
+  error,
+) => {
   const tz = settings.timezone;
   const initialRows = buildDuplicatePreview(
     listings.map(
       (e): PreviewableListing => ({ date: e.date, id: e.id, name: e.name }),
     ),
-    values,
+    { dateFind: "", dateReplace: "", nameFind: "", nameReplace: "" },
   );
   const listingsJson = safeJson(
     listings.map((e) => ({ date: e.date, id: e.id, name: e.name })),
@@ -224,39 +219,41 @@ export const adminDuplicateGroupPage = (
           name="new_name"
           required
           type="text"
-          value={values.newName}
+          value={`${group.name} (copy)`}
         />
-        <TextField
+        <TextFields
           duplicate
-          label={t("bulk_actions.form_find_in_names")}
-          name="name_find"
-          placeholder={t("bulk_actions.form_find_placeholder")}
-          type="text"
-          value={values.nameFind || undefined}
-        />
-        <TextField
-          duplicate
-          label={t("bulk_actions.form_replace_with")}
-          name="name_replace"
-          type="text"
-          value={values.nameReplace || undefined}
+          fields={[
+            {
+              label: t("bulk_actions.form_find_in_names"),
+              name: "name_find",
+              placeholder: t("bulk_actions.form_find_placeholder"),
+              type: "text",
+            },
+            {
+              label: t("bulk_actions.form_replace_with"),
+              name: "name_replace",
+              type: "text",
+            },
+          ]}
         />
         <p>
           <small>{t("bulk_actions.form_date_shift_help")}</small>
         </p>
-        <TextField
+        <TextFields
           duplicate
-          label={t("bulk_actions.form_reference_date")}
-          name="date_find"
-          type="date"
-          value={values.dateFind || undefined}
-        />
-        <TextField
-          duplicate
-          label={t("bulk_actions.form_target_date")}
-          name="date_replace"
-          type="date"
-          value={values.dateReplace || undefined}
+          fields={[
+            {
+              label: t("bulk_actions.form_reference_date"),
+              name: "date_find",
+              type: "date",
+            },
+            {
+              label: t("bulk_actions.form_target_date"),
+              name: "date_replace",
+              type: "date",
+            },
+          ]}
         />
 
         <h2>{t("bulk_actions.preview_heading")}</h2>
@@ -334,13 +331,11 @@ const bulkConfirmPage = (
  *  shared `({ group, listings, session, error }) => bulkConfirmPage(...)` wrapper
  *  appeared duplicated across both pages; this curry keeps it in one place. */
 const activateConfirmPage =
-  (actionSegment: string, config: Omit<BulkConfirmConfig, "action">) =>
   (
-    group: Group,
-    listings: ListingWithCount[],
-    session: AdminSession,
-    error?: string,
-  ): string =>
+    actionSegment: string,
+    config: Omit<BulkConfirmConfig, "action">,
+  ): BulkActionPage =>
+  (group, listings, session, error) =>
     bulkConfirmPage(group, listings, session, error, {
       ...config,
       action: `/admin/groups/${group.id}/bulk-actions/${actionSegment}`,

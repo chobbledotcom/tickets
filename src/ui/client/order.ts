@@ -356,9 +356,7 @@ class CartController {
 
   private buildContinue(): HTMLElement {
     const url = this.continueUrl();
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "continue";
+    const button = createButton("continue");
     button.textContent = "Continue";
     button.addEventListener("click", () => {
       debugLog("continue ->", url);

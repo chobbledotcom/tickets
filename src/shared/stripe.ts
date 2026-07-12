@@ -22,6 +22,8 @@ import {
   cachedClientFactory,
   createWithClient,
   errorMessage,
+  type SignedTestWebhook,
+  signedTestWebhook,
 } from "#shared/payment-helpers.ts";
 import type {
   CheckoutIntent,
@@ -571,17 +573,12 @@ export const verifyWebhookSignature = async (
  * Construct a test webhook event (for testing purposes).
  * Generates a valid signature for the given payload.
  */
-export const constructTestWebhookEvent = async (
+export const constructTestWebhookEvent = (
   listing: StripeWebhookEvent,
   secret: string,
-): Promise<{ payload: string; signature: string }> => {
-  const payload = JSON.stringify(listing);
-  const timestamp = Math.floor(nowMs() / 1000);
-  const signedPayload = `${timestamp}.${payload}`;
-  const sig = await computeSignature(signedPayload, secret);
-
-  return {
-    payload,
-    signature: `t=${timestamp},v1=${sig}`,
-  };
-};
+): Promise<SignedTestWebhook> =>
+  signedTestWebhook(listing, async (payload) => {
+    const timestamp = Math.floor(nowMs() / 1000);
+    const sig = await computeSignature(`${timestamp}.${payload}`, secret);
+    return `t=${timestamp},v1=${sig}`;
+  });

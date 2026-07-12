@@ -26,7 +26,7 @@ import {
   type AggregateRecalculation,
   type AggregateValues,
   defineIdTable,
-  encryptedNameSchema,
+  idAndEncryptedNameSchema,
 } from "#shared/db/common-schema.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
 import { columnMapByIds, nameSource, queryAndMap } from "#shared/db/query.ts";
@@ -69,8 +69,7 @@ export type ModifierInput = {
 export const modifiersTable = defineIdTable<ModifierRow, ModifierInput>(
   "modifiers",
   {
-    id: col.generated<number>(),
-    ...encryptedNameSchema(encrypt, decrypt),
+    ...idAndEncryptedNameSchema(encrypt, decrypt),
     active: col.boolean(true),
     calc_kind: col.simple<CalcKind>(),
     calc_value: col.simple<number>(),

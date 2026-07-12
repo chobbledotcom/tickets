@@ -61,6 +61,7 @@
   "contact_history.save": "Save record",
   "contact_history.saved": "Contact record saved",
   "contact_history.note_too_long": "Notes must be {max} characters or fewer",
+  "attendee_form.no_answer": "No answer",
   "attendee_form.no_email_on_file": "No email address on file.",
   "attendee_form.no_phone_on_file": "No phone number on file.",
   "attendee_form.last_contacted": "Last contacted",

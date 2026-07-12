@@ -3,7 +3,7 @@ import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type { SettingsFormDefinition } from "#shared/settings/forms.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
-import { SettingsSection } from "#templates/components/settings-section.tsx";
+import { settingsSectionWith } from "#templates/components/settings-section.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
 import { YesNoRadios } from "#templates/components/yes-no-radios.tsx";
 
@@ -38,16 +38,16 @@ const submitLabel = (definition: SettingsFormDefinition): string =>
 const formSection = (
   definition: SettingsFormDefinition,
   children: Child,
-): JSX.Element => (
-  <SettingsSection
-    action={definition.action}
-    description={description(definition)}
-    submitLabel={submitLabel(definition)}
-    title={t(definition.copy.titleKey)}
-  >
-    {children}
-  </SettingsSection>
-);
+): JSX.Element =>
+  settingsSectionWith(
+    {
+      action: definition.action,
+      description: description(definition),
+      submitLabel: submitLabel(definition),
+      title: t(definition.copy.titleKey),
+    },
+    children,
+  );
 
 const footer = (definition: SettingsFormDefinition): JSX.Element | undefined =>
   "footerKey" in definition.copy ? (

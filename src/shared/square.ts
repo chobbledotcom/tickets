@@ -26,6 +26,8 @@ import {
   createWithClient,
   errorMessage,
   PaymentUserError,
+  type SignedTestWebhook,
+  signedTestWebhook,
 } from "#shared/payment-helpers.ts";
 import type {
   CheckoutIntent,
@@ -153,12 +155,16 @@ const SQUARE_BASE_URL = {
 const jsonStringify = (obj: unknown): string =>
   JSON.stringify(obj, (_, v) => (typeof v === "bigint" ? Number(v) : v));
 
+/** Optional method and JSON body for one Square REST call (GET, no body, when
+ * omitted). Shared by {@link squareRequestInit} and the fetch built on it. */
+export type SquareRequestOptions = { method?: string; body?: unknown };
+
 /** Build the request init (auth headers + method + body) for a Square REST call.
  * Shared with the e2e payment harness, which drives the sandbox API against the
  * same endpoints; the two callers layer their own fetch/error handling on top. */
 export const squareRequestInit = (
   token: string,
-  options?: { method?: string; body?: unknown },
+  options?: SquareRequestOptions,
 ): { headers: Record<string, string>; method: string; body?: string } => ({
   headers: {
     Authorization: `Bearer ${token}`,
@@ -174,7 +180,7 @@ const squareFetch = async (
   token: string,
   baseUrl: string,
   path: string,
-  options?: { method?: string; body?: unknown },
+  options?: SquareRequestOptions,
 ): Promise<unknown> => {
   const response = await fetchText(
     `${baseUrl}${path}`,
@@ -858,14 +864,14 @@ export const verifyWebhookSignature = async (
  * Generates a valid Square signature for the given payload.
  * Square signs: notification_url + raw_body (base64-encoded HMAC-SHA256).
  */
-export const constructTestWebhookEvent = async (
+export const constructTestWebhookEvent = (
   listing: WebhookEvent,
   secret: string,
   notificationUrl: string,
-): Promise<{ payload: string; signature: string }> => {
-  const body = JSON.stringify(listing);
-  const bodyBytes = new TextEncoder().encode(body);
-  const signedPayload = buildSignedPayload(notificationUrl, bodyBytes);
-  const signature = await computeSquareSignature(signedPayload, secret);
-  return { payload: body, signature };
-};
+): Promise<SignedTestWebhook> =>
+  signedTestWebhook(listing, (payload) =>
+    computeSquareSignature(
+      buildSignedPayload(notificationUrl, new TextEncoder().encode(payload)),
+      secret,
+    ),
+  );

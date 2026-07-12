@@ -33,14 +33,12 @@ import {
   getStoredListingWithCount,
   listingsTable,
 } from "#shared/db/listings/records.ts";
-import {
-  computeSlugIndex,
-  type ListingInput,
-} from "#shared/db/listings/table.ts";
+import type { ListingInput } from "#shared/db/listings/table.ts";
 import {
   deleteOrphanedAddOnError,
   generateUniqueListingSlug,
   listingInputToEdge,
+  parseUpdatedListingSlug,
   performListingDelete,
   toggleListingActive,
   validateListingInput,
@@ -53,10 +51,8 @@ import {
   type ParseResult,
   parseOptionalArray,
   parseUpdateName,
-  parseUpdateSlug,
   withApiEntity,
 } from "#shared/rest/crud-api.ts";
-import { normalizeSlug } from "#shared/slug.ts";
 import type {
   AdminListing,
   Listing,
@@ -202,6 +198,22 @@ const matchesType = (val: unknown, type: FieldType): val is FieldValue =>
         ? typeof val === "boolean"
         : Array.isArray(val);
 
+/** Build a FieldRecord over the field mappings: `fieldValue` gives each mapped
+ * field's value, and returning undefined leaves that field out. Shared by the
+ * body extractor and the existing-listing defaults so the mapping loop exists
+ * once. */
+const fieldRecordFrom = (
+  fields: FieldMapping[],
+  fieldValue: (mapping: FieldMapping) => FieldValue | undefined,
+): FieldRecord => {
+  const result: FieldRecord = {};
+  for (const mapping of fields) {
+    const val = fieldValue(mapping);
+    if (val !== undefined) result[mapping[1]] = val;
+  }
+  return result;
+};
+
 /**
  * Extract typed fields from a JSON body using field mappings.
  * Skips fields that are missing or have the wrong type.
@@ -210,35 +222,27 @@ const matchesType = (val: unknown, type: FieldType): val is FieldValue =>
 const pickTypedFields = (
   body: Record<string, unknown>,
   fields: FieldMapping[],
-): FieldRecord => {
-  const result: FieldRecord = {};
-  for (const [apiKey, outKey, type] of fields) {
+): FieldRecord =>
+  fieldRecordFrom(fields, ([apiKey, _outKey, type]) => {
     const val = body[apiKey];
-    if (val === undefined) continue;
-    if (val === null) {
-      result[outKey] = "";
-      continue;
-    }
-    if (matchesType(val, type)) result[outKey] = val;
-  }
-  return result;
-};
+    if (val === null) return "";
+    return val !== undefined && matchesType(val, type) ? val : undefined;
+  });
 
 /**
  * Build ListingInput defaults from an existing listing (for updates).
  * Maps snake_case Listing fields to camelCase ListingInput keys.
  */
-const existingToDefaults = (existing: ListingWithCount): FieldRecord => {
-  const result: FieldRecord = {};
-  for (const [apiKey, outKey] of optionalFields) {
-    // optionalFields only names scalar/array columns, so the value is always a
-    // FieldValue at runtime; the cast narrows away object columns (e.g.
-    // day_prices) that the indexed-access type otherwise admits.
-    const val = existing[apiKey as keyof ListingWithCount] as FieldValue | null;
-    result[outKey] = val === null ? "" : val;
-  }
-  return result;
-};
+const existingToDefaults = (existing: ListingWithCount): FieldRecord =>
+  fieldRecordFrom(
+    optionalFields,
+    ([apiKey]) =>
+      // optionalFields only names scalar/array columns, so the value is always a
+      // FieldValue at runtime; the cast narrows away object columns (e.g.
+      // day_prices) that the indexed-access type otherwise admits. A stored
+      // null is an empty string, matching the form layer's "cleared" value.
+      (existing[apiKey as keyof ListingWithCount] as FieldValue | null) ?? "",
+  );
 
 // =============================================================================
 // Body → ListingInput converters
@@ -315,11 +319,9 @@ export const bodyToUpdateInput = async (
       return { error: "max_attendees must be >= 1", ok: false };
     }
 
-    const { slug, slugIndex } = await parseUpdateSlug(
+    const { slug, slugIndex } = await parseUpdatedListingSlug(
       body,
       existing.slug,
-      normalizeSlug,
-      computeSlugIndex,
     );
 
     return okListingInput({

@@ -326,33 +326,53 @@ const eligibleCandidates = async (
   ).filter((c): c is Candidate => c !== null);
 };
 
+/** A read over a checkout cart: the items plus the resolve options. */
+type CartRead<Out> = (
+  items: CheckoutItem[],
+  opts?: ResolveOptions,
+) => Promise<Out>;
+
+/**
+ * Build a stock-aware cart read: gather the {@link eligibleCandidates} that
+ * pass `keep`, load how many units of each stock-limited one are already used
+ * (one batched lookup; none when nothing is stock-limited), and let `project`
+ * turn the pair into the caller's result. The shared first pass of the stock
+ * clamp and the sold-out check, so they agree on which modifiers apply.
+ */
+const stockAwareCartRead =
+  <Out>(
+    keep: (candidate: Candidate) => boolean,
+    project: (candidates: Candidate[], used: Map<number, number>) => Out,
+  ): CartRead<Out> =>
+  async (items, opts = {}) => {
+    const candidates = (await eligibleCandidates(items, opts)).filter(keep);
+    const used = await modifierUsedQuantities(
+      candidates
+        .filter((c) => c.modifier.stock !== null)
+        .map((c) => c.modifier.id),
+    );
+    return project(candidates, used);
+  };
+
 /**
  * The modifiers that apply to a cart: {@link eligibleCandidates} with their
  * quantities clamped to the stock remaining (a candidate clamped to zero drops
  * out). Each surviving modifier is applied its (possibly clamped) number of
  * times.
  */
-export const resolveModifiers = async (
-  items: CheckoutItem[],
-  opts: ResolveOptions = {},
-): Promise<ModifierSpec[]> => {
-  const candidates = await eligibleCandidates(items, opts);
-  // One batched usage lookup for every stock-limited candidate.
-  const used = await modifierUsedQuantities(
+export const resolveModifiers: CartRead<ModifierSpec[]> = stockAwareCartRead(
+  () => true,
+  (candidates, used) =>
     candidates
-      .filter((c) => c.modifier.stock !== null)
-      .map((c) => c.modifier.id),
-  );
-  return candidates
-    .map((c) => ({
-      candidate: c,
-      quantity: stockedQuantity(c.modifier, c.quantity, used),
-    }))
-    .filter(({ quantity }) => quantity >= 1)
-    .map(({ candidate, quantity }) =>
-      toSpec(candidate.modifier, quantity, candidate.listingIds),
-    );
-};
+      .map((c) => ({
+        candidate: c,
+        quantity: stockedQuantity(c.modifier, c.quantity, used),
+      }))
+      .filter(({ quantity }) => quantity >= 1)
+      .map(({ candidate, quantity }) =>
+        toSpec(candidate.modifier, quantity, candidate.listingIds),
+      ),
+);
 
 /**
  * Names of answer-triggered modifiers the buyer over-subscribed: tiers that
@@ -366,24 +386,18 @@ export const resolveModifiers = async (
  * for — or that the buyer lacks the visits for — isn't reported sold out when
  * no surcharge would apply.
  */
-export const oversubscribedAnswerTiers = async (
-  items: CheckoutItem[],
-  opts: ResolveOptions = {},
-): Promise<string[]> => {
-  const limited = (await eligibleCandidates(items, opts)).filter(
-    (c) => c.modifier.trigger === "answer" && c.modifier.stock !== null,
-  );
-  if (limited.length === 0) return [];
-  const used = await modifierUsedQuantities(limited.map((c) => c.modifier.id));
-  return limited
-    .filter(
-      // stock is non-null here (filtered just above).
-      (c) =>
-        c.quantity >
-        Math.max(0, c.modifier.stock! - (used.get(c.modifier.id) ?? 0)),
-    )
-    .map((c) => c.modifier.name);
-};
+export const oversubscribedAnswerTiers: CartRead<string[]> = stockAwareCartRead(
+  (c) => c.modifier.trigger === "answer" && c.modifier.stock !== null,
+  (limited, used) =>
+    limited
+      .filter(
+        // stock is non-null here (only stock-limited answer tiers are kept).
+        (c) =>
+          c.quantity >
+          Math.max(0, c.modifier.stock! - (used.get(c.modifier.id) ?? 0)),
+      )
+      .map((c) => c.modifier.name),
+);
 
 /** Whether any active modifier is unlocked by a promo code, so the public
  * order form knows to offer a code field. */

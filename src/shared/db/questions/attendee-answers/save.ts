@@ -105,7 +105,7 @@ const existingQuestionIdsTx = async (
  * committing (or rolling back) as one. The `Map<attendeeId, answerIds>` is the
  * single shape every save situation reduces to — one answer set shared across
  * attendees, a by-question selection, or the per-listing grouping from
- * `groupListingAnswers` — so callers build the map and this builds the SQL.
+ * `groupListingAnswerSets` — so callers build the map and this builds the SQL.
  * Repeated question answers collapse to the last value before insert, matching
  * the single-answer-per-question invariant.
  *
@@ -282,19 +282,31 @@ export type AttendeeListingEntry = {
 /**
  * Reduce per-listing answer selections to one answer set per attendee. An
  * attendee booking several listings in the same submission accumulates every
- * listing's answers; listings with no answers contribute nothing. Feeds the map
+ * listing's answers; listings with no answers contribute nothing. Repeated
+ * text answers for one question keep the last value, matching the
+ * single-answer-per-question invariant. `listingTextAnswers` is optional
+ * because a choice-only save legitimately has no text answers. Feeds the map
  * straight into `saveAttendeeAnswers`.
  */
-export const groupListingAnswers = (
+export const groupListingAnswerSets = (
   entries: AttendeeListingEntry[],
   listingAnswerIds: Record<string, number[]>,
-): Map<number, number[]> => {
-  const answersByAttendee = new Map<number, number[]>();
+  listingTextAnswers: Record<string, TextAnswer[]> = {},
+): Map<number, AttendeeAnswerSet> => {
+  const answersByAttendee = new Map<number, AttendeeAnswerSet>();
   for (const { attendee, listing } of entries) {
-    const answers = listingAnswerIds[String(listing.id)];
-    if (!answers || answers.length === 0) continue;
-    const existing = answersByAttendee.get(attendee.id) ?? [];
-    existing.push(...answers);
+    const key = String(listing.id);
+    const answerIds = listingAnswerIds[key] ?? [];
+    const textAnswers = listingTextAnswers[key] ?? [];
+    if (answerIds.length === 0 && textAnswers.length === 0) continue;
+    const existing = answersByAttendee.get(attendee.id) ?? { answerIds: [] };
+    existing.answerIds.push(...answerIds);
+    if (textAnswers.length > 0) {
+      existing.textAnswers = dedupeByQuestion([
+        ...(existing.textAnswers ?? []),
+        ...textAnswers,
+      ]);
+    }
     answersByAttendee.set(attendee.id, existing);
   }
   return answersByAttendee;

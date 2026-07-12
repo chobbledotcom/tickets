@@ -236,16 +236,24 @@ const handleSubmitInner = async (
   };
 
   const result = validateParsedForm(parsed);
-  if (!result.valid) {
-    return renderSubmittedForm(
+  // Re-render the submitted form in place with the given errors merged onto
+  // the render options — the validation and save failure paths share this.
+  const showErrors = async (
+    errors: Parameters<typeof buildTemplateData>[3],
+  ): Promise<Response> =>
+    renderSubmittedForm(
       session,
       await buildTemplateData(mode, result.values, attendee, {
         ...renderOpts,
-        attendeeError: result.attendeeError?.message ?? null,
-        dateError: result.dateError,
-        formError: result.formError,
+        ...errors,
       }),
     );
+  if (!result.valid) {
+    return showErrors({
+      attendeeError: result.attendeeError?.message ?? null,
+      dateError: result.dateError,
+      formError: result.formError,
+    });
   }
 
   // The logistics plan is read from the submitted agent selects (only when the
@@ -273,13 +281,7 @@ const handleSubmitInner = async (
           existingByKey,
         );
   if (outcome.ok) return outcome.response;
-  return renderSubmittedForm(
-    session,
-    await buildTemplateData(mode, result.values, attendee, {
-      ...renderOpts,
-      saveError: outcome.saveError,
-    }),
-  );
+  return showErrors({ saveError: outcome.saveError });
 };
 
 /** Outcome of an atomic create/edit attempt. */

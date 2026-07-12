@@ -4,17 +4,11 @@
 
 import { filter, map } from "#fp";
 import { errorRedirect, htmlResponse } from "#routes/response.ts";
+import { bookingError } from "#shared/booking/form.ts";
 import type { TicketListing } from "#shared/booking/model.ts";
 import { quantityFieldName } from "#shared/booking/tree.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
-import type {
-  QuestionWithAnswers,
-  TextAnswer,
-} from "#shared/db/question-types.ts";
-import type {
-  AttendeeAnswerSet,
-  AttendeeListingEntry,
-} from "#shared/db/questions/attendee-answers/save.ts";
+import type { TextAnswer } from "#shared/db/question-types.ts";
 import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { mergeListingFields } from "#shared/listing-fields.ts";
@@ -35,123 +29,88 @@ export const parseQuantityValue = (
   return Math.min(quantity, max);
 };
 
-/** Resolve which listings a question applies to: its assigned listings, or
- * every selected listing when the question is assigned to none. */
-const listingIdsForQuestion = (
-  questionId: number,
-  questionListingMap: QuestionListingMap,
-  selectedListingIds: Set<number>,
-): number[] => questionListingMap.get(questionId) ?? [...selectedListingIds];
-
-/** Append `value` to the per-listing bucket (keyed by `String(listingId)`) of
- * every selected listing the question applies to. */
-const pushToListings = <T>(
-  result: Record<string, T[]>,
-  questionId: number,
-  value: T,
-  questionListingMap: QuestionListingMap,
-  selectedListingIds: Set<number>,
-): void => {
-  for (const listingId of listingIdsForQuestion(
-    questionId,
-    questionListingMap,
-    selectedListingIds,
-  )) {
-    if (!selectedListingIds.has(listingId)) continue;
-    const key = String(listingId);
-    const list = result[key] ?? [];
-    list.push(value);
-    result[key] = list;
-  }
+/** The answers a submission gave, with the questions and listings they belong
+ * to. Built once by `prepareOrder` and read by every answer-handling step. */
+export type AnswerInfo = {
+  activeQuestions: TicketCtx["questions"];
+  answerIds: number[];
+  textAnswers: TextAnswer[];
+  selectedListingIds: Set<number>;
 };
 
-/** Build a per-listing answer map from parsed answers and the question-listing
- * mapping. Each listing gets only the answer IDs for questions assigned to it. */
-export const buildListingAnswerMap = (
-  questions: QuestionWithAnswers[],
-  answerIds: number[],
-  questionListingMap: QuestionListingMap,
-  selectedListingIds: Set<number>,
-): Record<string, number[]> => {
-  const result: Record<string, number[]> = {};
-  let answerIndex = 0;
-  for (const question of questions) {
-    // Skip exactly what parseQuestionAnswers skips, so answerIds stays aligned:
-    // free-text questions (no answer id) and choice questions whose answers are
-    // all deactivated (treated as not applicable, so no answer id either).
-    if (question.display_type === "free_text") continue;
-    if (!question.answers.some((a) => a.active)) continue;
-    pushToListings(
-      result,
-      question.id,
-      answerIds[answerIndex++]!,
-      questionListingMap,
-      selectedListingIds,
-    );
-  }
-  return result;
-};
-
-export const buildListingTextAnswerMap = (
-  textAnswers: TextAnswer[],
-  questionListingMap: QuestionListingMap,
-  selectedListingIds: Set<number>,
-): Record<string, TextAnswer[]> => {
-  const result: Record<string, TextAnswer[]> = {};
-  for (const answer of textAnswers) {
-    pushToListings(
-      result,
-      answer.questionId,
-      answer,
-      questionListingMap,
-      selectedListingIds,
-    );
-  }
-  return result;
-};
-
-const mergeTextAnswersByQuestion = (
-  existing: TextAnswer[] | undefined,
-  incoming: TextAnswer[],
-): TextAnswer[] => {
-  const byQuestion = new Map(
-    (existing ?? []).map((answer) => [answer.questionId, answer]),
-  );
-  for (const answer of incoming) byQuestion.set(answer.questionId, answer);
-  return [...byQuestion.values()];
-};
-
-export const groupListingAnswerSets = (
-  entries: AttendeeListingEntry[],
-  listingAnswerIds: Record<string, number[]>,
-  listingTextAnswers: Record<string, TextAnswer[]>,
-): Map<number, AttendeeAnswerSet> => {
-  const answersByAttendee = new Map<number, AttendeeAnswerSet>();
-  for (const { attendee, listing } of entries) {
-    const key = String(listing.id);
-    const answerIds = listingAnswerIds[key] ?? [];
-    const textAnswers = listingTextAnswers[key] ?? [];
-    if (answerIds.length === 0 && textAnswers.length === 0) continue;
-    const existing = answersByAttendee.get(attendee.id) ?? { answerIds: [] };
-    existing.answerIds.push(...answerIds);
-    if (textAnswers.length > 0) {
-      existing.textAnswers = mergeTextAnswersByQuestion(
-        existing.textAnswers,
-        textAnswers,
-      );
+/** Makes a collector that files each (question, value) pair under every
+ * selected listing the question applies to — a question assigned to no listing
+ * applies to all of them. Buckets are keyed by `String(listingId)`. */
+const collectValuesByListing =
+  (questionListingMap: QuestionListingMap, selectedListingIds: Set<number>) =>
+  <T>(pairs: (readonly [number, T])[]): Record<string, T[]> => {
+    const result: Record<string, T[]> = {};
+    for (const [questionId, value] of pairs) {
+      const listingIds = questionListingMap.get(questionId) ?? [
+        ...selectedListingIds,
+      ];
+      for (const listingId of listingIds) {
+        if (!selectedListingIds.has(listingId)) continue;
+        const key = String(listingId);
+        const list = result[key] ?? [];
+        list.push(value);
+        result[key] = list;
+      }
     }
-    answersByAttendee.set(attendee.id, existing);
-  }
-  return answersByAttendee;
+    return result;
+  };
+
+/** Pairs each answered choice question with its chosen answer id. Skips exactly
+ * what parseQuestionAnswers skips, so the ids stay aligned: free-text questions
+ * (no answer id) and choice questions whose answers are all deactivated (not
+ * applicable, so no answer id either). */
+const answeredQuestionPairs = (
+  info: AnswerInfo,
+): (readonly [number, number])[] =>
+  info.activeQuestions
+    .filter(
+      (question) =>
+        question.display_type !== "free_text" &&
+        question.answers.some((a) => a.active),
+    )
+    .map((question, index) => [question.id, info.answerIds[index]!] as const);
+
+/** Both per-listing maps a submission's answers reduce to, each keyed by
+ * `String(listingId)`. */
+export type ListingAnswerMaps = {
+  answerIds: Record<string, number[]>;
+  textAnswers: Record<string, TextAnswer[]>;
 };
 
-/** Validate submitted date against available dates; returns the date or null if invalid */
-export const validateSubmittedDate = (
-  form: FormParams,
+/** Files a submission's chosen answer ids and free-text answers under every
+ * selected listing their question applies to — the one place both per-listing
+ * answer maps are built. */
+export const listingAnswerMaps = (
+  info: AnswerInfo,
+  questionListingMap: QuestionListingMap,
+): ListingAnswerMaps => {
+  const collect = collectValuesByListing(
+    questionListingMap,
+    info.selectedListingIds,
+  );
+  return {
+    answerIds: collect(answeredQuestionPairs(info)),
+    textAnswers: collect(
+      info.textAnswers.map((answer) => [answer.questionId, answer] as const),
+    ),
+  };
+};
+
+/** The booking date for a page: null when the page has no dates to choose, the
+ * submitted date when it is one the page offers, or an error for anything else. */
+export const resolvePageDate = (
   dates: string[],
-): string | null => {
-  const submitted = form.getString("date");
-  return submitted && dates.includes(submitted) ? submitted : null;
+  submitted: string | null,
+): { ok: true; date: string | null } | { ok: false; error: string } => {
+  if (dates.length === 0) return { date: null, ok: true };
+  return submitted && dates.includes(submitted)
+    ? { date: submitted, ok: true }
+    : { error: bookingError.invalidDate, ok: false };
 };
 
 /** Render ticket HTML (CSRF token auto-embedded by CsrfForm) */

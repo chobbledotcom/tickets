@@ -96,9 +96,7 @@ const PositiveIntSchema = intAtLeast(1);
 /** A booking duration in whole days: 1..MAX_DURATION_DAYS, matching the listing
  * form's cap so an over-limit blob is a field error, not silently clamped. */
 const DurationDaysSchema = v.pipe(
-  v.number(),
-  v.safeInteger(),
-  v.minValue(1),
+  intAtLeast(1),
   v.maxValue(MAX_DURATION_DAYS, `must be at most ${MAX_DURATION_DAYS} days`),
 );
 /** A single valid contact-field name (email/phone/address/…). */

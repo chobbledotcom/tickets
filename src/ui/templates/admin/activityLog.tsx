@@ -2,6 +2,7 @@
  * Admin activity log page template
  */
 
+/* jscpd:ignore-start */
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { attendeeAdminPath } from "#shared/attendee-links.ts";
@@ -13,6 +14,8 @@ import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
+
+/* jscpd:ignore-end */
 
 /** The "Activity log guide" link shown at the bottom of both activity-log
  *  pages. */

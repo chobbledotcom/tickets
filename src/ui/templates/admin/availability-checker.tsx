@@ -11,6 +11,7 @@
  * only persists the open/closed state across a single navigation.
  */
 
+/* jscpd:ignore-start */
 import { sort } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
@@ -18,6 +19,7 @@ import { SELECT_PREFIX, START_DATE_FIELD } from "#shared/order-select.ts";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { OrderCartButtonBody } from "#templates/public/order-gallery.tsx";
+/* jscpd:ignore-end */
 
 /** One row of the availability table: a bookable listing and its remaining
  * capacity for the selected date (or overall when no date is selected). */

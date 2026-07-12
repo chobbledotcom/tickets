@@ -27,6 +27,7 @@ import {
   PageRegions,
 } from "#templates/components/page-structure.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
+import { ProseSection } from "#templates/components/prose-section.tsx";
 import { quantityLabel } from "#templates/public/order-summary.tsx";
 
 /** One channel's contact record plus the URL-safe HMAC param that keys its
@@ -143,33 +144,37 @@ const ContactRecordSection = ({
 }): JSX.Element => {
   const { hashParam, record } = channel;
   return (
-    <PageBlock as="section">
-      <div class="prose">
-        <h4>{label}</h4>
-        {record.lastContact && (
+    <ProseSection
+      footer={
+        <>
+          {record.adminNotes && (
+            <div class="contact-notes">
+              <Raw html={renderMarkdown(record.adminNotes)} />
+            </div>
+          )}
           <p>
-            <strong>{t("attendee_form.last_contacted")}:</strong>{" "}
-            {formatDatetimeShort(record.lastContact)}
+            <a href={`/admin/history/${hashParam}`}>
+              {t("attendee_form.edit_contact_record")}
+            </a>
           </p>
-        )}
-        {record.lastSubject && (
-          <p>
-            <strong>{t("attendee_form.last_subject")}:</strong>{" "}
-            {record.lastSubject}
-          </p>
-        )}
-      </div>
-      {record.adminNotes && (
-        <div class="contact-notes">
-          <Raw html={renderMarkdown(record.adminNotes)} />
-        </div>
+        </>
+      }
+      headingTag="h4"
+      title={label}
+    >
+      {record.lastContact && (
+        <p>
+          <strong>{t("attendee_form.last_contacted")}:</strong>{" "}
+          {formatDatetimeShort(record.lastContact)}
+        </p>
       )}
-      <p>
-        <a href={`/admin/history/${hashParam}`}>
-          {t("attendee_form.edit_contact_record")}
-        </a>
-      </p>
-    </PageBlock>
+      {record.lastSubject && (
+        <p>
+          <strong>{t("attendee_form.last_subject")}:</strong>{" "}
+          {record.lastSubject}
+        </p>
+      )}
+    </ProseSection>
   );
 };
 

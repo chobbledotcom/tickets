@@ -17,11 +17,13 @@ import {
 import { setDb } from "#shared/db/client.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { setSuppressRequestLogs } from "#shared/logger.ts";
+import { delay } from "#shared/now.ts";
 import {
   setBuildCommitForTest,
   setBuildTimestampForTest,
 } from "#shared/update.ts";
 import { serveHandler } from "#src/serve-app.ts";
+import { timedRunner } from "../../timed-run.ts";
 import { serveAndDrainRoot } from "./serve-root.ts";
 
 // Keep stdout clean for the JSON result line the parent parses.
@@ -45,9 +47,6 @@ const timeline: QueryEvent[] = [];
 // Query offsets are measured from the start of the request being timed.
 let requestStart = 0;
 
-const delay = (): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, latencyMs));
-
 const pushEvent = (sql: string, start: number): void => {
   timeline.push({
     ms: performance.now() - start,
@@ -57,31 +56,26 @@ const pushEvent = (sql: string, start: number): void => {
 };
 
 /** Pay the fake latency, run the query, land it on the timeline. */
-const record = (sql: string) => {
-  const start = performance.now();
-  return async <T>(run: () => Promise<T>): Promise<T> => {
-    await delay();
-    const result = await run();
-    pushEvent(sql, start);
-    return result;
-  };
-};
+const record = timedRunner({
+  after: (sql, startedAt) => pushEvent(sql, startedAt),
+  before: () => delay(latencyMs),
+});
 
 const statementSql = (statement: InStatement): string =>
   typeof statement === "string" ? statement : statement.sql;
 
-/** Run one `execute` call (either overload) through the delay + timeline. */
-const recordedExecute = (
-  target: Pick<Client, "execute">,
-  statement: InStatement | string,
-  args?: InArgs,
-): Promise<ResultSet> =>
-  record(statementSql(statement))(
-    (): Promise<ResultSet> =>
-      typeof statement === "string" && args !== undefined
-        ? target.execute(statement, args)
-        : target.execute(statement as InStatement),
-  );
+/** The `execute` override for a wrapped client or transaction — runs either
+ * overload through the delay + timeline. */
+const recordedExecute =
+  (target: Pick<Client, "execute">) =>
+  (statement: InStatement | string, args?: InArgs): Promise<ResultSet> =>
+    record(
+      statementSql(statement),
+      (): Promise<ResultSet> =>
+        typeof statement === "string" && args !== undefined
+          ? target.execute(statement, args)
+          : target.execute(statement as InStatement),
+    );
 
 /** Proxy `target`, overriding the given members; everything else forwards
  *  (methods bound so they keep working). */
@@ -102,9 +96,8 @@ const proxyMembers = <T extends object>(
 /** Wrap a transaction so each statement inside it also pays the delay. */
 const wrapTransaction = (tx: Transaction): Transaction =>
   proxyMembers(tx, {
-    commit: () => record("COMMIT")(() => tx.commit()),
-    execute: (statement: InStatement | string, args?: InArgs) =>
-      recordedExecute(tx, statement, args),
+    commit: () => record("COMMIT", () => tx.commit()),
+    execute: recordedExecute(tx),
   });
 
 /** Wrap the client so every round trip pays the delay and lands on the timeline. */
@@ -115,12 +108,12 @@ const wrapClient = (client: Client): Client =>
         `batch[${statements.length}]: ${statements
           .map(statementSql)
           .join(" | ")}`,
-      )(() => client.batch(statements, mode)),
-    execute: (statement: InStatement | string, args?: InArgs) =>
-      recordedExecute(client, statement, args),
+        () => client.batch(statements, mode),
+      ),
+    execute: recordedExecute(client),
     transaction: async (mode?: TransactionMode) =>
       wrapTransaction(
-        await record("BEGIN")(() =>
+        await record("BEGIN", () =>
           mode === undefined ? client.transaction() : client.transaction(mode),
         ),
       ),

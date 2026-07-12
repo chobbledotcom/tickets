@@ -1,4 +1,4 @@
-import type { InValue } from "@libsql/client";
+import type { InValue, Row } from "@libsql/client";
 import { mapParallel } from "#fp";
 import {
   execute,
@@ -49,6 +49,12 @@ export const swapSortOrder = (
     await tx.execute(update(table, { sort_order: order2 }, { id: id1 }));
     await tx.execute(update(table, { sort_order: order1 }, { id: id2 }));
   });
+
+/** Collapse a result's rows to the set of one column's values, as strings —
+ * the shared tail of the "which names/ids already exist" reads (applied
+ * migrations, live table columns, index and trigger names). */
+export const stringColumnSet = (rows: Row[], column: string): Set<string> =>
+  new Set(rows.map((row) => String(row[column])));
 
 /**
  * Run an id-keyed SELECT, short-circuiting to `[]` (no query) when `ids` is

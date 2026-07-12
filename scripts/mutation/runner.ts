@@ -30,6 +30,7 @@ import { type AssetRebuilder, createAssetRebuilder } from "./assets.ts";
 import { batchTestFiles } from "./batch.ts";
 import {
   denoExitCode,
+  envWith,
   offTerminationSignals,
   onTerminationSignals,
 } from "./child-process.ts";
@@ -85,10 +86,7 @@ const defaultBatchJobs = (): number =>
   parsePositiveInt(Deno.env.get("MUTATION_JOBS")) ??
   Math.max(1, Math.min(4, hardwareConcurrency() - 1));
 
-const testEnv = (): Record<string, string> => ({
-  ...Deno.env.toObject(),
-  ...stripeMockEnv(),
-});
+const testEnv = (): Record<string, string> => envWith(stripeMockEnv());
 
 /** The env for a mutant's test processes. When the mutated file feeds the
  * run-wide prebuilt test state, the pointer to that (pre-mutant) snapshot is

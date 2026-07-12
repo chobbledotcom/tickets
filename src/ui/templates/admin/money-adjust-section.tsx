@@ -1,8 +1,7 @@
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
-import { CsrfForm } from "#shared/forms.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 
 export const MoneyAdjustSection = ({
   action,
@@ -31,7 +30,7 @@ export const MoneyAdjustSection = ({
   title: string;
   warning: string;
 }): JSX.Element => (
-  <CsrfForm action={action} {...(className ? { class: className } : {})}>
+  <SaveForm action={action} class={className} submitLabel={submitLabel}>
     <h2>{title}</h2>
     <ErrorNote>{warning}</ErrorNote>
     <label>
@@ -54,6 +53,5 @@ export const MoneyAdjustSection = ({
         </small>
       </p>
     )}
-    <SubmitButton icon="save">{submitLabel}</SubmitButton>
-  </CsrfForm>
+  </SaveForm>
 );

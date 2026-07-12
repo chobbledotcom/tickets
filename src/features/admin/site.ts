@@ -8,9 +8,7 @@ import {
   settingsHandler,
   settingsToggle,
 } from "#routes/admin/settings-helpers.ts";
-import { type AuthSession, requireSiteOr, SITE_FORM } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
-import { htmlResponse } from "#routes/response.ts";
+import { type AuthSession, SITE_FORM, sitePage } from "#routes/auth.ts";
 import { isBotpoisonEnabled } from "#shared/config.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { MAX_WEBSITE_TITLE_LENGTH } from "#shared/db/settings/constants.ts";
@@ -22,6 +20,7 @@ import {
 } from "#shared/demo/overrides.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import type { RequestRoute } from "#shared/response-steps.ts";
 import {
   adminSiteContactPage,
   adminSiteHomePage,
@@ -98,15 +97,11 @@ type PageRenderer = (
   success?: string,
 ) => string;
 
-/** Owner-only GET route that renders a site editor page */
-const siteGetRoute =
-  (render: PageRenderer) =>
-  (request: Request): Promise<Response> =>
-    requireSiteOr(request, (session) => {
-      const flash = applyFlash(request);
-      const html = render(session, flash.error, flash.success);
-      return htmlResponse(html);
-    });
+/** Site-editing GET route that renders a site editor page */
+const siteGetRoute = (render: PageRenderer): RequestRoute =>
+  sitePage((session, _request, flash) =>
+    render(session, flash.error, flash.success),
+  );
 
 /** Render homepage editor with current state */
 const renderHomePage: PageRenderer = (session, error, success) =>
@@ -189,20 +184,16 @@ const handleSiteContactPost = settingsHandler({
 /** Handle GET /admin/site/order - order page editor (owner only).
  * Loads the live listing count so the editor can warn when there is nothing to
  * show, then renders the toggle + intro-text forms. */
-const handleSiteOrderGet = (request: Request): Promise<Response> =>
-  requireSiteOr(request, async (session) => {
-    const flash = applyFlash(request);
-    const listingCount = await countOrderListings();
-    return htmlResponse(
-      adminSiteOrderPage(
-        session,
-        settings.orderIntroText,
-        { enabled: settings.orderEnabled, listingCount },
-        flash.error,
-        flash.success,
-      ),
-    );
-  });
+const handleSiteOrderGet = sitePage(async (session, _request, flash) => {
+  const listingCount = await countOrderListings();
+  return adminSiteOrderPage(
+    session,
+    settings.orderIntroText,
+    { enabled: settings.orderEnabled, listingCount },
+    flash.error,
+    flash.success,
+  );
+});
 
 /** Handle POST /admin/site/order/toggle - enable/disable the public order page */
 const handleSiteOrderTogglePost = settingsToggle({

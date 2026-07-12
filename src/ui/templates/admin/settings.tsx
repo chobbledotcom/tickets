@@ -6,11 +6,10 @@ import { t } from "#i18n";
 import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import type { SuperuserState } from "#shared/superuser.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
-import { themedAdminPage } from "#templates/admin/admin-page.tsx";
 import { CalendarFeedsForm } from "#templates/admin/settings/calendar-feeds.tsx";
 import { ChangePasswordForm } from "#templates/admin/settings/change-password.tsx";
-import { SettingsGuideFooter } from "#templates/admin/settings/guide-footer.tsx";
 import { HeaderImageForm } from "#templates/admin/settings/header-image.tsx";
+import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import {
   BookingFeeForm,
   PaymentProviderForm,
@@ -68,7 +67,7 @@ export const adminSettingsPage = (
   session: AdminSession,
   s: SettingsPageState,
 ): string =>
-  themedAdminPage(t("settings.title"))(session, s.theme)(
+  settingsPage(t("settings.title"))(session, s.theme)(
     <>
       {settingsForm(SETTINGS_FORMS.businessEmail, s)}
       {HeaderImageForm(s)}
@@ -87,7 +86,5 @@ export const adminSettingsPage = (
       <SuperuserForm superuser={s.superuser} />
       <ChangePasswordForm />
       {CalendarFeedsForm(s)}
-
-      <SettingsGuideFooter />
     </>,
   );

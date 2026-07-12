@@ -7,8 +7,7 @@ import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { formatLimitValue, type LIMIT_ENTRIES } from "#shared/limits.ts";
 import type { RuntimeInfo } from "#shared/runtime.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
-import { themedAdminPage } from "#templates/admin/admin-page.tsx";
-import { SettingsGuideFooter } from "#templates/admin/settings/guide-footer.tsx";
+import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import { Badge, statusBadge } from "#templates/components/badge.tsx";
 
 export type DebugPageState = {
@@ -156,26 +155,77 @@ const proseTableSection =
     </article>
   );
 
-const BuildSection = ({
-  build,
+/** The three config-source rows shared by both wallet sections. */
+const walletConfigRows = (w: {
+  dbConfigured: boolean;
+  envConfigured: boolean;
+  source: string;
+}): RowSpec[] => [
+  statusRow(t("debug.field.db_config"), w.dbConfigured),
+  statusRow(t("debug.field.env_var_config"), w.envConfigured),
+  {
+    label: t("debug.field.active_source"),
+    value: w.source || t("common.none"),
+  },
+];
+
+const AVAILABILITY_BADGES: Record<
+  DebugPageState["availability"]["state"],
+  { label: string; variant: "missing" | "ok" }
+> = {
+  active: { label: "Active", variant: "ok" },
+  readonly: { label: "Read-only", variant: "missing" },
+  warning: { label: "Expiring soon", variant: "missing" },
+};
+
+const AvailabilityStateBadge = ({
+  state,
 }: {
-  build: DebugPageState["build"];
-}): JSX.Element =>
-  DebugSection({
-    rows: [
+  state: DebugPageState["availability"]["state"];
+}): JSX.Element => {
+  const { label, variant } = AVAILABILITY_BADGES[state];
+  return <Badge variant={variant}>{label}</Badge>;
+};
+
+const STORAGE_BACKEND_BADGES: Record<
+  DebugPageState["bunny"]["storageBackend"],
+  { label: string; variant: "missing" | "ok" }
+> = {
+  bunny: { label: "Bunny CDN", variant: "ok" },
+  local: { label: "Local filesystem", variant: "ok" },
+  none: { label: "Not configured", variant: "missing" },
+};
+
+const StorageBackendBadge = ({
+  backend,
+}: {
+  backend: DebugPageState["bunny"]["storageBackend"];
+}): JSX.Element => {
+  const { label, variant } = STORAGE_BACKEND_BADGES[backend];
+  return <Badge variant={variant}>{label}</Badge>;
+};
+
+/** One simple debug section, declared as data: the heading's message key plus
+ *  the rows to show for the current page state. */
+type DebugSectionSpec = {
+  titleKey: string;
+  rows: (s: DebugPageState) => RowSpec[];
+};
+
+/** Every plain label/value debug section, in the order the page shows them.
+ *  One loop in {@link adminDebugPage} renders them all through
+ *  {@link DebugSection}; only the limits and prune tables (which need their
+ *  own column headers) live outside this list. */
+const DEBUG_SECTIONS: readonly DebugSectionSpec[] = [
+  {
+    rows: ({ build }) => [
       { label: t("debug.field.timestamp"), value: build.timestamp || "—" },
       { label: t("debug.field.commit"), value: build.commit || "—" },
     ],
-    title: t("debug.section.build"),
-  });
-
-const RuntimeSection = ({
-  runtime,
-}: {
-  runtime: DebugPageState["runtime"];
-}): JSX.Element =>
-  DebugSection({
-    rows: [
+    titleKey: "debug.section.build",
+  },
+  {
+    rows: ({ runtime }) => [
       { label: t("debug.field.host_runtime"), value: runtime.runtime },
       {
         label: t("debug.field.deno_version"),
@@ -196,119 +246,10 @@ const RuntimeSection = ({
       },
       { label: t("debug.field.user_agent"), value: runtime.userAgent || "—" },
     ],
-    title: t("debug.section.runtime"),
-  });
-
-/** The three config-source rows shared by both wallet sections. */
-const walletConfigRows = (w: {
-  dbConfigured: boolean;
-  envConfigured: boolean;
-  source: string;
-}): RowSpec[] => [
-  statusRow(t("debug.field.db_config"), w.dbConfigured),
-  statusRow(t("debug.field.env_var_config"), w.envConfigured),
-  {
-    label: t("debug.field.active_source"),
-    value: w.source || t("common.none"),
+    titleKey: "debug.section.runtime",
   },
-];
-
-const AppleWalletSection = ({
-  appleWallet,
-}: {
-  appleWallet: DebugPageState["appleWallet"];
-}): JSX.Element =>
-  DebugSection({
-    rows: [
-      ...walletConfigRows(appleWallet),
-      {
-        label: t("debug.field.pass_type_id"),
-        value: appleWallet.passTypeId || "—",
-      },
-      {
-        label: t("debug.field.signing_certificate"),
-        value: appleWallet.certValidation.signingCert,
-      },
-      {
-        label: t("debug.field.signing_key"),
-        value: appleWallet.certValidation.signingKey,
-      },
-      {
-        label: t("debug.field.wwdr_certificate"),
-        value: appleWallet.certValidation.wwdrCert,
-      },
-    ],
-    title: t("debug.section.apple_wallet"),
-  });
-
-const GoogleWalletSection = ({
-  googleWallet,
-}: {
-  googleWallet: DebugPageState["googleWallet"];
-}): JSX.Element =>
-  DebugSection({
-    rows: [
-      ...walletConfigRows(googleWallet),
-      {
-        label: t("debug.field.issuer_id"),
-        value: googleWallet.issuerId || "—",
-      },
-      {
-        label: t("debug.field.private_key"),
-        value: googleWallet.privateKeyValid,
-      },
-    ],
-    title: t("debug.section.google_wallet"),
-  });
-
-const PaymentsSection = ({
-  payment,
-}: {
-  payment: DebugPageState["payment"];
-}): JSX.Element =>
-  DebugSection({
-    rows: [
-      {
-        label: t("debug.field.provider"),
-        value: payment.provider || t("common.none"),
-      },
-      { label: t("debug.field.mode"), value: payment.mode || "—" },
-      statusRow(t("debug.field.api_key"), payment.keyConfigured),
-      statusRow(t("debug.field.webhook"), payment.webhookConfigured),
-    ],
-    title: t("debug.section.payments"),
-  });
-
-const EmailSection = ({
-  email,
-}: {
-  email: DebugPageState["email"];
-}): JSX.Element =>
-  DebugSection({
-    rows: [
-      {
-        label: t("debug.field.provider_db"),
-        value: email.provider || t("common.none"),
-      },
-      statusRow(t("debug.field.api_key"), email.apiKeyConfigured),
-      { label: t("debug.field.from_address"), value: email.fromAddress || "—" },
-      {
-        label: t("debug.field.host_provider_env"),
-        value: email.hostProvider || t("common.none"),
-      },
-    ],
-    title: t("common.email"),
-  });
-
-const NtfySection = ({ ntfy }: { ntfy: DebugPageState["ntfy"] }): JSX.Element =>
-  DebugSection({
-    rows: [statusRow(t("debug.field.ntfy_url"), ntfy.configured)],
-    title: t("debug.section.notifications"),
-  });
-
-const SiteSection = ({ site }: { site: DebugPageState["site"] }): JSX.Element =>
-  DebugSection({
-    rows: [
+  {
+    rows: ({ site }) => [
       {
         label: t("debug.field.public_site"),
         value: statusBadge(site.publicSite, "Visible", "Hidden"),
@@ -327,28 +268,10 @@ const SiteSection = ({ site }: { site: DebugPageState["site"] }): JSX.Element =>
       { label: t("debug.field.timezone"), value: site.timezone || "—" },
       { label: t("debug.field.booking_fee"), value: `${site.bookingFee}%` },
     ],
-    title: t("debug.section.site"),
-  });
-
-const AvailabilityStateBadge = ({
-  state,
-}: {
-  state: DebugPageState["availability"]["state"];
-}): JSX.Element => {
-  if (state === "readonly") return <Badge variant="missing">Read-only</Badge>;
-  if (state === "warning") {
-    return <Badge variant="missing">Expiring soon</Badge>;
-  }
-  return <Badge variant="ok">Active</Badge>;
-};
-
-const AvailabilitySection = ({
-  availability,
-}: {
-  availability: DebugPageState["availability"];
-}): JSX.Element =>
-  DebugSection({
-    rows: [
+    titleKey: "debug.section.site",
+  },
+  {
+    rows: ({ availability }) => [
       {
         label: t("debug.field.write_access"),
         value: <AvailabilityStateBadge state={availability.state} />,
@@ -363,28 +286,77 @@ const AvailabilitySection = ({
         value: availability.serverTime,
       },
     ],
-    title: t("debug.section.availability"),
-  });
-
-const StorageBackendBadge = ({
-  backend,
-}: {
-  backend: DebugPageState["bunny"]["storageBackend"];
-}): JSX.Element => {
-  if (backend === "bunny") return <Badge variant="ok">Bunny CDN</Badge>;
-  if (backend === "local") {
-    return <Badge variant="ok">Local filesystem</Badge>;
-  }
-  return <Badge variant="missing">Not configured</Badge>;
-};
-
-const BunnySection = ({
-  bunny,
-}: {
-  bunny: DebugPageState["bunny"];
-}): JSX.Element =>
-  DebugSection({
-    rows: [
+    titleKey: "debug.section.availability",
+  },
+  {
+    rows: ({ appleWallet }) => [
+      ...walletConfigRows(appleWallet),
+      {
+        label: t("debug.field.pass_type_id"),
+        value: appleWallet.passTypeId || "—",
+      },
+      {
+        label: t("debug.field.signing_certificate"),
+        value: appleWallet.certValidation.signingCert,
+      },
+      {
+        label: t("debug.field.signing_key"),
+        value: appleWallet.certValidation.signingKey,
+      },
+      {
+        label: t("debug.field.wwdr_certificate"),
+        value: appleWallet.certValidation.wwdrCert,
+      },
+    ],
+    titleKey: "debug.section.apple_wallet",
+  },
+  {
+    rows: ({ googleWallet }) => [
+      ...walletConfigRows(googleWallet),
+      {
+        label: t("debug.field.issuer_id"),
+        value: googleWallet.issuerId || "—",
+      },
+      {
+        label: t("debug.field.private_key"),
+        value: googleWallet.privateKeyValid,
+      },
+    ],
+    titleKey: "debug.section.google_wallet",
+  },
+  {
+    rows: ({ payment }) => [
+      {
+        label: t("debug.field.provider"),
+        value: payment.provider || t("common.none"),
+      },
+      { label: t("debug.field.mode"), value: payment.mode || "—" },
+      statusRow(t("debug.field.api_key"), payment.keyConfigured),
+      statusRow(t("debug.field.webhook"), payment.webhookConfigured),
+    ],
+    titleKey: "debug.section.payments",
+  },
+  {
+    rows: ({ email }) => [
+      {
+        label: t("debug.field.provider_db"),
+        value: email.provider || t("common.none"),
+      },
+      statusRow(t("debug.field.api_key"), email.apiKeyConfigured),
+      { label: t("debug.field.from_address"), value: email.fromAddress || "—" },
+      {
+        label: t("debug.field.host_provider_env"),
+        value: email.hostProvider || t("common.none"),
+      },
+    ],
+    titleKey: "common.email",
+  },
+  {
+    rows: ({ ntfy }) => [statusRow(t("debug.field.ntfy_url"), ntfy.configured)],
+    titleKey: "debug.section.notifications",
+  },
+  {
+    rows: ({ bunny }) => [
       {
         label: t("debug.field.file_storage_images"),
         value: <StorageBackendBadge backend={bunny.storageBackend} />,
@@ -405,18 +377,10 @@ const BunnySection = ({
         value: bunny.registeredSubdomain || "—",
       },
     ],
-    title: t("debug.section.bunny"),
-  });
-
-const DatabaseDomainSection = ({
-  database,
-  domain,
-}: {
-  database: DebugPageState["database"];
-  domain: string;
-}): JSX.Element =>
-  DebugSection({
-    rows: [
+    titleKey: "debug.section.bunny",
+  },
+  {
+    rows: ({ database, domain }) => [
       statusRow("DB_URL", database.hostConfigured),
       { label: t("debug.field.effective_domain"), value: domain },
       {
@@ -428,8 +392,9 @@ const DatabaseDomainSection = ({
         value: <code>{database.schemaHash}</code>,
       },
     ],
-    title: t("debug.section.database_domain"),
-  });
+    titleKey: "debug.section.database_domain",
+  },
+];
 
 const LimitValueCell = ({
   limit,
@@ -530,27 +495,17 @@ export const adminDebugPage = (
   session: AdminSession,
   s: DebugPageState,
 ): string =>
-  themedAdminPage(t("debug.title"), "/admin/debug")(session, s.theme)(
+  settingsPage(t("debug.title"), "/admin/debug")(session, s.theme)(
     <>
       <div class="prose">
         <h1>{t("debug.heading")}</h1>
         <p>{t("debug.description")}</p>
       </div>
 
-      <BuildSection build={s.build} />
-      <RuntimeSection runtime={s.runtime} />
-      <SiteSection site={s.site} />
-      <AvailabilitySection availability={s.availability} />
-      <AppleWalletSection appleWallet={s.appleWallet} />
-      <GoogleWalletSection googleWallet={s.googleWallet} />
-      <PaymentsSection payment={s.payment} />
-      <EmailSection email={s.email} />
-      <NtfySection ntfy={s.ntfy} />
-      <BunnySection bunny={s.bunny} />
-      <DatabaseDomainSection database={s.database} domain={s.domain} />
+      {DEBUG_SECTIONS.map((section) => (
+        <DebugSection rows={section.rows(s)} title={t(section.titleKey)} />
+      ))}
       <LimitsSection limits={s.limits} />
       <PruneSection prune={s.prune} />
-
-      <SettingsGuideFooter />
     </>,
   );

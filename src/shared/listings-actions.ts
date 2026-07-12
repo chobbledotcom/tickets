@@ -45,7 +45,8 @@ import {
   packageMemberBlock,
   packageMemberBlockError,
 } from "#shared/package-membership.ts";
-import { generateUniqueSlug } from "#shared/slug.ts";
+import { parseUpdateSlug } from "#shared/rest/crud-api.ts";
+import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import { deleteListingAttachmentFile } from "#shared/storage.ts";
 import {
   availableDayCounts,
@@ -62,6 +63,17 @@ export const generateUniqueListingSlug = (excludeListingId?: number) =>
   generateUniqueSlug(computeSlugIndex, (slug) =>
     isSlugTaken(slug, excludeListingId),
   );
+
+/** Parse an update body's optional slug with the listing slug rules: normalise
+ * it and recompute its lookup index. A body without a slug keeps the existing
+ * one. */
+export const parseUpdatedListingSlug = (
+  body: Record<string, unknown>,
+  existingSlug: string,
+): Promise<{
+  slug: string;
+  slugIndex: Awaited<ReturnType<typeof computeSlugIndex>>;
+}> => parseUpdateSlug(body, existingSlug, normalizeSlug, computeSlugIndex);
 
 /** Validate max_price is at least unit_price + 100 cents */
 const validateMaxPrice = (input: ListingInput): string | null => {

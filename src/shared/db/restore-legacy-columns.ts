@@ -103,17 +103,23 @@ export type DumpMigrationState = {
  * schema_migrations statements (partial fixtures, plain SQL) reads as fully
  * pending.
  */
+/** The migration ids the dump's schema_migrations INSERTs record. */
+const recordedMigrationIds = (statements: string[]): Set<string> =>
+  new Set(
+    dumpInserts(statements)
+      .filter((insert) => insert.table === "schema_migrations")
+      .flatMap((insert) =>
+        [...insert.statement.matchAll(MIGRATION_ID_LITERAL)].map(
+          (match) => match[1]!,
+        ),
+      ),
+  );
+
 export const dumpMigrationState = (
   statements: string[],
   knownIds: readonly string[],
 ): DumpMigrationState => {
-  const recorded = new Set<string>();
-  for (const insert of dumpInserts(statements)) {
-    if (insert.table !== "schema_migrations") continue;
-    for (const match of insert.statement.matchAll(MIGRATION_ID_LITERAL)) {
-      recorded.add(match[1]!);
-    }
-  }
+  const recorded = recordedMigrationIds(statements);
   const known = new Set(knownIds);
   const newestKnownDate = knownIds.reduce(
     (newest, id) => (migrationDate(id) > newest ? migrationDate(id) : newest),

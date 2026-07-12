@@ -210,13 +210,8 @@ export type CheckoutSessionResult =
  * unpacks the Square form back to this shape, so no consumer beyond that boundary
  * needs to know which form was used.
  */
-export type SessionMetadata = {
+export type SessionMetadata = ContactInfo & {
   _origin: string;
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
-  special_instructions: string;
   items: string;
   date: string;
   day_count: string;

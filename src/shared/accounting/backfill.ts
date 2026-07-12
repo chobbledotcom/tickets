@@ -47,6 +47,7 @@ import {
   executeBatch,
   inPlaceholders,
   queryAll,
+  queryIdColumn,
   type SqlStatement,
 } from "#shared/db/client.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
@@ -83,18 +84,17 @@ type PaidRow = {
 const ATTENDEE_PAGE = 5000;
 
 /** The next page of attendee ids holding a paid booking row, after `afterId`. */
-const nextPaidAttendeeIds = async (
+const nextPaidAttendeeIds = (
   afterId: number,
   pageSize: number,
-): Promise<number[]> => {
-  const rows = await queryAll<{ attendee_id: number | bigint }>(
-    "SELECT DISTINCT attendee_id FROM listing_attendees" +
-      " WHERE price_paid > 0 AND attendee_id > ?" +
-      " ORDER BY attendee_id LIMIT ?",
+): Promise<number[]> =>
+  queryIdColumn(
+    "SELECT DISTINCT attendee.attendee_id AS id" +
+      " FROM listing_attendees AS attendee" +
+      " WHERE attendee.price_paid > 0 AND attendee.attendee_id > ?" +
+      " ORDER BY attendee.attendee_id LIMIT ?",
     [afterId, pageSize],
   );
-  return rows.map((row) => Number(row.attendee_id));
-};
 
 /** Every paid row for a page of attendees, ordered for stable grouping. */
 const paidRowsForAttendees = (ids: number[]): Promise<PaidRow[]> =>
@@ -152,28 +152,30 @@ const attendeeLegs = async (
   return [...bookingLegs, ...refundLegs];
 };
 
-/** The UPDATE that links an attendee's booking rows to their order's ledger
- *  event group — what the per-row amount-paid projection keys on. */
-const stampStatement = (
-  attendeeId: number,
-  eventGroup: string,
-): { sql: string; args: InValue[] } => ({
-  args: [eventGroup, attendeeId],
-  sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ?",
+/** The UPDATE that writes an attendee's rows' `ledger_event_group` link — what
+ *  the per-row amount-paid projection keys on. `valueSql` is the SQL expression
+ *  producing the event group; its bound args come before the attendee id. */
+const stampUpdate = (valueSql: string, args: InValue[]): SqlStatement => ({
+  args,
+  sql: `UPDATE listing_attendees SET ledger_event_group = ${valueSql} WHERE attendee_id = ?`,
 });
+
+/** Stamp the row→event link with a known event group (a just-built booking's). */
+const stampStatement = (attendeeId: number, eventGroup: string): SqlStatement =>
+  stampUpdate("?", [eventGroup, attendeeId]);
 
 /** Stamp the row→event link for an already-ledgered attendee from their existing
  *  booking's sale leg, in one statement (so no read-then-write and no re-post).
  *  COALESCE to '' when no sale leg exists, which the projection reads as 0. */
-const stampFromExistingStatement = (
-  attendeeId: number,
-): { sql: string; args: InValue[] } => ({
-  args: [String(attendeeId), attendeeId],
-  sql:
-    "UPDATE listing_attendees SET ledger_event_group = COALESCE(" +
-    `(SELECT event_group FROM transfers WHERE source_type = '${ATTENDEE}'` +
-    ` AND source_id = ? AND kind = '${KIND.sale}' LIMIT 1), '') WHERE attendee_id = ?`,
-});
+const stampFromExistingStatement = (attendeeId: number): SqlStatement =>
+  stampUpdate(
+    "COALESCE(" +
+      "(SELECT transfer.event_group FROM transfers AS transfer" +
+      ` WHERE transfer.source_type = '${ATTENDEE}'` +
+      ` AND transfer.source_id = ? AND transfer.kind = '${KIND.sale}'` +
+      ` LIMIT 1), '')`,
+    [String(attendeeId), attendeeId],
+  );
 
 /** The leg-INSERT and row-stamp statements for one not-yet-ledgered attendee.
  *  The stamp uses the order's booking event group (the first leg's, since

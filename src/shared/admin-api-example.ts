@@ -25,18 +25,17 @@ import type {
 } from "#routes/admin/api-holidays.ts";
 import { PackageChildrenSchema } from "#routes/api/request-schemas.ts";
 import {
+  API_AVAILABILITY_EXAMPLE_JSON,
+  API_BOOK_FREE_EXAMPLE_JSON,
   API_EXAMPLE_LISTING,
-  API_EXAMPLE_PUBLIC_LISTING,
+  API_LIST_EXAMPLE_JSON,
+  API_SINGLE_EXAMPLE_JSON,
 } from "#shared/api-example.ts";
-import type { AdminListing, ListingWithCount } from "#shared/types.ts";
-
-/** Example ListingWithCount used as the source for admin API examples */
-export const ADMIN_API_EXAMPLE_LISTING: ListingWithCount = API_EXAMPLE_LISTING;
+import type { AdminListing } from "#shared/types.ts";
 
 /** The example AdminListing, produced by toAdminListing */
-export const ADMIN_API_EXAMPLE_ADMIN_LISTING: AdminListing = toAdminListing(
-  ADMIN_API_EXAMPLE_LISTING,
-);
+export const ADMIN_API_EXAMPLE_ADMIN_LISTING: AdminListing =
+  toAdminListing(API_EXAMPLE_LISTING);
 
 /** Example create request body */
 const ADMIN_API_CREATE_BODY = {
@@ -148,39 +147,25 @@ const PACKAGE_BOOK_CHILDREN_EXAMPLE = v.parse(PackageChildrenSchema, [
   { parent: "tent-pitch", quantity: 1, slug: "extra-bedding" },
 ]);
 
-/** The booking-created response shape shared by the listing and package book endpoints. */
-const API_EXAMPLE_BOOKING_RESPONSE = json({
-  booking: {
-    amountOwed: 0,
-    ticketToken: "A1B2C3D4E5",
-    ticketUrl: "/t/A1B2C3D4E5",
-  },
-});
-
 export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
   {
     description: "List all active, non-hidden listings",
     method: "GET",
     path: "/api/listings",
-    response: json({ listings: [API_EXAMPLE_PUBLIC_LISTING] }),
+    response: API_LIST_EXAMPLE_JSON,
   },
   {
     description: "Get a single listing by slug",
     method: "GET",
     path: "/api/listings/:slug",
-    response: json({
-      listing: {
-        ...API_EXAMPLE_PUBLIC_LISTING,
-        availableDates: ["2025-08-20", "2025-08-21"],
-      },
-    }),
+    response: API_SINGLE_EXAMPLE_JSON,
   },
   {
     description:
       "Check if spots are available (optional query: quantity, date)",
     method: "GET",
     path: "/api/listings/:slug/availability",
-    response: json({ available: true }),
+    response: API_AVAILABILITY_EXAMPLE_JSON,
   },
   {
     description: "Create a booking",
@@ -191,7 +176,7 @@ export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
       name: "Alice Smith",
       quantity: 2,
     }),
-    response: API_EXAMPLE_BOOKING_RESPONSE,
+    response: API_BOOK_FREE_EXAMPLE_JSON,
   },
   {
     description:
@@ -225,7 +210,7 @@ export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
       name: "Alice Smith",
       quantity: 1,
     }),
-    response: API_EXAMPLE_BOOKING_RESPONSE,
+    response: API_BOOK_FREE_EXAMPLE_JSON,
   },
 ];
 

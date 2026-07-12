@@ -2,6 +2,7 @@
  * Admin sessions page template
  */
 
+/* jscpd:ignore-start */
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { formatDatetimeShort } from "#shared/dates.ts";
@@ -10,6 +11,8 @@ import type { AdminSession, Session } from "#shared/types.ts";
 import { successAdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable, textCol } from "#templates/components/data-table.tsx";
+
+/* jscpd:ignore-end */
 
 const SessionRow = ({
   session,

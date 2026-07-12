@@ -7,6 +7,7 @@
  * generation.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
@@ -17,6 +18,8 @@ import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { moneyPattern } from "#templates/components/price-input.tsx";
+
+/* jscpd:ignore-end */
 
 const EXPIRY_LABEL = `${Math.round(QR_TOKEN_MAX_AGE_S / 60)} minutes`;
 

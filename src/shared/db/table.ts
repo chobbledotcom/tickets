@@ -21,6 +21,7 @@ import {
   queryAll,
   queryOne,
   queryOnePrimary,
+  type SqlStatement,
 } from "#shared/db/client.ts";
 import { queryAndMap } from "#shared/db/query.ts";
 import { requestCache } from "#shared/request-cache.ts";
@@ -128,7 +129,7 @@ export interface Table<Row, Input> {
   insert: (input: Input) => Promise<Row>;
   /** Build the INSERT statement without executing it (for transactional callers).
    * Optional: only resources with a CRUD side effect need it; façade tables omit it. */
-  insertStatement?: (input: Input) => Promise<{ sql: string; args: InValue[] }>;
+  insertStatement?: (input: Input) => Promise<SqlStatement>;
   name: string;
   primaryKey: keyof Row & string;
 
@@ -155,7 +156,7 @@ export interface Table<Row, Input> {
   updateStatement?: (
     id: InValue,
     input: Partial<Input>,
-  ) => Promise<{ sql: string; args: InValue[] }>;
+  ) => Promise<SqlStatement>;
 }
 
 /** Get value for a column with default applied */
@@ -325,9 +326,7 @@ export const defineTable = <Row, Input = Row>(
   /** Build the INSERT statement without executing it — for callers that run the
    * write inside their own transaction (e.g. the CRUD side-effect path, which
    * inserts the row and its relationship edges atomically). */
-  const insertStatement = async (
-    input: Input,
-  ): Promise<{ sql: string; args: InValue[] }> => {
+  const insertStatement = async (input: Input): Promise<SqlStatement> => {
     const { args, sql } = await buildInsert(input);
     return { args, sql };
   };
@@ -338,7 +337,7 @@ export const defineTable = <Row, Input = Row>(
   const updateStatement = async (
     id: InValue,
     input: Partial<Input>,
-  ): Promise<{ sql: string; args: InValue[] }> => {
+  ): Promise<SqlStatement> => {
     const dbValues = await toDbValues(input);
     const providedColumns = getProvidedColumns(input);
     return {

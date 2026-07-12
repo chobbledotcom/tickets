@@ -17,6 +17,7 @@ import {
   type PublicNavProps,
   /* jscpd:ignore-end */
   publicPage,
+  titleWithSiteName,
 } from "./shared.tsx";
 
 /** A red {@link Badge} status line for the two date-search failure messages
@@ -254,12 +255,9 @@ export const homepagePage = (
   nav: PublicNavProps,
   soldOutPackageIds: ReadonlySet<number>,
   requestedDate: string | null,
-  attributesByListing: ListingAttributesById = new Map(),
+  attributesByListing: ListingAttributesById,
 ): string => {
-  const listingsTitle = t("terms.listings");
-  const title = websiteTitle
-    ? `${listingsTitle} - ${websiteTitle}`
-    : listingsTitle;
+  const title = titleWithSiteName(t("terms.listings"), websiteTitle);
 
   if (listings.length === 0 && groups.length === 0) {
     return publicPage(

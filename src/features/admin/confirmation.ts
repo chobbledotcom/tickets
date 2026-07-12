@@ -19,7 +19,11 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
-import { type AuthedBase, createAuthedHandler } from "#shared/app-forms.ts";
+import {
+  type AuthedBase,
+  type AuthedRoute,
+  authedHandlerWithStep,
+} from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 /* jscpd:ignore-end */
@@ -107,21 +111,18 @@ type VerifiedFormRouteConfig<TParams, TContext> = AuthedBase<
  */
 export const createVerifiedFormRoute = <TParams, TContext>(
   config: VerifiedFormRouteConfig<TParams, TContext>,
-) =>
-  createAuthedHandler<TParams, TContext>({
-    ...config,
-    handle: async (args) => {
-      const expected = await config.identifier(args.context, args.params);
-      const error = verifyOrRedirect(
-        args.form,
-        expected,
-        config.mismatchRedirect(args.context, args.params),
-        config.identifierLabel,
-        config.actionLabel,
-      );
-      if (error) return error;
-      return config.onConfirm(args);
-    },
+): AuthedRoute<TParams> =>
+  authedHandlerWithStep<TParams, TContext>(config, async (args) => {
+    const expected = await config.identifier(args.context, args.params);
+    const error = verifyOrRedirect(
+      args.form,
+      expected,
+      config.mismatchRedirect(args.context, args.params),
+      config.identifierLabel,
+      config.actionLabel,
+    );
+    if (error) return error;
+    return config.onConfirm(args);
   });
 
 /** Auth option: string shorthand or explicit guard pair */
@@ -231,59 +232,64 @@ export const createConfirmedHandlers = <T, TSession = AuthSession>(
       : config.successRedirect;
   const confirmPath = (id: number) => config.path.replace(/:(\w+)/, String(id));
 
-  const validate = (id: number, session: TSession) =>
-    config.preValidate ? config.preValidate(id, session) : null;
-
-  const loadOrNotFound = async (id: number, session: TSession) => {
-    const model = await config.load(id, session);
-    return model ?? notFound(id, session);
-  };
-
   const guardError = (model: T, id: number, session: TSession) =>
     config.guardError ? config.guardError(model, id, session) : null;
 
+  /** The shared opening step of the GET and the POST: run `preValidate`, load
+   * the model (not-found response when missing), then hand it to `proceed`. */
+  const withModel = async (
+    id: number,
+    session: TSession,
+    proceed: (model: T) => Promise<Response>,
+  ): Promise<Response> => {
+    const rejection = config.preValidate
+      ? await config.preValidate(id, session)
+      : null;
+    if (rejection) return rejection;
+    const model = await config.load(id, session);
+    return model === null ? notFound(id, session) : proceed(model);
+  };
+
   const get = (request: Request, id: number): Promise<Response> =>
-    requireSession(request, async (session) => {
-      const rejection = await validate(id, session);
-      if (rejection) return rejection;
-      const result = await loadOrNotFound(id, session);
-      if (result instanceof Response) return result;
-      // A guard error is rendered into the confirmation page (200), never a
-      // redirect — so the GET can't loop back to itself. A flash error
-      // from a prior POST block takes precedence when present.
-      const flash = getFlash();
-      const error = flash.error ?? (await guardError(result, id, session));
-      return htmlResponse(
-        await config.render(result, session, error ?? undefined),
-      );
-    });
+    requireSession(request, (session) =>
+      withModel(id, session, async (result) => {
+        // A guard error is rendered into the confirmation page (200), never a
+        // redirect — so the GET can't loop back to itself. A flash error
+        // from a prior POST block takes precedence when present.
+        const flash = getFlash();
+        const error = flash.error ?? (await guardError(result, id, session));
+        return htmlResponse(
+          await config.render(result, session, error ?? undefined),
+        );
+      }),
+    );
 
   const post = (request: Request, id: number): Promise<Response> =>
-    withForm(request, async (session, form) => {
-      const result = await loadOrNotFound(id, session);
-      if (result instanceof Response) return result;
+    withForm(request, (session, form) =>
+      withModel(id, session, async (result) => {
+        // The POST blocks a guarded action with an error redirect back to the
+        // confirmation page (where the GET will then render the error).
+        const guard = await guardError(result, id, session);
+        if (guard) return errorRedirect(confirmPath(id), guard);
 
-      const rejection = await validate(id, session);
-      if (rejection) return rejection;
+        const expected = await config.identifier(result);
+        const error = verifyOrRedirect(
+          form,
+          expected,
+          confirmPath(id),
+          config.identifierLabel,
+          actionLabel,
+        );
+        if (error) return error;
 
-      // The POST blocks a guarded action with an error redirect back to the
-      // confirmation page (where the GET will then render the error).
-      const guard = await guardError(result, id, session);
-      if (guard) return errorRedirect(confirmPath(id), guard);
-
-      const expected = await config.identifier(result);
-      const error = verifyOrRedirect(
-        form,
-        expected,
-        confirmPath(id),
-        config.identifierLabel,
-        actionLabel,
-      );
-      if (error) return error;
-
-      await config.onConfirm(result, id, session);
-      return redirect(resolveRedirect(result, id), config.successMessage, true);
-    });
+        await config.onConfirm(result, id, session);
+        return redirect(
+          resolveRedirect(result, id),
+          config.successMessage,
+          true,
+        );
+      }),
+    );
 
   return { get, post };
 };

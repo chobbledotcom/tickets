@@ -8,6 +8,7 @@
  */
 
 import { join } from "node:path";
+import { delay } from "#shared/now.ts";
 import { stopProcess, stopProcessNow } from "./process.ts";
 import {
   defaultStripeMockPaths,
@@ -17,7 +18,6 @@ import {
   type StripeMockCommands,
   type StripeMockInstallOptions,
   type StripeMockPaths,
-  wait,
 } from "./stripe-mock/install.ts";
 
 const STRIPE_MOCK_HOST = "localhost";
@@ -137,7 +137,7 @@ const waitForOwnedStripeMock = async (
         () => exited,
       );
     }
-    await wait(delayMs);
+    await delay(delayMs);
   }
   return false;
 };

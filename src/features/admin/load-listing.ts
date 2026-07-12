@@ -7,15 +7,10 @@
  */
 
 import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { type FindByIdThen, findByIdThen } from "#shared/find-by-id.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
 /** Load the listing with the given id and build a value from it, or null when
  *  no such listing exists. */
-export const loadListingOr = async <T>(
-  id: number,
-  build: (listing: ListingWithCount) => T | Promise<T>,
-): Promise<T | null> => {
-  const listing = await getListingWithCount(id);
-  if (!listing) return null;
-  return build(listing);
-};
+export const loadListingOr: FindByIdThen<ListingWithCount> =
+  findByIdThen(getListingWithCount);

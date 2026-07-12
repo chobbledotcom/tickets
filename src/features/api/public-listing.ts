@@ -1,11 +1,10 @@
 import { compact } from "#fp";
-import { isRegistrationClosed } from "#routes/format.ts";
+import { buildTicketListingsWithGroupCapacity } from "#routes/public/ticket-listings.ts";
 import {
   buildTicketListing,
   type TicketListing,
 } from "#shared/booking/model.ts";
 import { getAvailableDates } from "#shared/dates.ts";
-import { getGroupRemainingForListing } from "#shared/db/attendees/capacity.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import {
@@ -117,17 +116,16 @@ export const resolvedToPublicListing = (
 /** Resolve a listing row to its public shape, filling in the closed flag and the
  * group-remaining clamp from the listing itself (the caller supplies only the
  * availableDates, which differ per surface). The single place the API turns a row
- * into a {@link PublicListing} with its live availability. */
+ * into a {@link PublicListing} with its live availability — resolved through the
+ * same {@link buildTicketListingsWithGroupCapacity} pipeline the web pages use,
+ * as a batch of one. */
 export const toResolvedPublicListing = async (
   listing: ListingWithCount,
   availableDates: string[] | undefined,
-): Promise<PublicListing> =>
-  toPublicListing(
-    listing,
-    isRegistrationClosed(listing),
-    availableDates,
-    await getGroupRemainingForListing(listing),
-  );
+): Promise<PublicListing> => {
+  const [resolved] = await buildTicketListingsWithGroupCapacity([listing]);
+  return resolvedToPublicListing(resolved!, availableDates);
+};
 
 /** Map a parent's required children to a per-child result, or null when the
  * listing is not a parent (no child edges) so the caller can omit the field. The

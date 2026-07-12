@@ -157,5 +157,6 @@
   "settings.superuser.self_managed": "I understand that my attendee information cannot be decrypted without my password, and that I am responsible for storing my password securely. If I forget it, I will be locked out of my attendee records.",
   "settings.superuser.enable_super": "I wish to enable a \"super user\" account on this platform for my admin, {email}. This user will be able to log in, decrypt attendee data, and invite a replacement owner account if I lose access.",
   "settings.sumup.heading": "SumUp Settings",
+  "settings.sumup.where_to_find": "Where do I find these?",
   "settings.header_image_preview_alt": "Header preview"
 }

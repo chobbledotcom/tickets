@@ -8,13 +8,13 @@
 import { t } from "#i18n";
 import {
   type ChildDatesByDayCount,
+  childCanBeBooked,
   childDateKey,
   dayCountsChildSupports,
   encodeChildDatesByDayCount,
   type TicketListing,
 } from "#shared/booking/model.ts";
 import {
-  childCanBeBooked,
   childTicketLimit,
   groupCapacityInfo,
 } from "#shared/booking/package-cap.ts";
@@ -101,6 +101,35 @@ type ChildOptionInput = {
   attributesHtml: string;
 };
 
+/** The pieces both child renderers derive from one {@link ChildOptionInput}:
+ * whether the child can still be booked, the parent's id, the child's listing,
+ * its date/span attributes, its `name (price)` label, and its pay-more price
+ * input ("" for a child that can't be booked). Deriving them once keeps the
+ * selectable and sole-auto-select renderers from drifting. */
+const childOptionParts = ({
+  child,
+  childDatesById,
+  parent,
+  showZero,
+}: ChildOptionInput): {
+  bookable: boolean;
+  parentId: number;
+  listing: TicketListing["listing"];
+  dateAttrs: string;
+  namedLabel: string;
+  priceHtml: string;
+} => {
+  const bookable = childCanBeBooked(child);
+  return {
+    bookable,
+    dateAttrs: childDateAttrs(parent.id, child, childDatesById),
+    listing: child.listing,
+    namedLabel: namedChildPriceLabel(child, parent, showZero),
+    parentId: parent.id,
+    priceHtml: bookable ? childPriceInput(parent, child) : "",
+  };
+};
+
 /** Render one child as a per-unit quantity row: a `child_qty_<parentId>_<childId>`
  * select over `0..childLimit`, plus — for a bookable pay-more child — its
  * non-required price input. A sold-out/closed/inactive child renders a disabled
@@ -109,28 +138,22 @@ type ChildOptionInput = {
  * child also carries its date/span compatibility attributes ({@link
  * childDateAttrs}) for the client compatibility script. */
 const renderChildOption = (
-  { attributesHtml, child, childDatesById, parent, showZero }: ChildOptionInput,
+  input: ChildOptionInput,
   childLimit: number,
 ): string => {
-  const parentId = parent.id;
-  const { listing } = child;
-  const bookable = childCanBeBooked(child);
+  const { bookable, dateAttrs, listing, namedLabel, parentId, priceHtml } =
+    childOptionParts(input);
   const selectName = childQuantityFieldName(parentId, listing.id);
-  const priceHtml = bookable ? childPriceInput(parent, child) : "";
   const label = bookable
-    ? namedChildPriceLabel(child, parent, showZero)
+    ? namedLabel
     : escapeHtml(t("public.ticket.child_unavailable", { name: listing.name }));
   const select = bookable
-    ? `<select name="${selectName}" data-child-qty="${listing.id}"${childDateAttrs(
-        parentId,
-        child,
-        childDatesById,
-      )}>${quantityOptions(
+    ? `<select name="${selectName}" data-child-qty="${listing.id}"${dateAttrs}>${quantityOptions(
         childLimit,
         restoredChildQty(parentId, listing.id, childLimit),
       )}</select>`
     : `<select name="${selectName}" disabled><option value="0" selected>0</option></select>`;
-  return `<label class="child-option">${select} ${label}</label>${priceHtml}${attributesHtml}`;
+  return `<label class="child-option">${select} ${label}</label>${priceHtml}${input.attributesHtml}`;
 };
 
 /** Render a sole bookable child as INFORMATIONAL (auto-select preserved): no
@@ -154,23 +177,11 @@ const renderChildOption = (
  * constrained to the child's calendar) the client script can tell the auto-selected
  * sole child can't serve the chosen date/span and flag/disable the parent — rather
  * than letting the buyer hit the submit-side `child_sold_out` rejection. */
-const renderSoleChildOption = ({
-  attributesHtml,
-  child,
-  childDatesById,
-  parent,
-  showZero,
-}: ChildOptionInput): string => {
-  const parentId = parent.id;
-  const { listing } = child;
-  const priceHtml = childPriceInput(parent, child);
+const renderSoleChildOption = (input: ChildOptionInput): string => {
+  const { dateAttrs, listing, namedLabel, parentId, priceHtml } =
+    childOptionParts(input);
   const visible = !listing.hidden;
-  const label = visible ? namedChildPriceLabel(child, parent, showZero) : "";
-  return `<p class="child-option child-sole" data-sole-parent="${parentId}" data-sole-child="${listing.id}"${childDateAttrs(
-    parentId,
-    child,
-    childDatesById,
-  )}>${label}</p>${priceHtml}${visible ? attributesHtml : ""}`;
+  return `<p class="child-option child-sole" data-sole-parent="${parentId}" data-sole-child="${listing.id}"${dateAttrs}>${visible ? namedLabel : ""}</p>${priceHtml}${visible ? input.attributesHtml : ""}`;
 };
 
 /**

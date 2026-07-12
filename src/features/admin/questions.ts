@@ -6,6 +6,7 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 import { mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import {
+  createRecalculatePageRenderer,
   parseEditableAggregateForm,
   runRecalculatePost,
 } from "#routes/admin/aggregate-recalculation.ts";
@@ -331,6 +332,19 @@ const answerRoute =
       return handler(result.question, result.answer, session);
     });
 
+/** Owner GET route for an answer-scoped page that shows the current flash. */
+const answerFlashRoute = (
+  render: (
+    question: QuestionWithAnswers,
+    answer: Answer,
+    session: AdminSession,
+    flash: ReturnType<typeof getFlash>,
+  ) => Response | Promise<Response>,
+): ReturnType<typeof answerRoute> =>
+  answerRoute((question, answer, session) =>
+    render(question, answer, session, getFlash()),
+  );
+
 /** Owner POST handler for answer-scoped actions (move, recalculate): the
  * createAuthedHandler counterpart to {@link answerRoute}. Fixes the owner auth
  * policy and the question+answer loader so each action only supplies its body. */
@@ -346,12 +360,10 @@ const answerActionHandler = (
   });
 
 /** Handle GET /admin/questions/:id/answers/:answerId/delete */
-const handleDeleteAnswerGet = answerRoute((question, answer, session) => {
-  const flash = getFlash();
-  return htmlResponse(
-    adminAnswerDeletePage(question, answer, session, flash.error),
-  );
-});
+const handleDeleteAnswerGet = answerFlashRoute(
+  (question, answer, session, flash) =>
+    htmlResponse(adminAnswerDeletePage(question, answer, session, flash.error)),
+);
 
 /** Handle POST /admin/questions/:id/answers/:answerId/delete */
 const handleDeleteAnswerPost = createVerifiedFormRoute<
@@ -386,25 +398,26 @@ const editAnswerPath = ({ id, answerId }: AnswerRouteParams): string =>
   `/admin/questions/${id}/answers/${answerId}/edit`;
 
 /** Handle GET /admin/questions/:id/answers/:answerId/edit */
-const handleEditAnswerGet = answerRoute(async (question, answer, session) => {
-  const flash = getFlash();
-  const [aggregateRecalculation, modifiers, modifierId] = await Promise.all([
-    getAnswerAggregateRecalculation(answer.id),
-    answerTriggerModifiers(),
-    getAnswerModifierId(answer.id),
-  ]);
-  return htmlResponse(
-    adminAnswerEditPage(
-      question,
-      answer,
-      session,
-      flash.error,
-      aggregateRecalculation,
-      modifiers,
-      modifierId,
-    ),
-  );
-});
+const handleEditAnswerGet = answerFlashRoute(
+  async (question, answer, session, flash) => {
+    const [aggregateRecalculation, modifiers, modifierId] = await Promise.all([
+      getAnswerAggregateRecalculation(answer.id),
+      answerTriggerModifiers(),
+      getAnswerModifierId(answer.id),
+    ]);
+    return htmlResponse(
+      adminAnswerEditPage(
+        question,
+        answer,
+        session,
+        flash.error,
+        aggregateRecalculation,
+        modifiers,
+        modifierId,
+      ),
+    );
+  },
+);
 
 /** Map the validated aggregate form values onto the stored aggregate columns. */
 const extractAnswerAggregateValues = (
@@ -460,36 +473,29 @@ const handleEditAnswerPost = createAuthedFormRoute<
 
 /** Render the answer running-total recalculation page from the current,
  * freshly-snapshotted stored vs attendee-answer values. */
-const renderAnswerRecalculatePage = async (
-  question: QuestionWithAnswers,
-  answer: Answer,
-  session: AdminSession,
-  error?: string,
-  success?: string,
-): Promise<Response> =>
-  htmlResponse(
+const renderAnswerRecalculatePage = createRecalculatePageRenderer(
+  ({ answer }: AnswerContext) => getAnswerAggregateRecalculation(answer.id),
+  ({ answer, question }, snapshot, session: AdminSession, error, success) =>
     adminAnswerRecalculatePage(
       question,
       answer,
-      await getAnswerAggregateRecalculation(answer.id),
+      snapshot,
       session,
       error,
       success,
     ),
-    error ? 400 : 200,
-  );
+);
 
 /** Handle GET /admin/questions/:id/answers/:answerId/recalculate */
-const handleAnswerRecalculateGet = answerRoute((question, answer, session) => {
-  const flash = getFlash();
-  return renderAnswerRecalculatePage(
-    question,
-    answer,
-    session,
-    flash.error,
-    flash.success,
-  );
-});
+const handleAnswerRecalculateGet = answerFlashRoute(
+  (question, answer, session, flash) =>
+    renderAnswerRecalculatePage(
+      { answer, question },
+      session,
+      flash.error,
+      flash.success,
+    ),
+);
 
 /** Handle POST /admin/questions/:id/answers/:answerId/recalculate */
 const handleAnswerRecalculatePost = answerActionHandler(
@@ -503,8 +509,7 @@ const handleAnswerRecalculatePost = answerActionHandler(
         ),
       renderChoose: () =>
         renderAnswerRecalculatePage(
-          question,
-          answer,
+          { answer, question },
           session,
           t("questions.recalculate.choose"),
         ),

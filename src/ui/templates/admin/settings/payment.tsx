@@ -82,6 +82,16 @@ const ApiKeyModeNotice = ({
   return null;
 };
 
+/** Small "Where do I find this?" footnote linking to the payment setup guide,
+ *  shared by the provider credential forms. */
+const PaymentGuideLink = ({ label }: { label: string }): JSX.Element => (
+  <p>
+    <small>
+      <a href="/admin/guide#payment-setup">{label}</a>
+    </small>
+  </p>
+);
+
 /** The save/Test Connection footer plus its hidden result div, shared by the
  *  Stripe and SumUp key forms. Curried by the provider's id-slug, the
  *  "Update <provider> Credentials" label, and the "Test Connection" label. */
@@ -104,6 +114,45 @@ const paymentTestFooter = (
   </>
 );
 
+/** The credentials body shared by the Stripe and SumUp key forms: the
+ *  test/live-mode notice (when a key is set), the "where do I find this" guide
+ *  link, the masked key fields, and the save/Test Connection footer. Each
+ *  provider supplies only its own display name, id-slug, labels, field list and
+ *  mask key. */
+const ProviderKeyBlock = ({
+  configured,
+  fields,
+  guideLabel,
+  maskKey,
+  mode,
+  provider,
+  providerId,
+  testLabel,
+  updateLabel,
+}: {
+  configured: boolean;
+  fields: Parameters<typeof renderFields>[0];
+  guideLabel: string;
+  maskKey: string;
+  mode: string | null;
+  provider: string;
+  providerId: string;
+  testLabel: string;
+  updateLabel: string;
+}): JSX.Element => (
+  <>
+    {configured && <ApiKeyModeNotice mode={mode} provider={provider} />}
+    <PaymentGuideLink label={guideLabel} />
+    <Raw
+      html={renderFields(
+        fields,
+        configured ? { [maskKey]: MASK_SENTINEL } : {},
+      )}
+    />
+    {paymentTestFooter(providerId, configured, updateLabel, testLabel)}
+  </>
+);
+
 export const StripeForm = (s: SettingsPageState): JSX.Element | null =>
   s.paymentProvider === "stripe" ? (
     <CsrfForm action="/admin/settings/stripe" id="settings-stripe">
@@ -115,28 +164,17 @@ export const StripeForm = (s: SettingsPageState): JSX.Element | null =>
             : t("settings.stripe.not_configured_hint")}
         </p>
       </div>
-      {s.stripeKeyConfigured && (
-        <ApiKeyModeNotice mode={s.stripeKeyMode} provider="Stripe" />
-      )}
-      <p>
-        <small>
-          <a href="/admin/guide#payment-setup">
-            {t("settings.stripe.where_to_find")}
-          </a>
-        </small>
-      </p>
-      <Raw
-        html={renderFields(
-          getStripeKeyFields(),
-          s.stripeKeyConfigured ? { stripe_secret_key: MASK_SENTINEL } : {},
-        )}
+      <ProviderKeyBlock
+        configured={s.stripeKeyConfigured}
+        fields={getStripeKeyFields()}
+        guideLabel={t("settings.stripe.where_to_find")}
+        maskKey="stripe_secret_key"
+        mode={s.stripeKeyMode}
+        provider="Stripe"
+        providerId="stripe"
+        testLabel={t("settings.stripe.test_connection")}
+        updateLabel={t("settings.stripe.update_key")}
       />
-      {paymentTestFooter(
-        "stripe",
-        s.stripeKeyConfigured,
-        t("settings.stripe.update_key"),
-        t("settings.stripe.test_connection"),
-      )}
     </CsrfForm>
   ) : null;
 
@@ -150,13 +188,7 @@ export const SquareForm = (s: SettingsPageState): JSX.Element | null =>
             ? t("settings.square.configured_hint")
             : t("settings.square.not_configured_hint")}
         </p>
-        <p>
-          <small>
-            <a href="/admin/guide#payment-setup">
-              {t("settings.square.where_to_find")}
-            </a>
-          </small>
-        </p>
+        <PaymentGuideLink label={t("settings.square.where_to_find")} />
       </div>
       <Raw
         html={renderFields(
@@ -259,26 +291,17 @@ export const SumUpForm = (s: SettingsPageState): JSX.Element | null =>
             : "No SumUp API key is configured. Enter your SumUp credentials to enable SumUp payments."}
         </p>
       </div>
-      {s.sumupKeyConfigured && (
-        <ApiKeyModeNotice mode={s.sumupKeyMode} provider="SumUp" />
-      )}
-      <p>
-        <small>
-          <a href="/admin/guide#payment-setup">Where do I find these?</a>
-        </small>
-      </p>
-      <Raw
-        html={renderFields(
-          getSumupFields(),
-          s.sumupKeyConfigured ? { sumup_api_key: MASK_SENTINEL } : {},
-        )}
+      <ProviderKeyBlock
+        configured={s.sumupKeyConfigured}
+        fields={getSumupFields()}
+        guideLabel={t("settings.sumup.where_to_find")}
+        maskKey="sumup_api_key"
+        mode={s.sumupKeyMode}
+        provider="SumUp"
+        providerId="sumup"
+        testLabel="Test Connection"
+        updateLabel="Update SumUp Credentials"
       />
-      {paymentTestFooter(
-        "sumup",
-        s.sumupKeyConfigured,
-        "Update SumUp Credentials",
-        "Test Connection",
-      )}
     </CsrfForm>
   ) : null;
 

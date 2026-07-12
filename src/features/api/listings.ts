@@ -16,9 +16,8 @@ import {
 } from "#routes/public/discovery.ts";
 /* jscpd:ignore-end */
 import { keepParentDailyDatesChildrenCanServe } from "#routes/public/ticket-payment.ts";
-import { capacityDateFor } from "#shared/capacity-rules.ts";
+import { listingHasSpots } from "#shared/booking.ts";
 import { getAvailableDates, getBookableStartDates } from "#shared/dates.ts";
-import { hasAvailableSpots } from "#shared/db/attendees/api.ts";
 import { getGroupRemainingByListingId } from "#shared/db/attendees/capacity.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
@@ -133,12 +132,9 @@ const buildChildAvailability = (
         child.active &&
         !isRegistrationClosed(child) &&
         childDateAvail &&
-        (await hasAvailableSpots(
-          child.id,
-          quantity,
-          capacityDateFor(child.listing_type, date),
-          child.duration_days,
-        )),
+        // The capacity check drops the date itself for a date-less child, so
+        // the parent's date is passed straight through.
+        (await listingHasSpots(child, quantity, date)),
       slug: child.slug,
     };
   });
@@ -167,12 +163,7 @@ export const handleCheckAvailability = withGuardedListing(
         return apiResponse({ available: false });
       }
     }
-    const available = await hasAvailableSpots(
-      listing.id,
-      quantity,
-      date,
-      listing.duration_days,
-    );
+    const available = await listingHasSpots(listing, quantity, date);
     // For a parent, also report each required child's availability for the chosen
     // date/quantity (a daily child inherits the parent's date; a standard child is
     // date-less), so a client can pick a child that can actually serve the booking

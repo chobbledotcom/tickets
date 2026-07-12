@@ -43,7 +43,7 @@ import {
   type ProcessedPayment,
 } from "#shared/db/processed-payments.ts";
 import {
-  groupListingAnswers,
+  groupListingAnswerSets,
   saveAttendeeAnswers,
 } from "#shared/db/questions/attendee-answers/save.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
@@ -190,21 +190,9 @@ export const saveSessionAnswers = async (
   intent: BookingIntent,
 ): Promise<void> => {
   if (!intent.listingAnswerIds && !intent.listingTextAnswerIds) return;
-  const choiceAnswers = groupListingAnswers(
+  const grouped = groupListingAnswerSets(
     createdEntries,
     intent.listingAnswerIds ?? {},
-  );
-  const grouped: Map<
-    number,
-    {
-      answerIds: number[];
-      textAnswerIds?: { questionId: number; stringId: number }[];
-    }
-  > = new Map(
-    [...choiceAnswers].map(([attendeeId, answerIds]) => [
-      attendeeId,
-      { answerIds },
-    ]),
   );
   for (const { attendee, listing } of createdEntries) {
     const refs = intent.listingTextAnswerIds?.[String(listing.id)] ?? [];

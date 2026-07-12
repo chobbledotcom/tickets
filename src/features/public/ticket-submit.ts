@@ -27,11 +27,13 @@ import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
 import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getImagesForItem } from "#shared/db/images.ts";
+/* jscpd:ignore-start */
 import {
   ATTENDEE_DEMO_FIELDS,
   applyDemoOverrides,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
+/* jscpd:ignore-end */
 import type { CheckoutIntent } from "#shared/payments.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
@@ -55,6 +57,7 @@ import {
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import { ticketPageUrl } from "./ticket-page-url.ts";
 import {
+  allChildListings,
   checkAvailability,
   dropChildListings,
   getTicketContext,
@@ -208,25 +211,34 @@ const processSubmission = async (
   });
 };
 
-const withTicketCsrfForm = (
-  request: Request,
-  onError: (message: string) => Response,
-  onForm: (form: FormParams) => Promise<Response>,
-): Promise<Response> => withCsrfForm(request, onError, onForm);
+/** A booking-page POST route: check the CSRF token, then hand the submitted
+ * form to `handle`. `onCsrfError` shapes the failure response for the route's
+ * medium (a redirect for the full submit, an HTML fragment for the quote). */
+const ticketFormRoute =
+  (
+    onCsrfError: (ctx: TicketCtx) => (message: string) => Response,
+    handle: (
+      request: Request,
+      ctx: TicketCtx,
+      form: FormParams,
+    ) => Promise<Response>,
+  ) =>
+  (request: Request, ctx: TicketCtx): Promise<Response> =>
+    withCsrfForm(request, onCsrfError(ctx), (form) =>
+      handle(request, ctx, form),
+    );
 
 /** Handle POST for ticket registration */
-const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
-  withTicketCsrfForm(
-    request,
-    // CSRF failures redirect with a flash (the token expired or was tampered
-    // with — the page reloads with a fresh token). Field-level validation
-    // errors instead re-render inline so the visitor keeps what they entered.
-    (message) => errorRedirect(ticketPageUrl(ctx), message),
-    (form) => {
-      applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
-      return processSubmission(request, ctx, form);
-    },
-  );
+const submitTicket = ticketFormRoute(
+  // CSRF failures redirect with a flash (the token expired or was tampered
+  // with — the page reloads with a fresh token). Field-level validation
+  // errors instead re-render inline so the visitor keeps what they entered.
+  (ctx) => (message) => errorRedirect(ticketPageUrl(ctx), message),
+  (request, ctx, form) => {
+    applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
+    return processSubmission(request, ctx, form);
+  },
+);
 
 /**
  * Build the running-total fragment for a parsed-and-priced quote, matching what
@@ -291,12 +303,10 @@ const renderQuote = async (
  * read here — a quote prices the cart with an empty contact — so the client
  * strips them before sending and the server ignores any that arrive.
  */
-const calculateTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
-  withTicketCsrfForm(
-    request,
-    (message) => htmlResponse(orderSummaryMessage(message), 403),
-    (form) => renderQuote(ctx, form),
-  );
+const calculateTicket = ticketFormRoute(
+  () => (message) => htmlResponse(orderSummaryMessage(message), 403),
+  (_request, ctx, form) => renderQuote(ctx, form),
+);
 
 /**
  * Inputs to the booking-page framework: the listings to offer, a context
@@ -348,9 +358,7 @@ const buildTicketCtx = async ({
  * paths keep the un-projected `ctx` so the fold's authoritative child rejection
  * still runs with its clear error. */
 const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
-  const children = [...ctx.childrenByParentId.values()]
-    .flat()
-    .map((child) => child.listing);
+  const children = allChildListings(ctx.childrenByParentId);
   const [
     childCaps,
     childOwnRemaining,

@@ -3,11 +3,9 @@
  */
 
 import { t } from "#i18n";
-import { applyFlash } from "#routes/csrf.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import { createFormRoute } from "#shared/app-forms.ts";
-import { signCsrfToken } from "#shared/csrf.ts";
+import { createFormRoute, publicFormPage } from "#shared/app-forms.ts";
 import {
   acceptInvite,
   activateKeylessUser,
@@ -110,11 +108,9 @@ const joinRoute =
 /**
  * Handle GET /join/:code
  */
-const handleJoinGet = joinRoute(async (request, code, _user, username) => {
-  await signCsrfToken();
-  const flash = applyFlash(request);
-  return htmlResponse(joinPage(code, username, flash.error));
-});
+const handleJoinGet = joinRoute((request, code, _user, username) =>
+  publicFormPage(request, (flash) => joinPage(code, username, flash.error)),
+);
 
 const setPasswordRoute = (code: string, user: User) =>
   createFormRoute({

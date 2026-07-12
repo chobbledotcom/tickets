@@ -1,5 +1,6 @@
 /* jscpd:ignore-start */
 import { join } from "node:path";
+import { delay } from "#shared/now.ts";
 import { openLockFile } from "../lock-file.ts";
 import { rethrowUnlessNotFound } from "../not-found.ts";
 import { projectRoot } from "../project-root.ts";
@@ -19,9 +20,6 @@ const STRIPE_MOCK_PATH = join(BIN_DIR, "stripe-mock");
 
 const platformMap: Record<string, string> = { darwin: "darwin" };
 const archMap: Record<string, string> = { aarch64: "arm64" };
-
-export const wait = (delayMs: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, delayMs));
 
 export type StripeMockPaths = {
   binDir: string;
@@ -268,7 +266,7 @@ const acquireInstallLock = async (
     if (Date.now() - startedAt >= settings.timeoutMs) {
       throw new Error("Timed out waiting for stripe-mock install lock");
     }
-    await wait(settings.retryMs);
+    await delay(settings.retryMs);
   }
 };
 

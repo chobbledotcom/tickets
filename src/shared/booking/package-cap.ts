@@ -1,10 +1,10 @@
 import { sumByKey, sumOf } from "#fp";
 import { packageQuantityLimit } from "#shared/booking/capacity-tree.ts";
 import {
-  childActive,
-  childInStock,
-  childOpen,
-  childPassesAllChecks,
+  type ChildrenByParent,
+  childCanBeBooked,
+  type MemberWithChildren,
+  membersWithChildren,
   type TicketListing,
   ticketsThatFitInPool,
 } from "#shared/booking/model.ts";
@@ -32,7 +32,7 @@ export type GroupCapacityInfo = {
 
 export type PackageLimitInfo = GroupCapacityInfo & {
   listings: readonly TicketListing[];
-  childrenByParentId: ReadonlyMap<number, readonly TicketListing[]> | undefined;
+  childrenByParentId: ChildrenByParent | undefined;
 };
 
 export const groupCapacityInfo = (
@@ -42,7 +42,7 @@ export const groupCapacityInfo = (
 
 export const packageLimitInfo = (
   listings: readonly TicketListing[],
-  childrenByParentId: ReadonlyMap<number, readonly TicketListing[]> | undefined,
+  childrenByParentId: ChildrenByParent | undefined,
   groupRemainingByGroupId: GroupRemaining,
   groupIdsByListingId: GroupIdsByListing,
 ): PackageLimitInfo => ({
@@ -66,9 +66,6 @@ export const pageBundleLimits = (
       pagePackageBundleLimit(tree, pkg, page),
     ]),
   );
-
-export const childCanBeBooked: (child: TicketListing) => boolean =
-  childPassesAllChecks([childActive, childOpen, childInStock]);
 
 /** A child without the `dateLessCap` rule has no date-less stock ceiling of
  * its own, so only the parent's limit clamps the pair before a date is
@@ -120,13 +117,8 @@ type ChildLimitPart =
   | { kind: "parentGroup"; ownLimit: number; spotsLeft: number }
   | { kind: "childGroup"; groupId: number; ownLimit: number };
 
-type MemberWithChildren = {
-  member: TicketListing;
-  children: readonly TicketListing[];
-};
-
 type ChildrenToBook = {
-  children: TicketListing[];
+  children: readonly TicketListing[];
   packageQty: number;
 };
 
@@ -233,22 +225,25 @@ const childrenTicketLimit = (
   );
 };
 
-const membersWithChildren = (ctx: PackageLimitInfo): MemberWithChildren[] =>
-  ctx.childrenByParentId === undefined
-    ? []
-    : ctx.listings.flatMap((member) => {
-        const children = ctx.childrenByParentId!.get(member.listing.id);
-        return !children || children.length === 0 ? [] : [{ children, member }];
-      });
+/** Package members paired with only the children that can still be booked. */
+const membersWithBookableChildren = (
+  ctx: PackageLimitInfo,
+): MemberWithChildren[] =>
+  membersWithChildren(ctx.listings, ctx.childrenByParentId).map(
+    ({ member, children }) => ({
+      children: children.filter(childCanBeBooked),
+      member,
+    }),
+  );
 
 /** Ticket limits for package members that also need child tickets. */
 export const packageChildTicketLimits = (
   ctx: PackageLimitInfo,
 ): Map<number, number> =>
   new Map(
-    membersWithChildren(ctx).map(({ member, children }) => [
+    membersWithBookableChildren(ctx).map(({ member, children }) => [
       member.listing.id,
-      childrenTicketLimit(ctx, member, children.filter(childCanBeBooked)),
+      childrenTicketLimit(ctx, member, children),
     ]),
   );
 
@@ -270,9 +265,9 @@ const packageChildrenToBook = (
   ctx: PackageLimitInfo,
 ): ChildrenToBook[] => {
   const memberQty = fixedQuantitiesByListingId(tree);
-  return membersWithChildren(ctx)
+  return membersWithBookableChildren(ctx)
     .map(({ member, children }) => ({
-      children: children.filter(childCanBeBooked),
+      children,
       packageQty: memberQty.get(member.listing.id)!,
     }))
     .filter(({ children }) => children.length > 0);
@@ -303,35 +298,38 @@ const groupNeedsFor =
       ticketsNeeded: packageQty,
     }));
 
+/** How many whole packages fit each pooled need: sums the tickets needed per
+ * key (a child id or a group id), then divides that key's pool of spots by its
+ * summed need. */
+const limitsFromPooledNeeds =
+  <Need extends { ticketsNeeded: number }>(
+    keyOf: (need: Need) => number,
+    poolFor: (key: number) => number,
+  ) =>
+  (needs: readonly Need[]): number[] =>
+    [...sumByKey<Need, number>(keyOf, (need) => need.ticketsNeeded)(needs)].map(
+      ([key, ticketsNeeded]) =>
+        ticketsThatFitInPool(poolFor(key), ticketsNeeded),
+    );
+
 const singleChildLimits = (needs: readonly OneChildNeed[]): number[] => {
   const limitByChildId = new Map(
     needs.map(({ childId, childLimit }) => [childId, childLimit]),
   );
-  return [
-    ...sumByKey<OneChildNeed, number>(
-      (need) => need.childId,
-      (need) => need.ticketsNeeded,
-    )(needs),
-  ].map(([childId, ticketsNeeded]) =>
-    ticketsThatFitInPool(limitByChildId.get(childId)!, ticketsNeeded),
-  );
+  return limitsFromPooledNeeds<OneChildNeed>(
+    (need) => need.childId,
+    (childId) => limitByChildId.get(childId)!,
+  )(needs);
 };
 
 const sharedChildGroupLimits = (
   ctx: GroupCapacityInfo,
   needs: readonly GroupNeed[],
 ): number[] =>
-  [
-    ...sumByKey<GroupNeed, number>(
-      (need) => need.groupId,
-      (need) => need.ticketsNeeded,
-    )(needs),
-  ].map(([groupId, ticketsNeeded]) =>
-    ticketsThatFitInPool(
-      ctx.groupRemainingByGroupId.get(groupId)!,
-      ticketsNeeded,
-    ),
-  );
+  limitsFromPooledNeeds<GroupNeed>(
+    (need) => need.groupId,
+    (groupId) => ctx.groupRemainingByGroupId.get(groupId)!,
+  )(needs);
 
 const sharedChildrenAcrossMembersLimit = (
   tree: BookingTree,

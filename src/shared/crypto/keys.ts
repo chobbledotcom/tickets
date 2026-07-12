@@ -7,6 +7,7 @@ import { registerCache } from "#shared/cache-registry.ts";
 import {
   aesGcmDecryptRaw,
   aesGcmEncryptRaw,
+  aesGcmEncryptText,
   decryptWithKey,
   formatPrefixed,
   getEncryptionKeyString,
@@ -331,10 +332,7 @@ export const hybridEncrypt = async (
 ): Promise<OwnerKeyEncrypted> => {
   // Generate random AES key and encrypt the data
   const aesKey = await generateDataKey();
-  const { iv, ciphertext } = await aesGcmEncryptRaw(
-    new TextEncoder().encode(plaintext),
-    aesKey,
-  );
+  const { iv, ciphertext } = await aesGcmEncryptText(plaintext, aesKey);
 
   // Export and encrypt the AES key with RSA
   const rawAesKey = await crypto.subtle.exportKey("raw", aesKey);

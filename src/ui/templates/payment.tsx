@@ -8,6 +8,7 @@ import type { Attendee, Listing } from "#shared/types.ts";
 import { Icon } from "#templates/components/actions.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { LabelledParas } from "#templates/components/labelled-para.tsx";
+import { NewTabLink } from "#templates/components/new-tab-link.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import { simplePublicPage } from "#templates/public/shared.tsx";
 
@@ -83,9 +84,9 @@ export const successPage = ({
         </div>
         {ticketUrl ? (
           <p>
-            <a href={ticketUrl} rel="noopener" target="_blank">
+            <NewTabLink href={ticketUrl}>
               {t("payment.success.view_ticket")}
-            </a>
+            </NewTabLink>
           </p>
         ) : null}
         {thankYouUrl ? (
@@ -176,9 +177,9 @@ export const checkoutPopupPage = (checkoutUrl: string): string =>
         <div data-checkout-waiting hidden>
           <p>{t("payment.popup.waiting")}</p>
           <p>
-            <a href={checkoutUrl} rel="noopener" target="_blank">
+            <NewTabLink href={checkoutUrl}>
               <small>{t("payment.popup.window_hint")}</small>
-            </a>
+            </NewTabLink>
           </p>
         </div>
       </div>

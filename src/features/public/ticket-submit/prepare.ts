@@ -17,9 +17,10 @@ import type { FormParams } from "#shared/form-data.ts";
 import { concealLineNames } from "#shared/package-privacy.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
 import {
+  type AnswerInfo,
   listingsWithQuantity,
   parseAddOnSelections,
-  validateSubmittedDate,
+  resolvePageDate,
 } from "../ticket-form.ts";
 import {
   ctxStandInNames,
@@ -29,7 +30,6 @@ import {
 } from "../ticket-payment.ts";
 import type { TicketCtx } from "../types.ts";
 import {
-  type AnswerInfo,
   applyQrTokenOverride,
   computeListingAnswerMap,
   parseCustomPrices,
@@ -84,11 +84,9 @@ export const prepareOrder = async (
   // Resolve the order's date and day-count *before* folding children, so the
   // child bookability filter and inherited durations evaluate against the real
   // values.
-  let date: string | null = null;
-  if (ctx.dates.length > 0) {
-    date = validateSubmittedDate(form, ctx.dates);
-    if (!date) return { error: "Please select a valid date", ok: false };
-  }
+  const dateResult = resolvePageDate(ctx.dates, form.getString("date"));
+  if (!dateResult.ok) return { error: dateResult.error, ok: false };
+  const date = dateResult.date;
 
   const pageSelected = listingsWithQuantity(ctx.listings, pageQuantities);
   const baseHasCustomisable = pageSelected.some(

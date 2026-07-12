@@ -1,10 +1,9 @@
 import { apiError, apiResponse } from "#routes/api/cors.ts";
 import {
   applyChildSelectionsToForm,
-  completeFoldedBooking,
+  finishFoldedBooking,
   foldChildrenOrError,
   parseApiChildSelections,
-  validateFoldedFields,
 } from "#routes/api/folded-booking.ts";
 import {
   checkBookingRateLimit,
@@ -19,7 +18,10 @@ import {
   PackageChildrenSchema,
 } from "#routes/api/request-schemas.ts";
 import { loadBookablePackageBySlug } from "#routes/public/groups.ts";
-import { listingsWithQuantity } from "#routes/public/ticket-form.ts";
+import {
+  listingsWithQuantity,
+  resolvePageDate,
+} from "#routes/public/ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "#routes/public/ticket-listings.ts";
 import {
   ctxStandInNames,
@@ -30,11 +32,7 @@ import {
 import type { TicketCtx } from "#routes/public/types.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
-import { bookingError } from "#shared/booking/form.ts";
-import {
-  bookableChildIds,
-  packageDayCountsChildrenSupport,
-} from "#shared/booking/model.ts";
+import { bookableChildIds, pageDayCounts } from "#shared/booking/model.ts";
 import {
   buildOrderLines,
   nodeQuantitiesFor,
@@ -58,7 +56,6 @@ import {
   packagePrivacy,
 } from "#shared/package-privacy.ts";
 import type { Group } from "#shared/types.ts";
-import { extractContact } from "#templates/fields/ticket.ts";
 
 const PACKAGE_NOT_FOUND = "Package not found";
 
@@ -141,7 +138,7 @@ export const handleGetPackage = withPackageContext(
   async (_request, { ctx, group, limit, tree }) => {
     const customisable = ctx.listings.some((e) => e.listing.customisable_days);
     const dayCounts = customisable
-      ? packageDayCountsChildrenSupport(ctx.listings, ctx.childrenByParentId)
+      ? pageDayCounts(ctx.listings, ctx.childrenByParentId, true)
       : [];
     // A hidden package never names its members (or their children) — buyers see
     // only the bundle. `packageQuantities` covers every member by construction.
@@ -247,14 +244,9 @@ const resolvePackageOrder = async (
     ]),
   );
 
-  let date: string | null = null;
-  if (ctx.dates.length > 0) {
-    const submitted = String(body.date ?? "");
-    if (!ctx.dates.includes(submitted)) {
-      return apiError(bookingError.invalidDate);
-    }
-    date = submitted;
-  }
+  const dateResult = resolvePageDate(ctx.dates, String(body.date ?? ""));
+  if (!dateResult.ok) return apiError(dateResult.error);
+  const date = dateResult.date;
 
   const form = toFormParams(body);
   if (body.dayCount !== undefined) {
@@ -346,16 +338,10 @@ export const handleBookPackage = async (
     ),
     standIns,
   );
-  const valResult = validateFoldedFields(
+  return finishFoldedBooking(
+    request,
     form,
-    fold,
     items.some((item) => item.unitPrice > 0),
+    { date, fold, items },
   );
-  if (valResult instanceof Response) return valResult;
-  return completeFoldedBooking(request, {
-    contact: extractContact(valResult),
-    date,
-    fold,
-    items,
-  });
 };

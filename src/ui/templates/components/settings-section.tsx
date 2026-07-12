@@ -12,8 +12,7 @@
  */
 
 import type { Child } from "#jsx/jsx-runtime.ts";
-import { CsrfForm } from "#shared/forms.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 
 /**
  * Derive a settings form's id from its POST target, since each settings
@@ -46,16 +45,41 @@ export const SettingsSection = ({
   title: string;
   children?: Child;
 }): JSX.Element => (
-  <CsrfForm
+  <SaveForm
     action={action}
-    {...(enctype !== undefined ? { enctype } : {})}
+    enctype={enctype}
     id={id ?? formIdFromAction(action)}
+    submitLabel={submitLabel}
   >
     <div class="prose">
       <h2>{title}</h2>
       {description}
     </div>
     {children}
-    <SubmitButton icon="save">{submitLabel}</SubmitButton>
-  </CsrfForm>
+  </SaveForm>
+);
+
+/** The heading, intro, action, and save-label a settings section needs,
+ * carried as one object. Config-driven forms build (or already hold) this
+ * shape and hand it straight to {@link settingsSectionWith}. */
+export type SettingsSectionDetails = {
+  action: string;
+  description?: Child;
+  submitLabel: string;
+  title: string;
+};
+
+/** Render a settings section from a details object plus its fields. */
+export const settingsSectionWith = (
+  details: SettingsSectionDetails,
+  children: Child,
+): JSX.Element => (
+  <SettingsSection
+    action={details.action}
+    description={details.description}
+    submitLabel={details.submitLabel}
+    title={details.title}
+  >
+    {children}
+  </SettingsSection>
 );

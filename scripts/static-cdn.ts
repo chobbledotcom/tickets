@@ -158,67 +158,85 @@ const releaseHash = async (assets: StaticCdnAsset[]): Promise<string> => {
   return checksum(new Uint8Array(bytes));
 };
 
-const upload = async (
-  config: StaticCdnConfig,
-  objectPath: string,
-  asset: StaticCdnAsset,
-  fetcher: typeof fetch,
-): Promise<void> => {
-  await checkedFetch(
-    fetcher,
-    `https://${config.storageHost}/${config.storageName}/${objectPath}`,
-    {
-      body: asset.bytes as BodyInit,
-      headers: {
-        AccessKey: config.storageKey,
-        Checksum: (await checksum(asset.bytes)).toUpperCase(),
-        "Content-Type": asset.contentType,
-      },
-      method: "PUT",
-    },
-    `Failed to upload static CDN asset ${asset.filename}`,
-  );
-};
-
 const publicUrl = (
   config: StaticCdnConfig,
   releasePath: string,
   filename: string,
 ): string => `${config.cdnUrl}/${releasePath}/${filename}`;
 
-const verify = async (
-  url: string,
-  asset: StaticCdnAsset,
-  fetcher: typeof fetch,
+/** A media type without its parameters, lower-cased for comparison. */
+const bareMediaType = (value: string): string =>
+  value.replace(/;.*$/, "").trim().toLowerCase();
+
+/** The per-asset upload and verify steps for one publish run, bound to its
+ * config and fetch so the two steps share their plumbing — the request path
+ * and the "Failed to <action> static CDN asset <name>" failure shape. */
+const createAssetSteps = (config: StaticCdnConfig, fetcher: typeof fetch) => {
+  const fetchAssetOrThrow = (
+    action: "upload" | "verify",
+    asset: StaticCdnAsset,
+    url: string,
+    init?: RequestInit,
+  ): Promise<Response> =>
+    checkedFetch(
+      fetcher,
+      url,
+      init,
+      `Failed to ${action} static CDN asset ${asset.filename}`,
+    );
+
+  const upload = async (
+    objectPath: string,
+    asset: StaticCdnAsset,
+  ): Promise<void> => {
+    await fetchAssetOrThrow(
+      "upload",
+      asset,
+      `https://${config.storageHost}/${config.storageName}/${objectPath}`,
+      {
+        body: asset.bytes as BodyInit,
+        headers: {
+          AccessKey: config.storageKey,
+          Checksum: (await checksum(asset.bytes)).toUpperCase(),
+          "Content-Type": asset.contentType,
+        },
+        method: "PUT",
+      },
+    );
+  };
+
+  const verify = async (url: string, asset: StaticCdnAsset): Promise<void> => {
+    const response = await fetchAssetOrThrow("verify", asset, url);
+    const contentType = response.headers.get("content-type");
+    if (contentType === null) {
+      throw new Error(
+        `Static CDN asset ${asset.filename} is missing its content type`,
+      );
+    }
+    const servedMediaType = bareMediaType(contentType);
+    const expectedMediaType = bareMediaType(asset.contentType);
+    if (servedMediaType !== expectedMediaType) {
+      throw new Error(
+        `Static CDN asset ${asset.filename} has content type ${servedMediaType}; expected ${expectedMediaType}`,
+      );
+    }
+    const served = new Uint8Array(await response.arrayBuffer());
+    if ((await checksum(served)) !== (await checksum(asset.bytes))) {
+      throw new Error(
+        `Static CDN asset ${asset.filename} does not match the uploaded file`,
+      );
+    }
+  };
+
+  return { upload, verify };
+};
+
+/** Run one per-asset step (upload or verify) over every asset in parallel. */
+const forEveryAsset = async (
+  assets: StaticCdnAsset[],
+  step: (asset: StaticCdnAsset) => Promise<void>,
 ): Promise<void> => {
-  const response = await checkedFetch(
-    fetcher,
-    url,
-    undefined,
-    `Failed to verify static CDN asset ${asset.filename}`,
-  );
-  const contentType = response.headers.get("content-type");
-  if (contentType === null) {
-    throw new Error(
-      `Static CDN asset ${asset.filename} is missing its content type`,
-    );
-  }
-  const servedMediaType = contentType.replace(/;.*$/, "").trim().toLowerCase();
-  const expectedMediaType = asset.contentType
-    .replace(/;.*$/, "")
-    .trim()
-    .toLowerCase();
-  if (servedMediaType !== expectedMediaType) {
-    throw new Error(
-      `Static CDN asset ${asset.filename} has content type ${servedMediaType}; expected ${expectedMediaType}`,
-    );
-  }
-  const served = new Uint8Array(await response.arrayBuffer());
-  if ((await checksum(served)) !== (await checksum(asset.bytes))) {
-    throw new Error(
-      `Static CDN asset ${asset.filename} does not match the uploaded file`,
-    );
-  }
+  await Promise.all(assets.map(step));
 };
 
 export const publishStaticCdnAssets = async (
@@ -236,16 +254,13 @@ export const publishStaticCdnAssets = async (
   const storagePath = storageBase
     ? `${storageBase}/${releasePath}`
     : releasePath;
-  await Promise.all(
-    assets.map((asset) =>
-      upload(config, `${storagePath}/${asset.filename}`, asset, fetcher),
-    ),
+  const steps = createAssetSteps(config, fetcher);
+  await forEveryAsset(assets, (asset) =>
+    steps.upload(`${storagePath}/${asset.filename}`, asset),
   );
   await purge(config, fetcher);
-  await Promise.all(
-    assets.map((asset) =>
-      verify(publicUrl(config, releasePath, asset.filename), asset, fetcher),
-    ),
+  await forEveryAsset(assets, (asset) =>
+    steps.verify(publicUrl(config, releasePath, asset.filename), asset),
   );
   return {
     origin: new URL(config.cdnUrl).origin,

@@ -20,6 +20,7 @@
  * real surviving mutant, so a stale/redundant/duplicate entry fails the run.
  */
 
+import { seenBefore } from "#shared/seen-before.ts";
 import type { Mutant } from "./generate.ts";
 import { type MutantResult, rel } from "./summary.ts";
 
@@ -118,14 +119,13 @@ export const ignoreListProblems = (
   );
 
   const problems: string[] = [];
-  const seen = new Set<string>();
+  const isRepeat = seenBefore();
   for (const key of ignore.entries) {
     if (!targetsMutatedFile(key)) continue;
-    if (seen.has(key)) {
+    if (isRepeat(key)) {
       problems.push(`duplicate entry: ${key}`);
       continue;
     }
-    seen.add(key);
     if (!known.has(key)) {
       problems.push(`stale (no mutant here — did the code move?): ${key}`);
     } else if (generated.has(key) && !suppressed.has(key)) {

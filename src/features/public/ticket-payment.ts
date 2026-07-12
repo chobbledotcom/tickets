@@ -699,13 +699,17 @@ export const loadChildrenByParentId = async (
   return result;
 };
 
+/** Every parent's children flattened to their listings, in parent order. */
+export const allChildListings = (
+  childrenByParentId: ChildrenByParentId,
+): ListingWithCount[] =>
+  [...childrenByParentId.values()].flat().map((child) => child.listing);
+
 /** Distinct child listing ids across every parent's children. */
 export const childListingIdsOf = (
   childrenByParentId: ChildrenByParentId,
 ): number[] =>
-  unique(
-    [...childrenByParentId.values()].flat().map((child) => child.listing.id),
-  );
+  unique(allChildListings(childrenByParentId).map((listing) => listing.id));
 
 /** Day counts the parent can pass to daily children. */
 const parentDayCountsForChildren = (parent: ListingWithCount): number[] => {
