@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
   attendeeAccount,
+  EXTERNAL,
   modifierAccount,
   revenueAccount,
   WORLD,
@@ -23,6 +24,7 @@ import {
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import { getNoteRows } from "#shared/db/system-notes.ts";
+import { account } from "#shared/ledger/account.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 import {
@@ -272,6 +274,53 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     ).toEqual({ posted: true });
     expect(await accountBalance(attendeeAccount(ATTENDEE))).toBe(0);
     expect(await refundCashAmounts()).toEqual([5000, 5000]);
+  });
+
+  test("posts when an uncovered order's cash came from a non-WORLD external account", async () => {
+    // Only WORLD-sourced payments are "provider payments" — a payment from any
+    // other external account is not, so an uncovered order paid that way must not
+    // block the refund. The ledger's write path never enforces that WORLD is the
+    // sole external account (or that WORLD only ever sources payments), so this
+    // guards `isProviderPaymentLeg`/`sameAccount` against being loosened to treat
+    // any external/WORLD-touching leg as provider cash.
+    //
+    // Group A: a normal fully-paid booking whose WORLD payment is covered by the
+    // session reference — a genuine provider group, but never uncovered.
+    await postBooking({
+      amountPaid: 5000,
+      eventId: "sess-1",
+      lines: [{ gross: 5000, listingId: 1 }],
+    });
+    // Group B: a self-balancing order under an UNCOVERED event group whose cash
+    // arrived from external:not-world (not WORLD), so it is not a provider group.
+    await postTransfers([
+      {
+        amount: 3000,
+        destination: attendeeAccount(ATTENDEE),
+        eventGroup: "ext-cash-order",
+        kind: "payment",
+        occurredAt: BOOKING_AT,
+        reference: "ext-cash-pay",
+        source: account(EXTERNAL, "not-world"),
+      },
+      {
+        amount: 3000,
+        destination: revenueAccount(2),
+        eventGroup: "ext-cash-order",
+        kind: "sale",
+        occurredAt: BOOKING_AT,
+        reference: "ext-cash-sale",
+        source: attendeeAccount(ATTENDEE),
+      },
+    ]);
+
+    // Both orders reverse: group B's external payment is NOT a provider payment,
+    // so it never counts as an uncovered provider group. Treating it as one (the
+    // loosened guard) would guard-skip the whole refund instead.
+    expect(
+      await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]),
+    ).toEqual({ posted: true });
+    expect(await accountBalance(attendeeAccount(ATTENDEE))).toBe(0);
   });
 
   test("lets one legacy payment reference cover one old unmatched payment group", async () => {

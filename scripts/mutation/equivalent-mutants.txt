@@ -64,12 +64,12 @@ src/shared/accounting/manual-entries.ts:209:29  ?? → ||   # guard error messag
 src/shared/checkout-ledger.ts:35:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
 src/shared/accounting/queries.ts:162:26  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
 
-# refund-ledger.ts pure account guards: one type-provable, two account-model
-# invariants. WORLD = account("external", "world"), and "external" is a singleton
-# account type (accounts.ts) — WORLD is its only account.
+# refund-ledger.ts isRefundLeg guard: type-provable equivalent. (The sibling
+# sameAccount / isProviderPaymentLeg && → || mutants are NOT equivalent — the
+# ledger write path doesn't enforce the "WORLD-source ⟺ payment" / external-
+# singleton invariants, so a payment leg from a non-WORLD external account
+# distinguishes them; they're killed by a regression test in refund-ledger.test.ts.)
 src/shared/refund-ledger.ts:46:30  ?? → ||   # isRefundLeg: kind?.startsWith("refund_") is boolean|undefined; for boolean b, b ?? false === b || false, and undefined coincides too, so ?? and || always agree
-src/shared/refund-ledger.ts:51:39  && → ||   # sameAccount's only caller passes WORLD as one side; "external" is a singleton type, so a source with WORLD's type IS WORLD (same id) — left.type===right.type ⟺ left.id===right.id here, so && and || agree
-src/shared/refund-ledger.ts:54:28  && → ||   # isProviderPaymentLeg: in the ledger a leg's source is WORLD iff its kind is "payment" (WORLD is the source of every payment and is a source nowhere else), so kind===payment and sameAccount(source,WORLD) are always equal — && and || coincide
 
 # Parent/child fold moved to fold-tree.ts in Phase 2a (see the fold-tree.ts
 # entries below); the ticket-payment.ts fold-internal equivalents went with it.
