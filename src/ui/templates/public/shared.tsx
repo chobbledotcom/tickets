@@ -80,7 +80,7 @@ const rootItems = (
  * shared `leveledNav` the admin nav uses. It must NOT carry the admin nav's
  * `#main-nav` id: the stylesheet reads that id as "this is an admin page"
  * (full-bleed main, admin textarea sizing), while a public page keeps the
- * shared 800px reading width.
+ * shared 1080px reading width.
  */
 export const PublicNav = (props: PublicNavProps): JSX.Element =>
   leveledNav({
@@ -241,8 +241,12 @@ export const publicSeoPage =
   (body: Child): string => {
     const { title, headExtra } = seoPageHead(page, websiteTitle);
     return String(
-      <Layout headExtra={headExtra} title={title}>
-        <PublicNav {...nav} />
+      <Layout
+        beforeContent={<PublicNav {...nav} />}
+        contentClassName="public-page"
+        headExtra={headExtra}
+        title={title}
+      >
         {showHeading && <h1>{page.name}</h1>}
         {body}
       </Layout>,
@@ -303,9 +307,17 @@ export const publicPage =
   ) =>
   (body: Child): string =>
     String(
-      <Layout headExtra={headExtra} title={title}>
-        {websiteTitle && <h1>{websiteTitle}</h1>}
-        <PublicNav {...nav} />
+      <Layout
+        beforeContent={
+          <>
+            {websiteTitle && <h1>{websiteTitle}</h1>}
+            <PublicNav {...nav} />
+          </>
+        }
+        contentClassName="public-page"
+        headExtra={headExtra}
+        title={title}
+      >
         {body}
         {showLoginFooter && <LoginFooter />}
       </Layout>,
@@ -319,7 +331,7 @@ export const prosePage =
   (title: string, heading: string) =>
   (prose: Child, afterProse?: Child): string =>
     String(
-      <Layout title={title}>
+      <Layout contentClassName="public-page" title={title}>
         <div class="prose">
           <h1>{heading}</h1>
           {prose}

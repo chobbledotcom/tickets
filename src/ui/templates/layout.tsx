@@ -16,12 +16,18 @@ import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import type { Theme } from "#shared/types.ts";
 import { renderAdminFooter } from "#templates/admin/footer.tsx";
+import { PageRegions } from "#templates/components/page-structure.tsx";
 
 export { escapeHtml };
 
 interface LayoutProps {
+  /** Page parts that must stay directly inside main, such as the navigation
+   * sidebar and its notices. */
+  beforeContent?: Child;
   bodyClass?: string | undefined;
   children?: Child;
+  /** Stable page identity/custom-CSS hook added to the content region stack. */
+  contentClassName?: string | undefined;
   headExtra?: string | undefined;
   theme?: Theme;
   title: string;
@@ -32,9 +38,11 @@ interface LayoutProps {
  */
 export const Layout = ({
   title,
+  beforeContent,
   bodyClass,
   headExtra,
   children,
+  contentClassName,
   theme,
 }: LayoutProps): SafeHtml => {
   const resolvedTheme = theme ?? settings.theme;
@@ -83,7 +91,8 @@ export const Layout = ({
                 shown — placing it once, structurally, removes the whole class of
                 "handler set the cookie but the page dropped it" bug. */}
             {!flashConsumed() && requestFlash()}
-            {children}
+            {beforeContent}
+            <PageRegions className={contentClassName}>{children}</PageRegions>
           </main>
           {bodyClass?.includes("iframe") && (
             <script src={IFRAME_RESIZER_CHILD_JS_PATH}></script>

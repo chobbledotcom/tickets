@@ -8,6 +8,7 @@ import type { Attendee, Listing } from "#shared/types.ts";
 import { Icon } from "#templates/components/actions.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { simplePublicPage } from "#templates/public/shared.tsx";
 
 /**
  * Payment page - redirects to Stripe Checkout
@@ -21,7 +22,6 @@ export const paymentPage = (
   String(
     <Layout title={t("payment.title")}>
       <h1>{t("payment.complete_your_payment")}</h1>
-
       <aside>
         <p>
           <strong>{t("payment.name_label")}</strong> {attendee.name}
@@ -33,7 +33,6 @@ export const paymentPage = (
           <strong>{t("payment.amount_label")}</strong> {formattedPrice}
         </p>
       </aside>
-
       <p>{t("payment.stripe_instructions")}</p>
       <a class="btn" href={checkoutUrl}>
         <Icon name="credit-card" />
@@ -140,16 +139,18 @@ export const paymentCancelPage = (
  * Payment error page
  */
 export const paymentErrorPage = (message: string): string =>
-  String(
-    <Layout title={t("payment.error.title")}>
-      <h1>{t("payment.error.heading")}</h1>
+  simplePublicPage(
+    t("payment.error.title"),
+    t("payment.error.heading"),
+  )(
+    <>
       <ErrorAlert>
         <p>{message}</p>
       </ErrorAlert>
       <p>
         <a href="/">{t("payment.error.return_home")}</a>
       </p>
-    </Layout>,
+    </>,
   );
 
 /**

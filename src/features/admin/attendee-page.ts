@@ -46,7 +46,6 @@ import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   AttendeeAnswersTable,
@@ -167,13 +166,11 @@ const overviewTab: TabDef<LoadedAttendee> = {
       kind: "custom",
       load: ({ attendee }, ctx) =>
         Promise.resolve(
-          Raw({
-            html: PaymentDetails({
-              attendee,
-              // The balance link targets the owner-only Ledger tab, so it
-              // must only render for owners (never render a forbidden link).
-              showBalanceLink: ctx.session.adminLevel === "owner",
-            }),
+          PaymentDetails({
+            attendee,
+            // The balance link targets the owner-only Ledger tab, so it
+            // must only render for owners (never render a forbidden link).
+            showBalanceLink: ctx.session.adminLevel === "owner",
           }),
         ),
     },

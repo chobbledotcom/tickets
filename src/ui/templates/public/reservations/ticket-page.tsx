@@ -184,6 +184,7 @@ export const ticketPage = ({
   return String(
     <Layout
       bodyClass={inIframe ? "iframe" : undefined}
+      contentClassName="public-page"
       headExtra={headExtra}
       title={title}
     >

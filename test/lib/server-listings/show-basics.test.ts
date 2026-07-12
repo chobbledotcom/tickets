@@ -11,7 +11,11 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { postAttendeeRefund, postListingSale } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
-import { adminGet, setupListingAndLogin } from "#test-utils/session.ts";
+import {
+  adminGet,
+  createTestManagerSession,
+  setupListingAndLogin,
+} from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 
@@ -75,10 +79,10 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
       });
 
       const html = await getListingDetailHtml(listing.id, cookie);
-      expect(html).toContain("Income &amp; ledger");
+      expect(html).toContain("Money in and out");
       expect(html).toContain("Gross ticket sales");
-      expect(html).toContain("Recognised income");
-      expect(html).toContain("Net balance in ledger");
+      expect(html).toContain("Total income earned");
+      expect(html).toContain("Net after refunds and costs");
       // Recognised income £70 differs from the net ledger balance £50 by the £20
       // refund — both rendered, reconciled.
       expect(html).toContain("£70");
@@ -106,11 +110,24 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
       });
 
       const html = await getListingDetailHtml(listing.id, cookie);
-      expect(html).toContain("Income &amp; ledger");
+      expect(html).toContain("Money in and out");
       expect(html).toContain(`href="/admin/ledger?listing=${listing.id}"`);
       expect(html).not.toContain('<section id="ledger">');
-      expect(html).not.toContain("Account statement");
-      expect(html).not.toContain("<th>Counterparty</th>");
+      expect(html).not.toContain("Money history");
+      expect(html).not.toContain("<th>Other side</th>");
+    });
+
+    test("does not offer managers a forbidden ledger link", async () => {
+      const { listing } = await setupListingAndLogin({
+        maxAttendees: 100,
+        name: "Manager Listing",
+      });
+      const html = await getListingDetailHtml(
+        listing.id,
+        await createTestManagerSession(),
+      );
+      expect(html).toContain("Money in and out");
+      expect(html).not.toContain(`/admin/ledger?listing=${listing.id}`);
     });
 
     test("shows stored-total mismatches on listing detail and edit pages", async () => {

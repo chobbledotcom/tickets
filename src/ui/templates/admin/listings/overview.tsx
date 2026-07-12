@@ -13,6 +13,7 @@ import {
   renderDetailRows,
 } from "#templates/admin/detail-rows.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
+import { PageRegions } from "#templates/components/page-structure.tsx";
 import { attendeeStatsForListing } from "./attendees.tsx";
 import { listingCapacityRowsFor } from "./capacity-rows.tsx";
 import { ListingDetailsTable } from "./details.tsx";
@@ -88,6 +89,7 @@ export const ListingOverviewPanel = (
     groupContext,
     revenueBreakdown,
     ledger,
+    ledgerHref,
     isChild = false,
     isHiddenPackageMember = false,
     systemNotes = [],
@@ -112,7 +114,7 @@ export const ListingOverviewPanel = (
     labelSuffix: dailySuffix,
   });
   return (
-    <>
+    <PageRegions>
       <ListingDetailsTable
         aggregateRecalculation={aggregateRecalculation}
         allowedDomain={allowedDomain}
@@ -128,6 +130,7 @@ export const ListingOverviewPanel = (
       {revenueBreakdown && (
         <ListingIncomeLedgerSection
           breakdown={revenueBreakdown}
+          ledgerHref={ledgerHref}
           listing={listing}
         />
       )}
@@ -135,6 +138,6 @@ export const ListingOverviewPanel = (
         <ListingLedgerSection ledger={ledger} listingId={listing.id} />
       )}
       <AttendeeNotesSummary names={noteNames} notes={systemNotes} />
-    </>
+    </PageRegions>
   );
 };

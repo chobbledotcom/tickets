@@ -4,6 +4,7 @@
 
 import { map, pipe, sumOf } from "#fp";
 import { t } from "#i18n";
+import type { ListingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { resolveColumnLayout } from "#shared/column-order.ts";
@@ -54,6 +55,7 @@ import {
   type ExpectedActualItem,
   ExpectedActualTableRow,
 } from "#templates/admin/expected-actual.tsx";
+import { MoneySummary } from "#templates/admin/money-summary.tsx";
 import {
   PublicTicketLink,
   UnavailablePublicUrlRow,
@@ -75,6 +77,10 @@ import {
   toLinkedItemOptions,
 } from "#templates/components/linked-items.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
+import {
+  PageBlock,
+  PageRegions,
+} from "#templates/components/page-structure.tsx";
 import {
   getGroupCreateFields,
   getGroupFields,
@@ -327,7 +333,6 @@ const buildAttendeeRows = (
 
 const totalAttendeeCount = sumOf((e: ListingWithCount) => e.attendee_count);
 const totalTicketCount = sumOf((e: ListingWithCount) => e.tickets_count);
-const totalIncome = sumOf((e: ListingWithCount) => e.income);
 
 const groupAggregateMismatchItems = (
   listings: ListingWithCount[],
@@ -473,6 +478,8 @@ export const GroupOverviewPanel = ({
   attendees,
   allowedDomain,
   hasPaidListing,
+  ledgerHref,
+  money,
   shareable,
   questionData,
 }: {
@@ -482,6 +489,8 @@ export const GroupOverviewPanel = ({
   attendees: Attendee[];
   allowedDomain: string;
   hasPaidListing: boolean;
+  ledgerHref?: string | undefined;
+  money: ListingMoneyTotals;
   shareable: boolean;
   questionData?: TableQuestionData;
 }): JSX.Element => {
@@ -501,21 +510,23 @@ export const GroupOverviewPanel = ({
   const { script: embedScriptCode, iframe: embedIframeCode } =
     buildEmbedSnippets(ticketUrl);
   const totalCount = totalAttendeeCount(listings);
+  const net =
+    money.income - money.servicingCosts - money.refunds - money.externalCosts;
+  const showMoney = hasPaidListing || money.transferCount > 0;
   const sharedRows = buildSharedDetailRows({
     attendeeCount: totalCount,
     attendees,
-    hasPaidListing,
+    hasPaidListing: false,
     maxCapacity: 0,
-    // Revenue comes from the ledger (the listings' projected income), not a sum
-    // over the loaded attendees: bookings since deleted still count, and a
-    // package's override revenue is captured the same way.
-    revenue: totalIncome(listings),
+    // Revenue comes from the ledger, not the loaded attendees: bookings since
+    // deleted and package override revenue still count.
+    revenue: money.income,
     ...(questionData !== undefined ? { questionData } : {}),
     skipAttendees: true,
   });
 
   return (
-    <>
+    <PageRegions>
       <article>
         <DetailTable>
           <tr>
@@ -544,10 +555,47 @@ export const GroupOverviewPanel = ({
         </DetailTable>
       </article>
 
-      <h2>{t("terms.listings")}</h2>
-      <div class="table-scroll">
-        <Raw html={renderListingTable(columnKeys, listingRows)} />
-      </div>
+      {showMoney && (
+        <PageBlock as="article">
+          <MoneySummary
+            ledgerHref={ledgerHref}
+            ledgerLabel={t("groups.money.view_ledger")}
+            note={t("groups.money.note")}
+            rows={[
+              {
+                amount: money.income,
+                label: t("groups.money.income"),
+              },
+              {
+                amount: -money.servicingCosts,
+                label: t("groups.money.costs"),
+              },
+              {
+                amount: -money.refunds,
+                label: t("groups.money.refunds"),
+              },
+              {
+                amount: -money.externalCosts,
+                label: t("groups.money.external_costs"),
+              },
+              {
+                amount: net,
+                label: t("groups.money.net"),
+                signed: false,
+                subtotal: true,
+              },
+            ]}
+            title={t("groups.money.heading")}
+          />
+        </PageBlock>
+      )}
+
+      <PageBlock>
+        <h2>{t("terms.listings")}</h2>
+        <div class="table-scroll">
+          <Raw html={renderListingTable(columnKeys, listingRows)} />
+        </div>
+      </PageBlock>
 
       {!isReadOnly() && ungroupedListings.length > 0 && (
         <CsrfForm action={`/admin/groups/${group.id}/add-listings`}>
@@ -566,7 +614,7 @@ export const GroupOverviewPanel = ({
           </SubmitButton>
         </CsrfForm>
       )}
-    </>
+    </PageRegions>
   );
 };
 

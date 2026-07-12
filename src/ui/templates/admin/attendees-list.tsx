@@ -24,6 +24,7 @@ import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
 import { AttendeeTableBlock } from "#templates/admin/attendee-table-block.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
+import { PageBlock } from "#templates/components/page-structure.tsx";
 import {
   SelectField,
   type SelectOption,
@@ -190,7 +191,7 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
       session={props.session}
       title={t("terms.attendees")}
     >
-      <div class="table-controls">
+      <PageBlock>
         {props.categories.length > 1 && (
           <Raw
             html={renderTypeFilter(props.type, props.categories, (f) =>
@@ -234,7 +235,7 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
             showListing: true,
           }}
         />
-      </div>
+      </PageBlock>
 
       <Pagination
         hasNext={props.hasNext}

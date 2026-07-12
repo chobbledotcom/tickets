@@ -8,11 +8,12 @@ import { formatBytes, MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { PageBlock } from "#templates/components/page-structure.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 
 export const HeaderImageForm = (s: SettingsPageState): JSX.Element | null =>
   s.storageEnabled ? (
-    <div class="stack">
+    <PageBlock>
       {s.headerImageUrl && (
         <div>
           <img
@@ -53,5 +54,5 @@ export const HeaderImageForm = (s: SettingsPageState): JSX.Element | null =>
           />
         </label>
       </SettingsSection>
-    </div>
+    </PageBlock>
   ) : null;

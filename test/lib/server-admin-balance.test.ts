@@ -82,7 +82,7 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
     expect(html).toContain("Balance outstanding");
     // The account statement (the "bits already there") renders alongside, with
     // its running-balance table's counterparty column.
-    expect(html).toContain("<th>Counterparty</th>");
+    expect(html).toContain("<th>Other side</th>");
     // The customer payment link block: its prose heading, the copyable text
     // input carrying the signed link, and the quantity note.
     expect(html).toContain('class="prose"><h3>Customer payment link');

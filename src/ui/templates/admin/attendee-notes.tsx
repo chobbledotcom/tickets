@@ -17,7 +17,7 @@ import {
   groupNotesByAttendee,
   type SystemNote,
 } from "#shared/db/system-notes.ts";
-import { CsrfForm, Flash, renderField } from "#shared/forms.tsx";
+import { CsrfForm, Flash, hiddenInputs, renderField } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
@@ -195,7 +195,7 @@ export const adminAddNotePage = ({
         <h1>{t("notes.add_heading", { name: attendeeName })}</h1>
       </div>
       <CsrfForm action={`/admin/attendee/${attendeeId}/note`}>
-        <input name="return_url" type="hidden" value={returnUrl} />
+        {hiddenInputs([["return_url", returnUrl]])}
         <Raw
           html={renderField({
             hint: t("notes.note_hint"),

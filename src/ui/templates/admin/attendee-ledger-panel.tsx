@@ -16,7 +16,8 @@ import type { OrderSummary } from "#shared/db/attendees/balance.ts";
 import {
   type AccountLedgerData,
   AccountStatementSection,
-} from "#templates/admin/ledger.tsx";
+} from "#templates/admin/ledger/statement.tsx";
+import { PageRegions } from "#templates/components/page-structure.tsx";
 
 export type AttendeeLedgerView = {
   status: AttendeeStatus | null;
@@ -177,7 +178,7 @@ const LedgerHistory = ({
 );
 
 export const AttendeeLedgerPanel = (view: AttendeeLedgerView): JSX.Element => (
-  <>
+  <PageRegions>
     <div class="prose">
       <h3>{t("attendee_balance.heading")}</h3>
       <OrderSummaryList view={view} />
@@ -194,5 +195,5 @@ export const AttendeeLedgerPanel = (view: AttendeeLedgerView): JSX.Element => (
     <CollectBalance view={view} />
 
     <LedgerHistory activityHref={view.activityHref} />
-  </>
+  </PageRegions>
 );
