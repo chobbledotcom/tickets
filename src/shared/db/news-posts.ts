@@ -33,6 +33,7 @@ import {
   clearImageUsesForItemStatement,
   imageFilenameSubqueries,
 } from "#shared/db/images.ts";
+import { decryptNameSlug } from "#shared/db/query.ts";
 import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
 import { col } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
@@ -138,8 +139,7 @@ const decryptSummary = async (
 ): Promise<NewsPostSummary> => ({
   created: row.created,
   id: row.id,
-  name: await decrypt(row.name),
-  slug: await decrypt(row.slug),
+  ...(await decryptNameSlug(row, decrypt)),
   snippet: await decryptText(row.snippet),
 });
 

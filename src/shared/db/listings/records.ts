@@ -18,7 +18,7 @@ import {
   syncListingPrices,
 } from "#shared/db/listing-prices.ts";
 import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#shared/db/migrations/schema/listing-aggregates.ts";
-import { nameMapByIds } from "#shared/db/query.ts";
+import { nameMapByIdsFor } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { resolveListingDefaults } from "#shared/listing-defaults.ts";
@@ -217,12 +217,12 @@ export const getAllListingOptions = async (): Promise<ListingOption[]> => {
 };
 
 /** Read and decrypt names only for the requested listing ids. */
-export const getListingNamesByIds = (
-  ids: number[],
-): Promise<Map<number, string>> =>
-  nameMapByIds("listings", "listing", "name", ids, (raw: EnvKeyEncrypted) =>
-    decrypt(raw),
-  );
+export const getListingNamesByIds = nameMapByIdsFor({
+  alias: "listing",
+  decryptName: (raw: EnvKeyEncrypted) => decrypt(raw),
+  nameColumn: "name",
+  table: "listings",
+});
 
 /** Read one listing with aggregate projections from the cache. */
 export const getListingWithCount = (

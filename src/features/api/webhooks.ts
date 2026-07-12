@@ -42,7 +42,7 @@ import {
 } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
+import * as groups from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { clearSessionTokens } from "#shared/db/processed-payments.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
@@ -92,7 +92,7 @@ const withSessionId =
  * privacy invariant the signed-intent/free-redirect guard upholds, here for the
  * paid single-member fallback both success render paths share). */
 const singleListingThankYou = async (listingId: number): Promise<string> => {
-  if ((await getHiddenPackageMemberIds([listingId])).size > 0) return "";
+  if ((await groups.getHiddenPackageMemberIds([listingId])).size > 0) return "";
   const listing = await getListingWithCount(listingId);
   return listing?.thank_you_url.trim() ?? "";
 };

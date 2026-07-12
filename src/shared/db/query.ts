@@ -122,6 +122,39 @@ export const nameMapByIds = <Raw>(
     decryptName,
   );
 
+/** Decrypt a row's `name` and `slug` — the pair the news-summary and listing
+ * catalog projections both need before display. `decryptValue` keeps this
+ * decryption-agnostic, like the name-map helpers above. */
+export const decryptNameSlug = async <Raw>(
+  row: { name: Raw; slug: Raw },
+  decryptValue: Decryptor<Raw>,
+): Promise<{ name: string; slug: string }> => ({
+  name: await decryptValue(row.name),
+  slug: await decryptValue(row.slug),
+});
+
+/** The table/column config a by-ids name lookup needs. */
+type IdsNameQuery<Raw> = {
+  table: string;
+  alias: string;
+  nameColumn: string;
+  decryptName: Decryptor<Raw>;
+};
+
+/** Bind a table's name lookup so callers only pass the ids: `id → name` for the
+ * requested rows, decrypting only the name column. Collapses the per-table
+ * `getXNamesByIds` wrappers to a single specialization each. */
+export const nameMapByIdsFor =
+  <Raw>(query: IdsNameQuery<Raw>) =>
+  (ids: number[]): NameMap =>
+    nameMapByIds(
+      query.table,
+      query.alias,
+      query.nameColumn,
+      ids,
+      query.decryptName,
+    );
+
 /** `id → name` for **every** row of `table`, decrypting only the name column —
  * the narrow projection the item pickers need, without loading a full-row cache.
  * Ordered by id for a stable list. */

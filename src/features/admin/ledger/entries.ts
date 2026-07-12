@@ -13,6 +13,7 @@ import {
 import { accountFromRoute } from "#routes/admin/ledger/statements.ts";
 import { type AuthSession, OWNER_FORM, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
+import type { IdParam } from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { isRowAccountType } from "#shared/accounting/accounts.ts";
@@ -146,7 +147,7 @@ type PostedTransferHandler = (
 
 const postedTransferRoute =
   (handler: PostedTransferHandler) =>
-  (request: Request, params: { id: number }): Promise<Response> =>
+  (request: Request, params: IdParam): Promise<Response> =>
     ownerLedgerForm(request, async (_session, form) => {
       const posted = await editPostedTransfer(params.id, form);
       return posted ? handler(posted, form) : notFoundResponse();

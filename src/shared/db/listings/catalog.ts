@@ -3,6 +3,7 @@
 import { decrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
+import { decryptNameSlug } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { CatalogSourceListing } from "#shared/external-order.ts";
 import type { Listing } from "#shared/types.ts";
@@ -110,8 +111,7 @@ export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
       hidden: false,
       id: row.id,
       listing_type: row.listing_type,
-      name: await decrypt(row.name),
-      slug: await decrypt(row.slug),
+      ...(await decryptNameSlug(row, decrypt)),
       unit_price: row.unit_price,
     })),
   );

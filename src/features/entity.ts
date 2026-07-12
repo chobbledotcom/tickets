@@ -43,10 +43,13 @@ export const withEntity =
   (load: () => Promise<T | null>): Promise<Response> =>
     orNotFound(load(), handler);
 
+/** The `{ id: number }` params a single-`:id` route receives. */
+export type IdParam = { id: number };
+
 /** Route handler that takes request + { id } params */
 export type IdRouteHandler = (
   request: Request,
-  params: { id: number },
+  params: IdParam,
 ) => Promise<Response>;
 
 /** Route params for attendee-scoped routes */
