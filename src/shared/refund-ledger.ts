@@ -33,6 +33,7 @@ import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
+import { reportRefundNotRecorded } from "#shared/refund-not-recorded.ts";
 
 type RefundReferences = readonly Pick<RefundPaymentReference, "sessionIds">[];
 type ComputedRefund = {
@@ -154,41 +155,15 @@ const computeAttendeeRefund = async (
 };
 
 /**
- * Alert that a provider refund committed but the ledger did not record it — a
- * guard-skip to manual adjustment (not a thrown write, which logs LEDGER_POST
- * with its stack). This money-integrity miss must reach the error log, ntfy, and
- * Sentry, never only a dismissible admin flash. The attendee id(s) are named in
- * the `detail` (not just the `attendeeId` tag) because the activity log persists
- * only the formatted message — `persistErrorToActivityLog` passes `listingId`,
- * never `attendeeId`. A whole batch reports in ONE call: the activity-log persist
- * guard is a single flag, so back-to-back `logError` calls drop all but the first.
- */
-const reportRefundNotRecorded = (attendeeIds: readonly number[]): void => {
-  if (attendeeIds.length === 0) return;
-  const who =
-    attendeeIds.length === 1
-      ? `attendee ${attendeeIds[0]}`
-      : `attendees ${attendeeIds.join(", ")}`;
-  logError({
-    // One attendee tags the Sentry event for filtering; a batch names them all
-    // in the detail instead, since a single tag can't hold a list.
-    attendeeId: attendeeIds.length === 1 ? attendeeIds[0] : undefined,
-    code: ErrorCode.REFUND_NOT_RECORDED,
-    detail: `provider refund committed but the ledger did not record it for ${who} — manual adjustment needed`,
-  });
-};
-
-/**
  * Turn a batch's per-attendee outcomes into its result map, alerting ONCE for
- * every guard-skipped attendee. Both the fast path and the per-attendee fallback
- * funnel through here so their single-row alerting stays identical: emitting a
- * separate {@link reportRefundNotRecorded} per attendee would let the activity-log
- * persist guard drop all but the first row (see reportRefundNotRecorded).
+ * every guard-skipped attendee (via {@link reportRefundNotRecorded}, which also
+ * notes each attendee's record). Both the fast path and the per-attendee fallback
+ * funnel through here so their single-row alerting stays identical.
  */
-const settleRefundOutcomes = (
+const settleRefundOutcomes = async (
   outcomes: readonly RefundOutcome[],
-): Map<number, boolean> => {
-  reportRefundNotRecorded(
+): Promise<Map<number, boolean>> => {
+  await reportRefundNotRecorded(
     outcomes.filter((entry) => entry.guardSkipped).map((entry) => entry.id),
   );
   return new Map(outcomes.map((entry) => [entry.id, entry.posted]));
@@ -251,7 +226,7 @@ export const recordAttendeeRefund = async (
     { attendeeId, references },
     memo,
   );
-  if (guardSkipped) reportRefundNotRecorded([attendeeId]);
+  if (guardSkipped) await reportRefundNotRecorded([attendeeId]);
   return { posted };
 };
 
@@ -294,7 +269,7 @@ export const recordAttendeeRefundsBatch = async (
     if (groups.length > 0) await postTransferGroups(groups);
     // In the fast path a posted:false is always a guard-skip: a thrown write here
     // aborts the whole batch to the fallback, so it never reaches this line.
-    return settleRefundOutcomes(
+    return await settleRefundOutcomes(
       computed.map((entry) => ({
         guardSkipped: !entry.posted,
         id: entry.id,
@@ -317,7 +292,7 @@ export const recordAttendeeRefundsBatch = async (
     for (const attendee of attendees) {
       outcomes.push(await postAttendeeRefund(attendee));
     }
-    return settleRefundOutcomes(outcomes);
+    return await settleRefundOutcomes(outcomes);
   }
 };
 

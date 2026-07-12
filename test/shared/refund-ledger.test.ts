@@ -15,12 +15,14 @@ import {
 } from "#shared/accounting/queries.ts";
 import { legReference } from "#shared/accounting/refs.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
+import { decrypt } from "#shared/crypto/encryption.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
+import { getNoteRows } from "#shared/db/system-notes.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 import {
@@ -201,6 +203,18 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     // ("attendee N", never the plural "attendees N", and the id itself), so a
     // single miss reads unambiguously in the operator-facing activity-log row.
     expect(errors.contains(`record it for attendee ${ATTENDEE} —`)).toBe(true);
+    // It also drops a system note on the attendee's own record, so the operator
+    // sees the miss where they manage the booking — not only in the error log.
+    // The note is PII-free and links the ledger for the manual adjustment.
+    const notes = await getNoteRows([ATTENDEE]);
+    expect(notes.length).toBe(1);
+    const note = notes[0]!;
+    if (note.type !== "system") {
+      throw new Error(`expected a system note, got ${note.type}`);
+    }
+    const noteText = await decrypt(note.note);
+    expect(noteText).toContain("the ledger did not record it");
+    expect(noteText).toContain(`/admin/ledger/attendee/${ATTENDEE}`);
   });
 
   test("is idempotent — a second refund writes nothing but still reports posted", async () => {
