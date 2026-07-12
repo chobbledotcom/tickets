@@ -54,6 +54,10 @@ export const loadListingImagesPanel = ({
 }: LoadedListing): Promise<JSX.Element> =>
   loadItemImagesPanel("listing", listing.id, `/admin/listing/${listing.id}`);
 
+/** A tab section loader the entity-page framework invokes with the loaded
+ *  listing (and a page context this panel ignores). */
+type ListingPanelLoader = (entity: LoadedListing) => Promise<JSX.Element>;
+
 /** A choose-from-a-site-wide-set panel (Questions, Attributes): load every
  *  available item and this listing's selected ids in parallel, then render. The
  *  tab is owner-only (matching the route's own gate). Save feedback arrives as
@@ -69,7 +73,7 @@ const listingChoicePanelLoader =
       items: Item[],
       selectedIds: Set<number>,
     ) => JSX.Element,
-  ) =>
+  ): ListingPanelLoader =>
   async ({ listing }: LoadedListing): Promise<JSX.Element> => {
     const [items, selectedIds] = await Promise.all([
       loadItems(),
@@ -79,21 +83,23 @@ const listingChoicePanelLoader =
   };
 
 /** Build the Questions tab: assign the site's questions to this listing. */
-export const loadListingQuestionsPanel = listingChoicePanelLoader(
-  getAllQuestionsWithAnswers,
-  getListingQuestionIds,
-  (listing, allQuestions, assignedIds) =>
-    ListingQuestionsPanel({ allQuestions, assignedIds, listing }),
-);
+export const loadListingQuestionsPanel: ListingPanelLoader =
+  listingChoicePanelLoader(
+    getAllQuestionsWithAnswers,
+    getListingQuestionIds,
+    (listing, allQuestions, assignedIds) =>
+      ListingQuestionsPanel({ allQuestions, assignedIds, listing }),
+  );
 
 /** Build the Attributes tab: choose the public attributes displayed for this
  *  listing. */
-export const loadListingAttributesPanel = listingChoicePanelLoader(
-  getAllAttributesWithOptions,
-  listingAttributeOptions.getIds,
-  (listing, attributes, selectedOptionIds) =>
-    ListingAttributesPanel({ attributes, listing, selectedOptionIds }),
-);
+export const loadListingAttributesPanel: ListingPanelLoader =
+  listingChoicePanelLoader(
+    getAllAttributesWithOptions,
+    listingAttributeOptions.getIds,
+    (listing, attributes, selectedOptionIds) =>
+      ListingAttributesPanel({ attributes, listing, selectedOptionIds }),
+  );
 
 /** Build the QR tab: the booking-QR generation form. The tab is hidden for a
  *  child / hidden-package listing (no standalone booking page), so the loader
