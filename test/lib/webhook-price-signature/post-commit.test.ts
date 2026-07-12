@@ -15,6 +15,13 @@ import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { contactFields } from "#shared/db/attendees/pii.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
+import {
+  forgetContact,
+  getContactRecord,
+  hashEmail,
+  hashPhone,
+} from "#shared/db/contact-preferences.ts";
+import { getRecentBookingTokens } from "#shared/db/contact-tokens.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
@@ -32,6 +39,7 @@ import {
   expectRedirect,
   followRedirect,
 } from "#test-utils/assertions.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
@@ -87,6 +95,8 @@ describeWithEnv(
           if (result === "sold-out" || !result.success) {
             throw new Error("Expected the synthetic booking to commit");
           }
+
+          await forgetContact(await hashEmail("buyer@example.com"));
 
           const attendees = result.attendees;
           let reads = 0;
@@ -146,6 +156,24 @@ describeWithEnv(
             const ticketTokens = parseTokens(
               await decryptSessionTokens(processed!.ticket_tokens),
             );
+            const contactHash = await hashEmail("buyer@example.com");
+            const privateKey = await getTestPrivateKey();
+            const contactRecord = await getContactRecord(
+              contactHash,
+              privateKey,
+            );
+            expect({
+              publicBookingCount: contactRecord.publicBookingCount,
+              visits: contactRecord.visits,
+            }).toEqual({ publicBookingCount: 1, visits: 1 });
+            expect(
+              await getRecentBookingTokens(contactHash, privateKey, 1),
+            ).toEqual([{ source: "public", token: ticketTokens[0] }]);
+            const phoneOnlyIntent = {
+              ...validation.data.intent,
+              email: "",
+              phone: "07700 900123",
+            };
             let recoveredEntries: CreatedEntry[] = [];
             await recoverOrRefundUnexpectedCreate({
               complete: (entries, recoveredTokens) => {
@@ -156,7 +184,7 @@ describeWithEnv(
                 );
               },
               error: new Error("unused recovery error"),
-              intent: validation.data.intent,
+              intent: phoneOnlyIntent,
               placeholders: placeholderBookings(
                 validated.items,
                 validation.data.intent,
@@ -165,9 +193,18 @@ describeWithEnv(
               ticketToken: ticketTokens[0]!,
               validatedItems: validated.items,
             });
+            const phoneHash = await hashPhone(phoneOnlyIntent.phone);
+            const phoneRecord = await getContactRecord(phoneHash, privateKey);
+            expect({
+              publicBookingCount: phoneRecord.publicBookingCount,
+              visits: phoneRecord.visits,
+            }).toEqual({ publicBookingCount: 1, visits: 1 });
+            expect(
+              await getRecentBookingTokens(phoneHash, privateKey, 1),
+            ).toEqual([{ source: "public", token: ticketTokens[0] }]);
             expect(recoveredEntries[0]!.attendee).toEqual({
               ...attendees[0]!,
-              ...contactFields(validation.data.intent),
+              ...contactFields(phoneOnlyIntent),
               checked_in: false,
               lat: "",
               lng: "",
@@ -235,7 +272,8 @@ describeWithEnv(
             expect(await getAttendeesRaw(second.id)).toEqual([]);
 
             const processed = await isSessionProcessed(sessionId);
-            expect(processed?.failure_data).not.toBe("");
+            expect(processed).not.toBeNull();
+            expect(processed!.failure_data).not.toBe("");
             await getDb().execute({
               args: ["2000-01-01T00:00:00.000Z", sessionId],
               sql: "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",

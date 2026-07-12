@@ -1,3 +1,4 @@
+import { compact } from "#fp";
 import {
   type CreatedEntry,
   pairEntriesByListing,
@@ -26,6 +27,8 @@ import {
   queryOnePrimary,
   resultRows,
 } from "#shared/db/client.ts";
+import { contactHash, recordVisit } from "#shared/db/contact-preferences.ts";
+import { recordBooking } from "#shared/db/contact-tokens.ts";
 import {
   decryptSessionTokens,
   type ProcessedPayment,
@@ -123,6 +126,26 @@ const recoveredEntries = async (
   return pairEntriesByListing(attendees, validatedItems);
 };
 
+/** Restore the contact history normally written after the booking batch returns.
+ * A committed batch whose result was lost never reached that completion step. */
+const recordRecoveredOrderActivity = async (
+  intent: BookingIntent,
+  ticketToken: string,
+): Promise<void> => {
+  const hashes = await Promise.all(
+    compact([
+      intent.email.trim() ? contactHash("email", intent.email) : null,
+      intent.phone.trim() ? contactHash("sms", intent.phone) : null,
+    ]),
+  );
+  await Promise.all(
+    hashes.map(async (hash) => {
+      await recordVisit(hash);
+      await recordBooking(hash, "public", ticketToken);
+    }),
+  );
+};
+
 /** Recover an atomically finalized ticket after result handling throws. Refund
  * only when the primary reservation proves the booking never committed. */
 export const recoverOrRefundUnexpectedCreate = async ({
@@ -153,6 +176,7 @@ export const recoverOrRefundUnexpectedCreate = async ({
       intent,
       validatedItems,
     );
+    await recordRecoveredOrderActivity(intent, ticketToken);
     return complete(entries, ticketTokens);
   }
 

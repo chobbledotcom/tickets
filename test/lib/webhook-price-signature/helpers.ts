@@ -37,6 +37,7 @@ export const signedMeta = (
     items: string;
     name?: string;
     email?: string;
+    phone?: string;
     modifiers?: string;
     answer_ids?: string;
   },
