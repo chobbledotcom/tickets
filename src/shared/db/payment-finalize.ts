@@ -2,7 +2,10 @@ import type { InValue } from "@libsql/client";
 import { attendeeOwedSubquery } from "#shared/accounting/projection-sql.ts";
 import type { SqlStatement } from "#shared/db/client.ts";
 import { encryptPaymentReference } from "#shared/db/payment-references.ts";
-import { UNRESOLVED_RESERVATION } from "#shared/db/processed-payments.ts";
+import {
+  encryptTicketTokens,
+  UNRESOLVED_RESERVATION,
+} from "#shared/db/processed-payments.ts";
 
 const buildFinalizeStatement = async (
   attendeeId: number,
@@ -30,14 +33,16 @@ export const batchFinalizeStatement = async (
   attendeeIdArg: InValue,
   guard: SqlStatement,
   paymentReference: string,
+  ticketTokens: string[],
 ): Promise<SqlStatement> => ({
   args: [
     attendeeIdArg,
+    await encryptTicketTokens(ticketTokens),
     await encryptPaymentReference(paymentReference),
     sessionId,
     ...guard.args,
   ],
-  sql: `UPDATE processed_payments SET attendee_id = ${attendeeIdSql}, payment_reference = ?
+  sql: `UPDATE processed_payments SET attendee_id = ${attendeeIdSql}, ticket_tokens = ?, payment_reference = ?
         WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION} AND ${guard.sql}`,
 });
 

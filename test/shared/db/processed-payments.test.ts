@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import { batchFinalizeStatement } from "#shared/db/payment-finalize.ts";
@@ -13,7 +14,6 @@ import {
   parseSessionFailure,
   reserveSession,
   STALE_RESERVATION_MS,
-  setSessionTicketTokens,
 } from "#shared/db/processed-payments.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -233,13 +233,17 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       const attendeeId = attendeeResult.attendees[0]!.id;
 
       await reserveSession("sess_fss");
-      await setSessionTicketTokens("sess_fss", ["tok-fss"]);
+      await getDb().execute(
+        "UPDATE processed_payments SET ticket_tokens = ? WHERE payment_session_id = ?",
+        [await encrypt("tok-replacement"), "sess_fss"],
+      );
       const stmt = await batchFinalizeStatement(
         "sess_fss",
         "?",
         attendeeId,
         trueGuard,
         "pi_fss",
+        ["tok-fss"],
       );
       await getDb().execute(stmt);
 
@@ -270,6 +274,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
         attendeeId + 999,
         trueGuard,
         "pi_second",
+        ["tok-second"],
       );
       await getDb().execute(stmt);
 
@@ -299,6 +304,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
           sql: "1 = 0",
         },
         "pi_fss3",
+        ["tok-fss3"],
       );
       await getDb().execute(stmt);
 
