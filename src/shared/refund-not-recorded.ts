@@ -46,11 +46,14 @@ export const reportRefundNotRecorded = async (
     code: ErrorCode.REFUND_NOT_RECORDED,
     detail: `provider refund committed but the ledger did not record it for ${who} — manual adjustment needed`,
   });
-  await Promise.all(
-    attendeeIds.map((attendeeId) =>
-      bestEffort(`refund-not-recorded note for attendee ${attendeeId}`, () =>
-        createSystemNote(attendeeId, strandedRefundNote(attendeeId)),
-      ),
-    ),
-  );
+  // Serialize the note writes (not Promise.all): each is its own INSERT, so
+  // firing them concurrently would contend the single SQLite writer — the same
+  // reason the per-attendee refund fallback records one at a time — and a note
+  // that lost that race would be swallowed by best-effort and silently dropped.
+  for (const attendeeId of attendeeIds) {
+    await bestEffort(
+      `refund-not-recorded note for attendee ${attendeeId}`,
+      () => createSystemNote(attendeeId, strandedRefundNote(attendeeId)),
+    );
+  }
 };
