@@ -739,3 +739,77 @@ it sprawls into an over-built framework.*
 errors + a single Sentry breadcrumb at the flash boundary. Skip the combinator
 until a real collect-all site (e.g. the multi-item-checkout "no shared date"
 diagnostic above) makes it pay for itself.
+
+## Deferred CodeRabbit suggestions from PR #1772 (servicing test relocation)
+
+*Origin: CodeRabbit review of PR #1772, which only `git mv`s the servicing
+db-module tests into `test/shared/db/attendees/servicing/` (plus a 4-line cwd
+fix in `code-quality.test.ts`). CodeRabbit reviewed the moved content as if new
+and raised 13 findings; every one is on **pre-existing** test code carried over
+unchanged from `main`, so they're out of scope for a rename-only PR and recorded
+here. Two of them look like genuinely ineffective tests — verify those first.*
+
+**Likely-vacuous tests (check these first):**
+
+- **`test/shared/db/attendees/servicing/corruption-repair.test.ts` (~lines 38-42,
+  assertions ~57-81)** — the setup does `UPDATE attendees SET kind = 'staff'`,
+  but `attendees.kind` has `CHECK (kind IN ('attendee','servicing'))`, so the
+  UPDATE throws and a `catch { return }` swallows it — the repair/exclusion
+  assertions after it may never run. Confirm whether the test is passing
+  vacuously; if so, either assert the UPDATE failure explicitly, or build the
+  corrupted row from a schema without that CHECK so the corrupted state actually
+  exists before the repair/exclusion checks.
+- **`test/shared/db/attendees/servicing/lifecycle-concurrency.test.ts`
+  (~lines 87-110)** — "deleting a listing that holds a servicing event orphans
+  the attendee" uses raw SQL deletes on `listings`/`listing_attendees`, bypassing
+  the production `deleteListing` (or `performListingDelete` for admin side
+  effects). It therefore doesn't exercise the deletion path it names. Route it
+  through the production helper.
+
+**Assertion-strengthening (all in
+`test/shared/db/attendees/servicing/ledger.test.ts`):**
+
+- **Split the file (~741 lines, >400 guideline)** into focused modules
+  (account/ledger integration, validation & idempotency, cost editing, reader
+  ordering/privacy, route/UI), extracting shared helpers (`recordBoilerCost`,
+  `postCustomerSale`, `listingProfitOf`, `expectCostFormError`) into a nearby
+  `#test-utils` helper. This is the heavy lift and pairs naturally with the
+  strengthening below.
+- **`expectCostFormError` (~94-106, also ~426-464, ~467-480)** — checks only the
+  redirect + `service_cost` count; also snapshot the other ledger transfer kinds
+  and assert they're unchanged after the 302, and assert
+  `parseFlashCookie(response).error` is defined.
+- **Idempotency keys (~251-261, ~273-282, ~302-311)** — replace
+  `crypto.randomUUID()` with deterministic fixed strings (same key for the
+  duplicate-post retry, distinct keys for independent submissions).
+- **Memo-only replay mismatch (~297-323)** — currently only asserts `success` is
+  absent (a flash-less redirect would also pass); also assert
+  `parseFlashCookie(changed).error` is defined and matches the replay-mismatch
+  message.
+- **`recordServiceCost` replay assertion (~340-343)** — replace
+  `new RegExp(COST_REPLAY_MISMATCH.slice(0, 20))` (accepts unrelated errors
+  sharing the prefix; also trips ast-grep's non-literal-regexp warning) with an
+  exact-message check or predicate.
+- **`getServicingCosts` ordering (~577-613)** — every seeded cost has a distinct
+  date, so only chronological order is tested; add costs sharing one `occurredAt`
+  and assert the `(occurred_at, transfer_id)` tie-break, with each memo still
+  aligned to its record. Production contract: `src/shared/db/attendees/servicing.ts`.
+- **Encrypted-memo privacy (~643-657)** — asserts only that a phone-number
+  substring is absent; also assert the raw transfer memo is not exactly equal to
+  the full operator-entered memo (`"Plumber Dave 07700 900000"`).
+- **`visibleTransfers` listing filter (~699-705)** — with one listing, `.some()`
+  passes even if the listing filter is ignored; add a second listing + cost and
+  assert the result is exactly the requested listing's cost, excluding the other.
+
+**Trivial cleanups in
+`test/shared/db/attendees/servicing/corruption-repair.test.ts`:**
+
+- **`queryOne` import (~17, ~137-138)** — imported then `void`-ed with a comment
+  claiming `kindOf` needs it; `kindOf` is imported directly from
+  `#test-utils/servicing.ts`, so the import is dead — remove it.
+- **`insertRowWithKind` (~31-35)** — its only caller passes `"attendee"`, so the
+  `string | null` param and `kind ?? "null"` branch are dead; narrow to `string`.
+- **Dynamic imports (~77-80, ~109-117, ~129-131)** — `createRealAttendee`,
+  `renderAdminPage`, and `getServicingEvent` are `await import`-ed from
+  `#test-utils/servicing.ts`, which is already statically imported at the top;
+  none are heavy SDKs, so fold them into the static import.
