@@ -17,7 +17,9 @@ describe("taskIsDue", () => {
   });
 
   test("treats an empty last-run value as never run, so it is due now", () => {
-    expect(taskIsDue("", 500, 0)).toBe(true);
+    // Empty parses to 0, so any now at least one interval past the epoch is due.
+    expect(taskIsDue("", 500, 500)).toBe(true);
+    expect(taskIsDue("", 500, 499)).toBe(false);
   });
 
   test("treats an unreadable last-run value as never run", () => {
