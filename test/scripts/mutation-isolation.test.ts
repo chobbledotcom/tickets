@@ -254,15 +254,15 @@ describe("mutation isolation run records", () => {
   test("reports whether a run lock is held", async () => {
     await withTempDir(async (root) => {
       const record = { root };
-      expect(await runLockIsHeld(record, 10)).toBe(false);
+      expect(await runLockIsHeld(record, 100)).toBe(false);
       await withMutationRunLock(root, async () => {
-        expect(await runLockIsHeld(record, 10)).toBe(true);
+        expect(await runLockIsHeld(record, 100)).toBe(true);
       });
-      expect(await runLockIsHeld(record, 10)).toBe(false);
+      expect(await runLockIsHeld(record, 100)).toBe(false);
 
       const fileRoot = join(root, "file-root");
       await Deno.writeTextFile(fileRoot, "");
-      expect(await runLockIsHeld({ root: fileRoot }, 10)).toBe(false);
+      expect(await runLockIsHeld({ root: fileRoot }, 100)).toBe(false);
     });
   });
 });

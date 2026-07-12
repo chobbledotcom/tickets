@@ -22,6 +22,7 @@ const CDN_ENV_KEYS = [
   "CDN_URL",
   "CDN_BUNNY_STORAGE_ZONE_NAME",
   "CDN_BUNNY_STORAGE_ZONE_KEY",
+  "CDN_BUNNY_STORAGE_HOST",
   "CDN_BUNNY_PULL_ZONE_ID",
 ] as const;
 const BUNNY_STORAGE_HOSTS = [
@@ -35,9 +36,7 @@ const BUNNY_STORAGE_HOSTS = [
   "jh.storage.bunnycdn.com",
   "syd.storage.bunnycdn.com",
 ] as const;
-const DEFAULT_BUNNY_STORAGE_HOST = BUNNY_STORAGE_HOSTS[0];
-
-const STATIC_CDN_REQUEST_TIMEOUT_MS = 30_000;
+export const STATIC_CDN_REQUEST_TIMEOUT_MS = 30_000;
 
 const cleanCdnUrl = (raw: string): string => {
   const url = new URL(raw);
@@ -69,17 +68,13 @@ export const loadStaticCdnConfig = (
     throw new Error("BUNNY_ACCESS_KEY is required to purge the static CDN");
   }
 
-  const [cdnUrl, storageName, storageKey, pullZoneId] = values as [
+  const [cdnUrl, storageName, storageKey, storageHost, pullZoneId] = values as [
+    string,
     string,
     string,
     string,
     string,
   ];
-  const configuredStorageHost = env.CDN_BUNNY_STORAGE_HOST;
-  const storageHost =
-    configuredStorageHost === undefined || configuredStorageHost.trim() === ""
-      ? DEFAULT_BUNNY_STORAGE_HOST
-      : configuredStorageHost.trim();
   if (!BUNNY_STORAGE_HOSTS.some((host) => host === storageHost)) {
     throw new Error(
       `CDN_BUNNY_STORAGE_HOST must be one of: ${BUNNY_STORAGE_HOSTS.join(", ")}`,
@@ -152,7 +147,9 @@ const releaseHash = async (assets: StaticCdnAsset[]): Promise<string> => {
     a.filename.localeCompare(b.filename),
   );
   const parts = sorted.flatMap((asset) => [
-    encoder.encode(`${asset.filename}\0${asset.bytes.length}\0`),
+    encoder.encode(
+      `${asset.filename}\0${asset.contentType}\0${asset.bytes.length}\0`,
+    ),
     asset.bytes,
   ]);
   const bytes = await new Blob(
@@ -200,6 +197,22 @@ const verify = async (
     undefined,
     `Failed to verify static CDN asset ${asset.filename}`,
   );
+  const contentType = response.headers.get("content-type");
+  if (contentType === null) {
+    throw new Error(
+      `Static CDN asset ${asset.filename} is missing its content type`,
+    );
+  }
+  const servedMediaType = contentType.replace(/;.*$/, "").trim().toLowerCase();
+  const expectedMediaType = asset.contentType
+    .replace(/;.*$/, "")
+    .trim()
+    .toLowerCase();
+  if (servedMediaType !== expectedMediaType) {
+    throw new Error(
+      `Static CDN asset ${asset.filename} has content type ${servedMediaType}; expected ${expectedMediaType}`,
+    );
+  }
   const served = new Uint8Array(await response.arrayBuffer());
   if ((await checksum(served)) !== (await checksum(asset.bytes))) {
     throw new Error(

@@ -14,7 +14,7 @@ inputs:
     description: Optional access key for the static asset Storage zone.
     required: false
   cdn_bunny_storage_host:
-    description: Optional regional Bunny Storage hostname. Defaults to Frankfurt.
+    description: Bunny Storage API hostname, required when CDN publishing is enabled.
     required: false
   cdn_bunny_pull_zone_id:
     description: Optional pull-zone id purged after static asset uploads.

@@ -3,6 +3,7 @@ import { fromFileUrl } from "@std/path";
 import type { OnLoadResult, OnResolveResult, Plugin } from "esbuild";
 import { map } from "#fp";
 import { ASSETS, readAsset } from "../src/shared/images/wasm-assets.ts";
+import { STATIC_CDN_REQUEST_TIMEOUT_MS } from "./static-cdn.ts";
 
 type ExportAsset = Pick<(typeof ASSETS)[number], "exportName">;
 
@@ -61,7 +62,7 @@ export const buildRemoteModule = <Entry extends ExportAsset>(
 ): string => {
   const lines = [
     "const load = async (url) => {",
-    "  const response = await fetch(url);",
+    `  const response = await fetch(url, { signal: AbortSignal.timeout(${STATIC_CDN_REQUEST_TIMEOUT_MS}) });`,
     '  if (!response.ok) throw new Error("Failed to load image codec " + url + ": HTTP " + response.status);',
     "  return new Uint8Array(await response.arrayBuffer());",
     "};",

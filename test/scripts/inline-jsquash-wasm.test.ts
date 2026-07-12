@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { fromFileUrl } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import type {
   OnLoadArgs,
   OnLoadResult,
@@ -154,6 +155,45 @@ describe("buildRemoteModule", () => {
       await expect(generated.webpEnc()).rejects.toThrow(
         `Failed to load image codec ${url}: HTTP 503`,
       );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("aborts a stalled published wasm request after 30 seconds", async () => {
+    using time = new FakeTime();
+    const source = buildRemoteModule([{ exportName: "webpEnc" }] as const, {
+      "webpEnc.wasm": "https://assets.example.com/release/webpEnc.wasm",
+    });
+    const originalFetch = globalThis.fetch;
+    let error: unknown;
+    let settled = false;
+    globalThis.fetch = (_input, init) => {
+      const signal = init?.signal;
+      if (!signal) throw new Error("Expected bounded codec request");
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener("abort", () => reject(signal.reason), {
+          once: true,
+        });
+      });
+    };
+    try {
+      const generated = await importGeneratedModule(source);
+      const observed = Promise.resolve(generated.webpEnc())
+        .catch((caught: unknown) => {
+          error = caught;
+        })
+        .finally(() => {
+          settled = true;
+        });
+      await time.tickAsync(29_999);
+      expect(settled).toBe(false);
+      await time.tickAsync(1);
+      await observed;
+      if (!(error instanceof DOMException)) {
+        throw new Error("Expected codec timeout DOMException");
+      }
+      expect(error.name).toBe("TimeoutError");
     } finally {
       globalThis.fetch = originalFetch;
     }

@@ -2,190 +2,28 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import {
-  loadStaticCdnConfig,
   publishStaticCdnAssets,
+  type StaticCdnAsset,
 } from "../../scripts/static-cdn.ts";
+import {
+  assetResponse,
+  CONFIG,
+  STYLE_ASSET,
+  successfulFetcher,
+  verificationFetcher,
+  WASM_ASSET,
+} from "./static-cdn-fixtures.ts";
 
-const CONFIG = {
-  accountKey: "account-secret",
-  cdnUrl: "https://assets.example.com/static",
-  pullZoneId: "12345",
-  storageHost: "storage.bunnycdn.com",
-  storageKey: "storage-secret",
-  storageName: "tickets-assets",
-};
-const ENV = {
-  BUNNY_ACCESS_KEY: "account-secret",
-  CDN_BUNNY_PULL_ZONE_ID: "12345",
-  CDN_BUNNY_STORAGE_ZONE_KEY: "storage-secret",
-  CDN_BUNNY_STORAGE_ZONE_NAME: "tickets-assets",
-  CDN_URL: "https://assets.example.com/static/",
-};
-const STYLE_ASSET = {
-  bytes: new TextEncoder().encode("body{}"),
-  contentType: "text/css; charset=utf-8",
-  filename: "style.css",
-};
-const WASM_ASSET = {
-  bytes: new Uint8Array([0, 97, 115, 109]),
-  contentType: "application/wasm",
-  filename: "jpegDec.wasm",
-};
 const STALLED_REQUESTS = [
   { method: "PUT", stage: "upload" },
   { method: "POST", stage: "purge" },
   { method: "GET", stage: "verification" },
 ] as const;
-const REGIONAL_STORAGE_HOSTS = [
-  "uk.storage.bunnycdn.com",
-  "ny.storage.bunnycdn.com",
-  "la.storage.bunnycdn.com",
-  "sg.storage.bunnycdn.com",
-  "se.storage.bunnycdn.com",
-  "br.storage.bunnycdn.com",
-  "jh.storage.bunnycdn.com",
-  "syd.storage.bunnycdn.com",
-] as const;
 
-const successfulFetcher =
-  (assets: readonly (typeof STYLE_ASSET)[]): typeof fetch =>
-  (input, init) => {
-    const method = init?.method ?? "GET";
-    if (method !== "GET") {
-      return Promise.resolve(new Response(null, { status: 201 }));
-    }
-    const url = String(input);
-    const asset = assets.find(({ filename }) => url.endsWith(`/${filename}`));
-    if (!asset) throw new Error(`Unexpected public CDN URL: ${url}`);
-    return Promise.resolve(new Response(asset.bytes));
-  };
-
-const verificationFetcher =
-  (publicResponse: Response): typeof fetch =>
-  (_input, init) =>
-    Promise.resolve(
-      init?.method === "PUT"
-        ? new Response(null, { status: 201 })
-        : init?.method === "POST"
-          ? new Response(null, { status: 204 })
-          : publicResponse,
-    );
-
-describe("loadStaticCdnConfig", () => {
-  test("keeps builds self-contained when every CDN value is absent", () => {
-    expect(loadStaticCdnConfig({})).toBeNull();
-  });
-
-  test("normalizes a complete CDN configuration", () => {
-    expect(loadStaticCdnConfig(ENV)).toEqual(CONFIG);
-  });
-
-  test("normalizes repeated trailing slashes in the CDN base", () => {
-    expect(
-      loadStaticCdnConfig({
-        ...ENV,
-        CDN_URL: "https://assets.example.com/static///",
-      }),
-    ).toEqual(CONFIG);
-  });
-
-  for (const storageHost of REGIONAL_STORAGE_HOSTS) {
-    test(`accepts the ${storageHost} Bunny storage host`, () => {
-      expect(
-        loadStaticCdnConfig({
-          ...ENV,
-          CDN_BUNNY_STORAGE_HOST: storageHost,
-        }),
-      ).toEqual({ ...CONFIG, storageHost });
-    });
-  }
-
-  test("defaults a blank storage host to Frankfurt", () => {
-    expect(
-      loadStaticCdnConfig({ ...ENV, CDN_BUNNY_STORAGE_HOST: " " }),
-    ).toEqual(CONFIG);
-  });
-
-  test("rejects an unknown Bunny storage host", () => {
-    expect(() =>
-      loadStaticCdnConfig({
-        ...ENV,
-        CDN_BUNNY_STORAGE_HOST: "storage.example.com",
-      }),
-    ).toThrow(
-      "CDN_BUNNY_STORAGE_HOST must be one of: storage.bunnycdn.com, uk.storage.bunnycdn.com, ny.storage.bunnycdn.com, la.storage.bunnycdn.com, sg.storage.bunnycdn.com, se.storage.bunnycdn.com, br.storage.bunnycdn.com, jh.storage.bunnycdn.com, syd.storage.bunnycdn.com",
-    );
-  });
-
-  test("rejects a partial CDN configuration", () => {
-    expect(() =>
-      loadStaticCdnConfig({ CDN_URL: "https://assets.example.com" }),
-    ).toThrow(
-      "CDN_URL, CDN_BUNNY_STORAGE_ZONE_NAME, CDN_BUNNY_STORAGE_ZONE_KEY, CDN_BUNNY_PULL_ZONE_ID must all be set together",
-    );
-  });
-
-  test("rejects a CDN URL that is not a clean HTTPS base", () => {
-    expect(() =>
-      loadStaticCdnConfig({
-        ...ENV,
-        CDN_URL: "http://assets.example.com/static",
-      }),
-    ).toThrow("HTTPS");
-  });
-
-  const expectUncleanUrlRejected = (cdnUrl: string): void => {
-    expect(() =>
-      loadStaticCdnConfig({
-        ...ENV,
-        CDN_URL: cdnUrl,
-      }),
-    ).toThrow("clean HTTPS base");
-  };
-
-  test("rejects credentials in an HTTPS base", () => {
-    expectUncleanUrlRejected("https://user@assets.example.com/static");
-  });
-
-  test("rejects a query string in an HTTPS base", () => {
-    expectUncleanUrlRejected("https://assets.example.com/static?mutable=true");
-  });
-
-  test("rejects a fragment in an HTTPS base", () => {
-    expectUncleanUrlRejected("https://assets.example.com/static#asset");
-  });
-
-  test("rejects unsafe storage and pull-zone names", () => {
-    expect(() =>
-      loadStaticCdnConfig({
-        ...ENV,
-        CDN_BUNNY_PULL_ZONE_ID: "not-an-id",
-        CDN_BUNNY_STORAGE_ZONE_NAME: "../assets",
-      }),
-    ).toThrow("storage zone");
-  });
-
-  test("rejects a non-numeric pull-zone id", () => {
-    expect(() =>
-      loadStaticCdnConfig({
-        ...ENV,
-        CDN_BUNNY_PULL_ZONE_ID: "not-an-id",
-      }),
-    ).toThrow("must be numeric");
-  });
-
-  test("requires the account key used to purge a configured CDN", () => {
-    expect(() =>
-      loadStaticCdnConfig({ ...ENV, BUNNY_ACCESS_KEY: undefined }),
-    ).toThrow("BUNNY_ACCESS_KEY is required to purge the static CDN");
-  });
-
-  test("rejects a whitespace-only account key", () => {
-    expect(() =>
-      loadStaticCdnConfig({ ...ENV, BUNNY_ACCESS_KEY: "   " }),
-    ).toThrow("BUNNY_ACCESS_KEY is required to purge the static CDN");
-  });
-});
+const styleOrWasm =
+  (style: StaticCdnAsset) =>
+  (url: string): StaticCdnAsset =>
+    url.endsWith(STYLE_ASSET.filename) ? style : WASM_ASSET;
 
 describe("publishStaticCdnAssets", () => {
   test("uploads one immutable release and returns its public URLs", async () => {
@@ -193,12 +31,12 @@ describe("publishStaticCdnAssets", () => {
     const fetcher: typeof fetch = (input, init) => {
       const request = new Request(input, init);
       requests.push(request);
-      const body = request.url.endsWith(STYLE_ASSET.filename)
-        ? STYLE_ASSET.bytes
-        : WASM_ASSET.bytes;
+      const asset = request.url.endsWith(STYLE_ASSET.filename)
+        ? STYLE_ASSET
+        : WASM_ASSET;
       return Promise.resolve(
         request.method === "GET"
-          ? new Response(body)
+          ? assetResponse(asset)
           : new Response(null, { status: 201 }),
       );
     };
@@ -211,15 +49,15 @@ describe("publishStaticCdnAssets", () => {
 
     expect(published.origin).toBe("https://assets.example.com");
     expect(published.urls["style.css"]).toBe(
-      "https://assets.example.com/static/assets/5a3cb7a61a83b08341ffe60fc6697818e1b4ecfba94a4df75f975f05c0368397/style.css",
+      "https://assets.example.com/static/assets/d4632641703f36d87d3ae3a6fd8f4849ad16f9ff42795ad26f25c3fe42a8bf1e/style.css",
     );
     expect(published.urls["jpegDec.wasm"]).toBe(
-      "https://assets.example.com/static/assets/5a3cb7a61a83b08341ffe60fc6697818e1b4ecfba94a4df75f975f05c0368397/jpegDec.wasm",
+      "https://assets.example.com/static/assets/d4632641703f36d87d3ae3a6fd8f4849ad16f9ff42795ad26f25c3fe42a8bf1e/jpegDec.wasm",
     );
     expect(requests.length).toBe(5);
     const cssUploadUrl =
       "https://storage.bunnycdn.com/tickets-assets/static/assets/" +
-      "5a3cb7a61a83b08341ffe60fc6697818e1b4ecfba94a4df75f975f05c0368397/style.css";
+      "d4632641703f36d87d3ae3a6fd8f4849ad16f9ff42795ad26f25c3fe42a8bf1e/style.css";
     const cssUpload = requests.find(({ url }) => url === cssUploadUrl);
     if (!cssUpload) throw new Error("Expected style.css upload request");
     expect(cssUpload.method).toBe("PUT");
@@ -245,12 +83,12 @@ describe("publishStaticCdnAssets", () => {
     const original = await publishStaticCdnAssets(
       CONFIG,
       [STYLE_ASSET, WASM_ASSET],
-      successfulFetcher([STYLE_ASSET, WASM_ASSET]),
+      successfulFetcher(styleOrWasm(STYLE_ASSET)),
     );
     const reversed = await publishStaticCdnAssets(
       CONFIG,
       [WASM_ASSET, STYLE_ASSET],
-      successfulFetcher([STYLE_ASSET, WASM_ASSET]),
+      successfulFetcher(styleOrWasm(STYLE_ASSET)),
     );
     const changedStyle = {
       ...STYLE_ASSET,
@@ -259,10 +97,31 @@ describe("publishStaticCdnAssets", () => {
     const changed = await publishStaticCdnAssets(
       CONFIG,
       [changedStyle, WASM_ASSET],
-      successfulFetcher([changedStyle, WASM_ASSET]),
+      successfulFetcher(styleOrWasm(changedStyle)),
     );
 
     expect(reversed.urls).toEqual(original.urls);
+    expect(changed.urls[STYLE_ASSET.filename]).not.toBe(
+      original.urls[STYLE_ASSET.filename],
+    );
+  });
+
+  test("release URLs change with content type", async () => {
+    const changedType = {
+      ...STYLE_ASSET,
+      contentType: "text/x-css; charset=utf-8",
+    };
+    const original = await publishStaticCdnAssets(
+      CONFIG,
+      [STYLE_ASSET],
+      successfulFetcher(() => STYLE_ASSET),
+    );
+    const changed = await publishStaticCdnAssets(
+      CONFIG,
+      [changedType],
+      successfulFetcher(() => changedType),
+    );
+
     expect(changed.urls[STYLE_ASSET.filename]).not.toBe(
       original.urls[STYLE_ASSET.filename],
     );
@@ -278,7 +137,7 @@ describe("publishStaticCdnAssets", () => {
         if (method === "PUT") uploadUrl = String(input);
         return Promise.resolve(
           method === "GET"
-            ? new Response(STYLE_ASSET.bytes)
+            ? assetResponse(STYLE_ASSET)
             : new Response(null, { status: 201 }),
         );
       },
@@ -351,9 +210,39 @@ describe("publishStaticCdnAssets", () => {
       publishStaticCdnAssets(
         CONFIG,
         [STYLE_ASSET],
-        verificationFetcher(new Response("different")),
+        verificationFetcher(
+          new Response("different", {
+            headers: { "content-type": STYLE_ASSET.contentType },
+          }),
+        ),
       ),
     ).rejects.toThrow("style.css does not match the uploaded file");
+  });
+
+  test("fails the build when the public content type differs", async () => {
+    await expect(
+      publishStaticCdnAssets(
+        CONFIG,
+        [STYLE_ASSET],
+        verificationFetcher(
+          new Response(STYLE_ASSET.bytes, {
+            headers: { "content-type": "application/octet-stream" },
+          }),
+        ),
+      ),
+    ).rejects.toThrow(
+      "Static CDN asset style.css has content type application/octet-stream; expected text/css",
+    );
+  });
+
+  test("fails the build when the public content type is missing", async () => {
+    await expect(
+      publishStaticCdnAssets(
+        CONFIG,
+        [STYLE_ASSET],
+        verificationFetcher(new Response(STYLE_ASSET.bytes)),
+      ),
+    ).rejects.toThrow("Static CDN asset style.css is missing its content type");
   });
 
   test("allows Bunny requests to complete before the deadline", async () => {
@@ -362,7 +251,7 @@ describe("publishStaticCdnAssets", () => {
       if (!signal) throw new Error("Expected bounded Bunny request");
       const response =
         init?.method === undefined
-          ? new Response(STYLE_ASSET.bytes)
+          ? assetResponse(STYLE_ASSET)
           : new Response(null, { status: 201 });
       return new Promise((resolve, reject) => {
         const onAbort = (): void => {
@@ -399,7 +288,7 @@ describe("publishStaticCdnAssets", () => {
           if (method !== stalledMethod) {
             return Promise.resolve(
               method === "GET"
-                ? new Response(STYLE_ASSET.bytes)
+                ? assetResponse(STYLE_ASSET)
                 : new Response(null, { status: 201 }),
             );
           }

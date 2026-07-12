@@ -18,3 +18,21 @@ test("onceSuccessful shares success but retries a failed attempt", async () => {
   expect(await load()).toBe("ready");
   expect(calls).toBe(2);
 });
+
+test("onceSuccessful keeps a retry started by an early rejection handler", async () => {
+  const first = Promise.withResolvers<string>();
+  let calls = 0;
+  const load = onceSuccessful(() => {
+    calls += 1;
+    return calls === 1 ? first.promise : Promise.resolve("ready");
+  });
+
+  const failed = load();
+  const retry = failed.catch(() => load());
+  const sharedFailure = load();
+  first.reject(new Error("temporary failure"));
+  await Promise.allSettled([failed, retry, sharedFailure]);
+
+  expect(await load()).toBe("ready");
+  expect(calls).toBe(2);
+});
