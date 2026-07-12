@@ -70,20 +70,19 @@ describe("servicing §20 — one shared kind-aware link builder (no second copy)
 });
 
 describe("servicing §20 — servicing query readers reuse the shared attendee SELECT builder", () => {
-  test("the servicing readers module builds on attendeeColumns with a kind predicate", async () => {
+  test("the servicing readers module builds on getAttendees with a kind filter", async () => {
     const servicingReaderPath = join(
       SRC_DIR,
       "shared/db/attendees/servicing.ts",
     );
     const src = await readFile(servicingReaderPath);
-    // The shared column builder is used and the kind predicate filters it —
-    // not a copy-pasted column list. The kind is bound as a SERVICING_KIND
-    // parameter (not a hard-coded SQL string) so the value can't drift from
-    // the shared projection.
-    expect(src).toContain("attendeeColumns");
-    expect(src).toContain("SERVICING_KIND");
-    // And it does NOT hand-list the attendee columns (a copy-paste giveaway).
-    expect(src).not.toMatch(/attendee\.pii_blob,\s*attendee\.status_id/);
+    // The servicing reads go through the shared getAttendees façade with a
+    // declared `kind: "servicing"` filter — not a hand-written SELECT with a
+    // copy-pasted column list.
+    expect(src).toContain("getAttendees");
+    expect(src).toContain('kind: "servicing"');
+    // And it does NOT hand-write the attendee SELECT (a copy-paste giveaway).
+    expect(src).not.toMatch(/SELECT\s+attendee\.id/);
   });
 
   test("attendeeColumns always emits the core columns and adds only the fields asked for", () => {

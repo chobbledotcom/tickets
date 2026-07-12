@@ -9,19 +9,15 @@ import type { AttendeeRouteParams } from "#routes/entity.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
-import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
   decryptAttendeeOrNull,
   decryptAttendees,
 } from "#shared/db/attendees/pii.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#shared/db/attendees/queries.ts";
-import {
-  ATTENDEE_FIELDS,
-  attendeeColumns,
-} from "#shared/db/attendees/select.ts";
+import { ATTENDEE_FIELDS, getAttendeeRow } from "#shared/db/attendees/select.ts";
 import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import { updateAttendeePII } from "#shared/db/attendees/update.ts";
-import { queryAll, queryOne } from "#shared/db/client.ts";
+import { queryAll } from "#shared/db/client.ts";
 import { syncAttendeeContactTokens } from "#shared/db/contact-tokens.ts";
 import { getQuestionsWithListingIds } from "#shared/db/questions/queries.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -50,13 +46,11 @@ const loadMergeTarget = async (
   attendeeId: number,
 ): Promise<Attendee | null> => {
   const pk = await requireRequestPrivateKey();
-  const raw = await queryOne<Attendee>(
-    `SELECT ${attendeeColumns("left", ATTENDEE_FIELDS)}
-     FROM attendees AS attendee
-     LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-     WHERE attendee.id = ? AND attendee.kind = ?`,
-    [attendeeId, ATTENDEE_KIND],
-  );
+  const raw = await getAttendeeRow({
+    fields: ATTENDEE_FIELDS,
+    join: "left",
+    where: { attendeeId },
+  });
   return decryptAttendeeOrNull(raw, pk);
 };
 

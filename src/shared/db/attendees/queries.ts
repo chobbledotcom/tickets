@@ -14,11 +14,10 @@ import {
 import {
   ATTENDEE_FIELDS,
   type AttendeeRowFor,
-  attendeeColumns,
+  getAttendeeRow,
+  getAttendees,
   pricePaidFromLedger,
   refundedFromLedger,
-  selectAttendeeOrNull,
-  selectAttendees,
 } from "#shared/db/attendees/select.ts";
 import {
   inPlaceholders,
@@ -26,7 +25,7 @@ import {
   queryOne,
   rowExists,
 } from "#shared/db/client.ts";
-import { columnMapByIds, nameMapByIds, rowsByIds } from "#shared/db/query.ts";
+import { columnMapByIds, nameMapByIds } from "#shared/db/query.ts";
 import type { Attendee } from "#shared/types.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 
@@ -69,14 +68,10 @@ export type BrowsingAttendee = AttendeeRowFor<"refunded">;
  * Used for tests and operations that don't need decrypted data
  */
 export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
-  selectAttendees({
-    args: [listingId],
+  getAttendees({
     fields: ATTENDEE_FIELDS,
-    from: `FROM attendees AS attendee
-     JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-     WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}'
-     ORDER BY attendee.created DESC`,
-    join: "inner",
+    order: "created_desc",
+    where: { listingId },
   });
 
 /**
@@ -89,14 +84,10 @@ export const getAttendeePackageRowsRaw = (
   attendeeId: number,
   packageGroupId: number,
 ): Promise<Attendee[]> =>
-  selectAttendees({
-    args: [attendeeId, packageGroupId],
+  getAttendees({
     fields: ATTENDEE_FIELDS,
-    from: `FROM attendees AS attendee
-     JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-     WHERE attendee.id = ? AND listingAttendee.package_group_id = ? AND listingAttendee.quantity > 0
-     ORDER BY listingAttendee.listing_id ASC`,
-    join: "inner",
+    order: "listing_asc",
+    where: { attendeeId, packageGroupId, realLinesOnly: true },
   });
 
 /**
@@ -113,18 +104,18 @@ export const getAttendeePackageRowsRaw = (
 export const getNewestAttendeesRaw = (
   limit: number,
 ): Promise<BrowsingAttendee[]> =>
-  selectAttendees({
-    args: [limit],
+  getAttendees({
     fields: BROWSING_FIELDS,
-    from: `FROM attendees AS attendee
-     LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-     WHERE attendee.id IN (
-       SELECT newest.id FROM attendees AS newest
-       WHERE newest.kind = '${ATTENDEE_KIND}'
-       ORDER BY newest.id DESC LIMIT ?
-     )
-     ORDER BY attendee.id DESC, listingAttendee.listing_id ASC`,
     join: "left",
+    order: "id_desc",
+    where: {
+      attendeeIdsSubquery: {
+        args: [limit],
+        sql: `SELECT newest.id FROM attendees AS newest
+           WHERE newest.kind = '${ATTENDEE_KIND}'
+           ORDER BY newest.id DESC LIMIT ?`,
+      },
+    },
   });
 
 /** Sort order for the admin attendees browser */
@@ -204,23 +195,25 @@ export const getAttendeesPage = async ({
     : "";
   const limit = ATTENDEES_PAGE_SIZE + 1;
   const offset = page * ATTENDEES_PAGE_SIZE;
-  const args = listingIds ? [...listingIds, limit, offset] : [limit, offset];
-  const rows = await selectAttendees({
-    args,
+  // The inner subquery pages the ATTENDEE ids (grouped, so paging counts
+  // attendees not lines); getAttendees then returns every booking line for
+  // those attendees. The listing filter and LIMIT/OFFSET are bound args.
+  const idsArgs = listingIds ? [...listingIds, limit, offset] : [limit, offset];
+  const rows = await getAttendees({
     fields: ATTENDEE_FIELDS,
-    from: `FROM attendees AS attendee
-     JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-     WHERE attendee.id IN (
-       SELECT pageAttendee.id
-       FROM attendees AS pageAttendee
-       JOIN listing_attendees AS pageLine ON pageLine.attendee_id = pageAttendee.id
-       WHERE pageAttendee.kind = '${ATTENDEE_KIND}'${lineFilter}
-       GROUP BY pageAttendee.id
-       ORDER BY pageAttendee.id ${dir}
-       LIMIT ? OFFSET ?
-     )
-     ORDER BY attendee.id ${dir}, listingAttendee.listing_id ASC`,
-    join: "inner",
+    order: dir === "ASC" ? "id_asc" : "id_desc",
+    where: {
+      attendeeIdsSubquery: {
+        args: idsArgs,
+        sql: `SELECT pageAttendee.id
+           FROM attendees AS pageAttendee
+           JOIN listing_attendees AS pageLine ON pageLine.attendee_id = pageAttendee.id
+           WHERE pageAttendee.kind = '${ATTENDEE_KIND}'${lineFilter}
+           GROUP BY pageAttendee.id
+           ORDER BY pageAttendee.id ${dir}
+           LIMIT ? OFFSET ?`,
+      },
+    },
   });
   return trimAttendeePage(rows);
 };
@@ -372,13 +365,10 @@ export const attendeeIdByLedgerEventGroup = async (
  * Returns the attendee with encrypted fields (id, listing_id, quantity are plaintext)
  */
 export const getAttendeeRaw = (id: number): Promise<Attendee | null> =>
-  selectAttendeeOrNull({
-    args: [id],
+  getAttendeeRow({
     fields: ATTENDEE_FIELDS,
-    from: `FROM attendees AS attendee
-     LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-     WHERE attendee.id = ? AND attendee.kind = '${ATTENDEE_KIND}'`,
     join: "left",
+    where: { attendeeId: id },
   });
 
 /**
@@ -388,14 +378,13 @@ export const getAttendeeRaw = (id: number): Promise<Attendee | null> =>
  * ids. Decrypt with decryptAttendees before display.
  */
 export const getAttendeesByIds = (ids: number[]): Promise<Attendee[]> =>
-  rowsByIds<Attendee>(
-    ids,
-    (placeholders) =>
-      `SELECT ${attendeeColumns("left", ATTENDEE_FIELDS)}
-     FROM attendees AS attendee
-     LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-     WHERE attendee.kind = '${ATTENDEE_KIND}' AND attendee.id IN (${placeholders})`,
-  );
+  ids.length === 0
+    ? Promise.resolve([])
+    : getAttendees({
+        fields: ATTENDEE_FIELDS,
+        join: "left",
+        where: { attendeeIds: ids },
+      });
 
 /**
  * Bounded id → name lookup for the given attendees, decrypting only the name

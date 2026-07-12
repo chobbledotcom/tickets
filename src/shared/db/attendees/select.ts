@@ -29,7 +29,8 @@ import {
   attendeeOwedSubquery,
   saleLegPredicate,
 } from "#shared/accounting/projection-sql.ts";
-import { queryAll, queryOne } from "#shared/db/client.ts";
+import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
+import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
 import type { Attendee } from "#shared/types.ts";
 
 /**
@@ -247,3 +248,199 @@ export const selectAttendeeOrNull = <F extends AttendeeField>(
   query: AttendeeQuery<F>,
 ): Promise<AttendeeRowFor<F> | null> =>
   queryOne<AttendeeRowFor<F>>(attendeeSql(query), query.args);
+
+// ---------------------------------------------------------------------------
+// getAttendees — one declarative reader for every place that lists attendees
+// ---------------------------------------------------------------------------
+
+/** Which kinds of attendee a read includes. `kind` is always a trusted
+ * constant, so it is inlined rather than bound. */
+export type AttendeeKindFilter =
+  | "attendee"
+  | "servicing"
+  | "attendee-or-servicing";
+
+const KIND_CLAUSE: Record<AttendeeKindFilter, string> = {
+  attendee: `attendee.kind = '${ATTENDEE_KIND}'`,
+  "attendee-or-servicing": `attendee.kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}')`,
+  servicing: `attendee.kind = '${SERVICING_KIND}'`,
+};
+
+/**
+ * A declarative filter for an attendee read. Each present field adds one WHERE
+ * clause (absent fields don't constrain), so a caller says WHICH attendees it
+ * wants rather than hand-writing SQL. `kind` defaults to regular attendees.
+ */
+export type AttendeeWhere = {
+  kind?: AttendeeKindFilter;
+  /** A single attendee by id. */
+  attendeeId?: number;
+  /** A set of attendees by id. */
+  attendeeIds?: number[];
+  /** Attendees whose id is returned by this subquery — the "pick attendees,
+   * then return all their booking lines" pattern (newest N, one page). The
+   * subquery carries its own bound args. */
+  attendeeIdsSubquery?: { sql: string; args: InValue[] };
+  /** Booking lines on a single listing. */
+  listingId?: number;
+  /** Booking lines on any of these listings. */
+  listingIds?: number[];
+  /** Booking lines within one package group. */
+  packageGroupId?: number;
+  /** Drop no-quantity sentinel lines (`quantity > 0`). */
+  realLinesOnly?: boolean;
+  /** Keep lines starting on/after this `YYYY-MM-DD`, or with no start date. */
+  upcomingFrom?: string;
+  /** Restrict to daily-listing lines overlapping `[after, before)` — adds the
+   * `listings` join and the `listing_type = 'daily'` guard. `before` is the
+   * range's exclusive end, `after` its start. */
+  dailyRange?: { after: string; before: string };
+};
+
+/** How the rows come back. Named orders so callers can't hand-roll a stray
+ * `ORDER BY`; each pairs with the reads that used it. */
+export type AttendeeOrder =
+  | "created_desc"
+  | "id_desc"
+  | "id_asc"
+  | "listing_asc"
+  | "start_then_listing"
+  | "upcoming";
+
+const ORDER_SQL: Record<AttendeeOrder, string> = {
+  created_desc: "attendee.created DESC",
+  id_asc: "attendee.id ASC, listingAttendee.listing_id ASC",
+  id_desc: "attendee.id DESC, listingAttendee.listing_id ASC",
+  listing_asc: "listingAttendee.listing_id ASC",
+  start_then_listing: "listingAttendee.start_at, listingAttendee.listing_id",
+  upcoming: "COALESCE(listingAttendee.start_at, attendee.created), attendee.id",
+};
+
+/** One filter clause and the args that fill its placeholders, kept together so
+ * the arg order can never drift from the clause order. */
+type WhereClause = { clause: string; args: InValue[] };
+
+const whereClauses = (where: AttendeeWhere): WhereClause[] => {
+  const parts: WhereClause[] = [
+    { args: [], clause: KIND_CLAUSE[where.kind ?? "attendee"] },
+  ];
+  const eq = (clause: string, value: number | undefined) => {
+    if (value !== undefined) parts.push({ args: [value], clause });
+  };
+  const inList = (column: string, ids: number[] | undefined) => {
+    if (ids !== undefined) {
+      parts.push({
+        args: ids,
+        clause: `${column} IN (${inPlaceholders(ids)})`,
+      });
+    }
+  };
+  inList("attendee.id", where.attendeeIds);
+  eq("attendee.id = ?", where.attendeeId);
+  if (where.attendeeIdsSubquery !== undefined) {
+    parts.push({
+      args: where.attendeeIdsSubquery.args,
+      clause: `attendee.id IN (${where.attendeeIdsSubquery.sql})`,
+    });
+  }
+  eq("listingAttendee.listing_id = ?", where.listingId);
+  inList("listingAttendee.listing_id", where.listingIds);
+  eq("listingAttendee.package_group_id = ?", where.packageGroupId);
+  if (where.realLinesOnly) {
+    parts.push({ args: [], clause: "listingAttendee.quantity > 0" });
+  }
+  if (where.upcomingFrom !== undefined) {
+    parts.push({
+      args: [where.upcomingFrom],
+      clause:
+        "(listingAttendee.start_at IS NULL OR DATE(listingAttendee.start_at) >= ?)",
+    });
+  }
+  if (where.dailyRange !== undefined) {
+    parts.push({
+      args: [where.dailyRange.before, where.dailyRange.after],
+      clause:
+        "listing.listing_type = 'daily' AND listingAttendee.start_at < ? AND listingAttendee.end_at > ?",
+    });
+  }
+  return parts;
+};
+
+/**
+ * Build the `FROM … WHERE … ORDER BY …` tail (and its bound args) for an
+ * attendee read. Exposed so the batch readers, which must embed the SQL inside
+ * a `queryBatch` statement rather than run it, share the exact same filter and
+ * ordering logic as {@link getAttendees}.
+ */
+export const attendeeFromWhere = (
+  join: AttendeeJoin,
+  where: AttendeeWhere,
+  order?: AttendeeOrder,
+): { from: string; args: InValue[] } => {
+  const parts = whereClauses(where);
+  const joinKeyword = join === "left" ? "LEFT JOIN" : "JOIN";
+  const listingsJoin =
+    where.dailyRange !== undefined
+      ? " JOIN listings AS listing ON listingAttendee.listing_id = listing.id"
+      : "";
+  // A single-attendee read (getAttendee) needs no ordering; a list read always
+  // passes one so its rows are deterministic.
+  const orderBy = order === undefined ? "" : ` ORDER BY ${ORDER_SQL[order]}`;
+  return {
+    args: parts.flatMap((part) => part.args),
+    from: `FROM attendees AS attendee ${joinKeyword} listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id${listingsJoin} WHERE ${parts
+      .map((part) => part.clause)
+      .join(" AND ")}${orderBy}`,
+  };
+};
+
+/** Everything a caller declares to list attendees: which fields to project,
+ * which rows to keep, in what order, over which join. */
+export type GetAttendeesQuery<F extends AttendeeField> = {
+  fields: readonly F[];
+  where: AttendeeWhere;
+  /** Row order. Omit only for a single-row {@link getAttendee} read. */
+  order?: AttendeeOrder;
+  /** Defaults to an INNER join; use `"left"` to keep an attendee whose booking
+   * linkage is missing (a single COALESCEd `listing_id = 0` row). */
+  join?: AttendeeJoin;
+};
+
+/** Resolve a declared query into the concrete parts the runners take: default
+ * the join, build the FROM/WHERE/ORDER tail and its args. */
+const resolveAttendeeQuery = <F extends AttendeeField>(
+  query: GetAttendeesQuery<F>,
+) => {
+  const join = query.join ?? "inner";
+  const { from, args } = attendeeFromWhere(join, query.where, query.order);
+  return { args, fields: query.fields, from, join };
+};
+
+/**
+ * The one reader every attendee-listing surface uses: declare the fields, the
+ * filter and the order, and it emits the minimal query and returns raw rows
+ * typed to exactly the requested fields. PII stays encrypted — decrypt before
+ * display.
+ */
+export const getAttendees = <F extends AttendeeField>(
+  query: GetAttendeesQuery<F>,
+): Promise<AttendeeRowFor<F>[]> => selectAttendees(resolveAttendeeQuery(query));
+
+/** Single-row {@link getAttendees} (returns null when nothing matches). */
+export const getAttendeeRow = <F extends AttendeeField>(
+  query: GetAttendeesQuery<F>,
+): Promise<AttendeeRowFor<F> | null> =>
+  selectAttendeeOrNull(resolveAttendeeQuery(query));
+
+/**
+ * A `queryBatch` statement (SQL + bound args) for an attendee read. The batch
+ * readers pair a listing read with an attendee read in one round-trip, so they
+ * must embed the SQL in a batch rather than run it — this gives them the exact
+ * same columns/filter/order as {@link getAttendees}.
+ */
+export const attendeeBatchStatement = <F extends AttendeeField>(
+  query: GetAttendeesQuery<F>,
+): { sql: string; args: InValue[] } => {
+  const { args, fields, from, join } = resolveAttendeeQuery(query);
+  return { args, sql: `SELECT ${attendeeColumns(join, fields)} ${from}` };
+};

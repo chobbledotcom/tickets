@@ -34,7 +34,7 @@ import {
 import {
   ATTENDEE_FIELDS,
   type AttendeeRowFor,
-  attendeeColumns,
+  getAttendees,
 } from "#shared/db/attendees/select.ts";
 import {
   inPlaceholders,
@@ -298,14 +298,12 @@ export const getServicingEvent = async (
   // One LEFT JOIN covers both a booked event (one row per held line) and an
   // orphan with no bookings (a single COALESCEd listing_id=0 row that
   // rowsToServicingEvent filters out) — no separate fallback query needed.
-  const rows = await queryAll<ServicingRow>(
-    `SELECT ${attendeeColumns("left", ATTENDEE_FIELDS)}, attendee.kind
-       FROM attendees AS attendee
-       LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-      WHERE attendee.id = ? AND attendee.kind = ?
-      ORDER BY listingAttendee.start_at, listingAttendee.listing_id`,
-    [id, SERVICING_KIND],
-  );
+  const rows = await getAttendees({
+    fields: ATTENDEE_FIELDS,
+    join: "left",
+    order: "start_then_listing",
+    where: { attendeeId: id, kind: "servicing" },
+  });
   return rows.length > 0 ? rowsToServicingEvent(rows) : null;
 };
 
@@ -372,22 +370,16 @@ const servicingEventRowsToSummaries = async (
 
 const getServicingEventRows = (
   today?: string,
-): Promise<ServicingSummaryRow[]> => {
-  const upcomingClause =
-    today === undefined
-      ? ""
-      : "AND (listingAttendee.start_at IS NULL OR DATE(listingAttendee.start_at) >= ?)";
-  return queryAll<ServicingSummaryRow>(
-    `SELECT ${attendeeColumns("inner", [])}
-       FROM attendees AS attendee
-       JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-      WHERE attendee.kind = ?
-        AND listingAttendee.quantity > 0
-        ${upcomingClause}
-      ORDER BY COALESCE(listingAttendee.start_at, attendee.created), attendee.id`,
-    today === undefined ? [SERVICING_KIND] : [SERVICING_KIND, today],
-  );
-};
+): Promise<ServicingSummaryRow[]> =>
+  getAttendees({
+    fields: [],
+    order: "upcoming",
+    where: {
+      kind: "servicing",
+      realLinesOnly: true,
+      ...(today === undefined ? {} : { upcomingFrom: today }),
+    },
+  });
 
 export const getAllServicingEvents = async (
   privateKey: CryptoKey,
