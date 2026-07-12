@@ -125,6 +125,12 @@ const ERROR_DEFS = {
     "E_PAYMENT_WEBHOOK_SETUP",
     "Payment webhook setup failed",
   ],
+
+  // Money-integrity: a provider refund committed but the ledger did not record it
+  REFUND_NOT_RECORDED: [
+    "E_REFUND_NOT_RECORDED",
+    "Refund not recorded in ledger",
+  ],
   SQUARE_CHECKOUT: ["E_SQUARE_CHECKOUT", "Square checkout failed"],
   SQUARE_ORDER: ["E_SQUARE_ORDER", "Square order validation failed"],
   SQUARE_REFUND: ["E_SQUARE_REFUND", "Square refund failed"],

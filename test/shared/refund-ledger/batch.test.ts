@@ -79,6 +79,13 @@ describeWithEnv(
         ]),
       );
       expect((await allTransfers()).length).toBe(before);
+      // Every stranded attendee (provider-refunded, ledger guard-skipped it) is
+      // logged for Sentry/ntfy/the activity log rather than folded into a silent
+      // error count. The batch reports once, naming all of them in one message,
+      // so a single activity-log row identifies every account (the persist guard
+      // would drop back-to-back per-attendee rows).
+      expect(errors.contains("E_REFUND_NOT_RECORDED")).toBe(true);
+      expect(errors.lastMessage()).toContain("attendees 13, 14");
     });
 
     test("on a failed batch, keeps already-refunded true and an unrecoverable post false", async () => {
@@ -168,6 +175,77 @@ describeWithEnv(
         logged.some((message) => message.includes("bulk refund batch failed")),
       ).toBe(true);
       expect(errors.lastMessage()).toContain("E_LEDGER_POST");
+      // The per-attendee fallback names the failed account (18), so the operator
+      // knows which one to reconcile — not just that "a" refund failed.
+      expect(errors.contains("attendee=18")).toBe(true);
+      // A thrown write is a LEDGER_POST, not a guard-skip: the two money-miss
+      // classifications stay disjoint so one incident is never double-counted.
+      expect(errors.contains("E_REFUND_NOT_RECORDED")).toBe(false);
+    });
+
+    test("names every guard-skipped attendee in one alert when the batch fails over", async () => {
+      // Force the fast-path batch to throw (attendee 20's reversal collides with a
+      // pre-claimed refund reference), so the resilient per-attendee fallback runs.
+      // Two OTHER attendees (21, 22) have no ledgered booking, so each guard-skips
+      // in the fallback. Those guard-skips must be reported in ONE activity-log row
+      // naming both — back-to-back per-attendee rows would be dropped by the
+      // persist guard, which is exactly what the fast path already avoids.
+      await postBooking({ attendeeId: 20, eventId: "sess-20" });
+      const sale20 = (await transfersByAccount(attendeeAccount(20))).find(
+        (leg) => leg.kind === "sale",
+      )!;
+      const collidingRef = await legReference([
+        "refund",
+        sale20.eventGroup,
+        sale20.reference,
+      ]);
+      await postTransfers([
+        {
+          amount: 100,
+          destination: revenueAccount(96),
+          eventGroup: "blocker-20",
+          kind: "sale",
+          occurredAt: BOOKING_AT,
+          reference: collidingRef,
+          source: attendeeAccount(96),
+        },
+      ]);
+
+      const posted = await recordAttendeeRefundsBatch([
+        refundTarget(20, "sess-20"),
+        refundTarget(21, "sess-21"),
+        refundTarget(22, "sess-22"),
+      ]);
+      expect(posted).toEqual(
+        new Map([
+          [20, false],
+          [21, false],
+          [22, false],
+        ]),
+      );
+      // The fallback ran (the bulk batch failed over to per-attendee).
+      expect(errors.contains("bulk refund batch failed")).toBe(true);
+      // The two guard-skipped accounts are named together in a SINGLE
+      // REFUND_NOT_RECORDED alert — not one row each (which the persist guard
+      // drops). Before the fallback batched its reports, this was two separate
+      // "attendee 21" / "attendee 22" messages and no combined row.
+      const strandedAlert = errors.calls
+        .map((call) => String(call.args[0]))
+        .find((message) => message.includes("E_REFUND_NOT_RECORDED"));
+      expect(strandedAlert).toContain("attendees 21, 22");
+      // Attendee 20 threw, so it is classified as LEDGER_POST (its own message
+      // names attendee=20), NOT folded into the guard-skip alert — the two
+      // money-miss classifications stay disjoint. Assert the structured
+      // classification rather than a bare "20" substring (which a request-id log
+      // prefix could otherwise collide with).
+      const thrownAlert = errors.calls
+        .map((call) => String(call.args[0]))
+        .find(
+          (message) =>
+            message.includes("E_LEDGER_POST") &&
+            message.includes("attendee=20"),
+        );
+      expect(thrownAlert).toBeDefined();
     });
 
     test("posts all refund groups for a balance-settled attendee in a bulk batch", async () => {

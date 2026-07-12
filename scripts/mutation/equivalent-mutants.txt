@@ -64,6 +64,13 @@ src/shared/accounting/manual-entries.ts:209:29  ?? → ||   # guard error messag
 src/shared/checkout-ledger.ts:35:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
 src/shared/accounting/queries.ts:162:26  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
 
+# refund-ledger.ts isRefundLeg guard: type-provable equivalent. (The sibling
+# sameAccount / isProviderPaymentLeg && → || mutants are NOT equivalent — the
+# ledger write path doesn't enforce the "WORLD-source ⟺ payment" / external-
+# singleton invariants, so a payment leg from a non-WORLD external account
+# distinguishes them; they're killed by a regression test in refund-ledger.test.ts.)
+src/shared/refund-ledger.ts:46:30  ?? → ||   # isRefundLeg: kind?.startsWith("refund_") is boolean|undefined; for boolean b, b ?? false === b || false, and undefined coincides too, so ?? and || always agree
+
 # Parent/child fold moved to fold-tree.ts in Phase 2a (see the fold-tree.ts
 # entries below); the ticket-payment.ts fold-internal equivalents went with it.
 # What stays here are `?? F` vs `|| F` sites whose left operand can never be a

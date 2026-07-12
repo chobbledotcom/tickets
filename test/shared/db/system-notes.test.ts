@@ -5,6 +5,7 @@ import { queryOne } from "#shared/db/client.ts";
 import {
   createOwnerNote,
   createSystemNote,
+  createSystemNoteOnce,
   decryptNotes,
   deleteAttendeeNote,
   getAttendeeNote,
@@ -162,6 +163,25 @@ describeWithEnv("db > system-notes", { db: true }, () => {
     expect(await getNoteRows([])).toEqual([]);
   });
 
+  test("createSystemNoteOnce skips an identical existing system note", async () => {
+    const attendeeId = await makeAttendee();
+    await createSystemNoteOnce(attendeeId, "stranded refund");
+    // A second identical call is a no-op — the dedup blocks the duplicate.
+    await createSystemNoteOnce(attendeeId, "stranded refund");
+    expect(await getNoteRows([attendeeId])).toHaveLength(1);
+
+    // A different system note is still added — only an identical one is blocked.
+    await createSystemNoteOnce(attendeeId, "a different note");
+    expect(await getNoteRows([attendeeId])).toHaveLength(2);
+
+    // Owner notes are ignored in the comparison (reading them would need the
+    // owner key), so a same-text owner note does not block a system note.
+    const other = await makeAttendee("Owner Dupe");
+    await createOwnerNote(other, "same text");
+    await createSystemNoteOnce(other, "same text");
+    expect(await getNoteRows([other])).toHaveLength(2);
+  });
+
   test("loadNotesForAttendees derives the key only when notes exist", async () => {
     const withNotes = await makeAttendee("Has Notes");
     const withoutNotes = await makeAttendee("No Notes");
@@ -189,7 +209,14 @@ describeWithEnv("db > system-notes", { db: true }, () => {
     const pk = await getTestPrivateKey();
 
     const found = await getAttendeeNote(owner, row!.id, pk);
-    expect(found?.note).toBe("scoped note");
+    // Assert the whole row shape, not just `.note`, so a wrong-index spread that
+    // drops id/attendee_id/type is caught.
+    expect(found).toMatchObject({
+      attendee_id: owner,
+      id: row!.id,
+      note: "scoped note",
+      type: "system",
+    });
 
     // The same note id under a different attendee must not resolve.
     expect(await getAttendeeNote(other, row!.id, pk)).toBeNull();

@@ -622,7 +622,9 @@ bug (harmless today because of the multiplier workaround).*
   a partial/credit/mixed account the provider refund fires but the operator sees
   `error.refund_not_recorded` ("do not re-refund") with no next step. Fix: link
   the manual-adjustment page straight from that flash and frame it as "one more
-  step", not an error.
+  step", not an error. (Backend observability is now handled — the miss logs
+  `REFUND_NOT_RECORDED` to Sentry/ntfy/the activity log; this item is the
+  remaining operator-facing UX link.)
 
 - **A multi-item cart with no shared date/length dies silently.**
   `dayCountsEveryListingSupports` / `computeSharedDates` (`src/shared/booking/
@@ -749,16 +751,57 @@ it sprawls into an over-built framework.*
   2. **A `kind` on each error: `user_error` vs `invariant_violation`.** This is
      the one with actual operational payoff and it's small. Most `error.*` keys
      are `user_error` (stay out of Sentry). A handful are "should never happen,
-     an operator must act" — `error.refund_not_recorded` (refunded at the
-     provider but not recorded in the ledger — `attendee-refunds.ts`,
-     `attendees-edit.ts`) is the exemplar. Tag those `invariant_violation` and
-     route only them to Sentry (breadcrumb + alert), so the money-integrity
-     cases surface without drowning in expected validation noise.
+     an operator must act" — the refund-not-recorded case (provider refunded but
+     the ledger did not record it) was the exemplar. **Done for that case:** the
+     guard-skip and bulk paths in `refund-ledger.ts` now call `logError` with the
+     new `REFUND_NOT_RECORDED` code, which already fans out to console + ntfy +
+     the activity log + Sentry. A single stranded refund tags the Sentry event
+     with its `attendeeId`; a bulk one names every stranded attendee in the
+     detail instead (one tag can't hold a list) — so the miss is alerted, not
+     just flashed. The remaining generalisation is to make the `user_error` vs
+     `invariant_violation` split *explicit* on `ERROR_DEFS` (a `kind` field)
+     rather than implicit in which codes callers happen to route through
+     `logError`, so the classification is auditable and can't silently drift.
+  3. **Scope the `REFUND_NOT_RECORDED` activity-log row to a listing.** It
+     persists with `listingId: null` today, so it lands in the *global* activity
+     log (naming the attendee ids in the detail) but not under a specific
+     listing's Activity tab, which filters on `listing_id`. Attaching a listing
+     isn't a one-liner: an attendee's account refund can span several listings
+     (one attendee, many sale legs — see the "reverses a many-listing booking"
+     test), and the bulk path reports many attendees in a single row, so there's
+     no one `listingId` to attach. Doing it properly means splitting the alert
+     into per-listing rows keyed by each stranded attendee's listings — worth it
+     only if operators actually reconcile these from the listing tab rather than
+     the global log. (Raised by Codex on PR #1775.)
+  4. **Aggregate the `REFUND_NOT_RECORDED` alert across a whole refund-all
+     request.** `recordAttendeeRefundsBatch` now names every stranded attendee in
+     one activity-log row, but `processRefundBatch` calls it once per provider
+     *wave*, so a multi-wave refund-all still emits one alert per wave. In theory
+     the single `errorPersistGuard.active` flag could drop a later wave's row —
+     though in practice waves are separated by a full round of provider refund
+     network calls, so the millisecond-scale activity-log write has long since
+     released the guard, and every stranded attendee always reaches console +
+     ntfy + Sentry regardless. A guaranteed fix would have `recordAttendeeRefundsBatch`
+     return its stranded ids instead of self-reporting and let `processRefundBatch`
+     alert once after the wave loop — deferred because that moves the alerting out
+     of the self-contained batch into its caller (a footgun for any future caller
+     that forgets to report), a poor trade for a practically-unreachable edge.
+     (Raised by Codex on PR #1775.)
+  5. **Drop the owner-only ledger link from the placeholder-refund note.**
+     `refundedNoteText` (`features/api/payment-processing/refunds.ts`) still
+     builds `[ledger](/admin/ledger/attendee/:id)`, but the ledger routes are
+     owner-only (`requireOwnerOr`) while system notes render for managers and
+     editors too (the attendee banner, the attendees list, and a listing's
+     Overview/Roster) — so a non-owner sees a forbidden link that 403s on click.
+     Same fix as the refund-not-recorded note got on PR #1775 (plain text, no
+     link); left out of that PR because it's the separate placeholder-refund
+     flow with its own tests. (Same forbidden-link class Codex raised on #1775.)
 
-**Recommended first step, if any:** just the `kind` tag on the ~2-3 invariant
-errors + a single Sentry breadcrumb at the flash boundary. Skip the combinator
-until a real collect-all site (e.g. the multi-item-checkout "no shared date"
-diagnostic above) makes it pay for itself.
+**Recommended next step, if any:** carry the same treatment to any other
+"money/state moved but wasn't recorded" spot found in an audit, then add the
+explicit `kind` field once there are enough invariant codes to be worth
+enumerating. Skip the reasons-combinator until a real collect-all site (e.g. the
+multi-item-checkout "no shared date" diagnostic above) makes it pay for itself.
 
 ## Deferred CodeRabbit suggestions from PR #1772 (servicing test relocation)
 

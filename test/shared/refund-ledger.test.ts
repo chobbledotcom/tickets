@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
   attendeeAccount,
+  EXTERNAL,
   modifierAccount,
   revenueAccount,
   WORLD,
@@ -15,12 +16,15 @@ import {
 } from "#shared/accounting/queries.ts";
 import { legReference } from "#shared/accounting/refs.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
+import { decrypt } from "#shared/crypto/encryption.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
+import { getNoteRows } from "#shared/db/system-notes.ts";
+import { account } from "#shared/ledger/account.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 import {
@@ -193,6 +197,47 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     // the caller must surface it (manual adjustment) rather than let the payment
     // read as refunded.
     await expectRefundNeedsManualAdjustment();
+    // And the miss is logged (Sentry/ntfy/activity log), naming the attendee —
+    // never only a dismissible flash. This is the money-integrity contract.
+    expect(errors.contains("E_REFUND_NOT_RECORDED")).toBe(true);
+    expect(errors.contains(`attendee=${ATTENDEE}`)).toBe(true);
+    // The detail names the one stranded account in its singular form
+    // ("attendee N", never the plural "attendees N", and the id itself), so a
+    // single miss reads unambiguously in the operator-facing activity-log row.
+    expect(errors.contains(`record it for attendee ${ATTENDEE} —`)).toBe(true);
+    // It also drops a system note on the attendee's own record, so the operator
+    // sees the miss where they manage the booking — not only in the error log.
+    const notes = await getNoteRows([ATTENDEE]);
+    expect(notes.length).toBe(1);
+    const note = notes[0]!;
+    if (note.type !== "system") {
+      throw new Error(`expected a system note, got ${note.type}`);
+    }
+    const noteText = await decrypt(note.note);
+    expect(noteText).toContain("the ledger did not record it");
+    expect(noteText).toContain("manual adjustment");
+    // No live link: the ledger is owner-only, but these notes render for
+    // managers/editors too, so a markdown link to an admin route would be a
+    // forbidden link that 403s for them. The note stays plain text.
+    expect(noteText).not.toContain("](/admin/");
+  });
+
+  test("does not stack a duplicate note when a stranded refund is retried", async () => {
+    await postBooking({
+      amountPaid: 2000,
+      lines: [{ gross: 10000, listingId: 1 }],
+    });
+    // The provider refund has committed; a guard-skip strands it and notes the
+    // attendee. A retry (provider already refunded, ledger still can't record it)
+    // re-enters the same guard-skip, but must NOT add a second identical note —
+    // the operator would otherwise see the attendee page fill with duplicates.
+    expect(
+      await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]),
+    ).toEqual({ posted: false });
+    expect(
+      await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]),
+    ).toEqual({ posted: false });
+    expect(await getNoteRows([ATTENDEE])).toHaveLength(1);
   });
 
   test("is idempotent — a second refund writes nothing but still reports posted", async () => {
@@ -205,6 +250,8 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
       await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]),
     ).toEqual({ posted: true });
     expect((await allTransfers()).length).toBe(afterFirst);
+    // A recorded (or idempotent no-op) refund is not stranded — it must NOT alert.
+    expect(errors.contains("E_REFUND_NOT_RECORDED")).toBe(false);
   });
 
   test("skips a booking that predates the ledger (no legs to reverse)", async () => {
@@ -212,6 +259,8 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
       await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]),
     ).toEqual({ posted: false });
     expect((await allTransfers()).length).toBe(0);
+    // Even a no-legs skip is a stranded provider refund — it must be logged.
+    expect(errors.contains("E_REFUND_NOT_RECORDED")).toBe(true);
   });
 
   test("reverses an attendee carrying more than one fully-paid booking order", async () => {
@@ -225,6 +274,53 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     ).toEqual({ posted: true });
     expect(await accountBalance(attendeeAccount(ATTENDEE))).toBe(0);
     expect(await refundCashAmounts()).toEqual([5000, 5000]);
+  });
+
+  test("posts when an uncovered order's cash came from a non-WORLD external account", async () => {
+    // Only WORLD-sourced payments are "provider payments" — a payment from any
+    // other external account is not, so an uncovered order paid that way must not
+    // block the refund. The ledger's write path never enforces that WORLD is the
+    // sole external account (or that WORLD only ever sources payments), so this
+    // guards `isProviderPaymentLeg`/`sameAccount` against being loosened to treat
+    // any external/WORLD-touching leg as provider cash.
+    //
+    // Group A: a normal fully-paid booking whose WORLD payment is covered by the
+    // session reference — a genuine provider group, but never uncovered.
+    await postBooking({
+      amountPaid: 5000,
+      eventId: "sess-1",
+      lines: [{ gross: 5000, listingId: 1 }],
+    });
+    // Group B: a self-balancing order under an UNCOVERED event group whose cash
+    // arrived from external:not-world (not WORLD), so it is not a provider group.
+    await postTransfers([
+      {
+        amount: 3000,
+        destination: attendeeAccount(ATTENDEE),
+        eventGroup: "ext-cash-order",
+        kind: "payment",
+        occurredAt: BOOKING_AT,
+        reference: "ext-cash-pay",
+        source: account(EXTERNAL, "not-world"),
+      },
+      {
+        amount: 3000,
+        destination: revenueAccount(2),
+        eventGroup: "ext-cash-order",
+        kind: "sale",
+        occurredAt: BOOKING_AT,
+        reference: "ext-cash-sale",
+        source: attendeeAccount(ATTENDEE),
+      },
+    ]);
+
+    // Both orders reverse: group B's external payment is NOT a provider payment,
+    // so it never counts as an uncovered provider group. Treating it as one (the
+    // loosened guard) would guard-skip the whole refund instead.
+    expect(
+      await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]),
+    ).toEqual({ posted: true });
+    expect(await accountBalance(attendeeAccount(ATTENDEE))).toBe(0);
   });
 
   test("lets one legacy payment reference cover one old unmatched payment group", async () => {
@@ -291,8 +387,12 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     // the payment reading as un-refunded and re-refundable. Fail loudly instead.
     await expectRefundNeedsManualAdjustment();
     // "Logs" is part of the contract: the operator's only breadcrumb for a
-    // stranded refund is the classified error.
+    // stranded refund is the classified error. A thrown write is a LEDGER_POST
+    // (with its stack), NOT a guard-skip — the two classifications stay disjoint.
     expect(errors.lastMessage()).toContain("E_LEDGER_POST");
+    expect(errors.contains("E_REFUND_NOT_RECORDED")).toBe(false);
+    // The breadcrumb names the attendee so the operator knows which account.
+    expect(errors.lastMessage()).toContain(`attendee=${ATTENDEE}`);
   });
 });
 
@@ -355,7 +455,9 @@ describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
     expect(await recordPlaceholderRefund(PH, "sold_out", true)).toEqual({
       posted: false,
     });
-    // The classified error is the operator's only breadcrumb for the miss.
+    // The classified error is the operator's only breadcrumb for the miss, and
+    // it names the attendee whose placeholder refund went unrecorded.
     expect(errors.lastMessage()).toContain("E_LEDGER_POST");
+    expect(errors.lastMessage()).toContain(`attendee=${PH.attendeeId}`);
   });
 });
