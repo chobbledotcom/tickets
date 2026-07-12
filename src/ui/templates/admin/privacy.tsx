@@ -1,10 +1,11 @@
 /**
  * Privacy page (owner-only).
  *
- * Explains, in plain language, that this is a ticketing system rather than a
- * CRM, what limited data it keeps, and how the privacy-protecting "last seen"
- * note works. Below the explainer sit two tools: tidying up orphaned attendee
- * records, and a GDPR erasure of a single contact's record by email or phone.
+ * A short intro states the essentials: this is a ticketing system, not a CRM;
+ * connect a CRM with a listing webhook; and returning customers are recognised
+ * by a one-way code, not by storing their email or phone. Below it sit the two
+ * tools: tidying up orphaned attendee records, and a GDPR erasure of a single
+ * contact's record by email or phone.
  *
  * All copy lives in the privacy.* locale keys; the prose blocks are authored as
  * HTML there and rendered via <Raw>, matching the admin guide.
@@ -125,12 +126,7 @@ export const adminPrivacyPage = (
       title={t("privacy.title")}
     >
       <div class="prose">
-        <h2>{t("privacy.not_a_crm_heading")}</h2>
-        <Raw html={t("privacy.not_a_crm_html")} />
-        <h2>{t("privacy.aggregate_heading")}</h2>
-        <Raw html={t("privacy.aggregate_html")} />
-        <h2>{t("privacy.hashing_heading")}</h2>
-        <Raw html={t("privacy.hashing_html")} />
+        <Raw html={t("privacy.intro_html")} />
       </div>
 
       <Flash error={data.error} info={data.info} success={data.success} />

@@ -24,8 +24,8 @@ import { settings } from "#shared/db/settings.ts";
 import { nowMs } from "#shared/now.ts";
 import {
   assertAdminHtml,
+  cachedAdminPage,
   expectFlashRedirect,
-  expectHtmlResponse,
   expectStatus,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -37,7 +37,6 @@ import {
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
-  adminGet,
   createTestManagerSession,
 } from "#test-utils/session.ts";
 
@@ -74,6 +73,9 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
   describe("GET /admin/privacy", () => {
     testRequiresAuth("/admin/privacy");
 
+    // Assertions about the page's default state share one render.
+    const page = cachedAdminPage("/admin/privacy");
+
     test("returns 403 for a non-owner", async () => {
       const response = await awaitTestRequest("/admin/privacy", {
         cookie: await createTestManagerSession(),
@@ -81,16 +83,29 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       expectStatus(403)(response);
     });
 
-    test("renders the explainer and tools for the owner", async () => {
-      const response = await adminGet("/admin/privacy");
-      await expectHtmlResponse(
-        response,
-        200,
-        "Privacy",
-        "not a CRM",
-        "private fingerprint",
-        "Delete matching records now",
-      );
+    test("shows the orphaned-records tool", async () => {
+      await page("Delete matching records now");
+    });
+
+    test("shows the delete-a-contact tool", async () => {
+      await page("Delete this contact's record");
+    });
+
+    test("says it is a ticketing system, not a CRM", async () => {
+      await page("not a CRM");
+    });
+
+    test("links to webhook setup so a CRM can be connected", async () => {
+      await page("add a webhook to a listing", 'href="/admin/guide#webhooks"');
+    });
+
+    test("recognises by a one-way code that excludes the email and phone", async () => {
+      await page("one-way code");
+      await page("not the email or phone itself");
+    });
+
+    test("says contact details stay in the encrypted booking, not just the code", async () => {
+      await page("stay with the booking, kept encrypted");
     });
 
     test("reports the current orphan count", async () => {
