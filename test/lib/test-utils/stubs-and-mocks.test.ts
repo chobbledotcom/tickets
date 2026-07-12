@@ -138,7 +138,6 @@ describe("test-utils — stubs, caches & request mocks", () => {
       }
     });
 
-
     test("resets database so next createTestDb gives clean state", async () => {
       await createTestDb();
       const { getDb, insert } = await import("#shared/db/client.ts");
