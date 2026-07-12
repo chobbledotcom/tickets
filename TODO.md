@@ -688,3 +688,54 @@ bug (harmless today because of the multiplier workaround).*
   `foldChild` (`src/shared/booking/fold-tree.ts` ~line 281) keys the custom-price
   map by listing id. Per-allocation pricing would allow different prices; niche,
   do on demand.
+
+---
+
+## Design note: a shared "reasons" shape for validation failures
+
+*Origin: reviewing the package-restriction work (PR #1770). The recurring shape
+is "reject if any of N reasons holds, tell the user WHICH, sometimes list ALL"
+— e.g. `packageMemberBlock`, `packageChildEdgeConflict`, `groupListingTypeError`,
+the listing-input `?? next` chain. Worth writing down where this could go before
+it sprawls into an over-built framework.*
+
+**What already exists (don't rebuild it):**
+- **i18n keys ARE de-facto error codes.** ~113 `error.*` keys in
+  `src/locales/en/errors.json` are stable machine identifiers already decoupled
+  from any one rendering. A "new error-code system" would mostly re-label these.
+- **Declarative first-match rule tables** already appear twice:
+  `EDGE_ERROR_RULES` (`src/shared/listing-parents-rules.ts` — a
+  `readonly EdgeRule[]` matched with `.find(r => r.rejects(a,b))?.error(...)`)
+  and `CAPACITY_RULES` (`src/shared/capacity-rules.ts`). `packageMemberBlock`
+  (this PR) is a third, hand-rolled instance of the same idea.
+- **Sentry is for the *unexpected* only.** Validation failures never reach it
+  today, which is correct — an operator picking an invalid combo is not a bug,
+  and routing every "you can't do that" to Sentry would bury real incidents.
+
+**What a slick version is — and, honestly, mostly ISN'T worth building here:**
+- **NOT worth it:** a global error-code registry/enum, per-code guide deep-links,
+  or converting every fail-fast validator to collect-all. That is a large
+  cross-cutting refactor whose value this app's size doesn't justify, and
+  collect-all is often *worse* UX (fix-one-resubmit beats a wall of ten errors).
+  Fail-fast is a feature, not a limitation, for most forms.
+- **Worth it, but only when a real need pulls it (do not do speculatively):**
+  1. **One `reasons` combinator.** A tiny `Rule<T> = { code; when(x): boolean;
+     message(x): string }` list with two runners — `firstReason(rules)(x)` and
+     `allReasons(rules)(x)` — so a call site picks fail-fast vs list-everything
+     from ONE rule definition. `EDGE_ERROR_RULES`/`CAPACITY_RULES`/
+     `packageMemberBlock` would converge on it. Extract on the *third* real
+     collect-all need, not before (two tables sharing a shape is not yet a
+     framework).
+  2. **A `kind` on each error: `user_error` vs `invariant_violation`.** This is
+     the one with actual operational payoff and it's small. Most `error.*` keys
+     are `user_error` (stay out of Sentry). A handful are "should never happen,
+     an operator must act" — `error.refund_not_recorded` (refunded at the
+     provider but not recorded in the ledger — `attendee-refunds.ts`,
+     `attendees-edit.ts`) is the exemplar. Tag those `invariant_violation` and
+     route only them to Sentry (breadcrumb + alert), so the money-integrity
+     cases surface without drowning in expected validation noise.
+
+**Recommended first step, if any:** just the `kind` tag on the ~2-3 invariant
+errors + a single Sentry breadcrumb at the flash boundary. Skip the combinator
+until a real collect-all site (e.g. the multi-item-checkout "no shared date"
+diagnostic above) makes it pay for itself.
