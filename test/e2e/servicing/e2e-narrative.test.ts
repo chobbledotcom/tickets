@@ -35,7 +35,7 @@ const DAILY_ROOM_A = {
 
 const costListingIdFromForm = (html: string): string => {
   const match = html.match(
-    /<select name="target_listing_id">[\s\S]*?<option value="(\d+)"/,
+    /<select name="target_listing_id"[^>]*>[\s\S]*?<option value="(\d+)"/,
   );
   if (!match) throw new Error("no cost target listing in servicing form");
   return match[1]!;

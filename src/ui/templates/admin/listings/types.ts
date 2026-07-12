@@ -1,7 +1,5 @@
-import type {
-  ListingAggregateRecalculation,
-  ListingRevenueBreakdown,
-} from "#shared/db/listings.ts";
+import type { ListingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
+import type { ListingAggregateRecalculation } from "#shared/db/listings.ts";
 import type { SystemNote } from "#shared/db/system-notes.ts";
 import type {
   AdminSession,
@@ -26,7 +24,7 @@ type ListingPanelSharedOptions = {
   aggregateRecalculation?: ListingAggregateRecalculation | undefined;
   questionData?: TableQuestionData | undefined;
   groupContext?: GroupContext | undefined;
-  revenueBreakdown?: ListingRevenueBreakdown | undefined;
+  revenueBreakdown?: ListingMoneyTotals | undefined;
   ledger?: AccountLedgerData | undefined;
   ledgerHref?: string | undefined;
   isChild?: boolean | undefined;

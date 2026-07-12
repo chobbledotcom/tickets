@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { KIND } from "#shared/accounting/kinds.ts";
+import { listingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
 import {
   MANUAL_LISTING_COST,
   MANUAL_LISTING_INCOME,
@@ -19,7 +20,6 @@ import {
 } from "#shared/accounting/queries.ts";
 import { emptyRange, type LedgerRange } from "#shared/accounting/range.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
-import { listingRevenueBreakdown } from "#shared/db/listings.ts";
 import { account } from "#shared/ledger/account.ts";
 import { balanceOf, sumOfKind } from "#shared/ledger/project.ts";
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
@@ -115,7 +115,7 @@ describe("db > accounting > queries", () => {
   });
 
   describe("SQL figures agree with the pure projections", () => {
-    // The money arithmetic in ledgerTotals / listingRevenueBreakdown lives in
+    // The money arithmetic in ledgerTotals / listingMoneyTotals lives in
     // SQL CASE arms, which mutation testing cannot reach (they are string
     // literals). These dual-read tests are their mutation resistance: every
     // figure must equal the same fold computed by the pure projections over
@@ -237,14 +237,14 @@ describe("db > accounting > queries", () => {
       expect(totals.due).toBeGreaterThan(0);
     });
 
-    test("listingRevenueBreakdown equals the pure folds over that listing's legs", async () => {
+    test("listingMoneyTotals equals the pure folds over selected listing legs", async () => {
       await seedMixedLedger();
       const totals = await ledgerTotals(emptyRange);
       for (const [listingId, revenue] of [
         [1, revenue1],
         [2, revenue2],
       ] as const) {
-        const breakdown = await listingRevenueBreakdown(listingId);
+        const breakdown = await listingMoneyTotals(emptyRange, [listingId]);
         const legs = await transfersByAccount(revenue);
         expect(breakdown.grossSales).toBe(sumOfKind(KIND.sale)(legs));
         expect(breakdown.refunds).toBe(sumOfKind(KIND.refundSale)(legs));
@@ -258,8 +258,8 @@ describe("db > accounting > queries", () => {
       }
       // The business-wide income figure is exactly the per-listing sum.
       const [one, two] = await Promise.all([
-        listingRevenueBreakdown(1),
-        listingRevenueBreakdown(2),
+        listingMoneyTotals(emptyRange, [1]),
+        listingMoneyTotals(emptyRange, [2]),
       ]);
       expect(one.recognisedIncome + two.recognisedIncome).toBe(totals.income);
     });

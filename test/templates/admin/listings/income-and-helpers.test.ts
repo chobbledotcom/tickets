@@ -40,6 +40,8 @@ describe("adminListingPage income & ledger breakdown", () => {
         netBalance: 7000,
         recognisedIncome: 9000,
         refunds: 2000,
+        servicingCosts: 0,
+        transferCount: 3,
       },
     });
     expect(html).toContain("Money in and out");
@@ -77,6 +79,8 @@ describe("adminListingPage income & ledger breakdown", () => {
         netBalance: 7000,
         recognisedIncome: 9000,
         refunds: 2000,
+        servicingCosts: 0,
+        transferCount: 2,
       },
     });
     const recognisedIdx = html.indexOf("Total income earned");
@@ -103,6 +107,8 @@ describe("adminListingPage income & ledger breakdown", () => {
         netBalance: 5000,
         recognisedIncome: 5000,
         refunds: 0,
+        servicingCosts: 0,
+        transferCount: 1,
       },
     });
     expect(html).toContain("Money in and out");
@@ -126,6 +132,8 @@ describe("adminListingPage income & ledger breakdown", () => {
         netBalance: 5500,
         recognisedIncome: 5500,
         refunds: 0,
+        servicingCosts: 0,
+        transferCount: 2,
       },
     });
     expect(html).toContain("Manual adjustments");
@@ -145,6 +153,8 @@ describe("adminListingPage income & ledger breakdown", () => {
         netBalance: 4900,
         recognisedIncome: 5200,
         refunds: 0,
+        servicingCosts: 0,
+        transferCount: 3,
       },
     });
     expect(html).toContain("Income received outside checkout");

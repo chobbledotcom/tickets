@@ -16,7 +16,7 @@
  *     rejected (`error.name_required`).
  *
  * Modules under test:
- *   - `#routes/admin/servicing-form-model.ts` — `buildServicingFieldSchema`,
+ *   - `#routes/admin/servicing/form-model.ts` — `buildServicingFieldSchema`,
  *     `parseServicingForm`, `toServicingCreateInput`, `normalizeServicingForSave`,
  *     `ServicingCreateInput`.
  *   - `#routes/admin/attendee-form-model.ts` — the shared `validateAttendeeBlock`.
@@ -37,7 +37,7 @@ import {
   normalizeServicingForSave,
   parseServicingForm,
   toServicingCreateInput,
-} from "#routes/admin/servicing-form-model.ts";
+} from "#routes/admin/servicing/form-model.ts";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms.tsx";

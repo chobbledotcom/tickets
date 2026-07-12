@@ -1,6 +1,6 @@
 import { compact } from "#fp";
 import { t } from "#i18n";
-import type { ListingRevenueBreakdown } from "#shared/db/listings.ts";
+import type { ListingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import {
   type AccountLedgerData,
@@ -18,7 +18,7 @@ const whenNonZero = (
 ): MoneySummaryRow | null => (value === 0 ? null : row(value));
 
 const incomeBreakdownRows = (
-  breakdown: ListingRevenueBreakdown,
+  breakdown: ListingMoneyTotals,
   listing: ListingWithCount,
 ): MoneySummaryRow[] =>
   compact([
@@ -71,7 +71,7 @@ export const ListingIncomeLedgerSection = ({
   ledgerHref,
   listing,
 }: {
-  breakdown: ListingRevenueBreakdown;
+  breakdown: ListingMoneyTotals;
   ledgerHref?: string | undefined;
   listing: ListingWithCount;
 }): JSX.Element => (

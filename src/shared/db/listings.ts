@@ -8,15 +8,7 @@ import { inOwnTx, ledgerTx } from "#shared/accounting/ledger-tx.ts";
 import {
   accountBalanceSubquery,
   creditsLessWriteoffDebits,
-  revenueBreakdownColumns,
-  revenueBreakdownScope,
 } from "#shared/accounting/projection-sql.ts";
-import {
-  andPrefixed,
-  emptyRange,
-  type LedgerRange,
-  occurredAtRange,
-} from "#shared/accounting/range.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
@@ -312,86 +304,6 @@ export const listingDayPricesSubquery = (idExpr: string): string =>
 
 const listingImageSubqueries = (idExpr: string): string =>
   imageFilenameSubqueries("listing", idExpr);
-
-/**
- * A transparent breakdown of a listing's `revenue:<id>` account, deriving BOTH
- * the reported figure and the live ledger balance from the same running totals so
- * the two never appear to disagree without the reconciliation being visible:
- *
- * - `grossSales` — Σ `sale` credits to the account (gross ticket sales).
- * - `externalIncome` — Σ owner-entered listing income received outside checkout.
- * - `manualAdjustments` — signed Σ of `adjustment` legs vs `writeoff`:
- *   `(writeoff → revenue write-ups) − (revenue → writeoff write-downs)`. Positive
- *   is a net write-up, negative a net write-down (decision 14).
- * - `recognisedIncome` = `grossSales + externalIncome + manualAdjustments` — the
- *   refund-agnostic figure shown as the listing's income and used in exports.
- *   Equals the existing {@link listingIncomeSubquery} /
- *   `creditsLessWriteoffDebits` projection.
- * - `refunds` — Σ `refund_sale` debits from the account, as a positive magnitude
- *   that is then subtracted.
- * - `externalCosts` — Σ owner-entered costs paid outside checkout.
- * - `netBalance` = `recognisedIncome − refunds − externalCosts` — the raw signed
- *   account balance a refund or manual cost also reduces (can go negative). Equals
- *   `accountBalance(revenueAccount(id))`.
- *
- * One grouped query of conditional SUMs over only this account's own legs (the
- * source/destination scan stays index-backed), never loading per-transfer rows —
- * a popular listing could have thousands.
- */
-export type ListingRevenueBreakdown = {
-  grossSales: number;
-  externalIncome: number;
-  manualAdjustments: number;
-  recognisedIncome: number;
-  refunds: number;
-  externalCosts: number;
-  netBalance: number;
-};
-
-type RevenueBreakdownRow = {
-  gross_sales: number | bigint;
-  external_income: number | bigint;
-  write_ups: number | bigint;
-  write_downs: number | bigint;
-  refunds: number | bigint;
-  external_costs: number | bigint;
-};
-
-export const listingRevenueBreakdown = async (
-  listingId: number,
-  range: LedgerRange = emptyRange,
-): Promise<ListingRevenueBreakdown> => {
-  // Ledger account ids are stored as TEXT; the builders compare against
-  // `CAST(<idExpr> AS TEXT)`. The id is bound as a STRING (not the number — a
-  // numeric bind would cast to "1.0" and match nothing) once per predicate the
-  // builders emit: six in the column list, two in the own-legs scope. The
-  // optional `range` appends its own `occurred_at` bounds (and their args) so a
-  // date-filtered ledger view reads the same breakdown over just that window.
-  const r = occurredAtRange(range);
-  const args: InValue[] = [...Array(8).fill(String(listingId)), ...r.args];
-  const row = (await queryOne<RevenueBreakdownRow>(
-    `SELECT ${revenueBreakdownColumns("?")}
-       FROM transfers WHERE (${revenueBreakdownScope("?")})${andPrefixed(
-         r.clause,
-       )}`,
-    args,
-  ))!;
-  const grossSales = Number(row.gross_sales);
-  const externalIncome = Number(row.external_income);
-  const manualAdjustments = Number(row.write_ups) - Number(row.write_downs);
-  const refunds = Number(row.refunds);
-  const externalCosts = Number(row.external_costs);
-  const recognisedIncome = grossSales + externalIncome + manualAdjustments;
-  return {
-    externalCosts,
-    externalIncome,
-    grossSales,
-    manualAdjustments,
-    netBalance: recognisedIncome - refunds - externalCosts,
-    recognisedIncome,
-    refunds,
-  };
-};
 
 /** SELECT projecting each listing plus its booked-quantity count. Callers
  * append their own WHERE and {@link LISTING_COUNT_GROUP_BY}. Shared by the

@@ -27,6 +27,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { costAccount, revenueAccount } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
+import { listingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
 import {
   accountBalance,
   allTransfers,
@@ -181,14 +182,12 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     const { id } = await createServicingHold({ listing: { name: "L" } });
     await recordBoilerCost(id, listing.id);
 
-    const {
-      getListingWithCount,
-      invalidateListingsCache,
-      listingRevenueBreakdown,
-    } = await import("#shared/db/listings.ts");
+    const { getListingWithCount, invalidateListingsCache } = await import(
+      "#shared/db/listings.ts"
+    );
     invalidateListingsCache();
     const row = await getListingWithCount(listing.id);
-    const breakdown = await listingRevenueBreakdown(listing.id);
+    const breakdown = await listingMoneyTotals(emptyRange, [listing.id]);
 
     // Recognised income is gross (£200) — the refund drops the net balance to 0
     // but does NOT lower recognised income or the listing's profit.
@@ -569,13 +568,13 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
       servicingId: id,
     });
     const body = await renderAdminPage(`/admin/servicing/${id}`);
-    expect(body).toContain("Recorded outgoings");
+    expect(body).toContain("Recorded costs");
     expect(body).toContain(formatCurrency(9000));
     expect(body).toContain("Boiler part");
     expect(body).toContain(listing.name);
     expect(body).toContain("Money out");
     expect(body).toContain(`href="/admin/ledger?listing=${listing.id}"`);
-    expect(body).toContain("View in ledger");
+    expect(body).toContain("View money history");
     // The edit form targets the cost route with the cost's id.
     expect(body).toContain(`/admin/servicing/${id}/cost/`);
   });
@@ -589,7 +588,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     const body = await response.text();
     expect(body).toContain(listing.name);
     expect(body).not.toContain(`/admin/ledger?listing=${listing.id}`);
-    expect(body).not.toContain("View in ledger");
+    expect(body).not.toContain("View money history");
   });
 
   test("shows a deleted cost listing as plain text without a dead ledger link", async () => {
@@ -601,7 +600,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
 
     expect(body).toContain("Deleted listing");
     expect(body).not.toContain(`/admin/ledger?listing=${listing.id}`);
-    expect(body).not.toContain("View in ledger");
+    expect(body).not.toContain("View money history");
   });
 
   test("getServicingCosts returns records in (occurred_at, transfer_id) order with each memo on its own row", async () => {

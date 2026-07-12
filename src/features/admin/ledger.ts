@@ -85,7 +85,7 @@ import {
 } from "#shared/currency.ts";
 import { addDays, dateRange, formatDateLabel } from "#shared/dates.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getAllGroupNames, getListingsByGroupId } from "#shared/db/groups.ts";
+import { getAllGroupNames, getGroupListingIds } from "#shared/db/groups.ts";
 import { getAllListings, getListingNamesByIds } from "#shared/db/listings.ts";
 import { getAllModifiers } from "#shared/db/modifiers.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -264,13 +264,17 @@ const moneyRow = (key: string, amount: number, signed = false): DetailRow => ({
 
 const listingMoneyRows = (money: ListingMoneyTotals): DetailRow[] => [
   moneyRow("admin.ledger.stats.gross_sales", money.grossSales, true),
-  moneyRow("admin.ledger.stats.recognised_income", money.income, true),
+  moneyRow(
+    "admin.ledger.stats.recognised_income",
+    money.recognisedIncome,
+    true,
+  ),
   moneyRow("admin.ledger.stats.servicing_costs", -money.servicingCosts, true),
   moneyRow("admin.ledger.stats.refunded", -money.refunds, true),
   moneyRow("admin.ledger.stats.external_costs", -money.externalCosts, true),
   moneyRow(
     "admin.ledger.stats.net_after_costs",
-    money.income - money.refunds - money.externalCosts - money.servicingCosts,
+    money.netBalance - money.servicingCosts,
   ),
 ];
 
@@ -282,7 +286,7 @@ const buildStats = async (
   listingId: number | null,
   groupId: number | null,
   listings: ListingWithCount[],
-  groupListings: ListingWithCount[],
+  groupListingIds: number[],
   groupNames: Map<number, string>,
 ): Promise<{ rows: DetailRow[]; heading: string | null }> => {
   if (listingId !== null) {
@@ -296,10 +300,7 @@ const buildStats = async (
     };
   }
   if (groupId !== null) {
-    const money = await listingMoneyTotals(
-      range,
-      groupListings.map((listing) => listing.id),
-    );
+    const money = await listingMoneyTotals(range, groupListingIds);
     // The caller only scopes to a group it found in this same cached map, so the
     // lookup always resolves.
     return {
@@ -355,13 +356,13 @@ export const handleLedgerGet: TypedRouteHandler<"GET /admin/ledger"> = (
       groupNames.has(requestedGroup)
         ? requestedGroup
         : null;
-    const groupListings =
-      groupId === null ? [] : await getListingsByGroupId(groupId);
+    const groupListingIds =
+      groupId === null ? [] : await getGroupListingIds(groupId);
     const listingIds =
       listingId === null
         ? groupId === null
           ? null
-          : groupListings.map((listing) => listing.id)
+          : groupListingIds
         : [listingId];
 
     const fetched = await visibleTransfers(
@@ -381,7 +382,7 @@ export const handleLedgerGet: TypedRouteHandler<"GET /admin/ledger"> = (
         listingId,
         groupId,
         listings,
-        groupListings,
+        groupListingIds,
         groupNames,
       ),
       buildPickerDates(tz, today),

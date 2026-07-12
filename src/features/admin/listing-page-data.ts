@@ -12,6 +12,8 @@
 
 import { unique } from "#fp";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
+import { listingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
+import { emptyRange } from "#shared/accounting/range.ts";
 import { resolveRecipientEmails } from "#shared/bulk-email.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatDateLabel } from "#shared/dates.ts";
@@ -32,7 +34,6 @@ import {
   getAttendeesByListingIds,
   getListingAggregateRecalculation,
   getListingWithCount,
-  listingRevenueBreakdown,
 } from "#shared/db/listings.ts";
 import { getAttendeeIdsWithPaymentReference } from "#shared/db/payment-references.ts";
 import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
@@ -217,7 +218,7 @@ export const loadListingOverviewPanel = async (
   ] = await Promise.all([
     getListingOverviewStats(listing),
     getListingAggregateRecalculation(listing),
-    listingRevenueBreakdown(listing.id),
+    listingMoneyTotals(emptyRange, [listing.id]),
     // The Overview tab shows whole-listing totals (no date picker), so the
     // group cap is the all-dates figure.
     loadGroupContext(listing, null),

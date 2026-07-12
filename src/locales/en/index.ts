@@ -40,6 +40,7 @@ import payment from "./payment.json" with { type: "json" };
 import privacy from "./privacy.json" with { type: "json" };
 import publicMessages from "./public.json" with { type: "json" };
 import questions from "./questions.json" with { type: "json" };
+import servicing from "./servicing.json" with { type: "json" };
 import settings from "./settings.json" with { type: "json" };
 import setup from "./setup.json" with { type: "json" };
 import site from "./site.json" with { type: "json" };
@@ -92,6 +93,7 @@ const en: Record<string, string> = {
   ...publicMessages,
   ...questions,
   ...settings,
+  ...servicing,
   ...setup,
   ...site,
   ...sitePages,

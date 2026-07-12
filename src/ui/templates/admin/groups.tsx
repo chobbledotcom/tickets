@@ -510,8 +510,7 @@ export const GroupOverviewPanel = ({
   const { script: embedScriptCode, iframe: embedIframeCode } =
     buildEmbedSnippets(ticketUrl);
   const totalCount = totalAttendeeCount(listings);
-  const net =
-    money.income - money.servicingCosts - money.refunds - money.externalCosts;
+  const net = money.netBalance - money.servicingCosts;
   const showMoney = hasPaidListing || money.transferCount > 0;
   const sharedRows = buildSharedDetailRows({
     attendeeCount: totalCount,
@@ -520,7 +519,7 @@ export const GroupOverviewPanel = ({
     maxCapacity: 0,
     // Revenue comes from the ledger, not the loaded attendees: bookings since
     // deleted and package override revenue still count.
-    revenue: money.income,
+    revenue: money.recognisedIncome,
     ...(questionData !== undefined ? { questionData } : {}),
     skipAttendees: true,
   });
@@ -563,7 +562,7 @@ export const GroupOverviewPanel = ({
             note={t("groups.money.note")}
             rows={[
               {
-                amount: money.income,
+                amount: money.recognisedIncome,
                 label: t("groups.money.income"),
               },
               {

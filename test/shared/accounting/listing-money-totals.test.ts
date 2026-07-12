@@ -24,8 +24,11 @@ describe("listingMoneyTotals", () => {
   test("returns zero totals for no listing ids", async () => {
     expect(await listingMoneyTotals(june, [])).toEqual({
       externalCosts: 0,
+      externalIncome: 0,
       grossSales: 0,
-      income: 0,
+      manualAdjustments: 0,
+      netBalance: 0,
+      recognisedIncome: 0,
       refunds: 0,
       servicingCosts: 0,
       transferCount: 0,
@@ -98,6 +101,22 @@ describe("listingMoneyTotals", () => {
         source: world,
       }),
       tx({
+        amount: 60,
+        destination: account("revenue", 2),
+        kind: KIND.adjustment,
+        occurredAt: "2026-06-10T01:00:00.000Z",
+        reference: "selected-revenue-transfer",
+        source: account("revenue", 1),
+      }),
+      tx({
+        amount: 70,
+        destination: account("cost", 2),
+        kind: KIND.serviceCost,
+        occurredAt: "2026-06-10T02:00:00.000Z",
+        reference: "selected-cost-transfer",
+        source: account("cost", 1),
+      }),
+      tx({
         amount: 5000,
         destination: account("revenue", 1),
         kind: KIND.sale,
@@ -114,13 +133,18 @@ describe("listingMoneyTotals", () => {
       }),
     ]);
 
+    // Transfers between two selected accounts cancel from their combined
+    // balance/cost, but each is still one matching transfer.
     expect(await listingMoneyTotals(june, [1, 2])).toEqual({
       externalCosts: 150,
+      externalIncome: 300,
       grossSales: 1000,
-      income: 1400,
+      manualAdjustments: 100,
+      netBalance: 1000,
+      recognisedIncome: 1400,
       refunds: 250,
       servicingCosts: 350,
-      transferCount: 8,
+      transferCount: 10,
     });
   });
 });
