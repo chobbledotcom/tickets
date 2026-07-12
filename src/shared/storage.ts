@@ -6,8 +6,7 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
-import * as BunnyStorageSDK from "@bunny.net/storage-sdk";
-import { lazyRef, sort } from "#fp";
+import { lazyRef, once, sort } from "#fp";
 import { decryptBytes, encryptBytes } from "#shared/crypto/encryption.ts";
 import { getEnv } from "#shared/env.ts";
 import type { ImageTargetTranscoder } from "#shared/images/transcode.ts";
@@ -335,19 +334,31 @@ const localRemove = async (filename: string): Promise<void> => {
 // Bunny CDN backend
 // ---------------------------------------------------------------------------
 
-/** Connect to the Bunny storage zone */
-const connectZone = (): BunnyStorageSDK.zone.StorageZone => {
+/**
+ * Lazily load the Bunny storage SDK. It is a heavy dependency (it drags in zod)
+ * that only the Bunny backend's upload/download/delete calls actually use, so it
+ * is kept off the cold-boot path — the page layout imports this module purely for
+ * getImageProxyUrl. The SDK loads on the first Bunny operation, the same way the
+ * Stripe and Sentry SDKs and the image codecs are dynamically imported.
+ */
+const loadStorageSdk = once(() => import("@bunny.net/storage-sdk"));
+
+/** Connect to the Bunny storage zone, loading the SDK on first use. Returns both
+ * the connected zone and the loaded SDK so callers can reach `sdk.file.*`. */
+const connectZone = async () => {
   const config = getStorageConfig();
   if (!config.zoneName || !config.zoneKey) {
     throw new Error(
       "Storage is not configured. Set STORAGE_ZONE_NAME and STORAGE_ZONE_KEY for Bunny CDN, or LOCAL_STORAGE_PATH for local storage.",
     );
   }
-  return BunnyStorageSDK.zone.connect_with_accesskey(
-    BunnyStorageSDK.regions.StorageRegion.Falkenstein,
+  const sdk = await loadStorageSdk();
+  const sz = sdk.zone.connect_with_accesskey(
+    sdk.regions.StorageRegion.Falkenstein,
     config.zoneName,
     config.zoneKey,
   );
+  return { sdk, sz };
 };
 
 /** Upload raw bytes to storage, routing to local or Bunny based on config */
@@ -359,14 +370,14 @@ export const uploadRaw = async (
     await localWrite(data, filename);
     return filename;
   }
-  const sz = connectZone();
+  const { sdk, sz } = await connectZone();
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       controller.enqueue(data);
       controller.close();
     },
   });
-  await BunnyStorageSDK.file.upload(sz, `/${filename}`, stream as never, {
+  await sdk.file.upload(sz, `/${filename}`, stream as never, {
     contentType: "application/octet-stream",
   });
   return filename;
@@ -436,8 +447,8 @@ export const downloadRaw = async (
     return localRead(filename);
   }
   try {
-    const sz = connectZone();
-    const { stream } = await BunnyStorageSDK.file.download(sz, `/${filename}`);
+    const { sdk, sz } = await connectZone();
+    const { stream } = await sdk.file.download(sz, `/${filename}`);
     return collectStream(stream as ReadableStream<Uint8Array>);
   } catch (err) {
     if (isFileNotFound(err as Error)) return null;
@@ -467,8 +478,8 @@ export const deleteFile = async (filename: string): Promise<void> => {
     await localRemove(filename);
     return;
   }
-  const sz = connectZone();
-  await BunnyStorageSDK.file.remove(sz, `/${filename}`);
+  const { sdk, sz } = await connectZone();
+  await sdk.file.remove(sz, `/${filename}`);
 };
 
 // ---------------------------------------------------------------------------

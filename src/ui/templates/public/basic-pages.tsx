@@ -4,7 +4,7 @@ import { CsrfForm, Flash, MessageFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import {
-  FEED_DISCOVERY_TAGS,
+  feedDiscoveryTags,
   MarkdownProse,
   type PublicNavProps,
   publicPage,
@@ -91,8 +91,8 @@ export const contactPage = (options: {
     : contactTitle;
   const loadWidget = formActive && botpoisonPublicKey !== "";
   const headExtra = loadWidget
-    ? `${FEED_DISCOVERY_TAGS}\n<script defer src="${CONTACT_JS_PATH}"></script>`
-    : FEED_DISCOVERY_TAGS;
+    ? `${feedDiscoveryTags()}\n<script defer src="${CONTACT_JS_PATH}"></script>`
+    : feedDiscoveryTags();
 
   return publicPage(
     pageTitle,

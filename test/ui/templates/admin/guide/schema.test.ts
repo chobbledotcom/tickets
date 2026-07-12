@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unique } from "#fp";
+// guide.json is loaded lazily at runtime (see src/locales/en/guide.ts), so it
+// is not in the eager `en` merge; merge it back for these schema checks.
+import guide from "#locales/en/guide.json" with { type: "json" };
 import en from "#locales/en/index.ts";
 import type { GuideSection } from "#templates/admin/guide/components.tsx";
 import { guideSections } from "#templates/admin/guide.tsx";
@@ -22,7 +25,7 @@ import { guideSections } from "#templates/admin/guide.tsx";
  * `builderEnabled` is set so the conditionally-included Built Sites section is
  * covered too.
  */
-const messages = en as Record<string, string>;
+const messages = { ...en, ...(guide as Record<string, string>) };
 
 const allSections = (): GuideSection[] =>
   guideSections({

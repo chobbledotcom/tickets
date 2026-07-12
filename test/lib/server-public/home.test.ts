@@ -3,10 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
-import {
-  ICS_DISCOVERY_TAG,
-  RSS_DISCOVERY_TAG,
-} from "#templates/public/shared.tsx";
+import { icsDiscoveryTag, rssDiscoveryTag } from "#templates/public/shared.tsx";
 import { assertPublicHtml, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -96,7 +93,7 @@ describeWithEnv("server public > home", { db: true, triggers: true }, () => {
 
     test("includes RSS and ICS feed discovery tags", async () => {
       await settings.update.showPublicSite(true);
-      await assertPublicHtml("/", RSS_DISCOVERY_TAG, ICS_DISCOVERY_TAG);
+      await assertPublicHtml("/", rssDiscoveryTag(), icsDiscoveryTag());
     });
   });
 });

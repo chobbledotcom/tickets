@@ -2,7 +2,7 @@
  * Date computation for daily listings
  */
 
-import { filter } from "#fp";
+import { filter, once } from "#fp";
 import { settings } from "#shared/db/settings.ts";
 import {
   formatDatetimeInTz,
@@ -497,7 +497,17 @@ export const daysAgo = (utcIso: string): number | null => {
   return Math.round((todayMs - listingMs) / (1000 * 60 * 60 * 24));
 };
 
-const RELATIVE_TIME = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+/**
+ * Built on first use, not at module load. Constructing the first Intl formatter
+ * in an isolate loads ~12ms of ICU data; this is the only Intl construction that
+ * would otherwise run at module scope on the edge, and it feeds a single
+ * owner-only page (the Support page's "you last submitted … ago"). Deferring it
+ * keeps that ICU init off the cold-boot path, so requests that format nothing
+ * (webhooks, redirects, health checks) never pay it.
+ */
+const relativeTime = once(
+  () => new Intl.RelativeTimeFormat("en", { numeric: "auto" }),
+);
 
 /**
  * Human "time ago" label for a past ISO timestamp, relative to `nowMsValue`
@@ -516,10 +526,10 @@ export const formatTimeAgo = (
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
-  if (days >= 1) return RELATIVE_TIME.format(-days, "day");
-  if (hours >= 1) return RELATIVE_TIME.format(-hours, "hour");
-  if (minutes >= 1) return RELATIVE_TIME.format(-minutes, "minute");
-  return RELATIVE_TIME.format(-seconds, "second");
+  if (days >= 1) return relativeTime().format(-days, "day");
+  if (hours >= 1) return relativeTime().format(-hours, "hour");
+  if (minutes >= 1) return relativeTime().format(-minutes, "minute");
+  return relativeTime().format(-seconds, "second");
 };
 
 /**
