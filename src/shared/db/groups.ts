@@ -35,7 +35,7 @@ import {
   getListingsWithCountsByIds,
   queryListingsWithCounts,
 } from "#shared/db/listings/records.ts";
-import { allNamesById, queryAndMap } from "#shared/db/query.ts";
+import { nameSource, queryAndMap } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
 import {
@@ -139,9 +139,9 @@ export const getGroupsById = async (): Promise<Map<number, Group>> =>
 /** Narrow id → name map for every group (selects + decrypts only the name), for
  * pickers/labels that must not load the whole groups cache. */
 export const getAllGroupNames = (): Promise<Map<number, string>> =>
-  allNamesById("groups", "groupRecord", "name", (raw: EnvKeyEncrypted) =>
+  nameSource("groups", "groupRecord", "name", (raw: EnvKeyEncrypted) =>
     decrypt(raw),
-  );
+  ).all();
 
 /**
  * Get a single group by slug_index (from cache)

@@ -2,10 +2,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, insert, queryOne } from "#shared/db/client.ts";
 import {
-  allNamesById,
   columnMapByIds,
   mapByIds,
-  nameMapByIds,
+  nameSource,
   rowsByIds,
   swapSortOrder,
 } from "#shared/db/query.ts";
@@ -175,19 +174,21 @@ describeWithEnv("db > query > id-keyed lookups", { db: true }, () => {
   });
 });
 
+/** A name source bound to the plaintext-name test table. */
+const statusNames = nameSource(
+  "attendee_statuses",
+  "status",
+  "name",
+  plaintextName,
+);
+
 describeWithEnv("db > query > name maps", { db: true }, () => {
-  test("nameMapByIds decrypts only the requested rows' names", async () => {
+  test("byIds decrypts only the requested rows' names", async () => {
     const alpha = await insertStatus("Alpha", 1);
     const beta = await insertStatus("Beta", 2);
     await insertStatus("Gamma", 3); // not requested
 
-    const map = await nameMapByIds(
-      "attendee_statuses",
-      "status",
-      "name",
-      [alpha, beta],
-      plaintextName,
-    );
+    const map = await statusNames.byIds([alpha, beta]);
 
     expect(map).toEqual(
       new Map([
@@ -197,28 +198,15 @@ describeWithEnv("db > query > name maps", { db: true }, () => {
     );
   });
 
-  test("nameMapByIds returns an empty map for empty ids", async () => {
-    expect(
-      await nameMapByIds(
-        "attendee_statuses",
-        "status",
-        "name",
-        [],
-        plaintextName,
-      ),
-    ).toEqual(new Map());
+  test("byIds returns an empty map for empty ids", async () => {
+    expect(await statusNames.byIds([])).toEqual(new Map());
   });
 
-  test("allNamesById maps every row, ordered by ascending id", async () => {
+  test("all maps every row, ordered by ascending id", async () => {
     const zeta = await insertStatus("Zeta", 5);
     const alpha = await insertStatus("Alpha", 4);
 
-    const map = await allNamesById(
-      "attendee_statuses",
-      "status",
-      "name",
-      plaintextName,
-    );
+    const map = await statusNames.all();
 
     expect(map.get(zeta)).toBe("Zeta");
     expect(map.get(alpha)).toBe("Alpha");

@@ -25,7 +25,7 @@ import {
   rowExists,
   rowExistsForIdList,
 } from "#shared/db/client.ts";
-import { columnMapByIds, nameMapByIds } from "#shared/db/query.ts";
+import { columnMapByIds, nameSource } from "#shared/db/query.ts";
 import type { Attendee } from "#shared/types.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 
@@ -400,14 +400,13 @@ export const getAttendeeNamesByIds = (
   ids: number[],
   privateKey: CryptoKey,
 ): Promise<Map<number, string>> =>
-  nameMapByIds(
+  nameSource(
     "attendees",
     "attendee",
     "pii_blob",
-    ids,
     async (raw: OwnerKeyEncrypted) =>
       (await decryptPiiBlob(raw, privateKey, false)).name,
-  );
+  ).byIds(ids);
 
 /** Bounded id → kind lookup for attendee-linked admin surfaces. Empty ids ⇒
  * empty map. Unknown/deleted ids are omitted. */
