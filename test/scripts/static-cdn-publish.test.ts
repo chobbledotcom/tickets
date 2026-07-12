@@ -28,12 +28,11 @@ const styleOrWasm =
 describe("publishStaticCdnAssets", () => {
   test("uploads one immutable release and returns its public URLs", async () => {
     const requests: Request[] = [];
+    const assetForUrl = styleOrWasm(STYLE_ASSET);
     const fetcher: typeof fetch = (input, init) => {
       const request = new Request(input, init);
       requests.push(request);
-      const asset = request.url.endsWith(STYLE_ASSET.filename)
-        ? STYLE_ASSET
-        : WASM_ASSET;
+      const asset = assetForUrl(request.url);
       return Promise.resolve(
         request.method === "GET"
           ? assetResponse(asset)
