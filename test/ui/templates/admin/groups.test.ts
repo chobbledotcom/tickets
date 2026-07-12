@@ -31,6 +31,14 @@ const overviewHtml = (
       attendees: [],
       hasPaidListing: false,
       listings: [],
+      money: {
+        externalCosts: 0,
+        grossSales: 0,
+        income: 0,
+        refunds: 0,
+        servicingCosts: 0,
+        transferCount: 0,
+      },
       shareable: true,
       ungroupedListings: [],
       ...overrides,
@@ -101,7 +109,7 @@ describe("GroupOverviewPanel", () => {
     expect(html).toContain("Review group listings");
   });
 
-  test("shows Total Revenue row for an override-priced package whose listings are free", () => {
+  test("shows income for an override-priced package whose listings are free", () => {
     // An override-priced package charges via package_price even when its member
     // listings are free, so the loader passes hasPaidListing=true despite the
     // listings reading as unpaid. The revenue row must still render.
@@ -116,7 +124,7 @@ describe("GroupOverviewPanel", () => {
       hasPaidListing: true,
       listings,
     });
-    expect(withRevenue).toContain("Total Revenue");
+    expect(withRevenue).toContain("Total income earned");
 
     // Without a paid listing the revenue row is omitted entirely.
     const withoutRevenue = overviewHtml({
@@ -125,7 +133,95 @@ describe("GroupOverviewPanel", () => {
       hasPaidListing: false,
       listings,
     });
-    expect(withoutRevenue).not.toContain("Total Revenue");
+    expect(withoutRevenue).not.toContain("Total income earned");
+  });
+
+  test("summarises group income and servicing costs with a filtered ledger link", () => {
+    const group = testGroup({ id: 8, name: "Summer Festival" });
+    const html = overviewHtml({
+      group,
+      hasPaidListing: true,
+      ledgerHref: "/admin/ledger?group=8",
+      listings: [
+        testListingWithCount({ cost: 3000, income: 12000, profit: 9000 }),
+        testListingWithCount({ cost: 1000, income: 8000, profit: 7000 }),
+      ],
+      money: {
+        externalCosts: 0,
+        grossSales: 20000,
+        income: 20000,
+        refunds: 0,
+        servicingCosts: 4000,
+        transferCount: 3,
+      },
+    });
+    expect(html).toContain("Money in and out");
+    expect(html).toContain("Total income earned");
+    expect(html).toContain("+£200");
+    expect(html).toContain("Servicing costs");
+    expect(html).toContain("−£40");
+    expect(html).toContain("Net after refunds and costs");
+    expect(html).toContain("£160");
+    expect(html).toContain('href="/admin/ledger?group=8"');
+  });
+
+  test("does not offer a forbidden ledger link without owner access", () => {
+    const html = overviewHtml({
+      group: testGroup({ id: 8 }),
+      hasPaidListing: true,
+      listings: [testListingWithCount({ income: 12000 })],
+      money: {
+        externalCosts: 0,
+        grossSales: 12000,
+        income: 12000,
+        refunds: 0,
+        servicingCosts: 0,
+        transferCount: 1,
+      },
+    });
+    expect(html).toContain("Total income earned");
+    expect(html).not.toContain("/admin/ledger?group=8");
+  });
+
+  test("shows money and its ledger link for a free group with only costs", () => {
+    const html = overviewHtml({
+      group: testGroup({ id: 8 }),
+      hasPaidListing: false,
+      ledgerHref: "/admin/ledger?group=8",
+      listings: [testListingWithCount({ cost: 3000, profit: -3000 })],
+      money: {
+        externalCosts: 0,
+        grossSales: 0,
+        income: 0,
+        refunds: 0,
+        servicingCosts: 3000,
+        transferCount: 1,
+      },
+    });
+    expect(html).toContain("Money in and out");
+    expect(html).toContain("Servicing costs");
+    expect(html).toContain("−£30");
+    expect(html).toContain('href="/admin/ledger?group=8"');
+  });
+
+  test("shows money and its ledger link for a free group with only outside costs", () => {
+    const html = overviewHtml({
+      group: testGroup({ id: 8 }),
+      hasPaidListing: false,
+      ledgerHref: "/admin/ledger?group=8",
+      money: {
+        externalCosts: 3000,
+        grossSales: 0,
+        income: 0,
+        refunds: 0,
+        servicingCosts: 0,
+        transferCount: 1,
+      },
+    });
+    expect(html).toContain("Money in and out");
+    expect(html).toContain("Costs paid outside checkout");
+    expect(html).toContain("−£30");
+    expect(html).toContain('href="/admin/ledger?group=8"');
   });
 
   test("suppresses the public URL / QR / embed when the group isn't shareable", () => {

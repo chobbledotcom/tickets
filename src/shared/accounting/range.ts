@@ -31,15 +31,16 @@ export const emptyRange: LedgerRange = { endMs: null, startMs: null };
  */
 export const occurredAtRange = (
   range: LedgerRange,
+  column = "occurred_at",
 ): { clause: string; args: InValue[] } => {
   const parts: string[] = [];
   const args: InValue[] = [];
   if (range.startMs !== null) {
-    parts.push("occurred_at >= ?");
+    parts.push(`${column} >= ?`);
     args.push(range.startMs);
   }
   if (range.endMs !== null) {
-    parts.push("occurred_at < ?");
+    parts.push(`${column} < ?`);
     args.push(range.endMs);
   }
   return { args, clause: parts.join(" AND ") };

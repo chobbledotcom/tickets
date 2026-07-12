@@ -601,6 +601,10 @@ export type AdminSession = {
   readonly settingsNagItems?: readonly NagItem[];
 };
 
+/** True when a session has the owner-only permissions. */
+export const isOwner = (session: Pick<AdminSession, "adminLevel">): boolean =>
+  session.adminLevel === "owner";
+
 export interface User {
   admin_level: EnvKeyEncrypted; // encrypted "owner", "manager", "agent" or "editor"
   id: number;

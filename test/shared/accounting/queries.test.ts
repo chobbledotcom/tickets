@@ -447,13 +447,39 @@ describe("db > accounting > queries", () => {
 
     test("visibleTransfers scoped to a listing keeps only that revenue account's legs", async () => {
       await seedLedger();
-      const rows = await visibleTransfers(emptyRange, 1, 100);
+      const rows = await visibleTransfers(emptyRange, [1], 100);
       // revenue:1 is touched by the sale (credit) and the write-up (credit); the
       // fee leg (attendee→fee_income) is excluded.
       expect(rows.map((r) => r.kind).toSorted()).toEqual([
         "adjustment",
         "sale",
       ]);
+    });
+
+    test("visibleTransfers uses one path for several listing accounts", async () => {
+      await postTransfers([
+        tx({
+          destination: account("revenue", 1),
+          reference: "listing-1",
+          source: account("attendee", 1),
+        }),
+        tx({
+          destination: account("revenue", 2),
+          reference: "listing-2",
+          source: account("attendee", 2),
+        }),
+        tx({
+          destination: account("revenue", 3),
+          reference: "listing-3",
+          source: account("attendee", 3),
+        }),
+      ]);
+      const rows = await visibleTransfers(emptyRange, [1, 2], 100);
+      expect(rows.map((row) => row.reference).toSorted()).toEqual([
+        "listing-1",
+        "listing-2",
+      ]);
+      expect(await visibleTransfers(emptyRange, [], 100)).toEqual([]);
     });
 
     test("visibleTransfers caps to the limit", async () => {

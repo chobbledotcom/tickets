@@ -27,7 +27,12 @@ import {
 import { type AuthSession, requireContentOr } from "#routes/auth.ts";
 import { targetQuery } from "#shared/bulk-email-targets.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
-import { isContentRole, isPaidListing, isStaffRole } from "#shared/types.ts";
+import {
+  isContentRole,
+  isOwner,
+  isPaidListing,
+  isStaffRole,
+} from "#shared/types.ts";
 import { ListingDeactivatedBanner } from "#templates/admin/listings/overview.tsx";
 import {
   type LoadedListing,
@@ -128,7 +133,11 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
 const overviewTab: TabDef<LoadedListing> = {
   labelKey: "entity.tab.overview",
   sections: [
-    { kind: "custom", load: (entity) => loadListingOverviewPanel(entity) },
+    {
+      kind: "custom",
+      load: (entity, ctx) =>
+        loadListingOverviewPanel(entity, isOwner(ctx.session)),
+    },
     {
       kind: "activity",
       load: (entity) => loadListingActivityPreview(entity),
