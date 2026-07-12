@@ -18,6 +18,10 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { lazyRef, map, pipe, reduce, sort } from "#fp";
 import { withLazyLogger } from "#shared/lazy-logger.ts";
 import { shouldSuppressDebugLogs } from "#shared/log-settings.ts";
+import {
+  liveScopeStore,
+  runWithScopeLifetime,
+} from "#shared/request-scoped.ts";
 
 /** A single logged query */
 export type QueryLogEntry = {
@@ -59,11 +63,14 @@ const freshState = (): QueryLogState => ({
 const asyncLocalStorage = new AsyncLocalStorage<QueryLogState>();
 const fallbackState: QueryLogState = freshState();
 
+// liveScopeStore (not a raw getStore) so a request context the runtime leaked
+// past its own end reads as "outside a request" — its counters and entries
+// must not absorb later, unrelated work.
 const getState = (): QueryLogState =>
-  asyncLocalStorage.getStore() ?? fallbackState;
+  liveScopeStore(asyncLocalStorage) ?? fallbackState;
 
-export const runWithQueryLogContext = <T>(fn: () => T): T =>
-  asyncLocalStorage.run(freshState(), fn);
+export const runWithQueryLogContext = <T>(fn: () => Promise<T>): Promise<T> =>
+  runWithScopeLifetime(asyncLocalStorage, freshState(), fn);
 
 /** Enable query logging and clear previous entries */
 export const enableQueryLog = (): void => {
@@ -253,7 +260,7 @@ export const enforceTransactionRoundTripGuard = (
   count: number,
   sql: string,
 ): void => {
-  if (!asyncLocalStorage.getStore()) return;
+  if (!liveScopeStore(asyncLocalStorage)) return;
   if (count !== TRANSACTION_ROUNDTRIP_THRESHOLD + 1) return;
   reportGuardViolation(
     `Interactive transaction too chatty: ${count} statements ` +
@@ -271,7 +278,7 @@ export const trackQuery = async <T>(
   sql: string,
   fn: () => Promise<T>,
 ): Promise<T> => {
-  const store = asyncLocalStorage.getStore();
+  const store = liveScopeStore(asyncLocalStorage);
   if (store) enforceN1Guard(store, sql);
   const state = store ?? fallbackState;
   const start = performance.now();

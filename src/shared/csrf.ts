@@ -26,7 +26,8 @@ const tokenScope = createRequestScoped<{ value: string }>(() => ({
 }));
 
 /** Run a function within a CSRF-token scope (one container per request) */
-export const runWithCsrfContext = <T>(fn: () => T): T => tokenScope.run(fn);
+export const runWithCsrfContext = <T>(fn: () => Promise<T>): Promise<T> =>
+  tokenScope.run(fn);
 
 /** Default message for invalid/expired CSRF form submissions (request-scoped). */
 export const csrfInvalidFormMessage = (): string => t("error.csrf_invalid");

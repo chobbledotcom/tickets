@@ -286,6 +286,32 @@ describe("requestCache", () => {
     expect(calls).toBe(2); // no caching
   });
 
+  test("reads that inherit a finished request's context fetch fresh", async () => {
+    // A continuation registered inside a request keeps the request's async
+    // context when it runs later — the runtime can hand that context to work
+    // that starts long after the request finished (observed after a forced GC
+    // at a test boundary). Such reads must behave as "outside a request":
+    // fetch fresh, never serve the dead request's memoised data.
+    const { cache, getCalls } = makeCountingCache();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let afterRequest!: Promise<number>;
+    await runWithRequestCache(async () => {
+      await cache.getAll(); // memoised for this request (1 fetch)
+      afterRequest = (async () => {
+        await gate;
+        await cache.getAll();
+        await cache.getAll();
+        return getCalls();
+      })();
+    });
+    release();
+    // Two uncached fetches after the request ended: 1 (in-request) + 2.
+    expect(await afterRequest).toBe(3);
+  });
+
   test("concurrent reads within request share one fetch", async () => {
     const { cache, getCalls } = makeCountingCache();
 

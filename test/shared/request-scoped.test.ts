@@ -11,10 +11,10 @@ describe("createRequestScoped", () => {
     expect(scoped.current().value).toBe(7);
   });
 
-  test("run() binds a fresh container isolated from the ambient one", () => {
+  test("run() binds a fresh container isolated from the ambient one", async () => {
     const scoped = createRequestScoped<{ value: number }>(() => ({ value: 0 }));
     scoped.current().value = 1; // ambient
-    const seenInside = scoped.run(() => {
+    const seenInside = await scoped.run(async () => {
       scoped.current().value = 2; // scoped container, not the ambient one
       return scoped.current().value;
     });
@@ -22,13 +22,13 @@ describe("createRequestScoped", () => {
     expect(scoped.current().value).toBe(1); // ambient untouched by the scope
   });
 
-  test("each run() gets its own container (no reuse between scopes)", () => {
+  test("each run() gets its own container (no reuse between scopes)", async () => {
     const scoped = createRequestScoped<{ value: number }>(() => ({ value: 0 }));
-    const first = scoped.run(() => {
+    const first = await scoped.run(async () => {
       scoped.current().value = 42;
       return scoped.current().value;
     });
-    const second = scoped.run(() => scoped.current().value); // fresh container
+    const second = await scoped.run(async () => scoped.current().value); // fresh container
     expect(first).toBe(42);
     expect(second).toBe(0);
   });
@@ -55,5 +55,52 @@ describe("createRequestScoped", () => {
     const [a, b] = await Promise.all([scopeA(), scopeB()]);
     expect(a).toBe("A");
     expect(b).toBe("B");
+  });
+
+  test("a callback that inherits a finished scope's context reads the ambient container", async () => {
+    const scoped = createRequestScoped<{ value: number }>(() => ({ value: 0 }));
+    scoped.current().value = 9; // ambient marker
+
+    // A continuation registered inside the scope keeps the scope's async
+    // context when it runs later — the runtime can hand such a context to
+    // work that starts long after the request finished. Gate the callback so
+    // it provably runs after run() has settled.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let afterScope!: Promise<number>;
+    await scoped.run(async () => {
+      scoped.current().value = 1;
+      afterScope = (async () => {
+        await gate;
+        return scoped.current().value;
+      })();
+    });
+    release();
+    // The scope has ended, so its container is dead: the leaked context must
+    // read as "outside a scope" (the ambient container), not the dead one.
+    expect(await afterScope).toBe(9);
+  });
+
+  test("a scope that ends by throwing is also dead to leaked contexts", async () => {
+    const scoped = createRequestScoped<{ value: number }>(() => ({ value: 0 }));
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let afterScope!: Promise<number>;
+    await expect(
+      scoped.run(async () => {
+        scoped.current().value = 5;
+        afterScope = (async () => {
+          await gate;
+          return scoped.current().value;
+        })();
+        throw new Error("request failed");
+      }),
+    ).rejects.toThrow("request failed");
+    release();
+    expect(await afterScope).toBe(0); // ambient, not the dead container's 5
   });
 });

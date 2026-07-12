@@ -19,10 +19,53 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 
+/**
+ * Stores whose scope has already finished.
+ *
+ * The runtime can re-attach a finished request's async context to later,
+ * unrelated work: on Deno 2.5.6 a forced GC at a test boundary deterministically
+ * left the test runner's whole continuation chain inside a request context that
+ * had ended long before, so every later `getStore()` returned a dead request's
+ * state. Post-request reads of request-scoped state are meaningless in this app
+ * (pending work is flushed before the response is sent), so a store seen after
+ * its scope settled is always this runtime leak — reads must treat it exactly
+ * like being outside a scope.
+ */
+const endedStores = new WeakSet<object>();
+
+/**
+ * Run `fn` inside `storage`'s scope with `store`, and mark the store ended once
+ * `fn`'s promise settles. After that, {@link liveScopeStore} reads it as absent,
+ * so a leaked context can never serve a finished request's state.
+ */
+export const runWithScopeLifetime = async <S extends object, T>(
+  storage: AsyncLocalStorage<S>,
+  store: S,
+  fn: () => Promise<T>,
+): Promise<T> => {
+  try {
+    return await storage.run(store, fn);
+  } finally {
+    endedStores.add(store);
+  }
+};
+
+/**
+ * The current context's store while its scope is still running: `undefined`
+ * outside any scope, and `undefined` when the inherited scope already ended
+ * (the runtime context leak described on {@link endedStores}).
+ */
+export const liveScopeStore = <S extends object>(
+  storage: AsyncLocalStorage<S>,
+): S | undefined => {
+  const store = storage.getStore();
+  return store === undefined || endedStores.has(store) ? undefined : store;
+};
+
 /** A request-scoped container plus the helpers its owning module builds on. */
 export type RequestScoped<T extends object> = {
   /** Run `fn` with a fresh per-request container bound to the async scope. */
-  run: <R>(fn: () => R) => R;
+  run: <R>(fn: () => Promise<R>) => Promise<R>;
   /** The active request's container, or the ambient fallback outside a scope. */
   current: () => T;
 };
@@ -35,10 +78,10 @@ export type RequestScoped<T extends object> = {
 export const createRequestScoped = <T extends object>(
   initial: () => T,
 ): RequestScoped<T> => {
-  const store = new AsyncLocalStorage<T>();
+  const storage = new AsyncLocalStorage<T>();
   const fallback = initial();
   return {
-    current: () => store.getStore() ?? fallback,
-    run: (fn) => store.run(initial(), fn),
+    current: () => liveScopeStore(storage) ?? fallback,
+    run: (fn) => runWithScopeLifetime(storage, initial(), fn),
   };
 };
