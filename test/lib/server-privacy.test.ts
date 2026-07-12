@@ -99,8 +99,9 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       await page("add a webhook to a listing", 'href="/admin/guide#webhooks"');
     });
 
-    test("recognises returning customers by a one-way code", async () => {
+    test("recognises by a one-way code that excludes the email and phone", async () => {
       await page("one-way code");
+      await page("not the email or phone itself");
     });
 
     test("says contact details stay in the encrypted booking, not just the code", async () => {
