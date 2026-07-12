@@ -795,9 +795,14 @@ string); the ordering test seeds a same-`occurredAt` pair to exercise the
 plaintext memo is absent; and the `visibleTransfers` filter test adds a second
 listing and asserts the result is scoped to the requested listing.
 
-**Remaining — split the file.** `ledger.test.ts` is ~750 lines (>400 guideline).
-Split into focused modules (account/ledger integration, validation &
-idempotency, cost editing, reader ordering/privacy, route/UI), lifting the shared
-helpers (`recordBoilerCost`, `postCustomerSale`, `listingProfitOf`,
-`expectCostFormError`, `transfersOfKind`) into a nearby `#test-utils` helper.
-This is a pure reorganisation now that the assertions are strengthened.
+**Done — split the file (a follow-up PR).** The 826-line `ledger.test.ts` was
+split into five focused files under `test/shared/db/attendees/servicing/`
+(`ledger-accounts`, `ledger-idempotency`, `ledger-cost-editing`,
+`ledger-validation`, `ledger-reader`), each well under 400 lines. The shared
+fixtures (`recordBoilerCost`, `postCustomerSale`, `listingProfitOf`,
+`expectCostFormError`, `transfersOfKind`, `SERVICE_DATE`) moved to a new
+`#test-utils/servicing-ledger.ts`, and the generic non-empty flash assertions
+(`expectFlashError`/`expectFlashSuccess`) moved to `#test-utils/assertions.ts`
+next to `parseFlashCookie`. A pure reorganisation — no test behaviour changed.
+
+*Nothing remains open in this section.*

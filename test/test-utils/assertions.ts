@@ -352,6 +352,20 @@ export const expectFlash = (
   return response;
 };
 
+/** Assert the redirect carries a real, non-empty flash message of the given
+ *  level. `toBeDefined()` would let `null`/`""` slip through — a flash-less
+ *  redirect must fail this. Curried so the error and success checks share one
+ *  body. */
+export const expectFlashMessage =
+  (level: "error" | "success") =>
+  (response: Response): void => {
+    const message = parseFlashCookie(response)[level];
+    expect(message).toEqual(expect.any(String));
+    expect(message).not.toBe("");
+  };
+export const expectFlashError = expectFlashMessage("error");
+export const expectFlashSuccess = expectFlashMessage("success");
+
 /** Assert a 302 redirect carrying an error flash whose message contains `text`. */
 export const expectErrorFlash = (response: Response, text: string): void => {
   expect(response.status).toBe(302);
