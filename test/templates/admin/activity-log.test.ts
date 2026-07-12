@@ -242,7 +242,13 @@ describe("adminGlobalActivityLogPage reference columns", () => {
       attendees,
       listings: new Map(),
     });
-    return html.slice(html.indexOf("<tbody>"), html.indexOf("</tbody>"));
+    const tbodyStart = html.indexOf("<tbody>");
+    const tbodyEnd = html.indexOf("</tbody>");
+    // Fail loudly if the row didn't render — otherwise an empty slice would let
+    // the "no link" assertions pass without testing anything.
+    expect(tbodyStart).toBeGreaterThanOrEqual(0);
+    expect(tbodyEnd).toBeGreaterThan(tbodyStart);
+    return html.slice(tbodyStart, tbodyEnd);
   };
 
   test("renders no attendee link when only the name is loaded (kind missing)", () => {
