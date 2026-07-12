@@ -11,6 +11,7 @@ import {
   type SqlStatement,
 } from "#shared/db/client.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
+import { decryptTextOrEmpty } from "#shared/db/encrypted-text.ts";
 import { type ColumnDef, col } from "#shared/db/table.ts";
 import { decryptImageFilename } from "#shared/images/broken.ts";
 import type {
@@ -120,7 +121,7 @@ export const getImageFilenamesForItem = async (
   if (!row) return { image_alt_text: "", image_thumb_url: "", image_url: "" };
   const imageRef = `image ${row.id} (first image of ${itemType} ${itemId})`;
   return {
-    image_alt_text: row.alt_text === "" ? "" : await decrypt(row.alt_text),
+    image_alt_text: await decryptTextOrEmpty(row.alt_text),
     image_thumb_url: await decryptImageFilename(
       row.filename_thumb,
       `${imageRef} thumbnail filename`,

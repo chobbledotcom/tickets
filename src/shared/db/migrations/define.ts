@@ -45,10 +45,11 @@ export const schemaMigration =
 
 /**
  * A migration that owns no additive object — it carries `{}` requires and the
- * schema-hash guard covers the change — and just runs `work` in its `up()`. The
- * shared shape of the column-drop family below.
+ * schema-hash guard covers the change — and just runs `work` in its `up()`.
+ * The shared shape of the column-drop family below and of the data-only
+ * migrations that rewrite or delete rows without touching the schema.
  */
-const bareSchemaMigration = (
+export const bareSchemaMigration = (
   id: string,
   description: string,
   work: SchemaMigrationAfter,

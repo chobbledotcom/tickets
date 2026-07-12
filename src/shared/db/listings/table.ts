@@ -9,6 +9,7 @@ import {
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
+import { decryptTextOrEmpty } from "#shared/db/encrypted-text.ts";
 import { col } from "#shared/db/table.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
@@ -116,8 +117,10 @@ const readClosesAt = async (value: string | null): Promise<string | null> => {
 const writeListingDate = (value: string): Promise<EnvKeyEncrypted> =>
   encryptDatetime(value, "date");
 
+// The `as` cast is the sanctioned read boundary for a projected encrypted
+// column — the raw SELECT value re-enters the typed world here.
 const readProjectedAltText = (value: unknown): string | Promise<string> =>
-  value === "" || value === undefined ? "" : decrypt(value as EnvKeyEncrypted);
+  decryptTextOrEmpty(value as EnvKeyEncrypted | "" | undefined);
 
 /** Read one of the projected first-image filename columns. A filename that
  * will not read back becomes the broken-image marker (reported, not thrown)
