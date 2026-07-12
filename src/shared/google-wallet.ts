@@ -24,6 +24,13 @@ export type GoogleWalletCredentials = {
   serviceAccountKey: string;
 };
 
+/** Builds one part of the wallet pass (a class, object, or JWT payload) from the
+ *  pass data and the issuer's service-account credentials. */
+type WalletPartBuilder = (
+  data: WalletPassData,
+  creds: GoogleWalletCredentials,
+) => Record<string, unknown>;
+
 /** Base64url-encode a Uint8Array (no padding) */
 const base64url = (data: Uint8Array): string =>
   data.toBase64({ alphabet: "base64url", omitPadding: true });
@@ -66,10 +73,7 @@ export const isValidGooglePrivateKey = async (
 };
 
 /** Build the ListingTicketClass for inline JWT creation */
-export const buildListingTicketClass = (
-  data: WalletPassData,
-  creds: GoogleWalletCredentials,
-): Record<string, unknown> => ({
+export const buildListingTicketClass: WalletPartBuilder = (data, creds) => ({
   id: `${creds.issuerId}.${data.serialNumber}-class`,
   issuerName: data.organizationName,
   listingName: {
@@ -107,10 +111,7 @@ export const buildListingTicketClass = (
 });
 
 /** Build the ListingTicketObject for inline JWT creation */
-export const buildListingTicketObject = (
-  data: WalletPassData,
-  creds: GoogleWalletCredentials,
-): Record<string, unknown> => {
+export const buildListingTicketObject: WalletPartBuilder = (data, creds) => {
   const textModules: Record<string, unknown>[] = [];
 
   if (data.attendeeDate) {
@@ -152,10 +153,7 @@ export const buildListingTicketObject = (
 };
 
 /** Build the full JWT payload for a Google Wallet save link */
-export const buildJwtPayload = (
-  data: WalletPassData,
-  creds: GoogleWalletCredentials,
-): Record<string, unknown> => ({
+export const buildJwtPayload: WalletPartBuilder = (data, creds) => ({
   aud: "google",
   iat: Math.floor(startOfHour(new Date()).getTime() / 1000),
   iss: creds.serviceAccountEmail,

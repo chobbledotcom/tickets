@@ -36,6 +36,10 @@ import {
   hmacHashSync,
 } from "#shared/crypto/hashing.ts";
 
+/** The logical checkout metadata a price signature is computed over — every
+ *  field optional, since any may be omitted at signing or "" at verification. */
+type SignedMetadata = Partial<Record<string, string>>;
+
 /** Bump when the signed-payload layout changes, so old digests never validate
  * against new code. */
 const PRICE_SIG_VERSION = "v2";
@@ -59,7 +63,7 @@ const UNSIGNED_KEYS: ReadonlySet<string> = new Set([
  * falsy as absent keeps the two sides symmetric.
  */
 const canonicalPricePayload = (
-  metadata: Partial<Record<string, string>>,
+  metadata: SignedMetadata,
   total: number,
 ): string => {
   const entries = Object.entries(metadata)
@@ -73,7 +77,7 @@ const canonicalPricePayload = (
 
 /** HMAC the canonical payload with the server encryption key. */
 export const signPrice = (
-  metadata: Partial<Record<string, string>>,
+  metadata: SignedMetadata,
   total: number,
 ): Promise<string> =>
   hmacHash(`price-sig:${canonicalPricePayload(metadata, total)}`);
@@ -81,7 +85,7 @@ export const signPrice = (
 /** Synchronous signPrice, for callers (buildItemsMetadata, test factories) that
  * build metadata outside an async context. Produces the identical digest. */
 export const signPriceSync = (
-  metadata: Partial<Record<string, string>>,
+  metadata: SignedMetadata,
   total: number,
 ): string =>
   hmacHashSync(`price-sig:${canonicalPricePayload(metadata, total)}`);
@@ -89,7 +93,7 @@ export const signPriceSync = (
 /** Whether `signature` is a valid server signature for `metadata` at `total`.
  * False for any tampered field, a wrong total, or a malformed/empty signature. */
 export const verifyPrice = async (
-  metadata: Partial<Record<string, string>>,
+  metadata: SignedMetadata,
   total: number,
   signature: string,
 ): Promise<boolean> => {
