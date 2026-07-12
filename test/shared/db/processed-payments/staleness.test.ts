@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   deleteAllStaleReservations,
@@ -27,23 +28,23 @@ const finalizeSession = (
 
 describeWithEnv("processed-payments / staleness", { db: true }, () => {
   const ctx = useProcessedPaymentsAttendee();
+  const now = 2_000_000_000_000;
 
   describe("isReservationStale", () => {
     test("returns false for a recent timestamp", () => {
-      expect(isReservationStale(new Date().toISOString())).toBe(false);
+      using _time = new FakeTime(now);
+      expect(isReservationStale(new Date(now).toISOString())).toBe(false);
     });
 
-    test("returns false for a timestamp just under the threshold", () => {
-      const justUnder = new Date(
-        Date.now() - STALE_RESERVATION_MS + 1000,
-      ).toISOString();
-      expect(isReservationStale(justUnder)).toBe(false);
+    test("returns false at the threshold", () => {
+      using _time = new FakeTime(now);
+      const threshold = new Date(now - STALE_RESERVATION_MS).toISOString();
+      expect(isReservationStale(threshold)).toBe(false);
     });
 
     test("returns true for a timestamp over the threshold", () => {
-      const stale = new Date(
-        Date.now() - STALE_RESERVATION_MS - 1000,
-      ).toISOString();
+      using _time = new FakeTime(now);
+      const stale = new Date(now - STALE_RESERVATION_MS - 1).toISOString();
       expect(isReservationStale(stale)).toBe(true);
     });
   });

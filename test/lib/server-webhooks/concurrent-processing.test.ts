@@ -64,6 +64,9 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
         mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
       );
       expect(response.status).toBe(409);
+      expect(await response.text()).toContain(
+        "Payment is being processed. Please wait a moment and refresh.",
+      );
     } finally {
       mockVerify.restore();
     }

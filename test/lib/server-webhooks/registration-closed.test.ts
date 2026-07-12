@@ -129,8 +129,7 @@ describeWithEnv(
       const { getAttendeesRaw } = await import(
         "#shared/db/attendees/queries.ts"
       );
-      const attendees1 = await getAttendeesRaw(listing1.id);
-      expect(attendees1.length).toBe(0);
+      expect(await getAttendeesRaw(listing1.id)).toEqual([]);
     });
 
     test("multi-ticket webhook passes date to daily listings only", async () => {
