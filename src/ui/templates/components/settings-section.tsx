@@ -12,8 +12,7 @@
  */
 
 import type { Child } from "#jsx/jsx-runtime.ts";
-import { CsrfForm } from "#shared/forms.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { CsrfFormShell } from "#shared/forms.tsx";
 
 /**
  * Derive a settings form's id from its POST target, since each settings
@@ -46,16 +45,16 @@ export const SettingsSection = ({
   title: string;
   children?: Child;
 }): JSX.Element => (
-  <CsrfForm
+  <CsrfFormShell
     action={action}
     {...(enctype !== undefined ? { enctype } : {})}
     id={id ?? formIdFromAction(action)}
+    submitLabel={submitLabel}
   >
     <div class="prose">
       <h2>{title}</h2>
       {description}
     </div>
     {children}
-    <SubmitButton icon="save">{submitLabel}</SubmitButton>
-  </CsrfForm>
+  </CsrfFormShell>
 );

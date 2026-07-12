@@ -19,7 +19,11 @@ import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { createRequestScoped } from "#shared/request-scoped.ts";
 import { ReturnUrlField } from "#shared/return-url-field.tsx";
-import { Icon } from "#templates/components/actions.tsx";
+import {
+  Icon,
+  type IconName,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
 
@@ -659,6 +663,34 @@ export const CsrfForm = ({
     )}
     {children}
   </form>
+);
+
+/**
+ * A CsrfForm plus the save button most admin forms end with. Captures the
+ * shared skeleton — open the CSRF form, render the fields, then a single submit
+ * button — so each form only supplies its `action`, id/class, its fields as
+ * `children`, and the button label. Forms whose submit isn't a plain save
+ * button keep using {@link CsrfForm} directly.
+ */
+export const CsrfFormShell = ({
+  action,
+  children,
+  submitLabel,
+  submitIcon = "save",
+  ...rest
+}: {
+  action: string;
+  children?: Child;
+  submitLabel: string;
+  submitIcon?: IconName;
+  id?: string | undefined;
+  class?: string;
+  enctype?: string;
+}): JSX.Element => (
+  <CsrfForm action={action} {...rest}>
+    {children}
+    <SubmitButton icon={submitIcon}>{submitLabel}</SubmitButton>
+  </CsrfForm>
 );
 
 /**
