@@ -13,10 +13,15 @@
  * shell (diff-code-lines.ts) only has to run `git diff` and print.
  *
  * The classifier is a line-based heuristic, not a parser, so treat the numbers
- * as a close estimate rather than an exact AST count. Its one known blind spot:
- * `git diff --unified=0` shows only the changed lines, so adding or removing a
- * single member inside an existing multi-line import (the `import {` opener
- * stays unchanged and off-diff) reads as a plain identifier and counts as code.
+ * as a close estimate rather than an exact AST count. Its known blind spots:
+ *  - `git diff --unified=0` shows only the changed lines, so adding or removing
+ *    a single member inside an existing multi-line import (the `import {` opener
+ *    stays unchanged and off-diff) reads as a plain identifier and counts as
+ *    code;
+ *  - a multi-line *local* `export { … }` block with no `from` counts as import,
+ *    not code: its opener is identical to a barrel re-export's, and telling them
+ *    apart would need line lookahead this single-pass classifier does not do.
+ *    Both are rare, and this stays a rough estimate rather than a parser.
  */
 
 import { reduce } from "#fp";
@@ -86,16 +91,20 @@ const startsReExport = (line: string): boolean =>
 
 /** True when a changed line is (or opens) an import / re-export statement:
  *  - a static `import` declaration — `import x from …`, `import { … } from …`,
- *    `import * as …`, or a side-effect `import "…"`. The character after
- *    `import` must be a space or quote, so `import.meta` and dynamic `import(…)`
- *    (both executable code) stay classified as code;
+ *    `import * as …`, a side-effect `import "…"`, or `import type …`. The
+ *    `import.meta` property and a dynamic `import(…)` / `import (…)` call are
+ *    executable code, so a `.` or `(` after `import` (any spacing) keeps them as
+ *    code;
  *  - a single-line `export … from "…"` re-export (the quoted module name is the
  *    real module specifier);
  *  - an `export {` / `export type {` that opens a multi-line block, which barrel
  *    files close with `} from "…"` on a later line (that closing line is counted
- *    by the open-run handler, so the opener only needs to start the run). */
+ *    by the open-run handler, so the opener only needs to start the run). A
+ *    multi-line *local* `export { … }` with no `from` is indistinguishable from
+ *    a barrel opener without lookahead, so it also counts as import — see the
+ *    module docstring's known blind spots. */
 const isImportLine = (line: string): boolean =>
-  /^import["'\s]/.test(line) ||
+  (/^import\b/.test(line) && !/^import\s*[.(]/.test(line)) ||
   (startsReExport(line) &&
     (/\bfrom\s+["']/.test(line) || opensBlock(line, "{", "}")));
 

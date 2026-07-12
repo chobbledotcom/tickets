@@ -73,16 +73,16 @@ describe("diff-code-lines classify", () => {
   });
 
   test("treats import.meta and dynamic import() as code, not import", () => {
-    // Static import declarations have a space or quote after `import`; the
-    // `import.meta` property and a dynamic `import(...)` call are executable
-    // code, so both stay classified as code.
+    // A static import declaration has an identifier, `{`, `*` or a quote after
+    // `import`; the `import.meta` property and a dynamic `import(...)` call —
+    // with or without a space before the paren — are executable code, so all
+    // stay classified as code.
     expect(classify("import.meta.url;", freshState())).toBe("code");
     expect(classify('const m = await import("./m.ts");', freshState())).toBe(
       "code",
     );
-    expect(classify('import("./lazy.ts").then(run);', freshState())).toBe(
-      "code",
-    );
+    expect(classify('import("./lazy.ts");', freshState())).toBe("code");
+    expect(classify('import ("./spaced.ts");', freshState())).toBe("code");
   });
 });
 
