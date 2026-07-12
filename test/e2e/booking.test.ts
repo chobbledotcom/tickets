@@ -155,7 +155,7 @@ describe("e2e: full booking flow", () => {
     expect(browser.containsText("Thank you for your order")).toBe(true);
 
     // 10. Click to view the ticket
-    await browser.clickLink("Click here to view your ticket");
+    await browser.clickLink("View your ticket");
     expect(browser.containsText("Summer Concert")).toBe(true);
 
     // 11. Now go back to admin to verify the attendee shows up

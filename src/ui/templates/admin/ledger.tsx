@@ -392,7 +392,7 @@ export const adminLedgerPage = (
           />
         )}
         {data.truncated && <p>{t("admin.ledger.recent")}</p>}
-      </div>
+      </PageBlock>
       <GuideFooter href="/admin/guide#ledger">
         {t("admin.ledger.guide")}
       </GuideFooter>

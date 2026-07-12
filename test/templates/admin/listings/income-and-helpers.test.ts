@@ -168,7 +168,7 @@ describe("adminListingPage income & ledger breakdown", () => {
       },
       listing,
     });
-    expect(html).toContain('<section id="ledger">');
+    expect(html).toContain('<div class="page-block" id="ledger">');
     expect(html).toContain("Add entry");
     expect(html).toContain(
       'href="/admin/ledger/revenue/7/add?return_url=%2Fadmin%2Flisting%2F7"',

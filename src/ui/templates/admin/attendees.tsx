@@ -29,6 +29,8 @@ import { SubmitButton } from "#templates/components/actions.tsx";
 import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
+import { PageBlock } from "#templates/components/page-structure.tsx";
+import { ProseSection } from "#templates/components/prose-section.tsx";
 import {
   questionFieldset,
   questionWrapper,
@@ -37,7 +39,6 @@ import {
   RadioOption,
   type RadioOptionProps,
 } from "#templates/components/radio-option.tsx";
-import { ProseSection } from "#templates/public/unsubscribe.tsx";
 
 /** A `<td>` cell holding one labelled radio option of a merge-decision group.
  *  The merge tables (PII fields, custom-question answers, booking conflicts)
@@ -110,7 +111,7 @@ const AttendeeDetails = ({
   showAmountPaid?: boolean;
   children?: Child;
 }): JSX.Element => (
-  <ProseSection heading={t("admin.attendees.details")}>
+  <ProseSection title={t("admin.attendees.details")}>
     <p>
       <strong>{t("admin.attendees.name")}</strong> {attendee.name}
     </p>
@@ -296,13 +297,13 @@ export const PaymentDetails = ({
   /** The balance link targets the owner-only Ledger tab, so callers gate it
    * on the viewer's role (never render a forbidden link). */
   showBalanceLink: boolean;
-}): string => {
-  if (!attendee.payment_id) return "";
+}): JSX.Element | null => {
+  if (!attendee.payment_id) return null;
   const isRefunded = attendee.refunded;
   const dashboardUrl = paymentDashboardUrl(attendee.payment_id);
 
-  return String(
-    <article>
+  return (
+    <PageBlock>
       <div class="prose">
         <h3>{t("admin.attendees.payment_details")}</h3>
         <p>
@@ -347,7 +348,7 @@ export const PaymentDetails = ({
           {t("admin.attendees.refresh_payment")}
         </SubmitButton>
       </CsrfForm>
-    </article>,
+    </PageBlock>
   );
 };
 

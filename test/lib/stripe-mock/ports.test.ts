@@ -8,6 +8,7 @@ import {
   stripeMockPortFromEnv,
 } from "../../../scripts/stripe-mock.ts";
 import {
+  expectPortAvailable,
   expectPortOpen,
   expectStripeMockFails,
   keepPortOpenCommand,
@@ -69,9 +70,7 @@ describe("startStripeMock ports", () => {
         await stripeMock.stop();
       }
 
-      await expect(
-        Deno.connect({ hostname: "127.0.0.1", port }),
-      ).rejects.toThrow();
+      expectPortAvailable(port);
     });
   });
 
@@ -84,9 +83,7 @@ describe("startStripeMock ports", () => {
       stripeMock.stopNow();
       await stripeMock.stop();
       stripeMock.stopNow();
-      await expect(
-        Deno.connect({ hostname: "127.0.0.1", port }),
-      ).rejects.toThrow();
+      expectPortAvailable(port);
     });
   });
 

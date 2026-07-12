@@ -90,7 +90,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           response,
           200,
           "Thank you for your order",
-          "Click here to view your ticket",
+          "View your ticket",
         );
 
         // Verify attendees created for both listings
