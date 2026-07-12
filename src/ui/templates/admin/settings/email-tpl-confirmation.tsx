@@ -8,7 +8,27 @@ import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanc
 import { emailTemplateFields } from "#templates/components/email-template-fields.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
+
 /* jscpd:ignore-end */
+
+// Liquid variables the confirmation template can use, shown in the reference
+// table below: [what you type, what it renders].
+const TEMPLATE_VARIABLES: [code: string, meaning: string][] = [
+  ["{{ listing_names }}", 'All listing names joined with "and"'],
+  ["{{ ticket_url }}", "Link to view tickets"],
+  ["{{ attendee.name }}", t("admin.attendees.delete_label")],
+  ["{{ attendee.email }}", "Attendee email"],
+  ["{{ attendee.phone }}", "Attendee phone"],
+  ["{{ attendee.address }}", "Attendee address"],
+  ["{{ attendee.special_instructions }}", "Special instructions"],
+  ["{{ entries }}", "Array of listing+attendee pairs"],
+  ["{{ entry.listing.name }}", "Listing name (in loop)"],
+  ["{{ entry.listing.is_paid }}", "Whether listing has a price"],
+  ["{{ entry.attendee.quantity }}", "Ticket quantity"],
+  ["{{ entry.attendee.price_paid | currency }}", "Price formatted as currency"],
+  ["{{ entry.attendee.date }}", "Selected date (if any)"],
+  ['{{ 2 | pluralize: "ticket", "tickets" }}', "Pluralize based on count"],
+];
 
 export const ConfirmationEmailTemplateForm = (
   s: AdvancedSettingsPageState,
@@ -33,90 +53,14 @@ export const ConfirmationEmailTemplateForm = (
       <summary>{t("settings.advanced.available_variables")}</summary>
       <div class="table-scroll">
         <table>
-          <tr>
-            <td>
-              <code>{"{{ listing_names }}"}</code>
-            </td>
-            <td>All listing names joined with "and"</td>
-          </tr>
-          <tr>
-            <td>
-              <code>{"{{ ticket_url }}"}</code>
-            </td>
-            <td>Link to view tickets</td>
-          </tr>
-          <tr>
-            <td>
-              <code>{"{{ attendee.name }}"}</code>
-            </td>
-            <td>{t("admin.attendees.delete_label")}</td>
-          </tr>
-          <tr>
-            <td>
-              <code>{"{{ attendee.email }}"}</code>
-            </td>
-            <td>Attendee email</td>
-          </tr>
-          <tr>
-            <td>
-              <code>{"{{ attendee.phone }}"}</code>
-            </td>
-            <td>Attendee phone</td>
-          </tr>
-          <tr>
-            <td>
-              <code>{"{{ attendee.address }}"}</code>
-            </td>
-            <td>Attendee address</td>
-          </tr>
-          <tr>
-            <td>
-              <code>{"{{ attendee.special_instructions }}"}</code>
-            </td>
-            <td>Special instructions</td>
-          </tr>
-          <tr>
-            <td>
-              <code>{"{{ entries }}"}</code>
-            </td>
-            <td>Array of listing+attendee pairs</td>
-          </tr>
-          <tr>
-            <td>
-              <code>{"{{ entry.listing.name }}"}</code>
-            </td>
-            <td>Listing name (in loop)</td>
-          </tr>
-          <tr>
-            <td>
-              <code>{"{{ entry.listing.is_paid }}"}</code>
-            </td>
-            <td>Whether listing has a price</td>
-          </tr>
-          <tr>
-            <td>
-              <code>{"{{ entry.attendee.quantity }}"}</code>
-            </td>
-            <td>Ticket quantity</td>
-          </tr>
-          <tr>
-            <td>
-              <code>{"{{ entry.attendee.price_paid | currency }}"}</code>
-            </td>
-            <td>Price formatted as currency</td>
-          </tr>
-          <tr>
-            <td>
-              <code>{"{{ entry.attendee.date }}"}</code>
-            </td>
-            <td>Selected date (if any)</td>
-          </tr>
-          <tr>
-            <td>
-              <code>{`{{ 2 | pluralize: "ticket", "tickets" }}`}</code>
-            </td>
-            <td>Pluralize based on count</td>
-          </tr>
+          {TEMPLATE_VARIABLES.map(([code, meaning]) => (
+            <tr>
+              <td>
+                <code>{code}</code>
+              </td>
+              <td>{meaning}</td>
+            </tr>
+          ))}
         </table>
       </div>
     </details>
