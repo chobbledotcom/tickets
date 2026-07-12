@@ -1,0 +1,20 @@
+{
+  "threshold": 0,
+  "_comment": "Stylesheet duplication check. Higher minTokens than the code config: var()-based design-token CSS naturally repeats short declaration runs (e.g. `background: var(--color-bg); color: var(--color-text)`), which are not real duplication. 50 tokens catches genuinely repeated component blocks while ignoring those coincidences. Pass the file path positionally (jscpd v5 does not scan directories when scss is the only format).",
+  "reporters": [
+    "console",
+    "json"
+  ],
+  "output": ".jscpd-report-css",
+  "ignore": [
+    "**/node_modules/**"
+  ],
+  "format": [
+    "scss"
+  ],
+  "absolute": false,
+  "gitignore": true,
+  "exitCode": 1,
+  "minLines": 1,
+  "minTokens": 50
+}
