@@ -93,7 +93,7 @@ export const adminApiKeysPage = (
       )}
 
       <p>
-        <a href="/admin/api-keys/docs">Read the API documentation</a>.
+        <a href="/admin/api-keys/docs">{t("api_keys.docs_link")}</a>.
       </p>
 
       <DataTable

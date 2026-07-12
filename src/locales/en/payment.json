@@ -15,7 +15,7 @@
   "payment.success.view_ticket": "View your ticket",
   "payment.success.view_tickets": "View your tickets",
   "payment.success.redirecting": "You will be redirected shortly...",
-  "payment.success.redirect_link": "Go there now",
+  "payment.success.redirect_link": "Open the thank-you page",
   "payment.cancel.title": "Payment Cancelled",
   "payment.cancel.heading": "Payment Cancelled",
   "payment.cancel.message": "Your payment was cancelled. Your ticket reservation has been removed.",

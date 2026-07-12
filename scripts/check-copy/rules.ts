@@ -55,10 +55,15 @@ const CODE_BLOCK = /<(?:code|pre)\b[^>]*>[\s\S]*?<\/(?:code|pre)>/gi;
  */
 const proseSegments = (value: string): string[] => value.split(CODE_BLOCK);
 
-/** The readable words of a string: code examples and HTML tags removed, so the
- * word checks read what the user reads rather than the markup around it. */
-const prose = (value: string): string =>
-  value.replace(CODE_BLOCK, " ").replace(/<[^>]+>/g, " ");
+/**
+ * The readable prose of each non-code segment, with HTML tags stripped. Working
+ * segment-by-segment (rather than on one joined string) means a word check
+ * never matches a phrase that spans a code/pre example: a code block sitting
+ * between "click" and "here", or between the words of "prior to", separates
+ * them into different segments instead of fabricating a match.
+ */
+const readableSegments = (value: string): string[] =>
+  proseSegments(value).map((segment) => segment.replace(/<[^>]+>/g, " "));
 
 /**
  * Formal or old-fashioned words that have a plainer everyday twin. Modelled
@@ -117,26 +122,30 @@ const doubleSpace: Rule = {
 
 /** Link text must name where it goes, for skimmers and screen-reader users. */
 const descriptiveLinks: Rule = {
-  find: (value) =>
-    [...new Set([...prose(value).matchAll(VAGUE_LINK)].map((m) => m[0]))].map(
-      (hit) => ({
-        fix: 'name the destination, e.g. "View your ticket"',
-        problem: `vague link text "${hit}"`,
-      }),
-    ),
+  find: (value) => {
+    const hits = readableSegments(value).flatMap((segment) =>
+      [...segment.matchAll(VAGUE_LINK)].map((m) => m[0]),
+    );
+    return [...new Set(hits)].map((hit) => ({
+      fix: 'name the destination, e.g. "View your ticket"',
+      problem: `vague link text "${hit}"`,
+    }));
+  },
   name: "descriptive-links",
 };
 
 /** Prefer the plain everyday word over the formal one. */
 const plainWords: Rule = {
   find: (value) =>
-    [...prose(value).matchAll(FORMAL_WORDS)].map((m) => {
-      const found = m[1]!;
-      return {
-        fix: `use "${plainerWord.get(found.toLowerCase())!}"`,
-        problem: `formal word "${found}"`,
-      };
-    }),
+    readableSegments(value).flatMap((segment) =>
+      [...segment.matchAll(FORMAL_WORDS)].map((m) => {
+        const found = m[1]!;
+        return {
+          fix: `use "${plainerWord.get(found.toLowerCase())!}"`,
+          problem: `formal word "${found}"`,
+        };
+      }),
+    ),
   name: "plain-words",
 };
 

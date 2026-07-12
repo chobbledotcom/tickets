@@ -115,12 +115,39 @@ describe("check-copy rules", () => {
     ]);
   });
 
-  test("every plain-word suggestion is resolvable", () => {
-    for (const { avoid } of PLAIN_WORDS) {
+  test("every plain word maps to its exact suggested replacement", () => {
+    for (const { avoid, use } of PLAIN_WORDS) {
       const issues = findIssues([entry(`x ${avoid} y`)]);
-      expect(issues).toHaveLength(1);
-      expect(issues[0]!.fix.startsWith('use "')).toBe(true);
+      expect(issues).toEqual([
+        {
+          file: "test.json",
+          fix: `use "${use}"`,
+          key: "test.key",
+          problem: `formal word "${avoid}"`,
+          rule: "plain-words",
+        },
+      ]);
     }
+  });
+
+  test("does not match a vague-link phrase split by a code example", () => {
+    expect(findIssues([entry("Click <code>x</code> here")])).toEqual([]);
+  });
+
+  test("does not match a formal phrase split by a code example", () => {
+    expect(findIssues([entry("Runs prior <code>x</code> to boot")])).toEqual(
+      [],
+    );
+  });
+
+  test("still flags a vague link or formal word within one segment", () => {
+    const issues = findIssues([
+      entry("Click here after <code>setup</code> to utilise it"),
+    ]);
+    expect(issues.map((i) => `${i.rule}:${i.problem}`)).toEqual([
+      'descriptive-links:vague link text "Click here"',
+      'plain-words:formal word "utilise"',
+    ]);
   });
 
   test("exposes exactly the three rules", () => {
@@ -204,17 +231,19 @@ describe("check-copy runner", () => {
     ]);
   });
 
-  test("returns 1 and logs each issue when the catalog has problems", () => {
+  test("returns 1 and logs each issue in rule order, then a summary", () => {
     const { code, out, errors } = checkCatalog("bad.json", {
       "bad.msg": "Please utilise this,  click here",
     });
 
     expect(code).toBe(1);
     expect(out).toEqual([]);
-    expect(errors.some((l) => l.includes("double-space"))).toBe(true);
-    expect(errors.some((l) => l.includes("descriptive-links"))).toBe(true);
-    expect(errors.some((l) => l.includes("plain-words"))).toBe(true);
-    expect(errors.at(-1)).toContain("simple-language issue(s) found");
+    expect(errors).toEqual([
+      "bad.json bad.msg [double-space]: two or more spaces in a row — use a single space",
+      'bad.json bad.msg [descriptive-links]: vague link text "click here" — name the destination, e.g. "View your ticket"',
+      'bad.json bad.msg [plain-words]: formal word "utilise" — use "use"',
+      '\n3 simple-language issue(s) found. See the "Simple Language" section of AGENTS.md.',
+    ]);
   });
 });
 

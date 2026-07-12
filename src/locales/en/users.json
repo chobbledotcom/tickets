@@ -1,6 +1,7 @@
 {
   "api_keys.guide_link": "API guide",
-  "users.sessions_link": "View your logged-in sessions.",
+  "api_keys.docs_link": "Read the API documentation",
+  "users.sessions_link": "View your logged-in sessions",
   "users.roles_link": "User roles and permissions",
   "users.invite_link_label": "Invite link (share this with the new user):",
   "users.invite_expires": "This link expires in 7 days.",
