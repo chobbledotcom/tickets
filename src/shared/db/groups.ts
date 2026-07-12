@@ -4,6 +4,7 @@
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
+import { mapNotNullish } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
@@ -21,6 +22,7 @@ import {
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
+import { edgeIdsTouchingMany } from "#shared/db/listing-parents.ts";
 import {
   getGroupDayPrices,
   groupDayPriceStatements,
@@ -36,6 +38,12 @@ import {
 import { allNamesById, queryAndMap } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
+import {
+  type PackageChildEdgeBlock,
+  type PackageMemberBlock,
+  packageMemberBlock,
+  packageMemberBlockError,
+} from "#shared/package-membership.ts";
 import type {
   DayPrices,
   Group,
@@ -385,21 +393,61 @@ export const isHiddenPackageMember = async (
   listingId: number,
 ): Promise<boolean> => (await getHiddenPackageMemberIds([listingId])).size > 0;
 
-/** Whether adding child edges would violate the package invariant: the parent is
- * joining/in a HIDDEN package group (a visible package renders the member's
- * child selector, so a member gating children is fine there), or any chosen
+/** Which package invariant adding child edges would violate, or null when the
+ * edges are fine: `gate_in_hidden` when the parent is joining/in a HIDDEN
+ * package group (a visible package renders the member's child selector, so a
+ * member gating children is fine there), or `child_is_member` when any chosen
  * child is itself a package member (a package member is only ever sold as part
  * of its bundle, never folded under another parent). An empty `childIds`
  * (clearing children) is never a conflict. */
 export const packageChildEdgeConflict = async (
   parentGroupIds: readonly number[],
   childIds: readonly number[],
-): Promise<boolean> => {
-  if (childIds.length === 0) return false;
-  return (
-    (await anyHiddenPackageGroup(parentGroupIds)) ||
-    (await anyListingInPackageGroup(childIds))
-  );
+): Promise<PackageChildEdgeBlock | null> => {
+  if (childIds.length === 0) return null;
+  if (await anyHiddenPackageGroup(parentGroupIds)) return "gate_in_hidden";
+  if (await anyListingInPackageGroup(childIds)) return "child_is_member";
+  return null;
+};
+
+/** The first member of `listings` that can't be packaged, paired with the
+ * reason it's blocked — or null when every listing is a valid member. Judged
+ * against ONE batched edge load (two queries for the whole member list, never
+ * one per member). The pricing/add-on/hidden-gate rules themselves live in the
+ * shared {@link packageMemberBlock}. Generic over the listing shape so the
+ * caller gets its own row back (with the name) to build the error. */
+const firstUnpackageableMember = async <
+  L extends { id: number; can_pay_more: boolean },
+>(
+  listings: readonly L[],
+  hideListings: boolean | undefined,
+): Promise<{ listing: L; block: PackageMemberBlock } | null> => {
+  const edges = await edgeIdsTouchingMany(listings.map((l) => l.id));
+  const blocked = mapNotNullish((listing: L) => {
+    const block = packageMemberBlock(
+      listing,
+      edges.get(listing.id)!,
+      hideListings,
+    );
+    return block ? { block, listing } : null;
+  })(listings);
+  return blocked[0] ?? null;
+};
+
+/** The member-naming package error for the first listing in `listings` that
+ * can't be a package member (pay-what-you-want, an add-on of another listing,
+ * or — on a hidden package — a member gating its own children), or null when
+ * every listing is a valid member. The one place every package save (group
+ * form, add-listings, listing form/API, catalog import) turns an unpackageable
+ * member into its user-facing message. */
+export const packageMembersError = async (
+  listings: readonly { id: number; can_pay_more: boolean; name: string }[],
+  hideListings: boolean | undefined,
+): Promise<string | null> => {
+  const offender = await firstUnpackageableMember(listings, hideListings);
+  return offender
+    ? packageMemberBlockError(offender.listing.name, offender.block)
+    : null;
 };
 
 /** Package-group display info for grouping a booking's lines under the package

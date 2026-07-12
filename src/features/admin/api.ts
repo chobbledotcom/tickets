@@ -7,7 +7,6 @@
  *   - Session cookie + x-csrf-token header
  */
 
-import { t } from "#i18n";
 import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
@@ -43,6 +42,7 @@ import {
   toggleListingActive,
   validateListingInput,
 } from "#shared/listings-actions.ts";
+import { packageChildEdgeError } from "#shared/package-membership.ts";
 import {
   bodyNumber,
   type DeleteBody,
@@ -475,10 +475,12 @@ const prepareListingJoins = async (
   // and a package member can't become a child. The group/listing validators
   // only see edges that already exist, so reject the brand-new edges here,
   // before the row + edges commit together.
-  if (
-    await packageChildEdgeConflict(input.groupIds ?? [], submitted.childIds)
-  ) {
-    return { error: t("error.package_incompatible_listing") };
+  const packageConflict = await packageChildEdgeConflict(
+    input.groupIds ?? [],
+    submitted.childIds,
+  );
+  if (packageConflict) {
+    return { error: packageChildEdgeError(packageConflict) };
   }
   // Resolve add-on reachability against the POST-SAVE listing set: apply the
   // submitted `group_id` to the parent in an in-memory listing set so a parent

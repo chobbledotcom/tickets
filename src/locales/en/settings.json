@@ -12,7 +12,7 @@
   "settings.business_email_placeholder": "contact@example.com",
   "settings.save_business_email": "Save Business Email",
   "settings.payment_provider": "Payment Provider",
-  "settings.payment_provider_hint": "Choose which payment provider to use for paid listings.",
+  "settings.payment_provider_hint": "Choose which payment provider to use for paid listings. Switching keeps your other providers' saved keys but stops using them, so you can switch back later without re-entering them.",
   "settings.payment_none": "None (payments disabled)",
   "settings.save_payment_provider": "Save Payment Provider",
   "settings.stripe.heading": "Stripe Settings",
