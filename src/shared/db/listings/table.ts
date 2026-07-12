@@ -10,6 +10,7 @@ import {
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
 import { col } from "#shared/db/table.ts";
+import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import {
@@ -115,8 +116,19 @@ const readClosesAt = async (value: string | null): Promise<string | null> => {
 const writeListingDate = (value: string): Promise<EnvKeyEncrypted> =>
   encryptDatetime(value, "date");
 
-const readProjectedImage = (value: unknown): string | Promise<string> =>
+const readProjectedAltText = (value: unknown): string | Promise<string> =>
   value === "" || value === undefined ? "" : decrypt(value as EnvKeyEncrypted);
+
+/** Read one of the projected first-image filename columns. A filename that
+ * will not read back becomes the broken-image marker (reported, not thrown)
+ * so a listing page still renders — see #shared/images/broken.ts. */
+const readProjectedImageFilename =
+  (label: string) =>
+  (value: unknown, rowId?: unknown): string | Promise<string> =>
+    decryptImageFilenameOrEmpty(
+      value as string | undefined,
+      `listing ${String(rowId)} ${label}`,
+    );
 
 /** Raw listings table. Records adds cache-aware CRUD and price syncing. */
 export const rawListingsTable = defineIdTable<Listing, ListingInput>(
@@ -152,9 +164,11 @@ export const rawListingsTable = defineIdTable<Listing, ListingInput>(
     duration_days: { default: () => 1, write: normalizeDurationDays },
     fields: col.withDefault<ListingFields>(() => "email"),
     hidden: col.boolean(false),
-    image_alt_text: col.projected<string>(readProjectedImage),
-    image_thumb_url: col.projected<string>(readProjectedImage),
-    image_url: col.projected<string>(readProjectedImage),
+    image_alt_text: col.projected<string>(readProjectedAltText),
+    image_thumb_url: col.projected<string>(
+      readProjectedImageFilename("thumbnail image"),
+    ),
+    image_url: col.projected<string>(readProjectedImageFilename("image")),
     initial_site_months: col.withDefault(() => 0),
     listing_type: col.withDefault<ListingType>(() => "standard"),
     location: col.encryptedText(encrypt, decrypt),

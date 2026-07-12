@@ -2,8 +2,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { encryptBytes } from "#shared/crypto/encryption.ts";
-import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
+import {
+  expectBrokenImageResponse,
+  expectHtmlResponse,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { JPEG_HEADER } from "#test-utils/factories.ts";
 import {
   mockRequest,
@@ -30,6 +35,8 @@ describeWithEnv(
   },
   () => {
     describe("GET /image/:filename (proxy route)", () => {
+      const errors = setupErrorSpy();
+
       test("serves decrypted image with correct content type", async () => {
         const imageData = JPEG_HEADER;
         const encrypted = await encryptBytes(imageData);
@@ -50,13 +57,39 @@ describeWithEnv(
         );
       });
 
-      test("returns 404 when file does not exist in storage", async () => {
+      test("serves the red pixel and reports when the file is missing from storage", async () => {
         await withCdnProxy(
           () => new Response("Not Found", { status: 404 }),
           async () => {
-            expect((await proxyRequest()).status).toBe(404);
+            await expectBrokenImageResponse(await proxyRequest());
+            expect(errors.lastMessage()).toContain("E_IMAGE_BROKEN");
+            expect(errors.lastMessage()).toContain(
+              "abc123-def4-5678-9abc-def012345678.jpg is missing from storage",
+            );
           },
         );
+      });
+
+      test("serves the red pixel and reports when the stored file will not decrypt", async () => {
+        await withCdnProxy(
+          () => new Response("not encrypted bytes", { status: 200 }),
+          async () => {
+            await expectBrokenImageResponse(await proxyRequest());
+            expect(errors.lastMessage()).toContain("E_IMAGE_BROKEN");
+            expect(errors.lastMessage()).toContain(
+              "abc123-def4-5678-9abc-def012345678.jpg could not be decrypted",
+            );
+          },
+        );
+      });
+
+      test("serves the red pixel for the broken-image marker path", async () => {
+        const response = await handleRequest(
+          mockRequest(`/image/${BROKEN_IMAGE_FILENAME}`),
+        );
+        await expectBrokenImageResponse(response);
+        // The marker is a fallback, not a broken record in itself.
+        expect(errors.calls.length).toBe(0);
       });
 
       test("propagates non-404 storage errors as 503", async () => {
@@ -85,6 +118,16 @@ describeWithEnv(
           test("returns 404", async () => {
             await withStorageDisabled(async () => {
               expect((await proxyRequest()).status).toBe(404);
+            });
+          });
+
+          test("still serves the red pixel for the broken-image marker", async () => {
+            await withStorageDisabled(async () => {
+              await expectBrokenImageResponse(
+                await handleRequest(
+                  mockRequest(`/image/${BROKEN_IMAGE_FILENAME}`),
+                ),
+              );
             });
           });
         },

@@ -36,6 +36,7 @@ import {
 import { decryptNameSlug } from "#shared/db/query.ts";
 import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
 import { col } from "#shared/db/table.ts";
+import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import { slugify, uniqueSlugFromBase } from "#shared/slug.ts";
@@ -169,8 +170,14 @@ export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
   return mapParallel(async (row: SealedCardRow) => ({
     ...(await decryptSummary(row)),
     image_alt_text: await decryptText(row.image_alt_text),
-    image_thumb_url: await decryptText(row.image_thumb_url),
-    image_url: await decryptText(row.image_url),
+    image_thumb_url: await decryptImageFilenameOrEmpty(
+      row.image_thumb_url,
+      `news post ${row.id} thumbnail image`,
+    ),
+    image_url: await decryptImageFilenameOrEmpty(
+      row.image_url,
+      `news post ${row.id} image`,
+    ),
   }))(rows);
 };
 

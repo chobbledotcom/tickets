@@ -1,4 +1,6 @@
 import { handleRequest } from "#routes";
+import { encrypt } from "#shared/crypto/encryption.ts";
+import { execute } from "#shared/db/client.ts";
 import { getImagesForItem, imagesTable } from "#shared/db/images.ts";
 import type { Image, ImageUseItemType } from "#shared/types.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
@@ -13,6 +15,28 @@ export const makeImage = (name: string): Promise<Image> =>
     filenameThumb: nonEmptyString(`${name.toLowerCase()}-thumb.webp`),
     name,
   });
+
+/** Store an image row whose filename is an encrypted empty string — the broken
+ * shape the first-class images migration copied from a legacy listing whose
+ * image_url was an encrypted "". The thumbnail is broken the same way unless a
+ * working `thumbFilename` is given. Returns the row id. */
+export const insertBrokenImage = async (
+  options: { name?: string; thumbFilename?: string } = {},
+): Promise<number> => {
+  const brokenFilename = await encrypt("");
+  const result = await execute(
+    `INSERT INTO images (name, filename, filename_thumb, alt_text)
+     VALUES (?, ?, ?, '')`,
+    [
+      await encrypt(options.name ?? "Broken"),
+      brokenFilename,
+      options.thumbFilename === undefined
+        ? brokenFilename
+        : await encrypt(options.thumbFilename),
+    ],
+  );
+  return Number(result.lastInsertRowid);
+};
 
 export const adminGet = async (path: string): Promise<Response> =>
   handleRequest(mockRequest(path, { headers: { cookie: await testCookie() } }));

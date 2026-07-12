@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { once } from "#fp";
 import { getSessionCookieName, parseFlashValue } from "#shared/cookies.ts";
+import { BROKEN_IMAGE_PNG } from "#shared/images/broken.ts";
 
 export const FLASH_TEST_ID = "t001";
 
@@ -644,4 +645,16 @@ export const expectEncryptedAtRest = (
   for (const value of values) {
     expect(value?.startsWith("enc:")).toBe(true);
   }
+};
+
+/** Assert a response is the uncached red-pixel fallback for a broken image. */
+export const expectBrokenImageResponse = async (
+  response: Response,
+): Promise<void> => {
+  expect(response.status).toBe(200);
+  expect(response.headers.get("content-type")).toBe("image/png");
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+    BROKEN_IMAGE_PNG,
+  );
 };
