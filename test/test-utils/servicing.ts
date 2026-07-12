@@ -423,7 +423,7 @@ export const expectCostAfterRecording = async (
  *  and §22 allocation-rule tests both wrap `expect(...).rejects.toThrow()`. */
 export const expectRejects = async (
   promise: Promise<unknown>,
-  pattern?: RegExp,
+  pattern?: RegExp | string,
 ): Promise<void> => {
   let error: unknown;
   let resolved = true;
@@ -435,7 +435,13 @@ export const expectRejects = async (
   }
   expect(resolved, "expected promise to reject, but it resolved").toBe(false);
   if (pattern !== undefined) {
-    expect((error as Error).message).toMatch(pattern);
+    const message = (error as Error).message;
+    // A string asserts the exact message; a RegExp matches (for partial/shape).
+    if (typeof pattern === "string") {
+      expect(message).toBe(pattern);
+    } else {
+      expect(message).toMatch(pattern);
+    }
   }
 };
 

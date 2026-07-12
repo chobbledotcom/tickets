@@ -91,8 +91,10 @@ const postCustomerSale = async (listingId: number): Promise<void> => {
   await postListingSale({ attendeeId: attendee.id, gross: 20000, listingId });
 };
 
-/** Assert a cost POST was rejected as a recoverable form error (302 back to the
- *  event page) and landed no new `service_cost` leg. */
+/** Assert a cost POST was rejected as a recoverable form error: a 302 back to
+ *  the event page with an error flash, and NO new ledger leg of any kind (not
+ *  just no `service_cost`). `before` is the total transfer count before the
+ *  POST. */
 const expectCostFormError = async (
   response: Response,
   servicingId: number,
@@ -102,7 +104,8 @@ const expectCostFormError = async (
   expect(response.headers.get("location")).toContain(
     `/admin/servicing/${servicingId}`,
   );
-  expect((await transfersOfKind(KIND.serviceCost)).length).toBe(before);
+  expect(parseFlashCookie(response).error).toBeDefined();
+  expect((await allTransfers()).length).toBe(before);
 };
 
 describe("servicing §22 — costAccount id validation (reuses rowAccount)", () => {
@@ -248,7 +251,8 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
         memo: "Boiler part",
         target_listing_id: String(listing.id),
       });
-    const key = crypto.randomUUID();
+    // Fixed keys (not random) so the test is deterministic and reproducible.
+    const key = "idem-double-submit";
     await postCost(key);
     const retried = await postCost(key); // same form, double-submit
     expect(retried.status).toBe(302);
@@ -257,8 +261,8 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     expect(parseFlashCookie(retried).success).toBeDefined();
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(1);
     expect(await listingCostOf(listing.id)).toBe(9000);
-    // A separate submission (fresh key) posts a second, independent cost.
-    await postCost(crypto.randomUUID());
+    // A separate submission (a different key) posts a second, independent cost.
+    await postCost("idem-double-submit-2");
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(2);
     expect(await listingCostOf(listing.id)).toBe(18000);
   });
@@ -270,7 +274,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     // recording nothing. The second submit must either post the change or fail
     // — never silently keep the old £90 while claiming to record £50.
     const { id, listing } = await createServicingHold();
-    const key = crypto.randomUUID();
+    const key = "idem-changed-amount";
     const postCost = (amount: string) =>
       adminPost(`/admin/servicing/${id}`, {
         amount,
@@ -299,7 +303,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     // memo-only change under the same key would previously short-circuit and
     // preserve the stale memo while reporting success.
     const { id, listing } = await createServicingHold();
-    const key = crypto.randomUUID();
+    const key = "idem-changed-memo";
     const postCost = (memo: string) =>
       adminPost(`/admin/servicing/${id}`, {
         amount: "90.00",
@@ -310,8 +314,10 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     await postCost("Original memo");
     const changed = await postCost("Edited memo"); // same key, changed memo
     expect(changed.status).toBe(302);
-    // Rejected with an error flash, not a false success.
+    // Rejected with an error flash, not a false success (a flash-less redirect
+    // would also leave success undefined, so assert the error is set too).
     expect(parseFlashCookie(changed).success).toBeUndefined();
+    expect(parseFlashCookie(changed).error).toBeDefined();
     // Still exactly one cost, and the stored memo is the original — the edit was
     // rejected, not silently swallowed.
     const { getServicingCosts } = await import(
@@ -339,7 +345,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     await recordServiceCost({ ...base, amount: 9000 });
     await expectRejects(
       recordServiceCost({ ...base, amount: 5000 }),
-      new RegExp(COST_REPLAY_MISMATCH.slice(0, 20)),
+      COST_REPLAY_MISMATCH,
     );
     // Nothing new landed.
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(1);
@@ -427,7 +433,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     // Empty, negative, non-numeric, and zero amounts must be rejected at the
     // route as a form-error redirect, never reach the ledger, and never 500.
     const { id, listing } = await createServicingHold();
-    const before = (await transfersOfKind(KIND.serviceCost)).length;
+    const before = (await allTransfers()).length;
     for (const amount of ["", "-5", "abc", "0"]) {
       const response = await adminPost(`/admin/servicing/${id}`, {
         amount,
@@ -467,7 +473,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
   test("invalid edit cost amounts write no service_cost transfer (form error, not 500)", async () => {
     const { id, listing } = await createServicingHold();
     const costId = await recordBoilerCost(id, listing.id);
-    const before = (await transfersOfKind(KIND.serviceCost)).length;
+    const before = (await allTransfers()).length;
     for (const amount of ["", "-5", "abc", "0"]) {
       const response = await adminPost(
         `/admin/servicing/${id}/cost/${costId}`,
@@ -583,13 +589,22 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     // Dates are scrambled vs insertion order, so a reader that skips the re-sort
     // (or drifts a decrypted memo onto the wrong record) fails here.
     const { id, listing } = await createServicingHold();
-    for (const i of [2, 0, 3, 1]) {
-      const day = `2026-07-0${i + 1}`;
+    // Insertion order (and thus ascending transfer_id) is scrambled vs date,
+    // and TWO costs share 2026-07-01 so the secondary transfer_id tie-break is
+    // exercised — not just the date sort. `early`/`late` are inserted in that
+    // order, so under (occurred_at, transfer_id) `early` must precede `late`.
+    const inserts = [
+      { memo: "second-day", occurredAt: "2026-07-02" },
+      { memo: "first-day-early", occurredAt: "2026-07-01" },
+      { memo: "first-day-late", occurredAt: "2026-07-01" },
+      { memo: "third-day", occurredAt: "2026-07-03" },
+    ];
+    for (const [i, cost] of inserts.entries()) {
       await recordServiceCost({
         amount: 1000 + i * 100,
         listingId: listing.id,
-        memo: `memo-${day}`,
-        occurredAt: `${day}T00:00:00.000Z`,
+        memo: cost.memo,
+        occurredAt: `${cost.occurredAt}T00:00:00.000Z`,
         servicingId: id,
       });
     }
@@ -599,17 +614,18 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     const costs = await getServicingCosts(id);
     expect(costs.map((c) => c.date.slice(0, 10))).toEqual([
       "2026-07-01",
+      "2026-07-01",
       "2026-07-02",
       "2026-07-03",
-      "2026-07-04",
     ]);
     // Each record keeps its own memo — proving a row wasn't re-sorted by date
-    // while its decrypted memo drifted onto a different record.
+    // while its decrypted memo drifted onto a different record, and that the
+    // same-date pair holds insertion (transfer_id) order.
     expect(costs.map((c) => c.memo)).toEqual([
-      "memo-2026-07-01",
-      "memo-2026-07-02",
-      "memo-2026-07-03",
-      "memo-2026-07-04",
+      "first-day-early",
+      "first-day-late",
+      "second-day",
+      "third-day",
     ]);
   });
 
@@ -652,8 +668,15 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     const rows = await queryAll<{ memo: string | null }>(
       `SELECT memo FROM transfers WHERE kind = '${KIND.serviceCost}'`,
     );
+    expect(rows).toHaveLength(1);
     for (const r of rows) {
-      expect(r.memo ?? "").not.toContain("07700 900000");
+      const raw = r.memo ?? "";
+      // Stored (encrypted), non-blank, and neither the PII substring nor the
+      // full operator-entered memo appears in plaintext.
+      expect(raw).not.toBe("");
+      expect(raw).not.toContain("07700 900000");
+      expect(raw).not.toContain("Plumber Dave");
+      expect(raw).not.toBe("Plumber Dave 07700 900000");
     }
   });
 
@@ -696,13 +719,28 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     expect(legs[0]!.occurredAt).toBe("2026-07-01T00:00:00.000Z");
   });
 
-  test("service_cost legs appear in the listing-filtered visible ledger", async () => {
+  test("service_cost legs appear in the listing-filtered visible ledger, scoped to that listing", async () => {
     // Verifies that revenueLegScope includes cost-account legs so operators can
-    // see service costs when they filter the ledger by listing.
-    const { id, listing } = await createServicingHold();
-    await recordBoilerCost(id, listing.id); // £90
+    // see service costs when they filter the ledger by listing — and that the
+    // filter is scoped: another listing's cost must not leak in.
+    // Pre-create both listings so createServicingHold resolves each by name —
+    // its resolver otherwise reuses the sole existing listing, collapsing the
+    // two costs onto one listing.
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      name: "Filtered",
+    });
+    await createTestListing({ maxAttendees: 10, name: "Other" });
+    const { id } = await createServicingHold({ listing: { name: "Filtered" } });
+    await recordBoilerCost(id, listing.id); // £90 on `listing`
+    const other = await createServicingHold({ listing: { name: "Other" } });
+    await recordBoilerCost(other.id, other.listing.id); // £90 on a different listing
+
     const legs = await visibleTransfers(emptyRange, listing.id, 100);
-    expect(legs.some((t) => t.kind === KIND.serviceCost)).toBe(true);
+    const costLegs = legs.filter((t) => t.kind === KIND.serviceCost);
+    // Exactly this listing's cost leg — the other listing's is excluded.
+    expect(costLegs).toHaveLength(1);
+    expect(costLegs[0]!.source).toEqual(costAccount(listing.id));
   });
 
   test("editing back to a previously-used target amount after an intermediate edit applies the correct delta", async () => {
