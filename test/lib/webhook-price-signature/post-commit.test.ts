@@ -226,9 +226,7 @@ describeWithEnv(
             });
 
             const page = await followRedirect(redirect, handleRequest);
-            expect(await page.text()).toContain(
-              "Click here to view your ticket",
-            );
+            expect(await page.text()).toContain("View your ticket");
           },
         );
       } finally {
