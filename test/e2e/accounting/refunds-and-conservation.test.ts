@@ -137,7 +137,7 @@ describeAccounting(() => {
     ).response;
     await expectFlashRedirect(
       `/admin/listing/${listing.id}/edit`,
-      "Listing income adjusted",
+      "Listing income corrected.",
     )(writeDown);
     expect(await incomeOf(listing.id)).toBe(10000);
 

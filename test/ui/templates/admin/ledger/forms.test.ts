@@ -34,7 +34,7 @@ describe("adminLedgerEntryAddPage", () => {
       {
         hint: "Waive charge",
         hintKey: "admin.ledger.add.option.attendee_writeoff.hint",
-        label: "Write-off",
+        label: "Waived amount",
         labelKey: "admin.ledger.add.option.attendee_writeoff.label",
         type: MANUAL_ATTENDEE_WRITEOFF,
       },

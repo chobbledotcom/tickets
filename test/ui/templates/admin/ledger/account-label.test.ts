@@ -15,11 +15,11 @@ describe("resolveAccountLabel", () => {
     ).toEqual({ text: "Booking fees" });
   });
 
-  test("labels every writeoff account 'Write-off' regardless of id, no link", () => {
+  test("labels every correction account the same way regardless of id", () => {
     // The chart of accounts treats writeoff as one logical contra account, so
     // the label is matched on the type alone — a stray id must not change it.
     expect(resolveAccountLabel(account("writeoff", "x"), names())).toEqual({
-      text: "Write-off",
+      text: "Corrections",
     });
   });
 
@@ -55,12 +55,10 @@ describe("resolveAccountLabel", () => {
     });
   });
 
-  test("shows an unrecognised account type as bare 'type:id' with no link", () => {
-    // A future account kind the renderer doesn't know yet (e.g. psp:stripe) must
-    // still render legibly rather than blank — as the raw key, no link.
-    expect(resolveAccountLabel(account("psp", "stripe"), names())).toEqual({
-      text: "psp:stripe",
-    });
+  test("throws when an account type has no presentation", () => {
+    expect(() =>
+      resolveAccountLabel(account("psp", "stripe"), names()),
+    ).toThrow("Unknown money account type: psp");
   });
 
   test("falls back to '<Entity> #<id>' with no link when the id is absent", () => {

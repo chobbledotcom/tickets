@@ -166,11 +166,13 @@ describe("GroupOverviewPanel", () => {
     expect(html).toContain("Money in and out");
     expect(html).toContain("Total income earned");
     expect(html).toContain("+£200");
-    expect(html).toContain("Servicing costs");
+    expect(html).toContain("Service event costs");
     expect(html).toContain("−£40");
     expect(html).toContain("Net after refunds and costs");
     expect(html).toContain("£160");
     expect(html).toContain('href="/admin/ledger?group=8"');
+    expect(html).toContain("View group money history");
+    expect(html).toContain("View every change in the group's money history.");
   });
 
   test("does not offer a forbidden ledger link without owner access", () => {
@@ -201,7 +203,7 @@ describe("GroupOverviewPanel", () => {
       }),
     });
     expect(html).toContain("Money in and out");
-    expect(html).toContain("Servicing costs");
+    expect(html).toContain("Service event costs");
     expect(html).toContain("−£30");
     expect(html).toContain('href="/admin/ledger?group=8"');
   });

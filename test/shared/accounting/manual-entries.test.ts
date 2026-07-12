@@ -134,23 +134,27 @@ describe("db > accounting > manual ledger entries", () => {
     expect(stored!.reference).toBe(await legReference([...parts, "transfer"]));
   });
 
-  test("every entry type's label, hint and description keys have translations", () => {
+  test("every entry type's user-facing keys have translations", () => {
     // t() throws on a key missing from the locale files, so resolving every key
     // proves the spec table and the en catalogue stay in sync.
     for (const spec of Object.values(manualEntrySpecByType)) {
-      for (const key of [spec.labelKey, spec.hintKey, spec.descriptionKey]) {
+      for (const key of [
+        spec.labelKey,
+        spec.hintKey,
+        spec.descriptionKey,
+        spec.eventKey,
+      ]) {
         expect(t(key).length).toBeGreaterThan(0);
       }
     }
     // One spec spelled out in full: the copy the admin actually reads.
     const payment = manualEntrySpecByType[MANUAL_ATTENDEE_PAYMENT];
-    expect(t(payment.labelKey)).toBe("Payment received outside checkout");
+    expect(t(payment.labelKey)).toBe("Payment received another way");
     expect(t(payment.hintKey)).toBe(
-      "Use for cash, bank transfer, a separate card machine, vouchers, or another payment system.",
+      "Use this for cash, a bank transfer, a separate card machine, a voucher, or another payment system.",
     );
-    expect(t(payment.descriptionKey)).toBe(
-      "Payment received outside checkout for",
-    );
+    expect(t(payment.descriptionKey)).toBe("Payment received another way for");
+    expect(t(payment.eventKey)).toBe("Payment received another way");
   });
 
   test("rejects an entry type that does not belong to the account", async () => {

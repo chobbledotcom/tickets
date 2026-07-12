@@ -141,18 +141,18 @@ describe("HumanLedgerTable", () => {
       "Refund removed income from",
       "Booking fee recorded",
       "Booking fee refunded",
-      "Manual correction increased",
-      "Manual correction reduced",
-      "Transfer from",
-      "Payment received outside checkout for",
+      "Correction increased",
+      "Correction reduced",
+      "Money moved from",
+      "Payment received another way for",
       "Extra amount now owed by",
-      "Amount waived from the balance for",
-      "Income received outside checkout for",
-      "Cost paid outside checkout for",
-      "Modifier income added for",
-      "Modifier income reduced for",
-      "Service cost recorded for",
-      "Service cost reduced for",
+      "Amount no longer owed by",
+      "Income received another way for",
+      "Listing cost paid another way for",
+      "Extra option income added for",
+      "Option income reduced for",
+      "Service event cost added for",
+      "Service event cost reduced for",
     ]) {
       expect(html).toContain(phrase);
     }
@@ -163,7 +163,7 @@ describe("HumanLedgerTable", () => {
       'Payment received for <a href="/admin/ledger/attendee/1">Ada</a>',
     );
     expect(html).toContain(
-      'Manual correction reduced <a href="/admin/ledger?listing=1">Concert</a>',
+      'Correction reduced <a href="/admin/ledger?listing=1">Concert</a>',
     );
     const rows = html.split("<tr>");
     expect(rows[2]).toContain("+£50");
@@ -194,10 +194,10 @@ describe("HumanLedgerTable", () => {
       }),
     );
     expect(html).toContain("Extra amount now owed by");
-    expect(html).toContain("Amount waived from the balance for");
+    expect(html).toContain("Amount no longer owed by");
     expect(html).toContain("Ada");
-    expect(html).not.toContain("Manual correction reduced");
-    expect(html).not.toContain("Manual correction increased");
+    expect(html).not.toContain("Correction reduced");
+    expect(html).not.toContain("Correction increased");
     const rows = html.split("<tr>");
     expect(rows[2]).toContain("+£50");
     expect(rows[3]).toContain("−£50");

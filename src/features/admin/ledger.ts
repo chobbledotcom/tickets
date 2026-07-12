@@ -92,6 +92,12 @@ import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { statementFor } from "#shared/ledger/project.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
+import {
+  type LedgerScope,
+  type LedgerScopeOption,
+  listingIdsForLedgerScope,
+  resolveLedgerScope,
+} from "#shared/ledger-scope.ts";
 import { nowIso } from "#shared/now.ts";
 import {
   dayStartEpochMs,
@@ -100,7 +106,6 @@ import {
   todayInTz,
   utcToLocalInput,
 } from "#shared/timezone.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import { isIsoDate, isIsoMonth } from "#shared/validation/date.ts";
 import { parsePositiveMinorUnits } from "#shared/validation/money.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
@@ -113,8 +118,6 @@ import {
 } from "#templates/admin/ledger/entry-pages.tsx";
 import {
   type LedgerFilterState,
-  type LedgerGroupOption,
-  type LedgerListingOption,
   type LedgerViewMode,
   LedgerViewModeSchema,
 } from "#templates/admin/ledger/filter.tsx";
@@ -200,17 +203,6 @@ const dateParam = validatedParam(isIsoDate);
 /** Parse a validated `YYYY-MM` (paged-month) query param, or null. */
 const monthParam = validatedParam(isIsoMonth);
 
-/** Parse the `?listing=` scope: a positive integer, else null ("all listings"). */
-const listingParam = (params: URLSearchParams): number | null => {
-  const value = params.get("listing");
-  return value ? parsePositiveIntId(value) : null;
-};
-
-const groupParam = (params: URLSearchParams): number | null => {
-  const value = params.get("group");
-  return value ? parsePositiveIntId(value) : null;
-};
-
 /** Parse the `?view=` mode via its picklist, defaulting to the human view. */
 const viewParam = (params: URLSearchParams): LedgerViewMode => {
   const parsed = v.safeParse(LedgerViewModeSchema, params.get("view"));
@@ -256,6 +248,11 @@ const buildPickerDates = async (
 ): Promise<DatePickerDate[]> =>
   pickerDatesFromBounds(await transferActivityBounds(), today, tz);
 
+const sortScopeOptions = (options: LedgerScopeOption[]): LedgerScopeOption[] =>
+  sort((a: LedgerScopeOption, b: LedgerScopeOption) =>
+    a.name.localeCompare(b.name),
+  )(options);
+
 /** A single key/value stats row, currying the currency formatting at each call. */
 const moneyRow = (key: string, amount: number, signed = false): DetailRow => ({
   key: t(key),
@@ -283,42 +280,38 @@ const listingMoneyRows = (money: ListingMoneyTotals): DetailRow[] => [
  *  breakdown, so the figures always match the scope the list is filtered to. */
 const buildStats = async (
   range: LedgerRange,
-  listingId: number | null,
-  groupId: number | null,
-  listings: ListingWithCount[],
+  scope: LedgerScope,
   groupListingIds: number[],
-  groupNames: Map<number, string>,
 ): Promise<{ rows: DetailRow[]; heading: string | null }> => {
-  if (listingId !== null) {
-    const money = await listingMoneyTotals(range, [listingId]);
-    // The caller only scopes to a listing it found in this same cached list, so
-    // the lookup always resolves.
-    const listing = listings.find((entry) => entry.id === listingId)!;
-    return {
-      heading: listing.name,
-      rows: listingMoneyRows(money),
-    };
+  switch (scope.kind) {
+    case "all": {
+      const totals = await ledgerTotals(range);
+      // No heading for the whole-business view: the page already names the view.
+      return {
+        heading: null,
+        rows: [
+          moneyRow("admin.ledger.stats.income", totals.income, true),
+          moneyRow("admin.ledger.stats.due", totals.due),
+          moneyRow("admin.ledger.stats.refunded", -totals.refunded, true),
+          moneyRow("admin.ledger.stats.fees", totals.fees, true),
+        ],
+      };
+    }
+    case "listing": {
+      const money = await listingMoneyTotals(range, [scope.id]);
+      return {
+        heading: scope.name,
+        rows: listingMoneyRows(money),
+      };
+    }
+    case "group": {
+      const money = await listingMoneyTotals(range, groupListingIds);
+      return {
+        heading: scope.name,
+        rows: listingMoneyRows(money),
+      };
+    }
   }
-  if (groupId !== null) {
-    const money = await listingMoneyTotals(range, groupListingIds);
-    // The caller only scopes to a group it found in this same cached map, so the
-    // lookup always resolves.
-    return {
-      heading: groupNames.get(groupId)!,
-      rows: listingMoneyRows(money),
-    };
-  }
-  const totals = await ledgerTotals(range);
-  // No heading for the whole-business view — the page is already titled Ledger.
-  return {
-    heading: null,
-    rows: [
-      moneyRow("admin.ledger.stats.income", totals.income, true),
-      moneyRow("admin.ledger.stats.due", totals.due),
-      moneyRow("admin.ledger.stats.refunded", -totals.refunded, true),
-      moneyRow("admin.ledger.stats.fees", totals.fees, true),
-    ],
-  };
 };
 
 /**
@@ -344,26 +337,16 @@ export const handleLedgerGet: TypedRouteHandler<"GET /admin/ledger"> = (
       getAllListings(),
       getAllGroupNames(),
     ]);
-    const requested = listingParam(params);
-    const listingId =
-      requested !== null && listings.some((listing) => listing.id === requested)
-        ? requested
-        : null;
-    const requestedGroup = groupParam(params);
-    const groupId =
-      listingId === null &&
-      requestedGroup !== null &&
-      groupNames.has(requestedGroup)
-        ? requestedGroup
-        : null;
+    const listingOptions = sortScopeOptions(
+      listings.map((listing) => ({ id: listing.id, name: listing.name })),
+    );
+    const groupOptions = sortScopeOptions(
+      [...groupNames].map(([id, name]) => ({ id, name })),
+    );
+    const scope = resolveLedgerScope(params, listingOptions, groupOptions);
     const groupListingIds =
-      groupId === null ? [] : await getGroupListingIds(groupId);
-    const listingIds =
-      listingId === null
-        ? groupId === null
-          ? null
-          : groupListingIds
-        : [listingId];
+      scope.kind === "group" ? await getGroupListingIds(scope.id) : [];
+    const listingIds = listingIdsForLedgerScope(scope, groupListingIds);
 
     const fetched = await visibleTransfers(
       range,
@@ -377,31 +360,14 @@ export const handleLedgerGet: TypedRouteHandler<"GET /admin/ledger"> = (
 
     const [names, stats, dates] = await Promise.all([
       loadLedgerNames(transfers),
-      buildStats(
-        range,
-        listingId,
-        groupId,
-        listings,
-        groupListingIds,
-        groupNames,
-      ),
+      buildStats(range, scope, groupListingIds),
       buildPickerDates(tz, today),
     ]);
-
-    const listingOptions: LedgerListingOption[] = sort(
-      (a: LedgerListingOption, b: LedgerListingOption) =>
-        a.name.localeCompare(b.name),
-    )(listings.map((listing) => ({ id: listing.id, name: listing.name })));
-    const groupOptions: LedgerGroupOption[] = sort(
-      (a: LedgerGroupOption, b: LedgerGroupOption) =>
-        a.name.localeCompare(b.name),
-    )([...groupNames].map(([id, name]) => ({ id, name })));
 
     const filters: LedgerFilterState = {
       from,
       fromMonth: monthParam(params, "fromCal"),
-      groupId,
-      listingId,
+      scope,
       to,
       toMonth: monthParam(params, "toCal"),
       view: viewParam(params),

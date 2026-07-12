@@ -38,10 +38,10 @@
   "groups.running_totals_error_title": "Group listing totals do not match attendee rows.",
   "groups.money.heading": "Money in and out",
   "groups.money.income": "Total income earned",
-  "groups.money.costs": "Servicing costs",
+  "groups.money.costs": "Service event costs",
   "groups.money.refunds": "Refunds",
   "groups.money.external_costs": "Costs paid outside checkout",
   "groups.money.net": "Net after refunds and costs",
-  "groups.money.note": "These totals combine the group's current listings. Open the ledger to see every item behind them.",
-  "groups.money.view_ledger": "View group ledger"
+  "groups.money.note": "These totals combine the group's current listings. View every change in the group's money history.",
+  "groups.money.view_ledger": "View group money history"
 }

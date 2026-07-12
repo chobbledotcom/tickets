@@ -194,7 +194,7 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
       await submitRefreshPayment(
         attendee,
         () => Promise.resolve(true),
-        expect.stringContaining("could not be recorded"),
+        expect.stringContaining("Money history could not record it"),
         false,
       );
     });

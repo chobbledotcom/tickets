@@ -112,8 +112,7 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
       const html = await getListingDetailHtml(listing.id, cookie);
       expect(html).toContain("Money in and out");
       expect(html).toContain(`href="/admin/ledger?listing=${listing.id}"`);
-      expect(html).not.toContain('<section id="ledger">');
-      expect(html).not.toContain("Money history");
+      expect(html).not.toContain('<div class="page-block" id="ledger">');
       expect(html).not.toContain("<th>Other side</th>");
     });
 

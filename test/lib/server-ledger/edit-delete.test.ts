@@ -19,12 +19,18 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("Edit ledger entry");
+    expect(html).toContain("Edit money change");
     expect(html).toContain('name="amount"');
     expect(html).toContain('value="12.34"');
     expect(html).toContain('name="occurred_at"');
     expect(html).toContain('value="2026-06-22T09:30"');
-    expect(html).toContain("Delete ledger entry");
+    expect(html).toContain("Delete money change");
+    expect(html).toContain(
+      "Warning: This permanently deletes this money change.",
+    );
+    expect(html).toContain(
+      `Type the exact amount &quot;${formatCurrency(1234)}&quot; to confirm.`,
+    );
     expect(html).toContain(formatCurrency(1234));
     expect(html).toContain('name="confirm_identifier"');
   });

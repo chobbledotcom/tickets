@@ -24,7 +24,8 @@ describe("adminListingPage income & ledger breakdown", () => {
       attendees: [],
       listing,
     });
-    expect(html).not.toContain("Income &amp; ledger");
+    expect(html).not.toContain("Money in and out");
+    expect(html).not.toContain('href="/admin/ledger?listing=7"');
   });
 
   test("shows money in, money out, and the net result with consistent signs", () => {
@@ -48,7 +49,7 @@ describe("adminListingPage income & ledger breakdown", () => {
     // Gross sales credited (+), manual write-down (−), then the two subtotals.
     expect(html).toContain("Gross ticket sales");
     expect(html).toContain("+£100");
-    expect(html).toContain("Manual adjustments");
+    expect(html).toContain("Income corrections");
     expect(html).toContain("−£10");
     expect(html).toContain("Total income earned");
     expect(html).toContain("£90");
@@ -60,8 +61,8 @@ describe("adminListingPage income & ledger breakdown", () => {
     // ledger, preselected to this listing (no arrow glyph, button-styled).
     expect(html).toContain("Income is what this listing earned before refunds");
     expect(html).toContain('href="/admin/ledger?listing=7"');
-    expect(html).toContain("View full ledger");
-    expect(html).not.toContain("View full ledger →");
+    expect(html).toContain("View full money history");
+    expect(html).not.toContain("View full money history →");
   });
 
   test("makes a refund-driven divergence between income and net balance visible", () => {
@@ -112,7 +113,7 @@ describe("adminListingPage income & ledger breakdown", () => {
       },
     });
     expect(html).toContain("Money in and out");
-    expect(html).not.toContain("Manual adjustments");
+    expect(html).not.toContain("Income corrections");
     // With no refunds either, recognised income and net balance coincide at £50.
     expect(html).toContain("Total income earned");
     expect(html).toContain("Net after refunds and costs");
@@ -136,7 +137,7 @@ describe("adminListingPage income & ledger breakdown", () => {
         transferCount: 2,
       },
     });
-    expect(html).toContain("Manual adjustments");
+    expect(html).toContain("Income corrections");
     expect(html).toContain("+£15");
   });
 
@@ -179,7 +180,7 @@ describe("adminListingPage income & ledger breakdown", () => {
       listing,
     });
     expect(html).toContain('<div class="page-block" id="ledger">');
-    expect(html).toContain("Add entry");
+    expect(html).toContain("Add money change");
     expect(html).toContain(
       'href="/admin/ledger/revenue/7/add?return_url=%2Fadmin%2Flisting%2F7"',
     );

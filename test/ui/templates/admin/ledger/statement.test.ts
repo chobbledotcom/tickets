@@ -142,10 +142,10 @@ describe("AccountStatementTable", () => {
       }),
     );
     const rows = html.split("<tr>");
-    expect(rows[2]).toContain("Service cost recorded for");
+    expect(rows[2]).toContain("Service event cost added for");
     expect(rows[2]).toContain("+£50");
     expect(rows[2]).toContain(">£50<");
-    expect(rows[3]).toContain("Service cost reduced for");
+    expect(rows[3]).toContain("Service event cost reduced for");
     expect(rows[3]).toContain("−£20");
     expect(rows[3]).toContain(">£30<");
   });
@@ -155,7 +155,7 @@ describe("AccountStatementTable", () => {
       AccountStatementTable({ account: acct, lines: [], names: names() }),
     );
     expect(html).toContain('colspan="5"');
-    expect(html).toContain("No transfers recorded yet");
+    expect(html).toContain("No money changes yet.");
   });
 
   const renderStatement = (returnUrl?: string): string =>
@@ -229,13 +229,13 @@ describe("adminAccountStatementPage", () => {
     expect(html).toContain(
       'href="/admin/ledger/attendee/7/add?return_url=%2Fadmin%2Fledger%2Fattendee%2F7"',
     );
-    expect(html).not.toContain("View full ledger");
+    expect(html).not.toContain("View full money history");
   });
 
   test("shows a zero balance for an account with no history", () => {
     const html = adminAccountStatementPage(acct, [], names(), SESSION);
     expect(html).toContain(`Amount still owed: ${formatCurrency(0)}`);
-    expect(html).toContain("No transfers recorded yet");
+    expect(html).toContain("No money changes yet.");
     expect(html).not.toContain("/admin/ledger/attendee/7/add");
   });
 
@@ -276,7 +276,7 @@ describe("adminAccountStatementPage", () => {
       }),
     );
     expect(html).toContain(
-      'href="/admin/ledger/writeoff/default"><span>View full ledger</span></a>',
+      'href="/admin/ledger/writeoff/default"><span>View full money history</span></a>',
     );
     expect(html).not.toContain("/admin/ledger/writeoff/default/add");
   });

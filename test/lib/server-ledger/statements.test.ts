@@ -99,7 +99,7 @@ describeWithEnv(
       const html = await response.text();
       expect(html).toContain("Money history");
       // The writeoff singleton renders its label, not a raw "writeoff:default".
-      expect(html).toContain("Write-off");
+      expect(html).toContain("Corrections");
       // The correction's counterparty is the listing's revenue account.
       expect(html).toContain("Adjusted");
     });

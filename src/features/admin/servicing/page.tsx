@@ -11,7 +11,7 @@ import type {
 import { CsrfForm, type Field, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { listingLedgerHref } from "#shared/ledger-links.ts";
-import { isOwner, type ListingWithCount } from "#shared/types.ts";
+import { isOwnerRole, type ListingWithCount } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { WritableLink } from "#templates/admin/writable-only.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
@@ -150,7 +150,7 @@ const costRows = (
   map((cost: ServicingCostRecord) => {
     const listingName = listingNames.get(cost.listingId);
     const ledgerHref =
-      isOwner(session) && listingName !== undefined
+      isOwnerRole(session.adminLevel) && listingName !== undefined
         ? listingLedgerHref(cost.listingId)
         : null;
     return [

@@ -206,7 +206,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
 
     const html = await renderAdminPage(`/admin/listing/${listing.id}`);
 
-    expect(html).toContain("Servicing costs");
+    expect(html).toContain("Service event costs");
     expect(html).toContain(formatCurrency(9000));
     expect(html).toContain("Profit before refunds");
     expect(html).toContain(formatCurrency(11000));
@@ -286,7 +286,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(1);
     expect(await listingCostOf(listing.id)).toBe(9000);
     // The distinguishing signal from the old false-success: the second submit
-    // carries an ERROR flash, not a "Recorded cost 50.00" success flash.
+    // carries an ERROR flash, not a cost-recorded success flash.
     expect(parseFlashCookie(changed).success).toBeUndefined();
     expect(parseFlashCookie(changed).error).toBeDefined();
     const { getServicingCosts } = await import(
@@ -568,7 +568,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
       servicingId: id,
     });
     const body = await renderAdminPage(`/admin/servicing/${id}`);
-    expect(body).toContain("Recorded costs");
+    expect(body).toContain("Service event costs");
     expect(body).toContain(formatCurrency(9000));
     expect(body).toContain("Boiler part");
     expect(body).toContain(listing.name);

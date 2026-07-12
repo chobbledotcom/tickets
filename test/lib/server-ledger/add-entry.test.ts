@@ -30,7 +30,7 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
     const response = await adminGet(`/admin/ledger/attendee/${attendeeId}`);
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("Add entry");
+    expect(html).toContain("Add money change");
     expect(html).toContain(
       `/admin/ledger/attendee/${attendeeId}/add?return_url=%2Fadmin%2Fledger%2Fattendee%2F${attendeeId}`,
     );
@@ -43,8 +43,8 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("Add ledger entry");
-    expect(html).toContain("Payment received outside checkout");
+    expect(html).toContain("Add money change");
+    expect(html).toContain("Payment received another way");
     expect(html).toContain("Extra amount this attendee needs to pay");
     expect(html).toContain("Waive or reduce what this attendee owes");
     expect(html).toContain(`/admin/attendees/${attendeeId}`);
@@ -60,8 +60,8 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain("Village Hall");
-    expect(html).toContain("Income received outside checkout");
-    expect(html).toContain("Cost paid for this listing");
+    expect(html).toContain("Income received another way");
+    expect(html).toContain("Listing cost paid another way");
     expect(html).not.toContain("Extra amount this attendee needs to pay");
   });
 
@@ -78,9 +78,9 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain("Helmet hire");
-    expect(html).toContain("Extra modifier income");
-    expect(html).toContain("Reduce modifier income");
-    expect(html).not.toContain("Cost paid for this listing");
+    expect(html).toContain("Extra option income");
+    expect(html).toContain("Reduce option income");
+    expect(html).not.toContain("Listing cost paid another way");
   });
 
   test("posts an attendee payment received outside checkout", async () => {

@@ -130,7 +130,7 @@ describe("e2e: servicing — narrative scenarios", () => {
         memo: "Boiler part",
         target_listing_id: costListingIdFromForm(browser.currentHtml),
       },
-      "Record Cost",
+      "Record service event cost",
     );
     expect(browser.containsText("90")).toBe(true);
   });

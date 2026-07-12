@@ -58,7 +58,7 @@ describeWithEnv("server listings > edit form and income", { db: true }, () => {
       );
     });
 
-    test("shows the income-correction form with its ledger warning", async () => {
+    test("shows the income-correction form with its money-history warning", async () => {
       await setupListingAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
@@ -69,8 +69,7 @@ describeWithEnv("server listings > edit form and income", { db: true }, () => {
       expect(html).toContain("Adjust income");
       expect(html).toContain('action="/admin/listing/1/income"');
       expect(html).toContain('name="income"');
-      // The prominent warning that this edits the source-of-truth money ledger.
-      expect(html).toContain("correcting entry to the money ledger");
+      expect(html).toContain("This adds a correction to Money history.");
     });
   });
   describe("POST /admin/listing/:id/income", () => {
@@ -91,7 +90,7 @@ describeWithEnv("server listings > edit form and income", { db: true }, () => {
       );
       await expectFlashRedirect(
         `/admin/listing/${listing.id}/edit`,
-        "Listing income adjusted",
+        "Listing income corrected.",
       )(response);
 
       invalidateListingsCache();
@@ -115,7 +114,7 @@ describeWithEnv("server listings > edit form and income", { db: true }, () => {
       );
       await expectFlashRedirect(
         `/admin/listing/${listing.id}/edit`,
-        "Listing income adjusted",
+        "Listing income corrected.",
       )(response);
 
       invalidateListingsCache();

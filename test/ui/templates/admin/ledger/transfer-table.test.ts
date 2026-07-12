@@ -1,13 +1,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { MANUAL_ATTENDEE_PAYMENT } from "#shared/accounting/manual-entries.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
+import {
+  MANUAL_ATTENDEE_PAYMENT,
+  ManualLedgerEntryTypeSchema,
+} from "#shared/accounting/manual-entries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { LedgerTable } from "#templates/admin/ledger.tsx";
 
 import { names, transfer } from "./helpers.ts";
 
 describe("LedgerTable", () => {
-  test("renders each transfer as From → To with kind, time and amount", () => {
+  test("renders each money change with a translated event, time and amount", () => {
     const refs = names({
       attendees: new Map([[1, "Ada"]]),
       listings: new Map([[1, "Concert"]]),
@@ -20,7 +24,8 @@ describe("LedgerTable", () => {
     );
     expect(html).toContain("table-scroll");
     expect(html).toContain("<th>Time</th>");
-    expect(html).toContain("sale");
+    expect(html).toContain("Booking made");
+    expect(html).not.toContain(">sale<");
     // Both legs resolve to links, joined by an arrow (rendered as the glyph).
     expect(html).toContain('<a href="/admin/ledger/attendee/1">Ada</a>');
     expect(html).toContain('<a href="/admin/ledger?listing=1">Concert</a>');
@@ -28,17 +33,17 @@ describe("LedgerTable", () => {
     expect(html).toContain(formatCurrency(2500));
   });
 
-  test("shows an em dash for a transfer with no kind", () => {
+  test("explains a money change with no event type", () => {
     const html = String(
       LedgerTable({
         names: names(),
         transfers: [transfer({})],
       }),
     );
-    expect(html).toContain("<td>—</td>");
+    expect(html).toContain("<td>No event type</td>");
   });
 
-  test("renders a synthetic empty-string kind as the no-kind placeholder", () => {
+  test("treats a synthetic empty event type as absent", () => {
     // The store maps a kindless stored row back to an omitted kind, so "" only
     // arises synthetically — it must still read as "no kind", never a blank cell.
     const html = String(
@@ -47,14 +52,65 @@ describe("LedgerTable", () => {
         transfers: [transfer({ kind: "" })],
       }),
     );
-    expect(html).toContain("<td>—</td>");
+    expect(html).toContain("<td>No event type</td>");
     expect(html).not.toContain("<td></td>");
+  });
+
+  test("uses a safe translated label for an unknown opaque event type", () => {
+    const html = String(
+      LedgerTable({
+        names: names(),
+        transfers: [transfer({ kind: "future_money_change" })],
+      }),
+    );
+    expect(html).toContain("<td>Other money change</td>");
+    expect(html).not.toContain("future_money_change");
+  });
+
+  test("has a translated detailed-view label for every known event type", () => {
+    const kinds = [
+      ...Object.values(KIND),
+      ...ManualLedgerEntryTypeSchema.options,
+    ];
+    const html = String(
+      LedgerTable({
+        names: names(),
+        transfers: kinds.map((kind, index) =>
+          transfer({ id: index + 1, kind }),
+        ),
+      }),
+    );
+    for (const kind of kinds) {
+      expect(html).not.toContain(`>${kind}<`);
+    }
+    for (const label of [
+      "Correction",
+      "Booking fee",
+      "Price change",
+      "Payment received",
+      "Refund paid",
+      "Booking fee refunded",
+      "Price change refunded",
+      "Booking refunded",
+      "Change reversed",
+      "Booking made",
+      "Service event cost",
+      "Payment received another way",
+      "Extra amount owed",
+      "Amount no longer owed",
+      "Income received another way",
+      "Listing cost paid another way",
+      "Extra option income",
+      "Option income reduced",
+    ]) {
+      expect(html).toContain(`>${label}<`);
+    }
   });
 
   test("renders the empty state row spanning all four columns", () => {
     const html = String(LedgerTable({ names: names(), transfers: [] }));
     expect(html).toContain('colspan="4"');
-    expect(html).toContain("No transfers recorded yet");
+    expect(html).toContain("No money changes yet.");
   });
 
   test("escapes a stored name so PII cannot inject markup", () => {

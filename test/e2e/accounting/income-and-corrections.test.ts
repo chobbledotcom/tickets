@@ -152,7 +152,7 @@ describeAccounting(() => {
     ).response;
     await expectFlashRedirect(
       `/admin/listing/${listing.id}/edit`,
-      "Listing income adjusted",
+      "Listing income corrected.",
     )(response);
 
     // Income dropped by exactly £30; the correction is one writeoff↔revenue leg.
@@ -263,7 +263,7 @@ describeAccounting(() => {
     ).response;
     await expectFlashRedirect(
       `/admin/modifiers/${modifier.id}/edit`,
-      "Modifier revenue adjusted",
+      "Option income corrected.",
     )(response);
 
     // Ledger moved to exactly the target via a single writeoff↔modifier leg.

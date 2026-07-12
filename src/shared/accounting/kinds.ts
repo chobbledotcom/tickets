@@ -38,3 +38,9 @@ export const KIND = {
 
 /** One of the accounting layer's own transfer kinds. */
 export type TransferKind = (typeof KIND)[keyof typeof KIND];
+
+const TRANSFER_KINDS: ReadonlySet<string> = new Set(Object.values(KIND));
+
+/** Keep opaque stored kinds at the boundary until they match the closed family. */
+export const isTransferKind = (value: string): value is TransferKind =>
+  TRANSFER_KINDS.has(value);

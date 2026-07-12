@@ -12,12 +12,13 @@ import {
   type SingletonAccountType,
   WRITEOFF_TYPE,
 } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
 import {
-  MANUAL_ATTENDEE_WRITEOFF,
-  MANUAL_LISTING_COST,
-  MANUAL_MODIFIER_REDUCTION,
-  type ManualLedgerEntryType,
+  isTransferKind,
+  KIND,
+  type TransferKind,
+} from "#shared/accounting/kinds.ts";
+import {
+  isManualLedgerEntryType,
   manualEntrySpecByType,
 } from "#shared/accounting/manual-entries.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
@@ -37,10 +38,10 @@ const sentenceWithAccount = (
 ): JSX.Element =>
   account ? (
     <>
-      {t(key)} {accountCell(account)}
+      {t(key)} {accountCell(account)}.
     </>
   ) : (
-    <span>{t(key)}</span>
+    <span>{t(key)}.</span>
   );
 
 const fallbackHumanDescription = (
@@ -48,8 +49,8 @@ const fallbackHumanDescription = (
   accountCell: AccountCell,
 ): JSX.Element => (
   <>
-    {t("admin.ledger.human.transfer_from")} {accountCell(transfer.source)}{" "}
-    {t("admin.ledger.human.transfer_to")} {accountCell(transfer.destination)}
+    {t("admin.ledger.human.money_from")} {accountCell(transfer.source)}{" "}
+    {t("admin.ledger.human.money_to")} {accountCell(transfer.destination)}.
   </>
 );
 
@@ -59,7 +60,7 @@ const saleDescription = (
 ): JSX.Element => (
   <>
     {accountCell(transfer.source)} {t("admin.ledger.human.booked")}{" "}
-    {accountCell(transfer.destination)}
+    {accountCell(transfer.destination)}.
   </>
 );
 
@@ -104,96 +105,157 @@ const adjustmentDescription = (
   return fallbackHumanDescription(transfer, accountCell);
 };
 
+type DescriptionRule = (
+  transfer: Transfer,
+  accountCell: AccountCell,
+) => JSX.Element;
+
+type AmountRule = (transfer: Transfer) => number;
+
+type TransferPresentation = {
+  readonly amount: AmountRule;
+  readonly description: DescriptionRule;
+  readonly eventKey: string;
+};
+
+const positiveAmount: AmountRule = (transfer) => transfer.amount;
+const negativeAmount: AmountRule = (transfer) => -transfer.amount;
+
+const textDescription =
+  (key: string): DescriptionRule =>
+  () => <>{t(key)}</>;
+
+const accountDescription =
+  (key: string, accountType: string): DescriptionRule =>
+  (transfer, accountCell) =>
+    sentenceWithAccount(key, humanAccount(transfer, accountType), accountCell);
+
+const serviceCostDescription: DescriptionRule = (transfer, accountCell) =>
+  sentenceWithAccount(
+    transfer.source.type === COST
+      ? "admin.ledger.human.service_cost"
+      : "admin.ledger.human.service_cost_reduction",
+    humanAccount(transfer, COST),
+    accountCell,
+  );
+
+const serviceCostAmount: AmountRule = (transfer) =>
+  transfer.source.type === COST ? -transfer.amount : transfer.amount;
+
+const adjustmentAmount: AmountRule = (transfer) => {
+  if (transfer.source.type === ATTENDEE) return transfer.amount;
+  if (transfer.destination.type === ATTENDEE) return -transfer.amount;
+  return transfer.destination.type === WRITEOFF_TYPE
+    ? -transfer.amount
+    : transfer.amount;
+};
+
+const modifierDescription: DescriptionRule = (transfer, accountCell) =>
+  sentenceWithAccount(
+    transfer.destination.type === MODIFIER
+      ? "admin.ledger.human.modifier_increase"
+      : "admin.ledger.human.modifier_reduce",
+    humanAccount(transfer, MODIFIER),
+    accountCell,
+  );
+
+const modifierAmount: AmountRule = (transfer) =>
+  transfer.destination.type === MODIFIER ? transfer.amount : -transfer.amount;
+
+/**
+ * Every application-owned event chooses its detailed label, simple description,
+ * and displayed amount together. Adding a KIND member cannot update only one.
+ */
+const TRANSFER_PRESENTATION: Record<TransferKind, TransferPresentation> = {
+  [KIND.adjustment]: {
+    amount: adjustmentAmount,
+    description: adjustmentDescription,
+    eventKey: "admin.ledger.event.adjustment",
+  },
+  [KIND.fee]: {
+    amount: positiveAmount,
+    description: textDescription("admin.ledger.human.fee"),
+    eventKey: "admin.ledger.event.fee",
+  },
+  [KIND.modifier]: {
+    amount: modifierAmount,
+    description: modifierDescription,
+    eventKey: "admin.ledger.event.modifier",
+  },
+  [KIND.payment]: {
+    amount: positiveAmount,
+    description: accountDescription("admin.ledger.human.payment", ATTENDEE),
+    eventKey: "admin.ledger.event.payment",
+  },
+  [KIND.refundCash]: {
+    amount: negativeAmount,
+    description: accountDescription("admin.ledger.human.refund_cash", ATTENDEE),
+    eventKey: "admin.ledger.event.refund_cash",
+  },
+  [KIND.refundFee]: {
+    amount: negativeAmount,
+    description: textDescription("admin.ledger.human.refund_fee"),
+    eventKey: "admin.ledger.event.refund_fee",
+  },
+  [KIND.refundModifier]: {
+    amount: modifierAmount,
+    description: modifierDescription,
+    eventKey: "admin.ledger.event.refund_modifier",
+  },
+  [KIND.refundSale]: {
+    amount: negativeAmount,
+    description: accountDescription("admin.ledger.human.refund_sale", REVENUE),
+    eventKey: "admin.ledger.event.refund_sale",
+  },
+  [KIND.reversal]: {
+    amount: positiveAmount,
+    description: fallbackHumanDescription,
+    eventKey: "admin.ledger.event.reversal",
+  },
+  [KIND.sale]: {
+    amount: positiveAmount,
+    description: saleDescription,
+    eventKey: "admin.ledger.event.sale",
+  },
+  [KIND.serviceCost]: {
+    amount: serviceCostAmount,
+    description: serviceCostDescription,
+    eventKey: "admin.ledger.event.service_cost",
+  },
+};
+
+const presentationFor = (transfer: Transfer): TransferPresentation => {
+  const { kind } = transfer;
+  if (kind !== undefined && isTransferKind(kind)) {
+    return TRANSFER_PRESENTATION[kind];
+  }
+  if (kind !== undefined && isManualLedgerEntryType(kind)) {
+    const spec = manualEntrySpecByType[kind];
+    return {
+      amount: (row) => spec.amountSign * row.amount,
+      description: accountDescription(spec.descriptionKey, spec.accountType),
+      eventKey: spec.eventKey,
+    };
+  }
+  return {
+    amount: positiveAmount,
+    description: fallbackHumanDescription,
+    // Stored kinds are opaque. An unknown value must never become user copy.
+    eventKey: kind ? "admin.ledger.event.unknown" : "admin.ledger.event.none",
+  };
+};
+
+export const transferEventLabel = (transfer: Transfer): string =>
+  t(presentationFor(transfer).eventKey);
+
 export const humanDescription = (
   transfer: Transfer,
   accountCell: AccountCell,
-): JSX.Element => {
-  switch (transfer.kind) {
-    case KIND.sale:
-      return saleDescription(transfer, accountCell);
-    case KIND.payment:
-      return sentenceWithAccount(
-        "admin.ledger.human.payment",
-        humanAccount(transfer, ATTENDEE),
-        accountCell,
-      );
-    case KIND.refundCash:
-      return sentenceWithAccount(
-        "admin.ledger.human.refund_cash",
-        humanAccount(transfer, ATTENDEE),
-        accountCell,
-      );
-    case KIND.refundSale:
-      return sentenceWithAccount(
-        "admin.ledger.human.refund_sale",
-        humanAccount(transfer, REVENUE),
-        accountCell,
-      );
-    case KIND.fee:
-      return <>{t("admin.ledger.human.fee")}</>;
-    case KIND.refundFee:
-      return <>{t("admin.ledger.human.refund_fee")}</>;
-    case KIND.serviceCost:
-      return sentenceWithAccount(
-        transfer.source.type === COST
-          ? "admin.ledger.human.service_cost"
-          : "admin.ledger.human.service_cost_reduction",
-        humanAccount(transfer, COST),
-        accountCell,
-      );
-    case KIND.adjustment:
-      return adjustmentDescription(transfer, accountCell);
-    default: {
-      const spec =
-        manualEntrySpecByType[transfer.kind as ManualLedgerEntryType];
-      return spec
-        ? sentenceWithAccount(
-            spec.descriptionKey,
-            humanAccount(transfer, spec.accountType),
-            accountCell,
-          )
-        : fallbackHumanDescription(transfer, accountCell);
-    }
-  }
-};
+): JSX.Element => presentationFor(transfer).description(transfer, accountCell);
 
-const NEGATIVE_HUMAN_KINDS = new Set<string>([
-  KIND.refundCash,
-  KIND.refundFee,
-  KIND.refundSale,
-  MANUAL_LISTING_COST,
-  MANUAL_ATTENDEE_WRITEOFF,
-  MANUAL_MODIFIER_REDUCTION,
-]);
-
-const hasNegativeHumanKind = (kind: string | undefined): boolean =>
-  kind !== undefined && NEGATIVE_HUMAN_KINDS.has(kind);
-
-/** How one plain-language row changed the business figure it describes. */
-export const humanAmount = (transfer: Transfer): number => {
-  if (hasNegativeHumanKind(transfer.kind)) {
-    return -transfer.amount;
-  }
-  if (transfer.kind === KIND.serviceCost) {
-    return transfer.source.type === COST ? -transfer.amount : transfer.amount;
-  }
-  if (transfer.kind === KIND.adjustment) {
-    if (transfer.source.type === ATTENDEE) return transfer.amount;
-    if (transfer.destination.type === ATTENDEE) return -transfer.amount;
-    return transfer.destination.type === WRITEOFF_TYPE
-      ? -transfer.amount
-      : transfer.amount;
-  }
-  if (
-    transfer.kind === KIND.modifier ||
-    transfer.kind === KIND.refundModifier
-  ) {
-    return transfer.destination.type === MODIFIER
-      ? transfer.amount
-      : -transfer.amount;
-  }
-  return transfer.amount;
-};
+/** How one simple-view row changed the business figure it describes. */
+export const humanAmount = (transfer: Transfer): number =>
+  presentationFor(transfer).amount(transfer);
 
 const isReversedAccount = (account: AccountRef): boolean =>
   account.type === ATTENDEE || account.type === COST;
