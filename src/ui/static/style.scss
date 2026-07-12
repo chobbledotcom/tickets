@@ -40,7 +40,7 @@
 
 /* Public-facing pages (no admin nav) get a narrower reading width */
 body:not(:has(#main-nav)) {
-  --width-content: 800px;
+  --width-content: 1080px;
 }
 
 :root[data-theme="dark"] {
