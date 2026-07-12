@@ -42,7 +42,7 @@ one:
 
 ```bash
 mise use --env local deno@latest   # writes mise.local.toml, which is git-ignored
-deno check --unstable-tsgo "src/**/*.ts"   # fast type-check on the newer Deno
+deno check --unstable-tsgo "src/**/*.ts" "src/**/*.tsx"   # fast type-check on the newer Deno
 ```
 
 Use `--env local` so the newer version lands in `mise.local.toml` (git-ignored),
@@ -64,7 +64,8 @@ pinned one and can disagree with CI:
   gate on the pinned version — `mise exec deno@2.5.6 -- deno task precommit` —
   since only that mirrors CI. The newer Deno is for speed while you iterate, not
   for deciding pass/fail. The full parallel test suite in particular is only
-  known-good on the pinned version; run `deno task test` under 2.5.6.
+  known-good on the pinned version; run it explicitly through 2.5.6 with
+  `mise exec deno@2.5.6 -- deno task test`.
 
 ## stripe-mock
 
