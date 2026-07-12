@@ -38,6 +38,88 @@
   /* Breakpoint: desktop ≥ 769px, mobile ≤ 768px (use in @media rules) */
 }
 
+@mixin mix-10 {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+
+@mixin mix-9 {
+  content: "\2713";
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+
+@mixin mix-8 {
+  background: rgba(248, 215, 218, 0.95);
+  color: #721c24;
+  border: 2px solid #f5c6cb;
+}
+
+
+@mixin mix-7 {
+  background: rgba(255, 243, 205, 0.95);
+  color: #856404;
+  border: 2px solid #ffeeba;
+}
+
+
+@mixin mix-6 {
+  background: rgba(212, 237, 218, 0.95);
+  color: #155724;
+  border: 2px solid #c3e6cb;
+}
+
+
+@mixin mix-5 {
+  position: absolute;
+  top: var(--space-s);
+  right: var(--space-s);
+}
+
+
+@mixin mix-4 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-m);
+}
+
+
+@mixin mix-3 {
+  background: #f59e0b;
+  color: #000;
+  text-align: center;
+  padding: 8px;
+  font-weight: bold;
+}
+
+
+@mixin mix-2 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+
+@mixin mix-1 {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-s);
+  margin-bottom: var(--space-s);
+  font-weight: normal;
+  cursor: pointer;
+}
+
+
+@mixin focus-ring {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 2px;
+}
+
+
 @mixin dup-5 {
   background: var(--color-link);
   color: var(--color-bg);
@@ -225,8 +307,7 @@ article aside {
 }
 
 body {
-  background: var(--color-bg);
-  color: var(--color-text);
+  @include mix-10;
   font-family: var(--font-family);
   line-height: var(--line-height);
   margin: 0;
@@ -732,9 +813,7 @@ input[type="submit"],
 /* Horizontal toolbar for page-level actions + guide links */
 .actions {
   align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-m);
+  @include mix-4;
 }
 
 /* A page's guide link, pinned to the bottom of the body. Its page-region parent
@@ -1000,8 +1079,7 @@ textarea[readonly] {
   padding: 0.2rem 0.5rem;
   border: 1px solid transparent;
   border-radius: var(--border-radius);
-  background: var(--color-bg);
-  color: var(--color-text);
+  @include mix-10;
   font: inherit;
   font-size: 0.85rem;
   line-height: 1.3;
@@ -1046,17 +1124,14 @@ textarea[readonly] {
   margin: 0;
   padding: 0;
   border: none;
-  background: var(--color-bg);
-  color: var(--color-text);
+  @include mix-10;
   overflow: hidden;
 }
 .md-preview-dialog::backdrop {
   background: rgba(0, 0, 0, 0.5);
 }
 .md-preview-close {
-  position: absolute;
-  top: var(--space-s);
-  right: var(--space-s);
+  @include mix-5;
   z-index: 1;
   display: flex;
   width: auto;
@@ -2321,21 +2396,15 @@ button.secondary:hover,
 }
 
 .checkin-status-success {
-  background: rgba(212, 237, 218, 0.95);
-  color: #155724;
-  border: 2px solid #c3e6cb;
+  @include mix-6;
 }
 
 .checkin-status-warning {
-  background: rgba(255, 243, 205, 0.95);
-  color: #856404;
-  border: 2px solid #ffeeba;
+  @include mix-7;
 }
 
 .checkin-status-error {
-  background: rgba(248, 215, 218, 0.95);
-  color: #721c24;
-  border: 2px solid #f5c6cb;
+  @include mix-8;
 }
 
 /* Inactive dashboard row */
@@ -2366,21 +2435,15 @@ button.secondary:hover,
 }
 
 .scanner-status-success {
-  background: rgba(212, 237, 218, 0.95);
-  color: #155724;
-  border: 2px solid #c3e6cb;
+  @include mix-6;
 }
 
 .scanner-status-warning {
-  background: rgba(255, 243, 205, 0.95);
-  color: #856404;
-  border: 2px solid #ffeeba;
+  @include mix-7;
 }
 
 .scanner-status-error {
-  background: rgba(248, 215, 218, 0.95);
-  color: #721c24;
-  border: 2px solid #f5c6cb;
+  @include mix-8;
 }
 
 @media (max-width: 480px) {
@@ -2392,11 +2455,7 @@ button.secondary:hover,
 
 /* Scanner confirm overlay - centered on video like scanner-status */
 #scanner-confirm {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  @include mix-2;
   z-index: 20;
   display: flex;
   align-items: center;
@@ -2408,11 +2467,7 @@ button.secondary:hover,
 }
 
 #scanner-confirm-backdrop {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  @include mix-2;
   background: rgba(0, 0, 0, 0.5);
   border-radius: 4px;
 }
@@ -2426,8 +2481,7 @@ button.secondary:hover,
   width: 320px;
   text-align: center;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
-  background: var(--color-bg);
-  color: var(--color-text);
+  @include mix-10;
   @include stack;
 }
 
@@ -2470,17 +2524,12 @@ button.secondary:hover,
 }
 
 #scanner-confirm-no {
-  background: var(--color-bg);
-  color: var(--color-text);
+  @include mix-10;
 }
 
 /* Demo mode banner */
 .demo-banner {
-  background: #f59e0b;
-  color: #000;
-  text-align: center;
-  padding: 8px;
-  font-weight: bold;
+  @include mix-3;
 }
 
 /* Read-only mode banner */
@@ -2499,11 +2548,7 @@ button.secondary:hover,
 
 /* Pre-expiry warning banner */
 .read-only-banner-warning {
-  background: #f59e0b;
-  color: #000;
-  text-align: center;
-  padding: 8px;
-  font-weight: bold;
+  @include mix-3;
 }
 
 .read-only-banner-warning a {
@@ -2693,9 +2738,7 @@ button.secondary:hover,
 /* The ledger's two range pickers ("From" / "To") laid out side by side, wrapping
    to a column on narrow screens. */
 .ledger-date-range {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-m);
+  @include mix-4;
 }
 
 .ledger-date-field {
@@ -2937,8 +2980,7 @@ a.cal-day-selected:active {
   + .news-gallery-full
   + .news-gallery-thumb
   img {
-  outline: 2px solid var(--color-secondary);
-  outline-offset: 2px;
+  @include focus-ring;
 }
 
 /* ── Order gallery ──────────────────────────────────────────────────────
@@ -3038,9 +3080,7 @@ a.cal-day-selected:active {
 
 /* Tick badge — revealed only when the card's checkbox is checked */
 .order-card-tick {
-  position: absolute;
-  top: var(--space-s);
-  right: var(--space-s);
+  @include mix-5;
   display: none;
   align-items: center;
   justify-content: center;
@@ -3052,9 +3092,7 @@ a.cal-day-selected:active {
 }
 
 .order-card-tick::after {
-  content: "\2713";
-  font-size: 0.9rem;
-  line-height: 1;
+  @include mix-9;
 }
 
 .order-select:checked ~ .order-card-tick {
@@ -3068,8 +3106,7 @@ a.cal-day-selected:active {
 
 .order-select:focus-visible ~ .order-card-tick,
 .order-card:has(.order-select:focus-visible) {
-  outline: 2px solid var(--color-secondary);
-  outline-offset: 2px;
+  @include focus-ring;
 }
 
 /* Each checked product increments the cart counter read by .order-cart-count */
@@ -3239,14 +3276,11 @@ a.cal-day-selected:active {
 }
 
 .order-select:checked + .row-select-tick::after {
-  content: "\2713";
-  font-size: 0.9rem;
-  line-height: 1;
+  @include mix-9;
 }
 
 .order-select:focus-visible + .row-select-tick {
-  outline: 2px solid var(--color-secondary);
-  outline-offset: 2px;
+  @include focus-ring;
 }
 
 .availability-table tr:has(.order-select:checked) {
@@ -3256,12 +3290,7 @@ a.cal-day-selected:active {
 /* Attendee form: fixed listing editor with quantity boxes + a "Show all
    listings" toggle that reveals the not-booked rows (pure CSS). */
 .listing-editor .show-all {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-s);
-  margin-bottom: var(--space-s);
-  font-weight: normal;
-  cursor: pointer;
+  @include mix-1;
 }
 
 .listing-editor:not(.show-all-listings):not(:has(.show-all-toggle:checked))
@@ -3279,12 +3308,7 @@ a.cal-day-selected:active {
 /* Attendee form: logistics agent selectors. The "different agents per item"
    toggle switches (pure CSS) between one shared pair and a pair per listing. */
 .logistics-agents .split-agents {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-s);
-  margin-bottom: var(--space-s);
-  font-weight: normal;
-  cursor: pointer;
+  @include mix-1;
 }
 
 .logistics-agents:has(.split-agents-toggle:checked) .logistics-single {
