@@ -29,6 +29,7 @@ import { setSavedFormData } from "#shared/forms.tsx";
 import { SCANNER_CSRF_MAX_AGE_S } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
+import { addPendingWork } from "#shared/pending-work.ts";
 import { getCachedSession, setCachedSession } from "#shared/session-context.ts";
 import { getSettingsNagItemsForOwner } from "#shared/settings-nags.ts";
 import {
@@ -203,8 +204,11 @@ export const getAuthenticatedApiKey = async (
 
   const adminLevel = await decryptAdminLevel(user);
 
-  // Fire-and-forget last_used update
-  touchApiKeyLastUsed(apiKeyRow.id).catch(() => {});
+  // Best-effort last_used update: queued as pending work so it settles before
+  // the response is sent (a write left running after the response is killed on
+  // Bunny, and its lock-retry timers would leak into whatever runs next).
+  // Failure is swallowed — a stats write must never fail the request.
+  addPendingWork(touchApiKeyLastUsed(apiKeyRow.id).catch(() => {}));
 
   const result: AuthSession = {
     adminLevel,
