@@ -5,16 +5,19 @@
  * each affected attendee's own record.
  */
 
-import { createSystemNote } from "#shared/db/system-notes.ts";
+import { createSystemNoteOnce } from "#shared/db/system-notes.ts";
 import { bestEffort, ErrorCode, logError } from "#shared/logger.ts";
 
 /**
- * The PII-free note left on a stranded attendee's record. Names only the
- * attendee id and the reason, and links the ledger where the manual adjustment
- * is posted — the same style as the placeholder-refund note (`refundedNoteText`).
+ * The PII-free note left on a stranded attendee's record. Deliberately plain
+ * text with NO ledger link: the ledger routes are owner-only, but these notes
+ * render for managers and editors too (attendee banner, attendee list, listing
+ * Overview/Roster), so a `[ledger](…)` link would be a forbidden link that 403s
+ * for them. It names the reason and that an owner must act — the note is already
+ * attached to the attendee, so it needs no id in the text.
  */
-const strandedRefundNote = (attendeeId: number): string =>
-  `A refund for this booking was completed at the payment provider, but the ledger did not record it — the account is not fully paid, or has no clean order to reverse. Please post a manual adjustment and check the [ledger](/admin/ledger/attendee/${attendeeId}).`;
+const strandedRefundNote = (): string =>
+  "A refund for this booking was completed at the payment provider, but the ledger did not record it — the account is not fully paid, or has no clean order to reverse. An owner needs to post a manual adjustment in the ledger.";
 
 /**
  * Alert that a provider refund committed but the ledger did not record it — a
@@ -50,10 +53,14 @@ export const reportRefundNotRecorded = async (
   // firing them concurrently would contend the single SQLite writer — the same
   // reason the per-attendee refund fallback records one at a time — and a note
   // that lost that race would be swallowed by best-effort and silently dropped.
+  // createSystemNoteOnce keeps it idempotent: a retried stranded refund (the
+  // provider already refunded, but the ledger still can't record it) re-enters
+  // this path, and we must not stack a duplicate alert on each attempt.
+  const note = strandedRefundNote();
   for (const attendeeId of attendeeIds) {
     await bestEffort(
       `refund-not-recorded note for attendee ${attendeeId}`,
-      () => createSystemNote(attendeeId, strandedRefundNote(attendeeId)),
+      () => createSystemNoteOnce(attendeeId, note),
     );
   }
 };

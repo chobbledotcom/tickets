@@ -767,6 +767,15 @@ it sprawls into an over-built framework.*
      of the self-contained batch into its caller (a footgun for any future caller
      that forgets to report), a poor trade for a practically-unreachable edge.
      (Raised by Codex on PR #1775.)
+  5. **Drop the owner-only ledger link from the placeholder-refund note.**
+     `refundedNoteText` (`features/api/payment-processing/refunds.ts`) still
+     builds `[ledger](/admin/ledger/attendee/:id)`, but the ledger routes are
+     owner-only (`requireOwnerOr`) while system notes render for managers and
+     editors too (the attendee banner, the attendees list, and a listing's
+     Overview/Roster) — so a non-owner sees a forbidden link that 403s on click.
+     Same fix as the refund-not-recorded note got on PR #1775 (plain text, no
+     link); left out of that PR because it's the separate placeholder-refund
+     flow with its own tests. (Same forbidden-link class Codex raised on #1775.)
 
 **Recommended next step, if any:** carry the same treatment to any other
 "money/state moved but wasn't recorded" spot found in an audit, then add the

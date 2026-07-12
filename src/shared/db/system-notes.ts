@@ -165,6 +165,23 @@ export const getNotesForAttendee = async (
   decryptNotes(await getNoteRows([attendeeId]), privateKey);
 
 /**
+ * Record a system note only if the attendee does not already have an identical
+ * one — so a repeated event (e.g. a retried stranded refund) never stacks
+ * duplicate alerts. Compares against the attendee's existing *system* notes,
+ * decrypting each with the symmetric DB key (no owner session needed); owner
+ * notes are skipped, since reading them would need the owner private key.
+ */
+export const createSystemNoteOnce = async (
+  attendeeId: number,
+  note: string,
+): Promise<void> => {
+  for (const row of await getNoteRows([attendeeId])) {
+    if (row.type === "system" && (await decrypt(row.note)) === note) return;
+  }
+  await createSystemNote(attendeeId, note);
+};
+
+/**
  * A "load decrypted notes for <selector>" reader: fetch the still-encrypted rows
  * for a selector value, then decrypt them, deriving the owner private key lazily
  * — only when at least one note exists — so a note-free view never forces a key

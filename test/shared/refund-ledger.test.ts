@@ -205,7 +205,6 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     expect(errors.contains(`record it for attendee ${ATTENDEE} —`)).toBe(true);
     // It also drops a system note on the attendee's own record, so the operator
     // sees the miss where they manage the booking — not only in the error log.
-    // The note is PII-free and links the ledger for the manual adjustment.
     const notes = await getNoteRows([ATTENDEE]);
     expect(notes.length).toBe(1);
     const note = notes[0]!;
@@ -214,7 +213,29 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     }
     const noteText = await decrypt(note.note);
     expect(noteText).toContain("the ledger did not record it");
-    expect(noteText).toContain(`/admin/ledger/attendee/${ATTENDEE}`);
+    expect(noteText).toContain("manual adjustment");
+    // No live link: the ledger is owner-only, but these notes render for
+    // managers/editors too, so a markdown link to an admin route would be a
+    // forbidden link that 403s for them. The note stays plain text.
+    expect(noteText).not.toContain("](/admin/");
+  });
+
+  test("does not stack a duplicate note when a stranded refund is retried", async () => {
+    await postBooking({
+      amountPaid: 2000,
+      lines: [{ gross: 10000, listingId: 1 }],
+    });
+    // The provider refund has committed; a guard-skip strands it and notes the
+    // attendee. A retry (provider already refunded, ledger still can't record it)
+    // re-enters the same guard-skip, but must NOT add a second identical note —
+    // the operator would otherwise see the attendee page fill with duplicates.
+    expect(
+      await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]),
+    ).toEqual({ posted: false });
+    expect(
+      await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]),
+    ).toEqual({ posted: false });
+    expect(await getNoteRows([ATTENDEE])).toHaveLength(1);
   });
 
   test("is idempotent — a second refund writes nothing but still reports posted", async () => {
