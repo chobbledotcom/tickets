@@ -136,10 +136,7 @@ export const withPaymentProvider = async (
 export const runCheckoutFlow = (
   label: string,
   request: Request,
-  createSession: (
-    provider: Awaited<ReturnType<typeof getActivePaymentProvider>> & object,
-    baseUrl: string,
-  ) => Promise<import("#shared/payments.ts").CheckoutSessionResult>,
+  intent: CheckoutIntent,
   onError: (msg: string, status: number) => Response,
 ): Promise<Response> => {
   logDebug("Payment", `Starting ${label} checkout`);
@@ -158,7 +155,7 @@ export const runCheckoutFlow = (
       logDebug("Payment", `Using provider=${provider.type} for ${label}`);
       const baseUrl = getBaseUrl(request);
       logDebug("Payment", `Creating checkout session baseUrl=${baseUrl}`);
-      const result = await createSession(provider, baseUrl);
+      const result = await provider.createCheckoutSession(intent, baseUrl);
       if (result && "error" in result) {
         logDebug(
           "Payment",
@@ -258,7 +255,7 @@ export const handlePaymentFlow = (
   runCheckoutFlow(
     `ticket items=${intent.items.length}`,
     request,
-    (provider, baseUrl) => provider.createCheckoutSession(intent, baseUrl),
+    intent,
     (msg) => errorRedirect(ticketPageUrl(ctx), msg),
   );
 
@@ -605,13 +602,17 @@ export const computeSharedDates = async (
   return [...dateSets[0]!].filter((d) => dateSets.every((s) => s.has(d)));
 };
 
+/** A daily listing's span rules: the fixed day count to book (null = the buyer
+ * picks) and the holidays that block start dates. */
+type DailySpan = { fixedDays: number | null; holidays: Holiday[] };
+
 /** Dates this child can serve for the parent. */
 const datesChildCanServe = (
   child: TicketListing,
   parentDates: string[],
-  fixedDays: number | null,
-  holidays: Holiday[],
+  span: DailySpan,
 ): string[] => {
+  const { fixedDays, holidays } = span;
   if (child.listing.listing_type !== "daily") return parentDates;
   if (fixedDays === null) return getBookableStartDates(child.listing, holidays);
   return parentDates.filter((d) =>
@@ -630,7 +631,7 @@ const keepDatesSomeChildCanServe = (
     parentDates,
     children,
     (c) => childSelectableForSpan(c, fixedDays),
-    (c) => datesChildCanServe(c, parentDates, fixedDays, holidays),
+    (c) => datesChildCanServe(c, parentDates, { fixedDays, holidays }),
   );
 
 /** The single daily parent on the page, with its children, if there is one. */
@@ -726,7 +727,7 @@ const childDatesForParentDayCounts = (
   return new Map(
     parentDayCountsForChildren(parent).map((days) => [
       days,
-      datesChildCanServe(child, parentDates, days, holidays),
+      datesChildCanServe(child, parentDates, { fixedDays: days, holidays }),
     ]),
   );
 };

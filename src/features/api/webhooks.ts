@@ -25,6 +25,7 @@ import {
   processPaymentSession,
 } from "#routes/api/payment-processing/index.ts";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
+import { getPaymentProviderOrLog } from "#routes/api/payment-processing/refunds.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
@@ -41,7 +42,7 @@ import {
 } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
+import * as groups from "#shared/db/groups.ts";
 import { getListing } from "#shared/db/listings.ts";
 import { clearSessionTokens } from "#shared/db/processed-payments.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
@@ -52,6 +53,18 @@ import {
   type WebhookEvent,
 } from "#shared/payments.ts";
 import { successPage } from "#templates/payment.tsx";
+
+/** Render the paid success page, drawing the sender email from settings. Shared
+ * by the direct-render redirect path and the verified-tokens render path. */
+const renderPaidSuccessPage = async (
+  thankYouUrl: string,
+  ticketUrl: string,
+): Promise<Response> => {
+  const fromEmail = await getFromEmailIfConfigured();
+  return htmlResponse(
+    successPage({ fromEmail, paid: true, thankYouUrl, ticketUrl }),
+  );
+};
 
 /** Wrap handler with session ID extraction */
 const withSessionId =
@@ -79,7 +92,7 @@ const withSessionId =
  * privacy invariant the signed-intent/free-redirect guard upholds, here for the
  * paid single-member fallback both success render paths share). */
 const singleListingThankYou = async (listingId: number): Promise<string> => {
-  if ((await getHiddenPackageMemberIds([listingId])).size > 0) return "";
+  if ((await groups.getHiddenPackageMemberIds([listingId])).size > 0) return "";
   const listing = await getListing(listingId);
   return listing?.thank_you_url.trim() ?? "";
 };
@@ -123,14 +136,9 @@ const processSessionAndRedirect = async (
   // from the persisted/just-created tokens) so the parent's thank-you URL is
   // honoured and a reload still finds the token in the DB.
   if (explicitThankYou && result.ticketTokens.length > 0) {
-    const fromEmail = await getFromEmailIfConfigured();
-    return htmlResponse(
-      successPage({
-        fromEmail,
-        paid: true,
-        thankYouUrl: explicitThankYou,
-        ticketUrl: `/t/${result.ticketTokens.join("+")}`,
-      }),
+    return renderPaidSuccessPage(
+      explicitThankYou,
+      `/t/${result.ticketTokens.join("+")}`,
     );
   }
 
@@ -185,11 +193,7 @@ const renderSuccessFromTokens = async (
       ? await singleListingThankYou(uniqueListingIds[0]!)
       : "";
 
-  const fromEmail = await getFromEmailIfConfigured();
-
-  return htmlResponse(
-    successPage({ fromEmail, paid: true, thankYouUrl, ticketUrl }),
-  );
+  return renderPaidSuccessPage(thankYouUrl, ticketUrl);
 };
 
 /**
@@ -317,12 +321,11 @@ const authenticateWebhook = async (
       listing: WebhookEvent;
     }
 > => {
-  const provider = await getActivePaymentProvider();
+  const provider = await getPaymentProviderOrLog(
+    ErrorCode.PAYMENT_SESSION,
+    "Webhook received but payment provider not configured",
+  );
   if (!provider) {
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: "Webhook received but payment provider not configured",
-    });
     logDebug("Webhook", `Rejected payload: ${payload}`);
     return plainResponse("Payment provider not configured", 400);
   }

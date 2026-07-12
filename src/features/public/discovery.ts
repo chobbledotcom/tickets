@@ -272,6 +272,22 @@ const childCanBeBookedForParent = (
   );
 
 /**
+ * Collect the child ids whose parent list passes the test. The loop shared by
+ * the add-on classifier and the package-fold check, which both walk a
+ * child→parents map and keep the children whose parents satisfy some rule.
+ */
+export const childIdsMatching = <P>(
+  parentsByChild: Iterable<readonly [number, P[]]>,
+  keep: (parents: P[], childId: number) => boolean,
+): Set<number> => {
+  const ids = new Set<number>();
+  for (const [childId, parents] of parentsByChild) {
+    if (keep(parents, childId)) ids.add(childId);
+  }
+  return ids;
+};
+
+/**
  * Classify the given listings for a discovery surface (see
  * {@link DiscoveryClassification}).
  *
@@ -328,21 +344,19 @@ export const classifyForDiscovery = async (
   // reads the parent sold out, leaving the note a dead end (e.g. a child whose only
   // parent shares a 1-spot capped group with it: one parent+child order needs two
   // spots). Reuse the same combined-demand check both surfaces use.
-  const addOnChildIds = new Set<number>();
-  for (const [childId, parents] of parentsByChild) {
+  const addOnChildIds = childIdsMatching(parentsByChild, (parents, childId) => {
     // A `bookable_alone` child gets its own Book CTA rather than the add-on note,
     // so it never enters this set — otherwise `childCardState` would short-circuit
     // to "addon" before it could read as a normal standalone card.
-    if (!nonStandaloneChildIds.has(childId)) continue;
+    if (!nonStandaloneChildIds.has(childId)) return false;
     // childId comes from the displayed `ids`, so it is always present in `listingById`.
     const child = listingById.get(childId)!;
-    const offerable = parents.some(
+    return parents.some(
       (p) =>
         parentBookable(p, parentGroupRemaining.get(p.id)) &&
         childCanBeBookedForParent(p, child, caps, holidays),
     );
-    if (offerable) addOnChildIds.add(childId);
-  }
+  });
   const soldOutParentIds = new Set<number>();
   for (const [parentId, children] of childrenByParent) {
     const parent = listingById.get(parentId);
@@ -366,65 +380,75 @@ export const classifyForDiscovery = async (
  * bookable quantity never advertises a Book link or mints a QR pointing at it.
  * Callers pass the group's already-loaded active members.
  */
-export const groupHasBookableMember = async (
-  members: readonly ListingWithCount[],
-): Promise<boolean> => {
-  if (members.length === 0) return false;
+/**
+ * An empty group is never bookable, so short-circuit to false; otherwise run the
+ * real check. Wraps a members-based test so the empty-group guard lives in one
+ * place rather than being re-spelled at each entry point.
+ */
+const whenMembersPresent =
+  <A extends unknown[]>(
+    check: (
+      members: readonly ListingWithCount[],
+      ...args: A
+    ) => Promise<boolean>,
+  ) =>
+  (members: readonly ListingWithCount[], ...args: A): Promise<boolean> =>
+    members.length === 0 ? Promise.resolve(false) : check(members, ...args);
+
+export const groupHasBookableMember = whenMembersPresent(async (members) => {
   const { childIds, soldOutParentIds } = await classifyForDiscovery(members);
   return members.some(
     (m) => !childIds.has(m.id) && !soldOutParentIds.has(m.id),
   );
-};
+});
 
 /**
  * Shows a package only when every member is active and at least one whole
  * package can still be booked.
  */
-export const packageGroupBookable = async (
-  members: readonly ListingWithCount[],
-  groupId: number,
-): Promise<boolean> => {
-  if (members.length === 0) return false;
-  const [allMemberIds, ticketListings, rows] = await Promise.all([
-    getGroupListingIds(groupId),
-    buildTicketListingsWithGroupCapacity([...members]),
-    getGroupPackagePrices(groupId),
-  ]);
-  // An inactive member is absent from `members` (active only) but still a group
-  // row, so fewer active members than total means the bundle is incomplete.
-  if (members.length < allMemberIds.length) return false;
-  // Use the same package limit as the page, submit path, and API.
-  const childrenByParentId = await loadChildrenByParentId(ticketListings);
-  const { groupIdsByListingId, groupRemainingByGroupId: remaining } =
-    await loadPackageLimitGroupMaps(ticketListings, childrenByParentId);
-  const maps = packageMemberMaps(rows);
-  const tree = buildBookingTree({
-    childrenByParentId,
-    listings: ticketListings,
-    packages: [
-      {
-        dayPrices: new Map(),
-        groupId,
-        hideListings: false,
-        memberListingIds: members.map((m) => m.id),
-        prices: maps.prices,
-        quantities: maps.quantities,
-      },
-    ],
-    slugs: members.map((m) => m.slug),
-  });
-  return (
-    packageBundleLimit(
-      tree,
-      packageLimitInfo(
-        ticketListings,
-        childrenByParentId,
-        remaining,
-        groupIdsByListingId,
-      ),
-    ) >= 1
-  );
-};
+export const packageGroupBookable = whenMembersPresent(
+  async (members, groupId: number) => {
+    const [allMemberIds, ticketListings, rows] = await Promise.all([
+      getGroupListingIds(groupId),
+      buildTicketListingsWithGroupCapacity([...members]),
+      getGroupPackagePrices(groupId),
+    ]);
+    // An inactive member is absent from `members` (active only) but still a group
+    // row, so fewer active members than total means the bundle is incomplete.
+    if (members.length < allMemberIds.length) return false;
+    // Use the same package limit as the page, submit path, and API.
+    const childrenByParentId = await loadChildrenByParentId(ticketListings);
+    const { groupIdsByListingId, groupRemainingByGroupId: remaining } =
+      await loadPackageLimitGroupMaps(ticketListings, childrenByParentId);
+    const maps = packageMemberMaps(rows);
+    const tree = buildBookingTree({
+      childrenByParentId,
+      listings: ticketListings,
+      packages: [
+        {
+          dayPrices: new Map(),
+          groupId,
+          hideListings: false,
+          memberListingIds: members.map((m) => m.id),
+          prices: maps.prices,
+          quantities: maps.quantities,
+        },
+      ],
+      slugs: members.map((m) => m.slug),
+    });
+    return (
+      packageBundleLimit(
+        tree,
+        packageLimitInfo(
+          ticketListings,
+          childrenByParentId,
+          remaining,
+          groupIdsByListingId,
+        ),
+      ) >= 1
+    );
+  },
+);
 
 /** Whether a group's `/listings` CTA / QR should be offered: a regular group
  * needs one standalone-bookable member ({@link groupHasBookableMember}); a

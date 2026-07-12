@@ -441,16 +441,28 @@ export const parseQuantityPrefill = (
 };
 
 /**
+ * A booking-page handler keyed by the URL slugs. `mode` prices the selection as
+ * a `/calculate` running-total quote instead of completing the booking. The
+ * result type varies: the plain path always renders, the cart path may fall
+ * through with `null`.
+ */
+export type BySlugsHandler<R> = (
+  request: Request,
+  slugs: string[],
+  mode?: "calculate",
+) => R;
+
+/**
  * Handle a booking page by slugs (multi-listing). `mode` selects between
  * completing the booking (the default) and pricing it as a `/calculate`
  * running-total quote; both load the same active listings and share one
  * rendering/submission path.
  */
-export const handleBySlugs = (
-  request: Request,
-  slugs: string[],
-  mode?: "calculate",
-): Promise<Response> =>
+export const handleBySlugs: BySlugsHandler<Promise<Response>> = (
+  request,
+  slugs,
+  mode,
+) =>
   withActiveListings(slugs, (listings) =>
     handleTicket({
       getContext: getTicketContext,

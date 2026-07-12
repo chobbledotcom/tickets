@@ -11,6 +11,7 @@
 
 import { uniqueBy } from "#fp";
 import type { BookingIntent } from "#routes/api/webhook-types.ts";
+import { childIdsMatching } from "#routes/public/discovery.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import {
   buildTicketListing,
@@ -285,12 +286,9 @@ export const hasStaleStandaloneChild = async (
   const parentsByChild = await getParentsForChildren([
     ...nonStandaloneChildIds,
   ]);
-  const adoptedByInOrderParent = new Set<number>();
-  for (const [childId, parents] of parentsByChild) {
-    if (parents.some((parent) => orderIdSet.has(parent.id))) {
-      adoptedByInOrderParent.add(childId);
-    }
-  }
+  const adoptedByInOrderParent = childIdsMatching(parentsByChild, (parents) =>
+    parents.some((parent) => orderIdSet.has(parent.id)),
+  );
   return intent.items.some((item) => {
     if (!nonStandaloneChildIds.has(item.e)) return false;
     const allocated = allocatedByChild.get(item.e) ?? 0;

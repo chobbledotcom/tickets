@@ -26,7 +26,11 @@ import {
   getTicketContext,
   loadPagePackage,
 } from "./ticket-payment.ts";
-import { handleTicket, parseQuantityPrefill } from "./ticket-submit.ts";
+import {
+  type BySlugsHandler,
+  handleTicket,
+  parseQuantityPrefill,
+} from "./ticket-submit.ts";
 
 /** One resolved cart item: a standalone listing or a whole package. */
 type CartItem =
@@ -96,11 +100,9 @@ const cartListings = async (items: CartItem[]): Promise<ListingWithCount[]> => {
  * child member still books through its parent's fold rather than a top-level
  * row.
  */
-export const handleCartBySlugs = async (
-  request: Request,
-  slugs: string[],
-  mode?: "calculate",
-): Promise<Response | null> => {
+export const handleCartBySlugs: BySlugsHandler<
+  Promise<Response | null>
+> = async (request, slugs, mode) => {
   const items = await resolveCartSlugs(slugs);
   if (items === null) return null;
   const soloChildIds = new Set(
