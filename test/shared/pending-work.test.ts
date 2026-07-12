@@ -40,7 +40,9 @@ describe("pending-work", () => {
       await flushPendingWork(); // the request's own flush
       addPendingWork(
         (async () => {
-          await Promise.resolve();
+          // Far more microtask hops than the scope-exit path itself takes, so
+          // this only settles in time when the exit actually drains the queue.
+          for (let hop = 0; hop < 50; hop++) await Promise.resolve();
           lateWorkSettled = true;
         })(),
       );

@@ -6,6 +6,7 @@ import {
   defaultGroupCount,
   GROUPS_DIR,
   mustRunAlone,
+  parseWorkerCount,
   planTestGroups,
   RUN_ALONE_MARKER,
   renderGroupEntry,
@@ -62,8 +63,11 @@ describe("test-groups", () => {
         "../test/a.test.ts",
         "../test/b.test.ts",
       ]);
-      expect(source).toContain('import "../test/a.test.ts";');
-      expect(source).toContain('import "../test/b.test.ts";');
+      // Each import sits on its own line, so a generated entry stays readable
+      // when a group needs eyeballing.
+      const lines = source.split("\n");
+      expect(lines).toContain('import "../test/a.test.ts";');
+      expect(lines).toContain('import "../test/b.test.ts";');
       expect(source).toContain("do not edit");
     });
   });
@@ -80,6 +84,19 @@ describe("test-groups", () => {
       );
       expect(plan.grouped).toEqual([["a.test.ts", "c.test.ts"]]);
       expect(plan.solo).toEqual(["b.test.ts"]);
+    });
+  });
+
+  describe("parseWorkerCount", () => {
+    test("uses a positive whole number and falls back on anything else", () => {
+      expect(parseWorkerCount("2", 8)).toBe(2);
+      expect(parseWorkerCount("1", 8)).toBe(1);
+      expect(parseWorkerCount(undefined, 8)).toBe(8);
+      expect(parseWorkerCount("", 8)).toBe(8); // Number("") is 0 — not positive
+      expect(parseWorkerCount("0", 8)).toBe(8);
+      expect(parseWorkerCount("-3", 8)).toBe(8);
+      expect(parseWorkerCount("2.5", 8)).toBe(8);
+      expect(parseWorkerCount("abc", 8)).toBe(8);
     });
   });
 
@@ -122,7 +139,8 @@ describe("test-groups", () => {
           "afterEach(() => {});\n",
         );
         await expect(collectTestFiles(root)).rejects.toThrow(
-          "registers a global BDD hook",
+          "registers a global BDD hook — export a setup function and call it " +
+            "from each test file's own suite instead",
         );
       } finally {
         await Deno.remove(root, { recursive: true });
@@ -135,6 +153,12 @@ describe("test-groups", () => {
         await Deno.writeTextFile(
           `${root}/test/component.test.tsx`,
           'describe("component", () => {});\n',
+        );
+        // A test file OUTSIDE test/ must not be picked up — the walk is
+        // rooted at the test directory, not the whole project.
+        await Deno.writeTextFile(
+          `${root}/stray.test.ts`,
+          'describe("stray", () => {});\n',
         );
         const files = await collectTestFiles(root);
         expect(files).toEqual([
@@ -182,6 +206,10 @@ describe("test-groups", () => {
         expect(await Deno.readTextFile(`${root}/${GROUPS_DIR}/keep.txt`)).toBe(
           "mine",
         );
+        // A later run must reuse that leftover dir rather than choke on it.
+        const again = await writeTestGroups(root, 1);
+        expect(again.runArgs[0]).toContain(GROUPS_DIR);
+        await again.cleanup();
       } finally {
         await Deno.remove(root, { recursive: true });
       }

@@ -103,12 +103,18 @@ export const collectTestFiles = async (root: string): Promise<string[]> => {
 export const defaultGroupCount = (workers: number): number =>
   Math.max(8, workers * 4);
 
-const testWorkerCount = (): number => {
-  const jobs = Number.parseInt(Deno.env.get("DENO_JOBS") ?? "", 10);
-  return Number.isFinite(jobs) && jobs > 0
-    ? jobs
-    : navigator.hardwareConcurrency;
+/** Read a worker count out of an env value, falling back when it is unset,
+ * not a number, or not positive. Pure, so the parsing rules are testable. */
+export const parseWorkerCount = (
+  value: string | undefined,
+  fallback: number,
+): number => {
+  const jobs = Number(value);
+  return Number.isInteger(jobs) && jobs > 0 ? jobs : fallback;
 };
+
+const testWorkerCount = (): number =>
+  parseWorkerCount(Deno.env.get("DENO_JOBS"), navigator.hardwareConcurrency);
 
 export type WrittenTestGroups = {
   /** Paths to hand to `deno test`: group entries plus solo files. */
