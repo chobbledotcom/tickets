@@ -157,6 +157,10 @@ export const sort =
   (array: T[]): T[] =>
     array.toSorted(comparator);
 
+/** Sort strings in ascending locale order without changing the input. */
+export const sortStrings = (array: string[]): string[] =>
+  sort((a: string, b: string) => a.localeCompare(b))(array);
+
 /**
  * Remove duplicate values (by reference/value equality), keeping first
  * occurrences in order. Curried adapter over `@std/collections.distinct`.
@@ -341,6 +345,21 @@ export const sumByKey =
     }
     return totals;
   };
+
+/**
+ * Index items by their `id`, so a caller can look one up without scanning the
+ * whole list each time. Replaces the common pattern:
+ *   new Map(items.map((item) => [item.id, item]))
+ * When two items share an id the later one wins, exactly as building the Map
+ * by hand would.
+ */
+export const byId = <T extends { id: number }>(
+  items: Iterable<T>,
+): Map<number, T> => {
+  const map = new Map<number, T>();
+  for (const item of items) map.set(item.id, item);
+  return map;
+};
 
 /**
  * Split an array into chunks of a given size.

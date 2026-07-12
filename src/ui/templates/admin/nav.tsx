@@ -101,6 +101,11 @@ const resolveSectionItems = (sec: NavSection): Section => ({
   topHref: sec.topHref,
 });
 
+/** The " — Renew" link appended to a read-only/warning banner, or an empty
+ *  string when there is no renewal URL to point at. */
+const renewalBannerLink = (renewalUrl: string | null): string =>
+  renewalUrl ? ` — <a href="${renewalUrl}">${t("nav.readonly.renew")}</a>` : "";
+
 /** Render read-only or warning banner with optional renewal URL */
 const renderReadOnlyBanner = (
   readOnly: boolean,
@@ -109,9 +114,7 @@ const renderReadOnlyBanner = (
   renewalUrl: string | null,
 ): JSX.Element | null => {
   if (readOnly) {
-    const link = renewalUrl
-      ? ` — <a href="${renewalUrl}">${t("nav.readonly.renew")}</a>`
-      : "";
+    const link = renewalBannerLink(renewalUrl);
     return (
       <Raw
         html={`<div class="read-only-banner">${t(
@@ -121,9 +124,7 @@ const renderReadOnlyBanner = (
     );
   }
   if (warning) {
-    const link = renewalUrl
-      ? ` — <a href="${renewalUrl}">${t("nav.readonly.renew")}</a>`
-      : "";
+    const link = renewalBannerLink(renewalUrl);
     const dateStr = new Date(String(cutoffIso)).toLocaleDateString();
     const msg = dateStr
       ? `${t("nav.readonly.expires", { date: dateStr })}${link}`

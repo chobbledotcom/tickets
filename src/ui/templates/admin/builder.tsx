@@ -10,8 +10,9 @@ import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
-import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
+import { BuiltSitesGuideFooter } from "#templates/admin/built-sites/list-parts.tsx";
+import { SubmitButton } from "#templates/components/actions.tsx";
+import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 /* jscpd:ignore-end */
 
@@ -59,11 +60,7 @@ const BuiltSitesTable = ({
     </p>
   ) : (
     <DataTable
-      columns={[
-        { header: t("common.name") },
-        { header: t("builder.table_url") },
-        { header: t("builder.table_built") },
-      ]}
+      columns={namedColumns("builder.table_url", "builder.table_built")}
       rows={sites.map((site) => [
         site.name,
         <a href={site.siteUrl} rel="noopener" target="_blank">
@@ -91,8 +88,6 @@ export const adminBuilderPage = (
         title={t("builder.built_sites_title")}
       />
 
-      <GuideFooter href="/admin/guide#built-sites">
-        {t("built_sites.guide_link")}
-      </GuideFooter>
+      <BuiltSitesGuideFooter />
     </>,
   );

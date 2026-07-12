@@ -1,6 +1,6 @@
 /** Admin servicing-event route shell. */
 
-import { map, unique } from "#fp";
+import { byId, map, unique } from "#fp";
 import { t } from "#i18n";
 import { handlersFor } from "#routes/admin/handlers.ts";
 import {
@@ -13,7 +13,6 @@ import {
   renderServicingList,
   renderServicingPage,
   type ServicingPrefill,
-  servicingListingsById,
 } from "#routes/admin/servicing/page.tsx";
 import {
   AUTH_FORM,
@@ -135,9 +134,7 @@ const handleServicingGet: TypedRouteHandler<"GET /admin/servicing/:id"> = (
 const parseCreateInput = async (form: FormParams) => {
   applyDemoOverrides(form, SERVICING_DEMO_FIELDS);
   const listings = await getAllListings();
-  return normalizeServicingForSave(
-    parseServicingForm(form, servicingListingsById(listings)),
-  );
+  return normalizeServicingForSave(parseServicingForm(form, byId(listings)));
 };
 
 const servicingErrorRedirect = (id: number, error: unknown): Response =>

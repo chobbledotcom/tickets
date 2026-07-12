@@ -24,6 +24,7 @@ import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
+import { TextField } from "#templates/components/text-field.tsx";
 /* jscpd:ignore-end */
 
 /** Form field values for the duplicate-group action */
@@ -197,57 +198,47 @@ export const adminDuplicateGroupPage = (
         data-timezone={tz}
         id="duplicate-group-form"
       >
-        <label>
-          {t("bulk_actions.form_new_group_name")}
-          <input
-            autofocus
-            data-duplicate-field
-            name="new_name"
-            required
-            type="text"
-            value={values.newName}
-          />
-        </label>
-        <label>
-          {t("bulk_actions.form_find_in_names")}
-          <input
-            data-duplicate-field="name_find"
-            name="name_find"
-            placeholder={t("bulk_actions.form_find_placeholder")}
-            type="text"
-            value={values.nameFind || undefined}
-          />
-        </label>
-        <label>
-          {t("bulk_actions.form_replace_with")}
-          <input
-            data-duplicate-field="name_replace"
-            name="name_replace"
-            type="text"
-            value={values.nameReplace || undefined}
-          />
-        </label>
+        <TextField
+          autofocus
+          duplicate
+          label={t("bulk_actions.form_new_group_name")}
+          name="new_name"
+          required
+          type="text"
+          value={values.newName}
+        />
+        <TextField
+          duplicate
+          label={t("bulk_actions.form_find_in_names")}
+          name="name_find"
+          placeholder={t("bulk_actions.form_find_placeholder")}
+          type="text"
+          value={values.nameFind || undefined}
+        />
+        <TextField
+          duplicate
+          label={t("bulk_actions.form_replace_with")}
+          name="name_replace"
+          type="text"
+          value={values.nameReplace || undefined}
+        />
         <p>
           <small>{t("bulk_actions.form_date_shift_help")}</small>
         </p>
-        <label>
-          {t("bulk_actions.form_reference_date")}
-          <input
-            data-duplicate-field="date_find"
-            name="date_find"
-            type="date"
-            value={values.dateFind || undefined}
-          />
-        </label>
-        <label>
-          {t("bulk_actions.form_target_date")}
-          <input
-            data-duplicate-field="date_replace"
-            name="date_replace"
-            type="date"
-            value={values.dateReplace || undefined}
-          />
-        </label>
+        <TextField
+          duplicate
+          label={t("bulk_actions.form_reference_date")}
+          name="date_find"
+          type="date"
+          value={values.dateFind || undefined}
+        />
+        <TextField
+          duplicate
+          label={t("bulk_actions.form_target_date")}
+          name="date_replace"
+          type="date"
+          value={values.dateReplace || undefined}
+        />
 
         <h2>{t("bulk_actions.preview_heading")}</h2>
         {listings.length === 0 ? (

@@ -13,6 +13,7 @@ import {
   defaultStripeMockPaths,
   downloadStripeMock,
   ensureBinDir,
+  type LockBody,
   type StripeMockCommands,
   type StripeMockInstallOptions,
   type StripeMockPaths,
@@ -222,7 +223,7 @@ const stripeMockStartLockPath = (paths: StripeMockPaths): string =>
 
 const withStripeMockStartLock = async <T>(
   paths: StripeMockPaths,
-  body: () => Promise<T>,
+  body: LockBody<T>,
 ): Promise<T> => {
   const lockPath = stripeMockStartLockPath(paths);
   await ensureBinDir(paths);

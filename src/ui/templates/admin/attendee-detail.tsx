@@ -19,10 +19,11 @@ import { questionTextFlat } from "#templates/admin/questions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
+import { HeaderRow } from "#templates/components/header-row.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 
-/** One key/value row of a detail table. */
+/** One key/value row of a detail table: a header cell plus a value cell. */
 const DetailTableRow = ({
   label,
   children,
@@ -30,10 +31,9 @@ const DetailTableRow = ({
   label: string;
   children: Child;
 }): JSX.Element => (
-  <tr>
-    <th scope="row">{label}</th>
+  <HeaderRow header={label}>
     <td>{children}</td>
-  </tr>
+  </HeaderRow>
 );
 
 /**

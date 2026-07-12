@@ -1,4 +1,4 @@
-import { filter, map } from "#fp";
+import { byId, filter, map } from "#fp";
 import { t } from "#i18n";
 import type { AuthSession } from "#routes/auth.ts";
 import { adminPath } from "#shared/admin-surface.ts";
@@ -32,15 +32,6 @@ const emptyServicingPrefill = (): ServicingPrefill => ({
   startDate: "",
 });
 
-export const servicingListingsById = (
-  listings: ListingWithCount[],
-): Map<number, ListingWithCount> =>
-  new Map(
-    map((listing: ListingWithCount) => [listing.id, listing] as const)(
-      listings,
-    ),
-  );
-
 const listingNamesById = (listings: ListingWithCount[]): Map<number, string> =>
   new Map(
     map((listing: ListingWithCount) => [listing.id, listing.name] as const)(
@@ -59,7 +50,7 @@ export const listingsForServicingEdit = (
   allListings: ListingWithCount[],
   event: ServicingEvent,
 ): { deletedHolds: number[]; listings: ListingWithCount[] } => {
-  const byId = servicingListingsById(allListings);
+  const listingById = byId(allListings);
   const heldIds = new Set(
     map((booking: ServicingEvent["bookings"][number]) => booking.listingId)(
       event.bookings,
@@ -69,7 +60,7 @@ export const listingsForServicingEdit = (
     (listing: ListingWithCount) => !listing.active && heldIds.has(listing.id),
   )(allListings);
   return {
-    deletedHolds: filter((id: number) => !byId.has(id))([...heldIds]),
+    deletedHolds: filter((id: number) => !listingById.has(id))([...heldIds]),
     listings: [...activeServicingListings(allListings), ...inactiveHolds],
   };
 };

@@ -10,6 +10,8 @@
  *   deno run --allow-read --allow-write --allow-net scripts/safe-upgrade.ts --min-age-days=30
  */
 
+import { errorMessage } from "#shared/error-message.ts";
+
 const DEFAULT_MIN_AGE_DAYS = 14;
 const DENO_JSON_PATH = new URL("../deno.json", import.meta.url).pathname;
 
@@ -210,7 +212,7 @@ async function checkUpgrade(
 
     return result;
   } catch (e) {
-    result.error = e instanceof Error ? e.message : String(e);
+    result.error = errorMessage(e);
     return result;
   }
 }

@@ -27,18 +27,13 @@ import {
 } from "#shared/db/common-schema.ts";
 import { swapSortOrder } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
+import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
 import { cachedTable, col } from "#shared/db/table.ts";
 import type { SitePage, SitePageNavRow } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
 /** Create/update input (camelCase keys → snake_case columns). */
-export type SitePageInput = {
-  slug: string;
-  slugIndex: BlindIndex;
-  name: string;
-  metaTitle?: string;
-  metaDescription?: string;
-  content?: string;
+export type SitePageInput = SluggedContentInput & {
   sortOrder: number;
 };
 

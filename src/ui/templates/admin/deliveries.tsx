@@ -15,7 +15,7 @@ import { t } from "#i18n";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
-import { markAdminFooter } from "#templates/admin/footer.tsx";
+import { AgentHeader } from "#templates/admin/agent-header.tsx";
 import { StaffAdminNav } from "#templates/admin/nav.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
@@ -90,19 +90,6 @@ export type DeliveryBookingView = {
 export type DeliveryDayGroup = {
   heading: string;
   bookings: DeliveryBookingView[];
-};
-
-/** Header for an agent-class user: just the title and no staff navigation,
- * since an agent may only ever reach this page. The logout button lives in the
- * footer (rendered because we flag this as an admin page). */
-const AgentHeader = (): JSX.Element => {
-  // Only rendered for agent-class users (the bare run-sheet header).
-  markAdminFooter("agent");
-  return (
-    <header class="agent-header">
-      <h1>{t("deliveries.title")}</h1>
-    </header>
-  );
 };
 
 /** One job (drop-off or collection) within a booking: what to do, when, which
@@ -213,7 +200,9 @@ export const agentDeliveriesPage = (
       }
       title={t("deliveries.title")}
     >
-      {session.adminLevel === "agent" && <AgentHeader />}
+      {session.adminLevel === "agent" && (
+        <AgentHeader title={t("deliveries.title")} />
+      )}
       <Flash {...flashProps(opts.error, opts.success)} />
       {/* The route supplies a picker only for staff; agents get null and so
             stay pinned to today and tomorrow. */}

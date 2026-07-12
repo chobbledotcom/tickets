@@ -9,6 +9,7 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { lazyRef } from "#fp";
+import { errorMessage } from "#shared/error-message.ts";
 import { shouldSuppressDebugLogs } from "#shared/log-settings.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import {
@@ -272,7 +273,7 @@ export const formatRequestError = (
   path: string,
   error: unknown,
 ): string => {
-  const msg = error instanceof Error ? error.message : String(error);
+  const msg = errorMessage(error);
   return `${method} ${redactPath(path)}: ${msg}`;
 };
 

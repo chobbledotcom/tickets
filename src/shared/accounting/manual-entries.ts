@@ -61,6 +61,8 @@ export type ManualLedgerEntryOption = {
   readonly hintKey: string;
 };
 
+type TransferLegs = Pick<TransferInput, "source" | "destination">;
+
 type ManualEntrySpec = {
   readonly accountType: string;
   readonly amountSign: 1 | -1;
@@ -68,10 +70,20 @@ type ManualEntrySpec = {
   readonly labelKey: string;
   readonly hintKey: string;
   readonly descriptionKey: string;
-  readonly legs: (
-    account: AccountRef,
-  ) => Pick<TransferInput, "source" | "destination">;
+  readonly legs: (account: AccountRef) => TransferLegs;
 };
+
+/** Money arriving into the chosen account from a fixed source (WORLD for new
+ *  money, WRITEOFF for money the business forgives). */
+const moneyInto =
+  (source: AccountRef) =>
+  (account: AccountRef): TransferLegs => ({ destination: account, source });
+
+/** Money leaving the chosen account to a fixed destination (WORLD when it
+ *  leaves the business, WRITEOFF when the business absorbs it). */
+const moneyOutOf =
+  (destination: AccountRef) =>
+  (account: AccountRef): TransferLegs => ({ destination, source: account });
 
 /**
  * One spec per entry type, keyed by the picklist so the Record is exhaustive by
@@ -90,7 +102,7 @@ export const manualEntrySpecByType: Record<
     eventKey: "admin.ledger.event.manual_attendee_payment",
     hintKey: "admin.ledger.add.option.attendee_payment.hint",
     labelKey: "admin.ledger.add.option.attendee_payment.label",
-    legs: (account) => ({ destination: account, source: WORLD }),
+    legs: moneyInto(WORLD),
   },
   [MANUAL_ATTENDEE_CHARGE]: {
     accountType: "attendee",
@@ -99,7 +111,7 @@ export const manualEntrySpecByType: Record<
     eventKey: "admin.ledger.event.manual_attendee_charge",
     hintKey: "admin.ledger.add.option.attendee_charge.hint",
     labelKey: "admin.ledger.add.option.attendee_charge.label",
-    legs: (account) => ({ destination: WRITEOFF, source: account }),
+    legs: moneyOutOf(WRITEOFF),
   },
   [MANUAL_ATTENDEE_WRITEOFF]: {
     accountType: "attendee",
@@ -108,7 +120,7 @@ export const manualEntrySpecByType: Record<
     eventKey: "admin.ledger.event.manual_attendee_writeoff",
     hintKey: "admin.ledger.add.option.attendee_writeoff.hint",
     labelKey: "admin.ledger.add.option.attendee_writeoff.label",
-    legs: (account) => ({ destination: account, source: WRITEOFF }),
+    legs: moneyInto(WRITEOFF),
   },
   [MANUAL_LISTING_INCOME]: {
     accountType: "revenue",
@@ -117,7 +129,7 @@ export const manualEntrySpecByType: Record<
     eventKey: "admin.ledger.event.manual_listing_income",
     hintKey: "admin.ledger.add.option.listing_income.hint",
     labelKey: "admin.ledger.add.option.listing_income.label",
-    legs: (account) => ({ destination: account, source: WORLD }),
+    legs: moneyInto(WORLD),
   },
   [MANUAL_LISTING_COST]: {
     accountType: "revenue",
@@ -126,7 +138,7 @@ export const manualEntrySpecByType: Record<
     eventKey: "admin.ledger.event.manual_listing_cost",
     hintKey: "admin.ledger.add.option.listing_cost.hint",
     labelKey: "admin.ledger.add.option.listing_cost.label",
-    legs: (account) => ({ destination: WORLD, source: account }),
+    legs: moneyOutOf(WORLD),
   },
   [MANUAL_MODIFIER_INCOME]: {
     accountType: "modifier",
@@ -135,7 +147,7 @@ export const manualEntrySpecByType: Record<
     eventKey: "admin.ledger.event.manual_modifier_income",
     hintKey: "admin.ledger.add.option.modifier_income.hint",
     labelKey: "admin.ledger.add.option.modifier_income.label",
-    legs: (account) => ({ destination: account, source: WRITEOFF }),
+    legs: moneyInto(WRITEOFF),
   },
   [MANUAL_MODIFIER_REDUCTION]: {
     accountType: "modifier",
@@ -144,7 +156,7 @@ export const manualEntrySpecByType: Record<
     eventKey: "admin.ledger.event.manual_modifier_reduction",
     hintKey: "admin.ledger.add.option.modifier_reduction.hint",
     labelKey: "admin.ledger.add.option.modifier_reduction.label",
-    legs: (account) => ({ destination: WRITEOFF, source: account }),
+    legs: moneyOutOf(WRITEOFF),
   },
 };
 

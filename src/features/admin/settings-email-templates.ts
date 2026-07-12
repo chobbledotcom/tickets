@@ -13,6 +13,7 @@ import {
   renderTemplate,
   validateTemplate,
 } from "#shared/email-renderer.ts";
+import type { FormParams } from "#shared/form-data.ts";
 import {
   type EmailTemplateType,
   isEmailTemplateFormat,
@@ -151,38 +152,45 @@ const PREVIEW_BOOKINGS = [
 const PREVIEW_CURRENCY = "GBP";
 const PREVIEW_TICKET_URL = "https://example.com/t/SAMPLE123+SAMPLE456";
 
+/** Render an email template with sample data (owner-only preview). */
+const renderEmailTemplatePreview = async (
+  form: FormParams,
+): Promise<Response> => {
+  const type = form.getString("type");
+  const template = form.getString("template");
+  const rawFormat = form.get("format") ?? "html";
+
+  if (!isEmailTemplateType(type)) {
+    return jsonResponse({ error: "Invalid template type" }, 400);
+  }
+  if (!isEmailTemplateFormat(rawFormat)) {
+    return jsonResponse({ error: "Invalid template format" }, 400);
+  }
+  const format = rawFormat;
+
+  const error = validateTemplate(template);
+  if (error) {
+    return jsonResponse({ error: `Template syntax error: ${error}` }, 400);
+  }
+
+  const sampleData = await buildTemplateData(
+    PREVIEW_BOOKINGS,
+    PREVIEW_CURRENCY,
+    PREVIEW_TICKET_URL,
+  );
+
+  try {
+    const rendered = await renderTemplate(template, sampleData);
+    return jsonResponse({ format, rendered });
+  } catch (err) {
+    return jsonResponse({ error: String(err) }, 400);
+  }
+};
+
 /** Handle POST /admin/settings/email-templates/preview - render template with sample data */
 export const handleEmailTemplatePreviewPost = (
   request: Request,
 ): Promise<Response> =>
-  withAuth(request, OWNER_FORM, async (_session, form) => {
-    const type = form.getString("type");
-    const template = form.getString("template");
-    const rawFormat = form.get("format") ?? "html";
-
-    if (!isEmailTemplateType(type)) {
-      return jsonResponse({ error: "Invalid template type" }, 400);
-    }
-    if (!isEmailTemplateFormat(rawFormat)) {
-      return jsonResponse({ error: "Invalid template format" }, 400);
-    }
-    const format = rawFormat;
-
-    const error = validateTemplate(template);
-    if (error) {
-      return jsonResponse({ error: `Template syntax error: ${error}` }, 400);
-    }
-
-    const sampleData = await buildTemplateData(
-      PREVIEW_BOOKINGS,
-      PREVIEW_CURRENCY,
-      PREVIEW_TICKET_URL,
-    );
-
-    try {
-      const rendered = await renderTemplate(template, sampleData);
-      return jsonResponse({ format, rendered });
-    } catch (err) {
-      return jsonResponse({ error: String(err) }, 400);
-    }
-  });
+  withAuth(request, OWNER_FORM, (_session, form) =>
+    renderEmailTemplatePreview(form),
+  );

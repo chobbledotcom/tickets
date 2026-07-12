@@ -12,7 +12,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { filter, map, pipe, sumOf, unique } from "#fp";
+import { byId, filter, map, pipe, sumOf, unique } from "#fp";
 import {
   capacityDateFor,
   capacityRuleTypeSql,
@@ -516,7 +516,7 @@ export const checkBatchAvailabilityImpl = async (
      WHERE listing.id IN (${inPlaceholders(listingIds)})`,
     listingIds,
   );
-  const listingsById = new Map(listingRows.map((r) => [r.id, r]));
+  const listingsById = byId(listingRows);
 
   // Every item must reference a known listing.
   if (items.some((i) => !listingsById.has(i.listingId))) return false;

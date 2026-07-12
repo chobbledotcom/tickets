@@ -13,6 +13,9 @@ const KEY = crypto.getRandomValues(new Uint8Array(32));
 const SAMPLE = "attendee-pii-value-12345@example.com";
 const ITERS = 2000;
 
+/** A fresh random 12-byte AES-GCM nonce. */
+const randomIv = (): Uint8Array => crypto.getRandomValues(new Uint8Array(12));
+
 /** Run `body` ITERS times and return the elapsed milliseconds. */
 const timeLoop = async (body: () => Promise<void> | void): Promise<number> => {
   const t0 = performance.now();
@@ -29,7 +32,7 @@ const subtleKey = await crypto.subtle.importKey(
   ["encrypt", "decrypt"],
 );
 const subtleEnc = async (pt: Uint8Array) => {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const iv = randomIv();
   const ct = new Uint8Array(
     await crypto.subtle.encrypt({ iv, name: "AES-GCM" }, subtleKey, pt),
   );
@@ -62,7 +65,7 @@ const run = async (): Promise<Result> => {
 
   // node:crypto helpers — match WebCrypto layout (tag appended to ciphertext)
   const nodeEnc = (pt: Uint8Array) => {
-    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const iv = randomIv();
     const c = nc.createCipheriv("aes-256-gcm", KEY, iv);
     const body = Buffer.concat([c.update(pt), c.final()]);
     const ct = new Uint8Array(Buffer.concat([body, c.getAuthTag()]));

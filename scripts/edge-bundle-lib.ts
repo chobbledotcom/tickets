@@ -118,6 +118,22 @@ globalThis.Buffer ??= Buffer;
 globalThis.global ??= globalThis;
 `;
 
+// Swaps a real module for a generated one at build time: esbuild resolves any
+// import matching `filter` into its own private namespace, then loads that
+// namespace from the TypeScript source `buildContents` returns.
+const inlineGeneratedModule = (
+  build: Parameters<Plugin["setup"]>[0],
+  filter: RegExp,
+  namespace: string,
+  buildContents: () => string,
+): void => {
+  build.onResolve({ filter }, (args) => ({ namespace, path: args.path }));
+  build.onLoad({ filter: /.*/, namespace }, () => ({
+    contents: buildContents(),
+    loader: "ts",
+  }));
+};
+
 /**
  * Plugin to inline static assets and handle Deno-specific imports.
  * Replaces Deno.readTextFileSync calls with the pre-read content and the
@@ -132,40 +148,22 @@ const inlineAssetsPlugin = (
   name: "inline-assets",
   setup(build) {
     // Replace build-info module with actual build metadata
-    build.onResolve({ filter: /build-info\.ts$/ }, (args) => ({
-      namespace: "inline-build-info",
-      path: args.path,
-    }));
-    build.onLoad({ filter: /.*/, namespace: "inline-build-info" }, () => ({
-      contents: buildBuildInfoModule(
-        buildIso,
-        Deno.env.get("BUILD_COMMIT") ?? "",
-      ),
-      loader: "ts",
-    }));
+    inlineGeneratedModule(build, /build-info\.ts$/, "inline-build-info", () =>
+      buildBuildInfoModule(buildIso, Deno.env.get("BUILD_COMMIT") ?? ""),
+    );
 
     // Replace asset paths module with cache-busted version
-    build.onResolve({ filter: /asset-paths\.ts$/ }, (args) => ({
-      namespace: "inline-asset-paths",
-      path: args.path,
-    }));
-    build.onLoad({ filter: /.*/, namespace: "inline-asset-paths" }, () => ({
-      contents: buildAssetPathsModule(ASSET_DEFS, buildTs, published),
-      loader: "ts",
-    }));
+    inlineGeneratedModule(build, /asset-paths\.ts$/, "inline-asset-paths", () =>
+      buildAssetPathsModule(ASSET_DEFS, buildTs, published),
+    );
 
     // Replace the assets module with inlined content
-    build.onResolve(
-      { filter: /(features\/assets\.ts$|#routes\/assets\.ts$)/ },
-      (args) => ({
-        namespace: "inline-assets",
-        path: args.path,
-      }),
+    inlineGeneratedModule(
+      build,
+      /(features\/assets\.ts$|#routes\/assets\.ts$)/,
+      "inline-assets",
+      () => buildAssetsModule(ASSET_DEFS, staticAssets, published),
     );
-    build.onLoad({ filter: /.*/, namespace: "inline-assets" }, () => ({
-      contents: buildAssetsModule(ASSET_DEFS, staticAssets, published),
-      loader: "ts",
-    }));
   },
 });
 

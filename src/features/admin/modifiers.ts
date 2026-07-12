@@ -34,6 +34,7 @@ import {
   childUnreachableAddOnError,
   type ListingGroupMembership,
   listingIdsInGroups,
+  reachablePageIds,
   toListingGroupMembership,
 } from "#shared/db/modifier-resolve.ts";
 import {
@@ -176,11 +177,7 @@ const childAddOnSaveError = async (
   // ticket contexts load active listings only (`withActiveListings`), so an
   // inactive listing serves nothing. `childIds` here is the narrowed
   // non-standalone set, so a flagged child is neither suppressed nor excluded.
-  const reachableIds = new Set(
-    allListings
-      .filter((listing) => listing.active && !childIds.has(listing.id))
-      .map((listing) => listing.id),
-  );
+  const reachableIds = reachablePageIds(allListings, childIds);
   return childUnreachableAddOnError(
     {
       active: candidate.active,

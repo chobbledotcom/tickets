@@ -7,12 +7,14 @@ import {
   toPublicListing,
   toResolvedPublicListing,
 } from "#routes/api/public-listing.ts";
+/* jscpd:ignore-start */
 import { isRegistrationClosed } from "#routes/format.ts";
 import {
   classifyForDiscovery,
   dropHiddenPackageMembers,
   loadBookablePackages,
 } from "#routes/public/discovery.ts";
+/* jscpd:ignore-end */
 import { keepParentDailyDatesChildrenCanServe } from "#routes/public/ticket-payment.ts";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { getAvailableDates, getBookableStartDates } from "#shared/dates.ts";

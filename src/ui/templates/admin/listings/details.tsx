@@ -15,7 +15,7 @@ import {
   CopyableInputRow,
   type CopyableInputRowSpec,
 } from "#templates/admin/copyable-row.tsx";
-import { HiddenListingRow } from "#templates/admin/hidden-listing-row.tsx";
+import { HiddenDetailRow } from "#templates/admin/hidden-row.tsx";
 import {
   PublicTicketLink,
   UnavailablePublicUrlRow,
@@ -270,7 +270,7 @@ export const ListingDetailsTable = ({
             <td>{t("listings_table.yes_id_verification_required")}</td>
           </tr>
         )}
-        {listing.hidden && <HiddenListingRow />}
+        {listing.hidden && <HiddenDetailRow />}
         {listing.listing_type === "daily" && (
           <DailyScheduleRows listing={listing} />
         )}

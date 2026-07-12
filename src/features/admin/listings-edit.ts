@@ -102,13 +102,22 @@ export const handleNewListingGet: TypedRouteHandler<
     if (template?.requiresLogistics && !settings.hasLogistics) {
       return htmlResponse(adminListingPickerPage(session));
     }
-    const allGroups = await groups.cache.getAll();
-    return htmlResponse(
-      adminListingNewPage(allGroups, session, {
-        templateId: template?.id ?? "custom",
-      }),
-    );
+    return renderNewListingPage(session, {
+      templateId: template?.id ?? "custom",
+    });
   });
+
+/** Load every group and render the new-listing form. Shared by the empty-form
+ *  GET and the rejected-create re-render, which both fetch the group list then
+ *  hand it to {@link adminListingNewPage}. */
+const renderNewListingPage = async (
+  session: AdminSession,
+  opts: Parameters<typeof adminListingNewPage>[2],
+  status?: number,
+): Promise<Response> => {
+  const allGroups = await groups.cache.getAll();
+  return htmlResponse(adminListingNewPage(allGroups, session, opts), status);
+};
 
 /** Build a DimensionSource from submitted form params. */
 const formToDimensionSource = (form: FormParams) => ({
@@ -186,9 +195,9 @@ const renderCreateListingError = async (
   error: string,
   templateId: string | null,
 ): Promise<Response> => {
-  const allGroups = await groups.cache.getAll();
-  return htmlResponse(
-    adminListingNewPage(allGroups, session, {
+  return renderNewListingPage(
+    session,
+    {
       customiseOpen: form.getFlag("customise"),
       error,
       // The group checkboxes the operator submitted, so a rejected create
@@ -196,7 +205,7 @@ const renderCreateListingError = async (
       selectedGroupIds: parseGroupIds(form),
       templateId,
       values: Object.fromEntries(form.entries()),
-    }),
+    },
     400,
   );
 };

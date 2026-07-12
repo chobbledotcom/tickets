@@ -17,6 +17,7 @@ import {
   renderEmailContent,
 } from "#shared/email-renderer.ts";
 import { getEnv } from "#shared/env.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { generateSvgTicket, type SvgTicketData } from "#shared/svg-ticket.ts";
@@ -311,7 +312,7 @@ export const sendEmail = async (
   } catch (error) {
     logError({
       code: ErrorCode.EMAIL_SEND,
-      detail: error instanceof Error ? error.message : String(error),
+      detail: errorMessage(error),
     });
     return;
   }

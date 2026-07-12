@@ -14,6 +14,7 @@ import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
 /* jscpd:ignore-end */
 import {
+  BuiltSitesGuideFooter,
   BuiltSitesListActions,
   BuiltSitesListBody,
 } from "#templates/admin/built-sites/list-parts.tsx";
@@ -26,7 +27,6 @@ import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { AdminListPage } from "#templates/admin/list-page.tsx";
 import {
   ActionButton,
-  GuideFooter,
   SaveChangesButton,
 } from "#templates/components/actions.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
@@ -53,9 +53,7 @@ export const adminBuiltSitesPage = (
           renewalTiers={renewalTiers}
           sites={sites}
         />
-        <GuideFooter href="/admin/guide#built-sites">
-          {t("built_sites.guide_link")}
-        </GuideFooter>
+        <BuiltSitesGuideFooter />
       </>
     ),
     session,

@@ -6,6 +6,7 @@
  * Auth: Authorization: Bearer {TURSO_API_TOKEN}
  */
 
+/* jscpd:ignore-start */
 import type { CreateDatabaseResult } from "#shared/bunny-db.ts";
 import {
   getTursoApiToken,
@@ -15,6 +16,8 @@ import {
 } from "#shared/config.ts";
 import { type ApiResult, fetchText, parseApiError } from "#shared/fetch.ts";
 import type { DatabaseProviderApi } from "#shared/provider-types.ts";
+
+/* jscpd:ignore-end */
 
 const TURSO_API_BASE = "https://api.turso.tech";
 

@@ -70,14 +70,25 @@ const validateInvite = async (
   return { user, username: await decryptUsername(user) };
 };
 
+// Runs once an invite code has been checked, with the code, the invited user,
+// and their decrypted username.
+type InviteHandler = (
+  code: string,
+  user: User,
+  username: string,
+) => Response | Promise<Response>;
+
+// The same, for a route: the incoming request comes first, then the checked
+// invite details.
+type RequestInviteHandler = (
+  request: Request,
+  ...invite: Parameters<InviteHandler>
+) => ReturnType<InviteHandler>;
+
 /** Run handler with validated invite, returning error response if invalid */
 const withValidInvite = async (
   code: string,
-  handler: (
-    code: string,
-    user: User,
-    username: string,
-  ) => Response | Promise<Response>,
+  handler: InviteHandler,
 ): Promise<Response> => {
   const result = await validateInvite(code);
   return result instanceof Response
@@ -90,14 +101,7 @@ type InviteCodeParams = { code: string };
 
 /** Create a join route handler that validates the invite code before running the callback */
 const joinRoute =
-  (
-    handler: (
-      request: Request,
-      code: string,
-      user: User,
-      username: string,
-    ) => Response | Promise<Response>,
-  ) =>
+  (handler: RequestInviteHandler) =>
   (request: Request, { code }: InviteCodeParams): Promise<Response> =>
     withValidInvite(code, (code, user, username) =>
       handler(request, code, user, username),

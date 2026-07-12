@@ -11,9 +11,11 @@
 import { chunk } from "#fp";
 import { t } from "#i18n";
 import { AUTH_FORM, withAuth } from "#routes/auth.ts";
+/* jscpd:ignore-start */
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+/* jscpd:ignore-end */
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";

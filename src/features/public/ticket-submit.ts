@@ -53,6 +53,7 @@ import {
   ticketResponse,
 } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
+import { ticketPageUrl } from "./ticket-page-url.ts";
 import {
   checkAvailability,
   dropChildListings,
@@ -220,8 +221,7 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
     // CSRF failures redirect with a flash (the token expired or was tampered
     // with — the page reloads with a fresh token). Field-level validation
     // errors instead re-render inline so the visitor keeps what they entered.
-    (message) =>
-      errorRedirect(ctx.actionUrl ?? `/ticket/${ctx.slugs.join("+")}`, message),
+    (message) => errorRedirect(ticketPageUrl(ctx), message),
     (form) => {
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
       return processSubmission(request, ctx, form);

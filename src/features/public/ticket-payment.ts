@@ -2,7 +2,7 @@
  * Payment flow, availability checks, and free registration
  */
 
-import { compact } from "#fp";
+import { compact, unique } from "#fp";
 import { checkoutResponse } from "#routes/payment-response.ts";
 import { errorRedirect, notFoundResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
@@ -101,6 +101,7 @@ import {
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import { listingsWithQuantity } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
+import { ticketPageUrl } from "./ticket-page-url.ts";
 import type {
   AsyncHandler,
   ChildrenByParentId,
@@ -258,8 +259,7 @@ export const handlePaymentFlow = (
     `ticket items=${intent.items.length}`,
     request,
     (provider, baseUrl) => provider.createCheckoutSession(intent, baseUrl),
-    (msg) =>
-      errorRedirect(ctx.actionUrl ?? `/ticket/${ctx.slugs.join("+")}`, msg),
+    (msg) => errorRedirect(ticketPageUrl(ctx), msg),
   );
 
 const buildBookings = (
@@ -705,13 +705,10 @@ export const loadChildrenByParentId = async (
 /** Distinct child listing ids across every parent's children. */
 export const childListingIdsOf = (
   childrenByParentId: ChildrenByParentId,
-): number[] => {
-  const ids = new Set<number>();
-  for (const children of childrenByParentId.values()) {
-    for (const child of children) ids.add(child.listing.id);
-  }
-  return [...ids];
-};
+): number[] =>
+  unique(
+    [...childrenByParentId.values()].flat().map((child) => child.listing.id),
+  );
 
 /** Day counts the parent can pass to daily children. */
 const parentDayCountsForChildren = (parent: ListingWithCount): number[] => {

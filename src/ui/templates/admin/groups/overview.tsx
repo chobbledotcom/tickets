@@ -31,7 +31,7 @@ import {
   type ExpectedActualItem,
   ExpectedActualTableRow,
 } from "#templates/admin/expected-actual.tsx";
-import { HiddenListingRow } from "#templates/admin/hidden-listing-row.tsx";
+import { HiddenDetailRow } from "#templates/admin/hidden-row.tsx";
 import { MoneySummary } from "#templates/admin/money-summary.tsx";
 import {
   PublicTicketLink,
@@ -236,7 +236,7 @@ export const GroupOverviewPanel = ({
             shareable={shareable}
             ticketUrl={ticketUrl}
           />
-          {group.hidden && <HiddenListingRow />}
+          {group.hidden && <HiddenDetailRow />}
           <GroupAttendeesRow attendeeCount={totalCount} group={group} />
           <GroupAggregateMismatchRow
             attendees={attendees}

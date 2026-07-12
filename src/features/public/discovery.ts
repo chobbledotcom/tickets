@@ -6,7 +6,7 @@
  * booked. The final date-specific check still happens when the buyer submits.
  */
 
-import { mapNotNullish, mapParallel, unique } from "#fp";
+import { byId, mapNotNullish, mapParallel, unique } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import {
@@ -291,12 +291,12 @@ export const classifyForDiscovery = async (
       getChildrenForParents(ids),
       getParentsForChildren(ids),
     ]);
-  const byId = new Map(listings.map((l) => [l.id, l]));
+  const listingById = byId(listings);
   const everyChild = [...childrenByParent.values()].flat();
   // Displayed children whose add-on label we are deciding (keys of parentsByChild
-  // are among the displayed `ids`, so they are in `byId`). Their own group-remaining
+  // are among the displayed `ids`, so they are in `listingById`). Their own group-remaining
   // is fetched for the combined-demand check below and unioned into the child map.
-  const displayedChildren = mapNotNullish((id: number) => byId.get(id))([
+  const displayedChildren = mapNotNullish((id: number) => listingById.get(id))([
     ...parentsByChild.keys(),
   ]);
   const everyParent = [...parentsByChild.values()].flat();
@@ -314,7 +314,7 @@ export const classifyForDiscovery = async (
     getActiveHolidays(),
     getGroupIdsByListingIds(
       unique([
-        ...byId.keys(),
+        ...listingById.keys(),
         ...everyChild.map((c) => c.id),
         ...everyParent.map((p) => p.id),
       ]),
@@ -334,8 +334,8 @@ export const classifyForDiscovery = async (
     // so it never enters this set — otherwise `childCardState` would short-circuit
     // to "addon" before it could read as a normal standalone card.
     if (!nonStandaloneChildIds.has(childId)) continue;
-    // childId comes from the displayed `ids`, so it is always present in `byId`.
-    const child = byId.get(childId)!;
+    // childId comes from the displayed `ids`, so it is always present in `listingById`.
+    const child = listingById.get(childId)!;
     const offerable = parents.some(
       (p) =>
         parentBookable(p, parentGroupRemaining.get(p.id)) &&
@@ -345,7 +345,7 @@ export const classifyForDiscovery = async (
   }
   const soldOutParentIds = new Set<number>();
   for (const [parentId, children] of childrenByParent) {
-    const parent = byId.get(parentId);
+    const parent = listingById.get(parentId);
     const anyBookable =
       parent !== undefined &&
       children.some((child) =>

@@ -3,14 +3,16 @@
  * Gated behind the "show public site" setting.
  */
 
-import { map, pipe } from "#fp";
+import { byId, map, pipe } from "#fp";
 import { withAuth } from "#routes/auth.ts";
+/* jscpd:ignore-start */
 import { isRegistrationClosed } from "#routes/format.ts";
 import {
   classifyForDiscovery,
   dropHiddenPackageMembers,
   loadBookablePackages,
 } from "#routes/public/discovery.ts";
+/* jscpd:ignore-end */
 import {
   icsResponse,
   redirectResponse,
@@ -339,7 +341,7 @@ const buildCalendarFeed = async (request: Request): Promise<Response> => {
       const privateKey = await getRequestPrivateKey();
       if (!privateKey) return new Response("Forbidden", { status: 403 });
       const listings = await getAllListings();
-      const listingById = new Map(listings.map((l) => [l.id, l]));
+      const listingById = byId(listings);
       const rawAttendees = await getAttendeesByListingIds(
         listings.map((l) => l.id),
         // Operational ICS feed: exclude no-quantity sentinel lines.

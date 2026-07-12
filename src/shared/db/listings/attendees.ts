@@ -1,7 +1,7 @@
 /** Listing reads batched with attendee data and daily attendee queries. */
 
 import type { ResultSet } from "@libsql/client";
-import { reduce, sort, unique } from "#fp";
+import { reduce, sortStrings, unique } from "#fp";
 import { addDays } from "#shared/dates.ts";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import {
@@ -98,7 +98,7 @@ export const getDailyListingAttendeeDates = async (): Promise<string[]> => {
     },
     [],
   )(rows);
-  return sort((a: string, b: string) => a.localeCompare(b))(unique(dates));
+  return sortStrings(unique(dates));
 };
 
 /** Read daily-listing attendees whose booking overlaps one date. */

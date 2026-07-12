@@ -16,7 +16,7 @@ import {
 } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { SaveChangesButton } from "#templates/components/actions.tsx";
-import { DataTable, textColumns } from "#templates/components/data-table.tsx";
+import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import {
   getGroupCreateFields,
@@ -99,8 +99,7 @@ const PackageMembersTable = ({
       <p>{t("groups.package_prices.no_listings")}</p>
     ) : (
       <DataTable
-        columns={textColumns(
-          "common.name",
+        columns={namedColumns(
           "fields.group.package_price",
           "fields.group.package_quantity",
         )}

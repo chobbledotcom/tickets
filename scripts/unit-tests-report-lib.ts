@@ -298,39 +298,46 @@ const limitRows = <T>(rows: T[], limit: number | null): T[] =>
 const truncationNote = (shown: number, total: number): string[] =>
   shown < total ? [`  … and ${total - shown} more (use --all to list)`] : [];
 
-const untestedLines = (report: Report, limit: number | null): string[] => {
-  if (report.untested.length === 0)
-    return ["  (none — every source has a test)"];
-  const shown = limitRows(report.untested, limit);
-  return [
-    ...shown.map((s) => `  ${String(s.lines).padStart(5)}  ${s.path}`),
-    ...truncationNote(shown.length, report.untested.length),
-  ];
-};
+/**
+ * Render one of the report's lists: a "none" note when it is empty, else the
+ * rows (with an optional header line on top) plus a "… and N more" note when
+ * the limit hid some. `pickRows` reads the list off the report so each list
+ * only names its own field once.
+ */
+const listSection =
+  <T>(
+    pickRows: (report: Report) => T[],
+    look: { whenEmpty: string; header?: string; renderRow: (row: T) => string },
+  ) =>
+  (report: Report, limit: number | null): string[] => {
+    const rows = pickRows(report);
+    if (rows.length === 0) return [look.whenEmpty];
+    const shown = limitRows(rows, limit);
+    return [
+      ...(look.header ? [look.header] : []),
+      ...shown.map(look.renderRow),
+      ...truncationNote(shown.length, rows.length),
+    ];
+  };
 
-const rankedLines = (report: Report, limit: number | null): string[] => {
-  if (report.ranked.length === 0) return ["  (none)"];
-  const shown = limitRows(report.ranked, limit);
-  return [
-    `  ${"ratio".padStart(6)}  ${"src".padStart(5)}  ${"test".padStart(5)}  file`,
-    ...shown.map(
-      (s) =>
-        `  ${formatRatio(s.ratio).padStart(6)}  ${String(s.lines).padStart(
-          5,
-        )}  ${String(s.testLines).padStart(5)}  ${s.path}`,
-    ),
-    ...truncationNote(shown.length, report.ranked.length),
-  ];
-};
+const untestedLines = listSection((report) => report.untested, {
+  renderRow: (s) => `  ${String(s.lines).padStart(5)}  ${s.path}`,
+  whenEmpty: "  (none — every source has a test)",
+});
 
-const orphanLines = (report: Report, limit: number | null): string[] => {
-  if (report.orphanTests.length === 0) return ["  (none)"];
-  const shown = limitRows(report.orphanTests, limit);
-  return [
-    ...shown.map((path) => `  ${path}`),
-    ...truncationNote(shown.length, report.orphanTests.length),
-  ];
-};
+const rankedLines = listSection((report) => report.ranked, {
+  header: `  ${"ratio".padStart(6)}  ${"src".padStart(5)}  ${"test".padStart(5)}  file`,
+  renderRow: (s) =>
+    `  ${formatRatio(s.ratio).padStart(6)}  ${String(s.lines).padStart(
+      5,
+    )}  ${String(s.testLines).padStart(5)}  ${s.path}`,
+  whenEmpty: "  (none)",
+});
+
+const orphanLines = listSection((report) => report.orphanTests, {
+  renderRow: (path) => `  ${path}`,
+  whenEmpty: "  (none)",
+});
 
 /**
  * Render the report as plain text lines. `limit` caps each list (null shows

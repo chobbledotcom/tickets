@@ -17,11 +17,19 @@ export const splitCommand = (
   return [command, args];
 };
 
+/** Build a `Deno.Command` from a `[executable, ...args]` list plus the stdio
+ * wiring for this run. */
+const buildCommand = (
+  cmd: string[],
+  options: Omit<Deno.CommandOptions, "args">,
+): Deno.Command => {
+  const [command, args] = splitCommand(cmd);
+  return new Deno.Command(command, { ...options, args });
+};
+
 /** Run a command, capturing its stdout/stderr as decoded strings. */
 export const runCommand: RunCommand = async (cmd) => {
-  const [command, args] = splitCommand(cmd);
-  const output = await new Deno.Command(command, {
-    args,
+  const output = await buildCommand(cmd, {
     stderr: "piped",
     stdout: "piped",
   }).output();
@@ -37,9 +45,7 @@ export const runCommand: RunCommand = async (cmd) => {
 
 /** Run a command wired to the parent's stdio (for interactive steps). */
 export const runInteractiveCommand: RunCommand = async (cmd) => {
-  const [command, args] = splitCommand(cmd);
-  const status = await new Deno.Command(command, {
-    args,
+  const status = await buildCommand(cmd, {
     stderr: "inherit",
     stdin: "inherit",
     stdout: "inherit",

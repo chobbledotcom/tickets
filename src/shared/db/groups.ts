@@ -3,8 +3,7 @@
  */
 
 /* jscpd:ignore-start */
-import type { InValue } from "@libsql/client";
-import { mapNotNullish } from "#fp";
+import { byId, mapNotNullish } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
@@ -14,6 +13,7 @@ import {
   inPlaceholders,
   queryAll,
   queryOne,
+  type SqlStatement,
   type TxScope,
 } from "#shared/db/client.ts";
 import {
@@ -134,7 +134,7 @@ export const groups = cachedEntityTable<Group, GroupInput>(
  * alternative to one findById per id when resolving or validating many groups
  * without tripping the N+1 read guard. */
 export const getGroupsById = async (): Promise<Map<number, Group>> =>
-  new Map((await groups.cache.getAll()).map((g) => [g.id, g]));
+  byId(await groups.cache.getAll());
 
 /** Narrow id → name map for every group (selects + decrypts only the name), for
  * pickers/labels that must not load the whole groups cache. */
@@ -580,7 +580,7 @@ export const cloneGroupMembershipStatement = (member: {
   groupSlugIndex: string;
   listingSlugIndex: string;
   quantity: number;
-}): { sql: string; args: InValue[] } => ({
+}): SqlStatement => ({
   args: [member.groupSlugIndex, member.listingSlugIndex, member.quantity],
   sql: `INSERT INTO group_listings (group_id, listing_id, quantity)
         SELECT (SELECT id FROM groups WHERE slug_index = ?),
@@ -606,7 +606,7 @@ const listingGroupDiffStatements = (
 ) => {
   const toRemove = [...current].filter((id) => !desired.has(id));
   const toAdd = [...desired].filter((id) => !current.has(id));
-  const statements: { args: InValue[]; sql: string }[] = [];
+  const statements: SqlStatement[] = [];
   // Set-based DELETEs + multi-row INSERT — at most three statements regardless of
   // how many groups change, so the transactional path (setListingGroupsTx) stays
   // well under the interactive round-trip guard even for a large group selection.

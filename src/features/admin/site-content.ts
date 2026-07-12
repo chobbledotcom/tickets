@@ -5,6 +5,7 @@
  * save completion (activity log + flash redirect).
  */
 
+/* jscpd:ignore-start */
 import type { FormGuard } from "#routes/admin/confirmation.ts";
 import { requireSiteOr, SITE_FORM, withAuth } from "#routes/auth.ts";
 import { gatedEntityRoute } from "#routes/entity.ts";
@@ -13,6 +14,7 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ValidationResult } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
+/* jscpd:ignore-end */
 
 /** Standard list/new/edit paths for a Site-tab collection under `base`. */
 export const siteContentPaths = (base: string) => ({

@@ -180,12 +180,14 @@ export const edgeIdsTouchingMany = async (
     getChildrenForParents(listingIds),
     getParentsForChildren(listingIds),
   ]);
+  const groupedIds = (byListing: Map<number, ListingWithCount[]>, id: number) =>
+    (byListing.get(id) ?? []).map((l) => l.id);
   return new Map(
     listingIds.map((id) => [
       id,
       {
-        childIds: (childrenByParent.get(id) ?? []).map((l) => l.id),
-        parentIds: (parentsByChild.get(id) ?? []).map((l) => l.id),
+        childIds: groupedIds(childrenByParent, id),
+        parentIds: groupedIds(parentsByChild, id),
       },
     ]),
   );

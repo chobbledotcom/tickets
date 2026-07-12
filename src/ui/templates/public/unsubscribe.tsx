@@ -11,8 +11,8 @@ import { t } from "#i18n";
 import { settings } from "#shared/db/settings.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
+import { RawParagraph } from "#templates/components/prose-heading.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 import { Layout } from "#templates/layout.tsx";
 /* jscpd:ignore-end */
@@ -98,9 +98,7 @@ export const unsubscribePage = (state: UnsubscribeState): string => {
         <>
           {state.unsubscribed ? (
             <div class="prose">
-              <p>
-                <Raw html={t("unsubscribe.unsubscribed_message")} />
-              </p>
+              <RawParagraph html={t("unsubscribe.unsubscribed_message")} />
               <p>{t("unsubscribe.changed_mind")}</p>
               <ToggleForm
                 action="resubscribe"

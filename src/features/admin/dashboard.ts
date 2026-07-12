@@ -13,11 +13,10 @@ import {
   sessionPage,
   withSession,
 } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
+import { flashForPage } from "#routes/flash-for-page.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
 /* jscpd:ignore-start */
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { signCsrfToken } from "#shared/csrf.ts";
 import {
   type ActivityLogEntry,
   getAllActivityLog,
@@ -67,9 +66,8 @@ export const loginResponse = async (
   request: Request,
   status = 200,
 ): Promise<Response> => {
-  const flash = applyFlash(request);
-  await signCsrfToken();
   // success (e.g. "Logged out") is rendered by the Layout backstop from context.
+  const flash = await flashForPage(request);
   return htmlResponse(adminLoginPage(flash.error), status);
 };
 

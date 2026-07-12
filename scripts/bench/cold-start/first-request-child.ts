@@ -22,6 +22,7 @@ import {
   setBuildTimestampForTest,
 } from "#shared/update.ts";
 import { serveHandler } from "#src/serve-app.ts";
+import { serveAndDrainRoot } from "./serve-root.ts";
 
 // Keep stdout clean for the JSON result line the parent parses.
 setSuppressDebugLogs(true);
@@ -131,8 +132,7 @@ setDb(wrapClient(createClient({ url: dbUrl })));
 
 const timedRequest = async (): Promise<{ ms: number; status: number }> => {
   requestStart = performance.now();
-  const response = await serveHandler(new Request("http://localhost/"));
-  await response.text();
+  const response = await serveAndDrainRoot(serveHandler);
   return { ms: performance.now() - requestStart, status: response.status };
 };
 

@@ -4,7 +4,7 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  */
 
 /* jscpd:ignore-start */
-import { filter, flatMap, map, pipe, reduce, sort, unique } from "#fp";
+import { filter, flatMap, map, pipe, reduce, sortStrings, unique } from "#fp";
 import {
   csvResponse,
   getDateFilter,
@@ -100,7 +100,7 @@ const compileDateOptions = (
 
   const standardDates = Array.from(standardListingDateMap.keys());
 
-  const allDates = sort((a: string, b: string) => a.localeCompare(b))(
+  const allDates = sortStrings(
     unique([...availableDates, ...attendeeDates, ...standardDates]),
   );
 

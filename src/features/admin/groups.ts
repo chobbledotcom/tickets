@@ -54,6 +54,7 @@ import type {
   GroupFormValues,
 } from "#templates/fields/types.ts";
 import { withEntityLoader } from "./entity-handlers.ts";
+import { withGroupOrNull } from "./find-group.ts";
 import { groupPage } from "./group-page.ts";
 import { createItemImageHandlers } from "./item-images.ts";
 
@@ -93,13 +94,13 @@ const validatePackageCompatibility = async (
  * cards/rows, revealing the member names the hide flag concealed. Un-packaging
  * or deleting such a group is rejected until the operator clears the hide flag
  * first (an explicit reveal); a VISIBLE package still un-groups freely. */
-export const soldHiddenPackageError = async (
-  id: number,
-): Promise<string | null> => {
-  const group = await groups.table.findById(id);
-  if (!group?.is_package || !group.hide_package_listings) return null;
-  return (await hasPackageBookings(id)) ? t("error.sold_hidden_package") : null;
-};
+export const soldHiddenPackageError = (id: number): Promise<string | null> =>
+  withGroupOrNull(id, async (group) => {
+    if (!group.is_package || !group.hide_package_listings) return null;
+    return (await hasPackageBookings(id))
+      ? t("error.sold_hidden_package")
+      : null;
+  });
 
 /** Combined validation: slug uniqueness plus the package invariant. On create
  * (`id` undefined) the group has no members yet, so only the slug is checked.

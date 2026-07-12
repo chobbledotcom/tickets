@@ -129,6 +129,9 @@ export type AttendeeFormTemplateData = {
   logistics?: AttendeeLogisticsData | undefined;
 };
 
+/** Props for the attendee-form parts that take only the whole form data. */
+type AttendeeFormProps = { data: AttendeeFormTemplateData };
+
 /** The line's booking-path label: "via <package>" for a package path (its id
  * when the package no longer exists), "add-on under <parent>" for a folded
  * child row, nothing for the listing's own row. */
@@ -271,11 +274,7 @@ const ListingRow = ({
  * "Show all listings" toggle (pure CSS). A bare create form has nothing booked,
  * so every row would hide behind that toggle; there we drop it and show every
  * listing instead. */
-const ListingEditor = ({
-  data,
-}: {
-  data: AttendeeFormTemplateData;
-}): JSX.Element => {
+const ListingEditor = ({ data }: AttendeeFormProps): JSX.Element => {
   const hasBookedLines = data.parsed.lines.some(
     (line) => isRetainedLine(line) || Boolean(line.existingBooking),
   );
@@ -476,11 +475,7 @@ const dayCountOptions = (startDate: string): SelectOption[] => {
  * The dates only apply to daily listings, so the whole section is hidden when
  * there are none in play, and the start date is never HTML-`required` — it's
  * optional unless a daily listing is actually booked, which the server enforces. */
-const SharedDateFields = ({
-  data,
-}: {
-  data: AttendeeFormTemplateData;
-}): JSX.Element => {
+const SharedDateFields = ({ data }: AttendeeFormProps): JSX.Element => {
   // Shown when there's no saved/known date yet (a bare create form); the PE
   // re-shows it whenever the dates are dirtied so the operator re-saves.
   const noticeHidden = !(data.mode === "create" && !data.parsed.startDate);
@@ -519,11 +514,7 @@ const SharedDateFields = ({
  * from the money ledger, and owners adjust it through the ledger (an auditable
  * write-off correction) rather than a free-text field on this form.
  */
-const StatusField = ({
-  data,
-}: {
-  data: AttendeeFormTemplateData;
-}): JSX.Element => {
+const StatusField = ({ data }: AttendeeFormProps): JSX.Element => {
   const { statusId } = data.parsed;
   const selectedId = resolveStatusId(statusId, data.statuses);
   return (
@@ -572,11 +563,7 @@ const formHasError = (data: AttendeeFormTemplateData): boolean =>
  */
 /** The attendee's own contact fields — name, status, and the optional email,
  * phone, address, and special instructions. The form's first section. */
-const ContactDetailFields = ({
-  data,
-}: {
-  data: AttendeeFormTemplateData;
-}): JSX.Element => (
+const ContactDetailFields = ({ data }: AttendeeFormProps): JSX.Element => (
   <>
     <label for="name">
       {t("common.name")}
@@ -677,11 +664,7 @@ const editFormSections = (data: AttendeeFormTemplateData): FormSection[] =>
     },
   ]);
 
-const AttendeeEditForm = ({
-  data,
-}: {
-  data: AttendeeFormTemplateData;
-}): JSX.Element => {
+const AttendeeEditForm = ({ data }: AttendeeFormProps): JSX.Element => {
   const isEdit = data.mode === "edit";
   const formAction =
     data.mode === "create"
@@ -716,11 +699,7 @@ const AttendeeEditForm = ({
  * attendee-level error, then the form itself. Rendered as the whole create
  * page and as the entity page's Edit tab.
  */
-export const AttendeeFormPanel = ({
-  data,
-}: {
-  data: AttendeeFormTemplateData;
-}): JSX.Element => (
+export const AttendeeFormPanel = ({ data }: AttendeeFormProps): JSX.Element => (
   <>
     {data.saveError && <ErrorAlert>{data.saveError}</ErrorAlert>}
     {data.formError && <ErrorAlert>{data.formError}</ErrorAlert>}

@@ -12,7 +12,7 @@
  */
 
 import * as v from "valibot";
-import { mapNotNullish } from "#fp";
+import { byId, mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { generateUniqueGroupSlug } from "#routes/admin/groups.ts";
@@ -56,6 +56,7 @@ import {
   edgeFieldError,
 } from "#shared/listing-parents-rules.ts";
 import {
+  dayPriceFieldsFromInput,
   generateUniqueListingSlug,
   listingInputToEdge,
   validateListingInput,
@@ -389,11 +390,7 @@ const importListing = async (
   );
   // A package day-price override must target a day count this listing offers —
   // the new listing itself is the member here, so validate against its own spans.
-  const newMember: DayPricedListing = {
-    customisable_days: input.customisableDays ?? false,
-    day_prices: input.dayPrices ?? {},
-    duration_days: input.durationDays ?? 1,
-  };
+  const newMember: DayPricedListing = dayPriceFieldsFromInput(input);
   for (let i = 0; i < memberships.length; i++) {
     if (!packageGroupIds.has(groupResolve.ids[i]!)) continue;
     const dayError = memberDayOverrideError(
@@ -494,7 +491,7 @@ const importGroup = async (transfer: GroupTransfer): Promise<ImportResult> => {
   const isPackage = group.isPackage ?? false;
   // Each member's day-price overrides must target a day count that member offers.
   if (isPackage) {
-    const listingById = new Map(listings.map((l) => [l.id, l]));
+    const listingById = byId(listings);
     for (let i = 0; i < members.length; i++) {
       const member = listingById.get(memberResolve.ids[i]!)!;
       const dayError = memberDayOverrideError(

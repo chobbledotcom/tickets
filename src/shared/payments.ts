@@ -298,6 +298,16 @@ export type WebhookSetupResult =
   | { success: true; endpointId: string; secret: string }
   | { success: false; error: string };
 
+/** Set up a webhook endpoint for a provider. Some providers (e.g. Stripe)
+ * support programmatic creation; recreating any existing endpoint returns a
+ * fresh signing secret. Shared by the provider interface and each provider's
+ * own implementation so the signature can't drift. */
+export type SetupWebhookEndpoint = (
+  secretKey: string,
+  webhookUrl: string,
+  existingEndpointId?: string | null,
+) => Promise<WebhookSetupResult>;
+
 /**
  * Payment provider interface.
  *
@@ -360,11 +370,7 @@ export interface PaymentProvider {
    * Set up a webhook endpoint for this provider.
    * Some providers (e.g. Stripe) support programmatic creation.
    */
-  setupWebhookEndpoint(
-    secretKey: string,
-    webhookUrl: string,
-    existingEndpointId?: string | null,
-  ): Promise<WebhookSetupResult>;
+  setupWebhookEndpoint: SetupWebhookEndpoint;
   /** Provider identifier */
   readonly type: PaymentProviderType;
 

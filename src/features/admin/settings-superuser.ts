@@ -5,14 +5,17 @@
  * enforced via settingsRoute.
  */
 
+/* jscpd:ignore-start */
 import { settingsRoute } from "#routes/admin/settings-helpers.ts";
 import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
 import { deleteUser } from "#shared/db/users.ts";
 import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { ok } from "#shared/response.ts";
+/* jscpd:ignore-end */
 import {
   createActivatedSuperuser,
   generateSuperuserPassword,
@@ -32,8 +35,7 @@ const rollbackSuperuser = async (
   try {
     await deleteUser(userId);
   } catch (deleteErr) {
-    const detail =
-      deleteErr instanceof Error ? deleteErr.message : String(deleteErr);
+    const detail = errorMessage(deleteErr);
     logError({
       code: ErrorCode.DB_QUERY,
       detail: `Failed to delete superuser after email failure: ${detail}`,

@@ -7,7 +7,7 @@
  */
 
 /* jscpd:ignore-start */
-import { compact, filter, unique } from "#fp";
+import { byId, compact, filter, unique } from "#fp";
 import { t } from "#i18n";
 import {
   type AttendeeFormLine,
@@ -87,11 +87,6 @@ export const loadAttendeeForEdit: (
     return { attendee, canRefund, existing };
   },
 );
-
-/** Index listings by id. */
-export const listingsByIdMap = (
-  listings: ListingWithCount[],
-): Map<number, ListingWithCount> => new Map(listings.map((l) => [l.id, l]));
 
 /** Listings to render rows for: every active listing, plus any inactive listing
  * the attendee already books (so an existing inactive registration still shows
@@ -214,7 +209,7 @@ const buildFormLines = (
   packagePaths: PackagePath[],
   preselectedQty: Map<number, number>,
 ): AttendeeFormLine[] => {
-  const listingsById = listingsByIdMap(renderListings);
+  const listingsById = byId(renderListings);
   const pricesByListingId = packagesByListingIdFrom(packagePaths);
   const priceOfPath = (listingId: number, groupId: number): number | null =>
     groupId > 0
@@ -556,14 +551,18 @@ export const buildTemplateData = async (
  * attendee's booked listings. The request's private key is only derived when
  * there are questions whose free-text answers need decrypting, so an attendee
  * with no questions never forces a key unwrap. */
-export const loadQuestionsForExisting = async (
-  attendeeId: number,
-  existing: ExistingLine[],
-): Promise<{
+/** A set of custom questions plus which answers the attendee has picked: the
+ * chosen option ids, and any free-text answers keyed by question id. */
+export type SelectedQuestionAnswers = {
   questions: QuestionWithAnswers[];
   selectedAnswerIds: number[];
   selectedTextAnswers: Map<number, string>;
-}> => {
+};
+
+export const loadQuestionsForExisting = async (
+  attendeeId: number,
+  existing: ExistingLine[],
+): Promise<SelectedQuestionAnswers> => {
   const listingIds = unique(existing.map((e) => e.booking.listing_id));
   const data = await loadAttendeeQuestionData(listingIds, [attendeeId]);
   if (!data) {

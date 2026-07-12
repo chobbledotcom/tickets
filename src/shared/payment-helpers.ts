@@ -461,6 +461,21 @@ const PACKED_KEYS = [
 /** The single metadata key the packed small fields are stored under. */
 const PACKED_FIELD = "b";
 
+/** Walk the packed fields, reading each value with `readValue` and keeping only
+ * the ones `keep` accepts. Returns a fresh record of just the fields that
+ * survived, so both packing and unpacking share one loop. */
+const collectPackedFields = (
+  readValue: (key: (typeof PACKED_KEYS)[number]) => unknown,
+  keep: (value: unknown) => value is string,
+): Record<string, string> => {
+  const result: Record<string, string> = {};
+  for (const key of PACKED_KEYS) {
+    const value = readValue(key);
+    if (keep(value)) result[key] = value;
+  }
+  return result;
+};
+
 /**
  * Collapse the packable small fields into one JSON `b` entry, dropping them
  * from the top level. Falsy values are omitted (the "" = absent convention), so
@@ -470,12 +485,11 @@ export const packMetadata = (
   metadata: Record<string, string>,
 ): Record<string, string> => {
   const rest: Record<string, string> = { ...metadata };
-  const packed: Record<string, string> = {};
-  for (const key of PACKED_KEYS) {
-    const value = rest[key];
-    if (value) packed[key] = value;
-    delete rest[key];
-  }
+  const packed = collectPackedFields(
+    (key) => rest[key],
+    (value): value is string => Boolean(value),
+  );
+  for (const key of PACKED_KEYS) delete rest[key];
   return Object.keys(packed).length > 0
     ? { ...rest, [PACKED_FIELD]: JSON.stringify(packed) }
     : rest;
@@ -494,12 +508,10 @@ const parsePackedFields = (raw: string): Partial<Record<string, string>> => {
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return {};
     const source = parsed as Record<string, unknown>;
-    const result: Record<string, string> = {};
-    for (const key of PACKED_KEYS) {
-      const value = source[key];
-      if (typeof value === "string") result[key] = value;
-    }
-    return result;
+    return collectPackedFields(
+      (key) => source[key],
+      (value): value is string => typeof value === "string",
+    );
   } catch {
     return {};
   }

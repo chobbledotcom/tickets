@@ -65,10 +65,10 @@ import {
   siteConfirmAuth,
   siteContentGet,
   siteContentPaths,
-  siteContentPost,
   siteEntityPost,
   validateContentFormOr,
 } from "./site-content.ts";
+import { siteCreatePost } from "./site-content-create.ts";
 import { buildListModel, offerableListing } from "./site-pages-data.ts";
 import { sitePageForm } from "./site-pages-form.ts";
 import { sitePageEntityPage } from "./site-pages-page.ts";
@@ -165,18 +165,20 @@ const renderList = siteContentGet(async (session) =>
 
 const renderNew = siteContentGet((session) => adminSitePageNewPage(session));
 
-const handleCreate = siteContentPost(async (form) => {
-  const fields = await validateFields(form, paths.newPage);
-  if (!fields.ok) return fields.response;
-  const page = await createSitePage(
-    contentFields(form, fields.name, fields.slug),
-  );
-  return savedContentResponse(
-    editPath(page.id),
-    `Page '${fields.name}' created`,
-    t("site.pages.created"),
-  );
-});
+const handleCreate = siteCreatePost(
+  paths.newPage,
+  validateFields,
+  async (fields, form) => {
+    const page = await createSitePage(
+      contentFields(form, fields.name, fields.slug),
+    );
+    return {
+      flashMessage: t("site.pages.created"),
+      logMessage: `Page '${fields.name}' created`,
+      path: editPath(page.id),
+    };
+  },
+);
 
 const handleUpdate = siteEntityPost(getSitePageById)(async (page, form) => {
   const fields = await validateFields(form, editPath(page.id), page.id);
