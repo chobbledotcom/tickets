@@ -1,8 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { KIND } from "#shared/accounting/kinds.ts";
-import { MANUAL_LISTING_INCOME } from "#shared/accounting/manual-entries.ts";
-import { listingMoneyTotals } from "#shared/accounting/queries.ts";
+import { listingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
+import {
+  MANUAL_LISTING_COST,
+  MANUAL_LISTING_INCOME,
+} from "#shared/accounting/manual-entries.ts";
 import type { LedgerRange } from "#shared/accounting/range.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { account } from "#shared/ledger/account.ts";
@@ -19,7 +22,13 @@ describe("listingMoneyTotals", () => {
   useTransactionalDb();
 
   test("returns zero totals for no listing ids", async () => {
-    expect(await listingMoneyTotals(june, [])).toEqual({ costs: 0, income: 0 });
+    expect(await listingMoneyTotals(june, [])).toEqual({
+      externalCosts: 0,
+      grossSales: 0,
+      income: 0,
+      refunds: 0,
+      servicingCosts: 0,
+    });
   });
 
   test("combines only the selected listings and date range", async () => {
@@ -64,6 +73,22 @@ describe("listingMoneyTotals", () => {
         source: account("cost", 1),
       }),
       tx({
+        amount: 250,
+        destination: account("attendee", 1),
+        kind: KIND.refundSale,
+        occurredAt: "2026-06-09T12:00:00.000Z",
+        reference: "one-refund",
+        source: account("revenue", 1),
+      }),
+      tx({
+        amount: 150,
+        destination: world,
+        kind: MANUAL_LISTING_COST,
+        occurredAt: "2026-06-09T13:00:00.000Z",
+        reference: "two-external-cost",
+        source: account("revenue", 2),
+      }),
+      tx({
         amount: 50,
         destination: account("cost", 2),
         kind: KIND.serviceCost,
@@ -89,8 +114,11 @@ describe("listingMoneyTotals", () => {
     ]);
 
     expect(await listingMoneyTotals(june, [1, 2])).toEqual({
-      costs: 350,
+      externalCosts: 150,
+      grossSales: 1000,
       income: 1400,
+      refunds: 250,
+      servicingCosts: 350,
     });
   });
 });

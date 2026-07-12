@@ -59,6 +59,10 @@ import {
   SINGLETON_ACCOUNTS,
 } from "#shared/accounting/accounts.ts";
 import {
+  type ListingMoneyTotals,
+  listingMoneyTotals,
+} from "#shared/accounting/listing-money-totals.ts";
+import {
   deleteManualLedgerEntry,
   getTransferById,
   isManualLedgerEntryType,
@@ -69,7 +73,6 @@ import {
 } from "#shared/accounting/manual-entries.ts";
 import {
   ledgerTotals,
-  listingMoneyTotals,
   transferActivityBounds,
   transfersByAccount,
   visibleTransfers,
@@ -83,11 +86,7 @@ import {
 import { addDays, dateRange, formatDateLabel } from "#shared/dates.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllGroupNames, getListingsByGroupId } from "#shared/db/groups.ts";
-import {
-  getAllListings,
-  getListingNamesByIds,
-  listingRevenueBreakdown,
-} from "#shared/db/listings.ts";
+import { getAllListings, getListingNamesByIds } from "#shared/db/listings.ts";
 import { getAllModifiers } from "#shared/db/modifiers.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -263,6 +262,17 @@ const moneyRow = (key: string, amount: number, signed = false): DetailRow => ({
   value: formatSignedCurrency(amount, signed),
 });
 
+const listingMoneyRows = (money: ListingMoneyTotals): DetailRow[] => [
+  moneyRow("admin.ledger.stats.gross_sales", money.grossSales, true),
+  moneyRow("admin.ledger.stats.recognised_income", money.income, true),
+  moneyRow("admin.ledger.stats.servicing_costs", -money.servicingCosts, true),
+  moneyRow("admin.ledger.stats.refunded", -money.refunds, true),
+  moneyRow(
+    "admin.ledger.stats.net_after_costs",
+    money.income - money.refunds - money.externalCosts - money.servicingCosts,
+  ),
+];
+
 /** The range-scoped stats and their heading. "All listings" shows the four
  *  business-wide totals; a chosen listing shows that listing's revenue
  *  breakdown, so the figures always match the scope the list is filtered to. */
@@ -275,33 +285,17 @@ const buildStats = async (
   groupNames: Map<number, string>,
 ): Promise<{ rows: DetailRow[]; heading: string | null }> => {
   if (listingId !== null) {
-    const [breakdown, money] = await Promise.all([
-      listingRevenueBreakdown(listingId, range),
-      listingMoneyTotals(range, [listingId]),
-    ]);
+    const money = await listingMoneyTotals(range, [listingId]);
     // The caller only scopes to a listing it found in this same cached list, so
     // the lookup always resolves.
     const listing = listings.find((entry) => entry.id === listingId)!;
     return {
       heading: listing.name,
-      rows: [
-        moneyRow("admin.ledger.stats.gross_sales", breakdown.grossSales, true),
-        moneyRow(
-          "admin.ledger.stats.recognised_income",
-          breakdown.recognisedIncome,
-          true,
-        ),
-        moneyRow("admin.ledger.stats.servicing_costs", -money.costs, true),
-        moneyRow("admin.ledger.stats.refunded", -breakdown.refunds, true),
-        moneyRow(
-          "admin.ledger.stats.net_after_costs",
-          breakdown.netBalance - money.costs,
-        ),
-      ],
+      rows: listingMoneyRows(money),
     };
   }
   if (groupId !== null) {
-    const { income, costs } = await listingMoneyTotals(
+    const money = await listingMoneyTotals(
       range,
       groupListings.map((listing) => listing.id),
     );
@@ -309,11 +303,7 @@ const buildStats = async (
     // lookup always resolves.
     return {
       heading: groupNames.get(groupId)!,
-      rows: [
-        moneyRow("admin.ledger.stats.recognised_income", income, true),
-        moneyRow("admin.ledger.stats.servicing_costs", -costs, true),
-        moneyRow("admin.ledger.stats.income_less_costs", income - costs),
-      ],
+      rows: listingMoneyRows(money),
     };
   }
   const totals = await ledgerTotals(range);

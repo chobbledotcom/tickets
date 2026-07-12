@@ -1,10 +1,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { KIND } from "#shared/accounting/kinds.ts";
+import { MANUAL_LISTING_COST } from "#shared/accounting/manual-entries.ts";
 import { postTransferGroups } from "#shared/accounting/store.ts";
 import { assignListingsToGroup } from "#shared/db/groups.ts";
+import { account } from "#shared/ledger/account.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { tx } from "#test-utils/ledger.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { listingMoneyLegs, seededSale } from "./helpers.ts";
 
@@ -99,7 +103,7 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
     );
   });
 
-  test("group stats keep income and costs inside the selected dates", async () => {
+  test("group stats keep the full money breakdown inside the selected dates", async () => {
     const group = await createTestGroup({ name: "Dated package" });
     const first = await createTestListing({ name: "June main" });
     const second = await createTestListing({ name: "June extra" });
@@ -120,6 +124,24 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
           occurredAt: "2026-06-20T12:00:00.000Z",
           prefix: "group-second-june",
         }),
+        tx({
+          amount: 700,
+          destination: account("attendee", 1),
+          eventGroup: "group-june-refund",
+          kind: KIND.refundSale,
+          occurredAt: "2026-06-21T12:00:00.000Z",
+          reference: "group-june-refund",
+          source: account("revenue", first.id),
+        }),
+        tx({
+          amount: 300,
+          destination: account("external", "world"),
+          eventGroup: "group-june-external-cost",
+          kind: MANUAL_LISTING_COST,
+          occurredAt: "2026-06-22T12:00:00.000Z",
+          reference: "group-june-external-cost",
+          source: account("revenue", second.id),
+        }),
         ...listingMoneyLegs({
           cost: 2000,
           income: 4000,
@@ -133,9 +155,15 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
       `/admin/ledger?group=${group.id}&from=2026-06-01&to=2026-06-30`,
     );
     const html = await response.text();
+    expect(html).toContain("Gross ticket sales");
     expect(html).toContain("+£30");
     expect(html).toContain("−£12");
-    expect(html).toContain("£18");
+    expect(html).toContain("Total refunded");
+    expect(html).toContain("−£7");
+    expect(html).toContain("Net after refunds and costs");
+    expect(html).toContain("£8");
+    expect(html).not.toContain("£11");
+    expect(html).not.toContain("£18");
     expect(html).not.toContain("+£70");
     expect(html).not.toContain("−£32");
   });

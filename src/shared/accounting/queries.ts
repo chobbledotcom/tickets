@@ -226,52 +226,6 @@ export const ledgerTotals = async (
   };
 };
 
-export type ListingMoneyTotals = {
-  income: number;
-  costs: number;
-};
-
-type ListingMoneyTotalsRow = {
-  income: number | bigint;
-  costs: number | bigint;
-};
-
-/** Recognised income and servicing costs for one-or-many listings inside a
- * range. The selected ids are one CTE so every CASE arm and the indexed scope
- * share the same bound set without a query per listing. */
-export const listingMoneyTotals = async (
-  range: LedgerRange,
-  listingIds: readonly number[],
-): Promise<ListingMoneyTotals> => {
-  if (listingIds.length === 0) return { costs: 0, income: 0 };
-  const selectedIds = "SELECT id FROM selected_listing";
-  const revenueCredit = `dest_type = '${REVENUE}' AND dest_id IN (${selectedIds})`;
-  const revenueDebit = `source_type = '${REVENUE}' AND source_id IN (${selectedIds})`;
-  const costDebit = `source_type = '${COST}' AND source_id IN (${selectedIds})`;
-  const costCredit = `dest_type = '${COST}' AND dest_id IN (${selectedIds})`;
-  const r = occurredAtRange(range);
-  const row = (await queryOne<ListingMoneyTotalsRow>(
-    `WITH selected_listing(id) AS (VALUES ${listingIds.map(() => "(?)").join(", ")})
-     SELECT
-       COALESCE(SUM(CASE
-         WHEN kind = '${KIND.sale}' AND ${revenueCredit} THEN amount
-         WHEN kind = '${MANUAL_LISTING_INCOME}' AND ${revenueCredit} THEN amount
-         WHEN kind = '${KIND.adjustment}' AND ${revenueCredit} AND source_type = '${WRITEOFF_TYPE}' THEN amount
-         WHEN kind = '${KIND.adjustment}' AND ${revenueDebit} AND dest_type = '${WRITEOFF_TYPE}' THEN -amount
-         ELSE 0 END), 0) AS income,
-       COALESCE(SUM(CASE
-         WHEN kind = '${KIND.serviceCost}' AND ${costDebit} THEN amount
-         WHEN kind = '${KIND.serviceCost}' AND ${costCredit} THEN -amount
-         ELSE 0 END), 0) AS costs
-     FROM transfers
-     WHERE (${revenueCredit} OR ${revenueDebit} OR ${costDebit} OR ${costCredit})${andPrefixed(
-       r.clause,
-     )}`,
-    [...listingIds.map(String), ...r.args],
-  ))!;
-  return { costs: Number(row.costs), income: Number(row.income) };
-};
-
 type BalanceRow = { id: string; balance: number | bigint };
 
 /** Net balances grouped by account id. Each transfer counts as +amount for its
