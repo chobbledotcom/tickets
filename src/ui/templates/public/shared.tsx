@@ -80,7 +80,7 @@ const rootItems = (
  * shared `leveledNav` the admin nav uses. It must NOT carry the admin nav's
  * `#main-nav` id: the stylesheet reads that id as "this is an admin page"
  * (full-bleed main, admin textarea sizing), while a public page keeps the
- * shared 800px reading width.
+ * shared 1080px reading width.
  */
 export const PublicNav = (props: PublicNavProps): JSX.Element =>
   leveledNav({
