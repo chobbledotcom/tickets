@@ -42,6 +42,7 @@ import {
   loadSiteSecretsStatus,
 } from "#shared/site-secrets.ts";
 import { loadBuiltSiteUpdateState } from "#shared/site-update.ts";
+import type { AdminSession } from "#shared/types.ts";
 import {
   deployLatestReleaseToDeno,
   deployLatestReleaseToScript,
@@ -155,14 +156,17 @@ type OwnerPostHandler = (
   id: number,
 ) => Promise<Response>;
 
+/** Handler receiving the resolved site (with its id) and the owner session. */
+type OwnerSiteHandler = (
+  found: { id: number; site: BuiltSite },
+  session: AdminSession,
+) => Promise<Response>;
+
 /** Owner-gated wrapper that also resolves `:id` → site or returns 404. */
 const withOwnerAndSite = (
   request: Request,
   params: RouteParams,
-  handler: (
-    found: { id: number; site: BuiltSite },
-    session: import("#shared/types.ts").AdminSession,
-  ) => Promise<Response>,
+  handler: OwnerSiteHandler,
 ): Promise<Response> =>
   requireOwnerOr(request, async (session) => {
     const id = Number(params.id);

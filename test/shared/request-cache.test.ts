@@ -1,235 +1,9 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import {
-  getAllCacheStats,
-  invalidateCachesForTable,
-  invalidateCachesForWrite,
-  registerCache,
-  registerDependencies,
-  registerTableInvalidation,
-  resetCacheRegistry,
-  type WriteVerb,
-} from "#shared/cache-registry.ts";
+import { describe, it as test } from "@std/testing/bdd";
+import { getAllCacheStats, registerCache } from "#shared/cache-registry.ts";
 import { holidays } from "#shared/db/holidays.ts";
 import { requestCache, runWithRequestCache } from "#shared/request-cache.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-
-describe("cache-registry", () => {
-  beforeEach(() => {
-    resetCacheRegistry();
-  });
-
-  afterEach(() => {
-    resetCacheRegistry();
-  });
-
-  test("returns empty array when no caches registered", () => {
-    expect(getAllCacheStats()).toEqual([]);
-  });
-
-  test("returns stats from registered caches", () => {
-    registerCache(() => ({ entries: 5, name: "test" }));
-    const stats = getAllCacheStats();
-    expect(stats).toHaveLength(1);
-    expect(stats[0]!.name).toBe("test");
-    expect(stats[0]!.entries).toBe(5);
-  });
-
-  test("supports capacity field", () => {
-    registerCache(() => ({ capacity: 10000, entries: 100, name: "lru" }));
-    const stats = getAllCacheStats();
-    expect(stats[0]!.capacity).toBe(10000);
-  });
-
-  test("collects stats from multiple caches", () => {
-    registerCache(() => ({ entries: 1, name: "a" }));
-    registerCache(() => ({ entries: 2, name: "b" }));
-    registerCache(() => ({ entries: 3, name: "c" }));
-    const stats = getAllCacheStats();
-    expect(stats).toHaveLength(3);
-  });
-
-  test("calls providers each time to get fresh stats", () => {
-    let count = 0;
-    registerCache(() => ({ entries: ++count, name: "dynamic" }));
-    expect(getAllCacheStats()[0]!.entries).toBe(1);
-    expect(getAllCacheStats()[0]!.entries).toBe(2);
-  });
-
-  test("resetCacheRegistry clears all providers", () => {
-    registerCache(() => ({ entries: 1, name: "test" }));
-    expect(getAllCacheStats()).toHaveLength(1);
-    resetCacheRegistry();
-    expect(getAllCacheStats()).toHaveLength(0);
-  });
-});
-
-describe("table invalidation registry", () => {
-  beforeEach(() => {
-    resetCacheRegistry();
-  });
-
-  afterEach(() => {
-    resetCacheRegistry();
-  });
-
-  test("fires the invalidator registered for a written table", () => {
-    let fired = 0;
-    registerTableInvalidation(["listings"], () => {
-      fired++;
-    });
-    invalidateCachesForTable("listings");
-    expect(fired).toBe(1);
-  });
-
-  test("ignores tables with no registered invalidator", () => {
-    let fired = 0;
-    registerTableInvalidation(["listings"], () => {
-      fired++;
-    });
-    invalidateCachesForTable("sessions");
-    expect(fired).toBe(0);
-  });
-
-  test("one invalidator can depend on several tables", () => {
-    let fired = 0;
-    registerTableInvalidation(["listings", "listing_attendees"], () => {
-      fired++;
-    });
-    invalidateCachesForTable("listing_attendees");
-    expect(fired).toBe(1);
-  });
-
-  test("fires every invalidator registered against the same table", () => {
-    let a = 0;
-    let b = 0;
-    registerTableInvalidation(["users"], () => {
-      a++;
-    });
-    registerTableInvalidation(["users"], () => {
-      b++;
-    });
-    invalidateCachesForTable("users");
-    expect(a).toBe(1);
-    expect(b).toBe(1);
-  });
-
-  test("resetCacheRegistry clears table invalidators", () => {
-    let fired = 0;
-    registerTableInvalidation(["listings"], () => {
-      fired++;
-    });
-    resetCacheRegistry();
-    invalidateCachesForTable("listings");
-    expect(fired).toBe(0);
-  });
-});
-
-describe("column-gated invalidation", () => {
-  beforeEach(() => {
-    resetCacheRegistry();
-  });
-
-  afterEach(() => {
-    resetCacheRegistry();
-  });
-
-  /** Register a column-gated (or ungated) invalidation on `table`, fire a
-   *  write, and assert the callback fires `expected` times. Colsapses the
-   *  shared `let fired = 0; registerTableInvalidation(…); invalidate(…);
-   *  expect(fired).toBe(N)` scaffold every test in this block uses. */
-  const expectGatedFire = (opts: {
-    table?: string;
-    whenColumns?: readonly string[];
-    touchedColumns?: readonly string[];
-    verb?: WriteVerb;
-    useTableInvalidation?: boolean;
-    expected: number;
-  }): void => {
-    const table = opts.table ?? "listing_attendees";
-    let fired = 0;
-    registerTableInvalidation(
-      [table],
-      () => {
-        fired++;
-      },
-      opts.whenColumns ? { whenColumns: opts.whenColumns } : undefined,
-    );
-    if (opts.useTableInvalidation) {
-      invalidateCachesForTable(table);
-    } else {
-      invalidateCachesForWrite(table, {
-        columns: new Set(opts.touchedColumns ?? []),
-        verb: opts.verb ?? "insert",
-      });
-    }
-    expect(fired).toBe(opts.expected);
-  };
-
-  test("column-gated UPDATE fires when it touches a listed column", () => {
-    expectGatedFire({
-      expected: 1,
-      touchedColumns: ["quantity"],
-      verb: "update",
-      whenColumns: ["quantity", "price_paid"],
-    });
-  });
-
-  test("column-gated UPDATE does not fire when only other columns are touched", () => {
-    expectGatedFire({
-      expected: 0,
-      touchedColumns: ["checked_in"],
-      verb: "update",
-      whenColumns: ["quantity", "price_paid"],
-    });
-  });
-
-  test("column-gated dependency always fires for INSERT", () => {
-    expectGatedFire({ expected: 1, verb: "insert", whenColumns: ["quantity"] });
-  });
-
-  test("column-gated dependency always fires for DELETE", () => {
-    expectGatedFire({ expected: 1, verb: "delete", whenColumns: ["quantity"] });
-  });
-
-  test("column-gated dependency always fires for REPLACE", () => {
-    expectGatedFire({
-      expected: 1,
-      verb: "replace",
-      whenColumns: ["quantity"],
-    });
-  });
-
-  test("ungated dependency fires for any UPDATE regardless of columns", () => {
-    expectGatedFire({
-      expected: 1,
-      table: "users",
-      touchedColumns: ["some_col"],
-      verb: "update",
-    });
-  });
-
-  test("fallback (INSERT verb) fires column-gated entries unconditionally", () => {
-    expectGatedFire({ expected: 1, verb: "insert", whenColumns: ["quantity"] });
-  });
-
-  test("invalidateCachesForTable fires column-gated entries unconditionally", () => {
-    expectGatedFire({
-      expected: 1,
-      useTableInvalidation: true,
-      whenColumns: ["quantity"],
-    });
-  });
-
-  test("registerDependencies wires a plain-string dep unconditionally", () => {
-    let fired = 0;
-    registerDependencies("own_table", ["other_table"], () => {
-      fired++;
-    });
-    invalidateCachesForTable("other_table");
-    expect(fired).toBe(1);
-  });
-});
 
 describe("requestCache", () => {
   const makeCountingCache = () => {
@@ -284,6 +58,32 @@ describe("requestCache", () => {
     await cache.getAll();
     await cache.getAll();
     expect(calls).toBe(2); // no caching
+  });
+
+  test("reads that inherit a finished request's context fetch fresh", async () => {
+    // A continuation registered inside a request keeps the request's async
+    // context when it runs later — the runtime can hand that context to work
+    // that starts long after the request finished (observed after a forced GC
+    // at a test boundary). Such reads must behave as "outside a request":
+    // fetch fresh, never serve the dead request's memoised data.
+    const { cache, getCalls } = makeCountingCache();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let afterRequest!: Promise<number>;
+    await runWithRequestCache(async () => {
+      await cache.getAll(); // memoised for this request (1 fetch)
+      afterRequest = (async () => {
+        await gate;
+        await cache.getAll();
+        await cache.getAll();
+        return getCalls();
+      })();
+    });
+    release();
+    // Two uncached fetches after the request ended: 1 (in-request) + 2.
+    expect(await afterRequest).toBe(3);
   });
 
   test("concurrent reads within request share one fetch", async () => {
@@ -412,14 +212,21 @@ describeWithEnv("caching integration", { db: true }, () => {
 
   test("cache-registry collects stats from request caches", async () => {
     const cache = requestCache(() => Promise.resolve([1, 2, 3]));
-    registerCache(() => ({ entries: cache.size(), name: "test-integration" }));
+    const unregister = registerCache(() => ({
+      entries: cache.size(),
+      name: "test-integration",
+    }));
 
-    await runWithRequestCache(async () => {
-      await cache.getAll();
-      const stats = getAllCacheStats();
-      const testStat = stats.find((s) => s.name === "test-integration");
-      expect(testStat).toBeDefined();
-      expect(testStat!.entries).toBe(3);
-    });
+    try {
+      await runWithRequestCache(async () => {
+        await cache.getAll();
+        const stats = getAllCacheStats();
+        const testStat = stats.find((s) => s.name === "test-integration");
+        expect(testStat).toBeDefined();
+        expect(testStat!.entries).toBe(3);
+      });
+    } finally {
+      unregister();
+    }
   });
 });

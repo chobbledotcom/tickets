@@ -52,7 +52,7 @@ as-is and skips the download, so `deno task test`, `deno task test:files`, and
 
 - **Use FP methods**: Prefer curried functional utilities from `#fp` over imperative loops
 - **Plain language for functional code**: Keep the functional style, but name helpers and write comments in simple domain words. Avoid CS jargon in code (`predicate`, `cohort`, `projection`, `fold`, `atom`, etc.) when a plain phrase works. A helper should explain itself like "Keeps only children that can still be booked for this ticket." Write for someone without a CS degree; a ten-year-old should understand the comment and the method name, even if the implementation uses `map`, `filter`, or `reduce`.
-- **Zero code duplication**: jscpd runs at a non-negotiable 0% threshold. Fix duplication with a helper or currying — see [Code Duplication](#code-duplication). `jscpd:ignore` is reserved for import blocks, essentially nothing else.
+- **Zero code duplication**: jscpd runs at a non-negotiable 0% threshold. Fix duplication with a helper or currying — see [Code Duplication](#code-duplication). `jscpd:ignore` is reserved for import blocks, essentially nothing else. The warning is a *positive signal* pointing at a real merge to make — never work around it by changing a structure so the matcher stops matching (config objects, namespace imports, reordering, lifting to a named const, all to dodge the token match) while leaving two parallel implementations standing. Every merge is warranted; the merges are the whole goal. After each dedup, zoom out and fold the new helper into other call sites and older siblings it now subsumes.
 - **100% test coverage**: All code must have complete test coverage - run `deno coverage` to find uncovered lines/branches. Coverage must also be *deterministic*: a line or branch reached only through a spawned subprocess or e2e test (e.g. the `cli/` scripts, exercised by `test/e2e/cli-api.test.ts` via `deno run`) is covered non-deterministically — the child process's coverage is collected through `DENO_COVERAGE_DIR` and is environment-sensitive, so it can pass CI on one run and fail on the next. Give any branch that must stay covered a direct in-process unit test, not just incidental subprocess coverage.
 - **Hardest first, no need to ask**: When the only open question is *what order to build several things in*, the answer is always "do the more difficult one first" — just proceed, don't ask.
 - **Always the complete version**: When choosing between a result that is less accurate/complete and the full, correct version, always do the complete version — even if it means changing more files than originally estimated. Our aim is always to create the most perfect software; don't ask permission to do it properly.
@@ -433,8 +433,12 @@ reference implementations:
   — all first-use, never import-time.
 - **Request-scoped memoization, not global state.** `requestCache`
   (`src/shared/request-cache.ts`) shares one fetch among all callers within
-  a request; `createRequestScoped` (`src/shared/request-scoped.ts`) keeps
-  two concurrent requests on one isolate from clobbering each other.
+  a request. Any new per-request state is built on one of the three factories
+  in `src/shared/request-scoped.ts` (`createScope`, `createScopedValue`,
+  `createRequestScoped`) — the only module allowed to touch
+  `AsyncLocalStorage` — so two concurrent requests on one isolate can't
+  clobber each other and a leaked post-request context always reads as
+  "outside a request".
   Isolate-lived caches are best-effort and bounded
   (`src/shared/db/keyed-cache.ts`; the settings version-stamp cache in
   `src/shared/db/settings.ts`) — never authoritative for security
@@ -577,6 +581,32 @@ guidance. Fix the duplication; do not silence it:
    boilerplate/infrastructure we have no control over). If the duplicated code
    is not an import block, you almost certainly want option 1 or 2 — an
    `jscpd:ignore` tag anywhere else is a code smell, not a fix.
+
+**The jscpd warning is a positive signal, not a nuisance to silence.** Each
+duplication it flags is a pointer at two things that should become one — a real
+merge waiting to happen, and the whole point of this exercise. So:
+
+- **Never work around the warning by changing a structure so the matcher stops
+  matching.** Swapping positional params for a config object, renaming to a
+  namespace import, reordering fields, lifting a line to a named const — any
+  edit whose *purpose* is to break the token match while leaving two parallel
+  implementations in place is the opposite of what we want. It hides the signal
+  and keeps the duplication. If you find yourself asking "how do I make jscpd
+  stop flagging this," you are on the wrong track: the question is "how do I make
+  these two things one thing."
+- **Every merge is warranted — the merges are the goal.** When jscpd flags a new
+  helper against an existing one (as it will the moment you extract something),
+  that is not a problem to route around; it is telling you the new helper and
+  the old one are the same operation and should be unified into a single
+  mechanism. Do that unification. Reducing the codebase to one shared way of
+  doing each thing is the aim; the warning is just the to-do list.
+- **After a dedup, zoom out and integrate further.** Once your new helper exists,
+  search the codebase for the *other* places that could now fold into it or into
+  an existing sibling. A dedup pass rarely ends at the sites that first tripped
+  the check — the biggest wins come from noticing that the helper you just wrote
+  subsumes three more call sites, or that it and an older helper are the same
+  thing wearing two names. Keep pulling the thread until the merges are genuinely
+  exhausted.
 
 ## Database Queries
 
@@ -824,6 +854,11 @@ Stripe and need built static assets + stripe-mock. Under `--harness`, mutating a
 client-bundle source (anything bundled into `src/ui/static/*.js` — e.g.
 `src/ui/client/admin.ts` or a module it imports) rebuilds just the affected
 bundle for each mutant, so the mutation reaches the built asset the tests load.
+Likewise, a mutant in any file that feeds the run-wide prebuilt test state (the
+golden schema DB and captured setup ceremony — the import graph of
+`test/test-utils/test-state.ts`, see `scripts/mutation/state-graph.ts`) runs
+its tests without `TICKETS_TEST_STATE_DIR`, so those isolates rebuild that
+state from the mutated code instead of seeding from a pre-mutant snapshot.
 
 How it works (and why it is bespoke): it mutates the source file **in place**,
 runs the mapped tests in a fresh `deno test` subprocess, then restores the
@@ -949,6 +984,22 @@ that report as regressions to fix, not ambient noise. These are the patterns
 that keep tests fast — reach for them when writing the test, not after it
 shows up in the report:
 
+- **The full runner shares isolates between test files.** `deno task test`
+  deals the suite's files into generated group entries
+  (`scripts/test-groups.ts`), so the app module graph is evaluated once per
+  group instead of once per file, and the harness prebuilds the test database
+  state — golden schema DB plus the captured setup ceremony — once per run
+  (`test/test-utils/test-state.ts`) instead of once per file. Two rules keep
+  a file groupable: never register a *global* BDD hook (a `beforeAll` /
+  `afterEach` at module level, including via a helper function called at
+  module level — put hooks inside your `describe`), and never rely on a
+  virgin isolate (module state you switch is visible to files that run after
+  you, so reset what you change — and state *other* files switched may be
+  visible to you, so pin what you assert on). A file that genuinely needs its
+  own isolate carries a `// test-groups: run-alone` comment. `deno task
+  test:files` never groups: you always debug exactly the files you name, one
+  isolate each, and `TICKETS_TEST_UNGROUPED=1 deno task test` runs the whole
+  suite that way to rule grouping out when chasing cross-file state.
 - **Never run repo tooling as a subprocess inside a test.** jscpd, Biome, and
   typechecking are dedicated precommit/CI steps; a test that shells out to
   `deno task cpd` re-runs a minute of CPU inside every suite run to enforce a
@@ -973,12 +1024,12 @@ shows up in the report:
   files driven by one factory so `deno test --parallel` spreads it across
   workers — see `test/lib/db/migration-restore/` (shard by
   `index % shardCount`, which stays balanced as the list grows).
-- **Keep heavy SDKs out of module load.** Every test file re-evaluates the
-  whole app module graph, so an import-time SDK evaluation is paid once per
-  test FILE — hundreds of times per run. Dynamically import heavy
+- **Keep heavy SDKs out of module load.** Every test isolate — a group of
+  files under the full runner, each named file under `test:files` — evaluates
+  the whole app module graph, so an import-time SDK evaluation is paid once
+  per isolate, dozens of times per run. Dynamically import heavy
   dependencies on first use; `stripe.ts` and `sentry.ts` are the references
-  (this is the [cold-start rule](#built-for-cold-starts), which the test
-  suite feels ~250× over).
+  (this is the [cold-start rule](#built-for-cold-starts) applied to tests).
 - **`expect(bigHtml).toContain(...)` is safe here** because `#test-utils`
   overrides the matcher (`test/test-utils/fast-expect.ts`): the @std/expect
   built-in pretty-prints the entire searched value even when the assertion

@@ -38,18 +38,18 @@ import {
 } from "#shared/listing-parents-rules.ts";
 import { packageChildEdgeError } from "#shared/package-membership.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import type { ChildCandidate } from "#templates/admin/listings/types.ts";
+import type { ListingParentsSection } from "#templates/admin/listings/types.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
 
-/** The data the edit page's "required children" section renders. `candidates`
- * excludes the listing itself (no self-edges) and carries each one's
- * eligibility; `childIds` are its currently-required children; `offeredUnder` are
- * the listings it is itself a child of. */
-export type ListingParentsSection = {
-  candidates: ChildCandidate[];
-  childIds: ReadonlySet<number>;
-  offeredUnder: ListingWithCount[];
-};
+/** Error shown when the parent is itself offered as a child: single-level
+ * nesting means it can't also gate children. */
+const parentIsChildError = (parent: EdgeListing): string =>
+  t("listings_table.children_err_parent_is_child", { name: parent.name });
+
+/** Error shown when a chosen child is itself a parent: single-level nesting
+ * means it can't also be a child. */
+const childIsParentError = (child: EdgeListing): string =>
+  t("listings_table.children_err_child_is_parent", { name: child.name });
 
 /** Why `candidate` can't be a child of `parent` for the edit-page candidate list,
  * or null when allowed — the synchronous structural + field blocks, mirroring
@@ -62,16 +62,8 @@ const childEdgeIneligibility = (
   parentIsChild: boolean,
   candidateIsParent: boolean,
 ): string | null => {
-  if (parentIsChild) {
-    return t("listings_table.children_err_parent_is_child", {
-      name: parent.name,
-    });
-  }
-  if (candidateIsParent) {
-    return t("listings_table.children_err_child_is_parent", {
-      name: candidate.name,
-    });
-  }
+  if (parentIsChild) return parentIsChildError(parent);
+  if (candidateIsParent) return childIsParentError(candidate);
   return edgeFieldError(parent, candidate);
 };
 
@@ -135,21 +127,13 @@ const childEdgeError = async (
   resolveChildOnlyAddOn: ChildOnlyAddOnResolver,
 ): Promise<string | null> => {
   if (children.length === 0) return null;
-  if (parentIsChild) {
-    return t("listings_table.children_err_parent_is_child", {
-      name: parent.name,
-    });
-  }
+  if (parentIsChild) return parentIsChildError(parent);
   // The parent's own booking page loads add-ons from ONLY its own listing id
   // (`getTicketContext` → `getOptionalAddOns([parent.id])`), never its group
   // siblings, so reachability is checked against just `[parent.id]`.
   const pageIds = [parent.id];
   for (const { listing, isParent } of children) {
-    if (isParent) {
-      return t("listings_table.children_err_child_is_parent", {
-        name: listing.name,
-      });
-    }
+    if (isParent) return childIsParentError(listing);
     const fieldError = edgeFieldError(parent, listing);
     if (fieldError) return fieldError;
     // v1 has no child-scoped add-on render/parse path, so an add-on reachable

@@ -3,11 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { expectHtmlEscaped, rejectionMessage } from "#test-utils/assertions.ts";
-import {
-  createTestDb,
-  invalidateTestDbCache,
-  resetDb,
-} from "#test-utils/db.ts";
+import { createTestDb, resetDb } from "#test-utils/db.ts";
 import {
   emailTestSandbox,
   expectSendNoop,
@@ -16,7 +12,6 @@ import {
 import { setTestEnv } from "#test-utils/env.ts";
 import {
   generateTestListingName,
-  getCachedSetupUsers,
   resetTestSlugCounter,
 } from "#test-utils/internal.ts";
 import {
@@ -31,6 +26,10 @@ import {
   wait,
 } from "#test-utils/mocks.ts";
 import { createTrackedTestDbFile } from "#test-utils/temp-db-files.ts";
+import {
+  getSetupState,
+  invalidateTestDbCache,
+} from "#test-utils/test-state.ts";
 
 describe("test-utils — stubs, caches & request mocks", () => {
   afterEach(() => {
@@ -112,9 +111,9 @@ describe("test-utils — stubs, caches & request mocks", () => {
     });
   });
   describe("internal caches", () => {
-    test("start with no cached setup users", () => {
+    test("start with no cached setup state", () => {
       invalidateTestDbCache();
-      expect(getCachedSetupUsers()).toBe(null);
+      expect(getSetupState()).toBe(null);
     });
   });
 
@@ -129,6 +128,16 @@ describe("test-utils — stubs, caches & request mocks", () => {
   });
 
   describe("resetDb", () => {
+    test("leaves a non-file DB_URL alone (nothing on disk to remove)", async () => {
+      const { setTestEnv } = await import("#test-utils/env.ts");
+      const restore = setTestEnv({ DB_URL: ":memory:" });
+      try {
+        resetDb(); // must not try to close/unlink a file for :memory:
+      } finally {
+        restore();
+      }
+    });
+
     test("resets database so next createTestDb gives clean state", async () => {
       await createTestDb();
       const { getDb, insert } = await import("#shared/db/client.ts");

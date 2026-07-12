@@ -15,10 +15,11 @@ import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
+import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { ProsePanel } from "#templates/components/prose-panel.tsx";
 import { rawParagraph } from "#templates/components/raw-paragraph.tsx";
@@ -29,22 +30,25 @@ const NAV_ACTIVE = "/admin/emails";
 /** Deep link to the Email Notifications form on the advanced settings page. */
 const EMAIL_SETTINGS_LINK = "/admin/settings-advanced#settings-email";
 
-/** Wrap a bulk-email page body in the standard
- *  `<AdminPage active=NAV_ACTIVE title>{<div class="prose"><h1>{title}</h1></div> + body}</AdminPage>`
- *  scaffolding shared by the compose and preview pages. */
+/** Wrap a bulk-email page body in the standard scaffolding shared by the
+ *  compose and preview pages: the prose heading, the body, then the guide
+ *  footer link. */
 const bulkEmailPage = (
   session: AdminSession,
   title: string,
   body: Child,
 ): string =>
-  String(
-    <AdminPage active={NAV_ACTIVE} session={session} title={title}>
+  renderAdminPage(
+    NAV_ACTIVE,
+    session,
+    title,
+    <>
       <ProseHeading heading={title} />
       {body}
       <GuideFooter href="/admin/guide#bulk-email">
         {t("bulk_email.guide_link")}
       </GuideFooter>
-    </AdminPage>,
+    </>,
   );
 
 /** "Email provider setup" deep link paragraph: appeared duplicated inside
@@ -247,10 +251,12 @@ export const bulkEmailComposePage = (
 
         {state.templates.length > 0 && (
           <fieldset class="checkboxes">
-            <label>
-              <input name="update_existing" type="checkbox" value="1" />{" "}
-              {t("bulk_email.update_existing_checkbox")}
-            </label>
+            <CheckboxLabel
+              checked={false}
+              label={` ${t("bulk_email.update_existing_checkbox")}`}
+              name="update_existing"
+              value="1"
+            />
           </fieldset>
         )}
 

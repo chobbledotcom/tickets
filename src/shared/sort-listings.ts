@@ -78,14 +78,15 @@ export const sortListings = <T extends Listing>(
   return [...listings].sort(compareListings(nextDates));
 };
 
-/** Load all listings with holidays and return them sorted, filtered by predicate. */
+/** Load all listings with holidays and return them sorted. With a filter, only
+ * the listings it keeps are returned; without one, every listing is returned. */
 export const loadSortedListings = async (
-  predicate: (e: ListingWithCount) => boolean,
+  keepListing: (listing: ListingWithCount) => boolean = () => true,
 ): Promise<{ listings: ListingWithCount[]; holidays: Holiday[] }> => {
   const [allListings, holidays] = await Promise.all([
     getAllListings(),
     getActiveHolidays(),
   ]);
-  const listings = sortListings(allListings.filter(predicate), holidays);
+  const listings = sortListings(allListings.filter(keepListing), holidays);
   return { holidays, listings };
 };

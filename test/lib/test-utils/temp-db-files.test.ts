@@ -1,3 +1,7 @@
+// test-groups: run-alone — these tests exercise the isolate-global teardown
+// (cleanupTrackedTestDbFiles wipes every tracked DB file and the shared temp
+// dir), which would pull the golden DB out from under any file sharing the
+// isolate.
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import {

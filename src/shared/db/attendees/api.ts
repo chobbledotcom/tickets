@@ -6,10 +6,7 @@
  * the wrapper functions, which delegate to the live entry at call time.
  */
 
-import type {
-  BatchAvailabilityItem,
-  CreateAttendeeResult,
-} from "#shared/db/attendee-types.ts";
+import type { CreateAttendeeResult } from "#shared/db/attendee-types.ts";
 import { applyAttendeeAtomicEdit as applyAttendeeAtomicEditImpl } from "#shared/db/attendees/atomic-update.ts";
 import {
   checkBatchAvailabilityImpl,
@@ -56,6 +53,5 @@ export const createBookingAtomic = (
 
 /** Wrapper for test mocking - delegates to attendeesApi at runtime */
 export const checkBatchAvailability = (
-  items: BatchAvailabilityItem[],
-  date?: string | null,
-): Promise<boolean> => attendeesApi.checkBatchAvailability(items, date);
+  ...args: Parameters<typeof attendeesApi.checkBatchAvailability>
+): Promise<boolean> => attendeesApi.checkBatchAvailability(...args);

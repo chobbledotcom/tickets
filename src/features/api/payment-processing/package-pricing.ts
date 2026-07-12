@@ -28,6 +28,7 @@ import {
   lineGroupId,
   lineGroupIds,
 } from "#shared/booking/signed-metadata.ts";
+import { childIdsMatching } from "#shared/child-parents.ts";
 import {
   getPackageGroupById,
   loadPackageMemberPricing,
@@ -285,12 +286,9 @@ export const hasStaleStandaloneChild = async (
   const parentsByChild = await getParentsForChildren([
     ...nonStandaloneChildIds,
   ]);
-  const adoptedByInOrderParent = new Set<number>();
-  for (const [childId, parents] of parentsByChild) {
-    if (parents.some((parent) => orderIdSet.has(parent.id))) {
-      adoptedByInOrderParent.add(childId);
-    }
-  }
+  const adoptedByInOrderParent = childIdsMatching(parentsByChild, (parents) =>
+    parents.some((parent) => orderIdSet.has(parent.id)),
+  );
   return intent.items.some((item) => {
     if (!nonStandaloneChildIds.has(item.e)) return false;
     const allocated = allocatedByChild.get(item.e) ?? 0;

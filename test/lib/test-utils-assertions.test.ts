@@ -22,7 +22,7 @@ describeWithEnv("test-utils/assertions", { db: true }, () => {
   testRequiresAuth("/admin/backup", {
     setup: async () => {
       const { setTestEnv } = await import("#test-utils/env.ts");
-      setTestEnv({ BUNNY_API_KEY: "test" });
+      return setTestEnv({ BUNNY_API_KEY: "test" });
     },
   });
 

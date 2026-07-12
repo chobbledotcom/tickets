@@ -198,81 +198,91 @@ export const getChangePasswordFields = (): Field[] => [
   ),
 ];
 
+/** A required payment-provider credential field: never autofilled, always
+ * carries a hint, and (when given) a placeholder. `type` is "password" for
+ * secret keys/tokens and "text" for public ids like a location or merchant
+ * code. */
+const secretField = ({
+  hint,
+  label,
+  name,
+  placeholder,
+  type = "password",
+}: {
+  hint: string;
+  label: string;
+  name: string;
+  placeholder?: string;
+  type?: "password" | "text";
+}): Field => ({
+  autocomplete: "off",
+  hint,
+  label,
+  name,
+  ...(placeholder !== undefined && { placeholder }),
+  required: true,
+  type,
+});
+
 /**
  * Stripe key settings form field definitions (per-request builder)
  */
 export const getStripeKeyFields = (): Field[] => [
-  {
-    autocomplete: "off",
+  secretField({
     hint: t("fields.stripe.secret_key_hint"),
     label: t("fields.stripe.secret_key"),
     name: "stripe_secret_key",
     placeholder: t("fields.stripe.secret_key_placeholder"),
-    required: true,
-    type: "password",
-  },
+  }),
 ];
 
 /**
  * Square access token and location form field definitions (per-request builder)
  */
 export const getSquareAccessTokenFields = (): Field[] => [
-  {
-    autocomplete: "off",
+  secretField({
     hint: t("fields.square.access_token_hint"),
     label: t("fields.square.access_token"),
     name: "square_access_token",
     placeholder: t("fields.square.access_token_placeholder"),
-    required: true,
-    type: "password",
-  },
-  {
-    autocomplete: "off",
+  }),
+  secretField({
     hint: t("fields.square.location_id_hint"),
     label: t("fields.square.location_id"),
     name: "square_location_id",
     placeholder: t("fields.square.location_id_placeholder"),
-    required: true,
     type: "text",
-  },
+  }),
 ];
 
 /**
  * Square webhook settings form field definitions (per-request builder)
  */
 export const getSquareWebhookFields = (): Field[] => [
-  {
-    autocomplete: "off",
+  secretField({
     hint: t("fields.square.webhook_key_hint"),
     label: t("fields.square.webhook_key"),
     name: "square_webhook_signature_key",
-    required: true,
-    type: "password",
-  },
+  }),
 ];
 
 /**
  * SumUp API key and merchant code form field definitions (per-request builder)
  */
 export const getSumupFields = (): Field[] => [
-  {
-    autocomplete: "off",
+  secretField({
     hint: t("fields.sumup.api_key_hint"),
     label: t("fields.sumup.api_key"),
     name: "sumup_api_key",
     placeholder: t("fields.sumup.api_key_placeholder"),
-    required: true,
-    type: "password",
-  },
-  {
-    autocomplete: "off",
+  }),
+  secretField({
     hint: t("fields.sumup.merchant_code_hint"),
     label: t("fields.sumup.merchant_code"),
     name: "sumup_merchant_code",
     placeholder: t("fields.sumup.merchant_code_placeholder"),
-    required: true,
     type: "text",
-  },
+  }),
 ];
 
 /**

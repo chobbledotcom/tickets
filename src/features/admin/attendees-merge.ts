@@ -227,36 +227,43 @@ const bookingMoveParts = (summary: MergeSummary): [number, string][] => [
   [summary.bookingsSkipped, "booking(s) skipped"],
 ];
 
+/** Build a merge message's parts: a lead line, then the changed-count phrases
+ * (the shared booking moves, plus the surface's own extra counts). */
+const mergeMessageParts =
+  (
+    lead: (sourceName: string, mergedPiiName: string) => string,
+    extraCounts: (summary: MergeSummary) => [number, string][],
+  ) =>
+  (
+    summary: MergeSummary,
+    sourceName: string,
+    mergedPiiName: string,
+  ): string[] => [
+    lead(sourceName, mergedPiiName),
+    ...mergeCountParts([...bookingMoveParts(summary), ...extraCounts(summary)]),
+  ];
+
 /** Build activity log message parts for a merge summary */
-const buildMergeLogParts = (
-  summary: MergeSummary,
-  sourceName: string,
-  mergedPiiName: string,
-): string[] => [
-  `Attendee '${sourceName}' merged into '${mergedPiiName}'`,
-  ...mergeCountParts([
-    ...bookingMoveParts(summary),
+const buildMergeLogParts = mergeMessageParts(
+  (sourceName, mergedPiiName) =>
+    `Attendee '${sourceName}' merged into '${mergedPiiName}'`,
+  (summary) => [
     [summary.bookingsReplacedTarget, "booking(s) replaced"],
     [summary.bookingsCredited, "payment(s) kept as credit"],
     [summary.bookingsWrittenOff, "payment(s) written off"],
     [summary.answersTakenFromSource, "answer(s) from source"],
     [summary.answersCleared, "answer(s) cleared"],
-  ]),
-];
+  ],
+);
 
 /** Build flash message parts for a merge */
-const buildMergeFlashParts = (
-  summary: MergeSummary,
-  sourceName: string,
-  mergedPiiName: string,
-): string[] => [
-  `Merged ${sourceName} into ${mergedPiiName}`,
-  ...mergeCountParts([
-    ...bookingMoveParts(summary),
+const buildMergeFlashParts = mergeMessageParts(
+  (sourceName, mergedPiiName) => `Merged ${sourceName} into ${mergedPiiName}`,
+  (summary) => [
     [summary.bookingsCredited, "payment(s) credited"],
     [summary.bookingsWrittenOff, "payment(s) written off"],
-  ]),
-];
+  ],
+);
 
 /** Validate merge POST preconditions, returning an error Response or the source */
 const validateMergePostInput = async (

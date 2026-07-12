@@ -91,14 +91,16 @@ describe("iframe", () => {
   });
 
   describe("request-scoped isolation", () => {
-    test("a fresh iframe scope defaults to non-iframe mode", () => {
+    test("a fresh iframe scope defaults to non-iframe mode", async () => {
       // No detectIframeMode call — the scope's initial container must be
       // non-iframe, so an embed flag never leaks in as the default.
-      expect(runWithIframeContext(() => getIframeMode())).toBe(false);
+      expect(await runWithIframeContext(async () => getIframeMode())).toBe(
+        false,
+      );
     });
 
-    test("iframe mode set inside a scope stays within that scope", () => {
-      const inside = runWithIframeContext(() => {
+    test("iframe mode set inside a scope stays within that scope", async () => {
+      const inside = await runWithIframeContext(async () => {
         detectIframeMode(new URL("https://example.com/?iframe=true"));
         return getIframeMode();
       });

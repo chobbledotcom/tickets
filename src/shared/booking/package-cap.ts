@@ -155,10 +155,13 @@ const usesOnlyChildLimit = (
   part: ChildLimitPart,
 ): part is Extract<ChildLimitPart, { kind: "own" }> => part.kind === "own";
 
+/** A capacity group this child belongs to, with the spots it still has free. */
+type LimitedGroup = { groupId: number; remaining: number };
+
 const limitedGroupsFor = (
   ctx: GroupCapacityInfo,
   child: TicketListing,
-): { groupId: number; remaining: number }[] =>
+): LimitedGroup[] =>
   groupIdsFor(ctx, child)
     .filter((groupId) => ctx.groupRemainingByGroupId.has(groupId))
     .map((groupId) => ({
@@ -169,7 +172,7 @@ const limitedGroupsFor = (
 const smallestLimitedGroupFor = (
   ctx: GroupCapacityInfo,
   child: TicketListing,
-): { groupId: number; remaining: number } | null =>
+): LimitedGroup | null =>
   limitedGroupsFor(ctx, child).toSorted(
     (a, b) => a.remaining - b.remaining,
   )[0] ?? null;

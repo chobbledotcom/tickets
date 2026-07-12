@@ -824,3 +824,26 @@ drop the `kind` filter on that read (pass `kind: "attendee-or-servicing"`) and
 add a run-sheet test that a servicing event with agents shows up. If they are
 correctly excluded, no change is needed — this note just records that the
 exclusion is deliberate, not accidental.
+
+---
+
+## Test suite speed — remaining tail work
+
+*Origin: the test-suite performance PR (grouped isolates + run-scoped test
+state).*
+
+The full runner now shares isolates between test files
+(`scripts/test-groups.ts`) and prebuilds the DB setup state once per run
+(`test/test-utils/test-state.ts`). The remaining wall-clock tail is a handful
+of genuinely long suites, which now bound the slowest groups:
+
+- **Migration chain shards** (`test/lib/db/migration-restore/`, ~20s each ×4
+  shards). They already shard by `index % shardCount`; raising the shard count
+  (4 → 8) would halve each shard and shorten the tail groups. Purely
+  mechanical — the factory takes the count.
+- **Slow-test report entries >2s** (printed after every full run): the
+  migration/legacy-migration suites and a few e2e journeys dominate. Each one
+  fixed shortens the longest group directly.
+
+Starting point: run `deno task test`, read the slow-test report at the end,
+and profile the top entry.

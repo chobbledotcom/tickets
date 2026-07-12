@@ -36,6 +36,16 @@ const pruneSetting = <const Name extends string, const Key extends ConfigKey>(
     tags: ["prune"],
   });
 
+/** An email template/credential setting: encrypted and tagged so it is rebuilt
+ * whenever the email body changes. Collapses the repeated shape of the email
+ * settings below into one call. */
+const emailBodySetting = <const Key extends ConfigKey>(key: Key) =>
+  setting({
+    key,
+    storage: "encrypted",
+    tags: ["emailBody"],
+  });
+
 export const STRING_SETTING_DEFINITIONS = [
   setting({
     accessor: { name: "terms" },
@@ -199,46 +209,14 @@ export const STRING_SETTING_DEFINITIONS = [
     key: CONFIG_KEYS.EMBED_HOSTS,
     storage: "encrypted",
   }),
-  setting({
-    key: CONFIG_KEYS.EMAIL_API_KEY,
-    storage: "encrypted",
-    tags: ["emailBody"],
-  }),
-  setting({
-    key: CONFIG_KEYS.EMAIL_FROM_ADDRESS,
-    storage: "encrypted",
-    tags: ["emailBody"],
-  }),
-  setting({
-    key: CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT,
-    storage: "encrypted",
-    tags: ["emailBody"],
-  }),
-  setting({
-    key: CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML,
-    storage: "encrypted",
-    tags: ["emailBody"],
-  }),
-  setting({
-    key: CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_TEXT,
-    storage: "encrypted",
-    tags: ["emailBody"],
-  }),
-  setting({
-    key: CONFIG_KEYS.EMAIL_TPL_ADMIN_SUBJECT,
-    storage: "encrypted",
-    tags: ["emailBody"],
-  }),
-  setting({
-    key: CONFIG_KEYS.EMAIL_TPL_ADMIN_HTML,
-    storage: "encrypted",
-    tags: ["emailBody"],
-  }),
-  setting({
-    key: CONFIG_KEYS.EMAIL_TPL_ADMIN_TEXT,
-    storage: "encrypted",
-    tags: ["emailBody"],
-  }),
+  emailBodySetting(CONFIG_KEYS.EMAIL_API_KEY),
+  emailBodySetting(CONFIG_KEYS.EMAIL_FROM_ADDRESS),
+  emailBodySetting(CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT),
+  emailBodySetting(CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML),
+  emailBodySetting(CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_TEXT),
+  emailBodySetting(CONFIG_KEYS.EMAIL_TPL_ADMIN_SUBJECT),
+  emailBodySetting(CONFIG_KEYS.EMAIL_TPL_ADMIN_HTML),
+  emailBodySetting(CONFIG_KEYS.EMAIL_TPL_ADMIN_TEXT),
   setting({
     key: CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID,
     storage: "encrypted",

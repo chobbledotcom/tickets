@@ -8,9 +8,9 @@ import {
 } from "#test/templates/admin/listings/helpers.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
 
-registerListingTemplateHooks();
-
 describe("adminListingNewPage Advanced section", () => {
+  registerListingTemplateHooks();
+
   test("renders collapsed by default", () => {
     const html = adminListingNewPage([], TEST_SESSION);
     expect(html).toContain('<details class="listing-advanced">');
@@ -26,6 +26,8 @@ describe("adminListingNewPage Advanced section", () => {
 });
 
 describe("adminListingNewPage", () => {
+  registerListingTemplateHooks();
+
   test("renders create listing form fields", () => {
     const html = adminListingNewPage([], TEST_SESSION);
     expect(html).toContain("Add Listing");
@@ -144,6 +146,8 @@ describe("adminListingNewPage", () => {
 });
 
 describe("adminListingPage edit form pre-fills date and location", () => {
+  registerListingTemplateHooks();
+
   test("empty date shows no pre-filled value in edit form", () => {
     const html = editPanelHtml(
       testListingWithCount({ attendee_count: 0, date: "" }),
@@ -174,6 +178,8 @@ describe("adminListingPage edit form pre-fills date and location", () => {
 });
 
 describe("adminListingEditPage max_price field", () => {
+  registerListingTemplateHooks();
+
   // A can_pay_more listing rendered on the edit form for the given max_price.
   const maxPriceEditHtml = (max_price: number) =>
     editPanelHtml(

@@ -10,6 +10,7 @@ import {
 } from "#routes/admin/entity-handlers.ts";
 import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
+import type { IdFormHandler } from "#routes/entity.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
@@ -167,20 +168,36 @@ export const verifiedAttendeeAction = (
     return handler(data, form);
   });
 
+/** Handler receiving the loaded attendee+listing, the session and the form. */
+type AttendeeFormHandler = (
+  data: AttendeeWithListing,
+  session: AuthSession,
+  form: FormParams,
+) => Response | Promise<Response>;
+
 /** Auth + load attendee from form handler */
 const withAttendeeForm = (
   request: Request,
   listingId: number,
   attendeeId: number,
-  handler: (
-    data: AttendeeWithListing,
-    session: AuthSession,
-    form: FormParams,
-  ) => Response | Promise<Response>,
+  handler: AttendeeFormHandler,
 ): Promise<Response> =>
   withAuth(request, AUTH_FORM, (session, form) =>
     withAttendee(listingId, attendeeId)((data) => handler(data, session, form)),
   );
+
+/** A POST route scoped to one attendee (no listing load): authenticate under
+ * the admin form gate, then run `handle` with the attendee id, the session, and
+ * the parsed form. Shared by the note and logistics POSTs. */
+export const attendeeFormPost =
+  (handle: IdFormHandler) =>
+  (
+    request: Request,
+    { attendeeId }: { attendeeId: number },
+  ): Promise<Response> =>
+    withAuth(request, AUTH_FORM, (session, form) =>
+      handle(attendeeId, session, form),
+    );
 
 /** Read return_url from request query params */
 export const getReturnUrl = (request: Request): string =>

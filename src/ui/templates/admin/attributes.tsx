@@ -11,17 +11,12 @@ import type {
   AttributeOption,
   AttributeWithOptions,
 } from "#shared/db/attributes.ts";
-import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { childEditPage } from "#templates/admin/child-edit-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
-import {
-  BackButton,
-  GuideFooter,
-  SubmitButton,
-} from "#templates/components/actions.tsx";
+import { BackButton, SubmitButton } from "#templates/components/actions.tsx";
 import {
   FormSections,
   IdCheckboxLabel,
@@ -29,11 +24,11 @@ import {
 import { DataTable } from "#templates/components/data-table.tsx";
 import type { ReorderDirection } from "#templates/components/reorder.tsx";
 import {
-  ReorderLinkRow,
-  ReorderTable,
-  reorderLinkTableAt,
-  writableReorderProps,
-} from "#templates/components/reorder-table.tsx";
+  itemsOrEmptyNote,
+  QuantityCell,
+  reorderableListPage,
+  reorderCountTable,
+} from "#templates/components/reorder-list.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import {
   type ListingPanelProps,
@@ -55,43 +50,30 @@ export const adminAttributesPage = (
   session: AdminSession,
   error?: string,
 ): string =>
-  errorAdminPage(t("attributes.title"), "/admin/attributes")(session, error)(
-    <>
-      <WritableOnly>
-        <CsrfForm action="/admin/attributes" id="new-attribute">
-          <Raw html={attributeNameForm.render()} />
-          <SubmitButton icon="plus">{t("attributes.add_submit")}</SubmitButton>
-        </CsrfForm>
-      </WritableOnly>
-
-      {attributes.length === 0 ? (
-        <p>
-          <em>{t("attributes.none")}</em>
-        </p>
-      ) : (
-        reorderLinkTableAt(
-          "/admin/attributes",
-          t("attributes.order_column"),
-          <>
-            <th>{t("attributes.attribute_column")}</th>
-            <th class={colClass("quantity")}>
-              {t("attributes.options_column")}
-            </th>
-          </>,
-          attributes,
-          (attribute) => attributeNameFlat(attribute.name),
-          (attribute) => (
-            <td class={colClass("quantity")}>{attribute.options.length}</td>
-          ),
-          !isReadOnly(),
-        )
-      )}
-
-      <GuideFooter href="/admin/guide#listings">
-        {t("attributes.guide_link")}
-      </GuideFooter>
-    </>,
-  );
+  reorderableListPage({
+    addFormHtml: attributeNameForm.render(),
+    addLabel: t("attributes.add_submit"),
+    basePath: "/admin/attributes",
+    columns: (
+      <>
+        <th>{t("attributes.attribute_column")}</th>
+        <th class={colClass("quantity")}>{t("attributes.options_column")}</th>
+      </>
+    ),
+    emptyText: t("attributes.none"),
+    error,
+    guideHref: "/admin/guide#listings",
+    guideLabel: t("attributes.guide_link"),
+    items: attributes,
+    newFormId: "new-attribute",
+    orderLabel: t("attributes.order_column"),
+    rowCells: (attribute) => (
+      <QuantityCell>{attribute.options.length}</QuantityCell>
+    ),
+    rowLabel: (attribute) => attributeNameFlat(attribute.name),
+    session,
+    title: t("attributes.title"),
+  });
 
 /** The listings that use an attribute (or one of its options), each linking to
  * the listing's admin page. Deactivated listings render muted, like the item
@@ -106,17 +88,13 @@ const AttributeListingsTable = ({
   emptyText: string;
   showOptions: boolean;
 }): JSX.Element =>
-  listings.length === 0 ? (
-    <p>
-      <em>{emptyText}</em>
-    </p>
-  ) : (
+  itemsOrEmptyNote(listings, emptyText, (rows) => (
     <DataTable
       columns={[
         { header: t("terms.listing") },
         ...(showOptions ? [{ header: t("attributes.options_column") }] : []),
       ]}
-      rows={listings.map((listing) => [
+      rows={rows.map((listing) => [
         <a
           class={listing.active ? undefined : "muted"}
           href={`/admin/listing/${listing.id}`}
@@ -126,7 +104,7 @@ const AttributeListingsTable = ({
         ...(showOptions ? [listing.optionTexts.join(", ")] : []),
       ])}
     />
-  );
+  ));
 
 /** The data the attribute detail page shows beyond the attribute itself: how
  * many listings use each option, and which listings use the attribute. */
@@ -169,48 +147,25 @@ export const adminAttributePage = (
         </CsrfForm>
       </WritableOnly>
 
-      {attribute.options.length === 0 ? (
-        <p>
-          <em>{t("attributes.no_options")}</em>
-        </p>
-      ) : (
-        <ReorderTable
-          columns={
-            <>
-              <th>{t("attributes.option_column")}</th>
-              <th class={colClass("quantity")}>
-                {t("attributes.listings_column")}
-              </th>
-            </>
-          }
-          orderLabel={t("attributes.order_column")}
-          reorder={!isReadOnly()}
-        >
-          {attribute.options.map((option, index) => (
-            <ReorderLinkRow
-              action={(direction) =>
-                adminPath(ATTRIBUTE_OPTION_MOVE_ROUTES[direction], {
-                  id: attribute.id,
-                  optionId: option.id,
-                })
-              }
-              count={attribute.options.length}
-              index={index}
-              label={option.text}
-              {...writableReorderProps(
-                adminPath("attributeOptionEdit", {
-                  id: attribute.id,
-                  optionId: option.id,
-                }),
-              )}
-            >
-              <td class={colClass("quantity")}>
-                {data.listingCounts.get(option.id) ?? 0}
-              </td>
-            </ReorderLinkRow>
-          ))}
-        </ReorderTable>
-      )}
+      {reorderCountTable({
+        count: (option) => data.listingCounts.get(option.id) ?? 0,
+        countHeader: t("attributes.listings_column"),
+        editHref: (option) =>
+          adminPath("attributeOptionEdit", {
+            id: attribute.id,
+            optionId: option.id,
+          }),
+        emptyText: t("attributes.no_options"),
+        items: attribute.options,
+        label: (option) => option.text,
+        labelHeader: t("attributes.option_column"),
+        moveAction: (option) => (direction) =>
+          adminPath(ATTRIBUTE_OPTION_MOVE_ROUTES[direction], {
+            id: attribute.id,
+            optionId: option.id,
+          }),
+        orderLabel: t("attributes.order_column"),
+      })}
 
       <h2>{t("attributes.listings.heading")}</h2>
       <AttributeListingsTable

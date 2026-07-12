@@ -37,35 +37,53 @@ const handleWalletGet = (
   return buildPkpassForToken(token, settings.appleWallet.config);
 };
 
+/** The pass data a single verified ticket token resolves to. */
+type SingleTokenPassData = Extract<
+  Awaited<ReturnType<typeof lookupSingleTokenPassData>>,
+  { ok: true }
+>["passData"];
+
+/**
+ * Look up the single token's pass data and hand it to the builder, or return
+ * the not-found/error response when the token doesn't resolve. Shared by the
+ * Apple and Google wallet routes, which build different passes from the same
+ * lookup.
+ */
+export const withPassData = async (
+  tokens: string[],
+  build: (passData: SingleTokenPassData) => Response | Promise<Response>,
+): Promise<Response> => {
+  const result = await lookupSingleTokenPassData(tokens);
+  return result.ok ? build(result.passData) : result.response;
+};
+
 /**
  * Build and return a .pkpass Response for a token.
  * Shared by the download route and the web service "get latest pass" endpoint.
  */
-export const buildPkpassForToken = async (
+export const buildPkpassForToken = (
   token: string,
   config: SigningCredentials,
-): Promise<Response> => {
-  const result = await lookupSingleTokenPassData([token]);
-  if (!result.ok) return result.response;
+): Promise<Response> =>
+  withPassData([token], (passData) => {
+    const domain = getEffectiveDomain();
+    const fullPassData = {
+      ...passData,
+      description: `Ticket for ${passData.listingName}`,
+      webServiceURL: `https://${domain}`,
+    };
+    const pkpass = buildPkpass(fullPassData, config);
+    const body = pkpass as Uint8Array<ArrayBuffer>;
 
-  const domain = getEffectiveDomain();
-  const passData = {
-    ...result.passData,
-    description: `Ticket for ${result.passData.listingName}`,
-    webServiceURL: `https://${domain}`,
-  };
-  const pkpass = buildPkpass(passData, config);
-  const body = pkpass as Uint8Array<ArrayBuffer>;
-
-  return new Response(body, {
-    headers: {
-      "Cache-Control": WALLET_CACHE_CONTROL,
-      "Content-Disposition": `inline; filename="ticket.pkpass"`,
-      "Content-Length": String(body.byteLength),
-      "Content-Type": PKPASS_CONTENT_TYPE,
-    },
+    return new Response(body, {
+      headers: {
+        "Cache-Control": WALLET_CACHE_CONTROL,
+        "Content-Disposition": `inline; filename="ticket.pkpass"`,
+        "Content-Length": String(body.byteLength),
+        "Content-Type": PKPASS_CONTENT_TYPE,
+      },
+    });
   });
-};
 
 /** Route wallet pass requests */
 export const routeWallet = createTokenRoute("wallet", { GET: handleWalletGet });

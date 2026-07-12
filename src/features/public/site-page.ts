@@ -24,15 +24,43 @@ import { sitePagePage } from "#templates/public/site-page.tsx";
 import { requirePublicSite } from "./pages.ts";
 import { publicNavProps } from "./site-nav.ts";
 
+/** How a resolved content item is turned into its page markup. */
+type ContentPageRender<T> = (
+  item: T,
+  images: Awaited<ReturnType<typeof getImagesForItem>>,
+  nav: Awaited<ReturnType<typeof publicNavProps>>,
+  websiteTitle: string,
+) => string;
+
+/**
+ * 404 when the item was not found; otherwise load its images and the public nav
+ * together and render the page with the site title. Shared by the single
+ * content page and the single news post, which differ only in the image kind,
+ * the nav anchor, and the template.
+ */
+export const renderContentPage = async <T extends { id: number }>(
+  item: T | null,
+  imageKind: Parameters<typeof getImagesForItem>[0],
+  navTargetFor: (item: T) => Parameters<typeof publicNavProps>[0],
+  render: ContentPageRender<T>,
+): Promise<Response> => {
+  if (!item) return notFoundResponse();
+  const [images, nav] = await Promise.all([
+    getImagesForItem(imageKind, item.id),
+    publicNavProps(navTargetFor(item)),
+  ]);
+  return htmlResponse(render(item, images, nav, settings.websiteTitle));
+};
+
 const handleSitePage = async (slug: string): Promise<Response> => {
   const slugIndex = await computeSitePageSlugIndex(slug);
   const page = await getSitePageBySlugIndex(slugIndex);
-  if (!page) return notFoundResponse();
-  const [images, nav] = await Promise.all([
-    getImagesForItem("page", page.id),
-    publicNavProps(targetKey("page", page.id)),
-  ]);
-  return htmlResponse(sitePagePage(page, images, nav, settings.websiteTitle));
+  return renderContentPage(
+    page,
+    "page",
+    (found) => targetKey("page", found.id),
+    sitePagePage,
+  );
 };
 
 /** Route `/page/*` requests (public-site gate first, then slug resolution). */

@@ -2,6 +2,7 @@ import type { BrowserSession } from "../browser.ts";
 import type { ProviderName } from "../config.ts";
 import { config } from "../config.ts";
 import { log } from "../log.ts";
+import type { ConfigureProvider } from "./types.ts";
 
 /** Select the active payment provider via the radio form on /admin/settings. */
 export const selectProvider = async (
@@ -45,15 +46,9 @@ export const assertConfigured = async (
 export const configureProvider =
   (
     provider: ProviderName,
-    saveCredentials: (
-      session: BrowserSession,
-      secrets: Record<string, string>,
-    ) => Promise<void>,
-  ) =>
-  async (
-    session: BrowserSession,
-    secrets: Record<string, string>,
-  ): Promise<void> => {
+    saveCredentials: ConfigureProvider,
+  ): ConfigureProvider =>
+  async (session, secrets) => {
     await selectProvider(session, provider);
     await saveCredentials(session, secrets);
     await assertConfigured(session, provider);

@@ -51,6 +51,10 @@ export type PostResult = {
 /** A {@link PostResult} for a no-op post — nothing inserted, nothing skipped. */
 const EMPTY_RESULT: PostResult = { inserted: 0, skipped: 0 };
 
+/** Every leg's reference across a set of event groups, flattened in order. */
+const allReferences = (groups: TransferInput[][]): string[] =>
+  groups.flatMap((inputs) => inputs.map((t) => t.reference));
+
 /** Every leg of one event must agree on `label`; name the offending values if not. */
 const assertShared = (label: string, values: string[]): void => {
   const distinct = new Set(values);
@@ -163,7 +167,7 @@ const loadBatchSnapshot = async (
   read: RowReader,
 ): Promise<BatchSnapshot> => {
   const eventGroups = unique(groups.map((inputs) => inputs[0]!.eventGroup));
-  const references = groups.flatMap((inputs) => inputs.map((t) => t.reference));
+  const references = allReferences(groups);
   const reversesIds = unique(
     mapNotNullish((t: TransferInput) => t.reversesId)(groups.flat()),
   );
@@ -268,7 +272,7 @@ export const postTransferGroups = async (
       "postTransferGroups: duplicate eventGroup across the batch",
     );
   }
-  const allRefs = nonEmpty.flatMap((inputs) => inputs.map((t) => t.reference));
+  const allRefs = allReferences(nonEmpty);
   if (new Set(allRefs).size !== allRefs.length) {
     throw new Error("postTransferGroups: duplicate reference across the batch");
   }

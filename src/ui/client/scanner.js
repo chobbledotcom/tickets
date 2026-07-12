@@ -75,28 +75,31 @@ const showStatus = (el, message, type) => {
   }
 };
 
+/** Build a "{name} … ({tickets})" status message for a check-in result. */
+const nameAndTicketsMessage = (messages, key, fallback, result) =>
+  interpolate(getMessage(messages, key, fallback), {
+    name: result.name,
+    tickets: formatTicketCount(messages, result.quantity),
+  });
+
 /** Handle a scan result and display status */
 const handleResult = (el, result, messages) => {
   switch (result.status) {
     case "checked_in":
       showStatus(
         el,
-        interpolate(getMessage(messages, "messageCheckedIn", "{name} checked in ({tickets})"), {
-          name: result.name,
-          tickets: formatTicketCount(messages, result.quantity),
-        }),
+        nameAndTicketsMessage(messages, "messageCheckedIn", "{name} checked in ({tickets})", result),
         "success",
       );
       break;
     case "already_checked_in":
       showStatus(
         el,
-        interpolate(
-          getMessage(messages, "messageAlreadyCheckedIn", "{name} already checked in ({tickets})"),
-          {
-            name: result.name,
-            tickets: formatTicketCount(messages, result.quantity),
-          },
+        nameAndTicketsMessage(
+          messages,
+          "messageAlreadyCheckedIn",
+          "{name} already checked in ({tickets})",
+          result,
         ),
         "warning",
       );

@@ -26,7 +26,7 @@ import {
   CheckboxFieldset,
   CheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
+import { DataTable, textCol } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import { getInviteUserFields } from "#templates/fields/admin.ts";
@@ -120,9 +120,9 @@ export const adminUsersPage = (
 
       <DataTable
         columns={[
-          { header: t("common.username") },
-          { header: t("users.col.role") },
-          { header: t("common.status") },
+          textCol("common.username"),
+          textCol("users.col.role"),
+          textCol("common.status"),
         ]}
         rows={users.map((user) => [
           <a href={`/admin/users/${user.id}`}>{user.username}</a>,

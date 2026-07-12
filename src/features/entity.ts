@@ -27,6 +27,13 @@ export const orNotFound = async <T>(
 /** Handler that receives a loaded entity */
 export type EntityHandler<T> = (entity: T) => Response | Promise<Response>;
 
+/** Handler for a POST that carries a record id, the session, and the form. */
+export type IdFormHandler = (
+  id: number,
+  session: AuthSession,
+  form: FormParams,
+) => Response | Promise<Response>;
+
 /**
  * Generic wrapper: load entity, return 404 if missing, otherwise call handler.
  * Curried so the handler is specified first, then the load function.
@@ -36,10 +43,13 @@ export const withEntity =
   (load: () => Promise<T | null>): Promise<Response> =>
     orNotFound(load(), handler);
 
+/** The `{ id: number }` params a single-`:id` route receives. */
+export type IdParam = { id: number };
+
 /** Route handler that takes request + { id } params */
 export type IdRouteHandler = (
   request: Request,
-  params: { id: number },
+  params: IdParam,
 ) => Promise<Response>;
 
 /** Route params for attendee-scoped routes */
@@ -90,13 +100,7 @@ export const ownerGetById = <T>(
   )(load, render);
 
 /** Owner POST-by-ID + CSRF */
-export const ownerFormById = (
-  handler: (
-    id: number,
-    session: AuthSession,
-    form: FormParams,
-  ) => Response | Promise<Response>,
-): IdRouteHandler =>
+export const ownerFormById = (handler: IdFormHandler): IdRouteHandler =>
   createAuthedHandler<{ id: number }>({
     auth: OWNER_FORM,
     handle: ({ form, params, session }) => handler(params.id, session, form),

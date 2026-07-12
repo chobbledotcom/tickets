@@ -17,13 +17,11 @@ import {
   hasSumupCheckoutId,
 } from "#shared/db/sumup-checkouts.ts";
 import {
+  makeCreateCheckoutSession,
   toCanonicalIso,
-  toCheckoutResult,
   validatedPaymentSession,
-  withCheckoutError,
 } from "#shared/payment-helpers.ts";
 import type {
-  CheckoutIntent,
   PaymentProvider,
   PaymentStatus,
   SessionMetadata,
@@ -62,15 +60,17 @@ const buildValidatedSession = (
     paymentStatus: toPaymentStatus(checkout.status),
   });
 
+/** SumUp's checkout-session builder (see {@link makeCreateCheckoutSession}). */
+const createSumupCheckoutSession = makeCreateCheckoutSession(
+  "SumUp",
+  createCheckout,
+  (result) => ({ id: result?.reference, url: result?.url }),
+);
+
 /** SumUp payment provider implementation. */
 export const sumupPaymentProvider: PaymentProvider = {
   checkoutCompletedEventType: "CHECKOUT_STATUS_CHANGED",
-
-  createCheckoutSession: (intent: CheckoutIntent, baseUrl: string) =>
-    withCheckoutError(async () => {
-      const result = await createCheckout(intent, baseUrl);
-      return toCheckoutResult(result?.reference, result?.url, "SumUp");
-    }),
+  createCheckoutSession: createSumupCheckoutSession,
 
   async isPaymentRefunded(paymentReference: string): Promise<boolean> {
     return (await getTransactionStatus(paymentReference)) === "REFUNDED";

@@ -1,10 +1,18 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { account } from "#shared/ledger/account.ts";
-import { ledgerRows, names, renderLedger, transfer } from "./helpers.ts";
+import {
+  ledgerRows,
+  names,
+  renderLedger,
+  setUpLedgerPageCrypto,
+  transfer,
+} from "./helpers.ts";
 
 describe("HumanLedgerTable", () => {
+  beforeAll(setUpLedgerPageCrypto);
+
   test("renders plain-language descriptions for every known ledger event family", () => {
     const refs = names({
       attendees: new Map([[1, "Ada"]]),

@@ -6,9 +6,9 @@ import { testListingWithCount } from "#test-utils/factories.ts";
 
 import { registerPublicTemplateHooks, ticketListing } from "./helpers.ts";
 
-registerPublicTemplateHooks();
-
 describe("ticketPage day-count selector", () => {
+  registerPublicTemplateHooks();
+
   test("renders a priced day-count selector for a single customisable listing", () => {
     const listing = testListingWithCount({
       attendee_count: 0,

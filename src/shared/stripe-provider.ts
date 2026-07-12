@@ -8,12 +8,10 @@
 import { asString } from "#fp";
 import {
   hasRequiredSessionMetadata,
-  toCheckoutResult,
+  makeCreateCheckoutSession,
   validatedPaymentSession,
-  withCheckoutError,
 } from "#shared/payment-helpers.ts";
 import {
-  type CheckoutIntent,
   isPaymentStatus,
   type PaymentProvider,
   type PaymentStatus,
@@ -35,15 +33,17 @@ import {
 const toPaymentStatus = (status: string): PaymentStatus =>
   isPaymentStatus(status) ? status : "unpaid";
 
+/** Stripe's checkout-session builder (see {@link makeCreateCheckoutSession}). */
+const createStripeCheckoutSession = makeCreateCheckoutSession(
+  "Stripe",
+  createCheckoutSession,
+  (session) => ({ id: session?.id, url: session?.url }),
+);
+
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {
   checkoutCompletedEventType: "checkout.session.completed",
-
-  createCheckoutSession: (intent: CheckoutIntent, baseUrl: string) =>
-    withCheckoutError(async () => {
-      const session = await createCheckoutSession(intent, baseUrl);
-      return toCheckoutResult(session?.id, session?.url, "Stripe");
-    }),
+  createCheckoutSession: createStripeCheckoutSession,
 
   async isPaymentRefunded(paymentReference: string): Promise<boolean> {
     const intent = await retrievePaymentIntent(paymentReference);

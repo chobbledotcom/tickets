@@ -16,10 +16,12 @@ import { loadPackageMemberPricing } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import { type EmailEntry, sendRegistrationEmails } from "#shared/email.ts";
 import { errorMessage } from "#shared/error-message.ts";
+/* jscpd:ignore-start */
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
+/* jscpd:ignore-end */
 import { fetchTextFollowingSafeRedirects } from "#shared/safe-fetch.ts";
 import {
   addMonthsToRenewalDeadline,

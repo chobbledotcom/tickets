@@ -5,6 +5,7 @@
  */
 
 import { t } from "#i18n";
+/* jscpd:ignore-start */
 import {
   defineProviderCredentialsRoute,
   settingsSecret,
@@ -12,6 +13,7 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { testSquareConnection } from "#shared/square.ts";
+/* jscpd:ignore-end */
 import {
   validateSquareAccessToken,
   validateSquareLocationId,

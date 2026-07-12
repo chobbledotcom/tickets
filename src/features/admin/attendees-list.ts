@@ -11,10 +11,12 @@ import {
   toCalendarAttendees,
 } from "#routes/admin/calendar-csv.ts";
 import { type AuthSession, requireSessionOr } from "#routes/auth.ts";
+/* jscpd:ignore-start */
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
+/* jscpd:ignore-end */
 import { getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";

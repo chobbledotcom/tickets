@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   ATTENDEE,
   COST,
@@ -20,9 +20,11 @@ import {
 } from "#templates/admin/ledger/statement.tsx";
 import { setTestEnv } from "#test-utils/env.ts";
 
-import { names, SESSION, transfer } from "./helpers.ts";
+import { names, SESSION, setUpLedgerPageCrypto, transfer } from "./helpers.ts";
 
 describe("statementBalanceKey", () => {
+  beforeAll(setUpLedgerPageCrypto);
+
   test("maps every account type to its final balance label", () => {
     expect(
       [
@@ -49,6 +51,8 @@ describe("statementBalanceKey", () => {
 });
 
 describe("AccountStatementSection", () => {
+  beforeAll(setUpLedgerPageCrypto);
+
   const acct = account("attendee", 1);
 
   /** Two legs against attendee 1: a 5000 sale (debit) then a 5000 payment
@@ -209,6 +213,8 @@ describe("AccountStatementSection", () => {
 });
 
 describe("adminAccountStatementPage", () => {
+  beforeAll(setUpLedgerPageCrypto);
+
   const acct = account("attendee", 7);
 
   test("shows the account label, its reversed balance, a back link, and the statement", () => {

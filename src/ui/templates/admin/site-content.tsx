@@ -10,7 +10,7 @@ import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#shared/types.ts";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
   ActionButton,
@@ -51,15 +51,18 @@ export const collectionPage =
     successMessage: string | undefined,
     body: Child,
   ): string =>
-    String(
-      <AdminPage active={base} session={session} title={t(`${messages}.title`)}>
+    renderAdminPage(
+      base,
+      session,
+      t(`${messages}.title`),
+      <>
         <CollectionHeader
           addHref={`${base}/new`}
           addLabel={t(`${messages}.add`)}
           success={successMessage}
         />
         {body}
-      </AdminPage>,
+      </>,
     );
 
 /** The Edit-tab panel for a Site content editor (Pages, News): a CsrfForm

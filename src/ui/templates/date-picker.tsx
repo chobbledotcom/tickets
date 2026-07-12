@@ -68,23 +68,29 @@ const dayClasses = (
     value === selected ? "cal-day-selected" : null,
   ]).join(" ");
 
+/** The current selection context shared by the month grid and the dropdown:
+ * which date is chosen, what counts as today, and how to link a day. */
+type DaySelection = {
+  selected: string | null;
+  today: string;
+  dayHref: (value: string) => string;
+};
+
 /** Render one day: a link when selectable, plain text otherwise. */
 const renderDay =
   (
     byValue: Map<string, DatePickerDate>,
     viewMonth: string,
-    selected: string | null,
-    today: string,
-    dayHref: (value: string) => string,
+    sel: DaySelection,
   ) =>
   (value: string): SafeHtml => {
     const dayNum = new Date(`${value}T00:00:00Z`).getUTCDate();
-    const cls = dayClasses(value, viewMonth, selected, today);
+    const cls = dayClasses(value, viewMonth, sel.selected, sel.today);
     return byValue.get(value)?.selectable ? (
       <a
-        aria-current={value === selected ? "date" : undefined}
+        aria-current={value === sel.selected ? "date" : undefined}
         class={cls}
-        href={dayHref(value)}
+        href={sel.dayHref(value)}
       >
         {dayNum}
       </a>
@@ -96,28 +102,29 @@ const renderDay =
 /** Render the dropdown, splitting past from future with a "Select a date" entry. */
 const renderSelect = (
   dates: DatePickerDate[],
-  selected: string | null,
-  today: string,
-  dayHref: (value: string) => string,
+  sel: DaySelection,
   clearHref: string,
   ariaLabel: string,
 ): SafeHtml => {
   const options: SafeHtml[] = map(
     (d: DatePickerDate): SafeHtml =>
       d.selectable ? (
-        <option selected={selected === d.value} value={dayHref(d.value)}>
+        <option
+          selected={sel.selected === d.value}
+          value={sel.dayHref(d.value)}
+        >
           {d.label}
         </option>
       ) : (
         <option disabled>{d.label}</option>
       ),
   )(dates);
-  const splitIndex = dates.findIndex((d) => d.value >= today);
+  const splitIndex = dates.findIndex((d) => d.value >= sel.today);
   const insertAt = splitIndex === -1 ? options.length : splitIndex;
   options.splice(
     insertAt,
     0,
-    <option selected={!selected} value={clearHref}>
+    <option selected={!sel.selected} value={clearHref}>
       {t("datepicker.select_date")}
     </option>,
   );
@@ -144,7 +151,8 @@ export const DatePicker = ({
     map((d: DatePickerDate) => [d.value, d] as const)(dates),
   );
   const month = viewMonth ?? (selected ?? today).slice(0, 7);
-  const day = renderDay(byValue, month, selected, today, dayHref);
+  const sel: DaySelection = { dayHref, selected, today };
+  const day = renderDay(byValue, month, sel);
   return (
     <div class="date-picker">
       <div class="calendar" id={anchorId}>
@@ -182,7 +190,7 @@ export const DatePicker = ({
           {map(day)(calendarGridDates(month))}
         </div>
       </div>
-      {renderSelect(dates, selected, today, dayHref, clearHref, ariaLabel)}
+      {renderSelect(dates, sel, clearHref, ariaLabel)}
     </div>
   );
 };

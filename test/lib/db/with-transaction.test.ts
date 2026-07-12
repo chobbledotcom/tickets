@@ -1,10 +1,7 @@
 import { type Client, createClient, type Transaction } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  registerTableInvalidation,
-  resetCacheRegistry,
-} from "#shared/cache-registry.ts";
+import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
   DatabaseBusyError,
   queryOne,
@@ -110,12 +107,11 @@ describe("withTransaction", () => {
 
   test("fires cache invalidation for each written statement after the commit", async () => {
     await withFileDb(async () => {
-      resetCacheRegistry();
+      let fired = 0;
+      const unregister = registerTableInvalidation(["t"], () => {
+        fired++;
+      });
       try {
-        let fired = 0;
-        registerTableInvalidation(["t"], () => {
-          fired++;
-        });
         await withTransaction(async (tx) => {
           await tx.execute("INSERT INTO t VALUES (1)");
           await tx.execute("INSERT INTO t VALUES (2)");
@@ -125,7 +121,7 @@ describe("withTransaction", () => {
         });
         expect(fired).toBe(2);
       } finally {
-        resetCacheRegistry();
+        unregister();
       }
     });
   });

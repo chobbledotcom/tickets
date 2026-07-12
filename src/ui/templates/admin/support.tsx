@@ -14,6 +14,7 @@ import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
+import { RawParagraph } from "#templates/components/prose-heading.tsx";
 
 /* jscpd:ignore-end */
 
@@ -42,13 +43,6 @@ const SupportForm = ({
   </CsrfForm>
 );
 
-/** Fallback shown when the host hasn't set SUPPORT_PAGE_TEXT. */
-const MissingText = (): JSX.Element => (
-  <p>
-    <Raw html={t("support.missing_text")} />
-  </p>
-);
-
 export const adminSupportPage = (opts: {
   session: AdminSession;
   supportText: string | null;
@@ -67,7 +61,7 @@ export const adminSupportPage = (opts: {
         {opts.supportText ? (
           <Raw html={renderMarkdown(opts.supportText)} />
         ) : (
-          <MissingText />
+          <RawParagraph html={t("support.missing_text")} />
         )}
       </div>
       {opts.formActive && <SupportForm nagLabel={opts.nagLabel} />}

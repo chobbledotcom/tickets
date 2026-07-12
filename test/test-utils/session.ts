@@ -13,12 +13,12 @@ import type { Listing } from "#shared/types.ts";
 import type { TestListingOverrides } from "#test-utils/factories.ts";
 import type { AdminTestContext } from "#test-utils/internal.ts";
 import {
-  getCachedAdminSession,
   getInternalTestSession,
   setTestSession,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
+import { getSetupState } from "#test-utils/test-state.ts";
 
 export const loginAsAdmin = async (
   username: string = TEST_ADMIN_USERNAME,
@@ -60,19 +60,10 @@ export const getTestSession = async (): Promise<{
   const current = getInternalTestSession();
   if (current) return current;
 
-  const cached = getCachedAdminSession();
+  const cached = getSetupState()?.session;
   if (cached) {
-    const { getDb } = await import("#shared/db/client.ts");
-    const { insert } = await import("#shared/db/client.ts");
-    await getDb().execute(
-      insert("sessions", {
-        csrf_token: cached.sessionRow.csrf_token,
-        expires: cached.sessionRow.expires,
-        token: cached.sessionRow.token,
-        user_id: cached.sessionRow.user_id,
-        wrapped_data_key: cached.sessionRow.wrapped_data_key,
-      }),
-    );
+    const { getDb, insert } = await import("#shared/db/client.ts");
+    await getDb().execute(insert("sessions", cached.sessionRow));
     const csrfToken = await signCsrfToken();
     const session = { cookie: cached.cookie, csrfToken };
     setTestSession(session);

@@ -1,6 +1,6 @@
 import { lazyRef } from "#fp";
 
-const DB_FILE_SUFFIXES = ["", "-journal", "-shm", "-wal"];
+export const DB_FILE_SUFFIXES = ["", "-journal", "-shm", "-wal"];
 
 const trackedDbFiles = new Set<string>();
 const [getCreatedTempDir, setCreatedTempDir] = lazyRef<string | null>(

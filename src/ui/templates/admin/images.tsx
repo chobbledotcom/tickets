@@ -135,6 +135,13 @@ const imageColumns: readonly DataColumn<Image>[] = [
 
 const imageTable = dataTable(imageColumns);
 
+/** Show the "no images" note when the list is empty, otherwise render it. */
+const imagesOrEmpty = (
+  images: readonly Image[],
+  renderList: () => JSX.Element,
+): JSX.Element =>
+  images.length === 0 ? <p>{t("images.empty")}</p> : renderList();
+
 const storageDisabledNotice = (): JSX.Element => (
   <p class="notice">{t("images.storage_off")}</p>
 );
@@ -163,15 +170,9 @@ export const adminImagesPage = (
     successMessage,
   )(
     <>
-      {storageEnabled ? (
-        images.length === 0 ? (
-          <p>{t("images.empty")}</p>
-        ) : (
-          imageTable(images)
-        )
-      ) : (
-        storageDisabledNotice()
-      )}
+      {storageEnabled
+        ? imagesOrEmpty(images, () => imageTable(images))
+        : storageDisabledNotice()}
       {/* The images page is editor-reachable, but the guide is staff-only, so
           gate the link by role — editors would otherwise get a 403. */}
       <GuideFooter adminLevel={session.adminLevel} href="/admin/guide#images">
@@ -317,13 +318,11 @@ export const ItemImagesPanel = ({
       )}
       <h2>{t("images.item.select_existing")}</h2>
       <CsrfForm action={action}>
-        {allImages.length === 0 ? (
-          <p>{t("images.empty")}</p>
-        ) : (
+        {imagesOrEmpty(allImages, () =>
           itemImageCheckboxes(
             itemImageOptions(allImages, linkedImages),
             selectedIds,
-          )
+          ),
         )}
         {SaveChangesButton()}
       </CsrfForm>

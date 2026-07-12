@@ -264,13 +264,20 @@ export const setItemsForImage = (
   ]);
 };
 
-export const clearImageUsesForItemStatement = (
-  itemType: ImageUseItemType,
-  itemId: number,
-): SqlStatement => ({
-  args: [itemType, itemId],
-  sql: "DELETE FROM image_uses WHERE item_type = ? AND item_id = ?",
-});
+/**
+ * A statement builder that deletes every row of `table` matching one
+ * (item_type, item_id) pair. The callers differ only in the table and the
+ * item-type they accept. `table` must be a trusted constant, never input.
+ */
+export const deleteByItemStatement =
+  <ItemType extends string>(table: string) =>
+  (itemType: ItemType, itemId: number): SqlStatement => ({
+    args: [itemType, itemId],
+    sql: `DELETE FROM ${table} WHERE item_type = ? AND item_id = ?`,
+  });
+
+export const clearImageUsesForItemStatement =
+  deleteByItemStatement<ImageUseItemType>("image_uses");
 
 export const deleteImageRecord = async (imageId: number): Promise<void> => {
   await executeBatch([

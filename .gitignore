@@ -37,3 +37,4 @@ deploy/certs/*.pem
 # Test artifacts from storage tests run without LOCAL_STORAGE_PATH set
 /undefined/
 /null/
+.test-groups/

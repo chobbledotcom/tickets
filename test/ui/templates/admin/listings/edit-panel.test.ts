@@ -10,8 +10,6 @@ import {
 } from "#test/templates/admin/listings/helpers.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
 
-registerListingTemplateHooks();
-
 /** An edit-panel render with both always-open URLs cleared, so only the field
  *  named in `overrides` can force the Advanced disclosure open. */
 const ADVANCED_OPEN = '<details class="listing-advanced" open>';
@@ -25,6 +23,8 @@ const advancedPanelHtml = (
   );
 
 describe("adminListingEditPage group select", () => {
+  registerListingTemplateHooks();
+
   test("checks the listing's groups when groups exist", () => {
     const groups = [testGroup({ id: 2, name: "Group Two" })];
     const listing = testListingWithCount({});
@@ -53,6 +53,8 @@ describe("adminListingEditPage group select", () => {
 });
 
 describe("adminListingEditPage duration warning", () => {
+  registerListingTemplateHooks();
+
   test("includes duration warning + confirmation gate with current duration", () => {
     const listing = testListingWithCount({
       duration_days: 3,
@@ -73,6 +75,8 @@ describe("adminListingEditPage duration warning", () => {
 });
 
 describe("adminListingEditPage day prices", () => {
+  registerListingTemplateHooks();
+
   test("renders priced day-count inputs and checks the customisable toggle", () => {
     const listing = testListingWithCount({
       customisable_days: true,
@@ -101,6 +105,8 @@ describe("adminListingEditPage day prices", () => {
 });
 
 describe("adminListingEditPage form sections", () => {
+  registerListingTemplateHooks();
+
   test("groups fields under section legends and an Advanced disclosure", () => {
     const listing = testListingWithCount();
     const html = String(
@@ -217,6 +223,8 @@ describe("adminListingEditPage form sections", () => {
 });
 
 describe("adminListingEditPage Advanced section auto-open", () => {
+  registerListingTemplateHooks();
+
   test("stays collapsed when only the slug is set", () => {
     // Slug is always populated; on its own it must not force the section open.
     const html = advancedPanelHtml({});
@@ -245,6 +253,8 @@ describe("adminListingEditPage Advanced section auto-open", () => {
 });
 
 describe("adminListingEditPage Advanced section auto-open (builder fields)", () => {
+  registerListingTemplateHooks();
+
   test("opens when a renewal tier (months per unit) is set", () => {
     withBuilder(() => {
       expect(advancedPanelHtml({ months_per_unit: 3 })).toContain(

@@ -136,10 +136,7 @@ export const withPaymentProvider = async (
 export const runCheckoutFlow = (
   label: string,
   request: Request,
-  createSession: (
-    provider: Awaited<ReturnType<typeof getActivePaymentProvider>> & object,
-    baseUrl: string,
-  ) => Promise<import("#shared/payments.ts").CheckoutSessionResult>,
+  intent: CheckoutIntent,
   onError: (msg: string, status: number) => Response,
 ): Promise<Response> => {
   logDebug("Payment", `Starting ${label} checkout`);
@@ -158,7 +155,7 @@ export const runCheckoutFlow = (
       logDebug("Payment", `Using provider=${provider.type} for ${label}`);
       const baseUrl = getBaseUrl(request);
       logDebug("Payment", `Creating checkout session baseUrl=${baseUrl}`);
-      const result = await createSession(provider, baseUrl);
+      const result = await provider.createCheckoutSession(intent, baseUrl);
       if (result && "error" in result) {
         logDebug(
           "Payment",
@@ -258,7 +255,7 @@ export const handlePaymentFlow = (
   runCheckoutFlow(
     `ticket items=${intent.items.length}`,
     request,
-    (provider, baseUrl) => provider.createCheckoutSession(intent, baseUrl),
+    intent,
     (msg) => errorRedirect(ticketPageUrl(ctx), msg),
   );
 
@@ -605,12 +602,15 @@ export const computeSharedDates = async (
   return [...dateSets[0]!].filter((d) => dateSets.every((s) => s.has(d)));
 };
 
+/** A daily listing's span rules: the fixed day count to book (null = the buyer
+ * picks) and the holidays that block start dates. */
+type DailySpan = { fixedDays: number | null; holidays: Holiday[] };
+
 /** Dates this child can serve for the parent. */
 const datesChildCanServe = (
   child: TicketListing,
   parentDates: string[],
-  fixedDays: number | null,
-  holidays: Holiday[],
+  { fixedDays, holidays }: DailySpan,
 ): string[] => {
   if (child.listing.listing_type !== "daily") return parentDates;
   if (fixedDays === null) return getBookableStartDates(child.listing, holidays);
@@ -623,14 +623,13 @@ const datesChildCanServe = (
 const keepDatesSomeChildCanServe = (
   parentDates: string[],
   children: readonly TicketListing[],
-  fixedDays: number | null,
-  holidays: Holiday[],
+  span: DailySpan,
 ): string[] =>
   keepOptionsSomeChildSupports(
     parentDates,
     children,
-    (c) => childSelectableForSpan(c, fixedDays),
-    (c) => datesChildCanServe(c, parentDates, fixedDays, holidays),
+    (c) => childSelectableForSpan(c, span.fixedDays),
+    (c) => datesChildCanServe(c, parentDates, span),
   );
 
 /** The single daily parent on the page, with its children, if there is one. */
@@ -660,12 +659,10 @@ const keepPackageDatesChildrenCanServe = (
     (acc, member, children) =>
       member.listing.listing_type !== "daily"
         ? acc
-        : keepDatesSomeChildCanServe(
-            acc,
-            children,
-            fixedParentDays(member.listing),
+        : keepDatesSomeChildCanServe(acc, children, {
+            fixedDays: fixedParentDays(member.listing),
             holidays,
-          ),
+          }),
   );
 
 /**
@@ -726,7 +723,7 @@ const childDatesForParentDayCounts = (
   return new Map(
     parentDayCountsForChildren(parent).map((days) => [
       days,
-      datesChildCanServe(child, parentDates, days, holidays),
+      datesChildCanServe(child, parentDates, { fixedDays: days, holidays }),
     ]),
   );
 };
@@ -832,12 +829,10 @@ export const getTicketContext = async (
       : []);
   const dailyParent = singleDailyParent(activeListings, childrenByParentId);
   const dates = dailyParent
-    ? keepDatesSomeChildCanServe(
-        sharedDates,
-        dailyParent.children,
-        dailyParent.fixedDays,
+    ? keepDatesSomeChildCanServe(sharedDates, dailyParent.children, {
+        fixedDays: dailyParent.fixedDays,
         holidays,
-      )
+      })
     : packages.length > 0
       ? keepPackageDatesChildrenCanServe(
           activeListings,
@@ -893,10 +888,8 @@ export const keepParentDailyDatesChildrenCanServe = async (
   const childRows = childrenByParent.get(parent.id);
   if (!childRows || childRows.length === 0) return parentDates;
   const children = await buildTicketListingsWithGroupCapacity(childRows);
-  return keepDatesSomeChildCanServe(
-    parentDates,
-    children,
-    fixedParentDays(parent),
+  return keepDatesSomeChildCanServe(parentDates, children, {
+    fixedDays: fixedParentDays(parent),
     holidays,
-  );
+  });
 };
