@@ -115,6 +115,13 @@ const CDN_ASSETS = {
   },
 };
 
+const importAssetsModule = (
+  source: string,
+): Promise<{ handleAdminJs: () => Response }> =>
+  import(
+    `data:text/javascript;charset=utf-8,${encodeURIComponent(source)}#${crypto.randomUUID()}`
+  );
+
 describe("buildAssetsModule", () => {
   test("declares a variable per def carrying the pre-read content", () => {
     const out = buildAssetsModule(ASSET_DEFS, STATIC_ASSETS);
@@ -148,9 +155,23 @@ describe("buildAssetsModule", () => {
     const out = buildAssetsModule(ASSET_DEFS, STATIC_ASSETS, CDN_ASSETS);
     expect(out).not.toContain("console.log(1)");
     expect(out).toContain(
-      `export const handleAdminJs = () => Response.redirect("https://assets.example.com/assets/release/admin.js", 302);`,
+      `export const handleAdminJs = () => new Response(null, { status: 302, headers: { location: "https://assets.example.com/assets/release/admin.js" } });`,
     );
     expect(out).toContain(`const v0 = "<svg/>";`);
+  });
+
+  test("returns a CDN redirect whose security headers remain mutable", async () => {
+    const generated = await importAssetsModule(
+      buildAssetsModule(ASSET_DEFS, STATIC_ASSETS, CDN_ASSETS),
+    );
+    const response = generated.handleAdminJs();
+
+    response.headers.set("x-content-type-options", "nosniff");
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(
+      "https://assets.example.com/assets/release/admin.js",
+    );
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   });
 
   test("produces exactly the vars, cache header, handlers, and widget, newline-joined", () => {

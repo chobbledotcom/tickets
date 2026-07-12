@@ -73,7 +73,7 @@ export const buildAssetsModule = (
     ([filename, exportName, contentType], i) => {
       const publishedUrl = published?.urls[filename];
       return publishedUrl
-        ? `export const ${exportName} = () => Response.redirect(${JSON.stringify(publishedUrl)}, 302);`
+        ? `export const ${exportName} = () => new Response(null, { status: 302, headers: { location: ${JSON.stringify(publishedUrl)} } });`
         : `export const ${exportName} = () => new Response(v${i}, { headers: { "content-type": "${contentType}", ...CACHE_HEADERS } });`;
     },
   );
