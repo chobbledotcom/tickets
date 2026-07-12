@@ -565,11 +565,10 @@ export const adminAnswerDeletePage = (
   );
 };
 
-/** Listing questions assignment page */
 /**
  * The listing "Questions" panel: assign the site's questions to this listing.
- * Rendered as the listing entity page's Questions tab (owner-only). Carries its
- * own error flash for in-place 400 re-renders.
+ * Rendered as the listing entity page's Questions tab (owner-only). Save
+ * feedback arrives as a redirect flash rendered by the page frame.
  */
 type ListingQuestionsPanelProps = ListingPanelProps & {
   allQuestions: QuestionWithAnswers[];
@@ -579,10 +578,9 @@ type ListingQuestionsPanelProps = ListingPanelProps & {
 export const ListingQuestionsPanel = (
   props: ListingQuestionsPanelProps,
 ): JSX.Element => {
-  const { allQuestions, assignedIds, error, listing } = props;
+  const { allQuestions, assignedIds, listing } = props;
   return listingChoicePanel(
     t("questions.listing.heading", { listing: listing.name }),
-    error,
     <p>
       <a href="/admin/questions">{t("questions.listing.manage")}</a>
     </p>,

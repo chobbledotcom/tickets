@@ -342,6 +342,22 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
       );
     });
 
+    test("shows no error box on a plain page load", async () => {
+      const listing = await createTestListing({ name: "Calm tagged listing" });
+      await createTestAttributeWithOptions("Season", ["Summer"]);
+
+      const html = await expectHtmlResponse(
+        await adminGet(`/admin/listing/${listing.id}/attributes`),
+        200,
+        "Season",
+      );
+      // The tab loader once received the framework's page-context object in
+      // its `error` parameter, so every load showed an error box reading
+      // "[object Object]".
+      expect(html).not.toContain("[object Object]");
+      expect(html).not.toContain('class="error"');
+    });
+
     test("shows available options and checked selections", async () => {
       const listing = await createTestListing({ name: "Tagged listing" });
       const attribute = await createTestAttributeWithOptions("Difficulty", [
