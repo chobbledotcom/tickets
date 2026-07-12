@@ -1,5 +1,13 @@
 /**
- * English locale — loads and merges all JSON message files
+ * English locale — eagerly loads and merges the JSON message files, EXCEPT the
+ * guide bundle.
+ *
+ * `guide.json` is deliberately NOT merged here: it is by far the largest locale
+ * file (~120KB) and its keys are only used by the two guide routes (the admin
+ * guide page and the markdown formatting-help page), so merging it at module
+ * load would put that weight on every cold boot. It is loaded on demand instead
+ * — see `src/locales/en/guide.ts` and `ensureGuideMessages` in
+ * `src/shared/guide-messages.ts`, which those routes await before rendering.
  */
 
 import addressLookup from "./address-lookup.json" with { type: "json" };
@@ -24,7 +32,6 @@ import entityPages from "./entity-pages.json" with { type: "json" };
 import errors from "./errors.json" with { type: "json" };
 import fields from "./fields.json" with { type: "json" };
 import groups from "./groups.json" with { type: "json" };
-import guide from "./guide.json" with { type: "json" };
 import holidays from "./holidays.json" with { type: "json" };
 import images from "./images.json" with { type: "json" };
 import listingDefaults from "./listing-defaults.json" with { type: "json" };
@@ -75,7 +82,6 @@ const en: Record<string, string> = {
   ...errors,
   ...fields,
   ...groups,
-  ...guide,
   ...holidays,
   ...images,
   ...listingDefaults,
