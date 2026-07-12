@@ -15,16 +15,14 @@ import * as v from "valibot";
 import { mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
-import {
-  allPackageableMembers,
-  generateUniqueGroupSlug,
-} from "#routes/admin/groups.ts";
+import { generateUniqueGroupSlug } from "#routes/admin/groups.ts";
 import { writeRowInTransaction } from "#shared/db/client.ts";
 import {
   type GroupInput,
   getGroupIdsByListingIds,
   getGroupsById,
   groups,
+  packageMembersError,
 } from "#shared/db/groups.ts";
 import {
   getChildListingIds,
@@ -479,11 +477,12 @@ const importGroup = async (transfer: GroupTransfer): Promise<ImportResult> => {
 
   const homogeneityError = membersHomogeneous(memberListings);
   if (homogeneityError) return fail(homogeneityError);
-  if (
-    group.isPackage &&
-    !(await allPackageableMembers(memberListings, group.hidePackageListings))
-  ) {
-    return fail(t("error.package_incompatible_listing"));
+  if (group.isPackage) {
+    const packageError = await packageMembersError(
+      memberListings,
+      group.hidePackageListings,
+    );
+    if (packageError) return fail(packageError);
   }
 
   const { slug, slugIndex } = await generateUniqueGroupSlug();

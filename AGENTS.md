@@ -581,6 +581,20 @@ STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-a
 
 Environment variables are configured as **Bunny native secrets** in the Bunny Edge Scripting dashboard. They are read at runtime via `process.env`.
 
+The optional static CDN is different: `CDN_URL`, `CDN_BUNNY_STORAGE_ZONE_NAME`,
+`CDN_BUNNY_STORAGE_ZONE_KEY`, `CDN_BUNNY_STORAGE_HOST`, and
+`CDN_BUNNY_PULL_ZONE_ID` are GitHub repository secrets used only while
+building. When all five are set, the build uploads site-independent browser
+assets and image-codec WASM under an immutable content-addressed path, purges the
+pull zone with the existing `BUNNY_ACCESS_KEY` repository secret, verifies every
+public object byte-for-byte, then bakes
+those public URLs and their CSP origin into the edge script. They must not be
+added to the running Bunny script. With all five absent, assets stay embedded;
+a partial set fails the build. Site-bound assets such as `embed.js` and the
+dynamic `/order.js` body remain in each script. Use the Storage API hostname
+shown on Bunny's Storage **Access** page for `CDN_BUNNY_STORAGE_HOST` (for
+example, `storage.bunnycdn.com` or `uk.storage.bunnycdn.com`).
+
 ### Required (configure in Bunny dashboard)
 
 - `DB_URL` - Database URL (required, e.g. `libsql://your-db.turso.io`)
@@ -760,6 +774,23 @@ already, e.g. `logistics-filter.ts:41:45`, `sort-listings.ts:44:12`,
 and running `deno run -A scripts/biome.ts check --error-on-warnings <file>` —
 exit 0 means the lint gate does not kill it, so a real survivor needs a test
 or a documented equivalent, not removal on the assumption that lint caught it.
+
+Before it runs the mapped tests, the runner puts every mutant through two cheap
+**static gates**, ordered cheapest-first: a per-file Biome **lint** (the
+`noDoubleEquals` case above) and then a `deno check` **type-check**. Either one
+exiting non-zero kills the mutant without spending a full `deno test` on it —
+both a forbidden lint diagnostic and a type error are build failures, so the
+mutant could never ship, and static checks are far faster than the suite. The
+type-check gate catches the mutants that turn valid code into a type error —
+e.g. a `+ → *` swap on a string concatenation (`"a" * "b"` doesn't type-check),
+or any operator change that violates a parameter/return type. Each gate is only
+trusted after the runner confirms the *unmutated* target passes it (the baseline
+probe): a standalone `deno task mutation` doesn't run `lint:ci`/`typecheck`
+first, so if the target isn't already clean the run aborts loudly rather than
+scoring a bogus 100%. This means a mutant recorded in
+`equivalent-mutants.txt` must be one that survives *both* gates *and* the tests;
+a mutation that produces a type error never reaches the ignore-list because the
+type-check gate kills it first.
 
 When a manual mutation run (or the precommit gate) surfaces survivors on a file
 you are touching — even on lines you did not change in this PR — they are yours

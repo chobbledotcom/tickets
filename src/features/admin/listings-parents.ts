@@ -36,6 +36,7 @@ import {
   type EdgeListing,
   edgeFieldError,
 } from "#shared/listing-parents-rules.ts";
+import { packageChildEdgeError } from "#shared/package-membership.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import type { ChildCandidate } from "#templates/admin/listings/types.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
@@ -400,15 +401,14 @@ export const handleAdminListingChildren: TypedRouteHandler<
       // name the collapsed members), nor can a package member be chosen AS a
       // child. A visible package member may gate children — the package page
       // renders its selector. Block the conflicts before persisting the edges.
-      if (
-        await packageChildEdgeConflict(
-          await getGroupIdsByListingId(id),
-          childIds,
-        )
-      ) {
+      const packageConflict = await packageChildEdgeConflict(
+        await getGroupIdsByListingId(id),
+        childIds,
+      );
+      if (packageConflict) {
         return redirect(
           `/admin/listing/${id}/edit`,
-          t("error.package_incompatible_listing"),
+          packageChildEdgeError(packageConflict),
           false,
         );
       }

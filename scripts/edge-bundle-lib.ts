@@ -19,17 +19,23 @@ import { denoPlugins } from "@luca/esbuild-deno-loader";
 import { fromFileUrl } from "@std/path";
 import type { Plugin } from "esbuild";
 import * as esbuild from "esbuild";
+import { ASSETS } from "../src/shared/images/wasm-assets.ts";
 import { buildStaticAssets } from "./build-static-assets.ts";
 import { minifyCss } from "./css-minify.ts";
 import {
-  type AssetDef,
   buildAssetPathsModule,
   buildAssetsModule,
   buildBuildInfoModule,
   type EdgeBundleGuard,
   reactRuntimeGuard,
 } from "./edge-bundle-modules.ts";
-import { inlineWasmPlugin } from "./inline-jsquash-wasm.ts";
+import { ASSET_DEFS, buildCdnAssets } from "./edge-cdn-assets.ts";
+import {
+  buildRemoteModule,
+  createPlugin as createWasmPlugin,
+  inlineWasmPlugin,
+} from "./inline-jsquash-wasm.ts";
+import { publishStaticCdnAssets, type StaticCdnConfig } from "./static-cdn.ts";
 
 export type { EdgeBundleGuard } from "./edge-bundle-modules.ts";
 
@@ -41,6 +47,8 @@ export interface EdgeBundleContext {
 }
 
 export interface EdgeBundleOptions {
+  /** Publish fixed browser/WASM payloads and bake their immutable CDN URLs. */
+  cdnConfig?: StaticCdnConfig | null;
   /** Emit the finished bundle (write files, copy the map, …) and return. */
   emit: (ctx: EdgeBundleContext) => Promise<void>;
   /** Inline empty strings instead of the real asset bodies — for benchmark
@@ -60,40 +68,6 @@ export interface EdgeBundleOptions {
   /** Transform the raw `dist/<outfile>` text before guards run (e.g. rename the source-map link). */
   transformContent?: (raw: string) => string;
 }
-
-const JS = "application/javascript; charset=utf-8";
-const CSS = "text/css; charset=utf-8";
-const SVG = "image/svg+xml";
-const TEXT = "text/plain; charset=utf-8";
-
-/** Asset definitions: [filename, exportName, contentType, pathConstant] */
-const ASSET_DEFS: AssetDef[] = [
-  ["robots.txt", "handleRobotsTxt", TEXT, ""],
-  ["favicon.svg", "handleFavicon", SVG, ""],
-  ["icons.svg", "handleIcons", SVG, "ICONS_PATH"],
-  ["style.css", "handleStyleCss", CSS, "CSS_PATH"],
-  ["admin.js", "handleAdminJs", JS, "JS_PATH"],
-  // No path constants: the client-side loader derives these cache-busted URLs
-  // from the admin bundle's own script tag.
-  ["markdown-editor.js", "handleMarkdownEditorJs", JS, ""],
-  ["logistics-map.js", "handleLogisticsMapJs", JS, ""],
-  ["logistics-map.css", "handleLogisticsMapCss", CSS, ""],
-  ["scanner.js", "handleScannerJs", JS, "SCANNER_JS_PATH"],
-  [
-    "iframe-resizer-parent.js",
-    "handleIframeResizerParentJs",
-    JS,
-    "IFRAME_RESIZER_PARENT_JS_PATH",
-  ],
-  [
-    "iframe-resizer-child.js",
-    "handleIframeResizerChildJs",
-    JS,
-    "IFRAME_RESIZER_CHILD_JS_PATH",
-  ],
-  ["embed.js", "handleEmbedJs", JS, "EMBED_JS_PATH"],
-  ["contact.js", "handleContactJs", JS, "CONTACT_JS_PATH"],
-];
 
 // Externalize all Node.js built-in modules (per Bunny docs; Deno Deploy
 // provides them natively too).
@@ -153,6 +127,7 @@ const inlineAssetsPlugin = (
   buildIso: string,
   buildTs: number,
   staticAssets: Record<string, string>,
+  published?: Awaited<ReturnType<typeof publishStaticCdnAssets>>,
 ): Plugin => ({
   name: "inline-assets",
   setup(build) {
@@ -175,7 +150,7 @@ const inlineAssetsPlugin = (
       path: args.path,
     }));
     build.onLoad({ filter: /.*/, namespace: "inline-asset-paths" }, () => ({
-      contents: buildAssetPathsModule(ASSET_DEFS, buildTs),
+      contents: buildAssetPathsModule(ASSET_DEFS, buildTs, published),
       loader: "ts",
     }));
 
@@ -188,7 +163,7 @@ const inlineAssetsPlugin = (
       }),
     );
     build.onLoad({ filter: /.*/, namespace: "inline-assets" }, () => ({
-      contents: buildAssetsModule(ASSET_DEFS, staticAssets),
+      contents: buildAssetsModule(ASSET_DEFS, staticAssets, published),
       loader: "ts",
     }));
   },
@@ -245,6 +220,15 @@ export const buildEdgeBundle = async (
   const inlinedAssets = options.emptyInlinedAssets
     ? Object.fromEntries(Object.keys(staticAssets).map((key) => [key, ""]))
     : staticAssets;
+  const published = options.cdnConfig
+    ? await publishStaticCdnAssets(
+        options.cdnConfig,
+        buildCdnAssets(staticAssets),
+      )
+    : undefined;
+  const wasmPlugin = published
+    ? createWasmPlugin(() => buildRemoteModule(ASSETS, published.urls))
+    : inlineWasmPlugin;
 
   // Build timestamp — always the current time. Used both as BUILD_TIMESTAMP
   // and (formatted) as the release tag in release builds, so the two always match.
@@ -264,11 +248,13 @@ export const buildEdgeBundle = async (
     platform: "browser",
     plugins: [
       shimBareNodeCryptoPlugin,
-      inlineAssetsPlugin(buildIso, buildTs, inlinedAssets),
-      inlineWasmPlugin,
-      ...denoPlugins({
+      inlineAssetsPlugin(buildIso, buildTs, inlinedAssets, published),
+      wasmPlugin,
+      // The loader pins older structural esbuild types; its runtime plugins
+      // implement the same API used by our newer esbuild package.
+      ...(denoPlugins({
         configPath: fromFileUrl(new URL("../deno.json", import.meta.url)),
-      }),
+      }) as unknown as Plugin[]),
     ],
     // Emit a linked source map so deploys can upload it to Sentry for readable
     // (un-minified) stack traces. Harmless when no upload runs — the deployed

@@ -157,8 +157,6 @@ describe("mutation isolation paths", () => {
 });
 
 describe("mutation isolation run records", () => {
-  const LOCK_PROBE_TIMEOUT_MS = 100;
-
   test("creates deterministic ids and records state transitions", () => {
     const id = createRunId(new Date("2026-07-09T12:34:56.789Z"), "abc12345");
     expect(id).toBe("mutation-20260709T123456Z-abc12345");
@@ -256,17 +254,15 @@ describe("mutation isolation run records", () => {
   test("reports whether a run lock is held", async () => {
     await withTempDir(async (root) => {
       const record = { root };
-      expect(await runLockIsHeld(record, LOCK_PROBE_TIMEOUT_MS)).toBe(false);
+      expect(await runLockIsHeld(record, 100)).toBe(false);
       await withMutationRunLock(root, async () => {
-        expect(await runLockIsHeld(record, LOCK_PROBE_TIMEOUT_MS)).toBe(true);
+        expect(await runLockIsHeld(record, 100)).toBe(true);
       });
-      expect(await runLockIsHeld(record, LOCK_PROBE_TIMEOUT_MS)).toBe(false);
+      expect(await runLockIsHeld(record, 100)).toBe(false);
 
       const fileRoot = join(root, "file-root");
       await Deno.writeTextFile(fileRoot, "");
-      expect(
-        await runLockIsHeld({ root: fileRoot }, LOCK_PROBE_TIMEOUT_MS),
-      ).toBe(false);
+      expect(await runLockIsHeld({ root: fileRoot }, 100)).toBe(false);
     });
   });
 });

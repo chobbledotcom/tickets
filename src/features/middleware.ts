@@ -3,6 +3,7 @@
  */
 
 import { encodeBody } from "#routes/response.ts";
+import { ASSET_CDN_ORIGIN } from "#shared/asset-paths.ts";
 import {
   getEmbedHosts,
   isBotpoisonEnabled,
@@ -45,6 +46,7 @@ export const buildCspHeader = (
   embeddable: boolean,
   payment?: PaymentCspConfig,
   botpoisonEnabled = false,
+  assetCdnOrigin: string | null = ASSET_CDN_ORIGIN,
 ): string => {
   const directives = [
     "default-src 'self'",
@@ -52,6 +54,13 @@ export const buildCspHeader = (
     "base-uri 'self'",
     "object-src 'none'",
   ];
+
+  if (assetCdnOrigin) {
+    directives.push(
+      `script-src 'self' ${assetCdnOrigin}`,
+      `style-src 'self' ${assetCdnOrigin}`,
+    );
+  }
 
   if (botpoisonEnabled) {
     directives.push("connect-src 'self' https://api.botpoison.com");

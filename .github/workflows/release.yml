@@ -23,6 +23,12 @@ jobs:
         uses: ./.github/actions/build-bunny-script
         with:
           build_commit: ${{ github.sha }}
+          cdn_url: ${{ secrets.CDN_URL }}
+          cdn_bunny_storage_zone_name: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_NAME }}
+          cdn_bunny_storage_zone_key: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_KEY }}
+          cdn_bunny_storage_host: ${{ secrets.CDN_BUNNY_STORAGE_HOST }}
+          cdn_bunny_pull_zone_id: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID }}
+          bunny_access_key: ${{ secrets.BUNNY_ACCESS_KEY }}
 
       - name: Create release
         env:

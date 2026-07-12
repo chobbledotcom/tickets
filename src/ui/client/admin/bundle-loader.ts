@@ -12,14 +12,20 @@
  * script tag — whatever busted the admin bundle busts the extras too.
  */
 
-const ADMIN_BUNDLE_PATH = "/admin.js";
-
-/** The cache-busting suffix stamped on the admin bundle ("" in dev). */
-const cacheBustSuffix = (): string =>
-  document
-    .querySelector(`script[src^="${ADMIN_BUNDLE_PATH}"]`)
-    ?.getAttribute("src")
-    ?.slice(ADMIN_BUNDLE_PATH.length) ?? "";
+/** Put a page-specific bundle beside admin.js, preserving its cache suffix. */
+const bundleUrl = (path: string): string => {
+  const adminUrl = [
+    ...document.querySelectorAll<HTMLScriptElement>("script[src]"),
+  ]
+    .map((script) => new URL(script.src))
+    .find((url) => url.pathname.endsWith("/admin.js"));
+  if (!adminUrl) return path;
+  const target = new URL(path.slice(path.lastIndexOf("/") + 1), adminUrl);
+  target.search = adminUrl.search;
+  return target.origin === document.location.origin
+    ? `${target.pathname}${target.search}`
+    : target.toString();
+};
 
 /** Inject `scriptPath` (and `stylesheetPath`, when given) into the page head
  * when the page contains an element matching `selector`. */
@@ -29,15 +35,14 @@ export const loadBundleWhen = (
   stylesheetPath?: string,
 ): void => {
   if (!document.querySelector(selector)) return;
-  const suffix = cacheBustSuffix();
   if (stylesheetPath) {
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = stylesheetPath + suffix;
+    link.href = bundleUrl(stylesheetPath);
     document.head.appendChild(link);
   }
   const script = document.createElement("script");
-  script.src = scriptPath + suffix;
+  script.src = bundleUrl(scriptPath);
   script.defer = true;
   document.head.appendChild(script);
 };

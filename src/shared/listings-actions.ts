@@ -39,6 +39,10 @@ import {
 } from "#shared/db/modifier-resolve.ts";
 import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
+import {
+  packageMemberBlock,
+  packageMemberBlockError,
+} from "#shared/package-membership.ts";
 import { generateUniqueSlug } from "#shared/slug.ts";
 import { deleteListingAttachmentFile } from "#shared/storage.ts";
 import {
@@ -82,25 +86,28 @@ type ListingUpdateCheck = (
  * not be priced by the buyer, may never itself be another listing's add-on
  * CHILD (it is only sold as part of its bundle), and may gate its own children
  * only on a VISIBLE package — a hidden package collapses members to the package
- * name, so a member's child selector would leak them. Mirrors the group-side
- * `isPackageableMember`. (Brand-new child edges submitted on the same write are
- * caught before the row commits in the API's prepareChildEdges.) */
+ * name, so a member's child selector would leak them. Shares the rule with the
+ * group-side save via {@link packageMemberBlock}. (Brand-new child edges
+ * submitted on the same write are caught before the row commits in the API's
+ * prepareChildEdges.) */
 const packageMembershipError = async (
   group: Group,
-  incompatibleByType: boolean,
+  name: string,
+  canPayMore: boolean,
   existingId: number | undefined,
 ): Promise<string | null> => {
   if (!group.is_package) return null;
-  if (incompatibleByType) return t("error.package_incompatible_listing");
+  // Pay-what-you-want is decided by the listing alone — no edge read needed.
+  if (canPayMore) return packageMemberBlockError(name, "pay_more");
+  // A create has no edges yet; only an existing listing can be an add-on child
+  // or gate its own children.
   if (existingId === undefined) return null;
-  const { childIds, parentIds } = await edgeIdsTouching(existingId);
-  if (
-    parentIds.length > 0 ||
-    (group.hide_package_listings && childIds.length > 0)
-  ) {
-    return t("error.package_incompatible_listing");
-  }
-  return null;
+  const block = packageMemberBlock(
+    { can_pay_more: false },
+    await edgeIdsTouching(existingId),
+    group.hide_package_listings,
+  );
+  return block ? packageMemberBlockError(name, block) : null;
 };
 
 const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
@@ -136,6 +143,7 @@ const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
 
     const packageError = await packageMembershipError(
       group,
+      input.name,
       incompatibleByType,
       existingId,
     );
