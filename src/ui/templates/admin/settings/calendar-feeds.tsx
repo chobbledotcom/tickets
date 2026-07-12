@@ -2,7 +2,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { SettingsCheckbox } from "#templates/admin/settings/theme.tsx";
+import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";

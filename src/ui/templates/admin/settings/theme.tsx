@@ -4,28 +4,11 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { RadioOption } from "#templates/components/radio-option.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 /* jscpd:ignore-end */
-
-/** A checkbox that posts `true` when ticked, with its label text beside it.
- * `labelClass` styles the wrapping label (omitted for an unstyled label). */
-export const SettingsCheckbox = ({
-  checked,
-  name,
-  label,
-  labelClass,
-}: {
-  checked: boolean;
-  name: string;
-  label: string;
-  labelClass?: string;
-}): JSX.Element => (
-  <label class={labelClass}>
-    <input checked={checked} name={name} type="checkbox" value="true" /> {label}
-  </label>
-);
 
 export const ThemeForm = (s: SettingsPageState): JSX.Element => (
   <SettingsSection

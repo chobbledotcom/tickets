@@ -10,6 +10,7 @@ import {
 } from "#routes/admin/entity-handlers.ts";
 import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
+import type { IdFormHandler } from "#routes/entity.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
@@ -191,13 +192,7 @@ const withAttendeeForm = (
  * the admin form gate, then run `handle` with the attendee id, the session, and
  * the parsed form. Shared by the note and logistics POSTs. */
 export const attendeeFormPost =
-  (
-    handle: (
-      attendeeId: number,
-      session: AuthSession,
-      form: FormParams,
-    ) => Response | Promise<Response>,
-  ) =>
+  (handle: IdFormHandler) =>
   (
     request: Request,
     { attendeeId }: { attendeeId: number },

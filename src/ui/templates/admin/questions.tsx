@@ -36,14 +36,14 @@ import {
   LinkedItemsCheckboxes,
   toLinkedItemOptions,
 } from "#templates/components/linked-items.tsx";
-import { SelectField } from "#templates/components/select-field.tsx";
-import { colClass } from "#templates/components/table-columns.ts";
-import { answerAggregateFields } from "#templates/fields/aggregate.ts";
 import {
   QuantityCell,
   reorderableListPage,
   reorderCountTable,
-} from "./attributes.tsx";
+} from "#templates/components/reorder-list.tsx";
+import { SelectField } from "#templates/components/select-field.tsx";
+import { colClass } from "#templates/components/table-columns.ts";
+import { answerAggregateFields } from "#templates/fields/aggregate.ts";
 import {
   type ListingPanelProps,
   listingChoicePanel,

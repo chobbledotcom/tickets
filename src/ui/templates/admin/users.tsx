@@ -15,7 +15,6 @@ import {
   flashAdminPage,
 } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
-import { textCol } from "#templates/admin/sessions.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import {
   ActionButton,
@@ -27,7 +26,7 @@ import {
   CheckboxFieldset,
   CheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
+import { DataTable, textCol } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import { getInviteUserFields } from "#templates/fields/admin.ts";

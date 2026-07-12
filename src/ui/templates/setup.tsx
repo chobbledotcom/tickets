@@ -85,7 +85,7 @@ export const AuthFormPage = ({
   intro: string;
   formHtml: string;
   error?: string | undefined;
-  children: JSX.Element | JSX.Element[];
+  children: JSX.Element[];
 }): string =>
   String(
     <Layout title={title}>

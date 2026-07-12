@@ -21,7 +21,7 @@ export const joinPage = (
 ): string =>
   AuthFormPage({
     action: `/join/${code}`,
-    children: <button type="submit">{t("join.set_password.submit")}</button>,
+    children: [<button type="submit">{t("join.set_password.submit")}</button>],
     error,
     formHtml: joinForm.render(),
     heading: t("join.set_password.welcome", { username }),
