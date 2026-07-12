@@ -10,6 +10,7 @@ import {
   MoneySummary,
   type MoneySummaryRow,
 } from "#templates/admin/money-summary.tsx";
+import { PageBlock } from "#templates/components/page-structure.tsx";
 
 const whenNonZero = (
   value: number,
@@ -74,7 +75,7 @@ export const ListingIncomeLedgerSection = ({
   ledgerHref?: string | undefined;
   listing: ListingWithCount;
 }): JSX.Element => (
-  <article id="income-ledger">
+  <PageBlock as="article" id="income-ledger">
     <MoneySummary
       ledgerHref={ledgerHref}
       ledgerLabel={t("listings_table.income_ledger_view_full")}
@@ -82,7 +83,7 @@ export const ListingIncomeLedgerSection = ({
       rows={incomeBreakdownRows(breakdown, listing)}
       title={t("listings_table.income_ledger_legend")}
     />
-  </article>
+  </PageBlock>
 );
 
 export const ListingLedgerSection = ({

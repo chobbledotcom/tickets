@@ -45,6 +45,7 @@ import {
 } from "#templates/admin/ledger/formatting.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
+import { PageBlock } from "#templates/components/page-structure.tsx";
 import { ReorderTable } from "#templates/components/reorder-table.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 
@@ -374,7 +375,7 @@ export const adminLedgerPage = (
     session,
     <>
       <LedgerStats data={data} />
-      <div class="table-controls">
+      <PageBlock>
         <LedgerDateRange data={data} />
         <ScopeFilter data={data} />
         <LedgerViewToggle data={data} />

@@ -22,6 +22,7 @@ import {
   timeColumn,
 } from "#templates/admin/ledger.tsx";
 import { ActionButton } from "#templates/components/actions.tsx";
+import { PageBlock } from "#templates/components/page-structure.tsx";
 
 const counterparty = (line: StatementLine, account: AccountRef): AccountRef =>
   sameAccount(line.transfer.destination, account)
@@ -135,7 +136,7 @@ export const AccountStatementSection = ({
   returnUrl: string;
   fullLedgerHref?: string | undefined;
 }): JSX.Element => (
-  <div class="table-controls">
+  <PageBlock>
     <AccountStatementHeading account={account} lines={lines} names={names} />
     <AccountStatementActions
       account={account}
@@ -149,7 +150,7 @@ export const AccountStatementSection = ({
       names={names}
       returnUrl={returnUrl}
     />
-  </div>
+  </PageBlock>
 );
 
 export const EmbeddedAccountStatementSection = ({
@@ -163,7 +164,7 @@ export const EmbeddedAccountStatementSection = ({
   returnUrl: string;
   fullLedgerHref?: string | undefined;
 }): JSX.Element => (
-  <section id={id}>
+  <PageBlock id={id}>
     <h2>{t("admin.ledger.statement_heading")}</h2>
     <AccountStatementSection
       account={ledger.account}
@@ -172,7 +173,7 @@ export const EmbeddedAccountStatementSection = ({
       names={ledger.names}
       returnUrl={returnUrl}
     />
-  </section>
+  </PageBlock>
 );
 
 export const adminAccountStatementPage = (

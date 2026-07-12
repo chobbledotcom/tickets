@@ -556,7 +556,7 @@ export const GroupOverviewPanel = ({
       </article>
 
       {showMoney && (
-        <article>
+        <PageBlock as="article">
           <MoneySummary
             ledgerHref={ledgerHref}
             ledgerLabel={t("groups.money.view_ledger")}
@@ -587,13 +587,15 @@ export const GroupOverviewPanel = ({
             ]}
             title={t("groups.money.heading")}
           />
-        </article>
+        </PageBlock>
       )}
 
-      <h2>{t("terms.listings")}</h2>
-      <div class="table-scroll">
-        <Raw html={renderListingTable(columnKeys, listingRows)} />
-      </div>
+      <PageBlock>
+        <h2>{t("terms.listings")}</h2>
+        <div class="table-scroll">
+          <Raw html={renderListingTable(columnKeys, listingRows)} />
+        </div>
+      </PageBlock>
 
       {!isReadOnly() && ungroupedListings.length > 0 && (
         <CsrfForm action={`/admin/groups/${group.id}/add-listings`}>
