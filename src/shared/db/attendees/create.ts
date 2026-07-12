@@ -592,7 +592,6 @@ const writeAsLedgerBatch = async (
           tokenIndex,
           guard,
           plan.finalize.paymentReference,
-          [enc.ticketToken],
         ),
       ]
     : [];

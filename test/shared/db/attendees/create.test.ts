@@ -17,7 +17,7 @@ import type {
   PricedLine,
   PricedOrder,
 } from "#shared/checkout-pricing.ts";
-import { createBookingAtomic } from "#shared/db/attendees/api.ts";
+import { createBookingAtomic as createBookingAtomicImpl } from "#shared/db/attendees/api.ts";
 import type { BookingBatchPlan } from "#shared/db/attendees/create.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { queryOne, withTransaction } from "#shared/db/client.ts";
@@ -27,8 +27,14 @@ import {
   isSessionProcessed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
+import { withPaymentTicketToken } from "#shared/payment-ticket-token.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+
+const createBookingAtomic = (
+  ...args: Parameters<typeof createBookingAtomicImpl>
+) =>
+  withPaymentTicketToken("BATCHTOKEN", () => createBookingAtomicImpl(...args));
 
 /** Narrow a createBookingAtomic result to the successful shape, or fail the test. */
 const expectBookingOk = (
