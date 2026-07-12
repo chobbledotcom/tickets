@@ -166,6 +166,29 @@ describe("diff-code-lines tallyDiff", () => {
     expect(counts.removed.src.code).toBe(1);
     expect(counts.added.src.code).toBe(1);
   });
+
+  test("attributes each side of a cross-area rename to its own area", () => {
+    // A rename with edits names the old area on `--- a/src/…` and the new area
+    // on `+++ b/test/…`; the removed line must count as src and the added as
+    // test, not both under whichever header was read last.
+    const renameDiff = [
+      "diff --git a/src/old.ts b/test/new.test.ts",
+      "similarity index 60%",
+      "rename from src/old.ts",
+      "rename to test/new.test.ts",
+      "--- a/src/old.ts",
+      "+++ b/test/new.test.ts",
+      "@@ -1 +1 @@",
+      "-const removed = 1;",
+      "+const added = 2;",
+      "",
+    ].join("\n");
+    const counts = tallyDiff(renameDiff);
+    expect(counts.removed.src.code).toBe(1);
+    expect(counts.added.test.code).toBe(1);
+    expect(counts.added.src.code).toBe(0);
+    expect(counts.removed.test.code).toBe(0);
+  });
 });
 
 describe("diff-code-lines formatReport", () => {

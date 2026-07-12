@@ -135,11 +135,17 @@ export type Counts = {
 };
 
 /** Everything the diff walk carries from one line to the next: the tallies, the
- * current file's area, the add/remove classification runs, and whether we are
- * still in a file's header section. */
+ * current file's area for each side, the add/remove classification runs, and
+ * whether we are still in a file's header section.
+ *
+ * The added and removed sides get their own area because a cross-area rename
+ * with edits (e.g. `src/a.ts` → `test/a.test.ts`) names one area on `--- a/…`
+ * and the other on `+++ b/…`, so removed lines must count against the old area
+ * and added lines against the new. */
 type WalkState = {
   counts: Counts;
-  area: Area;
+  addArea: Area;
+  removeArea: Area;
   addState: SideState;
   removeState: SideState;
   inHeader: boolean;
@@ -160,10 +166,14 @@ const applyBoundaryLine = (line: string, state: WalkState): boolean => {
   if (state.inHeader) {
     const headerArea = fileHeaderArea(line);
     if (headerArea !== undefined) {
-      // A real path updates the area; a `/dev/null` side keeps the area set by
-      // the file's other header, so a deletion still counts as its real area
-      // rather than inheriting the previous file's.
-      if (headerArea !== null) state.area = headerArea;
+      // Each header sets its own side's area: `+++ b/…` the added side, `--- a/…`
+      // the removed side. A `/dev/null` side (null) leaves that side's area as
+      // set by the file's other header — a deletion has no added lines and a
+      // creation no removed lines, so the stale side is never tallied against.
+      if (headerArea !== null) {
+        if (line.startsWith("+++")) state.addArea = headerArea;
+        else state.removeArea = headerArea;
+      }
       return true;
     }
   }
@@ -178,14 +188,14 @@ const applyBoundaryLine = (line: string, state: WalkState): boolean => {
   return false;
 };
 
-/** Tally one changed content line under the current area, by its kind. */
+/** Tally one changed content line under its side's current area, by its kind. */
 const tallyContentLine = (line: string, state: WalkState): void => {
   if (line.startsWith("+")) {
     const kind = classify(line.slice(1), state.addState);
-    state.counts.added[state.area][kind] += 1;
+    state.counts.added[state.addArea][kind] += 1;
   } else if (line.startsWith("-")) {
     const kind = classify(line.slice(1), state.removeState);
-    state.counts.removed[state.area][kind] += 1;
+    state.counts.removed[state.removeArea][kind] += 1;
   }
 };
 
@@ -197,10 +207,11 @@ const foldLine = (state: WalkState, line: string): WalkState => {
 };
 
 const freshWalkState = (): WalkState => ({
+  addArea: "other",
   addState: freshState(),
-  area: "other",
   counts: { added: emptyAreaTally(), removed: emptyAreaTally() },
   inHeader: false,
+  removeArea: "other",
   removeState: freshState(),
 });
 
