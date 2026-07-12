@@ -1,7 +1,7 @@
 {
   "privacy.title": "Privacy",
   "privacy.guide_link": "Read the privacy guide",
-  "privacy.intro_html": "<p>This is a ticketing system, not a CRM. It keeps as little personal data as it can. It stores booking details encrypted.</p><p>It does not build customer profiles. To send bookings to a CRM or another tool, add a webhook to a listing. See <a href=\"/admin/guide#webhooks\">how to set up a webhook</a>.</p><p>To spot returning customers, it stores a one-way code made from each email or phone number. It never stores the number itself. The code cannot be turned back, so the real details are never kept here.</p>",
+  "privacy.intro_html": "<p>This is a ticketing system, not a CRM. It keeps as little personal data as it can. It stores booking details encrypted.</p><p>It does not build customer profiles. To send bookings to a CRM or another tool, add a webhook to a listing. See <a href=\"/admin/guide#webhooks\">how to set up a webhook</a>.</p><p>To spot returning customers, it keeps a note under a one-way code made from their email or phone. The note holds only the code, not the email or phone itself. Any contact details a listing collects stay with the booking, kept encrypted.</p>",
   "privacy.orphans.heading": "Orphaned records",
   "privacy.orphans.intro_html": "<p>When you delete a listing, anyone who booked <em>only</em> that listing is left behind. Their booking details have no listing to attach to. These are orphaned records — data you no longer need.</p><p>Delete them below. “Older than” counts from when the booking was made.</p>",
   "privacy.orphans.count": "{count, plural, =0 {There are no orphaned records right now.} one {There is # orphaned record right now.} other {There are # orphaned records right now.}}",

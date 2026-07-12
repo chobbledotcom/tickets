@@ -103,6 +103,10 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       await page("one-way code");
     });
 
+    test("says contact details stay in the encrypted booking, not just the code", async () => {
+      await page("stay with the booking, kept encrypted");
+    });
+
     test("reports the current orphan count", async () => {
       await insertOrphan(new Date(nowMs()).toISOString());
       await assertAdminHtml(
