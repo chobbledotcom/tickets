@@ -7,7 +7,7 @@ import {
 import { KIND } from "#shared/accounting/kinds.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { getDb } from "#shared/db/client.ts";
-import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { bookingKey } from "#shared/merge/attendee-merge.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -334,7 +334,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       sortOrder: 0,
       text: "Yes",
     });
-    await setListingQuestions(listing.id, [q.id]);
+    await listingQuestions.setIds(listing.id, [q.id]);
     await saveChoice(source.id, a1.id);
 
     // Pass no questions — question text won't be found.

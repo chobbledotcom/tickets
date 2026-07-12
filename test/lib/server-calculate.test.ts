@@ -8,7 +8,7 @@ import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getDb } from "#shared/db/client.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import { modifiersTable, setModifierAnswers } from "#shared/db/modifiers.ts";
-import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { settings } from "#shared/db/settings.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
@@ -393,7 +393,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       sortOrder: 0,
       text: "Small",
     });
-    await setListingQuestions(listing.id, [question.id]);
+    await listingQuestions.setIds(listing.id, [question.id]);
     // A stock-limited answer tier with no stock left, selected by the quote.
     const tier = await modifiersTable.insert({
       calcKind: "fixed",

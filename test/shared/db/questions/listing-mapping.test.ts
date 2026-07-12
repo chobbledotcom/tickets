@@ -1,12 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  getAllQuestionListingIds,
   getListingQuestionIds,
-  getQuestionListingIds,
   getQuestionsForListing,
-  setListingQuestions,
-  setQuestionListings,
+  listingQuestions,
+  questionListings,
 } from "#shared/db/questions/queries.ts";
 import { swapQuestionOrder } from "#shared/db/questions/sort-order.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -29,7 +27,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       // Assign in reverse; the listing ignores assignment order and uses the
       // global question order (here creation/id order, since both are at the
       // default sort_order 0).
-      await setListingQuestions(listing.id, [q2.id, q1.id]);
+      await listingQuestions.setIds(listing.id, [q2.id, q1.id]);
 
       const questions = await getQuestionsForListing(listing.id);
       expectQuestionTexts(questions, ["Q1", "Q2"]);
@@ -42,7 +40,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       await swapQuestionOrder(q1.id, q2.id);
 
       const listing = await createTestListing();
-      await setListingQuestions(listing.id, [q1.id, q2.id]);
+      await listingQuestions.setIds(listing.id, [q1.id, q2.id]);
 
       const questions = await getQuestionsForListing(listing.id);
       expectQuestionTexts(questions, ["Q2", "Q1"]);
@@ -53,12 +51,21 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q2 = await createQuestionWithAnswers("Q2", ["A2"]);
 
       const listing = await createTestListing();
-      await setListingQuestions(listing.id, [q1.id, q2.id]);
-      await setListingQuestions(listing.id, [q2.id]);
+      await listingQuestions.setIds(listing.id, [q1.id, q2.id]);
+      await listingQuestions.setIds(listing.id, [q2.id]);
 
       const questions = await getQuestionsForListing(listing.id);
       expect(questions).toHaveLength(1);
       expect(questions[0]!.text).toBe("Q2");
+    });
+
+    test("dedupes repeated question ids", async () => {
+      const q = await createQuestionWithAnswers("Q", ["A"]);
+      const listing = await createTestListing();
+
+      await listingQuestions.setIds(listing.id, [q.id, q.id]);
+
+      expect(await getListingQuestionIds(listing.id)).toEqual([q.id]);
     });
 
     test("includes assign-all questions for every listing", async () => {
@@ -95,7 +102,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q2 = await createQuestion("Q2");
 
       const listing = await createTestListing();
-      await setListingQuestions(listing.id, [q2.id, q1.id]);
+      await listingQuestions.setIds(listing.id, [q2.id, q1.id]);
 
       // Returned in the global question order, not the assignment order.
       const ids = await getListingQuestionIds(listing.id);
@@ -107,39 +114,46 @@ describeWithEnv("custom questions", { db: true }, () => {
       expect(await getListingQuestionIds(listing.id)).toEqual([]);
     });
   });
-  describe("getQuestionListingIds", () => {
+  describe("questionListings.getIds", () => {
     test("returns the listings a question is assigned to", async () => {
       const q = await createQuestion("Q");
       const listing1 = await createTestListing();
       const listing2 = await createTestListing({ name: "Listing 2" });
-      await setListingQuestions(listing1.id, [q.id]);
-      await setListingQuestions(listing2.id, [q.id]);
+      await listingQuestions.setIds(listing1.id, [q.id]);
+      await listingQuestions.setIds(listing2.id, [q.id]);
 
-      const ids = await getQuestionListingIds(q.id);
+      const ids = await questionListings.getIds(q.id);
       expect(ids.sort()).toEqual([listing1.id, listing2.id].sort());
     });
 
     test("returns empty array when assigned to no listings", async () => {
       const q = await createQuestion("Lonely Q");
-      expect(await getQuestionListingIds(q.id)).toEqual([]);
+      expect(await questionListings.getIds(q.id)).toEqual([]);
     });
   });
-  describe("setQuestionListings", () => {
+  describe("questionListings.setIds", () => {
     /** A question already assigned to both listings — the shared starting
      *  point for the assign/unassign tests below. */
     const seedQuestionAssignedToTwoListings = async () => {
       const q = await createQuestion("Q");
       const listing1 = await createTestListing();
       const listing2 = await createTestListing({ name: "Listing 2" });
-      await setQuestionListings(q.id, [listing1.id, listing2.id]);
+      await questionListings.setIds(q.id, [listing1.id, listing2.id]);
       return { listing1, listing2, q };
+    };
+
+    const seedQuestionAssignedToListing = async () => {
+      const q = await createQuestion("Q");
+      const listing = await createTestListing();
+      await questionListings.setIds(q.id, [listing.id]);
+      return { listing, q };
     };
 
     test("assigns a question to the selected listings", async () => {
       const { listing1, listing2, q } =
         await seedQuestionAssignedToTwoListings();
 
-      expect((await getQuestionListingIds(q.id)).sort()).toEqual(
+      expect((await questionListings.getIds(q.id)).sort()).toEqual(
         [listing1.id, listing2.id].sort(),
       );
     });
@@ -147,9 +161,9 @@ describeWithEnv("custom questions", { db: true }, () => {
     test("removes the question from unchecked listings", async () => {
       const { listing1, q } = await seedQuestionAssignedToTwoListings();
 
-      await setQuestionListings(q.id, [listing1.id]);
+      await questionListings.setIds(q.id, [listing1.id]);
 
-      expect(await getQuestionListingIds(q.id)).toEqual([listing1.id]);
+      expect(await questionListings.getIds(q.id)).toEqual([listing1.id]);
     });
 
     test("lists a listing's assigned questions in the global question order", async () => {
@@ -157,49 +171,45 @@ describeWithEnv("custom questions", { db: true }, () => {
       const added = await createQuestionWithAnswers("Added", ["B"]);
 
       const listing = await createTestListing();
-      await setListingQuestions(listing.id, [existing.id]);
+      await listingQuestions.setIds(listing.id, [existing.id]);
 
-      await setQuestionListings(added.id, [listing.id]);
+      await questionListings.setIds(added.id, [listing.id]);
 
       const ids = await getListingQuestionIds(listing.id);
       expect(ids).toEqual([existing.id, added.id]);
     });
 
     test("does nothing when the assignment is unchanged", async () => {
-      const q = await createQuestion("Q");
-      const listing = await createTestListing();
-      await setQuestionListings(q.id, [listing.id]);
+      const { listing, q } = await seedQuestionAssignedToListing();
 
-      await setQuestionListings(q.id, [listing.id]);
+      await questionListings.setIds(q.id, [listing.id]);
 
-      expect(await getQuestionListingIds(q.id)).toEqual([listing.id]);
+      expect(await questionListings.getIds(q.id)).toEqual([listing.id]);
     });
 
     test("clears all listings when given an empty list", async () => {
-      const q = await createQuestion("Q");
-      const listing = await createTestListing();
-      await setQuestionListings(q.id, [listing.id]);
+      const { q } = await seedQuestionAssignedToListing();
 
-      await setQuestionListings(q.id, []);
+      await questionListings.setIds(q.id, []);
 
-      expect(await getQuestionListingIds(q.id)).toEqual([]);
+      expect(await questionListings.getIds(q.id)).toEqual([]);
     });
   });
-  describe("getAllQuestionListingIds", () => {
+  describe("questionListings.getIdsByKeys", () => {
     test("maps each question to its assigned listing ids", async () => {
       const q = await createQuestion("Q");
       const l1 = await createTestListing({ name: "Alpha" });
       const l2 = await createTestListing({ name: "Beta" });
-      await setQuestionListings(q.id, [l1.id, l2.id]);
+      await questionListings.setIds(q.id, [l1.id, l2.id]);
 
-      const map = await getAllQuestionListingIds();
+      const map = await questionListings.getIdsByKeys([q.id]);
       expect(map.get(q.id)!.sort()).toEqual([l1.id, l2.id].sort());
     });
 
-    test("omits questions assigned to no listings", async () => {
+    test("seeds an empty list for questions with no listings", async () => {
       const q = await createQuestion("Lonely");
-      const map = await getAllQuestionListingIds();
-      expect(map.has(q.id)).toBe(false);
+      const map = await questionListings.getIdsByKeys([q.id]);
+      expect(map.get(q.id)).toEqual([]);
     });
   });
 });

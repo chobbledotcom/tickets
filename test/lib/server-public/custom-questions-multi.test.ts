@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
-import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import {
   expectAttendeeCounts,
@@ -49,7 +49,7 @@ describeWithEnv(
           text: "Vegetarian",
         });
         for (const eid of listingIds) {
-          await setListingQuestions(eid, [q.id]);
+          await listingQuestions.setIds(eid, [q.id]);
         }
         return { answer1: a1, answer2: a2, question: q };
       };
@@ -108,7 +108,7 @@ describeWithEnv(
           sortOrder: 0,
           text: "A answer",
         });
-        await setListingQuestions(listing1.id, [q1.id]);
+        await listingQuestions.setIds(listing1.id, [q1.id]);
 
         // Question 2 assigned to listing2 only
         const q2 = await questionsTable.insert({
@@ -120,7 +120,7 @@ describeWithEnv(
           sortOrder: 0,
           text: "B answer",
         });
-        await setListingQuestions(listing2.id, [q2.id]);
+        await listingQuestions.setIds(listing2.id, [q2.id]);
 
         const slug = `${listing1.slug}+${listing2.slug}`;
         const response = await submitMultiTicketForm(slug, {
@@ -161,8 +161,8 @@ describeWithEnv(
           sortOrder: 0,
           text: "Shared answer",
         });
-        await setListingQuestions(listing1.id, [q1.id]);
-        await setListingQuestions(listing2.id, [q1.id]);
+        await listingQuestions.setIds(listing1.id, [q1.id]);
+        await listingQuestions.setIds(listing2.id, [q1.id]);
 
         const slug = `${listing1.slug}+${listing2.slug}`;
         // Only select listing1, skip listing2
@@ -202,7 +202,7 @@ describeWithEnv(
           sortOrder: 0,
           text: "Yes",
         });
-        await setListingQuestions(listing1.id, [q.id]);
+        await listingQuestions.setIds(listing1.id, [q.id]);
 
         // Select only listing2 (no question assigned) - should succeed without answer
         const slug = `${listing1.slug}+${listing2.slug}`;

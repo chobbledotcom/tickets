@@ -23,7 +23,7 @@ import {
 } from "#shared/db/processed-payments.ts";
 import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -185,8 +185,8 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         displayType: "radio",
         text: "Meal choice?",
       });
-      await setListingQuestions(listing1.id, [question.id]);
-      await setListingQuestions(listing2.id, [question.id]);
+      await listingQuestions.setIds(listing1.id, [question.id]);
+      await listingQuestions.setIds(listing2.id, [question.id]);
 
       await deleteListing(listing1.id);
 

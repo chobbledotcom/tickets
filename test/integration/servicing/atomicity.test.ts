@@ -59,9 +59,7 @@ const attachTextAndChoiceQuestions = async (
   const { answersTable, questionsTable } = await import(
     "#shared/db/questions/tables.ts"
   );
-  const { setQuestionListings } = await import(
-    "#shared/db/questions/queries.ts"
-  );
+  const { questionListings } = await import("#shared/db/questions/queries.ts");
   const textQuestion = await questionsTable.insert({
     assignAll: false,
     displayType: "free_text",
@@ -78,7 +76,7 @@ const attachTextAndChoiceQuestions = async (
     text: "Vaillant",
   });
   for (const q of [textQuestion.id, choiceQuestion.id]) {
-    await setQuestionListings(q, [listingId]);
+    await questionListings.setIds(q, [listingId]);
   }
   return {
     choiceAnswerId: choiceAnswer.id,

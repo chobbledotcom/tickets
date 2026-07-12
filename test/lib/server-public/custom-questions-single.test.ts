@@ -8,7 +8,7 @@ import {
   setModifierAnswers,
 } from "#shared/db/modifiers.ts";
 import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
-import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
@@ -43,7 +43,7 @@ describeWithEnv(
           sortOrder: 1,
           text: "Large",
         });
-        await setListingQuestions(listingId, [q.id]);
+        await listingQuestions.setIds(listingId, [q.id]);
         return { answer1: a1, answer2: a2, question: q };
       };
 

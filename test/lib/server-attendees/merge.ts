@@ -3,7 +3,7 @@ import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import type { Answer, Question } from "#shared/db/question-types.ts";
 import { getAttendeeAnswersByQuestion } from "#shared/db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { extractInputValue } from "#test-utils/csrf.ts";
@@ -121,8 +121,8 @@ export const mergePairWithQuestion = async (
       }),
     );
   }
-  await setListingQuestions(listing1.id, [q.id]);
-  if (listing2) await setListingQuestions(listing2.id, [q.id]);
+  await listingQuestions.setIds(listing1.id, [q.id]);
+  if (listing2) await listingQuestions.setIds(listing2.id, [q.id]);
   return {
     a1: answers[0]!,
     a2: answers[1],

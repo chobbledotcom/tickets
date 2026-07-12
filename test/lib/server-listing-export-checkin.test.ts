@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { updateCheckedIn } from "#shared/db/attendees/update.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { setListingQuestions } from "#shared/db/questions/queries.ts";
+import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
@@ -87,7 +87,7 @@ describeWithEnv("server (listing export check-in filter)", { db: true }, () => {
       displayType: "free_text",
       text: "Allergies?",
     });
-    await setListingQuestions(listing.id, [
+    await listingQuestions.setIds(listing.id, [
       question.id,
       choiceQuestion.id,
       unanswered.id,
