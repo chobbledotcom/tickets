@@ -17,7 +17,9 @@ Code must work in both environments. The edge runtime is Deno-based, so developm
 ## Deno Version
 
 This repo pins Deno 2.5.6, the lowest Bunny Edge Scripting runtime version this
-project is expected to run on. Local development should use that version too.
+project is expected to run on. **CI and every authoritative check run on this
+pinned version** — it is the build/production-parity floor, so it is the version
+that decides whether a change is green.
 
 This repo pins Deno with mise:
 
@@ -26,7 +28,36 @@ mise install
 mise exec -- deno --version
 ```
 
-The `.tool-versions` file is kept in sync for asdf-compatible tooling.
+The `.tool-versions` file is kept in sync for asdf-compatible tooling, and it is
+what CI reads (`.github/actions/setup-deno`). Do **not** bump it for local
+convenience — bumping it moves CI and the production-parity floor with it.
+
+### Running a newer Deno locally
+
+You may install a newer Deno alongside the pinned one for a faster inner loop —
+newer releases type-check much faster, and Deno 2.6+ adds the experimental Go
+type checker (`deno check --unstable-tsgo`), which is several times faster again.
+mise can hold both versions, so a quick edit/type-check cycle can use the newer
+one:
+
+```bash
+mise use deno@latest          # writes to a local (git-ignored) mise config
+deno check --unstable-tsgo src/**/*.ts   # fast type-check on the newer Deno
+```
+
+Two things to keep in mind, because a newer Deno's type checker differs from the
+pinned one and can disagree with CI:
+
+- **A newer Deno includes `@types/node` by default and ships a newer
+  TypeScript.** That makes some Node globals resolve differently — most
+  notably `setTimeout` returns a `Timeout` object, not a `number`. Type timer
+  handles as `ReturnType<typeof setTimeout>` (not `number`) so the code checks
+  clean on both versions. See `scripts/process.ts` for the pattern.
+- **The pinned 2.5.6 is the authority.** Before finishing, always run the full
+  gate on the pinned version — `mise exec deno@2.5.6 -- deno task precommit` —
+  since only that mirrors CI. The newer Deno is for speed while you iterate, not
+  for deciding pass/fail. The full parallel test suite in particular is only
+  known-good on the pinned version; run `deno task test` under 2.5.6.
 
 ## stripe-mock
 

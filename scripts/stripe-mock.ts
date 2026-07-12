@@ -93,7 +93,9 @@ const raceWithDelay = async <T>(
   delayMs: number,
   delayedValue: () => T,
 ): Promise<T> => {
-  let timeout = 0;
+  // Typed via ReturnType so it works on both the pinned runtime (number) and
+  // newer Deno, where node types make setTimeout return a Timeout object.
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   const delayed = new Promise<T>((resolve) => {
     timeout = setTimeout(() => resolve(delayedValue()), delayMs);
   });

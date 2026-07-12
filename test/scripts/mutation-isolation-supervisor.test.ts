@@ -130,7 +130,9 @@ const withCapturedStopChild = async (
   await run(() => stopChild);
 };
 
-type KillCall = { pid: number; signal: Deno.Signal | undefined };
+// Newer Deno widens Deno.kill's signal parameter to also accept integer
+// signals, so the recorded signal can be a number on those runtimes.
+type KillCall = { pid: number; signal: number | Deno.Signal | undefined };
 type DenoCommandShim = { Command: (...args: unknown[]) => unknown };
 
 const denoCommand = Deno as unknown as DenoCommandShim;

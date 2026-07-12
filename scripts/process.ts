@@ -4,7 +4,9 @@ const beforeTimeout = async (
   status: Promise<unknown>,
   timeoutMs: number,
 ): Promise<boolean> => {
-  let timeout = 0;
+  // Typed via ReturnType so it works on both the pinned runtime (number) and
+  // newer Deno, where node types make setTimeout return a Timeout object.
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   const delayed = new Promise<boolean>((resolve) => {
     timeout = setTimeout(() => resolve(false), timeoutMs);
   });
