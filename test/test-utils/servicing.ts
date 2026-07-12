@@ -435,6 +435,10 @@ export const expectRejects = async (
   }
   expect(resolved, "expected promise to reject, but it resolved").toBe(false);
   if (pattern !== undefined) {
+    // The rejection reason is `unknown`; confirm it's a real Error before
+    // reading `.message`, so a non-Error rejection fails here (naming the
+    // wrong shape) rather than throwing while evaluating the assertion.
+    expect(error).toBeInstanceOf(Error);
     const message = (error as Error).message;
     // A string asserts the exact message; a RegExp matches (for partial/shape).
     if (typeof pattern === "string") {

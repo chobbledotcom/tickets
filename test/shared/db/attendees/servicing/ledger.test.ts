@@ -61,6 +61,20 @@ const SERVICE_DATE = "2026-07-01T00:00:00.000Z";
 const transfersOfKind = async (kind: string) =>
   (await allTransfers()).filter((t) => t.kind === kind);
 
+/** Assert the redirect carries a real, non-empty flash message of the given
+ *  level. `toBeDefined()` would let `null`/`""` slip through — a flash-less
+ *  redirect must fail this. Curried so the error and success checks share one
+ *  body. */
+const expectFlashMessage =
+  (level: "error" | "success") =>
+  (response: Response): void => {
+    const message = parseFlashCookie(response)[level];
+    expect(message).toEqual(expect.any(String));
+    expect(message).not.toBe("");
+  };
+const expectFlashError = expectFlashMessage("error");
+const expectFlashSuccess = expectFlashMessage("success");
+
 const listingProfitOf = async (listingId: number): Promise<number> => {
   const { getListingWithCount, invalidateListingsCache } = await import(
     "#shared/db/listings.ts"
@@ -104,7 +118,7 @@ const expectCostFormError = async (
   expect(response.headers.get("location")).toContain(
     `/admin/servicing/${servicingId}`,
   );
-  expect(parseFlashCookie(response).error).toBeDefined();
+  expectFlashError(response);
   expect((await allTransfers()).length).toBe(before);
 };
 
@@ -258,7 +272,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     expect(retried.status).toBe(302);
     // The retry is a success flash, NOT a COST_REPLAY_MISMATCH error.
     expect(parseFlashCookie(retried).error).toBeUndefined();
-    expect(parseFlashCookie(retried).success).toBeDefined();
+    expectFlashSuccess(retried);
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(1);
     expect(await listingCostOf(listing.id)).toBe(9000);
     // A separate submission (a different key) posts a second, independent cost.
@@ -290,7 +304,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     // The distinguishing signal from the old false-success: the second submit
     // carries an ERROR flash, not a "Recorded cost 50.00" success flash.
     expect(parseFlashCookie(changed).success).toBeUndefined();
-    expect(parseFlashCookie(changed).error).toBeDefined();
+    expectFlashError(changed);
     const { getServicingCosts } = await import(
       "#shared/db/attendees/servicing.ts"
     );
@@ -317,7 +331,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     // Rejected with an error flash, not a false success (a flash-less redirect
     // would also leave success undefined, so assert the error is set too).
     expect(parseFlashCookie(changed).success).toBeUndefined();
-    expect(parseFlashCookie(changed).error).toBeDefined();
+    expectFlashError(changed);
     // Still exactly one cost, and the stored memo is the original — the edit was
     // rejected, not silently swallowed.
     const { getServicingCosts } = await import(
@@ -670,9 +684,12 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
     );
     expect(rows).toHaveLength(1);
     for (const r of rows) {
-      const raw = r.memo ?? "";
-      // Stored (encrypted), non-blank, and neither the PII substring nor the
-      // full operator-entered memo appears in plaintext.
+      // The memo column is a stored (encrypted) string, never NULL — assert
+      // that shape directly rather than defaulting a missing value away.
+      const raw = r.memo;
+      expect(raw).toEqual(expect.any(String));
+      // Non-blank, and neither the PII substring nor the full
+      // operator-entered memo appears in plaintext.
       expect(raw).not.toBe("");
       expect(raw).not.toContain("07700 900000");
       expect(raw).not.toContain("Plumber Dave");
