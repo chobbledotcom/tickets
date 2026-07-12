@@ -240,7 +240,9 @@ export const adminQuestionPage = (
         <p>
           <em>
             Free-text questions collect a typed answer, so they have no answer
-            options to manage.
+            options to manage — and can't change the price, because a price
+            modifier attaches to a chosen answer, which a typed answer has none
+            of.
           </em>
         </p>
       ) : (
