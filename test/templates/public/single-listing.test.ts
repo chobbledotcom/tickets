@@ -15,9 +15,9 @@ import {
   registerPublicTemplateHooks,
 } from "./helpers.ts";
 
-registerPublicTemplateHooks();
-
 describe("ticketPage (single listing)", () => {
+  registerPublicTemplateHooks();
+
   const listing = testListingWithCount({ attendee_count: 50 });
   const renderTicket = (
     ev: ListingWithCount,

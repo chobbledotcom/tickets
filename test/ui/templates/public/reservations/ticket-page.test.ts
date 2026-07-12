@@ -14,8 +14,6 @@ import {
   ticketListing,
 } from "#test/templates/public/helpers.ts";
 
-registerPublicTemplateHooks();
-
 const attributeWithOptions = (
   id: number,
   name: string,
@@ -28,6 +26,8 @@ const attributeWithOptions = (
 });
 
 describe("ticketPage — packages", () => {
+  registerPublicTemplateHooks();
+
   test("shows all sold out message when every listing is sold out", () => {
     const listings = [
       ticketListing({

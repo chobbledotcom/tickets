@@ -1,15 +1,15 @@
 /**
  * Internationalization module using ICU MessageFormat
  *
- * Provides request-scoped locale detection and message formatting.
- * Uses AsyncLocalStorage to avoid threading locale through every function.
+ * Provides request-scoped locale detection and message formatting: the locale
+ * rides the request scope instead of being threaded through every function.
  */
 
-import { AsyncLocalStorage } from "node:async_hooks";
 import { IntlMessageFormat } from "intl-messageformat";
 import { lazyRef } from "#fp";
 import en from "#locales/en/index.ts";
 import { getEnv } from "#shared/env.ts";
+import { createScopedValue } from "#shared/request-scoped.ts";
 
 /** Message map: flat dot-namespaced keys → ICU message strings */
 type Messages = Record<string, string>;
@@ -208,16 +208,16 @@ export const t = (key: string, values?: Record<string, unknown>): string => {
     : String(resolved.format(values));
 };
 
-// --- Request-scoped locale via AsyncLocalStorage ---
+// --- Request-scoped locale ---
 
-const localeStore = new AsyncLocalStorage<string>();
+const requestLocale = createScopedValue(() => "en");
 
 /** Run a function with a specific locale in scope */
 export const runWithLocale = <T>(locale: string, fn: () => T): T =>
-  localeStore.run(locale, fn);
+  requestLocale.run(locale, fn);
 
 /** Get the current request's locale (defaults to "en") */
-export const getLocale = (): string => localeStore.getStore() ?? "en";
+export const getLocale = (): string => requestLocale.read();
 
 /**
  * Parse the Accept-Language header and return the best matching registered locale.

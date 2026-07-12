@@ -11,6 +11,7 @@
  */
 
 import { join } from "node:path";
+import { TEST_STATE_DIR_ENV } from "../test/test-utils/test-state-env.ts";
 import {
   buildStaticAssets,
   STATIC_ASSET_OUTFILES,
@@ -119,6 +120,7 @@ export const runTests = async (
   extraArgs: string[],
   useCoverage: boolean,
   junitPath?: string,
+  estimateFrom?: string[],
 ): Promise<number> => {
   const env = {
     ...Deno.env.toObject(),
@@ -128,7 +130,10 @@ export const runTests = async (
   if (useCoverage) await removeOldCoverageOutput();
 
   if (!hasReporterArg(extraArgs)) {
-    const estimatedTotal = await estimateTapEventCount(projectRoot, extraArgs);
+    const estimatedTotal = await estimateTapEventCount(
+      projectRoot,
+      estimateFrom ?? extraArgs,
+    );
     return await runCompactDenoTest(
       buildDenoTestArgs(extraArgs, useCoverage, "tap", junitPath),
       {
@@ -153,10 +158,42 @@ export const runTests = async (
 };
 
 /**
+ * Build the run-wide test state (golden DB + captured setup ceremony) that
+ * every test isolate seeds itself from instead of rebuilding — see
+ * test/test-utils/test-state.ts. Returns a cleanup function. When the env var
+ * is already set (a nested harness, e.g. a mutation run's child), the existing
+ * state is reused and left in place. The import is dynamic so the harness only
+ * loads the app graph when it actually builds state.
+ */
+const setupTestState = async (): Promise<() => Promise<void>> => {
+  if (Deno.env.get(TEST_STATE_DIR_ENV)) return async () => {};
+  const { writeTestState } = await import("../test/test-utils/test-state.ts");
+
+  const dir = await Deno.makeTempDir({ prefix: "tickets-test-state-" });
+  try {
+    await writeTestState(dir);
+  } catch (error) {
+    // Don't leave a half-built state dir behind. The build failure is the
+    // error worth surfacing, so this removal is best-effort by design.
+    await Deno.remove(dir, { recursive: true }).catch(() => {});
+    throw error;
+  }
+  Deno.env.set(TEST_STATE_DIR_ENV, dir);
+  harnessLog("test state prebuilt in", dir);
+  return async () => {
+    Deno.env.delete(TEST_STATE_DIR_ENV);
+    // Only an already-gone dir is expected; anything else (e.g. permissions)
+    // must surface rather than silently leave run state on disk.
+    await Deno.remove(dir, { recursive: true }).catch(rethrowUnlessNotFound);
+  };
+};
+
+/**
  * Run `task` with the full test environment in place: built static assets, a
- * running stripe-mock, and STRIPE_MOCK_HOST/PORT exported. Afterwards the mock
- * is stopped and any freshly generated static assets are removed, leaving the
- * working tree as it was found even if `task` throws.
+ * running stripe-mock with STRIPE_MOCK_HOST/PORT exported, and the run-wide
+ * prebuilt test state exported as TICKETS_TEST_STATE_DIR. Afterwards the mock
+ * is stopped and any freshly generated static assets and prebuilt state are
+ * removed, leaving the working tree as it was found even if `task` throws.
  */
 export const withTestHarness = async <T>(
   task: () => Promise<T>,
@@ -164,6 +201,7 @@ export const withTestHarness = async <T>(
   const cleanupStaticAssets = await setupStaticAssets();
   let stripeMockProcess: Awaited<ReturnType<typeof startStripeMock>> | null =
     null;
+  let cleanupTestState: (() => Promise<void>) | null = null;
 
   try {
     stripeMockProcess = await startStripeMock();
@@ -171,12 +209,14 @@ export const withTestHarness = async <T>(
     harnessLog("stripe-mock running on port", mockEnv.STRIPE_MOCK_PORT);
     Deno.env.set("STRIPE_MOCK_HOST", mockEnv.STRIPE_MOCK_HOST);
     Deno.env.set("STRIPE_MOCK_PORT", mockEnv.STRIPE_MOCK_PORT);
+    cleanupTestState = await setupTestState();
     return await task();
   } finally {
     if (stripeMockProcess) {
       harnessLog("Stopping stripe-mock...");
       await stripeMockProcess.stop();
     }
+    if (cleanupTestState) await cleanupTestState();
     await cleanupStaticAssets();
   }
 };
@@ -186,6 +226,11 @@ export const withTestHarness = async <T>(
  * the shared JUnit path. Any stale JUnit file is removed first so a killed prior
  * run can't surface its timings; `deno test --junit-path` rewrites it on a
  * completed run.
+ *
+ * Test files are grouped into shared isolates (see scripts/test-groups.ts) so
+ * the app module graph is evaluated once per group instead of once per file.
+ * Set TICKETS_TEST_UNGROUPED=1 to run every file in its own isolate — useful
+ * to rule grouping out when chasing a state leak between test files.
  */
 export const runSuiteWithHarness = async (
   useCoverage: boolean,
@@ -193,5 +238,21 @@ export const runSuiteWithHarness = async (
   // Only a missing file is expected here; a real removal failure (e.g.
   // permissions) must surface rather than leave a stale JUnit file behind.
   await Deno.remove(JUNIT_PATH).catch(rethrowUnlessNotFound);
-  return withTestHarness(() => runTests(["test/"], useCoverage, JUNIT_PATH));
+  return withTestHarness(async () => {
+    if (Deno.env.get("TICKETS_TEST_UNGROUPED") === "1") {
+      return runTests(["test/"], useCoverage, JUNIT_PATH);
+    }
+    const { writeTestGroups } = await import("./test-groups.ts");
+    const groups = await writeTestGroups(projectRoot);
+    try {
+      return await runTests(
+        groups.runArgs,
+        useCoverage,
+        JUNIT_PATH,
+        groups.testFiles,
+      );
+    } finally {
+      await groups.cleanup();
+    }
+  });
 };

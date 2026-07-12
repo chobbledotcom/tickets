@@ -4,9 +4,9 @@ import { ticketViewPage } from "#templates/tickets.tsx";
 import { registerPublicTemplateHooks } from "#test/templates/public/helpers.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
-registerPublicTemplateHooks();
-
 describe("ticketViewPage listing date and location", () => {
+  registerPublicTemplateHooks();
+
   const token = "AABB0011CCDDEEFF";
 
   /** Render the ticket-view page for a single purchase-only listing. */

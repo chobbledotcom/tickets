@@ -23,7 +23,7 @@ import {
   markCurrentSchemaMigrationPending,
   markMigrationsForRerun,
 } from "#test/lib/db/migration-test-helpers.ts";
-import { describeWithEnv, invalidateTestDbCache } from "#test-utils/db.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import {
   assertSchemaEmpty,
   schemaMarkerKeys,
@@ -32,6 +32,7 @@ import {
 } from "#test-utils/migrations.ts";
 import { stubNtfyFetch } from "#test-utils/mocks.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
+import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 
 const MIGRATIONS = await loadMigrations();
 describeWithEnv("db > migrations", { db: true }, () => {

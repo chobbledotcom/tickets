@@ -11,12 +11,12 @@ import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
 import { registerPublicTemplateHooks, ticketListing } from "./helpers.ts";
 
-registerPublicTemplateHooks();
-
 describeWithEnv(
   "listing images",
   { env: { STORAGE_ZONE_KEY: "testkey", STORAGE_ZONE_NAME: "testzone" } },
   () => {
+    registerPublicTemplateHooks();
+
     describe("renderListingImage", () => {
       test("returns empty string when image_url is empty", () => {
         const html = renderListingImage({ image_thumb_url: "", image_url: "" });

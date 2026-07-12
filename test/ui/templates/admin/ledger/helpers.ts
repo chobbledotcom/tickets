@@ -1,4 +1,3 @@
-import { beforeAll } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import {
@@ -71,7 +70,12 @@ export const ledgerRows = (html: string): string[] => {
   return html.slice(start, end).split("<tr>");
 };
 
-beforeAll(async () => {
+/** Establish the crypto every ledger-page render needs (the encryption key
+ * and a signed CSRF token). Each ledger test file calls this from its own
+ * suite's beforeAll — a module-level hook here would be a *global* hook, which
+ * cannot be registered once any other module's tests exist (files share an
+ * isolate under the grouped runner). */
+export const setUpLedgerPageCrypto = async (): Promise<void> => {
   setupTestEncryptionKey();
   await signCsrfToken();
-});
+};

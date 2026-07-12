@@ -7,7 +7,6 @@
  * - Request IDs: each request gets a 4-char random ID prefix for log correlation
  */
 
-import { AsyncLocalStorage } from "node:async_hooks";
 import { errorMessage } from "#shared/error-message.ts";
 import {
   makeSuppressibleLogFlag,
@@ -19,10 +18,11 @@ import {
   hasPendingWorkScope,
   runWithPendingWork,
 } from "#shared/pending-work.ts";
+import { createScopedValue, type ScopeRunner } from "#shared/request-scoped.ts";
 import { captureServerError } from "#shared/sentry.ts";
 
-/** Request-scoped random ID for correlating log entries */
-const requestIdStorage = new AsyncLocalStorage<string>();
+/** Request-scoped random ID for correlating log entries ("" outside a request). */
+const requestId = createScopedValue(() => "");
 
 /**
  * Module-level override for request log suppression.
@@ -47,16 +47,16 @@ const generateRequestId = (): string => {
 
 /** Get the current request ID prefix, or empty string if outside request context */
 const getLogPrefix = (): string => {
-  const id = requestIdStorage.getStore();
+  const id = requestId.read();
   return id ? `[${id}] ` : "";
 };
 
 /** Get the current request ID, or empty string if outside request context */
-export const getRequestId = (): string => requestIdStorage.getStore() ?? "";
+export const getRequestId = (): string => requestId.read();
 
 /** Run a function with a request-scoped random ID for log correlation */
-export const runWithRequestId = <T>(fn: () => T): T =>
-  requestIdStorage.run(generateRequestId(), () => runWithPendingWork(fn));
+export const runWithRequestId: ScopeRunner = (fn) =>
+  requestId.run(generateRequestId(), () => runWithPendingWork(fn));
 
 /**
  * Error code definitions: each key maps to [wire code, human-readable label].

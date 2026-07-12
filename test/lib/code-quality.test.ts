@@ -232,8 +232,6 @@ const ALLOWED_TEST_HOOKS: string[] = [
   // deliveries.ts uses); the scan can't see same-file usage, but the
   // authorization matrix test asserts it admits exactly its admin levels.
   "features/auth.ts:requireDeliveryOr",
-  // Reset cache registry between tests
-  "shared/cache-registry.ts:resetCacheRegistry",
   // Reset cached effective domain between tests
   "shared/config.ts:resetEffectiveDomain",
   "shared/config.ts:setEffectiveDomainForTest",

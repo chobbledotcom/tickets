@@ -5,7 +5,6 @@ import { expectStatus } from "#test-utils/assertions.ts";
 import {
   createTestDb,
   createTestDbWithSetup,
-  invalidateTestDbCache,
   resetDb,
 } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -33,6 +32,7 @@ import {
 } from "#test-utils/mocks.ts";
 import { withRandomBytes } from "#test-utils/random.ts";
 import { loginAsAdmin } from "#test-utils/session.ts";
+import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 import { expectInvalidForm } from "#test-utils/validation.ts";
 
 describe("test-utils — error paths & contracts", () => {

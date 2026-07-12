@@ -207,9 +207,9 @@ describe("saved form data", () => {
     expect(getSavedFormData()).toBeNull();
   });
 
-  test("saved data set inside a scope stays within that scope", () => {
+  test("saved data set inside a scope stays within that scope", async () => {
     const scopedForm = new FormParams("name=Scoped");
-    const inside = runWithSavedFormContext(() => {
+    const inside = await runWithSavedFormContext(async () => {
       setSavedFormData(scopedForm);
       return getSavedFormData();
     });

@@ -391,7 +391,8 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
   });
 
   describe("routes/utils.ts (redirect)", () => {
-    const withRequestContext = <T>(fn: () => T): T => runWithRequestId(fn);
+    const withRequestContext = <T>(fn: () => T): Promise<T> =>
+      runWithRequestId(async () => fn());
 
     const createFlashRedirect = () => {
       const response = redirect("/admin/settings", "Saved", true);

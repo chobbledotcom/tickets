@@ -519,7 +519,10 @@ export const printCompactSummary = (
     }
   }
 
-  if (extra && (!summary.sawTap || summary.failures.length === 0)) {
+  // Always surface stderr on a failing run: an uncaught error in a test
+  // module (which aborts that module's remaining tests) is only reported
+  // here, even when unrelated test failures were also counted.
+  if (extra) {
     console.error("\nDeno output:");
     console.error(extra);
   }

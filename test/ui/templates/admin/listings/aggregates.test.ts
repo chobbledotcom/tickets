@@ -11,8 +11,6 @@ import {
 } from "#test/templates/admin/listings/helpers.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
-registerListingTemplateHooks();
-
 /** booked_quantity mismatches (9 vs 4), tickets_count matches (5 vs 5). */
 const oneMismatch = {
   booked_quantity: { current: 9, recalculated: 4 },
@@ -20,6 +18,8 @@ const oneMismatch = {
 };
 
 describe("adminListingRecalculatePage", () => {
+  registerListingTemplateHooks();
+
   test("shows current and attendee-derived totals with checkboxes", () => {
     const listing = testListingWithCount({ name: "Workshop" });
     const html = adminListingRecalculatePage(
@@ -45,6 +45,8 @@ describe("adminListingRecalculatePage", () => {
 });
 
 describe("ListingAggregateMismatchNotice", () => {
+  registerListingTemplateHooks();
+
   test("renders only the mismatched field with the error copy", () => {
     const html = ListingAggregateMismatchNotice({
       actionHref: "/admin/listings/recalculate/1",
@@ -90,6 +92,8 @@ describe("ListingAggregateMismatchNotice", () => {
 });
 
 describe("ListingAggregateMismatchRow", () => {
+  registerListingTemplateHooks();
+
   const listing = testListingWithCount({ name: "Workshop" });
 
   test("wraps the mismatch notice in a labelled table row", () => {

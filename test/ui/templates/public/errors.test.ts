@@ -13,9 +13,9 @@ import {
 import { registerPublicTemplateHooks } from "#test/templates/public/helpers.ts";
 import { setTestEnv } from "#test-utils/env.ts";
 
-registerPublicTemplateHooks();
-
 describe("notFoundPage", () => {
+  registerPublicTemplateHooks();
+
   test("renders not found message", () => {
     const html = notFoundPage();
     expect(html).toContain("<h1>Not Found</h1>");
@@ -23,6 +23,8 @@ describe("notFoundPage", () => {
 });
 
 describe("temporaryErrorPage", () => {
+  registerPublicTemplateHooks();
+
   test("renders error message with auto-refresh", () => {
     const html = temporaryErrorPage();
     expect(html).toContain("<h1>Temporary Error</h1>");
@@ -39,6 +41,8 @@ describe("temporaryErrorPage", () => {
 });
 
 describe("qrBookErrorPage", () => {
+  registerPublicTemplateHooks();
+
   test("offers the normal booking page when the listing has a slug", () => {
     const html = qrBookErrorPage("summer-fete");
     expect(html).toContain("<h1>QR code expired or invalid</h1>");
@@ -57,6 +61,8 @@ describe("qrBookErrorPage", () => {
 });
 
 describe("rateLimitedPage", () => {
+  registerPublicTemplateHooks();
+
   test("renders the too-many-requests message", () => {
     const html = rateLimitedPage();
     expect(html).toContain("<h1>Too Many Requests</h1>");
@@ -65,6 +71,8 @@ describe("rateLimitedPage", () => {
 });
 
 describe("databaseBusyPage", () => {
+  registerPublicTemplateHooks();
+
   test("auto-refreshes and reassures when the method is idempotent", () => {
     const html = databaseBusyPage(true);
     expect(html).toContain("<h1>The database is too busy.</h1>");
@@ -85,6 +93,8 @@ describe("databaseBusyPage", () => {
 });
 
 describe("readOnlyPage", () => {
+  registerPublicTemplateHooks();
+
   // Set RENEWAL_URL through the worker-local overlay (not the shared process
   // env, which parallel test files read) and restore it afterwards.
   const withRenewalUrl = (value: string | undefined, run: () => void): void => {
@@ -116,6 +126,8 @@ describe("readOnlyPage", () => {
 });
 
 describe("migrationInProgressPage", () => {
+  registerPublicTemplateHooks();
+
   test("renders update message with auto-refresh", () => {
     const html = migrationInProgressPage();
     expect(html).toContain("<h1>Update In Progress</h1>");
@@ -133,6 +145,8 @@ describe("migrationInProgressPage", () => {
 });
 
 describe("siteNotActivatedPage", () => {
+  registerPublicTemplateHooks();
+
   test("renders not-activated message in the error dialog style", () => {
     const html = siteNotActivatedPage();
     expect(html).toContain(

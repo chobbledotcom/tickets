@@ -25,14 +25,14 @@ import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 
 describe("query-log", () => {
   describe("enableQueryLog", () => {
-    test("starts disabled", () => {
-      runWithQueryLogContext(() => {
+    test("starts disabled", async () => {
+      await runWithQueryLogContext(async () => {
         expect(isQueryLogEnabled()).toBe(false);
       });
     });
 
-    test("enableQueryLog enables tracking", () => {
-      runWithQueryLogContext(() => {
+    test("enableQueryLog enables tracking", async () => {
+      await runWithQueryLogContext(async () => {
         enableQueryLog();
         expect(isQueryLogEnabled()).toBe(true);
       });
@@ -40,8 +40,8 @@ describe("query-log", () => {
   });
 
   describe("addQueryLogEntry", () => {
-    test("records entries when enabled", () => {
-      runWithQueryLogContext(() => {
+    test("records entries when enabled", async () => {
+      await runWithQueryLogContext(async () => {
         enableQueryLog();
         addQueryLogEntry("SELECT 1", 1.5, 100);
         addQueryLogEntry("SELECT 2", 2.3, 200);
@@ -54,16 +54,16 @@ describe("query-log", () => {
       });
     });
 
-    test("records the query start time for wall-clock math", () => {
-      runWithQueryLogContext(() => {
+    test("records the query start time for wall-clock math", async () => {
+      await runWithQueryLogContext(async () => {
         enableQueryLog();
         addQueryLogEntry("SELECT 1", 1.5, 100);
         expect(getQueryLog()[0]!.startedAtMs).toBe(100);
       });
     });
 
-    test("ignores entries when disabled", () => {
-      runWithQueryLogContext(() => {
+    test("ignores entries when disabled", async () => {
+      await runWithQueryLogContext(async () => {
         addQueryLogEntry("SELECT 1", 1.0, 0);
         expect(getQueryLog()).toHaveLength(0);
       });
@@ -71,8 +71,8 @@ describe("query-log", () => {
   });
 
   describe("enableQueryLog resets previous entries", () => {
-    test("clears log on enable", () => {
-      runWithQueryLogContext(() => {
+    test("clears log on enable", async () => {
+      await runWithQueryLogContext(async () => {
         enableQueryLog();
         addQueryLogEntry("SELECT old", 1.0, 0);
         expect(getQueryLog()).toHaveLength(1);
@@ -84,8 +84,8 @@ describe("query-log", () => {
   });
 
   describe("getQueryLog returns a snapshot", () => {
-    test("returned array is independent of internal state", () => {
-      runWithQueryLogContext(() => {
+    test("returned array is independent of internal state", async () => {
+      await runWithQueryLogContext(async () => {
         enableQueryLog();
         addQueryLogEntry("SELECT 1", 1.0, 0);
         const snapshot = getQueryLog();
@@ -143,14 +143,14 @@ describe("query-log", () => {
   });
 
   describe("getQueryLogStartTime", () => {
-    test("returns 0 before logging is enabled", () => {
-      runWithQueryLogContext(() => {
+    test("returns 0 before logging is enabled", async () => {
+      await runWithQueryLogContext(async () => {
         expect(getQueryLogStartTime()).toBe(0);
       });
     });
 
-    test("records start time when enableQueryLog is called", () => {
-      runWithQueryLogContext(() => {
+    test("records start time when enableQueryLog is called", async () => {
+      await runWithQueryLogContext(async () => {
         const before = performance.now();
         enableQueryLog();
         const after = performance.now();
@@ -160,8 +160,8 @@ describe("query-log", () => {
       });
     });
 
-    test("resets start time on subsequent enableQueryLog calls", () => {
-      runWithQueryLogContext(() => {
+    test("resets start time on subsequent enableQueryLog calls", async () => {
+      await runWithQueryLogContext(async () => {
         enableQueryLog();
         const first = getQueryLogStartTime();
         enableQueryLog();
@@ -170,11 +170,11 @@ describe("query-log", () => {
       });
     });
 
-    test("each enable assigns the fresh clock value, never accumulates it", () => {
+    test("each enable assigns the fresh clock value, never accumulates it", async () => {
       // Stubbing the clock pins the exact value the second enable must store:
       // a re-assignment yields 2000, whereas an accumulating `+=` would carry
       // the first reading forward to 3000.
-      runWithQueryLogContext(() => {
+      await runWithQueryLogContext(async () => {
         const nowStub = stub(performance, "now", returnsNext([1000, 2000]));
         try {
           enableQueryLog();
@@ -189,10 +189,10 @@ describe("query-log", () => {
   });
 
   describe("footer debug visibility", () => {
-    test("is hidden by default and shown only after enableFooterDebug", () => {
+    test("is hidden by default and shown only after enableFooterDebug", async () => {
       // A fresh request context must not expose the staff-only debug footer
       // (default `false`); enabling it flips the flag to exactly `true`.
-      runWithQueryLogContext(() => {
+      await runWithQueryLogContext(async () => {
         expect(isFooterDebugEnabled()).toBe(false);
         enableFooterDebug();
         expect(isFooterDebugEnabled()).toBe(true);
@@ -331,6 +331,27 @@ describe("query-log", () => {
       expect(await readSelectOne(N_PLUS_ONE_THRESHOLD + 1)).toBe("ok");
     });
 
+    test("does not count reads that inherit a finished request's context", async () => {
+      // A continuation registered inside a request keeps the request's async
+      // context when it runs later — the runtime can hand that context to work
+      // that starts long after the request finished (observed after a forced
+      // GC at a test boundary). Reads made there must count as "outside a
+      // request", so a dead request's counter can never absorb them and fire.
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let afterRequest!: Promise<unknown>;
+      await runWithQueryLogContext(async () => {
+        afterRequest = (async () => {
+          await gate;
+          return readSelectOne(N_PLUS_ONE_THRESHOLD + 1);
+        })();
+      });
+      release();
+      expect(await afterRequest).toBe("ok"); // must not throw N+1
+    });
+
     test("notify mode reports the violation instead of throwing", async () => {
       const errorSpy = stub(console, "error");
       setN1GuardNotifyOnly(true);
@@ -353,16 +374,16 @@ describe("query-log", () => {
   describe("transaction round-trip guard", () => {
     afterEach(() => setN1GuardNotifyOnly(null));
 
-    test("allows up to the threshold of statements in a transaction", () => {
-      runWithQueryLogContext(() => {
+    test("allows up to the threshold of statements in a transaction", async () => {
+      await runWithQueryLogContext(async () => {
         for (let i = 1; i <= TRANSACTION_ROUNDTRIP_THRESHOLD; i++) {
           enforceTransactionRoundTripGuard(i, "INSERT INTO t VALUES (1)");
         }
       });
     });
 
-    test("throws when a transaction crosses the threshold", () => {
-      runWithQueryLogContext(() => {
+    test("throws when a transaction crosses the threshold", async () => {
+      await runWithQueryLogContext(async () => {
         expect(() =>
           enforceTransactionRoundTripGuard(
             TRANSACTION_ROUNDTRIP_THRESHOLD + 1,
@@ -372,8 +393,8 @@ describe("query-log", () => {
       });
     });
 
-    test("fires once: counts past the crossing point are a no-op", () => {
-      runWithQueryLogContext(() => {
+    test("fires once: counts past the crossing point are a no-op", async () => {
+      await runWithQueryLogContext(async () => {
         expect(() =>
           enforceTransactionRoundTripGuard(
             TRANSACTION_ROUNDTRIP_THRESHOLD + 2,

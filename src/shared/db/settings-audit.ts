@@ -13,8 +13,8 @@
  * immediately — the only hot-path cost is one `getStore()` branch per read.
  */
 
-import { AsyncLocalStorage } from "node:async_hooks";
 import { lazyRef } from "#fp";
+import { createScope } from "#shared/request-scoped.ts";
 
 type AuditState = {
   /** Config keys read via the snapshot/raw cache this request. */
@@ -23,7 +23,7 @@ type AuditState = {
   loaded: Set<string>;
 };
 
-const store = new AsyncLocalStorage<AuditState>();
+const auditScope = createScope<AuditState>();
 
 /** Off in production; the test harness turns it on. */
 const [isAuditEnabled, setAuditEnabled] = lazyRef<boolean>(() => false);
@@ -38,19 +38,19 @@ export const setSettingsAuditEnabled = (value: boolean | null): void =>
  */
 export const runWithSettingsAudit = <T>(fn: () => T): T =>
   isAuditEnabled()
-    ? store.run({ loaded: new Set(), read: new Set() }, fn)
+    ? auditScope.run({ loaded: new Set(), read: new Set() }, fn)
     : fn();
 
 /** Run `use` with the active audit state, if we are inside an audit scope.
- * Outside a scope there is no store, so this does nothing. */
+ * Outside a scope there is no live store, so this does nothing. */
 const withAuditState = (use: (state: AuditState) => void): void => {
-  const state = store.getStore();
+  const state = auditScope.current();
   if (state) use(state);
 };
 
 /** Record a settings read (no-op outside an audit scope). */
 export const recordSettingRead = (configKey: string): void => {
-  store.getStore()?.read.add(configKey);
+  auditScope.current()?.read.add(configKey);
 };
 
 /** Record keys made available this request — loaded or written (no-op outside). */
