@@ -38,6 +38,35 @@
   /* Breakpoint: desktop ≥ 769px, mobile ≤ 768px (use in @media rules) */
 }
 
+@mixin dup-5 {
+  background: var(--color-link);
+  color: var(--color-bg);
+}
+
+@mixin dup-4 {
+  @include panel-border;
+  box-shadow: var(--box-shadow) var(--color-shadow);
+}
+
+@mixin dup-3 {
+  margin-bottom: var(--space-m);
+  padding-bottom: var(--space-s);
+  border-bottom: 1px solid var(--color-bg-secondary);
+}
+
+@mixin dup-2 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-s);
+}
+
+@mixin dup-1 {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
 @mixin stack-tight {
   display: flex;
   flex-direction: column;
@@ -344,8 +373,7 @@ section pre {
 }
 
 section aside {
-  @include panel-border;
-  box-shadow: var(--box-shadow) var(--color-shadow);
+  @include dup-4;
   padding: var(--space-m);
   width: var(--width-card);
 }
@@ -763,8 +791,7 @@ input[type="submit"][disabled]:hover {
 }
 
 form {
-  @include panel-border;
-  box-shadow: var(--box-shadow) var(--color-shadow);
+  @include dup-4;
   @include stack;
   max-width: var(--width-card-wide);
   min-width: var(--width-card);
@@ -795,9 +822,7 @@ form header {
 }
 
 form footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-s);
+  @include dup-2;
   justify-content: flex-start;
 }
 
@@ -963,9 +988,7 @@ textarea[readonly] {
 
 /* Formatting toolbar above the editing surface. */
 .md-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-s);
+  @include dup-2;
   padding: var(--space-s);
   border-bottom: 1px solid var(--color-bg-secondary);
   background: var(--color-bg-secondary);
@@ -988,8 +1011,7 @@ textarea[readonly] {
   border-color: var(--color-link);
 }
 .md-toolbar-button-active {
-  background: var(--color-link);
-  color: var(--color-bg);
+  @include dup-5;
   border-color: var(--color-link);
 }
 .md-toolbar-bold {
@@ -1061,9 +1083,7 @@ textarea[readonly] {
 }
 
 label {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-s);
+  @include dup-2;
   align-items: baseline;
   font-weight: bold;
   font-size: inherit;
@@ -1833,9 +1853,7 @@ label.terms-agree {
   display: block;
   width: 100%;
   margin-top: var(--space-lg);
-  margin-bottom: var(--space-m);
-  padding-bottom: var(--space-s);
-  border-bottom: 1px solid var(--color-bg-secondary);
+  @include dup-3;
   font-weight: bold;
   font-size: 1.05rem;
 }
@@ -1846,9 +1864,7 @@ label.terms-agree {
 
 /* When expanded, the summary reads as a section heading like the legends. */
 .listing-advanced[open] > summary {
-  margin-bottom: var(--space-m);
-  padding-bottom: var(--space-s);
-  border-bottom: 1px solid var(--color-bg-secondary);
+  @include dup-3;
 }
 
 // ---------------------------------------------------------------------------
@@ -2283,8 +2299,7 @@ button.secondary:hover,
   padding: 0;
   list-style: none;
   background: var(--color-bg);
-  @include panel-border;
-  box-shadow: var(--box-shadow) var(--color-shadow);
+  @include dup-4;
 }
 
 .combobox-list [role="option"] {
@@ -2646,8 +2661,7 @@ button.secondary:hover,
   top: 0;
   left: 0;
   padding: 0.5rem 1rem;
-  background: var(--color-link);
-  color: var(--color-bg);
+  @include dup-5;
   font-size: 1rem;
   text-decoration: none;
   z-index: 9999;
@@ -2784,8 +2798,7 @@ span.cal-day {
 .cal-day-selected,
 a.cal-day-selected:hover,
 a.cal-day-selected:active {
-  background: var(--color-link);
-  color: var(--color-bg);
+  @include dup-5;
 }
 
 /* Guide page */
@@ -2827,9 +2840,7 @@ a.cal-day-selected:active {
    No margin or padding; the surrounding flex container supplies vertical gap. */
 .table-action-btns {
   align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-s);
+  @include dup-2;
   margin: 0;
   padding: 0;
 }
@@ -2912,10 +2923,7 @@ a.cal-day-selected:active {
 
 .news-gallery-thumb img {
   display: block;
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  border-radius: 4px;
+  @include dup-1;
   border: 2px solid transparent;
 }
 
@@ -2989,10 +2997,7 @@ a.cal-day-selected:active {
 }
 
 .card-image {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  border-radius: 4px;
+  @include dup-1;
 }
 
 .card-body {
@@ -3320,9 +3325,7 @@ a.cal-day-selected:active {
 
 /* Logistics tab: the latitude/longitude pair sits side by side. */
 .location-inputs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-s);
+  @include dup-2;
 
   label {
     flex: 1;
