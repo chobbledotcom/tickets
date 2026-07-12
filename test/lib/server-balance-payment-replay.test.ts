@@ -95,5 +95,8 @@ describeWithEnv("server (balance payment replay)", { db: true }, () => {
     expect(references.map((reference) => reference.reference)).toContain(
       `pi_${sessionId}`,
     );
+    expect(
+      references.filter(({ reference }) => reference === `pi_${sessionId}`),
+    ).toHaveLength(1);
   });
 });
