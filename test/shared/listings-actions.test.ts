@@ -229,8 +229,6 @@ describeWithEnv("validateListingInput", { db: true }, () => {
   });
 });
 
-const PACKAGE_INCOMPATIBLE = "error.package_incompatible_listing";
-
 describeWithEnv("validateListingInput package membership", { db: true }, () => {
   test("rejects a package group when the listing is a child of another", async () => {
     const parent = await createTestListing({ name: "Edge Parent" });
@@ -238,12 +236,15 @@ describeWithEnv("validateListingInput package membership", { db: true }, () => {
     await listingChildren.setIds(parent.id, [child.id]);
     const pkg = await createTestGroup({ isPackage: true, name: "Edge Pkg" });
 
-    // A package member may never itself be another listing's child.
+    // A package member may never itself be another listing's child, and the
+    // error names the offending listing and that specific reason.
     const error = await validateListingInput(
       inputFor({ groupIds: [pkg.id], name: "Edge Child" }),
       child.id,
     );
-    expect(error).toBe(t(PACKAGE_INCOMPATIBLE));
+    expect(error).toBe(
+      t("error.package_member_is_addon", { name: "Edge Child" }),
+    );
   });
 
   test("rejects a hidden package when the listing gates its own children", async () => {
@@ -262,7 +263,9 @@ describeWithEnv("validateListingInput package membership", { db: true }, () => {
       inputFor({ groupIds: [hidden.id], name: "Gate Parent" }),
       gp.id,
     );
-    expect(error).toBe(t(PACKAGE_INCOMPATIBLE));
+    expect(error).toBe(
+      t("error.package_member_gates_children_hidden", { name: "Gate Parent" }),
+    );
   });
 });
 
