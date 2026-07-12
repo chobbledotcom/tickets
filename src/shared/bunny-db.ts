@@ -6,6 +6,7 @@
  * Auth: AccessKey header (same BUNNY_API_KEY as CDN API)
  */
 
+import * as v from "valibot";
 import { parseBunnyError } from "#shared/bunny-cdn.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
 import { type ApiResult, fetchText } from "#shared/fetch.ts";
@@ -20,14 +21,16 @@ const DB_API_BASE = "https://api.bunny.net/database";
  */
 export const STORAGE_REGION = "eu-west-1";
 
-interface RegionConfig {
-  id: string;
-}
+/** One region Bunny reports it can host a database node in. */
+const RegionConfigSchema = v.object({ id: v.string() });
 
-interface DbConfigResponse {
-  primary_regions: RegionConfig[];
-  replica_regions: RegionConfig[];
-}
+/** The regions Bunny will accept, from GET /database/v1/config. */
+const DbConfigResponseSchema = v.object({
+  primary_regions: v.array(RegionConfigSchema),
+  replica_regions: v.array(RegionConfigSchema),
+});
+
+type RegionConfig = v.InferOutput<typeof RegionConfigSchema>;
 
 interface CreateDbResponse {
   db_id: string;
@@ -78,7 +81,7 @@ const getAllRegions = async (): Promise<
     return parseBunnyError(res, "Get database config");
   }
 
-  const config: DbConfigResponse = JSON.parse(res.text);
+  const config = v.parse(DbConfigResponseSchema, JSON.parse(res.text));
   return {
     ok: true,
     primaryRegions: regionIds(config.primary_regions),

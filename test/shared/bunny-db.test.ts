@@ -11,7 +11,7 @@ import { withMocks } from "#test-utils/mocks.ts";
 /** Bunny's live region config, as returned by GET /database/v1/config. */
 const CONFIG_RESPONSE = {
   primary_regions: [{ id: "DE" }, { id: "UK" }, { id: "NY" }, { id: "SG" }],
-  replica_regions: [{ id: "DE" }, { id: "UK" }, { id: "NY" }, { id: "SG" }],
+  replica_regions: [{ id: "LA" }, { id: "SYD" }, { id: "BR" }, { id: "JH" }],
   storage_region_available: [{ id: "eu-west-1" }, { id: "us-east-1" }],
 };
 
