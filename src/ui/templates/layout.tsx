@@ -9,7 +9,7 @@ import {
   JS_PATH,
 } from "#shared/asset-paths.ts";
 import { settings } from "#shared/db/settings.ts";
-import { DEMO_BANNER, isDemoMode } from "#shared/demo/mode.ts";
+import { demoBanner, isDemoMode } from "#shared/demo/mode.ts";
 import { flashConsumed } from "#shared/flash-context.ts";
 import { requestFlash } from "#shared/forms.tsx";
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
@@ -75,7 +75,7 @@ export const Layout = ({
           <a class="skip-nav" href="#main-content">
             Skip to content
           </a>
-          {isDemoMode() && <Raw html={DEMO_BANNER} />}
+          {isDemoMode() && <Raw html={demoBanner()} />}
           <main id="main-content" tabindex="-1">
             {headerImage && (
               <img

@@ -188,25 +188,30 @@ const feedDiscoveryTag = (
   return `<link ${attributes} />`;
 };
 
-export const RSS_DISCOVERY_TAG = feedDiscoveryTag(
-  "application/rss+xml",
-  "terms.listings",
-  "/feeds/listings.rss",
-);
+/**
+ * Feed-discovery `<link>` tags for the page head — built on demand, not at
+ * module scope. Each calls `t()`, and a module-level `t()` would construct the
+ * isolate's first `IntlMessageFormat` at import time, which loads ~13ms of ICU
+ * locale data. This module is eager (the public layout imports it), so a
+ * module-level `t()` here paid that ICU init on every cold boot — before the
+ * request was even routed. As functions the cost lands only when a page renders,
+ * so requests that render nothing (feeds, webhooks, redirects) never pay it.
+ */
+export const rssDiscoveryTag = (): string =>
+  feedDiscoveryTag(
+    "application/rss+xml",
+    "terms.listings",
+    "/feeds/listings.rss",
+  );
 
-export const NEWS_RSS_DISCOVERY_TAG = feedDiscoveryTag(
-  "application/rss+xml",
-  "nav.public.news",
-  "/feeds/news.rss",
-);
+export const icsDiscoveryTag = (): string =>
+  feedDiscoveryTag("text/calendar", "terms.listings", "/feeds/listings.ics");
 
-export const ICS_DISCOVERY_TAG = feedDiscoveryTag(
-  "text/calendar",
-  "terms.listings",
-  "/feeds/listings.ics",
-);
+const newsRssDiscoveryTag = (): string =>
+  feedDiscoveryTag("application/rss+xml", "nav.public.news", "/feeds/news.rss");
 
-export const FEED_DISCOVERY_TAGS = `${RSS_DISCOVERY_TAG}\n${NEWS_RSS_DISCOVERY_TAG}\n${ICS_DISCOVERY_TAG}`;
+export const feedDiscoveryTags = (): string =>
+  `${rssDiscoveryTag()}\n${newsRssDiscoveryTag()}\n${icsDiscoveryTag()}`;
 
 /** The `<title>` and head extras for an operator-authored page with SEO
  * fields: the title prefers `meta_title` over the display name (suffixed with
@@ -221,7 +226,7 @@ const seoPageHead = (
     ? `\n<meta name="description" content="${escapeHtml(page.meta_description)}" />`
     : "";
   return {
-    headExtra: FEED_DISCOVERY_TAGS + metaTag,
+    headExtra: feedDiscoveryTags() + metaTag,
     title: websiteTitle ? `${base} - ${websiteTitle}` : base,
   };
 };
@@ -290,7 +295,7 @@ export const PackagesSection = ({
 
 /** Curried public-page helper. The homepage, order-gallery, and basic-pages
  *  all open with
- *    String(<Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
+ *    String(<Layout headExtra={feedDiscoveryTags()} title={title}>
  *      {websiteTitle && <h1>{websiteTitle}</h1>}<PublicNav {...nav} />
  *      {body}{showLoginFooter && <LoginFooter />}</Layout>)
  *  — this captures that so they only declare their differences (title, body).
@@ -303,7 +308,7 @@ export const publicPage =
     websiteTitle: string,
     nav: PublicNavProps,
     showLoginFooter = false,
-    headExtra: string = FEED_DISCOVERY_TAGS,
+    headExtra: string = feedDiscoveryTags(),
   ) =>
   (body: Child): string =>
     String(
