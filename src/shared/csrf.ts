@@ -9,12 +9,12 @@
 
 import { t } from "#i18n";
 import { hmacHash } from "#shared/crypto/hashing.ts";
+import { verifySignedValue } from "#shared/crypto/signed-value.ts";
 import {
   base64ToBase64Url,
-  constantTimeEqual,
   generateSecureToken,
 } from "#shared/crypto/utils.ts";
-import { nowMs } from "#shared/now.ts";
+import { nowSeconds } from "#shared/now.ts";
 import { createRequestScoped } from "#shared/request-scoped.ts";
 
 const SIGNED_PREFIX = "s1.";
@@ -37,7 +37,7 @@ const buildMessage = (timestamp: number, nonce: string): string =>
 
 /** Create a signed CSRF token: s1.{timestamp}.{nonce}.{hmac} */
 export const signCsrfToken = async (): Promise<string> => {
-  const timestamp = Math.floor(nowMs() / 1000);
+  const timestamp = nowSeconds();
   const nonce = generateSecureToken();
   const message = buildMessage(timestamp, nonce);
   const hmac = base64ToBase64Url(await hmacHash(message));
@@ -69,17 +69,12 @@ export const verifySignedCsrfToken = async (
   const providedHmac = parts[2];
   if (!timestampStr || !nonce || !providedHmac) return false;
 
-  const timestamp = Number.parseInt(timestampStr, 10);
-  if (Number.isNaN(timestamp)) return false;
-
-  // Check expiry
-  const nowS = Math.floor(nowMs() / 1000);
-  if (nowS - timestamp > maxAge) return false;
-  // Reject tokens from the future (clock skew tolerance: 60s)
-  if (timestamp - nowS > 60) return false;
-
-  // Recompute HMAC and compare
-  const message = buildMessage(timestamp, nonce);
-  const expectedHmac = base64ToBase64Url(await hmacHash(message));
-  return constantTimeEqual(expectedHmac, providedHmac);
+  return verifySignedValue(
+    timestampStr,
+    providedHmac,
+    // Valid for `maxAge` seconds after issue, rejecting future timestamps
+    // beyond 60s of clock-skew slack.
+    (timestamp, nowS) => nowS - timestamp <= maxAge && timestamp - nowS <= 60,
+    (timestamp) => buildMessage(timestamp, nonce),
+  );
 };
