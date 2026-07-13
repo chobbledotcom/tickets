@@ -23,29 +23,46 @@ before the fix (repo rule) and a green `deno task precommit`.
 
 ---
 
-## In progress — item 6 + item 3 as one change: the staged-checkout money model
+## Item 6 — validate before the provider (shipped, slice 1)
 
-Locked design (from the review discussion). The whole flow is:
+`createStagedCheckout` now fully validates the order **before** creating the
+provider session: the real quantities must fit and every listing must be on sale
+(`checkBatchAvailability`), or the customer is told up front
+(`public.checkout_unavailable`) and never sent to pay. It is the single
+chokepoint every new-booking entry point routes through, so no sold-out or
+off-sale order can reach the provider. The dead balance-attendee branch was
+removed (only new bookings run through here). Committed with refuse tests for an
+overbooked and an off-sale listing.
 
-1. **Staging (before payment).** Fully validate the order — **real-quantity**
-   availability, `active = 1` listing, valid lines. If anything is off, stop and
-   tell the customer **before** the provider session is created (reorder
-   `createStagedCheckout` so validation precedes session creation). If it is
-   plausible, save the whole booking at **quantity 0** with the **owed** (sale)
-   ledger legs (reuse the existing owed-only poster in `checkout-complete.ts` —
-   sale legs, no payment/fee).
-2. **Payment happens.**
-3. **Activation (after payment).** Set the real quantities and add the
-   **received-funds** (payment) legs. The booking + owed are already saved, so
-   this step is small and robust.
+## Item 3 — staged money model: DECISION (keep legs at activation)
 
-The only two failure situations become:
-- **Before payment:** the customer is told clearly and is never sent to the
-  provider.
-- **After payment:** the full booking is already saved and the ledger is
-  accurate, so we can complete it or warn the operator.
+The locked design was "owed legs at staging, received legs at activation." On
+deep inspection this conflicted with the ledger's core invariant and bought
+nothing, so **the operator chose to keep all legs at activation** — no
+owed-legs-at-staging, no two-group split. Why:
 
-### We never hold a seat (document in AGENTS.md)
+- **The ledger posts an event group as one immutable set.** `assertEventMatches`
+  rejects a replay that adds or omits a leg, so you cannot post owed legs at
+  staging and grow that group with the payment leg later. Owed-at-staging would
+  have to be **two** event groups (the balance-payment pattern).
+- **Per-row `price_paid` is sale-scoped to the row's single stamped
+  `ledger_event_group`** (`select.ts` `pricePaidFromLedger`), and the
+  "incomplete sale" detection assumes the payment leg shares that group
+  (`listing-overview-stats.ts`). A two-group split needs careful handling to
+  avoid misreading paid bookings.
+- **A pending stage is excluded from sums for free.** Because activation posts
+  every leg and staging posts none, a pending staged booking has **zero** ledger
+  legs — it contributes nothing to any sum, and its quantity-0 rows claim no
+  capacity and show no money. So the totals are identical to the owed-at-staging
+  design, with none of the rework.
+- **Activation is already atomic** (one transaction: set quantities + post all
+  legs + finalize payment + flip stage), so there is no partial-state bug to fix.
+
+Consequences: slices 2–4 (owed-at-staging, exclude-pending-from-sums,
+delete-legs-on-abandon) are **unnecessary** and dropped. A pruned/abandoned
+pending stage just deletes its quantity-0 attendee + rows (no legs to delete).
+
+### We never hold a seat (still document in AGENTS.md)
 
 Quantity-0 staging means a checkout **never reserves a seat**. First payment to
 land wins; a second person paying for the genuinely-last seat is refunded (rare,
@@ -53,47 +70,14 @@ handled by the refund path). We do **not** reserve because holding seats invites
 botting and ghost-checkout lockouts on exactly the scarce listings where it
 hurts most. This has come up repeatedly — it is policy.
 
-### Staged ledger entries are excluded from sums, and deletable on abandon
+### Remaining item-3 Codex findings
 
-Two deliberate ledger-policy points (document in AGENTS.md alongside the
-append-only rule):
-
-- **A pending stage's ledger legs do not count in any ledger sum.** The
-  exclusion is **derived from the link** — a leg is skipped whenever its
-  attendee currently has a pending checkout stage (leg → attendee → pending
-  stage). There is **no `staged` boolean** on transfers; the stage state is the
-  single source of truth. The instant the stage flips to `booked` (payment
-  landed) the leg counts automatically; no separate "confirm the ledger" write.
-  Implementation note: the sums are SQL aggregates spread across
-  `accounting/projection-sql.ts`, `accounting/queries.ts`,
-  `accounting/listing-money-totals.ts`, `db/listing-overview-stats.ts`, and the
-  `allBalances` fold in `ledger/project.ts` over rows from `accounting/rows.ts`
-  — the "exclude pending-staged attendees" filter must thread through the shared
-  sum-SQL, not one place.
-- **Pruning an abandoned/expired staged checkout deletes its ledger legs.** This
-  is the sanctioned exception to append-only: a pending stage's legs never
-  counted, so deleting them alongside the attendee/rows is clean (not a
-  reversal), and it keeps the ledger from bloating with the majority-of-checkouts
-  that are abandoned.
-
-### This also resolves two Codex findings
-
-- *"paid stage pruned as abandoned"* — the prune only ever deletes stages that
-  are still `pending` (never counted); a paid stage has flipped to `booked`, out
-  of the prune's reach.
-- *(item 8)* *"no-quantity edit strands held conflict cash"* — folded into the
-  admin-lifecycle work below.
-
-### Build order (green, committed slices)
-
-1. Staging side: reorder validation before the provider session; full
-   real-quantity + `active` check; fail-to-customer. **(self-contained, no
-   ledger changes)**
-2. Owed legs at staging; received legs only at activation.
-3. Exclude pending-staged legs from ledger sums (derived from the link).
-4. Delete legs when discarding/pruning an abandoned stage.
-5. AGENTS.md: no-seat-holding + the staged-ledger exception.
-6. Tests throughout.
+- *"paid stage pruned as abandoned"* — the prune only ever deletes stages still
+  `pending`; a paid stage has flipped to `booked`, out of the prune's reach.
+  Verify a direct test covers this.
+- *"deleted-listing refund reuses an empty staged attendee"* (store-refund.ts) —
+  the delete/stage race can strand a paid order on a staged attendee whose rows
+  were cascaded away. Restore the signed ghost rows (or close the race).
 
 ---
 
