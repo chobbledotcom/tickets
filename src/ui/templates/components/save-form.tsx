@@ -47,3 +47,29 @@ export const SaveForm = ({
     </SubmitButton>
   </CsrfForm>
 );
+
+/** Build a form component that wraps its body in a {@link SaveForm}. Give it a
+ *  function from the component's props to the form's submit configuration and
+ *  body; the factory wires the shared `<SaveForm action id …>` scaffold once, so
+ *  no two "fields, then save" form components repeat it. Any props type that
+ *  carries an `action` (and optional `id`) works, so a new such form is one
+ *  `saveFormComponent(...)` call rather than another hand-written wrapper. */
+export const saveFormComponent =
+  <P extends { action: string; id?: string }>(
+    toForm: (props: P) => {
+      submitLabel: string;
+      submitIcon?: IconName;
+      submitClass?: string;
+      enctype?: string;
+      class?: string;
+      children: Child;
+    },
+  ) =>
+  (props: P): JSX.Element => {
+    const { children, ...form } = toForm(props);
+    return (
+      <SaveForm action={props.action} id={props.id} {...form}>
+        {children}
+      </SaveForm>
+    );
+  };

@@ -34,6 +34,7 @@ import {
   CheckboxLabel,
   IdCheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
+import { quantityHeader } from "#templates/components/header-row.tsx";
 import {
   LinkedItemsCheckboxes,
   toLinkedItemOptions,
@@ -161,8 +162,8 @@ export const adminQuestionsPage = (
     columns: (
       <>
         <th>{t("questions.question_column")}</th>
-        <th class={colClass("quantity")}>{t("questions.answers_column")}</th>
-        <th class={colClass("quantity")}>{t("questions.listings_column")}</th>
+        {quantityHeader("questions.answers_column")}
+        {quantityHeader("questions.listings_column")}
       </>
     ),
     emptyText: t("questions.no_questions"),

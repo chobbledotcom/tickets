@@ -5,7 +5,7 @@ import type { AdminSession } from "#shared/types.ts";
 import { adminRecalculatePage } from "#templates/admin/recalculate.tsx";
 import type { IconName } from "#templates/components/actions.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
-import { SaveForm } from "#templates/components/save-form.tsx";
+import { saveFormComponent } from "#templates/components/save-form.tsx";
 
 type StackBaseProps = {
   children: Child;
@@ -48,7 +48,9 @@ export type FormSection = {
  *  function: each section is rendered in order and the results are joined
  *  into one fragment. Shared by the form-section and guide-section folds. */
 export const sectionsRenderer =
-  <Section,>(renderSection: (section: Section) => JSX.Element) =>
+  <Section,>(
+    renderSection: (section: Section) => JSX.Element,
+  ): ((sections: readonly Section[]) => JSX.Element) =>
   (sections: readonly Section[]): JSX.Element => (
     <>{sections.map(renderSection)}</>
   );
@@ -181,28 +183,17 @@ export const CheckboxesFieldset = <T extends { id: number; name: string }>({
     </fieldset>
   );
 
-export const CheckboxForm = ({
-  action,
-  children,
-  id,
-  submitIcon = "save",
-  submitLabel,
-}: {
+export const CheckboxForm = saveFormComponent<{
   action: string;
   children: Child;
   id?: string;
   submitIcon?: IconName;
   submitLabel: string;
-}): JSX.Element => (
-  <SaveForm
-    action={action}
-    id={id}
-    submitIcon={submitIcon}
-    submitLabel={submitLabel}
-  >
-    <fieldset class="checkboxes">{children}</fieldset>
-  </SaveForm>
-);
+}>(({ children, submitIcon = "save", submitLabel }) => ({
+  children: <fieldset class="checkboxes">{children}</fieldset>,
+  submitIcon,
+  submitLabel,
+}));
 
 export type RunningTotalsConfig = {
   className?: string;
