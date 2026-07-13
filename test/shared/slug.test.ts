@@ -45,13 +45,20 @@ describe("slug", () => {
       }
     });
 
-    test("generates different slugs on multiple calls", () => {
-      const slugs = new Set<string>();
-      for (let i = 0; i < 20; i++) {
-        slugs.add(generateSlug());
-      }
-      // With ~1.15M combinations, 20 slugs should all be unique
-      expect(slugs.size).toBe(20);
+    test("generates different slugs when the randomness differs", () => {
+      // Deterministic: two disjoint Math.random sequences must give two
+      // different slugs — a cached or constant slug would ignore the
+      // randomness. Replaces a birthday-flaky "20 random draws never collide"
+      // assertion, which genuinely collided about once per 6,000 CI runs.
+      const first = withRandomSequence(
+        [0.35, 0.75, 0.3, 0.7, 0.56, 0.1, 0.9, 0.5, 0.1],
+        () => generateSlug(),
+      );
+      const second = withRandomSequence(
+        [0.05, 0.15, 0.8, 0.2, 0.06, 0.6, 0.4, 0.01, 0.9],
+        () => generateSlug(),
+      );
+      expect(first).not.toBe(second);
     });
 
     test("shuffles the guaranteed digits/letters via a real Fisher-Yates pass", () => {
