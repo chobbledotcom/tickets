@@ -469,7 +469,12 @@ export const defineCrudApi = <
       readBack: lookupAfterWrite,
       transactional: Boolean(config.sideEffect || config.afterWrite),
     });
-    return respondWithRow(fullRow!, action, status);
+    // writeEntity returns null when the just-written row can't be read back —
+    // an update whose row was deleted between the entityRoute lookup and the
+    // commit. Report a clean not-found (as defineResource's update path does)
+    // rather than dereferencing null in respondWithRow.
+    if (!fullRow) return apiErrorResponse(`${singular} not found`, 404);
+    return respondWithRow(fullRow, action, status);
   };
 
   /** Validate raw input against config.validate, then invoke fn with the typed
