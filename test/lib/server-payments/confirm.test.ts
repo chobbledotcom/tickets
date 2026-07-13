@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
   expectHtmlResponse,
@@ -100,9 +101,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
 
           // Verify attendee was created with encrypted PII blob
-          const { getAttendeesRaw } = await import(
-            "#shared/db/attendees/queries.ts"
-          );
           const attendees = await getAttendeesRaw(listing.id);
           expect(attendees.length).toBe(1);
           expect(attendees[0]?.pii_blob).not.toBe("");
@@ -283,9 +281,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           expect(response.status).toBe(200);
 
           // Verify attendee was created with correct quantity
-          const { getAttendeesRaw } = await import(
-            "#shared/db/attendees/queries.ts"
-          );
           const attendees = await getAttendeesRaw(listing.id);
           expect(attendees.length).toBe(1);
           expect(attendees[0]?.quantity).toBe(3);

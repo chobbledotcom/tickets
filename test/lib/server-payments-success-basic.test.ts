@@ -14,6 +14,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { twoListingsAttendees } from "./attendee-read-helpers.ts";
 
 /** Assert every package member's most recent booking landed on `date` and
  *  carries the package's group id — the shared check for a dated package
@@ -94,11 +95,10 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
 
         // Verify attendees created for both listings
-        const { getAttendeesRaw } = await import(
-          "#shared/db/attendees/queries.ts"
+        const [attendees1, attendees2] = await twoListingsAttendees(
+          listing1.id,
+          listing2.id,
         );
-        const attendees1 = await getAttendeesRaw(listing1.id);
-        const attendees2 = await getAttendeesRaw(listing2.id);
         expect(attendees1.length).toBe(1);
         expect(attendees2.length).toBe(1);
         expect(attendees2[0]?.quantity).toBe(2);

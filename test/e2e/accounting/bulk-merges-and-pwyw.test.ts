@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeAccount, WRITEOFF } from "#shared/accounting/accounts.ts";
-import {
-  accountBalance,
-  transfersByAccount,
-} from "#shared/accounting/queries.ts";
+import { accountBalance } from "#shared/accounting/queries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { expectFlash, expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -15,6 +12,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { attendeeLegsOfKind } from "./_shared.ts";
 import {
   completePaidOrder,
   describeAccounting,
@@ -30,12 +28,34 @@ import {
   adminPageHtml,
   assertRenderedIncome,
   incomeOf,
-  legsOfKind,
   norm,
   owedBy,
   sumOfAllBalances,
   worldBalance,
 } from "./ledger-helpers.ts";
+
+/** Post a keep-target merge that discards the source duplicate under one money
+ *  decision (credit the over-payment back, or write it off). */
+const keepTargetMerge = (
+  targetId: number,
+  {
+    bookingField,
+    version,
+    sourceToken,
+    money,
+  }: {
+    bookingField: string;
+    version: string;
+    sourceToken: string;
+    money: string;
+  },
+): Promise<Response> =>
+  mergePost(targetId, {
+    [bookingField]: "keep_target",
+    [moneyFieldFor(bookingField)]: money,
+    merge_version: version,
+    source_token: sourceToken,
+  });
 
 describeAccounting(() => {
   test("a bulk refund continues past a failure and reverses only the successes", async () => {
@@ -87,8 +107,7 @@ describeAccounting(() => {
 
     // The two successes were reversed; the declined one keeps its sale and cash.
     const refundCashCount = async (id: number): Promise<number> =>
-      legsOfKind(await transfersByAccount(attendeeAccount(id)), "refund_cash")
-        .length;
+      (await attendeeLegsOfKind(id, "refund_cash")).length;
     expect(await refundCashCount(one.id)).toBe(1);
     expect(await refundCashCount(three.id)).toBe(1);
     expect(await refundCashCount(two.id)).toBe(0);
@@ -125,10 +144,7 @@ describeAccounting(() => {
       expect(mockRefund.calls.length).toBe(1);
     });
     expect(await owedBy(attendeeId)).toBe(0);
-    const refundCash = legsOfKind(
-      await transfersByAccount(attendeeAccount(attendeeId)),
-      "refund_cash",
-    );
+    const refundCash = await attendeeLegsOfKind(attendeeId, "refund_cash");
     expect(refundCash.length).toBe(1);
 
     // Transparency: the money event shows in the attendee's activity log.
@@ -148,12 +164,9 @@ describeAccounting(() => {
       )(again);
       expect(mockRefund.calls.length).toBe(0);
     });
-    expect(
-      legsOfKind(
-        await transfersByAccount(attendeeAccount(attendeeId)),
-        "refund_cash",
-      ).length,
-    ).toBe(1);
+    expect((await attendeeLegsOfKind(attendeeId, "refund_cash")).length).toBe(
+      1,
+    );
     expect(await sumOfAllBalances()).toBe(0);
   });
 
@@ -174,11 +187,11 @@ describeAccounting(() => {
     // Keep the target ticket; CREDIT the discarded source payment (both decisions
     // are scraped from the rendered form, then applied).
     const { version, bookingField } = await mergePreview(targetId, sourceToken);
-    const merged = await mergePost(targetId, {
-      [bookingField]: "keep_target",
-      [moneyFieldFor(bookingField)]: "credit",
-      merge_version: version,
-      source_token: sourceToken,
+    const merged = await keepTargetMerge(targetId, {
+      bookingField,
+      money: "credit",
+      sourceToken,
+      version,
     });
     expect(merged.status).toBe(302);
 
@@ -206,11 +219,11 @@ describeAccounting(() => {
     const writeoffBefore = norm(await accountBalance(WRITEOFF));
 
     const { version, bookingField } = await mergePreview(targetId, sourceToken);
-    const merged = await mergePost(targetId, {
-      [bookingField]: "keep_target",
-      [moneyFieldFor(bookingField)]: "writeoff",
-      merge_version: version,
-      source_token: sourceToken,
+    const merged = await keepTargetMerge(targetId, {
+      bookingField,
+      money: "writeoff",
+      sourceToken,
+      version,
     });
     expect(merged.status).toBe(302);
 

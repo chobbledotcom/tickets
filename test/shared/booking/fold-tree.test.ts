@@ -124,6 +124,14 @@ const expectFoldError = (
   expect(fold.error).toBe(error);
 };
 
+/** Assert a fold succeeded, narrowing it to the ok branch so the caller can
+ *  read its folded fields without a repeated `if (!fold.ok) return;` guard. */
+function expectFoldOk(
+  fold: ReturnType<typeof foldBookingTree>,
+): asserts fold is Extract<ReturnType<typeof foldBookingTree>, { ok: true }> {
+  expect(fold.ok).toBe(true);
+}
+
 /** A pay-more child priced £10–£50 (minor units). */
 const PAY_MORE_CHILD: Partial<ListingWithCount> = {
   can_pay_more: true,
@@ -184,8 +192,7 @@ describe("foldBookingTree — walking the tree", () => {
       formFrom({ child_qty_1_9: "3" }),
       baseOrder(new Map([[1, 3]])),
     );
-    expect(fold.ok).toBe(true);
-    if (!fold.ok) return;
+    expectFoldOk(fold);
     // One allocation against the total, never one per path — and the parent
     // lists once in the folded cart despite its two nodes.
     expect(fold.allocations).toEqual([{ childId: 9, parentId: 1, qty: 3 }]);
@@ -196,8 +203,7 @@ describe("foldBookingTree — walking the tree", () => {
 
   test("auto-fills a sole bookable child to the whole parent quantity", () => {
     const fold = foldOneChild({ max_quantity: 9 }, {}, 3);
-    expect(fold.ok).toBe(true);
-    if (!fold.ok) return;
+    expectFoldOk(fold);
     expect(fold.allocations).toEqual([{ childId: 9, parentId: 1, qty: 3 }]);
     expect(fold.quantities.get(9)).toBe(3);
   });

@@ -64,13 +64,22 @@ describeWithEnv(
         return { aA, aB, attendeeId, qA, qB };
       };
 
-      /** Answer qA with its real option and qB with `qbAnswer`, then submit the
-       *  edit under `name`. Returns the POST response. */
-      const submitAnswerEdit = async (
+      /** The set of answer ids stored for `attendeeId`. */
+      const savedAnswerIds = async (attendeeId: number): Promise<Set<number>> =>
+        new Set(
+          (await getAttendeeAnswersBatch([attendeeId], { texts: false })).get(
+            attendeeId,
+          ) ?? [],
+        );
+
+      /** Answer qA with its real option and qB with `qbAnswer`, submit the edit
+       *  under `name`, confirm it saved (302), and return the stored answer ids
+       *  so each test can assert which answers survived. */
+      const saveAnswerEdit = async (
         ids: Awaited<ReturnType<typeof setupMultiEventQuestions>>,
         qbAnswer: string,
         name: string,
-      ): Promise<Response> => {
+      ): Promise<Set<number>> => {
         const form = await buildAttendeeEditForm(ids.attendeeId, {
           extra: {
             [`question_${ids.qA.id}`]: String(ids.aA.id),
@@ -82,16 +91,9 @@ describeWithEnv(
           `/admin/attendees/${ids.attendeeId}`,
           form,
         );
-        return response;
+        expect(response.status).toBe(302);
+        return savedAnswerIds(ids.attendeeId);
       };
-
-      /** The set of answer ids stored for `attendeeId`. */
-      const savedAnswerIds = async (attendeeId: number): Promise<Set<number>> =>
-        new Set(
-          (await getAttendeeAnswersBatch([attendeeId], { texts: false })).get(
-            attendeeId,
-          ) ?? [],
-        );
 
       test("edit page renders questions from every booked event", async () => {
         const { attendeeId } = await setupMultiEventQuestions();
@@ -110,15 +112,12 @@ describeWithEnv(
         const ids = await setupMultiEventQuestions();
 
         // Submit both answers, as the rendered (pre-checked) form would.
-        const response = await submitAnswerEdit(
+        const saved = await saveAnswerEdit(
           ids,
           String(ids.aB.id),
           "Multi Edited",
         );
-        expect(response.status).toBe(302);
-
         // Both answers survive — not just the first event's.
-        const saved = await savedAnswerIds(ids.attendeeId);
         expect(saved.has(ids.aA.id)).toBe(true);
         expect(saved.has(ids.aB.id)).toBe(true);
       });
@@ -127,10 +126,7 @@ describeWithEnv(
         const ids = await setupMultiEventQuestions();
 
         // Valid answer for qA; a bogus id for qB that isn't one of its options.
-        const response = await submitAnswerEdit(ids, "99999", "Multi");
-        expect(response.status).toBe(302);
-
-        const saved = await savedAnswerIds(ids.attendeeId);
+        const saved = await saveAnswerEdit(ids, "99999", "Multi");
         // The bogus id is silently dropped (admin answers are optional), never
         // written — so the form can't inject an arbitrary answer row.
         expect(saved.has(ids.aA.id)).toBe(true);

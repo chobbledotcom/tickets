@@ -37,7 +37,8 @@ describeWithEnv(
         setupListingAndLogin(options);
 
       /** Log in, make a paid listing, and add one paid attendee to it. Returns
-       * the session together with the created attendee. */
+       * the session, the created attendee, and a bound `deleteIncomplete` that
+       * POSTs the delete-incomplete route for that attendee. */
       const setupPaidAttendee = async (
         name: string,
         email: string,
@@ -53,7 +54,46 @@ describeWithEnv(
           paymentId,
           pricePaid,
         );
-        return { ...session, attendee };
+        const deleteIncomplete = (): Promise<Response> =>
+          submitDeleteIncomplete(
+            session.listing.id,
+            attendee.id,
+            session.cookie,
+            session.csrfToken,
+          );
+        return { ...session, attendee, deleteIncomplete };
+      };
+
+      /** Assert a delete-incomplete POST was refused: it redirects to the
+       * roster with no flash and the attendee is still there. */
+      const expectDeleteRefused = async (
+        response: Response,
+        listingId: number,
+      ): Promise<void> => {
+        await expectFlashRedirect(
+          `/admin/listing/${listingId}/attendees`,
+          undefined,
+          false,
+        )(response);
+        const rows = await getAttendeesRaw(listingId);
+        expect(rows.length).toBe(1);
+      };
+
+      /** Assert a delete-incomplete POST succeeded: it redirects to the roster
+       * with the removal flash and the attendee is gone. */
+      const expectDeleteSucceeded = async (
+        response: Response,
+        listingId: number,
+        attendeeId: number,
+      ): Promise<void> => {
+        await expectFlashRedirect(
+          `/admin/listing/${listingId}/attendees`,
+          "Incomplete registration removed",
+        )(response);
+        const { getAttendeeRaw } = await import(
+          "#shared/db/attendees/queries.ts"
+        );
+        expect(await getAttendeeRaw(attendeeId)).toBeNull();
       };
 
       testRequiresAuth("/admin/listing/1/attendee/1/delete-incomplete", {
@@ -65,26 +105,15 @@ describeWithEnv(
       });
 
       test("deletes incomplete attendee without name confirmation", async () => {
-        const { listing, cookie, csrfToken, attendee } =
-          await setupPaidAttendee("Jane Stuck", "jane@example.com", "", 1000);
-
-        const response = await submitDeleteIncomplete(
-          listing.id,
-          attendee.id,
-          cookie,
-          csrfToken,
+        const { listing, attendee, deleteIncomplete } = await setupPaidAttendee(
+          "Jane Stuck",
+          "jane@example.com",
+          "",
+          1000,
         );
-        await expectFlashRedirect(
-          `/admin/listing/${listing.id}/attendees`,
-          "Incomplete registration removed",
-        )(response);
 
-        // Verify attendee was deleted
-        const { getAttendeeRaw } = await import(
-          "#shared/db/attendees/queries.ts"
-        );
-        const deleted = await getAttendeeRaw(attendee.id);
-        expect(deleted).toBeNull();
+        const response = await deleteIncomplete();
+        await expectDeleteSucceeded(response, listing.id, attendee.id);
 
         // The deletion is recorded in the listing activity log.
         const { getListingActivityLog } = await import(
@@ -102,39 +131,23 @@ describeWithEnv(
       });
 
       test("refuses to delete complete attendee via delete-incomplete", async () => {
-        const { listing, cookie, csrfToken, attendee } =
-          await setupPaidAttendee(
-            "John Paid",
-            "john@example.com",
-            "pi_test_123",
-            1000,
-          );
-
-        const response = await submitDeleteIncomplete(
-          listing.id,
-          attendee.id,
-          cookie,
-          csrfToken,
+        const { listing, deleteIncomplete } = await setupPaidAttendee(
+          "John Paid",
+          "john@example.com",
+          "pi_test_123",
+          1000,
         );
-        await expectFlashRedirect(
-          `/admin/listing/${listing.id}/attendees`,
-          undefined,
-          false,
-        )(response);
 
-        // Verify attendee was NOT deleted (still exists)
-        const rows = await getAttendeesRaw(listing.id);
-        expect(rows.length).toBe(1);
+        await expectDeleteRefused(await deleteIncomplete(), listing.id);
       });
 
       test("refuses to delete empty-payment-id attendee with processed payment reference", async () => {
-        const { listing, cookie, csrfToken, attendee } =
-          await setupPaidAttendee(
-            "Balance Paid",
-            "balance-paid@example.com",
-            "",
-            1000,
-          );
+        const { listing, attendee, deleteIncomplete } = await setupPaidAttendee(
+          "Balance Paid",
+          "balance-paid@example.com",
+          "",
+          1000,
+        );
         await reserveSession("balance_paid_delete_guard");
         await finalizeSession(
           "balance_paid_delete_guard",
@@ -143,20 +156,7 @@ describeWithEnv(
           "pi_balance_paid",
         );
 
-        const response = await submitDeleteIncomplete(
-          listing.id,
-          attendee.id,
-          cookie,
-          csrfToken,
-        );
-        await expectFlashRedirect(
-          `/admin/listing/${listing.id}/attendees`,
-          undefined,
-          false,
-        )(response);
-
-        const rows = await getAttendeesRaw(listing.id);
-        expect(rows.length).toBe(1);
+        await expectDeleteRefused(await deleteIncomplete(), listing.id);
       });
 
       test("refuses to delete admin-added attendee on paid listing via delete-incomplete", async () => {
@@ -175,15 +175,7 @@ describeWithEnv(
           cookie,
           csrfToken,
         );
-        await expectFlashRedirect(
-          `/admin/listing/${listing.id}/attendees`,
-          undefined,
-          false,
-        )(response);
-
-        // Verify attendee was NOT deleted
-        const rows = await getAttendeesRaw(listing.id);
-        expect(rows.length).toBe(1);
+        await expectDeleteRefused(response, listing.id);
       });
 
       test("deletes incomplete attendee on free can_pay_more listing", async () => {
