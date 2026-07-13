@@ -29,7 +29,7 @@ import type { TxScope } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 import type { ApiResult } from "#shared/fetch.ts";
 import type { ResponseFn } from "#shared/response-fn.ts";
-import { writeEntity } from "#shared/rest/write-entity.ts";
+import { type JoinWrite, writeEntity } from "#shared/rest/write-entity.ts";
 import type { AdminSession } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
@@ -456,18 +456,22 @@ export const defineCrudApi = <
     const prepared = await prepareSideEffect(inputs);
     if ("error" in prepared) return apiErrorResponse(prepared.error);
     const preparedValue = prepared.value;
+    const joinWrites: JoinWrite[] = [];
+    if (config.sideEffect) {
+      joinWrites.push((tx, rowId) =>
+        config.sideEffect!.persist(tx, rowId, preparedValue),
+      );
+    }
+    if (config.afterWrite) {
+      joinWrites.push((tx, rowId) => config.afterWrite!(tx, rowId, input));
+    }
     const fullRow = await writeEntity<FullRow>({
       afterCommit: config.afterCommit,
       buildStatement: getStatement,
       existingId,
-      joinWrite: async (tx, rowId) => {
-        if (config.sideEffect)
-          await config.sideEffect.persist(tx, rowId, preparedValue);
-        if (config.afterWrite) await config.afterWrite(tx, rowId, input);
-      },
+      joinWrites,
       plainWrite: () => plainWrite() as unknown as Promise<FullRow | null>,
       readBack: lookupAfterWrite,
-      transactional: Boolean(config.sideEffect || config.afterWrite),
     });
     // writeEntity returns null when the just-written row can't be read back —
     // an update whose row was deleted between the entityRoute lookup and the
