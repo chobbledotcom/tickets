@@ -12,7 +12,7 @@
 import { t } from "#i18n";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { MaskedTextarea } from "#templates/components/masked-textarea.tsx";
-import { SettingsSection } from "#templates/components/settings-section.tsx";
+import { settingsSectionFrom } from "#templates/components/settings-section.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
 /* jscpd:ignore-end */
 
@@ -52,29 +52,26 @@ export const WalletSettingsForm = (config: {
   configured: boolean;
   textFields: readonly WalletTextField[];
   secretFields: readonly WalletSecretField[];
-}): JSX.Element => (
-  <SettingsSection
-    action={config.action}
-    description={config.description}
-    submitLabel={config.submitLabel}
-    title={config.title}
-  >
-    {config.textFields.map((field) => (
-      <TextField
-        label={t(field.labelKey)}
-        name={field.name}
-        placeholder={field.placeholder}
-        type={field.type}
-        value={field.value}
-      />
-    ))}
-    {config.secretFields.map((field) => (
-      <MaskedTextarea
-        configured={config.configured}
-        labelKey={field.labelKey}
-        name={field.name}
-        placeholder={field.placeholder}
-      />
-    ))}
-  </SettingsSection>
-);
+}): JSX.Element =>
+  settingsSectionFrom(
+    config,
+    <>
+      {config.textFields.map((field) => (
+        <TextField
+          label={t(field.labelKey)}
+          name={field.name}
+          placeholder={field.placeholder}
+          type={field.type}
+          value={field.value}
+        />
+      ))}
+      {config.secretFields.map((field) => (
+        <MaskedTextarea
+          configured={config.configured}
+          labelKey={field.labelKey}
+          name={field.name}
+          placeholder={field.placeholder}
+        />
+      ))}
+    </>,
+  );

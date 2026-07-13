@@ -11,6 +11,7 @@
  * secondary action in a `<footer>`) keep using {@link CsrfForm} directly.
  */
 
+import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
 import { CsrfFormShell } from "#shared/forms.tsx";
 
@@ -57,4 +58,30 @@ export const SettingsSection = ({
     </div>
     {children}
   </CsrfFormShell>
+);
+
+/** The config subset that maps straight onto {@link SettingsSection}. The
+ *  config-driven sections (boolean toggles, wallet credentials, …) share this
+ *  shape and render through {@link settingsSectionFrom}. */
+export type SettingsSectionConfig = {
+  action: string;
+  title: string;
+  description: Child;
+  submitLabel?: string;
+};
+
+/** Render a {@link SettingsSection} from a config object plus its body,
+ *  defaulting the submit label to "Save". */
+export const settingsSectionFrom = (
+  config: SettingsSectionConfig,
+  children: Child,
+): JSX.Element => (
+  <SettingsSection
+    action={config.action}
+    description={config.description}
+    submitLabel={config.submitLabel ?? t("common.save")}
+    title={config.title}
+  >
+    {children}
+  </SettingsSection>
 );
