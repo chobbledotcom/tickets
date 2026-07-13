@@ -156,7 +156,7 @@ describe("CollectionTable", () => {
       ),
     ).toBe(
       `<div class="table-scroll"><table><thead><tr><th>H</th></tr></thead>` +
-        `<tbody><tr><td>cell-a</td></tr></tbody></table></div>`,
+        "<tbody><tr><td>cell-a</td></tr></tbody></table></div>",
     );
   });
 });
