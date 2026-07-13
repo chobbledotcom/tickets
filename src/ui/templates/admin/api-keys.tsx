@@ -7,22 +7,19 @@ import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { apiKeyForm } from "#routes/admin/api-keys.ts";
 import type { EndpointDoc } from "#shared/admin-api-example.ts";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
-import {
-  DeleteSection,
-  GuideFooter,
-  SubmitButton,
-} from "#templates/components/actions.tsx";
+import { DeleteSection, GuideFooter } from "#templates/components/actions.tsx";
 import { sectionsRenderer } from "#templates/components/aggregate-sections.tsx";
 import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 
 /* jscpd:ignore-end */
 
@@ -120,11 +117,14 @@ export const adminApiKeysPage = (
       <br />
 
       <WritableOnly>
-        <CsrfForm action="/admin/api-keys">
+        <SaveForm
+          action="/admin/api-keys"
+          submitIcon="plus"
+          submitLabel={t("api_keys.create_submit")}
+        >
           <h2>{t("api_keys.create_legend")}</h2>
           <Raw html={apiKeyForm.render()} />
-          <SubmitButton icon="plus">{t("api_keys.create_submit")}</SubmitButton>
-        </CsrfForm>
+        </SaveForm>
       </WritableOnly>
 
       <GuideFooter href="/admin/guide#api">
