@@ -17,7 +17,7 @@
 import { unique } from "#fp";
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import {
-  classifySession,
+  classifySessionIntent,
   paymentSessionErrorLogger,
   validatePaidSession,
 } from "#routes/api/payment-processing/classify.ts";
@@ -25,7 +25,6 @@ import {
   formatPaymentError,
   processPaymentSession,
 } from "#routes/api/payment-processing/index.ts";
-import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import { getPaymentProviderOrLog } from "#routes/api/payment-processing/refunds.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
@@ -429,8 +428,8 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // account, or replayed/corrupt data), so we acknowledge without processing or
   // refunding — refunding an unverifiable session could refund another
   // instance's payment.
-  const verdict = await classifySession(session);
-  if (verdict.verdict === "ignore") {
+  const classified = await classifySessionIntent(session);
+  if (classified === null) {
     logDebug(
       "Webhook",
       `Ignoring webhook for unverifiable session (origin=${session.metadata._origin}): ${payload}`,
@@ -438,10 +437,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     return webhookAckResponse();
   }
 
-  // A valid proof means the metadata is byte-for-byte what we signed, so the
-  // intent always parses — extractIntent only returns null on metadata we never
-  // produced.
-  const intent = extractIntent(session)!;
+  const { intent, verdict } = classified;
   const listingIdForLog = intent.items[0]?.e;
   const result = await processPaymentSession(session.id, {
     intent,

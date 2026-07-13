@@ -22,7 +22,7 @@ import { createRequestScoped } from "#shared/request-scoped.ts";
 import { ReturnUrlField } from "#shared/return-url-field.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
-import { SaveForm } from "#templates/components/save-form.tsx";
+import { saveFormComponent } from "#templates/components/save-form.tsx";
 /* jscpd:ignore-end */
 
 export type FieldType =
@@ -724,18 +724,7 @@ export const hiddenInputs = (
     <input name={name} type="hidden" value={value} />
   ));
 
-export const ConfirmForm = ({
-  action,
-  name,
-  label,
-  buttonText,
-  danger = true,
-  returnUrl,
-  id,
-  hiddenFields,
-  confirmName = true,
-  children,
-}: {
+type ConfirmFormProps = {
   action: string;
   name?: string;
   label?: string;
@@ -747,28 +736,44 @@ export const ConfirmForm = ({
   /** When false, omit the type-the-name input — a plain are-you-sure page. */
   confirmName?: boolean;
   children?: Child;
-}): JSX.Element => (
-  <SaveForm
-    action={action}
-    id={id}
-    submitIcon={danger ? "trash-2" : "check"}
-    submitLabel={buttonText}
-    {...(danger ? { submitClass: "danger" } : {})}
-  >
-    {children && <div class="prose">{children}</div>}
-    <ReturnUrlField returnUrl={returnUrl} />
-    {hiddenFields && hiddenInputs(Object.entries(hiddenFields))}
-    {confirmName && (
-      <label>
-        {label}
-        <input
-          autocomplete="off"
-          name="confirm_identifier"
-          placeholder={name}
-          required
-          type="text"
-        />
-      </label>
-    )}
-  </SaveForm>
+};
+
+/** A confirm-and-submit form: the shared save-form scaffold, filled with an
+ *  optional prose intro, the return-url and any hidden fields, and (unless
+ *  `confirmName` is false) the type-the-name box. A `danger` action turns the
+ *  submit button red and swaps its icon to the bin. */
+export const ConfirmForm = saveFormComponent<ConfirmFormProps>(
+  ({
+    name,
+    label,
+    buttonText,
+    danger = true,
+    returnUrl,
+    hiddenFields,
+    confirmName = true,
+    children,
+  }) => ({
+    submitIcon: danger ? "trash-2" : "check",
+    submitLabel: buttonText,
+    ...(danger ? { submitClass: "danger" } : {}),
+    children: (
+      <>
+        {children && <div class="prose">{children}</div>}
+        <ReturnUrlField returnUrl={returnUrl} />
+        {hiddenFields && hiddenInputs(Object.entries(hiddenFields))}
+        {confirmName && (
+          <label>
+            {label}
+            <input
+              autocomplete="off"
+              name="confirm_identifier"
+              placeholder={name}
+              required
+              type="text"
+            />
+          </label>
+        )}
+      </>
+    ),
+  }),
 );

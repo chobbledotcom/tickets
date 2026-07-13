@@ -14,6 +14,7 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
+/* jscpd:ignore-start */
 import { type IdRouteHandler, withEntity } from "#routes/entity.ts";
 import {
   errorRedirect,
@@ -21,6 +22,7 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
+/* jscpd:ignore-end */
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";

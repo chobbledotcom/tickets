@@ -37,8 +37,8 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import { setLogisticsAssignments } from "#shared/db/logistics.ts";
 import {
-  applyDemoOverrides,
   LOGISTICS_DEMO_FIELDS,
+  loadAfterDemoOverrides,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { parseCoordinatePair } from "#shared/validation/coordinates.ts";
@@ -108,9 +108,9 @@ const handleLogisticsSubmit = async (
 ): Promise<Response> => {
   // On demo instances the address is masked and the pin cleared before
   // anything is parsed or stored, like the attendee form's own submitters.
-  applyDemoOverrides(form, LOGISTICS_DEMO_FIELDS);
-
-  const entity = await loadAttendeeForEdit(attendeeId);
+  const entity = await loadAfterDemoOverrides(form, LOGISTICS_DEMO_FIELDS, () =>
+    loadAttendeeForEdit(attendeeId),
+  );
   if (!entity) return notFoundResponse();
 
   const values: LogisticsFormValues = {

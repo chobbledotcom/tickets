@@ -10,6 +10,7 @@ import type { ResultSet } from "@libsql/client";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import type { BlindIndex, OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
+/* jscpd:ignore-start */
 import {
   executeBatchWithResults,
   inPlaceholders,
@@ -19,6 +20,7 @@ import {
 } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowIso } from "#shared/now.ts";
+/* jscpd:ignore-end */
 
 /** One free-text answer's encrypted payload plus its blind index and plaintext.
  *  Built by {@link prepareStringRows} (pure CPU: HMAC + hybrid encryption, no

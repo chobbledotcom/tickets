@@ -247,7 +247,7 @@ export const unwrapKeyWithToken = async (
  */
 export const unwrapSessionDataKey = (session: {
   token: string;
-  wrappedDataKey?: WrappedKey;
+  wrappedDataKey: WrappedKey | null;
 }): Promise<CryptoKey> => {
   if (!session.wrappedDataKey) throw new Error("Session key unavailable");
   return unwrapKeyWithToken(session.wrappedDataKey, session.token);

@@ -7,7 +7,10 @@ import { renderMarkdown } from "#shared/markdown.ts";
 import type { NavModel } from "#shared/site-pages/types.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import type { Group, Image, ItemImageProjection } from "#shared/types.ts";
-import { LabelledAmount } from "#templates/components/labelled-amount.tsx";
+import {
+  LabelledAmount,
+  type LabelledAmountProps,
+} from "#templates/components/labelled-amount.tsx";
 import {
   type LeveledNavNode,
   leveledNav,
@@ -262,15 +265,9 @@ export const compareGroupsByName = (a: Group, b: Group): number =>
 /** A `<p>`-wrapped money line — the order-total rows shared by the public
  *  balance page and the admin attendee-balance panel. `label` carries its own
  *  trailing punctuation. */
-export const AmountLine = ({
-  label,
-  amount,
-}: {
-  label: Child;
-  amount: number;
-}): JSX.Element => (
+export const AmountLine = (props: LabelledAmountProps): JSX.Element => (
   <p>
-    <LabelledAmount amount={amount} label={label} />
+    <LabelledAmount {...props} />
   </p>
 );
 

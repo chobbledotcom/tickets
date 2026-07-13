@@ -88,7 +88,7 @@ import { parseQuestionAnswers } from "#shared/db/questions/parsing.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   ATTENDEE_DEMO_FIELDS,
-  applyDemoOverrides,
+  loadAfterDemoOverrides,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
@@ -199,12 +199,11 @@ const handleSubmitInner = async (
   session: AuthSession,
   form: FormParams,
 ): Promise<Response> => {
-  applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
-
-  const edit =
+  const edit = await loadAfterDemoOverrides(form, ATTENDEE_DEMO_FIELDS, () =>
     mode === "edit" && attendeeId !== null
-      ? await loadEditContext(attendeeId)
-      : EMPTY_EDIT_CONTEXT;
+      ? loadEditContext(attendeeId)
+      : Promise.resolve(EMPTY_EDIT_CONTEXT),
+  );
   if (edit === null) return notFoundResponse();
   const {
     attendee,
