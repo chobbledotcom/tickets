@@ -32,6 +32,19 @@ const SiteGuideFooter = ({
   </GuideFooter>
 );
 
+/** A /admin/site sub-page: the flash admin-page shell with the shared public-site
+ *  guide footer appended after the body, so every site editor ends the same way. */
+const siteAdminPage =
+  (title: string, active: string) =>
+  (session: AdminSession, error?: string, success?: string) =>
+  (body: JSX.Element): string =>
+    flashAdminPage(title, active)(session, error, success)(
+      <>
+        {body}
+        <SiteGuideFooter adminLevel={session.adminLevel} />
+      </>,
+    );
+
 /**
  * Homepage editor - website title + homepage text
  */
@@ -42,7 +55,7 @@ export const adminSiteHomePage = (
   error?: string,
   success?: string,
 ): string =>
-  flashAdminPage(t("site.home_title"), "/admin/site")(session, error, success)(
+  siteAdminPage(t("site.home_title"), "/admin/site")(session, error, success)(
     <>
       <h2>{t("site.home.heading")}</h2>
 
@@ -55,8 +68,6 @@ export const adminSiteHomePage = (
         />
         {SaveButton()}
       </CsrfForm>
-
-      <SiteGuideFooter adminLevel={session.adminLevel} />
     </>,
   );
 
@@ -134,7 +145,7 @@ export const adminSiteContactPage = (
   error?: string,
   success?: string,
 ): string =>
-  flashAdminPage(t("site.contact_title"), "/admin/site/contact")(
+  siteAdminPage(t("site.contact_title"), "/admin/site/contact")(
     session,
     error,
     success,
@@ -156,8 +167,6 @@ export const adminSiteContactPage = (
         enabled={contactForm.enabled}
         hasBusinessEmail={contactForm.hasBusinessEmail}
       />
-
-      <SiteGuideFooter adminLevel={session.adminLevel} />
     </>,
   );
 
@@ -201,7 +210,7 @@ export const adminSiteOrderPage = (
   error?: string,
   success?: string,
 ): string =>
-  flashAdminPage(t("site.order_title"), "/admin/site/order")(
+  siteAdminPage(t("site.order_title"), "/admin/site/order")(
     session,
     error,
     success,
@@ -234,7 +243,5 @@ export const adminSiteOrderPage = (
         <Raw html={siteOrderForm.render({ order_intro_text: introText })} />
         {SaveButton()}
       </CsrfForm>
-
-      <SiteGuideFooter adminLevel={session.adminLevel} />
     </>,
   );
