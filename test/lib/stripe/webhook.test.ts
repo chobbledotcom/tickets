@@ -47,6 +47,20 @@ const setupWhileFetchThrows = (thrown: unknown, url: string) =>
     return await setupWebhookEndpoint("sk_test_mock", url);
   });
 
+// When every fetch throws, endpoint setup fails with a non-empty string error
+// (the Stripe SDK wraps whatever was thrown, Error or not).
+const expectFetchThrowGivesStringError = async (
+  thrown: unknown,
+  url: string,
+): Promise<void> => {
+  const result = await setupWhileFetchThrows(thrown, url);
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    expect(typeof result.error).toBe("string");
+    expect(result.error!.length > 0).toBe(true);
+  }
+};
+
 describeStripe("stripe", () => {
   describe("setupWebhookEndpointImpl", () => {
     // setupWebhookEndpointImpl creates its own client via createStripeClient(secretKey),
@@ -199,18 +213,11 @@ describeStripe("stripe", () => {
     });
 
     test("returns error when createStripeClient or API call throws", async () => {
-      // Mock fetch to throw on all requests, exercising the outer catch block
-      const result = await setupWhileFetchThrows(
+      // An Error thrown on every request exercises the outer catch block.
+      await expectFetchThrowGivesStringError(
         new Error("Network unavailable"),
         "https://example.com/webhook/error-test",
       );
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        // Stripe SDK wraps connection errors with retry info
-        expect(typeof result.error).toBe("string");
-        expect(result.error!.length > 0).toBe(true);
-      }
     });
 
     test("catches error when deleting existing endpoint ID fails", async () => {
@@ -239,18 +246,11 @@ describeStripe("stripe", () => {
     });
 
     test("returns stringified error when non-Error is thrown", async () => {
-      // Mock fetch to throw a string (not an Error) to hit the String(err) path
-      const result = await setupWhileFetchThrows(
-        "string_error", // non-Error value
+      // A thrown string (not an Error) hits the String(err) path.
+      await expectFetchThrowGivesStringError(
+        "string_error",
         "https://example.com/webhook/non-error-throw",
       );
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        // Stripe SDK wraps thrown values, so error message comes from SDK wrapper
-        expect(typeof result.error).toBe("string");
-        expect(result.error!.length > 0).toBe(true);
-      }
     });
   });
 

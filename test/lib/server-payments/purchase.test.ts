@@ -30,6 +30,17 @@ const setupPaidListing = async (unitPrice: number, stripeKey?: string) => {
   });
 };
 
+// A free (price-0) listing in payments-enabled mode: a basic order redirects
+// straight to the thank-you page with no Stripe checkout.
+const expectFreeListingRedirectsToThanks = async (): Promise<void> => {
+  const listing = await setupPaidListing(0, "sk_test_fake_key");
+  const response = await submitTicketForm(listing.slug, {
+    email: "john@example.com",
+    name: "John Doe",
+  });
+  expectRedirect(response, "https://example.com/thanks");
+};
+
 describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
   describe("payment routes", () => {
     test("returns 404 for unsupported method on payment routes", async () => {
@@ -102,16 +113,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     });
 
     test("free ticket still works when payments enabled", async () => {
-      // Create a free listing (no price)
-      const listing = await setupPaidListing(0, "sk_test_fake_key");
-
-      const response = await submitTicketForm(listing.slug, {
-        email: "john@example.com",
-        name: "John Doe",
-      });
-
-      // Should redirect to thank you page
-      expectRedirect(response, "https://example.com/thanks");
+      await expectFreeListingRedirectsToThanks();
     });
 
     test("free customisable-days booking reserves the chosen number of days", async () => {
@@ -248,16 +250,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     });
 
     test("zero price ticket is treated as free", async () => {
-      // Create listing with 0 price
-      const listing = await setupPaidListing(0, "sk_test_fake_key");
-
-      const response = await submitTicketForm(listing.slug, {
-        email: "john@example.com",
-        name: "John Doe",
-      });
-
-      // Should redirect to thank you page (no payment required)
-      expectRedirect(response, "https://example.com/thanks");
+      await expectFreeListingRedirectsToThanks();
     });
 
     test("redirects to Stripe checkout with stripe-mock", async () => {
