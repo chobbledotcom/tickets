@@ -2,7 +2,7 @@ import { dateRange, formatDateLabel } from "#shared/dates.ts";
 import { epochMsToTzDate } from "#shared/timezone.ts";
 import type { DatePickerDate } from "#templates/date-picker.tsx";
 
-/** Build the selectable money-history days covered by stored activity. */
+/** Build the selectable Money days covered by stored activity. */
 export const pickerDatesFromBounds = (
   bounds: { minMs: number; maxMs: number } | null,
   today: string,

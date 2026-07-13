@@ -29,7 +29,7 @@
   "servicing.action.delete_event": "Delete service event",
   "servicing.action.record_cost": "Record service event cost",
   "servicing.action.edit": "Edit",
-  "servicing.action.view_money_history": "View money history",
+  "servicing.action.view_money_history": "View money",
   "servicing.error.daily_start_date": "Choose a start date for daily listings.",
   "servicing.error.invalid_cost": "Enter a valid positive cost amount. Choose a listing.",
   "servicing.error.invalid_cost_amount": "Enter a valid positive cost amount.",

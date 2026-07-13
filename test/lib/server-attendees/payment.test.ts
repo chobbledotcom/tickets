@@ -266,7 +266,7 @@ describeWithEnv(
         expect(response.status).toBe(302);
         expectFlash(
           response,
-          expect.stringContaining("Money history could not record it"),
+          expect.stringContaining("Money could not record it"),
           false,
         );
         // The error must not silently flip the payment to refunded: with no

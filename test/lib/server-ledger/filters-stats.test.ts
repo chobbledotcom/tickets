@@ -19,7 +19,7 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
     const html = await response.text();
     // The by-listing filter offers the whole-business "All listings" scope, and
     // the four business-wide totals render beneath it (no scope heading — the
-    // page is already titled "Money history").
+    // page is already titled "Money").
     expect(html).toContain("Everything");
     expect(html).not.toContain("<h2>Everything</h2>");
     expect(html).toContain("Total income earned");

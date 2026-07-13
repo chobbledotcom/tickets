@@ -62,7 +62,7 @@ export const renderLedger = (
   return adminLedgerPage(data, SESSION);
 };
 
-/** Rows from the money-history table, excluding unrelated page tables. */
+/** Rows from the Money table, excluding unrelated page tables. */
 export const ledgerRows = (html: string): string[] => {
   const header = html.indexOf("<th>Time</th>");
   const start = html.lastIndexOf("<table", header);

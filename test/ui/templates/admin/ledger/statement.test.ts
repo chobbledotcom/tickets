@@ -240,7 +240,7 @@ describe("adminAccountStatementPage", () => {
     expect(html).toContain(
       'href="/admin/ledger/attendee/7/add?return_url=%2Fadmin%2Fledger%2Fattendee%2F7"',
     );
-    expect(html).not.toContain("View full money history");
+    expect(html).not.toContain("View full money");
   });
 
   test("shows a zero balance for an account with no history", () => {
@@ -289,7 +289,7 @@ describe("adminAccountStatementPage", () => {
       }),
     );
     expect(html).toContain(
-      'href="/admin/ledger/writeoff/default"><span>View full money history</span></a>',
+      'href="/admin/ledger/writeoff/default"><span>View full money</span></a>',
     );
     expect(html).not.toContain("/admin/ledger/writeoff/default/add");
   });
